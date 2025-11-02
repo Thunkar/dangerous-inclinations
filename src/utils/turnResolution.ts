@@ -1,5 +1,11 @@
 import type { Player, TurnLogEntry } from '../types/game'
-import { getRingConfig, BURN_COSTS, SCOOP_ENERGY_COST, MAX_REACTION_MASS } from '../constants/rings'
+import {
+  getRingConfig,
+  BURN_COSTS,
+  SCOOP_ENERGY_COST,
+  MAX_REACTION_MASS,
+  mapSectorOnTransfer,
+} from '../constants/rings'
 
 export function resolvePlayerTurn(
   player: Player,
@@ -15,9 +21,14 @@ export function resolvePlayerTurn(
 
   // Phase 2: Transfer Resolution
   if (updatedShip.transferState) {
+    const oldRing = updatedShip.ring
+    const newRing = updatedShip.transferState.destinationRing
+    const newSector = mapSectorOnTransfer(oldRing, newRing, updatedShip.sector)
+
     updatedShip = {
       ...updatedShip,
-      ring: updatedShip.transferState.destinationRing,
+      ring: newRing,
+      sector: newSector,
       transferState: null,
     }
     logEntries.push({
@@ -25,7 +36,7 @@ export function resolvePlayerTurn(
       playerId: player.id,
       playerName: player.name,
       action: 'Transfer Complete',
-      result: `Arrived at Ring ${updatedShip.ring}`,
+      result: `Arrived at Ring ${updatedShip.ring}, Sector ${updatedShip.sector}`,
     })
   }
 
@@ -51,7 +62,7 @@ export function resolvePlayerTurn(
     const destinationRing = updatedShip.ring + direction * burnCost.rings
 
     // Clamp to valid ring range
-    const clampedDestination = Math.max(1, Math.min(8, destinationRing))
+    const clampedDestination = Math.max(1, Math.min(7, destinationRing))
 
     updatedShip = {
       ...updatedShip,

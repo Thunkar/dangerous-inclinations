@@ -8,7 +8,7 @@ import {
   Checkbox,
   Alert,
 } from '@mui/material'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { PlayerAction, BurnIntensity, Facing, Player } from '../types/game'
 import { BURN_COSTS } from '../constants/rings'
 
@@ -25,6 +25,17 @@ export function ActionSelector({ player, onActionSelect, onExecuteTurn }: Action
   const [activateScoop, setActivateScoop] = useState(false)
 
   const { powerAllocation, ship } = player
+
+  // Update pending action whenever settings change
+  useEffect(() => {
+    const action: PlayerAction = {
+      type: actionType,
+      burnDirection: actionType === 'burn' ? burnDirection : undefined,
+      burnIntensity: actionType === 'burn' ? burnIntensity : undefined,
+      activateScoop: activateScoop && actionType === 'coast',
+    }
+    onActionSelect(action)
+  }, [actionType, burnDirection, burnIntensity, activateScoop, onActionSelect])
 
   // Validation
   const needsRotation = actionType === 'burn' && ship.facing !== burnDirection
