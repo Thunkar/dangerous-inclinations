@@ -1,13 +1,12 @@
 import type { RingConfig } from '../types/game'
 
 export const RING_CONFIGS: RingConfig[] = [
-  { ring: 1, velocity: 8, radius: 50, sectors: 24 }, // 24 ÷ 8 = 3 sectors/turn (fastest)
-  { ring: 2, velocity: 6, radius: 90, sectors: 36 }, // 36 ÷ 6 = 6 sectors/turn
-  { ring: 3, velocity: 6, radius: 130, sectors: 48 }, // 48 ÷ 6 = 8 sectors/turn
-  { ring: 4, velocity: 4, radius: 170, sectors: 60 }, // 60 ÷ 4 = 15 sectors/turn
-  { ring: 5, velocity: 3, radius: 210, sectors: 72 }, // 72 ÷ 3 = 24 sectors/turn
-  { ring: 6, velocity: 3, radius: 250, sectors: 84 }, // 84 ÷ 3 = 28 sectors/turn
-  { ring: 7, velocity: 2, radius: 290, sectors: 96 }, // 96 ÷ 2 = 48 sectors/turn (slowest)
+  { ring: 1, velocity: 2, radius: 60, sectors: 6 },   // Fastest, largest sectors (1/3 revolution)
+  { ring: 2, velocity: 2, radius: 110, sectors: 8 },  // 1/4 revolution
+  { ring: 3, velocity: 2, radius: 160, sectors: 12 }, // 1/6 revolution
+  { ring: 4, velocity: 1, radius: 210, sectors: 12 }, // 1/12 revolution
+  { ring: 5, velocity: 1, radius: 260, sectors: 16 }, // 1/16 revolution
+  { ring: 6, velocity: 1, radius: 310, sectors: 24 }, // 1/24 revolution
 ]
 
 export const ENERGY_PER_TURN = 10
@@ -29,7 +28,19 @@ export function getRingConfig(ring: number): RingConfig | undefined {
 
 /**
  * Maps a sector number when transferring between rings with different sector counts.
- * Preserves angular position (e.g., 25% around Ring 1 → 25% around Ring 2).
+ *
+ * Uses angular position to map between rings. The calculation is simple:
+ * 1. Calculate what fraction of the ring you're at (currentSector / totalSectors)
+ * 2. Apply that same angular position to the destination ring
+ * 3. Round to nearest sector
+ *
+ * Sector counts: R1=6, R2=8, R3=12, R4=12, R5=16, R6=24
+ * All sector counts divide evenly into 24, making mapping predictable.
+ *
+ * Examples:
+ * - Ring 1 sector 3 (halfway) → Ring 3: sector 6 (also halfway)
+ * - Ring 3 sector 0 → Ring 1: sector 0 (both at 12 o'clock)
+ * - Ring 6 sector 12 → Ring 2: sector 4 (both at 6 o'clock)
  */
 export function mapSectorOnTransfer(
   fromRing: number,
@@ -39,14 +50,15 @@ export function mapSectorOnTransfer(
   const fromConfig = getRingConfig(fromRing)
   const toConfig = getRingConfig(toRing)
 
-  if (!fromConfig || !toConfig) return currentSector
+  if (!fromConfig || !toConfig) {
+    return 0
+  }
 
-  // Calculate angular position as a fraction (0.0 to 1.0)
-  const angularPosition = currentSector / fromConfig.sectors
+  // Calculate angular position as a fraction of the full circle (0 to 1)
+  const angularFraction = currentSector / fromConfig.sectors
 
-  // Map to new ring's sector count, rounding to nearest sector
-  const newSector = Math.round(angularPosition * toConfig.sectors)
+  // Map to destination ring and round to nearest sector
+  const mappedSector = Math.round(angularFraction * toConfig.sectors) % toConfig.sectors
 
-  // Handle wraparound (should rarely happen, but safety check)
-  return newSector % toConfig.sectors
+  return mappedSector
 }

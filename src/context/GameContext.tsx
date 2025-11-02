@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import type { GameState, Player, PowerAllocation, PlayerAction } from '../types/game'
 import { STARTING_REACTION_MASS } from '../constants/rings'
@@ -41,7 +41,7 @@ const createInitialPlayers = (): Player[] => [
     color: '#f44336',
     ship: {
       ring: 6,
-      sector: 15,
+      sector: 12,  // Ring 6 has 24 sectors (halfway around)
       facing: 'prograde',
       reactionMass: STARTING_REACTION_MASS,
       transferState: null,
@@ -61,7 +61,7 @@ const createInitialPlayers = (): Player[] => [
     color: '#4caf50',
     ship: {
       ring: 2,
-      sector: 8,
+      sector: 4,  // Ring 2 has 8 sectors (halfway around)
       facing: 'prograde',
       reactionMass: STARTING_REACTION_MASS,
       transferState: null,
@@ -87,7 +87,7 @@ const createInitialState = (): GameState => ({
 export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(createInitialState())
 
-  const updatePowerAllocation = (allocation: PowerAllocation) => {
+  const updatePowerAllocation = useCallback((allocation: PowerAllocation) => {
     setGameState(prev => {
       const newPlayers = [...prev.players]
       newPlayers[prev.activePlayerIndex] = {
@@ -96,9 +96,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       return { ...prev, players: newPlayers }
     })
-  }
+  }, [])
 
-  const setPendingAction = (action: PlayerAction) => {
+  const setPendingAction = useCallback((action: PlayerAction) => {
     setGameState(prev => {
       const newPlayers = [...prev.players]
       newPlayers[prev.activePlayerIndex] = {
@@ -107,9 +107,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       return { ...prev, players: newPlayers }
     })
-  }
+  }, [])
 
-  const executeTurn = () => {
+  const executeTurn = useCallback(() => {
     setGameState(prev => {
       const activePlayer = prev.players[prev.activePlayerIndex]
       const { updatedPlayer, logEntries } = resolvePlayerTurn(activePlayer, prev.turn)
@@ -131,11 +131,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         turnLog: newLog,
       }
     })
-  }
+  }, [])
 
-  const resetGame = () => {
+  const resetGame = useCallback(() => {
     setGameState(createInitialState())
-  }
+  }, [])
 
   return (
     <GameContext.Provider

@@ -28,7 +28,7 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
 
         {/* Rings */}
         {RING_CONFIGS.map(config => {
-          const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[6].radius
+          const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
           const radius = config.radius * scaleFactor
 
           return (
@@ -67,6 +67,13 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                 const x2 = centerX + radius * Math.cos(angle)
                 const y2 = centerY + radius * Math.sin(angle)
 
+                // Sector number position - in the MIDDLE of the sector (between tick marks)
+                // Add 0.5 to position between sector boundaries
+                const sectorCenterAngle = ((i + 0.5) / config.sectors) * 2 * Math.PI - Math.PI / 2
+                const sectorLabelRadius = radius - 25
+                const sectorLabelX = centerX + sectorLabelRadius * Math.cos(sectorCenterAngle)
+                const sectorLabelY = centerY + sectorLabelRadius * Math.sin(sectorCenterAngle)
+
                 return (
                   <g key={i}>
                     <line
@@ -77,19 +84,18 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                       stroke={i === 0 ? '#666' : '#888'}
                       strokeWidth={i === 0 ? 2 : 1}
                     />
-                    {/* Show sector number for sector 0 and every 10th sector */}
-                    {(i === 0 || (i % 10 === 0 && config.sectors > 30)) && (
-                      <text
-                        x={centerX + (radius - 18) * Math.cos(angle)}
-                        y={centerY + (radius - 18) * Math.sin(angle)}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize={8}
-                        fill="#999"
-                      >
-                        {i}
-                      </text>
-                    )}
+                    {/* Show sector number for all sectors */}
+                    <text
+                      x={sectorLabelX}
+                      y={sectorLabelY}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={7}
+                      fill="#666"
+                      opacity={0.6}
+                    >
+                      {i}
+                    </text>
                   </g>
                 )
               })}
@@ -102,7 +108,7 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
           const ringConfig = RING_CONFIGS.find(r => r.ring === player.ship.ring)
           if (!ringConfig) return null
 
-          const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[6].radius
+          const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
           const radius = ringConfig.radius * scaleFactor
           // Position ship in the MIDDLE of the sector
           // Add 0.5 to center it between sector boundaries
@@ -149,10 +155,9 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                   player.ship.transferState.destinationRing,
                   player.ship.sector
                 )
-                // After transfer completes, ship moves by destination ring's velocity
-                const finalSector =
-                  (mappedSector + destRingConfig.velocity) % destRingConfig.sectors
-                const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[6].radius
+                // After transfer completes, ship gains momentum from destination ring (slingshot)
+                const finalSector = (mappedSector + destRingConfig.velocity) % destRingConfig.sectors
+                const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
                 const destRadius = destRingConfig.radius * destScaleFactor
                 const destAngle =
                   ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
@@ -184,7 +189,7 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
             const direction = pendingAction.burnDirection === 'prograde' ? 1 : -1
             const destinationRing = Math.max(
               1,
-              Math.min(7, player.ship.ring + direction * burnCost.rings)
+              Math.min(6, player.ship.ring + direction * burnCost.rings)
             )
             const destRingConfig = RING_CONFIGS.find(r => r.ring === destinationRing)
 
@@ -195,9 +200,9 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                 destinationRing,
                 nextSector
               )
-              // After arriving, ship moves by destination ring's velocity
+              // After arriving, ship gains momentum from destination ring (slingshot)
               const finalSector = (mappedSector + destRingConfig.velocity) % destRingConfig.sectors
-              const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[6].radius
+              const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
               const destRadius = destRingConfig.radius * destScaleFactor
               const destAngle =
                 ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2

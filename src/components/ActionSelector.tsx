@@ -26,6 +26,14 @@ export function ActionSelector({ player, onActionSelect, onExecuteTurn }: Action
 
   const { powerAllocation, ship } = player
 
+  // Reset to defaults when player changes
+  useEffect(() => {
+    setActionType('coast')
+    setBurnDirection('prograde')
+    setBurnIntensity('standard')
+    setActivateScoop(false)
+  }, [player.id])
+
   // Update pending action whenever settings change
   useEffect(() => {
     const action: PlayerAction = {

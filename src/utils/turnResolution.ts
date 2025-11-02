@@ -20,17 +20,29 @@ export function resolvePlayerTurn(
   }
 
   // Phase 2: Transfer Resolution
+  // Track if we completed a transfer this turn (to skip movement later)
+  let completedTransferThisTurn = false
   if (updatedShip.transferState) {
     const oldRing = updatedShip.ring
     const newRing = updatedShip.transferState.destinationRing
     const newSector = mapSectorOnTransfer(oldRing, newRing, updatedShip.sector)
 
+    // Get the new ring's configuration to apply its velocity (slingshot effect)
+    const newRingConfig = getRingConfig(newRing)
+    if (!newRingConfig) {
+      return { updatedPlayer: player, logEntries }
+    }
+
+    // Apply the destination ring's velocity for dramatic slingshot effect
+    const finalSector = (newSector + newRingConfig.velocity) % newRingConfig.sectors
+
     updatedShip = {
       ...updatedShip,
       ring: newRing,
-      sector: newSector,
+      sector: finalSector,
       transferState: null,
     }
+    completedTransferThisTurn = true
     logEntries.push({
       turn,
       playerId: player.id,
@@ -62,7 +74,7 @@ export function resolvePlayerTurn(
     const destinationRing = updatedShip.ring + direction * burnCost.rings
 
     // Clamp to valid ring range
-    const clampedDestination = Math.max(1, Math.min(7, destinationRing))
+    const clampedDestination = Math.max(1, Math.min(6, destinationRing))
 
     updatedShip = {
       ...updatedShip,
@@ -103,18 +115,21 @@ export function resolvePlayerTurn(
   }
 
   // Phase 5: Sector Movement
-  const ringConfig = getRingConfig(updatedShip.ring)
-  if (ringConfig) {
-    const newSector = (updatedShip.sector + ringConfig.velocity) % ringConfig.sectors
-    updatedShip.sector = newSector
+  // Skip movement if we just completed a transfer (ship is already at final position)
+  if (!completedTransferThisTurn) {
+    const ringConfig = getRingConfig(updatedShip.ring)
+    if (ringConfig) {
+      const newSector = (updatedShip.sector + ringConfig.velocity) % ringConfig.sectors
+      updatedShip.sector = newSector
 
-    logEntries.push({
-      turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: 'Orbital Movement',
-      result: `Moved ${ringConfig.velocity} sectors to sector ${newSector}`,
-    })
+      logEntries.push({
+        turn,
+        playerId: player.id,
+        playerName: player.name,
+        action: 'Orbital Movement',
+        result: `Moved ${ringConfig.velocity} sectors to sector ${newSector}`,
+      })
+    }
   }
 
   // Reset pending action
