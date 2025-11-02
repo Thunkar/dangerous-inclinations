@@ -123,8 +123,83 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
           const arrowX = x + 18 * Math.cos(directionAngle)
           const arrowY = y + 18 * Math.sin(directionAngle)
 
+          // Calculate predicted next position
+          let predictedX = null
+          let predictedY = null
+          let predictedRing = null
+
+          if (player.ship.transferState) {
+            // Ship is in transfer - show where it will arrive
+            if (player.ship.transferState.arriveNextTurn) {
+              // Will arrive at destination ring next turn
+              const destRingConfig = RING_CONFIGS.find(
+                r => r.ring === player.ship.transferState!.destinationRing
+              )
+              if (destRingConfig) {
+                // Calculate position on destination ring
+                // Ship maintains its current sector during transfer
+                const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[7].radius
+                const destRadius = destRingConfig.radius * destScaleFactor
+                const destAngle =
+                  ((player.ship.sector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
+                predictedX = centerX + destRadius * Math.cos(destAngle)
+                predictedY = centerY + destRadius * Math.sin(destAngle)
+                predictedRing = destRingConfig.ring
+              }
+            }
+            // If arriveNextTurn is false, ship stays in current position (still transferring)
+          } else {
+            // Ship is stable - show where it will move due to orbital velocity
+            const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
+            const predictedAngle =
+              ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2
+            predictedX = centerX + radius * Math.cos(predictedAngle)
+            predictedY = centerY + radius * Math.sin(predictedAngle)
+            predictedRing = player.ship.ring
+          }
+
           return (
             <g key={player.id}>
+              {/* Predicted position indicator */}
+              {predictedX !== null && predictedY !== null && (
+                <>
+                  {/* Connecting line from current to predicted position */}
+                  <line
+                    x1={x}
+                    y1={y}
+                    x2={predictedX}
+                    y2={predictedY}
+                    stroke={player.color}
+                    strokeWidth={player.ship.transferState ? 2 : 1}
+                    strokeDasharray="4 4"
+                    opacity={player.ship.transferState ? 0.6 : 0.4}
+                  />
+                  {/* Predicted position circle */}
+                  <circle
+                    cx={predictedX}
+                    cy={predictedY}
+                    r={8}
+                    fill={player.color}
+                    opacity={0.3}
+                    stroke={player.color}
+                    strokeWidth={player.ship.transferState ? 2 : 1}
+                  />
+                  {/* Label for transfers showing destination ring */}
+                  {player.ship.transferState && player.ship.transferState.arriveNextTurn && (
+                    <text
+                      x={predictedX}
+                      y={predictedY - 12}
+                      textAnchor="middle"
+                      fontSize={10}
+                      fill={player.color}
+                      fontWeight="bold"
+                    >
+                      R{predictedRing}
+                    </text>
+                  )}
+                </>
+              )}
+
               {/* Transfer state indicator */}
               {player.ship.transferState && (
                 <circle
