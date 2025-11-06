@@ -14,6 +14,8 @@ export interface ShipState {
   sector: number
   facing: Facing
   reactionMass: number
+  hitPoints: number
+  maxHitPoints: number
   transferState: TransferState | null
 }
 
@@ -25,11 +27,17 @@ export interface PowerAllocation {
   defense: number
 }
 
+export interface WeaponFiring {
+  weaponType: string // e.g., 'laser', 'railgun', 'missile'
+  targetPlayerId: string
+}
+
 export interface PlayerAction {
   type: ActionType
   burnDirection?: Facing
   burnIntensity?: BurnIntensity
   activateScoop: boolean
+  weaponFiring?: WeaponFiring
 }
 
 export interface Player {

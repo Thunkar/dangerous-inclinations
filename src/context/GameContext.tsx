@@ -24,6 +24,8 @@ const createInitialPlayers = (): Player[] => [
       sector: 0,
       facing: 'prograde',
       reactionMass: STARTING_REACTION_MASS,
+      hitPoints: 10,
+      maxHitPoints: 10,
       transferState: null,
     },
     powerAllocation: {
@@ -40,10 +42,12 @@ const createInitialPlayers = (): Player[] => [
     name: 'Ship Beta',
     color: '#f44336',
     ship: {
-      ring: 6,
-      sector: 12,  // Ring 6 has 24 sectors (halfway around)
+      ring: 5,
+      sector: 48, // Ring 5 has 96 sectors (halfway around)
       facing: 'prograde',
       reactionMass: STARTING_REACTION_MASS,
+      hitPoints: 10,
+      maxHitPoints: 10,
       transferState: null,
     },
     powerAllocation: {
@@ -61,9 +65,11 @@ const createInitialPlayers = (): Player[] => [
     color: '#4caf50',
     ship: {
       ring: 2,
-      sector: 4,  // Ring 2 has 8 sectors (halfway around)
+      sector: 5, // Ring 2 has 12 sectors (halfway around)
       facing: 'prograde',
       reactionMass: STARTING_REACTION_MASS,
+      hitPoints: 10,
+      maxHitPoints: 10,
       transferState: null,
     },
     powerAllocation: {

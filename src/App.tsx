@@ -92,6 +92,7 @@ function GameContent() {
 
             <ActionSelector
               player={activePlayer}
+              allPlayers={gameState.players}
               onActionSelect={setPendingAction}
               onExecuteTurn={executeTurn}
             />

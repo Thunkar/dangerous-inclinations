@@ -1,5 +1,6 @@
 import { Box } from '@mui/material'
 import { RING_CONFIGS, mapSectorOnTransfer, BURN_COSTS } from '../constants/rings'
+import { WEAPONS, calculateWeaponRange } from '../constants/weapons'
 import type { Player } from '../types/game'
 
 interface GameBoardProps {
@@ -346,6 +347,233 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                 strokeWidth={2}
                 markerEnd={`url(#arrowhead-${player.id})`}
               />
+
+              {/* Weapon range indicator - only for active player */}
+              {isActive && (
+                <>
+                  {/* Show broadside laser visibility rays */}
+                  {(() => {
+                    // Calculate attacker's sector angular boundaries
+                    const sectorSize = (2 * Math.PI) / ringConfig.sectors
+                    const sectorStartAngle = angle - sectorSize / 2
+                    const sectorEndAngle = angle + sectorSize / 2
+
+                    // Get rings within weapon range (±1 ring only)
+                    const laser = WEAPONS.laser
+                    const minRing = Math.max(1, player.ship.ring - laser.ringRange)
+                    const maxRing = Math.min(RING_CONFIGS.length, player.ship.ring + laser.ringRange)
+
+                    const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+
+                    // Get the actual ship position for ray origin
+                    const shipRadius = ringConfig.radius * scaleFactor
+
+                    // Calculate sector boundary points on the ship's ring
+                    const rayStartX = centerX + shipRadius * Math.cos(sectorStartAngle)
+                    const rayStartY = centerY + shipRadius * Math.sin(sectorStartAngle)
+                    const rayEndX = centerX + shipRadius * Math.cos(sectorEndAngle)
+                    const rayEndY = centerY + shipRadius * Math.sin(sectorEndAngle)
+
+                    return (
+                      <g key="weapon-visibility-rays">
+                        {/* Draw rays from sector endpoints outward to target rings */}
+                        {RING_CONFIGS.filter(r => r.ring >= minRing && r.ring <= maxRing && r.ring !== player.ship.ring).map(targetRing => {
+                          const targetRadius = targetRing.radius * scaleFactor
+                          const targetSectorSize = (2 * Math.PI) / targetRing.sectors
+
+                          // Find which sectors on target ring overlap with attacker's angular range
+                          // We need to find the FIRST and LAST sector boundaries that contain the attacker's range
+
+                          // Normalize angles to 0-2π
+                          const normalizeAngle = (a: number) => {
+                            let normalized = a % (2 * Math.PI)
+                            if (normalized < 0) normalized += 2 * Math.PI
+                            return normalized
+                          }
+
+                          const attackerStart = normalizeAngle(sectorStartAngle + Math.PI / 2)
+                          const attackerEnd = normalizeAngle(sectorEndAngle + Math.PI / 2)
+
+                          // Find first sector that overlaps - this is the sector containing the start angle
+                          const firstSectorIndex = Math.floor(attackerStart / targetSectorSize)
+
+                          // Find last sector that overlaps - this is the sector containing the end angle
+                          // Use a small epsilon to handle floating point precision issues
+                          const epsilon = 1e-10
+                          const endSectorRaw = attackerEnd / targetSectorSize
+                          const fractionalPart = endSectorRaw - Math.floor(endSectorRaw)
+
+                          // If we're very close to a sector boundary (within epsilon), don't include the next sector
+                          const lastSectorIndex = fractionalPart < epsilon
+                            ? Math.floor(endSectorRaw) - 1  // On or very close to boundary - use previous sector
+                            : Math.floor(endSectorRaw)      // Inside a sector - use that sector
+
+                          // Calculate the actual sector boundary angles on target ring
+                          const coverageStartAngle = firstSectorIndex * targetSectorSize - Math.PI / 2
+                          const coverageEndAngle = (lastSectorIndex + 1) * targetSectorSize - Math.PI / 2
+
+                          // Calculate positions on target ring at these sector boundaries
+                          const targetStartX = centerX + targetRadius * Math.cos(coverageStartAngle)
+                          const targetStartY = centerY + targetRadius * Math.sin(coverageStartAngle)
+                          const targetEndX = centerX + targetRadius * Math.cos(coverageEndAngle)
+                          const targetEndY = centerY + targetRadius * Math.sin(coverageEndAngle)
+
+                          // Calculate arc length for proper SVG rendering
+                          let arcAngle = coverageEndAngle - coverageStartAngle
+                          if (arcAngle < 0) arcAngle += 2 * Math.PI
+
+                          return (
+                            <g key={`rays-${targetRing.ring}`}>
+                              {/* Ray from start of sector to first overlapping sector boundary */}
+                              <line
+                                x1={rayStartX}
+                                y1={rayStartY}
+                                x2={targetStartX}
+                                y2={targetStartY}
+                                stroke={player.color}
+                                strokeWidth={2}
+                                strokeDasharray="6 3"
+                                opacity={0.5}
+                              />
+                              {/* Ray from end of sector to last overlapping sector boundary */}
+                              <line
+                                x1={rayEndX}
+                                y1={rayEndY}
+                                x2={targetEndX}
+                                y2={targetEndY}
+                                stroke={player.color}
+                                strokeWidth={2}
+                                strokeDasharray="6 3"
+                                opacity={0.5}
+                              />
+                              {/* Highlight arc covering ALL overlapping sectors */}
+                              <path
+                                d={`
+                                  M ${targetStartX} ${targetStartY}
+                                  A ${targetRadius} ${targetRadius} 0 ${arcAngle > Math.PI ? 1 : 0} 1 ${targetEndX} ${targetEndY}
+                                `}
+                                fill="none"
+                                stroke={player.color}
+                                strokeWidth={3}
+                                opacity={0.4}
+                              />
+                            </g>
+                          )
+                        })}
+                        {/* Highlight your own sector boundaries */}
+                        <circle
+                          cx={rayStartX}
+                          cy={rayStartY}
+                          r={4}
+                          fill={player.color}
+                          opacity={0.8}
+                        />
+                        <circle
+                          cx={rayEndX}
+                          cy={rayEndY}
+                          r={4}
+                          fill={player.color}
+                          opacity={0.8}
+                        />
+                      </g>
+                    )
+                  })()}
+
+                  {/* Show targeting indicators for other players */}
+                  {players.map((otherPlayer, otherIndex) => {
+                    if (otherIndex === index) return null // Skip self
+
+                    const otherRingConfig = RING_CONFIGS.find(r => r.ring === otherPlayer.ship.ring)
+                    if (!otherRingConfig) return null
+
+                    // Calculate if this target is in range
+                    const targetingInfo = calculateWeaponRange(
+                      player.ship.ring,
+                      player.ship.sector,
+                      ringConfig.sectors,
+                      player.ship.facing,
+                      otherPlayer.ship.ring,
+                      otherPlayer.ship.sector,
+                      otherRingConfig.sectors,
+                      WEAPONS.laser
+                    )
+
+                    if (!targetingInfo.inRange) return null
+
+                    // Draw targeting reticle
+                    const otherScaleFactor =
+                      (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+                    const otherRadius = otherRingConfig.radius * otherScaleFactor
+                    const otherAngle =
+                      ((otherPlayer.ship.sector + 0.5) / otherRingConfig.sectors) * 2 * Math.PI -
+                      Math.PI / 2
+                    const otherX = centerX + otherRadius * Math.cos(otherAngle)
+                    const otherY = centerY + otherRadius * Math.sin(otherAngle)
+
+                    return (
+                      <g key={`targeting-${otherPlayer.id}`}>
+                        {/* Targeting reticle */}
+                        <circle
+                          cx={otherX}
+                          cy={otherY}
+                          r={16}
+                          fill="none"
+                          stroke={player.color}
+                          strokeWidth={2}
+                          opacity={0.7}
+                        />
+                        <line
+                          x1={otherX - 20}
+                          y1={otherY}
+                          x2={otherX - 10}
+                          y2={otherY}
+                          stroke={player.color}
+                          strokeWidth={2}
+                          opacity={0.7}
+                        />
+                        <line
+                          x1={otherX + 20}
+                          y1={otherY}
+                          x2={otherX + 10}
+                          y2={otherY}
+                          stroke={player.color}
+                          strokeWidth={2}
+                          opacity={0.7}
+                        />
+                        <line
+                          x1={otherX}
+                          y1={otherY - 20}
+                          x2={otherX}
+                          y2={otherY - 10}
+                          stroke={player.color}
+                          strokeWidth={2}
+                          opacity={0.7}
+                        />
+                        <line
+                          x1={otherX}
+                          y1={otherY + 20}
+                          x2={otherX}
+                          y2={otherY + 10}
+                          stroke={player.color}
+                          strokeWidth={2}
+                          opacity={0.7}
+                        />
+                        {/* Range indicator text */}
+                        <text
+                          x={otherX}
+                          y={otherY - 24}
+                          textAnchor="middle"
+                          fontSize={9}
+                          fill={player.color}
+                          fontWeight="bold"
+                        >
+                          {Math.round(targetingInfo.angularDistance)}°
+                        </text>
+                      </g>
+                    )
+                  })}
+                </>
+              )}
             </g>
           )
         })}
