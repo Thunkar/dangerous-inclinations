@@ -117,23 +117,50 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const executeTurn = useCallback(() => {
     setGameState(prev => {
+      // Execute the active player's turn
       const activePlayer = prev.players[prev.activePlayerIndex]
       const { updatedPlayer, logEntries } = resolvePlayerTurn(activePlayer, prev.turn)
 
       const newPlayers = [...prev.players]
       newPlayers[prev.activePlayerIndex] = updatedPlayer
 
-      const newLog = [...prev.turnLog, ...logEntries]
+      let newLog = [...prev.turnLog, ...logEntries]
 
       // Move to next player
       const nextPlayerIndex = (prev.activePlayerIndex + 1) % prev.players.length
       const isNewTurn = nextPlayerIndex === 0
 
+      // Check if the NEXT active player has a pending transfer that needs to resolve
+      // This will make the ship appear at its destination when their turn starts
+      let finalPlayers = newPlayers
+      const nextPlayer = newPlayers[nextPlayerIndex]
+
+      if (nextPlayer.ship.transferState) {
+        console.log(`[DEBUG] Resolving transfer for ${nextPlayer.name} at start of their turn`)
+        console.log(`[DEBUG] Current position: Ring ${nextPlayer.ship.ring}, Sector ${nextPlayer.ship.sector}`)
+        console.log(`[DEBUG] Transfer state:`, nextPlayer.ship.transferState)
+
+        // Resolve the next player's transfer so they see their ship at destination
+        const tempPlayer = {
+          ...nextPlayer,
+          pendingAction: { type: 'coast' as const, activateScoop: false }
+        }
+        const { updatedPlayer: transferredPlayer, logEntries: transferLogs } =
+          resolvePlayerTurn(tempPlayer, isNewTurn ? prev.turn + 1 : prev.turn)
+
+        console.log(`[DEBUG] After resolution: Ring ${transferredPlayer.ship.ring}, Sector ${transferredPlayer.ship.sector}`)
+        console.log(`[DEBUG] Transfer state after:`, transferredPlayer.ship.transferState)
+
+        finalPlayers = [...newPlayers]
+        finalPlayers[nextPlayerIndex] = transferredPlayer
+        newLog = [...newLog, ...transferLogs]
+      }
+
       return {
         ...prev,
         turn: isNewTurn ? prev.turn + 1 : prev.turn,
         activePlayerIndex: nextPlayerIndex,
-        players: newPlayers,
+        players: finalPlayers,
         turnLog: newLog,
       }
     })

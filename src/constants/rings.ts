@@ -77,11 +77,21 @@ export function mapSectorOnTransfer(
     return 0
   }
 
-  // Calculate angular position as a fraction of the full circle (0 to 1)
-  const angularFraction = currentSector / fromConfig.sectors
+  // When transferring between rings with different sector counts, we want to favor
+  // the "most prograde" (forward, clockwise) sector that overlaps with the current sector
 
-  // Map to destination ring and round to nearest sector
-  const mappedSector = Math.round(angularFraction * toConfig.sectors) % toConfig.sectors
+  // Calculate the END of the current sector (not the start or center)
+  // This gives us the most prograde edge of our current position
+  const angularFraction = (currentSector + 1) / fromConfig.sectors
+
+  // Map to destination ring
+  const exactPosition = angularFraction * toConfig.sectors
+
+  // Round down to get the sector that contains this angular position
+  // Subtract a tiny epsilon to handle the case where we land exactly on a boundary
+  // (we want the sector just before the boundary, not after)
+  const epsilon = 0.0001
+  const mappedSector = Math.floor(exactPosition - epsilon) % toConfig.sectors
 
   return mappedSector
 }
