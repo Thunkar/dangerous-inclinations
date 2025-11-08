@@ -1,15 +1,17 @@
 import { Box, Typography, styled } from '@mui/material'
 import { Fragment, useState, useCallback } from 'react'
-import type { Subsystem, ReactorState, HeatState, SubsystemType } from '../types/subsystems'
+import type { Subsystem, ReactorState, HeatState, SubsystemType } from '../../types/subsystems'
 import { RadialMenu } from './RadialMenu'
 import { SubsystemButton } from './SubsystemButton'
-import { getSubsystem } from '../utils/subsystemHelpers'
-import { isSubsystemOverclocked } from '../types/subsystems'
+import { getSubsystem } from '../../utils/subsystemHelpers'
+import { isSubsystemOverclocked } from '../../types/subsystems'
 
 interface ShipSystemsPanelProps {
   subsystems: Subsystem[]
   reactor: ReactorState
   heat: HeatState
+  hitPoints: number
+  maxHitPoints: number
   onAllocateEnergy: (subsystemType: SubsystemType, amount: number) => void
   onDeallocateEnergy: (subsystemType: SubsystemType, amount: number) => void
   onVentHeat: (amount: number) => void
@@ -25,8 +27,11 @@ const Container = styled(Box)({
   display: 'flex',
   flexDirection: 'row',
   position: 'relative',
-  minHeight: '400px',
+  alignItems: 'center',
+  justifyContent: 'center',
   overflow: 'visible',
+  minHeight: '340px', // Match the ship container height
+  padding: '1em', // Add padding to prevent indicator badges from being clipped
 })
 
 const Stats = styled(Box)({
@@ -34,8 +39,11 @@ const Stats = styled(Box)({
   flexWrap: 'wrap',
   position: 'absolute',
   justifyContent: 'space-between',
-  height: '100%',
-  width: '100%',
+  height: '340px', // Fixed height to match ship container
+  width: '340px', // Fixed width to match ship container
+  left: '50%',
+  top: '50%',
+  transform: 'translate(-50%, -50%)',
   overflow: 'hidden',
   pointerEvents: 'none',
 })
@@ -79,14 +87,20 @@ const Hull = styled(CircleInfo)(({ theme }) => ({
   background: `radial-gradient(circle, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 50%, ${theme.palette.primary.light} 70%)`,
 }))
 
-const Heat = styled(CircleInfo)(({ theme }) => ({
+const Heat = styled(CircleInfo, {
+  shouldForwardProp: (prop) => prop !== 'hasHeat',
+})<{ hasHeat?: boolean }>(({ theme, hasHeat }) => ({
   background: `radial-gradient(circle, ${theme.palette.error.dark} 0%, ${theme.palette.error.main} 50%, ${theme.palette.error.light} 70%)`,
+  cursor: hasHeat ? 'pointer' : 'default',
+  pointerEvents: hasHeat ? 'auto' : 'none',
 }))
 
 const Systems = styled(Box)({
   display: 'flex',
   position: 'relative',
   overflow: 'visible',
+  width: '340px',
+  height: '340px',
 })
 
 const ButtonContainer = styled(Box)({
@@ -118,6 +132,7 @@ const AftTrapezoid = styled(Aft, {
   borderWidth: '2px 0px 2px 2px',
   filter: shouldBlur ? 'blur(4px)' : undefined,
   transition: 'filter 0.3s',
+  overflow: 'visible',
 }))
 
 const Port = styled(ButtonContainer)({
@@ -139,6 +154,7 @@ const PortTrapezoid = styled(Port, {
   borderWidth: '2px 2px 0px 2px',
   filter: shouldBlur ? 'blur(4px)' : undefined,
   transition: 'filter 0.3s',
+  overflow: 'visible',
 }))
 
 const Forward = styled(ButtonContainer)({
@@ -161,6 +177,7 @@ const ForwardTrapezoid = styled(Forward, {
   borderWidth: '2px 2px 2px 0px',
   filter: shouldBlur ? 'blur(4px)' : undefined,
   transition: 'filter 0.3s',
+  overflow: 'visible',
 }))
 
 const Starboard = styled(ButtonContainer)({
@@ -182,6 +199,7 @@ const StarboardTrapezoid = styled(Starboard, {
   borderRadius: '0px 0px 5px 5px',
   filter: shouldBlur ? 'blur(4px)' : undefined,
   transition: 'filter 0.3s',
+  overflow: 'visible',
 }))
 
 const ShipImage = styled('img', {
@@ -219,11 +237,13 @@ export function ShipSystemsPanel({
   subsystems,
   reactor,
   heat,
+  hitPoints,
+  maxHitPoints,
   onAllocateEnergy,
   onDeallocateEnergy,
   onVentHeat,
 }: ShipSystemsPanelProps) {
-  const [openMenuId, setOpenMenuId] = useState<SubsystemType | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<SubsystemType | 'heat' | null>(null)
 
   const handleMenuToggle = useCallback((subsystemId: SubsystemType, isOpen: boolean) => {
     setOpenMenuId(isOpen ? subsystemId : null)
@@ -336,21 +356,6 @@ export function ShipSystemsPanel({
       />,
     ]
 
-    // Add heat venting if this subsystem has heat
-    if (heat.currentHeat > 0) {
-      actionButtons.push(
-        <SubsystemButton
-          key="vent"
-          subsystemType={subsystem.type}
-          allocatedEnergy={0}
-          isPowered={false}
-          variant="vent"
-          disabled={heat.heatToVent >= heat.currentHeat}
-          onClick={() => onVentHeat(1)}
-        />
-      )
-    }
-
     // Calculate angles based on position to point toward center
     // The center of the button spread should point toward the component center
     const rotationAngle = Math.PI / 3 // 60 degree spread
@@ -381,10 +386,10 @@ export function ShipSystemsPanel({
   }
 
   // Distribute subsystems to sides
-  const aftSubsystems = subsystems.filter((s) => ['engines', 'shields'].includes(s.type))
-  const portSubsystems = subsystems.filter((s) => ['rotation', 'scoop'].includes(s.type))
-  const forwardSubsystems = subsystems.filter((s) => ['laser', 'railgun'].includes(s.type))
-  const starboardSubsystems = subsystems.filter((s) => ['missiles'].includes(s.type))
+  const aftSubsystems = subsystems.filter((s) => ['engines', 'rotation'].includes(s.type))
+  const portSubsystems = subsystems.filter((s) => ['scoop', 'shields'].includes(s.type))
+  const forwardSubsystems = subsystems.filter((s) => ['railgun'].includes(s.type))
+  const starboardSubsystems = subsystems.filter((s) => ['missiles', 'laser'].includes(s.type))
 
   return (
     <Container>
@@ -401,7 +406,7 @@ export function ShipSystemsPanel({
           <Typography variant="caption">Vent</Typography>
           <Vent>
             <Typography variant="body2">
-              {reactor.energyToReturn}/{reactor.maxReturnRate}
+              {reactor.energyToReturn + heat.heatToVent}/{reactor.maxReturnRate}
             </Typography>
           </Vent>
         </Stat>
@@ -409,12 +414,12 @@ export function ShipSystemsPanel({
         <Stat>
           <Typography variant="caption">Hull</Typography>
           <Hull>
-            <Typography variant="body2">10</Typography>
+            <Typography variant="body2">{hitPoints}/{maxHitPoints}</Typography>
           </Hull>
         </Stat>
         <Stat>
           <Typography variant="caption">Heat</Typography>
-          <Heat>
+          <Heat hasHeat={heat.currentHeat > 0}>
             <Typography variant="body2">{heat.currentHeat}</Typography>
           </Heat>
         </Stat>
@@ -464,6 +469,65 @@ export function ShipSystemsPanel({
             </Fragment>
           ))}
         </Starboard>
+
+        {/* Heat Vent Controls - positioned in center */}
+        {heat.currentHeat > 0 && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%) scale(0.75)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 0.5,
+              zIndex: 100,
+            }}
+          >
+            {/* Undo button - appears on top when heat venting is queued */}
+            {heat.heatToVent > 0 && (
+              <Box
+                sx={{
+                  minWidth: '40px',
+                  minHeight: '40px',
+                  maxWidth: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                  backgroundColor: 'warning.main',
+                  border: '2px solid black',
+                  boxShadow: '2px 2px 1px 1px rgba(0,0,0,0.5)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: 'primary.light',
+                    transform: 'scale(1.15)',
+                  },
+                }}
+                onClick={() => onVentHeat(Math.max(0, heat.heatToVent - 1))}
+              >
+                <Typography variant="body1" sx={{ fontWeight: 'bold', userSelect: 'none', fontSize: '1.2rem' }}>
+                  ↶
+                </Typography>
+              </Box>
+            )}
+
+            {/* Main vent button */}
+            <SubsystemButton
+              subsystemType="engines"
+              allocatedEnergy={0}
+              isPowered={false}
+              variant="vent"
+              disabled={
+                heat.heatToVent >= heat.currentHeat ||
+                heat.heatToVent >= Math.max(0, reactor.maxReturnRate - reactor.energyToReturn)
+              }
+              onClick={() => onVentHeat(heat.heatToVent + 1)}
+            />
+          </Box>
+        )}
       </Systems>
     </Container>
   )

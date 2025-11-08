@@ -26,6 +26,7 @@ export interface ShipState {
   // Pending allocations (not committed until turn executes)
   pendingSubsystems?: Subsystem[]
   pendingReactor?: ReactorState
+  pendingHeat?: HeatState
 }
 
 // Legacy interface - kept for backward compatibility during migration

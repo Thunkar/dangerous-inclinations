@@ -1,4 +1,4 @@
-import type { Player, TurnLogEntry } from '../types/game'
+import type { Player, TurnLogEntry, ShipState } from '../types/game'
 import {
   getRingConfig,
   BURN_COSTS,
@@ -11,6 +11,70 @@ import {
   processEnergyReturn,
   resetSubsystemUsage,
 } from './subsystemHelpers'
+
+/**
+ * Resolve only the transfer and orbital movement for a ship without processing energy/heat
+ * Used when we need to update a ship's position at the start of their turn
+ */
+export function resolveTransferOnly(
+  ship: ShipState,
+  playerId: string,
+  playerName: string,
+  turn: number
+): { updatedShip: ShipState; logEntries: TurnLogEntry[] } {
+  const logEntries: TurnLogEntry[] = []
+  let updatedShip = { ...ship }
+
+  // Only resolve transfer if one exists
+  if (updatedShip.transferState) {
+    const oldRing = updatedShip.ring
+    const newRing = updatedShip.transferState.destinationRing
+    const newSector = mapSectorOnTransfer(oldRing, newRing, updatedShip.sector)
+
+    const newRingConfig = getRingConfig(newRing)
+    if (!newRingConfig) {
+      return { updatedShip, logEntries }
+    }
+
+    // Apply the destination ring's velocity for slingshot effect
+    const finalSector = (newSector + newRingConfig.velocity) % newRingConfig.sectors
+
+    updatedShip = {
+      ...updatedShip,
+      ring: newRing,
+      sector: finalSector,
+      transferState: null,
+    }
+
+    logEntries.push({
+      turn,
+      playerId,
+      playerName,
+      action: 'Transfer Complete',
+      result: `Arrived at Ring ${updatedShip.ring}, Sector ${updatedShip.sector}`,
+    })
+  } else {
+    // No transfer, just apply orbital movement
+    const ringConfig = getRingConfig(updatedShip.ring)
+    if (ringConfig) {
+      const newSector = (updatedShip.sector + ringConfig.velocity) % ringConfig.sectors
+      updatedShip = {
+        ...updatedShip,
+        sector: newSector,
+      }
+
+      logEntries.push({
+        turn,
+        playerId,
+        playerName,
+        action: 'Orbital Movement',
+        result: `Moved ${ringConfig.velocity} sectors to sector ${newSector}`,
+      })
+    }
+  }
+
+  return { updatedShip, logEntries }
+}
 
 export function resolvePlayerTurn(
   player: Player,
@@ -137,7 +201,7 @@ export function resolvePlayerTurn(
     }
   }
 
-  // Phase 6: Heat Generation & Damage
+  // Phase 6: Heat Generation (damage applied at end of round, not per turn)
   const heatGenerated = calculateHeatGeneration(updatedShip.subsystems)
   let updatedHeat = { ...updatedShip.heat }
 
@@ -149,20 +213,6 @@ export function resolvePlayerTurn(
       playerName: player.name,
       action: 'Heat Generation',
       result: `Overclocking generated ${heatGenerated} heat`,
-    })
-  }
-
-  // Apply heat damage (1 damage per 1 heat)
-  if (updatedHeat.currentHeat > 0) {
-    const heatDamage = updatedHeat.currentHeat
-    updatedShip.hitPoints = Math.max(0, updatedShip.hitPoints - heatDamage)
-
-    logEntries.push({
-      turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: 'Heat Damage',
-      result: `Took ${heatDamage} hull damage from heat (${updatedShip.hitPoints}/${updatedShip.maxHitPoints} HP)`,
     })
   }
 

@@ -40,13 +40,16 @@ export function ActionSelector({
 
   const { ship } = player
 
+  // Use pending subsystems if available (during planning phase), otherwise use committed subsystems
+  const subsystems = ship.pendingSubsystems || ship.subsystems
+
   // Get subsystems
-  const enginesSubsystem = getSubsystem(ship.subsystems, 'engines')
-  const rotationSubsystem = getSubsystem(ship.subsystems, 'rotation')
-  const scoopSubsystem = getSubsystem(ship.subsystems, 'scoop')
-  const laserSubsystem = getSubsystem(ship.subsystems, 'laser')
-  const railgunSubsystem = getSubsystem(ship.subsystems, 'railgun')
-  const missilesSubsystem = getSubsystem(ship.subsystems, 'missiles')
+  const enginesSubsystem = getSubsystem(subsystems, 'engines')
+  const rotationSubsystem = getSubsystem(subsystems, 'rotation')
+  const scoopSubsystem = getSubsystem(subsystems, 'scoop')
+  const laserSubsystem = getSubsystem(subsystems, 'laser')
+  const railgunSubsystem = getSubsystem(subsystems, 'railgun')
+  const missilesSubsystem = getSubsystem(subsystems, 'missiles')
 
   // Reset to defaults when player changes
   useEffect(() => {

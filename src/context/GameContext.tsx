@@ -3,15 +3,17 @@ import type { ReactNode } from 'react'
 import type { GameState, Player, PowerAllocation, PlayerAction } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
-import { resolvePlayerTurn } from '../utils/turnResolution'
+import { resolvePlayerTurn, resolveTransferOnly } from '../utils/turnResolution'
 import {
   createInitialSubsystems,
   createInitialReactorState,
   createInitialHeatState,
   allocateEnergy,
-  requestEnergyReturn,
   updateSubsystem,
+  requestEnergyReturn,
+  getSubsystem,
 } from '../utils/subsystemHelpers'
+import { canSubsystemFunction } from '../types/subsystems'
 
 interface GameContextType {
   gameState: GameState
@@ -143,16 +145,43 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // Execute the active player's turn
       let activePlayer = prev.players[prev.activePlayerIndex]
 
-      // Commit pending energy allocations
-      if (activePlayer.ship.pendingSubsystems && activePlayer.ship.pendingReactor) {
+      // Only commit pending energy allocations if there's a pending action
+      // If no action, discard the pending allocations (they were just planning)
+      if (activePlayer.pendingAction) {
+        // Commit pending energy allocations and heat venting
+        if (activePlayer.ship.pendingSubsystems && activePlayer.ship.pendingReactor) {
+          activePlayer = {
+            ...activePlayer,
+            ship: {
+              ...activePlayer.ship,
+              subsystems: activePlayer.ship.pendingSubsystems,
+              reactor: activePlayer.ship.pendingReactor,
+              heat: activePlayer.ship.pendingHeat || activePlayer.ship.heat,
+              pendingSubsystems: undefined,
+              pendingReactor: undefined,
+              pendingHeat: undefined,
+            },
+          }
+        } else if (activePlayer.ship.pendingHeat) {
+          // Commit pending heat even if no energy changes
+          activePlayer = {
+            ...activePlayer,
+            ship: {
+              ...activePlayer.ship,
+              heat: activePlayer.ship.pendingHeat,
+              pendingHeat: undefined,
+            },
+          }
+        }
+      } else {
+        // No action - clear any pending allocations without committing them
         activePlayer = {
           ...activePlayer,
           ship: {
             ...activePlayer.ship,
-            subsystems: activePlayer.ship.pendingSubsystems,
-            reactor: activePlayer.ship.pendingReactor,
             pendingSubsystems: undefined,
             pendingReactor: undefined,
+            pendingHeat: undefined,
           },
         }
       }
@@ -174,24 +203,44 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const nextPlayer = newPlayers[nextPlayerIndex]
 
       if (nextPlayer.ship.transferState) {
-        console.log(`[DEBUG] Resolving transfer for ${nextPlayer.name} at start of their turn`)
-        console.log(`[DEBUG] Current position: Ring ${nextPlayer.ship.ring}, Sector ${nextPlayer.ship.sector}`)
-        console.log(`[DEBUG] Transfer state:`, nextPlayer.ship.transferState)
-
-        // Resolve the next player's transfer so they see their ship at destination
-        const tempPlayer = {
-          ...nextPlayer,
-          pendingAction: { type: 'coast' as const, activateScoop: false }
-        }
-        const { updatedPlayer: transferredPlayer, logEntries: transferLogs } =
-          resolvePlayerTurn(tempPlayer, isNewTurn ? prev.turn + 1 : prev.turn)
-
-        console.log(`[DEBUG] After resolution: Ring ${transferredPlayer.ship.ring}, Sector ${transferredPlayer.ship.sector}`)
-        console.log(`[DEBUG] Transfer state after:`, transferredPlayer.ship.transferState)
+        // Resolve only the transfer/movement without processing energy/heat systems
+        const { updatedShip, logEntries: transferLogs } = resolveTransferOnly(
+          nextPlayer.ship,
+          nextPlayer.id,
+          nextPlayer.name,
+          isNewTurn ? prev.turn + 1 : prev.turn
+        )
 
         finalPlayers = [...newPlayers]
-        finalPlayers[nextPlayerIndex] = transferredPlayer
+        finalPlayers[nextPlayerIndex] = {
+          ...nextPlayer,
+          ship: updatedShip,
+        }
         newLog = [...newLog, ...transferLogs]
+      }
+
+      // Apply heat damage to the current player at the end of their turn
+      const currentPlayer = finalPlayers[prev.activePlayerIndex]
+
+      if (currentPlayer.ship.heat.currentHeat > 0) {
+        const heatDamage = currentPlayer.ship.heat.currentHeat
+        const newHitPoints = Math.max(0, currentPlayer.ship.hitPoints - heatDamage)
+
+        newLog.push({
+          turn: prev.turn,
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          action: 'Heat Damage',
+          result: `Took ${heatDamage} hull damage from heat (${newHitPoints}/${currentPlayer.ship.maxHitPoints} HP)`,
+        })
+
+        finalPlayers[prev.activePlayerIndex] = {
+          ...currentPlayer,
+          ship: {
+            ...currentPlayer.ship,
+            hitPoints: newHitPoints,
+          },
+        }
       }
 
       return {
@@ -241,16 +290,57 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameState(prev => {
       const activePlayer = prev.players[prev.activePlayerIndex]
 
+      // Get the committed (base) subsystem state
+      const committedSubsystem = getSubsystem(activePlayer.ship.subsystems, subsystemType)
+      if (!committedSubsystem) {
+        return prev
+      }
+
       // Work with pending allocations, or current if no pending exists
       const currentSubsystems = activePlayer.ship.pendingSubsystems || activePlayer.ship.subsystems
       const currentReactor = activePlayer.ship.pendingReactor || activePlayer.ship.reactor
 
-      const { subsystems, reactor } = requestEnergyReturn(
-        currentSubsystems,
-        currentReactor,
-        subsystemType,
-        amount
-      )
+      const currentSubsystem = getSubsystem(currentSubsystems, subsystemType)
+      if (!currentSubsystem) {
+        return prev
+      }
+
+      const returnAmount = Math.min(amount, currentSubsystem.allocatedEnergy)
+
+      // Calculate how much energy was allocated this turn (pending energy)
+      const pendingEnergy = currentSubsystem.allocatedEnergy - committedSubsystem.allocatedEnergy
+
+      // Determine how much can be instantly returned vs queued
+      const instantReturn = Math.min(returnAmount, Math.max(0, pendingEnergy))
+      const queuedReturn = returnAmount - instantReturn
+
+      let subsystems = currentSubsystems
+      let reactor = currentReactor
+
+      // Handle instant return (energy allocated this turn)
+      if (instantReturn > 0) {
+        const updatedSubsystem = {
+          ...currentSubsystem,
+          allocatedEnergy: currentSubsystem.allocatedEnergy - instantReturn,
+        }
+
+        subsystems = updateSubsystem(subsystems, subsystemType, {
+          allocatedEnergy: updatedSubsystem.allocatedEnergy,
+          isPowered: canSubsystemFunction(updatedSubsystem),
+        })
+
+        reactor = {
+          ...reactor,
+          availableEnergy: reactor.availableEnergy + instantReturn,
+        }
+      }
+
+      // Handle queued return (committed energy from previous turns)
+      if (queuedReturn > 0) {
+        const result = requestEnergyReturn(subsystems, reactor, subsystemType, queuedReturn)
+        subsystems = result.subsystems
+        reactor = result.reactor
+      }
 
       const newPlayers = [...prev.players]
       newPlayers[prev.activePlayerIndex] = {
@@ -269,9 +359,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const requestHeatVent = useCallback((amount: number) => {
     setGameState(prev => {
       const activePlayer = prev.players[prev.activePlayerIndex]
+
+      // Work with pending heat, or current if no pending exists
+      const currentHeat = activePlayer.ship.pendingHeat || activePlayer.ship.heat
+
       const newHeat = {
-        ...activePlayer.ship.heat,
-        heatToVent: Math.min(amount, activePlayer.ship.heat.currentHeat),
+        ...currentHeat,
+        heatToVent: Math.min(amount, currentHeat.currentHeat),
       }
 
       const newPlayers = [...prev.players]
@@ -279,7 +373,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ...activePlayer,
         ship: {
           ...activePlayer.ship,
-          heat: newHeat,
+          pendingHeat: newHeat,
         },
       }
 

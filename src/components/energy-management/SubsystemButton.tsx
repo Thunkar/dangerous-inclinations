@@ -1,7 +1,7 @@
 import { Box, styled, Typography } from '@mui/material'
-import type { SubsystemType } from '../types/subsystems'
-import { getSubsystemConfig } from '../types/subsystems'
-import { CustomIcon } from './CustomIcon'
+import type { SubsystemType } from '../../types/subsystems'
+import { getSubsystemConfig } from '../../types/subsystems'
+import { CustomIcon } from '../CustomIcon'
 
 interface SubsystemButtonProps {
   subsystemType: SubsystemType
@@ -24,7 +24,8 @@ interface AbilityBoxProps {
 }
 
 const AbilityBox = styled(Box, {
-  shouldForwardProp: (prop) => prop !== 'disabled' && prop !== 'isOverclocked' && prop !== 'variant' && prop !== 'shouldBlur',
+  shouldForwardProp: prop =>
+    prop !== 'disabled' && prop !== 'isOverclocked' && prop !== 'variant' && prop !== 'shouldBlur',
 })<AbilityBoxProps>(({ theme, disabled, isOverclocked, variant, shouldBlur }) => {
   const isAction = variant === 'add' || variant === 'remove' || variant === 'vent'
 
@@ -32,6 +33,22 @@ const AbilityBox = styled(Box, {
   if (variant === 'add') actionColor = theme.palette.secondary.light
   if (variant === 'remove') actionColor = theme.palette.warning.main
   if (variant === 'vent') actionColor = theme.palette.error.main
+
+  // For action buttons, use a darker background when disabled to maintain readability
+  const getBackgroundColor = () => {
+    if (isOverclocked) return theme.palette.error.dark
+    if (disabled) {
+      if (isAction) {
+        // For action buttons when disabled, use darker version of their color
+        if (variant === 'add') return theme.palette.secondary.dark
+        if (variant === 'remove') return theme.palette.warning.dark
+        if (variant === 'vent') return theme.palette.error.dark
+      }
+      return theme.palette.primary.dark
+    }
+    if (isAction) return actionColor
+    return theme.palette.primary.main
+  }
 
   return {
     display: 'flex',
@@ -43,17 +60,15 @@ const AbilityBox = styled(Box, {
     minWidth: isAction ? '50px' : '50px',
     maxWidth: isAction ? '50px' : '60px',
     minHeight: isAction ? '50px' : undefined,
-    color: disabled ? theme.palette.text.disabled : theme.palette.text.primary,
-    backgroundColor: isOverclocked
-      ? theme.palette.error.dark
-      : disabled
-      ? theme.palette.action.disabledBackground
-      : isAction
-      ? actionColor
-      : theme.palette.primary.main,
+    color: disabled ? theme.palette.text.secondary : theme.palette.text.primary,
+    backgroundColor: getBackgroundColor(),
     lineHeight: '1em',
     cursor: disabled ? 'default' : 'pointer',
-    boxShadow: disabled ? 'none' : isAction ? '3px 3px 2px 2px rgba(0,0,0,0.5)' : '2px 2px 1px 1px black',
+    boxShadow: disabled
+      ? '1px 1px 0px 0px rgba(0,0,0,0.3)'
+      : isAction
+        ? '3px 3px 2px 2px rgba(0,0,0,0.5)'
+        : '2px 2px 1px 1px black',
     transition: 'all 0.2s',
     border: `2px solid ${disabled ? theme.palette.divider : 'black'}`,
     filter: shouldBlur ? 'blur(4px)' : undefined,
@@ -152,7 +167,13 @@ export function SubsystemButton({
   }
 
   return (
-    <AbilityBox disabled={disabled} isOverclocked={isOverclocked} variant={variant} shouldBlur={shouldBlur} onClick={onClick}>
+    <AbilityBox
+      disabled={disabled}
+      isOverclocked={isOverclocked}
+      variant={variant}
+      shouldBlur={shouldBlur}
+      onClick={onClick}
+    >
       {renderContent()}
     </AbilityBox>
   )

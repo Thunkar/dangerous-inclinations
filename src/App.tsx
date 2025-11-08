@@ -4,9 +4,11 @@ import { Box, Typography, Button, Stack } from '@mui/material'
 import { GameProvider, useGame } from './context/GameContext'
 import { GameBoard } from './components/GameBoard'
 import { TurnIndicator } from './components/TurnIndicator'
-import { ShipSystemsPanel } from './components/ShipSystemsPanel'
+import { ShipSystemsPanel } from './components/energy-management/ShipSystemsPanel'
 import { ActionSelector } from './components/ActionSelector'
 import { StatusDisplay } from './components/StatusDisplay'
+import { calculateHeatGeneration } from './utils/subsystemHelpers'
+import type { HeatState } from './types/subsystems'
 
 const theme = createTheme({
   palette: {
@@ -55,12 +57,37 @@ function GameContent() {
   } = useGame()
   const activePlayer = gameState.players[gameState.activePlayerIndex]
 
+  // Calculate preview heat: current heat + NEW pending heat generation from overclocking
+  const getPreviewHeat = (): HeatState => {
+    const baseHeat = activePlayer.ship.heat
+    const pendingSubsystems = activePlayer.ship.pendingSubsystems
+    const committedSubsystems = activePlayer.ship.subsystems
+
+    // If no pending changes, just return the base heat (or pending heat if set)
+    if (!pendingSubsystems) {
+      return activePlayer.ship.pendingHeat || baseHeat
+    }
+
+    // Calculate heat that would be generated from NEWLY allocated pending overclocking
+    // (the difference between pending and committed)
+    const pendingHeatGeneration = calculateHeatGeneration(pendingSubsystems)
+    const committedHeatGeneration = calculateHeatGeneration(committedSubsystems)
+    const newHeatGeneration = pendingHeatGeneration - committedHeatGeneration
+
+    // Return preview showing: current heat + NEW generation - pending venting
+    const pendingHeat = activePlayer.ship.pendingHeat || baseHeat
+    return {
+      ...pendingHeat,
+      currentHeat: baseHeat.currentHeat + newHeatGeneration - pendingHeat.heatToVent,
+    }
+  }
+
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box sx={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <Box
         sx={{
-          p: 2,
+          p: 1.5,
           borderBottom: 1,
           borderColor: 'divider',
           display: 'flex',
@@ -71,7 +98,7 @@ function GameContent() {
         <Typography variant="h5" component="h1">
           Orbital Combat Simulator
         </Typography>
-        <Button variant="outlined" onClick={resetGame}>
+        <Button variant="outlined" size="small" onClick={resetGame}>
           Reset Game
         </Button>
       </Box>
@@ -79,11 +106,13 @@ function GameContent() {
       <TurnIndicator activePlayer={activePlayer} turn={gameState.turn} />
 
       {/* Main content area */}
-      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
         {/* Left sidebar - Player Status */}
         <Box
           sx={{
-            width: 300,
+            minWidth: 250,
+            maxWidth: 300,
+            width: '20%',
             borderRight: 1,
             borderColor: 'divider',
             overflow: 'auto',
@@ -105,16 +134,21 @@ function GameContent() {
             alignItems: 'center',
             justifyContent: 'center',
             overflow: 'auto',
-            p: 3,
+            p: 2,
+            minWidth: 0,
           }}
         >
-          <GameBoard players={gameState.players} activePlayerIndex={gameState.activePlayerIndex} />
+          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <GameBoard players={gameState.players} activePlayerIndex={gameState.activePlayerIndex} />
+          </Box>
         </Box>
 
         {/* Right sidebar - Controls */}
         <Box
           sx={{
-            width: 350,
+            minWidth: 300,
+            maxWidth: 400,
+            width: '25%',
             borderLeft: 1,
             borderColor: 'divider',
             overflow: 'auto',
@@ -122,14 +156,18 @@ function GameContent() {
           }}
         >
           <Stack spacing={2}>
-            <ShipSystemsPanel
-              subsystems={activePlayer.ship.pendingSubsystems || activePlayer.ship.subsystems}
-              reactor={activePlayer.ship.pendingReactor || activePlayer.ship.reactor}
-              heat={activePlayer.ship.heat}
-              onAllocateEnergy={allocateSubsystemEnergy}
-              onDeallocateEnergy={deallocateSubsystemEnergy}
-              onVentHeat={requestHeatVent}
-            />
+            <Box sx={{ overflow: 'visible' }}>
+              <ShipSystemsPanel
+                subsystems={activePlayer.ship.pendingSubsystems || activePlayer.ship.subsystems}
+                reactor={activePlayer.ship.pendingReactor || activePlayer.ship.reactor}
+                heat={activePlayer.ship.pendingHeat || activePlayer.ship.heat}
+                hitPoints={activePlayer.ship.hitPoints}
+                maxHitPoints={activePlayer.ship.maxHitPoints}
+                onAllocateEnergy={allocateSubsystemEnergy}
+                onDeallocateEnergy={deallocateSubsystemEnergy}
+                onVentHeat={requestHeatVent}
+              />
+            </Box>
 
             <ActionSelector
               player={activePlayer}
