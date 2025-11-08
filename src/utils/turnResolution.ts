@@ -36,13 +36,10 @@ export function resolveTransferOnly(
       return { updatedShip, logEntries }
     }
 
-    // Apply the destination ring's velocity for slingshot effect
-    const finalSector = (newSector + newRingConfig.velocity) % newRingConfig.sectors
-
     updatedShip = {
       ...updatedShip,
       ring: newRing,
-      sector: finalSector,
+      sector: newSector,
       transferState: null,
     }
 
@@ -96,19 +93,15 @@ export function resolvePlayerTurn(
     const newRing = updatedShip.transferState.destinationRing
     const newSector = mapSectorOnTransfer(oldRing, newRing, updatedShip.sector)
 
-    // Get the new ring's configuration to apply its velocity (slingshot effect)
     const newRingConfig = getRingConfig(newRing)
     if (!newRingConfig) {
       return { updatedPlayer: player, logEntries }
     }
 
-    // Apply the destination ring's velocity for dramatic slingshot effect
-    const finalSector = (newSector + newRingConfig.velocity) % newRingConfig.sectors
-
     updatedShip = {
       ...updatedShip,
       ring: newRing,
-      sector: finalSector,
+      sector: newSector,
       transferState: null,
     }
     completedTransferThisTurn = true

@@ -156,12 +156,10 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                   player.ship.transferState.destinationRing,
                   player.ship.sector
                 )
-                // After transfer completes, ship gains momentum from destination ring (slingshot)
-                const finalSector = (mappedSector + destRingConfig.velocity) % destRingConfig.sectors
                 const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
                 const destRadius = destRingConfig.radius * destScaleFactor
                 const destAngle =
-                  ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
+                  ((mappedSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
                 predictedX = centerX + destRadius * Math.cos(destAngle)
                 predictedY = centerY + destRadius * Math.sin(destAngle)
                 predictedRing = destRingConfig.ring
@@ -201,12 +199,10 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                 destinationRing,
                 nextSector
               )
-              // After arriving, ship gains momentum from destination ring (slingshot)
-              const finalSector = (mappedSector + destRingConfig.velocity) % destRingConfig.sectors
               const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
               const destRadius = destRingConfig.radius * destScaleFactor
               const destAngle =
-                ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
+                ((mappedSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
               secondStepX = centerX + destRadius * Math.cos(destAngle)
               secondStepY = centerY + destRadius * Math.sin(destAngle)
               secondStepRing = destinationRing

@@ -420,7 +420,9 @@ export function ShipSystemsPanel({
         <Stat>
           <Typography variant="caption">Heat</Typography>
           <Heat hasHeat={heat.currentHeat > 0}>
-            <Typography variant="body2">{heat.currentHeat}</Typography>
+            <Typography variant="body2">
+              {Math.max(0, heat.currentHeat - heat.heatToVent)}
+            </Typography>
           </Heat>
         </Stat>
       </Stats>
@@ -447,6 +449,65 @@ export function ShipSystemsPanel({
           {portSubsystems.map((subsystem, index) => (
             <Fragment key={subsystem.type}>
               {renderSubsystemMenu(subsystem, true, 'port')}
+              {/* Add heat vent controls after the first subsystem (scoop) */}
+              {index === 0 && heat.currentHeat > 0 && (
+                <>
+                  <HorizontalDivider visible={openMenuId === null} />
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      position: 'relative',
+                      filter: openMenuId !== null ? 'blur(4px)' : undefined,
+                      transition: 'filter 0.3s',
+                    }}
+                  >
+                    {/* Undo button - appears on top when heat venting is queued */}
+                    {heat.heatToVent > 0 && (
+                      <Box
+                        sx={{
+                          minWidth: '40px',
+                          minHeight: '40px',
+                          maxWidth: '40px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '50%',
+                          backgroundColor: 'warning.main',
+                          border: '2px solid black',
+                          boxShadow: '2px 2px 1px 1px rgba(0,0,0,0.5)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            backgroundColor: 'primary.light',
+                            transform: 'scale(1.15)',
+                          },
+                        }}
+                        onClick={() => onVentHeat(Math.max(0, heat.heatToVent - 1))}
+                      >
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', userSelect: 'none', fontSize: '1.2rem' }}>
+                          ↶
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {/* Main vent button */}
+                    <SubsystemButton
+                      subsystemType="engines"
+                      allocatedEnergy={0}
+                      isPowered={false}
+                      variant="vent"
+                      disabled={
+                        heat.heatToVent >= heat.currentHeat ||
+                        heat.heatToVent >= Math.max(0, reactor.maxReturnRate - reactor.energyToReturn)
+                      }
+                      onClick={() => onVentHeat(heat.heatToVent + 1)}
+                    />
+                  </Box>
+                </>
+              )}
               {index !== portSubsystems.length - 1 && <HorizontalDivider visible={openMenuId === null} />}
             </Fragment>
           ))}
@@ -469,65 +530,6 @@ export function ShipSystemsPanel({
             </Fragment>
           ))}
         </Starboard>
-
-        {/* Heat Vent Controls - positioned in center */}
-        {heat.currentHeat > 0 && (
-          <Box
-            sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%) scale(0.75)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 0.5,
-              zIndex: 100,
-            }}
-          >
-            {/* Undo button - appears on top when heat venting is queued */}
-            {heat.heatToVent > 0 && (
-              <Box
-                sx={{
-                  minWidth: '40px',
-                  minHeight: '40px',
-                  maxWidth: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '50%',
-                  backgroundColor: 'warning.main',
-                  border: '2px solid black',
-                  boxShadow: '2px 2px 1px 1px rgba(0,0,0,0.5)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  '&:hover': {
-                    backgroundColor: 'primary.light',
-                    transform: 'scale(1.15)',
-                  },
-                }}
-                onClick={() => onVentHeat(Math.max(0, heat.heatToVent - 1))}
-              >
-                <Typography variant="body1" sx={{ fontWeight: 'bold', userSelect: 'none', fontSize: '1.2rem' }}>
-                  ↶
-                </Typography>
-              </Box>
-            )}
-
-            {/* Main vent button */}
-            <SubsystemButton
-              subsystemType="engines"
-              allocatedEnergy={0}
-              isPowered={false}
-              variant="vent"
-              disabled={
-                heat.heatToVent >= heat.currentHeat ||
-                heat.heatToVent >= Math.max(0, reactor.maxReturnRate - reactor.energyToReturn)
-              }
-              onClick={() => onVentHeat(heat.heatToVent + 1)}
-            />
-          </Box>
-        )}
       </Systems>
     </Container>
   )
