@@ -68,9 +68,39 @@ export function StatusDisplay({ players, activePlayerIndex, turnLog }: StatusDis
                   </Box>
                   <Box>
                     <Typography variant="caption" color="text.secondary">
+                      Hull Points
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color={player.ship.hitPoints <= 3 ? 'error.main' : 'inherit'}
+                    >
+                      {player.ship.hitPoints} / {player.ship.maxHitPoints}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Reactor
+                    </Typography>
+                    <Typography variant="body2">
+                      {player.ship.reactor.availableEnergy} / {player.ship.reactor.totalCapacity}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
                       Reaction Mass
                     </Typography>
                     <Typography variant="body2">{player.ship.reactionMass}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Heat
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color={player.ship.heat.currentHeat > 0 ? 'error.main' : 'inherit'}
+                    >
+                      {player.ship.heat.currentHeat}
+                    </Typography>
                   </Box>
                   <Box>
                     <Typography variant="caption" color="text.secondary">

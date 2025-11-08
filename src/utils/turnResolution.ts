@@ -6,6 +6,11 @@ import {
   MAX_REACTION_MASS,
   mapSectorOnTransfer,
 } from '../constants/rings'
+import {
+  calculateHeatGeneration,
+  processEnergyReturn,
+  resetSubsystemUsage,
+} from './subsystemHelpers'
 
 export function resolvePlayerTurn(
   player: Player,
@@ -130,6 +135,79 @@ export function resolvePlayerTurn(
         result: `Moved ${ringConfig.velocity} sectors to sector ${newSector}`,
       })
     }
+  }
+
+  // Phase 6: Heat Generation & Damage
+  const heatGenerated = calculateHeatGeneration(updatedShip.subsystems)
+  let updatedHeat = { ...updatedShip.heat }
+
+  if (heatGenerated > 0) {
+    updatedHeat.currentHeat += heatGenerated
+    logEntries.push({
+      turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Heat Generation',
+      result: `Overclocking generated ${heatGenerated} heat`,
+    })
+  }
+
+  // Apply heat damage (1 damage per 1 heat)
+  if (updatedHeat.currentHeat > 0) {
+    const heatDamage = updatedHeat.currentHeat
+    updatedShip.hitPoints = Math.max(0, updatedShip.hitPoints - heatDamage)
+
+    logEntries.push({
+      turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Heat Damage',
+      result: `Took ${heatDamage} hull damage from heat (${updatedShip.hitPoints}/${updatedShip.maxHitPoints} HP)`,
+    })
+  }
+
+  // Phase 7: Energy Return & Heat Venting
+  const { reactor: updatedReactor, heat: finalHeat } = processEnergyReturn(
+    updatedShip.reactor,
+    updatedHeat
+  )
+
+  if (updatedHeat.heatToVent > 0) {
+    const actualVent = Math.min(updatedHeat.heatToVent, updatedHeat.currentHeat)
+    logEntries.push({
+      turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Heat Venting',
+      result: `Vented ${actualVent} heat`,
+    })
+  }
+
+  if (updatedShip.reactor.energyToReturn > 0) {
+    const actualReturn = Math.min(
+      updatedShip.reactor.energyToReturn,
+      Math.max(0, updatedShip.reactor.maxReturnRate - updatedHeat.heatToVent)
+    )
+    if (actualReturn > 0) {
+      logEntries.push({
+        turn,
+        playerId: player.id,
+        playerName: player.name,
+        action: 'Energy Return',
+        result: `Returned ${actualReturn} energy to reactor`,
+      })
+    }
+  }
+
+  // Phase 8: Reset subsystem usage flags for next turn
+  const finalSubsystems = resetSubsystemUsage(updatedShip.subsystems)
+
+  // Update final ship state
+  updatedShip = {
+    ...updatedShip,
+    subsystems: finalSubsystems,
+    reactor: updatedReactor,
+    heat: finalHeat,
   }
 
   // Reset pending action

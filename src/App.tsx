@@ -4,18 +4,55 @@ import { Box, Typography, Button, Stack } from '@mui/material'
 import { GameProvider, useGame } from './context/GameContext'
 import { GameBoard } from './components/GameBoard'
 import { TurnIndicator } from './components/TurnIndicator'
-import { PowerAllocationPanel } from './components/PowerAllocationPanel'
+import { ShipSystemsPanel } from './components/ShipSystemsPanel'
 import { ActionSelector } from './components/ActionSelector'
 import { StatusDisplay } from './components/StatusDisplay'
 
 const theme = createTheme({
   palette: {
-    mode: 'light',
+    mode: 'dark',
+    background: {
+      default: '#000000',
+      paper: '#121212',
+    },
+    text: {
+      primary: '#ffffff',
+      secondary: '#b0b0b0',
+    },
+    primary: {
+      main: '#343434',
+      light: '#4a4a4a',
+      dark: '#1a1a1a',
+    },
+    secondary: {
+      main: '#1412b7',
+      light: '#3d3bd4',
+      dark: '#0d0a8a',
+    },
+    error: {
+      main: '#d40000',
+      light: '#ff3333',
+      dark: '#9a0000',
+    },
+    warning: {
+      main: '#ff9800',
+      light: '#ffb333',
+      dark: '#c77700',
+    },
+    divider: '#4a4a4a',
   },
 })
 
 function GameContent() {
-  const { gameState, updatePowerAllocation, setPendingAction, executeTurn, resetGame } = useGame()
+  const {
+    gameState,
+    setPendingAction,
+    executeTurn,
+    resetGame,
+    allocateSubsystemEnergy,
+    deallocateSubsystemEnergy,
+    requestHeatVent,
+  } = useGame()
   const activePlayer = gameState.players[gameState.activePlayerIndex]
 
   return (
@@ -85,9 +122,13 @@ function GameContent() {
           }}
         >
           <Stack spacing={2}>
-            <PowerAllocationPanel
-              allocation={activePlayer.powerAllocation}
-              onChange={updatePowerAllocation}
+            <ShipSystemsPanel
+              subsystems={activePlayer.ship.pendingSubsystems || activePlayer.ship.subsystems}
+              reactor={activePlayer.ship.pendingReactor || activePlayer.ship.reactor}
+              heat={activePlayer.ship.heat}
+              onAllocateEnergy={allocateSubsystemEnergy}
+              onDeallocateEnergy={deallocateSubsystemEnergy}
+              onVentHeat={requestHeatVent}
             />
 
             <ActionSelector

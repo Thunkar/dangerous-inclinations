@@ -1,8 +1,17 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import type { GameState, Player, PowerAllocation, PlayerAction } from '../types/game'
+import type { SubsystemType } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
 import { resolvePlayerTurn } from '../utils/turnResolution'
+import {
+  createInitialSubsystems,
+  createInitialReactorState,
+  createInitialHeatState,
+  allocateEnergy,
+  requestEnergyReturn,
+  updateSubsystem,
+} from '../utils/subsystemHelpers'
 
 interface GameContextType {
   gameState: GameState
@@ -10,6 +19,11 @@ interface GameContextType {
   setPendingAction: (action: PlayerAction) => void
   executeTurn: () => void
   resetGame: () => void
+  // New subsystem energy management methods
+  allocateSubsystemEnergy: (subsystemType: SubsystemType, amount: number) => void
+  deallocateSubsystemEnergy: (subsystemType: SubsystemType, amount: number) => void
+  requestHeatVent: (amount: number) => void
+  activateSubsystem: (subsystemType: SubsystemType) => void
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
@@ -27,6 +41,9 @@ const createInitialPlayers = (): Player[] => [
       hitPoints: 10,
       maxHitPoints: 10,
       transferState: null,
+      subsystems: createInitialSubsystems(),
+      reactor: createInitialReactorState(),
+      heat: createInitialHeatState(),
     },
     powerAllocation: {
       rotation: 0,
@@ -49,6 +66,9 @@ const createInitialPlayers = (): Player[] => [
       hitPoints: 10,
       maxHitPoints: 10,
       transferState: null,
+      subsystems: createInitialSubsystems(),
+      reactor: createInitialReactorState(),
+      heat: createInitialHeatState(),
     },
     powerAllocation: {
       rotation: 0,
@@ -71,6 +91,9 @@ const createInitialPlayers = (): Player[] => [
       hitPoints: 10,
       maxHitPoints: 10,
       transferState: null,
+      subsystems: createInitialSubsystems(),
+      reactor: createInitialReactorState(),
+      heat: createInitialHeatState(),
     },
     powerAllocation: {
       rotation: 0,
@@ -118,7 +141,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const executeTurn = useCallback(() => {
     setGameState(prev => {
       // Execute the active player's turn
-      const activePlayer = prev.players[prev.activePlayerIndex]
+      let activePlayer = prev.players[prev.activePlayerIndex]
+
+      // Commit pending energy allocations
+      if (activePlayer.ship.pendingSubsystems && activePlayer.ship.pendingReactor) {
+        activePlayer = {
+          ...activePlayer,
+          ship: {
+            ...activePlayer.ship,
+            subsystems: activePlayer.ship.pendingSubsystems,
+            reactor: activePlayer.ship.pendingReactor,
+            pendingSubsystems: undefined,
+            pendingReactor: undefined,
+          },
+        }
+      }
+
       const { updatedPlayer, logEntries } = resolvePlayerTurn(activePlayer, prev.turn)
 
       const newPlayers = [...prev.players]
@@ -170,6 +208,107 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameState(createInitialState())
   }, [])
 
+  const allocateSubsystemEnergy = useCallback((subsystemType: SubsystemType, amount: number) => {
+    setGameState(prev => {
+      const activePlayer = prev.players[prev.activePlayerIndex]
+
+      // Work with pending allocations, or current if no pending exists
+      const currentSubsystems = activePlayer.ship.pendingSubsystems || activePlayer.ship.subsystems
+      const currentReactor = activePlayer.ship.pendingReactor || activePlayer.ship.reactor
+
+      const { subsystems, reactor } = allocateEnergy(
+        currentSubsystems,
+        currentReactor,
+        subsystemType,
+        amount
+      )
+
+      const newPlayers = [...prev.players]
+      newPlayers[prev.activePlayerIndex] = {
+        ...activePlayer,
+        ship: {
+          ...activePlayer.ship,
+          pendingSubsystems: subsystems,
+          pendingReactor: reactor,
+        },
+      }
+
+      return { ...prev, players: newPlayers }
+    })
+  }, [])
+
+  const deallocateSubsystemEnergy = useCallback((subsystemType: SubsystemType, amount: number) => {
+    setGameState(prev => {
+      const activePlayer = prev.players[prev.activePlayerIndex]
+
+      // Work with pending allocations, or current if no pending exists
+      const currentSubsystems = activePlayer.ship.pendingSubsystems || activePlayer.ship.subsystems
+      const currentReactor = activePlayer.ship.pendingReactor || activePlayer.ship.reactor
+
+      const { subsystems, reactor } = requestEnergyReturn(
+        currentSubsystems,
+        currentReactor,
+        subsystemType,
+        amount
+      )
+
+      const newPlayers = [...prev.players]
+      newPlayers[prev.activePlayerIndex] = {
+        ...activePlayer,
+        ship: {
+          ...activePlayer.ship,
+          pendingSubsystems: subsystems,
+          pendingReactor: reactor,
+        },
+      }
+
+      return { ...prev, players: newPlayers }
+    })
+  }, [])
+
+  const requestHeatVent = useCallback((amount: number) => {
+    setGameState(prev => {
+      const activePlayer = prev.players[prev.activePlayerIndex]
+      const newHeat = {
+        ...activePlayer.ship.heat,
+        heatToVent: Math.min(amount, activePlayer.ship.heat.currentHeat),
+      }
+
+      const newPlayers = [...prev.players]
+      newPlayers[prev.activePlayerIndex] = {
+        ...activePlayer,
+        ship: {
+          ...activePlayer.ship,
+          heat: newHeat,
+        },
+      }
+
+      return { ...prev, players: newPlayers }
+    })
+  }, [])
+
+  const activateSubsystem = useCallback((subsystemType: SubsystemType) => {
+    setGameState(prev => {
+      const activePlayer = prev.players[prev.activePlayerIndex]
+      const subsystems = updateSubsystem(
+        activePlayer.ship.subsystems,
+        subsystemType,
+        { usedThisTurn: true }
+      )
+
+      const newPlayers = [...prev.players]
+      newPlayers[prev.activePlayerIndex] = {
+        ...activePlayer,
+        ship: {
+          ...activePlayer.ship,
+          subsystems,
+        },
+      }
+
+      return { ...prev, players: newPlayers }
+    })
+  }, [])
+
   return (
     <GameContext.Provider
       value={{
@@ -178,6 +317,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setPendingAction,
         executeTurn,
         resetGame,
+        allocateSubsystemEnergy,
+        deallocateSubsystemEnergy,
+        requestHeatVent,
+        activateSubsystem,
       }}
     >
       {children}

@@ -1,3 +1,5 @@
+import type { Subsystem, ReactorState, HeatState } from './subsystems'
+
 export type Facing = 'prograde' | 'retrograde'
 
 export type BurnIntensity = 'standard' | 'hard' | 'extreme'
@@ -17,8 +19,16 @@ export interface ShipState {
   hitPoints: number
   maxHitPoints: number
   transferState: TransferState | null
+  // New subsystem-based energy/heat system
+  subsystems: Subsystem[]
+  reactor: ReactorState
+  heat: HeatState
+  // Pending allocations (not committed until turn executes)
+  pendingSubsystems?: Subsystem[]
+  pendingReactor?: ReactorState
 }
 
+// Legacy interface - kept for backward compatibility during migration
 export interface PowerAllocation {
   rotation: number
   engines: number
@@ -45,7 +55,7 @@ export interface Player {
   name: string
   color: string
   ship: ShipState
-  powerAllocation: PowerAllocation
+  powerAllocation: PowerAllocation  // Legacy - will be removed
   pendingAction: PlayerAction | null
 }
 

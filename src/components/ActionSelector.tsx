@@ -16,6 +16,7 @@ import { useState, useEffect } from 'react'
 import type { PlayerAction, BurnIntensity, Facing, Player, WeaponFiring } from '../types/game'
 import { BURN_COSTS, getRingConfig } from '../constants/rings'
 import { WEAPONS, calculateWeaponRange } from '../constants/weapons'
+import { getSubsystem } from '../utils/subsystemHelpers'
 
 interface ActionSelectorProps {
   player: Player
@@ -37,7 +38,15 @@ export function ActionSelector({
   const [selectedWeapon, setSelectedWeapon] = useState<string>('laser')
   const [selectedTarget, setSelectedTarget] = useState<string>('')
 
-  const { powerAllocation, ship } = player
+  const { ship } = player
+
+  // Get subsystems
+  const enginesSubsystem = getSubsystem(ship.subsystems, 'engines')
+  const rotationSubsystem = getSubsystem(ship.subsystems, 'rotation')
+  const scoopSubsystem = getSubsystem(ship.subsystems, 'scoop')
+  const laserSubsystem = getSubsystem(ship.subsystems, 'laser')
+  const railgunSubsystem = getSubsystem(ship.subsystems, 'railgun')
+  const missilesSubsystem = getSubsystem(ship.subsystems, 'missiles')
 
   // Reset to defaults when player changes
   useEffect(() => {
@@ -76,33 +85,36 @@ export function ActionSelector({
 
   // Validation
   const needsRotation = actionType === 'burn' && ship.facing !== burnDirection
-  const rotationCost = needsRotation ? 1 : 0
-  const burnCost = actionType === 'burn' ? BURN_COSTS[burnIntensity] : { energy: 0, mass: 0 }
-  const scoopCost = activateScoop && actionType === 'coast' ? 5 : 0
+  const burnCost = actionType === 'burn' ? BURN_COSTS[burnIntensity] : { energy: 0, mass: 0, rings: 0 }
   const weapon = WEAPONS[selectedWeapon as keyof typeof WEAPONS]
-  const weaponCost = selectedTarget ? weapon.energyCost : 0
 
-  const totalEnergyCost = rotationCost + burnCost.energy + scoopCost + weaponCost
-  const hasEnoughEnergy = powerAllocation.engines >= burnCost.energy || actionType === 'coast'
+  // Check if subsystems are powered and available
+  const hasRotation = rotationSubsystem?.isPowered && !rotationSubsystem.usedThisTurn
+  const hasEnoughEngines = enginesSubsystem && enginesSubsystem.allocatedEnergy >= burnCost.energy
   const hasEnoughMass = ship.reactionMass >= burnCost.mass || actionType === 'coast'
-  const canActivateScoop = actionType === 'coast' && powerAllocation.scoop >= 5
-  const hasEnoughWeaponPower = !selectedTarget || powerAllocation.weapons >= weaponCost
+  const canActivateScoop = actionType === 'coast' && scoopSubsystem?.isPowered && !scoopSubsystem.usedThisTurn
+
+  // Check weapon subsystems
+  let weaponSubsystem = laserSubsystem
+  if (selectedWeapon === 'railgun') weaponSubsystem = railgunSubsystem
+  if (selectedWeapon === 'missiles') weaponSubsystem = missilesSubsystem
+  const hasEnoughWeaponPower = !selectedTarget || (weaponSubsystem?.isPowered && !weaponSubsystem.usedThisTurn)
 
   const validationErrors: string[] = []
-  if (actionType === 'burn' && !hasEnoughEnergy) {
-    validationErrors.push(`Need ${burnCost.energy} engine power for ${burnIntensity} burn`)
+  if (actionType === 'burn' && !hasEnoughEngines) {
+    validationErrors.push(`Need ${burnCost.energy} energy in engines for ${burnIntensity} burn`)
   }
   if (actionType === 'burn' && !hasEnoughMass) {
     validationErrors.push(`Need ${burnCost.mass} reaction mass for ${burnIntensity} burn`)
   }
-  if (needsRotation && powerAllocation.rotation < 1) {
-    validationErrors.push('Need 1 rotation power to change direction')
+  if (needsRotation && !hasRotation) {
+    validationErrors.push('Need powered maneuvering thrusters (not used this turn) to change direction')
   }
   if (activateScoop && !canActivateScoop) {
-    validationErrors.push('Need 5 scoop power and must be coasting')
+    validationErrors.push('Need powered fuel scoop (not used this turn) and must be coasting')
   }
   if (selectedTarget && !hasEnoughWeaponPower) {
-    validationErrors.push(`Need ${weaponCost} weapon power for ${weapon.name}`)
+    validationErrors.push(`Need powered ${weapon.name} (not used this turn) to fire`)
   }
 
   const handleExecute = () => {
@@ -210,13 +222,13 @@ export function ActionSelector({
                 disabled={!canActivateScoop}
               />
             }
-            label="Activate Fuel Scoop (5E)"
+            label="Activate Fuel Scoop (requires powered scoop)"
           />
         </Box>
       )}
 
       {/* Weapons Section */}
-      <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+      <Box sx={{ mb: 2, p: 2, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1 }}>
         <Typography variant="body2" fontWeight="bold" gutterBottom>
           Weapons
         </Typography>
@@ -231,7 +243,7 @@ export function ActionSelector({
           >
             {Object.entries(WEAPONS).map(([key, weapon]) => (
               <MenuItem key={key} value={key}>
-                {weapon.name} ({weapon.energyCost}E, {weapon.rangeInDegrees}°, ±{weapon.ringRange}R)
+                {weapon.name} ({weapon.rangeInDegrees}°, ±{weapon.ringRange}R)
               </MenuItem>
             ))}
           </Select>
@@ -278,14 +290,19 @@ export function ActionSelector({
         </FormControl>
       </Box>
 
-      {/* Cost Summary */}
-      <Box sx={{ mb: 2, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+      {/* Subsystem Status Summary */}
+      <Box sx={{ mb: 2, p: 1, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1 }}>
         <Typography variant="body2">
-          <strong>Cost Summary:</strong>
+          <strong>Subsystem Status:</strong>
         </Typography>
         <Typography variant="caption" component="div">
-          Energy: {totalEnergyCost} /{' '}
-          {powerAllocation.rotation + powerAllocation.engines + powerAllocation.scoop}
+          Engines: {enginesSubsystem?.allocatedEnergy || 0}E {enginesSubsystem?.isPowered ? '✓' : '✗'}
+        </Typography>
+        <Typography variant="caption" component="div">
+          Maneuvering: {rotationSubsystem?.isPowered ? '✓' : '✗'} {rotationSubsystem?.usedThisTurn && '(used)'}
+        </Typography>
+        <Typography variant="caption" component="div">
+          Scoop: {scoopSubsystem?.isPowered ? '✓' : '✗'} {scoopSubsystem?.usedThisTurn && '(used)'}
         </Typography>
         {actionType === 'burn' && (
           <Typography variant="caption" component="div">
