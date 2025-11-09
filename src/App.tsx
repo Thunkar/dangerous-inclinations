@@ -1,14 +1,11 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-import { Box, Typography, Button, Stack } from '@mui/material'
+import { Box, Stack } from '@mui/material'
 import { GameProvider, useGame } from './context/GameContext'
 import { GameBoard } from './components/GameBoard'
-import { TurnIndicator } from './components/TurnIndicator'
 import { ShipSystemsPanel } from './components/energy-management/ShipSystemsPanel'
 import { ActionSelector } from './components/ActionSelector'
 import { StatusDisplay } from './components/StatusDisplay'
-import { calculateHeatGeneration } from './utils/subsystemHelpers'
-import type { HeatState } from './types/subsystems'
 
 const theme = createTheme({
   palette: {
@@ -50,82 +47,23 @@ function GameContent() {
     gameState,
     setPendingAction,
     executeTurn,
-    resetGame,
     allocateSubsystemEnergy,
     deallocateSubsystemEnergy,
     requestHeatVent,
   } = useGame()
   const activePlayer = gameState.players[gameState.activePlayerIndex]
 
-  // Calculate preview heat: current heat + NEW pending heat generation from overclocking
-  const getPreviewHeat = (): HeatState => {
-    const baseHeat = activePlayer.ship.heat
-    const pendingSubsystems = activePlayer.ship.pendingSubsystems
-    const committedSubsystems = activePlayer.ship.subsystems
-
-    // If no pending changes, just return the base heat (or pending heat if set)
-    if (!pendingSubsystems) {
-      return activePlayer.ship.pendingHeat || baseHeat
-    }
-
-    // Calculate heat that would be generated from NEWLY allocated pending overclocking
-    // (the difference between pending and committed)
-    const pendingHeatGeneration = calculateHeatGeneration(pendingSubsystems)
-    const committedHeatGeneration = calculateHeatGeneration(committedSubsystems)
-    const newHeatGeneration = pendingHeatGeneration - committedHeatGeneration
-
-    // Return preview showing: current heat + NEW generation - pending venting
-    const pendingHeat = activePlayer.ship.pendingHeat || baseHeat
-    return {
-      ...pendingHeat,
-      currentHeat: baseHeat.currentHeat + newHeatGeneration - pendingHeat.heatToVent,
-    }
-  }
-
   return (
     <Box sx={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Header */}
-      <Box
-        sx={{
-          p: 1.5,
-          borderBottom: 1,
-          borderColor: 'divider',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <Typography variant="h5" component="h1">
-          Orbital Combat Simulator
-        </Typography>
-        <Button variant="outlined" size="small" onClick={resetGame}>
-          Reset Game
-        </Button>
-      </Box>
-
-      <TurnIndicator activePlayer={activePlayer} turn={gameState.turn} />
+      {/* Status Bar */}
+      <StatusDisplay
+        players={gameState.players}
+        activePlayerIndex={gameState.activePlayerIndex}
+        turn={gameState.turn}
+      />
 
       {/* Main content area */}
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
-        {/* Left sidebar - Player Status */}
-        <Box
-          sx={{
-            minWidth: 250,
-            maxWidth: 300,
-            width: '20%',
-            borderRight: 1,
-            borderColor: 'divider',
-            overflow: 'auto',
-            p: 2,
-          }}
-        >
-          <StatusDisplay
-            players={gameState.players}
-            activePlayerIndex={gameState.activePlayerIndex}
-            turnLog={gameState.turnLog}
-          />
-        </Box>
-
         {/* Center - Game Board */}
         <Box
           sx={{

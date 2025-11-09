@@ -258,13 +258,6 @@ export function resolvePlayerTurn(
     ...player,
     ship: updatedShip,
     pendingAction: null,
-    powerAllocation: {
-      rotation: 0,
-      engines: 0,
-      scoop: 0,
-      weapons: 0,
-      defense: 0,
-    },
   }
 
   return { updatedPlayer, logEntries }

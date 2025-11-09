@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
-import type { GameState, Player, PowerAllocation, PlayerAction } from '../types/game'
+import type { GameState, Player, PlayerAction } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
 import { resolvePlayerTurn, resolveTransferOnly } from '../utils/turnResolution'
@@ -17,15 +17,11 @@ import { canSubsystemFunction } from '../types/subsystems'
 
 interface GameContextType {
   gameState: GameState
-  updatePowerAllocation: (allocation: PowerAllocation) => void
   setPendingAction: (action: PlayerAction) => void
   executeTurn: () => void
-  resetGame: () => void
-  // New subsystem energy management methods
   allocateSubsystemEnergy: (subsystemType: SubsystemType, amount: number) => void
   deallocateSubsystemEnergy: (subsystemType: SubsystemType, amount: number) => void
   requestHeatVent: (amount: number) => void
-  activateSubsystem: (subsystemType: SubsystemType) => void
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
@@ -47,13 +43,6 @@ const createInitialPlayers = (): Player[] => [
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
     },
-    powerAllocation: {
-      rotation: 0,
-      engines: 0,
-      scoop: 0,
-      weapons: 0,
-      defense: 0,
-    },
     pendingAction: null,
   },
   {
@@ -71,13 +60,6 @@ const createInitialPlayers = (): Player[] => [
       subsystems: createInitialSubsystems(),
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
-    },
-    powerAllocation: {
-      rotation: 0,
-      engines: 0,
-      scoop: 0,
-      weapons: 0,
-      defense: 0,
     },
     pendingAction: null,
   },
@@ -97,13 +79,6 @@ const createInitialPlayers = (): Player[] => [
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
     },
-    powerAllocation: {
-      rotation: 0,
-      engines: 0,
-      scoop: 0,
-      weapons: 0,
-      defense: 0,
-    },
     pendingAction: null,
   },
 ]
@@ -117,17 +92,6 @@ const createInitialState = (): GameState => ({
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(createInitialState())
-
-  const updatePowerAllocation = useCallback((allocation: PowerAllocation) => {
-    setGameState(prev => {
-      const newPlayers = [...prev.players]
-      newPlayers[prev.activePlayerIndex] = {
-        ...newPlayers[prev.activePlayerIndex],
-        powerAllocation: allocation,
-      }
-      return { ...prev, players: newPlayers }
-    })
-  }, [])
 
   const setPendingAction = useCallback((action: PlayerAction) => {
     setGameState(prev => {
@@ -251,10 +215,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
         turnLog: newLog,
       }
     })
-  }, [])
-
-  const resetGame = useCallback(() => {
-    setGameState(createInitialState())
   }, [])
 
   const allocateSubsystemEnergy = useCallback((subsystemType: SubsystemType, amount: number) => {
@@ -381,40 +341,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const activateSubsystem = useCallback((subsystemType: SubsystemType) => {
-    setGameState(prev => {
-      const activePlayer = prev.players[prev.activePlayerIndex]
-      const subsystems = updateSubsystem(
-        activePlayer.ship.subsystems,
-        subsystemType,
-        { usedThisTurn: true }
-      )
-
-      const newPlayers = [...prev.players]
-      newPlayers[prev.activePlayerIndex] = {
-        ...activePlayer,
-        ship: {
-          ...activePlayer.ship,
-          subsystems,
-        },
-      }
-
-      return { ...prev, players: newPlayers }
-    })
-  }, [])
-
   return (
     <GameContext.Provider
       value={{
         gameState,
-        updatePowerAllocation,
         setPendingAction,
         executeTurn,
-        resetGame,
         allocateSubsystemEnergy,
         deallocateSubsystemEnergy,
         requestHeatVent,
-        activateSubsystem,
       }}
     >
       {children}

@@ -29,15 +29,6 @@ export interface ShipState {
   pendingHeat?: HeatState
 }
 
-// Legacy interface - kept for backward compatibility during migration
-export interface PowerAllocation {
-  rotation: number
-  engines: number
-  scoop: number
-  weapons: number
-  defense: number
-}
-
 export interface WeaponFiring {
   weaponType: string // e.g., 'laser', 'railgun', 'missile'
   targetPlayerId: string
@@ -56,7 +47,6 @@ export interface Player {
   name: string
   color: string
   ship: ShipState
-  powerAllocation: PowerAllocation  // Legacy - will be removed
   pendingAction: PlayerAction | null
 }
 
