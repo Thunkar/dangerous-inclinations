@@ -55,20 +55,15 @@ const AbilityBox = styled(Box, {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: isAction ? '8px' : '5px 8px',
-    borderRadius: isAction ? '50%' : '10px',
-    minWidth: isAction ? '50px' : '50px',
-    maxWidth: isAction ? '50px' : '60px',
-    minHeight: isAction ? '50px' : undefined,
+    padding: isAction ? '6px' : '4px 6px',
+    borderRadius: isAction ? '50%' : '8px',
+    minWidth: isAction ? '40px' : '40px',
+    maxWidth: isAction ? '40px' : '50px',
+    minHeight: isAction ? '40px' : undefined,
     color: disabled ? theme.palette.text.secondary : theme.palette.text.primary,
     backgroundColor: getBackgroundColor(),
     lineHeight: '1em',
     cursor: disabled ? 'default' : 'pointer',
-    boxShadow: disabled
-      ? '1px 1px 0px 0px rgba(0,0,0,0.3)'
-      : isAction
-        ? '3px 3px 2px 2px rgba(0,0,0,0.5)'
-        : '2px 2px 1px 1px black',
     transition: 'all 0.2s',
     border: `2px solid ${disabled ? theme.palette.divider : 'black'}`,
     filter: shouldBlur ? 'blur(4px)' : undefined,
@@ -85,8 +80,8 @@ const CostsRow = styled(Box)({
   display: 'flex',
   flexDirection: 'row',
   alignItems: 'center',
-  gap: '4px',
-  fontSize: '1em',
+  gap: '2px',
+  fontSize: '0.85em',
   fontWeight: 'bold',
 })
 
@@ -118,28 +113,28 @@ export function SubsystemButton({
         return (
           <CostsRow>
             +1
-            <CustomIcon icon="energy" size={20} />
+            <CustomIcon icon="energy" size={14} />
           </CostsRow>
         )
       case 'remove':
         return (
           <CostsRow>
             -1
-            <CustomIcon icon="energy" size={20} />
+            <CustomIcon icon="energy" size={14} />
           </CostsRow>
         )
       case 'vent':
         return (
           <CostsRow>
             -1
-            <CustomIcon icon="heat" size={20} />
+            <CustomIcon icon="heat" size={14} />
           </CostsRow>
         )
       default:
         return (
           <>
             <Box sx={{ mb: 0.25 }}>
-              <CustomIcon icon={subsystemType} size={24} />
+              <CustomIcon icon={subsystemType} size={14} />
             </Box>
             <CostsRow>
               {allocatedEnergy}

@@ -29,9 +29,8 @@ const Container = styled(Box)({
   position: 'relative',
   alignItems: 'center',
   justifyContent: 'center',
-  overflow: 'visible',
-  minHeight: '340px', // Match the ship container height
-  padding: '1em', // Add padding to prevent indicator badges from being clipped
+  padding: '1.5em 0.5em',
+  width: '100%',
 })
 
 const Stats = styled(Box)({
@@ -39,27 +38,26 @@ const Stats = styled(Box)({
   flexWrap: 'wrap',
   position: 'absolute',
   justifyContent: 'space-between',
-  height: '340px', // Fixed height to match ship container
-  width: '340px', // Fixed width to match ship container
+  height: '280px',
+  width: '340px',
   left: '50%',
   top: '50%',
   transform: 'translate(-50%, -50%)',
-  overflow: 'hidden',
   pointerEvents: 'none',
 })
 
 const Break = styled(Box)({
   flexBasis: '100%',
-  height: 'calc(100% - 7.4rem)',
+  height: 'calc(100% - 6rem)',
 })
 
 const Stat = styled(Box)({
   textAlign: 'center',
   display: 'flex',
   flexDirection: 'column',
-  fontSize: '0.8rem',
-  height: '3.7rem',
-  width: '2.5rem',
+  fontSize: '0.7rem',
+  height: '3rem',
+  width: '2.2rem',
   pointerEvents: 'auto',
 })
 
@@ -88,7 +86,7 @@ const Hull = styled(CircleInfo)(({ theme }) => ({
 }))
 
 const Heat = styled(CircleInfo, {
-  shouldForwardProp: (prop) => prop !== 'hasHeat',
+  shouldForwardProp: prop => prop !== 'hasHeat',
 })<{ hasHeat?: boolean }>(({ theme, hasHeat }) => ({
   background: `radial-gradient(circle, ${theme.palette.error.dark} 0%, ${theme.palette.error.main} 50%, ${theme.palette.error.light} 70%)`,
   cursor: hasHeat ? 'pointer' : 'default',
@@ -100,7 +98,7 @@ const Systems = styled(Box)({
   position: 'relative',
   overflow: 'visible',
   width: '340px',
-  height: '340px',
+  height: '280px',
 })
 
 const ButtonContainer = styled(Box)({
@@ -118,12 +116,12 @@ const Aft = styled(ButtonContainer)({
   height: `calc(100% - ${(buttonContainerWidth + positioningMargin) * 2}px)`,
   width: `${buttonContainerWidth}px`,
   top: `${buttonContainerWidth + positioningMargin}px`,
-  padding: '0.5rem 0',
+  padding: '0.3rem 0',
   borderRadius: '5px 0px 0px 5px',
 })
 
 const AftTrapezoid = styled(Aft, {
-  shouldForwardProp: (prop) => prop !== 'shouldBlur',
+  shouldForwardProp: prop => prop !== 'shouldBlur',
 })<{ shouldBlur?: boolean }>(({ theme, shouldBlur }) => ({
   left: `-${trapezoidCorrection}px`,
   transform: `perspective(${trapezoidFactor}px) rotateY(-${trapezoidAngle}deg)`,
@@ -140,12 +138,12 @@ const Port = styled(ButtonContainer)({
   width: `calc(100% - ${(buttonContainerWidth + positioningMargin) * 2}px)`,
   height: `${buttonContainerWidth}px`,
   left: `${buttonContainerWidth + positioningMargin}px`,
-  padding: '0 0.3rem',
+  padding: '0 0.2rem',
   borderRadius: '5px 5px 0px 0px',
 })
 
 const PortTrapezoid = styled(Port, {
-  shouldForwardProp: (prop) => prop !== 'shouldBlur',
+  shouldForwardProp: prop => prop !== 'shouldBlur',
 })<{ shouldBlur?: boolean }>(({ theme, shouldBlur }) => ({
   top: `-${trapezoidCorrection / 2}px`,
   backgroundColor: theme.palette.action.hover,
@@ -163,12 +161,12 @@ const Forward = styled(ButtonContainer)({
   height: `calc(100% - ${(buttonContainerWidth + positioningMargin) * 2}px)`,
   width: `${buttonContainerWidth}px`,
   top: `${buttonContainerWidth + positioningMargin}px`,
-  padding: '0.3rem 0',
+  padding: '0.2rem 0',
   borderRadius: '0px 5px 5px 0px',
 })
 
 const ForwardTrapezoid = styled(Forward, {
-  shouldForwardProp: (prop) => prop !== 'shouldBlur',
+  shouldForwardProp: prop => prop !== 'shouldBlur',
 })<{ shouldBlur?: boolean }>(({ theme, shouldBlur }) => ({
   right: `-${trapezoidCorrection}px`,
   backgroundColor: theme.palette.action.hover,
@@ -185,11 +183,11 @@ const Starboard = styled(ButtonContainer)({
   width: `calc(100% - ${(buttonContainerWidth + positioningMargin) * 2}px)`,
   height: `${buttonContainerWidth}px`,
   left: `${buttonContainerWidth + positioningMargin}px`,
-  padding: '0 0.3rem',
+  padding: '0 0.2rem',
 })
 
 const StarboardTrapezoid = styled(Starboard, {
-  shouldForwardProp: (prop) => prop !== 'shouldBlur',
+  shouldForwardProp: prop => prop !== 'shouldBlur',
 })<{ shouldBlur?: boolean }>(({ theme, shouldBlur }) => ({
   bottom: `-${trapezoidCorrection / 2}px`,
   backgroundColor: theme.palette.action.hover,
@@ -203,20 +201,19 @@ const StarboardTrapezoid = styled(Starboard, {
 }))
 
 const ShipImage = styled('img', {
-  shouldForwardProp: (prop) => prop !== 'shouldBlur',
+  shouldForwardProp: prop => prop !== 'shouldBlur',
 })<{ shouldBlur?: boolean }>(({ shouldBlur }) => ({
   margin: `${buttonContainerWidth + positioningMargin * 2}px`,
-  width: '200px',
-  height: '200px',
+  width: '190px',
+  height: '150px',
   objectFit: 'contain',
   zIndex: 1,
   filter: shouldBlur ? 'blur(4px)' : undefined,
   transition: 'filter 0.3s',
 }))
 
-
 const VerticalDivider = styled(Box, {
-  shouldForwardProp: (prop) => prop !== 'visible',
+  shouldForwardProp: prop => prop !== 'visible',
 })<{ visible: boolean }>(({ theme, visible }) => ({
   height: '1px',
   width: '100%',
@@ -225,7 +222,7 @@ const VerticalDivider = styled(Box, {
 }))
 
 const HorizontalDivider = styled(Box, {
-  shouldForwardProp: (prop) => prop !== 'visible',
+  shouldForwardProp: prop => prop !== 'visible',
 })<{ visible: boolean }>(({ theme, visible }) => ({
   width: '1px',
   height: '100%',
@@ -279,20 +276,21 @@ export function ShipSystemsPanel({
           <Box
             sx={{
               position: 'absolute',
-              left: horizontal ? 'calc(50% - 0.6em)' : '-1em',
-              top: horizontal ? '-1em' : undefined,
+              left: horizontal ? 'calc(50% - 0.5em)' : '-0.8em',
+              top: horizontal ? '-0.8em' : undefined,
               bgcolor: 'secondary.main',
               color: 'secondary.contrastText',
               borderRadius: '50%',
-              width: '1.2em',
-              height: '1.2em',
+              width: '1em',
+              height: '1em',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '0.8em',
+              fontSize: '0.7em',
               fontWeight: 'bold',
               zIndex: 15,
-              filter: openMenuId !== null && openMenuId !== subsystem.type ? 'blur(5px)' : undefined,
+              filter:
+                openMenuId !== null && openMenuId !== subsystem.type ? 'blur(5px)' : undefined,
             }}
           >
             {subsystem.allocatedEnergy}
@@ -304,20 +302,21 @@ export function ShipSystemsPanel({
           <Box
             sx={{
               position: 'absolute',
-              right: horizontal ? 'calc(50% - 0.6em)' : '-1em',
-              bottom: horizontal ? '-1em' : undefined,
+              right: horizontal ? 'calc(50% - 0.5em)' : '-0.8em',
+              bottom: horizontal ? '-0.8em' : undefined,
               bgcolor: 'error.main',
               color: 'error.contrastText',
               borderRadius: '50%',
-              width: '1.2em',
-              height: '1.2em',
+              width: '1em',
+              height: '1em',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '0.8em',
+              fontSize: '0.7em',
               fontWeight: 'bold',
               zIndex: 15,
-              filter: openMenuId !== null && openMenuId !== subsystem.type ? 'blur(5px)' : undefined,
+              filter:
+                openMenuId !== null && openMenuId !== subsystem.type ? 'blur(5px)' : undefined,
             }}
           >
             !
@@ -377,7 +376,7 @@ export function ShipSystemsPanel({
         radius={8}
         startAngle={startAngle}
         rotationAngle={rotationAngle}
-        onMenuToggled={(isOpen) => handleMenuToggle(subsystem.type, isOpen)}
+        onMenuToggled={isOpen => handleMenuToggle(subsystem.type, isOpen)}
         disabled={openMenuId !== null && openMenuId !== subsystem.type}
       >
         {actionButtons}
@@ -386,10 +385,10 @@ export function ShipSystemsPanel({
   }
 
   // Distribute subsystems to sides
-  const aftSubsystems = subsystems.filter((s) => ['engines', 'rotation'].includes(s.type))
-  const portSubsystems = subsystems.filter((s) => ['scoop', 'shields'].includes(s.type))
-  const forwardSubsystems = subsystems.filter((s) => ['railgun'].includes(s.type))
-  const starboardSubsystems = subsystems.filter((s) => ['missiles', 'laser'].includes(s.type))
+  const aftSubsystems = subsystems.filter(s => ['engines', 'rotation'].includes(s.type))
+  const portSubsystems = subsystems.filter(s => ['scoop', 'shields'].includes(s.type))
+  const forwardSubsystems = subsystems.filter(s => ['railgun'].includes(s.type))
+  const starboardSubsystems = subsystems.filter(s => ['missiles', 'laser'].includes(s.type))
 
   return (
     <Container>
@@ -414,7 +413,9 @@ export function ShipSystemsPanel({
         <Stat>
           <Typography variant="caption">Hull</Typography>
           <Hull>
-            <Typography variant="body2">{hitPoints}/{maxHitPoints}</Typography>
+            <Typography variant="body2">
+              {hitPoints}/{maxHitPoints}
+            </Typography>
           </Hull>
         </Stat>
         <Stat>
@@ -435,12 +436,13 @@ export function ShipSystemsPanel({
         <ForwardTrapezoid shouldBlur={openMenuId !== null} />
         <StarboardTrapezoid shouldBlur={openMenuId !== null} />
 
-
         <Aft>
           {aftSubsystems.map((subsystem, index) => (
             <Fragment key={subsystem.type}>
               {renderSubsystemMenu(subsystem, false, 'aft')}
-              {index !== aftSubsystems.length - 1 && <VerticalDivider visible={openMenuId === null} />}
+              {index !== aftSubsystems.length - 1 && (
+                <VerticalDivider visible={openMenuId === null} />
+              )}
             </Fragment>
           ))}
         </Aft>
@@ -468,9 +470,9 @@ export function ShipSystemsPanel({
                     {heat.heatToVent > 0 && (
                       <Box
                         sx={{
-                          minWidth: '40px',
-                          minHeight: '40px',
-                          maxWidth: '40px',
+                          minWidth: '32px',
+                          minHeight: '32px',
+                          maxWidth: '32px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -487,7 +489,10 @@ export function ShipSystemsPanel({
                         }}
                         onClick={() => onVentHeat(Math.max(0, heat.heatToVent - 1))}
                       >
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', userSelect: 'none', fontSize: '1.2rem' }}>
+                        <Typography
+                          variant="body1"
+                          sx={{ fontWeight: 'bold', userSelect: 'none', fontSize: '1rem' }}
+                        >
                           ↶
                         </Typography>
                       </Box>
@@ -501,14 +506,17 @@ export function ShipSystemsPanel({
                       variant="vent"
                       disabled={
                         heat.heatToVent >= heat.currentHeat ||
-                        heat.heatToVent >= Math.max(0, reactor.maxReturnRate - reactor.energyToReturn)
+                        heat.heatToVent >=
+                          Math.max(0, reactor.maxReturnRate - reactor.energyToReturn)
                       }
                       onClick={() => onVentHeat(heat.heatToVent + 1)}
                     />
                   </Box>
                 </>
               )}
-              {index !== portSubsystems.length - 1 && <HorizontalDivider visible={openMenuId === null} />}
+              {index !== portSubsystems.length - 1 && (
+                <HorizontalDivider visible={openMenuId === null} />
+              )}
             </Fragment>
           ))}
         </Port>
@@ -517,7 +525,9 @@ export function ShipSystemsPanel({
           {forwardSubsystems.map((subsystem, index) => (
             <Fragment key={subsystem.type}>
               {renderSubsystemMenu(subsystem, false, 'forward')}
-              {index !== forwardSubsystems.length - 1 && <VerticalDivider visible={openMenuId === null} />}
+              {index !== forwardSubsystems.length - 1 && (
+                <VerticalDivider visible={openMenuId === null} />
+              )}
             </Fragment>
           ))}
         </Forward>
@@ -526,7 +536,9 @@ export function ShipSystemsPanel({
           {starboardSubsystems.map((subsystem, index) => (
             <Fragment key={subsystem.type}>
               {renderSubsystemMenu(subsystem, true, 'starboard')}
-              {index !== starboardSubsystems.length - 1 && <HorizontalDivider visible={openMenuId === null} />}
+              {index !== starboardSubsystems.length - 1 && (
+                <HorizontalDivider visible={openMenuId === null} />
+              )}
             </Fragment>
           ))}
         </Starboard>

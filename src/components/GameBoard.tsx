@@ -64,6 +64,9 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
         position: 'relative',
         overflow: 'hidden',
         cursor: isPanning ? 'grabbing' : 'grab',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
       ref={containerRef}
       onWheel={handleWheel}

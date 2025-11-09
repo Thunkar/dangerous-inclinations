@@ -42,32 +42,43 @@ export function StatusDisplay({ players, activePlayerIndex, turn }: StatusDispla
       {players.map((player, index) => {
         const isActive = index === activePlayerIndex
         return (
-          <Box
-            key={player.id}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              px: 2,
-              py: 0.5,
-              borderRadius: 1,
-              bgcolor: isActive ? `${player.color}30` : 'transparent',
-              border: isActive ? `2px solid ${player.color}` : '2px solid transparent',
-              transition: 'all 0.2s',
-            }}
-          >
-            {/* Ship indicator */}
+          <>
+            {index > 0 && (
+              <Box
+                key={`divider-${player.id}`}
+                sx={{
+                  width: '1px',
+                  height: 40,
+                  bgcolor: 'divider',
+                  opacity: 0.3,
+                }}
+              />
+            )}
             <Box
+              key={player.id}
               sx={{
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                bgcolor: player.color,
-                border: '2px solid',
-                borderColor: isActive ? player.color : 'rgba(255, 255, 255, 0.3)',
-                boxShadow: isActive ? `0 0 8px ${player.color}` : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+                px: 2,
+                py: 0.5,
+                borderRadius: 1,
+                bgcolor: isActive ? `${player.color}30` : 'transparent',
+                border: isActive ? `2px solid ${player.color}` : '2px solid transparent',
+                transition: 'all 0.2s',
               }}
-            />
+            >
+              {/* Ship indicator */}
+              <Box
+                sx={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  bgcolor: player.color,
+                  border: isActive ? `2px solid ${player.color}` : 'none',
+                  boxShadow: isActive ? `0 0 8px ${player.color}` : 'none',
+                }}
+              />
 
             {/* Ship name */}
             <Typography
@@ -127,6 +138,7 @@ export function StatusDisplay({ players, activePlayerIndex, turn }: StatusDispla
               )}
             </Box>
           </Box>
+        </>
         )
       })}
     </Paper>
