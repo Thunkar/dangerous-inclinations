@@ -1,4 +1,5 @@
-import { Box } from '@mui/material'
+import { Box, IconButton, Tooltip } from '@mui/material'
+import { useState, useRef } from 'react'
 import { RING_CONFIGS, mapSectorOnTransfer, BURN_COSTS } from '../constants/rings'
 import { WEAPONS, calculateWeaponRange } from '../constants/weapons'
 import type { Player } from '../types/game'
@@ -13,16 +14,74 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
   const centerX = boardSize / 2
   const centerY = boardSize / 2
 
+  // Pan and zoom state
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 })
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Handle wheel zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? 0.9 : 1.1
+    const newZoom = Math.max(0.5, Math.min(3, zoom * delta))
+    setZoom(newZoom)
+  }
+
+  // Handle mouse pan
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0) { // Left click
+      setIsPanning(true)
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      setPan({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y,
+      })
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsPanning(false)
+  }
+
+  // Reset view
+  const resetView = () => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }
+
   return (
     <Box
       sx={{
-        width: boardSize,
-        height: boardSize,
+        width: '100%',
+        height: '100%',
         position: 'relative',
-        margin: '0 auto',
+        overflow: 'hidden',
+        cursor: isPanning ? 'grabbing' : 'grab',
       }}
+      ref={containerRef}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
     >
-      <svg width={boardSize} height={boardSize}>
+      {/* Main SVG with pan/zoom */}
+      <svg
+        width={boardSize}
+        height={boardSize}
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: 'center',
+          transition: isPanning ? 'none' : 'transform 0.1s',
+        }}
+      >
         {/* Black hole center */}
         <circle cx={centerX} cy={centerY} r={20} fill="#000" />
         <circle cx={centerX} cy={centerY} r={25} fill="none" stroke="#333" strokeWidth={2} />
@@ -606,6 +665,149 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
           ))}
         </defs>
       </svg>
+
+      {/* Minimap */}
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: 16,
+          right: 16,
+          width: 150,
+          height: 150,
+          bgcolor: 'rgba(0, 0, 0, 0.7)',
+          border: '2px solid',
+          borderColor: 'divider',
+          borderRadius: 1,
+          overflow: 'hidden',
+        }}
+      >
+        <svg width={150} height={150} viewBox={`0 0 ${boardSize} ${boardSize}`}>
+          {/* Rings */}
+          {RING_CONFIGS.map(config => {
+            const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+            const radius = config.radius * scaleFactor
+            return (
+              <circle
+                key={config.ring}
+                cx={centerX}
+                cy={centerY}
+                r={radius}
+                fill="none"
+                stroke="#666"
+                strokeWidth={2}
+              />
+            )
+          })}
+
+          {/* Ships on minimap */}
+          {players.map(player => {
+            const ringConfig = RING_CONFIGS.find(r => r.ring === player.ship.ring)
+            if (!ringConfig) return null
+
+            const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+            const radius = ringConfig.radius * scaleFactor
+            const angle =
+              ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2
+            const x = centerX + radius * Math.cos(angle)
+            const y = centerY + radius * Math.sin(angle)
+
+            return (
+              <circle
+                key={player.id}
+                cx={x}
+                cy={y}
+                r={8}
+                fill={player.color}
+                opacity={0.8}
+              />
+            )
+          })}
+
+          {/* Viewport indicator */}
+          <rect
+            x={centerX - (boardSize / 2) / zoom - pan.x / zoom}
+            y={centerY - (boardSize / 2) / zoom - pan.y / zoom}
+            width={boardSize / zoom}
+            height={boardSize / zoom}
+            fill="none"
+            stroke="#fff"
+            strokeWidth={3}
+            opacity={0.5}
+          />
+        </svg>
+      </Box>
+
+      {/* Controls */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 16,
+          right: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
+        }}
+      >
+        <Tooltip title="Reset View" placement="left">
+          <IconButton
+            onClick={resetView}
+            sx={{
+              bgcolor: 'rgba(0, 0, 0, 0.7)',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(0, 0, 0, 0.9)',
+              },
+            }}
+          >
+            ⟲
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Zoom In" placement="left">
+          <IconButton
+            onClick={() => setZoom(Math.min(3, zoom * 1.2))}
+            sx={{
+              bgcolor: 'rgba(0, 0, 0, 0.7)',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(0, 0, 0, 0.9)',
+              },
+            }}
+          >
+            +
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Zoom Out" placement="left">
+          <IconButton
+            onClick={() => setZoom(Math.max(0.5, zoom / 1.2))}
+            sx={{
+              bgcolor: 'rgba(0, 0, 0, 0.7)',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(0, 0, 0, 0.9)',
+              },
+            }}
+          >
+            −
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* Zoom indicator */}
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: 16,
+          left: 16,
+          bgcolor: 'rgba(0, 0, 0, 0.7)',
+          color: 'white',
+          px: 2,
+          py: 1,
+          borderRadius: 1,
+          fontSize: '0.875rem',
+        }}
+      >
+        Zoom: {(zoom * 100).toFixed(0)}%
+      </Box>
     </Box>
   )
 }
