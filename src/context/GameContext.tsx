@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
-import type { GameState, Player, PlayerAction } from '../types/game'
+import type { GameState, Player, PlayerAction, Facing } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
 import { resolvePlayerTurn, resolveTransferOnly } from '../utils/turnResolution'
@@ -13,7 +13,13 @@ import {
   requestEnergyReturn,
   getSubsystem,
 } from '../utils/subsystemHelpers'
-import { canSubsystemFunction } from '../types/subsystems'
+import { canSubsystemFunction, getSubsystemConfig } from '../types/subsystems'
+
+interface WeaponRangeVisibility {
+  laser: boolean
+  railgun: boolean
+  missile: boolean
+}
 
 interface GameContextType {
   gameState: GameState
@@ -22,6 +28,9 @@ interface GameContextType {
   allocateSubsystemEnergy: (subsystemType: SubsystemType, amount: number) => void
   deallocateSubsystemEnergy: (subsystemType: SubsystemType, amount: number) => void
   requestHeatVent: (amount: number) => void
+  setPendingFacing: (facing: Facing) => void
+  weaponRangeVisibility: WeaponRangeVisibility
+  toggleWeaponRange: (weaponType: 'laser' | 'railgun' | 'missile') => void
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
@@ -45,24 +54,24 @@ const createInitialPlayers = (): Player[] => [
     },
     pendingAction: null,
   },
-  {
-    id: 'player2',
-    name: 'Ship Beta',
-    color: '#f44336',
-    ship: {
-      ring: 5,
-      sector: 48, // Ring 5 has 96 sectors (halfway around)
-      facing: 'prograde',
-      reactionMass: STARTING_REACTION_MASS,
-      hitPoints: 10,
-      maxHitPoints: 10,
-      transferState: null,
-      subsystems: createInitialSubsystems(),
-      reactor: createInitialReactorState(),
-      heat: createInitialHeatState(),
-    },
-    pendingAction: null,
-  },
+  // {
+  //   id: 'player2',
+  //   name: 'Ship Beta',
+  //   color: '#f44336',
+  //   ship: {
+  //     ring: 5,
+  //     sector: 48, // Ring 5 has 96 sectors (halfway around)
+  //     facing: 'prograde',
+  //     reactionMass: STARTING_REACTION_MASS,
+  //     hitPoints: 10,
+  //     maxHitPoints: 10,
+  //     transferState: null,
+  //     subsystems: createInitialSubsystems(),
+  //     reactor: createInitialReactorState(),
+  //     heat: createInitialHeatState(),
+  //   },
+  //   pendingAction: null,
+  // },
   {
     id: 'player3',
     name: 'Ship Gamma',
@@ -92,6 +101,11 @@ const createInitialState = (): GameState => ({
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(createInitialState())
+  const [weaponRangeVisibility, setWeaponRangeVisibility] = useState<WeaponRangeVisibility>({
+    laser: false,
+    railgun: false,
+    missile: false,
+  })
 
   const setPendingAction = useCallback((action: PlayerAction) => {
     setGameState(prev => {
@@ -108,6 +122,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameState(prev => {
       // Execute the active player's turn
       let activePlayer = prev.players[prev.activePlayerIndex]
+
+      // Commit pending facing immediately (it was set during planning for railgun visualization)
+      if (activePlayer.ship.pendingFacing) {
+        activePlayer = {
+          ...activePlayer,
+          ship: {
+            ...activePlayer.ship,
+            facing: activePlayer.ship.pendingFacing,
+            pendingFacing: undefined,
+          },
+        }
+      }
 
       // Only commit pending energy allocations if there's a pending action
       // If no action, discard the pending allocations (they were just planning)
@@ -150,6 +176,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Store weapon firings before resolvePlayerTurn clears pendingAction
+      const weaponFirings = activePlayer.pendingAction?.weaponFirings || []
+
+      // Store the heat level at the start of the turn (before heat generation)
+      // Heat damage is only applied from heat that existed at start, minus any venting
+      const heatAtStartOfTurn = activePlayer.ship.heat.currentHeat
+      const heatToVent = activePlayer.ship.pendingHeat?.heatToVent || activePlayer.ship.heat.heatToVent
+
       const { updatedPlayer, logEntries } = resolvePlayerTurn(activePlayer, prev.turn)
 
       const newPlayers = [...prev.players]
@@ -183,11 +217,65 @@ export function GameProvider({ children }: { children: ReactNode }) {
         newLog = [...newLog, ...transferLogs]
       }
 
-      // Apply heat damage to the current player at the end of their turn
+      // Apply weapon damage from the current player's attacks
       const currentPlayer = finalPlayers[prev.activePlayerIndex]
+      if (weaponFirings.length > 0) {
+        weaponFirings.forEach(firing => {
+          // Find the target player
+          const targetIndex = finalPlayers.findIndex(p => p.id === firing.targetPlayerId)
+          if (targetIndex !== -1) {
+            const targetPlayer = finalPlayers[targetIndex]
 
-      if (currentPlayer.ship.heat.currentHeat > 0) {
-        const heatDamage = currentPlayer.ship.heat.currentHeat
+            // Get weapon subsystem to determine damage
+            const weaponSubsystem = getSubsystem(
+              currentPlayer.ship.subsystems,
+              firing.weaponType as SubsystemType
+            )
+            if (weaponSubsystem) {
+              const config = getSubsystemConfig(weaponSubsystem.type)
+              const weaponStats = config.weaponStats
+
+              if (weaponStats && targetPlayer.ship.hitPoints > 0) {
+                const damage = weaponStats.damage
+                const newHitPoints = Math.max(0, targetPlayer.ship.hitPoints - damage)
+
+                // Update target's hit points
+                finalPlayers[targetIndex] = {
+                  ...targetPlayer,
+                  ship: {
+                    ...targetPlayer.ship,
+                    hitPoints: newHitPoints,
+                  },
+                }
+
+                newLog.push({
+                  turn: prev.turn,
+                  playerId: currentPlayer.id,
+                  playerName: currentPlayer.name,
+                  action: `${config.name} Hit`,
+                  result: `Dealt ${damage} damage to ${targetPlayer.name} (${newHitPoints}/${targetPlayer.ship.maxHitPoints} HP)`,
+                })
+
+                if (newHitPoints === 0) {
+                  newLog.push({
+                    turn: prev.turn,
+                    playerId: targetPlayer.id,
+                    playerName: targetPlayer.name,
+                    action: 'Ship Destroyed',
+                    result: `💥 ${targetPlayer.name} has been destroyed!`,
+                  })
+                }
+              }
+            }
+          }
+        })
+      }
+
+      // Apply heat damage to the current player at the end of their turn
+      // Only damage from heat that existed at START minus any venting (not newly generated heat)
+      const effectiveHeatForDamage = Math.max(0, heatAtStartOfTurn - heatToVent)
+      if (effectiveHeatForDamage > 0) {
+        const heatDamage = effectiveHeatForDamage
         const newHitPoints = Math.max(0, currentPlayer.ship.hitPoints - heatDamage)
 
         newLog.push({
@@ -341,6 +429,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const setPendingFacing = useCallback((facing: Facing) => {
+    setGameState(prev => {
+      const activePlayer = prev.players[prev.activePlayerIndex]
+
+      const newPlayers = [...prev.players]
+      newPlayers[prev.activePlayerIndex] = {
+        ...activePlayer,
+        ship: {
+          ...activePlayer.ship,
+          pendingFacing: facing,
+        },
+      }
+
+      return { ...prev, players: newPlayers }
+    })
+  }, [])
+
+  const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missile') => {
+    setWeaponRangeVisibility(prev => ({
+      ...prev,
+      [weaponType]: !prev[weaponType],
+    }))
+  }, [])
+
   return (
     <GameContext.Provider
       value={{
@@ -350,6 +462,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         allocateSubsystemEnergy,
         deallocateSubsystemEnergy,
         requestHeatVent,
+        setPendingFacing,
+        weaponRangeVisibility,
+        toggleWeaponRange,
       }}
     >
       {children}

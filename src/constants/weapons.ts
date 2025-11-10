@@ -72,7 +72,7 @@ export function calculateWeaponRange(
   targetRing: number,
   targetSector: number,
   targetSectorCount: number,
-  weapon: WeaponConfig
+  weapon: WeaponConfig | { rangeInDegrees: number; ringRange: number; arc: string }
 ): {
   inRange: boolean
   angularDistance: number

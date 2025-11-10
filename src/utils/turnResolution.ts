@@ -1,4 +1,5 @@
 import type { Player, TurnLogEntry, ShipState } from '../types/game'
+import type { SubsystemType } from '../types/subsystems'
 import {
   getRingConfig,
   BURN_COSTS,
@@ -10,6 +11,7 @@ import {
   calculateHeatGeneration,
   processEnergyReturn,
   resetSubsystemUsage,
+  getSubsystem,
 } from './subsystemHelpers'
 
 /**
@@ -114,25 +116,23 @@ export function resolvePlayerTurn(
     })
   }
 
-  // Phase 3: Orientation & Action Execution
-  if (action.type === 'burn' && action.burnDirection && action.burnIntensity) {
-    const needsRotation = updatedShip.facing !== action.burnDirection
+  // Phase 3: Orientation (now independent of burn)
+  if (action.targetFacing && updatedShip.facing !== action.targetFacing) {
+    updatedShip.facing = action.targetFacing
+    logEntries.push({
+      turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Rotation',
+      result: `Rotated to ${action.targetFacing}`,
+    })
+  }
 
-    // Rotate if needed
-    if (needsRotation) {
-      updatedShip.facing = action.burnDirection
-      logEntries.push({
-        turn,
-        playerId: player.id,
-        playerName: player.name,
-        action: 'Rotation',
-        result: `Rotated to ${action.burnDirection}`,
-      })
-    }
-
-    // Execute burn
+  // Phase 3.5: Burn Execution (if burn action selected)
+  if (action.type === 'burn' && action.burnIntensity) {
     const burnCost = BURN_COSTS[action.burnIntensity]
-    const direction = action.burnDirection === 'prograde' ? 1 : -1
+    const burnDirection = action.targetFacing || updatedShip.facing
+    const direction = burnDirection === 'prograde' ? 1 : -1
     const destinationRing = updatedShip.ring + direction * burnCost.rings
 
     // Clamp to valid ring range
@@ -151,12 +151,82 @@ export function resolvePlayerTurn(
       turn,
       playerId: player.id,
       playerName: player.name,
-      action: `${action.burnIntensity} burn ${action.burnDirection}`,
+      action: `${action.burnIntensity} burn ${burnDirection}`,
       result: `Initiating transfer to Ring ${clampedDestination} (${burnCost.energy}E, ${burnCost.mass}M)`,
     })
   }
 
-  // Phase 4: Fuel Scoop
+  // Phase 4: Weapons (process all weapon firings)
+  // Note: Weapon damage will be applied in a separate combat resolution phase
+  // This just logs the weapon firing events and handles special mechanics (like railgun recoil)
+  if (action.weaponFirings && action.weaponFirings.length > 0) {
+    action.weaponFirings.forEach(firing => {
+      // Mark weapon as used
+      const weaponType = firing.weaponType as SubsystemType
+      updatedShip.subsystems = updatedShip.subsystems.map(s =>
+        s.type === weaponType ? { ...s, usedThisTurn: true } : s
+      )
+
+      logEntries.push({
+        turn,
+        playerId: player.id,
+        playerName: player.name,
+        action: `Fire ${firing.weaponType}`,
+        result: `Targeting player ${firing.targetPlayerId}`,
+      })
+
+      // Railgun recoil mechanics
+      if (firing.weaponType === 'railgun') {
+        const enginesSubsystem = getSubsystem(updatedShip.subsystems, 'engines')
+        const hasEnginesWithMass =
+          enginesSubsystem &&
+          enginesSubsystem.allocatedEnergy >= 1 &&
+          updatedShip.reactionMass >= 1
+
+        if (hasEnginesWithMass) {
+          // Engines compensate for recoil
+          updatedShip.reactionMass -= 1
+          logEntries.push({
+            turn,
+            playerId: player.id,
+            playerName: player.name,
+            action: 'Railgun Recoil Compensated',
+            result: 'Engines absorbed recoil (1M consumed)',
+          })
+        } else {
+          // Uncontrolled recoil burn - ship moves opposite to facing direction
+          const recoilDirection = updatedShip.facing === 'prograde' ? -1 : 1
+          const destinationRing = Math.max(1, Math.min(6, updatedShip.ring + recoilDirection))
+
+          // Only initiate transfer if not already in one
+          if (!updatedShip.transferState) {
+            updatedShip.transferState = {
+              destinationRing,
+              arriveNextTurn: true,
+            }
+
+            logEntries.push({
+              turn,
+              playerId: player.id,
+              playerName: player.name,
+              action: 'Railgun Recoil Burn',
+              result: `⚠️ Uncontrolled recoil! Initiating transfer to Ring ${destinationRing}`,
+            })
+          } else {
+            logEntries.push({
+              turn,
+              playerId: player.id,
+              playerName: player.name,
+              action: 'Railgun Recoil Warning',
+              result: '⚠️ Already in transfer - recoil had no additional effect',
+            })
+          }
+        }
+      }
+    })
+  }
+
+  // Phase 5: Fuel Scoop
   if (action.activateScoop && action.type === 'coast') {
     const ringConfig = getRingConfig(updatedShip.ring)
     if (ringConfig) {
@@ -176,7 +246,7 @@ export function resolvePlayerTurn(
     }
   }
 
-  // Phase 5: Sector Movement
+  // Phase 6: Sector Movement
   // Skip movement if we just completed a transfer (ship is already at final position)
   if (!completedTransferThisTurn) {
     const ringConfig = getRingConfig(updatedShip.ring)
@@ -194,7 +264,7 @@ export function resolvePlayerTurn(
     }
   }
 
-  // Phase 6: Heat Generation (damage applied at end of round, not per turn)
+  // Phase 7: Heat Generation (damage applied at end of round, not per turn)
   const heatGenerated = calculateHeatGeneration(updatedShip.subsystems)
   let updatedHeat = { ...updatedShip.heat }
 
@@ -209,7 +279,7 @@ export function resolvePlayerTurn(
     })
   }
 
-  // Phase 7: Energy Return & Heat Venting
+  // Phase 8: Energy Return & Heat Venting
   const { reactor: updatedReactor, heat: finalHeat } = processEnergyReturn(
     updatedShip.reactor,
     updatedHeat
@@ -242,7 +312,7 @@ export function resolvePlayerTurn(
     }
   }
 
-  // Phase 8: Reset subsystem usage flags for next turn
+  // Phase 9: Reset subsystem usage flags for next turn
   const finalSubsystems = resetSubsystemUsage(updatedShip.subsystems)
 
   // Update final ship state

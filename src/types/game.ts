@@ -27,6 +27,7 @@ export interface ShipState {
   pendingSubsystems?: Subsystem[]
   pendingReactor?: ReactorState
   pendingHeat?: HeatState
+  pendingFacing?: Facing  // Pending facing change (updates immediately during planning)
 }
 
 export interface WeaponFiring {
@@ -36,10 +37,11 @@ export interface WeaponFiring {
 
 export interface PlayerAction {
   type: ActionType
-  burnDirection?: Facing
+  targetFacing?: Facing // Desired ship orientation (independent of burn)
+  burnDirection?: Facing // For burn action only (deprecated in favor of targetFacing)
   burnIntensity?: BurnIntensity
   activateScoop: boolean
-  weaponFiring?: WeaponFiring
+  weaponFirings: WeaponFiring[] // Changed from single weaponFiring to array
 }
 
 export interface Player {

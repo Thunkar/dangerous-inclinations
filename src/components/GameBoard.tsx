@@ -1,8 +1,12 @@
 import { Box, IconButton, Tooltip } from '@mui/material'
 import { useState, useRef } from 'react'
 import { RING_CONFIGS, mapSectorOnTransfer, BURN_COSTS } from '../constants/rings'
-import { WEAPONS, calculateWeaponRange } from '../constants/weapons'
+import { calculateFiringSolutions } from '../utils/weaponRange'
+import { getSubsystem } from '../utils/subsystemHelpers'
+import { getSubsystemConfig } from '../types/subsystems'
+import { useGame } from '../context/GameContext'
 import type { Player } from '../types/game'
+import type { SubsystemType } from '../types/subsystems'
 
 interface GameBoardProps {
   players: Player[]
@@ -10,6 +14,7 @@ interface GameBoardProps {
 }
 
 export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
+  const { weaponRangeVisibility } = useGame()
   const boardSize = 900
   const centerX = boardSize / 2
   const centerY = boardSize / 2
@@ -183,14 +188,15 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
           const isActive = index === activePlayerIndex
           const shipSize = isActive ? 14 : 12
 
-          // Direction indicator - tangent to the orbit (perpendicular to radius)
+          // Use pending facing if available (planning phase), otherwise use committed facing
+          const effectiveFacing = player.ship.pendingFacing || player.ship.facing
+
+          // Ship rotation angle - tangent to the orbit (perpendicular to radius)
           // Prograde = clockwise (add 90°), Retrograde = counter-clockwise (subtract 90°)
           const directionAngle =
-            player.ship.facing === 'prograde'
+            effectiveFacing === 'prograde'
               ? angle + Math.PI / 2 // 90° clockwise from radial
               : angle - Math.PI / 2 // 90° counter-clockwise from radial
-          const arrowX = x + 18 * Math.cos(directionAngle)
-          const arrowY = y + 18 * Math.sin(directionAngle)
 
           // Calculate predicted next position (and second step for transfers)
           let predictedX = null
@@ -374,66 +380,60 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
               )}
 
               {/* Ship token */}
-              <circle
-                cx={x}
-                cy={y}
-                r={shipSize}
-                fill={player.color}
-                stroke={isActive ? '#fff' : '#000'}
-                strokeWidth={isActive ? 3 : 2}
+              <image
+                href="/assets/ship.png"
+                x={-shipSize * 1.5}
+                y={-shipSize * 1.5}
+                width={shipSize * 3}
+                height={shipSize * 3}
                 opacity={player.ship.transferState ? 0.6 : 1}
+                style={{ filter: `drop-shadow(0 0 ${isActive ? '6px' : '3px'} ${player.color})` }}
+                transform={`translate(${x}, ${y}) rotate(${(directionAngle * 180) / Math.PI})`}
               />
 
-              {/* Direction arrow - outline */}
-              <line
-                x1={x}
-                y1={y}
-                x2={arrowX}
-                y2={arrowY}
-                stroke="#000"
-                strokeWidth={3}
-                markerEnd={`url(#arrowhead-outline-${player.id})`}
-              />
-
-              {/* Direction arrow - main */}
-              <line
-                x1={x}
-                y1={y}
-                x2={arrowX}
-                y2={arrowY}
-                stroke={player.color}
-                strokeWidth={2}
-                markerEnd={`url(#arrowhead-${player.id})`}
-              />
-
-              {/* Weapon range indicator - only for active player */}
+              {/* Weapon range indicators - only for active player with toggled weapons */}
               {isActive && (
                 <>
-                  {/* Show broadside laser visibility rays */}
-                  {(() => {
-                    // Calculate attacker's sector angular boundaries
-                    const sectorSize = (2 * Math.PI) / ringConfig.sectors
-                    const sectorStartAngle = angle - sectorSize / 2
-                    const sectorEndAngle = angle + sectorSize / 2
+                  {/* Render range visualization for each toggled weapon */}
+                  {(['laser', 'railgun', 'missile'] as const).map(weaponKey => {
+                    // Only show if toggled on
+                    if (!weaponRangeVisibility[weaponKey]) return null
 
-                    // Get rings within weapon range (±1 ring only)
-                    const laser = WEAPONS.laser
-                    const minRing = Math.max(1, player.ship.ring - laser.ringRange)
-                    const maxRing = Math.min(RING_CONFIGS.length, player.ship.ring + laser.ringRange)
+                    // Map UI key to subsystem type
+                    const subsystemType: SubsystemType = weaponKey === 'missile' ? 'missiles' : weaponKey
 
-                    const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+                    // Get weapon subsystem
+                    const weaponSubsystem = getSubsystem(player.ship.subsystems, subsystemType)
+                    if (!weaponSubsystem) return null
 
-                    // Get the actual ship position for ray origin
-                    const shipRadius = ringConfig.radius * scaleFactor
+                    const weaponConfig = getSubsystemConfig(subsystemType)
+                    const weaponStats = weaponConfig.weaponStats
+                    if (!weaponStats) return null
 
-                    // Calculate sector boundary points on the ship's ring
-                    const rayStartX = centerX + shipRadius * Math.cos(sectorStartAngle)
-                    const rayStartY = centerY + shipRadius * Math.sin(sectorStartAngle)
-                    const rayEndX = centerX + shipRadius * Math.cos(sectorEndAngle)
-                    const rayEndY = centerY + shipRadius * Math.sin(sectorEndAngle)
+                    // For broadside weapons, show sector overlap visualization
+                    if (weaponStats.arc === 'broadside') {
+                      // Calculate attacker's sector angular boundaries
+                      const sectorSize = (2 * Math.PI) / ringConfig.sectors
+                      const sectorStartAngle = angle - sectorSize / 2
+                      const sectorEndAngle = angle + sectorSize / 2
 
-                    return (
-                      <g key="weapon-visibility-rays">
+                      // Get rings within weapon's ring range
+                      const minRing = Math.max(1, player.ship.ring - weaponStats.ringRange)
+                      const maxRing = Math.min(RING_CONFIGS.length, player.ship.ring + weaponStats.ringRange)
+
+                      const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+
+                      // Get the actual ship position for ray origin
+                      const shipRadius = ringConfig.radius * scaleFactor
+
+                      // Calculate sector boundary points on the ship's ring
+                      const rayStartX = centerX + shipRadius * Math.cos(sectorStartAngle)
+                      const rayStartY = centerY + shipRadius * Math.sin(sectorStartAngle)
+                      const rayEndX = centerX + shipRadius * Math.cos(sectorEndAngle)
+                      const rayEndY = centerY + shipRadius * Math.sin(sectorEndAngle)
+
+                      return (
+                        <g key={`weapon-visibility-${weaponKey}`}>
                         {/* Draw rays from sector endpoints outward to target rings */}
                         {RING_CONFIGS.filter(r => r.ring >= minRing && r.ring <= maxRing && r.ring !== player.ship.ring).map(targetRing => {
                           const targetRadius = targetRing.radius * scaleFactor
@@ -534,99 +534,283 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                           opacity={0.8}
                         />
                       </g>
+                      )
+                    }
+
+                    // For spinal weapons (railgun), show arc along same ring in facing direction
+                    if (weaponStats.arc === 'spinal') {
+                      // Spinal weapons fire tangentially along the current ring
+                      // Range is 2× ring number in the facing direction
+                      const spinalRange = player.ship.ring * 2
+
+                      const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+                      const shipRadius = ringConfig.radius * scaleFactor
+
+                      // Calculate current position angle
+                      const sectorSize = (2 * Math.PI) / ringConfig.sectors
+                      const currentAngle = angle
+
+                      // Use pending facing if available (planning phase), otherwise use committed facing
+                      const effectiveFacing = player.ship.pendingFacing || player.ship.facing
+
+                      // Calculate the arc in facing direction
+                      let arcStartAngle: number
+                      let arcEndAngle: number
+
+                      if (effectiveFacing === 'prograde') {
+                        // Fire forward (counter-clockwise on display)
+                        arcStartAngle = currentAngle
+                        arcEndAngle = currentAngle + (spinalRange * sectorSize)
+                      } else {
+                        // Fire backward (clockwise on display)
+                        arcStartAngle = currentAngle - (spinalRange * sectorSize)
+                        arcEndAngle = currentAngle
+                      }
+
+                      // Calculate arc endpoints
+                      const arcStartX = centerX + shipRadius * Math.cos(arcStartAngle)
+                      const arcStartY = centerY + shipRadius * Math.sin(arcStartAngle)
+                      const arcEndX = centerX + shipRadius * Math.cos(arcEndAngle)
+                      const arcEndY = centerY + shipRadius * Math.sin(arcEndAngle)
+
+                      // Calculate if this is a large arc (> 180°)
+                      let arcAngle = arcEndAngle - arcStartAngle
+                      if (arcAngle < 0) arcAngle += 2 * Math.PI
+                      const largeArcFlag = arcAngle > Math.PI ? 1 : 0
+
+                      return (
+                        <g key={`weapon-spinal-${weaponKey}`}>
+                          {/* Draw arc showing firing range along orbit */}
+                          <path
+                            d={`
+                              M ${arcStartX} ${arcStartY}
+                              A ${shipRadius} ${shipRadius} 0 ${largeArcFlag} 1 ${arcEndX} ${arcEndY}
+                            `}
+                            fill="none"
+                            stroke={player.color}
+                            strokeWidth={4}
+                            opacity={0.6}
+                          />
+                          {/* Mark ship position */}
+                          <circle cx={x} cy={y} r={6} fill={player.color} opacity={0.9} stroke="#fff" strokeWidth={2} />
+                          {/* Mark arc endpoints */}
+                          <circle cx={arcStartX} cy={arcStartY} r={4} fill={player.color} opacity={0.8} />
+                          <circle cx={arcEndX} cy={arcEndY} r={4} fill={player.color} opacity={0.8} />
+                        </g>
+                      )
+                    }
+
+                    // For turret weapons (missiles), use same visualization as broadside (omnidirectional)
+                    if (weaponStats.arc === 'turret') {
+                      // Calculate attacker's sector angular boundaries
+                      const sectorSize = (2 * Math.PI) / ringConfig.sectors
+                      const sectorStartAngle = angle - sectorSize / 2
+                      const sectorEndAngle = angle + sectorSize / 2
+
+                      // Turret can fire in all directions
+                      const minRing = Math.max(1, player.ship.ring - weaponStats.ringRange)
+                      const maxRing = Math.min(RING_CONFIGS.length, player.ship.ring + weaponStats.ringRange)
+
+                      const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+                      const shipRadius = ringConfig.radius * scaleFactor
+
+                      // Calculate sector boundary points on the ship's ring
+                      const rayStartX = centerX + shipRadius * Math.cos(sectorStartAngle)
+                      const rayStartY = centerY + shipRadius * Math.sin(sectorStartAngle)
+                      const rayEndX = centerX + shipRadius * Math.cos(sectorEndAngle)
+                      const rayEndY = centerY + shipRadius * Math.sin(sectorEndAngle)
+
+                      return (
+                        <g key={`weapon-turret-${weaponKey}`}>
+                          {/* Draw rays from sector endpoints outward to target rings */}
+                          {RING_CONFIGS.filter(r => r.ring >= minRing && r.ring <= maxRing && r.ring !== player.ship.ring).map(targetRing => {
+                            const targetRadius = targetRing.radius * scaleFactor
+                            const targetSectorSize = (2 * Math.PI) / targetRing.sectors
+
+                            // Normalize angles
+                            const normalizeAngle = (a: number) => {
+                              let normalized = a % (2 * Math.PI)
+                              if (normalized < 0) normalized += 2 * Math.PI
+                              return normalized
+                            }
+
+                            // Calculate coverage using sectorRange
+                            const sectorCoverageAngle = weaponStats.sectorRange * targetSectorSize
+                            const centerAngle = normalizeAngle(angle + Math.PI / 2)
+
+                            // Expand coverage by ±sectorRange
+                            const coverageStart = centerAngle - sectorCoverageAngle
+                            const coverageEnd = centerAngle + sectorCoverageAngle
+
+                            // Find sector boundaries
+                            const firstSector = Math.floor(normalizeAngle(coverageStart) / targetSectorSize)
+                            const epsilon = 1e-10
+                            const endSectorRaw = normalizeAngle(coverageEnd) / targetSectorSize
+                            const fractionalPart = endSectorRaw - Math.floor(endSectorRaw)
+                            const lastSector = fractionalPart < epsilon
+                              ? Math.floor(endSectorRaw) - 1
+                              : Math.floor(endSectorRaw)
+
+                            const coverageStartAngle = firstSector * targetSectorSize - Math.PI / 2
+                            const coverageEndAngle = (lastSector + 1) * targetSectorSize - Math.PI / 2
+
+                            const targetStartX = centerX + targetRadius * Math.cos(coverageStartAngle)
+                            const targetStartY = centerY + targetRadius * Math.sin(coverageStartAngle)
+                            const targetEndX = centerX + targetRadius * Math.cos(coverageEndAngle)
+                            const targetEndY = centerY + targetRadius * Math.sin(coverageEndAngle)
+
+                            let arcAngle = coverageEndAngle - coverageStartAngle
+                            if (arcAngle < 0) arcAngle += 2 * Math.PI
+
+                            return (
+                              <g key={`rays-${targetRing.ring}`}>
+                                <line
+                                  x1={rayStartX}
+                                  y1={rayStartY}
+                                  x2={targetStartX}
+                                  y2={targetStartY}
+                                  stroke={player.color}
+                                  strokeWidth={2}
+                                  strokeDasharray="6 3"
+                                  opacity={0.5}
+                                />
+                                <line
+                                  x1={rayEndX}
+                                  y1={rayEndY}
+                                  x2={targetEndX}
+                                  y2={targetEndY}
+                                  stroke={player.color}
+                                  strokeWidth={2}
+                                  strokeDasharray="6 3"
+                                  opacity={0.5}
+                                />
+                                <path
+                                  d={`
+                                    M ${targetStartX} ${targetStartY}
+                                    A ${targetRadius} ${targetRadius} 0 ${arcAngle > Math.PI ? 1 : 0} 1 ${targetEndX} ${targetEndY}
+                                  `}
+                                  fill="none"
+                                  stroke={player.color}
+                                  strokeWidth={3}
+                                  opacity={0.4}
+                                />
+                              </g>
+                            )
+                          })}
+                          <circle cx={rayStartX} cy={rayStartY} r={4} fill={player.color} opacity={0.8} />
+                          <circle cx={rayEndX} cy={rayEndY} r={4} fill={player.color} opacity={0.8} />
+                        </g>
+                      )
+                    }
+
+                    return null
+                  })}
+
+                  {/* Show targeting indicators for all toggled weapons */}
+                  {(['laser', 'railgun', 'missile'] as const).map(weaponKey => {
+                    // Only show if toggled on
+                    if (!weaponRangeVisibility[weaponKey]) return null
+
+                    // Map UI key to subsystem type
+                    const subsystemType: SubsystemType = weaponKey === 'missile' ? 'missiles' : weaponKey
+
+                    // Get weapon subsystem and stats
+                    const weaponSubsystem = getSubsystem(player.ship.subsystems, subsystemType)
+                    if (!weaponSubsystem) return null
+
+                    const weaponConfig = getSubsystemConfig(subsystemType)
+                    const weaponStats = weaponConfig.weaponStats
+                    if (!weaponStats) return null
+
+                    // Calculate firing solutions for all targets
+                    const firingSolutions = calculateFiringSolutions(
+                      weaponStats,
+                      player.ship,
+                      players,
+                      player.id
                     )
-                  })()}
-
-                  {/* Show targeting indicators for other players */}
-                  {players.map((otherPlayer, otherIndex) => {
-                    if (otherIndex === index) return null // Skip self
-
-                    const otherRingConfig = RING_CONFIGS.find(r => r.ring === otherPlayer.ship.ring)
-                    if (!otherRingConfig) return null
-
-                    // Calculate if this target is in range
-                    const targetingInfo = calculateWeaponRange(
-                      player.ship.ring,
-                      player.ship.sector,
-                      ringConfig.sectors,
-                      player.ship.facing,
-                      otherPlayer.ship.ring,
-                      otherPlayer.ship.sector,
-                      otherRingConfig.sectors,
-                      WEAPONS.laser
-                    )
-
-                    if (!targetingInfo.inRange) return null
-
-                    // Draw targeting reticle
-                    const otherScaleFactor =
-                      (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
-                    const otherRadius = otherRingConfig.radius * otherScaleFactor
-                    const otherAngle =
-                      ((otherPlayer.ship.sector + 0.5) / otherRingConfig.sectors) * 2 * Math.PI -
-                      Math.PI / 2
-                    const otherX = centerX + otherRadius * Math.cos(otherAngle)
-                    const otherY = centerY + otherRadius * Math.sin(otherAngle)
 
                     return (
-                      <g key={`targeting-${otherPlayer.id}`}>
-                        {/* Targeting reticle */}
-                        <circle
-                          cx={otherX}
-                          cy={otherY}
-                          r={16}
-                          fill="none"
-                          stroke={player.color}
-                          strokeWidth={2}
-                          opacity={0.7}
-                        />
-                        <line
-                          x1={otherX - 20}
-                          y1={otherY}
-                          x2={otherX - 10}
-                          y2={otherY}
-                          stroke={player.color}
-                          strokeWidth={2}
-                          opacity={0.7}
-                        />
-                        <line
-                          x1={otherX + 20}
-                          y1={otherY}
-                          x2={otherX + 10}
-                          y2={otherY}
-                          stroke={player.color}
-                          strokeWidth={2}
-                          opacity={0.7}
-                        />
-                        <line
-                          x1={otherX}
-                          y1={otherY - 20}
-                          x2={otherX}
-                          y2={otherY - 10}
-                          stroke={player.color}
-                          strokeWidth={2}
-                          opacity={0.7}
-                        />
-                        <line
-                          x1={otherX}
-                          y1={otherY + 20}
-                          x2={otherX}
-                          y2={otherY + 10}
-                          stroke={player.color}
-                          strokeWidth={2}
-                          opacity={0.7}
-                        />
-                        {/* Range indicator text */}
-                        <text
-                          x={otherX}
-                          y={otherY - 24}
-                          textAnchor="middle"
-                          fontSize={9}
-                          fill={player.color}
-                          fontWeight="bold"
-                        >
-                          {Math.round(targetingInfo.angularDistance)}°
-                        </text>
+                      <g key={`targeting-${weaponKey}`}>
+                        {firingSolutions.map(solution => {
+                      if (!solution.inRange) return null
+
+                      const otherPlayer = solution.targetPlayer
+                      const otherRingConfig = RING_CONFIGS.find(r => r.ring === otherPlayer.ship.ring)
+                      if (!otherRingConfig) return null
+
+                      // Draw targeting reticle
+                      const otherScaleFactor =
+                        (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+                      const otherRadius = otherRingConfig.radius * otherScaleFactor
+                      const otherAngle =
+                        ((otherPlayer.ship.sector + 0.5) / otherRingConfig.sectors) * 2 * Math.PI -
+                        Math.PI / 2
+                      const otherX = centerX + otherRadius * Math.cos(otherAngle)
+                      const otherY = centerY + otherRadius * Math.sin(otherAngle)
+
+                      return (
+                        <g key={`targeting-${otherPlayer.id}`}>
+                          {/* Targeting reticle */}
+                          <circle
+                            cx={otherX}
+                            cy={otherY}
+                            r={16}
+                            fill="none"
+                            stroke={player.color}
+                            strokeWidth={2}
+                            opacity={0.7}
+                          />
+                          <line
+                            x1={otherX - 20}
+                            y1={otherY}
+                            x2={otherX - 10}
+                            y2={otherY}
+                            stroke={player.color}
+                            strokeWidth={2}
+                            opacity={0.7}
+                          />
+                          <line
+                            x1={otherX + 20}
+                            y1={otherY}
+                            x2={otherX + 10}
+                            y2={otherY}
+                            stroke={player.color}
+                            strokeWidth={2}
+                            opacity={0.7}
+                          />
+                          <line
+                            x1={otherX}
+                            y1={otherY - 20}
+                            x2={otherX}
+                            y2={otherY - 10}
+                            stroke={player.color}
+                            strokeWidth={2}
+                            opacity={0.7}
+                          />
+                          <line
+                            x1={otherX}
+                            y1={otherY + 20}
+                            x2={otherX}
+                            y2={otherY + 10}
+                            stroke={player.color}
+                            strokeWidth={2}
+                            opacity={0.7}
+                          />
+                          {/* Range indicator text - show distance */}
+                          <text
+                            x={otherX}
+                            y={otherY - 24}
+                            textAnchor="middle"
+                            fontSize={9}
+                            fill={player.color}
+                            fontWeight="bold"
+                          >
+                            D{Math.round(solution.distance)}
+                          </text>
+                        </g>
+                      )
+                    })}
                       </g>
                     )
                   })}
@@ -713,15 +897,26 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
               ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2
             const x = centerX + radius * Math.cos(angle)
             const y = centerY + radius * Math.sin(angle)
+            const minimapShipSize = 6
+
+            // Use pending facing if available, otherwise use committed facing
+            const effectiveFacing = player.ship.pendingFacing || player.ship.facing
+            const directionAngle =
+              effectiveFacing === 'prograde'
+                ? angle + Math.PI / 2
+                : angle - Math.PI / 2
 
             return (
-              <circle
+              <image
                 key={player.id}
-                cx={x}
-                cy={y}
-                r={8}
-                fill={player.color}
+                href="/assets/ship.png"
+                x={-minimapShipSize}
+                y={-minimapShipSize}
+                width={minimapShipSize * 2}
+                height={minimapShipSize * 2}
                 opacity={0.8}
+                style={{ filter: `drop-shadow(0 0 2px ${player.color})` }}
+                transform={`translate(${x}, ${y}) rotate(${(directionAngle * 180) / Math.PI})`}
               />
             )
           })}

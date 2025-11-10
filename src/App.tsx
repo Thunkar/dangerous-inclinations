@@ -4,7 +4,7 @@ import { Box, Stack } from '@mui/material'
 import { GameProvider, useGame } from './context/GameContext'
 import { GameBoard } from './components/GameBoard'
 import { ShipSystemsPanel } from './components/energy-management/ShipSystemsPanel'
-import { ActionSelector } from './components/ActionSelector'
+import { ActionSelector } from './components/action-selector/ActionSelector'
 import { StatusDisplay } from './components/StatusDisplay'
 
 const theme = createTheme({

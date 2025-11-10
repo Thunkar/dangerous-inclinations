@@ -15,6 +15,14 @@ export type SubsystemType =
   | 'missiles'
   | 'shields'
 
+export interface WeaponStats {
+  damage: number
+  ringRange: number       // How many rings away can be targeted (±ringRange)
+  sectorRange: number     // How many sectors "visible" from current sector on target ring
+  arc: 'spinal' | 'broadside' | 'turret'  // Firing arc type
+  hasRecoil?: boolean     // Only for railgun
+}
+
 export interface SubsystemConfig {
   id: SubsystemType
   name: string
@@ -22,6 +30,7 @@ export interface SubsystemConfig {
   maxEnergy: number      // Normal max energy (can be exceeded for overclocking)
   overclockThreshold: number  // Energy level at which overclocking starts
   heatPerOverclock: number    // Heat generated per turn when overclocking
+  weaponStats?: WeaponStats   // Only present for weapon subsystems
 }
 
 export interface Subsystem {
@@ -76,14 +85,27 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     maxEnergy: 2,
     overclockThreshold: 2,
     heatPerOverclock: 0,  // Cannot overclock
+    weaponStats: {
+      damage: 2,
+      ringRange: 1,       // Can target ±1 ring (adjacent rings only)
+      sectorRange: 1,     // Covers ±1 sector "visible" from current position
+      arc: 'broadside',   // Fires radially from ship's sector
+    },
   },
   railgun: {
     id: 'railgun',
     name: 'Railgun',
-    minEnergy: 3,
-    maxEnergy: 3,
+    minEnergy: 4,
+    maxEnergy: 4,
     overclockThreshold: 3,
-    heatPerOverclock: 0,  // Cannot overclock
+    heatPerOverclock: 1,  // Always generates heat when firing at 4 energy
+    weaponStats: {
+      damage: 4,
+      ringRange: 0,       // Only fires on current ring (same ring)
+      sectorRange: 0,     // Range is 2×ring number along orbit (calculated dynamically)
+      arc: 'spinal',      // Fires tangentially along orbit in facing direction
+      hasRecoil: true,    // Causes recoil burn without engine compensation
+    },
   },
   missiles: {
     id: 'missiles',
@@ -92,6 +114,12 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     maxEnergy: 2,
     overclockThreshold: 2,
     heatPerOverclock: 0,  // Cannot overclock
+    weaponStats: {
+      damage: 3,
+      ringRange: 2,       // Can target up to 2 rings away (any direction)
+      sectorRange: 3,     // Covers ±3 sectors from current position
+      arc: 'turret',      // Can fire in any direction
+    },
   },
   shields: {
     id: 'shields',
