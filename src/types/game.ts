@@ -8,7 +8,7 @@ export type ActionType = 'coast' | 'burn'
 
 export interface TransferState {
   destinationRing: number
-  sectorAdjustment: number  // -1, 0, or +1 sector adjustment from natural mapping
+  sectorAdjustment: number // -1, 0, or +1 sector adjustment from natural mapping
   arriveNextTurn: boolean
 }
 
@@ -28,7 +28,7 @@ export interface ShipState {
   pendingSubsystems?: Subsystem[]
   pendingReactor?: ReactorState
   pendingHeat?: HeatState
-  pendingFacing?: Facing  // Pending facing change (updates immediately during planning)
+  pendingFacing?: Facing // Pending facing change (updates immediately during planning)
 }
 
 export interface WeaponFiring {
@@ -39,9 +39,8 @@ export interface WeaponFiring {
 export interface PlayerAction {
   type: ActionType
   targetFacing?: Facing // Desired ship orientation (independent of burn)
-  burnDirection?: Facing // For burn action only (deprecated in favor of targetFacing)
   burnIntensity?: BurnIntensity
-  sectorAdjustment?: number  // -1, 0, or +1 sector adjustment for transfers (phasing is automatic)
+  sectorAdjustment?: number // -1, 0, or +1 sector adjustment for transfers (phasing is automatic)
   activateScoop: boolean
   weaponFirings: WeaponFiring[] // Changed from single weaponFiring to array
 }
