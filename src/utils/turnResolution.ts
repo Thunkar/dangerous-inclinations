@@ -31,17 +31,21 @@ export function resolveTransferOnly(
   if (updatedShip.transferState) {
     const oldRing = updatedShip.ring
     const newRing = updatedShip.transferState.destinationRing
-    const newSector = mapSectorOnTransfer(oldRing, newRing, updatedShip.sector)
+    const baseSector = mapSectorOnTransfer(oldRing, newRing, updatedShip.sector)
+    const adjustment = updatedShip.transferState.sectorAdjustment || 0
 
     const newRingConfig = getRingConfig(newRing)
     if (!newRingConfig) {
       return { updatedShip, logEntries }
     }
 
+    // Apply sector adjustment with wraparound
+    const finalSector = (baseSector + adjustment + newRingConfig.sectors) % newRingConfig.sectors
+
     updatedShip = {
       ...updatedShip,
       ring: newRing,
-      sector: newSector,
+      sector: finalSector,
       transferState: null,
     }
 
@@ -50,7 +54,7 @@ export function resolveTransferOnly(
       playerId,
       playerName,
       action: 'Transfer Complete',
-      result: `Arrived at Ring ${updatedShip.ring}, Sector ${updatedShip.sector}`,
+      result: `Arrived at Ring ${updatedShip.ring}, Sector ${updatedShip.sector}${adjustment !== 0 ? ` (adjusted ${adjustment > 0 ? '+' : ''}${adjustment})` : ''}`,
     })
   } else {
     // No transfer, just apply orbital movement
@@ -93,17 +97,21 @@ export function resolvePlayerTurn(
   if (updatedShip.transferState) {
     const oldRing = updatedShip.ring
     const newRing = updatedShip.transferState.destinationRing
-    const newSector = mapSectorOnTransfer(oldRing, newRing, updatedShip.sector)
+    const baseSector = mapSectorOnTransfer(oldRing, newRing, updatedShip.sector)
+    const adjustment = updatedShip.transferState.sectorAdjustment || 0
 
     const newRingConfig = getRingConfig(newRing)
     if (!newRingConfig) {
       return { updatedPlayer: player, logEntries }
     }
 
+    // Apply sector adjustment with wraparound
+    const finalSector = (baseSector + adjustment + newRingConfig.sectors) % newRingConfig.sectors
+
     updatedShip = {
       ...updatedShip,
       ring: newRing,
-      sector: newSector,
+      sector: finalSector,
       transferState: null,
     }
     completedTransferThisTurn = true
@@ -112,7 +120,7 @@ export function resolvePlayerTurn(
       playerId: player.id,
       playerName: player.name,
       action: 'Transfer Complete',
-      result: `Arrived at Ring ${updatedShip.ring}, Sector ${updatedShip.sector}`,
+      result: `Arrived at Ring ${updatedShip.ring}, Sector ${updatedShip.sector}${adjustment !== 0 ? ` (adjusted ${adjustment > 0 ? '+' : ''}${adjustment})` : ''}`,
     })
   }
 
@@ -132,27 +140,32 @@ export function resolvePlayerTurn(
   if (action.type === 'burn' && action.burnIntensity) {
     const burnCost = BURN_COSTS[action.burnIntensity]
     const burnDirection = action.targetFacing || updatedShip.facing
+
+    // Consume reaction mass
+    updatedShip.reactionMass -= burnCost.mass
+
+    // Transfer burn: initiate ring change
     const direction = burnDirection === 'prograde' ? 1 : -1
     const destinationRing = updatedShip.ring + direction * burnCost.rings
 
-    // Clamp to valid ring range
-    const clampedDestination = Math.max(1, Math.min(6, destinationRing))
+    // Clamp to valid ring range (1-5)
+    const clampedDestination = Math.max(1, Math.min(5, destinationRing))
 
-    updatedShip = {
-      ...updatedShip,
-      reactionMass: updatedShip.reactionMass - burnCost.mass,
-      transferState: {
-        destinationRing: clampedDestination,
-        arriveNextTurn: true,
-      },
+    updatedShip.transferState = {
+      destinationRing: clampedDestination,
+      sectorAdjustment: action.sectorAdjustment || 0,
+      arriveNextTurn: true,
     }
 
+    const adjText = action.sectorAdjustment
+      ? ` (sector adj: ${action.sectorAdjustment > 0 ? '+' : ''}${action.sectorAdjustment})`
+      : ''
     logEntries.push({
       turn,
       playerId: player.id,
       playerName: player.name,
       action: `${action.burnIntensity} burn ${burnDirection}`,
-      result: `Initiating transfer to Ring ${clampedDestination} (${burnCost.energy}E, ${burnCost.mass}M)`,
+      result: `Initiating transfer to Ring ${clampedDestination}${adjText} (${burnCost.energy}E, ${burnCost.mass}M)`,
     })
   }
 
@@ -179,9 +192,7 @@ export function resolvePlayerTurn(
       if (firing.weaponType === 'railgun') {
         const enginesSubsystem = getSubsystem(updatedShip.subsystems, 'engines')
         const hasEnginesWithMass =
-          enginesSubsystem &&
-          enginesSubsystem.allocatedEnergy >= 1 &&
-          updatedShip.reactionMass >= 1
+          enginesSubsystem && enginesSubsystem.allocatedEnergy >= 1 && updatedShip.reactionMass >= 1
 
         if (hasEnginesWithMass) {
           // Engines compensate for recoil
@@ -203,6 +214,7 @@ export function resolvePlayerTurn(
             updatedShip.transferState = {
               destinationRing,
               arriveNextTurn: true,
+              sectorAdjustment: 0,
             }
 
             logEntries.push({

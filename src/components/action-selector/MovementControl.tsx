@@ -1,14 +1,24 @@
-import { Box, Typography, styled } from '@mui/material'
+import { Box, Typography, styled, Slider } from '@mui/material'
 import type { ActionType, BurnIntensity } from '../../types/game'
 import type { Subsystem } from '../../types/subsystems'
 import { BURN_COSTS } from '../../constants/rings'
 import { CustomIcon } from '../CustomIcon'
 
+const BURN_INTENSITY_OPTIONS: BurnIntensity[] = ['light', 'medium', 'heavy']
+
+const BURN_DESCRIPTIONS = {
+  light: 'Light: Transfer ±1 ring',
+  medium: 'Medium: Transfer ±2 rings',
+  heavy: 'Heavy: Transfer ±3 rings',
+}
+
 interface MovementControlProps {
   actionType: ActionType
   burnIntensity: BurnIntensity
+  sectorAdjustment: number
   onActionTypeChange: (type: ActionType) => void
   onBurnIntensityChange: (intensity: BurnIntensity) => void
+  onSectorAdjustmentChange: (adjustment: number) => void
   enginesSubsystem: Subsystem | undefined
   reactionMass: number
 }
@@ -47,35 +57,6 @@ const ActionButton = styled(Box, {
       },
 }))
 
-const IntensityButton = styled(Box, {
-  shouldForwardProp: prop => prop !== 'isActive' && prop !== 'disabled',
-})<ActionButtonProps>(({ theme, isActive, disabled }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  padding: '8px',
-  borderRadius: '8px',
-  backgroundColor: isActive ? theme.palette.secondary.main : theme.palette.primary.main,
-  border: `2px solid ${isActive ? theme.palette.secondary.light : 'black'}`,
-  cursor: disabled ? 'default' : 'pointer',
-  transition: 'all 0.2s',
-  opacity: disabled ? 0.5 : 1,
-  minWidth: '80px',
-  '&:hover': disabled
-    ? {}
-    : {
-        backgroundColor: isActive ? theme.palette.secondary.light : theme.palette.primary.light,
-        transform: 'scale(1.05)',
-      },
-}))
-
-const ResourceRow = styled(Box)({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '4px',
-  fontSize: '0.7rem',
-})
-
 const StatusBar = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
@@ -87,17 +68,46 @@ const StatusBar = styled(Box)(({ theme }) => ({
   fontSize: '0.75rem',
 }))
 
+const AdjustmentButton = styled(Box, {
+  shouldForwardProp: prop => prop !== 'isActive',
+})<{ isActive: boolean }>(({ theme, isActive }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '6px 12px',
+  borderRadius: '6px',
+  backgroundColor: isActive ? theme.palette.secondary.main : theme.palette.primary.dark,
+  border: `2px solid ${isActive ? theme.palette.secondary.light : theme.palette.primary.main}`,
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  flex: 1,
+  '&:hover': {
+    backgroundColor: isActive ? theme.palette.secondary.light : theme.palette.primary.main,
+    transform: 'scale(1.05)',
+  },
+}))
+
 export function MovementControl({
   actionType,
   burnIntensity,
+  sectorAdjustment,
   onActionTypeChange,
   onBurnIntensityChange,
+  onSectorAdjustmentChange,
   enginesSubsystem,
   reactionMass,
 }: MovementControlProps) {
   const burnCost = actionType === 'burn' ? BURN_COSTS[burnIntensity] : { energy: 0, mass: 0, rings: 0 }
   const hasEnoughEngines = enginesSubsystem && enginesSubsystem.allocatedEnergy >= burnCost.energy
   const hasEnoughMass = reactionMass >= burnCost.mass
+
+  // Convert burnIntensity to slider value (0-2)
+  const sliderValue = BURN_INTENSITY_OPTIONS.indexOf(burnIntensity)
+
+  const handleSliderChange = (_event: Event, newValue: number | number[]) => {
+    const value = typeof newValue === 'number' ? newValue : newValue[0]
+    onBurnIntensityChange(BURN_INTENSITY_OPTIONS[value])
+  }
 
   return (
     <Container>
@@ -125,54 +135,67 @@ export function MovementControl({
             Burn Intensity
           </Typography>
 
+          <Box sx={{ px: 1, mb: 1 }}>
+            <Slider
+              value={sliderValue}
+              onChange={handleSliderChange}
+              min={0}
+              max={2}
+              step={1}
+              marks={[
+                { value: 0, label: '1' },
+                { value: 1, label: '2' },
+                { value: 2, label: '3' },
+              ]}
+              sx={{
+                '& .MuiSlider-markLabel': {
+                  fontSize: '0.7rem',
+                },
+              }}
+            />
+          </Box>
+
+          {/* Description and costs */}
+          <Box sx={{ mb: 1, p: 1, bgcolor: 'background.default', borderRadius: 1 }}>
+            <Typography variant="caption" fontWeight="bold" display="block">
+              {BURN_DESCRIPTIONS[burnIntensity]}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                Cost:
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {burnCost.energy}
+                <CustomIcon icon="energy" size={10} />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {burnCost.mass}
+                <CustomIcon icon="heat" size={10} />
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Sector Adjustment */}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+            Sector Adjustment
+          </Typography>
           <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-            <IntensityButton
-              isActive={burnIntensity === 'standard'}
-              onClick={() => onBurnIntensityChange('standard')}
+            <AdjustmentButton
+              isActive={sectorAdjustment === 0}
+              onClick={() => onSectorAdjustmentChange(0)}
             >
               <Typography variant="caption" fontWeight="bold">
-                Standard
+                0
               </Typography>
-              <ResourceRow>
-                1<CustomIcon icon="energy" size={10} />
-                1<CustomIcon icon="heat" size={10} />
-              </ResourceRow>
-              <Typography variant="caption" sx={{ fontSize: '0.65rem', mt: 0.25 }}>
-                ±1 ring
-              </Typography>
-            </IntensityButton>
-
-            <IntensityButton
-              isActive={burnIntensity === 'hard'}
-              onClick={() => onBurnIntensityChange('hard')}
+            </AdjustmentButton>
+            <AdjustmentButton
+              isActive={sectorAdjustment === 1}
+              onClick={() => onSectorAdjustmentChange(1)}
             >
               <Typography variant="caption" fontWeight="bold">
-                Hard
+                +1
               </Typography>
-              <ResourceRow>
-                2<CustomIcon icon="energy" size={10} />
-                2<CustomIcon icon="heat" size={10} />
-              </ResourceRow>
-              <Typography variant="caption" sx={{ fontSize: '0.65rem', mt: 0.25 }}>
-                ±2 rings
-              </Typography>
-            </IntensityButton>
-
-            <IntensityButton
-              isActive={burnIntensity === 'extreme'}
-              onClick={() => onBurnIntensityChange('extreme')}
-            >
-              <Typography variant="caption" fontWeight="bold">
-                Extreme
-              </Typography>
-              <ResourceRow>
-                3<CustomIcon icon="energy" size={10} />
-                3<CustomIcon icon="heat" size={10} />
-              </ResourceRow>
-              <Typography variant="caption" sx={{ fontSize: '0.65rem', mt: 0.25 }}>
-                ±3 rings
-              </Typography>
-            </IntensityButton>
+            </AdjustmentButton>
           </Box>
 
           <StatusBar>
@@ -201,7 +224,7 @@ export function MovementControl({
                 color={hasEnoughMass ? 'success.main' : 'error.main'}
                 fontWeight="bold"
               >
-                {reactionMass}/{burnCost.mass}
+                {burnCost.mass}/{reactionMass}
               </Typography>
             </Box>
           </StatusBar>

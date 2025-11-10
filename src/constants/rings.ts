@@ -1,7 +1,7 @@
 import type { RingConfig } from '../types/game'
 
 export const RING_CONFIGS: RingConfig[] = [
-  { ring: 1, velocity: 1, radius: 60, sectors: 6 },   // 1/6 revolution per turn (largest sectors)
+  { ring: 1, velocity: 1, radius: 60, sectors: 6 }, // 1/6 revolution per turn (largest sectors)
   { ring: 2, velocity: 1, radius: 110, sectors: 12 }, // 1/12 revolution per turn
   { ring: 3, velocity: 1, radius: 160, sectors: 24 }, // 1/24 revolution per turn
   { ring: 4, velocity: 1, radius: 210, sectors: 48 }, // 1/48 revolution per turn
@@ -14,9 +14,9 @@ export const STARTING_REACTION_MASS = 10
 export const SCOOP_ENERGY_COST = 5
 
 export const BURN_COSTS = {
-  standard: { energy: 1, mass: 1, rings: 1 },
-  hard: { energy: 2, mass: 2, rings: 2 },
-  extreme: { energy: 3, mass: 3, rings: 3 },
+  light: { energy: 1, mass: 1, rings: 1 },     // Transfer ±1 ring
+  medium: { energy: 2, mass: 2, rings: 2 },    // Transfer ±2 rings
+  heavy: { energy: 3, mass: 3, rings: 3 },     // Transfer ±3 rings
 }
 
 export const ROTATION_ENERGY_COST = 1

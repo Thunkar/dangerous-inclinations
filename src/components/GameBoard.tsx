@@ -1,7 +1,8 @@
 import { Box, IconButton, Tooltip } from '@mui/material'
 import { useState, useRef } from 'react'
-import { RING_CONFIGS, mapSectorOnTransfer, BURN_COSTS } from '../constants/rings'
+import { RING_CONFIGS, mapSectorOnTransfer } from '../constants/rings'
 import { calculateFiringSolutions } from '../utils/weaponRange'
+import { calculateBurnDestination } from '../utils/burnPreview'
 import { getSubsystem } from '../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../types/subsystems'
 import { useGame } from '../context/GameContext'
@@ -219,61 +220,51 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
               )
               if (destRingConfig) {
                 // Calculate position on destination ring using sector mapping
-                const mappedSector = mapSectorOnTransfer(
+                const baseSector = mapSectorOnTransfer(
                   player.ship.ring,
                   player.ship.transferState.destinationRing,
                   player.ship.sector
                 )
+                // Apply sector adjustment
+                const adjustment = player.ship.transferState.sectorAdjustment || 0
+                const finalSector = (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
+
                 const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
                 const destRadius = destRingConfig.radius * destScaleFactor
                 const destAngle =
-                  ((mappedSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
+                  ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
                 predictedX = centerX + destRadius * Math.cos(destAngle)
                 predictedY = centerY + destRadius * Math.sin(destAngle)
                 predictedRing = destRingConfig.ring
               }
             }
             // If arriveNextTurn is false, ship stays in current position (still transferring)
-          } else if (
-            pendingAction?.type === 'burn' &&
-            pendingAction.burnIntensity &&
-            pendingAction.burnDirection
-          ) {
-            // Active player with pending burn - show TWO-STEP prediction
-            // Step 1: After THIS turn - ship moves by current velocity, enters transfer state
-            // Step 2: After NEXT turn - transfer completes, ship arrives at destination ring
+          } else if (pendingAction?.type === 'burn') {
+            // Active player with pending burn - calculate destination
+            const destination = calculateBurnDestination(player.ship, pendingAction)
 
-            // Step 1: ship stays on current ring, moves by current velocity
-            const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
-            const predictedAngle =
-              ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2
-            predictedX = centerX + radius * Math.cos(predictedAngle)
-            predictedY = centerY + radius * Math.sin(predictedAngle)
-            predictedRing = player.ship.ring
+            if (destination) {
+              const destRingConfig = RING_CONFIGS.find(r => r.ring === destination.ring)
+              if (destRingConfig) {
+                const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+                const destRadius = destRingConfig.radius * destScaleFactor
+                const destAngle =
+                  ((destination.sector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
 
-            // Step 2: calculate where transfer will take the ship
-            const burnCost = BURN_COSTS[pendingAction.burnIntensity]
-            const direction = pendingAction.burnDirection === 'prograde' ? 1 : -1
-            const destinationRing = Math.max(
-              1,
-              Math.min(6, player.ship.ring + direction * burnCost.rings)
-            )
-            const destRingConfig = RING_CONFIGS.find(r => r.ring === destinationRing)
+                // Transfer burn: show TWO-STEP prediction
+                // Step 1: ship moves by orbital velocity on current ring
+                const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
+                const predictedAngle =
+                  ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2
+                predictedX = centerX + radius * Math.cos(predictedAngle)
+                predictedY = centerY + radius * Math.sin(predictedAngle)
+                predictedRing = player.ship.ring
 
-            if (destRingConfig) {
-              // Map from the position after step 1 to the destination ring
-              const mappedSector = mapSectorOnTransfer(
-                player.ship.ring,
-                destinationRing,
-                nextSector
-              )
-              const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
-              const destRadius = destRingConfig.radius * destScaleFactor
-              const destAngle =
-                ((mappedSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
-              secondStepX = centerX + destRadius * Math.cos(destAngle)
-              secondStepY = centerY + destRadius * Math.sin(destAngle)
-              secondStepRing = destinationRing
+                // Step 2: final destination after transfer completes
+                secondStepX = centerX + destRadius * Math.cos(destAngle)
+                secondStepY = centerY + destRadius * Math.sin(destAngle)
+                secondStepRing = destination.ring
+              }
             }
           } else {
             // Ship is stable (or coasting) - show where it will move due to orbital velocity
@@ -330,17 +321,54 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
               {/* Second step prediction (for pending burns) */}
               {secondStepX !== null && secondStepY !== null && (
                 <>
-                  {/* Connecting line from step 1 to step 2 */}
-                  <line
-                    x1={predictedX!}
-                    y1={predictedY!}
-                    x2={secondStepX}
-                    y2={secondStepY}
-                    stroke={player.color}
-                    strokeWidth={2}
-                    strokeDasharray="8 4"
-                    opacity={0.5}
-                  />
+                  {/* Draw elliptical transfer arc for orbital transfers */}
+                  {(() => {
+                    // Calculate ellipse parameters for Hohmann transfer
+                    const startRadius = radius
+                    const endRadius = Math.sqrt((secondStepX - centerX) ** 2 + (secondStepY - centerY) ** 2)
+
+                    // Semi-major axis: average of start and end radii
+                    const semiMajor = (startRadius + endRadius) / 2
+                    // Semi-minor axis: geometric mean approximation
+                    const semiMinor = Math.sqrt(startRadius * endRadius)
+
+                    // Calculate start and end angles
+                    const startAngle = Math.atan2(predictedY! - centerY, predictedX! - centerX)
+                    const endAngle = Math.atan2(secondStepY - centerY, secondStepX - centerX)
+
+                    // Calculate angle difference (handle wraparound)
+                    let angleDiff = endAngle - startAngle
+                    if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
+                    if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
+
+                    // Rotation angle for the ellipse (average of start and end angles)
+                    const rotationAngle = (startAngle + endAngle) / 2
+                    const rotationDegrees = (rotationAngle * 180) / Math.PI
+
+                    // Determine if this is a large arc (> 180 degrees)
+                    const largeArcFlag = Math.abs(angleDiff) > Math.PI ? 1 : 0
+
+                    // Sweep flag: 1 for clockwise (prograde), 0 for counter-clockwise
+                    const sweepFlag = angleDiff > 0 ? 1 : 0
+
+                    // Create SVG elliptical arc path
+                    const pathData = `
+                      M ${predictedX} ${predictedY}
+                      A ${semiMajor} ${semiMinor} ${rotationDegrees} ${largeArcFlag} ${sweepFlag} ${secondStepX} ${secondStepY}
+                    `
+
+                    return (
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke={player.color}
+                        strokeWidth={2}
+                        strokeDasharray="8 4"
+                        opacity={0.5}
+                      />
+                    )
+                  })()}
+
                   {/* Second step position circle */}
                   <circle
                     cx={secondStepX}

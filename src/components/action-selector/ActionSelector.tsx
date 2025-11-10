@@ -29,7 +29,8 @@ export function ActionSelector({
   // State for all action components
   const [targetFacing, setTargetFacing] = useState<Facing>(player.ship.facing)
   const [actionType, setActionType] = useState<ActionType>('coast')
-  const [burnIntensity, setBurnIntensity] = useState<BurnIntensity>('standard')
+  const [burnIntensity, setBurnIntensity] = useState<BurnIntensity>('light')
+  const [sectorAdjustment, setSectorAdjustment] = useState<number>(0)
   const [activateScoop, setActivateScoop] = useState(false)
   const [selectedTargets, setSelectedTargets] = useState({
     laser: '',
@@ -54,7 +55,8 @@ export function ActionSelector({
   useEffect(() => {
     setTargetFacing(player.ship.facing)
     setActionType('coast')
-    setBurnIntensity('standard')
+    setBurnIntensity('light')
+    setSectorAdjustment(0)
     setActivateScoop(false)
     setSelectedTargets({
       laser: '',
@@ -87,6 +89,7 @@ export function ActionSelector({
       targetFacing,
       burnDirection: actionType === 'burn' ? targetFacing : undefined,
       burnIntensity: actionType === 'burn' ? burnIntensity : undefined,
+      sectorAdjustment: actionType === 'burn' ? sectorAdjustment : undefined,
       activateScoop: activateScoop && actionType === 'coast',
       weaponFirings,
     }
@@ -95,6 +98,7 @@ export function ActionSelector({
     targetFacing,
     actionType,
     burnIntensity,
+    sectorAdjustment,
     activateScoop,
     selectedTargets,
     onActionSelect,
@@ -176,8 +180,10 @@ export function ActionSelector({
         <MovementControl
           actionType={actionType}
           burnIntensity={burnIntensity}
+          sectorAdjustment={sectorAdjustment}
           onActionTypeChange={setActionType}
           onBurnIntensityChange={setBurnIntensity}
+          onSectorAdjustmentChange={setSectorAdjustment}
           enginesSubsystem={enginesSubsystem}
           reactionMass={ship.reactionMass}
         />

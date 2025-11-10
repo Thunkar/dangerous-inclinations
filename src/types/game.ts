@@ -2,12 +2,13 @@ import type { Subsystem, ReactorState, HeatState } from './subsystems'
 
 export type Facing = 'prograde' | 'retrograde'
 
-export type BurnIntensity = 'standard' | 'hard' | 'extreme'
+export type BurnIntensity = 'light' | 'medium' | 'heavy'
 
 export type ActionType = 'coast' | 'burn'
 
 export interface TransferState {
   destinationRing: number
+  sectorAdjustment: number  // -1, 0, or +1 sector adjustment from natural mapping
   arriveNextTurn: boolean
 }
 
@@ -40,6 +41,7 @@ export interface PlayerAction {
   targetFacing?: Facing // Desired ship orientation (independent of burn)
   burnDirection?: Facing // For burn action only (deprecated in favor of targetFacing)
   burnIntensity?: BurnIntensity
+  sectorAdjustment?: number  // -1, 0, or +1 sector adjustment for transfers (phasing is automatic)
   activateScoop: boolean
   weaponFirings: WeaponFiring[] // Changed from single weaponFiring to array
 }
