@@ -40,7 +40,6 @@ interface BaseAction {
 export interface CoastAction extends BaseAction {
   type: 'coast'
   data: {
-    targetFacing?: Facing
     activateScoop: boolean
   }
 }
@@ -48,9 +47,15 @@ export interface CoastAction extends BaseAction {
 export interface BurnAction extends BaseAction {
   type: 'burn'
   data: {
-    targetFacing: Facing
     burnIntensity: BurnIntensity
     sectorAdjustment: number
+  }
+}
+
+export interface RotateAction extends BaseAction {
+  type: 'rotate'
+  data: {
+    targetFacing: Facing
   }
 }
 
@@ -104,6 +109,7 @@ export type MovementAction = CoastAction | BurnAction
 export type PlayerAction =
   | CoastAction
   | BurnAction
+  | RotateAction
   | AllocateEnergyAction
   | DeallocateEnergyAction
   | VentHeatAction

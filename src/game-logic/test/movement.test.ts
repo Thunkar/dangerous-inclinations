@@ -47,16 +47,14 @@ describe('Multi-Turn Movement', () => {
       gameState = result.gameState
 
       // Now it's turn 2, back to player 1 (activePlayerIndex = 0)
-      // The transfer should complete at the START of player 1's turn
+      // Transfer should be completed BEFORE player 1 sees their turn (prepared at end of player 2's turn)
       expect(gameState.turn).toBe(2)
       expect(gameState.activePlayerIndex).toBe(0)
-
-      // Transfer should be completed automatically when the turn cycled back to player 1
       expect(gameState.players[0].ship.transferState).toBeNull()
       expect(gameState.players[0].ship.ring).toBe(5)
       // Sector should be mapped from ring 3 (24 sectors) to ring 5 (96 sectors)
-      // Starting from sector 1 (after orbital movement) on ring 3
-      expect(gameState.players[0].ship.sector).toBe(7) // Sector 1 * 4 + 3 = 7
+      // Sector 1 on ring 3 maps to sector 7 on ring 5 (no additional movement yet)
+      expect(gameState.players[0].ship.sector).toBe(7)
     })
 
     it('should handle retrograde burn and transfer completion', () => {

@@ -6,8 +6,8 @@ import type {
   DeallocateEnergyAction,
   VentHeatAction,
   FireWeaponAction,
+  RotateAction,
 } from '../types/game'
-import { canExecuteBurn, canRotate } from './movement'
 import { WEAPONS } from '../constants/weapons'
 import { BURN_COSTS } from '../constants/rings'
 
@@ -127,6 +127,9 @@ function validateSingleAction(
     case 'burn':
       return validateBurnAction(player.ship, action, allActions)
 
+    case 'rotate':
+      return validateRotateAction(player.ship, action, allActions)
+
     case 'allocate_energy':
       return validateAllocateEnergy(player.ship, action)
 
@@ -150,14 +153,6 @@ function validateCoastAction(
   action: any,
   allActions: PlayerAction[]
 ): ValidationResult {
-  // Check if rotation is needed
-  if (action.data.targetFacing && action.data.targetFacing !== ship.facing) {
-    const rotationResult = canRotate(ship, action.data.targetFacing)
-    if (!rotationResult.valid) {
-      return rotationResult
-    }
-  }
-
   // Fuel scoop validation would go here
   // For now, always allow coasting
   return { valid: true }
@@ -195,12 +190,39 @@ function validateBurnAction(
     }
   }
 
-  // Check if rotation is needed
-  if (action.data.targetFacing && action.data.targetFacing !== ship.facing) {
-    const rotationResult = canRotate(ship, action.data.targetFacing)
-    if (!rotationResult.valid) {
-      return rotationResult
-    }
+  return { valid: true }
+}
+
+function validateRotateAction(
+  ship: any,
+  action: RotateAction,
+  allActions: PlayerAction[]
+): ValidationResult {
+  // No rotation needed if already facing that direction
+  if (ship.facing === action.data.targetFacing) {
+    return { valid: false, reason: 'Already facing that direction' }
+  }
+
+  // Calculate energy that will be available after allocations in this turn
+  const allocateActions = allActions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
+
+  // Check if rotation subsystem will be powered after allocations
+  const rotationSubsystem = ship.subsystems.find((s: any) => s.type === 'rotation')
+  if (!rotationSubsystem) {
+    return { valid: false, reason: 'Rotation subsystem not found' }
+  }
+
+  // Calculate rotation energy after allocations
+  const rotationAllocations = allocateActions.filter(a => a.data.subsystemType === 'rotation')
+  const additionalRotationEnergy = rotationAllocations.reduce((sum, a) => sum + a.data.amount, 0)
+  const totalRotationEnergy = rotationSubsystem.allocatedEnergy + additionalRotationEnergy
+
+  if (totalRotationEnergy === 0) {
+    return { valid: false, reason: 'Rotation subsystem not powered' }
+  }
+
+  if (rotationSubsystem.usedThisTurn) {
+    return { valid: false, reason: 'Rotation subsystem already used this turn' }
   }
 
   return { valid: true }

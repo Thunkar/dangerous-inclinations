@@ -16,11 +16,19 @@ interface WeaponRangeVisibility {
   missiles: boolean
 }
 
+interface MovementPreview {
+  actionType: 'coast' | 'burn'
+  burnIntensity?: BurnIntensity
+  sectorAdjustment: number
+  activateScoop: boolean
+}
+
 interface PendingState {
   subsystems: Subsystem[]
   reactor: ReactorState
   heat: HeatState
   facing: Facing
+  movement: MovementPreview
 }
 
 interface GameContextType {
@@ -31,6 +39,7 @@ interface GameContextType {
   deallocateEnergy: (subsystemType: SubsystemType, amount: number) => void
   ventHeat: (newTotal: number) => void
   setFacing: (facing: Facing) => void
+  setMovement: (movement: MovementPreview) => void
   executeTurn: (
     movementType: 'coast' | 'burn',
     burnIntensity?: BurnIntensity,
@@ -104,6 +113,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     reactor: { ...activePlayer.ship.reactor },
     heat: { ...activePlayer.ship.heat },
     facing: activePlayer.ship.facing,
+    movement: {
+      actionType: 'coast',
+      sectorAdjustment: 0,
+      activateScoop: false,
+    },
   }))
 
   // Reset pending state when active player changes or turn completes
@@ -113,6 +127,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       reactor: { ...activePlayer.ship.reactor },
       heat: { ...activePlayer.ship.heat },
       facing: activePlayer.ship.facing,
+      movement: {
+        actionType: 'coast',
+        sectorAdjustment: 0,
+        activateScoop: false,
+      },
     })
   }, [activePlayer.id, gameState.turn])
 
@@ -217,6 +236,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setPendingStateInternal(prev => ({ ...prev, facing }))
   }, [])
 
+  // High-level game action: Set movement preview
+  const setMovement = useCallback((movement: MovementPreview) => {
+    setPendingStateInternal(prev => ({ ...prev, movement }))
+  }, [])
+
   // Execute turn: compute diff between committed and pending, create actions, execute
   const executeTurn = useCallback(
     (
@@ -274,13 +298,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
         })
       }
 
-      // 3. Add movement action
+      // 3. Add rotation action if facing changed
+      if (pendingState.facing !== activePlayer.ship.facing) {
+        actions.push({
+          playerId: activePlayer.id,
+          type: 'rotate',
+          data: {
+            targetFacing: pendingState.facing,
+          },
+        })
+      }
+
+      // 4. Add movement action
       if (movementType === 'burn') {
         actions.push({
           playerId: activePlayer.id,
           type: 'burn',
           data: {
-            targetFacing: pendingState.facing,
             burnIntensity: burnIntensity || 'light',
             sectorAdjustment: sectorAdjustment || 0,
           },
@@ -290,14 +324,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
           playerId: activePlayer.id,
           type: 'coast',
           data: {
-            targetFacing:
-              pendingState.facing !== activePlayer.ship.facing ? pendingState.facing : undefined,
             activateScoop: activateScoop || false,
           },
         })
       }
 
-      // 4. Add weapon actions
+      // 5. Add weapon actions
       if (weaponTargets?.laser) {
         actions.push({
           playerId: activePlayer.id,
@@ -329,7 +361,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         })
       }
 
-      // 5. Execute turn with all actions
+      // 6. Execute turn with all actions
       setGameState(prev => {
         const result = executeGameTurn(prev, actions)
         if (result.errors && result.errors.length > 0) {
@@ -358,6 +390,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         deallocateEnergy,
         ventHeat,
         setFacing,
+        setMovement,
         executeTurn,
         weaponRangeVisibility,
         toggleWeaponRange,

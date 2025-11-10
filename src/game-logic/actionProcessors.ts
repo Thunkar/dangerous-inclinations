@@ -4,6 +4,7 @@ import type {
   TurnLogEntry,
   CoastAction,
   BurnAction,
+  RotateAction,
   AllocateEnergyAction,
   DeallocateEnergyAction,
   VentHeatAction,
@@ -13,6 +14,7 @@ import { applyOrbitalMovement, initiateBurn, applyRotation } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
 import { getSubsystemConfig } from '../types/subsystems'
+import { resetSubsystemUsage } from './subsystems'
 
 export interface ProcessResult {
   success: boolean
@@ -23,6 +25,20 @@ export interface ProcessResult {
 
 /**
  * Process all actions for the active player in the correct order
+ *
+ * Turn sequence:
+ * 1. Energy Allocation
+ * 2. Energy Deallocation
+ * 3. Heat Venting
+ * 4. Rotation
+ * 5. Movement
+ * 6. Weapon Firing
+ * 7. Heat Damage (from heat accumulated on PREVIOUS turns)
+ * 8. Heat Generation (from overclocked subsystems THIS turn)
+ * 9. Reset Subsystem Usage (prepare for next turn)
+ *
+ * Note: Transfer completion happens AFTER the previous player's turn ends,
+ * so the active player sees their ship in the correct position when their turn starts.
  */
 export function processActions(gameState: GameState, actions: PlayerAction[]): ProcessResult {
   const logEntries: TurnLogEntry[] = []
@@ -33,15 +49,7 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
   // Track heat at start of turn for damage calculation
   const heatAtStartOfTurn = activePlayer.ship.heat.currentHeat
 
-  // Phase 1: Weapon Firing (all simultaneous)
-  const weaponActions = actions.filter(a => a.type === 'fire_weapon') as FireWeaponAction[]
-  for (const action of weaponActions) {
-    const result = processFireWeapon(currentGameState, action)
-    currentGameState = result.gameState
-    logEntries.push(...result.logEntries)
-  }
-
-  // Phase 2: Energy Allocation
+  // Phase 1: Energy Allocation
   const allocateActions = actions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
   for (const action of allocateActions) {
     const result = processAllocateEnergy(currentGameState, action)
@@ -49,7 +57,7 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
     logEntries.push(...result.logEntries)
   }
 
-  // Phase 3: Energy Deallocation
+  // Phase 2: Energy Deallocation
   const deallocateActions = actions.filter(
     a => a.type === 'deallocate_energy'
   ) as DeallocateEnergyAction[]
@@ -59,7 +67,7 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
     logEntries.push(...result.logEntries)
   }
 
-  // Phase 4: Heat Venting
+  // Phase 3: Heat Venting
   const ventActions = actions.filter(a => a.type === 'vent_heat') as VentHeatAction[]
   for (const action of ventActions) {
     const result = processVentHeat(currentGameState, action)
@@ -67,22 +75,16 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
     logEntries.push(...result.logEntries)
   }
 
-  // Phase 5: Rotation (if needed for movement)
-  const movementAction = actions.find(a => a.type === 'coast' || a.type === 'burn')
-  if (movementAction) {
-    const targetFacing =
-      movementAction.type === 'coast'
-        ? (movementAction as CoastAction).data.targetFacing
-        : (movementAction as BurnAction).data.targetFacing
-
-    if (targetFacing && targetFacing !== activePlayer.ship.facing) {
-      const result = processRotation(currentGameState, activePlayer.id, targetFacing)
-      currentGameState = result.gameState
-      logEntries.push(...result.logEntries)
-    }
+  // Phase 4: Rotation
+  const rotateActions = actions.filter(a => a.type === 'rotate') as RotateAction[]
+  for (const action of rotateActions) {
+    const result = processRotation(currentGameState, action)
+    currentGameState = result.gameState
+    logEntries.push(...result.logEntries)
   }
 
-  // Phase 6: Movement (coast or burn) + Orbital Movement
+  // Phase 5: Movement (coast or burn) + Orbital Movement
+  const movementAction = actions.find(a => a.type === 'coast' || a.type === 'burn')
   if (movementAction) {
     if (movementAction.type === 'coast') {
       const result = processCoast(currentGameState, movementAction as CoastAction)
@@ -95,12 +97,15 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
     }
   }
 
-  // Phase 6.5: Generate heat from overclocked subsystems
-  const overclockResult = generateOverclockHeat(currentGameState, activePlayerIndex)
-  currentGameState = overclockResult.gameState
-  logEntries.push(...overclockResult.logEntries)
+  // Phase 6: Weapon Firing (all simultaneous)
+  const weaponActions = actions.filter(a => a.type === 'fire_weapon') as FireWeaponAction[]
+  for (const action of weaponActions) {
+    const result = processFireWeapon(currentGameState, action)
+    currentGameState = result.gameState
+    logEntries.push(...result.logEntries)
+  }
 
-  // Phase 7: Apply heat damage to active player
+  // Phase 7: Apply heat damage to active player (from heat at START of turn)
   const heatToVent = ventActions.reduce((sum, a) => sum + a.data.amount, 0)
   const heatDamageResult = applyHeatDamage(
     currentGameState,
@@ -110,6 +115,26 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
   )
   currentGameState = heatDamageResult.gameState
   logEntries.push(...heatDamageResult.logEntries)
+
+  // Phase 8: Generate heat from overclocked subsystems (happens at END of turn)
+  const overclockResult = generateOverclockHeat(currentGameState, activePlayerIndex)
+  currentGameState = overclockResult.gameState
+  logEntries.push(...overclockResult.logEntries)
+
+  // Phase 9: Reset subsystem usage flags for next turn
+  const updatedPlayers = [...currentGameState.players]
+  const currentPlayer = updatedPlayers[activePlayerIndex]
+  updatedPlayers[activePlayerIndex] = {
+    ...currentPlayer,
+    ship: {
+      ...currentPlayer.ship,
+      subsystems: resetSubsystemUsage(currentPlayer.ship.subsystems),
+    },
+  }
+  currentGameState = {
+    ...currentGameState,
+    players: updatedPlayers,
+  }
 
   return {
     success: true,
@@ -182,15 +207,11 @@ function processBurn(gameState: GameState, action: BurnAction): ProcessResult {
 /**
  * Process rotation action
  */
-function processRotation(
-  gameState: GameState,
-  playerId: string,
-  targetFacing: 'prograde' | 'retrograde'
-): ProcessResult {
-  const playerIndex = gameState.players.findIndex(p => p.id === playerId)
+function processRotation(gameState: GameState, action: RotateAction): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
   const player = gameState.players[playerIndex]
 
-  const updatedShip = applyRotation(player.ship, targetFacing)
+  const updatedShip = applyRotation(player.ship, action.data.targetFacing)
 
   // Mark rotation subsystem as used
   const rotationSubsystem = updatedShip.subsystems.find(s => s.type === 'rotation')
@@ -207,7 +228,7 @@ function processRotation(
       playerId: player.id,
       playerName: player.name,
       action: 'Rotate',
-      result: `Rotated to ${targetFacing}`,
+      result: `Rotated to ${action.data.targetFacing}`,
     },
   ]
 

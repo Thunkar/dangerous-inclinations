@@ -13,25 +13,52 @@ export interface TurnResult {
 }
 
 /**
- * Execute a complete game turn for the active player
+ * Prepare the game state for the next player's turn
+ * This resolves any transfers for the next player so they see their ship in the correct position
  *
  * @param gameState - Current game state
+ * @returns Updated game state with next player's transfer resolved (if any)
+ */
+export function prepareTurn(gameState: GameState): GameState {
+  const activePlayer = gameState.players[gameState.activePlayerIndex]
+
+  // If the active player has a pending transfer, complete it now
+  if (activePlayer.ship.transferState?.arriveNextTurn) {
+    const resolvedPlayers = [...gameState.players]
+    const resolvedShip = completeTransfer(activePlayer.ship)
+    resolvedPlayers[gameState.activePlayerIndex] = {
+      ...activePlayer,
+      ship: resolvedShip,
+    }
+
+    return {
+      ...gameState,
+      players: resolvedPlayers,
+    }
+  }
+
+  return gameState
+}
+
+/**
+ * Execute a complete game turn for the active player
+ *
+ * @param gameState - Current game state (should already be prepared with prepareTurn)
  * @param actions - Array of actions for the active player to execute
  *
  * Execution phases:
  * 1. Validate all actions
  * 2. Process actions in priority order:
- *    - Weapon firing (all simultaneous)
  *    - Energy allocation
  *    - Energy deallocation
  *    - Heat venting
  *    - Rotation (if needed)
  *    - Movement (coast or burn)
- * 3. Apply weapon damage
- * 4. Apply heat damage
- * 5. Complete transfers
- * 6. Move to next player
- * 7. Resolve next player's transfer if needed
+ *    - Weapon firing (all simultaneous)
+ *    - Heat damage (from previous turns)
+ *    - Heat generation (from this turn)
+ * 3. Move to next player
+ * 4. Prepare next player's turn (resolve their transfer if arriving)
  */
 export function executeTurn(gameState: GameState, actions: PlayerAction[]): TurnResult {
   const activePlayer = gameState.players[gameState.activePlayerIndex]
@@ -76,7 +103,14 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   const nextPlayerIndex = (gameState.activePlayerIndex + 1) % updatedGameState.players.length
   const isNewTurn = nextPlayerIndex === 0
 
-  // Resolve next player's transfer if they have one
+  updatedGameState = {
+    ...updatedGameState,
+    turn: isNewTurn ? gameState.turn + 1 : gameState.turn,
+    activePlayerIndex: nextPlayerIndex,
+    turnLog: [...gameState.turnLog, ...allLogEntries],
+  }
+
+  // Prepare the next player's turn (resolve their transfer if arriving)
   const nextPlayer = updatedGameState.players[nextPlayerIndex]
   if (nextPlayer.ship.transferState?.arriveNextTurn) {
     const resolvedPlayers = [...updatedGameState.players]
@@ -88,7 +122,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
 
     // Add transfer log entry
     allLogEntries.push({
-      turn: isNewTurn ? gameState.turn + 1 : gameState.turn,
+      turn: updatedGameState.turn,
       playerId: nextPlayer.id,
       playerName: nextPlayer.name,
       action: 'Transfer Complete',
@@ -98,16 +132,12 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     updatedGameState = {
       ...updatedGameState,
       players: resolvedPlayers,
+      turnLog: [...updatedGameState.turnLog, allLogEntries[allLogEntries.length - 1]],
     }
   }
 
   return {
-    gameState: {
-      ...updatedGameState,
-      turn: isNewTurn ? gameState.turn + 1 : gameState.turn,
-      activePlayerIndex: nextPlayerIndex,
-      turnLog: [...gameState.turnLog, ...allLogEntries],
-    },
+    gameState: updatedGameState,
     logEntries: allLogEntries,
     errors: errors.length > 0 ? errors : undefined,
   }

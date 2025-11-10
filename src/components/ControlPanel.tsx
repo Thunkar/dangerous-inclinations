@@ -22,6 +22,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     weaponRangeVisibility,
     toggleWeaponRange,
     setFacing,
+    setMovement,
     pendingState,
     executeTurn,
     allocateEnergy,
@@ -72,6 +73,16 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   useEffect(() => {
     setFacing(targetFacing)
   }, [targetFacing, setFacing])
+
+  // Update pending movement whenever movement parameters change (for position prediction visualization)
+  useEffect(() => {
+    setMovement({
+      actionType,
+      burnIntensity: actionType === 'burn' ? burnIntensity : undefined,
+      sectorAdjustment,
+      activateScoop,
+    })
+  }, [actionType, burnIntensity, sectorAdjustment, activateScoop, setMovement])
 
   // Handle execute turn - pass all parameters to executeTurn
   const handleExecuteTurn = () => {

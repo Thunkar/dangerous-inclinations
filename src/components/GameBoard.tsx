@@ -1,20 +1,28 @@
 import { Box, IconButton, Tooltip } from '@mui/material'
 import { useState, useRef } from 'react'
-import { RING_CONFIGS, mapSectorOnTransfer } from '../constants/rings'
+import { RING_CONFIGS, mapSectorOnTransfer, BURN_COSTS } from '../constants/rings'
 import { calculateFiringSolutions } from '../utils/weaponRange'
 import { getSubsystem } from '../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../types/subsystems'
 import { useGame } from '../context/GameContext'
-import type { Player, Facing } from '../types/game'
+import type { Player, Facing, BurnIntensity } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
+
+interface MovementPreview {
+  actionType: 'coast' | 'burn'
+  burnIntensity?: BurnIntensity
+  sectorAdjustment: number
+  activateScoop: boolean
+}
 
 interface GameBoardProps {
   players: Player[]
   activePlayerIndex: number
   pendingFacing?: Facing
+  pendingMovement?: MovementPreview
 }
 
-export function GameBoard({ players, activePlayerIndex, pendingFacing }: GameBoardProps) {
+export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMovement }: GameBoardProps) {
   const { weaponRangeVisibility } = useGame()
   const boardSize = 900
   const centerX = boardSize / 2
@@ -207,7 +215,9 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing }: GameBoa
           let secondStepY = null
           let secondStepRing = null
 
-          // TODO: Re-implement burn prediction using pending state from context
+          // Check if this is the active player with pending movement actions
+          const isActivePlayer = index === activePlayerIndex
+          const hasPendingBurn = isActivePlayer && pendingMovement?.actionType === 'burn' && pendingMovement.burnIntensity
 
           if (player.ship.transferState) {
             // Ship is in transfer - show where it will arrive
@@ -237,8 +247,38 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing }: GameBoa
               }
             }
             // If arriveNextTurn is false, ship stays in current position (still transferring)
+          } else if (hasPendingBurn) {
+            // Active player has a pending burn - show two-step prediction
+            // Step 1: After orbital movement on current ring (where ship enters transfer)
+            const afterOrbitalSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
+            const step1Angle = ((afterOrbitalSector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2
+            predictedX = centerX + radius * Math.cos(step1Angle)
+            predictedY = centerY + radius * Math.sin(step1Angle)
+            predictedRing = player.ship.ring
+
+            // Calculate Step 2: Arrival at destination ring (next turn)
+            const burnCost = BURN_COSTS[pendingMovement.burnIntensity!]
+            const ringChange = effectiveFacing === 'prograde' ? burnCost.rings : -burnCost.rings
+            const destinationRing = Math.max(1, Math.min(5, player.ship.ring + ringChange))
+
+            const destRingConfig = RING_CONFIGS.find(r => r.ring === destinationRing)
+            if (destRingConfig) {
+              // Map sector from current ring (after orbital movement) to destination ring
+              const baseSector = mapSectorOnTransfer(player.ship.ring, destinationRing, afterOrbitalSector)
+
+              // Apply sector adjustment from pending movement
+              const adjustment = pendingMovement.sectorAdjustment || 0
+              const finalSector = (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
+
+              const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+              const destRadius = destRingConfig.radius * destScaleFactor
+              const destAngle = ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
+
+              secondStepX = centerX + destRadius * Math.cos(destAngle)
+              secondStepY = centerY + destRadius * Math.sin(destAngle)
+              secondStepRing = destinationRing
+            }
           } else {
-            // TODO: Add burn prediction here using pending state from context
             // Ship is stable (or coasting) - show where it will move due to orbital velocity
             const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
             const predictedAngle =
@@ -260,9 +300,9 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing }: GameBoa
                     x2={predictedX}
                     y2={predictedY}
                     stroke={player.color}
-                    strokeWidth={player.ship.transferState ? 2 : 1}
+                    strokeWidth={player.ship.transferState || hasPendingBurn ? 2 : 1}
                     strokeDasharray="4 4"
-                    opacity={player.ship.transferState ? 0.6 : 0.4}
+                    opacity={player.ship.transferState || hasPendingBurn ? 0.6 : 0.4}
                   />
                   {/* Predicted position circle */}
                   <circle
@@ -272,9 +312,9 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing }: GameBoa
                     fill={player.color}
                     opacity={0.3}
                     stroke={player.color}
-                    strokeWidth={player.ship.transferState ? 2 : 1}
+                    strokeWidth={player.ship.transferState || hasPendingBurn ? 2 : 1}
                   />
-                  {/* Label for transfers showing destination ring */}
+                  {/* Label for transfers showing destination ring (only for actual transfers, not pending burns) */}
                   {player.ship.transferState && player.ship.transferState.arriveNextTurn && (
                     <text
                       x={predictedX}

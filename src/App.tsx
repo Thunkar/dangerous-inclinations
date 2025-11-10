@@ -90,6 +90,7 @@ function GameContent() {
               players={gameState.players}
               activePlayerIndex={gameState.activePlayerIndex}
               pendingFacing={pendingState.facing}
+              pendingMovement={pendingState.movement}
             />
           </Box>
         </Box>

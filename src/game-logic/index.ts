@@ -55,5 +55,6 @@ export { resetSubsystemUsage, getSubsystem } from './subsystems'
 // Turn management
 export {
   executeTurn,
+  prepareTurn,
   type TurnResult,
 } from './turns'
