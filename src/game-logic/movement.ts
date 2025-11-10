@@ -22,6 +22,9 @@ export function applyOrbitalMovement(ship: ShipState): ShipState {
 /**
  * Pure function to initiate a burn/transfer
  * Returns new ship state with transfer initiated and reaction mass consumed
+ *
+ * Note: Burn direction is determined by the ship's CURRENT facing.
+ * If rotation is needed, it must be applied before calling this function.
  */
 export function initiateBurn(
   ship: ShipState,
@@ -32,7 +35,9 @@ export function initiateBurn(
   }
 
   const burnCost = BURN_COSTS[action.data.burnIntensity]
-  const burnDirection = action.data.targetFacing
+
+  // Use the ship's current facing (rotation should have been applied already in Phase 4)
+  const burnDirection = ship.facing
 
   // Calculate destination ring
   const direction = burnDirection === 'prograde' ? 1 : -1
