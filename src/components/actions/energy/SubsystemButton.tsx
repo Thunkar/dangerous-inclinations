@@ -1,7 +1,7 @@
 import { Box, styled, Typography } from '@mui/material'
-import type { SubsystemType } from '../../types/subsystems'
-import { getSubsystemConfig } from '../../types/subsystems'
-import { CustomIcon } from '../CustomIcon'
+import type { SubsystemType } from '../../../types/subsystems'
+import { getSubsystemConfig } from '../../../types/subsystems'
+import { CustomIcon } from '../../CustomIcon'
 
 interface SubsystemButtonProps {
   subsystemType: SubsystemType

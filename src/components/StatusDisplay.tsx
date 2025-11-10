@@ -1,13 +1,15 @@
 import { Box, Paper, Typography } from '@mui/material'
 import type { Player } from '../types/game'
+import type { HeatState } from '../types/subsystems'
 
 interface StatusDisplayProps {
   players: Player[]
   activePlayerIndex: number
   turn: number
+  pendingHeat?: HeatState
 }
 
-export function StatusDisplay({ players, activePlayerIndex, turn }: StatusDisplayProps) {
+export function StatusDisplay({ players, activePlayerIndex, turn, pendingHeat }: StatusDisplayProps) {
   return (
     <Paper
       sx={{
@@ -42,9 +44,7 @@ export function StatusDisplay({ players, activePlayerIndex, turn }: StatusDispla
       {players.map((player, index) => {
         const isActive = index === activePlayerIndex
         // For active player, show pending heat (after venting), for others show committed heat
-        const heat = isActive && player.ship.pendingHeat
-          ? player.ship.pendingHeat
-          : player.ship.heat
+        const heat = isActive && pendingHeat ? pendingHeat : player.ship.heat
         const displayHeat = Math.max(0, heat.currentHeat - heat.heatToVent)
 
         return (

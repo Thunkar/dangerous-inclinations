@@ -1,7 +1,7 @@
 import { Box, Typography, Paper, Stack, Chip } from '@mui/material'
-import type { Subsystem, ReactorState, HeatState, SubsystemType } from '../../types/subsystems'
-import { getSubsystem } from '../../utils/subsystemHelpers'
-import { isSubsystemOverclocked } from '../../types/subsystems'
+import type { Subsystem, ReactorState, HeatState, SubsystemType } from '../../../types/subsystems'
+import { getSubsystem } from '../../../utils/subsystemHelpers'
+import { isSubsystemOverclocked } from '../../../types/subsystems'
 import { RadialMenu } from './RadialMenu'
 import { SubsystemButton } from './SubsystemButton'
 

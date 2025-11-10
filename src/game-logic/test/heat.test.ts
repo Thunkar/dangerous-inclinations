@@ -1,241 +1,165 @@
 import { describe, it, expect } from 'vitest'
-import {
-  calculateHeatGeneration,
-  applyHeatGeneration,
-  setHeatVenting,
-  processHeatVenting,
-  calculateHeatDamage,
-  canVentHeat,
-} from '../heat'
-import { createTestShip, createShipWithHeat, createShipWithWeapons } from './fixtures/ships'
-import { assertHeatState } from './helpers/assertions'
+import { executeTurn, type TurnResult } from '../turns'
+import type { GameState } from '../../types/game'
+import { createCoastAction, createVentHeatAction } from './fixtures/actions'
+import { createTestGameState, INITIAL_HIT_POINTS } from './fixtures/gameState'
 
-describe('Heat Management', () => {
-  describe('Heat Generation', () => {
-    it('should calculate zero heat for unpowered systems', () => {
-      const ship = createTestShip()
+/**
+ * Helper to execute a turn with actions for the active player
+ */
+function executeTurnWithActions(gameState: GameState, ...actions: any[]): TurnResult {
+  const activePlayer = gameState.players[gameState.activePlayerIndex]
 
-      const heat = calculateHeatGeneration(ship.subsystems)
+  const actionsWithCorrectPlayer = actions
+    .map(action => (action ? { ...action, playerId: activePlayer.id } : action))
+    .filter(Boolean)
 
-      expect(heat).toBe(0)
+  return executeTurn(gameState, actionsWithCorrectPlayer)
+}
+
+describe('Multi-Turn Heat Management', () => {
+  describe('Heat Accumulation and Venting', () => {
+    it('should accumulate heat and vent it over multiple turns', () => {
+      let gameState = createTestGameState()
+
+      // Turn 1: Manually set some heat (simulating heat generation)
+      gameState.players[0].ship.heat.currentHeat = 5
+
+      const initialHP = gameState.players[0].ship.hitPoints
+
+      // Turn 1: Coast without venting - should take 5 damage
+      let result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 5)
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(5) // Heat persists
+
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Turn 2: Vent 3 heat, take 2 damage from remaining heat
+      const ventAction = createVentHeatAction(3)
+      result = executeTurnWithActions(gameState, ventAction, createCoastAction())
+      gameState = result.gameState
+
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(2) // 5 - 3 vented
+      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 5 - 2) // Previous 5 + current 2
+
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Turn 3: Vent remaining heat
+      const ventAction2 = createVentHeatAction(2)
+      result = executeTurnWithActions(gameState, ventAction2, createCoastAction())
+      gameState = result.gameState
+
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(0) // All vented
+      // No damage this turn because heat was fully vented
+      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 5 - 2) // No additional damage
     })
 
-    it('should calculate heat from overclocked railgun', () => {
-      const ship = createShipWithWeapons('railgun', 4)
+    it('should apply heat damage based on heat at start of turn', () => {
+      let gameState = createTestGameState()
 
-      const heat = calculateHeatGeneration(ship.subsystems)
+      // Set initial heat
+      gameState.players[0].ship.heat.currentHeat = 5
 
-      expect(heat).toBe(1)
+      const initialHP = INITIAL_HIT_POINTS
+
+      // Turn 1: Coast without venting
+      let result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Heat damage should be applied: effectiveHeat (5 - 0 venting) = 5 damage
+      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 5)
+
+      // Heat should remain (not automatically vented)
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(5)
     })
 
-    it('should not generate heat from railgun below 4 energy', () => {
-      const ship = createShipWithWeapons('railgun', 3)
+    it('should allow partial heat venting to reduce damage', () => {
+      let gameState = createTestGameState()
 
-      const heat = calculateHeatGeneration(ship.subsystems)
+      // Manually set 5 heat
+      gameState.players[0].ship.heat.currentHeat = 5
 
-      expect(heat).toBe(0)
+      const initialHP = INITIAL_HIT_POINTS
+
+      // Turn 1: Request to vent 3 heat (leaving 2 for damage)
+      const ventAction = createVentHeatAction(3)
+      let result = executeTurnWithActions(gameState, ventAction, createCoastAction())
+      gameState = result.gameState
+
+      // Effective heat for damage = 5 - 3 = 2 damage
+      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 2)
+
+      // Remaining heat after venting = 5 - 3 = 2
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(2)
     })
 
-    it('should apply heat generation to ship', () => {
-      const ship = createShipWithWeapons('railgun', 4)
+    it('should accumulate heat over multiple turns without venting', () => {
+      let gameState = createTestGameState()
 
-      const result = applyHeatGeneration(ship)
+      // Manually set initial heat
+      gameState.players[0].ship.heat.currentHeat = 2
 
-      assertHeatState(result, 1)
+      const initialHP = INITIAL_HIT_POINTS
+
+      // Turn 1: Coast without venting - 2 damage
+      let result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 2)
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(2) // Heat persists
+
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Turn 2: Add more heat manually (simulating heat generation)
+      gameState.players[0].ship.heat.currentHeat = 4 // Now 4 heat total
+
+      // Coast again - 4 more damage
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 2 - 4) // 10 - 6 = 4
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(4)
     })
 
-    it('should accumulate heat over multiple generations', () => {
-      const ship = createShipWithHeat(3)
-      ship.subsystems = ship.subsystems.map(s =>
-        s.type === 'railgun' ? { ...s, isPowered: true, allocatedEnergy: 4 } : s
-      )
+    it('should vent multiple times in sequence', () => {
+      let gameState = createTestGameState()
 
-      const result = applyHeatGeneration(ship)
+      // Set high heat
+      gameState.players[0].ship.heat.currentHeat = 10
 
-      assertHeatState(result, 4) // 3 + 1
-    })
+      // Turn 1: Vent 3 heat
+      let result = executeTurnWithActions(gameState, createVentHeatAction(3), createCoastAction())
+      gameState = result.gameState
 
-    it('should not modify ship if no heat generated', () => {
-      const ship = createTestShip()
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(7) // 10 - 3
 
-      const result = applyHeatGeneration(ship)
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
 
-      expect(result).toEqual(ship)
-    })
-  })
+      // Turn 2: Vent 3 more heat
+      result = executeTurnWithActions(gameState, createVentHeatAction(3), createCoastAction())
+      gameState = result.gameState
 
-  describe('Heat Venting', () => {
-    it('should set heat to vent', () => {
-      const ship = createTestShip()
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(4) // 7 - 3
 
-      const result = setHeatVenting(ship, 3)
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
 
-      assertHeatState(result, 0, 3)
-    })
+      // Turn 3: Vent remaining heat (can only vent 3 at a time due to max return rate)
+      result = executeTurnWithActions(gameState, createVentHeatAction(3), createCoastAction())
+      gameState = result.gameState
 
-    it('should process heat venting correctly', () => {
-      const ship = createShipWithHeat(5)
-      ship.heat.heatToVent = 3
-
-      const result = processHeatVenting(ship)
-
-      assertHeatState(result, 2, 0) // 5 - 3 = 2, reset heatToVent
-    })
-
-    it('should not vent more heat than available', () => {
-      const ship = createShipWithHeat(2)
-      ship.heat.heatToVent = 5
-
-      const result = processHeatVenting(ship)
-
-      assertHeatState(result, 0, 0) // Can only vent 2, not 5
-    })
-
-    it('should handle zero heat to vent', () => {
-      const ship = createShipWithHeat(5)
-
-      const result = processHeatVenting(ship)
-
-      expect(result).toEqual(ship)
-    })
-
-    it('should vent all heat when heatToVent equals currentHeat', () => {
-      const ship = createShipWithHeat(4)
-      ship.heat.heatToVent = 4
-
-      const result = processHeatVenting(ship)
-
-      assertHeatState(result, 0, 0)
-    })
-  })
-
-  describe('Heat Damage', () => {
-    it('should calculate damage from current heat', () => {
-      const ship = createShipWithHeat(20)
-
-      const damage = calculateHeatDamage(ship)
-
-      expect(damage).toBe(20) // All heat causes damage
-    })
-
-    it('should calculate damage after venting', () => {
-      const ship = createShipWithHeat(20)
-      ship.heat.heatToVent = 5
-
-      const damage = calculateHeatDamage(ship)
-
-      expect(damage).toBe(15) // 20 - 5 = 15
-    })
-
-    it('should calculate zero damage with no heat', () => {
-      const ship = createShipWithHeat(0)
-
-      const damage = calculateHeatDamage(ship)
-
-      expect(damage).toBe(0)
-    })
-
-    it('should not calculate negative damage', () => {
-      const ship = createShipWithHeat(5)
-      ship.heat.heatToVent = 10 // Venting more than current heat
-
-      const damage = calculateHeatDamage(ship)
-
-      expect(damage).toBe(0) // Max(0, 5 - 10) = 0
-    })
-  })
-
-  describe('Heat Venting Validation', () => {
-    it('should validate successful heat venting', () => {
-      const ship = createShipWithHeat(10)
-
-      const result = canVentHeat(ship, 5)
-
-      expect(result.valid).toBe(true)
-    })
-
-    it('should fail validation when venting more than current heat', () => {
-      const ship = createShipWithHeat(5)
-
-      const result = canVentHeat(ship, 10)
-
-      expect(result.valid).toBe(false)
-      expect(result.reason).toContain('Cannot vent more')
-    })
-
-    it('should allow venting up to exact current heat', () => {
-      const ship = createShipWithHeat(8)
-
-      const result = canVentHeat(ship, 8)
-
-      expect(result.valid).toBe(true)
-    })
-
-    it('should allow venting zero heat', () => {
-      const ship = createShipWithHeat(5)
-
-      const result = canVentHeat(ship, 0)
-
-      expect(result.valid).toBe(true)
-    })
-  })
-
-  describe('Complex Heat Scenarios', () => {
-    it('should handle full heat generation and venting cycle', () => {
-      // Start with some heat
-      let ship = createShipWithHeat(5)
-
-      // Generate heat from railgun
-      ship.subsystems = ship.subsystems.map(s =>
-        s.type === 'railgun' ? { ...s, isPowered: true, allocatedEnergy: 4 } : s
-      )
-      ship = applyHeatGeneration(ship)
-      assertHeatState(ship, 6) // 5 + 1
-
-      // Set venting
-      ship = setHeatVenting(ship, 3)
-      assertHeatState(ship, 6, 3)
-
-      // Process venting
-      ship = processHeatVenting(ship)
-      assertHeatState(ship, 3, 0) // 6 - 3 = 3
-    })
-
-    it('should handle multiple heat sources in future', () => {
-      const ship = createShipWithWeapons('railgun', 4)
-
-      // Currently only railgun generates heat
-      const heat = calculateHeatGeneration(ship.subsystems)
-      expect(heat).toBe(1)
-
-      // Future: could add more heat sources
-    })
-
-    it('should handle accumulating heat levels', () => {
-      const ship = createShipWithHeat(19)
-
-      // Add one more heat
-      const result = applyHeatGeneration({
-        ...ship,
-        subsystems: ship.subsystems.map(s =>
-          s.type === 'railgun' ? { ...s, isPowered: true, allocatedEnergy: 4 } : s
-        ),
-      })
-
-      // Now at 20 heat
-      expect(calculateHeatDamage(result)).toBe(20)
-    })
-
-    it('should handle venting reducing damage', () => {
-      let ship = createShipWithHeat(22)
-
-      expect(calculateHeatDamage(ship)).toBe(22)
-
-      // Vent 3 heat
-      ship = setHeatVenting(ship, 3)
-      ship = processHeatVenting(ship)
-
-      expect(calculateHeatDamage(ship)).toBe(19)
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(1) // 4 - 3
     })
   })
 })

@@ -1,4 +1,4 @@
-import type { Subsystem, ReactorState, HeatState } from './subsystems'
+import type { Subsystem, SubsystemType, ReactorState, HeatState } from './subsystems'
 
 export type Facing = 'prograde' | 'retrograde'
 
@@ -20,37 +20,100 @@ export interface ShipState {
   hitPoints: number
   maxHitPoints: number
   transferState: TransferState | null
-  // New subsystem-based energy/heat system
+  // Subsystem-based energy/heat system
   subsystems: Subsystem[]
   reactor: ReactorState
   heat: HeatState
-  // Pending allocations (not committed until turn executes)
-  pendingSubsystems?: Subsystem[]
-  pendingReactor?: ReactorState
-  pendingHeat?: HeatState
-  pendingFacing?: Facing // Pending facing change (updates immediately during planning)
 }
 
-export interface WeaponFiring {
-  weaponType: string // e.g., 'laser', 'railgun', 'missile'
-  targetPlayerId: string
+/**
+ * Base action properties shared by all action types
+ */
+interface BaseAction {
+  playerId: string
 }
 
-export interface PlayerAction {
-  type: ActionType
-  targetFacing?: Facing // Desired ship orientation (independent of burn)
-  burnIntensity?: BurnIntensity
-  sectorAdjustment?: number // -1, 0, or +1 sector adjustment for transfers (phasing is automatic)
-  activateScoop: boolean
-  weaponFirings: WeaponFiring[] // Changed from single weaponFiring to array
+/**
+ * Movement Actions (mutually exclusive per turn)
+ */
+
+export interface CoastAction extends BaseAction {
+  type: 'coast'
+  data: {
+    targetFacing?: Facing
+    activateScoop: boolean
+  }
 }
+
+export interface BurnAction extends BaseAction {
+  type: 'burn'
+  data: {
+    targetFacing: Facing
+    burnIntensity: BurnIntensity
+    sectorAdjustment: number
+  }
+}
+
+/**
+ * Resource Management Actions
+ */
+
+export interface AllocateEnergyAction extends BaseAction {
+  type: 'allocate_energy'
+  data: {
+    subsystemType: SubsystemType
+    amount: number
+  }
+}
+
+export interface DeallocateEnergyAction extends BaseAction {
+  type: 'deallocate_energy'
+  data: {
+    subsystemType: SubsystemType
+    amount: number // Amount of energy to return to reactor (limited by maxReturnRate)
+  }
+}
+
+export interface VentHeatAction extends BaseAction {
+  type: 'vent_heat'
+  data: {
+    amount: number
+  }
+}
+
+/**
+ * Combat Actions
+ */
+
+export interface FireWeaponAction extends BaseAction {
+  type: 'fire_weapon'
+  data: {
+    weaponType: 'laser' | 'railgun' | 'missiles'
+    targetPlayerIds: string[] // Array for multi-target weapons like lasers
+  }
+}
+
+/**
+ * Movement action type
+ */
+export type MovementAction = CoastAction | BurnAction
+
+/**
+ * Discriminated union of all player actions
+ */
+export type PlayerAction =
+  | CoastAction
+  | BurnAction
+  | AllocateEnergyAction
+  | DeallocateEnergyAction
+  | VentHeatAction
+  | FireWeaponAction
 
 export interface Player {
   id: string
   name: string
   color: string
   ship: ShipState
-  pendingAction: PlayerAction | null
 }
 
 export interface TurnLogEntry {

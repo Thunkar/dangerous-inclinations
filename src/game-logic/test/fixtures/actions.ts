@@ -1,14 +1,30 @@
-import type { PlayerAction, BurnIntensity, Facing } from '../../../types/game'
+import type {
+  CoastAction,
+  BurnAction,
+  AllocateEnergyAction,
+  DeallocateEnergyAction,
+  VentHeatAction,
+  FireWeaponAction,
+  BurnIntensity,
+  Facing,
+} from '../../../types/game'
+import type { SubsystemType } from '../../../types/subsystems'
 
 /**
  * Creates a coast action (no burn)
  */
-export function createCoastAction(facing?: Facing): PlayerAction {
+export function createCoastAction(
+  playerId: string = 'test-player',
+  targetFacing?: Facing,
+  activateScoop: boolean = false
+): CoastAction {
   return {
+    playerId,
     type: 'coast',
-    targetFacing: facing,
-    activateScoop: false,
-    weaponFirings: [],
+    data: {
+      targetFacing,
+      activateScoop,
+    },
   }
 }
 
@@ -17,58 +33,111 @@ export function createCoastAction(facing?: Facing): PlayerAction {
  */
 export function createBurnAction(
   intensity: BurnIntensity,
-  direction: Facing,
-  sectorAdjustment: number = 0
-): PlayerAction {
+  targetFacing: Facing,
+  sectorAdjustment: number = 0,
+  playerId: string = 'test-player'
+): BurnAction {
   return {
+    playerId,
     type: 'burn',
-    targetFacing: direction,
-    burnDirection: direction,
-    burnIntensity: intensity,
-    sectorAdjustment,
-    activateScoop: false,
-    weaponFirings: [],
+    data: {
+      targetFacing,
+      burnIntensity: intensity,
+      sectorAdjustment,
+    },
   }
 }
 
 /**
  * Creates a coast action with fuel scoop activated
  */
-export function createScoopAction(): PlayerAction {
+export function createScoopAction(playerId: string = 'test-player'): CoastAction {
   return {
+    playerId,
     type: 'coast',
-    activateScoop: true,
-    weaponFirings: [],
+    data: {
+      activateScoop: true,
+    },
   }
 }
 
 /**
- * Creates an action with weapon firing
+ * Creates a rotation coast action (rotation only, no scoop)
  */
-export function createWeaponAction(
-  weaponType: 'laser' | 'railgun' | 'missile',
-  targetPlayerId: string
-): PlayerAction {
+export function createRotationAction(targetFacing: Facing, playerId: string = 'test-player'): CoastAction {
   return {
+    playerId,
     type: 'coast',
-    activateScoop: false,
-    weaponFirings: [
-      {
-        weaponType,
-        targetPlayerId,
-      },
-    ],
+    data: {
+      targetFacing,
+      activateScoop: false,
+    },
   }
 }
 
 /**
- * Creates a rotation action
+ * Creates an allocate energy action
  */
-export function createRotationAction(targetFacing: Facing): PlayerAction {
+export function createAllocateEnergyAction(
+  subsystemType: SubsystemType,
+  amount: number,
+  playerId: string = 'test-player'
+): AllocateEnergyAction {
   return {
-    type: 'coast',
-    targetFacing,
-    activateScoop: false,
-    weaponFirings: [],
+    playerId,
+    type: 'allocate_energy',
+    data: {
+      subsystemType,
+      amount,
+    },
+  }
+}
+
+/**
+ * Creates a deallocate energy action
+ */
+export function createDeallocateEnergyAction(
+  subsystemType: SubsystemType,
+  amount: number,
+  playerId: string = 'test-player'
+): DeallocateEnergyAction {
+  return {
+    playerId,
+    type: 'deallocate_energy',
+    data: {
+      subsystemType,
+      amount,
+    },
+  }
+}
+
+/**
+ * Creates a vent heat action
+ */
+export function createVentHeatAction(amount: number, playerId: string = 'test-player'): VentHeatAction {
+  return {
+    playerId,
+    type: 'vent_heat',
+    data: {
+      amount,
+    },
+  }
+}
+
+/**
+ * Creates a fire weapon action
+ */
+export function createFireWeaponAction(
+  weaponType: 'laser' | 'railgun' | 'missiles',
+  targetPlayerIds: string[],
+  playerId: string = 'test-player'
+): FireWeaponAction {
+  return {
+    playerId,
+    type: 'fire_weapon',
+    data: {
+      weaponType,
+      targetPlayerIds,
+    },
   }
 }

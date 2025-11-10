@@ -1,0 +1,532 @@
+import type {
+  GameState,
+  PlayerAction,
+  TurnLogEntry,
+  CoastAction,
+  BurnAction,
+  AllocateEnergyAction,
+  DeallocateEnergyAction,
+  VentHeatAction,
+  FireWeaponAction,
+} from '../types/game'
+import { applyOrbitalMovement, initiateBurn, applyRotation } from './movement'
+import { applyWeaponDamage, getWeaponDamage } from './damage'
+import { WEAPONS } from '../constants/weapons'
+import { getSubsystemConfig } from '../types/subsystems'
+
+export interface ProcessResult {
+  success: boolean
+  gameState: GameState
+  logEntries: TurnLogEntry[]
+  errors?: string[]
+}
+
+/**
+ * Process all actions for the active player in the correct order
+ */
+export function processActions(gameState: GameState, actions: PlayerAction[]): ProcessResult {
+  const logEntries: TurnLogEntry[] = []
+  let currentGameState = gameState
+  const activePlayerIndex = gameState.activePlayerIndex
+  const activePlayer = gameState.players[activePlayerIndex]
+
+  // Track heat at start of turn for damage calculation
+  const heatAtStartOfTurn = activePlayer.ship.heat.currentHeat
+
+  // Phase 1: Weapon Firing (all simultaneous)
+  const weaponActions = actions.filter(a => a.type === 'fire_weapon') as FireWeaponAction[]
+  for (const action of weaponActions) {
+    const result = processFireWeapon(currentGameState, action)
+    currentGameState = result.gameState
+    logEntries.push(...result.logEntries)
+  }
+
+  // Phase 2: Energy Allocation
+  const allocateActions = actions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
+  for (const action of allocateActions) {
+    const result = processAllocateEnergy(currentGameState, action)
+    currentGameState = result.gameState
+    logEntries.push(...result.logEntries)
+  }
+
+  // Phase 3: Energy Deallocation
+  const deallocateActions = actions.filter(
+    a => a.type === 'deallocate_energy'
+  ) as DeallocateEnergyAction[]
+  for (const action of deallocateActions) {
+    const result = processDeallocateEnergy(currentGameState, action)
+    currentGameState = result.gameState
+    logEntries.push(...result.logEntries)
+  }
+
+  // Phase 4: Heat Venting
+  const ventActions = actions.filter(a => a.type === 'vent_heat') as VentHeatAction[]
+  for (const action of ventActions) {
+    const result = processVentHeat(currentGameState, action)
+    currentGameState = result.gameState
+    logEntries.push(...result.logEntries)
+  }
+
+  // Phase 5: Rotation (if needed for movement)
+  const movementAction = actions.find(a => a.type === 'coast' || a.type === 'burn')
+  if (movementAction) {
+    const targetFacing =
+      movementAction.type === 'coast'
+        ? (movementAction as CoastAction).data.targetFacing
+        : (movementAction as BurnAction).data.targetFacing
+
+    if (targetFacing && targetFacing !== activePlayer.ship.facing) {
+      const result = processRotation(currentGameState, activePlayer.id, targetFacing)
+      currentGameState = result.gameState
+      logEntries.push(...result.logEntries)
+    }
+  }
+
+  // Phase 6: Movement (coast or burn) + Orbital Movement
+  if (movementAction) {
+    if (movementAction.type === 'coast') {
+      const result = processCoast(currentGameState, movementAction as CoastAction)
+      currentGameState = result.gameState
+      logEntries.push(...result.logEntries)
+    } else {
+      const result = processBurn(currentGameState, movementAction as BurnAction)
+      currentGameState = result.gameState
+      logEntries.push(...result.logEntries)
+    }
+  }
+
+  // Phase 6.5: Generate heat from overclocked subsystems
+  const overclockResult = generateOverclockHeat(currentGameState, activePlayerIndex)
+  currentGameState = overclockResult.gameState
+  logEntries.push(...overclockResult.logEntries)
+
+  // Phase 7: Apply heat damage to active player
+  const heatToVent = ventActions.reduce((sum, a) => sum + a.data.amount, 0)
+  const heatDamageResult = applyHeatDamage(
+    currentGameState,
+    activePlayerIndex,
+    heatAtStartOfTurn,
+    heatToVent
+  )
+  currentGameState = heatDamageResult.gameState
+  logEntries.push(...heatDamageResult.logEntries)
+
+  return {
+    success: true,
+    gameState: currentGameState,
+    logEntries,
+  }
+}
+
+/**
+ * Process a coast action (orbital movement only)
+ */
+function processCoast(gameState: GameState, action: CoastAction): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+
+  // Apply orbital movement
+  const updatedShip = applyOrbitalMovement(player.ship)
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Coast',
+      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ' (scoop active)' : ''}`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+/**
+ * Process a burn action (initiate transfer)
+ */
+function processBurn(gameState: GameState, action: BurnAction): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+
+  // Apply orbital movement first, then initiate burn
+  let updatedShip = applyOrbitalMovement(player.ship)
+  updatedShip = initiateBurn(updatedShip, action)
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Burn',
+      result: `${action.data.burnIntensity} burn initiated to ring ${updatedShip.transferState?.destinationRing}`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+/**
+ * Process rotation action
+ */
+function processRotation(
+  gameState: GameState,
+  playerId: string,
+  targetFacing: 'prograde' | 'retrograde'
+): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === playerId)
+  const player = gameState.players[playerIndex]
+
+  const updatedShip = applyRotation(player.ship, targetFacing)
+
+  // Mark rotation subsystem as used
+  const rotationSubsystem = updatedShip.subsystems.find(s => s.type === 'rotation')
+  if (rotationSubsystem) {
+    rotationSubsystem.usedThisTurn = true
+  }
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Rotate',
+      result: `Rotated to ${targetFacing}`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+/**
+ * Process energy allocation action
+ */
+function processAllocateEnergy(gameState: GameState, action: AllocateEnergyAction): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+
+  const subsystemIndex = player.ship.subsystems.findIndex(s => s.type === action.data.subsystemType)
+  if (subsystemIndex === -1) {
+    return {
+      success: false,
+      gameState,
+      logEntries: [],
+      errors: [`Subsystem ${action.data.subsystemType} not found`],
+    }
+  }
+
+  const subsystem = player.ship.subsystems[subsystemIndex]
+  const newAllocatedEnergy = subsystem.allocatedEnergy + action.data.amount
+
+  // Create new subsystems array with updated subsystem
+  const updatedSubsystems = [...player.ship.subsystems]
+  updatedSubsystems[subsystemIndex] = {
+    ...subsystem,
+    allocatedEnergy: newAllocatedEnergy,
+    isPowered: newAllocatedEnergy > 0,
+  }
+
+  // Update reactor and ship
+  const updatedShip = {
+    ...player.ship,
+    subsystems: updatedSubsystems,
+    reactor: {
+      ...player.ship.reactor,
+      availableEnergy: player.ship.reactor.availableEnergy - action.data.amount,
+    },
+  }
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Allocate Energy',
+      result: `+${action.data.amount} to ${action.data.subsystemType}`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+/**
+ * Process energy deallocation action
+ */
+function processDeallocateEnergy(
+  gameState: GameState,
+  action: DeallocateEnergyAction
+): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+
+  const subsystemIndex = player.ship.subsystems.findIndex(s => s.type === action.data.subsystemType)
+  if (subsystemIndex === -1) {
+    return {
+      success: false,
+      gameState,
+      logEntries: [],
+      errors: [`Subsystem ${action.data.subsystemType} not found`],
+    }
+  }
+
+  const subsystem = player.ship.subsystems[subsystemIndex]
+  const amountToReturn = Math.min(action.data.amount, subsystem.allocatedEnergy)
+  const newAllocatedEnergy = subsystem.allocatedEnergy - amountToReturn
+
+  // Create new subsystems array with updated subsystem
+  const updatedSubsystems = [...player.ship.subsystems]
+  updatedSubsystems[subsystemIndex] = {
+    ...subsystem,
+    allocatedEnergy: newAllocatedEnergy,
+    isPowered: newAllocatedEnergy > 0,
+  }
+
+  // Update reactor (energy returns WITHOUT generating heat - heat only generated from overclocking)
+  const updatedShip = {
+    ...player.ship,
+    subsystems: updatedSubsystems,
+    reactor: {
+      ...player.ship.reactor,
+      availableEnergy: player.ship.reactor.availableEnergy + amountToReturn,
+    },
+  }
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Deallocate Energy',
+      result: `Deallocated ${amountToReturn} from ${action.data.subsystemType} (${newAllocatedEnergy} remaining)`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+/**
+ * Process heat venting action
+ */
+function processVentHeat(gameState: GameState, action: VentHeatAction): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+
+  const updatedShip = {
+    ...player.ship,
+    heat: {
+      ...player.ship.heat,
+      currentHeat: Math.max(0, player.ship.heat.currentHeat - action.data.amount),
+    },
+  }
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Vent Heat',
+      result: `Vented ${action.data.amount} heat (${updatedShip.heat.currentHeat} remaining)`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+/**
+ * Process weapon firing action
+ */
+function processFireWeapon(gameState: GameState, action: FireWeaponAction): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const logEntries: TurnLogEntry[] = []
+
+  const weaponConfig = WEAPONS[action.data.weaponType]
+  const damage = getWeaponDamage(action.data.weaponType)
+
+  // Apply damage to each target
+  const updatedPlayers = [...gameState.players]
+  for (const targetId of action.data.targetPlayerIds) {
+    const targetIndex = updatedPlayers.findIndex(p => p.id === targetId)
+    if (targetIndex === -1) continue
+
+    const target = updatedPlayers[targetIndex]
+    if (target.ship.hitPoints <= 0) continue // Already destroyed
+
+    const updatedShip = applyWeaponDamage(target.ship, action.data.weaponType, damage)
+    updatedPlayers[targetIndex] = { ...target, ship: updatedShip }
+
+    logEntries.push({
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: `${weaponConfig.name} Hit`,
+      result: `Dealt ${damage} damage to ${target.name} (${updatedShip.hitPoints}/${target.ship.maxHitPoints} HP)`,
+    })
+
+    if (updatedShip.hitPoints <= 0) {
+      logEntries.push({
+        turn: gameState.turn,
+        playerId: target.id,
+        playerName: target.name,
+        action: 'Ship Destroyed',
+        result: `💥 ${target.name} has been destroyed!`,
+      })
+    }
+  }
+
+  // Consume energy from the specific weapon subsystem
+  const weaponSubsystem = player.ship.subsystems.find(s => s.type === action.data.weaponType)
+  if (weaponSubsystem) {
+    const totalEnergyCost = weaponConfig.energyCost * action.data.targetPlayerIds.length
+    weaponSubsystem.allocatedEnergy -= totalEnergyCost
+    weaponSubsystem.usedThisTurn = true
+  }
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+/**
+ * Apply heat damage to a player
+ */
+function applyHeatDamage(
+  gameState: GameState,
+  playerIndex: number,
+  heatAtStartOfTurn: number,
+  heatVented: number
+): ProcessResult {
+  const player = gameState.players[playerIndex]
+  const effectiveHeatForDamage = Math.max(0, heatAtStartOfTurn - heatVented)
+
+  if (effectiveHeatForDamage === 0) {
+    return {
+      success: true,
+      gameState,
+      logEntries: [],
+    }
+  }
+
+  const heatDamage = effectiveHeatForDamage
+  const updatedShip = applyWeaponDamage(player.ship, 'shields', heatDamage) // Using shields as placeholder
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Heat Damage',
+      result: `Took ${heatDamage} hull damage from heat (${updatedShip.hitPoints}/${player.ship.maxHitPoints} HP)`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+
+/**
+ * Generate heat from overclocked subsystems
+ */
+function generateOverclockHeat(gameState: GameState, playerIndex: number): ProcessResult {
+  const player = gameState.players[playerIndex]
+  let totalHeatGenerated = 0
+  const heatSources: string[] = []
+
+  // Check each subsystem for overclocking
+  player.ship.subsystems.forEach(subsystem => {
+    const config = getSubsystemConfig(subsystem.type)
+    if (subsystem.allocatedEnergy > config.overclockThreshold) {
+      const overclockAmount = subsystem.allocatedEnergy - config.overclockThreshold
+      const heatGenerated = overclockAmount * config.heatPerOverclock
+      if (heatGenerated > 0) {
+        totalHeatGenerated += heatGenerated
+        heatSources.push(`${config.name} (+${heatGenerated})`)
+      }
+    }
+  })
+
+  if (totalHeatGenerated === 0) {
+    return {
+      success: true,
+      gameState,
+      logEntries: [],
+    }
+  }
+
+  const updatedShip = {
+    ...player.ship,
+    heat: {
+      ...player.ship.heat,
+      currentHeat: player.ship.heat.currentHeat + totalHeatGenerated,
+    },
+  }
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: "Overclock Heat",
+      result: `Generated ${totalHeatGenerated} heat from overclocking: ${heatSources.join(", ")}`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}

@@ -27,12 +27,12 @@ export function initiateBurn(
   ship: ShipState,
   action: PlayerAction
 ): ShipState {
-  if (action.type !== 'burn' || !action.burnIntensity) {
+  if (action.type !== 'burn') {
     return ship
   }
 
-  const burnCost = BURN_COSTS[action.burnIntensity]
-  const burnDirection = action.targetFacing || ship.facing
+  const burnCost = BURN_COSTS[action.data.burnIntensity]
+  const burnDirection = action.data.targetFacing
 
   // Calculate destination ring
   const direction = burnDirection === 'prograde' ? 1 : -1
@@ -46,7 +46,7 @@ export function initiateBurn(
     reactionMass: ship.reactionMass - burnCost.mass,
     transferState: {
       destinationRing: clampedDestination,
-      sectorAdjustment: action.sectorAdjustment || 0,
+      sectorAdjustment: action.data.sectorAdjustment,
       arriveNextTurn: true,
     },
   }
@@ -100,11 +100,11 @@ export function canExecuteBurn(
   ship: ShipState,
   action: PlayerAction
 ): { valid: boolean; reason?: string } {
-  if (action.type !== 'burn' || !action.burnIntensity) {
+  if (action.type !== 'burn') {
     return { valid: false, reason: 'Not a burn action' }
   }
 
-  const burnCost = BURN_COSTS[action.burnIntensity]
+  const burnCost = BURN_COSTS[action.data.burnIntensity]
 
   // Check reaction mass
   if (ship.reactionMass < burnCost.mass) {

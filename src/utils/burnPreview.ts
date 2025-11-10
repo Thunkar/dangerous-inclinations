@@ -16,11 +16,11 @@ export function calculateBurnDestination(
   ship: ShipState,
   action: PlayerAction | null
 ): BurnDestination | null {
-  if (!action || action.type !== 'burn' || !action.burnIntensity) {
+  if (!action || action.type !== 'burn') {
     return null
   }
 
-  const burnCost = BURN_COSTS[action.burnIntensity]
+  const burnCost = BURN_COSTS[action.data.burnIntensity]
   const burnDirection = action.targetFacing || ship.facing
   const ringConfig = getRingConfig(ship.ring)
 
@@ -38,7 +38,7 @@ export function calculateBurnDestination(
 
   // Map from the sector AFTER orbital movement to the destination ring
   const baseSector = mapSectorOnTransfer(ship.ring, destinationRing, sectorAfterMovement)
-  const adjustment = action.sectorAdjustment || 0
+  const adjustment = action.data.sectorAdjustment
 
   const destRingConfig = getRingConfig(destinationRing)
   if (!destRingConfig) {

@@ -33,8 +33,8 @@ export const WEAPONS: Record<string, WeaponConfig> = {
     ringRange: 0,        // Same ring only - precise shot
     arc: 'forward',      // Fires tangent to orbit in direction of travel
   },
-  missile: {
-    name: 'Missile',
+  missiles: {
+    name: 'Missiles',
     energyCost: 4,
     damage: 3,
     rangeInDegrees: 60,  // Moderate arc

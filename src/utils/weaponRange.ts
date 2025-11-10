@@ -16,18 +16,18 @@ export interface FiringSolution {
 /**
  * Calculate all firing solutions for a weapon
  * Uses separate ring range and sector range
- * Uses pendingFacing if available (during planning phase)
  */
 export function calculateFiringSolutions(
   weapon: WeaponStats,
   attackerShip: ShipState,
   allPlayers: Player[],
-  currentPlayerId: string
+  currentPlayerId: string,
+  pendingFacing?: string
 ): FiringSolution[] {
-  // Use pending facing if available (planning phase), otherwise use committed facing
-  const effectiveShip = {
+  // Use pending facing if provided (planning phase), otherwise use committed facing
+  const effectiveShip: ShipState = {
     ...attackerShip,
-    facing: attackerShip.pendingFacing || attackerShip.facing,
+    facing: (pendingFacing as any) || attackerShip.facing,
   }
 
   return allPlayers

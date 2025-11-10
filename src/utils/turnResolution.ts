@@ -137,8 +137,8 @@ export function resolvePlayerTurn(
   }
 
   // Phase 3.5: Burn Execution (if burn action selected)
-  if (action.type === 'burn' && action.burnIntensity) {
-    const burnCost = BURN_COSTS[action.burnIntensity]
+  if (action.type === 'burn') {
+    const burnCost = BURN_COSTS[action.data.burnIntensity]
     const burnDirection = action.targetFacing || updatedShip.facing
 
     // Consume reaction mass
@@ -153,18 +153,18 @@ export function resolvePlayerTurn(
 
     updatedShip.transferState = {
       destinationRing: clampedDestination,
-      sectorAdjustment: action.sectorAdjustment || 0,
+      sectorAdjustment: action.data.sectorAdjustment,
       arriveNextTurn: true,
     }
 
-    const adjText = action.sectorAdjustment
-      ? ` (sector adj: ${action.sectorAdjustment > 0 ? '+' : ''}${action.sectorAdjustment})`
+    const adjText = action.data.sectorAdjustment
+      ? ` (sector adj: ${action.data.sectorAdjustment > 0 ? '+' : ''}${action.data.sectorAdjustment})`
       : ''
     logEntries.push({
       turn,
       playerId: player.id,
       playerName: player.name,
-      action: `${action.burnIntensity} burn ${burnDirection}`,
+      action: `${action.data.burnIntensity} burn ${burnDirection}`,
       result: `Initiating transfer to Ring ${clampedDestination}${adjText} (${burnCost.energy}E, ${burnCost.mass}M)`,
     })
   }
@@ -239,7 +239,7 @@ export function resolvePlayerTurn(
   }
 
   // Phase 5: Fuel Scoop
-  if (action.activateScoop && action.type === 'coast') {
+  if (action.type === 'coast' && action.data.activateScoop) {
     const ringConfig = getRingConfig(updatedShip.ring)
     if (ringConfig) {
       const massRecovered = Math.min(

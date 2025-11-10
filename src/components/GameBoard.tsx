@@ -2,19 +2,19 @@ import { Box, IconButton, Tooltip } from '@mui/material'
 import { useState, useRef } from 'react'
 import { RING_CONFIGS, mapSectorOnTransfer } from '../constants/rings'
 import { calculateFiringSolutions } from '../utils/weaponRange'
-import { calculateBurnDestination } from '../utils/burnPreview'
 import { getSubsystem } from '../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../types/subsystems'
 import { useGame } from '../context/GameContext'
-import type { Player } from '../types/game'
+import type { Player, Facing } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
 
 interface GameBoardProps {
   players: Player[]
   activePlayerIndex: number
+  pendingFacing?: Facing
 }
 
-export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
+export function GameBoard({ players, activePlayerIndex, pendingFacing }: GameBoardProps) {
   const { weaponRangeVisibility } = useGame()
   const boardSize = 900
   const centerX = boardSize / 2
@@ -190,7 +190,7 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
           const shipSize = isActive ? 14 : 12
 
           // Use pending facing if available (planning phase), otherwise use committed facing
-          const effectiveFacing = player.ship.pendingFacing || player.ship.facing
+          const effectiveFacing = index === activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
 
           // Ship rotation angle - tangent to the orbit (perpendicular to radius)
           // Prograde = clockwise (add 90°), Retrograde = counter-clockwise (subtract 90°)
@@ -207,9 +207,7 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
           let secondStepY = null
           let secondStepRing = null
 
-          // For active player with pending action, show where action will take them
-          const isActivePlayer = index === activePlayerIndex
-          const pendingAction = isActivePlayer ? player.pendingAction : null
+          // TODO: Re-implement burn prediction using pending state from context
 
           if (player.ship.transferState) {
             // Ship is in transfer - show where it will arrive
@@ -239,34 +237,8 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
               }
             }
             // If arriveNextTurn is false, ship stays in current position (still transferring)
-          } else if (pendingAction?.type === 'burn') {
-            // Active player with pending burn - calculate destination
-            const destination = calculateBurnDestination(player.ship, pendingAction)
-
-            if (destination) {
-              const destRingConfig = RING_CONFIGS.find(r => r.ring === destination.ring)
-              if (destRingConfig) {
-                const destScaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
-                const destRadius = destRingConfig.radius * destScaleFactor
-                const destAngle =
-                  ((destination.sector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
-
-                // Transfer burn: show TWO-STEP prediction
-                // Step 1: ship moves by orbital velocity on current ring
-                const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
-                const predictedAngle =
-                  ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2
-                predictedX = centerX + radius * Math.cos(predictedAngle)
-                predictedY = centerY + radius * Math.sin(predictedAngle)
-                predictedRing = player.ship.ring
-
-                // Step 2: final destination after transfer completes
-                secondStepX = centerX + destRadius * Math.cos(destAngle)
-                secondStepY = centerY + destRadius * Math.sin(destAngle)
-                secondStepRing = destination.ring
-              }
-            }
           } else {
+            // TODO: Add burn prediction here using pending state from context
             // Ship is stable (or coasting) - show where it will move due to orbital velocity
             const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
             const predictedAngle =
@@ -423,12 +395,11 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
               {isActive && (
                 <>
                   {/* Render range visualization for each toggled weapon */}
-                  {(['laser', 'railgun', 'missile'] as const).map(weaponKey => {
+                  {(['laser', 'railgun', 'missiles'] as const).map(weaponKey => {
                     // Only show if toggled on
                     if (!weaponRangeVisibility[weaponKey]) return null
 
-                    // Map UI key to subsystem type
-                    const subsystemType: SubsystemType = weaponKey === 'missile' ? 'missiles' : weaponKey
+                    const subsystemType: SubsystemType = weaponKey
 
                     // Get weapon subsystem
                     const weaponSubsystem = getSubsystem(player.ship.subsystems, subsystemType)
@@ -579,7 +550,7 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                       const currentAngle = angle
 
                       // Use pending facing if available (planning phase), otherwise use committed facing
-                      const effectiveFacing = player.ship.pendingFacing || player.ship.facing
+                      const effectiveFacing = index === activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
 
                       // Calculate the arc in facing direction
                       let arcStartAngle: number
@@ -735,12 +706,11 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                   })}
 
                   {/* Show targeting indicators for all toggled weapons */}
-                  {(['laser', 'railgun', 'missile'] as const).map(weaponKey => {
+                  {(['laser', 'railgun', 'missiles'] as const).map(weaponKey => {
                     // Only show if toggled on
                     if (!weaponRangeVisibility[weaponKey]) return null
 
-                    // Map UI key to subsystem type
-                    const subsystemType: SubsystemType = weaponKey === 'missile' ? 'missiles' : weaponKey
+                    const subsystemType: SubsystemType = weaponKey
 
                     // Get weapon subsystem and stats
                     const weaponSubsystem = getSubsystem(player.ship.subsystems, subsystemType)
@@ -755,7 +725,8 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
                       weaponStats,
                       player.ship,
                       players,
-                      player.id
+                      player.id,
+                      index === activePlayerIndex ? pendingFacing : undefined
                     )
 
                     return (
@@ -915,7 +886,7 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
           })}
 
           {/* Ships on minimap */}
-          {players.map(player => {
+          {players.map((player, index) => {
             const ringConfig = RING_CONFIGS.find(r => r.ring === player.ship.ring)
             if (!ringConfig) return null
 
@@ -928,7 +899,7 @@ export function GameBoard({ players, activePlayerIndex }: GameBoardProps) {
             const minimapShipSize = 6
 
             // Use pending facing if available, otherwise use committed facing
-            const effectiveFacing = player.ship.pendingFacing || player.ship.facing
+            const effectiveFacing = index === activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
             const directionAngle =
               effectiveFacing === 'prograde'
                 ? angle + Math.PI / 2

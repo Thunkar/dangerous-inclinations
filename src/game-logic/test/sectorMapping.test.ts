@@ -206,7 +206,6 @@ describe('Sector Mapping', () => {
     it('should maintain angular position through transfers', () => {
       // A ship at 0° (sector 0) should remain at ~0° after transfer
       const r1ToR2 = mapSectorOnTransfer(1, 2, 0)
-      const r1Config = getRingConfig(1)!
       const r2Config = getRingConfig(2)!
 
       // Calculate approximate angles

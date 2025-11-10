@@ -12,15 +12,15 @@ interface WeaponPanelProps {
   selectedTargets: {
     laser: string
     railgun: string
-    missile: string
+    missiles: string
   }
-  onTargetSelect: (weaponType: 'laser' | 'railgun' | 'missile', targetId: string) => void
+  onTargetSelect: (weaponType: 'laser' | 'railgun' | 'missiles', targetId: string) => void
   showRanges: {
     laser: boolean
     railgun: boolean
-    missile: boolean
+    missiles: boolean
   }
-  onRangeToggle: (weaponType: 'laser' | 'railgun' | 'missile') => void
+  onRangeToggle: (weaponType: 'laser' | 'railgun' | 'missiles') => void
 }
 
 const Container = styled(Box)(({ theme }) => ({
@@ -72,10 +72,10 @@ export function WeaponPanel({
           subsystem={missilesSubsystem}
           currentPlayer={currentPlayer}
           allPlayers={allPlayers}
-          selectedTarget={selectedTargets.missile}
-          onTargetSelect={targetId => onTargetSelect('missile', targetId)}
-          showRange={showRanges.missile}
-          onRangeToggle={() => onRangeToggle('missile')}
+          selectedTarget={selectedTargets.missiles}
+          onTargetSelect={targetId => onTargetSelect('missiles', targetId)}
+          showRange={showRanges.missiles}
+          onRangeToggle={() => onRangeToggle('missiles')}
         />
       </Box>
     </Container>

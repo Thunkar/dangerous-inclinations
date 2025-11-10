@@ -1,10 +1,9 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-import { Box, Stack } from '@mui/material'
+import { Box } from '@mui/material'
 import { GameProvider, useGame } from './context/GameContext'
 import { GameBoard } from './components/GameBoard'
-import { ShipSystemsPanel } from './components/energy-management/ShipSystemsPanel'
-import { ActionSelector } from './components/action-selector/ActionSelector'
+import { ControlPanel } from './components/ControlPanel'
 import { StatusDisplay } from './components/StatusDisplay'
 
 const theme = createTheme({
@@ -43,23 +42,25 @@ const theme = createTheme({
 })
 
 function GameContent() {
-  const {
-    gameState,
-    setPendingAction,
-    executeTurn,
-    allocateSubsystemEnergy,
-    deallocateSubsystemEnergy,
-    requestHeatVent,
-  } = useGame()
+  const { gameState, pendingState } = useGame()
   const activePlayer = gameState.players[gameState.activePlayerIndex]
 
   return (
-    <Box sx={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box
+      sx={{
+        height: '100vh',
+        width: '100vw',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
       {/* Status Bar */}
       <StatusDisplay
         players={gameState.players}
         activePlayerIndex={gameState.activePlayerIndex}
         turn={gameState.turn}
+        pendingHeat={pendingState.heat}
       />
 
       {/* Main content area */}
@@ -76,8 +77,20 @@ function GameContent() {
             minWidth: 0,
           }}
         >
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <GameBoard players={gameState.players} activePlayerIndex={gameState.activePlayerIndex} />
+          <Box
+            sx={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <GameBoard
+              players={gameState.players}
+              activePlayerIndex={gameState.activePlayerIndex}
+              pendingFacing={pendingState.facing}
+            />
           </Box>
         </Box>
 
@@ -93,27 +106,7 @@ function GameContent() {
             p: 2,
           }}
         >
-          <Stack spacing={2}>
-            <Box sx={{ overflow: 'visible' }}>
-              <ShipSystemsPanel
-                subsystems={activePlayer.ship.pendingSubsystems || activePlayer.ship.subsystems}
-                reactor={activePlayer.ship.pendingReactor || activePlayer.ship.reactor}
-                heat={activePlayer.ship.pendingHeat || activePlayer.ship.heat}
-                hitPoints={activePlayer.ship.hitPoints}
-                maxHitPoints={activePlayer.ship.maxHitPoints}
-                onAllocateEnergy={allocateSubsystemEnergy}
-                onDeallocateEnergy={deallocateSubsystemEnergy}
-                onVentHeat={requestHeatVent}
-              />
-            </Box>
-
-            <ActionSelector
-              player={activePlayer}
-              allPlayers={gameState.players}
-              onActionSelect={setPendingAction}
-              onExecuteTurn={executeTurn}
-            />
-          </Stack>
+          <ControlPanel player={activePlayer} allPlayers={gameState.players} />
         </Box>
       </Box>
     </Box>

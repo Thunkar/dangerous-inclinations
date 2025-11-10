@@ -1,12 +1,12 @@
 import { Box, Typography, styled } from '@mui/material'
 import { Fragment, useState, useCallback } from 'react'
 import type { Subsystem, ReactorState, HeatState, SubsystemType } from '../../types/subsystems'
-import { RadialMenu } from './RadialMenu'
-import { SubsystemButton } from './SubsystemButton'
+import { RadialMenu } from './energy/RadialMenu'
+import { SubsystemButton } from './energy/SubsystemButton'
 import { getSubsystem } from '../../utils/subsystemHelpers'
 import { isSubsystemOverclocked } from '../../types/subsystems'
 
-interface ShipSystemsPanelProps {
+interface EnergyPanelProps {
   subsystems: Subsystem[]
   reactor: ReactorState
   heat: HeatState
@@ -230,7 +230,7 @@ const HorizontalDivider = styled(Box, {
   backgroundColor: theme.palette.divider,
 }))
 
-export function ShipSystemsPanel({
+export function EnergyPanel({
   subsystems,
   reactor,
   heat,
@@ -239,7 +239,7 @@ export function ShipSystemsPanel({
   onAllocateEnergy,
   onDeallocateEnergy,
   onVentHeat,
-}: ShipSystemsPanelProps) {
+}: EnergyPanelProps) {
   const [openMenuId, setOpenMenuId] = useState<SubsystemType | 'heat' | null>(null)
 
   const handleMenuToggle = useCallback((subsystemId: SubsystemType, isOpen: boolean) => {
