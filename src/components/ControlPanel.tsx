@@ -1,4 +1,4 @@
-import { Paper, Stack, Box } from '@mui/material'
+import { Paper, Stack, Box, Typography } from '@mui/material'
 import { useState, useEffect } from 'react'
 import type { BurnIntensity, Facing, Player, ActionType } from '../types/game'
 import { getSubsystem } from '../utils/subsystemHelpers'
@@ -10,6 +10,7 @@ import { WeaponPanel } from './actions/WeaponPanel'
 import { UtilityActions } from './actions/UtilityActions'
 import { ActionSummary } from './actions/ActionSummary'
 import { BURN_COSTS } from '../constants/rings'
+import { STARTING_REACTION_MASS } from '../constants/rings'
 
 interface ControlPanelProps {
   player: Player
@@ -180,6 +181,38 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
   return (
     <Stack spacing={2}>
+      {/* Fuel Gauge */}
+      <Paper sx={{ px: 2, py: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', minWidth: 40 }}>
+            FUEL
+          </Typography>
+          <Box sx={{ flex: 1, position: 'relative', height: 12, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 1, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: `${(ship.reactionMass / STARTING_REACTION_MASS) * 100}%`,
+                bgcolor: ship.reactionMass <= 2
+                  ? 'error.main'
+                  : ship.reactionMass <= 5
+                  ? 'warning.main'
+                  : '#00ff00',
+                transition: 'all 0.3s',
+                boxShadow: ship.reactionMass <= 2
+                  ? '0 0 6px rgba(255,0,0,0.6)'
+                  : 'none',
+              }}
+            />
+          </Box>
+          <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.75rem', minWidth: 32 }}>
+            {ship.reactionMass}/{STARTING_REACTION_MASS}
+          </Typography>
+        </Box>
+      </Paper>
+
       {/* Ship Systems Panel - Energy Management */}
       <Box sx={{ overflow: 'visible' }}>
         <EnergyPanel

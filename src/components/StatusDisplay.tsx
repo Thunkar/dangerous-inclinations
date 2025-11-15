@@ -1,6 +1,7 @@
-import { Box, Paper, Typography } from '@mui/material'
+import { Box, Paper, Typography, LinearProgress } from '@mui/material'
 import type { Player } from '../types/game'
 import type { HeatState } from '../types/subsystems'
+import { STARTING_REACTION_MASS } from '../constants/rings'
 
 interface StatusDisplayProps {
   players: Player[]
@@ -121,14 +122,37 @@ export function StatusDisplay({ players, activePlayerIndex, turn, pendingHeat }:
                 </Typography>
               </Box>
 
-              {/* Reaction Mass */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" color="text.secondary">
-                  M
-                </Typography>
-                <Typography variant="body2" fontWeight="medium">
-                  {player.ship.reactionMass}
-                </Typography>
+              {/* Reaction Mass - Fuel Gauge */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 100 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                    FUEL
+                  </Typography>
+                  <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.7rem' }}>
+                    {player.ship.reactionMass}/{STARTING_REACTION_MASS}
+                  </Typography>
+                </Box>
+                <Box sx={{ position: 'relative', height: 8, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 1, overflow: 'hidden' }}>
+                  {/* Fuel level bar */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: `${(player.ship.reactionMass / STARTING_REACTION_MASS) * 100}%`,
+                      bgcolor: player.ship.reactionMass <= 2
+                        ? 'error.main'
+                        : player.ship.reactionMass <= 5
+                        ? 'warning.main'
+                        : '#00ff00',
+                      transition: 'all 0.3s',
+                      boxShadow: player.ship.reactionMass <= 2
+                        ? '0 0 8px rgba(255,0,0,0.6)'
+                        : 'none',
+                    }}
+                  />
+                </Box>
               </Box>
 
               {/* Heat (only show if > 0) */}
