@@ -1,6 +1,6 @@
-import type { GameState, TurnLogEntry, PlayerAction } from '../types/game'
-import { validatePlayerActions } from './validation'
-import { processActions } from './actionProcessors'
+import type { GameState, TurnLogEntry, PlayerAction, ShipState } from '../types/game'
+import { validateSingleAction } from './validation'
+import { processActions, applySingleAction } from './actionProcessors'
 import { mapSectorOnTransfer, getRingConfig } from '../constants/rings'
 
 /**
@@ -10,6 +10,19 @@ export interface TurnResult {
   gameState: GameState
   logEntries: TurnLogEntry[]
   errors?: string[]
+}
+
+/**
+ * Create a deep copy snapshot of ship state for validation
+ */
+function createShipSnapshot(ship: ShipState): ShipState {
+  return {
+    ...ship,
+    subsystems: ship.subsystems.map(s => ({ ...s })),
+    reactor: { ...ship.reactor },
+    heat: { ...ship.heat },
+    transferState: ship.transferState ? { ...ship.transferState } : null,
+  }
 }
 
 /**
@@ -41,14 +54,22 @@ export function prepareTurn(gameState: GameState): GameState {
 }
 
 /**
- * Execute a complete game turn for the active player
+ * Execute a complete game turn for the active player with snapshot-based validation
  *
  * @param gameState - Current game state (should already be prepared with prepareTurn)
  * @param actions - Array of actions for the active player to execute
  *
- * Execution phases:
- * 1. Validate all actions
- * 2. Process actions in priority order:
+ * New validation flow:
+ * 1. Create a snapshot of the ship state
+ * 2. For each action:
+ *    - Validate the action against the current snapshot state
+ *    - If valid, apply the action to the snapshot
+ *    - If invalid, abort and return errors
+ * 3. If all actions are valid, process them in the actual game state
+ * 4. Otherwise, revert and show errors
+ *
+ * Execution phases (after validation):
+ * 1. Process actions in priority order:
  *    - Energy allocation
  *    - Energy deallocation
  *    - Heat venting
@@ -57,13 +78,13 @@ export function prepareTurn(gameState: GameState): GameState {
  *    - Weapon firing (all simultaneous)
  *    - Heat damage (from previous turns)
  *    - Heat generation (from this turn)
- * 3. Move to next player
- * 4. Prepare next player's turn (resolve their transfer if arriving)
+ * 2. Move to next player
+ * 3. Prepare next player's turn (resolve their transfer if arriving)
  */
 export function executeTurn(gameState: GameState, actions: PlayerAction[]): TurnResult {
-  const activePlayer = gameState.players[gameState.activePlayerIndex]
+  const activePlayerIndex = gameState.activePlayerIndex
+  const activePlayer = gameState.players[activePlayerIndex]
   const allLogEntries: TurnLogEntry[] = []
-  const errors: string[] = []
 
   // Validate all actions belong to the active player
   const wrongPlayerActions = actions.filter(a => a.playerId !== activePlayer.id)
@@ -75,17 +96,42 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     }
   }
 
-  // Validate action set
-  const validation = validatePlayerActions(gameState, activePlayer.id, actions)
-  if (!validation.valid) {
-    return {
-      gameState,
-      logEntries: [],
-      errors: [validation.reason || 'Invalid action set'],
+  // Create a snapshot of the ship state for validation
+  const shipSnapshot = createShipSnapshot(activePlayer.ship)
+  const validationErrors: string[] = []
+
+  // Validate each action independently against the evolving snapshot
+  for (const action of actions) {
+    const validation = validateSingleAction(shipSnapshot, action)
+
+    if (!validation.valid) {
+      validationErrors.push(validation.reason || 'Invalid action')
+      break // Stop on first error
+    }
+
+    // Apply action to snapshot
+    const applyResult = applySingleAction(shipSnapshot, action)
+    if (!applyResult.success) {
+      validationErrors.push(...(applyResult.errors || ['Failed to apply action']))
+      break
+    }
+
+    // Update snapshot with the result (mutate in place for efficiency)
+    if (applyResult.ship) {
+      Object.assign(shipSnapshot, applyResult.ship)
     }
   }
 
-  // Process all actions and get updated game state
+  // If validation failed, return original state with errors
+  if (validationErrors.length > 0) {
+    return {
+      gameState,
+      logEntries: [],
+      errors: validationErrors,
+    }
+  }
+
+  // All actions validated successfully, now process them for real
   const processResult = processActions(gameState, actions)
 
   if (!processResult.success) {
@@ -139,7 +185,6 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   return {
     gameState: updatedGameState,
     logEntries: allLogEntries,
-    errors: errors.length > 0 ? errors : undefined,
   }
 }
 

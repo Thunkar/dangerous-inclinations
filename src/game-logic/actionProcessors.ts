@@ -9,11 +9,12 @@ import type {
   DeallocateEnergyAction,
   VentHeatAction,
   FireWeaponAction,
+  ShipState,
 } from '../types/game'
 import { applyOrbitalMovement, initiateBurn, applyRotation } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
-import { getSubsystemConfig } from '../types/subsystems'
+import { getSubsystemConfig, canSubsystemFunction } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
 
 export interface ProcessResult {
@@ -21,6 +22,119 @@ export interface ProcessResult {
   gameState: GameState
   logEntries: TurnLogEntry[]
   errors?: string[]
+}
+
+export interface ApplySingleResult {
+  success: boolean
+  ship: ShipState
+  errors?: string[]
+}
+
+/**
+ * Apply a single action to a ship snapshot (for snapshot-based validation)
+ * This modifies the ship state in place and returns it
+ */
+export function applySingleAction(ship: ShipState, action: PlayerAction): ApplySingleResult {
+  try {
+    switch (action.type) {
+      case 'allocate_energy':
+        return applyAllocateToSnapshot(ship, action)
+
+      case 'deallocate_energy':
+        return applyDeallocateToSnapshot(ship, action)
+
+      case 'vent_heat':
+        return applyVentToSnapshot(ship, action)
+
+      case 'rotate':
+        return applyRotateToSnapshot(ship, action)
+
+      case 'burn':
+      case 'coast':
+      case 'fire_weapon':
+        // These actions don't modify ship state during validation phase
+        // They're processed later in the actual execution
+        return { success: true, ship }
+
+      default:
+        return { success: false, ship, errors: ['Unknown action type'] }
+    }
+  } catch (error) {
+    return {
+      success: false,
+      ship,
+      errors: [error instanceof Error ? error.message : 'Failed to apply action'],
+    }
+  }
+}
+
+function applyAllocateToSnapshot(ship: ShipState, action: AllocateEnergyAction): ApplySingleResult {
+  const { subsystemType, amount } = action.data
+
+  const subsystemIndex = ship.subsystems.findIndex(s => s.type === subsystemType)
+  if (subsystemIndex === -1) {
+    return { success: false, ship, errors: [`Subsystem ${subsystemType} not found`] }
+  }
+
+  // Update subsystem energy
+  ship.subsystems[subsystemIndex].allocatedEnergy += amount
+  ship.subsystems[subsystemIndex].isPowered = canSubsystemFunction(
+    ship.subsystems[subsystemIndex]
+  )
+
+  // Update reactor
+  ship.reactor.availableEnergy -= amount
+
+  return { success: true, ship }
+}
+
+function applyDeallocateToSnapshot(
+  ship: ShipState,
+  action: DeallocateEnergyAction
+): ApplySingleResult {
+  const { subsystemType, amount } = action.data
+
+  const subsystemIndex = ship.subsystems.findIndex(s => s.type === subsystemType)
+  if (subsystemIndex === -1) {
+    return { success: false, ship, errors: [`Subsystem ${subsystemType} not found`] }
+  }
+
+  const actualAmount = Math.min(amount, ship.subsystems[subsystemIndex].allocatedEnergy)
+
+  // Update subsystem energy
+  ship.subsystems[subsystemIndex].allocatedEnergy -= actualAmount
+  ship.subsystems[subsystemIndex].isPowered = canSubsystemFunction(
+    ship.subsystems[subsystemIndex]
+  )
+
+  // Return energy to reactor
+  ship.reactor.availableEnergy += actualAmount
+
+  return { success: true, ship }
+}
+
+function applyVentToSnapshot(ship: ShipState, action: VentHeatAction): ApplySingleResult {
+  const { amount } = action.data
+
+  // Vent heat
+  ship.heat.currentHeat = Math.max(0, ship.heat.currentHeat - amount)
+
+  return { success: true, ship }
+}
+
+function applyRotateToSnapshot(ship: ShipState, action: RotateAction): ApplySingleResult {
+  const { targetFacing } = action.data
+
+  // Change facing
+  ship.facing = targetFacing
+
+  // Mark rotation subsystem as used
+  const rotationSubsystem = ship.subsystems.find(s => s.type === 'rotation')
+  if (rotationSubsystem) {
+    rotationSubsystem.usedThisTurn = true
+  }
+
+  return { success: true, ship }
 }
 
 /**

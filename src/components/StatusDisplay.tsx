@@ -1,4 +1,4 @@
-import { Box, Paper, Typography, LinearProgress } from '@mui/material'
+import { Box, Paper, Typography } from '@mui/material'
 import type { Player } from '../types/game'
 import type { HeatState } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
