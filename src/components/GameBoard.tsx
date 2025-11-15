@@ -99,6 +99,30 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
           transition: isPanning ? 'none' : 'transform 0.1s',
         }}
       >
+        {/* SVG Filters for ship outlines */}
+        <defs>
+          {players.map(player => (
+            <filter key={`outline-${player.id}`} id={`outline-${player.id}`} x="-50%" y="-50%" width="200%" height="200%">
+              {/* Create colored outline (outer) */}
+              <feMorphology operator="dilate" radius="4" in="SourceAlpha" result="thickenColor" />
+              <feFlood floodColor={player.color} result="colorFlood" />
+              <feComposite in="colorFlood" in2="thickenColor" operator="in" result="colorOutline" />
+
+              {/* Create black outline (inner, frames the ship) */}
+              <feMorphology operator="dilate" radius="1" in="SourceAlpha" result="thickenBlack" />
+              <feFlood floodColor="#000000" result="blackFlood" />
+              <feComposite in="blackFlood" in2="thickenBlack" operator="in" result="blackOutline" />
+
+              {/* Merge all layers: colored outline, black outline, then ship */}
+              <feMerge>
+                <feMergeNode in="colorOutline" />
+                <feMergeNode in="blackOutline" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          ))}
+        </defs>
+
         {/* Black hole center */}
         <circle cx={centerX} cy={centerY} r={20} fill="#000" />
         <circle cx={centerX} cy={centerY} r={25} fill="none" stroke="#333" strokeWidth={2} />
@@ -300,9 +324,9 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                     x2={predictedX}
                     y2={predictedY}
                     stroke={player.color}
-                    strokeWidth={player.ship.transferState || hasPendingBurn ? 2 : 1}
+                    strokeWidth={player.ship.transferState || hasPendingBurn ? 3 : 2}
                     strokeDasharray="4 4"
-                    opacity={player.ship.transferState || hasPendingBurn ? 0.6 : 0.4}
+                    opacity={player.ship.transferState || hasPendingBurn ? 0.8 : 0.6}
                   />
                   {/* Predicted position circle */}
                   <circle
@@ -310,9 +334,9 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                     cy={predictedY}
                     r={8}
                     fill={player.color}
-                    opacity={0.3}
+                    opacity={0.5}
                     stroke={player.color}
-                    strokeWidth={player.ship.transferState || hasPendingBurn ? 2 : 1}
+                    strokeWidth={player.ship.transferState || hasPendingBurn ? 3 : 2}
                   />
                   {/* Label for transfers showing destination ring (only for actual transfers, not pending burns) */}
                   {player.ship.transferState && player.ship.transferState.arriveNextTurn && (
@@ -374,9 +398,9 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                         d={pathData}
                         fill="none"
                         stroke={player.color}
-                        strokeWidth={2}
+                        strokeWidth={3}
                         strokeDasharray="8 4"
-                        opacity={0.5}
+                        opacity={0.7}
                       />
                     )
                   })()}
@@ -387,9 +411,9 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                     cy={secondStepY}
                     r={10}
                     fill={player.color}
-                    opacity={0.2}
+                    opacity={0.4}
                     stroke={player.color}
-                    strokeWidth={2}
+                    strokeWidth={3}
                   />
                   {/* Label showing final destination ring */}
                   <text
@@ -419,7 +443,7 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                 />
               )}
 
-              {/* Ship token */}
+              {/* Ship token with colored outline */}
               <image
                 href="/assets/ship.png"
                 x={-shipSize * 1.5}
@@ -427,7 +451,7 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                 width={shipSize * 3}
                 height={shipSize * 3}
                 opacity={player.ship.transferState ? 0.6 : 1}
-                style={{ filter: `drop-shadow(0 0 ${isActive ? '6px' : '3px'} ${player.color})` }}
+                filter={`url(#outline-${player.id})`}
                 transform={`translate(${x}, ${y}) rotate(${(directionAngle * 180) / Math.PI})`}
               />
 

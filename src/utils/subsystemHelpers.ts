@@ -182,7 +182,7 @@ export function calculateHeatGeneration(subsystems: Subsystem[]): number {
     const config = getSubsystemConfig(subsystem.type)
     if (subsystem.allocatedEnergy > config.overclockThreshold) {
       const overclockAmount = subsystem.allocatedEnergy - config.overclockThreshold
-      return total + overclockAmount * config.heatPerOverclock
+      return total + overclockAmount // Always 1 heat per energy above threshold
     }
     return total
   }, 0)

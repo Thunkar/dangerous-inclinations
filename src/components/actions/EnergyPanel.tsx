@@ -4,7 +4,7 @@ import type { Subsystem, ReactorState, HeatState, SubsystemType } from '../../ty
 import { RadialMenu } from './energy/RadialMenu'
 import { SubsystemButton } from './energy/SubsystemButton'
 import { getSubsystem } from '../../utils/subsystemHelpers'
-import { isSubsystemOverclocked } from '../../types/subsystems'
+import { isSubsystemOverclocked, getSubsystemConfig } from '../../types/subsystems'
 
 interface EnergyPanelProps {
   subsystems: Subsystem[]
@@ -248,7 +248,10 @@ export function EnergyPanel({
 
   const handleAllocate = (subsystemType: SubsystemType) => {
     const subsystem = getSubsystem(subsystems, subsystemType)
-    if (subsystem && reactor.availableEnergy > 0) {
+    if (!subsystem) return
+
+    const config = getSubsystemConfig(subsystemType)
+    if (reactor.availableEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy) {
       onAllocateEnergy(subsystemType, subsystem.allocatedEnergy + 1)
     }
   }
@@ -265,8 +268,9 @@ export function EnergyPanel({
     horizontal: boolean = false,
     position: 'aft' | 'port' | 'forward' | 'starboard' = 'aft'
   ) => {
+    const config = getSubsystemConfig(subsystem.type)
     const isOverclocked = isSubsystemOverclocked(subsystem)
-    const canAllocate = reactor.availableEnergy > 0
+    const canAllocate = reactor.availableEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy
     const canDeallocate = subsystem.allocatedEnergy > 0
 
     const customToggle = (

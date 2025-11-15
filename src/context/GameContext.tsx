@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect } from 'rea
 import type { ReactNode } from 'react'
 import type { GameState, Player, PlayerAction, Facing, BurnIntensity } from '../types/game'
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from '../types/subsystems'
+import { getSubsystemConfig } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
 import {
   createInitialSubsystems,
@@ -153,8 +154,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const subsystemIndex = pendingState.subsystems.findIndex(s => s.type === subsystemType)
     if (subsystemIndex === -1) return
 
-    const currentEnergy = pendingState.subsystems[subsystemIndex].allocatedEnergy
+    const subsystem = pendingState.subsystems[subsystemIndex]
+    const currentEnergy = subsystem.allocatedEnergy
     const diff = newTotal - currentEnergy
+
+    // Check if newTotal exceeds absolute maximum
+    const config = getSubsystemConfig(subsystemType)
+    if (newTotal > config.maxEnergy) {
+      return // Cannot allocate beyond absolute maximum capacity
+    }
 
     if (diff > 0 && pendingState.reactor.availableEnergy >= diff) {
       // Allocate energy

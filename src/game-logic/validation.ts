@@ -8,6 +8,7 @@ import type {
   FireWeaponAction,
   RotateAction,
 } from '../types/game'
+import { getSubsystemConfig } from '../types/subsystems'
 import { WEAPONS } from '../constants/weapons'
 import { BURN_COSTS } from '../constants/rings'
 
@@ -131,7 +132,7 @@ function validateSingleAction(
       return validateRotateAction(player.ship, action, allActions)
 
     case 'allocate_energy':
-      return validateAllocateEnergy(player.ship, action)
+      return validateAllocateEnergy(player.ship, action, allActions)
 
     case 'deallocate_energy':
       return validateDeallocateEnergy(player.ship, action)
@@ -228,7 +229,11 @@ function validateRotateAction(
   return { valid: true }
 }
 
-function validateAllocateEnergy(ship: any, action: AllocateEnergyAction): ValidationResult {
+function validateAllocateEnergy(
+  ship: any,
+  action: AllocateEnergyAction,
+  allActions: PlayerAction[]
+): ValidationResult {
   const { subsystemType, amount } = action.data
 
   // Find the subsystem
@@ -245,12 +250,21 @@ function validateAllocateEnergy(ship: any, action: AllocateEnergyAction): Valida
     }
   }
 
-  // Check subsystem capacity
-  const newTotal = subsystem.allocatedEnergy + amount
-  if (newTotal > subsystem.maxEnergy) {
+  // Get subsystem config to check absolute max energy
+  const config = getSubsystemConfig(subsystemType)
+
+  // Calculate cumulative allocations for this subsystem across all actions in this turn
+  const allocateActions = allActions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
+  const totalAllocationsForSubsystem = allocateActions
+    .filter(a => a.data.subsystemType === subsystemType)
+    .reduce((sum, a) => sum + a.data.amount, 0)
+
+  // Check if cumulative allocations would exceed subsystem absolute maximum
+  const finalTotal = subsystem.allocatedEnergy + totalAllocationsForSubsystem
+  if (finalTotal > config.maxEnergy) {
     return {
       valid: false,
-      reason: `Would exceed ${subsystemType} capacity (${newTotal}/${subsystem.maxEnergy})`,
+      reason: `Would exceed ${subsystemType} absolute maximum capacity (${finalTotal}/${config.maxEnergy})`,
     }
   }
 

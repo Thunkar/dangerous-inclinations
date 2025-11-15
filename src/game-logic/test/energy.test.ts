@@ -134,5 +134,46 @@ describe('Multi-Turn Energy Management', () => {
       expect(railgunSubsystem3?.allocatedEnergy).toBe(0)
       expect(gameState.players[0].ship.reactor.availableEnergy).toBe(INITIAL_REACTOR_ENERGY)
     })
+
+    it('should reject allocation beyond subsystem absolute maximum', () => {
+      let gameState = createTestGameState()
+
+      // Engines have maxEnergy: 3 (absolute maximum)
+      // Try to allocate 4 energy (beyond max)
+      const allocateAction = createAllocateEnergyAction('engines', 4)
+      const result = executeTurnWithActions(gameState, allocateAction, createCoastAction())
+
+      // Turn should fail validation
+      expect(result.errors).toBeDefined()
+      expect(result.errors?.length).toBeGreaterThan(0)
+      expect(result.errors?.[0]).toContain('maximum')
+
+      // Game state should be unchanged
+      expect(result.gameState).toBe(gameState)
+
+      // Verify engines still have 0 energy
+      const enginesSubsystem = result.gameState.players[0].ship.subsystems.find(s => s.type === 'engines')
+      expect(enginesSubsystem?.allocatedEnergy).toBe(0)
+      expect(result.gameState.players[0].ship.reactor.availableEnergy).toBe(INITIAL_REACTOR_ENERGY)
+    })
+
+    it('should allow allocation up to absolute maximum (with overclocking)', () => {
+      let gameState = createTestGameState()
+
+      // Engines: minEnergy=1, overclockThreshold=2, maxEnergy=3
+      // Allocate 3 energy (at max, overclocked)
+      const allocateAction = createAllocateEnergyAction('engines', 3)
+      let result = executeTurnWithActions(gameState, allocateAction, createCoastAction())
+      gameState = result.gameState
+
+      // Should succeed
+      expect(result.errors).toBeUndefined()
+      const enginesSubsystem = gameState.players[0].ship.subsystems.find(s => s.type === 'engines')
+      expect(enginesSubsystem?.allocatedEnergy).toBe(3)
+      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(INITIAL_REACTOR_ENERGY - 3)
+
+      // Should generate 1 heat (3 energy - 2 threshold = 1 heat)
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(1)
+    })
   })
 })

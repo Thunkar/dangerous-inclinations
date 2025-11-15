@@ -508,7 +508,7 @@ function generateOverclockHeat(gameState: GameState, playerIndex: number): Proce
     const config = getSubsystemConfig(subsystem.type)
     if (subsystem.allocatedEnergy > config.overclockThreshold) {
       const overclockAmount = subsystem.allocatedEnergy - config.overclockThreshold
-      const heatGenerated = overclockAmount * config.heatPerOverclock
+      const heatGenerated = overclockAmount // Always 1 heat per energy above threshold
       if (heatGenerated > 0) {
         totalHeatGenerated += heatGenerated
         heatSources.push(`${config.name} (+${heatGenerated})`)
