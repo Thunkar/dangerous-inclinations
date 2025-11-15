@@ -181,11 +181,11 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
   return (
     <Stack spacing={2}>
-      {/* Fuel Gauge */}
+      {/* Reaction Mass Gauge */}
       <Paper sx={{ px: 2, py: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', minWidth: 40 }}>
-            FUEL
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', minWidth: 90 }}>
+            REACTION MASS
           </Typography>
           <Box sx={{ flex: 1, position: 'relative', height: 12, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 1, overflow: 'hidden' }}>
             <Box

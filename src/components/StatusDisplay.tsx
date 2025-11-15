@@ -122,18 +122,18 @@ export function StatusDisplay({ players, activePlayerIndex, turn, pendingHeat }:
                 </Typography>
               </Box>
 
-              {/* Reaction Mass - Fuel Gauge */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 100 }}>
+              {/* Reaction Mass */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 120 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                    FUEL
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                    REACTION MASS
                   </Typography>
                   <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.7rem' }}>
                     {player.ship.reactionMass}/{STARTING_REACTION_MASS}
                   </Typography>
                 </Box>
                 <Box sx={{ position: 'relative', height: 8, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 1, overflow: 'hidden' }}>
-                  {/* Fuel level bar */}
+                  {/* Reaction mass level bar */}
                   <Box
                     sx={{
                       position: 'absolute',
