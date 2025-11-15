@@ -5,6 +5,7 @@ import { calculateFiringSolutions } from '../utils/weaponRange'
 import { getSubsystem } from '../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../types/subsystems'
 import { useGame } from '../context/GameContext'
+import { calculatePostMovementPosition } from '../utils/tacticalSequence'
 import type { Player, Facing, BurnIntensity } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
 
@@ -23,7 +24,7 @@ interface GameBoardProps {
 }
 
 export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMovement }: GameBoardProps) {
-  const { weaponRangeVisibility } = useGame()
+  const { weaponRangeVisibility, pendingState } = useGame()
   const boardSize = 900
   const centerX = boardSize / 2
   const centerY = boardSize / 2
@@ -456,49 +457,82 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
               />
 
               {/* Weapon range indicators - only for active player with toggled weapons */}
-              {isActive && (
-                <>
-                  {/* Render range visualization for each toggled weapon */}
-                  {(['laser', 'railgun', 'missiles'] as const).map(weaponKey => {
-                    // Only show if toggled on
-                    if (!weaponRangeVisibility[weaponKey]) return null
+              {isActive && (() => {
+                // Calculate if any weapon fires after movement to determine position for range visualization
+                const hasWeaponAfterMove = pendingState.tacticalSequence.some(action => {
+                  const isWeapon = action.type === 'fire_laser' || action.type === 'fire_railgun' || action.type === 'fire_missiles'
+                  const moveAction = pendingState.tacticalSequence.find(a => a.type === 'move')
+                  return isWeapon && moveAction && action.sequence > moveAction.sequence
+                })
 
-                    const subsystemType: SubsystemType = weaponKey
+                // Calculate ship position for range visualization
+                let rangeVisualizationShip = player.ship
+                let rangeVisualizationRing = ringConfig
+                let rangeVisualizationRadius = radius
+                let rangeVisualizationAngle = angle
+                let rangeVisualizationX = x
+                let rangeVisualizationY = y
 
-                    // Get weapon subsystem
-                    const weaponSubsystem = getSubsystem(player.ship.subsystems, subsystemType)
-                    if (!weaponSubsystem) return null
+                if (hasWeaponAfterMove) {
+                  // Use post-movement position for visualization
+                  rangeVisualizationShip = calculatePostMovementPosition(
+                    player.ship,
+                    pendingFacing,
+                    pendingMovement
+                  )
 
-                    const weaponConfig = getSubsystemConfig(subsystemType)
-                    const weaponStats = weaponConfig.weaponStats
-                    if (!weaponStats) return null
+                  // Recalculate ring config and position for post-movement ship
+                  const postMoveRingConfig = RING_CONFIGS.find(r => r.ring === rangeVisualizationShip.ring)
+                  if (postMoveRingConfig) {
+                    rangeVisualizationRing = postMoveRingConfig
+                    const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
+                    rangeVisualizationRadius = postMoveRingConfig.radius * scaleFactor
+                    rangeVisualizationAngle = ((rangeVisualizationShip.sector + 0.5) / postMoveRingConfig.sectors) * 2 * Math.PI - Math.PI / 2
+                    rangeVisualizationX = centerX + rangeVisualizationRadius * Math.cos(rangeVisualizationAngle)
+                    rangeVisualizationY = centerY + rangeVisualizationRadius * Math.sin(rangeVisualizationAngle)
+                  }
+                }
 
-                    // For broadside weapons, show sector overlap visualization
-                    if (weaponStats.arc === 'broadside') {
-                      // Calculate attacker's sector angular boundaries
-                      const sectorSize = (2 * Math.PI) / ringConfig.sectors
-                      const sectorStartAngle = angle - sectorSize / 2
-                      const sectorEndAngle = angle + sectorSize / 2
+                return (
+                  <>
+                    {/* Render range visualization for each toggled weapon */}
+                    {(['laser', 'railgun', 'missiles'] as const).map(weaponKey => {
+                      // Only show if toggled on
+                      if (!weaponRangeVisibility[weaponKey]) return null
 
-                      // Get rings within weapon's ring range
-                      const minRing = Math.max(1, player.ship.ring - weaponStats.ringRange)
-                      const maxRing = Math.min(RING_CONFIGS.length, player.ship.ring + weaponStats.ringRange)
+                      const subsystemType: SubsystemType = weaponKey
+
+                      // Get weapon subsystem
+                      const weaponSubsystem = getSubsystem(player.ship.subsystems, subsystemType)
+                      if (!weaponSubsystem) return null
+
+                      const weaponConfig = getSubsystemConfig(subsystemType)
+                      const weaponStats = weaponConfig.weaponStats
+                      if (!weaponStats) return null
+
+                      // For broadside weapons, show sector overlap visualization
+                      if (weaponStats.arc === 'broadside') {
+                        // Calculate attacker's sector angular boundaries using range visualization position
+                        const sectorSize = (2 * Math.PI) / rangeVisualizationRing.sectors
+                        const sectorStartAngle = rangeVisualizationAngle - sectorSize / 2
+                        const sectorEndAngle = rangeVisualizationAngle + sectorSize / 2
+
+                        // Get rings within weapon's ring range
+                        const minRing = Math.max(1, rangeVisualizationShip.ring - weaponStats.ringRange)
+                        const maxRing = Math.min(RING_CONFIGS.length, rangeVisualizationShip.ring + weaponStats.ringRange)
 
                       const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
 
-                      // Get the actual ship position for ray origin
-                      const shipRadius = ringConfig.radius * scaleFactor
-
                       // Calculate sector boundary points on the ship's ring
-                      const rayStartX = centerX + shipRadius * Math.cos(sectorStartAngle)
-                      const rayStartY = centerY + shipRadius * Math.sin(sectorStartAngle)
-                      const rayEndX = centerX + shipRadius * Math.cos(sectorEndAngle)
-                      const rayEndY = centerY + shipRadius * Math.sin(sectorEndAngle)
+                      const rayStartX = centerX + rangeVisualizationRadius * Math.cos(sectorStartAngle)
+                      const rayStartY = centerY + rangeVisualizationRadius * Math.sin(sectorStartAngle)
+                      const rayEndX = centerX + rangeVisualizationRadius * Math.cos(sectorEndAngle)
+                      const rayEndY = centerY + rangeVisualizationRadius * Math.sin(sectorEndAngle)
 
                       return (
                         <g key={`weapon-visibility-${weaponKey}`}>
                         {/* Draw rays from sector endpoints outward to target rings */}
-                        {RING_CONFIGS.filter(r => r.ring >= minRing && r.ring <= maxRing && r.ring !== player.ship.ring).map(targetRing => {
+                        {RING_CONFIGS.filter(r => r.ring >= minRing && r.ring <= maxRing && r.ring !== rangeVisualizationShip.ring).map(targetRing => {
                           const targetRadius = targetRing.radius * scaleFactor
                           const targetSectorSize = (2 * Math.PI) / targetRing.sectors
 
@@ -604,17 +638,14 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                     if (weaponStats.arc === 'spinal') {
                       // Spinal weapons fire tangentially along the current ring
                       // Range is 2× ring number in the facing direction
-                      const spinalRange = player.ship.ring * 2
-
-                      const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
-                      const shipRadius = ringConfig.radius * scaleFactor
+                      const spinalRange = rangeVisualizationShip.ring * 2
 
                       // Calculate current position angle
-                      const sectorSize = (2 * Math.PI) / ringConfig.sectors
-                      const currentAngle = angle
+                      const sectorSize = (2 * Math.PI) / rangeVisualizationRing.sectors
+                      const currentAngle = rangeVisualizationAngle
 
                       // Use pending facing if available (planning phase), otherwise use committed facing
-                      const effectiveFacing = index === activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
+                      const effectiveFacing = index === activePlayerIndex && pendingFacing ? pendingFacing : rangeVisualizationShip.facing
 
                       // Calculate the arc in facing direction
                       let arcStartAngle: number
@@ -631,10 +662,10 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                       }
 
                       // Calculate arc endpoints
-                      const arcStartX = centerX + shipRadius * Math.cos(arcStartAngle)
-                      const arcStartY = centerY + shipRadius * Math.sin(arcStartAngle)
-                      const arcEndX = centerX + shipRadius * Math.cos(arcEndAngle)
-                      const arcEndY = centerY + shipRadius * Math.sin(arcEndAngle)
+                      const arcStartX = centerX + rangeVisualizationRadius * Math.cos(arcStartAngle)
+                      const arcStartY = centerY + rangeVisualizationRadius * Math.sin(arcStartAngle)
+                      const arcEndX = centerX + rangeVisualizationRadius * Math.cos(arcEndAngle)
+                      const arcEndY = centerY + rangeVisualizationRadius * Math.sin(arcEndAngle)
 
                       // Calculate if this is a large arc (> 180°)
                       let arcAngle = arcEndAngle - arcStartAngle
@@ -647,15 +678,15 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                           <path
                             d={`
                               M ${arcStartX} ${arcStartY}
-                              A ${shipRadius} ${shipRadius} 0 ${largeArcFlag} 1 ${arcEndX} ${arcEndY}
+                              A ${rangeVisualizationRadius} ${rangeVisualizationRadius} 0 ${largeArcFlag} 1 ${arcEndX} ${arcEndY}
                             `}
                             fill="none"
                             stroke={player.color}
                             strokeWidth={4}
                             opacity={0.6}
                           />
-                          {/* Mark ship position */}
-                          <circle cx={x} cy={y} r={6} fill={player.color} opacity={0.9} stroke="#fff" strokeWidth={2} />
+                          {/* Mark ship position - use range visualization position */}
+                          <circle cx={rangeVisualizationX} cy={rangeVisualizationY} r={6} fill={player.color} opacity={0.9} stroke="#fff" strokeWidth={2} />
                           {/* Mark arc endpoints */}
                           <circle cx={arcStartX} cy={arcStartY} r={4} fill={player.color} opacity={0.8} />
                           <circle cx={arcEndX} cy={arcEndY} r={4} fill={player.color} opacity={0.8} />
@@ -666,27 +697,26 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                     // For turret weapons (missiles), use same visualization as broadside (omnidirectional)
                     if (weaponStats.arc === 'turret') {
                       // Calculate attacker's sector angular boundaries
-                      const sectorSize = (2 * Math.PI) / ringConfig.sectors
-                      const sectorStartAngle = angle - sectorSize / 2
-                      const sectorEndAngle = angle + sectorSize / 2
+                      const sectorSize = (2 * Math.PI) / rangeVisualizationRing.sectors
+                      const sectorStartAngle = rangeVisualizationAngle - sectorSize / 2
+                      const sectorEndAngle = rangeVisualizationAngle + sectorSize / 2
 
                       // Turret can fire in all directions
-                      const minRing = Math.max(1, player.ship.ring - weaponStats.ringRange)
-                      const maxRing = Math.min(RING_CONFIGS.length, player.ship.ring + weaponStats.ringRange)
+                      const minRing = Math.max(1, rangeVisualizationShip.ring - weaponStats.ringRange)
+                      const maxRing = Math.min(RING_CONFIGS.length, rangeVisualizationShip.ring + weaponStats.ringRange)
 
                       const scaleFactor = (boardSize / 2 - 40) / RING_CONFIGS[RING_CONFIGS.length - 1].radius
-                      const shipRadius = ringConfig.radius * scaleFactor
 
                       // Calculate sector boundary points on the ship's ring
-                      const rayStartX = centerX + shipRadius * Math.cos(sectorStartAngle)
-                      const rayStartY = centerY + shipRadius * Math.sin(sectorStartAngle)
-                      const rayEndX = centerX + shipRadius * Math.cos(sectorEndAngle)
-                      const rayEndY = centerY + shipRadius * Math.sin(sectorEndAngle)
+                      const rayStartX = centerX + rangeVisualizationRadius * Math.cos(sectorStartAngle)
+                      const rayStartY = centerY + rangeVisualizationRadius * Math.sin(sectorStartAngle)
+                      const rayEndX = centerX + rangeVisualizationRadius * Math.cos(sectorEndAngle)
+                      const rayEndY = centerY + rangeVisualizationRadius * Math.sin(sectorEndAngle)
 
                       return (
                         <g key={`weapon-turret-${weaponKey}`}>
                           {/* Draw rays from sector endpoints outward to target rings */}
-                          {RING_CONFIGS.filter(r => r.ring >= minRing && r.ring <= maxRing && r.ring !== player.ship.ring).map(targetRing => {
+                          {RING_CONFIGS.filter(r => r.ring >= minRing && r.ring <= maxRing && r.ring !== rangeVisualizationShip.ring).map(targetRing => {
                             const targetRadius = targetRing.radius * scaleFactor
                             const targetSectorSize = (2 * Math.PI) / targetRing.sectors
 
@@ -699,7 +729,7 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
 
                             // Calculate coverage using sectorRange
                             const sectorCoverageAngle = weaponStats.sectorRange * targetSectorSize
-                            const centerAngle = normalizeAngle(angle + Math.PI / 2)
+                            const centerAngle = normalizeAngle(rangeVisualizationAngle + Math.PI / 2)
 
                             // Expand coverage by ±sectorRange
                             const coverageStart = centerAngle - sectorCoverageAngle
@@ -784,10 +814,32 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                     const weaponStats = weaponConfig.weaponStats
                     if (!weaponStats) return null
 
+                    // Determine if this weapon fires after movement in the tactical sequence
+                    // If so, use the post-movement position for range calculations
+                    let shipPositionForRangeCalc = player.ship
+
+                    if (isActive) {
+                      // Check if any weapon action of this type exists in tactical sequence
+                      const weaponActionType = weaponKey === 'laser' ? 'fire_laser' :
+                                               weaponKey === 'railgun' ? 'fire_railgun' : 'fire_missiles'
+                      const weaponAction = pendingState.tacticalSequence.find(a => a.type === weaponActionType)
+                      const moveAction = pendingState.tacticalSequence.find(a => a.type === 'move')
+
+                      // If both weapon and move actions exist, check their sequence order
+                      if (weaponAction && moveAction && weaponAction.sequence > moveAction.sequence) {
+                        // Weapon fires after movement - calculate post-movement position
+                        shipPositionForRangeCalc = calculatePostMovementPosition(
+                          player.ship,
+                          pendingFacing,
+                          pendingMovement
+                        )
+                      }
+                    }
+
                     // Calculate firing solutions for all targets
                     const firingSolutions = calculateFiringSolutions(
                       weaponStats,
-                      player.ship,
+                      shipPositionForRangeCalc,
                       players,
                       player.id,
                       index === activePlayerIndex ? pendingFacing : undefined
@@ -878,7 +930,8 @@ export function GameBoard({ players, activePlayerIndex, pendingFacing, pendingMo
                     )
                   })}
                 </>
-              )}
+                )
+              })()}
             </g>
           )
         })}

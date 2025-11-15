@@ -113,5 +113,23 @@ describe('Multi-Turn Movement', () => {
       // Sector 1 on ring 3 maps to sector 3, +1 adjustment = 4, +1 orbital movement on coast = 5
       expect(gameState.players[0].ship.sector).toBe(5)
     })
+
+    it('should allow coasting without rotation when already facing the desired direction', () => {
+      let gameState = createTestGameState()
+
+      // Ship is already prograde, coast without changing facing
+      const coastAction = createCoastAction('player1')
+
+      const result = executeTurnWithActions(gameState, coastAction)
+      gameState = result.gameState
+
+      // Should succeed without errors
+      expect(result.errors).toBeUndefined()
+
+      // Ship should have moved orbitally
+      expect(gameState.players[0].ship.sector).toBe(1) // 0 + 1 orbital movement
+      expect(gameState.players[0].ship.facing).toBe('prograde') // Unchanged
+      expect(gameState.players[0].ship.ring).toBe(INITIAL_RING) // Unchanged
+    })
   })
 })

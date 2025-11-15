@@ -24,12 +24,22 @@ interface MovementPreview {
   activateScoop: boolean
 }
 
+export type TacticalActionType = 'rotate' | 'move' | 'fire_laser' | 'fire_railgun' | 'fire_missiles'
+
+export interface TacticalAction {
+  id: string // unique identifier for this action instance
+  type: TacticalActionType
+  sequence: number
+  targetPlayerId?: string // For weapon actions
+}
+
 interface PendingState {
   subsystems: Subsystem[]
   reactor: ReactorState
   heat: HeatState
   facing: Facing
   movement: MovementPreview
+  tacticalSequence: TacticalAction[] // Ordered list of tactical actions
 }
 
 interface GameContextType {
@@ -41,13 +51,8 @@ interface GameContextType {
   ventHeat: (newTotal: number) => void
   setFacing: (facing: Facing) => void
   setMovement: (movement: MovementPreview) => void
-  executeTurn: (
-    movementType: 'coast' | 'burn',
-    burnIntensity?: BurnIntensity,
-    sectorAdjustment?: number,
-    activateScoop?: boolean,
-    weaponTargets?: { laser?: string; railgun?: string; missiles?: string }
-  ) => void
+  setTacticalSequence: (sequence: TacticalAction[]) => void
+  executeTurn: () => void
   weaponRangeVisibility: WeaponRangeVisibility
   toggleWeaponRange: (weaponType: 'laser' | 'railgun' | 'missiles') => void
 }
@@ -119,6 +124,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       sectorAdjustment: 0,
       activateScoop: false,
     },
+    tacticalSequence: [],
   }))
 
   // Reset pending state when active player changes or turn completes
@@ -133,6 +139,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         sectorAdjustment: 0,
         activateScoop: false,
       },
+      tacticalSequence: [],
     })
   }, [activePlayer.id, gameState.turn])
 
@@ -249,138 +256,139 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setPendingStateInternal(prev => ({ ...prev, movement }))
   }, [])
 
-  // Execute turn: compute diff between committed and pending, create actions, execute
-  const executeTurn = useCallback(
-    (
-      movementType: 'coast' | 'burn',
-      burnIntensity?: BurnIntensity,
-      sectorAdjustment?: number,
-      activateScoop?: boolean,
-      weaponTargets?: { laser?: string; railgun?: string; missiles?: string }
-    ) => {
-      const actions: PlayerAction[] = []
+  // High-level game action: Set tactical sequence
+  const setTacticalSequence = useCallback((sequence: TacticalAction[]) => {
+    setPendingStateInternal(prev => ({ ...prev, tacticalSequence: sequence }))
+  }, [])
 
-      // 1. Compute energy allocation/deallocation actions
-      const committedSubsystems = activePlayer.ship.subsystems
-      const pendingSubsystems = pendingState.subsystems
+  // Execute turn: compute diff between committed and pending, create actions using tactical sequence
+  const executeTurn = useCallback(() => {
+    const actions: PlayerAction[] = []
 
-      committedSubsystems.forEach((committedSub, index) => {
-        const pendingSub = pendingSubsystems[index]
-        const diff = pendingSub.allocatedEnergy - committedSub.allocatedEnergy
+    // 1. Compute energy allocation/deallocation actions (no sequence - always first)
+    const committedSubsystems = activePlayer.ship.subsystems
+    const pendingSubsystems = pendingState.subsystems
 
-        if (diff > 0) {
-          // Allocate energy
+    committedSubsystems.forEach((committedSub, index) => {
+      const pendingSub = pendingSubsystems[index]
+      const diff = pendingSub.allocatedEnergy - committedSub.allocatedEnergy
+
+      if (diff > 0) {
+        // Allocate energy
+        actions.push({
+          playerId: activePlayer.id,
+          type: 'allocate_energy',
+          data: {
+            subsystemType: committedSub.type,
+            amount: diff,
+          },
+        })
+      } else if (diff < 0) {
+        // Deallocate energy (by the amount reduced)
+        actions.push({
+          playerId: activePlayer.id,
+          type: 'deallocate_energy',
+          data: {
+            subsystemType: committedSub.type,
+            amount: Math.abs(diff),
+          },
+        })
+      }
+    })
+
+    // 2. Compute heat venting action (no sequence - always first)
+    const committedVenting = activePlayer.ship.heat.heatToVent || 0
+    const pendingVenting = pendingState.heat.heatToVent || 0
+    const ventingDiff = pendingVenting - committedVenting
+
+    if (ventingDiff > 0) {
+      actions.push({
+        playerId: activePlayer.id,
+        type: 'vent_heat',
+        data: {
+          amount: ventingDiff,
+        },
+      })
+    }
+
+    // 3. Add tactical actions from the tactical sequence (with sequence numbers)
+    pendingState.tacticalSequence.forEach(tacticalAction => {
+      if (tacticalAction.type === 'rotate') {
+        // Only add rotate action if facing actually changed
+        if (pendingState.facing !== activePlayer.ship.facing) {
           actions.push({
             playerId: activePlayer.id,
-            type: 'allocate_energy',
+            type: 'rotate',
+            sequence: tacticalAction.sequence,
             data: {
-              subsystemType: committedSub.type,
-              amount: diff,
-            },
-          })
-        } else if (diff < 0) {
-          // Deallocate energy (by the amount reduced)
-          actions.push({
-            playerId: activePlayer.id,
-            type: 'deallocate_energy',
-            data: {
-              subsystemType: committedSub.type,
-              amount: Math.abs(diff),
+              targetFacing: pendingState.facing,
             },
           })
         }
-      })
-
-      // 2. Compute heat venting action
-      const committedVenting = activePlayer.ship.heat.heatToVent || 0
-      const pendingVenting = pendingState.heat.heatToVent || 0
-      const ventingDiff = pendingVenting - committedVenting
-
-      if (ventingDiff > 0) {
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'vent_heat',
-          data: {
-            amount: ventingDiff,
-          },
-        })
-      }
-
-      // 3. Add rotation action if facing changed
-      if (pendingState.facing !== activePlayer.ship.facing) {
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'rotate',
-          data: {
-            targetFacing: pendingState.facing,
-          },
-        })
-      }
-
-      // 4. Add movement action
-      if (movementType === 'burn') {
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'burn',
-          data: {
-            burnIntensity: burnIntensity || 'light',
-            sectorAdjustment: sectorAdjustment || 0,
-          },
-        })
-      } else {
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'coast',
-          data: {
-            activateScoop: activateScoop || false,
-          },
-        })
-      }
-
-      // 5. Add weapon actions
-      if (weaponTargets?.laser) {
+      } else if (tacticalAction.type === 'move') {
+        if (pendingState.movement.actionType === 'burn') {
+          actions.push({
+            playerId: activePlayer.id,
+            type: 'burn',
+            sequence: tacticalAction.sequence,
+            data: {
+              burnIntensity: pendingState.movement.burnIntensity || 'light',
+              sectorAdjustment: pendingState.movement.sectorAdjustment,
+            },
+          })
+        } else {
+          actions.push({
+            playerId: activePlayer.id,
+            type: 'coast',
+            sequence: tacticalAction.sequence,
+            data: {
+              activateScoop: pendingState.movement.activateScoop,
+            },
+          })
+        }
+      } else if (tacticalAction.type === 'fire_laser' && tacticalAction.targetPlayerId) {
         actions.push({
           playerId: activePlayer.id,
           type: 'fire_weapon',
+          sequence: tacticalAction.sequence,
           data: {
             weaponType: 'laser',
-            targetPlayerIds: [weaponTargets.laser],
+            targetPlayerIds: [tacticalAction.targetPlayerId],
           },
         })
-      }
-      if (weaponTargets?.railgun) {
+      } else if (tacticalAction.type === 'fire_railgun' && tacticalAction.targetPlayerId) {
         actions.push({
           playerId: activePlayer.id,
           type: 'fire_weapon',
+          sequence: tacticalAction.sequence,
           data: {
             weaponType: 'railgun',
-            targetPlayerIds: [weaponTargets.railgun],
+            targetPlayerIds: [tacticalAction.targetPlayerId],
           },
         })
-      }
-      if (weaponTargets?.missiles) {
+      } else if (tacticalAction.type === 'fire_missiles' && tacticalAction.targetPlayerId) {
         actions.push({
           playerId: activePlayer.id,
           type: 'fire_weapon',
+          sequence: tacticalAction.sequence,
           data: {
             weaponType: 'missiles',
-            targetPlayerIds: [weaponTargets.missiles],
+            targetPlayerIds: [tacticalAction.targetPlayerId],
           },
         })
       }
+    })
 
-      // 6. Execute turn with all actions
-      setGameState(prev => {
-        const result = executeGameTurn(prev, actions)
-        if (result.errors && result.errors.length > 0) {
-          console.error('Turn execution errors:', result.errors)
-          return prev
-        }
-        return result.gameState
-      })
-    },
-    [activePlayer, pendingState]
-  )
+    // 4. Execute turn with all actions
+    setGameState(prev => {
+      const result = executeGameTurn(prev, actions)
+      if (result.errors && result.errors.length > 0) {
+        console.error('Turn execution errors:', result.errors)
+        return prev
+      }
+      return result.gameState
+    })
+  }, [activePlayer, pendingState])
 
   const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missiles') => {
     setWeaponRangeVisibility(prev => ({
@@ -399,6 +407,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ventHeat,
         setFacing,
         setMovement,
+        setTacticalSequence,
         executeTurn,
         weaponRangeVisibility,
         toggleWeaponRange,

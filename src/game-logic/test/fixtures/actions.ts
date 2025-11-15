@@ -16,11 +16,13 @@ import type { SubsystemType } from '../../../types/subsystems'
 export function createCoastAction(
   playerId: string = 'test-player',
   targetFacing?: Facing,
-  activateScoop: boolean = false
+  activateScoop: boolean = false,
+  sequence: number = 1
 ): CoastAction {
   return {
     playerId,
     type: 'coast',
+    sequence,
     data: {
       targetFacing,
       activateScoop,
@@ -35,11 +37,13 @@ export function createBurnAction(
   intensity: BurnIntensity,
   targetFacing: Facing,
   sectorAdjustment: number = 0,
-  playerId: string = 'test-player'
+  playerId: string = 'test-player',
+  sequence: number = 1
 ): BurnAction {
   return {
     playerId,
     type: 'burn',
+    sequence,
     data: {
       targetFacing,
       burnIntensity: intensity,
@@ -130,11 +134,13 @@ export function createVentHeatAction(amount: number, playerId: string = 'test-pl
 export function createFireWeaponAction(
   weaponType: 'laser' | 'railgun' | 'missiles',
   targetPlayerIds: string[],
-  playerId: string = 'test-player'
+  playerId: string = 'test-player',
+  sequence: number = 1
 ): FireWeaponAction {
   return {
     playerId,
     type: 'fire_weapon',
+    sequence,
     data: {
       weaponType,
       targetPlayerIds,

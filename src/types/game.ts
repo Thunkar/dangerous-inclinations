@@ -31,6 +31,7 @@ export interface ShipState {
  */
 interface BaseAction {
   playerId: string
+  sequence?: number // For tactical actions (rotate/move/fire), determines execution order
 }
 
 /**

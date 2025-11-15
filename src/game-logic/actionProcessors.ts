@@ -29,6 +29,48 @@ export interface ProcessResult {
  */
 
 /**
+ * Validate action sequence ordering for tactical actions
+ */
+function validateActionSequence(actions: PlayerAction[]): string[] {
+  const errors: string[] = []
+
+  // Filter tactical actions that should have sequences
+  const tacticalActions = actions.filter(a =>
+    a.type === 'rotate' || a.type === 'coast' || a.type === 'burn' || a.type === 'fire_weapon'
+  )
+
+  if (tacticalActions.length === 0) {
+    return [] // No tactical actions, no sequence validation needed
+  }
+
+  // Check all tactical actions have sequence numbers
+  const missingSequence = tacticalActions.filter(a => a.sequence === undefined)
+  if (missingSequence.length > 0) {
+    errors.push(`Tactical actions must have sequence numbers (found ${missingSequence.length} without)`)
+    return errors
+  }
+
+  // Get all sequences and sort them
+  const sequences = tacticalActions.map(a => a.sequence!).sort((a, b) => a - b)
+
+  // Check for duplicates
+  const uniqueSequences = new Set(sequences)
+  if (uniqueSequences.size !== sequences.length) {
+    errors.push('Action sequences must be unique (no duplicates)')
+  }
+
+  // Check sequences are continuous starting from 1
+  for (let i = 0; i < sequences.length; i++) {
+    if (sequences[i] !== i + 1) {
+      errors.push(`Action sequences must be continuous starting from 1 (expected ${i + 1}, found ${sequences[i]})`)
+      break
+    }
+  }
+
+  return errors
+}
+
+/**
  * Helper to validate and process an array of actions
  */
 function validateAndProcessActions<T extends PlayerAction>(
@@ -231,15 +273,21 @@ function validateFireWeaponAction(gameState: GameState, action: FireWeaponAction
  * Process all actions for the active player in the correct order
  *
  * Turn sequence:
- * 1. Energy Allocation
- * 2. Energy Deallocation
- * 3. Heat Venting
- * 4. Rotation
- * 5. Movement
- * 6. Weapon Firing
- * 7. Heat Damage (from heat accumulated on PREVIOUS turns)
- * 8. Heat Generation (from overclocked subsystems THIS turn)
- * 9. Reset Subsystem Usage (prepare for next turn)
+ * Phase 1 (Fixed order - Energy Management):
+ *   1. Energy Allocation
+ *   2. Energy Deallocation
+ *   3. Heat Venting
+ *
+ * Phase 2 (User-specified order - Tactical Actions):
+ *   - Rotation
+ *   - Movement (coast or burn)
+ *   - Weapon Firing
+ *   (Order determined by sequence field on each action)
+ *
+ * Phase 3 (Fixed order - End of Turn):
+ *   7. Heat Damage (from heat accumulated on PREVIOUS turns)
+ *   8. Heat Generation (from overclocked subsystems THIS turn)
+ *   9. Reset Subsystem Usage (prepare for next turn)
  *
  * Note: Transfer completion happens AFTER the previous player's turn ends,
  * so the active player sees their ship in the correct position when their turn starts.
@@ -250,58 +298,73 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
   const activePlayerIndex = gameState.activePlayerIndex
   const activePlayer = gameState.players[activePlayerIndex]
 
+  // Validate action sequence ordering
+  const sequenceErrors = validateActionSequence(actions)
+  if (sequenceErrors.length > 0) {
+    return {
+      success: false,
+      gameState,
+      logEntries: [],
+      errors: sequenceErrors,
+    }
+  }
+
   // Track heat at start of turn for damage calculation
   const heatAtStartOfTurn = activePlayer.ship.heat.currentHeat
 
-  // Phase 1: Energy Allocation
+  // PHASE 1: Energy Management (fixed order)
+
+  // Phase 1.1: Energy Allocation
   const allocateActions = actions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
   const allocateResult = validateAndProcessActions(currentGameState, allocateActions, validateAllocateEnergyAction, processAllocateEnergy)
   if (!allocateResult.success) return allocateResult
   currentGameState = allocateResult.gameState
   logEntries.push(...allocateResult.logEntries)
 
-  // Phase 2: Energy Deallocation
+  // Phase 1.2: Energy Deallocation
   const deallocateActions = actions.filter(a => a.type === 'deallocate_energy') as DeallocateEnergyAction[]
   const deallocateResult = validateAndProcessActions(currentGameState, deallocateActions, validateDeallocateEnergyAction, processDeallocateEnergy)
   if (!deallocateResult.success) return deallocateResult
   currentGameState = deallocateResult.gameState
   logEntries.push(...deallocateResult.logEntries)
 
-  // Phase 3: Heat Venting
+  // Phase 1.3: Heat Venting
   const ventActions = actions.filter(a => a.type === 'vent_heat') as VentHeatAction[]
   const ventResult = validateAndProcessActions(currentGameState, ventActions, validateVentHeatAction, processVentHeat)
   if (!ventResult.success) return ventResult
   currentGameState = ventResult.gameState
   logEntries.push(...ventResult.logEntries)
 
-  // Phase 4: Rotation
-  const rotateActions = actions.filter(a => a.type === 'rotate') as RotateAction[]
-  const rotateResult = validateAndProcessActions(currentGameState, rotateActions, validateRotateAction, processRotation)
-  if (!rotateResult.success) return rotateResult
-  currentGameState = rotateResult.gameState
-  logEntries.push(...rotateResult.logEntries)
+  // PHASE 2: Tactical Actions (user-specified order via sequence field)
 
-  // Phase 5: Movement (coast or burn) + Orbital Movement
-  const movementAction = actions.find(a => a.type === 'coast' || a.type === 'burn')
-  if (movementAction) {
-    if (movementAction.type === 'coast') {
-      const result = processCoast(currentGameState, movementAction as CoastAction)
+  const tacticalActions = actions
+    .filter(a => a.type === 'rotate' || a.type === 'coast' || a.type === 'burn' || a.type === 'fire_weapon')
+    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+
+  for (const action of tacticalActions) {
+    if (action.type === 'rotate') {
+      const rotateResult = validateAndProcessActions(currentGameState, [action as RotateAction], validateRotateAction, processRotation)
+      if (!rotateResult.success) return rotateResult
+      currentGameState = rotateResult.gameState
+      logEntries.push(...rotateResult.logEntries)
+    } else if (action.type === 'coast') {
+      const result = processCoast(currentGameState, action as CoastAction)
       currentGameState = result.gameState
       logEntries.push(...result.logEntries)
-    } else {
-      const burnResult = validateAndProcessActions(currentGameState, [movementAction as BurnAction], validateBurnAction, processBurn)
+    } else if (action.type === 'burn') {
+      const burnResult = validateAndProcessActions(currentGameState, [action as BurnAction], validateBurnAction, processBurn)
       if (!burnResult.success) return burnResult
       currentGameState = burnResult.gameState
       logEntries.push(...burnResult.logEntries)
+    } else if (action.type === 'fire_weapon') {
+      const weaponResult = validateAndProcessActions(currentGameState, [action as FireWeaponAction], validateFireWeaponAction, processFireWeapon)
+      if (!weaponResult.success) return weaponResult
+      currentGameState = weaponResult.gameState
+      logEntries.push(...weaponResult.logEntries)
     }
   }
 
-  // Phase 6: Weapon Firing (all simultaneous)
-  const weaponActions = actions.filter(a => a.type === 'fire_weapon') as FireWeaponAction[]
-  const weaponResult = validateAndProcessActions(currentGameState, weaponActions, validateFireWeaponAction, processFireWeapon)
-  if (!weaponResult.success) return weaponResult
-  currentGameState = weaponResult.gameState
-  logEntries.push(...weaponResult.logEntries)
+  // PHASE 3: End of Turn (fixed order)
 
   // Phase 7: Apply heat damage to active player (from heat at START of turn)
   const heatToVent = ventActions.reduce((sum, a) => sum + a.data.amount, 0)
