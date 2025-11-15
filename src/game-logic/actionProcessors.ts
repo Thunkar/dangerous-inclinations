@@ -9,12 +9,12 @@ import type {
   DeallocateEnergyAction,
   VentHeatAction,
   FireWeaponAction,
-  ShipState,
 } from '../types/game'
 import { applyOrbitalMovement, initiateBurn, applyRotation } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
-import { getSubsystemConfig, canSubsystemFunction } from '../types/subsystems'
+import { BURN_COSTS } from '../constants/rings'
+import { getSubsystemConfig } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
 
 export interface ProcessResult {
@@ -24,117 +24,207 @@ export interface ProcessResult {
   errors?: string[]
 }
 
-export interface ApplySingleResult {
-  success: boolean
-  ship: ShipState
-  errors?: string[]
-}
+/**
+ * Validation functions - these check if actions are valid without modifying state
+ */
 
 /**
- * Apply a single action to a ship snapshot (for snapshot-based validation)
- * This modifies the ship state in place and returns it
+ * Helper to validate and process an array of actions
  */
-export function applySingleAction(ship: ShipState, action: PlayerAction): ApplySingleResult {
-  try {
-    switch (action.type) {
-      case 'allocate_energy':
-        return applyAllocateToSnapshot(ship, action)
+function validateAndProcessActions<T extends PlayerAction>(
+  gameState: GameState,
+  actions: T[],
+  validate: (state: GameState, action: T) => string[],
+  process: (state: GameState, action: T) => ProcessResult
+): ProcessResult {
+  let currentGameState = gameState
+  const logEntries: TurnLogEntry[] = []
 
-      case 'deallocate_energy':
-        return applyDeallocateToSnapshot(ship, action)
-
-      case 'vent_heat':
-        return applyVentToSnapshot(ship, action)
-
-      case 'rotate':
-        return applyRotateToSnapshot(ship, action)
-
-      case 'burn':
-      case 'coast':
-      case 'fire_weapon':
-        // These actions don't modify ship state during validation phase
-        // They're processed later in the actual execution
-        return { success: true, ship }
-
-      default:
-        return { success: false, ship, errors: ['Unknown action type'] }
+  for (const action of actions) {
+    const validationErrors = validate(currentGameState, action)
+    if (validationErrors.length > 0) {
+      return {
+        success: false,
+        gameState,
+        logEntries: [],
+        errors: validationErrors,
+      }
     }
-  } catch (error) {
-    return {
-      success: false,
-      ship,
-      errors: [error instanceof Error ? error.message : 'Failed to apply action'],
-    }
+    const result = process(currentGameState, action)
+    currentGameState = result.gameState
+    logEntries.push(...result.logEntries)
+  }
+
+  return {
+    success: true,
+    gameState: currentGameState,
+    logEntries,
   }
 }
 
-function applyAllocateToSnapshot(ship: ShipState, action: AllocateEnergyAction): ApplySingleResult {
-  const { subsystemType, amount } = action.data
+function validateAllocateEnergyAction(gameState: GameState, action: AllocateEnergyAction): string[] {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const errors: string[] = []
 
-  const subsystemIndex = ship.subsystems.findIndex(s => s.type === subsystemType)
-  if (subsystemIndex === -1) {
-    return { success: false, ship, errors: [`Subsystem ${subsystemType} not found`] }
+  const subsystem = player.ship.subsystems.find(s => s.type === action.data.subsystemType)
+  if (!subsystem) {
+    errors.push(`Subsystem ${action.data.subsystemType} not found`)
+    return errors
   }
 
-  // Update subsystem energy
-  ship.subsystems[subsystemIndex].allocatedEnergy += amount
-  ship.subsystems[subsystemIndex].isPowered = canSubsystemFunction(
-    ship.subsystems[subsystemIndex]
-  )
-
-  // Update reactor
-  ship.reactor.availableEnergy -= amount
-
-  return { success: true, ship }
-}
-
-function applyDeallocateToSnapshot(
-  ship: ShipState,
-  action: DeallocateEnergyAction
-): ApplySingleResult {
-  const { subsystemType, amount } = action.data
-
-  const subsystemIndex = ship.subsystems.findIndex(s => s.type === subsystemType)
-  if (subsystemIndex === -1) {
-    return { success: false, ship, errors: [`Subsystem ${subsystemType} not found`] }
+  // Check reactor has enough available energy
+  if (player.ship.reactor.availableEnergy < action.data.amount) {
+    errors.push(`Not enough energy available (need ${action.data.amount}, have ${player.ship.reactor.availableEnergy})`)
   }
 
-  const actualAmount = Math.min(amount, ship.subsystems[subsystemIndex].allocatedEnergy)
-
-  // Update subsystem energy
-  ship.subsystems[subsystemIndex].allocatedEnergy -= actualAmount
-  ship.subsystems[subsystemIndex].isPowered = canSubsystemFunction(
-    ship.subsystems[subsystemIndex]
-  )
-
-  // Return energy to reactor
-  ship.reactor.availableEnergy += actualAmount
-
-  return { success: true, ship }
-}
-
-function applyVentToSnapshot(ship: ShipState, action: VentHeatAction): ApplySingleResult {
-  const { amount } = action.data
-
-  // Vent heat
-  ship.heat.currentHeat = Math.max(0, ship.heat.currentHeat - amount)
-
-  return { success: true, ship }
-}
-
-function applyRotateToSnapshot(ship: ShipState, action: RotateAction): ApplySingleResult {
-  const { targetFacing } = action.data
-
-  // Change facing
-  ship.facing = targetFacing
-
-  // Mark rotation subsystem as used
-  const rotationSubsystem = ship.subsystems.find(s => s.type === 'rotation')
-  if (rotationSubsystem) {
-    rotationSubsystem.usedThisTurn = true
+  // Check absolute maximum
+  const config = getSubsystemConfig(action.data.subsystemType)
+  const newTotal = subsystem.allocatedEnergy + action.data.amount
+  if (newTotal > config.maxEnergy) {
+    errors.push(`Would exceed ${action.data.subsystemType} absolute maximum capacity (${newTotal}/${config.maxEnergy})`)
   }
 
-  return { success: true, ship }
+  return errors
+}
+
+function validateDeallocateEnergyAction(gameState: GameState, action: DeallocateEnergyAction): string[] {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const errors: string[] = []
+
+  const subsystem = player.ship.subsystems.find(s => s.type === action.data.subsystemType)
+  if (!subsystem) {
+    errors.push(`Subsystem ${action.data.subsystemType} not found`)
+    return errors
+  }
+
+  // Check subsystem has energy to deallocate
+  if (subsystem.allocatedEnergy === 0) {
+    errors.push(`${action.data.subsystemType} has no energy to deallocate`)
+  }
+
+  // Check we're not trying to deallocate more than available
+  if (action.data.amount > subsystem.allocatedEnergy) {
+    errors.push(`Cannot deallocate ${action.data.amount} from ${action.data.subsystemType} (only ${subsystem.allocatedEnergy} allocated)`)
+  }
+
+  return errors
+}
+
+function validateVentHeatAction(gameState: GameState, action: VentHeatAction): string[] {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const errors: string[] = []
+
+  // Amount must be positive
+  if (action.data.amount <= 0) {
+    errors.push('Vent amount must be positive')
+  }
+
+  // Check there's enough heat to vent
+  if (player.ship.heat.currentHeat < action.data.amount) {
+    errors.push(`Not enough heat to vent (trying to vent ${action.data.amount}, have ${player.ship.heat.currentHeat})`)
+  }
+
+  return errors
+}
+
+function validateRotateAction(gameState: GameState, action: RotateAction): string[] {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const errors: string[] = []
+
+  // No rotation needed if already facing that direction
+  if (player.ship.facing === action.data.targetFacing) {
+    errors.push('Already facing that direction')
+    return errors
+  }
+
+  // Check if rotation subsystem is powered
+  const rotationSubsystem = player.ship.subsystems.find(s => s.type === 'rotation')
+  if (!rotationSubsystem) {
+    errors.push('Rotation subsystem not found')
+    return errors
+  }
+
+  if (rotationSubsystem.allocatedEnergy === 0) {
+    errors.push('Rotation subsystem not powered')
+  }
+
+  if (rotationSubsystem.usedThisTurn) {
+    errors.push('Rotation subsystem already used this turn')
+  }
+
+  return errors
+}
+
+function validateBurnAction(gameState: GameState, action: BurnAction): string[] {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const errors: string[] = []
+
+  const burnCost = BURN_COSTS[action.data.burnIntensity]
+
+  // Check engine energy
+  const enginesSubsystem = player.ship.subsystems.find(s => s.type === 'engines')
+  const currentEngineEnergy = enginesSubsystem?.allocatedEnergy || 0
+
+  if (currentEngineEnergy < burnCost.energy) {
+    errors.push(`Need ${burnCost.energy} energy in engines for ${action.data.burnIntensity} burn (have ${currentEngineEnergy})`)
+  }
+
+  // Check reaction mass
+  if (player.ship.reactionMass < burnCost.mass) {
+    errors.push(`Need ${burnCost.mass} reaction mass, have ${player.ship.reactionMass}`)
+  }
+
+  return errors
+}
+
+function validateFireWeaponAction(gameState: GameState, action: FireWeaponAction): string[] {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const errors: string[] = []
+
+  // Check weapon subsystem exists and is powered
+  const weaponSubsystem = player.ship.subsystems.find(s => s.type === action.data.weaponType)
+  if (!weaponSubsystem) {
+    errors.push(`${action.data.weaponType} not found`)
+    return errors
+  }
+
+  if (!weaponSubsystem.isPowered) {
+    errors.push(`${action.data.weaponType} not powered`)
+  }
+
+  if (weaponSubsystem.usedThisTurn) {
+    errors.push(`${action.data.weaponType} already used this turn`)
+  }
+
+  // Get weapon config
+  const weaponConfig = WEAPONS[action.data.weaponType]
+  if (!weaponConfig) {
+    errors.push(`Unknown weapon type: ${action.data.weaponType}`)
+    return errors
+  }
+
+  // Check target count
+  if (action.data.targetPlayerIds.length === 0) {
+    errors.push('Must have at least one target')
+  }
+
+  if (action.data.targetPlayerIds.length > 1) {
+    errors.push(`${action.data.weaponType} can only target 1 player at a time, got ${action.data.targetPlayerIds.length}`)
+  }
+
+  // Check energy cost
+  const totalEnergyCost = weaponConfig.energyCost
+  if (weaponSubsystem.allocatedEnergy < totalEnergyCost) {
+    errors.push(`Not enough energy (need ${totalEnergyCost}, have ${weaponSubsystem.allocatedEnergy})`)
+  }
+
+  return errors
 }
 
 /**
@@ -165,37 +255,31 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
 
   // Phase 1: Energy Allocation
   const allocateActions = actions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
-  for (const action of allocateActions) {
-    const result = processAllocateEnergy(currentGameState, action)
-    currentGameState = result.gameState
-    logEntries.push(...result.logEntries)
-  }
+  const allocateResult = validateAndProcessActions(currentGameState, allocateActions, validateAllocateEnergyAction, processAllocateEnergy)
+  if (!allocateResult.success) return allocateResult
+  currentGameState = allocateResult.gameState
+  logEntries.push(...allocateResult.logEntries)
 
   // Phase 2: Energy Deallocation
-  const deallocateActions = actions.filter(
-    a => a.type === 'deallocate_energy'
-  ) as DeallocateEnergyAction[]
-  for (const action of deallocateActions) {
-    const result = processDeallocateEnergy(currentGameState, action)
-    currentGameState = result.gameState
-    logEntries.push(...result.logEntries)
-  }
+  const deallocateActions = actions.filter(a => a.type === 'deallocate_energy') as DeallocateEnergyAction[]
+  const deallocateResult = validateAndProcessActions(currentGameState, deallocateActions, validateDeallocateEnergyAction, processDeallocateEnergy)
+  if (!deallocateResult.success) return deallocateResult
+  currentGameState = deallocateResult.gameState
+  logEntries.push(...deallocateResult.logEntries)
 
   // Phase 3: Heat Venting
   const ventActions = actions.filter(a => a.type === 'vent_heat') as VentHeatAction[]
-  for (const action of ventActions) {
-    const result = processVentHeat(currentGameState, action)
-    currentGameState = result.gameState
-    logEntries.push(...result.logEntries)
-  }
+  const ventResult = validateAndProcessActions(currentGameState, ventActions, validateVentHeatAction, processVentHeat)
+  if (!ventResult.success) return ventResult
+  currentGameState = ventResult.gameState
+  logEntries.push(...ventResult.logEntries)
 
   // Phase 4: Rotation
   const rotateActions = actions.filter(a => a.type === 'rotate') as RotateAction[]
-  for (const action of rotateActions) {
-    const result = processRotation(currentGameState, action)
-    currentGameState = result.gameState
-    logEntries.push(...result.logEntries)
-  }
+  const rotateResult = validateAndProcessActions(currentGameState, rotateActions, validateRotateAction, processRotation)
+  if (!rotateResult.success) return rotateResult
+  currentGameState = rotateResult.gameState
+  logEntries.push(...rotateResult.logEntries)
 
   // Phase 5: Movement (coast or burn) + Orbital Movement
   const movementAction = actions.find(a => a.type === 'coast' || a.type === 'burn')
@@ -205,19 +289,19 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
       currentGameState = result.gameState
       logEntries.push(...result.logEntries)
     } else {
-      const result = processBurn(currentGameState, movementAction as BurnAction)
-      currentGameState = result.gameState
-      logEntries.push(...result.logEntries)
+      const burnResult = validateAndProcessActions(currentGameState, [movementAction as BurnAction], validateBurnAction, processBurn)
+      if (!burnResult.success) return burnResult
+      currentGameState = burnResult.gameState
+      logEntries.push(...burnResult.logEntries)
     }
   }
 
   // Phase 6: Weapon Firing (all simultaneous)
   const weaponActions = actions.filter(a => a.type === 'fire_weapon') as FireWeaponAction[]
-  for (const action of weaponActions) {
-    const result = processFireWeapon(currentGameState, action)
-    currentGameState = result.gameState
-    logEntries.push(...result.logEntries)
-  }
+  const weaponResult = validateAndProcessActions(currentGameState, weaponActions, validateFireWeaponAction, processFireWeapon)
+  if (!weaponResult.success) return weaponResult
+  currentGameState = weaponResult.gameState
+  logEntries.push(...weaponResult.logEntries)
 
   // Phase 7: Apply heat damage to active player (from heat at START of turn)
   const heatToVent = ventActions.reduce((sum, a) => sum + a.data.amount, 0)
@@ -361,15 +445,6 @@ function processAllocateEnergy(gameState: GameState, action: AllocateEnergyActio
   const player = gameState.players[playerIndex]
 
   const subsystemIndex = player.ship.subsystems.findIndex(s => s.type === action.data.subsystemType)
-  if (subsystemIndex === -1) {
-    return {
-      success: false,
-      gameState,
-      logEntries: [],
-      errors: [`Subsystem ${action.data.subsystemType} not found`],
-    }
-  }
-
   const subsystem = player.ship.subsystems[subsystemIndex]
   const newAllocatedEnergy = subsystem.allocatedEnergy + action.data.amount
 
@@ -422,15 +497,6 @@ function processDeallocateEnergy(
   const player = gameState.players[playerIndex]
 
   const subsystemIndex = player.ship.subsystems.findIndex(s => s.type === action.data.subsystemType)
-  if (subsystemIndex === -1) {
-    return {
-      success: false,
-      gameState,
-      logEntries: [],
-      errors: [`Subsystem ${action.data.subsystemType} not found`],
-    }
-  }
-
   const subsystem = player.ship.subsystems[subsystemIndex]
   const amountToReturn = Math.min(action.data.amount, subsystem.allocatedEnergy)
   const newAllocatedEnergy = subsystem.allocatedEnergy - amountToReturn
