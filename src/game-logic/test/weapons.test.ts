@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { calculateFiringSolutions } from '../../utils/weaponRange'
 import { calculatePostMovementPosition } from '../../utils/tacticalSequence'
-import { createInitialSubsystems } from '../../utils/subsystemHelpers'
+import {
+  createInitialSubsystems,
+  createInitialReactorState,
+  createInitialHeatState,
+} from '../../utils/subsystemHelpers'
 import { STARTING_REACTION_MASS } from '../../constants/rings'
 import type { Player } from '../../types/game'
 import type { WeaponStats } from '../../types/subsystems'
@@ -21,6 +25,8 @@ function createTestPlayer(id: string, name: string, ring: number, sector: number
       maxHitPoints: 10,
       transferState: null,
       subsystems: createInitialSubsystems(),
+      reactor: createInitialReactorState(),
+      heat: createInitialHeatState(),
     },
   }
 }
