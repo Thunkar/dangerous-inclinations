@@ -163,12 +163,25 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
 
 /**
  * Complete a ship's transfer to destination ring/sector
+ * Handles both ring transfers (within same well) and well transfers (between wells)
  */
 function completeTransfer(ship: any): any {
   if (!ship.transferState) {
     return ship
   }
 
+  // Handle well transfer (between gravity wells)
+  if (ship.transferState.isWellTransfer && ship.transferState.destinationWellId) {
+    return {
+      ...ship,
+      wellId: ship.transferState.destinationWellId,
+      ring: ship.transferState.destinationRing,
+      sector: ship.transferState.destinationSector || 0,
+      transferState: null,
+    }
+  }
+
+  // Handle normal ring transfer (within same gravity well)
   const { destinationRing, sectorAdjustment } = ship.transferState
 
   const baseSector = mapSectorOnTransfer(ship.ring, destinationRing, ship.sector)

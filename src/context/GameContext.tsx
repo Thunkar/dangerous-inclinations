@@ -1,9 +1,11 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { GameState, Player, PlayerAction, Facing, BurnIntensity } from '../types/game'
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from '../types/subsystems'
 import { getSubsystemConfig } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
+import { ALL_GRAVITY_WELLS } from '../constants/gravityWells'
+import { calculateTransferPoints } from '../utils/transferPoints'
 import {
   createInitialSubsystems,
   createInitialReactorState,
@@ -24,13 +26,14 @@ interface MovementPreview {
   activateScoop: boolean
 }
 
-export type TacticalActionType = 'rotate' | 'move' | 'fire_laser' | 'fire_railgun' | 'fire_missiles'
+export type TacticalActionType = 'rotate' | 'move' | 'fire_laser' | 'fire_railgun' | 'fire_missiles' | 'well_transfer'
 
 export interface TacticalAction {
   id: string // unique identifier for this action instance
   type: TacticalActionType
   sequence: number
   targetPlayerId?: string // For weapon actions
+  destinationWellId?: string // For well transfer actions
 }
 
 interface PendingState {
@@ -45,6 +48,8 @@ interface PendingState {
 interface GameContextType {
   gameState: GameState
   pendingState: PendingState
+  turnErrors: string[]
+  clearTurnErrors: () => void
   // High-level game actions
   allocateEnergy: (subsystemType: SubsystemType, newTotal: number) => void
   deallocateEnergy: (subsystemType: SubsystemType, amount: number) => void
@@ -65,6 +70,7 @@ const createInitialPlayers = (): Player[] => [
     name: 'Ship Alpha',
     color: '#2196f3',
     ship: {
+      wellId: 'blackhole', // Start in black hole gravity well
       ring: 4,
       sector: 0,
       facing: 'prograde',
@@ -82,6 +88,7 @@ const createInitialPlayers = (): Player[] => [
     name: 'Ship Gamma',
     color: '#4caf50',
     ship: {
+      wellId: 'blackhole', // Start in black hole gravity well
       ring: 2,
       sector: 5,
       facing: 'prograde',
@@ -96,15 +103,23 @@ const createInitialPlayers = (): Player[] => [
   },
 ]
 
-const createInitialState = (): GameState => ({
-  turn: 1,
-  activePlayerIndex: 0,
-  players: createInitialPlayers(),
-  turnLog: [],
-})
+const createInitialState = (): GameState => {
+  const gravityWells = ALL_GRAVITY_WELLS
+  const transferPoints = calculateTransferPoints(gravityWells)
+
+  return {
+    turn: 1,
+    activePlayerIndex: 0,
+    players: createInitialPlayers(),
+    turnLog: [],
+    gravityWells,
+    transferPoints,
+  }
+}
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(createInitialState())
+  const [turnErrors, setTurnErrors] = useState<string[]>([])
   const [weaponRangeVisibility, setWeaponRangeVisibility] = useState<WeaponRangeVisibility>({
     laser: false,
     railgun: false,
@@ -112,6 +127,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   })
 
   const activePlayer = gameState.players[gameState.activePlayerIndex]
+
+  const clearTurnErrors = useCallback(() => {
+    setTurnErrors([])
+  }, [])
+
+  // Track previous values to detect actual changes (not just initial mount)
+  const prevPlayerIdRef = useRef<string>(activePlayer.id)
+  const prevTurnRef = useRef<number>(gameState.turn)
 
   // Initialize pending state from current committed state
   const [pendingState, setPendingStateInternal] = useState<PendingState>(() => ({
@@ -128,20 +151,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }))
 
   // Reset pending state when active player changes or turn completes
+  // But NOT on initial mount (when refs match current values)
   useEffect(() => {
-    setPendingStateInternal({
-      subsystems: activePlayer.ship.subsystems.map(s => ({ ...s })),
-      reactor: { ...activePlayer.ship.reactor },
-      heat: { ...activePlayer.ship.heat },
-      facing: activePlayer.ship.facing,
-      movement: {
-        actionType: 'coast',
-        sectorAdjustment: 0,
-        activateScoop: false,
-      },
-      tacticalSequence: [],
-    })
-  }, [activePlayer.id, gameState.turn])
+    const playerChanged = prevPlayerIdRef.current !== activePlayer.id
+    const turnChanged = prevTurnRef.current !== gameState.turn
+
+    if (playerChanged || turnChanged) {
+      setPendingStateInternal({
+        subsystems: activePlayer.ship.subsystems.map(s => ({ ...s })),
+        reactor: { ...activePlayer.ship.reactor },
+        heat: { ...activePlayer.ship.heat },
+        facing: activePlayer.ship.facing,
+        movement: {
+          actionType: 'coast',
+          sectorAdjustment: 0,
+          activateScoop: false,
+        },
+        tacticalSequence: [], // Clear on actual player/turn change
+      })
+    }
+
+    // Update refs for next comparison
+    prevPlayerIdRef.current = activePlayer.id
+    prevTurnRef.current = gameState.turn
+  }, [activePlayer.id, gameState.turn, activePlayer.ship])
 
   // Helper to calculate energy to return based on deallocations
   const calculateEnergyToReturn = useCallback((newSubsystems: Subsystem[]) => {
@@ -376,6 +409,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
             targetPlayerIds: [tacticalAction.targetPlayerId],
           },
         })
+      } else if (tacticalAction.type === 'well_transfer' && tacticalAction.destinationWellId) {
+        const transferPoint = gameState.transferPoints.find(tp =>
+          tp.fromWellId === activePlayer.ship.wellId &&
+          tp.toWellId === tacticalAction.destinationWellId
+        )
+        if (transferPoint) {
+          actions.push({
+            playerId: activePlayer.id,
+            type: 'well_transfer',
+            sequence: tacticalAction.sequence,
+            data: {
+              destinationWellId: tacticalAction.destinationWellId,
+              destinationSector: transferPoint.toSector,
+            },
+          })
+        }
       }
     })
 
@@ -383,9 +432,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameState(prev => {
       const result = executeGameTurn(prev, actions)
       if (result.errors && result.errors.length > 0) {
-        console.error('Turn execution errors:', result.errors)
+        setTurnErrors(result.errors)
         return prev
       }
+      setTurnErrors([])
       return result.gameState
     })
   }, [activePlayer, pendingState])
@@ -402,6 +452,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       value={{
         gameState,
         pendingState,
+        turnErrors,
+        clearTurnErrors,
         allocateEnergy,
         deallocateEnergy,
         ventHeat,

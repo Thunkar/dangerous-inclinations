@@ -25,21 +25,7 @@ export {
 } from './heat'
 
 // Movement and orbital mechanics
-export { completeTransfer } from './movement'
-
-// Actions
-export {
-  applyAction,
-  applyRotation,
-  applyBurn,
-  applyScoopFuel,
-  applyOrbitalMovement,
-  applyTransferCompletion,
-  applyWeaponFiring,
-  deriveActionContext,
-  type ActionResult,
-  type ActionContext,
-} from './actions'
+export { completeTransfer, applyOrbitalMovement, initiateWellTransfer } from './movement'
 
 // Damage
 export {

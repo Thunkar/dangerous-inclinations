@@ -6,13 +6,47 @@ export type BurnIntensity = 'light' | 'medium' | 'heavy'
 
 export type ActionType = 'coast' | 'burn'
 
+// Identifier for which gravity well a ship is in
+export type GravityWellId = string // e.g., 'blackhole', 'planet-alpha', 'planet-beta'
+
+export type GravityWellType = 'blackhole' | 'planet'
+
+export interface OrbitalPosition {
+  angle: number // Angular position in degrees (0-360)
+  velocity: number // Angular velocity in degrees per turn
+  distance: number // Distance from black hole center (for rendering)
+}
+
+export interface GravityWell {
+  id: GravityWellId
+  name: string
+  type: GravityWellType
+  rings: RingConfig[] // Ring configuration for this gravity well
+  orbitalPosition?: OrbitalPosition // Only for planets orbiting the black hole
+  color: string
+  radius: number // Visual size of the planet/black hole itself
+}
+
+export interface TransferPoint {
+  fromWellId: GravityWellId
+  toWellId: GravityWellId
+  fromRing: number // Always 5 (outermost ring)
+  toRing: number // Always 5 (outermost ring)
+  fromSector: number // Changes as planets orbit
+  toSector: number // Entry sector on destination well
+}
+
 export interface TransferState {
   destinationRing: number
+  destinationWellId?: GravityWellId // If transferring between gravity wells
+  destinationSector?: number // For well transfers, the exact destination sector
   sectorAdjustment: number // -1, 0, or +1 sector adjustment from natural mapping
   arriveNextTurn: boolean
+  isWellTransfer?: boolean // true if transferring between gravity wells
 }
 
 export interface ShipState {
+  wellId: GravityWellId // Which gravity well the ship is currently in
   ring: number
   sector: number
   facing: Facing
@@ -99,6 +133,14 @@ export interface FireWeaponAction extends BaseAction {
   }
 }
 
+export interface WellTransferAction extends BaseAction {
+  type: 'well_transfer'
+  data: {
+    destinationWellId: GravityWellId
+    destinationSector: number
+  }
+}
+
 /**
  * Movement action type
  */
@@ -115,6 +157,7 @@ export type PlayerAction =
   | DeallocateEnergyAction
   | VentHeatAction
   | FireWeaponAction
+  | WellTransferAction
 
 export interface Player {
   id: string
@@ -136,6 +179,8 @@ export interface GameState {
   activePlayerIndex: number
   players: Player[]
   turnLog: TurnLogEntry[]
+  gravityWells: GravityWell[] // All gravity wells in the system
+  transferPoints: TransferPoint[] // Calculated each turn based on planetary positions
 }
 
 export interface RingConfig {

@@ -16,6 +16,8 @@ export interface FiringSolution {
 /**
  * Calculate all firing solutions for a weapon
  * Uses separate ring range and sector range
+ *
+ * Weapons can only target ships in the same gravity well
  */
 export function calculateFiringSolutions(
   weapon: WeaponStats,
@@ -31,7 +33,11 @@ export function calculateFiringSolutions(
   }
 
   return allPlayers
-    .filter(p => p.id !== currentPlayerId && p.ship.hitPoints > 0)
+    .filter(p =>
+      p.id !== currentPlayerId &&
+      p.ship.hitPoints > 0 &&
+      p.ship.wellId === attackerShip.wellId // Only target ships in same gravity well
+    )
     .map(targetPlayer => calculateSingleTarget(weapon, effectiveShip, targetPlayer))
 }
 

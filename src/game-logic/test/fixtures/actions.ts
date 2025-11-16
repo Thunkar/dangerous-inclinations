@@ -15,7 +15,7 @@ import type { SubsystemType } from '../../../types/subsystems'
  */
 export function createCoastAction(
   playerId: string = 'test-player',
-  targetFacing?: Facing,
+  _targetFacing?: Facing,
   activateScoop: boolean = false,
   sequence: number = 1
 ): CoastAction {
@@ -24,7 +24,6 @@ export function createCoastAction(
     type: 'coast',
     sequence,
     data: {
-      targetFacing,
       activateScoop,
     },
   }
@@ -35,7 +34,7 @@ export function createCoastAction(
  */
 export function createBurnAction(
   intensity: BurnIntensity,
-  targetFacing: Facing,
+  _targetFacing: Facing,
   sectorAdjustment: number = 0,
   playerId: string = 'test-player',
   sequence: number = 1
@@ -45,7 +44,6 @@ export function createBurnAction(
     type: 'burn',
     sequence,
     data: {
-      targetFacing,
       burnIntensity: intensity,
       sectorAdjustment,
     },
@@ -68,12 +66,11 @@ export function createScoopAction(playerId: string = 'test-player'): CoastAction
 /**
  * Creates a rotation coast action (rotation only, no scoop)
  */
-export function createRotationAction(targetFacing: Facing, playerId: string = 'test-player'): CoastAction {
+export function createRotationAction(_targetFacing: Facing, playerId: string = 'test-player'): CoastAction {
   return {
     playerId,
     type: 'coast',
     data: {
-      targetFacing,
       activateScoop: false,
     },
   }

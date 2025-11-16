@@ -1,4 +1,4 @@
-import { Paper, Stack, Box, Typography, IconButton, Button, Divider, Tooltip } from '@mui/material'
+import { Paper, Stack, Box, Typography, IconButton, Button, Tooltip } from '@mui/material'
 import { useState, useEffect } from 'react'
 import { ArrowUpward, ArrowDownward, Delete, Visibility, VisibilityOff } from '@mui/icons-material'
 import type { BurnIntensity, Facing, Player, ActionType } from '../types/game'
@@ -7,6 +7,7 @@ import { getSubsystemConfig } from '../types/subsystems'
 import { calculateFiringSolutions } from '../utils/weaponRange'
 import { calculatePostMovementPosition } from '../utils/tacticalSequence'
 import { useGame, type TacticalAction } from '../context/GameContext'
+import { getAvailableWellTransfers, getWellName } from '../utils/transferPoints'
 import { EnergyPanel } from './actions/EnergyPanel'
 import { OrientationControl } from './actions/OrientationControl'
 import { MovementControl } from './actions/MovementControl'
@@ -20,18 +21,26 @@ interface ControlPanelProps {
   allPlayers: Player[]
 }
 
-type PanelType = 'rotate' | 'move' | 'fire_laser' | 'fire_railgun' | 'fire_missiles'
+type PanelType =
+  | 'rotate'
+  | 'move'
+  | 'fire_laser'
+  | 'fire_railgun'
+  | 'fire_missiles'
+  | 'well_transfer'
 
 interface ActionPanel {
   id: string
   type: PanelType
   sequence: number
   targetPlayerId?: string
+  destinationWellId?: string
 }
 
 export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   // Get everything from context
   const {
+    gameState,
     setFacing,
     setMovement,
     pendingState,
@@ -42,6 +51,8 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     setTacticalSequence,
     weaponRangeVisibility,
     toggleWeaponRange,
+    turnErrors,
+    clearTurnErrors,
   } = useGame()
 
   // State for all action components
@@ -67,51 +78,40 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   const railgunSubsystem = getSubsystem(subsystems, 'railgun')
   const missilesSubsystem = getSubsystem(subsystems, 'missiles')
 
-  // Sync panels with tactical sequence and auto-populate
+  // Initialize tactical sequence with base actions when it's empty
   useEffect(() => {
+    // Only initialize if tacticalSequence is empty (freshly reset)
+    if (pendingState.tacticalSequence.length > 0) {
+      return
+    }
+
+    // UI panels - always show rotation and movement
     const basePanels: ActionPanel[] = []
 
-    // Always add rotation panel (user can change facing even without rotation)
     basePanels.push({
       id: 'rotate-panel',
       type: 'rotate',
       sequence: 1,
     })
 
-    // Always add movement
     basePanels.push({
       id: 'move-panel',
       type: 'move',
       sequence: 2,
     })
 
-    // Add weapons from tactical sequence
-    const weaponPanels = pendingState.tacticalSequence
-      .filter(
-        a => a.type === 'fire_laser' || a.type === 'fire_railgun' || a.type === 'fire_missiles'
-      )
-      .map(a => ({
-        id: a.id,
-        type: a.type as PanelType,
-        sequence: a.sequence,
-        targetPlayerId: a.targetPlayerId,
-      }))
+    setPanels(basePanels)
 
-    const allPanels = [...basePanels, ...weaponPanels]
-    const sorted = allPanels.sort((a, b) => a.sequence - b.sequence)
-    const renumbered = sorted.map((p, i) => ({ ...p, sequence: i + 1 }))
-
-    setPanels(renumbered)
-
-    // Sync back to tactical sequence
-    const tacticalActions: TacticalAction[] = renumbered.map(p => ({
-      id: p.id,
-      type: p.type,
-      sequence: p.sequence,
-      targetPlayerId: p.targetPlayerId,
-    }))
+    // Tactical sequence - only include move initially (rotate added if facing changes)
+    const tacticalActions: TacticalAction[] = [
+      {
+        id: 'move-panel',
+        type: 'move',
+        sequence: 1,
+      },
+    ]
     setTacticalSequence(tacticalActions)
-  }, [pendingState.tacticalSequence.length]) // Only on length change to avoid infinite loop
+  }, [pendingState.tacticalSequence.length, setTacticalSequence]) // Re-run when length changes from 0
 
   // Reset to defaults when player changes
   useEffect(() => {
@@ -136,6 +136,29 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
       activateScoop,
     })
   }, [actionType, burnIntensity, sectorAdjustment, activateScoop, setMovement])
+
+  // Sync tactical sequence from panels, excluding rotate if facing hasn't changed
+  useEffect(() => {
+    const facingChanged = targetFacing !== player.ship.facing
+
+    const tacticalActions: TacticalAction[] = panels
+      .filter(p => {
+        // Exclude rotation action if facing hasn't changed
+        if (p.type === 'rotate' && !facingChanged) {
+          return false
+        }
+        return true
+      })
+      .map((p, index) => ({
+        id: p.id,
+        type: p.type,
+        sequence: index + 1, // Renumber sequentially
+        targetPlayerId: p.targetPlayerId,
+        destinationWellId: p.destinationWellId,
+      }))
+
+    setTacticalSequence(tacticalActions)
+  }, [panels, targetFacing, player.ship.facing, setTacticalSequence])
 
   const canMovePanel = (id: string, direction: 'up' | 'down'): boolean => {
     const index = panels.findIndex(p => p.id === id)
@@ -173,15 +196,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     // Renumber and apply
     const renumbered = newPanels.map((p, i) => ({ ...p, sequence: i + 1 }))
     setPanels(renumbered)
-
-    // Sync to tactical sequence
-    const tacticalActions: TacticalAction[] = renumbered.map(p => ({
-      id: p.id,
-      type: p.type,
-      sequence: p.sequence,
-      targetPlayerId: p.targetPlayerId,
-    }))
-    setTacticalSequence(tacticalActions)
+    // Tactical sequence will be synced by the effect
   }
 
   const addWeapon = (weaponType: 'fire_laser' | 'fire_railgun' | 'fire_missiles') => {
@@ -192,49 +207,46 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     }
     const newPanels = [...panels, newPanel]
     setPanels(newPanels)
+  }
 
-    // Sync to tactical sequence
-    const tacticalActions: TacticalAction[] = newPanels.map(p => ({
-      id: p.id,
-      type: p.type,
-      sequence: p.sequence,
-      targetPlayerId: p.targetPlayerId,
-    }))
-    setTacticalSequence(tacticalActions)
+  const addWellTransfer = () => {
+    const newPanel: ActionPanel = {
+      id: `well_transfer-${Date.now()}`,
+      type: 'well_transfer',
+      sequence: panels.length + 1,
+    }
+    const newPanels = [...panels, newPanel]
+    setPanels(newPanels)
   }
 
   const removeWeapon = (id: string) => {
     const filtered = panels.filter(p => p.id !== id)
     const renumbered = filtered.map((p, i) => ({ ...p, sequence: i + 1 }))
     setPanels(renumbered)
-
-    // Sync to tactical sequence
-    const tacticalActions: TacticalAction[] = renumbered.map(p => ({
-      id: p.id,
-      type: p.type,
-      sequence: p.sequence,
-      targetPlayerId: p.targetPlayerId,
-    }))
-    setTacticalSequence(tacticalActions)
   }
 
   const updateWeaponTarget = (id: string, targetPlayerId: string) => {
     const updated = panels.map(p => (p.id === id ? { ...p, targetPlayerId } : p))
     setPanels(updated)
+  }
 
-    // Sync to tactical sequence
-    const tacticalActions: TacticalAction[] = updated.map(p => ({
-      id: p.id,
-      type: p.type,
-      sequence: p.sequence,
-      targetPlayerId: p.targetPlayerId,
-    }))
-    setTacticalSequence(tacticalActions)
+  const updateWellTransferDestination = (id: string, destinationWellId: string) => {
+    const updated = panels.map(p => (p.id === id ? { ...p, destinationWellId } : p))
+    setPanels(updated)
   }
 
   const handleExecuteTurn = () => {
     executeTurn()
   }
+
+  // Get available well transfers
+  const availableWellTransfers = getAvailableWellTransfers(
+    ship.wellId,
+    ship.ring,
+    ship.sector,
+    gameState.transferPoints
+  )
+  const currentWellName = getWellName(ship.wellId, gameState.gravityWells)
 
   // Validation
   const validationErrors: string[] = []
@@ -250,6 +262,12 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     validationErrors.push('All weapon actions must have a target selected')
   }
 
+  const wellTransferPanels = panels.filter(p => p.type === 'well_transfer')
+  const wellTransferPanelsWithoutDestination = wellTransferPanels.filter(p => !p.destinationWellId)
+  if (wellTransferPanelsWithoutDestination.length > 0) {
+    validationErrors.push('All well transfer actions must have a destination selected')
+  }
+
   const getPanelColor = (type: PanelType): string => {
     if (type === 'rotate') return 'rgba(33, 150, 243, 0.1)' // Blue
     if (type === 'move') return 'rgba(76, 175, 80, 0.1)' // Green
@@ -260,7 +278,17 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     return type === 'fire_laser' || type === 'fire_railgun' || type === 'fire_missiles'
   }
 
-  const enemyPlayers = allPlayers.filter(p => p.id !== player.id && p.ship.hitPoints > 0)
+  const isRemovablePanel = (type: PanelType): boolean => {
+    return (
+      type === 'fire_laser' ||
+      type === 'fire_railgun' ||
+      type === 'fire_missiles' ||
+      type === 'well_transfer'
+    )
+  }
+
+  // Enemy players for targeting
+  // const enemyPlayers = allPlayers.filter(p => p.id !== player.id && p.ship.hitPoints > 0)
 
   // Check which weapons can be added
   const hasLaser = panels.some(p => p.type === 'fire_laser')
@@ -337,7 +365,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
       </Box>
 
       {/* Reorderable Action Panels */}
-      {panels.map((panel, index) => (
+      {panels.map(panel => (
         <Paper
           key={panel.id}
           elevation={2}
@@ -418,8 +446,8 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
             </IconButton>
           </Box>
 
-          {/* Delete Button - Bottom Right (only for weapons) */}
-          {isWeaponPanel(panel.type) && (
+          {/* Delete Button - Bottom Right (only for weapons and well transfers) */}
+          {isRemovablePanel(panel.type) && (
             <IconButton
               size="small"
               onClick={() => removeWeapon(panel.id)}
@@ -792,9 +820,94 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                   </Box>
                 )
               })()}
+
+            {panel.type === 'well_transfer' && (
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: '8px',
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>
+                    Gravity Well Transfer
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block', mb: 1 }}
+                  >
+                    Current Well: {currentWellName}
+                  </Typography>
+                </Box>
+
+                {availableWellTransfers.length > 0 ? (
+                  <select
+                    value={panel.destinationWellId || ''}
+                    onChange={e => updateWellTransferDestination(panel.id, e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: '4px',
+                      border: panel.destinationWellId
+                        ? '2px solid rgba(76, 175, 80, 0.5)'
+                        : '2px solid rgba(244, 67, 54, 0.5)',
+                      backgroundColor: 'rgba(0,0,0,0.3)',
+                      color: 'white',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    <option value="" style={{ backgroundColor: '#1a1a1a' }}>
+                      Select Destination
+                    </option>
+                    {availableWellTransfers.map(transfer => {
+                      const destWellName = getWellName(transfer.toWellId, gameState.gravityWells)
+                      return (
+                        <option
+                          key={transfer.toWellId}
+                          value={transfer.toWellId}
+                          style={{ backgroundColor: '#1a1a1a' }}
+                        >
+                          Transfer to {destWellName}
+                        </option>
+                      )
+                    })}
+                  </select>
+                ) : (
+                  <Typography variant="caption" color="error.main">
+                    No transfer points available (must be on Ring 5 at a transfer sector)
+                  </Typography>
+                )}
+              </Box>
+            )}
           </Box>
         </Paper>
       ))}
+
+      {/* Add Well Transfer Button */}
+      {availableWellTransfers.length > 0 && !panels.some(p => p.type === 'well_transfer') && (
+        <Paper sx={{ p: 2 }}>
+          <Typography
+            variant="caption"
+            fontWeight="bold"
+            gutterBottom
+            sx={{ display: 'block', mb: 1 }}
+          >
+            Gravity Well Transfer:
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={addWellTransfer}
+            sx={{ fontSize: '0.75rem' }}
+          >
+            Initiate Well Transfer
+          </Button>
+        </Paper>
+      )}
 
       {/* Add Weapon Buttons */}
       {(canAddLaser || canAddRailgun || canAddMissiles) && (
@@ -842,6 +955,27 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
               </Button>
             )}
           </Box>
+        </Paper>
+      )}
+
+      {/* Turn Execution Errors */}
+      {turnErrors.length > 0 && (
+        <Paper sx={{ p: 2, bgcolor: '#2a1515', border: '2px solid', borderColor: 'error.main' }}>
+          <Stack spacing={1}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="h6" sx={{ color: '#ff6b6b', fontWeight: 'bold' }}>
+                Turn Execution Failed
+              </Typography>
+              <Button size="small" onClick={clearTurnErrors} sx={{ color: '#ffa8a8' }}>
+                Dismiss
+              </Button>
+            </Box>
+            {turnErrors.map((error, index) => (
+              <Typography key={index} variant="body2" sx={{ color: '#ffcccc', pl: 1 }}>
+                • {error}
+              </Typography>
+            ))}
+          </Stack>
         </Paper>
       )}
 

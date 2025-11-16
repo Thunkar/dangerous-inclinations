@@ -17,6 +17,7 @@ function createTestPlayer(id: string, name: string, ring: number, sector: number
     name,
     color: '#ffffff',
     ship: {
+      wellId: 'blackhole',
       ring,
       sector,
       facing,

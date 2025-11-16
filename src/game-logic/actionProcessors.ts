@@ -9,8 +9,9 @@ import type {
   DeallocateEnergyAction,
   VentHeatAction,
   FireWeaponAction,
+  WellTransferAction,
 } from '../types/game'
-import { applyOrbitalMovement, initiateBurn, applyRotation } from './movement'
+import { applyOrbitalMovement, initiateBurn, applyRotation, initiateWellTransfer } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
 import { BURN_COSTS } from '../constants/rings'
@@ -36,7 +37,7 @@ function validateActionSequence(actions: PlayerAction[]): string[] {
 
   // Filter tactical actions that should have sequences
   const tacticalActions = actions.filter(a =>
-    a.type === 'rotate' || a.type === 'coast' || a.type === 'burn' || a.type === 'fire_weapon'
+    a.type === 'rotate' || a.type === 'coast' || a.type === 'burn' || a.type === 'fire_weapon' || a.type === 'well_transfer'
   )
 
   if (tacticalActions.length === 0) {
@@ -269,6 +270,38 @@ function validateFireWeaponAction(gameState: GameState, action: FireWeaponAction
   return errors
 }
 
+function validateWellTransferAction(gameState: GameState, action: WellTransferAction): string[] {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const errors: string[] = []
+
+  // Ship must be on Ring 5
+  if (player.ship.ring !== 5) {
+    errors.push('Well transfers can only be initiated from Ring 5')
+    return errors
+  }
+
+  // Ship cannot already be in transfer
+  if (player.ship.transferState) {
+    errors.push('Cannot initiate well transfer while already in transfer')
+    return errors
+  }
+
+  // Check if a transfer point exists from current position to destination
+  const transferPoint = gameState.transferPoints.find(tp =>
+    tp.fromWellId === player.ship.wellId &&
+    tp.fromSector === player.ship.sector &&
+    tp.toWellId === action.data.destinationWellId
+  )
+
+  if (!transferPoint) {
+    errors.push('No transfer point available from current position to destination well')
+    return errors
+  }
+
+  return errors
+}
+
 /**
  * Process all actions for the active player in the correct order
  *
@@ -338,7 +371,7 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
   // PHASE 2: Tactical Actions (user-specified order via sequence field)
 
   const tacticalActions = actions
-    .filter(a => a.type === 'rotate' || a.type === 'coast' || a.type === 'burn' || a.type === 'fire_weapon')
+    .filter(a => a.type === 'rotate' || a.type === 'coast' || a.type === 'burn' || a.type === 'fire_weapon' || a.type === 'well_transfer')
     .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
 
   for (const action of tacticalActions) {
@@ -361,6 +394,11 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
       if (!weaponResult.success) return weaponResult
       currentGameState = weaponResult.gameState
       logEntries.push(...weaponResult.logEntries)
+    } else if (action.type === 'well_transfer') {
+      const wellTransferResult = validateAndProcessActions(currentGameState, [action as WellTransferAction], validateWellTransferAction, processWellTransfer)
+      if (!wellTransferResult.success) return wellTransferResult
+      currentGameState = wellTransferResult.gameState
+      logEntries.push(...wellTransferResult.logEntries)
     }
   }
 
@@ -627,6 +665,44 @@ function processVentHeat(gameState: GameState, action: VentHeatAction): ProcessR
       playerName: player.name,
       action: 'Vent Heat',
       result: `Vented ${action.data.amount} heat (${updatedShip.heat.currentHeat} remaining)`,
+    },
+  ]
+
+  return {
+    success: true,
+    gameState: { ...gameState, players: updatedPlayers },
+    logEntries,
+  }
+}
+
+/**
+ * Process well transfer action (initiate transfer between gravity wells)
+ */
+function processWellTransfer(gameState: GameState, action: WellTransferAction): ProcessResult {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+
+  // Initiate the well transfer
+  const updatedShip = initiateWellTransfer(
+    player.ship,
+    action.data.destinationWellId,
+    action.data.destinationSector
+  )
+
+  const updatedPlayers = [...gameState.players]
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+
+  // Get well names for logging
+  const fromWell = gameState.gravityWells.find(w => w.id === player.ship.wellId)
+  const toWell = gameState.gravityWells.find(w => w.id === action.data.destinationWellId)
+
+  const logEntries: TurnLogEntry[] = [
+    {
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Well Transfer',
+      result: `Initiated transfer from ${fromWell?.name || player.ship.wellId} to ${toWell?.name || action.data.destinationWellId}`,
     },
   ]
 

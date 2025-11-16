@@ -1,4 +1,4 @@
-import type { ShipState, PlayerAction } from '../types/game'
+import type { ShipState, PlayerAction, GravityWellId, TransferPoint } from '../types/game'
 import { getRingConfig, BURN_COSTS, mapSectorOnTransfer } from '../constants/rings'
 
 /**
@@ -58,14 +58,72 @@ export function initiateBurn(
 }
 
 /**
+ * Pure function to initiate a well transfer
+ * Returns new ship state with well transfer initiated
+ *
+ * Well transfers are FREE (no reaction mass/energy cost) and take 1 turn
+ * They can only be initiated from Ring 5 at a transfer point sector
+ */
+export function initiateWellTransfer(
+  ship: ShipState,
+  destinationWellId: GravityWellId,
+  destinationSector: number
+): ShipState {
+  return {
+    ...ship,
+    transferState: {
+      destinationRing: 5, // Always Ring 5 to Ring 5
+      destinationWellId,
+      destinationSector,
+      sectorAdjustment: 0,
+      arriveNextTurn: true,
+      isWellTransfer: true,
+    },
+  }
+}
+
+/**
  * Pure function to complete a transfer
  * Returns new ship state at destination ring/sector with transfer cleared
+ * Handles both ring transfers (within same well) and well transfers (between wells)
+ *
+ * @param ship - Current ship state
+ * @param transferPoints - Optional transfer points (required for well transfers)
+ * @returns Updated ship state
  */
-export function completeTransfer(ship: ShipState): ShipState {
+export function completeTransfer(ship: ShipState, transferPoints?: TransferPoint[]): ShipState {
   if (!ship.transferState) {
     return ship
   }
 
+  // Handle well transfer (between gravity wells)
+  if (ship.transferState.isWellTransfer && ship.transferState.destinationWellId) {
+    // Find the transfer point to get the correct destination sector
+    const transferPoint = transferPoints?.find(tp =>
+      tp.fromWellId === ship.wellId &&
+      tp.toWellId === ship.transferState!.destinationWellId
+    )
+
+    if (!transferPoint) {
+      // Transfer point no longer exists (planet moved)
+      // Cancel transfer and return ship to original position
+      console.warn('Well transfer failed: transfer point no longer exists')
+      return {
+        ...ship,
+        transferState: null,
+      }
+    }
+
+    return {
+      ...ship,
+      wellId: ship.transferState.destinationWellId,
+      ring: transferPoint.toRing,
+      sector: transferPoint.toSector,
+      transferState: null,
+    }
+  }
+
+  // Handle normal ring transfer (within same gravity well)
   const oldRing = ship.ring
   const newRing = ship.transferState.destinationRing
   const baseSector = mapSectorOnTransfer(oldRing, newRing, ship.sector)

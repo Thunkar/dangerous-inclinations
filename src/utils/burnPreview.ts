@@ -21,7 +21,7 @@ export function calculateBurnDestination(
   }
 
   const burnCost = BURN_COSTS[action.data.burnIntensity]
-  const burnDirection = action.targetFacing || ship.facing
+  const burnDirection = ship.facing // Use ship's current facing
   const ringConfig = getRingConfig(ship.ring)
 
   if (!ringConfig) {

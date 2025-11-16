@@ -29,6 +29,7 @@ export function createTestGameState(): GameState {
     name: 'Alpha',
     color: '#ff0000',
     ship: {
+      wellId: 'blackhole',
       ring: INITIAL_RING,
       sector: INITIAL_SECTOR,
       facing: INITIAL_FACING,
@@ -47,6 +48,7 @@ export function createTestGameState(): GameState {
     name: 'Beta',
     color: '#0000ff',
     ship: {
+      wellId: 'blackhole',
       ring: PLAYER2_RING,
       sector: PLAYER2_SECTOR,
       facing: INITIAL_FACING,
@@ -65,5 +67,7 @@ export function createTestGameState(): GameState {
     activePlayerIndex: 0,
     players: [player1, player2],
     turnLog: [],
+    gravityWells: [],
+    transferPoints: [],
   }
 }

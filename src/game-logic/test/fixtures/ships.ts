@@ -51,6 +51,7 @@ export function createTestShip(overrides: Partial<ShipState> = {}): ShipState {
   ]
 
   return {
+    wellId: 'blackhole',
     ring: 3,
     sector: 0,
     facing: 'prograde',
