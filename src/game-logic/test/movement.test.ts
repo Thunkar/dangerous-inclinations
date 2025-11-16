@@ -26,9 +26,9 @@ describe('Multi-Turn Movement', () => {
     it('should initiate transfer on turn 1 and complete it on turn 2', () => {
       let gameState = createTestGameState()
 
-      // Turn 1: Player 1 allocates energy and burns to transfer to ring 5
+      // Turn 1: Player 1 allocates energy and burns to transfer to ring 4 (max ring for black hole)
       const allocateAction = createAllocateEnergyAction('engines', 2, 'player1')
-      const burnAction = createBurnAction('medium', 'prograde', 0, 'player1')
+      const burnAction = createBurnAction('light', 'prograde', 0, 'player1') // Light burn: +1 ring
 
       let result = executeTurnWithActions(gameState, allocateAction, burnAction)
       gameState = result.gameState
@@ -36,8 +36,8 @@ describe('Multi-Turn Movement', () => {
       // After turn 1, player 1 should be in transfer
       const player1AfterBurn = gameState.players[0]
       expect(player1AfterBurn.ship.transferState).not.toBeNull()
-      expect(player1AfterBurn.ship.transferState?.destinationRing).toBe(5) // Ring 3 + 2
-      expect(player1AfterBurn.ship.reactionMass).toBe(INITIAL_REACTION_MASS - 2)
+      expect(player1AfterBurn.ship.transferState?.destinationRing).toBe(4) // Ring 3 + 1 = Ring 4
+      expect(player1AfterBurn.ship.reactionMass).toBe(INITIAL_REACTION_MASS - 1) // Light burn costs 1
 
       // After player 1's turn, it's player 2's turn (activePlayerIndex = 1)
       expect(gameState.activePlayerIndex).toBe(1)
@@ -51,10 +51,10 @@ describe('Multi-Turn Movement', () => {
       expect(gameState.turn).toBe(2)
       expect(gameState.activePlayerIndex).toBe(0)
       expect(gameState.players[0].ship.transferState).toBeNull()
-      expect(gameState.players[0].ship.ring).toBe(5)
-      // Sector should be mapped from ring 3 (24 sectors) to ring 5 (96 sectors)
-      // Sector 1 on ring 3 maps to sector 7 on ring 5 (no additional movement yet)
-      expect(gameState.players[0].ship.sector).toBe(7)
+      expect(gameState.players[0].ship.ring).toBe(4)
+      // Sector should stay the same (1:1 mapping with uniform 24 sectors)
+      // Player started at sector 0, moved 2 sectors (Ring 3 velocity=2) during burn turn
+      expect(gameState.players[0].ship.sector).toBe(2)
     })
 
     it('should handle retrograde burn and transfer completion', () => {
@@ -68,7 +68,7 @@ describe('Multi-Turn Movement', () => {
       let result = executeTurnWithActions(gameState, allocateAction, burnAction)
       gameState = result.gameState
 
-      // Should be in transfer to ring 2
+      // Should be in transfer to ring 2 (Ring 3 - 1)
       expect(gameState.players[0].ship.transferState?.destinationRing).toBe(2)
 
       // Player 2 coasts
@@ -81,22 +81,24 @@ describe('Multi-Turn Movement', () => {
 
       expect(gameState.players[0].ship.transferState).toBeNull()
       expect(gameState.players[0].ship.ring).toBe(2)
-      // Sector should be mapped from ring 3 (24 sectors) to ring 2 (12 sectors)
-      // Starting from sector 1 (after orbital movement) on ring 3
-      expect(gameState.players[0].ship.sector).toBe(1) // Sector 1 / 2 rounded forward = 1
+      // Movement trace:
+      // Turn 1: Start at sector 0, move 2 sectors (Ring 3 velocity=2) → sector 2, then transfer initiated
+      // Turn 2: Transfer completes (Ring 3→Ring 2, 1:1 mapping keeps sector at 2), then coast moves 4 sectors (Ring 2 velocity=4) → sector 6
+      expect(gameState.players[0].ship.sector).toBe(6)
     })
 
-    it('should handle transfer with sector adjustment', () => {
+    it('should handle transfer without sector adjustment (removed feature)', () => {
       let gameState = createTestGameState()
 
-      // Turn 1: Allocate energy and burn with sector adjustment
+      // Turn 1: Allocate energy and burn (no sector adjustment in new system)
       const allocateAction = createAllocateEnergyAction('engines', 1)
-      const burnAction = createBurnAction('light', 'prograde', 1) // +1 sector adjustment
+      const burnAction = createBurnAction('light', 'prograde', 0) // No sector adjustment
       let result = executeTurnWithActions(gameState, allocateAction, burnAction)
       gameState = result.gameState
 
+      // Sector adjustment should be 0 (feature removed)
       const sectorAdjustment = gameState.players[0].ship.transferState?.sectorAdjustment
-      expect(sectorAdjustment).toBe(1)
+      expect(sectorAdjustment).toBe(0)
 
       // Advance to next turn (player 2)
       result = executeTurnWithActions(gameState, createCoastAction())
@@ -106,12 +108,13 @@ describe('Multi-Turn Movement', () => {
       result = executeTurnWithActions(gameState, createCoastAction())
       gameState = result.gameState
 
-      // Transfer should be complete and sector adjustment should have been applied
+      // Transfer should be complete with 1:1 sector mapping
       expect(gameState.players[0].ship.transferState).toBeNull()
       expect(gameState.players[0].ship.ring).toBe(4)
-      // Sector should be mapped from ring 3 (24 sectors) to ring 4 (48 sectors)
-      // Sector 1 on ring 3 maps to sector 3, +1 adjustment = 4, +1 orbital movement on coast = 5
-      expect(gameState.players[0].ship.sector).toBe(5)
+      // Movement trace:
+      // Turn 1: Start at sector 0, move 2 sectors (Ring 3 velocity=2) → sector 2, then transfer initiated
+      // Turn 2: Transfer completes (Ring 3→Ring 4, 1:1 mapping keeps sector at 2), then coast moves 1 sector (Ring 4 velocity=1) → sector 3
+      expect(gameState.players[0].ship.sector).toBe(3)
     })
 
     it('should allow coasting without rotation when already facing the desired direction', () => {
@@ -127,7 +130,8 @@ describe('Multi-Turn Movement', () => {
       expect(result.errors).toBeUndefined()
 
       // Ship should have moved orbitally
-      expect(gameState.players[0].ship.sector).toBe(1) // 0 + 1 orbital movement
+      // Ring 3 has velocity=2, so moves 2 sectors per turn: 0 + 2 = 2
+      expect(gameState.players[0].ship.sector).toBe(2)
       expect(gameState.players[0].ship.facing).toBe('prograde') // Unchanged
       expect(gameState.players[0].ship.ring).toBe(INITIAL_RING) // Unchanged
     })

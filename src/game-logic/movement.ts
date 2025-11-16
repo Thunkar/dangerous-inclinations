@@ -1,16 +1,39 @@
 import type { ShipState, PlayerAction, GravityWellId, TransferPoint } from '../types/game'
 import { getRingConfig, BURN_COSTS, mapSectorOnTransfer } from '../constants/rings'
+import { getGravityWell } from '../constants/gravityWells'
+
+/**
+ * Helper to get max ring number for a gravity well
+ * Black hole has 4 rings, planets have 3 rings
+ */
+function getMaxRingForWell(wellId: GravityWellId): number {
+  const well = getGravityWell(wellId)
+  if (!well) return 4 // Default to black hole
+  return well.rings.length
+}
 
 /**
  * Pure function to calculate orbital movement for a ship
  * Returns new ship state with updated sector
+ *
+ * Black hole: sectors increment (clockwise visual rotation)
+ * Planets: sectors decrement (counterclockwise visual rotation)
  */
 export function applyOrbitalMovement(ship: ShipState): ShipState {
-  const ringConfig = getRingConfig(ship.ring)
+  // Get well-specific ring configuration (planets and black hole have different velocities)
+  const well = getGravityWell(ship.wellId)
+  if (!well) {
+    return ship
+  }
+
+  const ringConfig = well.rings.find(r => r.ring === ship.ring)
   if (!ringConfig) {
     return ship
   }
 
+  // All orbital movement increments sector numbers
+  // The visual rotation direction is handled by the rendering (direction multiplier)
+  // Sector numbers always increment regardless of well type
   const newSector = (ship.sector + ringConfig.velocity) % ringConfig.sectors
 
   return {
@@ -43,15 +66,16 @@ export function initiateBurn(
   const direction = burnDirection === 'prograde' ? 1 : -1
   const destinationRing = ship.ring + direction * burnCost.rings
 
-  // Clamp to valid ring range (1-5)
-  const clampedDestination = Math.max(1, Math.min(5, destinationRing))
+  // Clamp to valid ring range (1 to max rings for this well)
+  const maxRing = getMaxRingForWell(ship.wellId)
+  const clampedDestination = Math.max(1, Math.min(maxRing, destinationRing))
 
   return {
     ...ship,
     reactionMass: ship.reactionMass - burnCost.mass,
     transferState: {
       destinationRing: clampedDestination,
-      sectorAdjustment: action.data.sectorAdjustment,
+      sectorAdjustment: 0, // No sector adjustment - land exactly at mapped sector
       arriveNextTurn: true,
     },
   }
@@ -62,17 +86,23 @@ export function initiateBurn(
  * Returns new ship state with well transfer initiated
  *
  * Well transfers are FREE (no reaction mass/energy cost) and take 1 turn
- * They can only be initiated from Ring 5 at a transfer point sector
+ * They can only be initiated from outermost rings:
+ * - Black hole Ring 4 → Planet Ring 3
+ * - Planet Ring 3 → Black hole Ring 4
  */
 export function initiateWellTransfer(
   ship: ShipState,
   destinationWellId: GravityWellId,
   destinationSector: number
 ): ShipState {
+  // Get destination well's outermost ring
+  const destinationWell = getGravityWell(destinationWellId)
+  const destinationRing = destinationWell ? destinationWell.rings[destinationWell.rings.length - 1].ring : ship.ring
+
   return {
     ...ship,
     transferState: {
-      destinationRing: 5, // Always Ring 5 to Ring 5
+      destinationRing, // Outermost ring of destination well
       destinationWellId,
       destinationSector,
       sectorAdjustment: 0,
@@ -114,11 +144,16 @@ export function completeTransfer(ship: ShipState, transferPoints?: TransferPoint
       }
     }
 
+    // Facing is preserved because planets have reversed sector numbering
+    // When transferring between wells, the sector numbering reverses to preserve
+    // the directional meaning: a ship moving prograde continues moving prograde
+
     return {
       ...ship,
       wellId: ship.transferState.destinationWellId,
       ring: transferPoint.toRing,
       sector: transferPoint.toSector,
+      // Facing remains the same - sector numbering handles the reversal
       transferState: null,
     }
   }

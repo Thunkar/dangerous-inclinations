@@ -141,59 +141,28 @@ function calculateSingleTarget(
 /**
  * Check if target is in sector overlap range for broadside/turret weapons
  *
- * Broadside weapons fire radially from the attacker's sector outward.
- * A target is in range if their sector on the target ring overlaps with
- * the angular projection of the attacker's sector.
+ * With uniform 24-sector rings, broadside weapons use simple sector arithmetic:
+ * - Target must be at attacker's sector ±sectorRange
+ * - Example: sectorRange=1 means target can be at sectors [attacker-1, attacker, attacker+1]
  *
- * Process:
- * 1. Project the attacker's sector boundaries onto the target ring
- * 2. Find which sectors on the target ring overlap with this projection
- * 3. Check if target is in one of these overlapping sectors
- *
- * Note: sectorRange parameter is currently unused as the visualization
- * only shows geometric sector overlap. May be used for future features.
+ * This creates a ±1 sector spread for broadside weapons, providing better
+ * tactical flexibility compared to the old angular overlap system.
  */
 function checkSectorOverlap(
   attackerShip: ShipState,
   attackerRingConfig: { sectors: number },
   targetShip: ShipState,
-  targetRingConfig: { sectors: number },
-  _sectorRange: number
+  _targetRingConfig: { sectors: number },
+  sectorRange: number
 ): boolean {
-  // Calculate attacker's sector boundaries (start and end angles)
-  const attackerStartAngle = (attackerShip.sector / attackerRingConfig.sectors) * 2 * Math.PI
-  const attackerEndAngle = ((attackerShip.sector + 1) / attackerRingConfig.sectors) * 2 * Math.PI
-
-  // Calculate target sector size
-  const targetSectorSize = (2 * Math.PI) / targetRingConfig.sectors
-
-  // Project attacker's sector boundaries onto target ring to find overlapping sectors
-  // Find first sector that overlaps with attacker's range
-  const firstSectorIndex = Math.floor(attackerStartAngle / targetSectorSize) % targetRingConfig.sectors
-
-  // Find last sector that overlaps with attacker's range
-  // Use epsilon to handle floating point precision
-  const epsilon = 1e-10
-  const endSectorRaw = attackerEndAngle / targetSectorSize
-  const fractionalPart = endSectorRaw - Math.floor(endSectorRaw)
-
-  // If we're very close to a sector boundary, don't include the next sector
-  const lastSectorIndex = fractionalPart < epsilon
-    ? (Math.floor(endSectorRaw) - 1 + targetRingConfig.sectors) % targetRingConfig.sectors
-    : Math.floor(endSectorRaw) % targetRingConfig.sectors
-
-  // The valid sectors are those that overlap with the attacker's sector projection
-  // sectorRange is not used for expansion - it's handled elsewhere if needed
-  const minSector = firstSectorIndex
-  const maxSector = lastSectorIndex
-
-  // Check if target sector is in this range
-  // Handle wraparound case
-  if (minSector <= maxSector) {
-    // Range doesn't wrap around 0
-    return targetShip.sector >= minSector && targetShip.sector <= maxSector
-  } else {
-    // Range wraps around 0
-    return targetShip.sector >= minSector || targetShip.sector <= maxSector
+  // Since all rings now have 24 sectors, we can use simple sector arithmetic
+  // Calculate the shortest sector distance (accounting for wrap-around)
+  let sectorDistance = Math.abs(targetShip.sector - attackerShip.sector)
+  const halfSectors = attackerRingConfig.sectors / 2
+  if (sectorDistance > halfSectors) {
+    sectorDistance = attackerRingConfig.sectors - sectorDistance
   }
+
+  // Target is in range if within ±sectorRange sectors
+  return sectorDistance <= sectorRange
 }

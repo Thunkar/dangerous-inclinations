@@ -178,6 +178,13 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
       return false
     }
 
+    // Check if well_transfer comes before movement
+    const wellTransferIdx = newPanels.findIndex(p => p.type === 'well_transfer')
+
+    if (wellTransferIdx !== -1 && moveIdx !== -1 && wellTransferIdx > moveIdx) {
+      return false
+    }
+
     return true
   }
 
@@ -210,16 +217,53 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   }
 
   const addWellTransfer = () => {
-    const newPanel: ActionPanel = {
-      id: `well_transfer-${Date.now()}`,
-      type: 'well_transfer',
-      sequence: panels.length + 1,
+    // Well transfer must be inserted before the move panel
+    const moveIndex = panels.findIndex(p => p.type === 'move')
+
+    if (moveIndex === -1) {
+      // No move panel found, add at end (shouldn't happen in normal flow)
+      const newPanel: ActionPanel = {
+        id: `well_transfer-${Date.now()}`,
+        type: 'well_transfer',
+        sequence: panels.length + 1,
+      }
+      setPanels([...panels, newPanel])
+    } else {
+      // Insert before move panel
+      const newPanel: ActionPanel = {
+        id: `well_transfer-${Date.now()}`,
+        type: 'well_transfer',
+        sequence: panels[moveIndex].sequence, // Takes move's sequence number
+      }
+
+      // Insert at move position
+      const newPanels = [
+        ...panels.slice(0, moveIndex),
+        newPanel,
+        ...panels.slice(moveIndex)
+      ]
+
+      // Renumber all panels to maintain continuous sequence
+      const renumbered = newPanels.map((p, i) => ({ ...p, sequence: i + 1 }))
+      setPanels(renumbered)
     }
-    const newPanels = [...panels, newPanel]
-    setPanels(newPanels)
   }
 
   const removeWeapon = (id: string) => {
+    // Find the panel being removed
+    const panelToRemove = panels.find(p => p.id === id)
+
+    // If it's a weapon panel, turn off its range visualization
+    if (panelToRemove) {
+      if (panelToRemove.type === 'fire_laser' && weaponRangeVisibility.laser) {
+        toggleWeaponRange('laser')
+      } else if (panelToRemove.type === 'fire_railgun' && weaponRangeVisibility.railgun) {
+        toggleWeaponRange('railgun')
+      } else if (panelToRemove.type === 'fire_missiles' && weaponRangeVisibility.missiles) {
+        toggleWeaponRange('missiles')
+      }
+    }
+
     const filtered = panels.filter(p => p.id !== id)
     const renumbered = filtered.map((p, i) => ({ ...p, sequence: i + 1 }))
     setPanels(renumbered)
@@ -878,7 +922,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                   </select>
                 ) : (
                   <Typography variant="caption" color="error.main">
-                    No transfer points available (must be on Ring 5 at a transfer sector)
+                    No transfer points available (must be on outermost ring at a transfer sector)
                   </Typography>
                 )}
               </Box>

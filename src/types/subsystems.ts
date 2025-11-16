@@ -18,7 +18,7 @@ export type SubsystemType =
 export interface WeaponStats {
   damage: number
   ringRange: number // How many rings away can be targeted (±ringRange)
-  sectorRange: number // How many sectors "visible" from current sector on target ring
+  sectorRange: number // Sector spread: broadside uses ±sectorRange, turret uses sector visibility count
   arc: 'spinal' | 'broadside' | 'turret' // Firing arc type
   hasRecoil?: boolean // Only for railgun
 }

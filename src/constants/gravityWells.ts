@@ -1,15 +1,36 @@
 import type { GravityWell, RingConfig } from '../types/game'
 
 /**
- * Standard ring configuration used by all gravity wells
- * Each well has 5 rings with velocity = 1
+ * Black hole ring configuration - 4 rings with variable velocity
+ * Inner rings move MUCH faster (dramatic speed differences)
+ * All rings have 24 sectors for consistent granularity
+ *
+ * Spacing strategy:
+ * - Large gap from center to Ring 1 (120 units) for visual separation
+ * - Ring 1 is large (120 unit radius) for comfortable ship placement
+ * - Rings 2-4 have tight 50 unit spacing to maximize Ring 1 size
  */
-export const STANDARD_RINGS: RingConfig[] = [
-  { ring: 1, velocity: 1, radius: 60, sectors: 6 }, // Innermost
-  { ring: 2, velocity: 1, radius: 110, sectors: 12 },
-  { ring: 3, velocity: 1, radius: 160, sectors: 24 },
-  { ring: 4, velocity: 1, radius: 210, sectors: 48 },
-  { ring: 5, velocity: 1, radius: 260, sectors: 96 }, // Outermost - where well transfers occur
+export const BLACKHOLE_RINGS: RingConfig[] = [
+  { ring: 1, velocity: 8, radius: 120, sectors: 24 },  // Innermost - BLAZING FAST (120°/turn)
+  { ring: 2, velocity: 4, radius: 170, sectors: 24 },  // Very Fast (60°/turn)
+  { ring: 3, velocity: 2, radius: 220, sectors: 24 },  // Medium (30°/turn)
+  { ring: 4, velocity: 1, radius: 270, sectors: 24 },  // Slow (15°/turn) - where well transfers occur
+]
+
+/**
+ * Planet ring configuration - 3 rings with variable velocity
+ * Planets are smaller gravity wells, so fewer rings
+ * Doubling progression: 8, 4, 2 (matches black hole's inner 3 rings)
+ *
+ * Spacing strategy:
+ * - Large gap from center to Ring 1 (120 units) for visual separation
+ * - Ring 1 is large (120 unit radius) for comfortable ship placement
+ * - Rings 2-3 have tight 50 unit spacing
+ */
+export const PLANET_RINGS: RingConfig[] = [
+  { ring: 1, velocity: 8, radius: 120, sectors: 24 },  // Innermost - BLAZING FAST (120°/turn)
+  { ring: 2, velocity: 4, radius: 170, sectors: 24 },  // Very Fast (60°/turn)
+  { ring: 3, velocity: 2, radius: 220, sectors: 24 },  // Medium (30°/turn) - where well transfers occur
 ]
 
 /**
@@ -20,15 +41,17 @@ export const BLACK_HOLE: GravityWell = {
   id: 'blackhole',
   name: 'Black Hole',
   type: 'blackhole',
-  rings: STANDARD_RINGS,
+  rings: BLACKHOLE_RINGS,
   color: '#18181B', // Near black
   radius: 30,
 }
 
 /**
  * Planets - Secondary gravity wells at fixed positions relative to black hole
- * Each planet's outermost ring (Ring 5) is tangent to the black hole's Ring 5
+ * Black hole Ring 4 (radius 270) connects to Planet Ring 3 (radius 220)
  * Transfer occurs where they touch
+ *
+ * Distance calculation: blackhole_R4_radius + planet_R3_radius = 270 + 220 = 490
  *
  * Planets orbit so slowly that their positions are effectively static during gameplay
  * (This simplifies tabletop implementation - transfer sectors remain constant)
@@ -37,11 +60,11 @@ export const PLANET_ALPHA: GravityWell = {
   id: 'planet-alpha',
   name: 'Alpha',
   type: 'planet',
-  rings: STANDARD_RINGS,
+  rings: PLANET_RINGS,
   orbitalPosition: {
     angle: 0, // Fixed at 0 degrees (top of circle)
     velocity: 0, // Static position (or orbits too slowly to matter)
-    distance: 520, // Distance from black hole center
+    distance: 490, // Distance from black hole center (270 + 220)
   },
   color: '#3B82F6', // Blue
   radius: 40,
@@ -51,11 +74,11 @@ export const PLANET_BETA: GravityWell = {
   id: 'planet-beta',
   name: 'Beta',
   type: 'planet',
-  rings: STANDARD_RINGS,
+  rings: PLANET_RINGS,
   orbitalPosition: {
     angle: 120, // Fixed at 120 degrees
     velocity: 0, // Static position
-    distance: 520, // Distance from black hole center
+    distance: 490, // Distance from black hole center (270 + 220)
   },
   color: '#EF4444', // Red
   radius: 35,
@@ -65,11 +88,11 @@ export const PLANET_GAMMA: GravityWell = {
   id: 'planet-gamma',
   name: 'Gamma',
   type: 'planet',
-  rings: STANDARD_RINGS,
+  rings: PLANET_RINGS,
   orbitalPosition: {
     angle: 240, // Fixed at 240 degrees
     velocity: 0, // Static position
-    distance: 520, // Distance from black hole center
+    distance: 490, // Distance from black hole center (270 + 220)
   },
   color: '#10B981', // Green
   radius: 35,

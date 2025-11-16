@@ -1,11 +1,19 @@
 import type { RingConfig } from '../types/game'
 
+/**
+ * DEPRECATED: Use well-specific ring configurations from gravityWells.ts
+ * This is kept for backward compatibility but black hole and planets now have different configs
+ *
+ * Black hole: 4 rings (velocities 8,4,2,1) - dramatic doubling
+ * Planets: 3 rings (velocities 4,2,1) - dramatic doubling
+ * All rings: 24 sectors
+ * Spacing: Large Ring 1 (120 units from center), then tight 50 unit gaps between rings
+ */
 export const RING_CONFIGS: RingConfig[] = [
-  { ring: 1, velocity: 1, radius: 60, sectors: 6 }, // 1/6 revolution per turn (largest sectors)
-  { ring: 2, velocity: 1, radius: 110, sectors: 12 }, // 1/12 revolution per turn
-  { ring: 3, velocity: 1, radius: 160, sectors: 24 }, // 1/24 revolution per turn
-  { ring: 4, velocity: 1, radius: 210, sectors: 48 }, // 1/48 revolution per turn
-  { ring: 5, velocity: 1, radius: 260, sectors: 96 }, // 1/96 revolution per turn (smallest sectors)
+  { ring: 1, velocity: 8, radius: 120, sectors: 24 },  // Innermost - BLAZING FAST
+  { ring: 2, velocity: 4, radius: 170, sectors: 24 },  // Very Fast
+  { ring: 3, velocity: 2, radius: 220, sectors: 24 },  // Medium
+  { ring: 4, velocity: 1, radius: 270, sectors: 24 },  // Slow (black hole only)
 ]
 
 export const ENERGY_PER_TURN = 10
@@ -13,10 +21,15 @@ export const MAX_REACTION_MASS = 24
 export const STARTING_REACTION_MASS = 10
 export const SCOOP_ENERGY_COST = 5
 
+/**
+ * Burn costs for ring transfers
+ * Note: Ring changes are now velocity changes (inner rings are faster)
+ * No sector adjustment - you land exactly at the mapped sector
+ */
 export const BURN_COSTS = {
-  light: { energy: 1, mass: 1, rings: 1 },     // Transfer ±1 ring
-  medium: { energy: 2, mass: 2, rings: 2 },    // Transfer ±2 rings
-  heavy: { energy: 3, mass: 3, rings: 3 },     // Transfer ±3 rings
+  light: { energy: 1, mass: 1, rings: 1 },     // Transfer ±1 ring (change velocity by ±1)
+  medium: { energy: 2, mass: 2, rings: 2 },    // Transfer ±2 rings (change velocity by ±2)
+  heavy: { energy: 3, mass: 3, rings: 3 },     // Transfer ±3 rings (change velocity by ±3)
 }
 
 export const ROTATION_ENERGY_COST = 1
@@ -26,44 +39,35 @@ export function getRingConfig(ring: number): RingConfig | undefined {
 }
 
 /**
- * Maps a sector number when transferring between rings with different sector counts.
+ * Maps a sector number when transferring between rings.
  *
- * PERFECT DOUBLING PROGRESSION (5 rings, constant velocity):
- * Ring sectors: 6 → 12 → 24 → 48 → 96 (each ring doubles)
- * Ring velocity: ALL velocity 1 (constant angular velocity)
+ * NEW DESIGN (4 black hole rings, 3 planet rings, variable velocity):
+ * Ring sectors: ALL 24 SECTORS (uniform granularity)
+ * Ring velocities: Black hole (4,3,2,1), Planets (3,2,1)
  *
  * WHY THIS DESIGN:
- * - Uniform velocity means speed differences come ONLY from sector size
- * - Inner rings "feel faster" because they have larger sectors
- * - Outer rings "feel slower" because they have more, smaller sectors
- * - No complex velocity calculations - just 1 sector per turn, always
+ * - Variable velocity means inner rings move FASTER (like real orbital mechanics)
+ * - Uniform sector count (24) makes range calculation simple and predictable
+ * - Ring transfers = velocity changes, not just position changes
+ * - Much better positioning granularity for tactical gameplay
  *
- * Transfer rules (EXTREMELY simple for tabletop):
- * 1. Adjacent rings (all 2× relationship): multiply/divide by 2
- *    - R1 S3 → R2: S6 (3 × 2 = 6)
- *    - R2 S6 → R3: S12 (6 × 2 = 12)
- *    - R3 S12 → R4: S24 (12 × 2 = 24)
- *    - R4 S24 → R5: S48 (24 × 2 = 48)
- *    Reverse: just divide by 2
- *    - R2 S6 → R1: S3 (6 ÷ 2 = 3)
- *    - R3 S12 → R2: S6 (12 ÷ 2 = 6)
- *    - R4 S24 → R3: S12 (24 ÷ 2 = 12)
- *    - R5 S48 → R4: S24 (48 ÷ 2 = 24)
+ * Transfer rules (TRIVIALLY SIMPLE for tabletop):
+ * - All rings have 24 sectors, so sector mapping is 1:1 (same sector number)
+ * - Only angular position matters: you stay at the same angular position
+ * - The tactical change is VELOCITY, not angular offset
  *
- * 2. Non-adjacent: use angular fraction (sector / totalSectors) × newTotal
- *    - R1 S3 → R3: (3/6) × 24 = S12 (half circle → half circle)
- *    - R1 S3 → R5: (3/6) × 96 = S48 (half circle → half circle)
- *    - R2 S6 → R4: (6/12) × 48 = S24 (half circle → half circle)
+ * Example:
+ * - R1 S10 → R2: Land at S10 (same angular position, but now velocity changes from 4 to 3)
+ * - R3 S5 → R1: Land at S5 (same angular position, but now velocity changes from 2 to 4)
  *
- * Movement per turn (ALL rings move 1 sector):
- * - R1: 1/6 revolution = 60° (FASTEST FEEL - huge 60° sectors)
- * - R2: 1/12 revolution = 30° (fast feel - 30° sectors)
- * - R3: 1/24 revolution = 15° (medium feel - 15° sectors)
- * - R4: 1/48 revolution = 7.5° (slow feel - 7.5° sectors)
- * - R5: 1/96 revolution = 3.75° (SLOWEST FEEL - tiny 3.75° sectors)
+ * Movement per turn (variable velocity with dramatic doubling):
+ * - R1: 8 sectors/turn = 120° (BLAZING FAST - extreme risk/reward)
+ * - R2: 4 sectors/turn = 60° (very fast - aggressive positioning)
+ * - R3: 2 sectors/turn = 30° (medium - balanced)
+ * - R4: 1 sector/turn = 15° (slow - safe but predictable)
  *
- * Strategic depth: R1 feels 16× faster than R5 despite same velocity!
- * Perfect for tabletop: "Everyone moves 1 sector, then check slingshot bonus"
+ * Strategic depth: Ring 1 is 8× faster than Ring 4! Inner rings = extreme speed but very hard to control
+ * Perfect for tabletop: "Check your ring card for velocity, move that many sectors"
  */
 export function mapSectorOnTransfer(
   fromRing: number,
@@ -77,19 +81,15 @@ export function mapSectorOnTransfer(
     return 0
   }
 
-  // When transferring between rings with different sector counts, we want to favor
-  // the "most prograde" (forward, clockwise) sector that overlaps with the current sector
+  // All rings have 24 sectors, so mapping is trivial: stay at same sector
+  if (fromConfig.sectors === toConfig.sectors) {
+    return currentSector % toConfig.sectors
+  }
 
-  // Calculate the END of the current sector (not the start or center)
-  // This gives us the most prograde edge of our current position
+  // Fallback for any edge cases (e.g., if configurations differ between wells)
+  // Use angular fraction mapping
   const angularFraction = (currentSector + 1) / fromConfig.sectors
-
-  // Map to destination ring
   const exactPosition = angularFraction * toConfig.sectors
-
-  // Round down to get the sector that contains this angular position
-  // Subtract a tiny epsilon to handle the case where we land exactly on a boundary
-  // (we want the sector just before the boundary, not after)
   const epsilon = 0.0001
   const mappedSector = Math.floor(exactPosition - epsilon) % toConfig.sectors
 

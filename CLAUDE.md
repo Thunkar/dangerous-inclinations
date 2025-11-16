@@ -169,13 +169,31 @@ if (well.orbitalPosition) {
 }
 ```
 
+### Reversed Sector Numbering for Planets (CRITICAL)
+
+**Planets have reversed sector numbering to preserve directional meaning when transferring between gravity wells.**
+
+Gravity wells rotate like gears (opposite directions). To preserve the meaning of prograde/retrograde:
+- **Black hole**: Sectors 0-23 go **clockwise** (normal numbering)
+- **Planets**: Sectors 0-23 go **counterclockwise** (reversed numbering)
+
+This means:
+- Sector 0 remains sector 0 for both (transfer point)
+- Sector 1 in black hole maps to visual sector 23 in planet
+- Sector 2 in black hole maps to visual sector 22 in planet
+- etc.
+
+**Implementation**: `GameBoard.tsx:getVisualSector()` function converts logical sector (game state) to visual sector (rendering).
+
+**Result**: A ship moving prograde (with orbit) in the black hole continues moving prograde (with orbit) in a planet after transfer, without needing to flip the facing label.
+
 ### Transfer Points
 Location: `src/utils/transferPoints.ts`
 
 - Calculated dynamically based on planet positions
 - Black hole sector pointing at planet connects to planet's sector 0 (which points back at black hole)
 - Bidirectional: can transfer from black hole → planet or planet → black hole
-- **Only available on Ring 5** (outermost ring)
+- **Only available on outermost ring** (Black hole Ring 4, Planet Ring 3)
 
 ### Visualization
 Location: `GameBoard.tsx:302-372`

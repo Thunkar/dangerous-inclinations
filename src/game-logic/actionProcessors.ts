@@ -10,13 +10,16 @@ import type {
   VentHeatAction,
   FireWeaponAction,
   WellTransferAction,
+  ShipState,
 } from '../types/game'
-import { applyOrbitalMovement, initiateBurn, applyRotation, initiateWellTransfer } from './movement'
+import { applyOrbitalMovement, initiateBurn, applyRotation } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
 import { BURN_COSTS } from '../constants/rings'
 import { getSubsystemConfig } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
+import { getGravityWell } from '../constants/gravityWells'
+import type { RingConfig } from '../types/game'
 
 export interface ProcessResult {
   success: boolean
@@ -65,6 +68,23 @@ function validateActionSequence(actions: PlayerAction[]): string[] {
     if (sequences[i] !== i + 1) {
       errors.push(`Action sequences must be continuous starting from 1 (expected ${i + 1}, found ${sequences[i]})`)
       break
+    }
+  }
+
+  // Well transfer specific rules
+  const wellTransferAction = tacticalActions.find(a => a.type === 'well_transfer')
+  const burnAction = tacticalActions.find(a => a.type === 'burn')
+  const coastAction = tacticalActions.find(a => a.type === 'coast')
+  const moveAction = burnAction || coastAction
+
+  if (wellTransferAction && burnAction) {
+    errors.push('Cannot burn while initiating a well transfer (burning is disallowed during well transfers)')
+  }
+
+  if (wellTransferAction && moveAction) {
+    // Well transfer must happen before the move action
+    if (wellTransferAction.sequence! > moveAction.sequence!) {
+      errors.push('Well transfer must happen before movement (coast) action')
     }
   }
 
@@ -275,9 +295,16 @@ function validateWellTransferAction(gameState: GameState, action: WellTransferAc
   const player = gameState.players[playerIndex]
   const errors: string[] = []
 
-  // Ship must be on Ring 5
-  if (player.ship.ring !== 5) {
-    errors.push('Well transfers can only be initiated from Ring 5')
+  // Ship must be on outermost ring of current well
+  const currentWell = gameState.gravityWells.find(w => w.id === player.ship.wellId)
+  if (!currentWell) {
+    errors.push('Current gravity well not found')
+    return errors
+  }
+
+  const outermostRing = currentWell.rings[currentWell.rings.length - 1]
+  if (player.ship.ring !== outermostRing.ring) {
+    errors.push(`Well transfers can only be initiated from Ring ${outermostRing.ring} (outermost ring of ${currentWell.name || currentWell.id})`)
     return errors
   }
 
@@ -676,18 +703,59 @@ function processVentHeat(gameState: GameState, action: VentHeatAction): ProcessR
 }
 
 /**
- * Process well transfer action (initiate transfer between gravity wells)
+ * Process well transfer action (complete transfer between gravity wells immediately)
+ * Well transfers happen instantly on the same turn - ship changes wells and moves with destination ring's velocity
  */
 function processWellTransfer(gameState: GameState, action: WellTransferAction): ProcessResult {
   const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
   const player = gameState.players[playerIndex]
 
-  // Initiate the well transfer
-  const updatedShip = initiateWellTransfer(
-    player.ship,
-    action.data.destinationWellId,
-    action.data.destinationSector
+  // Find the transfer point
+  const transferPoint = gameState.transferPoints.find(tp =>
+    tp.fromWellId === player.ship.wellId &&
+    tp.fromSector === player.ship.sector &&
+    tp.toWellId === action.data.destinationWellId
   )
+
+  if (!transferPoint) {
+    return {
+      success: false,
+      gameState,
+      logEntries: [],
+      errors: ['Transfer point no longer available'],
+    }
+  }
+
+  // Get destination well and ring config for orbital movement
+  const destinationWell = getGravityWell(action.data.destinationWellId)
+  if (!destinationWell) {
+    return {
+      success: false,
+      gameState,
+      logEntries: [],
+      errors: ['Destination well not found'],
+    }
+  }
+
+  const destinationRing = destinationWell.rings.find((r: RingConfig) => r.ring === transferPoint.toRing)
+  if (!destinationRing) {
+    return {
+      success: false,
+      gameState,
+      logEntries: [],
+      errors: ['Destination ring not found'],
+    }
+  }
+
+  // Transfer to destination well immediately
+  // Orbital movement will be applied by the movement action (coast/burn) that follows
+  const updatedShip: ShipState = {
+    ...player.ship,
+    wellId: action.data.destinationWellId,
+    ring: transferPoint.toRing,
+    sector: transferPoint.toSector,
+    // Facing is preserved (sector numbering handles direction reversal)
+  }
 
   const updatedPlayers = [...gameState.players]
   updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
@@ -702,7 +770,7 @@ function processWellTransfer(gameState: GameState, action: WellTransferAction): 
       playerId: player.id,
       playerName: player.name,
       action: 'Well Transfer',
-      result: `Initiated transfer from ${fromWell?.name || player.ship.wellId} to ${toWell?.name || action.data.destinationWellId}`,
+      result: `Transferred from ${fromWell?.name || player.ship.wellId} to ${toWell?.name || action.data.destinationWellId} R${updatedShip.ring}S${updatedShip.sector}`,
     },
   ]
 
@@ -755,11 +823,9 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
     }
   }
 
-  // Consume energy from the specific weapon subsystem
+  // Mark weapon subsystem as used this turn
   const weaponSubsystem = player.ship.subsystems.find(s => s.type === action.data.weaponType)
   if (weaponSubsystem) {
-    const totalEnergyCost = weaponConfig.energyCost * action.data.targetPlayerIds.length
-    weaponSubsystem.allocatedEnergy -= totalEnergyCost
     weaponSubsystem.usedThisTurn = true
   }
 

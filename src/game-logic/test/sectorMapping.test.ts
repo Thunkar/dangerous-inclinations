@@ -2,128 +2,110 @@ import { describe, it, expect } from 'vitest'
 import { mapSectorOnTransfer, getRingConfig, RING_CONFIGS } from '../../constants/rings'
 
 describe('Sector Mapping', () => {
-  describe('Adjacent Ring Transfers', () => {
-    it('should map R1→R2 (6→12 sectors)', () => {
-      // Ring 1 sector 0 → Ring 2 should map to sector 0-1 range
+  describe('Ring Transfers (All rings have 24 sectors)', () => {
+    it('should map R1→R2 (24→24 sectors, 1:1 mapping)', () => {
+      // All rings have 24 sectors, so sector number stays the same
       const result = mapSectorOnTransfer(1, 2, 0)
-      expect(result).toBeGreaterThanOrEqual(0)
-      expect(result).toBeLessThan(2)
+      expect(result).toBe(0)
     })
 
     it('should map R1→R2 halfway point', () => {
-      // Ring 1 sector 3 (halfway) → Ring 2 sector 6-7 range (halfway)
-      const result = mapSectorOnTransfer(1, 2, 3)
-      expect(result).toBeGreaterThanOrEqual(6)
-      expect(result).toBeLessThanOrEqual(7)
-    })
-
-    it('should map R2→R3 (12→24 sectors)', () => {
-      // Ring 2 sector 6 → Ring 3 sector 13 (most prograde edge)
-      const result = mapSectorOnTransfer(2, 3, 6)
-      expect(result).toBeGreaterThanOrEqual(12)
-      expect(result).toBeLessThanOrEqual(13)
-    })
-
-    it('should map R3→R4 (24→48 sectors)', () => {
-      // Ring 3 sector 12 → Ring 4 sector 25 (most prograde edge)
-      const result = mapSectorOnTransfer(3, 4, 12)
-      expect(result).toBeGreaterThanOrEqual(24)
-      expect(result).toBeLessThanOrEqual(25)
-    })
-
-    it('should map R4→R5 (48→96 sectors)', () => {
-      // Ring 4 sector 24 → Ring 5 sector 49 (most prograde edge)
-      const result = mapSectorOnTransfer(4, 5, 24)
-      expect(result).toBeGreaterThanOrEqual(48)
-      expect(result).toBeLessThanOrEqual(49)
-    })
-  })
-
-  describe('Reverse Adjacent Ring Transfers', () => {
-    it('should map R2→R1 (12→6 sectors)', () => {
-      // Ring 2 sector 6 → Ring 1 sector 3 (most prograde edge)
-      const result = mapSectorOnTransfer(2, 1, 6)
-      expect(result).toBe(3)
-    })
-
-    it('should map R3→R2 (24→12 sectors)', () => {
-      // Ring 3 sector 12 → Ring 2 sector 6 (most prograde edge)
-      const result = mapSectorOnTransfer(3, 2, 12)
-      expect(result).toBe(6)
-    })
-
-    it('should map R4→R3 (48→24 sectors)', () => {
-      // Ring 4 sector 24 → Ring 3 sector 12 (most prograde edge)
-      const result = mapSectorOnTransfer(4, 3, 24)
+      // Ring 1 sector 12 (halfway) → Ring 2 sector 12 (same sector)
+      const result = mapSectorOnTransfer(1, 2, 12)
       expect(result).toBe(12)
     })
 
-    it('should map R5→R4 (96→48 sectors)', () => {
-      // Ring 5 sector 48 → Ring 4 sector 24 (most prograde edge)
-      const result = mapSectorOnTransfer(5, 4, 48)
-      expect(result).toBe(24)
+    it('should map R2→R3 (24→24 sectors, 1:1 mapping)', () => {
+      // Ring 2 sector 6 → Ring 3 sector 6 (same sector)
+      const result = mapSectorOnTransfer(2, 3, 6)
+      expect(result).toBe(6)
+    })
+
+    it('should map R3→R4 (24→24 sectors, 1:1 mapping)', () => {
+      // Ring 3 sector 12 → Ring 4 sector 12 (same sector)
+      const result = mapSectorOnTransfer(3, 4, 12)
+      expect(result).toBe(12)
+    })
+
+    it('should map any sector to same sector across all rings', () => {
+      // Test several sectors to ensure 1:1 mapping
+      for (let sector = 0; sector < 24; sector++) {
+        expect(mapSectorOnTransfer(1, 2, sector)).toBe(sector)
+        expect(mapSectorOnTransfer(2, 3, sector)).toBe(sector)
+        expect(mapSectorOnTransfer(3, 4, sector)).toBe(sector)
+      }
     })
   })
 
-  describe('Non-Adjacent Ring Transfers', () => {
-    it('should map R1→R3 (6→24 sectors)', () => {
-      // Ring 1 sector 3 (halfway) → Ring 3 around sector 15 (most prograde edge)
-      const result = mapSectorOnTransfer(1, 3, 3)
-      expect(result).toBeGreaterThanOrEqual(14)
-      expect(result).toBeLessThanOrEqual(16)
-    })
-
-    it('should map R1→R4 (6→48 sectors)', () => {
-      // Ring 1 sector 3 (halfway) → Ring 4 around sector 31 (most prograde edge)
-      const result = mapSectorOnTransfer(1, 4, 3)
-      expect(result).toBeGreaterThanOrEqual(30)
-      expect(result).toBeLessThanOrEqual(32)
-    })
-
-    it('should map R1→R5 (6→96 sectors)', () => {
-      // Ring 1 sector 3 (halfway) → Ring 5 around sector 63 (most prograde edge)
-      const result = mapSectorOnTransfer(1, 5, 3)
-      expect(result).toBeGreaterThanOrEqual(62)
-      expect(result).toBeLessThanOrEqual(64)
-    })
-
-    it('should map R5→R1 (96→6 sectors)', () => {
-      // Ring 5 sector 48 (halfway) → Ring 1 sector 3 (most prograde edge)
-      const result = mapSectorOnTransfer(5, 1, 48)
-      expect(result).toBe(3)
-    })
-
-    it('should map R2→R4 (12→48 sectors)', () => {
-      // Ring 2 sector 6 (halfway) → Ring 4 around sector 27 (most prograde edge)
-      const result = mapSectorOnTransfer(2, 4, 6)
-      expect(result).toBeGreaterThanOrEqual(26)
-      expect(result).toBeLessThanOrEqual(28)
-    })
-
-    it('should map R4→R2 (48→12 sectors)', () => {
-      // Ring 4 sector 24 (halfway) → Ring 2 sector 6 (most prograde edge)
-      const result = mapSectorOnTransfer(4, 2, 24)
+  describe('Reverse Transfers (still 1:1 with uniform sectors)', () => {
+    it('should map R2→R1 (24→24 sectors)', () => {
+      // Ring 2 sector 6 → Ring 1 sector 6 (same sector)
+      const result = mapSectorOnTransfer(2, 1, 6)
       expect(result).toBe(6)
+    })
+
+    it('should map R3→R2 (24→24 sectors)', () => {
+      // Ring 3 sector 12 → Ring 2 sector 12 (same sector)
+      const result = mapSectorOnTransfer(3, 2, 12)
+      expect(result).toBe(12)
+    })
+
+    it('should map R4→R3 (24→24 sectors)', () => {
+      // Ring 4 sector 18 → Ring 3 sector 18 (same sector)
+      const result = mapSectorOnTransfer(4, 3, 18)
+      expect(result).toBe(18)
+    })
+
+    it('should map reverse transfers correctly', () => {
+      // Test bidirectional symmetry
+      for (let sector = 0; sector < 24; sector++) {
+        expect(mapSectorOnTransfer(4, 1, sector)).toBe(sector)
+        expect(mapSectorOnTransfer(1, 4, sector)).toBe(sector)
+      }
+    })
+  })
+
+  describe('Multi-Ring Transfers (still 1:1)', () => {
+    it('should map R1→R3 (24→24 sectors)', () => {
+      // Ring 1 sector 15 → Ring 3 sector 15 (same sector)
+      const result = mapSectorOnTransfer(1, 3, 15)
+      expect(result).toBe(15)
+    })
+
+    it('should map R1→R4 (24→24 sectors)', () => {
+      // Ring 1 sector 8 → Ring 4 sector 8 (same sector)
+      const result = mapSectorOnTransfer(1, 4, 8)
+      expect(result).toBe(8)
+    })
+
+    it('should map R2→R4 (24→24 sectors)', () => {
+      // Ring 2 sector 20 → Ring 4 sector 20 (same sector)
+      const result = mapSectorOnTransfer(2, 4, 20)
+      expect(result).toBe(20)
+    })
+
+    it('should map R4→R1 (24→24 sectors)', () => {
+      // Ring 4 sector 5 → Ring 1 sector 5 (same sector)
+      const result = mapSectorOnTransfer(4, 1, 5)
+      expect(result).toBe(5)
     })
   })
 
   describe('Edge Cases and Wraparound', () => {
     it('should handle sector 0 transfer', () => {
       const result = mapSectorOnTransfer(3, 4, 0)
-      expect(result).toBeGreaterThanOrEqual(0)
-      expect(result).toBeLessThan(48)
+      expect(result).toBe(0)
     })
 
     it('should handle last sector transfer from R3', () => {
       const result = mapSectorOnTransfer(3, 4, 23) // Last sector of R3
-      expect(result).toBeGreaterThanOrEqual(0)
-      expect(result).toBeLessThan(48)
+      expect(result).toBe(23)
     })
 
     it('should handle last sector transfer from R5', () => {
-      const result = mapSectorOnTransfer(5, 4, 95) // Last sector of R5
-      expect(result).toBeGreaterThanOrEqual(0)
-      expect(result).toBeLessThan(48)
+      // Ring 5 doesn't exist in new system, test R4
+      const result = mapSectorOnTransfer(4, 3, 23) // Last sector of R4
+      expect(result).toBe(23)
     })
 
     it('should return 0 for invalid from ring', () => {
@@ -141,52 +123,49 @@ describe('Sector Mapping', () => {
     it('should map sector correctly when transferring within same ring', () => {
       // This shouldn't happen in game, but test the math
       const result = mapSectorOnTransfer(3, 3, 12)
-      // Should map to same or very close sector
-      expect(result).toBeGreaterThanOrEqual(11)
-      expect(result).toBeLessThan(13)
+      // Should map to same sector with uniform sector counts
+      expect(result).toBe(12)
     })
   })
 
   describe('Prograde Preference (Most Forward Sector)', () => {
     it('should prefer most prograde sector in overlapping range', () => {
-      // When a sector in ring 1 overlaps multiple sectors in ring 2,
-      // the function should choose the most prograde (forward) one
+      // With uniform 24 sectors, no overlap exists - 1:1 mapping
       const result = mapSectorOnTransfer(1, 2, 0)
-
-      // Ring 1 sector 0 spans from 0° to 60°
-      // Ring 2 has sectors every 30°, so sectors 0 and 1 overlap
-      // Should choose the one closest to the END of R1 sector 0 (most prograde)
-      expect(result).toBeLessThan(2)
+      expect(result).toBe(0)
     })
 
     it('should be consistent with reverse mapping', () => {
-      // Forward and reverse should be consistent
+      // Forward and reverse should be perfectly consistent
       const forward = mapSectorOnTransfer(2, 3, 6)
       const reverse = mapSectorOnTransfer(3, 2, forward)
-
-      // Reverse should map back to same or adjacent sector
-      expect(reverse).toBeGreaterThanOrEqual(5)
-      expect(reverse).toBeLessThanOrEqual(6)
+      expect(reverse).toBe(6)
     })
   })
 
   describe('Ring Configurations', () => {
     it('should have valid ring configs for all rings', () => {
-      for (let ring = 1; ring <= 5; ring++) {
+      // New system: 4 rings only
+      for (let ring = 1; ring <= 4; ring++) {
         const config = getRingConfig(ring)
         expect(config).toBeDefined()
         expect(config?.ring).toBe(ring)
-        expect(config?.velocity).toBe(1) // All rings have velocity 1
-        expect(config?.sectors).toBeGreaterThan(0)
+        expect(config?.sectors).toBe(24) // All rings have 24 sectors
       }
     })
 
-    it('should have doubling sector progression', () => {
-      // Each ring should have double the sectors of the previous
-      expect(RING_CONFIGS[1].sectors).toBe(RING_CONFIGS[0].sectors * 2) // 12 = 6*2
-      expect(RING_CONFIGS[2].sectors).toBe(RING_CONFIGS[1].sectors * 2) // 24 = 12*2
-      expect(RING_CONFIGS[3].sectors).toBe(RING_CONFIGS[2].sectors * 2) // 48 = 24*2
-      expect(RING_CONFIGS[4].sectors).toBe(RING_CONFIGS[3].sectors * 2) // 96 = 48*2
+    it('should have variable velocities (dramatic doubling)', () => {
+      // New system: All rings have 24 sectors, but velocities differ dramatically
+      expect(RING_CONFIGS[0].sectors).toBe(24)
+      expect(RING_CONFIGS[1].sectors).toBe(24)
+      expect(RING_CONFIGS[2].sectors).toBe(24)
+      expect(RING_CONFIGS[3].sectors).toBe(24)
+
+      // Velocities should decrease with doubling: 8, 4, 2, 1
+      expect(RING_CONFIGS[0].velocity).toBe(8) // Ring 1 - BLAZING FAST
+      expect(RING_CONFIGS[1].velocity).toBe(4) // Ring 2 - Very Fast
+      expect(RING_CONFIGS[2].velocity).toBe(2) // Ring 3 - Medium
+      expect(RING_CONFIGS[3].velocity).toBe(1) // Ring 4 - Slow
     })
 
     it('should have increasing radii', () => {
@@ -195,39 +174,28 @@ describe('Sector Mapping', () => {
       }
     })
 
-    it('should all have same velocity (constant angular velocity)', () => {
-      RING_CONFIGS.forEach(config => {
-        expect(config.velocity).toBe(1)
-      })
+    it('should have variable velocity (inner rings faster with doubling)', () => {
+      // Velocity decreases with doubling progression as ring number increases
+      for (let i = 1; i < RING_CONFIGS.length; i++) {
+        expect(RING_CONFIGS[i].velocity).toBeLessThan(RING_CONFIGS[i - 1].velocity)
+        // Each ring should be exactly half the speed of the previous ring
+        expect(RING_CONFIGS[i].velocity).toBe(RING_CONFIGS[i - 1].velocity / 2)
+      }
     })
   })
 
   describe('Transfer Accuracy', () => {
     it('should maintain angular position through transfers', () => {
-      // A ship at 0° (sector 0) should remain at ~0° after transfer
+      // With 1:1 sector mapping, angular position is perfectly preserved
       const r1ToR2 = mapSectorOnTransfer(1, 2, 0)
-      const r2Config = getRingConfig(2)!
-
-      // Calculate approximate angles
-      const r1Angle = 0 // Start of sector 0
-      const r2Angle = (r1ToR2 / r2Config.sectors) * 360
-
-      // Should be close to same angle
-      expect(Math.abs(r2Angle - r1Angle)).toBeLessThan(60) // Within one R1 sector width
+      expect(r1ToR2).toBe(0) // Perfect preservation
     })
 
-    it('should preserve approximate angular position in transfers', () => {
-      // A ship at 180° should remain at approximate position after transfer
-      const r1HalfwaySector = 3 // 180° in ring 1
+    it('should preserve exact angular position in transfers', () => {
+      // A ship at any sector should remain at same sector after transfer
+      const r1HalfwaySector = 12 // 180° in ring 1
       const r3Result = mapSectorOnTransfer(1, 3, r1HalfwaySector)
-
-      const r3Config = getRingConfig(3)!
-      const r3Angle = (r3Result / r3Config.sectors) * 360
-
-      // Should be in general vicinity (within reasonable error)
-      // The "most prograde" bias means it will be slightly ahead
-      expect(r3Angle).toBeGreaterThan(150)
-      expect(r3Angle).toBeLessThan(270)
+      expect(r3Result).toBe(12) // Exact preservation
     })
   })
 })

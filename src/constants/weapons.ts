@@ -5,7 +5,12 @@
  * with different sector counts.
  *
  * Ring targeting: Weapons can target adjacent rings (±1) or same ring.
+ *
+ * NOTE: Weapon configurations are defined in subsystems.ts as SUBSYSTEM_CONFIGS.
+ * This file only contains the range calculation logic.
  */
+
+import { SUBSYSTEM_CONFIGS, type SubsystemType } from '../types/subsystems'
 
 export interface WeaponConfig {
   name: string
@@ -16,50 +21,76 @@ export interface WeaponConfig {
   arc: 'forward' | 'broadside' | 'aft' | 'turret'  // Firing arc relative to ship facing
 }
 
+/**
+ * Get weapon configuration from subsystems
+ */
+export function getWeaponConfig(weaponType: SubsystemType): WeaponConfig | undefined {
+  const subsystemConfig = SUBSYSTEM_CONFIGS[weaponType]
+  if (!subsystemConfig?.weaponStats) return undefined
+
+  const stats = subsystemConfig.weaponStats
+
+  // Convert arc from weaponStats format to WeaponConfig format
+  let arc: 'forward' | 'broadside' | 'aft' | 'turret'
+  if (stats.arc === 'spinal') {
+    arc = 'forward'
+  } else if (stats.arc === 'broadside') {
+    arc = 'broadside'
+  } else if (stats.arc === 'turret') {
+    arc = 'turret'
+  } else {
+    arc = 'forward'
+  }
+
+  // Calculate rangeInDegrees from sectorRange
+  // For broadside weapons, this isn't used (sector overlap system)
+  // For spinal weapons (railgun), range is dynamic (2×ring number)
+  // For turret weapons, use sectorRange to calculate degrees
+  let rangeInDegrees = 0
+  if (stats.arc === 'turret') {
+    // For turret: sectorRange of 3 means ±3 sectors visibility
+    // On a 24-sector ring, 3 sectors = 45°
+    rangeInDegrees = (stats.sectorRange / 24) * 360
+  } else if (stats.arc === 'spinal') {
+    // For spinal (railgun): narrow focused beam
+    rangeInDegrees = 45
+  }
+
+  return {
+    name: subsystemConfig.name,
+    energyCost: subsystemConfig.minEnergy,
+    damage: stats.damage,
+    rangeInDegrees,
+    ringRange: stats.ringRange,
+    arc,
+  }
+}
+
+/**
+ * Legacy WEAPONS record for backward compatibility
+ * Dynamically generated from subsystem configs
+ */
 export const WEAPONS: Record<string, WeaponConfig> = {
-  laser: {
-    name: 'Broadside Laser',
-    energyCost: 3,
-    damage: 2,
-    rangeInDegrees: 0,   // Not used for broadside (uses sector overlap instead)
-    ringRange: 1,        // Can target adjacent rings (N-1, N, N+1)
-    arc: 'broadside',    // Fires radially - targets sectors with angular overlap
-  },
-  railgun: {
-    name: 'Railgun',
-    energyCost: 5,
-    damage: 4,
-    rangeInDegrees: 45,  // Narrow, focused beam along tangent
-    ringRange: 0,        // Same ring only - precise shot
-    arc: 'forward',      // Fires tangent to orbit in direction of travel
-  },
-  missiles: {
-    name: 'Missiles',
-    energyCost: 4,
-    damage: 3,
-    rangeInDegrees: 60,  // Moderate arc
-    ringRange: 2,        // Can target 2 rings away
-    arc: 'turret',       // Can fire in any direction
-  },
+  get laser() { return getWeaponConfig('laser')! },
+  get railgun() { return getWeaponConfig('railgun')! },
+  get missiles() { return getWeaponConfig('missiles')! },
 }
 
 /**
  * Calculate if a target is within weapon range.
  *
- * BROADSIDE WEAPONS (NEW SECTOR OVERLAP SYSTEM):
- * Broadside weapons fire radially (perpendicular to orbit) and can only hit ships
- * in sectors that have ANGULAR OVERLAP with your current sector.
+ * BROADSIDE WEAPONS (SIMPLIFIED FOR UNIFORM 24-SECTOR RINGS):
+ * Broadside weapons fire radially (perpendicular to orbit) and can hit ships
+ * at the same sector ±1 on adjacent rings (±1 ring).
  *
- * How sector overlap works:
- * - Each sector covers a specific angular range (e.g., R1 S0 covers 0° to 60°)
- * - Target must be in a sector whose angular range overlaps with yours
- * - This creates a "visibility cone" - you can only hit what you can "see"
+ * With all rings having 24 sectors, broadside targeting is simple:
+ * - Target must be on adjacent ring (ringRange = 1, so ±1 ring)
+ * - Target must be at same sector ±1 (provides spread)
  *
  * Example:
- * Ship A: R1 S0 (covers 0° to 60°)
- * Ship B: R3 S0 (covers 0° to 15°) - OVERLAP! Can hit ✓
- * Ship C: R3 S1 (covers 15° to 30°) - OVERLAP! Can hit ✓
- * Ship D: R3 S5 (covers 75° to 90°) - NO OVERLAP! Cannot hit ✗
+ * Ship at R2S5 can target:
+ * - R1S4, R1S5, R1S6 (inner ring, sector spread)
+ * - R3S4, R3S5, R3S6 (outer ring, sector spread)
  *
  * For NON-BROADSIDE weapons (forward, aft, turret):
  * Uses traditional angular distance and firing arc calculations.
@@ -92,35 +123,35 @@ export function calculateWeaponRange(
     }
   }
 
-  // Special handling for BROADSIDE weapons: sector overlap system
+  // Special handling for BROADSIDE weapons: Simple sector matching for uniform 24-sector rings
+  // Broadside fires radially and can hit adjacent rings at the same sector ±1
   if (weapon.arc === 'broadside') {
-    // Calculate attacker sector's angular range
-    const attackerSectorSize = 360 / attackerSectorCount
-    const attackerStartAngle = attackerSector * attackerSectorSize
-    const attackerEndAngle = (attackerSector + 1) * attackerSectorSize
+    // Since all rings now have 24 sectors, we can use simple sector arithmetic
+    // Broadside can target the same sector ±1 on adjacent rings
+    // Example: Ship at R2S5 can target R1S4, R1S5, R1S6 and R3S4, R3S5, R3S6
 
-    // Calculate target sector's angular range
-    const targetSectorSize = 360 / targetSectorCount
-    const targetStartAngle = targetSector * targetSectorSize
-    const targetEndAngle = (targetSector + 1) * targetSectorSize
+    // Calculate the shortest sector distance (accounting for wrap-around)
+    let sectorDistance = Math.abs(targetSector - attackerSector)
+    const halfSectors = attackerSectorCount / 2
+    if (sectorDistance > halfSectors) {
+      sectorDistance = attackerSectorCount - sectorDistance
+    }
 
-    // Check if sectors overlap (handle wrap-around at 360°)
-    const overlaps =
-      (attackerStartAngle < targetEndAngle && attackerEndAngle > targetStartAngle) ||
-      // Wrap-around case
-      (attackerStartAngle < targetEndAngle + 360 && attackerEndAngle > targetStartAngle + 360) ||
-      (attackerStartAngle + 360 < targetEndAngle && attackerEndAngle + 360 > targetStartAngle)
+    // Broadside can target ±1 sector (so 0 or 1 sector away)
+    const withinSectorRange = sectorDistance <= 1
 
     // Calculate angular distance for display
-    const attackerCenterAngle = attackerStartAngle + attackerSectorSize / 2
-    const targetCenterAngle = targetStartAngle + targetSectorSize / 2
+    const attackerSectorSize = 360 / attackerSectorCount
+    const attackerCenterAngle = (attackerSector + 0.5) * attackerSectorSize
+    const targetSectorSize = 360 / targetSectorCount
+    const targetCenterAngle = (targetSector + 0.5) * targetSectorSize
     let angularDistance = Math.abs(targetCenterAngle - attackerCenterAngle)
     if (angularDistance > 180) angularDistance = 360 - angularDistance
 
     return {
-      inRange: overlaps,
+      inRange: withinSectorRange,
       angularDistance,
-      withinArc: overlaps,
+      withinArc: withinSectorRange,
       degreesFromCenter: 0, // Broadside fires radially
       ringDistance,
     }

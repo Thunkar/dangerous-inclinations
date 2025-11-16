@@ -31,10 +31,10 @@ export function GameBoard({
 }: GameBoardProps) {
   const { weaponRangeVisibility, pendingState, gameState } = useGame()
   // Calculate board size to fit all gravity wells
-  // Planets are at distance 518 from black hole center (Ring 5s barely overlap - 2 unit overlap)
-  // Planet Ring 5 extends outward by 260, so total extent: 518 + 260 = 778 from center
-  // Add 20% padding: 778 * 1.2 = 933.6, so 934 * 2 = 1868 for full view
-  const boardSize = 1868
+  // Planets are at distance 490 from black hole center (BH Ring 4 + Planet Ring 3 = 270 + 220)
+  // Planet Ring 3 extends outward by 220, so total extent: 490 + 220 = 710 from center
+  // Add 30% padding: 710 * 1.3 = 923, so 923 * 2 = 1846 for full view (round to 1850)
+  const boardSize = 1850
   const centerX = boardSize / 2
   const centerY = boardSize / 2
 
@@ -115,25 +115,50 @@ export function GameBoard({
 
     if (well.type === 'blackhole') {
       // Rotate black hole COUNTERCLOCKWISE by half a sector
-      const blackHoleSectors = well.rings[4]?.sectors || 96 // Ring 5
-      return -(Math.PI / blackHoleSectors) // Negative = counterclockwise
+      // Get outermost ring (Ring 4 for black hole)
+      const outermostRing = well.rings[well.rings.length - 1]
+      const sectors = outermostRing?.sectors || 24
+      return -(Math.PI / sectors) // Negative = counterclockwise
     }
 
     // For planets: sector 0 points toward black hole (inward) + rotate CLOCKWISE by half sector
     if (well.orbitalPosition) {
-      const planetSectors = well.rings[4]?.sectors || 96 // Ring 5
+      // Get outermost ring (Ring 3 for planets)
+      const outermostRing = well.rings[well.rings.length - 1]
+      const sectors = outermostRing?.sectors || 24
       const pointInward = ((well.orbitalPosition.angle + 180) * Math.PI) / 180
-      const halfSector = Math.PI / planetSectors // Positive = clockwise
-      return pointInward - halfSector
+      const halfSector = Math.PI / sectors // Positive = clockwise
+      return pointInward + halfSector
     }
 
     return 0
   }
 
+  // Helper: Get sector angle direction multiplier for rendering
+  // Planets rotate counterclockwise (opposite to black hole) to preserve prograde meaning
+  // Sector numbers remain the same (0-23), but angle calculation direction reverses
+  const getSectorAngleDirection = (wellId: string): number => {
+    const well = gameState.gravityWells.find(w => w.id === wellId)
+    if (!well) return 1
+
+    // Planets rotate counterclockwise (-1), black hole rotates clockwise (+1)
+    return well.type === 'planet' ? -1 : 1
+  }
+
+  // Legacy function for compatibility - now just returns sector unchanged
+  // Direction is handled by getSectorAngleDirection multiplier
+  const getVisualSector = (
+    _wellId: string,
+    logicalSector: number,
+    _sectorCount: number
+  ): number => {
+    return logicalSector
+  }
+
   // Calculate scale factor to fit all wells
-  // Maximum extent is from center to furthest point (planet distance + planet Ring 5)
-  // 518 + 260 = 778
-  const maxExtent = 778
+  // Maximum extent is from center to furthest point (planet distance + planet Ring 3)
+  // 490 + 220 = 710
+  const maxExtent = 710
   const padding = 100
   const scaleFactor = (boardSize / 2 - padding) / maxExtent
 
@@ -188,18 +213,24 @@ export function GameBoard({
               {/* Sector tick marks on the ring */}
               {Array.from({ length: config.sectors }).map((_, i) => {
                 // Check if this sector is a transfer point
+                // Transfer points are on the outermost ring (Ring 4 for blackhole, Ring 3 for planets)
+                const outermostRing = well.rings[well.rings.length - 1]
                 const isTransferSector =
-                  config.ring === 5 &&
+                  config.ring === outermostRing.ring &&
                   gameState.transferPoints.some(
                     tp =>
                       (tp.fromWellId === wellId && tp.fromSector === i) ||
                       (tp.toWellId === wellId && tp.toSector === i)
                   )
 
+                // Get angle direction (planets rotate counterclockwise)
+                const direction = getSectorAngleDirection(wellId)
+
                 // Get rotation offset for this well (planets rotate to point sector 0 at black hole)
                 const rotationOffset = getSectorRotationOffset(wellId)
-                // Start angle at top (12 o'clock) and go clockwise, plus rotation offset
-                const angle = (i / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+                // Calculate angle with direction multiplier
+                const angle =
+                  direction * (i / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
                 // Draw short tick marks on the inner edge of the ring
                 const tickLength = i === 0 ? 12 : 8 // Longer tick for sector 0
@@ -211,16 +242,20 @@ export function GameBoard({
                 // Sector number position - in the MIDDLE of the sector (between tick marks)
                 // Add 0.5 to position between sector boundaries, plus rotation offset
                 const sectorCenterAngle =
-                  ((i + 0.5) / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+                  direction * ((i + 0.5) / config.sectors) * 2 * Math.PI -
+                  Math.PI / 2 +
+                  rotationOffset
                 const sectorLabelRadius = radius - 25
                 const sectorLabelX = position.x + sectorLabelRadius * Math.cos(sectorCenterAngle)
                 const sectorLabelY = position.y + sectorLabelRadius * Math.sin(sectorCenterAngle)
 
                 // Calculate sector arc boundaries for highlighting
                 const sectorStartAngle =
-                  (i / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+                  direction * (i / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
                 const sectorEndAngle =
-                  ((i + 1) / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+                  direction * ((i + 1) / config.sectors) * 2 * Math.PI -
+                  Math.PI / 2 +
+                  rotationOffset
 
                 return (
                   <g key={i}>
@@ -245,7 +280,7 @@ export function GameBoard({
                       stroke={i === 0 ? '#666' : '#888'}
                       strokeWidth={i === 0 ? 2 : 1}
                     />
-                    {/* Show sector number for all sectors */}
+                    {/* Show sector number for all sectors (logical sector number) */}
                     <text
                       x={sectorLabelX}
                       y={sectorLabelY}
@@ -289,8 +324,10 @@ export function GameBoard({
     >
       {/* Main SVG with pan/zoom */}
       <svg
-        width={boardSize}
-        height={boardSize}
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${boardSize} ${boardSize}`}
+        preserveAspectRatio="xMidYMid meet"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: 'center',
@@ -343,32 +380,37 @@ export function GameBoard({
           const fromPosition = getGravityWellPosition(tp.fromWellId)
           const toPosition = getGravityWellPosition(tp.toWellId)
 
-          // Get Ring 5 configs
-          const fromRing5 = fromWell.rings.find(r => r.ring === 5)
-          const toRing5 = toWell.rings.find(r => r.ring === 5)
-          if (!fromRing5 || !toRing5) return null
+          // Get outermost ring configs (not hardcoded to Ring 5)
+          const fromOutermostRing = fromWell.rings[fromWell.rings.length - 1]
+          const toOutermostRing = toWell.rings[toWell.rings.length - 1]
+          if (!fromOutermostRing || !toOutermostRing) return null
 
-          const fromRadius = fromRing5.radius * scaleFactor
-          const toRadius = toRing5.radius * scaleFactor
+          const fromRadius = fromOutermostRing.radius * scaleFactor
+          const toRadius = toOutermostRing.radius * scaleFactor
 
-          // Get rotation offsets (black hole rotated by half sector to align centers)
+          // Get rotation offsets and direction multipliers
           const fromRotationOffset = getSectorRotationOffset(tp.fromWellId)
           const toRotationOffset = getSectorRotationOffset(tp.toWellId)
+          const fromDirection = getSectorAngleDirection(tp.fromWellId)
+          const toDirection = getSectorAngleDirection(tp.toWellId)
 
           // Calculate sector CENTER angles (use i + 0.5 to get center of sector)
+          // Apply direction multiplier for planets (which rotate counterclockwise)
           const fromSectorCenterAngle =
-            ((tp.fromSector + 0.5) / fromRing5.sectors) * 2 * Math.PI -
+            fromDirection * ((tp.fromSector + 0.5) / fromOutermostRing.sectors) * 2 * Math.PI -
             Math.PI / 2 +
             fromRotationOffset
           const toSectorCenterAngle =
-            ((tp.toSector + 0.5) / toRing5.sectors) * 2 * Math.PI - Math.PI / 2 + toRotationOffset
+            toDirection * ((tp.toSector + 0.5) / toOutermostRing.sectors) * 2 * Math.PI -
+            Math.PI / 2 +
+            toRotationOffset
 
-          // Calculate sector BOUNDARY angles (these should now be identical due to half-sector rotation)
-          const sectorHalfWidth = Math.PI / fromRing5.sectors // Half of one sector's angular width
-          const fromSectorStartAngle = fromSectorCenterAngle - sectorHalfWidth
-          const fromSectorEndAngle = fromSectorCenterAngle + sectorHalfWidth
-          const toSectorStartAngle = toSectorCenterAngle - sectorHalfWidth
-          const toSectorEndAngle = toSectorCenterAngle + sectorHalfWidth
+          // Calculate sector BOUNDARY angles
+          const sectorHalfWidth = Math.PI / fromOutermostRing.sectors // Half of one sector's angular width
+          const fromSectorStartAngle = fromSectorCenterAngle - fromDirection * sectorHalfWidth
+          const fromSectorEndAngle = fromSectorCenterAngle + fromDirection * sectorHalfWidth
+          const toSectorStartAngle = toSectorCenterAngle - toDirection * sectorHalfWidth
+          const toSectorEndAngle = toSectorCenterAngle + toDirection * sectorHalfWidth
 
           // Calculate arc boundary points on black hole ring
           const fromStartX = fromPosition.x + fromRadius * Math.cos(fromSectorStartAngle)
@@ -382,15 +424,21 @@ export function GameBoard({
           const toEndX = toPosition.x + toRadius * Math.cos(toSectorEndAngle)
           const toEndY = toPosition.y + toRadius * Math.sin(toSectorEndAngle)
 
+          // Determine arc sweep flags based on rotation direction
+          // For clockwise (black hole): sweep-flag = 1
+          // For counterclockwise (planets): sweep-flag = 0
+          const fromSweepFlag = fromDirection > 0 ? 1 : 0
+          const toSweepFlag = toDirection > 0 ? 1 : 0
+
           return (
             <g key={`transfer-overlap-${idx}`}>
               {/* Draw the lens-shaped overlap region using two circular arcs */}
               <path
                 d={`
                   M ${fromStartX} ${fromStartY}
-                  A ${fromRadius} ${fromRadius} 0 0 1 ${fromEndX} ${fromEndY}
+                  A ${fromRadius} ${fromRadius} 0 0 ${fromSweepFlag} ${fromEndX} ${fromEndY}
                   L ${toEndX} ${toEndY}
-                  A ${toRadius} ${toRadius} 0 0 0 ${toStartX} ${toStartY}
+                  A ${toRadius} ${toRadius} 0 0 ${toSweepFlag === 1 ? 0 : 1} ${toStartX} ${toStartY}
                   Z
                 `}
                 fill="#FFD700"
@@ -415,9 +463,11 @@ export function GameBoard({
           // Position ship in the MIDDLE of the sector
           // Add 0.5 to center it between sector boundaries
           // Apply rotation offset for this gravity well
+          // Calculate angle with direction (planets go counterclockwise)
+          const direction = getSectorAngleDirection(player.ship.wellId)
           const rotationOffset = getSectorRotationOffset(player.ship.wellId)
           const angle =
-            ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+            direction * ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
             Math.PI / 2 +
             rotationOffset
           const x = wellPosition.x + radius * Math.cos(angle)
@@ -431,11 +481,12 @@ export function GameBoard({
             index === activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
 
           // Ship rotation angle - tangent to the orbit (perpendicular to radius)
-          // Prograde = clockwise (add 90°), Retrograde = counter-clockwise (subtract 90°)
+          // The direction multiplier accounts for counterclockwise rotation in planets
+          // For planets (direction = -1), prograde/retrograde visual directions are flipped
           const directionAngle =
             effectiveFacing === 'prograde'
-              ? angle + Math.PI / 2 // 90° clockwise from radial
-              : angle - Math.PI / 2 // 90° counter-clockwise from radial
+              ? angle + direction * (Math.PI / 2) // 90° in rotation direction
+              : angle - direction * (Math.PI / 2) // 90° opposite rotation direction
 
           // Calculate predicted next position (and second step for transfers)
           let predictedX = null
@@ -451,6 +502,11 @@ export function GameBoard({
             isActivePlayer &&
             pendingMovement?.actionType === 'burn' &&
             pendingMovement.burnIntensity
+
+          // Check if there's a pending well transfer action in the tactical sequence
+          const pendingWellTransfer = isActivePlayer
+            ? pendingState.tacticalSequence.find(a => a.type === 'well_transfer')
+            : null
 
           if (player.ship.transferState) {
             // Ship is in transfer - show where it will arrive
@@ -478,8 +534,9 @@ export function GameBoard({
                 const destScaleFactor = scaleFactor
                 const destRadius = destRingConfig.radius * destScaleFactor
                 const destRotationOffset = getSectorRotationOffset(destWellId)
+                const destDirection = getSectorAngleDirection(destWellId)
                 const destAngle =
-                  ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+                  destDirection * ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
                   Math.PI / 2 +
                   destRotationOffset
                 predictedX = destWellPosition.x + destRadius * Math.cos(destAngle)
@@ -493,8 +550,9 @@ export function GameBoard({
             // Step 1: After orbital movement on current ring (where ship enters transfer)
             const afterOrbitalSector =
               (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
+            const step1Direction = getSectorAngleDirection(player.ship.wellId)
             const step1Angle =
-              ((afterOrbitalSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+              step1Direction * ((afterOrbitalSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
               Math.PI / 2 +
               rotationOffset
             predictedX = wellPosition.x + radius * Math.cos(step1Angle)
@@ -522,8 +580,9 @@ export function GameBoard({
 
               const destScaleFactor = scaleFactor
               const destRadius = destRingConfig.radius * destScaleFactor
+              const destDirection = getSectorAngleDirection(player.ship.wellId)
               const destAngle =
-                ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+                destDirection * ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
                 Math.PI / 2 +
                 rotationOffset
 
@@ -531,11 +590,64 @@ export function GameBoard({
               secondStepY = wellPosition.y + destRadius * Math.sin(destAngle)
               secondStepRing = destinationRing
             }
+          } else if (pendingWellTransfer && pendingWellTransfer.destinationWellId) {
+            // Active player has a pending well transfer - show where they will arrive
+            // Well transfers happen instantly (before movement) and ship arrives at destination well's outermost ring
+
+            // Find destination well
+            const destWell = gameState.gravityWells.find(
+              w => w.id === pendingWellTransfer.destinationWellId
+            )
+            if (destWell) {
+              const destOutermostRing = destWell.rings[destWell.rings.length - 1]
+              const destWellPosition = getGravityWellPosition(pendingWellTransfer.destinationWellId)
+
+              // Find the transfer point to get the destination sector
+              const transferPoint = gameState.transferPoints.find(
+                tp =>
+                  tp.fromWellId === player.ship.wellId &&
+                  tp.fromSector === player.ship.sector &&
+                  tp.toWellId === pendingWellTransfer.destinationWellId
+              )
+
+              if (transferPoint) {
+                const destSector = transferPoint.toSector
+                const destRingConfig = destOutermostRing
+
+                const destScaleFactor = scaleFactor
+                const destRadius = destRingConfig.radius * destScaleFactor
+                const destRotationOffset = getSectorRotationOffset(
+                  pendingWellTransfer.destinationWellId
+                )
+                const destDirection = getSectorAngleDirection(pendingWellTransfer.destinationWellId)
+                const destAngle =
+                  destDirection * ((destSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+                  Math.PI / 2 +
+                  destRotationOffset
+
+                predictedX = destWellPosition.x + destRadius * Math.cos(destAngle)
+                predictedY = destWellPosition.y + destRadius * Math.sin(destAngle)
+                predictedRing = destRingConfig.ring
+
+                // After well transfer, ship will coast, so show second step (orbital movement)
+                const nextSector = (destSector + destRingConfig.velocity) % destRingConfig.sectors
+                const secondAngle =
+                  destDirection * ((nextSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+                  Math.PI / 2 +
+                  destRotationOffset
+                secondStepX = destWellPosition.x + destRadius * Math.cos(secondAngle)
+                secondStepY = destWellPosition.y + destRadius * Math.sin(secondAngle)
+                secondStepRing = destRingConfig.ring
+              }
+            }
           } else {
             // Ship is stable (or coasting) - show where it will move due to orbital velocity
             const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
+            const coastDirection = getSectorAngleDirection(player.ship.wellId)
             const predictedAngle =
-              ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+              coastDirection * ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+              Math.PI / 2 +
+              rotationOffset
             predictedX = wellPosition.x + radius * Math.cos(predictedAngle)
             predictedY = wellPosition.y + radius * Math.sin(predictedAngle)
             predictedRing = player.ship.ring
@@ -553,9 +665,13 @@ export function GameBoard({
                     x2={predictedX}
                     y2={predictedY}
                     stroke={player.color}
-                    strokeWidth={player.ship.transferState || hasPendingBurn ? 3 : 2}
+                    strokeWidth={
+                      player.ship.transferState || hasPendingBurn || pendingWellTransfer ? 3 : 2
+                    }
                     strokeDasharray="4 4"
-                    opacity={player.ship.transferState || hasPendingBurn ? 0.8 : 0.6}
+                    opacity={
+                      player.ship.transferState || hasPendingBurn || pendingWellTransfer ? 0.8 : 0.6
+                    }
                   />
                   {/* Predicted position circle */}
                   <circle
@@ -565,10 +681,13 @@ export function GameBoard({
                     fill={player.color}
                     opacity={0.5}
                     stroke={player.color}
-                    strokeWidth={player.ship.transferState || hasPendingBurn ? 3 : 2}
+                    strokeWidth={
+                      player.ship.transferState || hasPendingBurn || pendingWellTransfer ? 3 : 2
+                    }
                   />
-                  {/* Label for transfers showing destination ring (only for actual transfers, not pending burns) */}
-                  {player.ship.transferState && player.ship.transferState.arriveNextTurn && (
+                  {/* Label for transfers showing destination ring (for actual transfers or pending well transfers) */}
+                  {((player.ship.transferState && player.ship.transferState.arriveNextTurn) ||
+                    pendingWellTransfer) && (
                     <text
                       x={predictedX}
                       y={predictedY - 12}
@@ -735,10 +854,13 @@ export function GameBoard({
                       const postMoveRotationOffset = getSectorRotationOffset(
                         rangeVisualizationShip.wellId
                       )
+                      const rangeVisualSector = getVisualSector(
+                        rangeVisualizationShip.wellId,
+                        rangeVisualizationShip.sector,
+                        postMoveRingConfig.sectors
+                      )
                       rangeVisualizationAngle =
-                        ((rangeVisualizationShip.sector + 0.5) / postMoveRingConfig.sectors) *
-                          2 *
-                          Math.PI -
+                        ((rangeVisualSector + 0.5) / postMoveRingConfig.sectors) * 2 * Math.PI -
                         Math.PI / 2 +
                         postMoveRotationOffset
                       rangeVisualizationX =
@@ -767,31 +889,19 @@ export function GameBoard({
                         const weaponStats = weaponConfig.weaponStats
                         if (!weaponStats) return null
 
-                        // For broadside weapons, show sector overlap visualization
+                        // For broadside weapons, cast rays showing ±sectorRange sector spread on adjacent rings
                         if (weaponStats.arc === 'broadside') {
                           // Get the well position for range visualization
                           const rangeWellPosition = getGravityWellPosition(
                             rangeVisualizationShip.wellId
                           )
 
-                          // Calculate attacker's sector angular boundaries using range visualization position
+                          // Calculate attacker's sector boundaries
                           const sectorSize = (2 * Math.PI) / rangeVisualizationRing.sectors
                           const sectorStartAngle = rangeVisualizationAngle - sectorSize / 2
                           const sectorEndAngle = rangeVisualizationAngle + sectorSize / 2
 
-                          // Get rings within weapon's ring range
-                          const minRing = Math.max(
-                            1,
-                            rangeVisualizationShip.ring - weaponStats.ringRange
-                          )
-                          const maxRing = Math.min(
-                            RING_CONFIGS.length,
-                            rangeVisualizationShip.ring + weaponStats.ringRange
-                          )
-
-                          // Using outer scaleFactor
-
-                          // Calculate sector boundary points on the ship's ring
+                          // Calculate ray start points on ship's ring
                           const rayStartX =
                             rangeWellPosition.x +
                             rangeVisualizationRadius * Math.cos(sectorStartAngle)
@@ -805,9 +915,19 @@ export function GameBoard({
                             rangeWellPosition.y +
                             rangeVisualizationRadius * Math.sin(sectorEndAngle)
 
+                          // Get rings within weapon's ring range (±ringRange, but not same ring)
+                          const minRing = Math.max(
+                            1,
+                            rangeVisualizationShip.ring - weaponStats.ringRange
+                          )
+                          const maxRing = Math.min(
+                            RING_CONFIGS.length,
+                            rangeVisualizationShip.ring + weaponStats.ringRange
+                          )
+
                           return (
                             <g key={`weapon-visibility-${weaponKey}`}>
-                              {/* Draw rays from sector endpoints outward to target rings */}
+                              {/* Draw rays and arcs for each adjacent ring */}
                               {RING_CONFIGS.filter(
                                 r =>
                                   r.ring >= minRing &&
@@ -817,59 +937,48 @@ export function GameBoard({
                                 const targetRadius = targetRing.radius * scaleFactor
                                 const targetSectorSize = (2 * Math.PI) / targetRing.sectors
 
-                                // Find which sectors on target ring overlap with attacker's angular range
-                                // We need to find the FIRST and LAST sector boundaries that contain the attacker's range
-
-                                // Normalize angles to 0-2π
-                                const normalizeAngle = (a: number) => {
-                                  let normalized = a % (2 * Math.PI)
-                                  if (normalized < 0) normalized += 2 * Math.PI
-                                  return normalized
-                                }
-
-                                const attackerStart = normalizeAngle(sectorStartAngle + Math.PI / 2)
-                                const attackerEnd = normalizeAngle(sectorEndAngle + Math.PI / 2)
-
-                                // Find first sector that overlaps - this is the sector containing the start angle
-                                const firstSectorIndex = Math.floor(
-                                  attackerStart / targetSectorSize
+                                // Get rotation offset for this well (same as ship since broadside only works within same well)
+                                const targetRotationOffset = getSectorRotationOffset(
+                                  rangeVisualizationShip.wellId
                                 )
 
-                                // Find last sector that overlaps - this is the sector containing the end angle
-                                // Use a small epsilon to handle floating point precision issues
-                                const epsilon = 1e-10
-                                const endSectorRaw = attackerEnd / targetSectorSize
-                                const fractionalPart = endSectorRaw - Math.floor(endSectorRaw)
+                                // Calculate first and last targetable sectors (current ±sectorRange)
+                                const firstTargetSector =
+                                  (rangeVisualizationShip.sector -
+                                    weaponStats.sectorRange +
+                                    rangeVisualizationRing.sectors) %
+                                  rangeVisualizationRing.sectors
+                                const lastTargetSector =
+                                  (rangeVisualizationShip.sector + weaponStats.sectorRange) %
+                                  rangeVisualizationRing.sectors
 
-                                // If we're very close to a sector boundary (within epsilon), don't include the next sector
-                                const lastSectorIndex =
-                                  fractionalPart < epsilon
-                                    ? Math.floor(endSectorRaw) - 1 // On or very close to boundary - use previous sector
-                                    : Math.floor(endSectorRaw) // Inside a sector - use that sector
+                                // Calculate boundary angles on target ring (with rotation offset)
+                                const targetStartAngle =
+                                  firstTargetSector * targetSectorSize -
+                                  Math.PI / 2 +
+                                  targetRotationOffset
+                                const targetEndAngle =
+                                  (lastTargetSector + 1) * targetSectorSize -
+                                  Math.PI / 2 +
+                                  targetRotationOffset
 
-                                // Calculate the actual sector boundary angles on target ring
-                                const coverageStartAngle =
-                                  firstSectorIndex * targetSectorSize - Math.PI / 2
-                                const coverageEndAngle =
-                                  (lastSectorIndex + 1) * targetSectorSize - Math.PI / 2
-
-                                // Calculate positions on target ring at these sector boundaries
+                                // Calculate ray endpoints on target ring
                                 const targetStartX =
-                                  rangeWellPosition.x + targetRadius * Math.cos(coverageStartAngle)
+                                  rangeWellPosition.x + targetRadius * Math.cos(targetStartAngle)
                                 const targetStartY =
-                                  rangeWellPosition.y + targetRadius * Math.sin(coverageStartAngle)
+                                  rangeWellPosition.y + targetRadius * Math.sin(targetStartAngle)
                                 const targetEndX =
-                                  rangeWellPosition.x + targetRadius * Math.cos(coverageEndAngle)
+                                  rangeWellPosition.x + targetRadius * Math.cos(targetEndAngle)
                                 const targetEndY =
-                                  rangeWellPosition.y + targetRadius * Math.sin(coverageEndAngle)
+                                  rangeWellPosition.y + targetRadius * Math.sin(targetEndAngle)
 
-                                // Calculate arc length for proper SVG rendering
-                                let arcAngle = coverageEndAngle - coverageStartAngle
-                                if (arcAngle < 0) arcAngle += 2 * Math.PI
+                                // Calculate arc coverage angle
+                                const arcSpan = weaponStats.sectorRange * 2 + 1 // e.g., ±1 = 3 sectors
+                                const arcAngle = arcSpan * targetSectorSize
 
                                 return (
                                   <g key={`rays-${targetRing.ring}`}>
-                                    {/* Ray from start of sector to first overlapping sector boundary */}
+                                    {/* Ray from start of ship's sector to start of first targetable sector */}
                                     <line
                                       x1={rayStartX}
                                       y1={rayStartY}
@@ -880,7 +989,7 @@ export function GameBoard({
                                       strokeDasharray="6 3"
                                       opacity={0.5}
                                     />
-                                    {/* Ray from end of sector to last overlapping sector boundary */}
+                                    {/* Ray from end of ship's sector to end of last targetable sector */}
                                     <line
                                       x1={rayEndX}
                                       y1={rayEndY}
@@ -891,12 +1000,12 @@ export function GameBoard({
                                       strokeDasharray="6 3"
                                       opacity={0.5}
                                     />
-                                    {/* Highlight arc covering ALL overlapping sectors */}
+                                    {/* Arc covering all targetable sectors */}
                                     <path
                                       d={`
-                                  M ${targetStartX} ${targetStartY}
-                                  A ${targetRadius} ${targetRadius} 0 ${arcAngle > Math.PI ? 1 : 0} 1 ${targetEndX} ${targetEndY}
-                                `}
+                                        M ${targetStartX} ${targetStartY}
+                                        A ${targetRadius} ${targetRadius} 0 ${arcAngle > Math.PI ? 1 : 0} 1 ${targetEndX} ${targetEndY}
+                                      `}
                                       fill="none"
                                       stroke={player.color}
                                       strokeWidth={3}
@@ -905,7 +1014,7 @@ export function GameBoard({
                                   </g>
                                 )
                               })}
-                              {/* Highlight your own sector boundaries */}
+                              {/* Highlight ship's own sector boundaries */}
                               <circle
                                 cx={rayStartX}
                                 cy={rayStartY}
@@ -1247,8 +1356,13 @@ export function GameBoard({
                               const otherRotationOffset = getSectorRotationOffset(
                                 otherPlayer.ship.wellId
                               )
+                              const otherVisualSector = getVisualSector(
+                                otherPlayer.ship.wellId,
+                                otherPlayer.ship.sector,
+                                otherRingConfig.sectors
+                              )
                               const otherAngle =
-                                ((otherPlayer.ship.sector + 0.5) / otherRingConfig.sectors) *
+                                ((otherVisualSector + 0.5) / otherRingConfig.sectors) *
                                   2 *
                                   Math.PI -
                                 Math.PI / 2 +
@@ -1423,9 +1537,14 @@ export function GameBoard({
 
             // Using outer scaleFactor
             const radius = ringConfig.radius * scaleFactor
+            const minimapVisualSector = getVisualSector(
+              player.ship.wellId,
+              player.ship.sector,
+              ringConfig.sectors
+            )
             const rotationOffset = getSectorRotationOffset(player.ship.wellId)
             const angle =
-              ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+              ((minimapVisualSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
               Math.PI / 2 +
               rotationOffset
             const x = wellPosition.x + radius * Math.cos(angle)

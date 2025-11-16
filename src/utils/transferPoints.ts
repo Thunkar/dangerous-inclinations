@@ -3,8 +3,9 @@ import type { GravityWell, TransferPoint, GravityWellId } from '../types/game'
 /**
  * Calculate which sectors connect between gravity wells based on planetary positions
  *
- * Transfer points occur where a planet's outermost ring (Ring 5) touches the black hole's Ring 5
- * This is always a single sector on each ring since the rings are tangent
+ * Transfer points occur where:
+ * - Black hole Ring 4 (outermost) touches Planet Ring 3 (outermost)
+ * - This is always a single sector on each ring since the rings are tangent
  *
  * NOTE: Planets are at FIXED positions (velocity = 0), so transfer sectors remain constant.
  * This simplifies tabletop gameplay - players can reference a fixed transfer point chart.
@@ -17,28 +18,31 @@ export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPo
 
   // Find the black hole
   const blackHole = gravityWells.find(w => w.type === 'blackhole')
-  if (!blackHole || blackHole.rings.length < 5) {
+  if (!blackHole || blackHole.rings.length < 1) {
     return transferPoints
   }
+
+  // Get the black hole's outermost ring (Ring 4)
+  const blackHoleOutermostRing = blackHole.rings[blackHole.rings.length - 1]
 
   // Get planets
   const planets = gravityWells.filter(w => w.type === 'planet')
 
   // Calculate transfer points for each planet
   for (const planet of planets) {
-    if (!planet.orbitalPosition || planet.rings.length < 5) {
+    if (!planet.orbitalPosition || planet.rings.length < 1) {
       continue
     }
 
-    // The planet's angle determines which sector on the black hole Ring 5 it touches
-    // Convert planet angle (0-360 degrees) to a sector on black hole Ring 5
+    // Get the planet's outermost ring (Ring 3)
+    const planetOutermostRing = planet.rings[planet.rings.length - 1]
+
+    // The planet's angle determines which sector on the black hole it touches
+    // Convert planet angle (0-360 degrees) to a sector on black hole's outermost ring
     // Planet angle 0° = top (12 o'clock), going clockwise
     // Black hole sector 0 is also at top (12 o'clock)
-    // So the black hole sector that points at the planet is:
-    const blackHoleSectors = blackHole.rings[4].sectors // Ring 5 (index 4)
+    const blackHoleSectors = blackHoleOutermostRing.sectors
     const angleNormalized = (planet.orbitalPosition.angle % 360) / 360 // 0-1
-    // We need to account for how sectors are positioned:
-    // Sector boundaries are at sector_index * (360 / sectors)
     // We want the sector whose CENTER points at the planet
     const blackHoleSector = Math.floor(angleNormalized * blackHoleSectors) % blackHoleSectors
 
@@ -51,8 +55,8 @@ export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPo
     transferPoints.push({
       fromWellId: blackHole.id,
       toWellId: planet.id,
-      fromRing: 5,
-      toRing: 5,
+      fromRing: blackHoleOutermostRing.ring, // Ring 4
+      toRing: planetOutermostRing.ring, // Ring 3
       fromSector: blackHoleSector,
       toSector: planetSector,
     })
@@ -61,8 +65,8 @@ export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPo
     transferPoints.push({
       fromWellId: planet.id,
       toWellId: blackHole.id,
-      fromRing: 5,
-      toRing: 5,
+      fromRing: planetOutermostRing.ring, // Ring 3
+      toRing: blackHoleOutermostRing.ring, // Ring 4
       fromSector: planetSector,
       toSector: blackHoleSector,
     })
@@ -74,6 +78,10 @@ export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPo
 /**
  * Check if a ship is in a position where it can transfer to another gravity well
  * Returns all available transfer destinations from the ship's current position
+ *
+ * Ships can transfer from:
+ * - Black hole Ring 4 (outermost) → Planet Ring 3 (outermost)
+ * - Planet Ring 3 (outermost) → Black hole Ring 4 (outermost)
  *
  * @param shipWellId - The gravity well the ship is currently in
  * @param shipRing - The ring the ship is on
@@ -87,12 +95,8 @@ export function getAvailableWellTransfers(
   shipSector: number,
   transferPoints: TransferPoint[]
 ): TransferPoint[] {
-  // Ship must be on Ring 5 to transfer between wells
-  if (shipRing !== 5) {
-    return []
-  }
-
   // Find all transfer points from this well/ring/sector
+  // Transfer points are configured with the correct ring numbers (4 for blackhole, 3 for planets)
   return transferPoints.filter(tp =>
     tp.fromWellId === shipWellId &&
     tp.fromRing === shipRing &&
