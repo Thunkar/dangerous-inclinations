@@ -40,6 +40,7 @@ describe('Well Transfers', () => {
         {
           id: 'player1',
           name: 'Test Player',
+          color: '#00ff00',
           ship,
         },
       ],

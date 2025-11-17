@@ -137,7 +137,7 @@ export interface WellTransferAction extends BaseAction {
   type: 'well_transfer'
   data: {
     destinationWellId: GravityWellId
-    destinationSector: number
+    // destinationSector is determined automatically by transfer points
   }
 }
 

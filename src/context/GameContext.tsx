@@ -421,7 +421,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
             sequence: tacticalAction.sequence,
             data: {
               destinationWellId: tacticalAction.destinationWellId,
-              destinationSector: transferPoint.toSector,
+              // destinationSector is automatically determined from transfer points
             },
           })
         }

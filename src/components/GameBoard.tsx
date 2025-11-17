@@ -1,6 +1,6 @@
 import { Box, IconButton, Tooltip } from '@mui/material'
 import { useState, useRef } from 'react'
-import { RING_CONFIGS, mapSectorOnTransfer, BURN_COSTS } from '../constants/rings'
+import { mapSectorOnTransfer, BURN_COSTS } from '../constants/rings'
 import { calculateFiringSolutions } from '../utils/weaponRange'
 import { getSubsystem } from '../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../types/subsystems'
@@ -452,7 +452,11 @@ export function GameBoard({
 
         {/* Ships */}
         {players.map((player, index) => {
-          const ringConfig = RING_CONFIGS.find(r => r.ring === player.ship.ring)
+          // Get the gravity well for this ship
+          const well = gameState.gravityWells.find(w => w.id === player.ship.wellId)
+          if (!well) return null
+
+          const ringConfig = well.rings.find(r => r.ring === player.ship.ring)
           if (!ringConfig) return null
 
           // Get gravity well position for this ship
@@ -512,12 +516,16 @@ export function GameBoard({
             // Ship is in transfer - show where it will arrive
             if (player.ship.transferState.arriveNextTurn) {
               // Will arrive at destination ring next turn
-              const destRingConfig = RING_CONFIGS.find(
-                r => r.ring === player.ship.transferState!.destinationRing
-              )
-              if (destRingConfig) {
-                // Determine destination well (could be different for well transfers)
-                const destWellId = player.ship.transferState.destinationWellId || player.ship.wellId
+              // Determine destination well (could be different for well transfers)
+              const destWellId = player.ship.transferState.destinationWellId || player.ship.wellId
+              const destWell = gameState.gravityWells.find(w => w.id === destWellId)
+
+              if (destWell) {
+                const destRingConfig = destWell.rings.find(
+                  r => r.ring === player.ship.transferState!.destinationRing
+                )
+                if (!destRingConfig) return null
+
                 const destWellPosition = getGravityWellPosition(destWellId)
 
                 // Calculate position on destination ring using sector mapping
@@ -562,9 +570,9 @@ export function GameBoard({
             // Calculate Step 2: Arrival at destination ring (next turn)
             const burnCost = BURN_COSTS[pendingMovement.burnIntensity!]
             const ringChange = effectiveFacing === 'prograde' ? burnCost.rings : -burnCost.rings
-            const destinationRing = Math.max(1, Math.min(5, player.ship.ring + ringChange))
+            const destinationRing = Math.max(1, Math.min(well.rings.length, player.ship.ring + ringChange))
 
-            const destRingConfig = RING_CONFIGS.find(r => r.ring === destinationRing)
+            const destRingConfig = well.rings.find(r => r.ring === destinationRing)
             if (destRingConfig) {
               // Map sector from current ring (after orbital movement) to destination ring
               const baseSector = mapSectorOnTransfer(
@@ -841,10 +849,13 @@ export function GameBoard({
                     )
 
                     // Recalculate ring config and position for post-movement ship
-                    const postMoveRingConfig = RING_CONFIGS.find(
+                    const postMoveWell = gameState.gravityWells.find(
+                      w => w.id === rangeVisualizationShip.wellId
+                    )
+                    const postMoveRingConfig = postMoveWell?.rings.find(
                       r => r.ring === rangeVisualizationShip.ring
                     )
-                    if (postMoveRingConfig) {
+                    if (postMoveRingConfig && postMoveWell) {
                       rangeVisualizationRing = postMoveRingConfig
                       const postMoveWellPosition = getGravityWellPosition(
                         rangeVisualizationShip.wellId
@@ -916,19 +927,24 @@ export function GameBoard({
                             rangeVisualizationRadius * Math.sin(sectorEndAngle)
 
                           // Get rings within weapon's ring range (±ringRange, but not same ring)
+                          const rangeWell = gameState.gravityWells.find(
+                            w => w.id === rangeVisualizationShip.wellId
+                          )
+                          if (!rangeWell) return null
+
                           const minRing = Math.max(
                             1,
                             rangeVisualizationShip.ring - weaponStats.ringRange
                           )
                           const maxRing = Math.min(
-                            RING_CONFIGS.length,
+                            rangeWell.rings.length,
                             rangeVisualizationShip.ring + weaponStats.ringRange
                           )
 
                           return (
                             <g key={`weapon-visibility-${weaponKey}`}>
                               {/* Draw rays and arcs for each adjacent ring */}
-                              {RING_CONFIGS.filter(
+                              {rangeWell.rings.filter(
                                 r =>
                                   r.ring >= minRing &&
                                   r.ring <= maxRing &&
@@ -1136,12 +1152,17 @@ export function GameBoard({
                           const sectorEndAngle = rangeVisualizationAngle + sectorSize / 2
 
                           // Turret can fire in all directions
+                          const turretRangeWell = gameState.gravityWells.find(
+                            w => w.id === rangeVisualizationShip.wellId
+                          )
+                          if (!turretRangeWell) return null
+
                           const minRing = Math.max(
                             1,
                             rangeVisualizationShip.ring - weaponStats.ringRange
                           )
                           const maxRing = Math.min(
-                            RING_CONFIGS.length,
+                            turretRangeWell.rings.length,
                             rangeVisualizationShip.ring + weaponStats.ringRange
                           )
 
@@ -1164,7 +1185,7 @@ export function GameBoard({
                           return (
                             <g key={`weapon-turret-${weaponKey}`}>
                               {/* Draw rays from sector endpoints outward to target rings */}
-                              {RING_CONFIGS.filter(
+                              {turretRangeWell.rings.filter(
                                 r =>
                                   r.ring >= minRing &&
                                   r.ring <= maxRing &&
@@ -1340,7 +1361,12 @@ export function GameBoard({
                               if (!solution.inRange) return null
 
                               const otherPlayer = solution.targetPlayer
-                              const otherRingConfig = RING_CONFIGS.find(
+                              const otherWell = gameState.gravityWells.find(
+                                w => w.id === otherPlayer.ship.wellId
+                              )
+                              if (!otherWell) return null
+
+                              const otherRingConfig = otherWell.rings.find(
                                 r => r.ring === otherPlayer.ship.ring
                               )
                               if (!otherRingConfig) return null
@@ -1529,7 +1555,10 @@ export function GameBoard({
 
           {/* Ships on minimap */}
           {players.map((player, index) => {
-            const ringConfig = RING_CONFIGS.find(r => r.ring === player.ship.ring)
+            const minimapWell = gameState.gravityWells.find(w => w.id === player.ship.wellId)
+            if (!minimapWell) return null
+
+            const ringConfig = minimapWell.rings.find(r => r.ring === player.ship.ring)
             if (!ringConfig) return null
 
             // Get gravity well position for this ship
