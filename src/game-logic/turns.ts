@@ -1,6 +1,6 @@
 import type { GameState, TurnLogEntry, PlayerAction } from '../types/game'
 import { processActions } from './actionProcessors'
-import { mapSectorOnTransfer, getRingConfig } from '../constants/rings'
+import { completeRingTransfer } from './movement'
 
 /**
  * Result of executing a complete game turn
@@ -32,37 +32,9 @@ function createGameStateSnapshot(gameState: GameState): GameState {
 }
 
 /**
- * Prepare the game state for the next player's turn
- * This resolves any transfers for the next player so they see their ship in the correct position
- *
- * @param gameState - Current game state
- * @returns Updated game state with next player's transfer resolved (if any)
- */
-export function prepareTurn(gameState: GameState): GameState {
-  const activePlayer = gameState.players[gameState.activePlayerIndex]
-
-  // If the active player has a pending transfer, complete it now
-  if (activePlayer.ship.transferState?.arriveNextTurn) {
-    const resolvedPlayers = [...gameState.players]
-    const resolvedShip = completeTransfer(activePlayer.ship)
-    resolvedPlayers[gameState.activePlayerIndex] = {
-      ...activePlayer,
-      ship: resolvedShip,
-    }
-
-    return {
-      ...gameState,
-      players: resolvedPlayers,
-    }
-  }
-
-  return gameState
-}
-
-/**
  * Execute a complete game turn for the active player with snapshot-based validation
  *
- * @param gameState - Current game state (should already be prepared with prepareTurn)
+ * @param gameState - Current game state
  * @param actions - Array of actions for the active player to execute
  *
  * Validation flow:
@@ -133,7 +105,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   const nextPlayer = updatedGameState.players[nextPlayerIndex]
   if (nextPlayer.ship.transferState?.arriveNextTurn) {
     const resolvedPlayers = [...updatedGameState.players]
-    const resolvedShip = completeTransfer(nextPlayer.ship)
+    const resolvedShip = completeRingTransfer(nextPlayer.ship)
     resolvedPlayers[nextPlayerIndex] = {
       ...nextPlayer,
       ship: resolvedShip,
@@ -158,45 +130,5 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   return {
     gameState: updatedGameState,
     logEntries: allLogEntries,
-  }
-}
-
-/**
- * Complete a ship's transfer to destination ring/sector
- * Handles both ring transfers (within same well) and well transfers (between wells)
- */
-function completeTransfer(ship: any): any {
-  if (!ship.transferState) {
-    return ship
-  }
-
-  // Handle well transfer (between gravity wells)
-  if (ship.transferState.isWellTransfer && ship.transferState.destinationWellId) {
-    return {
-      ...ship,
-      wellId: ship.transferState.destinationWellId,
-      ring: ship.transferState.destinationRing,
-      sector: ship.transferState.destinationSector || 0,
-      transferState: null,
-    }
-  }
-
-  // Handle normal ring transfer (within same gravity well)
-  const { destinationRing, sectorAdjustment } = ship.transferState
-
-  const baseSector = mapSectorOnTransfer(ship.ring, destinationRing, ship.sector)
-  const destRingConfig = getRingConfig(destinationRing)
-
-  if (!destRingConfig) {
-    return ship
-  }
-
-  const finalSector = (baseSector + sectorAdjustment + destRingConfig.sectors) % destRingConfig.sectors
-
-  return {
-    ...ship,
-    ring: destinationRing,
-    sector: finalSector,
-    transferState: null,
   }
 }

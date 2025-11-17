@@ -1,5 +1,5 @@
-import type { ShipState, PlayerAction, GravityWellId, TransferPoint } from '../types/game'
-import { getRingConfig, BURN_COSTS, mapSectorOnTransfer } from '../constants/rings'
+import type { ShipState, PlayerAction, GravityWellId } from '../types/game'
+import { BURN_COSTS, mapSectorOnTransfer, SECTORS_PER_RING } from '../constants/rings'
 import { getGravityWell } from '../constants/gravityWells'
 
 /**
@@ -49,10 +49,7 @@ export function applyOrbitalMovement(ship: ShipState): ShipState {
  * Note: Burn direction is determined by the ship's CURRENT facing.
  * If rotation is needed, it must be applied before calling this function.
  */
-export function initiateBurn(
-  ship: ShipState,
-  action: PlayerAction
-): ShipState {
+export function initiateBurn(ship: ShipState, action: PlayerAction): ShipState {
   if (action.type !== 'burn') {
     return ship
   }
@@ -82,95 +79,34 @@ export function initiateBurn(
 }
 
 /**
- * Pure function to initiate a well transfer
- * Returns new ship state with well transfer initiated
- *
- * Well transfers are FREE (no reaction mass/energy cost) and take 1 turn
- * They can only be initiated from outermost rings:
- * - Black hole Ring 4 → Planet Ring 3
- * - Planet Ring 3 → Black hole Ring 4
- */
-export function initiateWellTransfer(
-  ship: ShipState,
-  destinationWellId: GravityWellId,
-  destinationSector: number
-): ShipState {
-  // Get destination well's outermost ring
-  const destinationWell = getGravityWell(destinationWellId)
-  const destinationRing = destinationWell ? destinationWell.rings[destinationWell.rings.length - 1].ring : ship.ring
-
-  return {
-    ...ship,
-    transferState: {
-      destinationRing, // Outermost ring of destination well
-      destinationWellId,
-      destinationSector,
-      sectorAdjustment: 0,
-      arriveNextTurn: true,
-      isWellTransfer: true,
-    },
-  }
-}
-
-/**
- * Pure function to complete a transfer
+ * Pure function to complete a burn transfer (ring change within same well)
  * Returns new ship state at destination ring/sector with transfer cleared
- * Handles both ring transfers (within same well) and well transfers (between wells)
  *
  * @param ship - Current ship state
- * @param transferPoints - Optional transfer points (required for well transfers)
  * @returns Updated ship state
  */
-export function completeTransfer(ship: ShipState, transferPoints?: TransferPoint[]): ShipState {
+export function completeRingTransfer(ship: ShipState): ShipState {
   if (!ship.transferState) {
     return ship
   }
 
-  // Handle well transfer (between gravity wells)
-  if (ship.transferState.isWellTransfer && ship.transferState.destinationWellId) {
-    // Find the transfer point to get the correct destination sector
-    const transferPoint = transferPoints?.find(tp =>
-      tp.fromWellId === ship.wellId &&
-      tp.toWellId === ship.transferState!.destinationWellId
-    )
-
-    if (!transferPoint) {
-      // Transfer point no longer exists (planet moved)
-      // Cancel transfer and return ship to original position
-      console.warn('Well transfer failed: transfer point no longer exists')
-      return {
-        ...ship,
-        transferState: null,
-      }
-    }
-
-    // Facing is preserved because planets have reversed sector numbering
-    // When transferring between wells, the sector numbering reverses to preserve
-    // the directional meaning: a ship moving prograde continues moving prograde
-
+  // Well transfers should never reach here
+  if (ship.transferState.isWellTransfer) {
+    console.error('Well transfer reached completeTransfer - this should not happen')
     return {
       ...ship,
-      wellId: ship.transferState.destinationWellId,
-      ring: transferPoint.toRing,
-      sector: transferPoint.toSector,
-      // Facing remains the same - sector numbering handles the reversal
       transferState: null,
     }
   }
 
-  // Handle normal ring transfer (within same gravity well)
+  // Handle burn transfer (ring change within same gravity well)
   const oldRing = ship.ring
   const newRing = ship.transferState.destinationRing
   const baseSector = mapSectorOnTransfer(oldRing, newRing, ship.sector)
   const adjustment = ship.transferState.sectorAdjustment || 0
 
-  const newRingConfig = getRingConfig(newRing)
-  if (!newRingConfig) {
-    return ship
-  }
-
-  // Apply sector adjustment with wraparound
-  const finalSector = (baseSector + adjustment + newRingConfig.sectors) % newRingConfig.sectors
+  // Apply sector adjustment with wraparound (all rings have 24 sectors)
+  const finalSector = (baseSector + adjustment + SECTORS_PER_RING) % SECTORS_PER_RING
 
   return {
     ...ship,

@@ -25,7 +25,7 @@ export {
 } from './heat'
 
 // Movement and orbital mechanics
-export { completeTransfer, applyOrbitalMovement, initiateWellTransfer } from './movement'
+export { applyOrbitalMovement } from './movement'
 
 // Damage
 export {
@@ -39,8 +39,4 @@ export {
 export { resetSubsystemUsage, getSubsystem } from './subsystems'
 
 // Turn management
-export {
-  executeTurn,
-  prepareTurn,
-  type TurnResult,
-} from './turns'
+export { executeTurn, type TurnResult } from './turns'

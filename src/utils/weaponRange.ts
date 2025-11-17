@@ -1,6 +1,6 @@
 import type { Player, ShipState } from '../types/game'
 import type { WeaponStats } from '../types/subsystems'
-import { getRingConfig } from '../constants/rings'
+import { SECTORS_PER_RING } from '../constants/rings'
 
 export interface FiringSolution {
   targetId: string
@@ -51,29 +51,15 @@ function calculateSingleTarget(
 ): FiringSolution {
   const targetShip = targetPlayer.ship
 
-  // Get ring configurations
-  const attackerRingConfig = getRingConfig(attackerShip.ring)
-  const targetRingConfig = getRingConfig(targetShip.ring)
-
-  if (!attackerRingConfig || !targetRingConfig) {
-    return {
-      targetId: targetPlayer.id,
-      targetPlayer,
-      inRange: false,
-      distance: Infinity,
-      sectorDistance: 0,
-      ringDistance: 0,
-    }
-  }
-
   // Calculate ring distance
   const ringDist = Math.abs(targetShip.ring - attackerShip.ring)
 
   // Calculate sector distance (shortest path around the ring)
+  // All rings have 24 sectors uniformly
   let sectorDist = Math.abs(targetShip.sector - attackerShip.sector)
-  const halfRing = attackerRingConfig.sectors / 2
+  const halfRing = SECTORS_PER_RING / 2
   if (sectorDist > halfRing) {
-    sectorDist = attackerRingConfig.sectors - sectorDist
+    sectorDist = SECTORS_PER_RING - sectorDist
   }
 
   // Total distance for display
@@ -100,10 +86,10 @@ function calculateSingleTarget(
       let facingDist: number
       if (attackerShip.facing === 'prograde') {
         // Measure distance forward (increasing sector numbers)
-        facingDist = (targetShip.sector - attackerShip.sector + attackerRingConfig.sectors) % attackerRingConfig.sectors
+        facingDist = (targetShip.sector - attackerShip.sector + SECTORS_PER_RING) % SECTORS_PER_RING
       } else {
         // Measure distance backward (decreasing sector numbers)
-        facingDist = (attackerShip.sector - targetShip.sector + attackerRingConfig.sectors) % attackerRingConfig.sectors
+        facingDist = (attackerShip.sector - targetShip.sector + SECTORS_PER_RING) % SECTORS_PER_RING
       }
 
       // In range if within facing direction and within range
@@ -119,11 +105,11 @@ function calculateSingleTarget(
     // Broadside weapons fire radially from current sector
     // Must be within ring range and sector overlap
     inRange = ringDist <= weapon.ringRange && ringDist > 0 &&
-              checkSectorOverlap(attackerShip, attackerRingConfig, targetShip, targetRingConfig, weapon.sectorRange)
+              checkSectorOverlap(attackerShip, targetShip, weapon.sectorRange)
   } else if (weapon.arc === 'turret') {
     // Turret has no facing restrictions
     inRange = ringDist <= weapon.ringRange && ringDist > 0 &&
-              checkSectorOverlap(attackerShip, attackerRingConfig, targetShip, targetRingConfig, weapon.sectorRange)
+              checkSectorOverlap(attackerShip, targetShip, weapon.sectorRange)
   }
 
   return {
@@ -150,17 +136,15 @@ function calculateSingleTarget(
  */
 function checkSectorOverlap(
   attackerShip: ShipState,
-  attackerRingConfig: { sectors: number },
   targetShip: ShipState,
-  _targetRingConfig: { sectors: number },
   sectorRange: number
 ): boolean {
-  // Since all rings now have 24 sectors, we can use simple sector arithmetic
+  // All rings have 24 sectors uniformly - use simple sector arithmetic
   // Calculate the shortest sector distance (accounting for wrap-around)
   let sectorDistance = Math.abs(targetShip.sector - attackerShip.sector)
-  const halfSectors = attackerRingConfig.sectors / 2
+  const halfSectors = SECTORS_PER_RING / 2
   if (sectorDistance > halfSectors) {
-    sectorDistance = attackerRingConfig.sectors - sectorDistance
+    sectorDistance = SECTORS_PER_RING - sectorDistance
   }
 
   // Target is in range if within ±sectorRange sectors

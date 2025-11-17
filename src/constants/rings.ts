@@ -1,42 +1,23 @@
-import type { RingConfig } from '../types/game'
-
 /**
- * DEPRECATED: Use well-specific ring configurations from gravityWells.ts
- * This is kept for backward compatibility but black hole and planets now have different configs
- *
- * Black hole: 4 rings (velocities 8,4,2,1) - dramatic doubling
- * Planets: 3 rings (velocities 4,2,1) - dramatic doubling
- * All rings: 24 sectors
- * Spacing: Large Ring 1 (120 units from center), then tight 50 unit gaps between rings
+ * All rings have uniform sector count for consistent tactical gameplay
  */
-export const RING_CONFIGS: RingConfig[] = [
-  { ring: 1, velocity: 8, radius: 120, sectors: 24 },  // Innermost - BLAZING FAST
-  { ring: 2, velocity: 4, radius: 170, sectors: 24 },  // Very Fast
-  { ring: 3, velocity: 2, radius: 220, sectors: 24 },  // Medium
-  { ring: 4, velocity: 1, radius: 270, sectors: 24 },  // Slow (black hole only)
-]
+export const SECTORS_PER_RING = 24
 
 export const ENERGY_PER_TURN = 10
-export const MAX_REACTION_MASS = 24
+export const MAX_REACTION_MASS = 10
 export const STARTING_REACTION_MASS = 10
-export const SCOOP_ENERGY_COST = 5
-
 /**
  * Burn costs for ring transfers
  * Note: Ring changes are now velocity changes (inner rings are faster)
  * No sector adjustment - you land exactly at the mapped sector
  */
 export const BURN_COSTS = {
-  light: { energy: 1, mass: 1, rings: 1 },     // Transfer ±1 ring (change velocity by ±1)
-  medium: { energy: 2, mass: 2, rings: 2 },    // Transfer ±2 rings (change velocity by ±2)
-  heavy: { energy: 3, mass: 3, rings: 3 },     // Transfer ±3 rings (change velocity by ±3)
+  light: { energy: 1, mass: 1, rings: 1 }, // Transfer ±1 ring (change velocity by ±1)
+  medium: { energy: 2, mass: 2, rings: 2 }, // Transfer ±2 rings (change velocity by ±2)
+  heavy: { energy: 3, mass: 3, rings: 3 }, // Transfer ±3 rings (change velocity by ±3)
 }
 
 export const ROTATION_ENERGY_COST = 1
-
-export function getRingConfig(ring: number): RingConfig | undefined {
-  return RING_CONFIGS.find(r => r.ring === ring)
-}
 
 /**
  * Maps a sector number when transferring between rings.
@@ -70,28 +51,11 @@ export function getRingConfig(ring: number): RingConfig | undefined {
  * Perfect for tabletop: "Check your ring card for velocity, move that many sectors"
  */
 export function mapSectorOnTransfer(
-  fromRing: number,
-  toRing: number,
+  _fromRing: number,
+  _toRing: number,
   currentSector: number
 ): number {
-  const fromConfig = getRingConfig(fromRing)
-  const toConfig = getRingConfig(toRing)
-
-  if (!fromConfig || !toConfig) {
-    return 0
-  }
-
-  // All rings have 24 sectors, so mapping is trivial: stay at same sector
-  if (fromConfig.sectors === toConfig.sectors) {
-    return currentSector % toConfig.sectors
-  }
-
-  // Fallback for any edge cases (e.g., if configurations differ between wells)
-  // Use angular fraction mapping
-  const angularFraction = (currentSector + 1) / fromConfig.sectors
-  const exactPosition = angularFraction * toConfig.sectors
-  const epsilon = 0.0001
-  const mappedSector = Math.floor(exactPosition - epsilon) % toConfig.sectors
-
-  return mappedSector
+  // All rings have uniform 24 sectors, so mapping is trivial: stay at same sector
+  // This preserves angular position when transferring between rings
+  return currentSector % SECTORS_PER_RING
 }

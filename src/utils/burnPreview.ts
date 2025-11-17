@@ -1,5 +1,6 @@
 import type { ShipState, PlayerAction } from '../types/game'
-import { getRingConfig, BURN_COSTS, mapSectorOnTransfer } from '../constants/rings'
+import { BURN_COSTS, mapSectorOnTransfer, SECTORS_PER_RING } from '../constants/rings'
+import { getGravityWell } from '../constants/gravityWells'
 
 export interface BurnDestination {
   ring: number
@@ -22,30 +23,33 @@ export function calculateBurnDestination(
 
   const burnCost = BURN_COSTS[action.data.burnIntensity]
   const burnDirection = ship.facing // Use ship's current facing
-  const ringConfig = getRingConfig(ship.ring)
 
+  // Get well-specific ring configuration for orbital movement
+  const well = getGravityWell(ship.wellId)
+  if (!well) {
+    return null
+  }
+
+  const ringConfig = well.rings.find(r => r.ring === ship.ring)
   if (!ringConfig) {
     return null
   }
 
   // Transfer burn: calculate destination ring and sector
   const direction = burnDirection === 'prograde' ? 1 : -1
-  const destinationRing = Math.max(1, Math.min(5, ship.ring + direction * burnCost.rings))
+  const maxRing = well.rings.length
+  const destinationRing = Math.max(1, Math.min(maxRing, ship.ring + direction * burnCost.rings))
 
   // For transfers: the ship will undergo orbital movement FIRST (this turn),
   // then the transfer completes (next turn) from that new position
-  const sectorAfterMovement = (ship.sector + ringConfig.velocity) % ringConfig.sectors
+  const sectorAfterMovement = (ship.sector + ringConfig.velocity) % SECTORS_PER_RING
 
   // Map from the sector AFTER orbital movement to the destination ring
   const baseSector = mapSectorOnTransfer(ship.ring, destinationRing, sectorAfterMovement)
   const adjustment = action.data.sectorAdjustment
 
-  const destRingConfig = getRingConfig(destinationRing)
-  if (!destRingConfig) {
-    return null
-  }
-
-  const finalSector = (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
+  // Apply sector adjustment with wraparound (all rings have 24 sectors)
+  const finalSector = (baseSector + adjustment + SECTORS_PER_RING) % SECTORS_PER_RING
 
   return {
     ring: destinationRing,

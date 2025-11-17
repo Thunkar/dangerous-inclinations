@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { mapSectorOnTransfer, getRingConfig, RING_CONFIGS } from '../../constants/rings'
+import { mapSectorOnTransfer, SECTORS_PER_RING } from '../../constants/rings'
+import { ALL_GRAVITY_WELLS } from '../../constants/gravityWells'
 
 describe('Sector Mapping', () => {
   describe('Ring Transfers (All rings have 24 sectors)', () => {
@@ -108,14 +109,10 @@ describe('Sector Mapping', () => {
       expect(result).toBe(23)
     })
 
-    it('should return 0 for invalid from ring', () => {
-      const result = mapSectorOnTransfer(99, 3, 0)
-      expect(result).toBe(0)
-    })
-
-    it('should return 0 for invalid to ring', () => {
-      const result = mapSectorOnTransfer(3, 99, 0)
-      expect(result).toBe(0)
+    it('should handle wraparound for out-of-bounds sector', () => {
+      // Even with invalid rings, sector should wrap correctly
+      const result = mapSectorOnTransfer(1, 2, 25)
+      expect(result).toBe(1) // 25 % 24 = 1
     })
   })
 
@@ -144,43 +141,64 @@ describe('Sector Mapping', () => {
   })
 
   describe('Ring Configurations', () => {
-    it('should have valid ring configs for all rings', () => {
-      // New system: 4 rings only
-      for (let ring = 1; ring <= 4; ring++) {
-        const config = getRingConfig(ring)
-        expect(config).toBeDefined()
-        expect(config?.ring).toBe(ring)
-        expect(config?.sectors).toBe(24) // All rings have 24 sectors
-      }
+    it('should have valid ring configs for black hole', () => {
+      const blackHole = ALL_GRAVITY_WELLS.find(w => w.id === 'blackhole')!
+      expect(blackHole.rings).toHaveLength(4)
+
+      // All rings should have 24 sectors
+      blackHole.rings.forEach(ring => {
+        expect(ring.sectors).toBe(24)
+      })
     })
 
-    it('should have variable velocities (dramatic doubling)', () => {
-      // New system: All rings have 24 sectors, but velocities differ dramatically
-      expect(RING_CONFIGS[0].sectors).toBe(24)
-      expect(RING_CONFIGS[1].sectors).toBe(24)
-      expect(RING_CONFIGS[2].sectors).toBe(24)
-      expect(RING_CONFIGS[3].sectors).toBe(24)
+    it('should have valid ring configs for planets', () => {
+      const planets = ALL_GRAVITY_WELLS.filter(w => w.type === 'planet')
+      expect(planets).toHaveLength(3)
 
-      // Velocities should decrease with doubling: 8, 4, 2, 1
-      expect(RING_CONFIGS[0].velocity).toBe(8) // Ring 1 - BLAZING FAST
-      expect(RING_CONFIGS[1].velocity).toBe(4) // Ring 2 - Very Fast
-      expect(RING_CONFIGS[2].velocity).toBe(2) // Ring 3 - Medium
-      expect(RING_CONFIGS[3].velocity).toBe(1) // Ring 4 - Slow
+      planets.forEach(planet => {
+        expect(planet.rings).toHaveLength(3)
+        planet.rings.forEach(ring => {
+          expect(ring.sectors).toBe(24)
+        })
+      })
     })
 
-    it('should have increasing radii', () => {
-      for (let i = 1; i < RING_CONFIGS.length; i++) {
-        expect(RING_CONFIGS[i].radius).toBeGreaterThan(RING_CONFIGS[i - 1].radius)
+    it('should have black hole velocities: 8, 4, 2, 1', () => {
+      const blackHole = ALL_GRAVITY_WELLS.find(w => w.id === 'blackhole')!
+      expect(blackHole.rings[0].velocity).toBe(8) // Ring 1 - BLAZING FAST
+      expect(blackHole.rings[1].velocity).toBe(4) // Ring 2 - Very Fast
+      expect(blackHole.rings[2].velocity).toBe(2) // Ring 3 - Medium
+      expect(blackHole.rings[3].velocity).toBe(1) // Ring 4 - Slow
+    })
+
+    it('should have planet velocities: 8, 4, 2', () => {
+      const planets = ALL_GRAVITY_WELLS.filter(w => w.type === 'planet')
+      planets.forEach(planet => {
+        expect(planet.rings[0].velocity).toBe(8) // Ring 1 - BLAZING FAST
+        expect(planet.rings[1].velocity).toBe(4) // Ring 2 - Very Fast
+        expect(planet.rings[2].velocity).toBe(2) // Ring 3 - Medium
+      })
+    })
+
+    it('should have increasing radii for black hole', () => {
+      const blackHole = ALL_GRAVITY_WELLS.find(w => w.id === 'blackhole')!
+      for (let i = 1; i < blackHole.rings.length; i++) {
+        expect(blackHole.rings[i].radius).toBeGreaterThan(blackHole.rings[i - 1].radius)
       }
     })
 
     it('should have variable velocity (inner rings faster with doubling)', () => {
+      const blackHole = ALL_GRAVITY_WELLS.find(w => w.id === 'blackhole')!
       // Velocity decreases with doubling progression as ring number increases
-      for (let i = 1; i < RING_CONFIGS.length; i++) {
-        expect(RING_CONFIGS[i].velocity).toBeLessThan(RING_CONFIGS[i - 1].velocity)
+      for (let i = 1; i < blackHole.rings.length; i++) {
+        expect(blackHole.rings[i].velocity).toBeLessThan(blackHole.rings[i - 1].velocity)
         // Each ring should be exactly half the speed of the previous ring
-        expect(RING_CONFIGS[i].velocity).toBe(RING_CONFIGS[i - 1].velocity / 2)
+        expect(blackHole.rings[i].velocity).toBe(blackHole.rings[i - 1].velocity / 2)
       }
+    })
+
+    it('should use uniform sector count constant', () => {
+      expect(SECTORS_PER_RING).toBe(24)
     })
   })
 
