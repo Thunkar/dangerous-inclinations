@@ -97,14 +97,14 @@ describe('Multi-Turn Energy Management', () => {
     it('should support partial deallocation respecting the 3-unit limit', () => {
       let gameState = createTestGameState()
 
-      // Turn 1: Allocate 5 energy to railgun
-      const allocateAction = createAllocateEnergyAction('railgun', 5)
+      // Turn 1: Allocate 4 energy to railgun (max for railgun)
+      const allocateAction = createAllocateEnergyAction('railgun', 4)
       let result = executeTurnWithActions(gameState, allocateAction, createCoastAction())
       gameState = result.gameState
 
       const railgunSubsystem = gameState.players[0].ship.subsystems.find(s => s.type === 'railgun')
-      expect(railgunSubsystem?.allocatedEnergy).toBe(5)
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(INITIAL_REACTOR_ENERGY - 5)
+      expect(railgunSubsystem?.allocatedEnergy).toBe(4)
+      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(INITIAL_REACTOR_ENERGY - 4)
 
       // Advance player 2
       result = executeTurnWithActions(gameState, createCoastAction())
@@ -115,17 +115,17 @@ describe('Multi-Turn Energy Management', () => {
       result = executeTurnWithActions(gameState, deallocateAction, createCoastAction())
       gameState = result.gameState
 
-      // Should have 2 energy remaining in railgun
+      // Should have 1 energy remaining in railgun
       const railgunSubsystem2 = gameState.players[0].ship.subsystems.find(s => s.type === 'railgun')
-      expect(railgunSubsystem2?.allocatedEnergy).toBe(2)
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(INITIAL_REACTOR_ENERGY - 2)
+      expect(railgunSubsystem2?.allocatedEnergy).toBe(1)
+      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(INITIAL_REACTOR_ENERGY - 1)
 
       // Advance player 2
       result = executeTurnWithActions(gameState, createCoastAction())
       gameState = result.gameState
 
-      // Turn 3: Deallocate remaining 2 energy
-      const deallocateAction2 = createDeallocateEnergyAction('railgun', 2)
+      // Turn 3: Deallocate remaining 1 energy
+      const deallocateAction2 = createDeallocateEnergyAction('railgun', 1)
       result = executeTurnWithActions(gameState, deallocateAction2, createCoastAction())
       gameState = result.gameState
 

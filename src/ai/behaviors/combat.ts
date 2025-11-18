@@ -1,0 +1,143 @@
+import type { FireWeaponAction } from '../../types/game'
+import type { TacticalSituation, Target, BotParameters } from '../types'
+
+/**
+ * Select best target based on parameters
+ */
+export function selectTarget(
+  situation: TacticalSituation,
+  parameters: BotParameters
+): Target | null {
+  const { targets } = situation
+
+  if (targets.length === 0) {
+    return null
+  }
+
+  switch (parameters.targetPreference) {
+    case 'closest':
+      // Already sorted by distance in analyzer
+      return targets.reduce((closest, t) =>
+        t.distance < closest.distance ? t : closest
+      , targets[0])
+
+    case 'weakest':
+      // Highest priority = lowest HP
+      return targets.reduce((weakest, t) =>
+        t.priority > weakest.priority ? t : weakest
+      , targets[0])
+
+    case 'threatening':
+      // Target that's threatening us
+      const threat = situation.primaryThreat
+      if (threat) {
+        return targets.find(t => t.player.id === threat.player.id) || targets[0]
+      }
+      return targets[0]
+
+    default:
+      return targets[0]
+  }
+}
+
+/**
+ * Generate weapon firing actions for the selected target
+ * Returns actions ordered by sequence number
+ */
+export function generateWeaponActions(
+  situation: TacticalSituation,
+  target: Target | null,
+  startSequence: number
+): FireWeaponAction[] {
+  if (!target) {
+    return []
+  }
+
+  const actions: FireWeaponAction[] = []
+  const { botPlayer } = situation
+  const { firingSolutions } = target
+
+  // Priority order: railgun (highest damage, spinal) > laser (versatile) > missiles (turret)
+
+  // Railgun - high damage spinal weapon
+  if (firingSolutions.railgun?.inRange) {
+    const railgunSubsystem = botPlayer.ship.subsystems.find(s => s.type === 'railgun')
+    if (railgunSubsystem && railgunSubsystem.isPowered && !railgunSubsystem.usedThisTurn) {
+      actions.push({
+        type: 'fire_weapon',
+        playerId: botPlayer.id,
+        sequence: startSequence + actions.length,
+        data: {
+          weaponType: 'railgun',
+          targetPlayerIds: [target.player.id],
+        },
+      })
+    }
+  }
+
+  // Laser - good all-around weapon
+  if (firingSolutions.laser?.inRange) {
+    const laserSubsystem = botPlayer.ship.subsystems.find(s => s.type === 'laser')
+    if (laserSubsystem && laserSubsystem.isPowered && !laserSubsystem.usedThisTurn) {
+      actions.push({
+        type: 'fire_weapon',
+        playerId: botPlayer.id,
+        sequence: startSequence + actions.length,
+        data: {
+          weaponType: 'laser',
+          targetPlayerIds: [target.player.id],
+        },
+      })
+    }
+  }
+
+  // Missiles - turret weapon, always hits if in range
+  if (firingSolutions.missiles?.inRange) {
+    const missilesSubsystem = botPlayer.ship.subsystems.find(s => s.type === 'missiles')
+    if (missilesSubsystem && missilesSubsystem.isPowered && !missilesSubsystem.usedThisTurn) {
+      actions.push({
+        type: 'fire_weapon',
+        playerId: botPlayer.id,
+        sequence: startSequence + actions.length,
+        data: {
+          weaponType: 'missiles',
+          targetPlayerIds: [target.player.id],
+        },
+      })
+    }
+  }
+
+  return actions
+}
+
+/**
+ * Determine if bot should face toward or away from target
+ */
+export function shouldFaceTarget(
+  situation: TacticalSituation,
+  target: Target | null
+): 'prograde' | 'retrograde' | null {
+  if (!target) {
+    return null
+  }
+
+  const { status } = situation
+  const { firingSolutions } = target
+
+  // If railgun is in range, we should be facing toward target (spinal weapon)
+  if (firingSolutions.railgun?.inRange) {
+    // Determine if target is ahead or behind based on sector positions
+    // This is a simplification - real calculation would need well-specific logic
+    return status.facing // Keep current facing if railgun in range
+  }
+
+  // If under heavy fire, consider facing away to reduce laser damage
+  const underFire = situation.primaryThreat?.weaponsInRange.some(w => w.inRange)
+  if (underFire && status.healthPercent < 0.5) {
+    // Face away from threat
+    return status.facing === 'prograde' ? 'retrograde' : 'prograde'
+  }
+
+  // Default: keep current facing
+  return null
+}

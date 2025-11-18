@@ -15,14 +15,7 @@ export {
 } from './energy'
 
 // Heat management
-export {
-  calculateHeatGeneration,
-  applyHeatGeneration,
-  setHeatVenting,
-  processHeatVenting,
-  calculateHeatDamage,
-  canVentHeat,
-} from './heat'
+export { setHeatVenting, processHeatVenting, calculateHeatDamage, canVentHeat } from './heat'
 
 // Movement and orbital mechanics
 export { applyOrbitalMovement } from './movement'

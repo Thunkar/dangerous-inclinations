@@ -12,6 +12,7 @@ import {
   createInitialHeatState,
 } from '../utils/subsystemHelpers'
 import { executeTurn as executeGameTurn } from '../game-logic/turns'
+import { botDecideActions } from '../ai'
 
 interface WeaponRangeVisibility {
   laser: boolean
@@ -446,6 +447,46 @@ export function GameProvider({ children }: { children: ReactNode }) {
       [weaponType]: !prev[weaponType],
     }))
   }, [])
+
+  // Auto-execute bot turns for non-human players
+  useEffect(() => {
+    const currentActivePlayer = gameState.players[gameState.activePlayerIndex]
+
+    // Only execute bot turn if:
+    // 1. Active player exists
+    // 2. Active player is not player1 (the human)
+    // 3. Active player's ship is still alive
+    if (
+      currentActivePlayer &&
+      currentActivePlayer.id !== 'player1' &&
+      currentActivePlayer.ship.hitPoints > 0
+    ) {
+      // Small delay to show state transition to user
+      const timer = setTimeout(() => {
+        try {
+          const botDecision = botDecideActions(gameState, currentActivePlayer.id)
+
+          // Log bot's thinking process
+          console.log(`[Bot ${currentActivePlayer.id}] Decision Log:`, botDecision.log)
+
+          setGameState(prev => {
+            const result = executeGameTurn(prev, botDecision.actions)
+            if (result.errors && result.errors.length > 0) {
+              console.error(`[Bot ${currentActivePlayer.id}] Turn errors:`, result.errors)
+              setTurnErrors(result.errors)
+              return prev // Don't advance if bot turn had errors
+            }
+            setTurnErrors([])
+            return result.gameState
+          })
+        } catch (error) {
+          console.error(`[Bot ${currentActivePlayer.id}] Failed to execute turn:`, error)
+        }
+      }, 800) // 800ms delay for visibility
+
+      return () => clearTimeout(timer)
+    }
+  }, [gameState.activePlayerIndex, gameState.turn, gameState])
 
   return (
     <GameContext.Provider

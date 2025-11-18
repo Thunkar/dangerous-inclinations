@@ -91,8 +91,8 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     id: 'railgun',
     name: 'Railgun',
     minEnergy: 4,
-    maxEnergy: 5, // Can allocate up to 5 energy
-    overclockThreshold: 4, // 5 energy generates 1 heat/turn
+    maxEnergy: 4, // Cannot allocate more than 4 energy
+    overclockThreshold: 3, // 4 energy generates 1 heat/turn
     weaponStats: {
       damage: 4,
       ringRange: 0, // Only fires on current ring (same ring)
