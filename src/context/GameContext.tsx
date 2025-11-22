@@ -83,6 +83,7 @@ const createInitialPlayers = (): Player[] => [
       subsystems: createInitialSubsystems(),
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
+      missileInventory: 4, // Start with 4 missiles
     },
   },
   {
@@ -101,6 +102,7 @@ const createInitialPlayers = (): Player[] => [
       subsystems: createInitialSubsystems(),
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
+      missileInventory: 4, // Start with 4 missiles
     },
   },
 ]
@@ -116,6 +118,7 @@ const createInitialState = (): GameState => {
     turnLog: [],
     gravityWells,
     transferPoints,
+    missiles: [], // No missiles in flight initially
   }
 }
 

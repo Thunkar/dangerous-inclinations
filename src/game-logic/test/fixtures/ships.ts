@@ -70,6 +70,7 @@ export function createTestShip(overrides: Partial<ShipState> = {}): ShipState {
     },
     subsystems: defaultSubsystems,
     transferState: null,
+    missileInventory: 4, // Start with 4 missiles
     ...overrides,
   }
 }

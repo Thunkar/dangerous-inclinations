@@ -18,6 +18,7 @@ import { WEAPONS } from '../constants/weapons'
 import { BURN_COSTS } from '../constants/rings'
 import { getSubsystemConfig } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
+import { fireMissile } from './missiles'
 import { getGravityWell } from '../constants/gravityWells'
 import type { RingConfig } from '../types/game'
 
@@ -285,6 +286,13 @@ function validateFireWeaponAction(gameState: GameState, action: FireWeaponAction
   const totalEnergyCost = weaponConfig.energyCost
   if (weaponSubsystem.allocatedEnergy < totalEnergyCost) {
     errors.push(`Not enough energy (need ${totalEnergyCost}, have ${weaponSubsystem.allocatedEnergy})`)
+  }
+
+  // Check missile inventory
+  if (action.data.weaponType === 'missiles') {
+    if (player.ship.missileInventory <= 0) {
+      errors.push('No missiles remaining')
+    }
   }
 
   return errors
@@ -805,6 +813,70 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
   const logEntries: TurnLogEntry[] = []
 
   const weaponConfig = WEAPONS[action.data.weaponType]
+
+  // Special handling for missiles: create missile entity instead of dealing instant damage
+  if (action.data.weaponType === 'missiles') {
+    const targetId = action.data.targetPlayerIds[0] // Missiles target one player at a time
+    const targetPlayer = gameState.players.find(p => p.id === targetId)
+
+    if (!targetPlayer) {
+      return {
+        success: false,
+        gameState,
+        logEntries: [],
+        errors: ['Target player not found'],
+      }
+    }
+
+    const { missile, error } = fireMissile(gameState, player.id, targetId)
+
+    if (error || !missile) {
+      return {
+        success: false,
+        gameState,
+        logEntries: [],
+        errors: [error || 'Failed to fire missile'],
+      }
+    }
+
+    // Add missile to game state and decrement inventory
+    const updatedPlayers = gameState.players.map(p =>
+      p.id === player.id
+        ? { ...p, ship: { ...p.ship, missileInventory: p.ship.missileInventory - 1 } }
+        : p
+    )
+
+    // Mark weapon subsystem as used this turn
+    const updatedPlayersWithUsage = updatedPlayers.map(p => {
+      if (p.id === player.id) {
+        const updatedSubsystems = p.ship.subsystems.map(s =>
+          s.type === 'missiles' ? { ...s, usedThisTurn: true } : s
+        )
+        return { ...p, ship: { ...p.ship, subsystems: updatedSubsystems } }
+      }
+      return p
+    })
+
+    logEntries.push({
+      turn: gameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Fire Missile',
+      result: `Fired missile at ${targetPlayer.name} (${updatedPlayersWithUsage.find(p => p.id === player.id)!.ship.missileInventory} missiles remaining)`,
+    })
+
+    return {
+      success: true,
+      gameState: {
+        ...gameState,
+        missiles: [...gameState.missiles, missile],
+        players: updatedPlayersWithUsage,
+      },
+      logEntries,
+    }
+  }
+
+  // Regular weapons (laser, railgun): instant damage
   const damage = getWeaponDamage(action.data.weaponType)
 
   // Apply damage to each target

@@ -83,6 +83,7 @@ describe('Bot AI Integration Tests', () => {
           reactionMass: 10,
           subsystems: [...defaultSubsystems],
           transferState: null,
+        missileInventory: 4,
         },
       },
       {
@@ -109,6 +110,7 @@ describe('Bot AI Integration Tests', () => {
           reactionMass: 10,
           subsystems: [...defaultSubsystems],
           transferState: null,
+        missileInventory: 4,
         },
       },
     ]
@@ -120,6 +122,7 @@ describe('Bot AI Integration Tests', () => {
       turnLog: [],
       gravityWells: [],
       transferPoints: [],
+      missiles: [],
     }
   }
 

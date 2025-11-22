@@ -1,6 +1,7 @@
 import type { GameState, TurnLogEntry, PlayerAction } from '../types/game'
 import { processActions } from './actionProcessors'
 import { completeRingTransfer } from './movement'
+import { processMissiles } from './missiles'
 
 /**
  * Result of executing a complete game turn
@@ -28,6 +29,7 @@ function createGameStateSnapshot(gameState: GameState): GameState {
       },
     })),
     turnLog: [...gameState.turnLog],
+    missiles: gameState.missiles ? gameState.missiles.map(m => ({ ...m })) : [], // Deep copy missiles array
   }
 }
 
@@ -89,6 +91,16 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   // Success - use the snapshot as the new game state
   let updatedGameState = processResult.gameState
   allLogEntries.push(...processResult.logEntries)
+
+  // Process missiles owned by the active player (after their actions complete)
+  if (updatedGameState.missiles.length > 0) {
+    const playerMissiles = updatedGameState.missiles.filter(m => m.ownerId === activePlayer.id)
+    if (playerMissiles.length > 0) {
+      const missileResult = processMissiles(updatedGameState, activePlayer.id)
+      updatedGameState = missileResult.gameState
+      allLogEntries.push(...missileResult.logEntries)
+    }
+  }
 
   // Move to next player
   const nextPlayerIndex = (gameState.activePlayerIndex + 1) % updatedGameState.players.length

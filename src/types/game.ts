@@ -46,6 +46,20 @@ export interface TransferState {
   isWellTransfer?: boolean // true if transferring between gravity wells
 }
 
+/**
+ * Missile entity in flight
+ */
+export interface Missile {
+  id: string // Unique identifier (e.g., "missile-player1-1")
+  ownerId: string // Player who fired it
+  targetId: string // Target player ID
+  wellId: GravityWellId // Current gravity well
+  ring: number // Current ring position
+  sector: number // Current sector position
+  turnFired: number // Game turn when missile was launched
+  turnsAlive: number // How many turns missile has been alive (0-2, explodes at 3)
+}
+
 export interface ShipState {
   wellId: GravityWellId // Which gravity well the ship is currently in
   ring: number
@@ -59,6 +73,7 @@ export interface ShipState {
   subsystems: Subsystem[]
   reactor: ReactorState
   heat: HeatState
+  missileInventory: number // Missiles remaining (starts at 4, max 4, cannot replenish)
 }
 
 /**
@@ -190,6 +205,7 @@ export interface GameState {
   turnLog: TurnLogEntry[]
   gravityWells: GravityWell[] // All gravity wells in the system
   transferPoints: TransferPoint[] // Calculated each turn based on planetary positions
+  missiles: Missile[] // All missiles currently in flight
 }
 
 export interface RingConfig {

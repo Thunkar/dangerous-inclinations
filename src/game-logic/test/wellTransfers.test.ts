@@ -16,6 +16,7 @@ import {
   createInitialReactorState,
   createInitialHeatState,
 } from '../../utils/subsystemHelpers'
+import { MISSILE_CONFIG } from '../missiles'
 
 describe('Well Transfers', () => {
   // Helper to create a test ship
@@ -32,6 +33,7 @@ describe('Well Transfers', () => {
       subsystems: createInitialSubsystems(),
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
+      missileInventory: MISSILE_CONFIG.INITIAL_INVENTORY,
     }
   }
 
@@ -53,6 +55,7 @@ describe('Well Transfers', () => {
       gravityWells: ALL_GRAVITY_WELLS,
       transferPoints,
       turnLog: [],
+      missiles: [],
     }
   }
 

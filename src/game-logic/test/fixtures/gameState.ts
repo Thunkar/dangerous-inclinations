@@ -40,6 +40,7 @@ export function createTestGameState(): GameState {
       subsystems: createInitialSubsystems(),
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
+      missileInventory: 4,
     },
   }
 
@@ -59,6 +60,7 @@ export function createTestGameState(): GameState {
       subsystems: createInitialSubsystems(),
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
+      missileInventory: 4,
     },
   }
 
@@ -69,5 +71,6 @@ export function createTestGameState(): GameState {
     turnLog: [],
     gravityWells: [],
     transferPoints: [],
+    missiles: [], // No missiles in flight initially
   }
 }

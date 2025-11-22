@@ -8,6 +8,7 @@ import { useGame } from '../context/GameContext'
 import { calculatePostMovementPosition } from '../utils/tacticalSequence'
 import type { Player, Facing, BurnIntensity } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
+import { MISSILE_CONFIG } from '../game-logic/missiles'
 
 interface MovementPreview {
   actionType: 'coast' | 'burn'
@@ -1534,6 +1535,104 @@ export function GameBoard({
                     </>
                   )
                 })()}
+            </g>
+          )
+        })}
+
+        {/* Missiles in flight */}
+        {gameState.missiles.map(missile => {
+          const owner = players.find(p => p.id === missile.ownerId)
+          const target = players.find(p => p.id === missile.targetId)
+          if (!owner || !target) return null
+
+          const well = gameState.gravityWells.find(w => w.id === missile.wellId)
+          if (!well) return null
+
+          const ringConfig = well.rings.find(r => r.ring === missile.ring)
+          if (!ringConfig) return null
+
+          const wellPosition = getGravityWellPosition(missile.wellId)
+          const radius = ringConfig.radius * scaleFactor
+          const rotationOffset = getSectorRotationOffset(missile.wellId)
+          const direction = getSectorAngleDirection(missile.wellId)
+
+          const angle =
+            direction * ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+            Math.PI / 2 +
+            rotationOffset
+
+          const x = wellPosition.x + radius * Math.cos(angle)
+          const y = wellPosition.y + radius * Math.sin(angle)
+
+          // Target position
+          const targetWell = gameState.gravityWells.find(w => w.id === target.ship.wellId)
+          if (!targetWell) return null
+
+          const targetRingConfig = targetWell.rings.find(r => r.ring === target.ship.ring)
+          if (!targetRingConfig) return null
+
+          const targetWellPos = getGravityWellPosition(target.ship.wellId)
+          const targetRadius = targetRingConfig.radius * scaleFactor
+          const targetRotation = getSectorRotationOffset(target.ship.wellId)
+          const targetDirection = getSectorAngleDirection(target.ship.wellId)
+          const targetAngle =
+            targetDirection * ((target.ship.sector + 0.5) / targetRingConfig.sectors) * 2 * Math.PI -
+            Math.PI / 2 +
+            targetRotation
+          const targetX = targetWellPos.x + targetRadius * Math.cos(targetAngle)
+          const targetY = targetWellPos.y + targetRadius * Math.sin(targetAngle)
+
+          const turnsRemaining = MISSILE_CONFIG.MAX_TURNS_ALIVE - missile.turnsAlive
+
+          return (
+            <g key={missile.id}>
+              {/* Target tracking line */}
+              <line
+                x1={x}
+                y1={y}
+                x2={targetX}
+                y2={targetY}
+                stroke={owner.color}
+                strokeWidth={1}
+                strokeDasharray="4 2"
+                opacity={0.4}
+              />
+
+              {/* Missile body */}
+              <circle
+                cx={x}
+                cy={y}
+                r={5}
+                fill={owner.color}
+                stroke="white"
+                strokeWidth={1.5}
+                opacity={0.95}
+              />
+
+              {/* Turn indicator */}
+              <text
+                x={x}
+                y={y - 10}
+                textAnchor="middle"
+                fontSize={9}
+                fill="white"
+                fontWeight="bold"
+                style={{ textShadow: '0 0 3px black' }}
+              >
+                {turnsRemaining}
+              </text>
+
+              {/* Missile icon/arrow pointing at target */}
+              <text
+                x={x}
+                y={y + 3}
+                textAnchor="middle"
+                fontSize={8}
+                fill="white"
+                fontWeight="bold"
+              >
+                🚀
+              </text>
             </g>
           )
         })}
