@@ -15,6 +15,7 @@ import { UtilityActions } from './actions/UtilityActions'
 import { ActionSummary } from './actions/ActionSummary'
 import { STARTING_REACTION_MASS } from '../constants/rings'
 import { CustomIcon } from './CustomIcon'
+import { MISSILE_CONFIG } from '../game-logic/missiles'
 
 interface ControlPanelProps {
   player: Player
@@ -335,7 +336,10 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   const canAddLaser = !hasLaser && laserSubsystem?.isPowered && !laserSubsystem.usedThisTurn
   const canAddRailgun = !hasRailgun && railgunSubsystem?.isPowered && !railgunSubsystem.usedThisTurn
   const canAddMissiles =
-    !hasMissiles && missilesSubsystem?.isPowered && !missilesSubsystem.usedThisTurn
+    !hasMissiles &&
+    missilesSubsystem?.isPowered &&
+    !missilesSubsystem.usedThisTurn &&
+    ship.missileInventory > 0
 
   return (
     <Stack spacing={2}>
@@ -383,6 +387,51 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
             sx={{ fontSize: '0.75rem', minWidth: 32 }}
           >
             {ship.reactionMass}/{STARTING_REACTION_MASS}
+          </Typography>
+        </Box>
+      </Paper>
+
+      {/* Missile Inventory */}
+      <Paper sx={{ px: 2, py: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontSize: '0.65rem', minWidth: 90 }}
+          >
+            MISSILES
+          </Typography>
+          <Box
+            sx={{
+              flex: 1,
+              display: 'flex',
+              gap: 0.5,
+            }}
+          >
+            {Array.from({ length: MISSILE_CONFIG.MAX_INVENTORY }).map((_, i) => (
+              <Box
+                key={i}
+                sx={{
+                  flex: 1,
+                  height: 12,
+                  bgcolor: i < ship.missileInventory ? '#00ff00' : 'rgba(0,0,0,0.3)',
+                  borderRadius: 0.5,
+                  transition: 'all 0.3s',
+                  boxShadow: i < ship.missileInventory ? '0 0 4px rgba(0,255,0,0.4)' : 'none',
+                }}
+              />
+            ))}
+          </Box>
+          <Typography
+            variant="caption"
+            fontWeight="bold"
+            sx={{
+              fontSize: '0.75rem',
+              minWidth: 32,
+              color: ship.missileInventory === 0 ? 'error.main' : 'inherit',
+            }}
+          >
+            {ship.missileInventory}/{MISSILE_CONFIG.MAX_INVENTORY}
           </Typography>
         </Box>
       </Paper>
@@ -753,34 +802,8 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
             {panel.type === 'fire_missiles' &&
               (() => {
-                const subsystemConfig = missilesSubsystem
-                  ? getSubsystemConfig(missilesSubsystem.type)
-                  : null
-                const weaponStats = subsystemConfig?.weaponStats
-
-                // Check if this weapon fires after movement
-                const moveAction = panels.find(p => p.type === 'move')
-                const firesAfterMovement = moveAction && panel.sequence > moveAction.sequence
-
-                // Calculate ship position for range calculations
-                let shipForRangeCalc = ship
-                if (firesAfterMovement && actionType === 'burn') {
-                  shipForRangeCalc = calculatePostMovementPosition(ship, targetFacing, {
-                    actionType,
-                    burnIntensity,
-                    sectorAdjustment,
-                  })
-                } else if (firesAfterMovement && actionType === 'coast') {
-                  shipForRangeCalc = calculatePostMovementPosition(ship, targetFacing, {
-                    actionType: 'coast',
-                    sectorAdjustment: 0,
-                  })
-                }
-
-                const firingSolutions = weaponStats
-                  ? calculateFiringSolutions(weaponStats, shipForRangeCalc, allPlayers, player.id)
-                  : []
-                const inRangeTargets = firingSolutions.filter(fs => fs.inRange)
+                // Missiles can target ANY player (they're self-propelled)
+                const validTargets = allPlayers.filter(p => p.id !== player.id)
 
                 return (
                   <Box
@@ -805,25 +828,10 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                         <Typography variant="body2" fontWeight="bold">
                           Missiles
                         </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          ({ship.missileInventory} remaining)
+                        </Typography>
                       </Box>
-                      <Tooltip title={weaponRangeVisibility.missiles ? 'Hide Range' : 'Show Range'}>
-                        <IconButton
-                          size="small"
-                          onClick={() => toggleWeaponRange('missiles')}
-                          sx={{
-                            padding: '4px',
-                            color: weaponRangeVisibility.missiles
-                              ? 'primary.main'
-                              : 'text.secondary',
-                          }}
-                        >
-                          {weaponRangeVisibility.missiles ? (
-                            <Visibility sx={{ fontSize: 16 }} />
-                          ) : (
-                            <VisibilityOff sx={{ fontSize: 16 }} />
-                          )}
-                        </IconButton>
-                      </Tooltip>
                     </Box>
                     <select
                       value={panel.targetPlayerId || ''}
@@ -841,16 +849,15 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                       }}
                     >
                       <option value="" style={{ backgroundColor: '#1a1a1a' }}>
-                        Select Target ({inRangeTargets.length} in range)
+                        Select Target ({validTargets.length} available)
                       </option>
-                      {inRangeTargets.map(solution => (
+                      {validTargets.map(target => (
                         <option
-                          key={solution.targetPlayer.id}
-                          value={solution.targetPlayer.id}
+                          key={target.id}
+                          value={target.id}
                           style={{ backgroundColor: '#1a1a1a' }}
                         >
-                          {solution.targetPlayer.name} (HP: {solution.targetPlayer.ship.hitPoints}/
-                          {solution.targetPlayer.ship.maxHitPoints})
+                          {target.name} (HP: {target.ship.hitPoints}/{target.ship.maxHitPoints})
                         </option>
                       ))}
                     </select>

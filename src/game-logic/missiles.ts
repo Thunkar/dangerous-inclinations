@@ -1,5 +1,5 @@
-import type { GameState, Missile, Player, GravityWellId } from '../types/game'
-import type { ProcessResult, TurnLogEntry } from './actionProcessors'
+import type { GameState, Missile, Player, TurnLogEntry } from '../types/game'
+import type { ProcessResult } from './actionProcessors'
 import { getGravityWell } from '../constants/gravityWells'
 import { applyOrbitalMovement } from './movement'
 import { applyWeaponDamage } from './damage'
@@ -48,7 +48,7 @@ function calculateSectorDistance(
 export function calculateMissileMovement(
   missile: Missile,
   target: Player,
-  gameState: GameState
+  _gameState: GameState
 ): { ring: number; sector: number; fuelSpent: number; path: string[] } {
   const fuel = MISSILE_CONFIG.FUEL_PER_TURN
   const path: string[] = []
@@ -74,6 +74,11 @@ export function calculateMissileMovement(
   const ringDistance = Math.abs(ringDiff)
 
   const well = getGravityWell(missile.wellId)
+  if (!well) {
+    path.push(`Invalid gravity well - missile drifts`)
+    return { ring: currentRing, sector: currentSector, fuelSpent: 0, path }
+  }
+
   const currentRingConfig = well.rings.find(r => r.ring === currentRing)!
   const sectorInfo = calculateSectorDistance(currentSector, targetSector, currentRingConfig.sectors)
 
@@ -217,8 +222,8 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
       const targetIndex = updatedPlayers.findIndex(p => p.id === target.id)
       const damagedShip = applyWeaponDamage(
         target.ship,
-        MISSILE_CONFIG.DAMAGE,
-        false // Missiles don't bypass shields
+        'missiles',
+        MISSILE_CONFIG.DAMAGE
       )
       updatedPlayers[targetIndex] = {
         ...target,
@@ -235,7 +240,6 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
       })
     } else {
       // Update missile position
-      const missileIndex = updatedGameState.missiles.findIndex(m => m.id === missile.id)
       const updatedMissile = {
         ...missile,
         ring: currentRing,

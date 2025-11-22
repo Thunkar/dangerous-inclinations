@@ -8,7 +8,7 @@ import { useGame } from '../context/GameContext'
 import { calculatePostMovementPosition } from '../utils/tacticalSequence'
 import type { Player, Facing, BurnIntensity } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
-import { MISSILE_CONFIG } from '../game-logic/missiles'
+import { MISSILE_CONFIG, calculateMissileMovement } from '../game-logic/missiles'
 
 interface MovementPreview {
   actionType: 'coast' | 'burn'
@@ -338,31 +338,61 @@ export function GameBoard({
         {/* SVG Filters for ship outlines */}
         <defs>
           {players.map(player => (
-            <filter
-              key={`outline-${player.id}`}
-              id={`outline-${player.id}`}
-              x="-50%"
-              y="-50%"
-              width="200%"
-              height="200%"
-            >
-              {/* Create colored outline (outer) */}
-              <feMorphology operator="dilate" radius="4" in="SourceAlpha" result="thickenColor" />
-              <feFlood floodColor={player.color} result="colorFlood" />
-              <feComposite in="colorFlood" in2="thickenColor" operator="in" result="colorOutline" />
+            <>
+              {/* Ship outline filter */}
+              <filter
+                key={`outline-${player.id}`}
+                id={`outline-${player.id}`}
+                x="-50%"
+                y="-50%"
+                width="200%"
+                height="200%"
+              >
+                {/* Create colored outline (outer) */}
+                <feMorphology operator="dilate" radius="4" in="SourceAlpha" result="thickenColor" />
+                <feFlood floodColor={player.color} result="colorFlood" />
+                <feComposite in="colorFlood" in2="thickenColor" operator="in" result="colorOutline" />
 
-              {/* Create black outline (inner, frames the ship) */}
-              <feMorphology operator="dilate" radius="1" in="SourceAlpha" result="thickenBlack" />
-              <feFlood floodColor="#000000" result="blackFlood" />
-              <feComposite in="blackFlood" in2="thickenBlack" operator="in" result="blackOutline" />
+                {/* Create black outline (inner, frames the ship) */}
+                <feMorphology operator="dilate" radius="1" in="SourceAlpha" result="thickenBlack" />
+                <feFlood floodColor="#000000" result="blackFlood" />
+                <feComposite in="blackFlood" in2="thickenBlack" operator="in" result="blackOutline" />
 
-              {/* Merge all layers: colored outline, black outline, then ship */}
-              <feMerge>
-                <feMergeNode in="colorOutline" />
-                <feMergeNode in="blackOutline" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+                {/* Merge all layers: colored outline, black outline, then ship */}
+                <feMerge>
+                  <feMergeNode in="colorOutline" />
+                  <feMergeNode in="blackOutline" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+
+              {/* Missile outline filter (slimmer) */}
+              <filter
+                key={`missile-outline-${player.id}`}
+                id={`missile-outline-${player.id}`}
+                x="-50%"
+                y="-50%"
+                width="200%"
+                height="200%"
+              >
+                {/* Create colored outline (outer, slimmer than ships) */}
+                <feMorphology operator="dilate" radius="2" in="SourceAlpha" result="thickenColor" />
+                <feFlood floodColor={player.color} result="colorFlood" />
+                <feComposite in="colorFlood" in2="thickenColor" operator="in" result="colorOutline" />
+
+                {/* Create black outline (inner, frames the missile) */}
+                <feMorphology operator="dilate" radius="1" in="SourceAlpha" result="thickenBlack" />
+                <feFlood floodColor="#000000" result="blackFlood" />
+                <feComposite in="blackFlood" in2="thickenBlack" operator="in" result="blackOutline" />
+
+                {/* Merge all layers: colored outline, black outline, then missile */}
+                <feMerge>
+                  <feMergeNode in="colorOutline" />
+                  <feMergeNode in="blackOutline" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </>
           ))}
         </defs>
 
@@ -1556,13 +1586,47 @@ export function GameBoard({
           const rotationOffset = getSectorRotationOffset(missile.wellId)
           const direction = getSectorAngleDirection(missile.wellId)
 
+          // Calculate offset for multiple missiles in same sector
+          const missilesInSameSector = gameState.missiles.filter(
+            m => m.wellId === missile.wellId && m.ring === missile.ring && m.sector === missile.sector
+          )
+          const missileIndexInSector = missilesInSameSector.findIndex(m => m.id === missile.id)
+          const totalMissiles = missilesInSameSector.length
+
+          // Lay missiles out along a radial line (perpendicular to the arc)
+          // This prevents overlapping when multiple missiles are in the same sector
+          const baseRadius = radius
+          const radialSpacing = 20 // pixels between missiles along the radius
+          const radialOffset = totalMissiles > 1
+            ? (missileIndexInSector - (totalMissiles - 1) / 2) * radialSpacing
+            : 0
+
+          // Calculate position at sector center with radial offset
           const angle =
             direction * ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
             Math.PI / 2 +
             rotationOffset
 
-          const x = wellPosition.x + radius * Math.cos(angle)
-          const y = wellPosition.y + radius * Math.sin(angle)
+          const missileRadius = baseRadius + radialOffset
+          const x = wellPosition.x + missileRadius * Math.cos(angle)
+          const y = wellPosition.y + missileRadius * Math.sin(angle)
+
+          // Calculate next position (prediction)
+          const movement = calculateMissileMovement(missile, target, gameState)
+          let nextX = x
+          let nextY = y
+          if (movement.ring !== missile.ring || movement.sector !== missile.sector) {
+            const nextRingConfig = well.rings.find(r => r.ring === movement.ring)
+            if (nextRingConfig) {
+              const nextRadius = nextRingConfig.radius * scaleFactor
+              const nextAngle =
+                direction * ((movement.sector + 0.5) / nextRingConfig.sectors) * 2 * Math.PI -
+                Math.PI / 2 +
+                rotationOffset
+              nextX = wellPosition.x + nextRadius * Math.cos(nextAngle)
+              nextY = wellPosition.y + nextRadius * Math.sin(nextAngle)
+            }
+          }
 
           // Target position
           const targetWell = gameState.gravityWells.find(w => w.id === target.ship.wellId)
@@ -1584,6 +1648,19 @@ export function GameBoard({
 
           const turnsRemaining = MISSILE_CONFIG.MAX_TURNS_ALIVE - missile.turnsAlive
 
+          // Calculate missile label (based on turn fired to distinguish multiple missiles)
+          const missileLabel = `M${missile.turnFired}`
+
+          // Calculate label positions along the arc (tangential to the sector)
+          // Labels are offset perpendicular to the radius
+          const missileLabelDistance = 18 // pixels from missile center (for M# label)
+          const turnCounterDistance = 12 // pixels from missile center (for turn counter)
+          const tangentAngle = angle + Math.PI / 2 // perpendicular to radius
+          const labelLeftX = x + missileLabelDistance * Math.cos(tangentAngle)
+          const labelLeftY = y + missileLabelDistance * Math.sin(tangentAngle)
+          const labelRightX = x - turnCounterDistance * Math.cos(tangentAngle)
+          const labelRightY = y - turnCounterDistance * Math.sin(tangentAngle)
+
           return (
             <g key={missile.id}>
               {/* Target tracking line */}
@@ -1598,40 +1675,69 @@ export function GameBoard({
                 opacity={0.4}
               />
 
-              {/* Missile body */}
-              <circle
-                cx={x}
-                cy={y}
-                r={5}
-                fill={owner.color}
-                stroke="white"
-                strokeWidth={1.5}
-                opacity={0.95}
+              {/* Predicted next position */}
+              {(nextX !== x || nextY !== y) && (
+                <>
+                  <line
+                    x1={x}
+                    y1={y}
+                    x2={nextX}
+                    y2={nextY}
+                    stroke={owner.color}
+                    strokeWidth={2}
+                    strokeDasharray="2 2"
+                    opacity={0.6}
+                    markerEnd={`url(#missile-arrow-${owner.id})`}
+                  />
+                  <circle
+                    cx={nextX}
+                    cy={nextY}
+                    r={4}
+                    fill="none"
+                    stroke={owner.color}
+                    strokeWidth={1}
+                    opacity={0.5}
+                    strokeDasharray="2 1"
+                  />
+                </>
+              )}
+
+              {/* Missile icon with colored outline (matching ship style) */}
+              <image
+                href="/assets/icons/ballistic_rack.png"
+                x={x - 5}
+                y={y - 5}
+                width={10}
+                height={10}
+                filter={`url(#missile-outline-${owner.id})`}
+                transform={`rotate(${(angle * 180) / Math.PI + 180}, ${x}, ${y})`}
+                style={{ pointerEvents: 'none' }}
               />
 
-              {/* Turn indicator */}
+              {/* Missile label (turn fired) - positioned along arc */}
               <text
-                x={x}
-                y={y - 10}
-                textAnchor="middle"
-                fontSize={9}
-                fill="white"
-                fontWeight="bold"
-                style={{ textShadow: '0 0 3px black' }}
-              >
-                {turnsRemaining}
-              </text>
-
-              {/* Missile icon/arrow pointing at target */}
-              <text
-                x={x}
-                y={y + 3}
+                x={labelLeftX}
+                y={labelLeftY}
                 textAnchor="middle"
                 fontSize={8}
                 fill="white"
                 fontWeight="bold"
+                style={{ textShadow: '0 0 3px black' }}
               >
-                🚀
+                {missileLabel}
+              </text>
+
+              {/* Turn counter (turns remaining) - positioned along arc */}
+              <text
+                x={labelRightX}
+                y={labelRightY}
+                textAnchor="middle"
+                fontSize={8}
+                fill={turnsRemaining === 1 ? '#ff4444' : 'white'}
+                fontWeight="bold"
+                style={{ textShadow: '0 0 3px black' }}
+              >
+                {turnsRemaining}
               </text>
             </g>
           )
@@ -1664,6 +1770,18 @@ export function GameBoard({
                 orient="auto"
               >
                 <polygon points="0 0, 7 3.5, 0 7" fill={player.color} />
+              </marker>
+              {/* Missile prediction arrow */}
+              <marker
+                key={`${player.id}-missile`}
+                id={`missile-arrow-${player.id}`}
+                markerWidth="6"
+                markerHeight="6"
+                refX="5"
+                refY="3"
+                orient="auto"
+              >
+                <polygon points="0 0, 6 3, 0 6" fill={player.color} opacity="0.6" />
               </marker>
             </>
           ))}

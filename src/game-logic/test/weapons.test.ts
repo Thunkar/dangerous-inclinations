@@ -28,6 +28,7 @@ function createTestPlayer(id: string, name: string, ring: number, sector: number
       subsystems: createInitialSubsystems(),
       reactor: createInitialReactorState(),
       heat: createInitialHeatState(),
+      missileInventory: 4,
     },
   }
 }

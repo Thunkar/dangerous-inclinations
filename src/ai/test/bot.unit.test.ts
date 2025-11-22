@@ -62,6 +62,7 @@ function createTestGameState(customPlayers?: Player[]): GameState {
     turnLog: [],
     gravityWells,
     transferPoints,
+    missiles: [],
   }
 }
 

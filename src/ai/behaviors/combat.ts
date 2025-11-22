@@ -91,10 +91,11 @@ export function generateWeaponActions(
     }
   }
 
-  // Missiles - turret weapon, always hits if in range
-  if (firingSolutions.missiles?.inRange) {
-    const missilesSubsystem = botPlayer.ship.subsystems.find(s => s.type === 'missiles')
-    if (missilesSubsystem && missilesSubsystem.isPowered && !missilesSubsystem.usedThisTurn) {
+  // Missiles - self-propelled, can target any player (check inventory instead of range)
+  const missilesSubsystem = botPlayer.ship.subsystems.find(s => s.type === 'missiles')
+  if (missilesSubsystem && missilesSubsystem.isPowered && !missilesSubsystem.usedThisTurn) {
+    // Only fire if we have missiles remaining
+    if (botPlayer.ship.missileInventory > 0) {
       actions.push({
         type: 'fire_weapon',
         playerId: botPlayer.id,

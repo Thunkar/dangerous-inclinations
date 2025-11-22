@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { executeTurn } from '../turns'
 import { calculateMissileMovement, checkMissileHit, MISSILE_CONFIG } from '../missiles'
 import { createTestGameState } from './fixtures/gameState'
-import type { GameState, Missile, PlayerAction, FireWeaponAction, AllocateEnergyAction } from '../../types/game'
+import type { Missile, FireWeaponAction, AllocateEnergyAction } from '../../types/game'
 
 describe('Missile System', () => {
   describe('Missile Pathfinding', () => {
@@ -370,8 +370,6 @@ describe('Missile System', () => {
       gameState.players[1].ship.ring = 3
       gameState.players[1].ship.sector = 2 // Close enough to hit quickly
 
-      const initialHP = gameState.players[1].ship.hitPoints
-
       // Fire missile
       const allocateAction: AllocateEnergyAction = {
         type: 'allocate_energy',
@@ -407,11 +405,7 @@ describe('Missile System', () => {
         }
       }
 
-      // Check if damage was dealt (HP should be less than initial, or missile expired)
-      const finalHP = gameState.players[1].ship.hitPoints
-
-      // Either missile hit (HP reduced) or expired (HP unchanged)
-      // We just check the missile is gone
+      // Either missile hit or expired - we just check the missile is gone
       expect(gameState.missiles.length).toBe(0)
     })
   })
