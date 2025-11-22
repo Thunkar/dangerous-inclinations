@@ -670,17 +670,64 @@ export function GameBoard({
               {/* Predicted position indicator (Step 1) */}
               {predictedX !== null && predictedY !== null && (
                 <>
-                  {/* Connecting line from current to predicted position */}
-                  <line
-                    x1={x}
-                    y1={y}
-                    x2={predictedX}
-                    y2={predictedY}
-                    stroke={player.color}
-                    strokeWidth={hasPendingBurn ? 2 : 2}
-                    strokeDasharray={hasPendingBurn ? "6 4" : "4 4"}
-                    opacity={hasPendingBurn ? 0.4 : 0.6}
-                  />
+                  {/* Connecting arc/line from current to predicted position */}
+                  {hasPendingBurn ? (
+                    // For burns, use straight line
+                    <line
+                      x1={x}
+                      y1={y}
+                      x2={predictedX}
+                      y2={predictedY}
+                      stroke={player.color}
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                      opacity={0.4}
+                    />
+                  ) : (
+                    // For coasting, use circular arc following the orbital path
+                    (() => {
+                      // Calculate arc parameters for coast movement
+                      const startAngle = Math.atan2(y - wellPosition.y, x - wellPosition.x)
+                      const endAngle = Math.atan2(predictedY - wellPosition.y, predictedX - wellPosition.x)
+
+                      // Calculate angle difference (handle wraparound)
+                      let angleDiff = endAngle - startAngle
+                      if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
+                      if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
+
+                      // Determine sweep direction based on well's sector direction
+                      const coastDirection = getSectorAngleDirection(player.ship.wellId)
+                      const sweepFlag = coastDirection > 0 ? 1 : 0
+
+                      // Determine if this is a large arc (> 180 degrees)
+                      const largeArcFlag = Math.abs(angleDiff) > Math.PI ? 1 : 0
+
+                      // Create SVG circular arc path
+                      const pathData = `M ${x} ${y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${predictedX} ${predictedY}`
+
+                      return (
+                        <>
+                          {/* Background glow for arc */}
+                          <path
+                            d={pathData}
+                            fill="none"
+                            stroke={player.color}
+                            strokeWidth={6}
+                            opacity={0.15}
+                          />
+                          {/* Main arc */}
+                          <path
+                            d={pathData}
+                            fill="none"
+                            stroke={player.color}
+                            strokeWidth={3}
+                            strokeDasharray="8 4"
+                            opacity={0.7}
+                          />
+                        </>
+                      )
+                    })()
+                  )}
                   {/* Predicted position circle */}
                   <circle
                     cx={predictedX}
