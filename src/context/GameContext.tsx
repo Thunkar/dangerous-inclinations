@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { GameState, Player, PlayerAction, Facing, BurnIntensity } from '../types/game'
+import type { GameState, Player, PlayerAction, Facing, BurnIntensity, TurnHistoryEntry } from '../types/game'
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from '../types/subsystems'
 import { getSubsystemConfig } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
@@ -50,6 +50,7 @@ interface GameContextType {
   gameState: GameState
   pendingState: PendingState
   turnErrors: string[]
+  turnHistory: TurnHistoryEntry[]
   clearTurnErrors: () => void
   // High-level game actions
   allocateEnergy: (subsystemType: SubsystemType, newTotal: number) => void
@@ -121,6 +122,7 @@ const createInitialState = (): GameState => {
 export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(createInitialState())
   const [turnErrors, setTurnErrors] = useState<string[]>([])
+  const [turnHistory, setTurnHistory] = useState<TurnHistoryEntry[]>([])
   const [weaponRangeVisibility, setWeaponRangeVisibility] = useState<WeaponRangeVisibility>({
     laser: false,
     railgun: false,
@@ -430,6 +432,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     })
 
     // 4. Execute turn with all actions
+    const currentTurn = gameState.turn
     setGameState(prev => {
       const result = executeGameTurn(prev, actions)
       if (result.errors && result.errors.length > 0) {
@@ -439,7 +442,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setTurnErrors([])
       return result.gameState
     })
-  }, [activePlayer, pendingState])
+
+    // Record turn in history (human player) - do this outside setGameState callback
+    setTurnHistory(prevHistory => [
+      ...prevHistory,
+      {
+        turn: currentTurn,
+        playerId: activePlayer.id,
+        playerName: activePlayer.name,
+        actions,
+      },
+    ])
+  }, [activePlayer, pendingState, gameState.turn])
 
   const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missiles') => {
     setWeaponRangeVisibility(prev => ({
@@ -467,8 +481,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           const botDecision = botDecideActions(gameState, currentActivePlayer.id)
 
           // Log bot's thinking process
-          console.log(`[Bot ${currentActivePlayer.id}] Decision Log:`, botDecision.log)
+          console.log(`[Bot ${currentActivePlayer.id}] Decision:`, botDecision.log)
 
+          const currentTurn = gameState.turn
           setGameState(prev => {
             const result = executeGameTurn(prev, botDecision.actions)
             if (result.errors && result.errors.length > 0) {
@@ -479,6 +494,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
             setTurnErrors([])
             return result.gameState
           })
+
+          // Record turn in history (bot player with decision log) - do this outside setGameState callback
+          setTurnHistory(prevHistory => [
+            ...prevHistory,
+            {
+              turn: currentTurn,
+              playerId: currentActivePlayer.id,
+              playerName: currentActivePlayer.name,
+              actions: botDecision.actions,
+              botDecision: botDecision.log,
+            },
+          ])
         } catch (error) {
           console.error(`[Bot ${currentActivePlayer.id}] Failed to execute turn:`, error)
         }
@@ -494,6 +521,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         gameState,
         pendingState,
         turnErrors,
+        turnHistory,
         clearTurnErrors,
         allocateEnergy,
         deallocateEnergy,

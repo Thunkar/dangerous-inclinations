@@ -332,11 +332,11 @@ describe('Weapon Targeting', () => {
       expect(after?.inRange).toBe(true)
     })
 
-    it('should calculate range from current ring when burning (transfer not completed)', () => {
+    it('should calculate range from destination ring after immediate transfer', () => {
       const attacker = createTestPlayer('attacker', 'Attacker', 3, 0, 'prograde')
-      const target = createTestPlayer('target', 'Target', 3, 6, 'prograde') // Adjusted for velocity
+      const target = createTestPlayer('target', 'Target', 4, 2, 'prograde') // Adjusted for velocity
 
-      // Attacker burns (initiates transfer to R4 but stays on R3 this turn)
+      // Attacker burns (transfer completes immediately)
       const postMoveShip = calculatePostMovementPosition(
         attacker.ship,
         attacker.ship.facing,
@@ -347,11 +347,11 @@ describe('Weapon Targeting', () => {
         }
       )
 
-      // Ship is STILL on ring 3 (transfer completes next turn)
-      expect(postMoveShip.ring).toBe(3)
-      expect(postMoveShip.sector).toBe(2) // Moved +2 sectors (Ring 3 velocity=2)
+      // Ship is on ring 4 (transfer completes immediately)
+      expect(postMoveShip.ring).toBe(4)
+      expect(postMoveShip.sector).toBe(2) // Moved +2 sectors then transferred to R4 (1:1 mapping)
 
-      // Calculate weapon range from current ring (R3), not destination ring (R4)
+      // Calculate weapon range from destination ring (R4)
       const solutions = calculateFiringSolutions(
         spinalRailgun,
         postMoveShip,
@@ -360,8 +360,8 @@ describe('Weapon Targeting', () => {
       )
 
       const targetSolution = solutions.find(s => s.targetId === target.id)
-      // Target at R3S6, attacker at R3S2 -> 4 sectors away, within range
-      expect(targetSolution?.inRange).toBe(true)
+      // Target at R4S2, attacker at R4S2 -> same position, within range (0 sectors away)
+      expect(targetSolution?.inRange).toBe(false) // Can't target self position
     })
 
     it('should calculate broadside range after rotation', () => {

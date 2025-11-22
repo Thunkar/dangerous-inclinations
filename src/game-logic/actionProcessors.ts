@@ -12,7 +12,7 @@ import type {
   WellTransferAction,
   ShipState,
 } from '../types/game'
-import { applyOrbitalMovement, initiateBurn, applyRotation } from './movement'
+import { applyOrbitalMovement, initiateBurn, applyRotation, completeRingTransfer } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
 import { BURN_COSTS } from '../constants/rings'
@@ -500,15 +500,21 @@ function processCoast(gameState: GameState, action: CoastAction): ProcessResult 
 }
 
 /**
- * Process a burn action (initiate transfer)
+ * Process a burn action (initiate and complete transfer on same turn)
  */
 function processBurn(gameState: GameState, action: BurnAction): ProcessResult {
   const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
   const player = gameState.players[playerIndex]
 
-  // Apply orbital movement first, then initiate burn
+  // Apply orbital movement first, then initiate burn with immediate completion
   let updatedShip = applyOrbitalMovement(player.ship)
-  updatedShip = initiateBurn(updatedShip, action)
+  updatedShip = initiateBurn(updatedShip, action, true) // true = immediate transfer
+
+  // Complete the transfer immediately (same turn)
+  const destinationRing = updatedShip.transferState?.destinationRing
+  if (updatedShip.transferState && !updatedShip.transferState.arriveNextTurn) {
+    updatedShip = completeRingTransfer(updatedShip)
+  }
 
   const updatedPlayers = [...gameState.players]
   updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
@@ -519,7 +525,7 @@ function processBurn(gameState: GameState, action: BurnAction): ProcessResult {
       playerId: player.id,
       playerName: player.name,
       action: 'Burn',
-      result: `${action.data.burnIntensity} burn initiated to ring ${updatedShip.transferState?.destinationRing}`,
+      result: `${action.data.burnIntensity} burn completed to ring ${destinationRing}, sector ${updatedShip.sector}`,
     },
   ]
 
@@ -540,13 +546,22 @@ function processRotation(gameState: GameState, action: RotateAction): ProcessRes
   const updatedShip = applyRotation(player.ship, action.data.targetFacing)
 
   // Mark rotation subsystem as used
-  const rotationSubsystem = updatedShip.subsystems.find(s => s.type === 'rotation')
-  if (rotationSubsystem) {
-    rotationSubsystem.usedThisTurn = true
+  const rotationSubsystemIndex = updatedShip.subsystems.findIndex(s => s.type === 'rotation')
+  const updatedSubsystems = [...updatedShip.subsystems]
+  if (rotationSubsystemIndex !== -1) {
+    updatedSubsystems[rotationSubsystemIndex] = {
+      ...updatedSubsystems[rotationSubsystemIndex],
+      usedThisTurn: true,
+    }
+  }
+
+  const shipWithUpdatedSubsystems = {
+    ...updatedShip,
+    subsystems: updatedSubsystems,
   }
 
   const updatedPlayers = [...gameState.players]
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
+  updatedPlayers[playerIndex] = { ...player, ship: shipWithUpdatedSubsystems }
 
   const logEntries: TurnLogEntry[] = [
     {

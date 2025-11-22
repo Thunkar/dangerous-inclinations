@@ -170,16 +170,9 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     const newPanels = [...panels]
     ;[newPanels[index], newPanels[newIndex]] = [newPanels[newIndex], newPanels[index]]
 
-    // Check if rotation comes before movement
-    const rotateIdx = newPanels.findIndex(p => p.type === 'rotate')
-    const moveIdx = newPanels.findIndex(p => p.type === 'move')
-
-    if (rotateIdx !== -1 && moveIdx !== -1 && rotateIdx > moveIdx) {
-      return false
-    }
-
     // Check if well_transfer comes before movement
     const wellTransferIdx = newPanels.findIndex(p => p.type === 'well_transfer')
+    const moveIdx = newPanels.findIndex(p => p.type === 'move')
 
     if (wellTransferIdx !== -1 && moveIdx !== -1 && wellTransferIdx > moveIdx) {
       return false

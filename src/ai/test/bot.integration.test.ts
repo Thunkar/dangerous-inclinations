@@ -200,6 +200,49 @@ describe('Bot AI Integration Tests', () => {
         bot.ship.heat.currentHeat = updatedBot.ship.heat.currentHeat
       }
     })
+
+    it('should deallocate overclocked systems to prevent heat death', () => {
+      let gameState = createGameState(1)
+      const bot = gameState.players[1]
+
+      // Give bot an overclocked railgun (4 energy = 1 heat/turn)
+      const railgun = bot.ship.subsystems.find(s => s.type === 'railgun')!
+      railgun.allocatedEnergy = 4
+      railgun.isPowered = true
+
+      // Start with 0 heat, remove target so bot should deallocate
+      bot.ship.heat.currentHeat = 0
+      gameState.players[0].ship.hitPoints = 0 // Kill enemy so no target
+
+      // Run for several turns - bot should not die from heat
+      for (let i = 0; i < 10; i++) {
+        gameState.activePlayerIndex = 1
+        const decision = botDecideActions(gameState, 'bot1')
+        const result = executeTurn(gameState, decision.actions)
+
+        expect(result.errors || []).toEqual([])
+        gameState = result.gameState
+
+        const updatedBot = gameState.players.find(p => p.id === 'bot1')!
+
+        // Bot should not die from heat accumulation
+        expect(updatedBot.ship.hitPoints).toBeGreaterThan(0)
+
+        // If heat starts building up, bot should deallocate or vent
+        if (updatedBot.ship.heat.currentHeat >= 2) {
+          // Next turn should either deallocate or vent
+          gameState.activePlayerIndex = 1
+          const nextDecision = botDecideActions(gameState, 'bot1')
+          const hasDeallocate = nextDecision.actions.some(a =>
+            a.type === 'deallocate_energy' && a.data.subsystemType === 'railgun'
+          )
+          const hasVent = nextDecision.actions.some(a => a.type === 'vent_heat')
+
+          expect(hasDeallocate || hasVent).toBe(true)
+          break // Test passed
+        }
+      }
+    })
   })
 
   describe('Movement and Resource Consumption', () => {

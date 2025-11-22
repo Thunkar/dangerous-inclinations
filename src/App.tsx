@@ -5,6 +5,7 @@ import { GameProvider, useGame } from './context/GameContext'
 import { GameBoard } from './components/GameBoard'
 import { ControlPanel } from './components/ControlPanel'
 import { StatusDisplay } from './components/StatusDisplay'
+import { TurnHistoryPanel } from './components/TurnHistoryPanel'
 
 const theme = createTheme({
   palette: {
@@ -65,6 +66,9 @@ function GameContent() {
 
       {/* Main content area */}
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
+        {/* Left sidebar - Turn History */}
+        <TurnHistoryPanel defaultExpanded={true} />
+
         {/* Center - Game Board */}
         <Box
           sx={{

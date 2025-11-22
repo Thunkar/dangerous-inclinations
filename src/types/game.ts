@@ -1,3 +1,4 @@
+import type { BotDecisionLog } from '../ai'
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from './subsystems'
 
 export type Facing = 'prograde' | 'retrograde'
@@ -172,6 +173,14 @@ export interface TurnLogEntry {
   playerName: string
   action: string
   result: string
+}
+
+export interface TurnHistoryEntry {
+  turn: number
+  playerId: string
+  playerName: string
+  actions: PlayerAction[]
+  botDecision?: BotDecisionLog // Only present for bot turns
 }
 
 export interface GameState {

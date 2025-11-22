@@ -555,9 +555,12 @@ export function GameBoard({
             // If arriveNextTurn is false, ship stays in current position (still transferring)
           } else if (hasPendingBurn) {
             // Active player has a pending burn - show two-step prediction
-            // Step 1: After orbital movement on current ring (where ship enters transfer)
+            // Step 1: After orbital movement (where transfer initiates)
+            // Step 2: After transfer completion (destination ring)
             const afterOrbitalSector =
               (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
+
+            // Step 1: Position after orbital movement (on current ring)
             const step1Direction = getSectorAngleDirection(player.ship.wellId)
             const step1Angle =
               step1Direction * ((afterOrbitalSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
@@ -567,7 +570,7 @@ export function GameBoard({
             predictedY = wellPosition.y + radius * Math.sin(step1Angle)
             predictedRing = player.ship.ring
 
-            // Calculate Step 2: Arrival at destination ring (next turn)
+            // Step 2: Calculate destination ring after burn
             const burnCost = BURN_COSTS[pendingMovement.burnIntensity!]
             const ringChange = effectiveFacing === 'prograde' ? burnCost.rings : -burnCost.rings
             const destinationRing = Math.max(1, Math.min(well.rings.length, player.ship.ring + ringChange))
@@ -594,6 +597,7 @@ export function GameBoard({
                 Math.PI / 2 +
                 rotationOffset
 
+              // Step 2: Arrival at destination ring (immediate transfer)
               secondStepX = wellPosition.x + destRadius * Math.cos(destAngle)
               secondStepY = wellPosition.y + destRadius * Math.sin(destAngle)
               secondStepRing = destinationRing
@@ -673,25 +677,19 @@ export function GameBoard({
                     x2={predictedX}
                     y2={predictedY}
                     stroke={player.color}
-                    strokeWidth={
-                      player.ship.transferState || hasPendingBurn || pendingWellTransfer ? 3 : 2
-                    }
-                    strokeDasharray="4 4"
-                    opacity={
-                      player.ship.transferState || hasPendingBurn || pendingWellTransfer ? 0.8 : 0.6
-                    }
+                    strokeWidth={hasPendingBurn ? 2 : 2}
+                    strokeDasharray={hasPendingBurn ? "6 4" : "4 4"}
+                    opacity={hasPendingBurn ? 0.4 : 0.6}
                   />
                   {/* Predicted position circle */}
                   <circle
                     cx={predictedX}
                     cy={predictedY}
-                    r={8}
+                    r={hasPendingBurn ? 6 : 8}
                     fill={player.color}
-                    opacity={0.5}
+                    opacity={hasPendingBurn ? 0.3 : 0.5}
                     stroke={player.color}
-                    strokeWidth={
-                      player.ship.transferState || hasPendingBurn || pendingWellTransfer ? 3 : 2
-                    }
+                    strokeWidth={hasPendingBurn ? 2 : 2}
                   />
                   {/* Label for transfers showing destination ring (for actual transfers or pending well transfers) */}
                   {((player.ship.transferState && player.ship.transferState.arriveNextTurn) ||
@@ -713,9 +711,21 @@ export function GameBoard({
               {/* Second step prediction (for pending burns) */}
               {secondStepX !== null && secondStepY !== null && (
                 <>
-                  {/* Draw elliptical transfer arc for orbital transfers */}
+                  {/* Step 2: Tabletop visualization - straight line from step 1 to final position */}
+                  <line
+                    x1={predictedX!}
+                    y1={predictedY!}
+                    x2={secondStepX}
+                    y2={secondStepY}
+                    stroke={player.color}
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    opacity={0.4}
+                  />
+
+                  {/* Realistic orbital transfer: Elliptical arc from current position to final destination */}
                   {(() => {
-                    // Calculate ellipse parameters for Hohmann transfer
+                    // Calculate ellipse parameters for Hohmann transfer from CURRENT position to FINAL
                     const startRadius = radius
                     const endRadius = Math.sqrt(
                       (secondStepX - wellPosition.x) ** 2 + (secondStepY - wellPosition.y) ** 2
@@ -726,10 +736,10 @@ export function GameBoard({
                     // Semi-minor axis: geometric mean approximation
                     const semiMinor = Math.sqrt(startRadius * endRadius)
 
-                    // Calculate start and end angles
+                    // Calculate start and end angles FROM CURRENT POSITION
                     const startAngle = Math.atan2(
-                      predictedY! - wellPosition.y,
-                      predictedX! - wellPosition.x
+                      y - wellPosition.y,
+                      x - wellPosition.x
                     )
                     const endAngle = Math.atan2(
                       secondStepY - wellPosition.y,
@@ -751,31 +761,42 @@ export function GameBoard({
                     // Sweep flag: 1 for clockwise (prograde), 0 for counter-clockwise
                     const sweepFlag = angleDiff > 0 ? 1 : 0
 
-                    // Create SVG elliptical arc path
+                    // Create SVG elliptical arc path from CURRENT to FINAL
                     const pathData = `
-                      M ${predictedX} ${predictedY}
+                      M ${x} ${y}
                       A ${semiMajor} ${semiMinor} ${rotationDegrees} ${largeArcFlag} ${sweepFlag} ${secondStepX} ${secondStepY}
                     `
 
                     return (
-                      <path
-                        d={pathData}
-                        fill="none"
-                        stroke={player.color}
-                        strokeWidth={3}
-                        strokeDasharray="8 4"
-                        opacity={0.7}
-                      />
+                      <>
+                        {/* Background glow for elliptical arc */}
+                        <path
+                          d={pathData}
+                          fill="none"
+                          stroke={player.color}
+                          strokeWidth={6}
+                          opacity={0.15}
+                        />
+                        {/* Main elliptical arc */}
+                        <path
+                          d={pathData}
+                          fill="none"
+                          stroke={player.color}
+                          strokeWidth={3}
+                          strokeDasharray="8 4"
+                          opacity={0.9}
+                        />
+                      </>
                     )
                   })()}
 
-                  {/* Second step position circle */}
+                  {/* Second step position circle (final destination) */}
                   <circle
                     cx={secondStepX}
                     cy={secondStepY}
                     r={10}
                     fill={player.color}
-                    opacity={0.4}
+                    opacity={0.6}
                     stroke={player.color}
                     strokeWidth={3}
                   />

@@ -1,6 +1,6 @@
 import type { ShipState, Facing } from '../types/game'
 import type { TacticalAction } from '../context/GameContext'
-import { applyOrbitalMovement, applyRotation } from '../game-logic/movement'
+import { applyOrbitalMovement, applyRotation, initiateBurn, completeRingTransfer } from '../game-logic/movement'
 
 /**
  * Calculate the ship position after movement actions in the tactical sequence
@@ -59,20 +59,19 @@ export function calculateShipPositionForWeapon(
  * Calculate ship position after movement with pending burn data
  * This is used during the planning phase to show where the ship will be after movement
  *
- * IMPORTANT: Burns initiate transfers that complete at the START of the NEXT turn.
+ * IMPORTANT: With immediate transfers, burns complete on the same turn.
  * During the current turn, weapons firing after movement will fire from:
- * - The post-orbital-movement sector (current ring + velocity)
- * - The CURRENT ring (not destination ring - ship is in transit)
+ * - The destination ring and sector (after transfer completion)
  *
  * @param initialShip - Current ship state
  * @param pendingFacing - Facing after rotation action
  * @param pendingMovement - Movement action data (burn or coast)
- * @returns Projected ship state after movement (still on current ring if burning)
+ * @returns Projected ship state after movement (at destination ring if burning)
  */
 export function calculatePostMovementPosition(
   initialShip: ShipState,
   pendingFacing?: Facing,
-  _pendingMovement?: {
+  pendingMovement?: {
     actionType: 'coast' | 'burn'
     burnIntensity?: 'light' | 'medium' | 'heavy'
     sectorAdjustment: number
@@ -89,10 +88,24 @@ export function calculatePostMovementPosition(
   // This happens for BOTH coast and burn actions
   projectedShip = applyOrbitalMovement(projectedShip)
 
-  // NOTE: If burning, the ship initiates a transfer but stays on the current ring
-  // for the remainder of this turn. Transfer completes at the start of NEXT turn.
-  // Weapons firing after movement fire from the post-orbital-movement position
-  // on the CURRENT ring, NOT from the destination ring.
+  // If burning, complete the transfer immediately (same turn)
+  if (pendingMovement?.actionType === 'burn' && pendingMovement.burnIntensity) {
+    // Create a mock burn action to simulate the transfer
+    const mockBurnAction = {
+      type: 'burn' as const,
+      playerId: 'mock',
+      data: {
+        burnIntensity: pendingMovement.burnIntensity,
+        sectorAdjustment: pendingMovement.sectorAdjustment,
+      },
+    }
+
+    // Initiate and complete burn immediately
+    projectedShip = initiateBurn(projectedShip, mockBurnAction, true)
+    if (projectedShip.transferState && !projectedShip.transferState.arriveNextTurn) {
+      projectedShip = completeRingTransfer(projectedShip)
+    }
+  }
 
   return projectedShip
 }

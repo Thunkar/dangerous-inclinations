@@ -11,10 +11,10 @@ import type { GravityWell, RingConfig } from '../types/game'
  * - Rings 2-4 have tight 50 unit spacing to maximize Ring 1 size
  */
 export const BLACKHOLE_RINGS: RingConfig[] = [
-  { ring: 1, velocity: 8, radius: 120, sectors: 24 },  // Innermost - BLAZING FAST (120°/turn)
-  { ring: 2, velocity: 4, radius: 170, sectors: 24 },  // Very Fast (60°/turn)
-  { ring: 3, velocity: 2, radius: 220, sectors: 24 },  // Medium (30°/turn)
-  { ring: 4, velocity: 1, radius: 270, sectors: 24 },  // Slow (15°/turn) - where well transfers occur
+  { ring: 1, velocity: 6, radius: 120, sectors: 24 }, // Innermost - BLAZING FAST (120°/turn)
+  { ring: 2, velocity: 4, radius: 170, sectors: 24 }, // Very Fast (60°/turn)
+  { ring: 3, velocity: 2, radius: 220, sectors: 24 }, // Medium (30°/turn)
+  { ring: 4, velocity: 1, radius: 270, sectors: 24 }, // Slow (15°/turn) - where well transfers occur
 ]
 
 /**
@@ -28,9 +28,9 @@ export const BLACKHOLE_RINGS: RingConfig[] = [
  * - Rings 2-3 have tight 50 unit spacing
  */
 export const PLANET_RINGS: RingConfig[] = [
-  { ring: 1, velocity: 8, radius: 120, sectors: 24 },  // Innermost - BLAZING FAST (120°/turn)
-  { ring: 2, velocity: 4, radius: 170, sectors: 24 },  // Very Fast (60°/turn)
-  { ring: 3, velocity: 2, radius: 220, sectors: 24 },  // Medium (30°/turn) - where well transfers occur
+  { ring: 1, velocity: 6, radius: 120, sectors: 24 }, // Innermost - BLAZING FAST (120°/turn)
+  { ring: 2, velocity: 4, radius: 170, sectors: 24 }, // Very Fast (60°/turn)
+  { ring: 3, velocity: 2, radius: 220, sectors: 24 }, // Medium (30°/turn) - where well transfers occur
 ]
 
 /**

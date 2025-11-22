@@ -35,8 +35,8 @@ export function generateActionSequence(
   const energyAllocations = generateEnergyManagement(situation, parameters)
   actions.push(...energyAllocations)
 
-  // Energy deallocation - free up unused energy
-  const energyDeallocations = generateEnergyDeallocation(situation)
+  // Energy deallocation - free up unused energy and manage heat
+  const energyDeallocations = generateEnergyDeallocation(situation, parameters)
   actions.push(...energyDeallocations)
 
   // Heat venting - avoid heat damage
