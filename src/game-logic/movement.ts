@@ -48,15 +48,14 @@ export function applyOrbitalMovement(ship: ShipState): ShipState {
  *
  * Note: Burn direction is determined by the ship's CURRENT facing.
  * If rotation is needed, it must be applied before calling this function.
+ * All transfers complete immediately in the same turn.
  *
  * @param ship - Current ship state
  * @param action - Burn action to execute
- * @param immediateTransfer - If true, transfer completes same turn (default: true)
  */
 export function initiateBurn(
   ship: ShipState,
-  action: PlayerAction,
-  immediateTransfer: boolean = true
+  action: PlayerAction
 ): ShipState {
   if (action.type !== 'burn') {
     return ship
@@ -81,7 +80,6 @@ export function initiateBurn(
     transferState: {
       destinationRing: clampedDestination,
       sectorAdjustment: 0, // No sector adjustment - land exactly at mapped sector
-      arriveNextTurn: !immediateTransfer, // false = complete this turn, true = complete next turn
     },
   }
 }

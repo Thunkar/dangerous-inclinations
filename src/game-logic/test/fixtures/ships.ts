@@ -112,7 +112,8 @@ export function createShipWithRotation(): ShipState {
 }
 
 /**
- * Creates a ship in the middle of a transfer
+ * Creates a ship with a transfer state (for testing transfer completion)
+ * Note: All transfers complete immediately in actual gameplay
  */
 export function createShipInTransfer(
   destinationRing: number,
@@ -124,7 +125,6 @@ export function createShipInTransfer(
     transferState: {
       destinationRing,
       sectorAdjustment,
-      arriveNextTurn: true,
     },
   })
 }

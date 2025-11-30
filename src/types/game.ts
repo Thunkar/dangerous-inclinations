@@ -42,7 +42,6 @@ export interface TransferState {
   destinationWellId?: GravityWellId // If transferring between gravity wells
   destinationSector?: number // For well transfers, the exact destination sector
   sectorAdjustment: number // -1, 0, or +1 sector adjustment from natural mapping
-  arriveNextTurn: boolean
   isWellTransfer?: boolean // true if transferring between gravity wells
 }
 

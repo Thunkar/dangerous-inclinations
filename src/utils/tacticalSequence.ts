@@ -100,9 +100,9 @@ export function calculatePostMovementPosition(
       },
     }
 
-    // Initiate and complete burn immediately
-    projectedShip = initiateBurn(projectedShip, mockBurnAction, true)
-    if (projectedShip.transferState && !projectedShip.transferState.arriveNextTurn) {
+    // Initiate and complete burn immediately (all transfers are immediate)
+    projectedShip = initiateBurn(projectedShip, mockBurnAction)
+    if (projectedShip.transferState) {
       projectedShip = completeRingTransfer(projectedShip)
     }
   }

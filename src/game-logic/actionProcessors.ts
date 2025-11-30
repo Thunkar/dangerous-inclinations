@@ -514,13 +514,13 @@ function processBurn(gameState: GameState, action: BurnAction): ProcessResult {
   const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
   const player = gameState.players[playerIndex]
 
-  // Apply orbital movement first, then initiate burn with immediate completion
+  // Apply orbital movement first, then initiate burn
   let updatedShip = applyOrbitalMovement(player.ship)
-  updatedShip = initiateBurn(updatedShip, action, true) // true = immediate transfer
+  updatedShip = initiateBurn(updatedShip, action)
 
-  // Complete the transfer immediately (same turn)
+  // Complete the transfer immediately (all transfers complete same turn)
   const destinationRing = updatedShip.transferState?.destinationRing
-  if (updatedShip.transferState && !updatedShip.transferState.arriveNextTurn) {
+  if (updatedShip.transferState) {
     updatedShip = completeRingTransfer(updatedShip)
   }
 

@@ -1,6 +1,5 @@
 import type { GameState, TurnLogEntry, PlayerAction } from '../types/game'
 import { processActions } from './actionProcessors'
-import { completeRingTransfer } from './movement'
 import { processMissiles } from './missiles'
 
 /**
@@ -113,31 +112,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     turnLog: [...gameState.turnLog, ...allLogEntries],
   }
 
-  // Prepare the next player's turn (resolve their transfer if arriving)
-  const nextPlayer = updatedGameState.players[nextPlayerIndex]
-  if (nextPlayer.ship.transferState?.arriveNextTurn) {
-    const resolvedPlayers = [...updatedGameState.players]
-    const resolvedShip = completeRingTransfer(nextPlayer.ship)
-    resolvedPlayers[nextPlayerIndex] = {
-      ...nextPlayer,
-      ship: resolvedShip,
-    }
-
-    // Add transfer log entry
-    allLogEntries.push({
-      turn: updatedGameState.turn,
-      playerId: nextPlayer.id,
-      playerName: nextPlayer.name,
-      action: 'Transfer Complete',
-      result: `Arrived at ring ${resolvedShip.ring}, sector ${resolvedShip.sector}`,
-    })
-
-    updatedGameState = {
-      ...updatedGameState,
-      players: resolvedPlayers,
-      turnLog: [...updatedGameState.turnLog, allLogEntries[allLogEntries.length - 1]],
-    }
-  }
+  // All transfers complete immediately, no need to resolve on turn start
 
   return {
     gameState: updatedGameState,

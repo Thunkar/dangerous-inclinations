@@ -88,45 +88,7 @@ export function ShipRenderer({
           ? pendingState.tacticalSequence.find(a => a.type === 'well_transfer')
           : null
 
-        if (player.ship.transferState) {
-          // Ship is in transfer - show where it will arrive
-          if (player.ship.transferState.arriveNextTurn) {
-            // Will arrive at destination ring next turn
-            const destWellId = player.ship.transferState.destinationWellId || player.ship.wellId
-            const destWell = gameState.gravityWells.find(w => w.id === destWellId)
-
-            if (destWell) {
-              const destRingConfig = destWell.rings.find(
-                r => r.ring === player.ship.transferState!.destinationRing
-              )
-              if (!destRingConfig) return null
-
-              const destWellPosition = getGravityWellPosition(destWellId)
-
-              // Calculate position on destination ring using sector mapping
-              const baseSector = mapSectorOnTransfer(
-                player.ship.ring,
-                player.ship.transferState.destinationRing,
-                player.ship.sector
-              )
-              // Apply sector adjustment
-              const adjustment = player.ship.transferState.sectorAdjustment || 0
-              const finalSector =
-                (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
-
-              const destRadius = destRingConfig.radius * scaleFactor
-              const destRotationOffset = getSectorRotationOffset(destWellId)
-              const destDirection = getSectorAngleDirection(destWellId)
-              const destAngle =
-                destDirection * ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
-                Math.PI / 2 +
-                destRotationOffset
-              predictedX = destWellPosition.x + destRadius * Math.cos(destAngle)
-              predictedY = destWellPosition.y + destRadius * Math.sin(destAngle)
-              predictedRing = destRingConfig.ring
-            }
-          }
-        } else if (hasPendingBurn) {
+        if (hasPendingBurn) {
           // Active player has a pending burn - show two-step prediction
           const afterOrbitalSector =
             (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
@@ -306,9 +268,8 @@ export function ShipRenderer({
                   stroke={player.color}
                   strokeWidth={2}
                 />
-                {/* Label for transfers showing destination ring */}
-                {((player.ship.transferState && player.ship.transferState.arriveNextTurn) ||
-                  pendingWellTransfer) && (
+                {/* Label for pending well transfers showing destination ring */}
+                {pendingWellTransfer && (
                   <text
                     x={predictedX}
                     y={predictedY - 12}
