@@ -450,6 +450,37 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
   currentGameState = heatDamageResult.gameState
   logEntries.push(...heatDamageResult.logEntries)
 
+  // Phase 7.5: Actually apply heat venting (after damage is calculated)
+  if (heatToVent > 0) {
+    const updatedPlayersAfterVent = [...currentGameState.players]
+    const playerAfterVent = updatedPlayersAfterVent[activePlayerIndex]
+    const heatRemaining = Math.max(0, playerAfterVent.ship.heat.currentHeat - heatToVent)
+
+    updatedPlayersAfterVent[activePlayerIndex] = {
+      ...playerAfterVent,
+      ship: {
+        ...playerAfterVent.ship,
+        heat: {
+          currentHeat: heatRemaining,
+          heatToVent: 0, // Reset after applying
+        },
+      },
+    }
+
+    currentGameState = {
+      ...currentGameState,
+      players: updatedPlayersAfterVent,
+    }
+
+    logEntries.push({
+      turn: currentGameState.turn,
+      playerId: playerAfterVent.id,
+      playerName: playerAfterVent.name,
+      action: 'Heat Vented',
+      result: `Vented ${heatToVent} heat (${playerAfterVent.ship.heat.currentHeat} → ${heatRemaining})`,
+    })
+  }
+
   // Phase 8: Generate heat from overclocked subsystems (happens at END of turn)
   const overclockResult = generateOverclockHeat(currentGameState, activePlayerIndex)
   currentGameState = overclockResult.gameState
@@ -692,16 +723,19 @@ function processDeallocateEnergy(
 
 /**
  * Process heat venting action
+ * Note: This only tracks the venting intent. Actual heat removal happens AFTER heat damage is calculated.
  */
 function processVentHeat(gameState: GameState, action: VentHeatAction): ProcessResult {
   const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
   const player = gameState.players[playerIndex]
 
+  // Don't modify currentHeat yet - just track that venting will happen
+  // The actual venting occurs after heat damage is calculated
   const updatedShip = {
     ...player.ship,
     heat: {
       ...player.ship.heat,
-      currentHeat: Math.max(0, player.ship.heat.currentHeat - action.data.amount),
+      heatToVent: player.ship.heat.heatToVent + action.data.amount,
     },
   }
 
@@ -714,7 +748,7 @@ function processVentHeat(gameState: GameState, action: VentHeatAction): ProcessR
       playerId: player.id,
       playerName: player.name,
       action: 'Vent Heat',
-      result: `Vented ${action.data.amount} heat (${updatedShip.heat.currentHeat} remaining)`,
+      result: `Preparing to vent ${action.data.amount} heat`,
     },
   ]
 

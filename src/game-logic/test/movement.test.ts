@@ -1,25 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { executeTurn, type TurnResult } from '../turns'
-import type { GameState } from '../../types/game'
 import { createBurnAction, createCoastAction, createAllocateEnergyAction } from './fixtures/actions'
 import {
   createTestGameState,
   INITIAL_RING,
   INITIAL_REACTION_MASS,
 } from './fixtures/gameState'
-
-/**
- * Helper to execute a turn with actions for the active player
- */
-function executeTurnWithActions(gameState: GameState, ...actions: any[]): TurnResult {
-  const activePlayer = gameState.players[gameState.activePlayerIndex]
-
-  const actionsWithCorrectPlayer = actions
-    .map(action => (action ? { ...action, playerId: activePlayer.id } : action))
-    .filter(Boolean)
-
-  return executeTurn(gameState, actionsWithCorrectPlayer)
-}
+import { executeTurnWithActions } from './testUtils'
 
 describe('Multi-Turn Movement', () => {
   describe('Transfer Completion Across Turns', () => {

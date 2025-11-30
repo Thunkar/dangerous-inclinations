@@ -1,21 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { executeTurn, type TurnResult } from '../turns'
-import type { GameState } from '../../types/game'
 import { createCoastAction, createVentHeatAction } from './fixtures/actions'
 import { createTestGameState, INITIAL_HIT_POINTS } from './fixtures/gameState'
-
-/**
- * Helper to execute a turn with actions for the active player
- */
-function executeTurnWithActions(gameState: GameState, ...actions: any[]): TurnResult {
-  const activePlayer = gameState.players[gameState.activePlayerIndex]
-
-  const actionsWithCorrectPlayer = actions
-    .map(action => (action ? { ...action, playerId: activePlayer.id } : action))
-    .filter(Boolean)
-
-  return executeTurn(gameState, actionsWithCorrectPlayer)
-}
+import { executeTurnWithActions } from './testUtils'
 
 describe('Multi-Turn Heat Management', () => {
   describe('Heat Accumulation and Venting', () => {
@@ -160,6 +146,131 @@ describe('Multi-Turn Heat Management', () => {
       gameState = result.gameState
 
       expect(gameState.players[0].ship.heat.currentHeat).toBe(1) // 4 - 3
+    })
+  })
+
+  describe('Heat Venting Bug Fix', () => {
+    it('should not cause damage when consistently venting heat from overclocked systems', () => {
+      // Scenario: Engines at 3 power level (overclocked by 1), generating 1 heat per turn
+      // If we vent 1 heat every turn, no damage should occur
+      // Heat generated in previous turn - heat vented = 0 damage
+      // New heat generated at end of turn doesn't cause damage until next turn
+
+      let gameState = createTestGameState()
+
+      // Turn 1: Allocate 3 energy to engines (overclocked by 1, will generate 1 heat)
+      const allocateAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: { subsystemType: 'engines', amount: 3 },
+      }
+      let result = executeTurnWithActions(gameState, allocateAction, createCoastAction())
+      gameState = result.gameState
+
+      // After turn 1: Should have 1 heat, no damage yet
+      expect(gameState.players[0].ship.hitPoints).toBe(INITIAL_HIT_POINTS)
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(1)
+
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Turn 2: Vent 1 heat, coast (engines still at 3 energy)
+      const ventAction = createVentHeatAction(1)
+      result = executeTurnWithActions(gameState, ventAction, createCoastAction())
+      gameState = result.gameState
+
+      // After turn 2: No damage (heat was vented), but 1 new heat generated
+      expect(gameState.players[0].ship.hitPoints).toBe(INITIAL_HIT_POINTS) // NO DAMAGE - this is the key fix
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(1) // New heat from overclock
+
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Turn 3: Vent 1 heat again, coast (engines still at 3 energy)
+      const ventAction2 = createVentHeatAction(1)
+      result = executeTurnWithActions(gameState, ventAction2, createCoastAction())
+      gameState = result.gameState
+
+      // After turn 3: Still no damage, heat remains at 1
+      expect(gameState.players[0].ship.hitPoints).toBe(INITIAL_HIT_POINTS) // NO DAMAGE
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(1) // New heat from overclock
+
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Turn 4: Same pattern
+      const ventAction3 = createVentHeatAction(1)
+      result = executeTurnWithActions(gameState, ventAction3, createCoastAction())
+      gameState = result.gameState
+
+      // After turn 4: Still no damage
+      expect(gameState.players[0].ship.hitPoints).toBe(INITIAL_HIT_POINTS) // NO DAMAGE
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(1)
+    })
+
+    it('should cause damage when overclocked system heat is not vented', () => {
+      // Control test: If we don't vent, damage should occur from accumulated heat
+
+      let gameState = createTestGameState()
+
+      // Turn 1: Allocate 3 energy to engines (overclocked by 1)
+      const allocateAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: { subsystemType: 'engines', amount: 3 },
+      }
+      let result = executeTurnWithActions(gameState, allocateAction, createCoastAction())
+      gameState = result.gameState
+
+      // After turn 1: 1 heat, no damage yet
+      expect(gameState.players[0].ship.hitPoints).toBe(INITIAL_HIT_POINTS)
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(1)
+
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Turn 2: Coast without venting
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // After turn 2: Should take 1 damage (from the 1 heat at start of turn), plus 1 new heat
+      expect(gameState.players[0].ship.hitPoints).toBe(INITIAL_HIT_POINTS - 1) // DAMAGE OCCURRED
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(2) // Original heat + new heat
+
+      // Advance player 2
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // Turn 3: Coast without venting
+      result = executeTurnWithActions(gameState, createCoastAction())
+      gameState = result.gameState
+
+      // After turn 3: Should take 2 damage (from 2 heat at start of turn), plus 1 new heat
+      expect(gameState.players[0].ship.hitPoints).toBe(INITIAL_HIT_POINTS - 1 - 2) // DAMAGE OCCURRED
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(3) // Accumulated heat
+    })
+
+    it('should partially reduce damage when venting less than current heat', () => {
+      // Test case: 2 heat at start of turn, vent 1 heat
+      // Should take 1 damage (2 heat - 1 vented = 1 damage)
+
+      let gameState = createTestGameState()
+
+      // Manually set initial heat
+      gameState.players[0].ship.heat.currentHeat = 2
+
+      // Turn 1: Vent only 1 heat (not enough to prevent all damage)
+      const ventAction = createVentHeatAction(1)
+      const result = executeTurnWithActions(gameState, ventAction, createCoastAction())
+      gameState = result.gameState
+
+      // After turn 1: Should take 1 damage (2 heat - 1 vented = 1 damage)
+      expect(gameState.players[0].ship.hitPoints).toBe(INITIAL_HIT_POINTS - 1) // 1 damage
+      expect(gameState.players[0].ship.heat.currentHeat).toBe(1) // 2 original - 1 vented = 1 remaining
     })
   })
 })
