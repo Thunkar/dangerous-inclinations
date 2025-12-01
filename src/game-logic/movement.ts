@@ -1,5 +1,5 @@
 import type { ShipState, PlayerAction, GravityWellId } from '../types/game'
-import { BURN_COSTS, mapSectorOnTransfer, SECTORS_PER_RING } from '../constants/rings'
+import { BURN_COSTS, mapSectorOnTransfer, SECTORS_PER_RING, calculateBurnMassCost } from '../constants/rings'
 import { getGravityWell } from '../constants/gravityWells'
 
 /**
@@ -62,6 +62,10 @@ export function initiateBurn(
   }
 
   const burnCost = BURN_COSTS[action.data.burnIntensity]
+  const sectorAdjustment = action.data.sectorAdjustment || 0
+
+  // Calculate total mass cost including sector adjustment
+  const totalMassCost = calculateBurnMassCost(burnCost.mass, sectorAdjustment)
 
   // Use the ship's current facing (rotation should have been applied already in Phase 4)
   const burnDirection = ship.facing
@@ -76,10 +80,10 @@ export function initiateBurn(
 
   return {
     ...ship,
-    reactionMass: ship.reactionMass - burnCost.mass,
+    reactionMass: ship.reactionMass - totalMassCost,
     transferState: {
       destinationRing: clampedDestination,
-      sectorAdjustment: 0, // No sector adjustment - land exactly at mapped sector
+      sectorAdjustment: sectorAdjustment,
     },
   }
 }

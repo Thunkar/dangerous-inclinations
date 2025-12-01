@@ -15,7 +15,7 @@ import type {
 import { applyOrbitalMovement, initiateBurn, applyRotation, completeRingTransfer } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
-import { BURN_COSTS, WELL_TRANSFER_COSTS } from '../constants/rings'
+import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange, calculateBurnMassCost } from '../constants/rings'
 import { getSubsystemConfig } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
 import { fireMissile } from './missiles'
@@ -229,6 +229,7 @@ function validateBurnAction(gameState: GameState, action: BurnAction): string[] 
   const errors: string[] = []
 
   const burnCost = BURN_COSTS[action.data.burnIntensity]
+  const sectorAdjustment = action.data.sectorAdjustment || 0
 
   // Check engine energy
   const enginesSubsystem = player.ship.subsystems.find(s => s.type === 'engines')
@@ -238,9 +239,21 @@ function validateBurnAction(gameState: GameState, action: BurnAction): string[] 
     errors.push(`Need ${burnCost.energy} energy in engines for ${action.data.burnIntensity} burn (have ${currentEngineEnergy})`)
   }
 
-  // Check reaction mass
-  if (player.ship.reactionMass < burnCost.mass) {
-    errors.push(`Need ${burnCost.mass} reaction mass, have ${player.ship.reactionMass}`)
+  // Get current ring velocity to determine allowed adjustment range
+  const well = getGravityWell(player.ship.wellId)
+  const ringConfig = well?.rings.find(r => r.ring === player.ship.ring)
+  const velocity = ringConfig?.velocity || 1
+
+  // Validate sector adjustment range
+  const { min, max } = getAdjustmentRange(velocity)
+  if (sectorAdjustment < min || sectorAdjustment > max) {
+    errors.push(`Sector adjustment ${sectorAdjustment} out of range (${min} to ${max} for velocity ${velocity})`)
+  }
+
+  // Check total reaction mass including adjustment cost
+  const totalMassCost = calculateBurnMassCost(burnCost.mass, sectorAdjustment)
+  if (player.ship.reactionMass < totalMassCost) {
+    errors.push(`Need ${totalMassCost} reaction mass (${burnCost.mass} base + ${Math.abs(sectorAdjustment)} adjustment), have ${player.ship.reactionMass}`)
   }
 
   return errors

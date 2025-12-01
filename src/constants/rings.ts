@@ -6,10 +6,20 @@ export const SECTORS_PER_RING = 24
 export const ENERGY_PER_TURN = 10
 export const MAX_REACTION_MASS = 10
 export const STARTING_REACTION_MASS = 10
+
+/**
+ * Sector adjustment (phasing) costs for non-Hohmann transfers
+ * Allows adjusting arrival sector by consuming extra reaction mass
+ */
+export const MAX_SECTOR_ADJUSTMENT = 3 // Maximum sectors that can be added/subtracted
+export const SECTOR_ADJUSTMENT_COST_PER_SECTOR = 1 // Reaction mass cost per sector of adjustment
+export const MIN_FORWARD_MOVEMENT = 1 // Must always move at least 1 sector prograde
+
 /**
  * Burn costs for ring transfers
  * Note: Ring changes are now velocity changes (inner rings are faster)
- * No sector adjustment - you land exactly at the mapped sector
+ * Base costs are for ideal Hohmann transfers (sector adjustment = 0)
+ * Additional costs apply for sector adjustments (phasing maneuvers)
  */
 export const BURN_COSTS = {
   soft: { energy: 1, mass: 1, rings: 1 }, // Transfer ±1 ring (change velocity by ±1)
@@ -66,4 +76,42 @@ export function mapSectorOnTransfer(
   // All rings have uniform 24 sectors, so mapping is trivial: stay at same sector
   // This preserves angular position when transferring between rings
   return currentSector % SECTORS_PER_RING
+}
+
+/**
+ * Calculate the allowed sector adjustment range for a ring transfer
+ *
+ * Rules:
+ * - Must always move at least 1 sector forward (prograde)
+ * - Can adjust up to ±3 sectors from base movement
+ * - Maximum negative adjustment limited by velocity (can't go backwards)
+ *
+ * @param velocity - Current ring velocity (sectors per turn)
+ * @returns Object with min and max adjustment values
+ *
+ * Examples:
+ * - velocity 4: adjustment range -3 to +3 (total movement 1-7 sectors)
+ * - velocity 2: adjustment range -1 to +3 (total movement 1-5 sectors)
+ * - velocity 1: adjustment range 0 to +3 (total movement 1-4 sectors)
+ */
+export function getAdjustmentRange(velocity: number): { min: number; max: number } {
+  // Maximum negative adjustment: can reduce movement but must keep at least 1 sector forward
+  const maxNegativeAdjustment = Math.min(velocity - MIN_FORWARD_MOVEMENT, MAX_SECTOR_ADJUSTMENT)
+
+  return {
+    min: -maxNegativeAdjustment,
+    max: MAX_SECTOR_ADJUSTMENT,
+  }
+}
+
+/**
+ * Calculate the total reaction mass cost for a burn including sector adjustment
+ *
+ * @param baseMassCost - Base mass cost from burn intensity
+ * @param sectorAdjustment - Sector adjustment value (can be negative or positive)
+ * @returns Total mass cost
+ */
+export function calculateBurnMassCost(baseMassCost: number, sectorAdjustment: number): number {
+  const adjustmentCost = Math.abs(sectorAdjustment) * SECTOR_ADJUSTMENT_COST_PER_SECTOR
+  return baseMassCost + adjustmentCost
 }

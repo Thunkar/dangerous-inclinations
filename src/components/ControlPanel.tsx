@@ -16,6 +16,7 @@ import { ActionSummary } from './actions/ActionSummary'
 import { STARTING_REACTION_MASS } from '../constants/rings'
 import { CustomIcon } from './CustomIcon'
 import { MISSILE_CONFIG } from '../game-logic/missiles'
+import { getGravityWell } from '../constants/gravityWells'
 
 interface ControlPanelProps {
   player: Player
@@ -78,6 +79,13 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     () => getAvailableWellTransfers(ship.wellId, ship.ring, ship.sector, gameState.transferPoints),
     [ship.wellId, ship.ring, ship.sector, gameState.transferPoints]
   )
+
+  // Get current ring velocity for sector adjustment calculations
+  const currentVelocity = useMemo(() => {
+    const well = getGravityWell(ship.wellId)
+    const ringConfig = well?.rings.find(r => r.ring === ship.ring)
+    return ringConfig?.velocity || 1
+  }, [ship.wellId, ship.ring])
 
   // Initialize tactical sequence with base actions when it's empty
   useEffect(() => {
@@ -533,6 +541,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                       ? getWellName(availableWellTransfers[0].toWellId, gameState.gravityWells)
                       : undefined
                   }
+                  currentVelocity={currentVelocity}
                 />
                 {actionType === 'coast' && (
                   <UtilityActions

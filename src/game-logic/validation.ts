@@ -10,7 +10,8 @@ import type {
 } from '../types/game'
 import { getSubsystemConfig } from '../types/subsystems'
 import { WEAPONS } from '../constants/weapons'
-import { BURN_COSTS } from '../constants/rings'
+import { BURN_COSTS, getAdjustmentRange, calculateBurnMassCost } from '../constants/rings'
+import { getGravityWell } from '../constants/gravityWells'
 
 export interface ValidationResult {
   valid: boolean
@@ -51,6 +52,7 @@ export function validateSingleAction(ship: ShipState, action: PlayerAction): Val
 
 function validateBurnAction(ship: ShipState, action: BurnAction): ValidationResult {
   const burnCost = BURN_COSTS[action.data.burnIntensity]
+  const sectorAdjustment = action.data.sectorAdjustment || 0
 
   // Check engine energy
   const enginesSubsystem = ship.subsystems.find(s => s.type === 'engines')
@@ -63,11 +65,26 @@ function validateBurnAction(ship: ShipState, action: BurnAction): ValidationResu
     }
   }
 
-  // Check reaction mass
-  if (ship.reactionMass < burnCost.mass) {
+  // Get current ring velocity to determine allowed adjustment range
+  const well = getGravityWell(ship.wellId)
+  const ringConfig = well?.rings.find(r => r.ring === ship.ring)
+  const velocity = ringConfig?.velocity || 1
+
+  // Validate sector adjustment range
+  const { min, max } = getAdjustmentRange(velocity)
+  if (sectorAdjustment < min || sectorAdjustment > max) {
     return {
       valid: false,
-      reason: `Need ${burnCost.mass} reaction mass, have ${ship.reactionMass}`,
+      reason: `Sector adjustment ${sectorAdjustment} out of range (${min} to ${max} for velocity ${velocity})`,
+    }
+  }
+
+  // Check total reaction mass including adjustment cost
+  const totalMassCost = calculateBurnMassCost(burnCost.mass, sectorAdjustment)
+  if (ship.reactionMass < totalMassCost) {
+    return {
+      valid: false,
+      reason: `Need ${totalMassCost} reaction mass (${burnCost.mass} base + ${Math.abs(sectorAdjustment)} adjustment), have ${ship.reactionMass}`,
     }
   }
 

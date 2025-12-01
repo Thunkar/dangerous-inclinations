@@ -1,7 +1,7 @@
 import { Box, Typography, styled, Slider } from '@mui/material'
 import type { ActionType, BurnIntensity } from '../../types/game'
 import type { Subsystem } from '../../types/subsystems'
-import { BURN_COSTS, WELL_TRANSFER_COSTS } from '../../constants/rings'
+import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange, calculateBurnMassCost } from '../../constants/rings'
 import { CustomIcon } from '../CustomIcon'
 
 const BURN_INTENSITY_OPTIONS: BurnIntensity[] = ['soft', 'medium', 'hard']
@@ -23,6 +23,7 @@ interface MovementControlProps {
   reactionMass: number
   canTransfer: boolean // Whether ship is at a valid transfer sector
   transferDestination?: string // Name of destination well if transfer available
+  currentVelocity: number // Current ring velocity for calculating adjustment range
 }
 
 interface ActionButtonProps {
@@ -70,25 +71,6 @@ const StatusBar = styled(Box)(({ theme }) => ({
   fontSize: '0.75rem',
 }))
 
-const AdjustmentButton = styled(Box, {
-  shouldForwardProp: prop => prop !== 'isActive',
-})<{ isActive: boolean }>(({ theme, isActive }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '6px 12px',
-  borderRadius: '6px',
-  backgroundColor: isActive ? theme.palette.secondary.main : theme.palette.primary.dark,
-  border: `2px solid ${isActive ? theme.palette.secondary.light : theme.palette.primary.main}`,
-  cursor: 'pointer',
-  transition: 'all 0.2s',
-  flex: 1,
-  '&:hover': {
-    backgroundColor: isActive ? theme.palette.secondary.light : theme.palette.primary.main,
-    transform: 'scale(1.05)',
-  },
-}))
-
 export function MovementControl({
   actionType,
   burnIntensity,
@@ -100,11 +82,14 @@ export function MovementControl({
   reactionMass,
   canTransfer,
   transferDestination,
+  currentVelocity,
 }: MovementControlProps) {
   const burnCost = actionType === 'burn' ? BURN_COSTS[burnIntensity] : { energy: 0, mass: 0, rings: 0 }
+  const totalBurnMass = actionType === 'burn' ? calculateBurnMassCost(burnCost.mass, sectorAdjustment) : 0
+  const adjustmentRange = getAdjustmentRange(currentVelocity)
   const transferCost = actionType === 'well_transfer' ? WELL_TRANSFER_COSTS : { energy: 0, mass: 0 }
   const hasEnoughEngines = enginesSubsystem && enginesSubsystem.allocatedEnergy >= (actionType === 'burn' ? burnCost.energy : transferCost.energy)
-  const hasEnoughMass = reactionMass >= (actionType === 'burn' ? burnCost.mass : transferCost.mass)
+  const hasEnoughMass = reactionMass >= (actionType === 'burn' ? totalBurnMass : transferCost.mass)
 
   // Convert burnIntensity to slider value (0-2)
   const sliderValue = BURN_INTENSITY_OPTIONS.indexOf(burnIntensity)
@@ -190,27 +175,50 @@ export function MovementControl({
             </Box>
           </Box>
 
-          {/* Sector Adjustment */}
+          {/* Sector Adjustment (Phasing) */}
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-            Sector Adjustment
+            Arrival Adjustment
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-            <AdjustmentButton
-              isActive={sectorAdjustment === 0}
-              onClick={() => onSectorAdjustmentChange(0)}
-            >
-              <Typography variant="caption" fontWeight="bold">
-                0
+
+          <Box sx={{ px: 1, mb: 1 }}>
+            <Slider
+              value={sectorAdjustment}
+              onChange={(_, value) => onSectorAdjustmentChange(typeof value === 'number' ? value : value[0])}
+              min={adjustmentRange.min}
+              max={adjustmentRange.max}
+              step={1}
+              marks={Array.from(
+                { length: adjustmentRange.max - adjustmentRange.min + 1 },
+                (_, i) => {
+                  const val = adjustmentRange.min + i
+                  return { value: val, label: val === 0 ? '0' : val > 0 ? `+${val}` : `${val}` }
+                }
+              )}
+              valueLabelDisplay="auto"
+              valueLabelFormat={(value) => (value === 0 ? 'Perfect' : value > 0 ? `+${value}` : `${value}`)}
+              sx={{
+                '& .MuiSlider-markLabel': {
+                  fontSize: '0.65rem',
+                },
+              }}
+            />
+          </Box>
+
+          {/* Adjustment info */}
+          <Box sx={{ mb: 1, p: 1, bgcolor: 'background.default', borderRadius: 1 }}>
+            <Typography variant="caption" display="block">
+              <strong>Movement:</strong> {currentVelocity + sectorAdjustment} sectors
+              {sectorAdjustment !== 0 && (
+                <span style={{ color: sectorAdjustment > 0 ? '#4caf50' : '#ff9800' }}>
+                  {' '}(base {currentVelocity} {sectorAdjustment > 0 ? '+' : ''}{sectorAdjustment})
+                </span>
+              )}
+            </Typography>
+            {sectorAdjustment !== 0 && (
+              <Typography variant="caption" color="warning.main" display="block">
+                Extra cost: {Math.abs(sectorAdjustment)} mass
               </Typography>
-            </AdjustmentButton>
-            <AdjustmentButton
-              isActive={sectorAdjustment === 1}
-              onClick={() => onSectorAdjustmentChange(1)}
-            >
-              <Typography variant="caption" fontWeight="bold">
-                +1
-              </Typography>
-            </AdjustmentButton>
+            )}
           </Box>
 
           <StatusBar>
@@ -239,7 +247,7 @@ export function MovementControl({
                 color={hasEnoughMass ? 'success.main' : 'error.main'}
                 fontWeight="bold"
               >
-                {burnCost.mass}/{reactionMass}
+                {totalBurnMass}/{reactionMass}
               </Typography>
             </Box>
           </StatusBar>
