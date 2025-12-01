@@ -12,12 +12,20 @@ export const STARTING_REACTION_MASS = 10
  * No sector adjustment - you land exactly at the mapped sector
  */
 export const BURN_COSTS = {
-  light: { energy: 1, mass: 1, rings: 1 }, // Transfer ±1 ring (change velocity by ±1)
+  soft: { energy: 1, mass: 1, rings: 1 }, // Transfer ±1 ring (change velocity by ±1)
   medium: { energy: 2, mass: 2, rings: 2 }, // Transfer ±2 rings (change velocity by ±2)
-  heavy: { energy: 3, mass: 3, rings: 3 }, // Transfer ±3 rings (change velocity by ±3)
+  hard: { energy: 3, mass: 3, rings: 3 }, // Transfer ±3 rings (change velocity by ±3)
 }
 
 export const ROTATION_ENERGY_COST = 1
+
+/**
+ * Well transfer costs for jumping between gravity wells
+ */
+export const WELL_TRANSFER_COSTS = {
+  energy: 3, // Requires engines at level 3
+  mass: 3,   // Consumes 3 reaction mass
+}
 
 /**
  * Maps a sector number when transferring between rings.

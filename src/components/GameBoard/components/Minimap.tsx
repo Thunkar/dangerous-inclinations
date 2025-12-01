@@ -23,7 +23,7 @@ export function Minimap({
   pan,
 }: MinimapProps) {
   const { gameState } = useGame()
-  const { boardSize, centerX, centerY, scaleFactor, getGravityWellPosition, getSectorRotationOffset, getVisualSector } =
+  const { boardSize, centerX, centerY, scaleFactor, getGravityWellPosition, getSectorRotationOffset } =
     useBoardContext()
 
   const minimapSize = MINIMAP_CONFIG.SIZE
@@ -89,11 +89,8 @@ export function Minimap({
           const wellPosition = getGravityWellPosition(player.ship.wellId)
 
           const radius = ringConfig.radius * scaleFactor
-          const minimapVisualSector = getVisualSector(
-            player.ship.wellId,
-            player.ship.sector,
-            ringConfig.sectors
-          )
+          // Visual sector same as logical sector
+          const minimapVisualSector = player.ship.sector
           const rotationOffset = getSectorRotationOffset(player.ship.wellId)
           const angle =
             ((minimapVisualSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -

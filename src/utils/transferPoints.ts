@@ -1,74 +1,101 @@
 import type { GravityWell, TransferPoint, GravityWellId } from '../types/game'
 
 /**
- * Calculate which sectors connect between gravity wells based on planetary positions
+ * Fixed transfer sectors for elliptic orbits between black hole and planets
  *
- * Transfer points occur where:
- * - Black hole Ring 4 (outermost) touches Planet Ring 3 (outermost)
- * - This is always a single sector on each ring since the rings are tangent
+ * Each planet has TWO transfer trajectories:
+ * 1. OUTBOUND (Black Hole → Planet): Elliptic transfer requiring engines at level 3
+ * 2. RETURN (Planet → Black Hole): Elliptic transfer requiring engines at level 3
+ *
+ * These sectors are FIXED (do not change based on orbital position) and represent
+ * realistic Hohmann-like transfer orbits between gravity wells.
  *
  * NOTE: Planets are at FIXED positions (velocity = 0), so transfer sectors remain constant.
  * This simplifies tabletop gameplay - players can reference a fixed transfer point chart.
+ */
+
+/**
+ * Define fixed transfer sectors for each planet
+ * Format: { planetId, outbound: {from, to}, return: {from, to} }
+ */
+const FIXED_TRANSFER_SECTORS: Record<
+  string,
+  {
+    outbound: { bhSector: number; planetSector: number }
+    return: { planetSector: number; bhSector: number }
+  }
+> = {
+  'planet-alpha': {
+    outbound: { bhSector: 17, planetSector: 7 }, // BH R4 S17 → Alpha R3 S7
+    return: { planetSector: 16, bhSector: 6 }, // Alpha R3 S16 → BH R4 S6
+  },
+  'planet-beta': {
+    outbound: { bhSector: 1, planetSector: 7 }, // BH R4 S1 → Beta R3 S7
+    return: { planetSector: 16, bhSector: 14 }, // Beta R3 S16 → BH R4 S14
+  },
+  'planet-gamma': {
+    outbound: { bhSector: 9, planetSector: 7 }, // BH R4 S9 → Gamma R3 S7
+    return: { planetSector: 16, bhSector: 22 }, // Gamma R3 S16 → BH R4 S22
+  },
+}
+
+/**
+ * Calculate transfer points using fixed elliptic transfer sectors
  *
  * @param gravityWells - All gravity wells in the system
- * @returns Array of bidirectional transfer points (constant for static planets)
+ * @returns Array of transfer points with fixed launch/arrival sectors
  */
 export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPoint[] {
   const transferPoints: TransferPoint[] = []
 
   // Find the black hole
   const blackHole = gravityWells.find(w => w.type === 'blackhole')
-  if (!blackHole || blackHole.rings.length < 1) {
+  if (!blackHole || blackHole.rings.length < 4) {
     return transferPoints
   }
 
   // Get the black hole's outermost ring (Ring 4)
-  const blackHoleOutermostRing = blackHole.rings[blackHole.rings.length - 1]
+  const blackHoleOutermostRing = blackHole.rings[3] // Ring 4 (index 3)
 
   // Get planets
   const planets = gravityWells.filter(w => w.type === 'planet')
 
-  // Calculate transfer points for each planet
+  // Create transfer points for each planet using fixed sectors
   for (const planet of planets) {
-    if (!planet.orbitalPosition || planet.rings.length < 1) {
+    if (!planet.orbitalPosition || planet.rings.length < 3) {
       continue
     }
 
     // Get the planet's outermost ring (Ring 3)
-    const planetOutermostRing = planet.rings[planet.rings.length - 1]
+    const planetOutermostRing = planet.rings[2] // Ring 3 (index 2)
 
-    // The planet's angle determines which sector on the black hole it touches
-    // Convert planet angle (0-360 degrees) to a sector on black hole's outermost ring
-    // Planet angle 0° = top (12 o'clock), going clockwise
-    // Black hole sector 0 is also at top (12 o'clock)
-    const blackHoleSectors = blackHoleOutermostRing.sectors
-    const angleNormalized = (planet.orbitalPosition.angle % 360) / 360 // 0-1
-    // We want the sector whose CENTER points at the planet
-    const blackHoleSector = Math.floor(angleNormalized * blackHoleSectors) % blackHoleSectors
+    // Get fixed transfer sectors for this planet
+    const transferSectors = FIXED_TRANSFER_SECTORS[planet.id]
+    if (!transferSectors) {
+      console.warn(`No fixed transfer sectors defined for planet ${planet.id}`)
+      continue
+    }
 
-    // The planet's transfer sector is the one closest to the black hole
-    // By convention, sector 0 on a planet always faces the black hole
-    const planetSector = 0
-
-    // Create bidirectional transfer points
-    // Black hole -> Planet
+    // OUTBOUND: Black hole -> Planet (elliptic trajectory)
     transferPoints.push({
       fromWellId: blackHole.id,
       toWellId: planet.id,
       fromRing: blackHoleOutermostRing.ring, // Ring 4
       toRing: planetOutermostRing.ring, // Ring 3
-      fromSector: blackHoleSector,
-      toSector: planetSector,
+      fromSector: transferSectors.outbound.bhSector,
+      toSector: transferSectors.outbound.planetSector,
+      requiredEngineLevel: 3, // Requires engines at level 3
     })
 
-    // Planet -> Black hole
+    // RETURN: Planet -> Black hole (elliptic trajectory)
     transferPoints.push({
       fromWellId: planet.id,
       toWellId: blackHole.id,
       fromRing: planetOutermostRing.ring, // Ring 3
       toRing: blackHoleOutermostRing.ring, // Ring 4
-      fromSector: planetSector,
-      toSector: blackHoleSector,
+      fromSector: transferSectors.return.planetSector,
+      toSector: transferSectors.return.bhSector,
+      requiredEngineLevel: 3, // Requires engines at level 3
     })
   }
 
@@ -97,10 +124,8 @@ export function getAvailableWellTransfers(
 ): TransferPoint[] {
   // Find all transfer points from this well/ring/sector
   // Transfer points are configured with the correct ring numbers (4 for blackhole, 3 for planets)
-  return transferPoints.filter(tp =>
-    tp.fromWellId === shipWellId &&
-    tp.fromRing === shipRing &&
-    tp.fromSector === shipSector
+  return transferPoints.filter(
+    tp => tp.fromWellId === shipWellId && tp.fromRing === shipRing && tp.fromSector === shipSector
   )
 }
 

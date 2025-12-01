@@ -33,10 +33,8 @@ export function getGravityWellPosition(
 
 /**
  * Get rotation offset for a gravity well's sectors
- * To create Venn diagram-style overlap with IDENTICAL ARCS:
- * - Align sector CENTERS (not boundaries) between overlapping wells
- * - Rotate black hole COUNTERCLOCKWISE by half a sector
- * - Rotate planets CLOCKWISE by half a sector
+ * Black hole: sector 0 points upward (0°)
+ * Planets: sector 0 points toward black hole (inward)
  */
 export function getSectorRotationOffset(
   wellId: string,
@@ -45,51 +43,18 @@ export function getSectorRotationOffset(
   const well = gravityWells.find(w => w.id === wellId)
   if (!well) return 0
 
+  // Black hole sectors start at 0° (pointing up)
   if (well.type === 'blackhole') {
-    // Rotate black hole COUNTERCLOCKWISE by half a sector
-    // Get outermost ring (Ring 4 for black hole)
-    const outermostRing = well.rings[well.rings.length - 1]
-    const sectors = outermostRing?.sectors || 24
-    return -(Math.PI / sectors) // Negative = counterclockwise
+    return 0
   }
 
-  // For planets: sector 0 points toward black hole (inward) + rotate CLOCKWISE by half sector
+  // Planet sectors: sector 0 points toward black hole (opposite of orbital position)
   if (well.orbitalPosition) {
-    // Get outermost ring (Ring 3 for planets)
-    const outermostRing = well.rings[well.rings.length - 1]
-    const sectors = outermostRing?.sectors || 24
+    // Point inward (toward black hole)
     const pointInward = ((well.orbitalPosition.angle + 180) * Math.PI) / 180
-    const halfSector = Math.PI / sectors // Positive = clockwise
-    return pointInward + halfSector
+    return pointInward
   }
 
   return 0
 }
 
-/**
- * Get sector angle direction multiplier for rendering
- * Planets rotate counterclockwise (opposite to black hole) to preserve prograde meaning
- * Sector numbers remain the same (0-23), but angle calculation direction reverses
- */
-export function getSectorAngleDirection(
-  wellId: string,
-  gravityWells: GravityWell[]
-): number {
-  const well = gravityWells.find(w => w.id === wellId)
-  if (!well) return 1
-
-  // Planets rotate counterclockwise (-1), black hole rotates clockwise (+1)
-  return well.type === 'planet' ? -1 : 1
-}
-
-/**
- * Legacy function for compatibility - now just returns sector unchanged
- * Direction is handled by getSectorAngleDirection multiplier
- */
-export function getVisualSector(
-  _wellId: string,
-  logicalSector: number,
-  _sectorCount: number
-): number {
-  return logicalSector
-}

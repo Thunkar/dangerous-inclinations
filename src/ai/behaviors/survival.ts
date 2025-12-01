@@ -180,7 +180,7 @@ export function generateEnergyManagement(
   }
 
   // Balanced strategy: engines > weapons > shields > rotation
-  // 1. Ensure engines have at least 1 energy (for light burns)
+  // 1. Ensure engines have at least 1 energy (for soft burns)
   if (!status.subsystems.engines.powered && remainingEnergy >= 1) {
     actions.push({
       type: 'allocate_energy',

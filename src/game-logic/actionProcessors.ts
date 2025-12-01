@@ -15,7 +15,7 @@ import type {
 import { applyOrbitalMovement, initiateBurn, applyRotation, completeRingTransfer } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
-import { BURN_COSTS } from '../constants/rings'
+import { BURN_COSTS, WELL_TRANSFER_COSTS } from '../constants/rings'
 import { getSubsystemConfig } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
 import { fireMissile } from './missiles'
@@ -331,6 +331,27 @@ function validateWellTransferAction(gameState: GameState, action: WellTransferAc
 
   if (!transferPoint) {
     errors.push('No transfer point available from current position to destination well')
+    return errors
+  }
+
+  // Check engine level requirement (NEW for elliptic transfers)
+  if (transferPoint.requiredEngineLevel) {
+    const enginesSubsystem = player.ship.subsystems.find(s => s.type === 'engines')
+    if (!enginesSubsystem || enginesSubsystem.allocatedEnergy < transferPoint.requiredEngineLevel) {
+      errors.push(`Well transfer requires engines at level ${transferPoint.requiredEngineLevel} (current: ${enginesSubsystem?.allocatedEnergy || 0})`)
+      return errors
+    }
+  }
+
+  // Ship must be facing prograde for well transfers
+  if (player.ship.facing !== 'prograde') {
+    errors.push('Ship must be facing prograde to initiate well transfer')
+    return errors
+  }
+
+  // Check reaction mass
+  if (player.ship.reactionMass < WELL_TRANSFER_COSTS.mass) {
+    errors.push(`Not enough reaction mass for well transfer (need ${WELL_TRANSFER_COSTS.mass}, have ${player.ship.reactionMass})`)
     return errors
   }
 
@@ -804,6 +825,9 @@ function processWellTransfer(gameState: GameState, action: WellTransferAction): 
     }
   }
 
+  // Consume reaction mass
+  const newReactionMass = player.ship.reactionMass - WELL_TRANSFER_COSTS.mass
+
   // Transfer to destination well immediately
   // Orbital movement will be applied by the movement action (coast/burn) that follows
   const updatedShip: ShipState = {
@@ -811,6 +835,7 @@ function processWellTransfer(gameState: GameState, action: WellTransferAction): 
     wellId: action.data.destinationWellId,
     ring: transferPoint.toRing,
     sector: transferPoint.toSector,
+    reactionMass: newReactionMass,
     // Facing is preserved (sector numbering handles direction reversal)
   }
 

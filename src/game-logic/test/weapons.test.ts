@@ -343,7 +343,7 @@ describe('Weapon Targeting', () => {
         attacker.ship.facing,
         {
           actionType: 'burn',
-          burnIntensity: 'light',
+          burnIntensity: 'soft',
           sectorAdjustment: 0,
         }
       )

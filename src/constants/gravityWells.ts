@@ -20,7 +20,7 @@ export const BLACKHOLE_RINGS: RingConfig[] = [
 /**
  * Planet ring configuration - 3 rings with variable velocity
  * Planets are smaller gravity wells, so fewer rings
- * Doubling progression: 8, 4, 2 (matches black hole's inner 3 rings)
+ * Velocity progression: 4, 2, 1 (medium speed range for balanced gameplay)
  *
  * Spacing strategy:
  * - Large gap from center to Ring 1 (120 units) for visual separation
@@ -28,9 +28,9 @@ export const BLACKHOLE_RINGS: RingConfig[] = [
  * - Rings 2-3 have tight 50 unit spacing
  */
 export const PLANET_RINGS: RingConfig[] = [
-  { ring: 1, velocity: 6, radius: 120, sectors: 24 }, // Innermost - BLAZING FAST (120°/turn)
-  { ring: 2, velocity: 4, radius: 170, sectors: 24 }, // Very Fast (60°/turn)
-  { ring: 3, velocity: 2, radius: 220, sectors: 24 }, // Medium (30°/turn) - where well transfers occur
+  { ring: 1, velocity: 4, radius: 120, sectors: 24 }, // Innermost - Very Fast (60°/turn)
+  { ring: 2, velocity: 2, radius: 170, sectors: 24 }, // Medium (30°/turn)
+  { ring: 3, velocity: 1, radius: 220, sectors: 24 }, // Slow (15°/turn) - where well transfers occur
 ]
 
 /**
@@ -48,10 +48,10 @@ export const BLACK_HOLE: GravityWell = {
 
 /**
  * Planets - Secondary gravity wells at fixed positions relative to black hole
- * Black hole Ring 4 (radius 270) connects to Planet Ring 3 (radius 220)
- * Transfer occurs where they touch
+ * Black hole Ring 4 (radius 270) and Planet Ring 3 (radius 220) are separated by 30 units
+ * Transfer occurs through fixed elliptic transfer sectors (not at tangent points)
  *
- * Distance calculation: blackhole_R4_radius + planet_R3_radius = 270 + 220 = 490
+ * Distance calculation: blackhole_R4_radius + gap + planet_R3_radius = 270 + 30 + 220 = 520
  *
  * Planets orbit so slowly that their positions are effectively static during gameplay
  * (This simplifies tabletop implementation - transfer sectors remain constant)
@@ -64,7 +64,7 @@ export const PLANET_ALPHA: GravityWell = {
   orbitalPosition: {
     angle: 0, // Fixed at 0 degrees (top of circle)
     velocity: 0, // Static position (or orbits too slowly to matter)
-    distance: 490, // Distance from black hole center (270 + 220)
+    distance: 520, // Distance from black hole center (270 + 30 gap + 220)
   },
   color: '#3B82F6', // Blue
   radius: 40,
@@ -78,7 +78,7 @@ export const PLANET_BETA: GravityWell = {
   orbitalPosition: {
     angle: 120, // Fixed at 120 degrees
     velocity: 0, // Static position
-    distance: 490, // Distance from black hole center (270 + 220)
+    distance: 520, // Distance from black hole center (270 + 30 gap + 220)
   },
   color: '#EF4444', // Red
   radius: 35,
@@ -92,7 +92,7 @@ export const PLANET_GAMMA: GravityWell = {
   orbitalPosition: {
     angle: 240, // Fixed at 240 degrees
     velocity: 0, // Static position
-    distance: 490, // Distance from black hole center (270 + 220)
+    distance: 520, // Distance from black hole center (270 + 30 gap + 220)
   },
   color: '#10B981', // Green
   radius: 35,

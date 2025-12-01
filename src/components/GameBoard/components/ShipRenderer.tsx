@@ -28,8 +28,7 @@ export function ShipRenderer({
   pendingState,
   children,
 }: ShipRendererProps) {
-  const { scaleFactor, getGravityWellPosition, getSectorAngleDirection, getSectorRotationOffset } =
-    useBoardContext()
+  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
 
   return (
     <>
@@ -46,10 +45,9 @@ export function ShipRenderer({
 
         const radius = ringConfig.radius * scaleFactor
         // Position ship in the MIDDLE of the sector
-        const direction = getSectorAngleDirection(player.ship.wellId)
         const rotationOffset = getSectorRotationOffset(player.ship.wellId)
         const angle =
-          direction * ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+          ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
           Math.PI / 2 +
           rotationOffset
         const x = wellPosition.x + radius * Math.cos(angle)
@@ -65,8 +63,8 @@ export function ShipRenderer({
         // Ship rotation angle - tangent to the orbit (perpendicular to radius)
         const directionAngle =
           effectiveFacing === 'prograde'
-            ? angle + direction * (Math.PI / 2) // 90° in rotation direction
-            : angle - direction * (Math.PI / 2) // 90° opposite rotation direction
+            ? angle + Math.PI / 2 // 90° in rotation direction
+            : angle - Math.PI / 2 // 90° opposite rotation direction
 
         // Calculate predicted next position (and second step for transfers)
         let predictedX: number | null = null
@@ -94,9 +92,8 @@ export function ShipRenderer({
             (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
 
           // Step 1: Position after orbital movement (on current ring)
-          const step1Direction = getSectorAngleDirection(player.ship.wellId)
           const step1Angle =
-            step1Direction * ((afterOrbitalSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+            ((afterOrbitalSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
             Math.PI / 2 +
             rotationOffset
           predictedX = wellPosition.x + radius * Math.cos(step1Angle)
@@ -126,9 +123,8 @@ export function ShipRenderer({
               (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
 
             const destRadius = destRingConfig.radius * scaleFactor
-            const destDirection = getSectorAngleDirection(player.ship.wellId)
             const destAngle =
-              destDirection * ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+              ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
               Math.PI / 2 +
               rotationOffset
 
@@ -164,11 +160,8 @@ export function ShipRenderer({
               const destRotationOffset = getSectorRotationOffset(
                 pendingWellTransfer.destinationWellId
               )
-              const destDirection = getSectorAngleDirection(
-                pendingWellTransfer.destinationWellId
-              )
               const destAngle =
-                destDirection * ((destSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+                ((destSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
                 Math.PI / 2 +
                 destRotationOffset
 
@@ -176,23 +169,14 @@ export function ShipRenderer({
               predictedY = destWellPosition.y + destRadius * Math.sin(destAngle)
               predictedRing = destRingConfig.ring
 
-              // After well transfer, ship will coast, so show second step (orbital movement)
-              const nextSector = (destSector + destRingConfig.velocity) % destRingConfig.sectors
-              const secondAngle =
-                destDirection * ((nextSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
-                Math.PI / 2 +
-                destRotationOffset
-              secondStepX = destWellPosition.x + destRadius * Math.cos(secondAngle)
-              secondStepY = destWellPosition.y + destRadius * Math.sin(secondAngle)
-              secondStepRing = destRingConfig.ring
+              // Well transfer shows only the arrival position (no second step needed)
             }
           }
         } else {
           // Ship is stable (or coasting) - show where it will move due to orbital velocity
           const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
-          const coastDirection = getSectorAngleDirection(player.ship.wellId)
           const predictedAngle =
-            coastDirection * ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+            ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
             Math.PI / 2 +
             rotationOffset
           predictedX = wellPosition.x + radius * Math.cos(predictedAngle)
@@ -218,6 +202,37 @@ export function ShipRenderer({
                     strokeDasharray="6 4"
                     opacity={0.4}
                   />
+                ) : pendingWellTransfer ? (
+                  // For well transfers, use quadratic bezier curve matching TransferSectors
+                  (() => {
+                    const bhPosition = getGravityWellPosition('blackhole')
+                    const midX = (x + predictedX) / 2
+                    const midY = (y + predictedY) / 2
+                    const dx = predictedX - x
+                    const dy = predictedY - y
+                    const distance = Math.sqrt(dx * dx + dy * dy)
+
+                    // Vector from midpoint AWAY from black hole (outward direction)
+                    const awayFromBlackHoleX = midX - bhPosition.x
+                    const awayFromBlackHoleY = midY - bhPosition.y
+                    const awayDist = Math.sqrt(awayFromBlackHoleX * awayFromBlackHoleX + awayFromBlackHoleY * awayFromBlackHoleY)
+
+                    // Curve outward by 15% of transfer distance (same as TransferSectors)
+                    const curveOffset = distance * 0.15
+                    const controlX = midX + (awayFromBlackHoleX / awayDist) * curveOffset
+                    const controlY = midY + (awayFromBlackHoleY / awayDist) * curveOffset
+
+                    return (
+                      <path
+                        d={`M ${x} ${y} Q ${controlX} ${controlY} ${predictedX} ${predictedY}`}
+                        fill="none"
+                        stroke={player.color}
+                        strokeWidth={3}
+                        strokeDasharray="8 4"
+                        opacity={0.7}
+                      />
+                    )
+                  })()
                 ) : (
                   // For coasting, use circular arc following the orbital path
                   (() => {
@@ -231,8 +246,8 @@ export function ShipRenderer({
                     if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
                     if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
 
-                    const coastDirection = getSectorAngleDirection(player.ship.wellId)
-                    const sweepFlag = coastDirection > 0 ? 1 : 0
+                    // All wells rotate clockwise (direction = 1)
+                    const sweepFlag = 1
                     const largeArcFlag = Math.abs(angleDiff) > Math.PI ? 1 : 0
 
                     const pathData = `M ${x} ${y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${predictedX} ${predictedY}`

@@ -73,7 +73,7 @@ export function calculatePostMovementPosition(
   pendingFacing?: Facing,
   pendingMovement?: {
     actionType: 'coast' | 'burn'
-    burnIntensity?: 'light' | 'medium' | 'heavy'
+    burnIntensity?: 'soft' | 'medium' | 'hard'
     sectorAdjustment: number
   }
 ): ShipState {

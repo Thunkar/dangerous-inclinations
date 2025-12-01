@@ -509,9 +509,9 @@ export function EnergyPanel({
                       isPowered={false}
                       variant="vent"
                       disabled={
+                        heat.currentHeat === 0 ||
                         heat.heatToVent >= heat.currentHeat ||
-                        heat.heatToVent >=
-                          Math.max(0, reactor.maxReturnRate - reactor.energyToReturn)
+                        heat.heatToVent >= Math.max(0, reactor.maxReturnRate - reactor.energyToReturn)
                       }
                       onClick={() => onVentHeat(heat.heatToVent + 1)}
                     />

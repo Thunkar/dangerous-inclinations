@@ -371,7 +371,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
             type: 'burn',
             sequence: tacticalAction.sequence,
             data: {
-              burnIntensity: pendingState.movement.burnIntensity || 'light',
+              burnIntensity: pendingState.movement.burnIntensity || 'soft',
               sectorAdjustment: pendingState.movement.sectorAdjustment,
             },
           })

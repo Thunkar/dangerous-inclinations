@@ -555,7 +555,7 @@ describe('Bot AI - Edge Cases', () => {
         ship: {
           wellId: 'blackhole',
           ring: 4, // On outer ring for transfer possibility
-          sector: 0,
+          sector: 17, // At a valid transfer sector (Alpha outbound: BH R4 S17 → Alpha R3 S7)
           facing: 'prograde',
           reactionMass: 10,
           hitPoints: 2, // Critical health (20%)

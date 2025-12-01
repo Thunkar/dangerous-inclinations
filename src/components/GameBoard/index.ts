@@ -17,8 +17,6 @@ export {
   calculateScaleFactor,
   getGravityWellPosition,
   getSectorRotationOffset,
-  getSectorAngleDirection,
-  getVisualSector,
   sectorToCoordinates,
   calculateSectorAngle,
 } from './utils'

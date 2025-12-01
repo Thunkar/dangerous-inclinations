@@ -1,5 +1,5 @@
 import { Paper, Stack, Box, Typography, IconButton, Button, Tooltip } from '@mui/material'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ArrowUpward, ArrowDownward, Delete, Visibility, VisibilityOff } from '@mui/icons-material'
 import type { BurnIntensity, Facing, Player, ActionType } from '../types/game'
 import { getSubsystem } from '../utils/subsystemHelpers'
@@ -28,7 +28,6 @@ type PanelType =
   | 'fire_laser'
   | 'fire_railgun'
   | 'fire_missiles'
-  | 'well_transfer'
 
 interface ActionPanel {
   id: string
@@ -59,7 +58,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   // State for all action components
   const [targetFacing, setTargetFacing] = useState<Facing>(player.ship.facing)
   const [actionType, setActionType] = useState<ActionType>('coast')
-  const [burnIntensity, setBurnIntensity] = useState<BurnIntensity>('light')
+  const [burnIntensity, setBurnIntensity] = useState<BurnIntensity>('soft')
   const [sectorAdjustment, setSectorAdjustment] = useState<number>(0)
   const [activateScoop, setActivateScoop] = useState(false)
 
@@ -78,6 +77,12 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   const laserSubsystem = getSubsystem(subsystems, 'laser')
   const railgunSubsystem = getSubsystem(subsystems, 'railgun')
   const missilesSubsystem = getSubsystem(subsystems, 'missiles')
+
+  // Get available well transfers (memoized to prevent infinite loops)
+  const availableWellTransfers = useMemo(
+    () => getAvailableWellTransfers(ship.wellId, ship.ring, ship.sector, gameState.transferPoints),
+    [ship.wellId, ship.ring, ship.sector, gameState.transferPoints]
+  )
 
   // Initialize tactical sequence with base actions when it's empty
   useEffect(() => {
@@ -118,7 +123,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   useEffect(() => {
     setTargetFacing(player.ship.facing)
     setActionType('coast')
-    setBurnIntensity('light')
+    setBurnIntensity('soft')
     setSectorAdjustment(0)
     setActivateScoop(false)
   }, [player.id, player.ship.facing])
@@ -150,16 +155,28 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
         }
         return true
       })
-      .map((p, index) => ({
-        id: p.id,
-        type: p.type,
-        sequence: index + 1, // Renumber sequentially
-        targetPlayerId: p.targetPlayerId,
-        destinationWellId: p.destinationWellId,
-      }))
+      .map((p, index) => {
+        // If this is a move panel and actionType is well_transfer, convert to well_transfer action
+        if (p.type === 'move' && actionType === 'well_transfer') {
+          return {
+            id: p.id,
+            type: 'well_transfer' as TacticalActionType,
+            sequence: index + 1,
+            destinationWellId: availableWellTransfers.length > 0 ? availableWellTransfers[0].toWellId : undefined,
+          }
+        }
+
+        return {
+          id: p.id,
+          type: p.type,
+          sequence: index + 1, // Renumber sequentially
+          targetPlayerId: p.targetPlayerId,
+          destinationWellId: p.destinationWellId,
+        }
+      })
 
     setTacticalSequence(tacticalActions)
-  }, [panels, targetFacing, player.ship.facing, setTacticalSequence])
+  }, [panels, targetFacing, player.ship.facing, actionType, availableWellTransfers, setTacticalSequence])
 
   const canMovePanel = (id: string, direction: 'up' | 'down'): boolean => {
     const index = panels.findIndex(p => p.id === id)
@@ -167,17 +184,6 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
     const newIndex = direction === 'up' ? index - 1 : index + 1
     if (newIndex < 0 || newIndex >= panels.length) return false
-
-    const newPanels = [...panels]
-    ;[newPanels[index], newPanels[newIndex]] = [newPanels[newIndex], newPanels[index]]
-
-    // Check if well_transfer comes before movement
-    const wellTransferIdx = newPanels.findIndex(p => p.type === 'well_transfer')
-    const moveIdx = newPanels.findIndex(p => p.type === 'move')
-
-    if (wellTransferIdx !== -1 && moveIdx !== -1 && wellTransferIdx > moveIdx) {
-      return false
-    }
 
     return true
   }
@@ -210,39 +216,6 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     setPanels(newPanels)
   }
 
-  const addWellTransfer = () => {
-    // Well transfer must be inserted before the move panel
-    const moveIndex = panels.findIndex(p => p.type === 'move')
-
-    if (moveIndex === -1) {
-      // No move panel found, add at end (shouldn't happen in normal flow)
-      const newPanel: ActionPanel = {
-        id: `well_transfer-${Date.now()}`,
-        type: 'well_transfer',
-        sequence: panels.length + 1,
-      }
-      setPanels([...panels, newPanel])
-    } else {
-      // Insert before move panel
-      const newPanel: ActionPanel = {
-        id: `well_transfer-${Date.now()}`,
-        type: 'well_transfer',
-        sequence: panels[moveIndex].sequence, // Takes move's sequence number
-      }
-
-      // Insert at move position
-      const newPanels = [
-        ...panels.slice(0, moveIndex),
-        newPanel,
-        ...panels.slice(moveIndex)
-      ]
-
-      // Renumber all panels to maintain continuous sequence
-      const renumbered = newPanels.map((p, i) => ({ ...p, sequence: i + 1 }))
-      setPanels(renumbered)
-    }
-  }
-
   const removeWeapon = (id: string) => {
     // Find the panel being removed
     const panelToRemove = panels.find(p => p.id === id)
@@ -268,22 +241,10 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     setPanels(updated)
   }
 
-  const updateWellTransferDestination = (id: string, destinationWellId: string) => {
-    const updated = panels.map(p => (p.id === id ? { ...p, destinationWellId } : p))
-    setPanels(updated)
-  }
-
   const handleExecuteTurn = () => {
     executeTurn()
   }
 
-  // Get available well transfers
-  const availableWellTransfers = getAvailableWellTransfers(
-    ship.wellId,
-    ship.ring,
-    ship.sector,
-    gameState.transferPoints
-  )
   const currentWellName = getWellName(ship.wellId, gameState.gravityWells)
 
   // Validation
@@ -300,12 +261,6 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     validationErrors.push('All weapon actions must have a target selected')
   }
 
-  const wellTransferPanels = panels.filter(p => p.type === 'well_transfer')
-  const wellTransferPanelsWithoutDestination = wellTransferPanels.filter(p => !p.destinationWellId)
-  if (wellTransferPanelsWithoutDestination.length > 0) {
-    validationErrors.push('All well transfer actions must have a destination selected')
-  }
-
   const getPanelColor = (type: PanelType): string => {
     if (type === 'rotate') return 'rgba(33, 150, 243, 0.1)' // Blue
     if (type === 'move') return 'rgba(76, 175, 80, 0.1)' // Green
@@ -320,8 +275,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     return (
       type === 'fire_laser' ||
       type === 'fire_railgun' ||
-      type === 'fire_missiles' ||
-      type === 'well_transfer'
+      type === 'fire_missiles'
     )
   }
 
@@ -576,6 +530,12 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                   onSectorAdjustmentChange={setSectorAdjustment}
                   enginesSubsystem={enginesSubsystem}
                   reactionMass={ship.reactionMass}
+                  canTransfer={availableWellTransfers.length > 0}
+                  transferDestination={
+                    availableWellTransfers.length > 0
+                      ? getWellName(availableWellTransfers[0].toWellId, gameState.gravityWells)
+                      : undefined
+                  }
                 />
                 {actionType === 'coast' && (
                   <UtilityActions
@@ -865,93 +825,9 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                 )
               })()}
 
-            {panel.type === 'well_transfer' && (
-              <Box
-                sx={{
-                  p: 1.5,
-                  borderRadius: '8px',
-                  bgcolor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                }}
-              >
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>
-                    Gravity Well Transfer
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ display: 'block', mb: 1 }}
-                  >
-                    Current Well: {currentWellName}
-                  </Typography>
-                </Box>
-
-                {availableWellTransfers.length > 0 ? (
-                  <select
-                    value={panel.destinationWellId || ''}
-                    onChange={e => updateWellTransferDestination(panel.id, e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 10px',
-                      borderRadius: '4px',
-                      border: panel.destinationWellId
-                        ? '2px solid rgba(76, 175, 80, 0.5)'
-                        : '2px solid rgba(244, 67, 54, 0.5)',
-                      backgroundColor: 'rgba(0,0,0,0.3)',
-                      color: 'white',
-                      fontSize: '0.875rem',
-                    }}
-                  >
-                    <option value="" style={{ backgroundColor: '#1a1a1a' }}>
-                      Select Destination
-                    </option>
-                    {availableWellTransfers.map(transfer => {
-                      const destWellName = getWellName(transfer.toWellId, gameState.gravityWells)
-                      return (
-                        <option
-                          key={transfer.toWellId}
-                          value={transfer.toWellId}
-                          style={{ backgroundColor: '#1a1a1a' }}
-                        >
-                          Transfer to {destWellName}
-                        </option>
-                      )
-                    })}
-                  </select>
-                ) : (
-                  <Typography variant="caption" color="error.main">
-                    No transfer points available (must be on outermost ring at a transfer sector)
-                  </Typography>
-                )}
-              </Box>
-            )}
           </Box>
         </Paper>
       ))}
-
-      {/* Add Well Transfer Button */}
-      {availableWellTransfers.length > 0 && !panels.some(p => p.type === 'well_transfer') && (
-        <Paper sx={{ p: 2 }}>
-          <Typography
-            variant="caption"
-            fontWeight="bold"
-            gutterBottom
-            sx={{ display: 'block', mb: 1 }}
-          >
-            Gravity Well Transfer:
-          </Typography>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={addWellTransfer}
-            sx={{ fontSize: '0.75rem' }}
-          >
-            Initiate Well Transfer
-          </Button>
-        </Paper>
-      )}
 
       {/* Add Weapon Buttons */}
       {(canAddLaser || canAddRailgun || canAddMissiles) && (

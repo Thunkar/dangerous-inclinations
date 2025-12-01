@@ -14,7 +14,7 @@ describe('Multi-Turn Movement', () => {
 
       // Turn 1: Player 1 allocates energy and burns to transfer to ring 4 (max ring for black hole)
       const allocateAction = createAllocateEnergyAction('engines', 2, 'player1')
-      const burnAction = createBurnAction('light', 'prograde', 0, 'player1') // Light burn: +1 ring
+      const burnAction = createBurnAction('soft', 'prograde', 0, 'player1') // Soft burn: +1 ring
 
       let result = executeTurnWithActions(gameState, allocateAction, burnAction)
       gameState = result.gameState
@@ -23,7 +23,7 @@ describe('Multi-Turn Movement', () => {
       const player1AfterBurn = gameState.players[0]
       expect(player1AfterBurn.ship.transferState).toBeNull()
       expect(player1AfterBurn.ship.ring).toBe(4) // Ring 3 + 1 = Ring 4
-      expect(player1AfterBurn.ship.reactionMass).toBe(INITIAL_REACTION_MASS - 1) // Light burn costs 1
+      expect(player1AfterBurn.ship.reactionMass).toBe(INITIAL_REACTION_MASS - 1) // Soft burn costs 1
 
       // After player 1's turn, it's player 2's turn (activePlayerIndex = 1)
       expect(gameState.activePlayerIndex).toBe(1)
@@ -40,7 +40,7 @@ describe('Multi-Turn Movement', () => {
 
       // Turn 1: Allocate energy and burn retrograde
       const allocateAction = createAllocateEnergyAction('engines', 1)
-      const burnAction = createBurnAction('light', 'retrograde', 0)
+      const burnAction = createBurnAction('soft', 'retrograde', 0)
       let result = executeTurnWithActions(gameState, allocateAction, burnAction)
       gameState = result.gameState
 
@@ -58,7 +58,7 @@ describe('Multi-Turn Movement', () => {
 
       // Turn 1: Allocate energy and burn (no sector adjustment in new system)
       const allocateAction = createAllocateEnergyAction('engines', 1)
-      const burnAction = createBurnAction('light', 'prograde', 0) // No sector adjustment
+      const burnAction = createBurnAction('soft', 'prograde', 0) // No sector adjustment
       let result = executeTurnWithActions(gameState, allocateAction, burnAction)
       gameState = result.gameState
 
@@ -166,7 +166,7 @@ describe('Multi-Turn Movement', () => {
         type: 'burn' as const,
         sequence: 1,
         data: {
-          burnIntensity: 'light' as const,
+          burnIntensity: 'soft' as const,
           sectorAdjustment: 0,
         },
       }

@@ -7,8 +7,6 @@ import {
   BOARD_SCALE_FACTOR,
   getGravityWellPosition as getGravityWellPositionBase,
   getSectorRotationOffset as getSectorRotationOffsetBase,
-  getSectorAngleDirection as getSectorAngleDirectionBase,
-  getVisualSector as getVisualSectorBase,
 } from '../utils'
 
 /**
@@ -25,8 +23,6 @@ export interface BoardContextValue {
   // Helper functions with gravity wells and board constants pre-bound
   getGravityWellPosition: (wellId: string) => { x: number; y: number }
   getSectorRotationOffset: (wellId: string) => number
-  getSectorAngleDirection: (wellId: string) => number
-  getVisualSector: (wellId: string, logicalSector: number, sectorCount: number) => number
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -62,12 +58,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
 
       getSectorRotationOffset: (wellId: string) =>
         getSectorRotationOffsetBase(wellId, gameState.gravityWells),
-
-      getSectorAngleDirection: (wellId: string) =>
-        getSectorAngleDirectionBase(wellId, gameState.gravityWells),
-
-      getVisualSector: (wellId: string, logicalSector: number, sectorCount: number) =>
-        getVisualSectorBase(wellId, logicalSector, sectorCount),
     }),
     [gameState.gravityWells]
   )

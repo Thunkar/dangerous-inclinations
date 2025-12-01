@@ -2,7 +2,6 @@ import type { GravityWell } from '../../../types/game'
 import {
   getGravityWellPosition,
   getSectorRotationOffset,
-  getSectorAngleDirection,
 } from './gravityWellGeometry'
 
 export interface SectorPositionParams {
@@ -30,12 +29,10 @@ export function sectorToCoordinates(params: SectorPositionParams): { x: number; 
   const wellPosition = getGravityWellPosition(wellId, gravityWells, centerX, centerY, scaleFactor)
   const radius = ringConfig.radius * scaleFactor
   const rotationOffset = getSectorRotationOffset(wellId, gravityWells)
-  const direction = getSectorAngleDirection(wellId, gravityWells)
 
   const angle = calculateSectorAngle({
     sector,
     sectorCount: ringConfig.sectors,
-    direction,
     rotationOffset,
   })
 
@@ -48,7 +45,6 @@ export function sectorToCoordinates(params: SectorPositionParams): { x: number; 
 export interface SectorAngleParams {
   sector: number
   sectorCount: number
-  direction: number
   rotationOffset: number
 }
 
@@ -57,8 +53,8 @@ export interface SectorAngleParams {
  * Sector center is at (sector + 0.5) / sectorCount
  */
 export function calculateSectorAngle(params: SectorAngleParams): number {
-  const { sector, sectorCount, direction, rotationOffset } = params
+  const { sector, sectorCount, rotationOffset } = params
   return (
-    direction * ((sector + 0.5) / sectorCount) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+    ((sector + 0.5) / sectorCount) * 2 * Math.PI - Math.PI / 2 + rotationOffset
   )
 }

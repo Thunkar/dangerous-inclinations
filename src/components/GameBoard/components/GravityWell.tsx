@@ -17,8 +17,7 @@ export function GravityWell({
   wellRadius,
   transferPoints,
 }: GravityWellProps) {
-  const { scaleFactor, getGravityWellPosition, getSectorAngleDirection, getSectorRotationOffset } =
-    useBoardContext()
+  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
 
   const position = getGravityWellPosition(well.id)
 
@@ -77,14 +76,10 @@ export function GravityWell({
                     (tp.toWellId === well.id && tp.toSector === i)
                 )
 
-              // Get angle direction (planets rotate counterclockwise)
-              const direction = getSectorAngleDirection(well.id)
-
               // Get rotation offset for this well (planets rotate to point sector 0 at black hole)
               const rotationOffset = getSectorRotationOffset(well.id)
-              // Calculate angle with direction multiplier
-              const angle =
-                direction * (i / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+              // Calculate angle (all wells rotate clockwise, direction = 1)
+              const angle = (i / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
               // Draw short tick marks on the inner edge of the ring
               const tickLength = i === 0 ? 12 : 8 // Longer tick for sector 0
@@ -96,7 +91,7 @@ export function GravityWell({
               // Sector number position - in the MIDDLE of the sector (between tick marks)
               // Add 0.5 to position between sector boundaries, plus rotation offset
               const sectorCenterAngle =
-                direction * ((i + 0.5) / config.sectors) * 2 * Math.PI -
+                ((i + 0.5) / config.sectors) * 2 * Math.PI -
                 Math.PI / 2 +
                 rotationOffset
               const sectorLabelRadius = radius - 25
@@ -105,9 +100,9 @@ export function GravityWell({
 
               // Calculate sector arc boundaries for highlighting
               const sectorStartAngle =
-                direction * (i / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+                (i / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
               const sectorEndAngle =
-                direction * ((i + 1) / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+                ((i + 1) / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
               return (
                 <g key={i}>

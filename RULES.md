@@ -158,6 +158,43 @@ Initiates a transfer to a different ring. Three burn intensities available:
 - **Retrograde burn**: Move inward (lower ring numbers)
 - Must face the correct direction before burning (may require rotation)
 
+#### 3. Well Transfer (Gravity Well Jump)
+
+Ships can transfer between gravity wells using elliptic Hohmann-like transfer orbits. This allows travel between the central Black Hole and the three orbiting Planets (Alpha, Beta, Gamma).
+
+**Requirements**:
+- Ship must be on the **outermost ring** of current gravity well:
+  - Black Hole: Ring 4
+  - Planets: Ring 3
+- Ship must be at a **fixed transfer sector** (specific sectors for each planet)
+- Engines must be **powered at level 3** (3+ energy allocated)
+
+**Transfer Sectors** (Fixed):
+
+| Planet | Outbound (BH→Planet) | Return (Planet→BH) |
+|--------|---------------------|-------------------|
+| **Alpha** | BH R4 S17 → Alpha R3 S7 | Alpha R3 S16 → BH R4 S6 |
+| **Beta**  | BH R4 S1 → Beta R3 S7   | Beta R3 S16 → BH R4 S14 |
+| **Gamma** | BH R4 S9 → Gamma R3 S7  | Gamma R3 S16 → BH R4 S22 |
+
+**Transfer Mechanics**:
+1. Transfer is **instantaneous** - ship arrives at destination immediately
+2. Ship arrives at the **designated arrival sector** on the destination well's outermost ring
+3. After transfer, orbital movement applies normally on the next coast/turn
+4. Ship **facing is preserved** across the transfer
+5. No reaction mass cost (different from ring burns)
+
+**Visualization**:
+- **Yellow arcs**: Outbound transfers (Black Hole → Planet)
+- **Cyan arcs**: Return transfers (Planet → Black Hole)
+- Arcs curve **outward** (away from Black Hole) representing elliptic trajectories
+- Arrows indicate transfer direction toward the destination
+
+**Tabletop Implementation**:
+- Planets are at fixed positions (velocity = 0) so transfer sectors never change
+- Players can reference a fixed transfer chart
+- This simplifies gameplay while maintaining orbital mechanics flavor
+
 ### Rotation (Changing Facing)
 
 - Requires **Maneuvering Thrusters subsystem** to be powered (minimum 1 energy)

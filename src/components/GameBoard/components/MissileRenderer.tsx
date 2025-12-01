@@ -13,8 +13,7 @@ interface MissileRendererProps {
  * and labels (M# and turn counter)
  */
 export function MissileRenderer({ missiles, players, gameState }: MissileRendererProps) {
-  const { scaleFactor, getGravityWellPosition, getSectorAngleDirection, getSectorRotationOffset } =
-    useBoardContext()
+  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
 
   return (
     <>
@@ -51,9 +50,8 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
         const ringConfig = well.rings.find(r => r.ring === missile.ring)
         if (!ringConfig) return null
 
-        // Get the rotation offset and direction for this well
+        // Get the rotation offset for this well (all wells rotate clockwise, direction = 1)
         const rotationOffset = getSectorRotationOffset(missile.wellId)
-        const direction = getSectorAngleDirection(missile.wellId)
 
         // Get the well position
         const wellPosition = getGravityWellPosition(missile.wellId)
@@ -70,7 +68,7 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
 
         // Calculate missile position
         const angle =
-          direction * ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+          ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
           Math.PI / 2 +
           rotationOffset
         const baseRadius = ringConfig.radius * scaleFactor
@@ -88,7 +86,7 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
           if (nextRingConfig) {
             const nextRadius = nextRingConfig.radius * scaleFactor
             const nextAngle =
-              direction * ((movement.sector + 0.5) / nextRingConfig.sectors) * 2 * Math.PI -
+              ((movement.sector + 0.5) / nextRingConfig.sectors) * 2 * Math.PI -
               Math.PI / 2 +
               rotationOffset
             nextX = wellPosition.x + nextRadius * Math.cos(nextAngle)
@@ -106,9 +104,8 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
         const targetWellPos = getGravityWellPosition(target.ship.wellId)
         const targetRadius = targetRingConfig.radius * scaleFactor
         const targetRotation = getSectorRotationOffset(target.ship.wellId)
-        const targetDirection = getSectorAngleDirection(target.ship.wellId)
         const targetAngle =
-          targetDirection * ((target.ship.sector + 0.5) / targetRingConfig.sectors) * 2 * Math.PI -
+          ((target.ship.sector + 0.5) / targetRingConfig.sectors) * 2 * Math.PI -
           Math.PI / 2 +
           targetRotation
         const targetX = targetWellPos.x + targetRadius * Math.cos(targetAngle)

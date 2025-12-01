@@ -1,15 +1,15 @@
 import { Box, Typography, styled, Slider } from '@mui/material'
 import type { ActionType, BurnIntensity } from '../../types/game'
 import type { Subsystem } from '../../types/subsystems'
-import { BURN_COSTS } from '../../constants/rings'
+import { BURN_COSTS, WELL_TRANSFER_COSTS } from '../../constants/rings'
 import { CustomIcon } from '../CustomIcon'
 
-const BURN_INTENSITY_OPTIONS: BurnIntensity[] = ['light', 'medium', 'heavy']
+const BURN_INTENSITY_OPTIONS: BurnIntensity[] = ['soft', 'medium', 'hard']
 
 const BURN_DESCRIPTIONS = {
-  light: 'Light: Transfer ±1 ring',
+  soft: 'Soft: Transfer ±1 ring',
   medium: 'Medium: Transfer ±2 rings',
-  heavy: 'Heavy: Transfer ±3 rings',
+  hard: 'Hard: Transfer ±3 rings',
 }
 
 interface MovementControlProps {
@@ -21,6 +21,8 @@ interface MovementControlProps {
   onSectorAdjustmentChange: (adjustment: number) => void
   enginesSubsystem: Subsystem | undefined
   reactionMass: number
+  canTransfer: boolean // Whether ship is at a valid transfer sector
+  transferDestination?: string // Name of destination well if transfer available
 }
 
 interface ActionButtonProps {
@@ -96,10 +98,13 @@ export function MovementControl({
   onSectorAdjustmentChange,
   enginesSubsystem,
   reactionMass,
+  canTransfer,
+  transferDestination,
 }: MovementControlProps) {
   const burnCost = actionType === 'burn' ? BURN_COSTS[burnIntensity] : { energy: 0, mass: 0, rings: 0 }
-  const hasEnoughEngines = enginesSubsystem && enginesSubsystem.allocatedEnergy >= burnCost.energy
-  const hasEnoughMass = reactionMass >= burnCost.mass
+  const transferCost = actionType === 'well_transfer' ? WELL_TRANSFER_COSTS : { energy: 0, mass: 0 }
+  const hasEnoughEngines = enginesSubsystem && enginesSubsystem.allocatedEnergy >= (actionType === 'burn' ? burnCost.energy : transferCost.energy)
+  const hasEnoughMass = reactionMass >= (actionType === 'burn' ? burnCost.mass : transferCost.mass)
 
   // Convert burnIntensity to slider value (0-2)
   const sliderValue = BURN_INTENSITY_OPTIONS.indexOf(burnIntensity)
@@ -125,6 +130,16 @@ export function MovementControl({
         <ActionButton isActive={actionType === 'burn'} onClick={() => onActionTypeChange('burn')}>
           <Typography variant="body2" fontWeight="bold">
             Burn
+          </Typography>
+        </ActionButton>
+
+        <ActionButton
+          isActive={actionType === 'well_transfer'}
+          disabled={!canTransfer}
+          onClick={() => canTransfer && onActionTypeChange('well_transfer')}
+        >
+          <Typography variant="body2" fontWeight="bold">
+            Transfer
           </Typography>
         </ActionButton>
       </Box>
@@ -225,6 +240,61 @@ export function MovementControl({
                 fontWeight="bold"
               >
                 {burnCost.mass}/{reactionMass}
+              </Typography>
+            </Box>
+          </StatusBar>
+        </>
+      )}
+
+      {actionType === 'well_transfer' && (
+        <>
+          {/* Transfer destination info */}
+          <Box sx={{ mb: 1, p: 1, bgcolor: 'background.default', borderRadius: 1 }}>
+            <Typography variant="caption" fontWeight="bold" display="block">
+              Transfer to: {transferDestination || 'Unknown'}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                Cost:
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {transferCost.energy}
+                <CustomIcon icon="energy" size={10} />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {transferCost.mass}
+                <CustomIcon icon="heat" size={10} />
+              </Box>
+            </Box>
+          </Box>
+
+          <StatusBar>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                Engines:
+              </Typography>
+              <Typography
+                variant="caption"
+                color={hasEnoughEngines ? 'success.main' : 'error.main'}
+                fontWeight="bold"
+              >
+                {enginesSubsystem?.allocatedEnergy || 0}/{transferCost.energy}
+                <CustomIcon icon="energy" size={10} />
+              </Typography>
+            </Box>
+
+            <Box sx={{ width: '1px', height: '12px', bgcolor: 'divider' }} />
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                Mass:
+              </Typography>
+              <Typography
+                variant="caption"
+                color={hasEnoughMass ? 'success.main' : 'error.main'}
+                fontWeight="bold"
+              >
+                {transferCost.mass}/{reactionMass}
               </Typography>
             </Box>
           </StatusBar>

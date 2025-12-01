@@ -3,9 +3,9 @@ import type { Subsystem, SubsystemType, ReactorState, HeatState } from './subsys
 
 export type Facing = 'prograde' | 'retrograde'
 
-export type BurnIntensity = 'light' | 'medium' | 'heavy'
+export type BurnIntensity = 'soft' | 'medium' | 'hard'
 
-export type ActionType = 'coast' | 'burn'
+export type ActionType = 'well_transfer' | 'coast' | 'burn'
 
 // Identifier for which gravity well a ship is in
 export type GravityWellId = string // e.g., 'blackhole', 'planet-alpha', 'planet-beta'
@@ -31,10 +31,11 @@ export interface GravityWell {
 export interface TransferPoint {
   fromWellId: GravityWellId
   toWellId: GravityWellId
-  fromRing: number // Always 5 (outermost ring)
-  toRing: number // Always 5 (outermost ring)
-  fromSector: number // Changes as planets orbit
-  toSector: number // Entry sector on destination well
+  fromRing: number // 4 for blackhole, 3 for planets
+  toRing: number // 4 for blackhole, 3 for planets
+  fromSector: number // Launch sector (fixed per planet)
+  toSector: number // Arrival sector (fixed per planet)
+  requiredEngineLevel: number // Engine level required for transfer (e.g., 3 for elliptic transfers)
 }
 
 export interface TransferState {

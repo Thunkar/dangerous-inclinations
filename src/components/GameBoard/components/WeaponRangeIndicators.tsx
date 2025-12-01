@@ -39,8 +39,7 @@ export function WeaponRangeIndicators({
   pendingState,
   weaponRangeVisibility,
 }: WeaponRangeIndicatorsProps) {
-  const { scaleFactor, getGravityWellPosition, getSectorAngleDirection, getSectorRotationOffset, getVisualSector } =
-    useBoardContext()
+  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
 
   const isActive = playerIndex === activePlayerIndex
   if (!isActive) return null
@@ -54,10 +53,9 @@ export function WeaponRangeIndicators({
 
   const wellPosition = getGravityWellPosition(player.ship.wellId)
   const radius = ringConfig.radius * scaleFactor
-  const direction = getSectorAngleDirection(player.ship.wellId)
   const rotationOffset = getSectorRotationOffset(player.ship.wellId)
   const angle =
-    direction * ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
+    ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
     Math.PI / 2 +
     rotationOffset
   const x = wellPosition.x + radius * Math.cos(angle)
@@ -101,13 +99,9 @@ export function WeaponRangeIndicators({
       const postMoveRotationOffset = getSectorRotationOffset(
         rangeVisualizationShip.wellId
       )
-      const rangeVisualSector = getVisualSector(
-        rangeVisualizationShip.wellId,
-        rangeVisualizationShip.sector,
-        postMoveRingConfig.sectors
-      )
+      // Visual sector same as logical sector
       rangeVisualizationAngle =
-        ((rangeVisualSector + 0.5) / postMoveRingConfig.sectors) * 2 * Math.PI -
+        ((rangeVisualizationShip.sector + 0.5) / postMoveRingConfig.sectors) * 2 * Math.PI -
         Math.PI / 2 +
         postMoveRotationOffset
       rangeVisualizationX =
@@ -519,13 +513,9 @@ export function WeaponRangeIndicators({
               // Draw targeting reticle
               const otherRadius = otherRingConfig.radius * scaleFactor
               const otherRotationOffset = getSectorRotationOffset(otherPlayer.ship.wellId)
-              const otherVisualSector = getVisualSector(
-                otherPlayer.ship.wellId,
-                otherPlayer.ship.sector,
-                otherRingConfig.sectors
-              )
+              // Visual sector same as logical sector
               const otherAngle =
-                ((otherVisualSector + 0.5) / otherRingConfig.sectors) * 2 * Math.PI -
+                ((otherPlayer.ship.sector + 0.5) / otherRingConfig.sectors) * 2 * Math.PI -
                 Math.PI / 2 +
                 otherRotationOffset
               const otherX = targetWellPosition.x + otherRadius * Math.cos(otherAngle)

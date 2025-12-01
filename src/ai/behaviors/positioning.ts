@@ -57,13 +57,13 @@ export function generateMovementAction(
     // const shouldMoveInward = desiredRange === 'closer' ? targetRing < status.ring : targetRing > status.ring
     // const desiredFacing: 'prograde' | 'retrograde' = shouldMoveInward ? 'retrograde' : 'prograde'
 
-    // Simple burn (light intensity, no sector adjustment)
+    // Simple burn (soft intensity, no sector adjustment)
     return {
       type: 'burn',
       playerId: botPlayer.id,
       sequence,
       data: {
-        burnIntensity: 'light',
+        burnIntensity: 'soft',
         sectorAdjustment: 0,
       },
     }
