@@ -1,6 +1,14 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { GameState, Player, PlayerAction, Facing, BurnIntensity, TurnHistoryEntry } from '../types/game'
+import type {
+  GameState,
+  Player,
+  PlayerAction,
+  Facing,
+  BurnIntensity,
+  TurnHistoryEntry,
+  ActionType,
+} from '../types/game'
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from '../types/subsystems'
 import { getSubsystemConfig } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
@@ -21,13 +29,19 @@ interface WeaponRangeVisibility {
 }
 
 interface MovementPreview {
-  actionType: 'coast' | 'burn'
+  actionType: ActionType
   burnIntensity?: BurnIntensity
   sectorAdjustment: number
   activateScoop: boolean
 }
 
-export type TacticalActionType = 'rotate' | 'move' | 'fire_laser' | 'fire_railgun' | 'fire_missiles' | 'well_transfer'
+export type TacticalActionType =
+  | 'rotate'
+  | 'move'
+  | 'fire_laser'
+  | 'fire_railgun'
+  | 'fire_missiles'
+  | 'well_transfer'
 
 export interface TacticalAction {
   id: string // unique identifier for this action instance
@@ -183,107 +197,119 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [activePlayer.id, gameState.turn, activePlayer.ship])
 
   // Helper to calculate energy to return based on deallocations
-  const calculateEnergyToReturn = useCallback((newSubsystems: Subsystem[]) => {
-    let totalDeallocated = 0
-    activePlayer.ship.subsystems.forEach((committedSub, index) => {
-      const pendingSub = newSubsystems[index]
-      const diff = committedSub.allocatedEnergy - pendingSub.allocatedEnergy
-      if (diff > 0) {
-        totalDeallocated += diff
-      }
-    })
-    return totalDeallocated
-  }, [activePlayer.ship.subsystems])
+  const calculateEnergyToReturn = useCallback(
+    (newSubsystems: Subsystem[]) => {
+      let totalDeallocated = 0
+      activePlayer.ship.subsystems.forEach((committedSub, index) => {
+        const pendingSub = newSubsystems[index]
+        const diff = committedSub.allocatedEnergy - pendingSub.allocatedEnergy
+        if (diff > 0) {
+          totalDeallocated += diff
+        }
+      })
+      return totalDeallocated
+    },
+    [activePlayer.ship.subsystems]
+  )
 
   // High-level game action: Allocate energy to a subsystem
-  const allocateEnergy = useCallback((subsystemType: SubsystemType, newTotal: number) => {
-    const subsystemIndex = pendingState.subsystems.findIndex(s => s.type === subsystemType)
-    if (subsystemIndex === -1) return
+  const allocateEnergy = useCallback(
+    (subsystemType: SubsystemType, newTotal: number) => {
+      const subsystemIndex = pendingState.subsystems.findIndex(s => s.type === subsystemType)
+      if (subsystemIndex === -1) return
 
-    const subsystem = pendingState.subsystems[subsystemIndex]
-    const currentEnergy = subsystem.allocatedEnergy
-    const diff = newTotal - currentEnergy
+      const subsystem = pendingState.subsystems[subsystemIndex]
+      const currentEnergy = subsystem.allocatedEnergy
+      const diff = newTotal - currentEnergy
 
-    // Check if newTotal exceeds absolute maximum
-    const config = getSubsystemConfig(subsystemType)
-    if (newTotal > config.maxEnergy) {
-      return // Cannot allocate beyond absolute maximum capacity
-    }
+      // Check if newTotal exceeds absolute maximum
+      const config = getSubsystemConfig(subsystemType)
+      if (newTotal > config.maxEnergy) {
+        return // Cannot allocate beyond absolute maximum capacity
+      }
 
-    if (diff > 0 && pendingState.reactor.availableEnergy >= diff) {
-      // Allocate energy
+      if (diff > 0 && pendingState.reactor.availableEnergy >= diff) {
+        // Allocate energy
+        const newSubsystems = [...pendingState.subsystems]
+        newSubsystems[subsystemIndex] = {
+          ...newSubsystems[subsystemIndex],
+          allocatedEnergy: newTotal,
+          isPowered: newTotal > 0,
+        }
+        setPendingStateInternal(prev => ({
+          ...prev,
+          subsystems: newSubsystems,
+          reactor: {
+            ...prev.reactor,
+            availableEnergy: prev.reactor.availableEnergy - diff,
+            energyToReturn: calculateEnergyToReturn(newSubsystems),
+          },
+        }))
+      }
+    },
+    [pendingState, calculateEnergyToReturn]
+  )
+
+  // High-level game action: Deallocate energy from a subsystem
+  const deallocateEnergy = useCallback(
+    (subsystemType: SubsystemType, amount: number) => {
+      const subsystemIndex = pendingState.subsystems.findIndex(s => s.type === subsystemType)
+      if (subsystemIndex === -1) return
+
+      const currentPendingEnergy = pendingState.subsystems[subsystemIndex].allocatedEnergy
+      if (currentPendingEnergy === 0) return
+
+      // Deallocate the specified amount (clamped to current allocation)
+      const amountToReturn = Math.min(amount, currentPendingEnergy)
+      const newAllocatedEnergy = currentPendingEnergy - amountToReturn
+
       const newSubsystems = [...pendingState.subsystems]
       newSubsystems[subsystemIndex] = {
         ...newSubsystems[subsystemIndex],
-        allocatedEnergy: newTotal,
-        isPowered: newTotal > 0,
+        allocatedEnergy: newAllocatedEnergy,
+        isPowered: newAllocatedEnergy > 0,
       }
+
+      const energyToReturn = calculateEnergyToReturn(newSubsystems)
+
+      // Check if we exceed the maxReturnRate with current heat venting
+      if (energyToReturn + pendingState.heat.heatToVent > pendingState.reactor.maxReturnRate) {
+        // Can't deallocate - would exceed limit
+        return
+      }
+
       setPendingStateInternal(prev => ({
         ...prev,
         subsystems: newSubsystems,
         reactor: {
           ...prev.reactor,
-          availableEnergy: prev.reactor.availableEnergy - diff,
-          energyToReturn: calculateEnergyToReturn(newSubsystems),
+          availableEnergy: prev.reactor.availableEnergy + amountToReturn,
+          energyToReturn,
         },
       }))
-    }
-  }, [pendingState, calculateEnergyToReturn])
-
-  // High-level game action: Deallocate energy from a subsystem
-  const deallocateEnergy = useCallback((subsystemType: SubsystemType, amount: number) => {
-    const subsystemIndex = pendingState.subsystems.findIndex(s => s.type === subsystemType)
-    if (subsystemIndex === -1) return
-
-    const currentPendingEnergy = pendingState.subsystems[subsystemIndex].allocatedEnergy
-    if (currentPendingEnergy === 0) return
-
-    // Deallocate the specified amount (clamped to current allocation)
-    const amountToReturn = Math.min(amount, currentPendingEnergy)
-    const newAllocatedEnergy = currentPendingEnergy - amountToReturn
-
-    const newSubsystems = [...pendingState.subsystems]
-    newSubsystems[subsystemIndex] = {
-      ...newSubsystems[subsystemIndex],
-      allocatedEnergy: newAllocatedEnergy,
-      isPowered: newAllocatedEnergy > 0,
-    }
-
-    const energyToReturn = calculateEnergyToReturn(newSubsystems)
-
-    // Check if we exceed the maxReturnRate with current heat venting
-    if (energyToReturn + pendingState.heat.heatToVent > pendingState.reactor.maxReturnRate) {
-      // Can't deallocate - would exceed limit
-      return
-    }
-
-    setPendingStateInternal(prev => ({
-      ...prev,
-      subsystems: newSubsystems,
-      reactor: {
-        ...prev.reactor,
-        availableEnergy: prev.reactor.availableEnergy + amountToReturn,
-        energyToReturn,
-      },
-    }))
-  }, [pendingState, calculateEnergyToReturn])
+    },
+    [pendingState, calculateEnergyToReturn]
+  )
 
   // High-level game action: Vent heat
-  const ventHeat = useCallback((newTotal: number) => {
-    // Check if we exceed the maxReturnRate with current deallocations
-    if (pendingState.reactor.energyToReturn + newTotal > pendingState.reactor.maxReturnRate) {
-      // Can't vent this much heat - would exceed limit
-      return
-    }
+  const ventHeat = useCallback(
+    (newTotal: number) => {
+      // Check if we exceed the maxReturnRate with current deallocations
+      if (pendingState.reactor.energyToReturn + newTotal > pendingState.reactor.maxReturnRate) {
+        // Can't vent this much heat - would exceed limit
+        return
+      }
 
-    setPendingStateInternal(prev => ({
-      ...prev,
-      heat: {
-        ...prev.heat,
-        heatToVent: newTotal,
-      },
-    }))
-  }, [pendingState.reactor.energyToReturn, pendingState.reactor.maxReturnRate])
+      setPendingStateInternal(prev => ({
+        ...prev,
+        heat: {
+          ...prev.heat,
+          heatToVent: newTotal,
+        },
+      }))
+    },
+    [pendingState.reactor.energyToReturn, pendingState.reactor.maxReturnRate]
+  )
 
   // High-level game action: Set facing
   const setFacing = useCallback((facing: Facing) => {
@@ -416,9 +442,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           },
         })
       } else if (tacticalAction.type === 'well_transfer' && tacticalAction.destinationWellId) {
-        const transferPoint = gameState.transferPoints.find(tp =>
-          tp.fromWellId === activePlayer.ship.wellId &&
-          tp.toWellId === tacticalAction.destinationWellId
+        const transferPoint = gameState.transferPoints.find(
+          tp =>
+            tp.fromWellId === activePlayer.ship.wellId &&
+            tp.toWellId === tacticalAction.destinationWellId
         )
         if (transferPoint) {
           actions.push({

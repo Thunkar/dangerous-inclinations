@@ -6,7 +6,7 @@ import { getSubsystem } from '../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../types/subsystems'
 import { calculateFiringSolutions } from '../utils/weaponRange'
 import { calculatePostMovementPosition } from '../utils/tacticalSequence'
-import { useGame, type TacticalAction } from '../context/GameContext'
+import { useGame, type TacticalAction, type TacticalActionType } from '../context/GameContext'
 import { getAvailableWellTransfers, getWellName } from '../utils/transferPoints'
 import { EnergyPanel } from './actions/EnergyPanel'
 import { OrientationControl } from './actions/OrientationControl'
@@ -22,12 +22,7 @@ interface ControlPanelProps {
   allPlayers: Player[]
 }
 
-type PanelType =
-  | 'rotate'
-  | 'move'
-  | 'fire_laser'
-  | 'fire_railgun'
-  | 'fire_missiles'
+type PanelType = 'rotate' | 'move' | 'fire_laser' | 'fire_railgun' | 'fire_missiles'
 
 interface ActionPanel {
   id: string
@@ -162,7 +157,8 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
             id: p.id,
             type: 'well_transfer' as TacticalActionType,
             sequence: index + 1,
-            destinationWellId: availableWellTransfers.length > 0 ? availableWellTransfers[0].toWellId : undefined,
+            destinationWellId:
+              availableWellTransfers.length > 0 ? availableWellTransfers[0].toWellId : undefined,
           }
         }
 
@@ -176,7 +172,14 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
       })
 
     setTacticalSequence(tacticalActions)
-  }, [panels, targetFacing, player.ship.facing, actionType, availableWellTransfers, setTacticalSequence])
+  }, [
+    panels,
+    targetFacing,
+    player.ship.facing,
+    actionType,
+    availableWellTransfers,
+    setTacticalSequence,
+  ])
 
   const canMovePanel = (id: string, direction: 'up' | 'down'): boolean => {
     const index = panels.findIndex(p => p.id === id)
@@ -245,8 +248,6 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     executeTurn()
   }
 
-  const currentWellName = getWellName(ship.wellId, gameState.gravityWells)
-
   // Validation
   const validationErrors: string[] = []
   if (panels.length === 0) {
@@ -272,11 +273,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   }
 
   const isRemovablePanel = (type: PanelType): boolean => {
-    return (
-      type === 'fire_laser' ||
-      type === 'fire_railgun' ||
-      type === 'fire_missiles'
-    )
+    return type === 'fire_laser' || type === 'fire_railgun' || type === 'fire_missiles'
   }
 
   // Enemy players for targeting
@@ -824,7 +821,6 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                   </Box>
                 )
               })()}
-
           </Box>
         </Paper>
       ))}

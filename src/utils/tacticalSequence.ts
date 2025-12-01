@@ -1,6 +1,11 @@
-import type { ShipState, Facing } from '../types/game'
+import type { ShipState, Facing, BurnIntensity, ActionType } from '../types/game'
 import type { TacticalAction } from '../context/GameContext'
-import { applyOrbitalMovement, applyRotation, initiateBurn, completeRingTransfer } from '../game-logic/movement'
+import {
+  applyOrbitalMovement,
+  applyRotation,
+  initiateBurn,
+  completeRingTransfer,
+} from '../game-logic/movement'
 
 /**
  * Calculate the ship position after movement actions in the tactical sequence
@@ -72,8 +77,8 @@ export function calculatePostMovementPosition(
   initialShip: ShipState,
   pendingFacing?: Facing,
   pendingMovement?: {
-    actionType: 'coast' | 'burn'
-    burnIntensity?: 'soft' | 'medium' | 'hard'
+    actionType: ActionType
+    burnIntensity?: BurnIntensity
     sectorAdjustment: number
   }
 ): ShipState {

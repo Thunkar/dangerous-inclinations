@@ -1,7 +1,7 @@
-import type { Player, Facing, BurnIntensity } from '../../types/game'
+import type { Player, Facing, BurnIntensity, ActionType } from '../../types/game'
 
 export interface MovementPreview {
-  actionType: 'coast' | 'burn'
+  actionType: ActionType
   burnIntensity?: BurnIntensity
   sectorAdjustment: number
   activateScoop: boolean
