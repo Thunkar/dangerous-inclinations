@@ -74,6 +74,7 @@ interface GameContextType {
   setMovement: (movement: MovementPreview) => void
   setTacticalSequence: (sequence: TacticalAction[]) => void
   executeTurn: () => void
+  restartGame: () => void
   weaponRangeVisibility: WeaponRangeVisibility
   toggleWeaponRange: (weaponType: 'laser' | 'railgun' | 'missiles') => void
 }
@@ -133,6 +134,7 @@ const createInitialState = (): GameState => {
     gravityWells,
     transferPoints,
     missiles: [], // No missiles in flight initially
+    status: 'active',
   }
 }
 
@@ -328,6 +330,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Execute turn: compute diff between committed and pending, create actions using tactical sequence
   const executeTurn = useCallback(() => {
+    // Don't execute turns if game is over
+    if (gameState.status !== 'active') {
+      return
+    }
+
     const actions: PlayerAction[] = []
 
     // 1. Compute energy allocation/deallocation actions (no sequence - always first)
@@ -545,6 +552,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [gameState.activePlayerIndex, gameState.turn, gameState])
 
+  // Restart game - reset to initial state
+  const restartGame = useCallback(() => {
+    const newGameState = createInitialState()
+    setGameState(newGameState)
+
+    // Reset pending state to match the new initial player
+    const newActivePlayer = newGameState.players[0]
+    setPendingStateInternal({
+      subsystems: newActivePlayer.ship.subsystems.map(s => ({ ...s })),
+      reactor: { ...newActivePlayer.ship.reactor },
+      heat: { ...newActivePlayer.ship.heat },
+      facing: newActivePlayer.ship.facing,
+      movement: {
+        actionType: 'coast',
+        sectorAdjustment: 0,
+        activateScoop: false,
+      },
+      tacticalSequence: [],
+    })
+
+    setTurnErrors([])
+    setTurnHistory([])
+  }, [])
+
   return (
     <GameContext.Provider
       value={{
@@ -560,6 +591,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setMovement,
         setTacticalSequence,
         executeTurn,
+        restartGame,
         weaponRangeVisibility,
         toggleWeaponRange,
       }}

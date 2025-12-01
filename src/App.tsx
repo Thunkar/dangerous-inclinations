@@ -6,6 +6,7 @@ import { GameBoard } from './components/GameBoard'
 import { ControlPanel } from './components/ControlPanel'
 import { StatusDisplay } from './components/StatusDisplay'
 import { TurnHistoryPanel } from './components/TurnHistoryPanel'
+import { GameOverModal } from './components/GameOverModal'
 
 const theme = createTheme({
   palette: {
@@ -43,8 +44,13 @@ const theme = createTheme({
 })
 
 function GameContent() {
-  const { gameState, pendingState } = useGame()
+  const { gameState, pendingState, restartGame } = useGame()
   const activePlayer = gameState.players[gameState.activePlayerIndex]
+
+  // Get winner name if game is over
+  const winnerName = gameState.winnerId
+    ? gameState.players.find(p => p.id === gameState.winnerId)?.name
+    : undefined
 
   return (
     <Box
@@ -56,6 +62,13 @@ function GameContent() {
         overflow: 'hidden',
       }}
     >
+      {/* Game Over Modal */}
+      <GameOverModal
+        status={gameState.status}
+        winnerName={winnerName}
+        onRestart={restartGame}
+      />
+
       {/* Status Bar */}
       <StatusDisplay
         players={gameState.players}

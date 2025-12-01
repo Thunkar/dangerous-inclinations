@@ -198,6 +198,8 @@ export interface TurnHistoryEntry {
   botDecision?: BotDecisionLog // Only present for bot turns
 }
 
+export type GameStatus = 'active' | 'victory' | 'defeat'
+
 export interface GameState {
   turn: number
   activePlayerIndex: number
@@ -206,6 +208,8 @@ export interface GameState {
   gravityWells: GravityWell[] // All gravity wells in the system
   transferPoints: TransferPoint[] // Calculated each turn based on planetary positions
   missiles: Missile[] // All missiles currently in flight
+  status: GameStatus // Game win/loss status
+  winnerId?: string // ID of the winning player (if status is victory or defeat)
 }
 
 export interface RingConfig {

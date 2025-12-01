@@ -112,10 +112,69 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     turnLog: [...gameState.turnLog, ...allLogEntries],
   }
 
+  // Check for win/loss conditions and remove destroyed ships
+  updatedGameState = checkGameStatus(updatedGameState)
+
   // All transfers complete immediately, no need to resolve on turn start
 
   return {
     gameState: updatedGameState,
     logEntries: allLogEntries,
+  }
+}
+
+/**
+ * Check for win/loss conditions and remove destroyed ships
+ */
+function checkGameStatus(gameState: GameState): GameState {
+  // Don't check if game is already over
+  if (gameState.status !== 'active') {
+    return gameState
+  }
+
+  // Remove destroyed ships (ships with 0 or less HP)
+  const activePlayers = gameState.players.filter(p => p.ship.hitPoints > 0)
+
+  // If all ships destroyed somehow, game is over
+  if (activePlayers.length === 0) {
+    return {
+      ...gameState,
+      players: activePlayers,
+      status: 'defeat',
+      activePlayerIndex: 0,
+    }
+  }
+
+  // Find the human player (first player is always human in current setup)
+  const humanPlayer = gameState.players[0]
+  const humanAlive = humanPlayer.ship.hitPoints > 0
+  const otherPlayersAlive = activePlayers.filter((_, i) => i !== 0).length > 0
+
+  let status = gameState.status
+  let winnerId: string | undefined
+
+  if (!humanAlive) {
+    // Human player is dead - defeat
+    status = 'defeat'
+    // Find the survivor with highest HP as winner
+    const survivor = activePlayers.reduce((max, p) =>
+      p.ship.hitPoints > max.ship.hitPoints ? p : max
+    , activePlayers[0])
+    winnerId = survivor?.id
+  } else if (!otherPlayersAlive) {
+    // Only human player alive - victory
+    status = 'victory'
+    winnerId = humanPlayer.id
+  }
+
+  return {
+    ...gameState,
+    players: activePlayers,
+    status,
+    winnerId,
+    // If game is over, keep current active player index within bounds
+    activePlayerIndex: gameState.activePlayerIndex >= activePlayers.length
+      ? activePlayers.length - 1
+      : gameState.activePlayerIndex,
   }
 }

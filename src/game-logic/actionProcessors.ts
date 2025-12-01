@@ -15,7 +15,7 @@ import type {
 import { applyOrbitalMovement, initiateBurn, applyRotation, completeRingTransfer } from './movement'
 import { applyWeaponDamage, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
-import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange, calculateBurnMassCost } from '../constants/rings'
+import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange, calculateBurnMassCost, MAX_REACTION_MASS } from '../constants/rings'
 import { getSubsystemConfig } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
 import { fireMissile } from './missiles'
@@ -218,6 +218,25 @@ function validateRotateAction(gameState: GameState, action: RotateAction): strin
 
   if (rotationSubsystem.usedThisTurn) {
     errors.push('Rotation subsystem already used this turn')
+  }
+
+  return errors
+}
+
+function validateCoastAction(gameState: GameState, action: CoastAction): string[] {
+  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
+  const player = gameState.players[playerIndex]
+  const errors: string[] = []
+
+  // Check scoop energy if scoop is activated
+  if (action.data.activateScoop) {
+    const scoopSubsystem = player.ship.subsystems.find(s => s.type === 'scoop')
+    const currentScoopEnergy = scoopSubsystem?.allocatedEnergy || 0
+    const scoopConfig = getSubsystemConfig('scoop')
+
+    if (currentScoopEnergy < scoopConfig.minEnergy) {
+      errors.push(`Need ${scoopConfig.minEnergy} energy in scoop to activate (have ${currentScoopEnergy})`)
+    }
   }
 
   return errors
@@ -450,9 +469,10 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
       currentGameState = rotateResult.gameState
       logEntries.push(...rotateResult.logEntries)
     } else if (action.type === 'coast') {
-      const result = processCoast(currentGameState, action as CoastAction)
-      currentGameState = result.gameState
-      logEntries.push(...result.logEntries)
+      const coastResult = validateAndProcessActions(currentGameState, [action as CoastAction], validateCoastAction, processCoast)
+      if (!coastResult.success) return coastResult
+      currentGameState = coastResult.gameState
+      logEntries.push(...coastResult.logEntries)
     } else if (action.type === 'burn') {
       const burnResult = validateAndProcessActions(currentGameState, [action as BurnAction], validateBurnAction, processBurn)
       if (!burnResult.success) return burnResult
@@ -550,7 +570,21 @@ function processCoast(gameState: GameState, action: CoastAction): ProcessResult 
   const player = gameState.players[playerIndex]
 
   // Apply orbital movement
-  const updatedShip = applyOrbitalMovement(player.ship)
+  let updatedShip = applyOrbitalMovement(player.ship)
+
+  // Apply fuel scoop if activated
+  if (action.data.activateScoop) {
+    const well = getGravityWell(updatedShip.wellId)
+    const ringConfig = well?.rings.find(r => r.ring === updatedShip.ring)
+    const velocity = ringConfig?.velocity || 1
+
+    // Recover reaction mass equal to velocity, capped at max
+    const massRecovered = Math.min(velocity, MAX_REACTION_MASS - updatedShip.reactionMass)
+    updatedShip = {
+      ...updatedShip,
+      reactionMass: updatedShip.reactionMass + massRecovered,
+    }
+  }
 
   const updatedPlayers = [...gameState.players]
   updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
@@ -561,7 +595,7 @@ function processCoast(gameState: GameState, action: CoastAction): ProcessResult 
       playerId: player.id,
       playerName: player.name,
       action: 'Coast',
-      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ' (scoop active)' : ''}`,
+      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ` (scoop recovered ${Math.min((getGravityWell(updatedShip.wellId)?.rings.find(r => r.ring === updatedShip.ring)?.velocity || 1), MAX_REACTION_MASS - player.ship.reactionMass)} mass)` : ''}`,
     },
   ]
 

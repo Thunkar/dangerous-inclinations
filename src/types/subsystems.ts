@@ -70,9 +70,9 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   scoop: {
     id: 'scoop',
     name: 'Fuel Scoop',
-    minEnergy: 1,
-    maxEnergy: 1, // Cannot overclock
-    overclockThreshold: 1,
+    minEnergy: 3,
+    maxEnergy: 3, // Cannot overclock
+    overclockThreshold: 3,
   },
   laser: {
     id: 'laser',
