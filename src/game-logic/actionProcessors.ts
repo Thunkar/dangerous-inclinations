@@ -19,7 +19,7 @@ import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange, calculateBurnMassC
 import { getSubsystemConfig } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
 import { fireMissile } from './missiles'
-import { getGravityWell } from '../constants/gravityWells'
+import { getGravityWell, TRANSFER_POINTS } from '../constants/gravityWells'
 import type { RingConfig } from '../types/game'
 
 export interface ProcessResult {
@@ -336,7 +336,7 @@ function validateWellTransferAction(gameState: GameState, action: WellTransferAc
   const errors: string[] = []
 
   // Ship must be on outermost ring of current well
-  const currentWell = gameState.gravityWells.find(w => w.id === player.ship.wellId)
+  const currentWell = getGravityWell(player.ship.wellId)
   if (!currentWell) {
     errors.push('Current gravity well not found')
     return errors
@@ -355,7 +355,7 @@ function validateWellTransferAction(gameState: GameState, action: WellTransferAc
   }
 
   // Check if a transfer point exists from current position to destination
-  const transferPoint = gameState.transferPoints.find(tp =>
+  const transferPoint = TRANSFER_POINTS.find(tp =>
     tp.fromWellId === player.ship.wellId &&
     tp.fromSector === player.ship.sector &&
     tp.toWellId === action.data.destinationWellId
@@ -836,7 +836,7 @@ function processWellTransfer(gameState: GameState, action: WellTransferAction): 
   const player = gameState.players[playerIndex]
 
   // Find the transfer point
-  const transferPoint = gameState.transferPoints.find(tp =>
+  const transferPoint = TRANSFER_POINTS.find(tp =>
     tp.fromWellId === player.ship.wellId &&
     tp.fromSector === player.ship.sector &&
     tp.toWellId === action.data.destinationWellId
@@ -890,8 +890,8 @@ function processWellTransfer(gameState: GameState, action: WellTransferAction): 
   updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
 
   // Get well names for logging
-  const fromWell = gameState.gravityWells.find(w => w.id === player.ship.wellId)
-  const toWell = gameState.gravityWells.find(w => w.id === action.data.destinationWellId)
+  const fromWell = getGravityWell(player.ship.wellId)
+  const toWell = getGravityWell(action.data.destinationWellId)
 
   const logEntries: TurnLogEntry[] = [
     {

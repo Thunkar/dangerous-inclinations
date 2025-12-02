@@ -120,10 +120,9 @@ describe('Bot AI Integration Tests', () => {
       activePlayerIndex: bot1Index,
       players,
       turnLog: [],
-      gravityWells: [],
-      transferPoints: [],
       missiles: [],
-      status: 'active',    }
+      status: 'active',
+    }
   }
 
   describe('Game Engine Validation', () => {

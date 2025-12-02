@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { applyOrbitalMovement } from '../movement'
 import { processActions } from '../actionProcessors'
 import { calculateTransferPoints, getAvailableWellTransfers } from '../../utils/transferPoints'
-import { ALL_GRAVITY_WELLS } from '../../constants/gravityWells'
+import { GRAVITY_WELLS, TRANSFER_POINTS } from '../../constants/gravityWells'
 import type {
   ShipState,
   TransferPoint,
@@ -17,6 +17,7 @@ import {
   createInitialHeatState,
 } from '../../utils/subsystemHelpers'
 import { MISSILE_CONFIG } from '../missiles'
+
 
 describe('Well Transfers', () => {
   // Helper to create a test ship
@@ -39,8 +40,6 @@ describe('Well Transfers', () => {
 
   // Helper to create a test game state
   function createTestGameState(ship: ShipState): GameState {
-    const transferPoints = calculateTransferPoints(ALL_GRAVITY_WELLS)
-
     return {
       turn: 1,
       activePlayerIndex: 0,
@@ -52,16 +51,15 @@ describe('Well Transfers', () => {
           ship,
         },
       ],
-      gravityWells: ALL_GRAVITY_WELLS,
-      transferPoints,
       turnLog: [],
       missiles: [],
-      status: 'active',    }
+      status: 'active',
+    }
   }
 
   describe('Transfer Point Calculation', () => {
     it('should calculate transfer points for all planets', () => {
-      const transferPoints = calculateTransferPoints(ALL_GRAVITY_WELLS)
+      const transferPoints = calculateTransferPoints(GRAVITY_WELLS)
 
       // Should have bidirectional transfers for 3 planets = 6 total
       expect(transferPoints).toHaveLength(6)
@@ -76,7 +74,7 @@ describe('Well Transfers', () => {
     })
 
     it('should place transfer points at correct fixed sectors', () => {
-      const transferPoints = calculateTransferPoints(ALL_GRAVITY_WELLS)
+      const transferPoints = calculateTransferPoints(GRAVITY_WELLS)
 
       // Planet Alpha: Outbound BH R4 S17 → Alpha R3 S7, Return Alpha R3 S16 → BH R4 S6
       const alphaOutbound = transferPoints.find(
@@ -125,7 +123,7 @@ describe('Well Transfers', () => {
     })
 
     it('should only allow transfers from outermost rings', () => {
-      const transferPoints = calculateTransferPoints(ALL_GRAVITY_WELLS)
+      const transferPoints = calculateTransferPoints(GRAVITY_WELLS)
 
       // Black hole transfers from Ring 4, planets from Ring 3
       transferPoints.forEach(tp => {
@@ -148,7 +146,7 @@ describe('Well Transfers', () => {
     let transferPoints: TransferPoint[]
 
     beforeEach(() => {
-      transferPoints = calculateTransferPoints(ALL_GRAVITY_WELLS)
+      transferPoints = calculateTransferPoints(GRAVITY_WELLS)
     })
 
     it('should find available transfers from black hole transfer sector', () => {
@@ -324,7 +322,7 @@ describe('Well Transfers', () => {
         'planet-beta',
         3,
         16,
-        gameState.transferPoints
+        TRANSFER_POINTS
       )
       expect(availableTransfers).toHaveLength(1)
       expect(availableTransfers[0].toWellId).toBe('blackhole')
@@ -375,7 +373,7 @@ describe('Well Transfers', () => {
         'planet-gamma',
         3,
         16,
-        gameState.transferPoints
+        TRANSFER_POINTS
       )
       expect(availableTransfers).toHaveLength(1)
       expect(availableTransfers[0].toWellId).toBe('blackhole')
@@ -566,7 +564,7 @@ describe('Well Transfers', () => {
 
   describe('Well Transfer Mechanics', () => {
     it('should handle multiple planets at different angles', () => {
-      const transferPoints = calculateTransferPoints(ALL_GRAVITY_WELLS)
+      const transferPoints = calculateTransferPoints(GRAVITY_WELLS)
 
       // Each planet should have unique transfer sectors
       const blackHoleTransfers = transferPoints.filter(tp => tp.fromWellId === 'blackhole')
@@ -577,7 +575,7 @@ describe('Well Transfers', () => {
     })
 
     it('should maintain bidirectional transfers', () => {
-      const transferPoints = calculateTransferPoints(ALL_GRAVITY_WELLS)
+      const transferPoints = calculateTransferPoints(GRAVITY_WELLS)
 
       // For each black hole → planet transfer, there should be a planet → black hole transfer
       const blackHoleToPlanets = transferPoints.filter(tp => tp.fromWellId === 'blackhole')

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, useMemo, type R
 import { useGame, type AnimationHandlers } from '../../../context/GameContext'
 import type { GameState, PlayerAction } from '../../../types/game'
 import type { DisplayState, DisplayShip, DisplayMissile } from '../types/display'
+import { GRAVITY_WELLS } from '../../../constants/gravityWells'
 import {
   BOARD_SIZE,
   BOARD_CENTER_X,
@@ -13,6 +14,7 @@ import {
   interpolateAngle,
   type Position,
 } from '../utils'
+
 
 export interface BoardContextValue {
   boardSize: number
@@ -36,17 +38,16 @@ const ACTION_DURATIONS: Record<string, number> = {
 }
 
 function calculateShipScreenPosition(
-  ship: { wellId: string; ring: number; sector: number },
-  gravityWells: GameState['gravityWells']
+  ship: { wellId: string; ring: number; sector: number }
 ): Position {
-  const well = gravityWells.find(w => w.id === ship.wellId)
+  const well = GRAVITY_WELLS.find(w => w.id === ship.wellId)
   if (!well) return { x: 0, y: 0 }
 
   const ringConfig = well.rings.find(r => r.ring === ship.ring)
   if (!ringConfig) return { x: 0, y: 0 }
 
-  const wellPos = getGravityWellPositionBase(ship.wellId, gravityWells, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
-  const rotationOffset = getSectorRotationOffsetBase(ship.wellId, gravityWells)
+  const wellPos = getGravityWellPositionBase(ship.wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
+  const rotationOffset = getSectorRotationOffsetBase(ship.wellId, GRAVITY_WELLS)
   const radius = ringConfig.radius * BOARD_SCALE_FACTOR
   const angle = ((ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
@@ -57,16 +58,15 @@ function calculateShipScreenPosition(
 }
 
 function calculateShipRotation(
-  ship: { wellId: string; ring: number; sector: number; facing: string },
-  gravityWells: GameState['gravityWells']
+  ship: { wellId: string; ring: number; sector: number; facing: string }
 ): number {
-  const well = gravityWells.find(w => w.id === ship.wellId)
+  const well = GRAVITY_WELLS.find(w => w.id === ship.wellId)
   if (!well) return 0
 
   const ringConfig = well.rings.find(r => r.ring === ship.ring)
   if (!ringConfig) return 0
 
-  const rotationOffset = getSectorRotationOffsetBase(ship.wellId, gravityWells)
+  const rotationOffset = getSectorRotationOffsetBase(ship.wellId, GRAVITY_WELLS)
   const angle = ((ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
   return ship.facing === 'prograde' ? angle + Math.PI / 2 : angle - Math.PI / 2
@@ -76,19 +76,19 @@ function gameStateToDisplayState(gameState: GameState): DisplayState {
   const ships: DisplayShip[] = gameState.players.map((player, index) => ({
     id: player.id,
     playerId: player.id,
-    position: calculateShipScreenPosition(player.ship, gameState.gravityWells),
-    rotation: calculateShipRotation(player.ship, gameState.gravityWells),
+    position: calculateShipScreenPosition(player.ship),
+    rotation: calculateShipRotation(player.ship),
     color: player.color,
     isActive: index === gameState.activePlayerIndex,
     size: index === gameState.activePlayerIndex ? 14 : 12,
   }))
 
   const missiles: DisplayMissile[] = gameState.missiles.map(missile => {
-    const position = calculateShipScreenPosition(missile, gameState.gravityWells)
+    const position = calculateShipScreenPosition(missile)
     const owner = gameState.players.find(p => p.id === missile.ownerId)
-    const well = gameState.gravityWells.find(w => w.id === missile.wellId)
+    const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
     const ringConfig = well?.rings.find(r => r.ring === missile.ring)
-    const rotationOffset = getSectorRotationOffsetBase(missile.wellId, gameState.gravityWells)
+    const rotationOffset = getSectorRotationOffsetBase(missile.wellId, GRAVITY_WELLS)
     const angle = ringConfig
       ? ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
       : 0
@@ -149,13 +149,13 @@ function computeAnimatedDisplayState(
 
   const ships: DisplayShip[] = beforeState.players.map((beforePlayer, index) => {
     const afterPlayer = afterState.players.find(p => p.id === beforePlayer.id)
-    let position = calculateShipScreenPosition(beforePlayer.ship, beforeState.gravityWells)
-    let rotation = calculateShipRotation(beforePlayer.ship, beforeState.gravityWells)
+    let position = calculateShipScreenPosition(beforePlayer.ship)
+    let rotation = calculateShipRotation(beforePlayer.ship)
 
     if (isMovementAction && action.playerId === beforePlayer.id && afterPlayer) {
-      const afterPos = calculateShipScreenPosition(afterPlayer.ship, afterState.gravityWells)
-      const afterRotation = calculateShipRotation(afterPlayer.ship, afterState.gravityWells)
-      const wellPos = getGravityWellPositionBase(beforePlayer.ship.wellId, beforeState.gravityWells, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
+      const afterPos = calculateShipScreenPosition(afterPlayer.ship)
+      const afterRotation = calculateShipRotation(afterPlayer.ship)
+      const wellPos = getGravityWellPositionBase(beforePlayer.ship.wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
 
       position = interpolateArcPosition(position, afterPos, wellPos, progress)
       rotation = interpolateAngle(rotation, afterRotation, progress)
@@ -178,11 +178,11 @@ function computeAnimatedDisplayState(
   // Missile movement happens after all player actions, shown when animation completes
   for (const missile of beforeState.missiles) {
     const owner = beforeState.players.find(p => p.id === missile.ownerId)
-    const position = calculateShipScreenPosition(missile, beforeState.gravityWells)
+    const position = calculateShipScreenPosition(missile)
 
-    const well = beforeState.gravityWells.find(w => w.id === missile.wellId)
+    const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
     const ringConfig = well?.rings.find(r => r.ring === missile.ring)
-    const rotationOffset = getSectorRotationOffsetBase(missile.wellId, beforeState.gravityWells)
+    const rotationOffset = getSectorRotationOffsetBase(missile.wellId, GRAVITY_WELLS)
     const angle = ringConfig
       ? ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
       : 0
@@ -201,25 +201,19 @@ function computeAnimatedDisplayState(
   // New missiles during fire_weapon
   if (isFireAction) {
     const newMissiles = afterState.missiles.filter(am => !beforeState.missiles.find(bm => bm.id === am.id))
-    console.log('[Animation] fire_weapon action, newMissiles:', newMissiles.length, 'progress:', progress)
 
     for (const missile of newMissiles) {
       const owner = beforeState.players.find(p => p.id === missile.ownerId)
-      if (!owner) {
-        console.log('[Animation] No owner found for missile', missile.id)
-        continue
-      }
+      if (!owner) continue
 
-      const startPos = calculateShipScreenPosition(owner.ship, beforeState.gravityWells)
-      const endPos = calculateShipScreenPosition(missile, afterState.gravityWells)
-      const wellPos = getGravityWellPositionBase(owner.ship.wellId, beforeState.gravityWells, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
+      const startPos = calculateShipScreenPosition(owner.ship)
+      const endPos = calculateShipScreenPosition(missile)
+      const wellPos = getGravityWellPositionBase(owner.ship.wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
       const position = interpolateArcPosition(startPos, endPos, wellPos, progress)
 
-      console.log('[Animation] Missile interpolation:', { startPos, endPos, position, progress })
-
-      const well = afterState.gravityWells.find(w => w.id === missile.wellId)
+      const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
       const ringConfig = well?.rings.find(r => r.ring === missile.ring)
-      const rotationOffset = getSectorRotationOffsetBase(missile.wellId, afterState.gravityWells)
+      const rotationOffset = getSectorRotationOffsetBase(missile.wellId, GRAVITY_WELLS)
       const angle = ringConfig
         ? ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
         : 0
@@ -255,7 +249,7 @@ interface AnimationState {
 }
 
 export function BoardProvider({ children }: BoardProviderProps) {
-  const { gameState, registerAnimationHandlers } = useGame()
+  const { registerAnimationHandlers } = useGame()
 
   const [displayState, setDisplayState] = useState<DisplayState | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -271,15 +265,12 @@ export function BoardProvider({ children }: BoardProviderProps) {
     onComplete: null,
   })
 
-  const helpers = useMemo(() => {
-    if (!gameState) return null
-    return {
-      getGravityWellPosition: (wellId: string) =>
-        getGravityWellPositionBase(wellId, gameState.gravityWells, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR),
-      getSectorRotationOffset: (wellId: string) =>
-        getSectorRotationOffsetBase(wellId, gameState.gravityWells),
-    }
-  }, [gameState])
+  const helpers = useMemo(() => ({
+    getGravityWellPosition: (wellId: string) =>
+      getGravityWellPositionBase(wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR),
+    getSectorRotationOffset: (wellId: string) =>
+      getSectorRotationOffsetBase(wellId, GRAVITY_WELLS),
+  }), [])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -295,7 +286,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
     const { beforeState, afterState, actions, actionIndex, startTime } = anim.current
 
     if (!beforeState || !afterState || actionIndex < 0 || actionIndex >= actions.length) {
-      console.log('[Animation] tick: invalid state', { beforeState: !!beforeState, afterState: !!afterState, actionIndex, actionsLength: actions.length })
       return
     }
 
@@ -303,8 +293,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
     const duration = ACTION_DURATIONS[action.type] || 500
     const elapsed = performance.now() - startTime
     const progress = Math.min(elapsed / duration, 1)
-
-    console.log('[Animation] tick:', { actionType: action.type, actionIndex, progress: progress.toFixed(2) })
 
     const animatedDisplay = computeAnimatedDisplayState(beforeState, afterState, action, progress)
     setDisplayState(animatedDisplay)
@@ -316,7 +304,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
 
       if (anim.current.actionIndex >= actions.length) {
         // All done
-        console.log('[Animation] All actions complete')
         setDisplayState(gameStateToDisplayState(afterState))
         setIsAnimating(false)
         anim.current.beforeState = null
@@ -330,7 +317,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
         }
       } else {
         // Next action
-        console.log('[Animation] Starting next action:', anim.current.actionIndex)
         anim.current.startTime = performance.now()
         anim.current.frameId = requestAnimationFrame(tick)
       }
@@ -345,22 +331,14 @@ export function BoardProvider({ children }: BoardProviderProps) {
 
   // Register handlers once on mount only
   useEffect(() => {
-    console.log('[BoardContext] Registering animation handlers (once)')
-
     const handlers: AnimationHandlers = {
       syncDisplayState: (state: GameState) => {
         // Don't sync if we're animating - it would reset the animation
-        if (isAnimatingRef.current) {
-          console.log('[Animation] syncDisplayState called but animating, ignoring')
-          return
-        }
-        console.log('[Animation] syncDisplayState called')
+        if (isAnimatingRef.current) return
         setDisplayState(gameStateToDisplayState(state))
       },
 
       startAnimation: (beforeState: GameState, afterState: GameState, actions: PlayerAction[], onComplete: () => void) => {
-        console.log('[Animation] startAnimation called with', actions.length, 'actions')
-
         // Cancel any running animation
         if (anim.current.frameId !== null) {
           cancelAnimationFrame(anim.current.frameId)
@@ -371,10 +349,7 @@ export function BoardProvider({ children }: BoardProviderProps) {
           .filter(a => a.sequence !== undefined)
           .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
 
-        console.log('[Animation] Tactical actions after filter:', tacticalActions.length)
-
         if (tacticalActions.length === 0) {
-          console.log('[Animation] No tactical actions, skipping animation')
           setDisplayState(gameStateToDisplayState(afterState))
           onComplete()
           return
@@ -388,8 +363,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
         anim.current.onComplete = onComplete
         anim.current.startTime = performance.now()
 
-        console.log('[Animation] Starting animation, first action:', tacticalActions[0].type)
-
         setDisplayState(gameStateToDisplayState(beforeState))
         setIsAnimating(true)
 
@@ -401,8 +374,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
 
     registerAnimationHandlers(handlers)
   }, [registerAnimationHandlers])
-
-  if (!helpers) return null
 
   return (
     <BoardContext.Provider

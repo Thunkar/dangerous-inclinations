@@ -4,16 +4,11 @@ import { analyzeTacticalSituation } from '../analyzer'
 import { selectTarget } from '../behaviors/combat'
 import type { GameState, Player } from '../../types/game'
 import { createInitialSubsystems, createInitialReactorState, createInitialHeatState } from '../../utils/subsystemHelpers'
-import { ALL_GRAVITY_WELLS } from '../../constants/gravityWells'
-import { calculateTransferPoints } from '../../utils/transferPoints'
 
 /**
  * Helper to create a test game state
  */
 function createTestGameState(customPlayers?: Player[]): GameState {
-  const gravityWells = ALL_GRAVITY_WELLS
-  const transferPoints = calculateTransferPoints(gravityWells)
-
   const defaultPlayers: Player[] = [
     {
       id: 'player1',
@@ -60,10 +55,9 @@ function createTestGameState(customPlayers?: Player[]): GameState {
     activePlayerIndex: 0,
     players: customPlayers || defaultPlayers,
     turnLog: [],
-    gravityWells,
-    transferPoints,
     missiles: [],
-    status: 'active',  }
+    status: 'active',
+  }
 }
 
 describe('Bot AI - Decision Structure', () => {

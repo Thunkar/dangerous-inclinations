@@ -7,6 +7,7 @@ import { calculateFiringSolutions } from '../../../utils/weaponRange'
 import { getSubsystem } from '../../../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../../../types/subsystems'
 import { calculatePostMovementPosition } from '../../../utils/tacticalSequence'
+import { getGravityWell } from '../../../constants/gravityWells'
 
 interface WeaponRangeIndicatorsProps {
   player: Player
@@ -44,7 +45,7 @@ export function WeaponRangeIndicators({
   if (!isActive) return null
 
   // Get ship's current position info
-  const well = gameState.gravityWells.find(w => w.id === player.ship.wellId)
+  const well = getGravityWell(player.ship.wellId)
   if (!well) return null
 
   const ringConfig = well.rings.find(r => r.ring === player.ship.ring)
@@ -85,7 +86,7 @@ export function WeaponRangeIndicators({
     )
 
     // Recalculate ring config and position for post-movement ship
-    const postMoveWell = gameState.gravityWells.find(w => w.id === rangeVisualizationShip.wellId)
+    const postMoveWell = getGravityWell(rangeVisualizationShip.wellId)
     const postMoveRingConfig = postMoveWell?.rings.find(r => r.ring === rangeVisualizationShip.ring)
     if (postMoveRingConfig && postMoveWell) {
       rangeVisualizationRing = postMoveRingConfig
@@ -139,9 +140,7 @@ export function WeaponRangeIndicators({
           const rayEndY = rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorEndAngle)
 
           // Get rings within weapon's ring range (±ringRange, but not same ring)
-          const rangeWell = gameState.gravityWells.find(
-            w => w.id === rangeVisualizationShip.wellId
-          )
+          const rangeWell = getGravityWell(rangeVisualizationShip.wellId)
           if (!rangeWell) return null
 
           const minRing = Math.max(1, rangeVisualizationShip.ring - weaponStats.ringRange)
@@ -320,9 +319,7 @@ export function WeaponRangeIndicators({
           const sectorEndAngle = rangeVisualizationAngle + sectorSize / 2
 
           // Turret can fire in all directions
-          const turretRangeWell = gameState.gravityWells.find(
-            w => w.id === rangeVisualizationShip.wellId
-          )
+          const turretRangeWell = getGravityWell(rangeVisualizationShip.wellId)
           if (!turretRangeWell) return null
 
           const minRing = Math.max(1, rangeVisualizationShip.ring - weaponStats.ringRange)
@@ -488,9 +485,7 @@ export function WeaponRangeIndicators({
               if (!solution.inRange) return null
 
               const otherPlayer = solution.targetPlayer
-              const otherWell = gameState.gravityWells.find(
-                w => w.id === otherPlayer.ship.wellId
-              )
+              const otherWell = getGravityWell(otherPlayer.ship.wellId)
               if (!otherWell) return null
 
               const otherRingConfig = otherWell.rings.find(r => r.ring === otherPlayer.ship.ring)

@@ -17,6 +17,7 @@ import {
   WeaponRangeIndicators,
   type MovementPreview,
 } from './GameBoard/index'
+import { GRAVITY_WELLS, TRANSFER_POINTS, getGravityWell } from '../constants/gravityWells'
 
 interface GameBoardProps {
   pendingFacing?: Facing
@@ -106,13 +107,13 @@ function GameBoardContent({
 
   // Determine colors for gravity wells
   const getWellColor = (wellId: string) => {
-    const well = gameState.gravityWells.find(w => w.id === wellId)
+    const well = getGravityWell(wellId)
     if (!well) return '#666'
     return well.type === 'blackhole' ? '#000' : well.color || '#666'
   }
 
   const getWellRadius = (wellId: string) => {
-    const well = gameState.gravityWells.find(w => w.id === wellId)
+    const well = getGravityWell(wellId)
     if (!well) return 20
     return well.type === 'blackhole' ? 30 : 20
   }
@@ -148,16 +149,16 @@ function GameBoardContent({
           <SVGFilters />
 
           {/* Transfer sector overlaps (Venn diagram) */}
-          <TransferSectors transferPoints={gameState.transferPoints} />
+          <TransferSectors transferPoints={TRANSFER_POINTS} />
 
           {/* Gravity wells with rings and sectors */}
-          {gameState.gravityWells.map(well => (
+          {GRAVITY_WELLS.map(well => (
             <GravityWell
               key={well.id}
               well={well}
               wellColor={getWellColor(well.id)}
               wellRadius={getWellRadius(well.id)}
-              transferPoints={gameState.transferPoints}
+              transferPoints={TRANSFER_POINTS}
             />
           ))}
 

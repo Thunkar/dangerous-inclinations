@@ -8,6 +8,7 @@ import { calculateFiringSolutions } from '../utils/weaponRange'
 import { calculatePostMovementPosition } from '../utils/tacticalSequence'
 import { useGame, type TacticalAction, type TacticalActionType } from '../context/GameContext'
 import { getAvailableWellTransfers, getWellName } from '../utils/transferPoints'
+import { GRAVITY_WELLS, TRANSFER_POINTS } from '../constants/gravityWells'
 import { EnergyPanel } from './actions/EnergyPanel'
 import { OrientationControl } from './actions/OrientationControl'
 import { MovementControl } from './actions/MovementControl'
@@ -36,7 +37,6 @@ interface ActionPanel {
 export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   // Get everything from context
   const {
-    gameState,
     setFacing,
     setMovement,
     pendingState,
@@ -76,8 +76,8 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
   // Get available well transfers (memoized to prevent infinite loops)
   const availableWellTransfers = useMemo(
-    () => getAvailableWellTransfers(ship.wellId, ship.ring, ship.sector, gameState.transferPoints),
-    [ship.wellId, ship.ring, ship.sector, gameState.transferPoints]
+    () => getAvailableWellTransfers(ship.wellId, ship.ring, ship.sector, TRANSFER_POINTS),
+    [ship.wellId, ship.ring, ship.sector]
   )
 
   // Get current ring velocity for sector adjustment calculations
@@ -538,7 +538,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                   canTransfer={availableWellTransfers.length > 0}
                   transferDestination={
                     availableWellTransfers.length > 0
-                      ? getWellName(availableWellTransfers[0].toWellId, gameState.gravityWells)
+                      ? getWellName(availableWellTransfers[0].toWellId, GRAVITY_WELLS)
                       : undefined
                   }
                   currentVelocity={currentVelocity}

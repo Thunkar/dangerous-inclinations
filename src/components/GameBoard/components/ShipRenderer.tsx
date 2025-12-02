@@ -4,6 +4,7 @@ import type { MovementPreview } from '../types'
 import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
 import { BURN_COSTS, mapSectorOnTransfer } from '../../../constants/rings'
+import { getGravityWell, TRANSFER_POINTS } from '../../../constants/gravityWells'
 
 interface ShipRendererProps {
   pendingFacing?: Facing
@@ -50,7 +51,7 @@ export function ShipRenderer({
         if (!player) return null
 
         // Get gravity well data for prediction calculations
-        const well = gameState.gravityWells.find(w => w.id === player.ship.wellId)
+        const well = getGravityWell(player.ship.wellId)
         if (!well) return null
 
         const ringConfig = well.rings.find(r => r.ring === player.ship.ring)
@@ -110,12 +111,12 @@ export function ShipRenderer({
             secondStepRing = destinationRing
           }
         } else if (pendingWellTransfer && pendingWellTransfer.destinationWellId) {
-          const destWell = gameState.gravityWells.find(w => w.id === pendingWellTransfer.destinationWellId)
+          const destWell = getGravityWell(pendingWellTransfer.destinationWellId)
           if (destWell) {
             const destOutermostRing = destWell.rings[destWell.rings.length - 1]
             const destWellPosition = getGravityWellPosition(pendingWellTransfer.destinationWellId)
 
-            const transferPoint = gameState.transferPoints.find(
+            const transferPoint = TRANSFER_POINTS.find(
               tp =>
                 tp.fromWellId === player.ship.wellId &&
                 tp.fromSector === player.ship.sector &&

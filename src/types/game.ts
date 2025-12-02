@@ -200,13 +200,15 @@ export interface TurnHistoryEntry {
 
 export type GameStatus = 'active' | 'victory' | 'defeat'
 
+/**
+ * Dynamic game state - changes every turn
+ * Static data (gravityWells, transferPoints) is accessed via constants directly
+ */
 export interface GameState {
   turn: number
   activePlayerIndex: number
   players: Player[]
   turnLog: TurnLogEntry[]
-  gravityWells: GravityWell[] // All gravity wells in the system
-  transferPoints: TransferPoint[] // Calculated each turn based on planetary positions
   missiles: Missile[] // All missiles currently in flight
   status: GameStatus // Game win/loss status
   winnerId?: string // ID of the winning player (if status is victory or defeat)

@@ -3,6 +3,7 @@ import type { Facing } from '../../../types/game'
 import { MINIMAP_CONFIG } from '../utils'
 import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
+import { GRAVITY_WELLS, getGravityWell } from '../../../constants/gravityWells'
 
 interface MinimapProps {
   pendingFacing?: Facing
@@ -47,7 +48,7 @@ export function Minimap({ pendingFacing, zoom, pan }: MinimapProps) {
     >
       <svg width={minimapSize} height={minimapSize} viewBox={`0 0 ${boardSize} ${boardSize}`}>
         {/* Render all gravity wells on minimap */}
-        {gameState.gravityWells.map(well => {
+        {GRAVITY_WELLS.map(well => {
           const wellPosition = getGravityWellPosition(well.id)
 
           return (
@@ -81,7 +82,7 @@ export function Minimap({ pendingFacing, zoom, pan }: MinimapProps) {
 
         {/* Ships on minimap */}
         {players.map((player, index) => {
-          const minimapWell = gameState.gravityWells.find(w => w.id === player.ship.wellId)
+          const minimapWell = getGravityWell(player.ship.wellId)
           if (!minimapWell) return null
 
           const ringConfig = minimapWell.rings.find(r => r.ring === player.ship.ring)

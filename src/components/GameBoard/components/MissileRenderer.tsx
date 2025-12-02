@@ -1,6 +1,7 @@
 import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
 import { calculateMissileMovement } from '../../../game-logic/missiles'
+import { getGravityWell } from '../../../constants/gravityWells'
 
 /**
  * MissileRenderer - Renders missiles using displayState positions
@@ -66,7 +67,7 @@ export function MissileRenderer() {
         if (gameMissile && targetPlayer) {
           const movement = calculateMissileMovement(gameMissile, targetPlayer, gameState)
           if (movement.ring !== gameMissile.ring || movement.sector !== gameMissile.sector) {
-            const well = gameState.gravityWells.find(w => w.id === gameMissile.wellId)
+            const well = getGravityWell(gameMissile.wellId)
             const nextRingConfig = well?.rings.find(r => r.ring === movement.ring)
             if (well && nextRingConfig) {
               const wellPosition = getGravityWellPosition(gameMissile.wellId)

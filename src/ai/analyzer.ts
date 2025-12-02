@@ -5,6 +5,7 @@ import { SUBSYSTEM_CONFIGS } from '../types/subsystems'
 import { getAvailableWellTransfers } from '../utils/transferPoints'
 import { applyOrbitalMovement } from '../game-logic/movement'
 import { SECTORS_PER_RING } from '../constants/rings'
+import { TRANSFER_POINTS } from '../constants/gravityWells'
 
 /**
  * Check if two ships are in a shared transfer sector (can target across wells)
@@ -315,8 +316,8 @@ export function analyzeTacticalSituation(
   const status = analyzeBotStatus(botPlayer)
 
   // Analyze threats and targets (passing transferPoints for cross-well targeting)
-  const threats = analyzeThreats(botPlayer, enemies, gameState.transferPoints)
-  const targets = analyzeTargets(botPlayer, enemies, gameState.transferPoints)
+  const threats = analyzeThreats(botPlayer, enemies, TRANSFER_POINTS)
+  const targets = analyzeTargets(botPlayer, enemies, TRANSFER_POINTS)
 
   // Identify primary threat (closest enemy with weapons in range)
   const primaryThreat = threats.find(t =>
@@ -333,7 +334,7 @@ export function analyzeTacticalSituation(
     botPlayer.ship.wellId,
     botPlayer.ship.ring,
     botPlayer.ship.sector,
-    gameState.transferPoints
+    TRANSFER_POINTS
   ).map(tp => ({
     toWellId: tp.toWellId,
     fromSector: tp.fromSector,

@@ -1,6 +1,6 @@
 import type { TransferPoint } from '../../../types/game'
 import { useBoardContext } from '../context'
-import { useGame } from '../../../context/GameContext'
+import { getGravityWell } from '../../../constants/gravityWells'
 
 interface TransferSectorsProps {
   transferPoints: TransferPoint[]
@@ -11,14 +11,13 @@ interface TransferSectorsProps {
  * Each transfer point gets its own arc showing the launch and arrival sectors
  */
 export function TransferSectors({ transferPoints }: TransferSectorsProps) {
-  const { gameState } = useGame()
   const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
 
   return (
     <>
       {transferPoints.map((tp, idx) => {
-        const fromWell = gameState.gravityWells.find(w => w.id === tp.fromWellId)
-        const toWell = gameState.gravityWells.find(w => w.id === tp.toWellId)
+        const fromWell = getGravityWell(tp.fromWellId)
+        const toWell = getGravityWell(tp.toWellId)
         if (!fromWell || !toWell) return null
 
         const fromPosition = getGravityWellPosition(tp.fromWellId)

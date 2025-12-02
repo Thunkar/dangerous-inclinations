@@ -1,4 +1,5 @@
-import type { GravityWell, RingConfig } from '../types/game'
+import type { GravityWell, RingConfig, TransferPoint } from '../types/game'
+import { calculateTransferPoints } from '../utils/transferPoints'
 
 /**
  * Black hole ring configuration - 4 rings with variable velocity
@@ -102,7 +103,7 @@ export const PLANET_GAMMA: GravityWell = {
  * All gravity wells in the system
  * Index 0 is always the black hole, followed by planets
  */
-export const ALL_GRAVITY_WELLS: GravityWell[] = [
+export const GRAVITY_WELLS: GravityWell[] = [
   BLACK_HOLE,
   PLANET_ALPHA,
   PLANET_BETA,
@@ -110,10 +111,15 @@ export const ALL_GRAVITY_WELLS: GravityWell[] = [
 ]
 
 /**
+ * All transfer points between gravity wells (static, computed at module load)
+ */
+export const TRANSFER_POINTS: TransferPoint[] = calculateTransferPoints(GRAVITY_WELLS)
+
+/**
  * Helper to get a gravity well by ID
  */
 export function getGravityWell(wellId: string): GravityWell | undefined {
-  return ALL_GRAVITY_WELLS.find(w => w.id === wellId)
+  return GRAVITY_WELLS.find(w => w.id === wellId)
 }
 
 /**

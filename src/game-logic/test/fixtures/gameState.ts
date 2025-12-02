@@ -69,8 +69,6 @@ export function createTestGameState(): GameState {
     activePlayerIndex: 0,
     players: [player1, player2],
     turnLog: [],
-    gravityWells: [],
-    transferPoints: [],
     missiles: [], // No missiles in flight initially
     status: 'active',
   }

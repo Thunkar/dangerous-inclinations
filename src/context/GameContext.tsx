@@ -12,8 +12,7 @@ import type {
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from '../types/subsystems'
 import { getSubsystemConfig } from '../types/subsystems'
 import { STARTING_REACTION_MASS } from '../constants/rings'
-import { ALL_GRAVITY_WELLS } from '../constants/gravityWells'
-import { calculateTransferPoints } from '../utils/transferPoints'
+import { TRANSFER_POINTS } from '../constants/gravityWells'
 import {
   createInitialSubsystems,
   createInitialReactorState,
@@ -136,21 +135,14 @@ const createInitialPlayers = (): Player[] => [
   },
 ]
 
-const createInitialState = (): GameState => {
-  const gravityWells = ALL_GRAVITY_WELLS
-  const transferPoints = calculateTransferPoints(gravityWells)
-
-  return {
-    turn: 1,
-    activePlayerIndex: 0,
-    players: createInitialPlayers(),
-    turnLog: [],
-    gravityWells,
-    transferPoints,
-    missiles: [], // No missiles in flight initially
-    status: 'active',
-  }
-}
+const createInitialState = (): GameState => ({
+  turn: 1,
+  activePlayerIndex: 0,
+  players: createInitialPlayers(),
+  turnLog: [],
+  missiles: [],
+  status: 'active',
+})
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(createInitialState())
@@ -466,7 +458,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           },
         })
       } else if (tacticalAction.type === 'well_transfer' && tacticalAction.destinationWellId) {
-        const transferPoint = gameState.transferPoints.find(
+        const transferPoint = TRANSFER_POINTS.find(
           tp =>
             tp.fromWellId === activePlayer.ship.wellId &&
             tp.toWellId === tacticalAction.destinationWellId
