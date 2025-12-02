@@ -1,4 +1,7 @@
-import type { Player, Facing, BurnIntensity, ActionType } from '../../types/game'
+// Re-export all types
+export * from './display'
+
+import type { Player, Facing, BurnIntensity, ActionType } from '../../../types/game'
 
 export interface MovementPreview {
   actionType: ActionType

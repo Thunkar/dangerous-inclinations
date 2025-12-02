@@ -56,11 +56,6 @@ export function botDecideActions(
     // Step 5: Build decision log
     const log = buildDecisionLog(situation, scoredPlans, bestPlan, parameters)
 
-    // Log decision for debugging (can be removed in production)
-    if (import.meta.env.DEV) {
-      console.log(`[Bot ${botPlayerId}] Decision:`, log)
-    }
-
     return {
       actions: bestPlan.actions,
       log,

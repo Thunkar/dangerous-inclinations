@@ -63,7 +63,7 @@ function createTestGameState(customPlayers?: Player[]): GameState {
     gravityWells,
     transferPoints,
     missiles: [],
-  }
+    status: 'active',  }
 }
 
 describe('Bot AI - Decision Structure', () => {

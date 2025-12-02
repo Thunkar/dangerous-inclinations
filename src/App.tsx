@@ -104,8 +104,6 @@ function GameContent() {
             }}
           >
             <GameBoard
-              players={gameState.players}
-              activePlayerIndex={gameState.activePlayerIndex}
               pendingFacing={pendingState.facing}
               pendingMovement={pendingState.movement}
             />

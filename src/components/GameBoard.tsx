@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react'
 import { Box } from '@mui/material'
 import { useGame } from '../context/GameContext'
-import type { Player, Facing } from '../types/game'
+import type { Facing } from '../types/game'
 import {
   BoardProvider,
+  useBoardContext,
   BOARD_SIZE,
   ZOOM_CONFIG,
   SVGFilters,
@@ -18,23 +19,17 @@ import {
 } from './GameBoard/index'
 
 interface GameBoardProps {
-  players: Player[]
-  activePlayerIndex: number
   pendingFacing?: Facing
   pendingMovement?: MovementPreview
 }
 
 export function GameBoard({
-  players,
-  activePlayerIndex,
   pendingFacing,
   pendingMovement,
 }: GameBoardProps) {
   return (
     <BoardProvider>
       <GameBoardContent
-        players={players}
-        activePlayerIndex={activePlayerIndex}
         pendingFacing={pendingFacing}
         pendingMovement={pendingMovement}
       />
@@ -43,19 +38,21 @@ export function GameBoard({
 }
 
 function GameBoardContent({
-  players,
-  activePlayerIndex,
   pendingFacing,
   pendingMovement,
 }: GameBoardProps) {
-  const { weaponRangeVisibility, pendingState, gameState } = useGame()
+  const { gameState, weaponRangeVisibility, pendingState } = useGame()
+  const { displayState } = useBoardContext()
 
-  // Pan and zoom state
+  // Pan and zoom state - must be declared before any conditional returns (Rules of Hooks)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // displayState contains rendered positions - don't render if not set yet
+  if (!displayState) return null
 
   // Handle wheel zoom
   const handleWheel = (e: React.WheelEvent) => {
@@ -148,7 +145,7 @@ function GameBoardContent({
       >
         <g transform={`scale(${zoom}) translate(${pan.x / zoom}, ${pan.y / zoom})`}>
           {/* SVG Filters for ship/missile outlines */}
-          <SVGFilters players={players} />
+          <SVGFilters />
 
           {/* Transfer sector overlaps (Venn diagram) */}
           <TransferSectors transferPoints={gameState.transferPoints} />
@@ -166,42 +163,34 @@ function GameBoardContent({
 
           {/* Ships with movement predictions */}
           <ShipRenderer
-            players={players}
-            activePlayerIndex={activePlayerIndex}
-            gameState={gameState}
             pendingFacing={pendingFacing}
             pendingMovement={pendingMovement}
             pendingState={pendingState}
           >
-            {(player, index) => (
+            {(playerId, index) => {
               /* Weapon range indicators rendered as children of each ship */
-              <WeaponRangeIndicators
-                player={player}
-                playerIndex={index}
-                activePlayerIndex={activePlayerIndex}
-                gameState={gameState}
-                players={players}
-                pendingFacing={pendingFacing}
-                pendingMovement={pendingMovement}
-                pendingState={pendingState}
-                weaponRangeVisibility={weaponRangeVisibility}
-              />
-            )}
+              const player = gameState.players.find(p => p.id === playerId)
+              if (!player) return null
+              return (
+                <WeaponRangeIndicators
+                  player={player}
+                  playerIndex={index}
+                  pendingFacing={pendingFacing}
+                  pendingMovement={pendingMovement}
+                  pendingState={pendingState}
+                  weaponRangeVisibility={weaponRangeVisibility}
+                />
+              )
+            }}
           </ShipRenderer>
 
           {/* Missiles in flight */}
-          <MissileRenderer
-            missiles={gameState.missiles}
-            players={players}
-            gameState={gameState}
-          />
+          <MissileRenderer />
         </g>
       </svg>
 
       {/* Minimap */}
       <Minimap
-        players={players}
-        activePlayerIndex={activePlayerIndex}
         pendingFacing={pendingFacing}
         zoom={zoom}
         pan={pan}

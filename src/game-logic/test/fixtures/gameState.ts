@@ -72,5 +72,6 @@ export function createTestGameState(): GameState {
     gravityWells: [],
     transferPoints: [],
     missiles: [], // No missiles in flight initially
+    status: 'active',
   }
 }

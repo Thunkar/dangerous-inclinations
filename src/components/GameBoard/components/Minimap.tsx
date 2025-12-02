@@ -1,12 +1,10 @@
 import { Box } from '@mui/material'
-import type { Player, Facing } from '../../../types/game'
+import type { Facing } from '../../../types/game'
 import { MINIMAP_CONFIG } from '../utils'
 import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
 
 interface MinimapProps {
-  players: Player[]
-  activePlayerIndex: number
   pendingFacing?: Facing
   zoom: number
   pan: { x: number; y: number }
@@ -15,16 +13,20 @@ interface MinimapProps {
 /**
  * Minimap showing overview of the game board with ships and viewport indicator
  */
-export function Minimap({
-  players,
-  activePlayerIndex,
-  pendingFacing,
-  zoom,
-  pan,
-}: MinimapProps) {
+export function Minimap({ pendingFacing, zoom, pan }: MinimapProps) {
   const { gameState } = useGame()
-  const { boardSize, centerX, centerY, scaleFactor, getGravityWellPosition, getSectorRotationOffset } =
-    useBoardContext()
+  const {
+    boardSize,
+    centerX,
+    centerY,
+    scaleFactor,
+    getGravityWellPosition,
+    getSectorRotationOffset,
+  } = useBoardContext()
+
+  // Get players and activePlayerIndex from gameState
+  const players = gameState.players
+  const activePlayerIndex = gameState.activePlayerIndex
 
   const minimapSize = MINIMAP_CONFIG.SIZE
 

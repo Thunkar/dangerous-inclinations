@@ -1,72 +1,70 @@
 import React from 'react'
-import type { Player, GameState, Facing } from '../../../types/game'
+import type { Facing } from '../../../types/game'
 import type { MovementPreview } from '../types'
 import { useBoardContext } from '../context'
+import { useGame } from '../../../context/GameContext'
 import { BURN_COSTS, mapSectorOnTransfer } from '../../../constants/rings'
 
 interface ShipRendererProps {
-  players: Player[]
-  activePlayerIndex: number
-  gameState: GameState
   pendingFacing?: Facing
   pendingMovement?: MovementPreview
   pendingState: {
     tacticalSequence: Array<{ type: string; destinationWellId?: string; [key: string]: any }>
   }
-  children?: (player: Player, index: number, shipPosition: { x: number; y: number }) => React.ReactNode
+  children?: (
+    playerId: string,
+    index: number,
+    shipPosition: { x: number; y: number }
+  ) => React.ReactNode
 }
 
 /**
- * Renders all ships with movement prediction indicators
+ * ShipRenderer - Renders ships using displayState positions
+ *
+ * Architecture:
+ * - Ship positions come from displayState (already interpolated during animation)
+ * - Prediction indicators use gameState for game logic calculations
+ * - No animation logic here - just render what displayState provides
  */
 export function ShipRenderer({
-  players,
-  activePlayerIndex,
-  gameState,
   pendingFacing,
   pendingMovement,
   pendingState,
   children,
 }: ShipRendererProps) {
-  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
+  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset, displayState } = useBoardContext()
+  const { gameState } = useGame()
+
+  // Need both displayState (for positions) and gameState (for game data)
+  if (!displayState || !gameState) return null
 
   return (
     <>
-      {players.map((player, index) => {
-        // Get the gravity well for this ship
+      {displayState.ships.map((ship, index) => {
+        // Get position directly from displayState - already computed with animation
+        const { x, y } = ship.position
+        const directionAngle = ship.rotation
+
+        // Get the corresponding player from gameState for game logic data
+        const player = gameState.players.find(p => p.id === ship.playerId)
+        if (!player) return null
+
+        // Get gravity well data for prediction calculations
         const well = gameState.gravityWells.find(w => w.id === player.ship.wellId)
         if (!well) return null
 
         const ringConfig = well.rings.find(r => r.ring === player.ship.ring)
         if (!ringConfig) return null
 
-        // Get gravity well position for this ship
         const wellPosition = getGravityWellPosition(player.ship.wellId)
-
-        const radius = ringConfig.radius * scaleFactor
-        // Position ship in the MIDDLE of the sector
         const rotationOffset = getSectorRotationOffset(player.ship.wellId)
-        const angle =
-          ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
-          Math.PI / 2 +
-          rotationOffset
-        const x = wellPosition.x + radius * Math.cos(angle)
-        const y = wellPosition.y + radius * Math.sin(angle)
+        const radius = ringConfig.radius * scaleFactor
 
-        const isActive = index === activePlayerIndex
-        const shipSize = isActive ? 14 : 12
-
-        // Use pending facing if available (planning phase), otherwise use committed facing
+        // Use pending facing if available (planning phase)
         const effectiveFacing =
-          index === activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
+          index === gameState.activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
 
-        // Ship rotation angle - tangent to the orbit (perpendicular to radius)
-        const directionAngle =
-          effectiveFacing === 'prograde'
-            ? angle + Math.PI / 2 // 90° in rotation direction
-            : angle - Math.PI / 2 // 90° opposite rotation direction
-
-        // Calculate predicted next position (and second step for transfers)
+        // Calculate predicted positions for movement indicators
         let predictedX: number | null = null
         let predictedY: number | null = null
         let predictedRing: number | null = null
@@ -74,24 +72,17 @@ export function ShipRenderer({
         let secondStepY: number | null = null
         let secondStepRing: number | null = null
 
-        // Check if this is the active player with pending movement actions
-        const isActivePlayer = index === activePlayerIndex
+        const isActivePlayer = index === gameState.activePlayerIndex
         const hasPendingBurn =
-          isActivePlayer &&
-          pendingMovement?.actionType === 'burn' &&
-          pendingMovement.burnIntensity
+          isActivePlayer && pendingMovement?.actionType === 'burn' && pendingMovement.burnIntensity
 
-        // Check if there's a pending well transfer action in the tactical sequence
         const pendingWellTransfer = isActivePlayer
           ? pendingState.tacticalSequence.find(a => a.type === 'well_transfer')
           : null
 
         if (hasPendingBurn) {
-          // Active player has a pending burn - show two-step prediction
-          const afterOrbitalSector =
-            (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
+          const afterOrbitalSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
 
-          // Step 1: Position after orbital movement (on current ring)
           const step1Angle =
             ((afterOrbitalSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
             Math.PI / 2 +
@@ -100,51 +91,30 @@ export function ShipRenderer({
           predictedY = wellPosition.y + radius * Math.sin(step1Angle)
           predictedRing = player.ship.ring
 
-          // Step 2: Calculate destination ring after burn
           const burnCost = BURN_COSTS[pendingMovement.burnIntensity!]
           const ringChange = effectiveFacing === 'prograde' ? burnCost.rings : -burnCost.rings
-          const destinationRing = Math.max(
-            1,
-            Math.min(well.rings.length, player.ship.ring + ringChange)
-          )
+          const destinationRing = Math.max(1, Math.min(well.rings.length, player.ship.ring + ringChange))
 
           const destRingConfig = well.rings.find(r => r.ring === destinationRing)
           if (destRingConfig) {
-            // Map sector from current ring (after orbital movement) to destination ring
-            const baseSector = mapSectorOnTransfer(
-              player.ship.ring,
-              destinationRing,
-              afterOrbitalSector
-            )
-
-            // Apply sector adjustment from pending movement
+            const baseSector = mapSectorOnTransfer(player.ship.ring, destinationRing, afterOrbitalSector)
             const adjustment = pendingMovement.sectorAdjustment || 0
-            const finalSector =
-              (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
+            const finalSector = (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
 
             const destRadius = destRingConfig.radius * scaleFactor
             const destAngle =
-              ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
-              Math.PI / 2 +
-              rotationOffset
+              ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
-            // Step 2: Arrival at destination ring (immediate transfer)
             secondStepX = wellPosition.x + destRadius * Math.cos(destAngle)
             secondStepY = wellPosition.y + destRadius * Math.sin(destAngle)
             secondStepRing = destinationRing
           }
         } else if (pendingWellTransfer && pendingWellTransfer.destinationWellId) {
-          // Active player has a pending well transfer - show where they will arrive
-          const destWell = gameState.gravityWells.find(
-            w => w.id === pendingWellTransfer.destinationWellId
-          )
+          const destWell = gameState.gravityWells.find(w => w.id === pendingWellTransfer.destinationWellId)
           if (destWell) {
             const destOutermostRing = destWell.rings[destWell.rings.length - 1]
-            const destWellPosition = getGravityWellPosition(
-              pendingWellTransfer.destinationWellId
-            )
+            const destWellPosition = getGravityWellPosition(pendingWellTransfer.destinationWellId)
 
-            // Find the transfer point to get the destination sector
             const transferPoint = gameState.transferPoints.find(
               tp =>
                 tp.fromWellId === player.ship.wellId &&
@@ -154,56 +124,44 @@ export function ShipRenderer({
 
             if (transferPoint) {
               const destSector = transferPoint.toSector
-              const destRingConfig = destOutermostRing
-
-              const destRadius = destRingConfig.radius * scaleFactor
-              const destRotationOffset = getSectorRotationOffset(
-                pendingWellTransfer.destinationWellId
-              )
+              const destRadius = destOutermostRing.radius * scaleFactor
+              const destRotationOffset = getSectorRotationOffset(pendingWellTransfer.destinationWellId)
               const destAngle =
-                ((destSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+                ((destSector + 0.5) / destOutermostRing.sectors) * 2 * Math.PI -
                 Math.PI / 2 +
                 destRotationOffset
 
               predictedX = destWellPosition.x + destRadius * Math.cos(destAngle)
               predictedY = destWellPosition.y + destRadius * Math.sin(destAngle)
-              predictedRing = destRingConfig.ring
-
-              // Well transfer shows only the arrival position (no second step needed)
+              predictedRing = destOutermostRing.ring
             }
           }
         } else {
-          // Ship is stable (or coasting) - show where it will move due to orbital velocity
           const nextSector = (player.ship.sector + ringConfig.velocity) % ringConfig.sectors
           const predictedAngle =
-            ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
-            Math.PI / 2 +
-            rotationOffset
+            ((nextSector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
           predictedX = wellPosition.x + radius * Math.cos(predictedAngle)
           predictedY = wellPosition.y + radius * Math.sin(predictedAngle)
           predictedRing = player.ship.ring
         }
 
         return (
-          <g key={player.id}>
+          <g key={ship.id}>
             {/* Predicted position indicator (Step 1) */}
             {predictedX !== null && predictedY !== null && (
               <>
-                {/* Connecting arc/line from current to predicted position */}
                 {hasPendingBurn ? (
-                  // For burns, use straight line
                   <line
                     x1={x}
                     y1={y}
                     x2={predictedX}
                     y2={predictedY}
-                    stroke={player.color}
+                    stroke={ship.color}
                     strokeWidth={2}
                     strokeDasharray="6 4"
                     opacity={0.4}
                   />
                 ) : pendingWellTransfer ? (
-                  // For well transfers, use quadratic bezier curve matching TransferSectors
                   (() => {
                     const bhPosition = getGravityWellPosition('blackhole')
                     const midX = (x + predictedX) / 2
@@ -212,12 +170,12 @@ export function ShipRenderer({
                     const dy = predictedY - y
                     const distance = Math.sqrt(dx * dx + dy * dy)
 
-                    // Vector from midpoint AWAY from black hole (outward direction)
                     const awayFromBlackHoleX = midX - bhPosition.x
                     const awayFromBlackHoleY = midY - bhPosition.y
-                    const awayDist = Math.sqrt(awayFromBlackHoleX * awayFromBlackHoleX + awayFromBlackHoleY * awayFromBlackHoleY)
+                    const awayDist = Math.sqrt(
+                      awayFromBlackHoleX * awayFromBlackHoleX + awayFromBlackHoleY * awayFromBlackHoleY
+                    )
 
-                    // Curve outward by 15% of transfer distance (same as TransferSectors)
                     const curveOffset = distance * 0.15
                     const controlX = midX + (awayFromBlackHoleX / awayDist) * curveOffset
                     const controlY = midY + (awayFromBlackHoleY / awayDist) * curveOffset
@@ -226,7 +184,7 @@ export function ShipRenderer({
                       <path
                         d={`M ${x} ${y} Q ${controlX} ${controlY} ${predictedX} ${predictedY}`}
                         fill="none"
-                        stroke={player.color}
+                        stroke={ship.color}
                         strokeWidth={3}
                         strokeDasharray="8 4"
                         opacity={0.7}
@@ -234,37 +192,25 @@ export function ShipRenderer({
                     )
                   })()
                 ) : (
-                  // For coasting, use circular arc following the orbital path
                   (() => {
                     const startAngle = Math.atan2(y - wellPosition.y, x - wellPosition.x)
-                    const endAngle = Math.atan2(
-                      predictedY - wellPosition.y,
-                      predictedX - wellPosition.x
-                    )
+                    const endAngle = Math.atan2(predictedY - wellPosition.y, predictedX - wellPosition.x)
 
                     let angleDiff = endAngle - startAngle
                     if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
                     if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI
 
-                    // All wells rotate clockwise (direction = 1)
                     const sweepFlag = 1
                     const largeArcFlag = Math.abs(angleDiff) > Math.PI ? 1 : 0
-
                     const pathData = `M ${x} ${y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${predictedX} ${predictedY}`
 
                     return (
                       <>
+                        <path d={pathData} fill="none" stroke={ship.color} strokeWidth={6} opacity={0.15} />
                         <path
                           d={pathData}
                           fill="none"
-                          stroke={player.color}
-                          strokeWidth={6}
-                          opacity={0.15}
-                        />
-                        <path
-                          d={pathData}
-                          fill="none"
-                          stroke={player.color}
+                          stroke={ship.color}
                           strokeWidth={3}
                           strokeDasharray="8 4"
                           opacity={0.7}
@@ -273,24 +219,22 @@ export function ShipRenderer({
                     )
                   })()
                 )}
-                {/* Predicted position circle */}
                 <circle
                   cx={predictedX}
                   cy={predictedY}
                   r={hasPendingBurn ? 6 : 8}
-                  fill={player.color}
+                  fill={ship.color}
                   opacity={hasPendingBurn ? 0.3 : 0.5}
-                  stroke={player.color}
+                  stroke={ship.color}
                   strokeWidth={2}
                 />
-                {/* Label for pending well transfers showing destination ring */}
                 {pendingWellTransfer && (
                   <text
                     x={predictedX}
                     y={predictedY - 12}
                     textAnchor="middle"
                     fontSize={10}
-                    fill={player.color}
+                    fill={ship.color}
                     fontWeight="bold"
                   >
                     R{predictedRing}
@@ -302,19 +246,16 @@ export function ShipRenderer({
             {/* Second step prediction (for pending burns) */}
             {secondStepX !== null && secondStepY !== null && (
               <>
-                {/* Step 2: Straight line from step 1 to final position */}
                 <line
                   x1={predictedX!}
                   y1={predictedY!}
                   x2={secondStepX}
                   y2={secondStepY}
-                  stroke={player.color}
+                  stroke={ship.color}
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   opacity={0.4}
                 />
-
-                {/* Realistic orbital transfer: Elliptical arc */}
                 {(() => {
                   const startRadius = radius
                   const endRadius = Math.sqrt(
@@ -325,10 +266,7 @@ export function ShipRenderer({
                   const semiMinor = Math.sqrt(startRadius * endRadius)
 
                   const startAngle = Math.atan2(y - wellPosition.y, x - wellPosition.x)
-                  const endAngle = Math.atan2(
-                    secondStepY - wellPosition.y,
-                    secondStepX - wellPosition.x
-                  )
+                  const endAngle = Math.atan2(secondStepY - wellPosition.y, secondStepX - wellPosition.x)
 
                   let angleDiff = endAngle - startAngle
                   if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
@@ -340,24 +278,15 @@ export function ShipRenderer({
                   const largeArcFlag = Math.abs(angleDiff) > Math.PI ? 1 : 0
                   const sweepFlag = angleDiff > 0 ? 1 : 0
 
-                  const pathData = `
-                      M ${x} ${y}
-                      A ${semiMajor} ${semiMinor} ${rotationDegrees} ${largeArcFlag} ${sweepFlag} ${secondStepX} ${secondStepY}
-                    `
+                  const pathData = `M ${x} ${y} A ${semiMajor} ${semiMinor} ${rotationDegrees} ${largeArcFlag} ${sweepFlag} ${secondStepX} ${secondStepY}`
 
                   return (
                     <>
+                      <path d={pathData} fill="none" stroke={ship.color} strokeWidth={6} opacity={0.15} />
                       <path
                         d={pathData}
                         fill="none"
-                        stroke={player.color}
-                        strokeWidth={6}
-                        opacity={0.15}
-                      />
-                      <path
-                        d={pathData}
-                        fill="none"
-                        stroke={player.color}
+                        stroke={ship.color}
                         strokeWidth={3}
                         strokeDasharray="8 4"
                         opacity={0.9}
@@ -365,24 +294,21 @@ export function ShipRenderer({
                     </>
                   )
                 })()}
-
-                {/* Second step position circle (final destination) */}
                 <circle
                   cx={secondStepX}
                   cy={secondStepY}
                   r={10}
-                  fill={player.color}
+                  fill={ship.color}
                   opacity={0.6}
-                  stroke={player.color}
+                  stroke={ship.color}
                   strokeWidth={3}
                 />
-                {/* Label showing final destination ring */}
                 <text
                   x={secondStepX}
                   y={secondStepY - 14}
                   textAnchor="middle"
                   fontSize={11}
-                  fill={player.color}
+                  fill={ship.color}
                   fontWeight="bold"
                 >
                   R{secondStepRing}
@@ -397,7 +323,7 @@ export function ShipRenderer({
                 cy={y}
                 r={30}
                 fill="none"
-                stroke={player.color}
+                stroke={ship.color}
                 strokeWidth={3}
                 strokeDasharray="8 8"
                 opacity={0.6}
@@ -407,17 +333,17 @@ export function ShipRenderer({
             {/* Ship token with colored outline */}
             <image
               href="/assets/ship.png"
-              x={-shipSize * 1.5}
-              y={-shipSize * 1.5}
-              width={shipSize * 3}
-              height={shipSize * 3}
+              x={-ship.size * 1.5}
+              y={-ship.size * 1.5}
+              width={ship.size * 3}
+              height={ship.size * 3}
               opacity={player.ship.transferState ? 0.6 : 1}
-              filter={`url(#outline-${player.id})`}
+              filter={`url(#outline-${ship.id})`}
               transform={`translate(${x}, ${y}) rotate(${(directionAngle * 180) / Math.PI})`}
             />
 
-            {/* Render children (e.g., weapon range indicators) for each ship */}
-            {children && children(player, index, { x, y })}
+            {/* Render children (e.g., weapon range indicators) */}
+            {children && children(ship.playerId, index, { x, y })}
           </g>
         )
       })}

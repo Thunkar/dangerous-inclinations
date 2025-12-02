@@ -1,15 +1,15 @@
 import React from 'react'
-import type { Player } from '../../../types/game'
-
-interface SVGFiltersProps {
-  players: Player[]
-}
+import { useGame } from '../../../context/GameContext'
 
 /**
  * SVG filter definitions for ship and missile outlines
  * Creates colored outlines with black inner frames for visibility
  */
-export function SVGFilters({ players }: SVGFiltersProps) {
+export function SVGFilters() {
+  const { gameState } = useGame()
+
+  const players = gameState.players
+
   return (
     <defs>
       {players.map(player => (

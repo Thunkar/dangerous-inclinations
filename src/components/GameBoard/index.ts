@@ -1,5 +1,5 @@
 // Re-export types
-export type { GameBoardProps, MovementPreview } from './types'
+export type { GameBoardProps, MovementPreview, DisplayState, DisplayShip, DisplayMissile, Position } from './types'
 
 // Re-export context
 export { BoardProvider, useBoardContext } from './context'

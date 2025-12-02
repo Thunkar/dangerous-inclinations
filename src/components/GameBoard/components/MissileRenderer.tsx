@@ -1,28 +1,30 @@
-import type { Missile, Player, GameState } from '../../../types/game'
 import { useBoardContext } from '../context'
-import { MISSILE_CONFIG, calculateMissileMovement } from '../../../game-logic/missiles'
-
-interface MissileRendererProps {
-  missiles: Missile[]
-  players: Player[]
-  gameState: GameState
-}
+import { useGame } from '../../../context/GameContext'
+import { calculateMissileMovement } from '../../../game-logic/missiles'
 
 /**
- * Renders all missiles in flight with tracking lines, prediction arrows,
- * and labels (M# and turn counter)
+ * MissileRenderer - Renders missiles using displayState positions
+ *
+ * Architecture:
+ * - Missile positions come from displayState (already interpolated during animation)
+ * - Prediction indicators use gameState for game logic calculations
+ * - No animation logic here - just render what displayState provides
  */
-export function MissileRenderer({ missiles, players, gameState }: MissileRendererProps) {
-  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
+export function MissileRenderer() {
+  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset, displayState } = useBoardContext()
+  const { gameState } = useGame()
+
+  // Need both displayState (for positions) and gameState (for game data)
+  if (!displayState || !gameState) return null
 
   return (
     <>
-      {/* Arrow marker definitions for each player */}
+      {/* Arrow marker definitions for each missile owner */}
       <defs>
-        {players.map(player => (
+        {displayState.ships.map(ship => (
           <marker
-            key={`missile-arrow-${player.id}`}
-            id={`missile-arrow-${player.id}`}
+            key={`missile-arrow-${ship.id}`}
+            id={`missile-arrow-${ship.id}`}
             viewBox="0 0 10 10"
             refX="8"
             refY="5"
@@ -30,94 +32,60 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill={player.color} opacity={0.6} />
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={ship.color} opacity={0.6} />
           </marker>
         ))}
       </defs>
 
-      {/* Render each missile */}
-      {missiles.map(missile => {
-        // Find the owner and target players
-        const owner = players.find(p => p.id === missile.ownerId)
-        const target = players.find(p => p.id === missile.targetId)
-        if (!owner || !target) return null
+      {/* Render each missile from displayState */}
+      {displayState.missiles.map(missile => {
+        // Get position directly from displayState - already computed with animation
+        const { x, y } = missile.position
+        const rotation = missile.rotation
 
-        // Get the missile's gravity well
-        const well = gameState.gravityWells.find(w => w.id === missile.wellId)
-        if (!well) return null
+        // Find the corresponding game missile for additional data (may not exist during animation)
+        const gameMissile = gameState.missiles.find(m => m.id === missile.id)
 
-        // Get the ring configuration
-        const ringConfig = well.rings.find(r => r.ring === missile.ring)
-        if (!ringConfig) return null
+        // During animation, gameMissile may not exist yet - still render the missile
+        // but skip prediction indicators that require game data
+        const targetPlayer = gameMissile
+          ? gameState.players.find(p => p.id === gameMissile.targetId)
+          : null
 
-        // Get the rotation offset for this well (all wells rotate clockwise, direction = 1)
-        const rotationOffset = getSectorRotationOffset(missile.wellId)
+        // Get target position from displayState
+        const targetShip = gameMissile
+          ? displayState.ships.find(s => s.playerId === gameMissile.targetId)
+          : null
+        const targetX = targetShip?.position.x ?? 0
+        const targetY = targetShip?.position.y ?? 0
 
-        // Get the well position
-        const wellPosition = getGravityWellPosition(missile.wellId)
-
-        // Calculate position with radial offset for multiple missiles in the same sector
-        const missilesInSameSector = missiles.filter(
-          m => m.wellId === missile.wellId && m.ring === missile.ring && m.sector === missile.sector
-        )
-        const missileIndexInSector = missilesInSameSector.findIndex(m => m.id === missile.id)
-        const totalMissiles = missilesInSameSector.length
-        const radialSpacing = 20
-        const radialOffset =
-          totalMissiles > 1 ? (missileIndexInSector - (totalMissiles - 1) / 2) * radialSpacing : 0
-
-        // Calculate missile position
-        const angle =
-          ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
-          Math.PI / 2 +
-          rotationOffset
-        const baseRadius = ringConfig.radius * scaleFactor
-        const missileRadius = baseRadius + radialOffset
-        const x = wellPosition.x + missileRadius * Math.cos(angle)
-        const y = wellPosition.y + missileRadius * Math.sin(angle)
-
-        // Calculate next position using game logic
-        const movement = calculateMissileMovement(missile, target, gameState)
+        // Calculate next position using game logic for prediction (only if we have game data)
         let nextX = x
         let nextY = y
 
-        if (movement.ring !== missile.ring || movement.sector !== missile.sector) {
-          const nextRingConfig = well.rings.find(r => r.ring === movement.ring)
-          if (nextRingConfig) {
-            const nextRadius = nextRingConfig.radius * scaleFactor
-            const nextAngle =
-              ((movement.sector + 0.5) / nextRingConfig.sectors) * 2 * Math.PI -
-              Math.PI / 2 +
-              rotationOffset
-            nextX = wellPosition.x + nextRadius * Math.cos(nextAngle)
-            nextY = wellPosition.y + nextRadius * Math.sin(nextAngle)
+        if (gameMissile && targetPlayer) {
+          const movement = calculateMissileMovement(gameMissile, targetPlayer, gameState)
+          if (movement.ring !== gameMissile.ring || movement.sector !== gameMissile.sector) {
+            const well = gameState.gravityWells.find(w => w.id === gameMissile.wellId)
+            const nextRingConfig = well?.rings.find(r => r.ring === movement.ring)
+            if (well && nextRingConfig) {
+              const wellPosition = getGravityWellPosition(gameMissile.wellId)
+              const rotationOffset = getSectorRotationOffset(gameMissile.wellId)
+              const nextRadius = nextRingConfig.radius * scaleFactor
+              const nextAngle =
+                ((movement.sector + 0.5) / nextRingConfig.sectors) * 2 * Math.PI -
+                Math.PI / 2 +
+                rotationOffset
+              nextX = wellPosition.x + nextRadius * Math.cos(nextAngle)
+              nextY = wellPosition.y + nextRadius * Math.sin(nextAngle)
+            }
           }
         }
 
-        // Calculate target position
-        const targetWell = gameState.gravityWells.find(w => w.id === target.ship.wellId)
-        if (!targetWell) return null
-
-        const targetRingConfig = targetWell.rings.find(r => r.ring === target.ship.ring)
-        if (!targetRingConfig) return null
-
-        const targetWellPos = getGravityWellPosition(target.ship.wellId)
-        const targetRadius = targetRingConfig.radius * scaleFactor
-        const targetRotation = getSectorRotationOffset(target.ship.wellId)
-        const targetAngle =
-          ((target.ship.sector + 0.5) / targetRingConfig.sectors) * 2 * Math.PI -
-          Math.PI / 2 +
-          targetRotation
-        const targetX = targetWellPos.x + targetRadius * Math.cos(targetAngle)
-        const targetY = targetWellPos.y + targetRadius * Math.sin(targetAngle)
-
-        // Calculate remaining turns
-        const turnsRemaining = MISSILE_CONFIG.MAX_TURNS_ALIVE - missile.turnsAlive
-
         // Calculate label positions along the arc (tangential to the sector)
+        const tangentAngle = rotation - Math.PI + Math.PI / 2
         const missileLabelDistance = 18
         const turnCounterDistance = 12
-        const tangentAngle = angle + Math.PI / 2
         const labelLeftX = x + missileLabelDistance * Math.cos(tangentAngle)
         const labelLeftY = y + missileLabelDistance * Math.sin(tangentAngle)
         const labelRightX = x - turnCounterDistance * Math.cos(tangentAngle)
@@ -125,29 +93,31 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
 
         return (
           <g key={missile.id}>
-            {/* Target tracking line (dashed) */}
-            <line
-              x1={x}
-              y1={y}
-              x2={targetX}
-              y2={targetY}
-              stroke={owner.color}
-              strokeWidth={1}
-              strokeDasharray="4 2"
-              opacity={0.4}
-            />
+            {/* Target tracking line (dashed) - only show when we have target data */}
+            {targetShip && (
+              <line
+                x1={x}
+                y1={y}
+                x2={targetX}
+                y2={targetY}
+                stroke={missile.color}
+                strokeWidth={1}
+                strokeDasharray="4 2"
+                opacity={0.4}
+              />
+            )}
 
-            {/* Predicted next position (if moving) */}
-            {(nextX !== x || nextY !== y) && (
+            {/* Predicted next position (if moving and we have game data) */}
+            {gameMissile && (nextX !== x || nextY !== y) && (
               <>
                 <line
                   x1={x}
                   y1={y}
                   x2={nextX}
                   y2={nextY}
-                  stroke={owner.color}
+                  stroke={missile.color}
                   strokeWidth={2}
-                  markerEnd={`url(#missile-arrow-${owner.id})`}
+                  markerEnd={`url(#missile-arrow-${missile.ownerId})`}
                   opacity={0.6}
                 />
                 <circle
@@ -155,7 +125,7 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
                   cy={nextY}
                   r={4}
                   fill="none"
-                  stroke={owner.color}
+                  stroke={missile.color}
                   strokeWidth={1}
                   strokeDasharray="2 1"
                   opacity={0.6}
@@ -170,9 +140,9 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
               y={y - 5}
               width={10}
               height={10}
-              filter={`url(#missile-outline-${owner.id})`}
+              filter={`url(#missile-outline-${missile.ownerId})`}
               style={{ pointerEvents: 'none' }}
-              transform={`rotate(${(angle * 180) / Math.PI + 180}, ${x}, ${y})`}
+              transform={`rotate(${(rotation * 180) / Math.PI}, ${x}, ${y})`}
             />
 
             {/* M# label (which turn fired) */}
@@ -186,7 +156,7 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
               fontWeight="bold"
               style={{ pointerEvents: 'none', userSelect: 'none' }}
             >
-              M{missile.turnFired}
+              {missile.label}
             </text>
 
             {/* Turn counter (turns until explodes) */}
@@ -196,11 +166,11 @@ export function MissileRenderer({ missiles, players, gameState }: MissileRendere
               textAnchor="middle"
               dominantBaseline="middle"
               fontSize="10"
-              fill={turnsRemaining === 1 ? '#ff4444' : 'white'}
+              fill={missile.turnsRemaining === 1 ? '#ff4444' : 'white'}
               fontWeight="bold"
               style={{ pointerEvents: 'none', userSelect: 'none' }}
             >
-              {turnsRemaining}
+              {missile.turnsRemaining}
             </text>
           </g>
         )

@@ -60,6 +60,18 @@ interface PendingState {
   tacticalSequence: TacticalAction[] // Ordered list of tactical actions
 }
 
+// Animation handlers that BoardContext will register
+export interface AnimationHandlers {
+  startAnimation: (
+    beforeState: GameState,
+    afterState: GameState,
+    actions: PlayerAction[],
+    onComplete: () => void
+  ) => void
+  syncDisplayState: (state: GameState) => void
+  isAnimating: () => boolean
+}
+
 interface GameContextType {
   gameState: GameState
   pendingState: PendingState
@@ -77,6 +89,8 @@ interface GameContextType {
   restartGame: () => void
   weaponRangeVisibility: WeaponRangeVisibility
   toggleWeaponRange: (weaponType: 'laser' | 'railgun' | 'missiles') => void
+  // Animation handler registration (for BoardContext)
+  registerAnimationHandlers: (handlers: AnimationHandlers) => void
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
@@ -147,16 +161,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     railgun: false,
     missiles: false,
   })
+  const lastBotTurnKeyRef = useRef<string>('')
+
+  // Animation handlers registered by BoardContext
+  const animationHandlersRef = useRef<AnimationHandlers | null>(null)
+  const gameStateRef = useRef<GameState>(gameState)
+  gameStateRef.current = gameState
+
+  const registerAnimationHandlers = useCallback((handlers: AnimationHandlers) => {
+    animationHandlersRef.current = handlers
+    // Initialize display state when handlers are registered
+    handlers.syncDisplayState(gameStateRef.current)
+  }, [])
 
   const activePlayer = gameState.players[gameState.activePlayerIndex]
 
   const clearTurnErrors = useCallback(() => {
     setTurnErrors([])
   }, [])
-
-  // Track previous values to detect actual changes (not just initial mount)
-  const prevPlayerIdRef = useRef<string>(activePlayer.id)
-  const prevTurnRef = useRef<number>(gameState.turn)
 
   // Initialize pending state from current committed state
   const [pendingState, setPendingStateInternal] = useState<PendingState>(() => ({
@@ -173,30 +195,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }))
 
   // Reset pending state when active player changes or turn completes
-  // But NOT on initial mount (when refs match current values)
   useEffect(() => {
-    const playerChanged = prevPlayerIdRef.current !== activePlayer.id
-    const turnChanged = prevTurnRef.current !== gameState.turn
-
-    if (playerChanged || turnChanged) {
-      setPendingStateInternal({
-        subsystems: activePlayer.ship.subsystems.map(s => ({ ...s })),
-        reactor: { ...activePlayer.ship.reactor },
-        heat: { ...activePlayer.ship.heat },
-        facing: activePlayer.ship.facing,
-        movement: {
-          actionType: 'coast',
-          sectorAdjustment: 0,
-          activateScoop: false,
-        },
-        tacticalSequence: [], // Clear on actual player/turn change
-      })
-    }
-
-    // Update refs for next comparison
-    prevPlayerIdRef.current = activePlayer.id
-    prevTurnRef.current = gameState.turn
-  }, [activePlayer.id, gameState.turn, activePlayer.ship])
+    setPendingStateInternal({
+      subsystems: activePlayer.ship.subsystems.map(s => ({ ...s })),
+      reactor: { ...activePlayer.ship.reactor },
+      heat: { ...activePlayer.ship.heat },
+      facing: activePlayer.ship.facing,
+      movement: {
+        actionType: 'coast',
+        sectorAdjustment: 0,
+        activateScoop: false,
+      },
+      tacticalSequence: [],
+    })
+  }, [gameState.activePlayerIndex, gameState.turn, activePlayer.ship])
 
   // Helper to calculate energy to return based on deallocations
   const calculateEnergyToReturn = useCallback(
@@ -335,6 +347,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Don't allow turn execution while animations are playing
+    if (animationHandlersRef.current?.isAnimating()) {
+      return
+    }
+
     const actions: PlayerAction[] = []
 
     // 1. Compute energy allocation/deallocation actions (no sequence - always first)
@@ -470,17 +487,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     // 4. Execute turn with all actions
     const currentTurn = gameState.turn
-    setGameState(prev => {
-      const result = executeGameTurn(prev, actions)
-      if (result.errors && result.errors.length > 0) {
-        setTurnErrors(result.errors)
-        return prev
-      }
-      setTurnErrors([])
-      return result.gameState
-    })
 
-    // Record turn in history (human player) - do this outside setGameState callback
+    const result = executeGameTurn(gameState, actions)
+    if (result.errors && result.errors.length > 0) {
+      setTurnErrors(result.errors)
+      return
+    }
+    setTurnErrors([])
+
+    const afterState = result.gameState
+
+    // Record turn in history
     setTurnHistory(prevHistory => [
       ...prevHistory,
       {
@@ -490,7 +507,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         actions,
       },
     ])
-  }, [activePlayer, pendingState, gameState.turn])
+
+    // Start animation - gameState will be updated when animation completes
+    if (animationHandlersRef.current) {
+      animationHandlersRef.current.startAnimation(gameState, afterState, actions, () => {
+        setGameState(afterState)
+      })
+    } else {
+      // No animation handlers registered, just update state
+      setGameState(afterState)
+    }
+  }, [activePlayer, pendingState, gameState])
 
   const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missiles') => {
     setWeaponRangeVisibility(prev => ({
@@ -503,36 +530,49 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const currentActivePlayer = gameState.players[gameState.activePlayerIndex]
 
+    // Create a unique key for this turn to prevent duplicate execution
+    const currentTurnKey = `${gameState.activePlayerIndex}-${gameState.turn}`
+
+    // Check if animating
+    const isAnimating = animationHandlersRef.current?.isAnimating() ?? false
+
     // Only execute bot turn if:
     // 1. Active player exists
     // 2. Active player is not player1 (the human)
     // 3. Active player's ship is still alive
+    // 4. Animations are not playing
+    // 5. Haven't already executed this specific player+turn combination
     if (
       currentActivePlayer &&
       currentActivePlayer.id !== 'player1' &&
-      currentActivePlayer.ship.hitPoints > 0
+      currentActivePlayer.ship.hitPoints > 0 &&
+      !isAnimating &&
+      lastBotTurnKeyRef.current !== currentTurnKey
     ) {
-      // Small delay to show state transition to user
+      // Mark this turn as executed IMMEDIATELY to prevent duplicate effect runs
+      // from scheduling multiple timeouts
+      lastBotTurnKeyRef.current = currentTurnKey
+
+      // Small delay to show state transition
       const timer = setTimeout(() => {
         try {
           const botDecision = botDecideActions(gameState, currentActivePlayer.id)
 
-          // Log bot's thinking process
-          console.log(`[Bot ${currentActivePlayer.id}] Decision:`, botDecision.log)
-
           const currentTurn = gameState.turn
-          setGameState(prev => {
-            const result = executeGameTurn(prev, botDecision.actions)
-            if (result.errors && result.errors.length > 0) {
-              console.error(`[Bot ${currentActivePlayer.id}] Turn errors:`, result.errors)
-              setTurnErrors(result.errors)
-              return prev // Don't advance if bot turn had errors
-            }
-            setTurnErrors([])
-            return result.gameState
-          })
 
-          // Record turn in history (bot player with decision log) - do this outside setGameState callback
+          const result = executeGameTurn(gameState, botDecision.actions)
+          if (result.errors && result.errors.length > 0) {
+            console.error(`[Bot ${currentActivePlayer.id}] Turn errors:`, result.errors)
+            setTurnErrors(result.errors)
+            // Reset on error so it can be retried
+            lastBotTurnKeyRef.current = ''
+            return
+          }
+          setTurnErrors([])
+
+          const afterState = result.gameState
+
+          // Record turn in history
           setTurnHistory(prevHistory => [
             ...prevHistory,
             {
@@ -543,19 +583,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
               botDecision: botDecision.log,
             },
           ])
+
+          // Start animation - gameState will be updated when animation completes
+          if (animationHandlersRef.current) {
+            animationHandlersRef.current.startAnimation(gameState, afterState, botDecision.actions, () => {
+              setGameState(afterState)
+            })
+          } else {
+            setGameState(afterState)
+          }
         } catch (error) {
           console.error(`[Bot ${currentActivePlayer.id}] Failed to execute turn:`, error)
+          lastBotTurnKeyRef.current = '' // Reset on error
         }
-      }, 800) // 800ms delay for visibility
+      }, 400)
 
       return () => clearTimeout(timer)
     }
-  }, [gameState.activePlayerIndex, gameState.turn, gameState])
+  }, [gameState])
 
   // Restart game - reset to initial state
   const restartGame = useCallback(() => {
     const newGameState = createInitialState()
     setGameState(newGameState)
+
+    // Sync display state if handlers are registered
+    if (animationHandlersRef.current) {
+      animationHandlersRef.current.syncDisplayState(newGameState)
+    }
 
     // Reset pending state to match the new initial player
     const newActivePlayer = newGameState.players[0]
@@ -574,6 +629,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     setTurnErrors([])
     setTurnHistory([])
+    lastBotTurnKeyRef.current = ''
   }, [])
 
   return (
@@ -594,6 +650,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         restartGame,
         weaponRangeVisibility,
         toggleWeaponRange,
+        registerAnimationHandlers,
       }}
     >
       {children}

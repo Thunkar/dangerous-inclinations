@@ -1,4 +1,4 @@
-import type { GameState, TurnLogEntry, PlayerAction } from '../types/game'
+import type { GameState, TurnLogEntry, PlayerAction, GameStatus } from '../types/game'
 import { processActions } from './actionProcessors'
 import { processMissiles } from './missiles'
 
@@ -150,7 +150,7 @@ function checkGameStatus(gameState: GameState): GameState {
   const humanAlive = humanPlayer.ship.hitPoints > 0
   const otherPlayersAlive = activePlayers.filter((_, i) => i !== 0).length > 0
 
-  let status = gameState.status
+  let status: GameStatus = gameState.status
   let winnerId: string | undefined
 
   if (!humanAlive) {

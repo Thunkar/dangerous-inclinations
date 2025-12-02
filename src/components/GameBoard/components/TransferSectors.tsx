@@ -10,9 +10,7 @@ interface TransferSectorsProps {
  * Renders elliptic transfer trajectories between gravity wells
  * Each transfer point gets its own arc showing the launch and arrival sectors
  */
-export function TransferSectors({
-  transferPoints,
-}: TransferSectorsProps) {
+export function TransferSectors({ transferPoints }: TransferSectorsProps) {
   const { gameState } = useGame()
   const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
 
@@ -74,7 +72,9 @@ export function TransferSectors({
         // Vector from midpoint AWAY from black hole (outward direction)
         const awayFromBlackHoleX = midX - bhPosition.x
         const awayFromBlackHoleY = midY - bhPosition.y
-        const awayDist = Math.sqrt(awayFromBlackHoleX * awayFromBlackHoleX + awayFromBlackHoleY * awayFromBlackHoleY)
+        const awayDist = Math.sqrt(
+          awayFromBlackHoleX * awayFromBlackHoleX + awayFromBlackHoleY * awayFromBlackHoleY
+        )
 
         // Curve outward (away from black hole) by 15% of transfer distance
         const curveOffset = distance * 0.15

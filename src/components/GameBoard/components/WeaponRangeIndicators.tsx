@@ -1,7 +1,8 @@
-import type { Player, GameState, Facing } from '../../../types/game'
+import type { Player, Facing } from '../../../types/game'
 import type { SubsystemType } from '../../../types/subsystems'
 import type { MovementPreview } from '../types'
 import { useBoardContext } from '../context'
+import { useGame } from '../../../context/GameContext'
 import { calculateFiringSolutions } from '../../../utils/weaponRange'
 import { getSubsystem } from '../../../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../../../types/subsystems'
@@ -10,9 +11,6 @@ import { calculatePostMovementPosition } from '../../../utils/tacticalSequence'
 interface WeaponRangeIndicatorsProps {
   player: Player
   playerIndex: number
-  activePlayerIndex: number
-  gameState: GameState
-  players: Player[]
   pendingFacing?: Facing
   pendingMovement?: MovementPreview
   pendingState: {
@@ -31,15 +29,16 @@ interface WeaponRangeIndicatorsProps {
 export function WeaponRangeIndicators({
   player,
   playerIndex,
-  activePlayerIndex,
-  gameState,
-  players,
   pendingFacing,
   pendingMovement,
   pendingState,
   weaponRangeVisibility,
 }: WeaponRangeIndicatorsProps) {
   const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
+  const { gameState } = useGame()
+
+  const players = gameState.players
+  const activePlayerIndex = gameState.activePlayerIndex
 
   const isActive = playerIndex === activePlayerIndex
   if (!isActive) return null
@@ -55,9 +54,7 @@ export function WeaponRangeIndicators({
   const radius = ringConfig.radius * scaleFactor
   const rotationOffset = getSectorRotationOffset(player.ship.wellId)
   const angle =
-    ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI -
-    Math.PI / 2 +
-    rotationOffset
+    ((player.ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
   const x = wellPosition.x + radius * Math.cos(angle)
   const y = wellPosition.y + radius * Math.sin(angle)
 
@@ -92,13 +89,9 @@ export function WeaponRangeIndicators({
     const postMoveRingConfig = postMoveWell?.rings.find(r => r.ring === rangeVisualizationShip.ring)
     if (postMoveRingConfig && postMoveWell) {
       rangeVisualizationRing = postMoveRingConfig
-      const postMoveWellPosition = getGravityWellPosition(
-        rangeVisualizationShip.wellId
-      )
+      const postMoveWellPosition = getGravityWellPosition(rangeVisualizationShip.wellId)
       rangeVisualizationRadius = postMoveRingConfig.radius * scaleFactor
-      const postMoveRotationOffset = getSectorRotationOffset(
-        rangeVisualizationShip.wellId
-      )
+      const postMoveRotationOffset = getSectorRotationOffset(rangeVisualizationShip.wellId)
       // Visual sector same as logical sector
       rangeVisualizationAngle =
         ((rangeVisualizationShip.sector + 0.5) / postMoveRingConfig.sectors) * 2 * Math.PI -
@@ -142,13 +135,13 @@ export function WeaponRangeIndicators({
             rangeWellPosition.x + rangeVisualizationRadius * Math.cos(sectorStartAngle)
           const rayStartY =
             rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorStartAngle)
-          const rayEndX =
-            rangeWellPosition.x + rangeVisualizationRadius * Math.cos(sectorEndAngle)
-          const rayEndY =
-            rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorEndAngle)
+          const rayEndX = rangeWellPosition.x + rangeVisualizationRadius * Math.cos(sectorEndAngle)
+          const rayEndY = rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorEndAngle)
 
           // Get rings within weapon's ring range (±ringRange, but not same ring)
-          const rangeWell = gameState.gravityWells.find(w => w.id === rangeVisualizationShip.wellId)
+          const rangeWell = gameState.gravityWells.find(
+            w => w.id === rangeVisualizationShip.wellId
+          )
           if (!rangeWell) return null
 
           const minRing = Math.max(1, rangeVisualizationShip.ring - weaponStats.ringRange)
@@ -163,15 +156,15 @@ export function WeaponRangeIndicators({
               {rangeWell.rings
                 .filter(
                   r =>
-                    r.ring >= minRing &&
-                    r.ring <= maxRing &&
-                    r.ring !== rangeVisualizationShip.ring
+                    r.ring >= minRing && r.ring <= maxRing && r.ring !== rangeVisualizationShip.ring
                 )
                 .map(targetRing => {
                   const targetRadius = targetRing.radius * scaleFactor
                   const targetSectorSize = (2 * Math.PI) / targetRing.sectors
 
-                  const targetRotationOffset = getSectorRotationOffset(rangeVisualizationShip.wellId)
+                  const targetRotationOffset = getSectorRotationOffset(
+                    rangeVisualizationShip.wellId
+                  )
 
                   // Calculate first and last targetable sectors (current ±sectorRange)
                   const firstTargetSector =
@@ -277,10 +270,8 @@ export function WeaponRangeIndicators({
 
           // Calculate arc endpoints
           const rangeWellPosition = getGravityWellPosition(rangeVisualizationShip.wellId)
-          const arcStartX =
-            rangeWellPosition.x + rangeVisualizationRadius * Math.cos(arcStartAngle)
-          const arcStartY =
-            rangeWellPosition.y + rangeVisualizationRadius * Math.sin(arcStartAngle)
+          const arcStartX = rangeWellPosition.x + rangeVisualizationRadius * Math.cos(arcStartAngle)
+          const arcStartY = rangeWellPosition.y + rangeVisualizationRadius * Math.sin(arcStartAngle)
           const arcEndX = rangeWellPosition.x + rangeVisualizationRadius * Math.cos(arcEndAngle)
           const arcEndY = rangeWellPosition.y + rangeVisualizationRadius * Math.sin(arcEndAngle)
 
@@ -345,10 +336,8 @@ export function WeaponRangeIndicators({
             rangeWellPosition.x + rangeVisualizationRadius * Math.cos(sectorStartAngle)
           const rayStartY =
             rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorStartAngle)
-          const rayEndX =
-            rangeWellPosition.x + rangeVisualizationRadius * Math.cos(sectorEndAngle)
-          const rayEndY =
-            rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorEndAngle)
+          const rayEndX = rangeWellPosition.x + rangeVisualizationRadius * Math.cos(sectorEndAngle)
+          const rayEndY = rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorEndAngle)
 
           return (
             <g key={`weapon-turret-${weaponKey}`}>
@@ -356,9 +345,7 @@ export function WeaponRangeIndicators({
               {turretRangeWell.rings
                 .filter(
                   r =>
-                    r.ring >= minRing &&
-                    r.ring <= maxRing &&
-                    r.ring !== rangeVisualizationShip.ring
+                    r.ring >= minRing && r.ring <= maxRing && r.ring !== rangeVisualizationShip.ring
                 )
                 .map(targetRing => {
                   const targetRadius = targetRing.radius * scaleFactor
@@ -501,7 +488,9 @@ export function WeaponRangeIndicators({
               if (!solution.inRange) return null
 
               const otherPlayer = solution.targetPlayer
-              const otherWell = gameState.gravityWells.find(w => w.id === otherPlayer.ship.wellId)
+              const otherWell = gameState.gravityWells.find(
+                w => w.id === otherPlayer.ship.wellId
+              )
               if (!otherWell) return null
 
               const otherRingConfig = otherWell.rings.find(r => r.ring === otherPlayer.ship.ring)

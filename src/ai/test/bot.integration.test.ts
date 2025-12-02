@@ -123,7 +123,7 @@ describe('Bot AI Integration Tests', () => {
       gravityWells: [],
       transferPoints: [],
       missiles: [],
-    }
+      status: 'active',    }
   }
 
   describe('Game Engine Validation', () => {

@@ -56,7 +56,7 @@ describe('Well Transfers', () => {
       transferPoints,
       turnLog: [],
       missiles: [],
-    }
+      status: 'active',    }
   }
 
   describe('Transfer Point Calculation', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createCoastAction, createAllocateEnergyAction } from './fixtures/actions'
-import { createTestGameState, INITIAL_REACTION_MASS } from './fixtures/gameState'
+import { createTestGameState } from './fixtures/gameState'
 import { executeTurnWithActions } from './testUtils'
 import { getGravityWell } from '../../constants/gravityWells'
 
