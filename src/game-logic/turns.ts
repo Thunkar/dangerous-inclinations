@@ -101,9 +101,23 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     }
   }
 
-  // Move to next player
-  const nextPlayerIndex = (gameState.activePlayerIndex + 1) % updatedGameState.players.length
-  const isNewTurn = nextPlayerIndex === 0
+  // Move to next alive player (skip dead players)
+  let nextPlayerIndex = (gameState.activePlayerIndex + 1) % updatedGameState.players.length
+  let isNewTurn = nextPlayerIndex === 0
+
+  // Skip dead players - find the next alive player
+  const startIndex = nextPlayerIndex
+  while (updatedGameState.players[nextPlayerIndex].ship.hitPoints <= 0) {
+    nextPlayerIndex = (nextPlayerIndex + 1) % updatedGameState.players.length
+    // Check if we've wrapped around to a new turn
+    if (nextPlayerIndex === 0) {
+      isNewTurn = true
+    }
+    // Safety: if we've looped back to start, all players are dead - break to avoid infinite loop
+    if (nextPlayerIndex === startIndex) {
+      break
+    }
+  }
 
   updatedGameState = {
     ...updatedGameState,
@@ -112,7 +126,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     turnLog: [...gameState.turnLog, ...allLogEntries],
   }
 
-  // Check for win/loss conditions and remove destroyed ships
+  // Check for win/loss conditions
   updatedGameState = checkGameStatus(updatedGameState)
 
   // All transfers complete immediately, no need to resolve on turn start
@@ -124,7 +138,8 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
 }
 
 /**
- * Check for win/loss conditions and remove destroyed ships
+ * Check for win/loss conditions
+ * Note: Dead players are NOT removed from the array - they stay for UI/history purposes
  */
 function checkGameStatus(gameState: GameState): GameState {
   // Don't check if game is already over
@@ -132,23 +147,21 @@ function checkGameStatus(gameState: GameState): GameState {
     return gameState
   }
 
-  // Remove destroyed ships (ships with 0 or less HP)
-  const activePlayers = gameState.players.filter(p => p.ship.hitPoints > 0)
+  // Count alive players (don't remove them from array)
+  const alivePlayers = gameState.players.filter(p => p.ship.hitPoints > 0)
 
   // If all ships destroyed somehow, game is over
-  if (activePlayers.length === 0) {
+  if (alivePlayers.length === 0) {
     return {
       ...gameState,
-      players: activePlayers,
       status: 'defeat',
-      activePlayerIndex: 0,
     }
   }
 
   // Find the human player (first player is always human in current setup)
   const humanPlayer = gameState.players[0]
   const humanAlive = humanPlayer.ship.hitPoints > 0
-  const otherPlayersAlive = activePlayers.filter((_, i) => i !== 0).length > 0
+  const otherPlayersAlive = alivePlayers.some(p => p.id !== humanPlayer.id)
 
   let status: GameStatus = gameState.status
   let winnerId: string | undefined
@@ -157,9 +170,9 @@ function checkGameStatus(gameState: GameState): GameState {
     // Human player is dead - defeat
     status = 'defeat'
     // Find the survivor with highest HP as winner
-    const survivor = activePlayers.reduce((max, p) =>
+    const survivor = alivePlayers.reduce((max, p) =>
       p.ship.hitPoints > max.ship.hitPoints ? p : max
-    , activePlayers[0])
+    , alivePlayers[0])
     winnerId = survivor?.id
   } else if (!otherPlayersAlive) {
     // Only human player alive - victory
@@ -167,14 +180,10 @@ function checkGameStatus(gameState: GameState): GameState {
     winnerId = humanPlayer.id
   }
 
+  // Players array stays unchanged - dead players remain for UI/history
   return {
     ...gameState,
-    players: activePlayers,
     status,
     winnerId,
-    // If game is over, keep current active player index within bounds
-    activePlayerIndex: gameState.activePlayerIndex >= activePlayers.length
-      ? activePlayers.length - 1
-      : gameState.activePlayerIndex,
   }
 }

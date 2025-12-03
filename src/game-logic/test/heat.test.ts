@@ -118,6 +118,12 @@ describe('Multi-Turn Heat Management', () => {
     it('should vent multiple times in sequence', () => {
       let gameState = createTestGameState()
 
+      // Give player 1 enough HP to survive heat damage during multi-turn venting
+      // Turn 1: 10 heat - 3 vent = 7 damage, Turn 2: 7 heat - 3 vent = 4 damage, Turn 3: 4 heat - 3 vent = 1 damage
+      // Total damage = 7 + 4 + 1 = 12, so need at least 13 HP
+      gameState.players[0].ship.hitPoints = 20
+      gameState.players[0].ship.maxHitPoints = 20
+
       // Set high heat
       gameState.players[0].ship.heat.currentHeat = 10
 

@@ -344,6 +344,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Don't execute if active player is dead
+    if (activePlayer.ship.hitPoints <= 0) {
+      return
+    }
+
     const actions: PlayerAction[] = []
 
     // 1. Compute energy allocation/deallocation actions (no sequence - always first)
