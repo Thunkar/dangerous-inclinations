@@ -72,6 +72,32 @@ function calculateShipRotation(
   return ship.facing === 'prograde' ? angle + Math.PI / 2 : angle - Math.PI / 2
 }
 
+/**
+ * Calculate spread offset for missiles in the same sector.
+ * Spreads missiles along the radial direction (toward/away from gravity well center)
+ * to avoid visual overlap while keeping them on a radius through sector center.
+ */
+function calculateMissileSpreadOffset(
+  index: number,
+  total: number,
+  angle: number
+): Position {
+  if (total <= 1) return { x: 0, y: 0 }
+
+  // Spread distance between missiles (pixels)
+  const SPREAD_DISTANCE = 10
+
+  // The angle parameter is the position angle on the circle (radial direction from center).
+  // Spread along this radial direction: positive offset = outward, negative = inward.
+  // Center the spread around the sector center.
+  const offsetIndex = index - (total - 1) / 2
+
+  return {
+    x: Math.cos(angle) * offsetIndex * SPREAD_DISTANCE,
+    y: Math.sin(angle) * offsetIndex * SPREAD_DISTANCE,
+  }
+}
+
 function gameStateToDisplayState(gameState: GameState): DisplayState {
   const ships: DisplayShip[] = gameState.players.map((player, index) => ({
     id: player.id,
@@ -83,8 +109,17 @@ function gameStateToDisplayState(gameState: GameState): DisplayState {
     size: index === gameState.activePlayerIndex ? 14 : 12,
   }))
 
+  // Group missiles by location to calculate spread offsets
+  const missilesByLocation = new Map<string, typeof gameState.missiles>()
+  for (const missile of gameState.missiles) {
+    const key = `${missile.wellId}:${missile.ring}:${missile.sector}`
+    const group = missilesByLocation.get(key) || []
+    group.push(missile)
+    missilesByLocation.set(key, group)
+  }
+
   const missiles: DisplayMissile[] = gameState.missiles.map(missile => {
-    const position = calculateShipScreenPosition(missile)
+    const basePosition = calculateShipScreenPosition(missile)
     const owner = gameState.players.find(p => p.id === missile.ownerId)
     const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
     const ringConfig = well?.rings.find(r => r.ring === missile.ring)
@@ -92,6 +127,17 @@ function gameStateToDisplayState(gameState: GameState): DisplayState {
     const angle = ringConfig
       ? ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
       : 0
+
+    // Calculate spread offset for missiles in same sector
+    const locationKey = `${missile.wellId}:${missile.ring}:${missile.sector}`
+    const missilesInSector = missilesByLocation.get(locationKey) || []
+    const indexInSector = missilesInSector.indexOf(missile)
+    const spreadOffset = calculateMissileSpreadOffset(indexInSector, missilesInSector.length, angle)
+
+    const position = {
+      x: basePosition.x + spreadOffset.x,
+      y: basePosition.y + spreadOffset.y,
+    }
 
     return {
       id: missile.id,
@@ -174,11 +220,20 @@ function computeAnimatedDisplayState(
 
   const missiles: DisplayMissile[] = []
 
+  // Group existing missiles by location to calculate spread offsets
+  const missilesByLocation = new Map<string, typeof beforeState.missiles>()
+  for (const missile of beforeState.missiles) {
+    const key = `${missile.wellId}:${missile.ring}:${missile.sector}`
+    const group = missilesByLocation.get(key) || []
+    group.push(missile)
+    missilesByLocation.set(key, group)
+  }
+
   // Existing missiles - render at beforeState positions (no animation during player actions)
   // Missile movement happens after all player actions, shown when animation completes
   for (const missile of beforeState.missiles) {
     const owner = beforeState.players.find(p => p.id === missile.ownerId)
-    const position = calculateShipScreenPosition(missile)
+    const basePosition = calculateShipScreenPosition(missile)
 
     const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
     const ringConfig = well?.rings.find(r => r.ring === missile.ring)
@@ -186,6 +241,17 @@ function computeAnimatedDisplayState(
     const angle = ringConfig
       ? ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
       : 0
+
+    // Calculate spread offset for missiles in same sector
+    const locationKey = `${missile.wellId}:${missile.ring}:${missile.sector}`
+    const missilesInSector = missilesByLocation.get(locationKey) || []
+    const indexInSector = missilesInSector.indexOf(missile)
+    const spreadOffset = calculateMissileSpreadOffset(indexInSector, missilesInSector.length, angle)
+
+    const position = {
+      x: basePosition.x + spreadOffset.x,
+      y: basePosition.y + spreadOffset.y,
+    }
 
     missiles.push({
       id: missile.id,
@@ -202,14 +268,23 @@ function computeAnimatedDisplayState(
   if (isFireAction) {
     const newMissiles = afterState.missiles.filter(am => !beforeState.missiles.find(bm => bm.id === am.id))
 
+    // Group new missiles by target location to calculate spread offsets
+    // Also include existing missiles at same locations
+    const newMissilesByLocation = new Map<string, typeof afterState.missiles>()
+    for (const missile of [...beforeState.missiles, ...newMissiles]) {
+      const key = `${missile.wellId}:${missile.ring}:${missile.sector}`
+      const group = newMissilesByLocation.get(key) || []
+      group.push(missile)
+      newMissilesByLocation.set(key, group)
+    }
+
     for (const missile of newMissiles) {
       const owner = beforeState.players.find(p => p.id === missile.ownerId)
       if (!owner) continue
 
       const startPos = calculateShipScreenPosition(owner.ship)
-      const endPos = calculateShipScreenPosition(missile)
+      const baseEndPos = calculateShipScreenPosition(missile)
       const wellPos = getGravityWellPositionBase(owner.ship.wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
-      const position = interpolateArcPosition(startPos, endPos, wellPos, progress)
 
       const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
       const ringConfig = well?.rings.find(r => r.ring === missile.ring)
@@ -217,6 +292,19 @@ function computeAnimatedDisplayState(
       const angle = ringConfig
         ? ((missile.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
         : 0
+
+      // Calculate spread offset for missiles in same sector (at end position)
+      const locationKey = `${missile.wellId}:${missile.ring}:${missile.sector}`
+      const missilesInSector = newMissilesByLocation.get(locationKey) || []
+      const indexInSector = missilesInSector.indexOf(missile)
+      const spreadOffset = calculateMissileSpreadOffset(indexInSector, missilesInSector.length, angle)
+
+      const endPos = {
+        x: baseEndPos.x + spreadOffset.x,
+        y: baseEndPos.y + spreadOffset.y,
+      }
+
+      const position = interpolateArcPosition(startPos, endPos, wellPos, progress)
 
       missiles.push({
         id: missile.id,
