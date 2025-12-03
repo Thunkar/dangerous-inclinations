@@ -462,6 +462,9 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
     .filter(a => a.type === 'rotate' || a.type === 'coast' || a.type === 'burn' || a.type === 'fire_weapon' || a.type === 'well_transfer')
     .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
 
+  // Track whether movement has happened (for missile orbital skip logic)
+  let movementHappened = false
+
   for (const action of tacticalActions) {
     if (action.type === 'rotate') {
       const rotateResult = validateAndProcessActions(currentGameState, [action as RotateAction], validateRotateAction, processRotation)
@@ -473,21 +476,40 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
       if (!coastResult.success) return coastResult
       currentGameState = coastResult.gameState
       logEntries.push(...coastResult.logEntries)
+      movementHappened = true
     } else if (action.type === 'burn') {
       const burnResult = validateAndProcessActions(currentGameState, [action as BurnAction], validateBurnAction, processBurn)
       if (!burnResult.success) return burnResult
       currentGameState = burnResult.gameState
       logEntries.push(...burnResult.logEntries)
+      movementHappened = true
     } else if (action.type === 'fire_weapon') {
       const weaponResult = validateAndProcessActions(currentGameState, [action as FireWeaponAction], validateFireWeaponAction, processFireWeapon)
       if (!weaponResult.success) return weaponResult
       currentGameState = weaponResult.gameState
       logEntries.push(...weaponResult.logEntries)
+
+      // If movement already happened, mark any new missiles to skip orbital this turn
+      if (movementHappened) {
+        const fireAction = action as FireWeaponAction
+        if (fireAction.data.weaponType === 'missiles') {
+          // Find newly added missiles (those without skipOrbitalThisTurn set yet)
+          currentGameState = {
+            ...currentGameState,
+            missiles: currentGameState.missiles.map(m =>
+              m.turnFired === currentGameState.turn && m.skipOrbitalThisTurn === undefined
+                ? { ...m, skipOrbitalThisTurn: true }
+                : m
+            ),
+          }
+        }
+      }
     } else if (action.type === 'well_transfer') {
       const wellTransferResult = validateAndProcessActions(currentGameState, [action as WellTransferAction], validateWellTransferAction, processWellTransfer)
       if (!wellTransferResult.success) return wellTransferResult
       currentGameState = wellTransferResult.gameState
       logEntries.push(...wellTransferResult.logEntries)
+      movementHappened = true
     }
   }
 

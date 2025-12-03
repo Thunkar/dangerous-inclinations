@@ -58,6 +58,7 @@ export interface Missile {
   sector: number // Current sector position
   turnFired: number // Game turn when missile was launched
   turnsAlive: number // How many turns missile has been alive (0-2, explodes at 3)
+  skipOrbitalThisTurn?: boolean // Skip orbital movement this turn (set when fired after ship movement)
 }
 
 export interface ShipState {

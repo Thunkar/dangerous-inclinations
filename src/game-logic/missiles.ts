@@ -179,26 +179,32 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
       continue
     }
 
-    // Step 1: Apply orbital movement to missile
-    const missileAsShip = {
-      wellId: missile.wellId,
-      ring: missile.ring,
-      sector: missile.sector,
-      facing: 'prograde' as const,
-      reactionMass: 0,
-      hitPoints: 1,
-      maxHitPoints: 1,
-      transferState: null,
-      subsystems: [],
-      reactor: { totalCapacity: 0, availableEnergy: 0, maxReturnRate: 0, energyToReturn: 0 },
-      heat: { currentHeat: 0, heatToVent: 0 },
-      missileInventory: 0,
-    }
-    const afterOrbital = applyOrbitalMovement(missileAsShip)
+    // Step 1: Apply orbital movement to missile (unless skipped for missiles fired after movement)
+    let currentRing = missile.ring
+    let currentSector = missile.sector
+    let currentWellId = missile.wellId
 
-    let currentRing = afterOrbital.ring
-    let currentSector = afterOrbital.sector
-    let currentWellId = afterOrbital.wellId
+    if (!missile.skipOrbitalThisTurn) {
+      const missileAsShip = {
+        wellId: missile.wellId,
+        ring: missile.ring,
+        sector: missile.sector,
+        facing: 'prograde' as const,
+        reactionMass: 0,
+        hitPoints: 1,
+        maxHitPoints: 1,
+        transferState: null,
+        subsystems: [],
+        reactor: { totalCapacity: 0, availableEnergy: 0, maxReturnRate: 0, energyToReturn: 0 },
+        heat: { currentHeat: 0, heatToVent: 0 },
+        missileInventory: 0,
+      }
+      const afterOrbital = applyOrbitalMovement(missileAsShip)
+
+      currentRing = afterOrbital.ring
+      currentSector = afterOrbital.sector
+      currentWellId = afterOrbital.wellId
+    }
 
     // Step 2: Spend fuel to approach target
     const movement = calculateMissileMovement(
@@ -239,13 +245,14 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
         result: `${owner.name}'s missile hit ${target.name} for ${MISSILE_CONFIG.DAMAGE} damage! (R${currentRing}S${currentSector})`,
       })
     } else {
-      // Update missile position
+      // Update missile position and clear the skipOrbitalThisTurn flag
       const updatedMissile = {
         ...missile,
         ring: currentRing,
         sector: currentSector,
         wellId: currentWellId,
         turnsAlive: missile.turnsAlive + 1,
+        skipOrbitalThisTurn: undefined, // Clear flag for next turn
       }
 
       // Check if missile has expired

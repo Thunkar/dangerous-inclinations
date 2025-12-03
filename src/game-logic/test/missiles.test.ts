@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { executeTurn } from '../turns'
 import { calculateMissileMovement, checkMissileHit, MISSILE_CONFIG } from '../missiles'
 import { createTestGameState } from './fixtures/gameState'
-import type { Missile, FireWeaponAction, AllocateEnergyAction } from '../../types/game'
+import type { Missile, FireWeaponAction, AllocateEnergyAction, CoastAction } from '../../types/game'
 
 describe('Missile System', () => {
   describe('Missile Pathfinding', () => {
@@ -407,6 +407,201 @@ describe('Missile System', () => {
 
       // Either missile hit or expired - we just check the missile is gone
       expect(gameState.missiles.length).toBe(0)
+    })
+  })
+
+  describe('Missile Orbital Movement Timing', () => {
+    it('should skip orbital drift for missiles fired AFTER movement', () => {
+      // This test verifies that missiles fired after the ship moves don't get "double movement"
+      // The ship's position already accounts for orbital drift, so the missile shouldn't drift again
+      let gameState = createTestGameState()
+
+      // Position player 1 at R3S0
+      gameState.players[0].ship.ring = 3
+      gameState.players[0].ship.sector = 0
+      // Position player 2 far away so missile won't hit immediately
+      gameState.players[1].ship.ring = 3
+      gameState.players[1].ship.sector = 12
+
+      // Allocate energy to missiles
+      const allocateAction: AllocateEnergyAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: {
+          subsystemType: 'missiles',
+          amount: 2,
+        },
+      }
+
+      // Coast action with sequence 1 (happens first)
+      const coastAction: CoastAction = {
+        type: 'coast',
+        playerId: 'player1',
+        sequence: 1,
+        data: {
+          activateScoop: false,
+        },
+      }
+
+      // Fire missile with sequence 2 (happens AFTER movement)
+      const fireAction: FireWeaponAction = {
+        type: 'fire_weapon',
+        playerId: 'player1',
+        sequence: 2,
+        data: {
+          weaponType: 'missiles',
+          targetPlayerIds: ['player2'],
+        },
+      }
+
+      const result = executeTurn(gameState, [allocateAction, coastAction, fireAction])
+      gameState = result.gameState
+
+      expect(result.errors).toBeUndefined()
+      expect(gameState.missiles.length).toBe(1)
+
+      const missile = gameState.missiles[0]
+
+      // Ring 3 in blackhole has velocity 2 (2 sectors per turn)
+      // After coast, ship moves from S0 to S2 (orbital drift of 2)
+      // Missile is fired at ship's new position (S2)
+      // Missile should NOT get additional orbital drift since it was fired after movement
+      // With 3 fuel, missile moves 3 sectors toward target (S12)
+      // So missile should be at S2 + 3 = S5 (not S7 which would happen with double drift)
+      expect(missile.sector).toBe(5)
+    })
+
+    it('should apply orbital drift for missiles fired BEFORE movement', () => {
+      // This test verifies that missiles fired before movement DO get orbital drift
+      let gameState = createTestGameState()
+
+      // Position player 1 at R3S0
+      gameState.players[0].ship.ring = 3
+      gameState.players[0].ship.sector = 0
+      // Position player 2 far away
+      gameState.players[1].ship.ring = 3
+      gameState.players[1].ship.sector = 12
+
+      // Allocate energy to missiles
+      const allocateAction: AllocateEnergyAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: {
+          subsystemType: 'missiles',
+          amount: 2,
+        },
+      }
+
+      // Fire missile with sequence 1 (happens BEFORE movement)
+      const fireAction: FireWeaponAction = {
+        type: 'fire_weapon',
+        playerId: 'player1',
+        sequence: 1,
+        data: {
+          weaponType: 'missiles',
+          targetPlayerIds: ['player2'],
+        },
+      }
+
+      // Coast action with sequence 2 (happens after firing)
+      const coastAction: CoastAction = {
+        type: 'coast',
+        playerId: 'player1',
+        sequence: 2,
+        data: {
+          activateScoop: false,
+        },
+      }
+
+      const result = executeTurn(gameState, [allocateAction, fireAction, coastAction])
+      gameState = result.gameState
+
+      expect(result.errors).toBeUndefined()
+      expect(gameState.missiles.length).toBe(1)
+
+      const missile = gameState.missiles[0]
+
+      // Ring 3 in blackhole has velocity 2 (2 sectors per turn)
+      // Missile fired at S0 (before ship moves)
+      // Missile gets orbital drift: S0 -> S2
+      // Then missile uses 3 fuel to move toward target (S12): S2 + 3 = S5
+      // Total: S0 -> S2 (orbital) -> S5 (fuel)
+      expect(missile.sector).toBe(5)
+    })
+
+    it('should result in different positions for fire-before vs fire-after when ship burns', () => {
+      // More explicit test: with a burn, the position difference is clearer
+      // Fire BEFORE burn: missile starts at original position, gets orbital drift
+      // Fire AFTER burn: missile starts at post-burn position, no orbital drift
+
+      // Test case 1: Fire BEFORE movement
+      let gameState1 = createTestGameState()
+      gameState1.players[0].ship.ring = 3
+      gameState1.players[0].ship.sector = 0
+      gameState1.players[0].ship.facing = 'prograde'
+      gameState1.players[1].ship.ring = 3
+      gameState1.players[1].ship.sector = 20 // Far away
+
+      const allocate1: AllocateEnergyAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: { subsystemType: 'missiles', amount: 2 },
+      }
+
+      const fire1: FireWeaponAction = {
+        type: 'fire_weapon',
+        playerId: 'player1',
+        sequence: 1, // BEFORE coast
+        data: { weaponType: 'missiles', targetPlayerIds: ['player2'] },
+      }
+
+      const coast1: CoastAction = {
+        type: 'coast',
+        playerId: 'player1',
+        sequence: 2, // AFTER fire
+        data: { activateScoop: false },
+      }
+
+      let result1 = executeTurn(gameState1, [allocate1, fire1, coast1])
+      const missileBeforeMove = result1.gameState.missiles[0]
+
+      // Test case 2: Fire AFTER movement
+      let gameState2 = createTestGameState()
+      gameState2.players[0].ship.ring = 3
+      gameState2.players[0].ship.sector = 0
+      gameState2.players[0].ship.facing = 'prograde'
+      gameState2.players[1].ship.ring = 3
+      gameState2.players[1].ship.sector = 20 // Same far away target
+
+      const allocate2: AllocateEnergyAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: { subsystemType: 'missiles', amount: 2 },
+      }
+
+      const coast2: CoastAction = {
+        type: 'coast',
+        playerId: 'player1',
+        sequence: 1, // BEFORE fire
+        data: { activateScoop: false },
+      }
+
+      const fire2: FireWeaponAction = {
+        type: 'fire_weapon',
+        playerId: 'player1',
+        sequence: 2, // AFTER coast
+        data: { weaponType: 'missiles', targetPlayerIds: ['player2'] },
+      }
+
+      let result2 = executeTurn(gameState2, [allocate2, coast2, fire2])
+      const missileAfterMove = result2.gameState.missiles[0]
+
+      // Both missiles should end up at the same sector!
+      // Ring 3 in blackhole has velocity 2, so orbital drift = 2 sectors
+      // Fire before: S0 (start) -> S2 (orbital drift) -> S5 (3 fuel toward S20)
+      // Fire after: S2 (ship moved) -> no orbital -> S5 (3 fuel toward S20)
+      // The key insight: the NEW model makes them equal, the OLD model would have fire-after at S7
+      expect(missileBeforeMove.sector).toBe(missileAfterMove.sector)
     })
   })
 })
