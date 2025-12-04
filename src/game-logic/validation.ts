@@ -3,7 +3,6 @@ import type {
   ShipState,
   AllocateEnergyAction,
   DeallocateEnergyAction,
-  VentHeatAction,
   FireWeaponAction,
   RotateAction,
   BurnAction,
@@ -38,9 +37,6 @@ export function validateSingleAction(ship: ShipState, action: PlayerAction): Val
 
     case 'deallocate_energy':
       return validateDeallocateAction(ship, action)
-
-    case 'vent_heat':
-      return validateVentAction(ship, action)
 
     case 'fire_weapon':
       return validateFireWeaponAction(ship, action)
@@ -131,7 +127,7 @@ function validateAllocateAction(ship: ShipState, action: AllocateEnergyAction): 
     }
   }
 
-  // Get subsystem config to check absolute max energy
+  // Get subsystem config to check energy constraints
   const config = getSubsystemConfig(subsystemType)
 
   // Check if allocation would exceed subsystem absolute maximum
@@ -140,6 +136,15 @@ function validateAllocateAction(ship: ShipState, action: AllocateEnergyAction): 
     return {
       valid: false,
       reason: `Would exceed ${subsystemType} absolute maximum capacity (${newTotal}/${config.maxEnergy})`,
+    }
+  }
+
+  // Subsystems can only be unpowered (0) or powered (>= minEnergy)
+  // If currently at 0, must allocate at least minEnergy to power on
+  if (subsystem.allocatedEnergy === 0 && newTotal < config.minEnergy) {
+    return {
+      valid: false,
+      reason: `Must allocate at least ${config.minEnergy} energy to power ${subsystemType} (tried to allocate ${amount})`,
     }
   }
 
@@ -168,21 +173,16 @@ function validateDeallocateAction(ship: ShipState, action: DeallocateEnergyActio
     }
   }
 
-  return { valid: true }
-}
+  // Get subsystem config for min energy check
+  const config = getSubsystemConfig(subsystemType)
+  const remaining = subsystem.allocatedEnergy - amount
 
-function validateVentAction(ship: ShipState, action: VentHeatAction): ValidationResult {
-  const { amount } = action.data
-
-  if (amount <= 0) {
-    return { valid: false, reason: 'Vent amount must be positive' }
-  }
-
-  // Check there's enough heat to vent
-  if (ship.heat.currentHeat < amount) {
+  // Subsystems can only be unpowered (0) or powered (>= minEnergy)
+  // Can't leave a subsystem in a partial state between 0 and minEnergy
+  if (remaining > 0 && remaining < config.minEnergy) {
     return {
       valid: false,
-      reason: `Not enough heat to vent (trying to vent ${amount}, have ${ship.heat.currentHeat})`,
+      reason: `Cannot leave ${subsystemType} partially powered (${remaining}). Deallocate all ${subsystem.allocatedEnergy} to turn off, or deallocate less to stay at ${config.minEnergy}+ energy.`,
     }
   }
 

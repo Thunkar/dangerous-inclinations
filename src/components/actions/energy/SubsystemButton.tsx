@@ -112,22 +112,15 @@ export function SubsystemButton({
       case 'add':
         return (
           <CostsRow>
-            +1
+            +
             <CustomIcon icon="energy" size={14} />
           </CostsRow>
         )
       case 'remove':
         return (
           <CostsRow>
-            -1
+            -
             <CustomIcon icon="energy" size={14} />
-          </CostsRow>
-        )
-      case 'vent':
-        return (
-          <CostsRow>
-            -1
-            <CustomIcon icon="heat" size={14} />
           </CostsRow>
         )
       default:

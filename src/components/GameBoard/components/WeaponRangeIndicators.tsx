@@ -241,7 +241,8 @@ export function WeaponRangeIndicators({
         // For spinal weapons (railgun), show arc along same ring in facing direction
         if (weaponStats.arc === 'spinal') {
           // Spinal weapons fire tangentially along the current ring
-          const spinalRange = rangeVisualizationShip.ring * 2
+          // Use fixed sectorRange from weapon stats
+          const spinalRange = weaponStats.sectorRange
 
           // Calculate current position angle
           const sectorSize = (2 * Math.PI) / rangeVisualizationRing.sectors

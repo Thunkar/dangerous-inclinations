@@ -7,13 +7,12 @@ import type {
   RotateAction,
   AllocateEnergyAction,
   DeallocateEnergyAction,
-  VentHeatAction,
   FireWeaponAction,
   WellTransferAction,
   ShipState,
 } from '../types/game'
 import { applyOrbitalMovement, initiateBurn, applyRotation, completeRingTransfer } from './movement'
-import { applyWeaponDamage, getWeaponDamage } from './damage'
+import { applyDamageWithShields, getWeaponDamage, applyDirectDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
 import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange, calculateBurnMassCost, MAX_REACTION_MASS } from '../constants/rings'
 import { getSubsystemConfig } from '../types/subsystems'
@@ -21,6 +20,7 @@ import { resetSubsystemUsage } from './subsystems'
 import { fireMissile } from './missiles'
 import { getGravityWell, TRANSFER_POINTS } from '../constants/gravityWells'
 import type { RingConfig } from '../types/game'
+import { calculateHeatDamage, resetHeat, addHeat } from './heat'
 
 export interface ProcessResult {
   success: boolean
@@ -176,23 +176,6 @@ function validateDeallocateEnergyAction(gameState: GameState, action: Deallocate
   return errors
 }
 
-function validateVentHeatAction(gameState: GameState, action: VentHeatAction): string[] {
-  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
-  const player = gameState.players[playerIndex]
-  const errors: string[] = []
-
-  // Amount must be positive
-  if (action.data.amount <= 0) {
-    errors.push('Vent amount must be positive')
-  }
-
-  // Check there's enough heat to vent
-  if (player.ship.heat.currentHeat < action.data.amount) {
-    errors.push(`Not enough heat to vent (trying to vent ${action.data.amount}, have ${player.ship.heat.currentHeat})`)
-  }
-
-  return errors
-}
 
 function validateRotateAction(gameState: GameState, action: RotateAction): string[] {
   const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
@@ -393,25 +376,25 @@ function validateWellTransferAction(gameState: GameState, action: WellTransferAc
 /**
  * Process all actions for the active player in the correct order
  *
- * Turn sequence:
+ * NEW Turn sequence:
+ * Phase 0 (Start of Turn - Automatic):
+ *   0a. Calculate heat damage (excess heat above dissipation capacity)
+ *   0b. Apply heat dissipation (remove heat up to dissipation capacity)
+ *
  * Phase 1 (Fixed order - Energy Management):
- *   1. Energy Allocation
- *   2. Energy Deallocation
- *   3. Heat Venting
+ *   1. Energy Allocation (unlimited)
+ *   2. Energy Deallocation (unlimited)
  *
  * Phase 2 (User-specified order - Tactical Actions):
- *   - Rotation
- *   - Movement (coast or burn)
- *   - Weapon Firing
+ *   - Rotation (generates heat when executed)
+ *   - Movement: coast or burn (burn generates heat when executed)
+ *   - Weapon Firing (generates heat when fired, includes shield absorption and crits)
  *   (Order determined by sequence field on each action)
  *
  * Phase 3 (Fixed order - End of Turn):
- *   7. Heat Damage (from heat accumulated on PREVIOUS turns)
- *   8. Heat Generation (from overclocked subsystems THIS turn)
- *   9. Reset Subsystem Usage (prepare for next turn)
+ *   - Reset Subsystem Usage (prepare for next turn)
  *
- * Note: Transfer completion happens AFTER the previous player's turn ends,
- * so the active player sees their ship in the correct position when their turn starts.
+ * Note: Heat is now generated when subsystems are USED, not from overclocking.
  */
 export function processActions(gameState: GameState, actions: PlayerAction[]): ProcessResult {
   const logEntries: TurnLogEntry[] = []
@@ -430,10 +413,47 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
     }
   }
 
-  // Track heat at start of turn for damage calculation
-  const heatAtStartOfTurn = activePlayer.ship.heat.currentHeat
+  // PHASE 0: Start of Turn - Heat Management (automatic)
 
-  // PHASE 1: Energy Management (fixed order)
+  // Phase 0a: Calculate and apply heat damage (excess heat above dissipation)
+  const heatDamage = calculateHeatDamage(activePlayer.ship)
+  if (heatDamage > 0) {
+    const updatedPlayers = [...currentGameState.players]
+    const player = updatedPlayers[activePlayerIndex]
+    const damagedShip = applyDirectDamage(player.ship, heatDamage)
+    updatedPlayers[activePlayerIndex] = { ...player, ship: damagedShip }
+    currentGameState = { ...currentGameState, players: updatedPlayers }
+
+    logEntries.push({
+      turn: currentGameState.turn,
+      playerId: player.id,
+      playerName: player.name,
+      action: 'Heat Damage',
+      result: `Took ${heatDamage} hull damage from excess heat (${activePlayer.ship.heat.currentHeat} heat - ${activePlayer.ship.dissipationCapacity} dissipation = ${heatDamage} damage)`,
+    })
+  }
+
+  // Phase 0b: Reset heat to 0 (damage already taken, start fresh)
+  {
+    const updatedPlayers = [...currentGameState.players]
+    const player = updatedPlayers[activePlayerIndex]
+    const heatBefore = player.ship.heat.currentHeat
+    const resetShip = resetHeat(player.ship)
+    updatedPlayers[activePlayerIndex] = { ...player, ship: resetShip }
+    currentGameState = { ...currentGameState, players: updatedPlayers }
+
+    if (heatBefore > 0) {
+      logEntries.push({
+        turn: currentGameState.turn,
+        playerId: player.id,
+        playerName: player.name,
+        action: 'Heat Reset',
+        result: `Cleared ${heatBefore} heat (dissipation capacity: ${player.ship.dissipationCapacity})`,
+      })
+    }
+  }
+
+  // PHASE 1: Energy Management (fixed order, now unlimited)
 
   // Phase 1.1: Energy Allocation
   const allocateActions = actions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
@@ -442,19 +462,12 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
   currentGameState = allocateResult.gameState
   logEntries.push(...allocateResult.logEntries)
 
-  // Phase 1.2: Energy Deallocation
+  // Phase 1.2: Energy Deallocation (now unlimited)
   const deallocateActions = actions.filter(a => a.type === 'deallocate_energy') as DeallocateEnergyAction[]
   const deallocateResult = validateAndProcessActions(currentGameState, deallocateActions, validateDeallocateEnergyAction, processDeallocateEnergy)
   if (!deallocateResult.success) return deallocateResult
   currentGameState = deallocateResult.gameState
   logEntries.push(...deallocateResult.logEntries)
-
-  // Phase 1.3: Heat Venting
-  const ventActions = actions.filter(a => a.type === 'vent_heat') as VentHeatAction[]
-  const ventResult = validateAndProcessActions(currentGameState, ventActions, validateVentHeatAction, processVentHeat)
-  if (!ventResult.success) return ventResult
-  currentGameState = ventResult.gameState
-  logEntries.push(...ventResult.logEntries)
 
   // PHASE 2: Tactical Actions (user-specified order via sequence field)
 
@@ -515,54 +528,7 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
 
   // PHASE 3: End of Turn (fixed order)
 
-  // Phase 7: Apply heat damage to active player (from heat at START of turn)
-  const heatToVent = ventActions.reduce((sum, a) => sum + a.data.amount, 0)
-  const heatDamageResult = applyHeatDamage(
-    currentGameState,
-    activePlayerIndex,
-    heatAtStartOfTurn,
-    heatToVent
-  )
-  currentGameState = heatDamageResult.gameState
-  logEntries.push(...heatDamageResult.logEntries)
-
-  // Phase 7.5: Actually apply heat venting (after damage is calculated)
-  if (heatToVent > 0) {
-    const updatedPlayersAfterVent = [...currentGameState.players]
-    const playerAfterVent = updatedPlayersAfterVent[activePlayerIndex]
-    const heatRemaining = Math.max(0, playerAfterVent.ship.heat.currentHeat - heatToVent)
-
-    updatedPlayersAfterVent[activePlayerIndex] = {
-      ...playerAfterVent,
-      ship: {
-        ...playerAfterVent.ship,
-        heat: {
-          currentHeat: heatRemaining,
-          heatToVent: 0, // Reset after applying
-        },
-      },
-    }
-
-    currentGameState = {
-      ...currentGameState,
-      players: updatedPlayersAfterVent,
-    }
-
-    logEntries.push({
-      turn: currentGameState.turn,
-      playerId: playerAfterVent.id,
-      playerName: playerAfterVent.name,
-      action: 'Heat Vented',
-      result: `Vented ${heatToVent} heat (${playerAfterVent.ship.heat.currentHeat} → ${heatRemaining})`,
-    })
-  }
-
-  // Phase 8: Generate heat from overclocked subsystems (happens at END of turn)
-  const overclockResult = generateOverclockHeat(currentGameState, activePlayerIndex)
-  currentGameState = overclockResult.gameState
-  logEntries.push(...overclockResult.logEntries)
-
-  // Phase 9: Reset subsystem usage flags for next turn
+  // Reset subsystem usage flags for next turn
   const updatedPlayers = [...currentGameState.players]
   const currentPlayer = updatedPlayers[activePlayerIndex]
   updatedPlayers[activePlayerIndex] = {
@@ -645,6 +611,13 @@ function processBurn(gameState: GameState, action: BurnAction): ProcessResult {
     updatedShip = completeRingTransfer(updatedShip)
   }
 
+  // Generate heat from engines (heat = allocated energy)
+  const enginesSubsystem = updatedShip.subsystems.find(s => s.type === 'engines')
+  const heatGenerated = enginesSubsystem?.allocatedEnergy || 0
+  if (heatGenerated > 0) {
+    updatedShip = addHeat(updatedShip, heatGenerated)
+  }
+
   const updatedPlayers = [...gameState.players]
   updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
 
@@ -654,7 +627,7 @@ function processBurn(gameState: GameState, action: BurnAction): ProcessResult {
       playerId: player.id,
       playerName: player.name,
       action: 'Burn',
-      result: `${action.data.burnIntensity} burn completed to ring ${destinationRing}, sector ${updatedShip.sector}`,
+      result: `${action.data.burnIntensity} burn completed to ring ${destinationRing}, sector ${updatedShip.sector}${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ''}`,
     },
   ]
 
@@ -672,25 +645,27 @@ function processRotation(gameState: GameState, action: RotateAction): ProcessRes
   const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
   const player = gameState.players[playerIndex]
 
-  const updatedShip = applyRotation(player.ship, action.data.targetFacing)
+  let updatedShip = applyRotation(player.ship, action.data.targetFacing)
 
   // Mark rotation subsystem as used
-  const rotationSubsystemIndex = updatedShip.subsystems.findIndex(s => s.type === 'rotation')
-  const updatedSubsystems = [...updatedShip.subsystems]
-  if (rotationSubsystemIndex !== -1) {
-    updatedSubsystems[rotationSubsystemIndex] = {
-      ...updatedSubsystems[rotationSubsystemIndex],
-      usedThisTurn: true,
-    }
-  }
+  const rotationSubsystem = updatedShip.subsystems.find(s => s.type === 'rotation')
+  const updatedSubsystems = updatedShip.subsystems.map(s =>
+    s.type === 'rotation' ? { ...s, usedThisTurn: true } : s
+  )
 
-  const shipWithUpdatedSubsystems = {
+  updatedShip = {
     ...updatedShip,
     subsystems: updatedSubsystems,
   }
 
+  // Generate heat from rotation (heat = allocated energy)
+  const heatGenerated = rotationSubsystem?.allocatedEnergy || 0
+  if (heatGenerated > 0) {
+    updatedShip = addHeat(updatedShip, heatGenerated)
+  }
+
   const updatedPlayers = [...gameState.players]
-  updatedPlayers[playerIndex] = { ...player, ship: shipWithUpdatedSubsystems }
+  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
 
   const logEntries: TurnLogEntry[] = [
     {
@@ -698,7 +673,7 @@ function processRotation(gameState: GameState, action: RotateAction): ProcessRes
       playerId: player.id,
       playerName: player.name,
       action: 'Rotate',
-      result: `Rotated to ${action.data.targetFacing}`,
+      result: `Rotated to ${action.data.targetFacing}${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ''}`,
     },
   ]
 
@@ -812,44 +787,6 @@ function processDeallocateEnergy(
 }
 
 /**
- * Process heat venting action
- * Note: This only tracks the venting intent. Actual heat removal happens AFTER heat damage is calculated.
- */
-function processVentHeat(gameState: GameState, action: VentHeatAction): ProcessResult {
-  const playerIndex = gameState.players.findIndex(p => p.id === action.playerId)
-  const player = gameState.players[playerIndex]
-
-  // Don't modify currentHeat yet - just track that venting will happen
-  // The actual venting occurs after heat damage is calculated
-  const updatedShip = {
-    ...player.ship,
-    heat: {
-      ...player.ship.heat,
-      heatToVent: player.ship.heat.heatToVent + action.data.amount,
-    },
-  }
-
-  const updatedPlayers = [...gameState.players]
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: 'Vent Heat',
-      result: `Preparing to vent ${action.data.amount} heat`,
-    },
-  ]
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  }
-}
-
-/**
  * Process well transfer action (complete transfer between gravity wells immediately)
  * Well transfers happen instantly on the same turn - ship changes wells and moves with destination ring's velocity
  */
@@ -941,6 +878,8 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
   const logEntries: TurnLogEntry[] = []
 
   const weaponConfig = WEAPONS[action.data.weaponType]
+  const weaponSubsystem = player.ship.subsystems.find(s => s.type === action.data.weaponType)
+  const heatGenerated = weaponSubsystem?.allocatedEnergy || 0
 
   // Special handling for missiles: create missile entity instead of dealing instant damage
   if (action.data.weaponType === 'missiles') {
@@ -967,30 +906,30 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
       }
     }
 
-    // Add missile to game state and decrement inventory
-    const updatedPlayers = gameState.players.map(p =>
-      p.id === player.id
-        ? { ...p, ship: { ...p.ship, missileInventory: p.ship.missileInventory - 1 } }
-        : p
-    )
+    // Add missile to game state, decrement inventory, mark used, and generate heat
+    let updatedAttackerShip = {
+      ...player.ship,
+      missileInventory: player.ship.missileInventory - 1,
+      subsystems: player.ship.subsystems.map(s =>
+        s.type === 'missiles' ? { ...s, usedThisTurn: true } : s
+      ),
+    }
 
-    // Mark weapon subsystem as used this turn
-    const updatedPlayersWithUsage = updatedPlayers.map(p => {
-      if (p.id === player.id) {
-        const updatedSubsystems = p.ship.subsystems.map(s =>
-          s.type === 'missiles' ? { ...s, usedThisTurn: true } : s
-        )
-        return { ...p, ship: { ...p.ship, subsystems: updatedSubsystems } }
-      }
-      return p
-    })
+    // Generate heat from firing
+    if (heatGenerated > 0) {
+      updatedAttackerShip = addHeat(updatedAttackerShip, heatGenerated)
+    }
+
+    const updatedPlayers = gameState.players.map(p =>
+      p.id === player.id ? { ...p, ship: updatedAttackerShip } : p
+    )
 
     logEntries.push({
       turn: gameState.turn,
       playerId: player.id,
       playerName: player.name,
       action: 'Fire Missile',
-      result: `Fired missile at ${targetPlayer.name} (${updatedPlayersWithUsage.find(p => p.id === player.id)!.ship.missileInventory} missiles remaining)`,
+      result: `Fired missile at ${targetPlayer.name} (${updatedAttackerShip.missileInventory} missiles remaining)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ''}`,
     })
 
     return {
@@ -998,17 +937,33 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
       gameState: {
         ...gameState,
         missiles: [...gameState.missiles, missile],
-        players: updatedPlayersWithUsage,
+        players: updatedPlayers,
       },
       logEntries,
     }
   }
 
-  // Regular weapons (laser, railgun): instant damage
+  // Regular weapons (laser, railgun): instant damage with shields and criticals
   const damage = getWeaponDamage(action.data.weaponType)
 
   // Apply damage to each target
-  const updatedPlayers = [...gameState.players]
+  let updatedPlayers = [...gameState.players]
+
+  // Update attacker's ship first (mark weapon used, generate heat)
+  let updatedAttackerShip = {
+    ...player.ship,
+    subsystems: player.ship.subsystems.map(s =>
+      s.type === action.data.weaponType ? { ...s, usedThisTurn: true } : s
+    ),
+  }
+
+  // Generate heat from firing
+  if (heatGenerated > 0) {
+    updatedAttackerShip = addHeat(updatedAttackerShip, heatGenerated)
+  }
+
+  updatedPlayers[playerIndex] = { ...player, ship: updatedAttackerShip }
+
   for (const targetId of action.data.targetPlayerIds) {
     const targetIndex = updatedPlayers.findIndex(p => p.id === targetId)
     if (targetIndex === -1) continue
@@ -1016,34 +971,53 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
     const target = updatedPlayers[targetIndex]
     if (target.ship.hitPoints <= 0) continue // Already destroyed
 
-    const updatedShip = applyWeaponDamage(target.ship, action.data.weaponType, damage)
-    updatedPlayers[targetIndex] = { ...target, ship: updatedShip }
+    // Apply damage with shield absorption and critical hit chance
+    const { ship: updatedTargetShip, hitResult } = applyDamageWithShields(
+      target.ship,
+      damage,
+      action.data.criticalTarget
+    )
+    updatedPlayers[targetIndex] = { ...target, ship: updatedTargetShip }
+
+    // Build result message
+    let resultMsg = ''
+    if (hitResult.damageToHeat > 0) {
+      resultMsg = `Dealt ${damage} damage to ${target.name} (${hitResult.damageToHeat} absorbed by shields → heat, ${hitResult.damageToHull} to hull, ${updatedTargetShip.hitPoints}/${target.ship.maxHitPoints} HP)`
+    } else {
+      resultMsg = `Dealt ${damage} damage to ${target.name} (${updatedTargetShip.hitPoints}/${target.ship.maxHitPoints} HP)`
+    }
 
     logEntries.push({
       turn: gameState.turn,
       playerId: player.id,
       playerName: player.name,
       action: `${weaponConfig.name} Hit`,
-      result: `Dealt ${damage} damage to ${target.name} (${updatedShip.hitPoints}/${target.ship.maxHitPoints} HP)`,
+      result: resultMsg + (heatGenerated > 0 ? ` (+${heatGenerated} heat to attacker)` : ''),
     })
 
-    if (updatedShip.hitPoints <= 0) {
+    // Log critical hit if it occurred
+    if (hitResult.critical && hitResult.criticalEffect) {
+      const critEffect = hitResult.criticalEffect
+      logEntries.push({
+        turn: gameState.turn,
+        playerId: player.id,
+        playerName: player.name,
+        action: 'Critical Hit!',
+        result: `${target.name}'s ${getSubsystemConfig(critEffect.targetSubsystem).name} was disabled! (${critEffect.energyLost} energy → ${critEffect.heatAdded} heat)`,
+      })
+    }
+
+    if (updatedTargetShip.hitPoints <= 0) {
       logEntries.push({
         turn: gameState.turn,
         playerId: target.id,
         playerName: target.name,
         action: 'Ship Destroyed',
-        result: `💥 ${target.name} has been destroyed!`,
+        result: `${target.name} has been destroyed!`,
       })
     }
   }
 
-  // Mark weapon subsystem as used this turn
-  const weaponSubsystem = player.ship.subsystems.find(s => s.type === action.data.weaponType)
-  if (weaponSubsystem) {
-    weaponSubsystem.usedThisTurn = true
-  }
-
   return {
     success: true,
     gameState: { ...gameState, players: updatedPlayers },
@@ -1051,103 +1025,3 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
   }
 }
 
-/**
- * Apply heat damage to a player
- */
-function applyHeatDamage(
-  gameState: GameState,
-  playerIndex: number,
-  heatAtStartOfTurn: number,
-  heatVented: number
-): ProcessResult {
-  const player = gameState.players[playerIndex]
-  const effectiveHeatForDamage = Math.max(0, heatAtStartOfTurn - heatVented)
-
-  if (effectiveHeatForDamage === 0) {
-    return {
-      success: true,
-      gameState,
-      logEntries: [],
-    }
-  }
-
-  const heatDamage = effectiveHeatForDamage
-  const updatedShip = applyWeaponDamage(player.ship, 'shields', heatDamage) // Using shields as placeholder
-
-  const updatedPlayers = [...gameState.players]
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: 'Heat Damage',
-      result: `Took ${heatDamage} hull damage from heat (${updatedShip.hitPoints}/${player.ship.maxHitPoints} HP)`,
-    },
-  ]
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  }
-}
-
-
-/**
- * Generate heat from overclocked subsystems
- */
-function generateOverclockHeat(gameState: GameState, playerIndex: number): ProcessResult {
-  const player = gameState.players[playerIndex]
-  let totalHeatGenerated = 0
-  const heatSources: string[] = []
-
-  // Check each subsystem for overclocking
-  player.ship.subsystems.forEach(subsystem => {
-    const config = getSubsystemConfig(subsystem.type)
-    if (subsystem.allocatedEnergy > config.overclockThreshold) {
-      const overclockAmount = subsystem.allocatedEnergy - config.overclockThreshold
-      const heatGenerated = overclockAmount // Always 1 heat per energy above threshold
-      if (heatGenerated > 0) {
-        totalHeatGenerated += heatGenerated
-        heatSources.push(`${config.name} (+${heatGenerated})`)
-      }
-    }
-  })
-
-  if (totalHeatGenerated === 0) {
-    return {
-      success: true,
-      gameState,
-      logEntries: [],
-    }
-  }
-
-  const updatedShip = {
-    ...player.ship,
-    heat: {
-      ...player.ship.heat,
-      currentHeat: player.ship.heat.currentHeat + totalHeatGenerated,
-    },
-  }
-
-  const updatedPlayers = [...gameState.players]
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip }
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: "Overclock Heat",
-      result: `Generated ${totalHeatGenerated} heat from overclocking: ${heatSources.join(", ")}`,
-    },
-  ]
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  }
-}

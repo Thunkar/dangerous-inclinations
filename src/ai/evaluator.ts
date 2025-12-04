@@ -28,15 +28,12 @@ function evaluateOffense(
 function evaluateDefense(
   actions: PlayerAction[],
   situation: TacticalSituation,
-  parameters: BotParameters
+  _parameters: BotParameters
 ): number {
   let score = 50 // Base score
 
-  // Heat management
-  const heatVentAction = actions.find(a => a.type === 'vent_heat')
-  if (situation.status.heatPercent >= parameters.heatThreshold) {
-    score += heatVentAction ? 30 : -30 // Bonus for venting, penalty for not venting
-  }
+  // Heat management - now automatic via dissipationCapacity
+  // Heat is passively vented each turn, no action needed
 
   // Escape when low health
   const wellTransferAction = actions.find(a => a.type === 'well_transfer')

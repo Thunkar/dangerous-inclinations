@@ -1,7 +1,6 @@
-import { Box, Typography, Paper, Stack, Chip } from '@mui/material'
+import { Box, Typography, Paper, Stack } from '@mui/material'
 import type { Subsystem, ReactorState, HeatState, SubsystemType } from '../../../types/subsystems'
-import { getSubsystem } from '../../../utils/subsystemHelpers'
-import { isSubsystemOverclocked } from '../../../types/subsystems'
+import { getSubsystem, getSubsystemConfig } from '../../../utils/subsystemHelpers'
 import { RadialMenu } from './RadialMenu'
 import { SubsystemButton } from './SubsystemButton'
 
@@ -9,36 +8,61 @@ interface RadialSubsystemPanelProps {
   subsystems: Subsystem[]
   reactor: ReactorState
   heat: HeatState
+  dissipationCapacity: number
   onAllocateEnergy: (subsystemType: SubsystemType, amount: number) => void
   onDeallocateEnergy: (subsystemType: SubsystemType, amount: number) => void
-  onVentHeat: (amount: number) => void
 }
 
 export function RadialSubsystemPanel({
   subsystems,
   reactor,
   heat,
+  dissipationCapacity,
   onAllocateEnergy,
   onDeallocateEnergy,
-  onVentHeat,
 }: RadialSubsystemPanelProps) {
   const handleAllocate = (subsystemType: SubsystemType) => {
     const subsystem = getSubsystem(subsystems, subsystemType)
-    if (subsystem && reactor.availableEnergy > 0) {
+    if (!subsystem) return
+
+    const config = getSubsystemConfig(subsystemType)
+
+    // If unpowered (0 energy), power to minEnergy
+    // If already powered, increment by 1 (up to maxEnergy)
+    if (subsystem.allocatedEnergy === 0) {
+      // Must allocate at least minEnergy to turn on
+      if (reactor.availableEnergy >= config.minEnergy) {
+        onAllocateEnergy(subsystemType, config.minEnergy)
+      }
+    } else if (subsystem.allocatedEnergy < config.maxEnergy && reactor.availableEnergy > 0) {
+      // Already powered, add +1 (pass new total, not increment)
       onAllocateEnergy(subsystemType, subsystem.allocatedEnergy + 1)
     }
   }
 
   const handleDeallocate = (subsystemType: SubsystemType) => {
     const subsystem = getSubsystem(subsystems, subsystemType)
-    if (subsystem && subsystem.allocatedEnergy > 0) {
+    if (!subsystem || subsystem.allocatedEnergy === 0) return
+
+    const config = getSubsystemConfig(subsystemType)
+
+    // If at minEnergy, turn off completely (deallocate all)
+    // If above minEnergy, decrement by 1
+    if (subsystem.allocatedEnergy === config.minEnergy) {
+      // At minimum - turn off completely
+      onDeallocateEnergy(subsystemType, subsystem.allocatedEnergy)
+    } else if (subsystem.allocatedEnergy > config.minEnergy) {
+      // Above minimum - decrease by 1
       onDeallocateEnergy(subsystemType, 1)
     }
   }
 
   const renderSubsystemMenu = (subsystem: Subsystem) => {
-    const isOverclocked = isSubsystemOverclocked(subsystem)
-    const canAllocate = reactor.availableEnergy > 0
+    const config = getSubsystemConfig(subsystem.type)
+    // Can allocate if: unpowered and have enough for minEnergy, or powered and below max with available energy
+    const canAllocate =
+      (subsystem.allocatedEnergy === 0 && reactor.availableEnergy >= config.minEnergy) ||
+      (subsystem.allocatedEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy && reactor.availableEnergy > 0)
     const canDeallocate = subsystem.allocatedEnergy > 0
 
     // Create toggle button with indicators
@@ -69,36 +93,10 @@ export function RadialSubsystemPanel({
           </Box>
         )}
 
-        {/* Heat indicator (for overclocked systems) */}
-        {isOverclocked && (
-          <Box
-            sx={{
-              position: 'absolute',
-              right: '-1em',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              bgcolor: 'error.main',
-              color: 'error.contrastText',
-              borderRadius: '50%',
-              width: '1.2em',
-              height: '1.2em',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.8em',
-              fontWeight: 'bold',
-              zIndex: 15,
-            }}
-          >
-            !
-          </Box>
-        )}
-
         <SubsystemButton
           subsystemType={subsystem.type}
           allocatedEnergy={subsystem.allocatedEnergy}
           isPowered={subsystem.isPowered}
-          isOverclocked={isOverclocked}
           usedThisTurn={subsystem.usedThisTurn}
         />
       </Box>
@@ -164,16 +162,14 @@ export function RadialSubsystemPanel({
               {heat.currentHeat}
             </Typography>
           </Box>
-          {reactor.energyToReturn > 0 && (
-            <Box>
-              <Typography variant="body2" color="text.secondary">
-                Returning
-              </Typography>
-              <Typography variant="h6" color="info.main">
-                {reactor.energyToReturn}
-              </Typography>
-            </Box>
-          )}
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              Dissipation
+            </Typography>
+            <Typography variant="h6" color="info.main">
+              {dissipationCapacity}
+            </Typography>
+          </Box>
         </Stack>
       </Box>
 
@@ -194,34 +190,21 @@ export function RadialSubsystemPanel({
         ))}
       </Box>
 
-      {/* Heat Venting */}
-      {heat.currentHeat > 0 && (
+      {/* Heat Warning */}
+      {heat.currentHeat > dissipationCapacity && (
         <Box sx={{ mt: 3, p: 2, bgcolor: 'error.dark', borderRadius: 1 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="body2" color="error.contrastText">
-              Heat Management
-            </Typography>
-            <SubsystemButton
-              subsystemType="engines"
-              allocatedEnergy={0}
-              isPowered={false}
-              variant="vent"
-              disabled={heat.heatToVent >= heat.currentHeat}
-              onClick={() => onVentHeat(1)}
-              label="Vent Heat"
-            />
-            {heat.heatToVent > 0 && (
-              <Chip label={`Venting: ${heat.heatToVent}`} color="warning" size="small" />
-            )}
-          </Stack>
+          <Typography variant="body2" color="error.contrastText">
+            Warning: Heat ({heat.currentHeat}) exceeds dissipation capacity ({dissipationCapacity}).
+            You will take {heat.currentHeat - dissipationCapacity} damage at start of next turn!
+          </Typography>
         </Box>
       )}
 
       {/* Legend */}
       <Box sx={{ mt: 2, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
         <Typography variant="caption" color="text.secondary">
-          Click on a subsystem to allocate or deallocate energy. Overclocked subsystems (!) generate
-          heat.
+          Click on a subsystem to allocate or deallocate energy. Heat is generated when subsystems
+          are used, and dissipates automatically at the start of each turn.
         </Typography>
       </Box>
     </Paper>

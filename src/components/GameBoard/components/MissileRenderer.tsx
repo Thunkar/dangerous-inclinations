@@ -166,8 +166,9 @@ export function MissileRenderer() {
             maxHitPoints: 1,
             transferState: null,
             subsystems: [],
-            reactor: { totalCapacity: 0, availableEnergy: 0, maxReturnRate: 0, energyToReturn: 0 },
-            heat: { currentHeat: 0, heatToVent: 0 },
+            reactor: { totalCapacity: 0, availableEnergy: 0 },
+            heat: { currentHeat: 0 },
+            dissipationCapacity: 0,
             missileInventory: 0,
           }
           const afterOrbital = applyOrbitalMovement(missileAsShip)

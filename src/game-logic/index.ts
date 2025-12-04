@@ -9,13 +9,18 @@
 export {
   allocateEnergy,
   deallocateEnergy,
-  processEnergyReturn,
   canAllocateEnergy,
   markSubsystemUsed,
 } from './energy'
 
 // Heat management
-export { setHeatVenting, processHeatVenting, calculateHeatDamage, canVentHeat } from './heat'
+export {
+  calculateHeatDamage,
+  resetHeat,
+  addHeat,
+  generateHeatFromSubsystemUse,
+  calculateProjectedHeat,
+} from './heat'
 
 // Movement and orbital mechanics
 export { applyOrbitalMovement } from './movement'
@@ -26,6 +31,8 @@ export {
   applyHeatDamageToShip,
   getWeaponDamage,
   isShipDestroyed,
+  applyDamageWithShields,
+  applyCriticalHit,
 } from './damage'
 
 // Subsystems

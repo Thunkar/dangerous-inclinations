@@ -43,7 +43,6 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     executeTurn,
     allocateEnergy,
     deallocateEnergy,
-    ventHeat,
     setTacticalSequence,
     weaponRangeVisibility,
     toggleWeaponRange,
@@ -403,9 +402,9 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
           heat={pendingState.heat}
           hitPoints={player.ship.hitPoints}
           maxHitPoints={player.ship.maxHitPoints}
+          dissipationCapacity={player.ship.dissipationCapacity}
           onAllocateEnergy={allocateEnergy}
           onDeallocateEnergy={deallocateEnergy}
-          onVentHeat={ventHeat}
         />
       </Box>
 

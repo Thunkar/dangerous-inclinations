@@ -44,7 +44,7 @@ export function getWeaponConfig(weaponType: SubsystemType): WeaponConfig | undef
 
   // Calculate rangeInDegrees from sectorRange
   // For broadside weapons, this isn't used (sector overlap system)
-  // For spinal weapons (railgun), range is dynamic (2×ring number)
+  // For spinal weapons (railgun), range is fixed (6 sectors)
   // For turret weapons, use sectorRange to calculate degrees
   let rangeInDegrees = 0
   if (stats.arc === 'turret') {

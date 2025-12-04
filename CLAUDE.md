@@ -69,7 +69,7 @@ This architecture ensures the game can be moved to a server where:
 
 The game combines:
 - **Orbital mechanics**: Ships move through circular sectors, with automatic orbital velocity
-- **Energy management**: Reactor power allocation to subsystems with heat/overclock mechanics
+- **Energy management**: Reactor power allocation to subsystems with heat-on-use mechanics
 - **Tactical combat**: Weapons with different firing arcs, ranges, and mechanics
 - **Multi-gravity-well navigation**: Ships can transfer between the black hole and planet gravity wells
 
@@ -112,13 +112,16 @@ The game combines:
 **COMPREHENSIVE RULES ARE IN `RULES.md`** - Always consult this file before making changes.
 
 Key mechanics:
-1. **Energy System**: 10-unit reactor, allocate to subsystems, 3-unit/turn deallocation limit
-2. **Heat & Overclock**: Systems generate heat when overclocked, heat causes hull damage
-3. **Orbital Movement**: All rings have velocity=1 (1 sector/turn), automatic movement
-4. **Ring Transfers**: Ships burn prograde/retrograde to change rings (2-turn process)
-5. **Well Transfers**: Ships can jump between gravity wells at Ring 5 transfer sectors
-6. **Weapons**: Broadside (perpendicular), spinal (tangential), turret (omnidirectional)
-7. **Turn Phases**: Planning phase (pending state) → Execute Turn → Game engine processes actions
+1. **Energy System**: 10-unit reactor, allocate to subsystems, unlimited deallocation
+2. **Heat-on-Use**: Systems generate heat ONLY when used, equal to allocated energy
+3. **Heat Dissipation**: Ships have dissipation capacity (base 5, see DEFAULT_DISSIPATION_CAPACITY) that auto-removes heat at turn start; excess heat causes damage
+4. **Shields**: Convert damage to heat (up to allocated energy, max 4)
+5. **Critical Hits**: 10% chance on weapon hit to unpower a subsystem and convert its energy to heat
+6. **Orbital Movement**: All rings have velocity=1 (1 sector/turn), automatic movement
+7. **Ring Transfers**: Ships burn prograde/retrograde to change rings (2-turn process)
+8. **Well Transfers**: Ships can jump between gravity wells at Ring 5 transfer sectors
+9. **Weapons**: Broadside (perpendicular), spinal (tangential), turret (omnidirectional)
+10. **Turn Phases**: Phase 0 (heat damage/dissipation) → Phase 1 (energy management) → Phase 2 (tactical actions)
 
 ## Multi-Gravity-Well System (CRITICAL)
 
@@ -338,9 +341,12 @@ Recent major changes:
 
 ### Energy & Heat
 - Reactor capacity: 10 units
-- Deallocation limit: 3 units/turn (shared with heat venting)
-- Heat damage: 1 damage/heat/turn (after first turn)
-- Overclock threshold: Varies by subsystem
+- Deallocation: Unlimited (no rate limit)
+- Heat-on-Use: Subsystems generate heat = allocated energy when USED
+- Dissipation capacity: Base 5 (auto-removes heat at turn start)
+- Heat damage: Excess heat above dissipation causes 1 damage/excess at turn start
+- Shields: Convert damage to heat (up to allocated energy, max 4)
+- Critical hits: 10% chance to unpower subsystem, converting its energy to heat
 
 ## Emergency Reference: Key Files
 

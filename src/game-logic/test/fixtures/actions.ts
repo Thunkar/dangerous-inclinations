@@ -3,7 +3,6 @@ import type {
   BurnAction,
   AllocateEnergyAction,
   DeallocateEnergyAction,
-  VentHeatAction,
   FireWeaponAction,
   BurnIntensity,
   Facing,
@@ -113,26 +112,14 @@ export function createDeallocateEnergyAction(
 }
 
 /**
- * Creates a vent heat action
- */
-export function createVentHeatAction(amount: number, playerId: string = 'test-player'): VentHeatAction {
-  return {
-    playerId,
-    type: 'vent_heat',
-    data: {
-      amount,
-    },
-  }
-}
-
-/**
  * Creates a fire weapon action
  */
 export function createFireWeaponAction(
   weaponType: 'laser' | 'railgun' | 'missiles',
   targetPlayerIds: string[],
   playerId: string = 'test-player',
-  sequence: number = 1
+  sequence: number = 1,
+  criticalTarget?: SubsystemType
 ): FireWeaponAction {
   return {
     playerId,
@@ -141,6 +128,7 @@ export function createFireWeaponAction(
     data: {
       weaponType,
       targetPlayerIds,
+      criticalTarget,
     },
   }
 }

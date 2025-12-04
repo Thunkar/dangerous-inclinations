@@ -6,6 +6,7 @@ export const SECTORS_PER_RING = 24
 export const ENERGY_PER_TURN = 10
 export const MAX_REACTION_MASS = 10
 export const STARTING_REACTION_MASS = 10
+export const DEFAULT_DISSIPATION_CAPACITY = 5
 
 /**
  * Sector adjustment (phasing) costs for non-Hohmann transfers

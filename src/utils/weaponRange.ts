@@ -72,15 +72,15 @@ function calculateSingleTarget(
 
   if (weapon.arc === 'spinal') {
     // Spinal weapons fire tangentially along orbit on same ring only
-    // Range is 2× current ring number in the facing direction
+    // Range is defined by weapon.sectorRange (fixed 6 sectors for railgun)
 
     // Must be on same ring
     if (ringDist !== 0) {
       inRange = false
       wrongFacing = false
     } else {
-      // Calculate dynamic range based on ring: 2× ring number
-      const spinalRange = attackerShip.ring * 2
+      // Use fixed sectorRange from weapon stats
+      const spinalRange = weapon.sectorRange
 
       // Calculate sector distance in facing direction
       let facingDist: number

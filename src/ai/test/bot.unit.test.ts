@@ -3,7 +3,7 @@ import { botDecideActions, createBotParameters } from '../index'
 import { analyzeTacticalSituation } from '../analyzer'
 import { selectTarget } from '../behaviors/combat'
 import type { GameState, Player } from '../../types/game'
-import { createInitialSubsystems, createInitialReactorState, createInitialHeatState } from '../../utils/subsystemHelpers'
+import { createInitialShipState } from '../../utils/subsystemHelpers'
 
 /**
  * Helper to create a test game state
@@ -14,39 +14,23 @@ function createTestGameState(customPlayers?: Player[]): GameState {
       id: 'player1',
       name: 'Ship Alpha',
       color: '#2196f3',
-      ship: {
+      ship: createInitialShipState({
         wellId: 'blackhole',
         ring: 3,
         sector: 0,
         facing: 'prograde',
-        reactionMass: 10,
-        hitPoints: 10,
-        maxHitPoints: 10,
-        transferState: null,
-      missileInventory: 4,
-        subsystems: createInitialSubsystems(),
-        reactor: createInitialReactorState(),
-        heat: createInitialHeatState(),
-      },
+      }),
     },
     {
       id: 'bot1',
       name: 'Ship Gamma',
       color: '#4caf50',
-      ship: {
+      ship: createInitialShipState({
         wellId: 'blackhole',
         ring: 3,
         sector: 12,
         facing: 'prograde',
-        reactionMass: 10,
-        hitPoints: 10,
-        maxHitPoints: 10,
-        transferState: null,
-      missileInventory: 4,
-        subsystems: createInitialSubsystems(),
-        reactor: createInitialReactorState(),
-        heat: createInitialHeatState(),
-      },
+      }),
     },
   ]
 
@@ -118,39 +102,23 @@ describe('Bot AI - Action Generation', () => {
         id: 'player1',
         name: 'Enemy',
         color: '#2196f3',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 6,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
       {
         id: 'bot1',
         name: 'Bot Ship',
         color: '#4caf50',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 0,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
     ]
 
@@ -171,30 +139,27 @@ describe('Bot AI - Action Generation', () => {
         id: 'bot1',
         name: 'Hot Bot',
         color: '#4caf50',
-        ship: {
-          wellId: 'blackhole',
-          ring: 3,
-          sector: 0,
-          facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: { currentHeat: 8, heatToVent: 0 }, // 80% heat
-        },
+        ship: createInitialShipState(
+          {
+            wellId: 'blackhole',
+            ring: 3,
+            sector: 0,
+            facing: 'prograde',
+          },
+          {
+            heat: { currentHeat: 8 }, // 80% heat
+          }
+        ),
       },
     ]
 
     const gameState = createTestGameState(players)
     const result = botDecideActions(gameState, 'bot1')
 
-    const ventActions = result.actions.filter(a => a.type === 'vent_heat')
-    expect(ventActions.length).toBe(1)
-    expect(ventActions[0].data.amount).toBeGreaterThan(0)
-    expect(ventActions[0].data.amount).toBeLessThanOrEqual(3) // Max vent rate
+    // Heat venting is now automatic via dissipationCapacity
+    // Bot should deallocate overclocked systems instead
+    // Just verify the bot generates valid actions despite high heat
+    expect(result.actions.length).toBeGreaterThan(0)
   })
 
   it('should generate movement action (coast or burn)', () => {
@@ -235,39 +200,23 @@ describe('Bot AI - Tactical Analysis', () => {
         id: 'player1',
         name: 'Enemy',
         color: '#2196f3',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 6,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
       {
         id: 'bot1',
         name: 'Bot Ship',
         color: '#4caf50',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 0,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
     ]
 
@@ -285,39 +234,23 @@ describe('Bot AI - Tactical Analysis', () => {
         id: 'player1',
         name: 'Enemy',
         color: '#2196f3',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 6,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
       {
         id: 'bot1',
         name: 'Bot Ship',
         color: '#4caf50',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 0,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
     ]
 
@@ -335,58 +268,39 @@ describe('Bot AI - Tactical Analysis', () => {
         id: 'player1',
         name: 'Healthy Enemy',
         color: '#2196f3',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 6,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
       {
         id: 'player2',
         name: 'Damaged Enemy',
         color: '#ff9800',
-        ship: {
-          wellId: 'blackhole',
-          ring: 3,
-          sector: 18,
-          facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 3,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        ship: createInitialShipState(
+          {
+            wellId: 'blackhole',
+            ring: 3,
+            sector: 18,
+            facing: 'prograde',
+          },
+          {
+            hitPoints: 3,
+          }
+        ),
       },
       {
         id: 'bot1',
         name: 'Bot Ship',
         color: '#4caf50',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 12,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
     ]
 
@@ -405,39 +319,23 @@ describe('Bot AI - Tactical Analysis', () => {
         id: 'player1',
         name: 'Enemy in Planet',
         color: '#2196f3',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'planet-alpha',
           ring: 3,
           sector: 0,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
       {
         id: 'bot1',
         name: 'Bot in Black Hole',
         color: '#4caf50',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 0,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
     ]
 
@@ -497,20 +395,12 @@ describe('Bot AI - Edge Cases', () => {
         id: 'bot1',
         name: 'Lonely Ship',
         color: '#4caf50',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 0,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
     ])
 
@@ -527,39 +417,28 @@ describe('Bot AI - Edge Cases', () => {
         id: 'player1',
         name: 'Enemy',
         color: '#2196f3',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 6,
           facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 10,
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        }),
       },
       {
         id: 'bot1',
         name: 'Damaged Bot',
         color: '#4caf50',
-        ship: {
-          wellId: 'blackhole',
-          ring: 4, // On outer ring for transfer possibility
-          sector: 17, // At a valid transfer sector (Alpha outbound: BH R4 S17 → Alpha R3 S7)
-          facing: 'prograde',
-          reactionMass: 10,
-          hitPoints: 2, // Critical health (20%)
-          maxHitPoints: 10,
-          transferState: null,
-      missileInventory: 4,
-          subsystems: createInitialSubsystems(),
-          reactor: createInitialReactorState(),
-          heat: createInitialHeatState(),
-        },
+        ship: createInitialShipState(
+          {
+            wellId: 'blackhole',
+            ring: 4, // On outer ring for transfer possibility
+            sector: 17, // At a valid transfer sector (Alpha outbound: BH R4 S17 → Alpha R3 S7)
+            facing: 'prograde',
+          },
+          {
+            hitPoints: 2, // Critical health (20%)
+          }
+        ),
       },
     ]
 

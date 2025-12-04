@@ -1,12 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { calculateFiringSolutions } from '../../utils/weaponRange'
 import { calculatePostMovementPosition } from '../../utils/tacticalSequence'
-import {
-  createInitialSubsystems,
-  createInitialReactorState,
-  createInitialHeatState,
-} from '../../utils/subsystemHelpers'
-import { STARTING_REACTION_MASS } from '../../constants/rings'
+import { createInitialShipState } from '../../utils/subsystemHelpers'
 import type { Player } from '../../types/game'
 import type { WeaponStats } from '../../types/subsystems'
 
@@ -16,20 +11,12 @@ function createTestPlayer(id: string, name: string, ring: number, sector: number
     id,
     name,
     color: '#ffffff',
-    ship: {
+    ship: createInitialShipState({
       wellId: 'blackhole',
       ring,
       sector,
       facing,
-      reactionMass: STARTING_REACTION_MASS,
-      hitPoints: 10,
-      maxHitPoints: 10,
-      transferState: null,
-      subsystems: createInitialSubsystems(),
-      reactor: createInitialReactorState(),
-      heat: createInitialHeatState(),
-      missileInventory: 4,
-    },
+    }),
   }
 }
 
@@ -44,7 +31,7 @@ describe('Weapon Targeting', () => {
   const spinalRailgun: WeaponStats = {
     arc: 'spinal',
     ringRange: 0, // Same ring only
-    sectorRange: 0, // Calculated dynamically
+    sectorRange: 6, // Fixed 6 sector range
     damage: 4,
     hasRecoil: true,
   }

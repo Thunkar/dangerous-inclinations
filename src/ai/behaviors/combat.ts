@@ -1,5 +1,6 @@
 import type { FireWeaponAction } from '../../types/game'
 import type { TacticalSituation, Target, BotParameters } from '../types'
+import { WEAPONS } from '../../constants/weapons'
 
 /**
  * Select best target based on parameters
@@ -41,13 +42,26 @@ export function selectTarget(
 }
 
 /**
+ * Projected energy for weapons after planned allocations
+ */
+export interface ProjectedWeaponEnergy {
+  railgun: number
+  laser: number
+  missiles: number
+}
+
+/**
  * Generate weapon firing actions for the selected target
  * Returns actions ordered by sequence number
+ *
+ * @param projectedEnergy - Optional projected energy values after planned allocations.
+ *                          If not provided, uses current subsystem energy.
  */
 export function generateWeaponActions(
   situation: TacticalSituation,
   target: Target | null,
-  startSequence: number
+  startSequence: number,
+  projectedEnergy?: ProjectedWeaponEnergy
 ): FireWeaponAction[] {
   if (!target) {
     return []
@@ -59,53 +73,59 @@ export function generateWeaponActions(
 
   // Priority order: railgun (highest damage, spinal) > laser (versatile) > missiles (turret)
 
+  // Helper to check if weapon can fire (has enough energy)
+  // Uses projected energy if provided, otherwise checks current allocation
+  const canFireWeapon = (weaponType: 'railgun' | 'laser' | 'missiles'): boolean => {
+    const subsystem = botPlayer.ship.subsystems.find(s => s.type === weaponType)
+    if (!subsystem || subsystem.usedThisTurn) return false
+
+    const weaponConfig = WEAPONS[weaponType]
+
+    // Use projected energy if provided, otherwise use current
+    const availableEnergy = projectedEnergy
+      ? projectedEnergy[weaponType]
+      : subsystem.allocatedEnergy
+
+    return availableEnergy >= weaponConfig.energyCost
+  }
+
   // Railgun - high damage spinal weapon
-  if (firingSolutions.railgun?.inRange) {
-    const railgunSubsystem = botPlayer.ship.subsystems.find(s => s.type === 'railgun')
-    if (railgunSubsystem && railgunSubsystem.isPowered && !railgunSubsystem.usedThisTurn) {
-      actions.push({
-        type: 'fire_weapon',
-        playerId: botPlayer.id,
-        sequence: startSequence + actions.length,
-        data: {
-          weaponType: 'railgun',
-          targetPlayerIds: [target.player.id],
-        },
-      })
-    }
+  if (firingSolutions.railgun?.inRange && canFireWeapon('railgun')) {
+    actions.push({
+      type: 'fire_weapon',
+      playerId: botPlayer.id,
+      sequence: startSequence + actions.length,
+      data: {
+        weaponType: 'railgun',
+        targetPlayerIds: [target.player.id],
+      },
+    })
   }
 
   // Laser - good all-around weapon
-  if (firingSolutions.laser?.inRange) {
-    const laserSubsystem = botPlayer.ship.subsystems.find(s => s.type === 'laser')
-    if (laserSubsystem && laserSubsystem.isPowered && !laserSubsystem.usedThisTurn) {
-      actions.push({
-        type: 'fire_weapon',
-        playerId: botPlayer.id,
-        sequence: startSequence + actions.length,
-        data: {
-          weaponType: 'laser',
-          targetPlayerIds: [target.player.id],
-        },
-      })
-    }
+  if (firingSolutions.laser?.inRange && canFireWeapon('laser')) {
+    actions.push({
+      type: 'fire_weapon',
+      playerId: botPlayer.id,
+      sequence: startSequence + actions.length,
+      data: {
+        weaponType: 'laser',
+        targetPlayerIds: [target.player.id],
+      },
+    })
   }
 
   // Missiles - self-propelled, can target any player (check inventory instead of range)
-  const missilesSubsystem = botPlayer.ship.subsystems.find(s => s.type === 'missiles')
-  if (missilesSubsystem && missilesSubsystem.isPowered && !missilesSubsystem.usedThisTurn) {
-    // Only fire if we have missiles remaining
-    if (botPlayer.ship.missileInventory > 0) {
-      actions.push({
-        type: 'fire_weapon',
-        playerId: botPlayer.id,
-        sequence: startSequence + actions.length,
-        data: {
-          weaponType: 'missiles',
-          targetPlayerIds: [target.player.id],
-        },
-      })
-    }
+  if (canFireWeapon('missiles') && botPlayer.ship.missileInventory > 0) {
+    actions.push({
+      type: 'fire_weapon',
+      playerId: botPlayer.id,
+      sequence: startSequence + actions.length,
+      data: {
+        weaponType: 'missiles',
+        targetPlayerIds: [target.player.id],
+      },
+    })
   }
 
   return actions

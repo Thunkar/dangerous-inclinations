@@ -4,7 +4,7 @@ import type { Subsystem, ReactorState, HeatState, SubsystemType } from '../../ty
 import { RadialMenu } from './energy/RadialMenu'
 import { SubsystemButton } from './energy/SubsystemButton'
 import { getSubsystem } from '../../utils/subsystemHelpers'
-import { isSubsystemOverclocked, getSubsystemConfig } from '../../types/subsystems'
+import { getSubsystemConfig } from '../../types/subsystems'
 
 interface EnergyPanelProps {
   subsystems: Subsystem[]
@@ -12,9 +12,9 @@ interface EnergyPanelProps {
   heat: HeatState
   hitPoints: number
   maxHitPoints: number
+  dissipationCapacity: number
   onAllocateEnergy: (subsystemType: SubsystemType, amount: number) => void
   onDeallocateEnergy: (subsystemType: SubsystemType, amount: number) => void
-  onVentHeat: (amount: number) => void
 }
 
 const buttonContainerWidth = 60
@@ -236,9 +236,9 @@ export function EnergyPanel({
   heat,
   hitPoints,
   maxHitPoints,
+  dissipationCapacity,
   onAllocateEnergy,
   onDeallocateEnergy,
-  onVentHeat,
 }: EnergyPanelProps) {
   const [openMenuId, setOpenMenuId] = useState<SubsystemType | 'heat' | null>(null)
 
@@ -251,14 +251,33 @@ export function EnergyPanel({
     if (!subsystem) return
 
     const config = getSubsystemConfig(subsystemType)
-    if (reactor.availableEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy) {
+
+    // If unpowered (0 energy), power to minEnergy
+    // If already powered, increment by 1 (up to maxEnergy)
+    if (subsystem.allocatedEnergy === 0) {
+      // Must allocate at least minEnergy to turn on
+      if (reactor.availableEnergy >= config.minEnergy) {
+        onAllocateEnergy(subsystemType, config.minEnergy)
+      }
+    } else if (subsystem.allocatedEnergy < config.maxEnergy && reactor.availableEnergy > 0) {
+      // Already powered, add +1 (pass new total, not increment)
       onAllocateEnergy(subsystemType, subsystem.allocatedEnergy + 1)
     }
   }
 
   const handleDeallocate = (subsystemType: SubsystemType) => {
     const subsystem = getSubsystem(subsystems, subsystemType)
-    if (subsystem && subsystem.allocatedEnergy > 0) {
+    if (!subsystem || subsystem.allocatedEnergy === 0) return
+
+    const config = getSubsystemConfig(subsystemType)
+
+    // If at minEnergy, turn off completely (deallocate all)
+    // If above minEnergy, decrement by 1
+    if (subsystem.allocatedEnergy === config.minEnergy) {
+      // At minimum - turn off completely
+      onDeallocateEnergy(subsystemType, subsystem.allocatedEnergy)
+    } else if (subsystem.allocatedEnergy > config.minEnergy) {
+      // Above minimum - decrease by 1
       onDeallocateEnergy(subsystemType, 1)
     }
   }
@@ -269,8 +288,10 @@ export function EnergyPanel({
     position: 'aft' | 'port' | 'forward' | 'starboard' = 'aft'
   ) => {
     const config = getSubsystemConfig(subsystem.type)
-    const isOverclocked = isSubsystemOverclocked(subsystem)
-    const canAllocate = reactor.availableEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy
+    // Can allocate if: unpowered and have enough for minEnergy, or powered and below max with available energy
+    const canAllocate =
+      (subsystem.allocatedEnergy === 0 && reactor.availableEnergy >= config.minEnergy) ||
+      (subsystem.allocatedEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy && reactor.availableEnergy > 0)
     const canDeallocate = subsystem.allocatedEnergy > 0
 
     const customToggle = (
@@ -301,37 +322,10 @@ export function EnergyPanel({
           </Box>
         )}
 
-        {/* Heat indicator */}
-        {isOverclocked && (
-          <Box
-            sx={{
-              position: 'absolute',
-              right: horizontal ? 'calc(50% - 0.5em)' : '-0.8em',
-              bottom: horizontal ? '-0.8em' : undefined,
-              bgcolor: 'error.main',
-              color: 'error.contrastText',
-              borderRadius: '50%',
-              width: '1em',
-              height: '1em',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.7em',
-              fontWeight: 'bold',
-              zIndex: 15,
-              filter:
-                openMenuId !== null && openMenuId !== subsystem.type ? 'blur(5px)' : undefined,
-            }}
-          >
-            !
-          </Box>
-        )}
-
         <SubsystemButton
           subsystemType={subsystem.type}
           allocatedEnergy={subsystem.allocatedEnergy}
           isPowered={subsystem.isPowered}
-          isOverclocked={isOverclocked}
           usedThisTurn={subsystem.usedThisTurn}
           shouldBlur={openMenuId !== null && openMenuId !== subsystem.type}
         />
@@ -406,10 +400,10 @@ export function EnergyPanel({
           </Reactor>
         </Stat>
         <Stat>
-          <Typography variant="caption">Vent</Typography>
+          <Typography variant="caption">Dissipate</Typography>
           <Vent>
             <Typography variant="body2">
-              {reactor.energyToReturn + heat.heatToVent}/{reactor.maxReturnRate}
+              {dissipationCapacity}
             </Typography>
           </Vent>
         </Stat>
@@ -426,9 +420,22 @@ export function EnergyPanel({
           <Typography variant="caption">Heat</Typography>
           <Heat hasHeat={heat.currentHeat > 0}>
             <Typography variant="body2">
-              {Math.max(0, heat.currentHeat - heat.heatToVent)}
+              {heat.currentHeat}
             </Typography>
           </Heat>
+          {heat.currentHeat > dissipationCapacity && (
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'error.main',
+                fontWeight: 'bold',
+                fontSize: '0.6rem',
+                mt: 0.5,
+              }}
+            >
+              -{heat.currentHeat - dissipationCapacity} HP
+            </Typography>
+          )}
         </Stat>
       </Stats>
 
@@ -455,69 +462,6 @@ export function EnergyPanel({
           {portSubsystems.map((subsystem, index) => (
             <Fragment key={subsystem.type}>
               {renderSubsystemMenu(subsystem, true, 'port')}
-              {/* Add heat vent controls after the first subsystem (scoop) */}
-              {index === 0 && heat.currentHeat > 0 && (
-                <>
-                  <HorizontalDivider visible={openMenuId === null} />
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      position: 'relative',
-                      filter: openMenuId !== null ? 'blur(4px)' : undefined,
-                      transition: 'filter 0.3s',
-                    }}
-                  >
-                    {/* Undo button - appears on top when heat venting is queued */}
-                    {heat.heatToVent > 0 && (
-                      <Box
-                        sx={{
-                          minWidth: '32px',
-                          minHeight: '32px',
-                          maxWidth: '32px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: '50%',
-                          backgroundColor: 'warning.main',
-                          border: '2px solid black',
-                          boxShadow: '2px 2px 1px 1px rgba(0,0,0,0.5)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          '&:hover': {
-                            backgroundColor: 'primary.light',
-                            transform: 'scale(1.15)',
-                          },
-                        }}
-                        onClick={() => onVentHeat(Math.max(0, heat.heatToVent - 1))}
-                      >
-                        <Typography
-                          variant="body1"
-                          sx={{ fontWeight: 'bold', userSelect: 'none', fontSize: '1rem' }}
-                        >
-                          ↶
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {/* Main vent button */}
-                    <SubsystemButton
-                      subsystemType="engines"
-                      allocatedEnergy={0}
-                      isPowered={false}
-                      variant="vent"
-                      disabled={
-                        heat.currentHeat === 0 ||
-                        heat.heatToVent >= heat.currentHeat ||
-                        heat.heatToVent >= Math.max(0, reactor.maxReturnRate - reactor.energyToReturn)
-                      }
-                      onClick={() => onVentHeat(heat.heatToVent + 1)}
-                    />
-                  </Box>
-                </>
-              )}
               {index !== portSubsystems.length - 1 && (
                 <HorizontalDivider visible={openMenuId === null} />
               )}

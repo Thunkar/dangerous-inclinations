@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { botDecideActions } from '../index'
 import { executeTurn } from '../../game-logic'
 import type { GameState, Player } from '../../types/game'
-import type { Subsystem } from '../../types/subsystems'
 import type { BotParameters } from '../types'
+import { createInitialShipState } from '../../utils/subsystemHelpers'
 
 /**
  * Integration tests for bot AI system
@@ -13,105 +13,28 @@ import type { BotParameters } from '../types'
 describe('Bot AI Integration Tests', () => {
   // Helper to create a basic game state with two players
   function createGameState(bot1Index: number = 1): GameState {
-    const defaultSubsystems: Subsystem[] = [
-      {
-        type: 'engines',
-        isPowered: false,
-        allocatedEnergy: 0,
-        usedThisTurn: false,
-      },
-      {
-        type: 'rotation',
-        isPowered: false,
-        allocatedEnergy: 0,
-        usedThisTurn: false,
-      },
-      {
-        type: 'scoop',
-        isPowered: false,
-        allocatedEnergy: 0,
-        usedThisTurn: false,
-      },
-      {
-        type: 'laser',
-        isPowered: false,
-        allocatedEnergy: 0,
-        usedThisTurn: false,
-      },
-      {
-        type: 'railgun',
-        isPowered: false,
-        allocatedEnergy: 0,
-        usedThisTurn: false,
-      },
-      {
-        type: 'missiles',
-        isPowered: false,
-        allocatedEnergy: 0,
-        usedThisTurn: false,
-      },
-      {
-        type: 'shields',
-        isPowered: false,
-        allocatedEnergy: 0,
-        usedThisTurn: false,
-      },
-    ]
-
     const players: Player[] = [
       {
         id: 'player1',
         name: 'Ship Alpha',
         color: '#ff0000',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 0,
           facing: 'prograde',
-          hitPoints: 10,
-          maxHitPoints: 10,
-          reactor: {
-            totalCapacity: 10,
-            availableEnergy: 10,
-            maxReturnRate: 5,
-            energyToReturn: 0,
-          },
-          heat: {
-            currentHeat: 0,
-            heatToVent: 0,
-          },
-          reactionMass: 10,
-          subsystems: [...defaultSubsystems],
-          transferState: null,
-        missileInventory: 4,
-        },
+        }),
       },
       {
         id: 'bot1',
         name: 'Ship Beta',
         color: '#0000ff',
-        ship: {
+        ship: createInitialShipState({
           wellId: 'blackhole',
           ring: 3,
           sector: 12, // 180 degrees away
           facing: 'prograde',
-          hitPoints: 10,
-          maxHitPoints: 10,
-          reactor: {
-            totalCapacity: 10,
-            availableEnergy: 10,
-            maxReturnRate: 5,
-            energyToReturn: 0,
-          },
-          heat: {
-            currentHeat: 0,
-            heatToVent: 0,
-          },
-          reactionMass: 10,
-          subsystems: [...defaultSubsystems],
-          transferState: null,
-        missileInventory: 4,
-        },
+        }),
       },
     ]
 
@@ -188,11 +111,8 @@ describe('Bot AI Integration Tests', () => {
         gameState.activePlayerIndex = 1
         const decision = botDecideActions(gameState, 'bot1')
 
-        // Check if bot vents when heat is high
-        if (bot.ship.heat.currentHeat >= 7) {
-          const ventAction = decision.actions.find(a => a.type === 'vent_heat')
-          expect(ventAction).toBeDefined()
-        }
+        // Heat is now automatically dissipated based on dissipationCapacity
+        // No manual venting action needed
 
         const result = executeTurn(gameState, decision.actions)
         expect(result.errors || []).toEqual([])
@@ -230,17 +150,16 @@ describe('Bot AI Integration Tests', () => {
         // Bot should not die from heat accumulation
         expect(updatedBot.ship.hitPoints).toBeGreaterThan(0)
 
-        // If heat starts building up, bot should deallocate or vent
+        // If heat starts building up, bot should deallocate
         if (updatedBot.ship.heat.currentHeat >= 2) {
-          // Next turn should either deallocate or vent
+          // Next turn should deallocate from overclocked system
           gameState.activePlayerIndex = 1
           const nextDecision = botDecideActions(gameState, 'bot1')
           const hasDeallocate = nextDecision.actions.some(a =>
             a.type === 'deallocate_energy' && a.data.subsystemType === 'railgun'
           )
-          const hasVent = nextDecision.actions.some(a => a.type === 'vent_heat')
 
-          expect(hasDeallocate || hasVent).toBe(true)
+          expect(hasDeallocate).toBe(true)
           break // Test passed
         }
       }

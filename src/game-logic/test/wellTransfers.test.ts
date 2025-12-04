@@ -10,32 +10,18 @@ import type {
   WellTransferAction,
   CoastAction,
 } from '../../types/game'
-import { STARTING_REACTION_MASS } from '../../constants/rings'
-import {
-  createInitialSubsystems,
-  createInitialReactorState,
-  createInitialHeatState,
-} from '../../utils/subsystemHelpers'
-import { MISSILE_CONFIG } from '../missiles'
+import { createInitialShipState } from '../../utils/subsystemHelpers'
 
 
 describe('Well Transfers', () => {
   // Helper to create a test ship
   function createTestShip(wellId: string, ring: number, sector: number): ShipState {
-    return {
+    return createInitialShipState({
       wellId,
       ring,
       sector,
       facing: 'prograde',
-      reactionMass: STARTING_REACTION_MASS,
-      hitPoints: 10,
-      maxHitPoints: 10,
-      transferState: null,
-      subsystems: createInitialSubsystems(),
-      reactor: createInitialReactorState(),
-      heat: createInitialHeatState(),
-      missileInventory: MISSILE_CONFIG.INITIAL_INVENTORY,
-    }
+    })
   }
 
   // Helper to create a test game state

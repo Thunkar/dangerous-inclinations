@@ -181,8 +181,6 @@ function buildDecisionLog(
         return `Allocate ${action.data.amount} energy to ${action.data.subsystemType}`
       case 'deallocate_energy':
         return `Deallocate ${action.data.amount} energy from ${action.data.subsystemType}`
-      case 'vent_heat':
-        return `Vent ${action.data.amount} heat`
       case 'rotate':
         return `Rotate to face ${action.data.targetFacing}`
       case 'coast':

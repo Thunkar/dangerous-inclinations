@@ -74,6 +74,7 @@ export interface ShipState {
   subsystems: Subsystem[]
   reactor: ReactorState
   heat: HeatState
+  dissipationCapacity: number // Base heat dissipation per turn (see DEFAULT_DISSIPATION_CAPACITY, can be increased by radiators)
   missileInventory: number // Missiles remaining (starts at 4, max 4, cannot replenish)
 }
 
@@ -131,12 +132,6 @@ export interface DeallocateEnergyAction extends BaseAction {
   }
 }
 
-export interface VentHeatAction extends BaseAction {
-  type: 'vent_heat'
-  data: {
-    amount: number
-  }
-}
 
 /**
  * Combat Actions
@@ -147,6 +142,7 @@ export interface FireWeaponAction extends BaseAction {
   data: {
     weaponType: 'laser' | 'railgun' | 'missiles'
     targetPlayerIds: string[] // Array for multi-target weapons like lasers
+    criticalTarget?: SubsystemType // Declared subsystem to crit if critical hit occurs (must be powered on target)
   }
 }
 
@@ -172,7 +168,6 @@ export type PlayerAction =
   | RotateAction
   | AllocateEnergyAction
   | DeallocateEnergyAction
-  | VentHeatAction
   | FireWeaponAction
   | WellTransferAction
 
@@ -220,4 +215,25 @@ export interface RingConfig {
   velocity: number
   radius: number
   sectors: number
+}
+
+/**
+ * Critical hit effect - unpowers a subsystem and converts its energy to heat
+ */
+export interface CriticalHitEffect {
+  targetSubsystem: SubsystemType
+  energyLost: number
+  heatAdded: number
+}
+
+/**
+ * Result of a weapon hit, including critical hit information
+ */
+export interface WeaponHitResult {
+  hit: boolean
+  damage: number
+  damageToHull: number // After shield absorption
+  damageToHeat: number // Absorbed by shields, converted to heat
+  critical: boolean
+  criticalEffect?: CriticalHitEffect
 }

@@ -1,4 +1,5 @@
-import type { PlayerAction } from '../types/game'
+import type { PlayerAction, AllocateEnergyAction, DeallocateEnergyAction } from '../types/game'
+import type { SubsystemType } from '../types/subsystems'
 import type { TacticalSituation, ActionPlan, BotParameters } from './types'
 import { selectTarget, generateWeaponActions, shouldFaceTarget } from './behaviors/combat'
 import {
@@ -7,20 +8,40 @@ import {
   generateEscapeTransfer,
 } from './behaviors/positioning'
 import {
-  generateHeatVentAction,
   generateEnergyManagement,
   generateEnergyDeallocation,
 } from './behaviors/survival'
+
+/**
+ * Calculate projected energy for a subsystem after planned allocations AND deallocations
+ */
+function getProjectedEnergy(
+  situation: TacticalSituation,
+  subsystemType: SubsystemType,
+  energyAllocations: PlayerAction[],
+  energyDeallocations: PlayerAction[]
+): number {
+  const currentEnergy = situation.botPlayer.ship.subsystems.find(s => s.type === subsystemType)?.allocatedEnergy || 0
+
+  const allocatedEnergy = energyAllocations
+    .filter((a): a is AllocateEnergyAction => a.type === 'allocate_energy' && a.data.subsystemType === subsystemType)
+    .reduce((sum, a) => sum + a.data.amount, 0)
+
+  const deallocatedEnergy = energyDeallocations
+    .filter((a): a is DeallocateEnergyAction => a.type === 'deallocate_energy' && a.data.subsystemType === subsystemType)
+    .reduce((sum, a) => sum + a.data.amount, 0)
+
+  return Math.max(0, currentEnergy + allocatedEnergy - deallocatedEnergy)
+}
 
 /**
  * Generate a complete action sequence for the bot
  * Returns actions in proper execution order:
  * 1. Energy allocation
  * 2. Energy deallocation
- * 3. Heat venting
- * 4. Rotation (if needed)
- * 5. Well transfer OR movement (coast/burn)
- * 6. Weapon firing
+ * 3. Rotation (if needed)
+ * 4. Well transfer OR movement (coast/burn)
+ * 5. Weapon firing
  */
 export function generateActionSequence(
   situation: TacticalSituation,
@@ -39,16 +60,19 @@ export function generateActionSequence(
   const energyDeallocations = generateEnergyDeallocation(situation, parameters)
   actions.push(...energyDeallocations)
 
-  // Heat venting - avoid heat damage
-  const heatVent = generateHeatVentAction(situation, parameters)
-  if (heatVent) {
-    actions.push(heatVent)
-  }
+  // Heat venting is now automatic via dissipationCapacity - no action needed
 
   // === PHASE 2: Tactical Actions (with sequence numbers) ===
 
   // Select target
   const target = selectTarget(situation, parameters)
+
+  // Calculate projected energy for weapons after allocations AND deallocations
+  const projectedWeaponEnergy = {
+    railgun: getProjectedEnergy(situation, 'railgun', energyAllocations, energyDeallocations),
+    laser: getProjectedEnergy(situation, 'laser', energyAllocations, energyDeallocations),
+    missiles: getProjectedEnergy(situation, 'missiles', energyAllocations, energyDeallocations),
+  }
 
   // Check if we should escape via well transfer
   const escapeTransfer = generateEscapeTransfer(situation, parameters, tacticalSequence)
@@ -57,8 +81,8 @@ export function generateActionSequence(
     actions.push(escapeTransfer)
     tacticalSequence++
 
-    // Still try to fire weapons if possible
-    const weaponActions = generateWeaponActions(situation, target, tacticalSequence)
+    // Still try to fire weapons if possible (with projected energy)
+    const weaponActions = generateWeaponActions(situation, target, tacticalSequence, projectedWeaponEnergy)
     actions.push(...weaponActions)
 
     return actions
@@ -79,8 +103,8 @@ export function generateActionSequence(
   actions.push(movementAction)
   tacticalSequence++
 
-  // Weapon firing (after movement)
-  const weaponActions = generateWeaponActions(situation, target, tacticalSequence)
+  // Weapon firing (after movement, with projected energy)
+  const weaponActions = generateWeaponActions(situation, target, tacticalSequence, projectedWeaponEnergy)
   actions.push(...weaponActions)
 
   return actions

@@ -12,7 +12,7 @@ export const MISSILE_CONFIG = {
   MAX_INVENTORY: 4,
   FUEL_PER_TURN: 3,
   MAX_TURNS_ALIVE: 3, // Explodes at turn 3
-  DAMAGE: 3,
+  DAMAGE: 2,
   FUEL_PER_RING: 1,
   FUEL_PER_SECTOR: 1,
 } as const
@@ -79,7 +79,11 @@ export function calculateMissileMovement(
     return { ring: currentRing, sector: currentSector, fuelSpent: 0, path }
   }
 
-  const currentRingConfig = well.rings.find(r => r.ring === currentRing)!
+  const currentRingConfig = well.rings.find(r => r.ring === currentRing)
+  if (!currentRingConfig) {
+    path.push(`Invalid ring ${currentRing} in gravity well ${missile.wellId} - missile lost`)
+    return { ring: currentRing, sector: currentSector, fuelSpent: 0, path }
+  }
   const sectorInfo = calculateSectorDistance(currentSector, targetSector, currentRingConfig.sectors)
 
   path.push(`Start: R${currentRing}S${currentSector}, Target: R${targetRing}S${targetSector}`)
@@ -91,7 +95,9 @@ export function calculateMissileMovement(
     const ringDirection = ringDiff > 0 ? 1 : -1
     currentRing += ringDirection * ringSteps
     fuelRemaining -= ringSteps
-    path.push(`Moved ${ringSteps} ring(s) ${ringDirection > 0 ? 'outward' : 'inward'} to R${currentRing}`)
+    path.push(
+      `Moved ${ringSteps} ring(s) ${ringDirection > 0 ? 'outward' : 'inward'} to R${currentRing}`
+    )
 
     // If we changed rings, we need to remap the sector
     const newRingConfig = well.rings.find(r => r.ring === currentRing)!
@@ -119,7 +125,8 @@ export function calculateMissileMovement(
       const sectorSteps = Math.min(newSectorInfo.distance, fuelRemaining)
       currentSector += newSectorInfo.direction * sectorSteps
       // Wrap around
-      currentSector = ((currentSector % newRingConfig.sectors) + newRingConfig.sectors) % newRingConfig.sectors
+      currentSector =
+        ((currentSector % newRingConfig.sectors) + newRingConfig.sectors) % newRingConfig.sectors
       fuelRemaining -= sectorSteps
       path.push(`Moved ${sectorSteps} sector(s) to S${currentSector}`)
     }
@@ -195,8 +202,9 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
         maxHitPoints: 1,
         transferState: null,
         subsystems: [],
-        reactor: { totalCapacity: 0, availableEnergy: 0, maxReturnRate: 0, energyToReturn: 0 },
-        heat: { currentHeat: 0, heatToVent: 0 },
+        reactor: { totalCapacity: 0, availableEnergy: 0 },
+        heat: { currentHeat: 0 },
+        dissipationCapacity: 0,
         missileInventory: 0,
       }
       const afterOrbital = applyOrbitalMovement(missileAsShip)
@@ -226,11 +234,7 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
     if (checkMissileHit(missileState, target)) {
       // HIT! Apply damage
       const targetIndex = updatedPlayers.findIndex(p => p.id === target.id)
-      const damagedShip = applyWeaponDamage(
-        target.ship,
-        'missiles',
-        MISSILE_CONFIG.DAMAGE
-      )
+      const damagedShip = applyWeaponDamage(target.ship, 'missiles', MISSILE_CONFIG.DAMAGE)
       updatedPlayers[targetIndex] = {
         ...target,
         ship: damagedShip,
@@ -269,9 +273,7 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
         // Keep missile active
         updatedGameState = {
           ...updatedGameState,
-          missiles: updatedGameState.missiles.map(m =>
-            m.id === missile.id ? updatedMissile : m
-          ),
+          missiles: updatedGameState.missiles.map(m => (m.id === missile.id ? updatedMissile : m)),
         }
 
         logEntries.push({

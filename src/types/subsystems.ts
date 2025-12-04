@@ -2,8 +2,10 @@
  * Subsystem-based energy and heat management
  *
  * Each subsystem has independent energy allocation that persists across turns.
- * Energy can only be returned to the reactor at a limited rate (3/turn max).
- * Overclocking generates heat, which causes hull damage if not dissipated.
+ * Energy deallocation is unlimited.
+ * Heat is generated when subsystems are USED, equal to their allocated energy.
+ * Ships have a dissipation capacity (see DEFAULT_DISSIPATION_CAPACITY) that automatically removes heat each turn.
+ * Excess heat (above dissipation capacity) causes hull damage.
  */
 
 export type SubsystemType =
@@ -28,7 +30,7 @@ export interface SubsystemConfig {
   name: string
   minEnergy: number // Minimum energy to function
   maxEnergy: number // Absolute maximum energy (hard cap, cannot exceed)
-  overclockThreshold: number // Energy level at which overclocking starts (generates 1 heat per energy above this)
+  generatesHeatOnUse: boolean // Whether using this subsystem generates heat equal to allocated energy
   weaponStats?: WeaponStats // Only present for weapon subsystems
 }
 
@@ -42,13 +44,10 @@ export interface Subsystem {
 export interface ReactorState {
   totalCapacity: number // Total reactor capacity (fixed at 10)
   availableEnergy: number // Unallocated energy in reactor
-  maxReturnRate: number // Max energy that can be returned per turn (3)
-  energyToReturn: number // Energy queued for return this turn
 }
 
 export interface HeatState {
   currentHeat: number // Current heat level
-  heatToVent: number // Heat queued for venting this turn
 }
 
 // Subsystem configurations
@@ -57,29 +56,29 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     id: 'engines',
     name: 'Engines',
     minEnergy: 1,
-    maxEnergy: 3, // Can allocate up to 3 energy
-    overclockThreshold: 2, // 3 energy generates 1 heat/turn
+    maxEnergy: 3,
+    generatesHeatOnUse: true, // Generates heat when burn is executed
   },
   rotation: {
     id: 'rotation',
     name: 'Maneuvering Thrusters',
     minEnergy: 1,
-    maxEnergy: 1, // Cannot overclock
-    overclockThreshold: 1,
+    maxEnergy: 1,
+    generatesHeatOnUse: true, // Generates heat when rotation is executed
   },
   scoop: {
     id: 'scoop',
     name: 'Fuel Scoop',
     minEnergy: 3,
-    maxEnergy: 3, // Cannot overclock
-    overclockThreshold: 3,
+    maxEnergy: 3,
+    generatesHeatOnUse: false, // Passive collection, no heat
   },
   laser: {
     id: 'laser',
     name: 'Broadside Laser',
     minEnergy: 2,
-    maxEnergy: 2, // Cannot overclock
-    overclockThreshold: 2,
+    maxEnergy: 2,
+    generatesHeatOnUse: true, // Generates heat when fired
     weaponStats: {
       damage: 2,
       ringRange: 1, // Can target ±1 ring (adjacent rings only)
@@ -91,12 +90,12 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     id: 'railgun',
     name: 'Railgun',
     minEnergy: 4,
-    maxEnergy: 4, // Cannot allocate more than 4 energy
-    overclockThreshold: 3, // 4 energy generates 1 heat/turn
+    maxEnergy: 4,
+    generatesHeatOnUse: true, // Generates heat when fired
     weaponStats: {
       damage: 4,
       ringRange: 0, // Only fires on current ring (same ring)
-      sectorRange: 0, // Range is 2×ring number along orbit (calculated dynamically)
+      sectorRange: 6, // Fixed range of 6 sectors along orbit in facing direction
       arc: 'spinal', // Fires tangentially along orbit in facing direction
       hasRecoil: true, // Causes recoil burn without engine compensation
     },
@@ -105,8 +104,8 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     id: 'missiles',
     name: 'Missiles',
     minEnergy: 2,
-    maxEnergy: 2, // Cannot overclock
-    overclockThreshold: 2,
+    maxEnergy: 2,
+    generatesHeatOnUse: true, // Generates heat when fired
     weaponStats: {
       damage: 3,
       ringRange: 2, // Can target up to 2 rings away (any direction)
@@ -117,9 +116,9 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   shields: {
     id: 'shields',
     name: 'Shields',
-    minEnergy: 2,
-    maxEnergy: 2, // Cannot overclock
-    overclockThreshold: 2,
+    minEnergy: 1, // Lowered min energy for flexibility
+    maxEnergy: 4, // Increased max to allow more absorption
+    generatesHeatOnUse: false, // Reactive, converts damage to heat
   },
 }
 
@@ -128,16 +127,14 @@ export function getSubsystemConfig(type: SubsystemType): SubsystemConfig {
   return SUBSYSTEM_CONFIGS[type]
 }
 
-export function isSubsystemOverclocked(subsystem: Subsystem): boolean {
+/**
+ * Get heat generated when a subsystem is used.
+ * Returns allocated energy if subsystem generates heat on use, otherwise 0.
+ */
+export function getHeatOnUse(subsystem: Subsystem): number {
   const config = getSubsystemConfig(subsystem.type)
-  return subsystem.allocatedEnergy > config.overclockThreshold
-}
-
-export function getSubsystemHeatGeneration(subsystem: Subsystem): number {
-  if (!isSubsystemOverclocked(subsystem)) return 0
-  const config = getSubsystemConfig(subsystem.type)
-  const overclockAmount = subsystem.allocatedEnergy - config.overclockThreshold
-  return overclockAmount // Always 1 heat per energy above overclockThreshold
+  if (!config.generatesHeatOnUse) return 0
+  return subsystem.allocatedEnergy
 }
 
 export function canSubsystemFunction(subsystem: Subsystem): boolean {

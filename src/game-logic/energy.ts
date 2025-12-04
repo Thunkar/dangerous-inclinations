@@ -28,7 +28,6 @@ export function allocateEnergy(
     reactor: {
       ...ship.reactor,
       availableEnergy: ship.reactor.availableEnergy - difference,
-      energyToReturn: ship.reactor.energyToReturn + oldAllocation,
     },
     subsystems: ship.subsystems.map(s =>
       s.type === subsystemType
@@ -43,66 +42,33 @@ export function allocateEnergy(
 }
 
 /**
- * Pure function to deallocate all energy from a subsystem
+ * Pure function to deallocate energy from a subsystem (immediate, unlimited)
  * Returns new ship state with energy returned to reactor
  */
-export function deallocateEnergy(ship: ShipState, subsystemType: SubsystemType): ShipState {
+export function deallocateEnergy(ship: ShipState, subsystemType: SubsystemType, amount: number): ShipState {
   const subsystem = ship.subsystems.find(s => s.type === subsystemType)
   if (!subsystem) {
     return ship
   }
 
+  const actualAmount = Math.min(amount, subsystem.allocatedEnergy)
+  const newAllocatedEnergy = subsystem.allocatedEnergy - actualAmount
+
   return {
     ...ship,
     reactor: {
       ...ship.reactor,
-      energyToReturn: ship.reactor.energyToReturn + subsystem.allocatedEnergy,
+      availableEnergy: Math.min(ship.reactor.totalCapacity, ship.reactor.availableEnergy + actualAmount),
     },
     subsystems: ship.subsystems.map(s =>
       s.type === subsystemType
         ? {
             ...s,
-            allocatedEnergy: 0,
-            isPowered: false,
+            allocatedEnergy: newAllocatedEnergy,
+            isPowered: newAllocatedEnergy > 0,
           }
         : s
     ),
-  }
-}
-
-/**
- * Pure function to process energy return from subsystems to reactor
- * Also processes heat venting
- * Returns new ship state with energy returned up to max return rate and heat vented
- */
-export function processEnergyReturn(ship: ShipState): ShipState {
-  const { energyToReturn, maxReturnRate, availableEnergy, totalCapacity } = ship.reactor
-  const { heatToVent, currentHeat } = ship.heat
-
-  // Calculate actual return amount (limited by max return rate and heat venting)
-  const availableReturnCapacity = Math.max(0, maxReturnRate - heatToVent)
-
-  // Can't return more than what would fit in the reactor
-  const maxCanFit = totalCapacity - availableEnergy
-
-  // Actual return is the minimum of: what we want to return, what fits, and return capacity
-  const actualReturn = Math.min(energyToReturn, availableReturnCapacity, maxCanFit)
-
-  // Actual heat vented (can't vent more than current heat)
-  const actualVent = Math.min(heatToVent, currentHeat)
-
-  return {
-    ...ship,
-    reactor: {
-      ...ship.reactor,
-      availableEnergy: availableEnergy + actualReturn,
-      energyToReturn: energyToReturn - actualReturn,
-    },
-    heat: {
-      ...ship.heat,
-      currentHeat: currentHeat - actualVent,
-      heatToVent: 0,
-    },
   }
 }
 

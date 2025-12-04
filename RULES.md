@@ -18,39 +18,45 @@ This document contains the comprehensive rules for Dangerous Inclinations.
 - Some systems (e.g., engines) allow different actions depending on their power level
 - Different power levels may unlock different capabilities or action intensities
 
-### Energy Deallocation Constraints
+### Energy Deallocation
 
-- Returning power to the reactor can only be done at a rate of **3 units per turn**
-- This is a global limit shared between:
-  - Energy deallocation from subsystems
-  - Heat venting operations
-- Formula: `deallocated_energy + vented_heat ≤ 3` per turn
-- **Deallocation is partial**: You can deallocate any amount up to the limit per turn
-  - Example: A railgun with 5 energy can deallocate 3 on turn 1, then 2 on turn 2
-  - Energy remains in the subsystem until explicitly deallocated
+- Energy can be deallocated from subsystems freely (no rate limit)
+- Deallocated energy returns to the reactor immediately
+- Energy remains in the subsystem until explicitly deallocated
 
-### Overclocking and Heat Generation
+### Heat Generation (Heat-on-Use System)
 
-- Systems generate heat when powered **beyond their overclock threshold**
-- Heat generation formula: `(allocated_energy - overclock_threshold) × heat_per_overclock`
-- Example: Engines with 3 units of energy (overclock threshold: 2, heat rate: 1/unit)
-  - Overclock amount: `3 - 2 = 1`
-  - Heat generated per turn: `1 × 1 = 1 heat/turn`
-- Heat accumulates and persists across turns until vented
+- **Heat is generated ONLY when a subsystem is USED** during a turn
+- When a subsystem is used (e.g., firing a weapon, executing a burn), it generates heat equal to its **allocated energy**
+- Heat generation formula: `allocated_energy` when subsystem is used
+- Example: Laser with 2 energy allocated, when fired, generates 2 heat
+- Example: Engines with 3 energy allocated, when burn is executed, generates 3 heat
+- **Unused subsystems generate NO heat**, even if powered
 
-### Heat and Damage
+### Heat Dissipation and Damage
 
-- Heat causes damage to the hull
-- Damage is dealt for every turn the heat **remains on the ship** after the turn it was generated
-- Heat on the turn it's first generated does NOT cause damage
-- Heat in subsequent turns causes `1 damage per heat unit` per turn
-- Heat must be explicitly vented to remove it
+Ships have a **dissipation capacity** (base: 5) that represents their ability to radiate heat.
 
-### Heat Venting
+**Heat Lifecycle:**
+1. **Start of turn**: Evaluate heat from previous turn
+   - If heat > dissipation capacity, take damage = heat - capacity
+   - Example: 8 heat with 5 dissipation = 3 damage
+2. **Heat resets to 0**: After evaluation, heat is cleared
+3. **During turn**: Subsystem usage generates heat
+4. **Between turns**: Shields and critical hits can add heat
+5. **Repeat**: Next turn evaluates accumulated heat
 
-- Heat venting counts towards the global energy deallocation limit (3 per turn)
-- Venting heat removes it from the ship, preventing further damage
-- Strategic venting is necessary to manage heat from overclocked systems
+This simple model makes heat easy to track:
+- Each turn starts fresh after heat is evaluated
+- You only need to track heat generated THIS turn
+- If your heat exceeds dissipation, you'll take damage next turn
+
+### Critical Hits
+
+When a weapon hits a target, there is a **10% chance** of a critical hit:
+- A random powered subsystem on the target is unpowered (energy returned to reactor)
+- The unpowered subsystem's energy is converted to heat on the target ship
+- This can cascade heat damage if the target already has high heat
 
 ### Planning Phase (Pending State)
 
@@ -65,10 +71,10 @@ This document contains the comprehensive rules for Dangerous Inclinations.
 ### Validation
 
 - Validation logic prevents illegal action combinations:
-  - Cannot deallocate more energy than the 3-unit limit allows
   - Cannot allocate more energy than the reactor has available
   - Cannot allocate more than a subsystem's maximum
-  - Must respect the combined deallocation + venting limit
+  - Cannot deallocate more energy than a subsystem has allocated
+  - Cannot use a subsystem that doesn't have its minimum energy requirement met
 - Invalid configurations should be prevented or clearly indicated to the user
 
 ### Turn Execution
@@ -296,26 +302,29 @@ When a weapon fires **after** the movement action:
   - Transfer state is cleared
   - Player begins their turn at the new position
 
-**When a player executes their turn**, actions are processed in sequence order:
+**When a player executes their turn**, actions are processed in phases:
 
+**Phase 0: Heat Resolution** (at turn START):
+1. **Heat Damage**: If heat > dissipation capacity, take damage = heat - capacity
+2. **Heat Reset**: Heat is cleared to 0 (damage already taken)
+
+**Phase 1: Energy Management**:
 1. **Energy Allocation** (to subsystems)
-2. **Energy Deallocation** (from subsystems, limited to 3 per turn)
-3. **Heat Venting** (counts toward 3-unit limit)
-4. **Tactical Sequence Execution** (actions execute in player-defined order):
-   - **Rotation** (if sequenced and facing change requested)
-   - **Movement** (if sequenced: coast or burn)
-     - Automatic orbital movement (+1 sector)
-     - Fuel scoop activation (if coasting)
-     - Burn initiation (if burning)
-   - **Weapon Firing** (each weapon fires at its sequence point)
-5. **Heat Damage** (from heat accumulated on PREVIOUS turns)
-   - Damage is calculated from heat at the START of the turn
-   - Heat vented this turn reduces the damage
-6. **Heat Generation** (from overclocked subsystems THIS turn)
-   - Heat generated this turn does NOT cause damage until next turn
-7. **Reset Subsystem Usage** (prepare for next turn)
-   - All subsystems' "used this turn" flags are cleared
-   - Allows subsystems to be used again on the next turn
+2. **Energy Deallocation** (from subsystems, unlimited)
+
+**Phase 2: Tactical Sequence Execution** (actions execute in player-defined order):
+- **Rotation** (if sequenced and facing change requested)
+  - Generates heat = allocated energy to rotation subsystem
+- **Movement** (if sequenced: coast or burn)
+  - Automatic orbital movement (+1 sector)
+  - Fuel scoop activation (if coasting) - generates heat = allocated energy
+  - Burn initiation (if burning) - generates heat = allocated energy to engines
+- **Weapon Firing** (each weapon fires at its sequence point)
+  - Each fired weapon generates heat = allocated energy
+
+**End of Turn**:
+- Reset subsystem usage flags (prepare for next turn)
+- All subsystems' "used this turn" flags are cleared
 
 **After turn execution**:
 
@@ -360,10 +369,10 @@ Ships can be equipped with three types of weapons, each with distinct firing arc
 
 - **Arc**: Spinal (fires in direction of ship's facing)
 - **Ring Range**: Same ring only
-- **Sector Range**: 1/4 of ring's total sectors (6 sectors on Ring 3)
+- **Sector Range**: 6 sectors in facing direction
 - **Damage**: 4 HP
 - **Energy Required**: 4 units
-- **Special**: Has recoil effect, generates 1 heat when firing with 4 energy (overclock)
+- **Special**: Has recoil effect
 
 **3. Missiles**
 
@@ -423,62 +432,62 @@ Weapon ranges are calculated based on the **ship's position at the moment of fir
 
 ## Subsystem Configurations
 
+All subsystems generate heat equal to their allocated energy **when used**.
+
 ### Engines
 
 - Minimum energy: 1
-- Maximum energy: 2
-- Overclock threshold: 2
-- Heat per overclock: 1
+- Maximum energy: 3
 - Function: Ship propulsion and maneuvering
+- Generates heat when burn is executed
 
 ### Maneuvering Thrusters (Rotation)
 
 - Minimum energy: 1
 - Maximum energy: 1
-- Overclock threshold: 1
-- Heat per overclock: 0 (cannot overclock)
 - Function: Change ship facing
+- Generates heat when rotation is performed
 
 ### Fuel Scoop
 
-- Minimum energy: 1
-- Maximum energy: 1
-- Overclock threshold: 1
-- Heat per overclock: 0 (cannot overclock)
+- Minimum energy: 3
+- Maximum energy: 3
 - Function: Collect reaction mass while coasting
+- Generates heat when scoop is activated
 
 ### Broadside Laser
 
 - Minimum energy: 2
-- Maximum energy: 2
-- Overclock threshold: 2
-- Heat per overclock: 0 (cannot overclock)
-- Function: Multi-target weapon system
+- Maximum energy: 4
+- Damage: 2 HP
+- Function: Multi-target broadside weapon
+- Generates heat when fired
 
 ### Railgun
 
 - Minimum energy: 4
 - Maximum energy: 4
-- Overclock threshold: 3
-- Heat per overclock: 1
-- Function: High-damage spinal weapon (generates heat when firing at 4 energy)
+- Damage: 4 HP
+- Function: High-damage spinal weapon
+- Generates heat when fired
 - Special: Has recoil effect
 
 ### Missiles
 
 - Minimum energy: 2
-- Maximum energy: 2
-- Overclock threshold: 2
-- Heat per overclock: 0 (cannot overclock)
-- Function: Long-range turret weapon
+- Maximum energy: 4
+- Damage: 3 HP
+- Function: Long-range turret weapon (launches self-propelled missile)
+- Generates heat when launched
 
 ### Shields
 
-- Minimum energy: 2
-- Maximum energy: 2
-- Overclock threshold: 2
-- Heat per overclock: 0 (cannot overclock)
-- Function: Damage mitigation
+- Minimum energy: 1
+- Maximum energy: 4
+- Function: Damage mitigation - converts incoming damage to heat
+- **Special**: When hit, shields absorb damage up to their allocated energy (max 4)
+  - Absorbed damage is converted to heat instead of hull damage
+  - Remaining damage (if any) hits hull normally
 
 ---
 

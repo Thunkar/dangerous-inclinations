@@ -44,9 +44,9 @@ export function StatusDisplay({ players, activePlayerIndex, turn, pendingHeat }:
       {/* Player status cards */}
       {players.map((player, index) => {
         const isActive = index === activePlayerIndex
-        // For active player, show pending heat (after venting), for others show committed heat
+        // For active player, show pending heat, for others show committed heat
         const heat = isActive && pendingHeat ? pendingHeat : player.ship.heat
-        const displayHeat = Math.max(0, heat.currentHeat - heat.heatToVent)
+        const displayHeat = heat.currentHeat
 
         return (
           <>

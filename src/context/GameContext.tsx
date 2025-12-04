@@ -10,15 +10,11 @@ import type {
   ActionType,
 } from '../types/game'
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from '../types/subsystems'
-import { getSubsystemConfig } from '../types/subsystems'
-import { STARTING_REACTION_MASS } from '../constants/rings'
+import { getSubsystemConfig, canSubsystemFunction } from '../types/subsystems'
 import { TRANSFER_POINTS } from '../constants/gravityWells'
-import {
-  createInitialSubsystems,
-  createInitialReactorState,
-  createInitialHeatState,
-} from '../utils/subsystemHelpers'
+import { createInitialShipState } from '../utils/subsystemHelpers'
 import { executeTurn as executeGameTurn } from '../game-logic/turns'
+import { calculateProjectedHeat } from '../game-logic/heat'
 import { botDecideActions } from '../ai'
 
 interface WeaponRangeVisibility {
@@ -99,39 +95,13 @@ const createInitialPlayers = (): Player[] => [
     id: 'player1',
     name: 'Ship Alpha',
     color: '#2196f3',
-    ship: {
-      wellId: 'blackhole', // Start in black hole gravity well
-      ring: 4,
-      sector: 0,
-      facing: 'prograde',
-      reactionMass: STARTING_REACTION_MASS,
-      hitPoints: 10,
-      maxHitPoints: 10,
-      transferState: null,
-      subsystems: createInitialSubsystems(),
-      reactor: createInitialReactorState(),
-      heat: createInitialHeatState(),
-      missileInventory: 4, // Start with 4 missiles
-    },
+    ship: createInitialShipState({ wellId: 'blackhole', ring: 4, sector: 0, facing: 'prograde' }),
   },
   {
     id: 'player3',
     name: 'Ship Gamma',
     color: '#4caf50',
-    ship: {
-      wellId: 'blackhole', // Start in black hole gravity well
-      ring: 2,
-      sector: 5,
-      facing: 'prograde',
-      reactionMass: STARTING_REACTION_MASS,
-      hitPoints: 10,
-      maxHitPoints: 10,
-      transferState: null,
-      subsystems: createInitialSubsystems(),
-      reactor: createInitialReactorState(),
-      heat: createInitialHeatState(),
-      missileInventory: 4, // Start with 4 missiles
-    },
+    ship: createInitialShipState({ wellId: 'blackhole', ring: 2, sector: 5, facing: 'prograde' }),
   },
 ]
 
@@ -218,6 +188,44 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [activePlayer.ship.subsystems]
   )
 
+  // Helper to calculate projected heat based on planned actions (pure function)
+  // Defined early so it can be used by allocateEnergy/deallocateEnergy
+  const computeProjectedHeat = (
+    subsystems: Subsystem[],
+    sequence: TacticalAction[],
+    movement: MovementPreview,
+    facing: Facing,
+    committedFacing: Facing
+  ): number => {
+    const subsystemsToUse: Array<'engines' | 'rotation' | 'scoop' | 'laser' | 'railgun' | 'missiles'> = []
+
+    // Check if rotation is used (facing changed and rotation action in sequence)
+    const hasRotation = sequence.some(a => a.type === 'rotate')
+    if (hasRotation && facing !== committedFacing) {
+      subsystemsToUse.push('rotation')
+    }
+
+    // Check movement type
+    if (movement.actionType === 'burn') {
+      subsystemsToUse.push('engines')
+    } else if (movement.activateScoop) {
+      subsystemsToUse.push('scoop')
+    }
+
+    // Check weapon firing
+    for (const action of sequence) {
+      if (action.type === 'fire_laser') {
+        subsystemsToUse.push('laser')
+      } else if (action.type === 'fire_railgun') {
+        subsystemsToUse.push('railgun')
+      } else if (action.type === 'fire_missiles') {
+        subsystemsToUse.push('missiles')
+      }
+    }
+
+    return calculateProjectedHeat(subsystems, subsystemsToUse)
+  }
+
   // High-level game action: Allocate energy to a subsystem
   const allocateEnergy = useCallback(
     (subsystemType: SubsystemType, newTotal: number) => {
@@ -237,10 +245,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (diff > 0 && pendingState.reactor.availableEnergy >= diff) {
         // Allocate energy
         const newSubsystems = [...pendingState.subsystems]
-        newSubsystems[subsystemIndex] = {
+        const updatedSubsystem = {
           ...newSubsystems[subsystemIndex],
           allocatedEnergy: newTotal,
-          isPowered: newTotal > 0,
+        }
+        newSubsystems[subsystemIndex] = {
+          ...updatedSubsystem,
+          isPowered: canSubsystemFunction(updatedSubsystem),
         }
         setPendingStateInternal(prev => ({
           ...prev,
@@ -250,10 +261,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
             availableEnergy: prev.reactor.availableEnergy - diff,
             energyToReturn: calculateEnergyToReturn(newSubsystems),
           },
+          heat: {
+            currentHeat: computeProjectedHeat(
+              newSubsystems,
+              prev.tacticalSequence,
+              prev.movement,
+              prev.facing,
+              activePlayer.ship.facing
+            ),
+          },
         }))
       }
     },
-    [pendingState, calculateEnergyToReturn]
+    [pendingState, calculateEnergyToReturn, activePlayer.ship.facing]
   )
 
   // High-level game action: Deallocate energy from a subsystem
@@ -270,51 +290,45 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const newAllocatedEnergy = currentPendingEnergy - amountToReturn
 
       const newSubsystems = [...pendingState.subsystems]
-      newSubsystems[subsystemIndex] = {
+      const updatedSubsystem = {
         ...newSubsystems[subsystemIndex],
         allocatedEnergy: newAllocatedEnergy,
-        isPowered: newAllocatedEnergy > 0,
+      }
+      newSubsystems[subsystemIndex] = {
+        ...updatedSubsystem,
+        isPowered: canSubsystemFunction(updatedSubsystem),
       }
 
-      const energyToReturn = calculateEnergyToReturn(newSubsystems)
-
-      // Check if we exceed the maxReturnRate with current heat venting
-      if (energyToReturn + pendingState.heat.heatToVent > pendingState.reactor.maxReturnRate) {
-        // Can't deallocate - would exceed limit
-        return
-      }
-
+      // Deallocation is now unlimited - no rate limits
       setPendingStateInternal(prev => ({
         ...prev,
         subsystems: newSubsystems,
         reactor: {
           ...prev.reactor,
           availableEnergy: prev.reactor.availableEnergy + amountToReturn,
-          energyToReturn,
+        },
+        heat: {
+          currentHeat: computeProjectedHeat(
+            newSubsystems,
+            prev.tacticalSequence,
+            prev.movement,
+            prev.facing,
+            activePlayer.ship.facing
+          ),
         },
       }))
     },
-    [pendingState, calculateEnergyToReturn]
+    [pendingState, activePlayer.ship.facing]
   )
 
-  // High-level game action: Vent heat
+  // Heat venting is now automatic via dissipation - no manual venting needed
+  // This function is kept for interface compatibility but does nothing
   const ventHeat = useCallback(
-    (newTotal: number) => {
-      // Check if we exceed the maxReturnRate with current deallocations
-      if (pendingState.reactor.energyToReturn + newTotal > pendingState.reactor.maxReturnRate) {
-        // Can't vent this much heat - would exceed limit
-        return
-      }
-
-      setPendingStateInternal(prev => ({
-        ...prev,
-        heat: {
-          ...prev.heat,
-          heatToVent: newTotal,
-        },
-      }))
+    (_newTotal: number) => {
+      // Heat dissipation is now automatic at start of turn
+      // No manual venting action needed
     },
-    [pendingState.reactor.energyToReturn, pendingState.reactor.maxReturnRate]
+    []
   )
 
   // High-level game action: Set facing
@@ -324,13 +338,38 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // High-level game action: Set movement preview
   const setMovement = useCallback((movement: MovementPreview) => {
-    setPendingStateInternal(prev => ({ ...prev, movement }))
-  }, [])
+    setPendingStateInternal(prev => ({
+      ...prev,
+      movement,
+      heat: {
+        currentHeat: computeProjectedHeat(
+          prev.subsystems,
+          prev.tacticalSequence,
+          movement,
+          prev.facing,
+          activePlayer.ship.facing
+        ),
+      },
+    }))
+  }, [activePlayer.ship.facing])
 
   // High-level game action: Set tactical sequence
   const setTacticalSequence = useCallback((sequence: TacticalAction[]) => {
-    setPendingStateInternal(prev => ({ ...prev, tacticalSequence: sequence }))
-  }, [])
+    setPendingStateInternal(prev => ({
+      ...prev,
+      tacticalSequence: sequence,
+      heat: {
+        currentHeat: computeProjectedHeat(
+          activePlayer.ship.heat.currentHeat,
+          prev.subsystems,
+          sequence,
+          prev.movement,
+          prev.facing,
+          activePlayer.ship.facing
+        ),
+      },
+    }))
+  }, [activePlayer.ship.heat.currentHeat, activePlayer.ship.facing])
 
   // Execute turn: compute diff between committed and pending, create actions using tactical sequence
   const executeTurn = useCallback(() => {
@@ -382,22 +421,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    // 2. Compute heat venting action (no sequence - always first)
-    const committedVenting = activePlayer.ship.heat.heatToVent || 0
-    const pendingVenting = pendingState.heat.heatToVent || 0
-    const ventingDiff = pendingVenting - committedVenting
-
-    if (ventingDiff > 0) {
-      actions.push({
-        playerId: activePlayer.id,
-        type: 'vent_heat',
-        data: {
-          amount: ventingDiff,
-        },
-      })
-    }
-
-    // 3. Add tactical actions from the tactical sequence (with sequence numbers)
+    // 2. Add tactical actions from the tactical sequence (with sequence numbers)
     pendingState.tacticalSequence.forEach(tacticalAction => {
       if (tacticalAction.type === 'rotate') {
         // Only add rotate action if facing actually changed
