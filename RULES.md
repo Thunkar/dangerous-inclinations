@@ -1,6 +1,6 @@
-# Orbit Simulator - Game Rules
+# Dangerous Inclinations - Game Rules
 
-This document contains the comprehensive rules for the Orbit Simulator game.
+This document contains the comprehensive rules for Dangerous Inclinations.
 
 ## Energy Allocation and Management
 

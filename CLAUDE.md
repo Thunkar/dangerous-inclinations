@@ -1,4 +1,4 @@
-# CLAUDE.md - Development Context for Orbit Simulator
+# CLAUDE.md - Development Context for Dangerous Inclinations
 
 ## 🎯 Critical Context: This is a Tabletop Game First
 
@@ -65,7 +65,7 @@ This architecture ensures the game can be moved to a server where:
 
 ## Project Overview
 
-**Orbit Simulator** is a turn-based tactical space combat game where players control ships navigating through multiple gravity wells in a binary star system. Ships orbit around gravity wells (a central black hole and three orbiting planets), manage energy allocation, fire weapons, and transfer between gravity wells.
+**Dangerous Inclinations** is a turn-based tactical space combat game where players control ships navigating through multiple gravity wells in a binary star system. Ships orbit around gravity wells (a central black hole and three orbiting planets), manage energy allocation, fire weapons, and transfer between gravity wells.
 
 The game combines:
 - **Orbital mechanics**: Ships move through circular sectors, with automatic orbital velocity
