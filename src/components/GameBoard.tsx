@@ -24,29 +24,22 @@ interface GameBoardProps {
   pendingMovement?: MovementPreview
 }
 
-export function GameBoard({
-  pendingFacing,
-  pendingMovement,
-}: GameBoardProps) {
+export function GameBoard({ pendingFacing, pendingMovement }: GameBoardProps) {
   return (
     <BoardProvider>
-      <GameBoardContent
-        pendingFacing={pendingFacing}
-        pendingMovement={pendingMovement}
-      />
+      <GameBoardContent pendingFacing={pendingFacing} pendingMovement={pendingMovement} />
     </BoardProvider>
   )
 }
 
-function GameBoardContent({
-  pendingFacing,
-  pendingMovement,
-}: GameBoardProps) {
+function GameBoardContent({ pendingFacing, pendingMovement }: GameBoardProps) {
   const { gameState, weaponRangeVisibility, pendingState } = useGame()
   const { displayState } = useBoardContext()
 
   // Pan and zoom state - must be declared before any conditional returns (Rules of Hooks)
-  const [zoom, setZoom] = useState(1)
+  // Start with 2x zoom for better initial view, centered on the black hole (board center)
+  const [zoom, setZoom] = useState(2)
+  // Pan is in SVG coordinates (offset from center)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
@@ -55,29 +48,46 @@ function GameBoardContent({
   // displayState contains rendered positions - don't render if not set yet
   if (!displayState) return null
 
-  // Handle wheel zoom
+  // Calculate viewBox based on zoom and pan
+  // At zoom=1, we see the full board. At zoom=2, we see half the board, etc.
+  const viewBoxSize = BOARD_SIZE / zoom
+  const viewBoxX = (BOARD_SIZE - viewBoxSize) / 2 + pan.x
+  const viewBoxY = (BOARD_SIZE - viewBoxSize) / 2 + pan.y
+
+  // Handle wheel zoom - zooms relative to center of visible area
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault()
-    const delta =
-      e.deltaY > 0 ? ZOOM_CONFIG.DELTA_MULTIPLIER_OUT : ZOOM_CONFIG.DELTA_MULTIPLIER_IN
+    const delta = e.deltaY > 0 ? ZOOM_CONFIG.DELTA_MULTIPLIER_OUT : ZOOM_CONFIG.DELTA_MULTIPLIER_IN
     const newZoom = Math.max(ZOOM_CONFIG.MIN, Math.min(ZOOM_CONFIG.MAX, zoom * delta))
     setZoom(newZoom)
+    // Pan stays the same in SVG coordinates - the viewBox calculation handles centering
   }
 
   // Handle mouse pan
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) {
       setIsPanning(true)
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+      setPanStart({ x: e.clientX, y: e.clientY })
     }
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y,
-      })
+    if (isPanning && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      // Convert screen pixels to SVG coordinates
+      // The viewBox shows viewBoxSize units, mapped to rect.width/height pixels
+      const scaleX = viewBoxSize / rect.width
+      const scaleY = viewBoxSize / rect.height
+      const scale = Math.max(scaleX, scaleY) // Use the larger scale (due to preserveAspectRatio)
+
+      const dx = (e.clientX - panStart.x) * scale
+      const dy = (e.clientY - panStart.y) * scale
+
+      setPan(prev => ({
+        x: prev.x - dx,
+        y: prev.y - dy,
+      }))
+      setPanStart({ x: e.clientX, y: e.clientY })
     }
   }
 
@@ -101,8 +111,8 @@ function GameBoardContent({
   }
 
   const handleResetView = () => {
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
+    setZoom(2) // Reset to default 2x zoom
+    setPan({ x: 0, y: 0 }) // Center on black hole
   }
 
   // Determine colors for gravity wells
@@ -123,11 +133,19 @@ function GameBoardContent({
       ref={containerRef}
       sx={{
         width: '100%',
-        height: '100vh',
+        height: '100%',
         overflow: 'hidden',
         position: 'relative',
         cursor: isPanning ? 'grabbing' : 'grab',
         userSelect: 'none',
+        // Prevent any scrolling on the container
+        '& *': {
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          '&::-webkit-scrollbar': {
+            display: 'none',
+          },
+        },
       }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -139,12 +157,14 @@ function GameBoardContent({
       <svg
         width="100%"
         height="100%"
-        viewBox={`0 0 ${BOARD_SIZE} ${BOARD_SIZE}`}
+        viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxSize} ${viewBoxSize}`}
+        preserveAspectRatio="xMidYMid meet"
         style={{
           background: 'radial-gradient(circle, #0a0a1a 0%, #000000 100%)',
+          display: 'block', // Prevent inline SVG from creating extra space
         }}
       >
-        <g transform={`scale(${zoom}) translate(${pan.x / zoom}, ${pan.y / zoom})`}>
+        <g>
           {/* SVG Filters for ship/missile outlines */}
           <SVGFilters />
 
@@ -191,11 +211,7 @@ function GameBoardContent({
       </svg>
 
       {/* Minimap */}
-      <Minimap
-        pendingFacing={pendingFacing}
-        zoom={zoom}
-        pan={pan}
-      />
+      <Minimap pendingFacing={pendingFacing} zoom={zoom} pan={pan} />
 
       {/* Control buttons */}
       <GameBoardControls

@@ -18,8 +18,6 @@ export function Minimap({ pendingFacing, zoom, pan }: MinimapProps) {
   const { gameState } = useGame()
   const {
     boardSize,
-    centerX,
-    centerY,
     scaleFactor,
     getGravityWellPosition,
     getSectorRotationOffset,
@@ -124,17 +122,24 @@ export function Minimap({ pendingFacing, zoom, pan }: MinimapProps) {
           )
         })}
 
-        {/* Viewport indicator */}
-        <rect
-          x={centerX - boardSize / 2 / zoom - pan.x / zoom}
-          y={centerY - boardSize / 2 / zoom - pan.y / zoom}
-          width={boardSize / zoom}
-          height={boardSize / zoom}
-          fill="none"
-          stroke="#fff"
-          strokeWidth={3}
-          opacity={0.5}
-        />
+        {/* Viewport indicator - matches the viewBox calculation in GameBoard */}
+        {(() => {
+          const viewBoxSize = boardSize / zoom
+          const viewBoxX = (boardSize - viewBoxSize) / 2 + pan.x
+          const viewBoxY = (boardSize - viewBoxSize) / 2 + pan.y
+          return (
+            <rect
+              x={viewBoxX}
+              y={viewBoxY}
+              width={viewBoxSize}
+              height={viewBoxSize}
+              fill="none"
+              stroke="#fff"
+              strokeWidth={3}
+              opacity={0.5}
+            />
+          )
+        })()}
       </svg>
     </Box>
   )

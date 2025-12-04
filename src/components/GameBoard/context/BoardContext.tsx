@@ -76,25 +76,31 @@ function calculateShipRotation(
  * Calculate spread offset for missiles in the same sector.
  * Spreads missiles along the radial direction (toward/away from gravity well center)
  * to avoid visual overlap while keeping them on a radius through sector center.
+ *
+ * Always applies some offset (even for single missiles) to distinguish missiles from ships.
  */
 function calculateMissileSpreadOffset(
   index: number,
   total: number,
   angle: number
 ): Position {
-  if (total <= 1) return { x: 0, y: 0 }
+  // Spread distance between missiles (pixels) - increased for better visibility
+  const SPREAD_DISTANCE = 15
 
-  // Spread distance between missiles (pixels)
-  const SPREAD_DISTANCE = 10
+  // Base offset to push missiles outward from sector center (distinguishes from ships)
+  const BASE_OUTWARD_OFFSET = 8
 
   // The angle parameter is the position angle on the circle (radial direction from center).
   // Spread along this radial direction: positive offset = outward, negative = inward.
-  // Center the spread around the sector center.
+  // Center the spread around the sector center, but offset outward from the base position.
   const offsetIndex = index - (total - 1) / 2
 
+  // Always apply base outward offset + spread offset
+  const totalOffset = BASE_OUTWARD_OFFSET + offsetIndex * SPREAD_DISTANCE
+
   return {
-    x: Math.cos(angle) * offsetIndex * SPREAD_DISTANCE,
-    y: Math.sin(angle) * offsetIndex * SPREAD_DISTANCE,
+    x: Math.cos(angle) * totalOffset,
+    y: Math.sin(angle) * totalOffset,
   }
 }
 

@@ -63,11 +63,7 @@ function GameContent() {
       }}
     >
       {/* Game Over Modal */}
-      <GameOverModal
-        status={gameState.status}
-        winnerName={winnerName}
-        onRestart={restartGame}
-      />
+      <GameOverModal status={gameState.status} winnerName={winnerName} onRestart={restartGame} />
 
       {/* Status Bar */}
       <StatusDisplay
@@ -89,8 +85,7 @@ function GameContent() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            overflow: 'auto',
-            p: 2,
+            overflow: 'hidden',
             minWidth: 0,
           }}
         >
