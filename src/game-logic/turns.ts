@@ -1,6 +1,8 @@
 import type { GameState, TurnLogEntry, PlayerAction, GameStatus } from '../types/game'
 import { processActions } from './actionProcessors'
 import { processMissiles } from './missiles'
+import { calculateHeatDamage, resetHeat } from './heat'
+import { applyDirectDamage } from './damage'
 
 /**
  * Result of executing a complete game turn
@@ -124,6 +126,54 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     turn: isNewTurn ? gameState.turn + 1 : gameState.turn,
     activePlayerIndex: nextPlayerIndex,
     turnLog: [...gameState.turnLog, ...allLogEntries],
+  }
+
+  // Apply heat damage to the NEXT player at the start of their turn
+  // This happens BEFORE they see their turn, so they see the damage immediately
+  const nextPlayer = updatedGameState.players[nextPlayerIndex]
+  if (nextPlayer.ship.hitPoints > 0) {
+    const heatDamage = calculateHeatDamage(nextPlayer.ship)
+
+    if (heatDamage > 0) {
+      const updatedPlayers = [...updatedGameState.players]
+      const damagedShip = applyDirectDamage(nextPlayer.ship, heatDamage)
+      updatedPlayers[nextPlayerIndex] = { ...nextPlayer, ship: damagedShip }
+      updatedGameState = { ...updatedGameState, players: updatedPlayers }
+
+      allLogEntries.push({
+        turn: updatedGameState.turn,
+        playerId: nextPlayer.id,
+        playerName: nextPlayer.name,
+        action: 'Heat Damage',
+        result: `Took ${heatDamage} hull damage from excess heat (${nextPlayer.ship.heat.currentHeat} heat - ${nextPlayer.ship.dissipationCapacity} dissipation = ${heatDamage} damage)`,
+      })
+
+      // Update the turnLog with the new entry
+      updatedGameState = {
+        ...updatedGameState,
+        turnLog: [...updatedGameState.turnLog.slice(0, -allLogEntries.length + 1), ...allLogEntries],
+      }
+    }
+
+    // Reset heat for the next player (after damage is applied)
+    {
+      const updatedPlayers = [...updatedGameState.players]
+      const playerToReset = updatedPlayers[nextPlayerIndex]
+      const heatBefore = playerToReset.ship.heat.currentHeat
+      const resetShip = resetHeat(playerToReset.ship)
+      updatedPlayers[nextPlayerIndex] = { ...playerToReset, ship: resetShip }
+      updatedGameState = { ...updatedGameState, players: updatedPlayers }
+
+      if (heatBefore > 0) {
+        allLogEntries.push({
+          turn: updatedGameState.turn,
+          playerId: nextPlayer.id,
+          playerName: nextPlayer.name,
+          action: 'Heat Reset',
+          result: `Cleared ${heatBefore} heat (dissipation capacity: ${nextPlayer.ship.dissipationCapacity})`,
+        })
+      }
+    }
   }
 
   // Check for win/loss conditions

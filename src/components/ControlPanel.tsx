@@ -16,7 +16,8 @@ import { UtilityActions } from './actions/UtilityActions'
 import { ActionSummary } from './actions/ActionSummary'
 import { STARTING_REACTION_MASS } from '../constants/rings'
 import { CustomIcon } from './CustomIcon'
-import { MISSILE_CONFIG } from '../game-logic/missiles'
+import { getMissileStats } from '../types/subsystems'
+import { getMissileAmmo } from '../game-logic/missiles'
 import { getGravityWell } from '../constants/gravityWells'
 
 interface ControlPanelProps {
@@ -293,11 +294,13 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
   const canAddLaser = !hasLaser && laserSubsystem?.isPowered && !laserSubsystem.usedThisTurn
   const canAddRailgun = !hasRailgun && railgunSubsystem?.isPowered && !railgunSubsystem.usedThisTurn
+  const missileAmmo = getMissileAmmo(ship.subsystems)
+  const missileStats = getMissileStats()
   const canAddMissiles =
     !hasMissiles &&
     missilesSubsystem?.isPowered &&
     !missilesSubsystem.usedThisTurn &&
-    ship.missileInventory > 0
+    missileAmmo > 0
 
   return (
     <Stack spacing={2}>
@@ -366,16 +369,16 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
               gap: 0.5,
             }}
           >
-            {Array.from({ length: MISSILE_CONFIG.MAX_INVENTORY }).map((_, i) => (
+            {Array.from({ length: missileStats.maxAmmo }).map((_, i) => (
               <Box
                 key={i}
                 sx={{
                   flex: 1,
                   height: 12,
-                  bgcolor: i < ship.missileInventory ? '#00ff00' : 'rgba(0,0,0,0.3)',
+                  bgcolor: i < missileAmmo ? '#00ff00' : 'rgba(0,0,0,0.3)',
                   borderRadius: 0.5,
                   transition: 'all 0.3s',
-                  boxShadow: i < ship.missileInventory ? '0 0 4px rgba(0,255,0,0.4)' : 'none',
+                  boxShadow: i < missileAmmo ? '0 0 4px rgba(0,255,0,0.4)' : 'none',
                 }}
               />
             ))}
@@ -386,10 +389,10 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
             sx={{
               fontSize: '0.75rem',
               minWidth: 32,
-              color: ship.missileInventory === 0 ? 'error.main' : 'inherit',
+              color: missileAmmo === 0 ? 'error.main' : 'inherit',
             }}
           >
-            {ship.missileInventory}/{MISSILE_CONFIG.MAX_INVENTORY}
+            {missileAmmo}/{missileStats.maxAmmo}
           </Typography>
         </Box>
       </Paper>
@@ -562,7 +565,13 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
                 // Check if this weapon fires after movement
                 const moveAction = panels.find(p => p.type === 'move')
+                const rotateAction = panels.find(p => p.type === 'rotate')
                 const firesAfterMovement = moveAction && panel.sequence > moveAction.sequence
+
+                // Determine if rotation happens before or after movement
+                const rotateBeforeMove = rotateAction && moveAction
+                  ? rotateAction.sequence < moveAction.sequence
+                  : true // Default to rotate before move
 
                 // Calculate ship position for range calculations
                 let shipForRangeCalc = ship
@@ -571,12 +580,12 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                     actionType,
                     burnIntensity,
                     sectorAdjustment,
-                  })
+                  }, rotateBeforeMove)
                 } else if (firesAfterMovement && actionType === 'coast') {
                   shipForRangeCalc = calculatePostMovementPosition(ship, targetFacing, {
                     actionType: 'coast',
                     sectorAdjustment: 0,
-                  })
+                  }, rotateBeforeMove)
                 }
 
                 const firingSolutions = weaponStats
@@ -667,7 +676,13 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
                 // Check if this weapon fires after movement
                 const moveAction = panels.find(p => p.type === 'move')
+                const rotateAction = panels.find(p => p.type === 'rotate')
                 const firesAfterMovement = moveAction && panel.sequence > moveAction.sequence
+
+                // Determine if rotation happens before or after movement
+                const rotateBeforeMove = rotateAction && moveAction
+                  ? rotateAction.sequence < moveAction.sequence
+                  : true // Default to rotate before move
 
                 // Calculate ship position for range calculations
                 let shipForRangeCalc = ship
@@ -676,12 +691,12 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                     actionType,
                     burnIntensity,
                     sectorAdjustment,
-                  })
+                  }, rotateBeforeMove)
                 } else if (firesAfterMovement && actionType === 'coast') {
                   shipForRangeCalc = calculatePostMovementPosition(ship, targetFacing, {
                     actionType: 'coast',
                     sectorAdjustment: 0,
-                  })
+                  }, rotateBeforeMove)
                 }
 
                 const firingSolutions = weaponStats
@@ -794,7 +809,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                           Missiles
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          ({ship.missileInventory} remaining)
+                          ({missileAmmo} remaining)
                         </Typography>
                       </Box>
                     </Box>

@@ -1,6 +1,6 @@
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from '../types/subsystems'
 import type { ShipState } from '../types/game'
-import { canSubsystemFunction, getSubsystemConfig } from '../types/subsystems'
+import { canSubsystemFunction, getSubsystemConfig, getMissileStats } from '../types/subsystems'
 import {
   STARTING_REACTION_MASS,
   DEFAULT_DISSIPATION_CAPACITY,
@@ -11,10 +11,10 @@ export { getSubsystemConfig }
 
 // Constants for ship initialization
 export const DEFAULT_HIT_POINTS = 10
-export const DEFAULT_MISSILE_INVENTORY = 4
 
 /**
  * Initialize a ship's subsystems with default state
+ * Missiles subsystem gets ammo initialized from config
  */
 export function createInitialSubsystems(): Subsystem[] {
   const subsystemTypes: SubsystemType[] = [
@@ -27,12 +27,23 @@ export function createInitialSubsystems(): Subsystem[] {
     'shields',
   ]
 
-  return subsystemTypes.map(type => ({
-    type,
-    allocatedEnergy: 0,
-    isPowered: false,
-    usedThisTurn: false,
-  }))
+  const missileStats = getMissileStats()
+
+  return subsystemTypes.map(type => {
+    const base: Subsystem = {
+      type,
+      allocatedEnergy: 0,
+      isPowered: false,
+      usedThisTurn: false,
+    }
+
+    // Initialize ammo for missiles subsystem
+    if (type === 'missiles') {
+      base.ammo = missileStats.maxAmmo
+    }
+
+    return base
+  })
 }
 
 /**
@@ -186,7 +197,6 @@ export function createInitialShipState(
     reactor: createInitialReactorState(),
     heat: createInitialHeatState(),
     dissipationCapacity: DEFAULT_DISSIPATION_CAPACITY,
-    missileInventory: DEFAULT_MISSILE_INVENTORY,
     ...overrides,
   }
 }

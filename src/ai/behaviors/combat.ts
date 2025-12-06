@@ -1,6 +1,7 @@
 import type { FireWeaponAction } from '../../types/game'
 import type { TacticalSituation, Target, BotParameters } from '../types'
 import { WEAPONS } from '../../constants/weapons'
+import { getMissileAmmo } from '../../game-logic/missiles'
 
 /**
  * Select best target based on parameters
@@ -115,8 +116,8 @@ export function generateWeaponActions(
     })
   }
 
-  // Missiles - self-propelled, can target any player (check inventory instead of range)
-  if (canFireWeapon('missiles') && botPlayer.ship.missileInventory > 0) {
+  // Missiles - self-propelled, can target any player (check ammo instead of range)
+  if (canFireWeapon('missiles') && getMissileAmmo(botPlayer.ship.subsystems) > 0) {
     actions.push({
       type: 'fire_weapon',
       playerId: botPlayer.id,

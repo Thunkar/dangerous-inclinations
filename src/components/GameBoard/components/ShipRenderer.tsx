@@ -62,6 +62,20 @@ export function ShipRenderer({
         const radius = ringConfig.radius * scaleFactor
 
         // Use pending facing if available (planning phase)
+        // BUT only if rotation happens BEFORE movement in the tactical sequence
+        const rotateAction = pendingState.tacticalSequence.find(a => a.type === 'rotate')
+        const moveAction = pendingState.tacticalSequence.find(a => a.type === 'move')
+        const rotateBeforeMove = rotateAction && moveAction
+          ? (rotateAction as { sequence?: number }).sequence! < (moveAction as { sequence?: number }).sequence!
+          : true // Default to rotate before move if one is missing
+
+        // For burn predictions, use pending facing only if rotation happens before burn
+        const facingForBurn =
+          index === gameState.activePlayerIndex && pendingFacing && rotateBeforeMove
+            ? pendingFacing
+            : player.ship.facing
+
+        // For general display, still show the pending facing
         const effectiveFacing =
           index === gameState.activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
 
@@ -93,7 +107,8 @@ export function ShipRenderer({
           predictedRing = player.ship.ring
 
           const burnCost = BURN_COSTS[pendingMovement.burnIntensity!]
-          const ringChange = effectiveFacing === 'prograde' ? burnCost.rings : -burnCost.rings
+          // Use facingForBurn which respects the rotation order in tactical sequence
+          const ringChange = facingForBurn === 'prograde' ? burnCost.rings : -burnCost.rings
           const destinationRing = Math.max(1, Math.min(well.rings.length, player.ship.ring + ringChange))
 
           const destRingConfig = well.rings.find(r => r.ring === destinationRing)

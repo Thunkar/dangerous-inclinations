@@ -23,6 +23,10 @@ export interface WeaponStats {
   sectorRange: number // Sector spread: broadside uses ±sectorRange, turret uses sector visibility count
   arc: 'spinal' | 'broadside' | 'turret' // Firing arc type
   hasRecoil?: boolean // Only for railgun
+  // Ammunition-based weapon stats (for missiles, future torpedo/bomb systems)
+  maxAmmo?: number // Maximum ammunition capacity (undefined = unlimited)
+  fuelPerTurn?: number // Fuel available per turn for guided projectiles
+  maxTurnsAlive?: number // How many turns before projectile expires
 }
 
 export interface SubsystemConfig {
@@ -39,6 +43,7 @@ export interface Subsystem {
   allocatedEnergy: number // Current energy allocation (persists across turns)
   isPowered: boolean // Whether subsystem has enough energy to function
   usedThisTurn: boolean // Whether the subsystem was activated this turn (resets each turn)
+  ammo?: number // Current ammunition (only for ammo-based weapons like missiles)
 }
 
 export interface ReactorState {
@@ -107,10 +112,13 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     maxEnergy: 2,
     generatesHeatOnUse: true, // Generates heat when fired
     weaponStats: {
-      damage: 3,
+      damage: 2, // Damage dealt on impact (was 3, lowered for balance)
       ringRange: 2, // Can target up to 2 rings away (any direction)
       sectorRange: 3, // Covers ±3 sectors from current position
       arc: 'turret', // Can fire in any direction
+      maxAmmo: 4, // Maximum missile capacity
+      fuelPerTurn: 3, // Guidance fuel per turn (rings + sectors missile can move)
+      maxTurnsAlive: 3, // Missile expires after 3 turns if it doesn't hit
     },
   },
   shields: {
@@ -140,4 +148,19 @@ export function getHeatOnUse(subsystem: Subsystem): number {
 export function canSubsystemFunction(subsystem: Subsystem): boolean {
   const config = getSubsystemConfig(subsystem.type)
   return subsystem.allocatedEnergy >= config.minEnergy
+}
+
+/**
+ * Get missile-specific stats from the missiles subsystem config
+ * Throws if called for non-missile subsystem
+ */
+export function getMissileStats(): Required<Pick<WeaponStats, 'damage' | 'maxAmmo' | 'fuelPerTurn' | 'maxTurnsAlive'>> {
+  const config = SUBSYSTEM_CONFIGS.missiles
+  const stats = config.weaponStats!
+  return {
+    damage: stats.damage,
+    maxAmmo: stats.maxAmmo!,
+    fuelPerTurn: stats.fuelPerTurn!,
+    maxTurnsAlive: stats.maxTurnsAlive!,
+  }
 }

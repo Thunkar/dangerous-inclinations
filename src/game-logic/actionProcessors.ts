@@ -12,15 +12,15 @@ import type {
   ShipState,
 } from '../types/game'
 import { applyOrbitalMovement, initiateBurn, applyRotation, completeRingTransfer } from './movement'
-import { applyDamageWithShields, getWeaponDamage, applyDirectDamage } from './damage'
+import { applyDamageWithShields, getWeaponDamage } from './damage'
 import { WEAPONS } from '../constants/weapons'
 import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange, calculateBurnMassCost, MAX_REACTION_MASS } from '../constants/rings'
 import { getSubsystemConfig } from '../types/subsystems'
 import { resetSubsystemUsage } from './subsystems'
-import { fireMissile } from './missiles'
+import { fireMissile, getMissileAmmo } from './missiles'
 import { getGravityWell, TRANSFER_POINTS } from '../constants/gravityWells'
 import type { RingConfig } from '../types/game'
-import { calculateHeatDamage, resetHeat, addHeat } from './heat'
+import { addHeat } from './heat'
 
 export interface ProcessResult {
   success: boolean
@@ -303,9 +303,9 @@ function validateFireWeaponAction(gameState: GameState, action: FireWeaponAction
     errors.push(`Not enough energy (need ${totalEnergyCost}, have ${weaponSubsystem.allocatedEnergy})`)
   }
 
-  // Check missile inventory
+  // Check missile inventory (stored on missiles subsystem)
   if (action.data.weaponType === 'missiles') {
-    if (player.ship.missileInventory <= 0) {
+    if (getMissileAmmo(player.ship.subsystems) <= 0) {
       errors.push('No missiles remaining')
     }
   }
@@ -400,7 +400,6 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
   const logEntries: TurnLogEntry[] = []
   let currentGameState = gameState
   const activePlayerIndex = gameState.activePlayerIndex
-  const activePlayer = gameState.players[activePlayerIndex]
 
   // Validate action sequence ordering
   const sequenceErrors = validateActionSequence(actions)
@@ -413,61 +412,26 @@ export function processActions(gameState: GameState, actions: PlayerAction[]): P
     }
   }
 
-  // PHASE 0: Start of Turn - Heat Management (automatic)
-
-  // Phase 0a: Calculate and apply heat damage (excess heat above dissipation)
-  const heatDamage = calculateHeatDamage(activePlayer.ship)
-  if (heatDamage > 0) {
-    const updatedPlayers = [...currentGameState.players]
-    const player = updatedPlayers[activePlayerIndex]
-    const damagedShip = applyDirectDamage(player.ship, heatDamage)
-    updatedPlayers[activePlayerIndex] = { ...player, ship: damagedShip }
-    currentGameState = { ...currentGameState, players: updatedPlayers }
-
-    logEntries.push({
-      turn: currentGameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: 'Heat Damage',
-      result: `Took ${heatDamage} hull damage from excess heat (${activePlayer.ship.heat.currentHeat} heat - ${activePlayer.ship.dissipationCapacity} dissipation = ${heatDamage} damage)`,
-    })
-  }
-
-  // Phase 0b: Reset heat to 0 (damage already taken, start fresh)
-  {
-    const updatedPlayers = [...currentGameState.players]
-    const player = updatedPlayers[activePlayerIndex]
-    const heatBefore = player.ship.heat.currentHeat
-    const resetShip = resetHeat(player.ship)
-    updatedPlayers[activePlayerIndex] = { ...player, ship: resetShip }
-    currentGameState = { ...currentGameState, players: updatedPlayers }
-
-    if (heatBefore > 0) {
-      logEntries.push({
-        turn: currentGameState.turn,
-        playerId: player.id,
-        playerName: player.name,
-        action: 'Heat Reset',
-        result: `Cleared ${heatBefore} heat (dissipation capacity: ${player.ship.dissipationCapacity})`,
-      })
-    }
-  }
+  // NOTE: Heat damage and reset are now handled in turns.ts when switching to next player
+  // This ensures the player sees the damage BEFORE their turn starts
 
   // PHASE 1: Energy Management (fixed order, now unlimited)
+  // IMPORTANT: Deallocations must be processed BEFORE allocations
+  // so that freed energy is available for new allocations
 
-  // Phase 1.1: Energy Allocation
-  const allocateActions = actions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
-  const allocateResult = validateAndProcessActions(currentGameState, allocateActions, validateAllocateEnergyAction, processAllocateEnergy)
-  if (!allocateResult.success) return allocateResult
-  currentGameState = allocateResult.gameState
-  logEntries.push(...allocateResult.logEntries)
-
-  // Phase 1.2: Energy Deallocation (now unlimited)
+  // Phase 1.1: Energy Deallocation (must come first to free up energy)
   const deallocateActions = actions.filter(a => a.type === 'deallocate_energy') as DeallocateEnergyAction[]
   const deallocateResult = validateAndProcessActions(currentGameState, deallocateActions, validateDeallocateEnergyAction, processDeallocateEnergy)
   if (!deallocateResult.success) return deallocateResult
   currentGameState = deallocateResult.gameState
   logEntries.push(...deallocateResult.logEntries)
+
+  // Phase 1.2: Energy Allocation (uses energy freed by deallocations)
+  const allocateActions = actions.filter(a => a.type === 'allocate_energy') as AllocateEnergyAction[]
+  const allocateResult = validateAndProcessActions(currentGameState, allocateActions, validateAllocateEnergyAction, processAllocateEnergy)
+  if (!allocateResult.success) return allocateResult
+  currentGameState = allocateResult.gameState
+  logEntries.push(...allocateResult.logEntries)
 
   // PHASE 2: Tactical Actions (user-specified order via sequence field)
 
@@ -906,12 +870,12 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
       }
     }
 
-    // Add missile to game state, decrement inventory, mark used, and generate heat
+    // Add missile to game state, decrement ammo on missiles subsystem, mark used, and generate heat
+    const currentAmmo = getMissileAmmo(player.ship.subsystems)
     let updatedAttackerShip = {
       ...player.ship,
-      missileInventory: player.ship.missileInventory - 1,
       subsystems: player.ship.subsystems.map(s =>
-        s.type === 'missiles' ? { ...s, usedThisTurn: true } : s
+        s.type === 'missiles' ? { ...s, usedThisTurn: true, ammo: currentAmmo - 1 } : s
       ),
     }
 
@@ -929,7 +893,7 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
       playerId: player.id,
       playerName: player.name,
       action: 'Fire Missile',
-      result: `Fired missile at ${targetPlayer.name} (${updatedAttackerShip.missileInventory} missiles remaining)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ''}`,
+      result: `Fired missile at ${targetPlayer.name} (${currentAmmo - 1} missiles remaining)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ''}`,
     })
 
     return {

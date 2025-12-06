@@ -3,19 +3,10 @@ import type { ProcessResult } from './actionProcessors'
 import { getGravityWell } from '../constants/gravityWells'
 import { applyOrbitalMovement } from './movement'
 import { applyWeaponDamage } from './damage'
+import { getMissileStats } from '../types/subsystems'
 
-/**
- * Missile configuration constants
- */
-export const MISSILE_CONFIG = {
-  INITIAL_INVENTORY: 4,
-  MAX_INVENTORY: 4,
-  FUEL_PER_TURN: 3,
-  MAX_TURNS_ALIVE: 3, // Explodes at turn 3
-  DAMAGE: 2,
-  FUEL_PER_RING: 1,
-  FUEL_PER_SECTOR: 1,
-} as const
+// Get missile stats from centralized config
+const MISSILE_STATS = getMissileStats()
 
 /**
  * Calculate shortest sector distance accounting for wrap-around
@@ -50,7 +41,7 @@ export function calculateMissileMovement(
   target: Player,
   _gameState: GameState
 ): { ring: number; sector: number; fuelSpent: number; path: string[] } {
-  const fuel = MISSILE_CONFIG.FUEL_PER_TURN
+  const fuel = MISSILE_STATS.fuelPerTurn
   const path: string[] = []
 
   // Start from missile's current position
@@ -205,7 +196,6 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
         reactor: { totalCapacity: 0, availableEnergy: 0 },
         heat: { currentHeat: 0 },
         dissipationCapacity: 0,
-        missileInventory: 0,
       }
       const afterOrbital = applyOrbitalMovement(missileAsShip)
 
@@ -234,7 +224,7 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
     if (checkMissileHit(missileState, target)) {
       // HIT! Apply damage
       const targetIndex = updatedPlayers.findIndex(p => p.id === target.id)
-      const damagedShip = applyWeaponDamage(target.ship, 'missiles', MISSILE_CONFIG.DAMAGE)
+      const damagedShip = applyWeaponDamage(target.ship, 'missiles', MISSILE_STATS.damage)
       updatedPlayers[targetIndex] = {
         ...target,
         ship: damagedShip,
@@ -246,7 +236,7 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
         playerId: owner.id,
         playerName: owner.name,
         action: 'Missile Hit',
-        result: `${owner.name}'s missile hit ${target.name} for ${MISSILE_CONFIG.DAMAGE} damage! (R${currentRing}S${currentSector})`,
+        result: `${owner.name}'s missile hit ${target.name} for ${MISSILE_STATS.damage} damage! (R${currentRing}S${currentSector})`,
       })
     } else {
       // Update missile position and clear the skipOrbitalThisTurn flag
@@ -260,7 +250,7 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
       }
 
       // Check if missile has expired
-      if (updatedMissile.turnsAlive >= MISSILE_CONFIG.MAX_TURNS_ALIVE) {
+      if (updatedMissile.turnsAlive >= MISSILE_STATS.maxTurnsAlive) {
         missilesToRemove.push(missile.id)
         logEntries.push({
           turn: gameState.turn,
@@ -302,6 +292,14 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
 }
 
 /**
+ * Get missile ammo from a ship's missiles subsystem
+ */
+export function getMissileAmmo(subsystems: { type: string; ammo?: number }[]): number {
+  const missilesSubsystem = subsystems.find(s => s.type === 'missiles')
+  return missilesSubsystem?.ammo ?? 0
+}
+
+/**
  * Fire a missile from a ship
  * Called from action processor when fire_weapon action is processed
  */
@@ -321,8 +319,9 @@ export function fireMissile(
     return { missile: null, error: 'Target not found' }
   }
 
-  // Check inventory
-  if (owner.ship.missileInventory <= 0) {
+  // Check inventory from missiles subsystem
+  const ammo = getMissileAmmo(owner.ship.subsystems)
+  if (ammo <= 0) {
     return { missile: null, error: 'No missiles remaining' }
   }
 

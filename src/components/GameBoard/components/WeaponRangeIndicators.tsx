@@ -69,6 +69,13 @@ export function WeaponRangeIndicators({
     return isWeapon && moveAction && action.sequence > moveAction.sequence
   })
 
+  // Determine if rotation happens before or after movement
+  const rotateAction = pendingState.tacticalSequence.find(a => a.type === 'rotate')
+  const moveAction = pendingState.tacticalSequence.find(a => a.type === 'move')
+  const rotateBeforeMove = rotateAction && moveAction
+    ? rotateAction.sequence < moveAction.sequence
+    : true // Default to rotate before move
+
   // Calculate ship position for range visualization
   let rangeVisualizationShip = player.ship
   let rangeVisualizationRing = ringConfig
@@ -82,7 +89,8 @@ export function WeaponRangeIndicators({
     rangeVisualizationShip = calculatePostMovementPosition(
       player.ship,
       pendingFacing,
-      pendingMovement
+      pendingMovement,
+      rotateBeforeMove
     )
 
     // Recalculate ring config and position for post-movement ship

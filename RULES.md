@@ -38,18 +38,20 @@ This document contains the comprehensive rules for Dangerous Inclinations.
 Ships have a **dissipation capacity** (base: 5) that represents their ability to radiate heat.
 
 **Heat Lifecycle:**
-1. **Start of turn**: Evaluate heat from previous turn
+1. **During turn**: Subsystem usage generates heat (engines, rotation, weapons)
+2. **Turn ends**: Heat persists on ship
+3. **When your next turn begins**: Heat is evaluated
    - If heat > dissipation capacity, take damage = heat - capacity
    - Example: 8 heat with 5 dissipation = 3 damage
-2. **Heat resets to 0**: After evaluation, heat is cleared
-3. **During turn**: Subsystem usage generates heat
+   - Heat is then cleared to 0
 4. **Between turns**: Shields and critical hits can add heat
-5. **Repeat**: Next turn evaluates accumulated heat
+5. **Repeat**: Generate heat during your turn, evaluate at start of next turn
 
 This simple model makes heat easy to track:
+- Heat damage is applied BEFORE you see your turn (you see the damage immediately)
 - Each turn starts fresh after heat is evaluated
 - You only need to track heat generated THIS turn
-- If your heat exceeds dissipation, you'll take damage next turn
+- If your heat exceeds dissipation, you'll take damage at the START of your next turn
 
 ### Critical Hits
 
@@ -297,16 +299,17 @@ When a weapon fires **after** the movement action:
 
 **When a player becomes active** (at the end of the previous player's turn):
 
+- **Heat Resolution** (applied immediately when switching to this player):
+  1. **Heat Damage**: If heat > dissipation capacity, take damage = heat - capacity
+  2. **Heat Reset**: Heat is cleared to 0 (damage already taken)
+  - This ensures the player sees any heat damage BEFORE planning their turn
+
 - **Transfer Completion** (if arriving this turn)
   - Ship arrives at destination ring and sector
   - Transfer state is cleared
   - Player begins their turn at the new position
 
 **When a player executes their turn**, actions are processed in phases:
-
-**Phase 0: Heat Resolution** (at turn START):
-1. **Heat Damage**: If heat > dissipation capacity, take damage = heat - capacity
-2. **Heat Reset**: Heat is cleared to 0 (damage already taken)
 
 **Phase 1: Energy Management**:
 1. **Energy Allocation** (to subsystems)

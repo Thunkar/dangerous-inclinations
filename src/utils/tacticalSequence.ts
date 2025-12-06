@@ -71,6 +71,7 @@ export function calculateShipPositionForWeapon(
  * @param initialShip - Current ship state
  * @param pendingFacing - Facing after rotation action
  * @param pendingMovement - Movement action data (burn or coast)
+ * @param rotateBeforeMove - Whether rotation happens before movement (default true for backwards compatibility)
  * @returns Projected ship state after movement (at destination ring if burning)
  */
 export function calculatePostMovementPosition(
@@ -80,12 +81,13 @@ export function calculatePostMovementPosition(
     actionType: ActionType
     burnIntensity?: BurnIntensity
     sectorAdjustment: number
-  }
+  },
+  rotateBeforeMove: boolean = true
 ): ShipState {
   let projectedShip = { ...initialShip }
 
-  // Apply rotation if there's a pending facing change
-  if (pendingFacing && pendingFacing !== projectedShip.facing) {
+  // Apply rotation BEFORE movement if specified (affects burn direction)
+  if (rotateBeforeMove && pendingFacing && pendingFacing !== projectedShip.facing) {
     projectedShip = applyRotation(projectedShip, pendingFacing)
   }
 
@@ -110,6 +112,11 @@ export function calculatePostMovementPosition(
     if (projectedShip.transferState) {
       projectedShip = completeRingTransfer(projectedShip)
     }
+  }
+
+  // Apply rotation AFTER movement if specified (for facing after burn)
+  if (!rotateBeforeMove && pendingFacing && pendingFacing !== projectedShip.facing) {
+    projectedShip = applyRotation(projectedShip, pendingFacing)
   }
 
   return projectedShip

@@ -71,11 +71,10 @@ export interface ShipState {
   maxHitPoints: number
   transferState: TransferState | null
   // Subsystem-based energy/heat system
-  subsystems: Subsystem[]
+  subsystems: Subsystem[] // Note: missiles subsystem has ammo field for inventory
   reactor: ReactorState
   heat: HeatState
   dissipationCapacity: number // Base heat dissipation per turn (see DEFAULT_DISSIPATION_CAPACITY, can be increased by radiators)
-  missileInventory: number // Missiles remaining (starts at 4, max 4, cannot replenish)
 }
 
 /**

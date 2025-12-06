@@ -360,7 +360,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       tacticalSequence: sequence,
       heat: {
         currentHeat: computeProjectedHeat(
-          activePlayer.ship.heat.currentHeat,
           prev.subsystems,
           sequence,
           prev.movement,
@@ -369,7 +368,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ),
       },
     }))
-  }, [activePlayer.ship.heat.currentHeat, activePlayer.ship.facing])
+  }, [activePlayer.ship.facing])
 
   // Execute turn: compute diff between committed and pending, create actions using tactical sequence
   const executeTurn = useCallback(() => {

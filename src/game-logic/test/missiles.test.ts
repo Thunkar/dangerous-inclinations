@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { executeTurn } from '../turns'
-import { calculateMissileMovement, checkMissileHit, MISSILE_CONFIG } from '../missiles'
+import { calculateMissileMovement, checkMissileHit, getMissileAmmo } from '../missiles'
+import { getMissileStats } from '../../types/subsystems'
 import { createTestGameState } from './fixtures/gameState'
 import type { Missile, FireWeaponAction, AllocateEnergyAction, CoastAction } from '../../types/game'
+
+const MISSILE_STATS = getMissileStats()
 
 describe('Missile System', () => {
   describe('Missile Pathfinding', () => {
@@ -27,7 +30,7 @@ describe('Missile System', () => {
 
       expect(movement.ring).toBe(3) // Same ring, no ring change
       expect(movement.fuelSpent).toBeGreaterThan(0)
-      expect(movement.fuelSpent).toBeLessThanOrEqual(MISSILE_CONFIG.FUEL_PER_TURN)
+      expect(movement.fuelSpent).toBeLessThanOrEqual(MISSILE_STATS.fuelPerTurn)
       expect(movement.path.length).toBeGreaterThan(0)
     })
 
@@ -137,9 +140,9 @@ describe('Missile System', () => {
 
       expect(result.errors).toBeUndefined()
 
-      // Check missile inventory decremented
+      // Check missile ammo decremented (stored on missiles subsystem)
       const player1 = gameState.players.find(p => p.id === 'player1')!
-      expect(player1.ship.missileInventory).toBe(3) // Started with 4
+      expect(getMissileAmmo(player1.ship.subsystems)).toBe(3) // Started with 4
 
       // Check missile was added to game state
       expect(gameState.missiles.length).toBe(1)
@@ -147,11 +150,13 @@ describe('Missile System', () => {
       expect(gameState.missiles[0].targetId).toBe('player2')
     })
 
-    it('should not fire missile with 0 inventory', () => {
+    it('should not fire missile with 0 ammo', () => {
       let gameState = createTestGameState()
 
-      // Set inventory to 0
-      gameState.players[0].ship.missileInventory = 0
+      // Set ammo to 0 on missiles subsystem
+      gameState.players[0].ship.subsystems = gameState.players[0].ship.subsystems.map(s =>
+        s.type === 'missiles' ? { ...s, ammo: 0 } : s
+      )
 
       // Allocate energy to missiles
       const allocateAction: AllocateEnergyAction = {
@@ -301,8 +306,7 @@ describe('Missile System', () => {
     it('should allow multiple missiles targeting same ship', () => {
       let gameState = createTestGameState()
 
-      // Set inventory to 4
-      gameState.players[0].ship.missileInventory = 4
+      // Initial subsystems already have 4 ammo (maxAmmo from config)
 
       // Fire first missile
       const allocate1: AllocateEnergyAction = {
