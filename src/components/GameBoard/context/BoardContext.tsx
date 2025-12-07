@@ -467,6 +467,8 @@ export function BoardProvider({ children }: BoardProviderProps) {
 
   // Track which action index we last spawned weapon effects for
   const lastWeaponEffectActionRef = useRef(-1)
+  // Track which action index we last spawned floating numbers for (on completion)
+  const lastFloatingNumberActionRef = useRef(-1)
 
   // Animation tick function
   const tick = () => {
@@ -508,7 +510,39 @@ export function BoardProvider({ children }: BoardProviderProps) {
     setDisplayState(animatedDisplay)
 
     if (progress >= 1) {
-      // Action complete
+      // Action complete - spawn floating numbers for fire_weapon actions
+      if (action.type === 'fire_weapon' && lastFloatingNumberActionRef.current !== actionIndex) {
+        lastFloatingNumberActionRef.current = actionIndex
+        const fireAction = action as FireWeaponAction
+
+        // Check damage/shield changes for each target
+        for (const targetId of fireAction.data.targetPlayerIds) {
+          const targetBefore = beforeState.players.find(p => p.id === targetId)
+          const targetAfter = afterState.players.find(p => p.id === targetId)
+          if (!targetBefore || !targetAfter) continue
+
+          const position = calculateShipScreenPosition(targetAfter.ship)
+
+          // Hull damage (red) - when HP decreases
+          const hullDamage = targetBefore.ship.hitPoints - targetAfter.ship.hitPoints
+          if (hullDamage > 0) {
+            addFloatingNumber(position.x, position.y, hullDamage, 'damage')
+          }
+
+          // Shield absorption (blue) - detected by shield energy depletion
+          const shieldsBefore = targetBefore.ship.subsystems.find(s => s.type === 'shields')
+          const shieldsAfter = targetAfter.ship.subsystems.find(s => s.type === 'shields')
+          const shieldEnergyBefore = shieldsBefore?.allocatedEnergy || 0
+          const shieldEnergyAfter = shieldsAfter?.allocatedEnergy || 0
+          const shieldAbsorbed = shieldEnergyBefore - shieldEnergyAfter
+
+          if (shieldAbsorbed > 0) {
+            addFloatingNumber(position.x, position.y, shieldAbsorbed, 'shield')
+          }
+        }
+      }
+
+      // Update intermediate state
       anim.current.beforeState = createIntermediateGameState(beforeState, afterState, action)
       anim.current.actionIndex++
 
@@ -521,6 +555,7 @@ export function BoardProvider({ children }: BoardProviderProps) {
         anim.current.actions = []
         anim.current.actionIndex = -1
         lastWeaponEffectActionRef.current = -1 // Reset for next animation sequence
+        lastFloatingNumberActionRef.current = -1
 
         if (anim.current.onComplete) {
           anim.current.onComplete()
@@ -559,47 +594,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
         const tacticalActions = actions
           .filter(a => a.sequence !== undefined)
           .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-
-        // Detect damage/shield/heat events and spawn floating numbers
-        const activePlayerId = beforeState.players[beforeState.activePlayerIndex]?.id
-
-        for (const playerBefore of beforeState.players) {
-          const playerAfter = afterState.players.find(p => p.id === playerBefore.id)
-          if (!playerAfter) continue
-
-          const position = calculateShipScreenPosition(playerAfter.ship)
-          const isActivePlayer = playerBefore.id === activePlayerId
-
-          // Hull damage (red) - when HP decreases
-          const hullDamage = playerBefore.ship.hitPoints - playerAfter.ship.hitPoints
-          if (hullDamage > 0) {
-            addFloatingNumber(position.x, position.y, hullDamage, 'damage')
-          }
-
-          // Shield absorption (blue) - detected by shield energy depletion
-          // Shields lose energy equal to damage absorbed, so this is reliable
-          const shieldsBefore = playerBefore.ship.subsystems.find(s => s.type === 'shields')
-          const shieldsAfter = playerAfter.ship.subsystems.find(s => s.type === 'shields')
-          const shieldEnergyBefore = shieldsBefore?.allocatedEnergy || 0
-          const shieldEnergyAfter = shieldsAfter?.allocatedEnergy || 0
-          const shieldAbsorbed = shieldEnergyBefore - shieldEnergyAfter
-
-          if (shieldAbsorbed > 0) {
-            addFloatingNumber(position.x, position.y, shieldAbsorbed, 'shield')
-          }
-
-          // Heat generated (orange) - only for active player's subsystem usage
-          // Heat from shield absorption is already shown as shield floating number
-          if (isActivePlayer) {
-            const heatBefore = playerBefore.ship.heat?.currentHeat || 0
-            const heatAfter = playerAfter.ship.heat?.currentHeat || 0
-            const heatGenerated = heatAfter - heatBefore
-
-            if (heatGenerated > 0) {
-              addFloatingNumber(position.x, position.y, heatGenerated, 'heat')
-            }
-          }
-        }
 
         if (tacticalActions.length === 0) {
           setDisplayState(gameStateToDisplayState(afterState))

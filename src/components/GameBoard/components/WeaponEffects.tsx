@@ -57,12 +57,22 @@ interface BeamProps {
 }
 
 /**
- * Laser beam - a bright line that flashes and fades
- * The beam appears instantly and then fades out
+ * Laser beam - extends from attacker to target, then fades
+ * First half: beam extends from source to target
+ * Second half: beam fades out
  */
 function LaserBeam({ startX, startY, endX, endY, progress, color }: BeamProps) {
-  // Opacity: bright at start, fade out
-  const opacity = progress < 0.3 ? 1 : 1 - (progress - 0.3) / 0.7
+  // First 40%: beam extends from source to target
+  // Last 60%: beam stays full length but fades out
+  const extensionProgress = Math.min(progress / 0.4, 1)
+  const fadeProgress = progress > 0.4 ? (progress - 0.4) / 0.6 : 0
+
+  // Current end point (extends from start toward end)
+  const currentEndX = startX + (endX - startX) * extensionProgress
+  const currentEndY = startY + (endY - startY) * extensionProgress
+
+  // Opacity: full during extension, fade during second phase
+  const opacity = 1 - fadeProgress * 0.9
 
   // Line width pulses at start then settles
   const baseWidth = 3
@@ -74,8 +84,8 @@ function LaserBeam({ startX, startY, endX, endY, progress, color }: BeamProps) {
       <line
         x1={startX}
         y1={startY}
-        x2={endX}
-        y2={endY}
+        x2={currentEndX}
+        y2={currentEndY}
         stroke={color}
         strokeWidth={pulseWidth * 3}
         strokeLinecap="round"
@@ -85,8 +95,8 @@ function LaserBeam({ startX, startY, endX, endY, progress, color }: BeamProps) {
       <line
         x1={startX}
         y1={startY}
-        x2={endX}
-        y2={endY}
+        x2={currentEndX}
+        y2={currentEndY}
         stroke={color}
         strokeWidth={pulseWidth}
         strokeLinecap="round"
@@ -95,8 +105,8 @@ function LaserBeam({ startX, startY, endX, endY, progress, color }: BeamProps) {
       <line
         x1={startX}
         y1={startY}
-        x2={endX}
-        y2={endY}
+        x2={currentEndX}
+        y2={currentEndY}
         stroke="#ffffff"
         strokeWidth={pulseWidth * 0.4}
         strokeLinecap="round"
