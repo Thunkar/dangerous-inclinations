@@ -525,6 +525,7 @@ function processCoast(gameState: GameState, action: CoastAction): ProcessResult 
   let updatedShip = applyOrbitalMovement(player.ship)
 
   // Apply fuel scoop if activated
+  let heatGenerated = 0
   if (action.data.activateScoop) {
     const well = getGravityWell(updatedShip.wellId)
     const ringConfig = well?.rings.find(r => r.ring === updatedShip.ring)
@@ -535,6 +536,13 @@ function processCoast(gameState: GameState, action: CoastAction): ProcessResult 
     updatedShip = {
       ...updatedShip,
       reactionMass: updatedShip.reactionMass + massRecovered,
+    }
+
+    // Generate heat from scoop (heat = allocated energy)
+    const scoopSubsystem = updatedShip.subsystems.find(s => s.type === 'scoop')
+    if (scoopSubsystem) {
+      heatGenerated = scoopSubsystem.allocatedEnergy
+      updatedShip = addHeat(updatedShip, heatGenerated)
     }
   }
 
@@ -547,7 +555,7 @@ function processCoast(gameState: GameState, action: CoastAction): ProcessResult 
       playerId: player.id,
       playerName: player.name,
       action: 'Coast',
-      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ` (scoop recovered ${Math.min((getGravityWell(updatedShip.wellId)?.rings.find(r => r.ring === updatedShip.ring)?.velocity || 1), MAX_REACTION_MASS - player.ship.reactionMass)} mass)` : ''}`,
+      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ` (scoop recovered ${Math.min((getGravityWell(updatedShip.wellId)?.rings.find(r => r.ring === updatedShip.ring)?.velocity || 1), MAX_REACTION_MASS - player.ship.reactionMass)} mass)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ''}` : ''}`,
     },
   ]
 

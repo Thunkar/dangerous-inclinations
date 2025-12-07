@@ -2,7 +2,7 @@ import type { GameState, Missile, Player, TurnLogEntry } from '../types/game'
 import type { ProcessResult } from './actionProcessors'
 import { getGravityWell } from '../constants/gravityWells'
 import { applyOrbitalMovement } from './movement'
-import { applyWeaponDamage } from './damage'
+import { applyDamageWithShields } from './damage'
 import { getMissileStats } from '../types/subsystems'
 
 // Get missile stats from centralized config
@@ -222,21 +222,31 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
     }
 
     if (checkMissileHit(missileState, target)) {
-      // HIT! Apply damage
+      // HIT! Apply damage with shield absorption
       const targetIndex = updatedPlayers.findIndex(p => p.id === target.id)
-      const damagedShip = applyWeaponDamage(target.ship, 'missiles', MISSILE_STATS.damage)
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(target.ship, MISSILE_STATS.damage)
       updatedPlayers[targetIndex] = {
         ...target,
         ship: damagedShip,
       }
 
       missilesToRemove.push(missile.id)
+
+      // Build result message based on shield absorption
+      let resultMsg = `${owner.name}'s missile hit ${target.name}`
+      if (hitResult.damageToHeat > 0) {
+        resultMsg += ` for ${MISSILE_STATS.damage} damage (${hitResult.damageToHeat} absorbed by shields → heat, ${hitResult.damageToHull} to hull)`
+      } else {
+        resultMsg += ` for ${MISSILE_STATS.damage} damage`
+      }
+      resultMsg += ` (R${currentRing}S${currentSector})`
+
       logEntries.push({
         turn: gameState.turn,
         playerId: owner.id,
         playerName: owner.name,
         action: 'Missile Hit',
-        result: `${owner.name}'s missile hit ${target.name} for ${MISSILE_STATS.damage} damage! (R${currentRing}S${currentSector})`,
+        result: resultMsg,
       })
     } else {
       // Update missile position and clear the skipOrbitalThisTurn flag

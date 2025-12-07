@@ -608,4 +608,176 @@ describe('Missile System', () => {
       expect(missileBeforeMove.sector).toBe(missileAfterMove.sector)
     })
   })
+
+  describe('Missile Shield Interaction', () => {
+    it('should have shields absorb missile damage', () => {
+      let gameState = createTestGameState()
+
+      // Position ships close together for quick hit
+      gameState.players[0].ship.ring = 3
+      gameState.players[0].ship.sector = 0
+      gameState.players[1].ship.ring = 3
+      gameState.players[1].ship.sector = 1 // 1 sector away - will hit quickly
+
+      // Give player 2 shields with 2 energy allocated
+      gameState.players[1].ship.subsystems = gameState.players[1].ship.subsystems.map(s =>
+        s.type === 'shields'
+          ? { ...s, isPowered: true, allocatedEnergy: 2 }
+          : s
+      )
+      gameState.players[1].ship.reactor.availableEnergy -= 2
+
+      const initialHp = gameState.players[1].ship.hitPoints
+
+      // Fire missile from player 1
+      const allocateAction: AllocateEnergyAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: {
+          subsystemType: 'missiles',
+          amount: 2,
+        },
+      }
+
+      const fireAction: FireWeaponAction = {
+        type: 'fire_weapon',
+        playerId: 'player1',
+        sequence: 1,
+        data: {
+          weaponType: 'missiles',
+          targetPlayerIds: ['player2'],
+        },
+      }
+
+      let result = executeTurn(gameState, [allocateAction, fireAction])
+      gameState = result.gameState
+
+      // Process turns until missile hits or expires
+      for (let i = 0; i < 6; i++) {
+        if (gameState.missiles.length === 0) break
+        result = executeTurn(gameState, [])
+        gameState = result.gameState
+      }
+
+      // Missile should have hit
+      expect(gameState.missiles.length).toBe(0)
+
+      // Verify shield absorption worked
+      const player2 = gameState.players.find(p => p.id === 'player2')!
+
+      // With 2 shields, all 2 damage should be absorbed as heat
+      // Hull damage = 2 - 2 = 0
+      expect(player2.ship.hitPoints).toBe(initialHp)
+
+      // Note: Heat is reset at the start of each player's turn, so we can't check
+      // heat directly after multiple turns. The key verification is that hull
+      // damage was prevented by shields.
+    })
+
+    it('should partially absorb missile damage when shields have less capacity', () => {
+      let gameState = createTestGameState()
+
+      // Position ships close together
+      gameState.players[0].ship.ring = 3
+      gameState.players[0].ship.sector = 0
+      gameState.players[1].ship.ring = 3
+      gameState.players[1].ship.sector = 1
+
+      // Give player 2 shields with only 1 energy (less than missile damage of 2)
+      gameState.players[1].ship.subsystems = gameState.players[1].ship.subsystems.map(s =>
+        s.type === 'shields'
+          ? { ...s, isPowered: true, allocatedEnergy: 1 }
+          : s
+      )
+      gameState.players[1].ship.reactor.availableEnergy -= 1
+
+      const initialHp = gameState.players[1].ship.hitPoints
+
+      // Fire missile
+      const allocateAction: AllocateEnergyAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: {
+          subsystemType: 'missiles',
+          amount: 2,
+        },
+      }
+
+      const fireAction: FireWeaponAction = {
+        type: 'fire_weapon',
+        playerId: 'player1',
+        sequence: 1,
+        data: {
+          weaponType: 'missiles',
+          targetPlayerIds: ['player2'],
+        },
+      }
+
+      let result = executeTurn(gameState, [allocateAction, fireAction])
+      gameState = result.gameState
+
+      // Process turns until missile hits
+      for (let i = 0; i < 6; i++) {
+        if (gameState.missiles.length === 0) break
+        result = executeTurn(gameState, [])
+        gameState = result.gameState
+      }
+
+      const player2 = gameState.players.find(p => p.id === 'player2')!
+
+      // Missile does 2 damage, shields absorb 1 -> 1 to hull
+      expect(player2.ship.hitPoints).toBe(initialHp - 1)
+    })
+
+    it('should deal full missile damage when target has no shields', () => {
+      let gameState = createTestGameState()
+
+      // Position ships close together
+      gameState.players[0].ship.ring = 3
+      gameState.players[0].ship.sector = 0
+      gameState.players[1].ship.ring = 3
+      gameState.players[1].ship.sector = 1
+
+      // Player 2 has no shields powered (default state)
+      const initialHp = gameState.players[1].ship.hitPoints
+      const initialHeat = gameState.players[1].ship.heat?.currentHeat || 0
+
+      // Fire missile
+      const allocateAction: AllocateEnergyAction = {
+        type: 'allocate_energy',
+        playerId: 'player1',
+        data: {
+          subsystemType: 'missiles',
+          amount: 2,
+        },
+      }
+
+      const fireAction: FireWeaponAction = {
+        type: 'fire_weapon',
+        playerId: 'player1',
+        sequence: 1,
+        data: {
+          weaponType: 'missiles',
+          targetPlayerIds: ['player2'],
+        },
+      }
+
+      let result = executeTurn(gameState, [allocateAction, fireAction])
+      gameState = result.gameState
+
+      // Process turns until missile hits
+      for (let i = 0; i < 6; i++) {
+        if (gameState.missiles.length === 0) break
+        result = executeTurn(gameState, [])
+        gameState = result.gameState
+      }
+
+      const player2 = gameState.players.find(p => p.id === 'player2')!
+
+      // Full 2 damage to hull
+      expect(player2.ship.hitPoints).toBe(initialHp - MISSILE_STATS.damage)
+      // No heat from shield absorption
+      expect(player2.ship.heat?.currentHeat).toBe(initialHeat)
+    })
+  })
 })

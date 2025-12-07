@@ -15,6 +15,8 @@ import {
   MissileRenderer,
   ShipRenderer,
   WeaponRangeIndicators,
+  VisualEffects,
+  WeaponEffects,
   type MovementPreview,
 } from './GameBoard/index'
 import { GRAVITY_WELLS, TRANSFER_POINTS, getGravityWell } from '../constants/gravityWells'
@@ -34,7 +36,7 @@ export function GameBoard({ pendingFacing, pendingMovement }: GameBoardProps) {
 
 function GameBoardContent({ pendingFacing, pendingMovement }: GameBoardProps) {
   const { gameState, weaponRangeVisibility, pendingState } = useGame()
-  const { displayState } = useBoardContext()
+  const { displayState, floatingNumbers, weaponEffects, currentTime } = useBoardContext()
 
   // Pan and zoom state - must be declared before any conditional returns (Rules of Hooks)
   // Start with 2x zoom for better initial view, centered on the black hole (board center)
@@ -207,6 +209,12 @@ function GameBoardContent({ pendingFacing, pendingMovement }: GameBoardProps) {
 
           {/* Missiles in flight */}
           <MissileRenderer />
+
+          {/* Weapon effects (laser beams, railgun projectiles) */}
+          <WeaponEffects weaponEffects={weaponEffects} currentTime={currentTime} />
+
+          {/* Visual effects (floating damage numbers) - render on top */}
+          <VisualEffects floatingNumbers={floatingNumbers} currentTime={currentTime} />
         </g>
       </svg>
 

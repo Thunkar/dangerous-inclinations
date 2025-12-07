@@ -1,7 +1,9 @@
-import { createContext, useContext, useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react'
 import { useGame, type AnimationHandlers } from '../../../context/GameContext'
-import type { GameState, PlayerAction } from '../../../types/game'
+import type { GameState, PlayerAction, FireWeaponAction } from '../../../types/game'
 import type { DisplayState, DisplayShip, DisplayMissile } from '../types/display'
+import type { FloatingNumber, FloatingNumberType, WeaponEffect } from '../types/effects'
+import { FLOATING_NUMBER_DURATION, WEAPON_EFFECT_DURATIONS } from '../types/effects'
 import { GRAVITY_WELLS } from '../../../constants/gravityWells'
 import {
   BOARD_SIZE,
@@ -25,6 +27,11 @@ export interface BoardContextValue {
   getSectorRotationOffset: (wellId: string) => number
   displayState: DisplayState | null
   isAnimating: boolean
+  // Visual effects
+  floatingNumbers: FloatingNumber[]
+  weaponEffects: WeaponEffect[]
+  currentTime: number
+  addFloatingNumber: (x: number, y: number, value: number, type: FloatingNumberType) => void
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -348,6 +355,13 @@ export function BoardProvider({ children }: BoardProviderProps) {
   const [displayState, setDisplayState] = useState<DisplayState | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
 
+  // Floating numbers state for visual effects
+  const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumber[]>([])
+  const [weaponEffects, setWeaponEffects] = useState<WeaponEffect[]>([])
+  const [currentTime, setCurrentTime] = useState(0)
+  const floatingNumberIdRef = useRef(0)
+  const weaponEffectIdRef = useRef(0)
+
   // Single ref for all animation state
   const anim = useRef<AnimationState>({
     frameId: null,
@@ -358,6 +372,21 @@ export function BoardProvider({ children }: BoardProviderProps) {
     startTime: 0,
     onComplete: null,
   })
+
+  // Add a new floating number
+  const addFloatingNumber = useCallback((x: number, y: number, value: number, type: FloatingNumberType) => {
+    const id = `floating-${floatingNumberIdRef.current++}`
+    const newNumber: FloatingNumber = {
+      id,
+      x,
+      y,
+      value,
+      type,
+      startTime: performance.now(),
+      duration: FLOATING_NUMBER_DURATION,
+    }
+    setFloatingNumbers(prev => [...prev, newNumber])
+  }, [])
 
   const helpers = useMemo(() => ({
     getGravityWellPosition: (wellId: string) =>
@@ -375,6 +404,70 @@ export function BoardProvider({ children }: BoardProviderProps) {
     }
   }, [])
 
+  // Visual effects animation loop - runs when there are floating numbers or weapon effects
+  useEffect(() => {
+    // Don't run if no effects
+    if (floatingNumbers.length === 0 && weaponEffects.length === 0) {
+      return
+    }
+
+    let frameId: number | null = null
+
+    const tickEffects = () => {
+      const now = performance.now()
+      setCurrentTime(now)
+
+      // Remove expired floating numbers
+      setFloatingNumbers(prev => {
+        const active = prev.filter(num => now - num.startTime < num.duration)
+        return active.length !== prev.length ? active : prev
+      })
+
+      // Remove expired weapon effects
+      setWeaponEffects(prev => {
+        const active = prev.filter(effect => now - effect.startTime < effect.duration)
+        return active.length !== prev.length ? active : prev
+      })
+
+      // Continue loop only if there might still be effects
+      frameId = requestAnimationFrame(tickEffects)
+    }
+
+    // Start the loop
+    frameId = requestAnimationFrame(tickEffects)
+
+    return () => {
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId)
+      }
+    }
+  }, [floatingNumbers.length > 0 || weaponEffects.length > 0]) // Only re-run when transitioning between 0 and non-0
+
+  // Helper to add weapon effect
+  const addWeaponEffect = useCallback((
+    type: 'laser' | 'railgun',
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number
+  ) => {
+    const id = `weapon-${weaponEffectIdRef.current++}`
+    const newEffect: WeaponEffect = {
+      id,
+      type,
+      startX,
+      startY,
+      endX,
+      endY,
+      startTime: performance.now(),
+      duration: WEAPON_EFFECT_DURATIONS[type],
+    }
+    setWeaponEffects(prev => [...prev, newEffect])
+  }, [])
+
+  // Track which action index we last spawned weapon effects for
+  const lastWeaponEffectActionRef = useRef(-1)
+
   // Animation tick function
   const tick = () => {
     const { beforeState, afterState, actions, actionIndex, startTime } = anim.current
@@ -387,6 +480,29 @@ export function BoardProvider({ children }: BoardProviderProps) {
     const duration = ACTION_DURATIONS[action.type] || 500
     const elapsed = performance.now() - startTime
     const progress = Math.min(elapsed / duration, 1)
+
+    // Spawn weapon effects at the START of a fire_weapon action (only once per action)
+    if (action.type === 'fire_weapon' && lastWeaponEffectActionRef.current !== actionIndex) {
+      lastWeaponEffectActionRef.current = actionIndex
+      const fireAction = action as FireWeaponAction
+      const weaponType = fireAction.data.weaponType
+
+      // Only laser and railgun get visual effects (missiles have their own animation)
+      if (weaponType === 'laser' || weaponType === 'railgun') {
+        const attacker = beforeState.players.find(p => p.id === action.playerId)
+        if (attacker) {
+          const attackerPos = calculateShipScreenPosition(attacker.ship)
+
+          for (const targetId of fireAction.data.targetPlayerIds) {
+            const target = beforeState.players.find(p => p.id === targetId)
+            if (target) {
+              const targetPos = calculateShipScreenPosition(target.ship)
+              addWeaponEffect(weaponType, attackerPos.x, attackerPos.y, targetPos.x, targetPos.y)
+            }
+          }
+        }
+      }
+    }
 
     const animatedDisplay = computeAnimatedDisplayState(beforeState, afterState, action, progress)
     setDisplayState(animatedDisplay)
@@ -404,6 +520,7 @@ export function BoardProvider({ children }: BoardProviderProps) {
         anim.current.afterState = null
         anim.current.actions = []
         anim.current.actionIndex = -1
+        lastWeaponEffectActionRef.current = -1 // Reset for next animation sequence
 
         if (anim.current.onComplete) {
           anim.current.onComplete()
@@ -443,6 +560,47 @@ export function BoardProvider({ children }: BoardProviderProps) {
           .filter(a => a.sequence !== undefined)
           .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
 
+        // Detect damage/shield/heat events and spawn floating numbers
+        const activePlayerId = beforeState.players[beforeState.activePlayerIndex]?.id
+
+        for (const playerBefore of beforeState.players) {
+          const playerAfter = afterState.players.find(p => p.id === playerBefore.id)
+          if (!playerAfter) continue
+
+          const position = calculateShipScreenPosition(playerAfter.ship)
+          const isActivePlayer = playerBefore.id === activePlayerId
+
+          // Hull damage (red) - when HP decreases
+          const hullDamage = playerBefore.ship.hitPoints - playerAfter.ship.hitPoints
+          if (hullDamage > 0) {
+            addFloatingNumber(position.x, position.y, hullDamage, 'damage')
+          }
+
+          // Shield absorption (blue) - detected by shield energy depletion
+          // Shields lose energy equal to damage absorbed, so this is reliable
+          const shieldsBefore = playerBefore.ship.subsystems.find(s => s.type === 'shields')
+          const shieldsAfter = playerAfter.ship.subsystems.find(s => s.type === 'shields')
+          const shieldEnergyBefore = shieldsBefore?.allocatedEnergy || 0
+          const shieldEnergyAfter = shieldsAfter?.allocatedEnergy || 0
+          const shieldAbsorbed = shieldEnergyBefore - shieldEnergyAfter
+
+          if (shieldAbsorbed > 0) {
+            addFloatingNumber(position.x, position.y, shieldAbsorbed, 'shield')
+          }
+
+          // Heat generated (orange) - only for active player's subsystem usage
+          // Heat from shield absorption is already shown as shield floating number
+          if (isActivePlayer) {
+            const heatBefore = playerBefore.ship.heat?.currentHeat || 0
+            const heatAfter = playerAfter.ship.heat?.currentHeat || 0
+            const heatGenerated = heatAfter - heatBefore
+
+            if (heatGenerated > 0) {
+              addFloatingNumber(position.x, position.y, heatGenerated, 'heat')
+            }
+          }
+        }
+
         if (tacticalActions.length === 0) {
           setDisplayState(gameStateToDisplayState(afterState))
           onComplete()
@@ -467,7 +625,7 @@ export function BoardProvider({ children }: BoardProviderProps) {
     }
 
     registerAnimationHandlers(handlers)
-  }, [registerAnimationHandlers])
+  }, [registerAnimationHandlers, addFloatingNumber])
 
   return (
     <BoardContext.Provider
@@ -480,6 +638,11 @@ export function BoardProvider({ children }: BoardProviderProps) {
         getSectorRotationOffset: helpers.getSectorRotationOffset,
         displayState,
         isAnimating,
+        // Visual effects
+        floatingNumbers,
+        weaponEffects,
+        currentTime,
+        addFloatingNumber,
       }}
     >
       {children}

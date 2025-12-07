@@ -31,6 +31,9 @@ export {
   MissileRenderer,
   ShipRenderer,
   WeaponRangeIndicators,
+  ShieldBubble,
+  VisualEffects,
+  WeaponEffects,
 } from './components'
 
 // Note: Main GameBoard component not yet migrated - still in ../GameBoard.tsx

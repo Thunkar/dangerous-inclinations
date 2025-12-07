@@ -27,7 +27,7 @@ export { applyOrbitalMovement } from './movement'
 
 // Damage
 export {
-  applyWeaponDamage,
+  applyDirectDamage,
   applyHeatDamageToShip,
   getWeaponDamage,
   isShipDestroyed,

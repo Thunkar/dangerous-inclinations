@@ -76,7 +76,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: 'Fuel Scoop',
     minEnergy: 3,
     maxEnergy: 3,
-    generatesHeatOnUse: false, // Passive collection, no heat
+    generatesHeatOnUse: true, // Generates heat when scooping
   },
   laser: {
     id: 'laser',

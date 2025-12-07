@@ -5,6 +5,8 @@ import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
 import { BURN_COSTS, mapSectorOnTransfer } from '../../../constants/rings'
 import { getGravityWell, TRANSFER_POINTS } from '../../../constants/gravityWells'
+import { getSubsystemConfig } from '../../../types/subsystems'
+import { ShieldBubble } from './ShieldBubble'
 
 interface ShipRendererProps {
   pendingFacing?: Facing
@@ -74,10 +76,6 @@ export function ShipRenderer({
           index === gameState.activePlayerIndex && pendingFacing && rotateBeforeMove
             ? pendingFacing
             : player.ship.facing
-
-        // For general display, still show the pending facing
-        const effectiveFacing =
-          index === gameState.activePlayerIndex && pendingFacing ? pendingFacing : player.ship.facing
 
         // Calculate predicted positions for movement indicators
         let predictedX: number | null = null
@@ -345,6 +343,26 @@ export function ShipRenderer({
                 opacity={0.6}
               />
             )}
+
+            {/* Shield bubble - render behind ship if shields are powered */}
+            {(() => {
+              const shieldSubsystem = player.ship.subsystems.find(s => s.type === 'shields')
+              const shieldConfig = getSubsystemConfig('shields')
+              const isShieldPowered = shieldSubsystem && shieldSubsystem.allocatedEnergy >= shieldConfig.minEnergy
+
+              if (isShieldPowered && shieldSubsystem) {
+                return (
+                  <ShieldBubble
+                    x={x}
+                    y={y}
+                    allocation={shieldSubsystem.allocatedEnergy}
+                    maxAllocation={shieldConfig.maxEnergy}
+                    shipSize={ship.size}
+                  />
+                )
+              }
+              return null
+            })()}
 
             {/* Ship token with colored outline */}
             <image

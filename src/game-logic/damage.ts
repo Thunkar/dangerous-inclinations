@@ -6,6 +6,7 @@ import { calculateHeatDamage, addHeat } from './heat'
 /**
  * Apply weapon damage to a ship with shield absorption
  * Shields convert damage to heat (up to their allocated energy)
+ * Shield energy is CONSUMED when absorbing damage - subsequent hits use remaining capacity
  * Returns new ship state and hit result details
  */
 export function applyDamageWithShields(
@@ -20,10 +21,28 @@ export function applyDamageWithShields(
   const damageAbsorbed = Math.min(damage, shieldCapacity)
   const damageToHull = damage - damageAbsorbed
 
-  // Apply hull damage
+  // Apply hull damage, deplete shield energy, and return energy to reactor
+  const newShieldEnergy = shieldCapacity - damageAbsorbed
   let updatedShip: ShipState = {
     ...ship,
     hitPoints: Math.max(0, ship.hitPoints - damageToHull),
+    // Shields lose energy equal to damage absorbed, energy returns to reactor
+    reactor: {
+      ...ship.reactor,
+      availableEnergy: Math.min(
+        ship.reactor.totalCapacity,
+        ship.reactor.availableEnergy + damageAbsorbed
+      ),
+    },
+    subsystems: ship.subsystems.map(s =>
+      s.type === 'shields'
+        ? {
+            ...s,
+            allocatedEnergy: newShieldEnergy,
+            isPowered: newShieldEnergy > 0,
+          }
+        : s
+    ),
   }
 
   // Convert absorbed damage to heat
@@ -92,15 +111,6 @@ export function applyDirectDamage(ship: ShipState, damage: number): ShipState {
     ...ship,
     hitPoints: Math.max(0, ship.hitPoints - damage),
   }
-}
-
-/**
- * Legacy function for backwards compatibility
- * Apply weapon damage to a ship (now routes through shield system)
- */
-export function applyWeaponDamage(ship: ShipState, _weaponType: SubsystemType, damage: number): ShipState {
-  // For legacy calls, apply direct damage without shield absorption
-  return applyDirectDamage(ship, damage)
 }
 
 /**

@@ -528,6 +528,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
     ])
 
+    // Reset weapon range visibility at end of turn
+    setWeaponRangeVisibility({
+      laser: false,
+      railgun: false,
+      missiles: false,
+    })
+
     // Start animation - gameState will be updated when animation completes
     if (animationHandlersRef.current) {
       animationHandlersRef.current.startAnimation(gameState, afterState, actions, () => {
