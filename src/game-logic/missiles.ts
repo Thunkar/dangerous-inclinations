@@ -222,9 +222,10 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
     }
 
     if (checkMissileHit(missileState, target)) {
-      // HIT! Apply damage with shield absorption
+      // HIT! Apply damage with d10 hit resolution
+      // Missiles always target shields for critical (thematic: guided warhead)
       const targetIndex = updatedPlayers.findIndex(p => p.id === target.id)
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(target.ship, MISSILE_STATS.damage)
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(target.ship, MISSILE_STATS.damage, 'shields')
       updatedPlayers[targetIndex] = {
         ...target,
         ship: damagedShip,
@@ -232,22 +233,43 @@ export function processMissiles(gameState: GameState, ownerId?: string): Process
 
       missilesToRemove.push(missile.id)
 
-      // Build result message based on shield absorption
-      let resultMsg = `${owner.name}'s missile hit ${target.name}`
-      if (hitResult.damageToHeat > 0) {
-        resultMsg += ` for ${MISSILE_STATS.damage} damage (${hitResult.damageToHeat} absorbed by shields → heat, ${hitResult.damageToHull} to hull)`
+      // Build result message based on hit result
+      if (hitResult.result === 'miss') {
+        logEntries.push({
+          turn: gameState.turn,
+          playerId: owner.id,
+          playerName: owner.name,
+          action: 'Missile Miss',
+          result: `${owner.name}'s missile missed ${target.name} (rolled ${hitResult.roll}) at R${currentRing}S${currentSector}`,
+        })
       } else {
-        resultMsg += ` for ${MISSILE_STATS.damage} damage`
-      }
-      resultMsg += ` (R${currentRing}S${currentSector})`
+        let resultMsg = `${owner.name}'s missile hit ${target.name} (rolled ${hitResult.roll})`
+        if (hitResult.damageToHeat > 0) {
+          resultMsg += ` for ${MISSILE_STATS.damage} damage (${hitResult.damageToHeat} absorbed by shields → heat, ${hitResult.damageToHull} to hull)`
+        } else {
+          resultMsg += ` for ${MISSILE_STATS.damage} damage`
+        }
+        resultMsg += ` (R${currentRing}S${currentSector})`
 
-      logEntries.push({
-        turn: gameState.turn,
-        playerId: owner.id,
-        playerName: owner.name,
-        action: 'Missile Hit',
-        result: resultMsg,
-      })
+        logEntries.push({
+          turn: gameState.turn,
+          playerId: owner.id,
+          playerName: owner.name,
+          action: hitResult.result === 'critical' ? 'Missile CRITICAL!' : 'Missile Hit',
+          result: resultMsg,
+        })
+
+        // Log critical hit effect if it occurred
+        if (hitResult.result === 'critical' && hitResult.criticalEffect) {
+          logEntries.push({
+            turn: gameState.turn,
+            playerId: owner.id,
+            playerName: owner.name,
+            action: 'Subsystem BROKEN!',
+            result: `${target.name}'s Shields were destroyed by missile impact!`,
+          })
+        }
+      }
     } else {
       // Update missile position and clear the skipOrbitalThisTurn flag
       const updatedMissile = {

@@ -41,12 +41,22 @@ export function VisualEffects({ floatingNumbers, currentTime }: VisualEffectsPro
         const x = num.x + offset.x
         const y = num.y + offset.y + yOffset
 
-        // Format the value with sign for positive numbers
-        const displayValue = num.type === 'shield'
-          ? `-${num.value}` // Shield shows absorption as negative (damage blocked)
-          : num.type === 'heat'
-            ? `+${num.value}` // Heat shows as positive
-            : `-${num.value}` // Damage shows as negative (HP lost)
+        // Format the value based on type
+        let displayValue: string
+        if (num.type === 'miss') {
+          displayValue = 'MISS!'
+        } else if (num.type === 'critical') {
+          displayValue = typeof num.value === 'string' ? num.value : `CRIT! ${num.value}`
+        } else if (num.type === 'shield') {
+          displayValue = `-${num.value}` // Shield shows absorption as negative (damage blocked)
+        } else if (num.type === 'heat') {
+          displayValue = `+${num.value}` // Heat shows as positive
+        } else {
+          displayValue = `-${num.value}` // Damage shows as negative (HP lost)
+        }
+
+        // Use larger font for miss/critical text
+        const fontSize = (num.type === 'miss' || num.type === 'critical') ? 22 : 18
 
         return (
           <g key={num.id} opacity={opacity} transform={`translate(${x}, ${y}) scale(${scale})`}>
@@ -56,7 +66,7 @@ export function VisualEffects({ floatingNumbers, currentTime }: VisualEffectsPro
               y={0}
               textAnchor="middle"
               dominantBaseline="middle"
-              fontSize={18}
+              fontSize={fontSize}
               fontWeight="bold"
               fontFamily="monospace"
               fill="black"
@@ -72,7 +82,7 @@ export function VisualEffects({ floatingNumbers, currentTime }: VisualEffectsPro
               y={0}
               textAnchor="middle"
               dominantBaseline="middle"
-              fontSize={18}
+              fontSize={fontSize}
               fontWeight="bold"
               fontFamily="monospace"
               fill={color}

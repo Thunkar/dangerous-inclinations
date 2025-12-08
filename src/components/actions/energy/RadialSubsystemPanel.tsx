@@ -59,17 +59,18 @@ export function RadialSubsystemPanel({
 
   const renderSubsystemMenu = (subsystem: Subsystem) => {
     const config = getSubsystemConfig(subsystem.type)
-    // Can allocate if: unpowered and have enough for minEnergy, or powered and below max with available energy
+    // Can allocate if: not broken AND (unpowered and have enough for minEnergy, or powered and below max with available energy)
     const canAllocate =
-      (subsystem.allocatedEnergy === 0 && reactor.availableEnergy >= config.minEnergy) ||
-      (subsystem.allocatedEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy && reactor.availableEnergy > 0)
+      !subsystem.isBroken &&
+      ((subsystem.allocatedEnergy === 0 && reactor.availableEnergy >= config.minEnergy) ||
+      (subsystem.allocatedEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy && reactor.availableEnergy > 0))
     const canDeallocate = subsystem.allocatedEnergy > 0
 
     // Create toggle button with indicators
     const customToggle = (
       <Box sx={{ position: 'relative' }}>
         {/* Power indicator */}
-        {subsystem.allocatedEnergy > 0 && (
+        {subsystem.allocatedEnergy > 0 && !subsystem.isBroken && (
           <Box
             sx={{
               position: 'absolute',
@@ -98,6 +99,7 @@ export function RadialSubsystemPanel({
           allocatedEnergy={subsystem.allocatedEnergy}
           isPowered={subsystem.isPowered}
           usedThisTurn={subsystem.usedThisTurn}
+          isBroken={subsystem.isBroken}
         />
       </Box>
     )

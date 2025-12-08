@@ -943,7 +943,7 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
     const target = updatedPlayers[targetIndex]
     if (target.ship.hitPoints <= 0) continue // Already destroyed
 
-    // Apply damage with shield absorption and critical hit chance
+    // Apply damage with d10 hit resolution
     const { ship: updatedTargetShip, hitResult } = applyDamageWithShields(
       target.ship,
       damage,
@@ -951,42 +951,54 @@ function processFireWeapon(gameState: GameState, action: FireWeaponAction): Proc
     )
     updatedPlayers[targetIndex] = { ...target, ship: updatedTargetShip }
 
-    // Build result message
-    let resultMsg = ''
-    if (hitResult.damageToHeat > 0) {
-      resultMsg = `Dealt ${damage} damage to ${target.name} (${hitResult.damageToHeat} absorbed by shields → heat, ${hitResult.damageToHull} to hull, ${updatedTargetShip.hitPoints}/${target.ship.maxHitPoints} HP)`
-    } else {
-      resultMsg = `Dealt ${damage} damage to ${target.name} (${updatedTargetShip.hitPoints}/${target.ship.maxHitPoints} HP)`
-    }
-
-    logEntries.push({
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: `${weaponConfig.name} Hit`,
-      result: resultMsg + (heatGenerated > 0 ? ` (+${heatGenerated} heat to attacker)` : ''),
-    })
-
-    // Log critical hit if it occurred
-    if (hitResult.critical && hitResult.criticalEffect) {
-      const critEffect = hitResult.criticalEffect
+    // Log based on hit result
+    if (hitResult.result === 'miss') {
+      // Roll 1 - Miss
       logEntries.push({
         turn: gameState.turn,
         playerId: player.id,
         playerName: player.name,
-        action: 'Critical Hit!',
-        result: `${target.name}'s ${getSubsystemConfig(critEffect.targetSubsystem).name} was disabled! (${critEffect.energyLost} energy → ${critEffect.heatAdded} heat)`,
+        action: `${weaponConfig.name} Miss`,
+        result: `Rolled ${hitResult.roll} - missed ${target.name}!` + (heatGenerated > 0 ? ` (+${heatGenerated} heat to attacker)` : ''),
       })
-    }
+    } else {
+      // Roll 2-10 - Hit or Critical
+      let resultMsg = ''
+      if (hitResult.damageToHeat > 0) {
+        resultMsg = `Rolled ${hitResult.roll} - dealt ${damage} damage to ${target.name} (${hitResult.damageToHeat} absorbed by shields → heat, ${hitResult.damageToHull} to hull, ${updatedTargetShip.hitPoints}/${target.ship.maxHitPoints} HP)`
+      } else {
+        resultMsg = `Rolled ${hitResult.roll} - dealt ${damage} damage to ${target.name} (${updatedTargetShip.hitPoints}/${target.ship.maxHitPoints} HP)`
+      }
 
-    if (updatedTargetShip.hitPoints <= 0) {
       logEntries.push({
         turn: gameState.turn,
-        playerId: target.id,
-        playerName: target.name,
-        action: 'Ship Destroyed',
-        result: `${target.name} has been destroyed!`,
+        playerId: player.id,
+        playerName: player.name,
+        action: hitResult.result === 'critical' ? `${weaponConfig.name} CRITICAL!` : `${weaponConfig.name} Hit`,
+        result: resultMsg + (heatGenerated > 0 ? ` (+${heatGenerated} heat to attacker)` : ''),
       })
+
+      // Log critical hit effect if it occurred
+      if (hitResult.result === 'critical' && hitResult.criticalEffect) {
+        const critEffect = hitResult.criticalEffect
+        logEntries.push({
+          turn: gameState.turn,
+          playerId: player.id,
+          playerName: player.name,
+          action: 'Subsystem BROKEN!',
+          result: `${target.name}'s ${getSubsystemConfig(critEffect.targetSubsystem).name} was destroyed! (${critEffect.energyLost} energy → ${critEffect.heatAdded} heat)`,
+        })
+      }
+
+      if (updatedTargetShip.hitPoints <= 0) {
+        logEntries.push({
+          turn: gameState.turn,
+          playerId: target.id,
+          playerName: target.name,
+          action: 'Ship Destroyed',
+          result: `${target.name} has been destroyed!`,
+        })
+      }
     }
   }
 

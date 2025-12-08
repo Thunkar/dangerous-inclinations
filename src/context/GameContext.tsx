@@ -44,6 +44,7 @@ export interface TacticalAction {
   sequence: number
   targetPlayerId?: string // For weapon actions
   destinationWellId?: string // For well transfer actions
+  criticalTarget?: SubsystemType // For weapon actions - subsystem to break on critical hit
 }
 
 interface PendingState {
@@ -463,6 +464,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           data: {
             weaponType: 'laser',
             targetPlayerIds: [tacticalAction.targetPlayerId],
+            criticalTarget: tacticalAction.criticalTarget || 'shields',
           },
         })
       } else if (tacticalAction.type === 'fire_railgun' && tacticalAction.targetPlayerId) {
@@ -473,6 +475,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           data: {
             weaponType: 'railgun',
             targetPlayerIds: [tacticalAction.targetPlayerId],
+            criticalTarget: tacticalAction.criticalTarget || 'shields',
           },
         })
       } else if (tacticalAction.type === 'fire_missiles' && tacticalAction.targetPlayerId) {
@@ -483,6 +486,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           data: {
             weaponType: 'missiles',
             targetPlayerIds: [tacticalAction.targetPlayerId],
+            criticalTarget: tacticalAction.criticalTarget || 'shields',
           },
         })
       } else if (tacticalAction.type === 'well_transfer' && tacticalAction.destinationWellId) {

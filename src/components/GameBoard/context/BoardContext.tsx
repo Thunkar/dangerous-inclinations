@@ -31,7 +31,7 @@ export interface BoardContextValue {
   floatingNumbers: FloatingNumber[]
   weaponEffects: WeaponEffect[]
   currentTime: number
-  addFloatingNumber: (x: number, y: number, value: number, type: FloatingNumberType) => void
+  addFloatingNumber: (x: number, y: number, value: number | string, type: FloatingNumberType) => void
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -376,7 +376,7 @@ export function BoardProvider({ children }: BoardProviderProps) {
   })
 
   // Add a new floating number
-  const addFloatingNumber = useCallback((x: number, y: number, value: number, type: FloatingNumberType) => {
+  const addFloatingNumber = useCallback((x: number, y: number, value: number | string, type: FloatingNumberType) => {
     const id = `floating-${floatingNumberIdRef.current++}`
     const newNumber: FloatingNumber = {
       id,
@@ -517,8 +517,13 @@ export function BoardProvider({ children }: BoardProviderProps) {
         lastFloatingNumberActionRef.current = actionIndex
         const fireAction = action as FireWeaponAction
 
-        // Check damage/shield changes for each target
-        for (const targetId of fireAction.data.targetPlayerIds) {
+        // Skip hit/miss detection for missiles - they don't hit immediately
+        // Missiles spawn entities that track targets and hit later
+        if (fireAction.data.weaponType === 'missiles') {
+          // Don't show any hit result for missile launches
+        } else {
+          // Check damage/shield changes for each target (laser/railgun only)
+          for (const targetId of fireAction.data.targetPlayerIds) {
           const targetBefore = beforeState.players.find(p => p.id === targetId)
           const targetAfter = afterState.players.find(p => p.id === targetId)
           if (!targetBefore || !targetAfter) continue
@@ -527,9 +532,6 @@ export function BoardProvider({ children }: BoardProviderProps) {
 
           // Hull damage (red) - when HP decreases
           const hullDamage = targetBefore.ship.hitPoints - targetAfter.ship.hitPoints
-          if (hullDamage > 0) {
-            addFloatingNumber(position.x, position.y, hullDamage, 'damage')
-          }
 
           // Shield absorption (blue) - detected by shield energy depletion
           const shieldsBefore = targetBefore.ship.subsystems.find(s => s.type === 'shields')
@@ -538,10 +540,33 @@ export function BoardProvider({ children }: BoardProviderProps) {
           const shieldEnergyAfter = shieldsAfter?.allocatedEnergy || 0
           const shieldAbsorbed = shieldEnergyBefore - shieldEnergyAfter
 
-          if (shieldAbsorbed > 0) {
-            addFloatingNumber(position.x, position.y, shieldAbsorbed, 'shield')
+          // Check if a subsystem became broken (critical hit indicator)
+          const brokenSubsystem = targetAfter.ship.subsystems.find(
+            (s, i) => s.isBroken && !targetBefore.ship.subsystems[i]?.isBroken
+          )
+
+          // Miss detection: no hull damage AND no shield absorption AND no subsystem broken
+          // This indicates the d10 roll was 1 (miss)
+          if (hullDamage === 0 && shieldAbsorbed === 0 && !brokenSubsystem) {
+            addFloatingNumber(position.x, position.y, 'MISS!', 'miss')
+          } else {
+            // Critical hit: subsystem became broken
+            if (brokenSubsystem) {
+              const subsystemName = brokenSubsystem.type.charAt(0).toUpperCase() + brokenSubsystem.type.slice(1)
+              addFloatingNumber(position.x, position.y, `CRIT! ${subsystemName}`, 'critical')
+            }
+
+            // Show damage numbers
+            if (hullDamage > 0) {
+              addFloatingNumber(position.x, position.y, hullDamage, 'damage')
+            }
+
+            if (shieldAbsorbed > 0) {
+              addFloatingNumber(position.x, position.y, shieldAbsorbed, 'shield')
+            }
           }
         }
+        } // end else (non-missiles)
       }
 
       // Update intermediate state

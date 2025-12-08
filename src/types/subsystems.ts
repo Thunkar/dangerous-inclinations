@@ -44,6 +44,7 @@ export interface Subsystem {
   isPowered: boolean // Whether subsystem has enough energy to function
   usedThisTurn: boolean // Whether the subsystem was activated this turn (resets each turn)
   ammo?: number // Current ammunition (only for ammo-based weapons like missiles)
+  isBroken?: boolean // If true, subsystem is broken and cannot be used until repaired (critical hit effect)
 }
 
 export interface ReactorState {
@@ -146,6 +147,7 @@ export function getHeatOnUse(subsystem: Subsystem): number {
 }
 
 export function canSubsystemFunction(subsystem: Subsystem): boolean {
+  if (subsystem.isBroken) return false
   const config = getSubsystemConfig(subsystem.type)
   return subsystem.allocatedEnergy >= config.minEnergy
 }

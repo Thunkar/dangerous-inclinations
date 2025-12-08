@@ -132,6 +132,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -176,6 +177,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -211,6 +213,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -260,6 +263,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -325,6 +329,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -354,6 +359,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -391,6 +397,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -455,6 +462,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -504,6 +512,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -556,7 +565,7 @@ describe('Missile System', () => {
         type: 'fire_weapon',
         playerId: 'player1',
         sequence: 1, // BEFORE coast
-        data: { weaponType: 'missiles', targetPlayerIds: ['player2'] },
+        data: { weaponType: 'missiles', targetPlayerIds: ['player2'], criticalTarget: 'shields' },
       }
 
       const coast1: CoastAction = {
@@ -594,7 +603,7 @@ describe('Missile System', () => {
         type: 'fire_weapon',
         playerId: 'player1',
         sequence: 2, // AFTER coast
-        data: { weaponType: 'missiles', targetPlayerIds: ['player2'] },
+        data: { weaponType: 'missiles', targetPlayerIds: ['player2'], criticalTarget: 'shields' },
       }
 
       let result2 = executeTurn(gameState2, [allocate2, coast2, fire2])
@@ -646,6 +655,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -710,6 +720,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 
@@ -759,6 +770,7 @@ describe('Missile System', () => {
         data: {
           weaponType: 'missiles',
           targetPlayerIds: ['player2'],
+          criticalTarget: 'shields',
         },
       }
 

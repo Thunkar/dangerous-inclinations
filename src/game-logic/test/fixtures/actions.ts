@@ -119,7 +119,7 @@ export function createFireWeaponAction(
   targetPlayerIds: string[],
   playerId: string = 'test-player',
   sequence: number = 1,
-  criticalTarget?: SubsystemType
+  criticalTarget: SubsystemType = 'shields'
 ): FireWeaponAction {
   return {
     playerId,

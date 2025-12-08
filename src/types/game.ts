@@ -141,7 +141,7 @@ export interface FireWeaponAction extends BaseAction {
   data: {
     weaponType: 'laser' | 'railgun' | 'missiles'
     targetPlayerIds: string[] // Array for multi-target weapons like lasers
-    criticalTarget?: SubsystemType // Declared subsystem to crit if critical hit occurs (must be powered on target)
+    criticalTarget: SubsystemType // REQUIRED: Declared subsystem to break if critical hit (roll=10) occurs
   }
 }
 
@@ -217,22 +217,29 @@ export interface RingConfig {
 }
 
 /**
- * Critical hit effect - unpowers a subsystem and converts its energy to heat
+ * D10 hit roll result
+ * 1 = miss, 2-9 = hit, 10 = critical
+ */
+export type HitRollResult = 'miss' | 'hit' | 'critical'
+
+/**
+ * Critical hit effect - breaks a subsystem and converts its energy to heat
  */
 export interface CriticalHitEffect {
   targetSubsystem: SubsystemType
   energyLost: number
   heatAdded: number
+  subsystemBroken: true // Always true - subsystem is now broken
 }
 
 /**
- * Result of a weapon hit, including critical hit information
+ * Result of a weapon attack, including d10 roll and critical hit information
  */
 export interface WeaponHitResult {
-  hit: boolean
-  damage: number
-  damageToHull: number // After shield absorption
-  damageToHeat: number // Absorbed by shields, converted to heat
-  critical: boolean
-  criticalEffect?: CriticalHitEffect
+  roll: number // The d10 roll (1-10)
+  result: HitRollResult // miss/hit/critical
+  damage: number // Weapon damage (0 if miss)
+  damageToHull: number // After shield absorption (0 if miss)
+  damageToHeat: number // Absorbed by shields, converted to heat (0 if miss)
+  criticalEffect?: CriticalHitEffect // Only present if result is 'critical'
 }

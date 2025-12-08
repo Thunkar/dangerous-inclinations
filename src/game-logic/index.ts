@@ -25,7 +25,7 @@ export {
 // Movement and orbital mechanics
 export { applyOrbitalMovement } from './movement'
 
-// Damage
+// Damage and hit resolution
 export {
   applyDirectDamage,
   applyHeatDamageToShip,
@@ -33,6 +33,8 @@ export {
   isShipDestroyed,
   applyDamageWithShields,
   applyCriticalHit,
+  rollD10,
+  rollToResult,
 } from './damage'
 
 // Subsystems

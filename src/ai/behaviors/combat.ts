@@ -90,6 +90,9 @@ export function generateWeaponActions(
     return availableEnergy >= weaponConfig.energyCost
   }
 
+  // AI targeting strategy: prioritize breaking shields to enable future hull damage
+  const criticalTarget = 'shields' as const
+
   // Railgun - high damage spinal weapon
   if (firingSolutions.railgun?.inRange && canFireWeapon('railgun')) {
     actions.push({
@@ -99,6 +102,7 @@ export function generateWeaponActions(
       data: {
         weaponType: 'railgun',
         targetPlayerIds: [target.player.id],
+        criticalTarget,
       },
     })
   }
@@ -112,6 +116,7 @@ export function generateWeaponActions(
       data: {
         weaponType: 'laser',
         targetPlayerIds: [target.player.id],
+        criticalTarget,
       },
     })
   }
@@ -125,6 +130,7 @@ export function generateWeaponActions(
       data: {
         weaponType: 'missiles',
         targetPlayerIds: [target.player.id],
+        criticalTarget,
       },
     })
   }

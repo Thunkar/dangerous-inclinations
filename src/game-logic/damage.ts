@@ -1,21 +1,72 @@
-import type { ShipState, WeaponHitResult, CriticalHitEffect } from '../types/game'
+import type { ShipState, WeaponHitResult, CriticalHitEffect, HitRollResult } from '../types/game'
 import type { SubsystemType } from '../types/subsystems'
 import { getSubsystemConfig } from '../types/subsystems'
 import { calculateHeatDamage, addHeat } from './heat'
 
 /**
- * Apply weapon damage to a ship with shield absorption
- * Shields convert damage to heat (up to their allocated energy)
- * Shield energy is CONSUMED when absorbing damage - subsequent hits use remaining capacity
- * Returns new ship state and hit result details
+ * Roll a d10 for hit resolution
+ * Returns 1-10 (inclusive)
+ */
+export function rollD10(): number {
+  return Math.floor(Math.random() * 10) + 1
+}
+
+/**
+ * Convert d10 roll to hit result
+ * 1 = miss, 2-9 = hit, 10 = critical
+ */
+export function rollToResult(roll: number): HitRollResult {
+  if (roll === 1) return 'miss'
+  if (roll === 10) return 'critical'
+  return 'hit'
+}
+
+/**
+ * Apply weapon attack to a ship using d10 hit resolution
+ *
+ * Hit Resolution (d10):
+ * - Roll 1: Miss - no damage
+ * - Roll 2-9: Hit - normal damage (shields absorb first)
+ * - Roll 10: Critical - damage + targeted subsystem breaks
+ *
+ * Shield mechanics:
+ * - Shields convert damage to heat (up to their allocated energy)
+ * - Shield energy is CONSUMED when absorbing damage
+ *
+ * @param ship Target ship state
+ * @param damage Weapon damage amount
+ * @param criticalTarget Subsystem to break on critical hit (required)
+ * @param roll Optional d10 roll (1-10). If not provided, rolls automatically.
  */
 export function applyDamageWithShields(
   ship: ShipState,
   damage: number,
-  criticalTarget?: SubsystemType
+  criticalTarget: SubsystemType,
+  roll?: number
 ): { ship: ShipState; hitResult: WeaponHitResult } {
+  // Roll d10 if not provided (allows deterministic testing)
+  const actualRoll = roll ?? rollD10()
+  const result = rollToResult(actualRoll)
+
+  // Miss - no damage, no effects
+  if (result === 'miss') {
+    return {
+      ship,
+      hitResult: {
+        roll: actualRoll,
+        result: 'miss',
+        damage: 0,
+        damageToHull: 0,
+        damageToHeat: 0,
+      },
+    }
+  }
+
+  // Hit or Critical - apply damage with shields
   const shieldSubsystem = ship.subsystems.find(s => s.type === 'shields')
-  const shieldCapacity = shieldSubsystem?.isPowered ? shieldSubsystem.allocatedEnergy : 0
+  const shieldCapacity = shieldSubsystem?.isPowered && !shieldSubsystem.isBroken
+    ? shieldSubsystem.allocatedEnergy
+    : 0
 
   // Shields absorb damage up to their allocated energy
   const damageAbsorbed = Math.min(damage, shieldCapacity)
@@ -50,18 +101,17 @@ export function applyDamageWithShields(
     updatedShip = addHeat(updatedShip, damageAbsorbed)
   }
 
-  // Roll for critical hit (10% chance)
-  const criticalRoll = Math.random()
-  const isCritical = criticalRoll < 0.1
+  // Critical hit - break the targeted subsystem
+  // IMPORTANT: Critical only triggers if hull was hit (damage penetrated shields)
   let criticalEffect: CriticalHitEffect | undefined
-
-  // Apply critical hit if rolled and target is valid
-  if (isCritical && criticalTarget) {
+  if (result === 'critical' && damageToHull > 0) {
     const targetSubsystem = updatedShip.subsystems.find(s => s.type === criticalTarget)
-    if (targetSubsystem && targetSubsystem.isPowered && targetSubsystem.allocatedEnergy > 0) {
+
+    // Only break if subsystem exists and isn't already broken
+    if (targetSubsystem && !targetSubsystem.isBroken) {
       const energyLost = targetSubsystem.allocatedEnergy
 
-      // Unpower the subsystem and return energy to reactor
+      // Break the subsystem, unpower it, and return energy to reactor
       updatedShip = {
         ...updatedShip,
         reactor: {
@@ -73,18 +123,21 @@ export function applyDamageWithShields(
         },
         subsystems: updatedShip.subsystems.map(s =>
           s.type === criticalTarget
-            ? { ...s, allocatedEnergy: 0, isPowered: false }
+            ? { ...s, allocatedEnergy: 0, isPowered: false, isBroken: true }
             : s
         ),
       }
 
       // Add heat equal to the lost energy
-      updatedShip = addHeat(updatedShip, energyLost)
+      if (energyLost > 0) {
+        updatedShip = addHeat(updatedShip, energyLost)
+      }
 
       criticalEffect = {
         targetSubsystem: criticalTarget,
         energyLost,
         heatAdded: energyLost,
+        subsystemBroken: true,
       }
     }
   }
@@ -92,11 +145,11 @@ export function applyDamageWithShields(
   return {
     ship: updatedShip,
     hitResult: {
-      hit: true,
+      roll: actualRoll,
+      result,
       damage,
       damageToHull,
       damageToHeat: damageAbsorbed,
-      critical: isCritical && !!criticalEffect,
       criticalEffect,
     },
   }
@@ -143,7 +196,7 @@ export function isShipDestroyed(ship: ShipState): boolean {
 
 /**
  * Apply a critical hit effect to a ship (for deterministic testing)
- * This unpowers the target subsystem and converts its energy to heat
+ * This breaks and unpowers the target subsystem and converts its energy to heat
  */
 export function applyCriticalHit(
   ship: ShipState,
@@ -151,14 +204,14 @@ export function applyCriticalHit(
 ): { ship: ShipState; effect: CriticalHitEffect | null } {
   const subsystem = ship.subsystems.find(s => s.type === targetSubsystem)
 
-  // Can only crit powered systems with energy
-  if (!subsystem || !subsystem.isPowered || subsystem.allocatedEnergy === 0) {
+  // Can only crit subsystems that aren't already broken
+  if (!subsystem || subsystem.isBroken) {
     return { ship, effect: null }
   }
 
   const energyLost = subsystem.allocatedEnergy
 
-  // Unpower the subsystem and return energy to reactor
+  // Break the subsystem, unpower it, and return energy to reactor
   let updatedShip: ShipState = {
     ...ship,
     reactor: {
@@ -170,13 +223,15 @@ export function applyCriticalHit(
     },
     subsystems: ship.subsystems.map(s =>
       s.type === targetSubsystem
-        ? { ...s, allocatedEnergy: 0, isPowered: false }
+        ? { ...s, allocatedEnergy: 0, isPowered: false, isBroken: true }
         : s
     ),
   }
 
   // Add heat equal to the lost energy
-  updatedShip = addHeat(updatedShip, energyLost)
+  if (energyLost > 0) {
+    updatedShip = addHeat(updatedShip, energyLost)
+  }
 
   return {
     ship: updatedShip,
@@ -184,6 +239,7 @@ export function applyCriticalHit(
       targetSubsystem,
       energyLost,
       heatAdded: energyLost,
+      subsystemBroken: true,
     },
   }
 }

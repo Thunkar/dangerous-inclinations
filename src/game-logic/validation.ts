@@ -52,6 +52,12 @@ function validateBurnAction(ship: ShipState, action: BurnAction): ValidationResu
 
   // Check engine energy
   const enginesSubsystem = ship.subsystems.find(s => s.type === 'engines')
+
+  // Check if engines are broken
+  if (enginesSubsystem?.isBroken) {
+    return { valid: false, reason: 'Engines are broken and cannot be used' }
+  }
+
   const currentEngineEnergy = enginesSubsystem?.allocatedEnergy || 0
 
   if (currentEngineEnergy < burnCost.energy) {
@@ -99,6 +105,11 @@ function validateRotateAction(ship: ShipState, action: RotateAction): Validation
     return { valid: false, reason: 'Rotation subsystem not found' }
   }
 
+  // Check if rotation subsystem is broken
+  if (rotationSubsystem.isBroken) {
+    return { valid: false, reason: 'Maneuvering thrusters are broken and cannot be used' }
+  }
+
   if (rotationSubsystem.allocatedEnergy === 0) {
     return { valid: false, reason: 'Rotation subsystem not powered' }
   }
@@ -117,6 +128,11 @@ function validateAllocateAction(ship: ShipState, action: AllocateEnergyAction): 
   const subsystem = ship.subsystems.find(s => s.type === subsystemType)
   if (!subsystem) {
     return { valid: false, reason: `Subsystem ${subsystemType} not found` }
+  }
+
+  // Check if subsystem is broken
+  if (subsystem.isBroken) {
+    return { valid: false, reason: `${subsystemType} is broken and cannot receive energy` }
   }
 
   // Check reactor has enough available energy
@@ -196,6 +212,11 @@ function validateFireWeaponAction(ship: ShipState, action: FireWeaponAction): Va
   const weaponSubsystem = ship.subsystems.find(s => s.type === weaponType)
   if (!weaponSubsystem) {
     return { valid: false, reason: `${weaponType} not found` }
+  }
+
+  // Check if weapon is broken
+  if (weaponSubsystem.isBroken) {
+    return { valid: false, reason: `${weaponType} is broken and cannot be used` }
   }
 
   if (!weaponSubsystem.isPowered) {

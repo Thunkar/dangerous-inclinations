@@ -3,13 +3,13 @@
  * These are purely visual and don't affect game state
  */
 
-export type FloatingNumberType = 'damage' | 'shield' | 'heat'
+export type FloatingNumberType = 'damage' | 'shield' | 'heat' | 'miss' | 'critical'
 
 export interface FloatingNumber {
   id: string
   x: number              // Screen X position
   y: number              // Screen Y position (start)
-  value: number          // Number to display
+  value: number | string // Number to display (or text like "MISS!")
   type: FloatingNumberType
   startTime: number      // When animation started (performance.now())
   duration: number       // Total animation duration in ms
@@ -19,6 +19,8 @@ export const FLOATING_NUMBER_COLORS: Record<FloatingNumberType, string> = {
   damage: '#ff4444',   // Red for hull damage
   shield: '#4488ff',   // Blue for shield absorption
   heat: '#ff8800',     // Orange for heat generated
+  miss: '#888888',     // Gray for miss
+  critical: '#ffcc00', // Gold for critical hit
 }
 
 export const FLOATING_NUMBER_DURATION = 1200 // ms
@@ -30,6 +32,8 @@ export const FLOATING_NUMBER_OFFSETS: Record<FloatingNumberType, { x: number; y:
   damage: { x: 0, y: 0 },       // Center
   shield: { x: -20, y: -10 },   // Left
   heat: { x: 20, y: -10 },      // Right
+  miss: { x: 0, y: -20 },       // Above ship
+  critical: { x: 0, y: -20 },   // Above ship (same as miss, but different color)
 }
 
 /**

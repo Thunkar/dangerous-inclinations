@@ -10,7 +10,7 @@ describe('Shield System', () => {
       const initialHp = ship.hitPoints
       const initialHeat = ship.heat?.currentHeat || 0
 
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 3) // 3 damage
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 3, 'shields', 5) // 3 damage, roll 5 = hit
 
       // No hull damage
       expect(damagedShip.hitPoints).toBe(initialHp)
@@ -26,7 +26,7 @@ describe('Shield System', () => {
       const initialHp = ship.hitPoints
       const initialHeat = ship.heat?.currentHeat || 0
 
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 5) // 5 damage
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 5, 'shields', 5) // 5 damage, roll 5 = hit
 
       // 2 absorbed, 3 to hull
       expect(hitResult.damageToHeat).toBe(2)
@@ -44,7 +44,7 @@ describe('Shield System', () => {
       const initialHp = ship.hitPoints
       const initialHeat = ship.heat?.currentHeat || 0
 
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 4)
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 4, 'shields', 5)
 
       // All damage to hull
       expect(hitResult.damageToHeat).toBe(0)
@@ -66,7 +66,7 @@ describe('Shield System', () => {
       }
       const initialHp = shipWithZeroShields.hitPoints
 
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(shipWithZeroShields, 3)
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(shipWithZeroShields, 3, 'shields', 5)
 
       expect(hitResult.damageToHeat).toBe(0)
       expect(hitResult.damageToHull).toBe(3)
@@ -78,7 +78,7 @@ describe('Shield System', () => {
       const initialHp = ship.hitPoints
       const initialHeat = ship.heat?.currentHeat || 0
 
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 3) // Exact match
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 3, 'shields', 5) // Exact match, roll 5 = hit
 
       expect(hitResult.damageToHeat).toBe(3)
       expect(hitResult.damageToHull).toBe(0)
@@ -91,7 +91,7 @@ describe('Shield System', () => {
       const initialHp = ship.hitPoints
       const initialHeat = ship.heat?.currentHeat || 0
 
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 0)
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 0, 'shields', 5)
 
       expect(hitResult.damageToHeat).toBe(0)
       expect(hitResult.damageToHull).toBe(0)
@@ -102,7 +102,7 @@ describe('Shield System', () => {
     it('should not reduce HP below 0', () => {
       const ship = createTestShip({ hitPoints: 2 }) // Only 2 HP
 
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 10) // Overkill
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 10, 'shields', 5) // Overkill, roll 5 = hit
 
       expect(damagedShip.hitPoints).toBe(0)
       expect(hitResult.damageToHull).toBe(10) // Reports full damage even if overkill
@@ -123,25 +123,25 @@ describe('Shield System', () => {
     it('should absorb damage equal to allocated energy', () => {
       // Test with 1 energy
       const ship1 = createShipWithShields(1)
-      const { hitResult: result1 } = applyDamageWithShields(ship1, 5)
+      const { hitResult: result1 } = applyDamageWithShields(ship1, 5, 'shields', 5)
       expect(result1.damageToHeat).toBe(1)
       expect(result1.damageToHull).toBe(4)
 
       // Test with 2 energy
       const ship2 = createShipWithShields(2)
-      const { hitResult: result2 } = applyDamageWithShields(ship2, 5)
+      const { hitResult: result2 } = applyDamageWithShields(ship2, 5, 'shields', 5)
       expect(result2.damageToHeat).toBe(2)
       expect(result2.damageToHull).toBe(3)
 
       // Test with 3 energy
       const ship3 = createShipWithShields(3)
-      const { hitResult: result3 } = applyDamageWithShields(ship3, 5)
+      const { hitResult: result3 } = applyDamageWithShields(ship3, 5, 'shields', 5)
       expect(result3.damageToHeat).toBe(3)
       expect(result3.damageToHull).toBe(2)
 
       // Test with 4 energy (max)
       const ship4 = createShipWithShields(4)
-      const { hitResult: result4 } = applyDamageWithShields(ship4, 5)
+      const { hitResult: result4 } = applyDamageWithShields(ship4, 5, 'shields', 5)
       expect(result4.damageToHeat).toBe(4)
       expect(result4.damageToHull).toBe(1)
     })
@@ -178,13 +178,20 @@ describe('Shield System', () => {
       expect(critShip.reactor.availableEnergy).toBe(shipWithEngines.reactor.availableEnergy + 2)
     })
 
-    it('should not crit unpowered subsystems', () => {
-      const ship = createTestShip()
+    it('should crit unpowered subsystems (breaking them with no energy loss)', () => {
+      const ship = createTestShip() // engines are unpowered
 
       const { ship: critShip, effect } = applyCriticalHit(ship, 'engines')
 
-      expect(effect).toBeNull()
-      expect(critShip).toEqual(ship) // No change
+      // Critical hit still breaks the subsystem, just no energy is lost
+      expect(effect).not.toBeNull()
+      expect(effect?.targetSubsystem).toBe('engines')
+      expect(effect?.energyLost).toBe(0) // No energy to lose
+      expect(effect?.heatAdded).toBe(0) // No heat from 0 energy
+
+      // Subsystem should be marked as broken
+      const engines = critShip.subsystems.find(s => s.type === 'engines')
+      expect(engines?.isBroken).toBe(true)
     })
 
     it('should add heat from critical hit', () => {
@@ -205,7 +212,7 @@ describe('Shield System', () => {
       const shieldsBefore = ship.subsystems.find(s => s.type === 'shields')
       expect(shieldsBefore?.allocatedEnergy).toBe(3)
 
-      const { ship: damagedShip } = applyDamageWithShields(ship, 2)
+      const { ship: damagedShip } = applyDamageWithShields(ship, 2, 'shields', 5)
 
       // Shield energy should be reduced by damage absorbed
       const shieldsAfter = damagedShip.subsystems.find(s => s.type === 'shields')
@@ -215,7 +222,7 @@ describe('Shield System', () => {
 
     it('should deplete shields fully when absorbing full capacity', () => {
       const ship = createShipWithShields(2)
-      const { ship: damagedShip } = applyDamageWithShields(ship, 2)
+      const { ship: damagedShip } = applyDamageWithShields(ship, 2, 'shields', 5)
 
       const shieldsAfter = damagedShip.subsystems.find(s => s.type === 'shields')
       expect(shieldsAfter?.allocatedEnergy).toBe(0)
@@ -227,7 +234,7 @@ describe('Shield System', () => {
       const initialHp = ship.hitPoints
 
       // First hit - 3 damage, shields absorb 3
-      const { ship: ship1, hitResult: result1 } = applyDamageWithShields(ship, 3)
+      const { ship: ship1, hitResult: result1 } = applyDamageWithShields(ship, 3, 'shields', 5)
       expect(result1.damageToHeat).toBe(3)
       expect(result1.damageToHull).toBe(0)
       expect(ship1.hitPoints).toBe(initialHp)
@@ -237,7 +244,7 @@ describe('Shield System', () => {
       expect(shieldsAfter?.allocatedEnergy).toBe(0)
 
       // Second hit - shields depleted, all damage to hull
-      const { ship: ship2, hitResult: result2 } = applyDamageWithShields(ship1, 3)
+      const { ship: ship2, hitResult: result2 } = applyDamageWithShields(ship1, 3, 'shields', 5)
       expect(result2.damageToHeat).toBe(0)
       expect(result2.damageToHull).toBe(3)
       expect(ship2.hitPoints).toBe(initialHp - 3)
@@ -248,7 +255,7 @@ describe('Shield System', () => {
       const initialHp = ship.hitPoints
 
       // First hit - 3 damage, shields absorb 2, 1 to hull
-      const { ship: ship1, hitResult: result1 } = applyDamageWithShields(ship, 3)
+      const { ship: ship1, hitResult: result1 } = applyDamageWithShields(ship, 3, 'shields', 5)
       expect(result1.damageToHeat).toBe(2)
       expect(result1.damageToHull).toBe(1)
       expect(ship1.hitPoints).toBe(initialHp - 1)
@@ -258,7 +265,7 @@ describe('Shield System', () => {
       expect(shieldsAfter?.allocatedEnergy).toBe(0)
 
       // Second hit - shields depleted, all damage to hull
-      const { ship: ship2, hitResult: result2 } = applyDamageWithShields(ship1, 3)
+      const { ship: ship2, hitResult: result2 } = applyDamageWithShields(ship1, 3, 'shields', 5)
       expect(result2.damageToHeat).toBe(0)
       expect(result2.damageToHull).toBe(3)
       expect(ship2.hitPoints).toBe(initialHp - 4)
@@ -269,7 +276,7 @@ describe('Shield System', () => {
       const reactorBefore = ship.reactor.availableEnergy
 
       // Absorb 2 damage - 2 energy should return to reactor
-      const { ship: damagedShip } = applyDamageWithShields(ship, 2)
+      const { ship: damagedShip } = applyDamageWithShields(ship, 2, 'shields', 5)
 
       expect(damagedShip.reactor.availableEnergy).toBe(reactorBefore + 2)
 
@@ -291,7 +298,7 @@ describe('Shield System', () => {
       }
 
       // Absorb 2 damage - would return 2 energy but reactor only has room for 1
-      const { ship: damagedShip } = applyDamageWithShields(shipNearFull, 2)
+      const { ship: damagedShip } = applyDamageWithShields(shipNearFull, 2, 'shields', 5)
 
       expect(damagedShip.reactor.availableEnergy).toBe(damagedShip.reactor.totalCapacity)
     })
@@ -303,17 +310,17 @@ describe('Shield System', () => {
       const initialHeat = ship.heat?.currentHeat || 0
 
       // First hit - 2 damage absorbed = 2 heat, shields at 2
-      const { ship: ship1 } = applyDamageWithShields(ship, 2)
+      const { ship: ship1 } = applyDamageWithShields(ship, 2, 'shields', 5)
       expect(ship1.heat?.currentHeat).toBe(initialHeat + 2)
       expect(ship1.subsystems.find(s => s.type === 'shields')?.allocatedEnergy).toBe(2)
 
       // Second hit - 2 damage absorbed = 2 more heat, shields at 0
-      const { ship: ship2 } = applyDamageWithShields(ship1, 2)
+      const { ship: ship2 } = applyDamageWithShields(ship1, 2, 'shields', 5)
       expect(ship2.heat?.currentHeat).toBe(initialHeat + 4)
       expect(ship2.subsystems.find(s => s.type === 'shields')?.allocatedEnergy).toBe(0)
 
       // Third hit - shields depleted, no more heat from absorption
-      const { ship: ship3 } = applyDamageWithShields(ship2, 2)
+      const { ship: ship3 } = applyDamageWithShields(ship2, 2, 'shields', 5)
       expect(ship3.heat?.currentHeat).toBe(initialHeat + 4) // Unchanged - no shield absorption
     })
 
@@ -325,7 +332,7 @@ describe('Shield System', () => {
         heat: { currentHeat: 5 },
       }
 
-      const { ship: damagedShip } = applyDamageWithShields(shipWithHeat, 3)
+      const { ship: damagedShip } = applyDamageWithShields(shipWithHeat, 3, 'shields', 5)
 
       expect(damagedShip.heat?.currentHeat).toBe(5 + 3) // Original + absorbed
     })
@@ -336,7 +343,7 @@ describe('Shield System', () => {
       const ship = createShipWithShields(4)
       const initialHp = ship.hitPoints
 
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 100)
+      const { ship: damagedShip, hitResult } = applyDamageWithShields(ship, 100, 'shields', 5)
 
       expect(hitResult.damageToHeat).toBe(4)
       expect(hitResult.damageToHull).toBe(96)
@@ -349,20 +356,20 @@ describe('Shield System', () => {
       const initialHeat = ship.heat?.currentHeat || 0
 
       // Damage less than shields
-      const { ship: ship1, hitResult: result1 } = applyDamageWithShields(ship, 2)
+      const { ship: ship1, hitResult: result1 } = applyDamageWithShields(ship, 2, 'shields', 5)
       expect(result1.damageToHeat).toBe(2)
       expect(result1.damageToHull).toBe(0)
       expect(ship1.hitPoints).toBe(initialHp)
       expect(ship1.heat?.currentHeat).toBe(initialHeat + 2)
 
       // Damage equal to shields
-      const { ship: ship2, hitResult: result2 } = applyDamageWithShields(ship, 4)
+      const { ship: ship2, hitResult: result2 } = applyDamageWithShields(ship, 4, 'shields', 5)
       expect(result2.damageToHeat).toBe(4)
       expect(result2.damageToHull).toBe(0)
       expect(ship2.hitPoints).toBe(initialHp)
 
       // Damage exceeding shields
-      const { ship: ship3, hitResult: result3 } = applyDamageWithShields(ship, 6)
+      const { ship: ship3, hitResult: result3 } = applyDamageWithShields(ship, 6, 'shields', 5)
       expect(result3.damageToHeat).toBe(4)
       expect(result3.damageToHull).toBe(2)
       expect(ship3.hitPoints).toBe(initialHp - 2)

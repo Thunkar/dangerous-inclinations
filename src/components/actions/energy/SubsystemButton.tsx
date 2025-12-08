@@ -9,6 +9,7 @@ interface SubsystemButtonProps {
   isPowered: boolean
   isOverclocked?: boolean
   usedThisTurn?: boolean
+  isBroken?: boolean
   disabled?: boolean
   onClick?: () => void
   variant?: 'normal' | 'add' | 'remove' | 'vent'
@@ -19,14 +20,15 @@ interface SubsystemButtonProps {
 interface AbilityBoxProps {
   disabled?: boolean
   isOverclocked?: boolean
+  isBroken?: boolean
   variant?: 'normal' | 'add' | 'remove' | 'vent'
   shouldBlur?: boolean
 }
 
 const AbilityBox = styled(Box, {
   shouldForwardProp: prop =>
-    prop !== 'disabled' && prop !== 'isOverclocked' && prop !== 'variant' && prop !== 'shouldBlur',
-})<AbilityBoxProps>(({ theme, disabled, isOverclocked, variant, shouldBlur }) => {
+    prop !== 'disabled' && prop !== 'isOverclocked' && prop !== 'isBroken' && prop !== 'variant' && prop !== 'shouldBlur',
+})<AbilityBoxProps>(({ theme, disabled, isOverclocked, isBroken, variant, shouldBlur }) => {
   const isAction = variant === 'add' || variant === 'remove' || variant === 'vent'
 
   let actionColor = theme.palette.secondary.main
@@ -36,6 +38,7 @@ const AbilityBox = styled(Box, {
 
   // For action buttons, use a darker background when disabled to maintain readability
   const getBackgroundColor = () => {
+    if (isBroken) return theme.palette.grey[700] // Dark gray for broken
     if (isOverclocked) return theme.palette.error.dark
     if (disabled) {
       if (isAction) {
@@ -99,6 +102,7 @@ export function SubsystemButton({
   isPowered: _isPowered,
   isOverclocked = false,
   usedThisTurn = false,
+  isBroken = false,
   disabled = false,
   onClick,
   variant = 'normal',
@@ -126,8 +130,23 @@ export function SubsystemButton({
       default:
         return (
           <>
-            <Box sx={{ mb: 0.25 }}>
+            <Box sx={{ mb: 0.25, position: 'relative' }}>
               <CustomIcon icon={subsystemType} size={14} />
+              {isBroken && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: -2,
+                    right: -6,
+                    color: 'error.main',
+                    fontSize: '1em',
+                    fontWeight: 'bold',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </Box>
+              )}
             </Box>
             <CostsRow>
               {allocatedEnergy}
@@ -145,9 +164,9 @@ export function SubsystemButton({
                 </Box>
               )}
             </CostsRow>
-            <TextContainer>
-              {label || config.name}
-              {usedThisTurn && ' (used)'}
+            <TextContainer sx={{ color: isBroken ? 'error.main' : 'inherit' }}>
+              {isBroken ? 'BROKEN' : (label || config.name)}
+              {usedThisTurn && !isBroken && ' (used)'}
             </TextContainer>
           </>
         )
@@ -156,11 +175,12 @@ export function SubsystemButton({
 
   return (
     <AbilityBox
-      disabled={disabled}
+      disabled={disabled || isBroken}
       isOverclocked={isOverclocked}
+      isBroken={isBroken}
       variant={variant}
       shouldBlur={shouldBlur}
-      onClick={onClick}
+      onClick={isBroken ? undefined : onClick}
     >
       {renderContent()}
     </AbilityBox>

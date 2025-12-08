@@ -2,6 +2,7 @@ import { Paper, Stack, Box, Typography, IconButton, Button, Tooltip } from '@mui
 import { useState, useEffect, useMemo } from 'react'
 import { ArrowUpward, ArrowDownward, Delete, Visibility, VisibilityOff } from '@mui/icons-material'
 import type { BurnIntensity, Facing, Player, ActionType } from '../types/game'
+import type { SubsystemType } from '../types/subsystems'
 import { getSubsystem } from '../utils/subsystemHelpers'
 import { getSubsystemConfig } from '../types/subsystems'
 import { calculateFiringSolutions } from '../utils/weaponRange'
@@ -33,7 +34,19 @@ interface ActionPanel {
   sequence: number
   targetPlayerId?: string
   destinationWellId?: string
+  criticalTarget?: SubsystemType // For weapon panels: subsystem to break on critical hit
 }
+
+// Available subsystem types that can be targeted by critical hits
+const TARGETABLE_SUBSYSTEMS: { type: SubsystemType; label: string }[] = [
+  { type: 'shields', label: 'Shields' },
+  { type: 'engines', label: 'Engines' },
+  { type: 'rotation', label: 'Thrusters' },
+  { type: 'laser', label: 'Laser' },
+  { type: 'railgun', label: 'Railgun' },
+  { type: 'missiles', label: 'Missiles' },
+  { type: 'scoop', label: 'Fuel Scoop' },
+]
 
 export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   // Get everything from context
@@ -176,6 +189,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
           sequence: index + 1, // Renumber sequentially
           targetPlayerId: p.targetPlayerId,
           destinationWellId: p.destinationWellId,
+          criticalTarget: p.criticalTarget,
         }
       })
 
@@ -222,6 +236,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
       id: `${weaponType}-${Date.now()}`,
       type: weaponType,
       sequence: panels.length + 1,
+      criticalTarget: 'shields', // Default to shields
     }
     const newPanels = [...panels, newPanel]
     setPanels(newPanels)
@@ -249,6 +264,11 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
   const updateWeaponTarget = (id: string, targetPlayerId: string) => {
     const updated = panels.map(p => (p.id === id ? { ...p, targetPlayerId } : p))
+    setPanels(updated)
+  }
+
+  const updateCriticalTarget = (id: string, criticalTarget: SubsystemType) => {
+    const updated = panels.map(p => (p.id === id ? { ...p, criticalTarget } : p))
     setPanels(updated)
   }
 
@@ -663,6 +683,31 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                         </option>
                       ))}
                     </select>
+                    {/* Critical Target Selector */}
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        Critical Target (if roll = 10)
+                      </Typography>
+                      <select
+                        value={panel.criticalTarget || 'shields'}
+                        onChange={e => updateCriticalTarget(panel.id, e.target.value as SubsystemType)}
+                        style={{
+                          width: '100%',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        {TARGETABLE_SUBSYSTEMS.map(sub => (
+                          <option key={sub.type} value={sub.type} style={{ backgroundColor: '#1a1a1a' }}>
+                            {sub.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Box>
                   </Box>
                 )
               })()}
@@ -776,6 +821,31 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                         </option>
                       ))}
                     </select>
+                    {/* Critical Target Selector */}
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        Critical Target (if roll = 10)
+                      </Typography>
+                      <select
+                        value={panel.criticalTarget || 'shields'}
+                        onChange={e => updateCriticalTarget(panel.id, e.target.value as SubsystemType)}
+                        style={{
+                          width: '100%',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        {TARGETABLE_SUBSYSTEMS.map(sub => (
+                          <option key={sub.type} value={sub.type} style={{ backgroundColor: '#1a1a1a' }}>
+                            {sub.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Box>
                   </Box>
                 )
               })()}
@@ -841,6 +911,31 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                         </option>
                       ))}
                     </select>
+                    {/* Critical Target Selector */}
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        Critical Target (if roll = 10)
+                      </Typography>
+                      <select
+                        value={panel.criticalTarget || 'shields'}
+                        onChange={e => updateCriticalTarget(panel.id, e.target.value as SubsystemType)}
+                        style={{
+                          width: '100%',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        {TARGETABLE_SUBSYSTEMS.map(sub => (
+                          <option key={sub.type} value={sub.type} style={{ backgroundColor: '#1a1a1a' }}>
+                            {sub.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Box>
                   </Box>
                 )
               })()}

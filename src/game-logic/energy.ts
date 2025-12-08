@@ -15,6 +15,11 @@ export function allocateEnergy(
     return ship
   }
 
+  // Can't allocate energy to broken subsystems
+  if (subsystem.isBroken) {
+    return ship
+  }
+
   // Can't allocate more than available
   if (amount > ship.reactor.availableEnergy) {
     return ship
@@ -83,6 +88,11 @@ export function canAllocateEnergy(
   const subsystem = ship.subsystems.find(s => s.type === subsystemType)
   if (!subsystem) {
     return { valid: false, reason: 'Subsystem not found' }
+  }
+
+  // Can't allocate energy to broken subsystems
+  if (subsystem.isBroken) {
+    return { valid: false, reason: 'Subsystem is broken and cannot receive energy' }
   }
 
   const difference = amount - subsystem.allocatedEnergy
