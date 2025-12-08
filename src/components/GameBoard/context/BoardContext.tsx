@@ -341,7 +341,8 @@ interface BoardProviderProps {
 // Animation state stored in a single ref object for cleaner access
 interface AnimationState {
   frameId: number | null
-  beforeState: GameState | null
+  originalBeforeState: GameState | null // Original state at start of animation (for heat comparison)
+  beforeState: GameState | null // Current intermediate state (mutates during animation)
   afterState: GameState | null
   actions: PlayerAction[]
   actionIndex: number
@@ -365,6 +366,7 @@ export function BoardProvider({ children }: BoardProviderProps) {
   // Single ref for all animation state
   const anim = useRef<AnimationState>({
     frameId: null,
+    originalBeforeState: null,
     beforeState: null,
     afterState: null,
     actions: [],
@@ -547,9 +549,31 @@ export function BoardProvider({ children }: BoardProviderProps) {
       anim.current.actionIndex++
 
       if (anim.current.actionIndex >= actions.length) {
-        // All done
+        // All done - spawn heat floating numbers for active player
+        const originalBeforeState = anim.current.originalBeforeState
+        if (originalBeforeState) {
+          const activePlayerId = originalBeforeState.players[originalBeforeState.activePlayerIndex]?.id
+
+          for (const playerAfter of afterState.players) {
+            if (playerAfter.id !== activePlayerId) continue
+
+            const playerBefore = originalBeforeState.players.find(p => p.id === playerAfter.id)
+            if (!playerBefore) continue
+
+            const position = calculateShipScreenPosition(playerAfter.ship)
+            const heatBefore = playerBefore.ship.heat?.currentHeat || 0
+            const heatAfter = playerAfter.ship.heat?.currentHeat || 0
+            const heatGenerated = heatAfter - heatBefore
+
+            if (heatGenerated > 0) {
+              addFloatingNumber(position.x, position.y, heatGenerated, 'heat')
+            }
+          }
+        }
+
         setDisplayState(gameStateToDisplayState(afterState))
         setIsAnimating(false)
+        anim.current.originalBeforeState = null
         anim.current.beforeState = null
         anim.current.afterState = null
         anim.current.actions = []
@@ -602,6 +626,7 @@ export function BoardProvider({ children }: BoardProviderProps) {
         }
 
         // Setup animation state
+        anim.current.originalBeforeState = beforeState // Store original for heat comparison
         anim.current.beforeState = beforeState
         anim.current.afterState = afterState
         anim.current.actions = tacticalActions
