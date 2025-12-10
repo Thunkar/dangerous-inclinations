@@ -12,7 +12,7 @@ describe('Multi-Turn Movement', () => {
     it('should complete transfer immediately on same turn', () => {
       let gameState = createTestGameState()
 
-      // Turn 1: Player 1 allocates energy and burns to transfer to ring 4 (max ring for black hole)
+      // Turn 1: Player 1 allocates energy and burns to transfer to ring 4
       const allocateAction = createAllocateEnergyAction('engines', 2, 'player1')
       const burnAction = createBurnAction('soft', 'prograde', 0, 'player1') // Soft burn: +1 ring
 
@@ -28,9 +28,9 @@ describe('Multi-Turn Movement', () => {
       // After player 1's turn, it's player 2's turn (activePlayerIndex = 1)
       expect(gameState.activePlayerIndex).toBe(1)
 
-      // Player started at sector 0, moved 2 sectors (Ring 3 velocity=2) during orbital movement,
-      // then transferred to Ring 4 (1:1 sector mapping keeps sector at 2)
-      expect(gameState.players[0].ship.sector).toBe(2)
+      // Player started at sector 0, moved 4 sectors (Ring 3 velocity=4) during orbital movement,
+      // then transferred to Ring 4 (1:1 sector mapping keeps sector at 4)
+      expect(gameState.players[0].ship.sector).toBe(4)
     })
 
     it('should handle retrograde burn with immediate completion', () => {
@@ -49,8 +49,8 @@ describe('Multi-Turn Movement', () => {
       expect(gameState.players[0].ship.ring).toBe(2) // Ring 3 - 1 = Ring 2
 
       // Movement trace:
-      // Start at sector 0, move 2 sectors (Ring 3 velocity=2) → sector 2, then transfer completes to Ring 2 (1:1 mapping keeps sector at 2)
-      expect(gameState.players[0].ship.sector).toBe(2)
+      // Start at sector 0, move 4 sectors (Ring 3 velocity=4) → sector 4, then transfer completes to Ring 2 (1:1 mapping keeps sector at 4)
+      expect(gameState.players[0].ship.sector).toBe(4)
     })
 
     it('should complete transfer immediately with 1:1 sector mapping', () => {
@@ -67,8 +67,8 @@ describe('Multi-Turn Movement', () => {
       expect(gameState.players[0].ship.ring).toBe(4) // Ring 3 + 1 = Ring 4
 
       // Movement trace:
-      // Start at sector 0, move 2 sectors (Ring 3 velocity=2) → sector 2, then transfer completes to Ring 4 (1:1 mapping keeps sector at 2)
-      expect(gameState.players[0].ship.sector).toBe(2)
+      // Start at sector 0, move 4 sectors (Ring 3 velocity=4) → sector 4, then transfer completes to Ring 4 (1:1 mapping keeps sector at 4)
+      expect(gameState.players[0].ship.sector).toBe(4)
     })
 
     it('should allow coasting without rotation when already facing the desired direction', () => {
@@ -84,8 +84,8 @@ describe('Multi-Turn Movement', () => {
       expect(result.errors).toBeUndefined()
 
       // Ship should have moved orbitally
-      // Ring 3 has velocity=2, so moves 2 sectors per turn: 0 + 2 = 2
-      expect(gameState.players[0].ship.sector).toBe(2)
+      // Ring 3 has velocity=4, so moves 4 sectors per turn: 0 + 4 = 4
+      expect(gameState.players[0].ship.sector).toBe(4)
       expect(gameState.players[0].ship.facing).toBe('prograde') // Unchanged
       expect(gameState.players[0].ship.ring).toBe(INITIAL_RING) // Unchanged
     })
@@ -129,8 +129,8 @@ describe('Multi-Turn Movement', () => {
       expect(result.errors).toBeUndefined()
 
       // Ship should have moved orbitally FIRST (prograde direction)
-      // Ring 3 has velocity=2, so moves 2 sectors per turn: 0 + 2 = 2
-      expect(gameState.players[0].ship.sector).toBe(2)
+      // Ring 3 has velocity=4, so moves 4 sectors per turn: 0 + 4 = 4
+      expect(gameState.players[0].ship.sector).toBe(4)
 
       // THEN rotation should have been applied
       expect(gameState.players[0].ship.facing).toBe('retrograde')
@@ -206,7 +206,7 @@ describe('Multi-Turn Movement', () => {
   describe('Sector Adjustment (Phasing Maneuvers)', () => {
     it('should handle positive sector adjustment (+3) with extra mass cost', () => {
       let gameState = createTestGameState()
-      // Ring 3 has velocity=2, so can adjust -1 to +3
+      // Ring 3 has velocity=4, so can adjust -3 to +3
 
       const allocateAction = createAllocateEnergyAction('engines', 1, 'player1')
       const burnAction = createBurnAction('soft', 'prograde', 3, 'player1') // +3 adjustment
@@ -222,7 +222,7 @@ describe('Multi-Turn Movement', () => {
 
     it('should handle negative sector adjustment (-1) with extra mass cost', () => {
       let gameState = createTestGameState()
-      // Ring 3 has velocity=2, so can adjust -1 to +3
+      // Ring 3 has velocity=4, so can adjust -3 to +3
 
       const allocateAction = createAllocateEnergyAction('engines', 1, 'player1')
       const burnAction = createBurnAction('soft', 'prograde', -1, 'player1') // -1 adjustment
@@ -251,7 +251,7 @@ describe('Multi-Turn Movement', () => {
 
     it('should reject sector adjustment beyond maximum positive range', () => {
       let gameState = createTestGameState()
-      // Ring 3 has velocity=2, so max adjustment is +3
+      // Ring 3 has velocity=4, so max adjustment is +3
 
       const allocateAction = createAllocateEnergyAction('engines', 1, 'player1')
       const burnAction = createBurnAction('soft', 'prograde', 4, 'player1') // +4 is out of range
@@ -265,16 +265,16 @@ describe('Multi-Turn Movement', () => {
 
     it('should reject sector adjustment beyond maximum negative range', () => {
       let gameState = createTestGameState()
-      // Ring 3 has velocity=2, so min adjustment is -1 (must always move at least 1 sector prograde)
+      // Ring 3 has velocity=4, so min adjustment is -3 (velocity - 1)
 
       const allocateAction = createAllocateEnergyAction('engines', 1, 'player1')
-      const burnAction = createBurnAction('soft', 'prograde', -2, 'player1') // -2 is out of range
+      const burnAction = createBurnAction('soft', 'prograde', -4, 'player1') // -4 is out of range
 
       let result = executeTurnWithActions(gameState, allocateAction, burnAction)
 
       // Should have validation error
       expect(result.errors).toBeDefined()
-      expect(result.errors?.[0]).toContain('Sector adjustment -2 out of range')
+      expect(result.errors?.[0]).toContain('Sector adjustment -4 out of range')
     })
 
     it('should reject sector adjustment when insufficient reaction mass', () => {
@@ -293,10 +293,10 @@ describe('Multi-Turn Movement', () => {
 
     it('should allow maximum adjustment range for high velocity rings', () => {
       let gameState = createTestGameState()
-      gameState.players[0].ship.ring = 1 // Ring 1 has velocity=4
+      gameState.players[0].ship.ring = 1 // Ring 1 has velocity=8
 
       const allocateAction = createAllocateEnergyAction('engines', 1, 'player1')
-      const burnAction = createBurnAction('soft', 'prograde', -3, 'player1') // velocity 4, can adjust -3 to +3
+      const burnAction = createBurnAction('soft', 'prograde', -3, 'player1') // velocity 8, can adjust -7 to +3, -3 is valid
 
       let result = executeTurnWithActions(gameState, allocateAction, burnAction)
       gameState = result.gameState
@@ -309,7 +309,7 @@ describe('Multi-Turn Movement', () => {
 
     it('should limit negative adjustment for low velocity rings', () => {
       let gameState = createTestGameState()
-      gameState.players[0].ship.ring = 4 // Ring 4 has velocity=1
+      gameState.players[0].ship.ring = 5 // Ring 5 has velocity=1
 
       const allocateAction = createAllocateEnergyAction('engines', 1, 'player1')
       // velocity 1, can only adjust 0 to +3 (no negative adjustment, must always move at least 1 sector)
@@ -324,7 +324,7 @@ describe('Multi-Turn Movement', () => {
 
     it('should allow zero adjustment for velocity 1 rings', () => {
       let gameState = createTestGameState()
-      gameState.players[0].ship.ring = 4 // Ring 4 has velocity=1
+      gameState.players[0].ship.ring = 5 // Ring 5 has velocity=1
 
       const allocateAction = createAllocateEnergyAction('engines', 2, 'player1')
       const burnAction = createBurnAction('soft', 'retrograde', 0, 'player1')
@@ -337,7 +337,7 @@ describe('Multi-Turn Movement', () => {
       // Should succeed with no adjustment
       expect(result.errors).toBeUndefined()
       expect(gameState.players[0].ship.reactionMass).toBe(INITIAL_REACTION_MASS - 1) // Only base cost
-      expect(gameState.players[0].ship.ring).toBe(3) // Ring 4 - 1 = Ring 3
+      expect(gameState.players[0].ship.ring).toBe(4) // Ring 5 - 1 = Ring 4
     })
 
     it('should calculate mass cost correctly for different burn intensities with adjustment', () => {
@@ -351,7 +351,7 @@ describe('Multi-Turn Movement', () => {
       gameState = result.gameState
 
       expect(gameState.players[0].ship.reactionMass).toBe(INITIAL_REACTION_MASS - 4)
-      expect(gameState.players[0].ship.ring).toBe(4) // Ring 3 + 2 = Ring 5, clamped to max 4 for black hole
+      expect(gameState.players[0].ship.ring).toBe(5) // Ring 3 + 2 = Ring 5
     })
   })
 })

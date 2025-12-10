@@ -1,5 +1,68 @@
 import type { GravityWell as GravityWellType, TransferPoint } from '../../../types/game'
 import { useBoardContext } from '../context'
+import { getGravityWell } from '../../../constants/gravityWells'
+
+/**
+ * Lighten a hex color by a given amount (0-1)
+ */
+function lightenColor(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16)
+  const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * amount))
+  const g = Math.min(255, Math.floor(((num >> 8) & 0x00ff) + (255 - ((num >> 8) & 0x00ff)) * amount))
+  const b = Math.min(255, Math.floor((num & 0x0000ff) + (255 - (num & 0x0000ff)) * amount))
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
+
+/**
+ * Darken a hex color by a given amount (0-1)
+ */
+function darkenColor(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16)
+  const r = Math.max(0, Math.floor((num >> 16) * (1 - amount)))
+  const g = Math.max(0, Math.floor(((num >> 8) & 0x00ff) * (1 - amount)))
+  const b = Math.max(0, Math.floor((num & 0x0000ff) * (1 - amount)))
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
+
+/**
+ * Get the color for a transfer sector based on its associated planet
+ * Outbound (to planet) uses lightened planet color
+ * Return (from planet) uses darkened planet color
+ */
+function getTransferSectorColor(
+  wellId: string,
+  sector: number,
+  transferPoints: TransferPoint[]
+): string | null {
+  // Find the transfer point(s) for this sector
+  for (const tp of transferPoints) {
+    // Outbound from blackhole to planet
+    if (tp.fromWellId === wellId && tp.fromSector === sector) {
+      const planet = getGravityWell(tp.toWellId)
+      const baseColor = planet?.color || '#FFD700'
+      return lightenColor(baseColor, 0.3)
+    }
+    // Arrival at blackhole from planet (return journey)
+    if (tp.toWellId === wellId && tp.toSector === sector) {
+      const planet = getGravityWell(tp.fromWellId)
+      const baseColor = planet?.color || '#FFD700'
+      return darkenColor(baseColor, 0.2)
+    }
+    // Outbound from planet to blackhole (return journey - launch side)
+    if (tp.fromWellId === wellId && tp.fromWellId !== 'blackhole' && tp.fromSector === sector) {
+      const planet = getGravityWell(tp.fromWellId)
+      const baseColor = planet?.color || '#FFD700'
+      return darkenColor(baseColor, 0.2)
+    }
+    // Arrival at planet from blackhole (outbound journey - arrival side)
+    if (tp.toWellId === wellId && tp.toWellId !== 'blackhole' && tp.toSector === sector) {
+      const planet = getGravityWell(tp.toWellId)
+      const baseColor = planet?.color || '#FFD700'
+      return lightenColor(baseColor, 0.3)
+    }
+  }
+  return null
+}
 
 interface GravityWellProps {
   well: GravityWellType
@@ -104,17 +167,22 @@ export function GravityWell({
               const sectorEndAngle =
                 ((i + 1) / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
+              // Get transfer sector color (null if not a transfer sector)
+              const transferColor = isTransferSector
+                ? getTransferSectorColor(well.id, i, transferPoints)
+                : null
+
               return (
                 <g key={i}>
-                  {/* Highlight transfer sectors with a golden arc along the ring */}
-                  {isTransferSector && (
+                  {/* Highlight transfer sectors with a colored arc along the ring */}
+                  {isTransferSector && transferColor && (
                     <path
                       d={`
                           M ${position.x + radius * Math.cos(sectorStartAngle)} ${position.y + radius * Math.sin(sectorStartAngle)}
                           A ${radius} ${radius} 0 0 1 ${position.x + radius * Math.cos(sectorEndAngle)} ${position.y + radius * Math.sin(sectorEndAngle)}
                         `}
                       fill="none"
-                      stroke="#FFD700"
+                      stroke={transferColor}
                       strokeWidth={6}
                       opacity={0.7}
                     />
@@ -134,7 +202,7 @@ export function GravityWell({
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fontSize={7}
-                    fill={isTransferSector ? '#FFD700' : '#666'}
+                    fill={transferColor || '#666'}
                     opacity={isTransferSector ? 1 : 0.6}
                     fontWeight={isTransferSector ? 'bold' : 'normal'}
                   >

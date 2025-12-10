@@ -2,6 +2,28 @@ import type { TransferPoint } from '../../../types/game'
 import { useBoardContext } from '../context'
 import { getGravityWell } from '../../../constants/gravityWells'
 
+/**
+ * Lighten a hex color by a given amount (0-1)
+ */
+function lightenColor(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16)
+  const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * amount))
+  const g = Math.min(255, Math.floor(((num >> 8) & 0x00ff) + (255 - ((num >> 8) & 0x00ff)) * amount))
+  const b = Math.min(255, Math.floor((num & 0x0000ff) + (255 - (num & 0x0000ff)) * amount))
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
+
+/**
+ * Darken a hex color by a given amount (0-1)
+ */
+function darkenColor(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16)
+  const r = Math.max(0, Math.floor((num >> 16) * (1 - amount)))
+  const g = Math.max(0, Math.floor(((num >> 8) & 0x00ff) * (1 - amount)))
+  const b = Math.max(0, Math.floor((num & 0x0000ff) * (1 - amount)))
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
+
 interface TransferSectorsProps {
   transferPoints: TransferPoint[]
 }
@@ -51,9 +73,16 @@ export function TransferSectors({ transferPoints }: TransferSectorsProps) {
         const arrivalX = toPosition.x + toRadius * Math.cos(toSectorCenterAngle)
         const arrivalY = toPosition.y + toRadius * Math.sin(toSectorCenterAngle)
 
-        // Determine color based on direction
+        // Determine color based on the associated planet
+        // Outbound (BH → Planet): use planet's color (lighter variant)
+        // Return (Planet → BH): use planet's color (darker variant)
         const isOutbound = tp.fromWellId === 'blackhole'
-        const color = isOutbound ? '#FFD700' : '#00CED1' // Gold for outbound, cyan for return
+        const planetId = isOutbound ? tp.toWellId : tp.fromWellId
+        const planet = getGravityWell(planetId)
+        const baseColor = planet?.color || '#FFD700'
+
+        // Lighten for outbound (TO planet), darken for return (FROM planet)
+        const color = isOutbound ? lightenColor(baseColor, 0.3) : darkenColor(baseColor, 0.2)
 
         // Calculate elliptic arc control points
         // For a realistic Hohmann-like transfer, the trajectory curves outward (away from black hole)

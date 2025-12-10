@@ -254,10 +254,14 @@ describe('Bot AI Integration Tests', () => {
       let gameState = createGameState(1)
       const bot = gameState.players[1]
 
-      // Position bot at transfer sector
+      // Position bot at transfer sector (Beta: BH R5 S0 → Beta R3 S5)
       bot.ship.ring = 5
       bot.ship.sector = 0 // Transfer sector from blackhole to planet
       bot.ship.hitPoints = 2 // Low health to trigger escape
+      // Pre-allocate energy to engines to ensure transfer is possible
+      const enginesSubsystem = bot.ship.subsystems.find(s => s.type === 'engines')!
+      enginesSubsystem.allocatedEnergy = 3 // Required for well transfer
+      bot.ship.reactor.availableEnergy -= 3
 
       const parameters: BotParameters = {
         aggressiveness: 0.3,

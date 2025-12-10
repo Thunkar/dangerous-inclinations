@@ -9,7 +9,7 @@ describe('Fuel Scoop', () => {
     it('should recover reaction mass equal to velocity when scoop is activated', () => {
       let gameState = createTestGameState()
 
-      // Ship starts at ring 3 in black hole (velocity=2) with full reaction mass (10)
+      // Ship starts at ring 3 in black hole (velocity=4) with full reaction mass (10)
       // Reduce mass to test recovery
       gameState.players[0].ship.reactionMass = 5
 
@@ -23,14 +23,14 @@ describe('Fuel Scoop', () => {
       // Should succeed
       expect(result.errors).toBeUndefined()
 
-      // Should recover 2 mass (velocity of ring 3 = 2)
-      expect(gameState.players[0].ship.reactionMass).toBe(7) // 5 + 2 = 7
+      // Should recover 4 mass (velocity of ring 3 = 4)
+      expect(gameState.players[0].ship.reactionMass).toBe(9) // 5 + 4 = 9
     })
 
     it('should cap recovery at max reaction mass', () => {
       let gameState = createTestGameState()
 
-      // Ship has 9 mass, velocity is 2, so recovery would be 11 but should cap at 10
+      // Ship has 9 mass, velocity is 4, so recovery would be 13 but should cap at 10
       gameState.players[0].ship.reactionMass = 9
 
       const allocateAction = createAllocateEnergyAction('scoop', 3, 'player1')
@@ -46,9 +46,9 @@ describe('Fuel Scoop', () => {
     it('should recover more mass on higher velocity rings', () => {
       let gameState = createTestGameState()
 
-      // Move to ring 1 (velocity = 6)
+      // Move to ring 1 (velocity = 8)
       gameState.players[0].ship.ring = 1
-      gameState.players[0].ship.reactionMass = 3
+      gameState.players[0].ship.reactionMass = 2
 
       const allocateAction = createAllocateEnergyAction('scoop', 3, 'player1')
       const coastAction = createCoastAction('player1', 'prograde', true)
@@ -58,15 +58,15 @@ describe('Fuel Scoop', () => {
 
       expect(result.errors).toBeUndefined()
 
-      // Should recover 6 mass (velocity of ring 1 = 6)
-      expect(gameState.players[0].ship.reactionMass).toBe(9) // 3 + 6 = 9
+      // Should recover 8 mass (velocity of ring 1 = 8)
+      expect(gameState.players[0].ship.reactionMass).toBe(10) // 2 + 8 = 10 (capped at max)
     })
 
     it('should recover less mass on lower velocity rings', () => {
       let gameState = createTestGameState()
 
-      // Move to ring 4 (velocity = 1)
-      gameState.players[0].ship.ring = 4
+      // Move to ring 5 (velocity = 1)
+      gameState.players[0].ship.ring = 5
       gameState.players[0].ship.reactionMass = 5
 
       const allocateAction = createAllocateEnergyAction('scoop', 3, 'player1')
@@ -77,7 +77,7 @@ describe('Fuel Scoop', () => {
 
       expect(result.errors).toBeUndefined()
 
-      // Should recover 1 mass (velocity of ring 4 = 1)
+      // Should recover 1 mass (velocity of ring 5 = 1)
       expect(gameState.players[0].ship.reactionMass).toBe(6) // 5 + 1 = 6
     })
 
@@ -137,7 +137,7 @@ describe('Fuel Scoop', () => {
       gameState = result.gameState
 
       expect(result.errors).toBeUndefined()
-      expect(gameState.players[0].ship.reactionMass).toBe(7) // 5 + 2 (velocity)
+      expect(gameState.players[0].ship.reactionMass).toBe(9) // 5 + 4 (velocity of Ring 3 = 4)
     })
   })
 
@@ -178,7 +178,7 @@ describe('Fuel Scoop', () => {
       let result = executeTurnWithActions(gameState, allocateAction1, coastAction1)
       gameState = result.gameState
 
-      expect(gameState.players[0].ship.reactionMass).toBe(4) // 2 + 2
+      expect(gameState.players[0].ship.reactionMass).toBe(6) // 2 + 4 (Ring 3 velocity = 4)
 
       // Turn 2: Switch to player 2 (bot), then back to player 1
       // Execute bot turn (simple coast)
@@ -191,7 +191,7 @@ describe('Fuel Scoop', () => {
       result = executeTurnWithActions(gameState, coastAction2)
       gameState = result.gameState
 
-      expect(gameState.players[0].ship.reactionMass).toBe(6) // 4 + 2
+      expect(gameState.players[0].ship.reactionMass).toBe(10) // 6 + 4 = 10 (capped at max)
     })
   })
 })

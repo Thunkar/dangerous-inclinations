@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Danger Zones Analysis</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #fff;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .controls {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .ship-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: #252540;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .ship-toggle input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .ship-toggle .color-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+    .legend {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+    }
+    svg {
+      background: #0f0f1a;
+      border-radius: 8px;
+    }
+    .info {
+      max-width: 900px;
+      background: #252540;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #444;
+    }
+    th {
+      background: #1a1a2e;
+    }
+    .safe { color: #4ade80; }
+    .danger { color: #f87171; }
+    .warning { color: #fbbf24; }
+    .conflict-box {
+      background: #3f1f1f;
+      border: 2px solid #f87171;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+    .no-conflict-box {
+      background: #1f3f1f;
+      border: 2px solid #4ade80;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Turn 1 Danger Zone Analysis</h1>
+
+    <div class="controls" id="shipToggles"></div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-color" style="background: rgba(239, 68, 68, 0.5);"></div>
+        <span>Missile Danger</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: rgba(168, 85, 247, 0.5);"></div>
+        <span>Railgun Danger</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: rgba(59, 130, 246, 0.5);"></div>
+        <span>Laser Danger</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: rgba(74, 222, 128, 0.3);"></div>
+        <span>Safe Zone</span>
+      </div>
+    </div>
+
+    <svg id="board" width="700" height="700" viewBox="-350 -350 700 700"></svg>
+
+    <div class="info">
+      <h3>Mechanics Summary</h3>
+      <p>Ring velocities: R1=6, R2=4, R3=2, R4=1 (R4 outermost, R1 innermost)</p>
+      <p><strong>Key rules:</strong></p>
+      <ul>
+        <li>Orbital velocity from ORIGIN ring</li>
+        <li>Sector adjustment: 0 to +N forward only (soft +1, medium +2, hard +3)</li>
+        <li>Burns require retrograde facing → railgun only fires retrograde after burn</li>
+        <li>Missiles: ±2 rings, ±3 sectors | Railgun: same ring, 5 sectors | Laser: ±1 ring, ±1 sector</li>
+      </ul>
+
+      <div id="conflictReport"></div>
+
+      <h4>Ship Positions & Safe Zones</h4>
+      <table id="shipTable">
+        <tr><th>Ship</th><th>Position</th><th>Post-Move Positions</th><th>Safe Zones</th></tr>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const svg = document.getElementById('board');
+    const SECTORS = 24;
+
+    // R1 is innermost (fastest), R4 is outermost (slowest)
+    const rings = [
+      { ring: 4, radius: 280, velocity: 1 },
+      { ring: 3, radius: 220, velocity: 2 },
+      { ring: 2, radius: 160, velocity: 4 },
+      { ring: 1, radius: 100, velocity: 6 },
+    ];
+
+    // Ship configurations - attempting 6-ship safe spawn
+    // Key insight: danger zone from R4 S0 extends roughly:
+    // - Post-movement on R4: S1 (coast)
+    // - Post-movement on R3: S1-S2 (soft burn)
+    // - Post-movement on R2: S1-S3 (medium burn)
+    // - Post-movement on R1: S1-S4 (hard burn)
+    // From each position, missiles cover ±3 sectors
+    // So full danger extends from ~S-2 to ~S+7 on all reachable rings
+    // For 6 ships on R4 with 24 sectors, need 24/6 = 4 sector spacing
+    // But danger zones are ~10 sectors wide, so this WON'T work on same ring
+    // Try opposite sides + different rings
+    const ships = [
+      { id: 'ship1', name: 'Ship 1', ring: 4, sector: 0, color: '#fbbf24', visible: true },
+      { id: 'ship2', name: 'Ship 2', ring: 4, sector: 12, color: '#f472b6', visible: true },
+      { id: 'ship3', name: 'Ship 3', ring: 4, sector: 6, color: '#22d3ee', visible: true },
+      { id: 'ship4', name: 'Ship 4', ring: 4, sector: 18, color: '#a3e635', visible: true },
+      { id: 'ship5', name: 'Ship 5', ring: 4, sector: 4, color: '#c084fc', visible: true },
+      { id: 'ship6', name: 'Ship 6', ring: 4, sector: 16, color: '#fb923c', visible: true },
+    ];
+
+    // Compute danger zones for a ship at given position
+    function computeDangerZones(ring, sector) {
+      const velocity = rings.find(r => r.ring === ring).velocity;
+      const baseSector = (sector + velocity) % SECTORS;
+
+      // Possible post-movement positions
+      // Coast: stay on same ring, move orbital velocity
+      // Burn: move inward (retrograde), sector adjustment 0 to +N based on burn intensity
+      // Soft burn (1 ring): +0 or +1
+      // Medium burn (2 rings): +0, +1, or +2
+      // Hard burn (3 rings): +0, +1, +2, or +3
+      const postPositions = { 1: [], 2: [], 3: [], 4: [] };
+
+      // Coast always available (stay on current ring)
+      postPositions[ring] = [baseSector];
+
+      // Burns go INWARD (lower ring numbers)
+      // Soft burn: -1 ring, adjustments 0-1
+      if (ring > 1) {
+        const destRing = ring - 1;
+        for (let adj = 0; adj <= 1; adj++) {
+          postPositions[destRing].push((baseSector + adj) % SECTORS);
+        }
+      }
+      // Medium burn: -2 rings, adjustments 0-2
+      if (ring > 2) {
+        const destRing = ring - 2;
+        for (let adj = 0; adj <= 2; adj++) {
+          postPositions[destRing].push((baseSector + adj) % SECTORS);
+        }
+      }
+      // Hard burn: -3 rings, adjustments 0-3
+      if (ring > 3) {
+        const destRing = ring - 3;
+        for (let adj = 0; adj <= 3; adj++) {
+          postPositions[destRing].push((baseSector + adj) % SECTORS);
+        }
+      }
+
+      const danger = { missiles: {}, railgun: {}, laser: {} };
+
+      // Pre-movement (from starting position)
+      // Missiles from pre-position
+      for (let r = Math.max(1, ring - 2); r <= Math.min(4, ring + 2); r++) {
+        if (!danger.missiles[r]) danger.missiles[r] = new Set();
+        for (let s = -3; s <= 3; s++) {
+          danger.missiles[r].add((sector + s + SECTORS) % SECTORS);
+        }
+      }
+
+      // Railgun from pre-position (both facings possible)
+      if (!danger.railgun[ring]) danger.railgun[ring] = new Set();
+      for (let s = 1; s <= 5; s++) {
+        danger.railgun[ring].add((sector + s) % SECTORS); // prograde
+        danger.railgun[ring].add((sector - s + SECTORS) % SECTORS); // retrograde
+      }
+
+      // Laser from pre-position
+      for (let r = ring - 1; r <= ring + 1; r++) {
+        if (r >= 1 && r <= 4 && r !== ring) {
+          if (!danger.laser[r]) danger.laser[r] = new Set();
+          for (let s = -1; s <= 1; s++) {
+            danger.laser[r].add((sector + s + SECTORS) % SECTORS);
+          }
+        }
+      }
+
+      // Post-movement positions
+      for (const [targetRing, positions] of Object.entries(postPositions)) {
+        const tr = parseInt(targetRing);
+        if (positions.length === 0) continue;
+
+        const isCoast = tr === ring;
+
+        for (const pos of positions) {
+          // Missiles (any facing)
+          for (let r = Math.max(1, tr - 2); r <= Math.min(4, tr + 2); r++) {
+            if (!danger.missiles[r]) danger.missiles[r] = new Set();
+            for (let s = -3; s <= 3; s++) {
+              danger.missiles[r].add((pos + s + SECTORS) % SECTORS);
+            }
+          }
+
+          // Railgun (retrograde only if burned, both if coasted)
+          if (!danger.railgun[tr]) danger.railgun[tr] = new Set();
+          // Retrograde (always possible after burn, or if coasted and rotated)
+          for (let s = 1; s <= 5; s++) {
+            danger.railgun[tr].add((pos - s + SECTORS) % SECTORS);
+          }
+          // Prograde (only if coasted)
+          if (isCoast) {
+            for (let s = 1; s <= 5; s++) {
+              danger.railgun[tr].add((pos + s) % SECTORS);
+            }
+          }
+
+          // Laser (any facing)
+          for (let r = tr - 1; r <= tr + 1; r++) {
+            if (r >= 1 && r <= 4 && r !== tr) {
+              if (!danger.laser[r]) danger.laser[r] = new Set();
+              for (let s = -1; s <= 1; s++) {
+                danger.laser[r].add((pos + s + SECTORS) % SECTORS);
+              }
+            }
+          }
+        }
+      }
+
+      // Convert sets to arrays
+      const result = { missiles: {}, railgun: {}, laser: {} };
+      for (const r of [1,2,3,4]) {
+        result.missiles[r] = danger.missiles[r] ? Array.from(danger.missiles[r]) : [];
+        result.railgun[r] = danger.railgun[r] ? Array.from(danger.railgun[r]) : [];
+        result.laser[r] = danger.laser[r] ? Array.from(danger.laser[r]) : [];
+      }
+
+      return { danger: result, postPositions };
+    }
+
+    function computeSafeZones(dangerZones) {
+      const safe = {};
+      for (let r = 1; r <= 4; r++) {
+        const allDanger = new Set([
+          ...dangerZones.missiles[r],
+          ...dangerZones.railgun[r],
+          ...dangerZones.laser[r]
+        ]);
+        safe[r] = [];
+        for (let s = 0; s < SECTORS; s++) {
+          if (!allDanger.has(s)) safe[r].push(s);
+        }
+      }
+      return safe;
+    }
+
+    function sectorToAngle(sector) {
+      return ((sector + 0.5) / SECTORS) * 2 * Math.PI - Math.PI / 2;
+    }
+
+    function getRingRadius(ringNum) {
+      const ring = rings.find(r => r.ring === ringNum);
+      return ring ? ring.radius : 0;
+    }
+
+    function createSectorPath(sector, innerRadius, outerRadius) {
+      const startAngle = (sector / SECTORS) * 2 * Math.PI - Math.PI / 2;
+      const endAngle = ((sector + 1) / SECTORS) * 2 * Math.PI - Math.PI / 2;
+      const x1 = innerRadius * Math.cos(startAngle);
+      const y1 = innerRadius * Math.sin(startAngle);
+      const x2 = outerRadius * Math.cos(startAngle);
+      const y2 = outerRadius * Math.sin(startAngle);
+      const x3 = outerRadius * Math.cos(endAngle);
+      const y3 = outerRadius * Math.sin(endAngle);
+      const x4 = innerRadius * Math.cos(endAngle);
+      const y4 = innerRadius * Math.sin(endAngle);
+      return `M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 0 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 0 0 ${x1} ${y1} Z`;
+    }
+
+    function checkConflicts() {
+      const conflicts = [];
+      const visibleShips = ships.filter(s => s.visible);
+
+      for (let i = 0; i < visibleShips.length; i++) {
+        for (let j = i + 1; j < visibleShips.length; j++) {
+          const shipA = visibleShips[i];
+          const shipB = visibleShips[j];
+
+          const dangerA = computeDangerZones(shipA.ring, shipA.sector).danger;
+          const dangerB = computeDangerZones(shipB.ring, shipB.sector).danger;
+
+          // Check if A can hit B
+          const aHitsB = [];
+          if (dangerA.missiles[shipB.ring]?.includes(shipB.sector)) aHitsB.push('missiles');
+          if (dangerA.railgun[shipB.ring]?.includes(shipB.sector)) aHitsB.push('railgun');
+          if (dangerA.laser[shipB.ring]?.includes(shipB.sector)) aHitsB.push('laser');
+
+          // Check if B can hit A
+          const bHitsA = [];
+          if (dangerB.missiles[shipA.ring]?.includes(shipA.sector)) bHitsA.push('missiles');
+          if (dangerB.railgun[shipA.ring]?.includes(shipA.sector)) bHitsA.push('railgun');
+          if (dangerB.laser[shipA.ring]?.includes(shipA.sector)) bHitsA.push('laser');
+
+          if (aHitsB.length > 0 || bHitsA.length > 0) {
+            conflicts.push({ shipA, shipB, aHitsB, bHitsA });
+          }
+        }
+      }
+      return conflicts;
+    }
+
+    function render() {
+      svg.innerHTML = '';
+
+      // Draw ring outlines
+      rings.forEach(r => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', 0);
+        circle.setAttribute('cy', 0);
+        circle.setAttribute('r', r.radius);
+        circle.setAttribute('fill', 'none');
+        circle.setAttribute('stroke', '#333');
+        circle.setAttribute('stroke-width', '1');
+        svg.appendChild(circle);
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', 5);
+        label.setAttribute('y', -r.radius - 5);
+        label.setAttribute('fill', '#666');
+        label.setAttribute('font-size', '12');
+        label.textContent = `R${r.ring} (v=${r.velocity})`;
+        svg.appendChild(label);
+      });
+
+      // Draw sector lines
+      for (let s = 0; s < SECTORS; s++) {
+        const angle = (s / SECTORS) * 2 * Math.PI - Math.PI / 2;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', 40 * Math.cos(angle));
+        line.setAttribute('y1', 40 * Math.sin(angle));
+        line.setAttribute('x2', 300 * Math.cos(angle));
+        line.setAttribute('y2', 300 * Math.sin(angle));
+        line.setAttribute('stroke', '#222');
+        line.setAttribute('stroke-width', '0.5');
+        svg.appendChild(line);
+      }
+
+      // Compute combined danger zones for visible ships
+      const combinedDanger = { missiles: {}, railgun: {}, laser: {} };
+      const combinedSafe = {};
+
+      for (let r = 1; r <= 4; r++) {
+        combinedDanger.missiles[r] = new Set();
+        combinedDanger.railgun[r] = new Set();
+        combinedDanger.laser[r] = new Set();
+      }
+
+      const visibleShips = ships.filter(s => s.visible);
+      visibleShips.forEach(ship => {
+        const { danger } = computeDangerZones(ship.ring, ship.sector);
+        for (let r = 1; r <= 4; r++) {
+          danger.missiles[r].forEach(s => combinedDanger.missiles[r].add(s));
+          danger.railgun[r].forEach(s => combinedDanger.railgun[r].add(s));
+          danger.laser[r].forEach(s => combinedDanger.laser[r].add(s));
+        }
+      });
+
+      // Compute safe zones
+      for (let r = 1; r <= 4; r++) {
+        const allDanger = new Set([
+          ...combinedDanger.missiles[r],
+          ...combinedDanger.railgun[r],
+          ...combinedDanger.laser[r]
+        ]);
+        combinedSafe[r] = [];
+        for (let s = 0; s < SECTORS; s++) {
+          if (!allDanger.has(s)) combinedSafe[r].push(s);
+        }
+      }
+
+      // Draw zones
+      rings.forEach(r => {
+        const ringNum = r.ring;
+        const innerRingNum = ringNum - 1;
+        const innerR = innerRingNum >= 1 ? getRingRadius(innerRingNum) + 10 : 40;
+        const outerR = r.radius;
+
+        // Safe zones
+        combinedSafe[ringNum].forEach(sector => {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', createSectorPath(sector, innerR, outerR));
+          path.setAttribute('fill', 'rgba(74, 222, 128, 0.15)');
+          path.setAttribute('stroke', 'rgba(74, 222, 128, 0.3)');
+          path.setAttribute('stroke-width', '0.5');
+          svg.appendChild(path);
+        });
+
+        // Missile danger
+        combinedDanger.missiles[ringNum].forEach(sector => {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', createSectorPath(sector, innerR, outerR));
+          path.setAttribute('fill', 'rgba(239, 68, 68, 0.3)');
+          path.setAttribute('stroke', 'rgba(239, 68, 68, 0.5)');
+          path.setAttribute('stroke-width', '0.5');
+          svg.appendChild(path);
+        });
+
+        // Railgun danger
+        combinedDanger.railgun[ringNum].forEach(sector => {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', createSectorPath(sector, innerR, outerR));
+          path.setAttribute('fill', 'rgba(168, 85, 247, 0.25)');
+          path.setAttribute('stroke', 'rgba(168, 85, 247, 0.4)');
+          path.setAttribute('stroke-width', '0.5');
+          svg.appendChild(path);
+        });
+
+        // Laser danger
+        combinedDanger.laser[ringNum].forEach(sector => {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', createSectorPath(sector, innerR, outerR));
+          path.setAttribute('fill', 'rgba(59, 130, 246, 0.25)');
+          path.setAttribute('stroke', 'rgba(59, 130, 246, 0.4)');
+          path.setAttribute('stroke-width', '0.5');
+          svg.appendChild(path);
+        });
+      });
+
+      // Draw sector numbers
+      rings.forEach(r => {
+        for (let s = 0; s < SECTORS; s++) {
+          const angle = sectorToAngle(s);
+          const labelR = r.radius - 15;
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', labelR * Math.cos(angle));
+          text.setAttribute('y', labelR * Math.sin(angle));
+          text.setAttribute('fill', '#555');
+          text.setAttribute('font-size', '8');
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('dominant-baseline', 'middle');
+          text.textContent = s;
+          svg.appendChild(text);
+        }
+      });
+
+      // Draw ship markers
+      ships.forEach(ship => {
+        if (!ship.visible) return;
+        const shipRingRadius = getRingRadius(ship.ring);
+        const shipAngle = sectorToAngle(ship.sector);
+        const shipX = shipRingRadius * Math.cos(shipAngle);
+        const shipY = shipRingRadius * Math.sin(shipAngle);
+
+        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        marker.setAttribute('cx', shipX);
+        marker.setAttribute('cy', shipY);
+        marker.setAttribute('r', 10);
+        marker.setAttribute('fill', ship.color);
+        marker.setAttribute('stroke', '#fff');
+        marker.setAttribute('stroke-width', '2');
+        svg.appendChild(marker);
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', shipX);
+        label.setAttribute('y', shipY + 25);
+        label.setAttribute('fill', ship.color);
+        label.setAttribute('font-size', '11');
+        label.setAttribute('font-weight', 'bold');
+        label.setAttribute('text-anchor', 'middle');
+        label.textContent = ship.name;
+        svg.appendChild(label);
+      });
+
+      // Center black hole
+      const blackHole = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      blackHole.setAttribute('cx', 0);
+      blackHole.setAttribute('cy', 0);
+      blackHole.setAttribute('r', 30);
+      blackHole.setAttribute('fill', '#18181B');
+      blackHole.setAttribute('stroke', '#333');
+      blackHole.setAttribute('stroke-width', '2');
+      svg.appendChild(blackHole);
+
+      // Update conflict report
+      const conflicts = checkConflicts();
+      const reportDiv = document.getElementById('conflictReport');
+
+      if (conflicts.length === 0 && visibleShips.length > 1) {
+        reportDiv.innerHTML = `<div class="no-conflict-box"><strong class="safe">✓ No Turn 1 Conflicts!</strong><br>These ship positions are safe from each other on turn 1.</div>`;
+      } else if (conflicts.length > 0) {
+        let html = `<div class="conflict-box"><strong class="danger">⚠ Turn 1 Conflicts Detected!</strong><ul>`;
+        conflicts.forEach(c => {
+          if (c.aHitsB.length > 0) {
+            html += `<li>${c.shipA.name} can hit ${c.shipB.name} with: ${c.aHitsB.join(', ')}</li>`;
+          }
+          if (c.bHitsA.length > 0) {
+            html += `<li>${c.shipB.name} can hit ${c.shipA.name} with: ${c.bHitsA.join(', ')}</li>`;
+          }
+        });
+        html += `</ul></div>`;
+        reportDiv.innerHTML = html;
+      } else {
+        reportDiv.innerHTML = '';
+      }
+
+      // Update ship table
+      const table = document.getElementById('shipTable');
+      table.innerHTML = '<tr><th>Ship</th><th>Position</th><th>Post-Move Positions</th><th>Combined Safe Zones</th></tr>';
+
+      visibleShips.forEach(ship => {
+        const { postPositions } = computeDangerZones(ship.ring, ship.sector);
+        const postStr = Object.entries(postPositions)
+          .filter(([_, pos]) => pos.length > 0)
+          .map(([r, pos]) => `R${r}: S${pos.join('/')}`)
+          .join(', ');
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td style="color: ${ship.color}">${ship.name}</td>
+          <td>R${ship.ring} S${ship.sector}</td>
+          <td>${postStr}</td>
+          <td></td>
+        `;
+        table.appendChild(row);
+      });
+
+      // Add combined safe zones row
+      const safeRow = document.createElement('tr');
+      const safeStr = Object.entries(combinedSafe)
+        .map(([r, sectors]) => `R${r}: ${sectors.length > 0 ? 'S' + formatSectorRange(sectors) : 'none'}`)
+        .join('<br>');
+      safeRow.innerHTML = `<td colspan="3"><strong>Combined Safe Zones</strong></td><td class="safe">${safeStr}</td>`;
+      table.appendChild(safeRow);
+    }
+
+    function formatSectorRange(sectors) {
+      if (sectors.length === 0) return 'none';
+      sectors.sort((a, b) => a - b);
+      const ranges = [];
+      let start = sectors[0];
+      let end = sectors[0];
+
+      for (let i = 1; i < sectors.length; i++) {
+        if (sectors[i] === end + 1) {
+          end = sectors[i];
+        } else {
+          ranges.push(start === end ? `${start}` : `${start}-${end}`);
+          start = sectors[i];
+          end = sectors[i];
+        }
+      }
+      ranges.push(start === end ? `${start}` : `${start}-${end}`);
+      return ranges.join(', ');
+    }
+
+    function createControls() {
+      const container = document.getElementById('shipToggles');
+      ships.forEach(ship => {
+        const label = document.createElement('label');
+        label.className = 'ship-toggle';
+        label.innerHTML = `
+          <input type="checkbox" ${ship.visible ? 'checked' : ''} data-ship="${ship.id}">
+          <div class="color-dot" style="background: ${ship.color}"></div>
+          <span>${ship.name} (R${ship.ring} S${ship.sector})</span>
+        `;
+        label.querySelector('input').addEventListener('change', (e) => {
+          ship.visible = e.target.checked;
+          render();
+        });
+        container.appendChild(label);
+      });
+    }
+
+    // Find valid 6-ship spawn configurations
+    function findSafeConfigurations() {
+      const results = [];
+
+      // Get all possible spawn positions on R4 (outermost, slowest)
+      // We'll check every combination of 6 positions from sectors 0-23
+      const allPositions = [];
+      for (let s = 0; s < SECTORS; s++) {
+        allPositions.push({ ring: 4, sector: s });
+      }
+
+      // For each position, compute its danger zone
+      const dangerZones = {};
+      for (const pos of allPositions) {
+        const key = `${pos.ring}-${pos.sector}`;
+        dangerZones[key] = computeDangerZones(pos.ring, pos.sector).danger;
+      }
+
+      // Check if a spawn position is in another ship's danger zone
+      function isInDanger(spawnRing, spawnSector, otherDanger) {
+        return otherDanger.missiles[spawnRing]?.includes(spawnSector) ||
+               otherDanger.railgun[spawnRing]?.includes(spawnSector) ||
+               otherDanger.laser[spawnRing]?.includes(spawnSector);
+      }
+
+      // Check if a set of positions is mutually safe
+      function isConfigurationSafe(positions) {
+        for (let i = 0; i < positions.length; i++) {
+          for (let j = 0; j < positions.length; j++) {
+            if (i === j) continue;
+            const attackerKey = `${positions[j].ring}-${positions[j].sector}`;
+            if (isInDanger(positions[i].ring, positions[i].sector, dangerZones[attackerKey])) {
+              return false;
+            }
+          }
+        }
+        return true;
+      }
+
+      // Try evenly spaced configurations on R4
+      console.log("Checking evenly spaced configurations on R4...");
+      for (let spacing = 4; spacing <= 12; spacing++) {
+        for (let offset = 0; offset < spacing; offset++) {
+          const positions = [];
+          for (let i = 0; i < 6; i++) {
+            positions.push({ ring: 4, sector: (offset + i * spacing) % SECTORS });
+          }
+          // Remove duplicates
+          const unique = [...new Set(positions.map(p => p.sector))];
+          if (unique.length === 6 && isConfigurationSafe(positions)) {
+            results.push({ positions, type: `R4 spacing=${spacing} offset=${offset}` });
+          }
+        }
+      }
+
+      console.log(`Found ${results.length} safe configurations`);
+      return results;
+    }
+
+    // Run configuration search
+    const safeConfigs = findSafeConfigurations();
+    if (safeConfigs.length > 0) {
+      console.log("Safe configurations found:", safeConfigs);
+      // Update ships to first safe config
+      const firstSafe = safeConfigs[0];
+      ships.forEach((ship, i) => {
+        if (firstSafe.positions[i]) {
+          ship.ring = firstSafe.positions[i].ring;
+          ship.sector = firstSafe.positions[i].sector;
+        }
+      });
+      console.log("Updated ships to:", ships.map(s => `R${s.ring}S${s.sector}`).join(', '));
+    } else {
+      console.log("No safe 6-ship configuration found on R4. Danger zones overlap too much.");
+    }
+
+    createControls();
+    render();
+  </script>
+</body>
+</html>

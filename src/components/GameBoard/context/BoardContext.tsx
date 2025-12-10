@@ -119,7 +119,7 @@ function gameStateToDisplayState(gameState: GameState): DisplayState {
     rotation: calculateShipRotation(player.ship),
     color: player.color,
     isActive: index === gameState.activePlayerIndex,
-    size: index === gameState.activePlayerIndex ? 14 : 12,
+    size: index === gameState.activePlayerIndex ? 11 : 9,
   }))
 
   // Group missiles by location to calculate spread offsets
@@ -227,7 +227,7 @@ function computeAnimatedDisplayState(
       rotation,
       color: beforePlayer.color,
       isActive: index === beforeState.activePlayerIndex,
-      size: index === beforeState.activePlayerIndex ? 14 : 12,
+      size: index === beforeState.activePlayerIndex ? 11 : 9,
     }
   })
 

@@ -431,8 +431,8 @@ describe('Bot AI - Edge Cases', () => {
         ship: createInitialShipState(
           {
             wellId: 'blackhole',
-            ring: 4, // On outer ring for transfer possibility
-            sector: 17, // At a valid transfer sector (Alpha outbound: BH R4 S17 → Alpha R3 S7)
+            ring: 5, // On outer ring for transfer possibility (Ring 5 is now outermost)
+            sector: 20, // At a valid transfer sector (Alpha outbound: BH R5 S20 → Alpha R3 S5)
             facing: 'prograde',
           },
           {

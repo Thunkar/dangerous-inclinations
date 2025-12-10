@@ -254,9 +254,9 @@ describe('Weapon Targeting', () => {
   describe('Post-movement targeting', () => {
     it('should calculate broadside weapon range after coasting', () => {
       const attacker = createTestPlayer('attacker', 'Attacker', 3, 0, 'prograde')
-      const target = createTestPlayer('target', 'Target', 4, 2, 'prograde') // Same sector after movement
+      const target = createTestPlayer('target', 'Target', 4, 4, 'prograde') // Same sector after movement
 
-      // Calculate attacker position after movement (+2 sectors for Ring 3 velocity=2)
+      // Calculate attacker position after movement (+4 sectors for Ring 3 velocity=4)
       const postMoveShip = calculatePostMovementPosition(
         attacker.ship,
         attacker.ship.facing,
@@ -266,7 +266,7 @@ describe('Weapon Targeting', () => {
         }
       )
 
-      expect(postMoveShip.sector).toBe(2) // Ring 3 has velocity=2
+      expect(postMoveShip.sector).toBe(4) // Ring 3 has velocity=4
       expect(postMoveShip.ring).toBe(3)
 
       const solutions = calculateFiringSolutions(
@@ -277,18 +277,19 @@ describe('Weapon Targeting', () => {
       )
 
       const targetSolution = solutions.find(s => s.targetId === target.id)
-      // Attacker at R3S2 projects onto R4
+      // Attacker at R3S4 projects onto R4
       // Broadside laser has ±1 ring, ±1 sector range
-      // Target at R4S2 is within range (same sector, adjacent ring)
+      // Target at R4S4 is within range (same sector, adjacent ring)
       expect(targetSolution).toBeDefined()
       expect(targetSolution?.inRange).toBe(true)
     })
 
     it('should calculate spinal weapon range closer after orbital movement', () => {
       const attacker = createTestPlayer('attacker', 'Attacker', 3, 0, 'prograde')
-      const target = createTestPlayer('target', 'Target', 3, 5, 'prograde')
+      const target = createTestPlayer('target', 'Target', 3, 7, 'prograde')
 
-      // Before movement: 5 sectors away (within Ring 3 railgun range of 6 sectors)
+      // Before movement: 7 sectors away (within Ring 3 railgun range of 6 sectors? No, 7 is out of range)
+      // Let's verify what's in range before: 0 to 7 = 7 sectors, railgun range = 6, so NOT in range
       const beforeSolutions = calculateFiringSolutions(
         spinalRailgun,
         attacker.ship,
@@ -296,9 +297,9 @@ describe('Weapon Targeting', () => {
         attacker.id
       )
       const before = beforeSolutions.find(s => s.targetId === target.id)
-      expect(before?.inRange).toBe(true)
+      expect(before?.inRange).toBe(false) // 7 sectors is out of 6 sector range
 
-      // After movement: attacker moves to S2 (velocity=2), target still at S5 -> 3 sectors away
+      // After movement: attacker moves to S4 (velocity=4), target still at S7 -> 3 sectors away
       const postMoveShip = calculatePostMovementPosition(
         attacker.ship,
         attacker.ship.facing,
@@ -308,7 +309,7 @@ describe('Weapon Targeting', () => {
         }
       )
 
-      expect(postMoveShip.sector).toBe(2) // Ring 3 velocity=2
+      expect(postMoveShip.sector).toBe(4) // Ring 3 velocity=4
 
       const afterSolutions = calculateFiringSolutions(
         spinalRailgun,
@@ -322,7 +323,7 @@ describe('Weapon Targeting', () => {
 
     it('should calculate range from destination ring after immediate transfer', () => {
       const attacker = createTestPlayer('attacker', 'Attacker', 3, 0, 'prograde')
-      const target = createTestPlayer('target', 'Target', 4, 2, 'prograde') // Adjusted for velocity
+      const target = createTestPlayer('target', 'Target', 4, 4, 'prograde') // Adjusted for velocity
 
       // Attacker burns (transfer completes immediately)
       const postMoveShip = calculatePostMovementPosition(
@@ -337,7 +338,7 @@ describe('Weapon Targeting', () => {
 
       // Ship is on ring 4 (transfer completes immediately)
       expect(postMoveShip.ring).toBe(4)
-      expect(postMoveShip.sector).toBe(2) // Moved +2 sectors then transferred to R4 (1:1 mapping)
+      expect(postMoveShip.sector).toBe(4) // Moved +4 sectors then transferred to R4 (1:1 mapping)
 
       // Calculate weapon range from destination ring (R4)
       const solutions = calculateFiringSolutions(
@@ -348,13 +349,13 @@ describe('Weapon Targeting', () => {
       )
 
       const targetSolution = solutions.find(s => s.targetId === target.id)
-      // Target at R4S2, attacker at R4S2 -> same position, within range (0 sectors away)
+      // Target at R4S4, attacker at R4S4 -> same position, within range (0 sectors away)
       expect(targetSolution?.inRange).toBe(false) // Can't target self position
     })
 
     it('should calculate broadside range after rotation', () => {
       const attacker = createTestPlayer('attacker', 'Attacker', 3, 0, 'prograde')
-      const target = createTestPlayer('target', 'Target', 4, 2, 'prograde') // Same sector after movement
+      const target = createTestPlayer('target', 'Target', 4, 4, 'prograde') // Same sector after movement
 
       // Rotate to retrograde before movement
       const postMoveShip = calculatePostMovementPosition(
@@ -367,7 +368,7 @@ describe('Weapon Targeting', () => {
       )
 
       expect(postMoveShip.facing).toBe('retrograde')
-      expect(postMoveShip.sector).toBe(2) // Ring 3 velocity=2
+      expect(postMoveShip.sector).toBe(4) // Ring 3 velocity=4
 
       // Calculate weapon range (broadside doesn't care about facing)
       const solutions = calculateFiringSolutions(

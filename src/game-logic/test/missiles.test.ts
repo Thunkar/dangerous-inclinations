@@ -190,11 +190,12 @@ describe('Missile System', () => {
     it('should track missile over multiple turns', () => {
       let gameState = createTestGameState()
 
-      // Position player 1 at R3S0, player 2 at R3S6
+      // Position player 1 at R3S0, player 2 at R3S10 (far enough that missile won't hit in one turn)
+      // Ring 3 velocity = 4, missile fuel = 3, so need targets > 3 sectors apart
       gameState.players[0].ship.ring = 3
       gameState.players[0].ship.sector = 0
       gameState.players[1].ship.ring = 3
-      gameState.players[1].ship.sector = 6
+      gameState.players[1].ship.sector = 10
 
       // Turn 1: Player 1 fires missile
       const allocateAction: AllocateEnergyAction = {
@@ -474,13 +475,13 @@ describe('Missile System', () => {
 
       const missile = gameState.missiles[0]
 
-      // Ring 3 in blackhole has velocity 2 (2 sectors per turn)
-      // After coast, ship moves from S0 to S2 (orbital drift of 2)
-      // Missile is fired at ship's new position (S2)
+      // Ring 3 in blackhole has velocity 4 (4 sectors per turn)
+      // After coast, ship moves from S0 to S4 (orbital drift of 4)
+      // Missile is fired at ship's new position (S4)
       // Missile should NOT get additional orbital drift since it was fired after movement
       // With 3 fuel, missile moves 3 sectors toward target (S12)
-      // So missile should be at S2 + 3 = S5 (not S7 which would happen with double drift)
-      expect(missile.sector).toBe(5)
+      // So missile should be at S4 + 3 = S7 (not S11 which would happen with double drift)
+      expect(missile.sector).toBe(7)
     })
 
     it('should apply orbital drift for missiles fired BEFORE movement', () => {
@@ -534,12 +535,12 @@ describe('Missile System', () => {
 
       const missile = gameState.missiles[0]
 
-      // Ring 3 in blackhole has velocity 2 (2 sectors per turn)
+      // Ring 3 in blackhole has velocity 4 (4 sectors per turn)
       // Missile fired at S0 (before ship moves)
-      // Missile gets orbital drift: S0 -> S2
-      // Then missile uses 3 fuel to move toward target (S12): S2 + 3 = S5
-      // Total: S0 -> S2 (orbital) -> S5 (fuel)
-      expect(missile.sector).toBe(5)
+      // Missile gets orbital drift: S0 -> S4
+      // Then missile uses 3 fuel to move toward target (S12): S4 + 3 = S7
+      // Total: S0 -> S4 (orbital) -> S7 (fuel)
+      expect(missile.sector).toBe(7)
     })
 
     it('should result in different positions for fire-before vs fire-after when ship burns', () => {
@@ -610,10 +611,10 @@ describe('Missile System', () => {
       const missileAfterMove = result2.gameState.missiles[0]
 
       // Both missiles should end up at the same sector!
-      // Ring 3 in blackhole has velocity 2, so orbital drift = 2 sectors
-      // Fire before: S0 (start) -> S2 (orbital drift) -> S5 (3 fuel toward S20)
-      // Fire after: S2 (ship moved) -> no orbital -> S5 (3 fuel toward S20)
-      // The key insight: the NEW model makes them equal, the OLD model would have fire-after at S7
+      // Ring 3 in blackhole has velocity 4, so orbital drift = 4 sectors
+      // Fire before: S0 (start) -> S4 (orbital drift) -> S7 (3 fuel toward S20)
+      // Fire after: S4 (ship moved) -> no orbital -> S7 (3 fuel toward S20)
+      // The key insight: the NEW model makes them equal, the OLD model would have fire-after at S11
       expect(missileBeforeMove.sector).toBe(missileAfterMove.sector)
     })
   })

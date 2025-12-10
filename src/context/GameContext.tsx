@@ -91,18 +91,77 @@ interface GameContextType {
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
 
+/**
+ * Create initial players for a 6-player game (1 human + 5 bots)
+ *
+ * SAFE SPAWN CONFIGURATION - prevents turn 1 combat
+ *
+ * Key insight: Missiles are the most dangerous turn 1 weapon with ±3 sector range.
+ * Ships can fire BEFORE or AFTER movement, so we must account for both positions.
+ *
+ * Ring velocities: R1=6, R2=4, R3=2, R4=1
+ *
+ * For Human at R1 S0:
+ * - Pre-movement missile danger zone: S21-S3 (±3 from S0, wrapping)
+ * - Post-movement (S6) missile danger zone: S3-S9
+ * - Combined danger zone for R2/R3: S21-S9 (roughly half the ring)
+ * - Safe zone for R2/R3 targets: S10-S20
+ *
+ * Layout:
+ *   R1: Human S0, Bot Gamma S12 (opposite side, safe from railgun range 5)
+ *   R2: Bot Alpha S12, Bot Delta S18 (both in safe zone S10-S20)
+ *   R3: Bot Beta S12, Bot Epsilon S18 (both in safe zone S10-S20)
+ *
+ * Verification (Human attacking):
+ * - R1 S0 pre-move → R2 S12: distance 12 > 3 ✓
+ * - R1 S0 pre-move → R2 S18: distance 6 > 3 ✓
+ * - R1 S6 post-move → R2 S12: distance 6 > 3 ✓
+ * - R1 S6 post-move → R2 S18: distance 12 > 3 ✓
+ * - Railgun same ring: S12 distance 12 > 5 ✓
+ *
+ * Verification (Bots attacking Human):
+ * - Bot Alpha R2 S12 → Human R1 S6: distance 6 > 3 ✓
+ * - Bot Gamma R1 S12 → Human R1 S6: distance 6 > railgun 5 ✓
+ */
 const createInitialPlayers = (): Player[] => [
+  // Ring 1: S0, S12 (opposite sides, 12 sector gap > railgun 5)
   {
     id: 'player1',
-    name: 'Ship Alpha',
-    color: '#2196f3',
-    ship: createInitialShipState({ wellId: 'blackhole', ring: 4, sector: 0, facing: 'prograde' }),
+    name: 'Human',
+    color: '#2196f3', // Blue
+    ship: createInitialShipState({ wellId: 'blackhole', ring: 1, sector: 0, facing: 'prograde' }),
   },
   {
+    id: 'player4',
+    name: 'Bot Gamma',
+    color: '#ff9800', // Orange
+    ship: createInitialShipState({ wellId: 'blackhole', ring: 1, sector: 12, facing: 'prograde' }),
+  },
+  // Ring 2: S12, S18 (in safe zone S10-S20 from Human's missile range)
+  {
+    id: 'player2',
+    name: 'Bot Alpha',
+    color: '#f44336', // Red
+    ship: createInitialShipState({ wellId: 'blackhole', ring: 2, sector: 12, facing: 'prograde' }),
+  },
+  {
+    id: 'player5',
+    name: 'Bot Delta',
+    color: '#9c27b0', // Purple
+    ship: createInitialShipState({ wellId: 'blackhole', ring: 2, sector: 18, facing: 'prograde' }),
+  },
+  // Ring 3: S12, S18 (in safe zone S10-S20 from Human's missile range)
+  {
     id: 'player3',
-    name: 'Ship Gamma',
-    color: '#4caf50',
-    ship: createInitialShipState({ wellId: 'blackhole', ring: 2, sector: 5, facing: 'prograde' }),
+    name: 'Bot Beta',
+    color: '#4caf50', // Green
+    ship: createInitialShipState({ wellId: 'blackhole', ring: 3, sector: 12, facing: 'prograde' }),
+  },
+  {
+    id: 'player6',
+    name: 'Bot Epsilon',
+    color: '#00bcd4', // Cyan
+    ship: createInitialShipState({ wellId: 'blackhole', ring: 3, sector: 18, facing: 'prograde' }),
   },
 ]
 

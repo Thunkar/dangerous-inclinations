@@ -17,6 +17,20 @@ import type { GravityWell, TransferPoint, GravityWellId } from '../types/game'
 /**
  * Define fixed transfer sectors for each planet
  * Format: { planetId, outbound: {from, to}, return: {from, to} }
+ *
+ * 6 Planets at 60° intervals (24 sectors = 15° each):
+ * - Alpha: 0° (sector 0 points toward planet)
+ * - Beta: 60° (sector 4)
+ * - Gamma: 120° (sector 8)
+ * - Delta: 180° (sector 12)
+ * - Epsilon: 240° (sector 16)
+ * - Zeta: 300° (sector 20)
+ *
+ * Outbound (BH → Planet): Launch from sector slightly behind planet direction
+ * Return (Planet → BH): Launch from sector pointing back toward BH
+ *
+ * Each planet's outbound/return sectors are offset by ~2 sectors from the direct line
+ * to create elliptic transfer trajectories.
  */
 const FIXED_TRANSFER_SECTORS: Record<
   string,
@@ -25,17 +39,37 @@ const FIXED_TRANSFER_SECTORS: Record<
     return: { planetSector: number; bhSector: number }
   }
 > = {
+  // Alpha at 0° (BH sector 0 points toward Alpha, planet sector 0 points toward BH)
+  // Outbound: BH -4 sectors, Planet +5 sectors from midpoint (moved 1 sector away)
+  // Return: Planet -6 sectors, BH +3 sectors from midpoint (moved 1 sector away)
   'planet-alpha': {
-    outbound: { bhSector: 17, planetSector: 7 }, // BH R4 S17 → Alpha R3 S7
-    return: { planetSector: 16, bhSector: 6 }, // Alpha R3 S16 → BH R4 S6
+    outbound: { bhSector: 20, planetSector: 5 }, // BH R5 S20 → Alpha R3 S5
+    return: { planetSector: 18, bhSector: 3 }, // Alpha R3 S18 → BH R5 S3
   },
+  // Beta at 60° (BH sector 4 points toward Beta)
   'planet-beta': {
-    outbound: { bhSector: 1, planetSector: 7 }, // BH R4 S1 → Beta R3 S7
-    return: { planetSector: 16, bhSector: 14 }, // Beta R3 S16 → BH R4 S14
+    outbound: { bhSector: 0, planetSector: 5 }, // BH R5 S0 → Beta R3 S5
+    return: { planetSector: 18, bhSector: 7 }, // Beta R3 S18 → BH R5 S7
   },
+  // Gamma at 120° (BH sector 8 points toward Gamma)
   'planet-gamma': {
-    outbound: { bhSector: 9, planetSector: 7 }, // BH R4 S9 → Gamma R3 S7
-    return: { planetSector: 16, bhSector: 22 }, // Gamma R3 S16 → BH R4 S22
+    outbound: { bhSector: 4, planetSector: 5 }, // BH R5 S4 → Gamma R3 S5
+    return: { planetSector: 18, bhSector: 11 }, // Gamma R3 S18 → BH R5 S11
+  },
+  // Delta at 180° (BH sector 12 points toward Delta)
+  'planet-delta': {
+    outbound: { bhSector: 8, planetSector: 5 }, // BH R5 S8 → Delta R3 S5
+    return: { planetSector: 18, bhSector: 15 }, // Delta R3 S18 → BH R5 S15
+  },
+  // Epsilon at 240° (BH sector 16 points toward Epsilon)
+  'planet-epsilon': {
+    outbound: { bhSector: 12, planetSector: 5 }, // BH R5 S12 → Epsilon R3 S5
+    return: { planetSector: 18, bhSector: 19 }, // Epsilon R3 S18 → BH R5 S19
+  },
+  // Zeta at 300° (BH sector 20 points toward Zeta)
+  'planet-zeta': {
+    outbound: { bhSector: 16, planetSector: 5 }, // BH R5 S16 → Zeta R3 S5
+    return: { planetSector: 18, bhSector: 23 }, // Zeta R3 S18 → BH R5 S23
   },
 }
 
@@ -50,12 +84,12 @@ export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPo
 
   // Find the black hole
   const blackHole = gravityWells.find(w => w.type === 'blackhole')
-  if (!blackHole || blackHole.rings.length < 4) {
+  if (!blackHole || blackHole.rings.length < 5) {
     return transferPoints
   }
 
-  // Get the black hole's outermost ring (Ring 4)
-  const blackHoleOutermostRing = blackHole.rings[3] // Ring 4 (index 3)
+  // Get the black hole's outermost ring (Ring 5)
+  const blackHoleOutermostRing = blackHole.rings[4] // Ring 5 (index 4)
 
   // Get planets
   const planets = gravityWells.filter(w => w.type === 'planet')

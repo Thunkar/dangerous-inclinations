@@ -101,7 +101,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     weaponStats: {
       damage: 4,
       ringRange: 0, // Only fires on current ring (same ring)
-      sectorRange: 6, // Fixed range of 6 sectors along orbit in facing direction
+      sectorRange: 5, // Range of 5 sectors along orbit in facing direction
       arc: 'spinal', // Fires tangentially along orbit in facing direction
       hasRecoil: true, // Causes recoil burn without engine compensation
     },

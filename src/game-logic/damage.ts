@@ -2,12 +2,20 @@ import type { ShipState, WeaponHitResult, CriticalHitEffect, HitRollResult } fro
 import type { SubsystemType } from '../types/subsystems'
 import { getSubsystemConfig } from '../types/subsystems'
 import { calculateHeatDamage, addHeat } from './heat'
+import { getGameConfig } from './config'
 
 /**
  * Roll a d10 for hit resolution
  * Returns 1-10 (inclusive)
+ *
+ * When deterministicRolls is enabled in game config, returns the fixed roll value
+ * instead of a random number. This is useful for consistent testing.
  */
 export function rollD10(): number {
+  const config = getGameConfig()
+  if (config.deterministicRolls) {
+    return config.fixedRollValue
+  }
   return Math.floor(Math.random() * 10) + 1
 }
 

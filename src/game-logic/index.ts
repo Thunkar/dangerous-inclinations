@@ -42,3 +42,13 @@ export { resetSubsystemUsage, getSubsystem } from './subsystems'
 
 // Turn management
 export { executeTurn, type TurnResult } from './turns'
+
+// Configuration (for testing)
+export {
+  getGameConfig,
+  setGameConfig,
+  resetGameConfig,
+  enableDeterministicMode,
+  disableDeterministicMode,
+  type GameConfig,
+} from './config'
