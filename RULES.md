@@ -92,15 +92,42 @@ When a weapon hits a target, there is a **10% chance** of a critical hit:
 
 ### Orbital System Overview
 
-The game takes place in a 5-ring orbital system where all ships naturally orbit at the same angular velocity:
+The game takes place in a multi-gravity-well system with a central **Black Hole** and **6 orbiting Planets**.
 
-- **Ring 1**: 6 sectors (innermost, fastest-feeling)
-- **Ring 2**: 12 sectors
-- **Ring 3**: 24 sectors
-- **Ring 4**: 48 sectors
-- **Ring 5**: 96 sectors (outermost, slowest-feeling)
+#### Black Hole Rings (5 rings, 24 sectors each)
 
-All rings have **velocity = 1**, meaning every ship moves **1 sector per turn** on their current ring. Inner rings have larger sectors (60° each on Ring 1) while outer rings have smaller sectors (3.75° each on Ring 5), creating the perception of different speeds despite uniform angular velocity.
+| Ring | Sectors | Velocity | Description |
+|------|---------|----------|-------------|
+| **Ring 1** | 24 | 8 | Innermost, fastest |
+| **Ring 2** | 24 | 6 | |
+| **Ring 3** | 24 | 4 | |
+| **Ring 4** | 24 | 2 | |
+| **Ring 5** | 24 | 1 | Outermost, transfer ring |
+
+#### Planet Rings (3 rings, 24 sectors each)
+
+| Ring | Sectors | Velocity | Description |
+|------|---------|----------|-------------|
+| **Ring 1** | 24 | 4 | Innermost |
+| **Ring 2** | 24 | 2 | |
+| **Ring 3** | 24 | 1 | Outermost, transfer ring |
+
+**Velocity** determines how many sectors a ship moves per turn during orbital movement. Higher velocity rings move ships faster through space.
+
+#### Planets
+
+Six planets orbit the black hole at fixed positions (60° apart):
+
+| Planet | Angle | Description |
+|--------|-------|-------------|
+| **Alpha** | 0° | Top |
+| **Beta** | 60° | |
+| **Gamma** | 120° | |
+| **Delta** | 180° | Bottom |
+| **Epsilon** | 240° | |
+| **Zeta** | 300° | |
+
+Planets have **velocity = 0** (stationary positions), simplifying gameplay. Transfer sectors remain constant.
 
 ### Ship Facing
 
@@ -119,17 +146,17 @@ Ship facing determines:
 
 **Every turn, during the movement phase**, the ship automatically moves:
 
-- **1 sector forward** on its current ring (following orbital velocity)
+- **Velocity sectors forward** on its current ring (following orbital velocity)
+- Movement amount depends on the ring's velocity (1-8 sectors per turn)
 - This happens for **both** coasting and burning
 - Movement is always in the prograde direction (clockwise around the star)
 - Cannot be prevented or modified (represents orbital momentum)
 
-**Important**: When a ship executes a burn, the transfer is not instantaneous:
+**Important**: When a ship executes a burn, the transfer completes immediately:
 
-- The ship moves **1 sector orbitally** on its **current ring** during the burn turn
-- The ship remains on its current ring for the duration of that turn
-- The transfer to the destination ring completes at the **START of the next turn**
-- Any actions during the burn turn (such as weapon firing) occur from the current ring position
+- The ship moves **velocity sectors orbitally** on its **current ring** during the burn
+- The transfer to the destination ring completes in the same turn
+- All movements and transfers happen during the movement phase
 
 ### Movement Actions (Mutually Exclusive)
 
@@ -168,12 +195,12 @@ Initiates a transfer to a different ring. Three burn intensities available:
 
 #### 3. Well Transfer (Gravity Well Jump)
 
-Ships can transfer between gravity wells using elliptic Hohmann-like transfer orbits. This allows travel between the central Black Hole and the three orbiting Planets (Alpha, Beta, Gamma).
+Ships can transfer between gravity wells using elliptic Hohmann-like transfer orbits. This allows travel between the central Black Hole and the six orbiting Planets.
 
 **Requirements**:
 - Ship must be on the **outermost ring** of current gravity well:
-  - Black Hole: Ring 4
-  - Planets: Ring 3
+  - Black Hole: **Ring 5**
+  - Planets: **Ring 3**
 - Ship must be at a **fixed transfer sector** (specific sectors for each planet)
 - Engines must be **powered at level 3** (3+ energy allocated)
 
@@ -181,9 +208,12 @@ Ships can transfer between gravity wells using elliptic Hohmann-like transfer or
 
 | Planet | Outbound (BH→Planet) | Return (Planet→BH) |
 |--------|---------------------|-------------------|
-| **Alpha** | BH R4 S17 → Alpha R3 S7 | Alpha R3 S16 → BH R4 S6 |
-| **Beta**  | BH R4 S1 → Beta R3 S7   | Beta R3 S16 → BH R4 S14 |
-| **Gamma** | BH R4 S9 → Gamma R3 S7  | Gamma R3 S16 → BH R4 S22 |
+| **Alpha** | BH R5 S20 → Alpha R3 S5 | Alpha R3 S18 → BH R5 S3 |
+| **Beta**  | BH R5 S0 → Beta R3 S5   | Beta R3 S18 → BH R5 S7 |
+| **Gamma** | BH R5 S4 → Gamma R3 S5  | Gamma R3 S18 → BH R5 S11 |
+| **Delta** | BH R5 S8 → Delta R3 S5  | Delta R3 S18 → BH R5 S15 |
+| **Epsilon** | BH R5 S12 → Epsilon R3 S5 | Epsilon R3 S18 → BH R5 S19 |
+| **Zeta** | BH R5 S16 → Zeta R3 S5  | Zeta R3 S18 → BH R5 S23 |
 
 **Transfer Mechanics**:
 1. Transfer is **instantaneous** - ship arrives at destination immediately
@@ -211,52 +241,75 @@ Ships can transfer between gravity wells using elliptic Hohmann-like transfer or
 - **Instant** - no turn delay
 - Can rotate as part of either coast or burn action
 
-### Sector Adjustment
+### Sector Adjustment (Phasing Maneuvers)
 
-During a burn, players can optionally adjust their destination sector by **±1 sector**:
+During a burn, players can adjust their destination sector within a range determined by the current ring's velocity:
 
-- Calculated after the natural sector mapping
-- Useful for fine-tuning arrival position
+**Adjustment Range**: `-(velocity - 1)` to `+3` sectors
+
+| Ring Velocity | Min Adjustment | Max Adjustment |
+|---------------|----------------|----------------|
+| 8 | -7 | +3 |
+| 6 | -5 | +3 |
+| 4 | -3 | +3 |
+| 2 | -1 | +3 |
+| 1 | 0 | +3 |
+
+**Adjustment Cost**: Each sector of adjustment costs **1 additional reaction mass**
+
+**Examples**:
+- Soft burn (1 mass) with +2 adjustment = 3 total mass
+- Medium burn (2 mass) with -3 adjustment = 5 total mass
+- Perfect Hohmann (0 adjustment) = base burn cost only
+
+**Mechanics**:
+- Adjustment is applied after orbital movement and sector mapping
 - Wraps around at ring boundaries (sector 0 wraps to max sector)
-- Applied when transfer completes
+- Negative adjustment slows effective movement, positive speeds it up
+- Minimum movement is always 1 sector (hence velocity-1 minimum for negative)
 
 ### Sector Mapping on Transfer
 
-When transferring between rings, sectors are mapped to preserve angular position:
+All rings have **24 sectors**, so sector mapping is **1:1** (direct mapping):
 
-**Adjacent Rings** (2× doubling relationship):
+- Sector number is preserved across ring transfers
+- R1 S5 → R2 S5 → R3 S5 → etc.
+- No calculation needed - your sector stays the same
 
-- Going outward: multiply by 2
-  - R1 S3 → R2 S6
-  - R2 S6 → R3 S12
-- Going inward: divide by 2
-  - R2 S6 → R1 S3
-  - R3 S12 → R2 S6
-
-**Non-Adjacent Rings**: Use angular fraction
-
-- Formula: `(current_sector / current_ring_sectors) × destination_ring_sectors`
-- Example: R1 S3 → R5 = (3/6) × 96 = S48
-
-The mapping algorithm favors the **most prograde** (forward) sector when there's overlap, calculated by using the end boundary of the source sector.
+**With Sector Adjustment**:
+- After base mapping, apply your chosen sector adjustment
+- Final sector = (base sector + adjustment) mod 24
+- Example: Start at S5, +3 adjustment → arrive at S8
 
 ### Reaction Mass Management
 
 **Reaction Mass**:
 
 - Required resource for executing burns
-- Maximum capacity: **24 units**
+- Maximum capacity: **10 units**
 - Starting amount: **10 units**
 - Consumed when burn action is executed (not when energy is allocated)
 
 **Fuel Scoop**:
 
 - Can **only be activated during a coast action** (not while burning)
-- Requires **Fuel Scoop subsystem** to be powered (minimum 1 energy)
+- Requires **Fuel Scoop subsystem** to be powered (minimum 3 energy)
 - Subsystem becomes "used" for the turn
-- Recovers reaction mass equal to the ring's velocity (**1 mass per turn**)
-- Cannot exceed maximum capacity (24 units)
+- Recovers reaction mass equal to the **ring's velocity** (1-8 mass depending on ring)
+- Cannot exceed maximum capacity (10 units)
 - Represents collecting material from the orbital environment
+
+**Fuel Scoop Recovery by Ring** (Black Hole):
+
+| Ring | Velocity | Mass Recovered |
+|------|----------|----------------|
+| R1 | 8 | 8 |
+| R2 | 6 | 6 |
+| R3 | 4 | 4 |
+| R4 | 2 | 2 |
+| R5 | 1 | 1 |
+
+Inner rings recover more mass due to denser orbital debris closer to the black hole.
 
 ### Tactical Action Sequencing
 
@@ -400,10 +453,8 @@ Weapon ranges are calculated based on the **ship's position at the moment of fir
 
 - If a weapon fires after the movement action in the tactical sequence
 - Range is calculated from the ship's **post-movement position**
-- Ship has moved **+1 sector orbitally** on its **current ring**
-- **Important**: If the ship executed a burn, it is still on the original ring
-  - The transfer to the destination ring completes at the START of the next turn
-  - Weapons fire from the ship's position on the current ring after orbital movement
+- Ship has moved **velocity sectors orbitally** on its ring (1-8 depending on ring)
+- If the ship executed a burn, it has already transferred to the new ring
 
 **Sector Projection for Cross-Ring Targeting**:
 
