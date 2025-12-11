@@ -35,11 +35,17 @@ describe('Well Transfers', () => {
           name: 'Test Player',
           color: '#00ff00',
           ship,
+          missions: [],
+          completedMissionCount: 0,
+          cargo: [],
+          hasDeployed: true,
         },
       ],
       turnLog: [],
       missiles: [],
       status: 'active',
+      phase: 'active',
+      stations: [],
     }
   }
 

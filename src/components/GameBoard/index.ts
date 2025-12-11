@@ -34,6 +34,7 @@ export {
   ShieldBubble,
   VisualEffects,
   WeaponEffects,
+  DeploymentSectors,
 } from './components'
 
 // Note: Main GameBoard component not yet migrated - still in ../GameBoard.tsx

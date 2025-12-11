@@ -6,6 +6,24 @@ import type { BotParameters } from '../types'
 import { createInitialShipState } from '../../utils/subsystemHelpers'
 
 /**
+ * Helper to create a test player with mission fields
+ */
+function createTestPlayer(id: string, name: string, color: string, shipConfig: {
+  wellId: string, ring: number, sector: number, facing: 'prograde' | 'retrograde'
+}, shipOverrides?: Partial<ReturnType<typeof createInitialShipState>>): Player {
+  return {
+    id,
+    name,
+    color,
+    ship: createInitialShipState(shipConfig, shipOverrides),
+    missions: [],
+    completedMissionCount: 0,
+    cargo: [],
+    hasDeployed: true,
+  }
+}
+
+/**
  * Integration tests for bot AI system
  * These tests validate that bot actions pass game engine validation
  */
@@ -14,28 +32,18 @@ describe('Bot AI Integration Tests', () => {
   // Helper to create a basic game state with two players
   function createGameState(bot1Index: number = 1): GameState {
     const players: Player[] = [
-      {
-        id: 'player1',
-        name: 'Ship Alpha',
-        color: '#ff0000',
-        ship: createInitialShipState({
-          wellId: 'blackhole',
-          ring: 3,
-          sector: 0,
-          facing: 'prograde',
-        }),
-      },
-      {
-        id: 'bot1',
-        name: 'Ship Beta',
-        color: '#0000ff',
-        ship: createInitialShipState({
-          wellId: 'blackhole',
-          ring: 3,
-          sector: 12, // 180 degrees away
-          facing: 'prograde',
-        }),
-      },
+      createTestPlayer('player1', 'Ship Alpha', '#ff0000', {
+        wellId: 'blackhole',
+        ring: 3,
+        sector: 0,
+        facing: 'prograde',
+      }),
+      createTestPlayer('bot1', 'Ship Beta', '#0000ff', {
+        wellId: 'blackhole',
+        ring: 3,
+        sector: 12, // 180 degrees away
+        facing: 'prograde',
+      }),
     ]
 
     return {
@@ -45,6 +53,8 @@ describe('Bot AI Integration Tests', () => {
       turnLog: [],
       missiles: [],
       status: 'active',
+      phase: 'active',
+      stations: [],
     }
   }
 

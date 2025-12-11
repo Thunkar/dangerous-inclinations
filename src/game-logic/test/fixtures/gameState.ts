@@ -33,6 +33,10 @@ export function createTestGameState(): GameState {
       sector: INITIAL_SECTOR,
       facing: INITIAL_FACING,
     }),
+    missions: [],
+    completedMissionCount: 0,
+    cargo: [],
+    hasDeployed: true,
   }
 
   const player2: Player = {
@@ -45,6 +49,10 @@ export function createTestGameState(): GameState {
       sector: PLAYER2_SECTOR,
       facing: INITIAL_FACING,
     }),
+    missions: [],
+    completedMissionCount: 0,
+    cargo: [],
+    hasDeployed: true,
   }
 
   return {
@@ -54,5 +62,7 @@ export function createTestGameState(): GameState {
     turnLog: [],
     missiles: [], // No missiles in flight initially
     status: 'active',
+    phase: 'active',
+    stations: [],
   }
 }

@@ -175,7 +175,7 @@ function buildDecisionLog(
   }))
 
   // Summarize selected actions
-  const actionSummary = bestPlan.actions.map((action: PlayerAction) => {
+  const actionSummary: string[] = bestPlan.actions.map((action: PlayerAction) => {
     switch (action.type) {
       case 'allocate_energy':
         return `Allocate ${action.data.amount} energy to ${action.data.subsystemType}`
@@ -191,6 +191,10 @@ function buildDecisionLog(
         return `Fire ${action.data.weaponType} at ${action.data.targetPlayerIds.join(', ')}`
       case 'well_transfer':
         return `Transfer to ${action.data.destinationWellId}`
+      case 'deploy_ship':
+        return `Deploy to sector ${action.data.sector}`
+      default:
+        return `Unknown action`
     }
   })
 

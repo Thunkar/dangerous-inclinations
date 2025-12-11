@@ -1,12 +1,18 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { Box } from '@mui/material'
-import { GameProvider, useGame } from './context/GameContext'
+import { LobbyProvider, useLobby } from './context/LobbyContext'
+import { GameProvider } from './context/GameContext'
 import { GameBoard } from './components/GameBoard'
 import { ControlPanel } from './components/ControlPanel'
 import { StatusDisplay } from './components/StatusDisplay'
 import { TurnHistoryPanel } from './components/TurnHistoryPanel'
-import { GameOverModal } from './components/GameOverModal'
+import { LobbyScreen } from './components/LobbyScreen'
+import { DeploymentScreen } from './components/DeploymentScreen'
+import { GameEndScreen } from './components/GameEndScreen'
+import { MissionPanel } from './components/MissionPanel'
+import { useGame } from './context/GameContext'
+import type { GameState } from './types/game'
 
 const theme = createTheme({
   palette: {
@@ -43,14 +49,13 @@ const theme = createTheme({
   },
 })
 
-function GameContent() {
-  const { gameState, pendingState, restartGame } = useGame()
+/**
+ * Active game screen - the main gameplay view
+ * Wrapped in GameProvider which handles active gameplay
+ */
+function ActiveGameContent() {
+  const { gameState, pendingState } = useGame()
   const activePlayer = gameState.players[gameState.activePlayerIndex]
-
-  // Get winner name if game is over
-  const winnerName = gameState.winnerId
-    ? gameState.players.find(p => p.id === gameState.winnerId)?.name
-    : undefined
 
   return (
     <Box
@@ -62,9 +67,6 @@ function GameContent() {
         overflow: 'hidden',
       }}
     >
-      {/* Game Over Modal */}
-      <GameOverModal status={gameState.status} winnerName={winnerName} onRestart={restartGame} />
-
       {/* Status Bar */}
       <StatusDisplay
         players={gameState.players}
@@ -105,7 +107,7 @@ function GameContent() {
           </Box>
         </Box>
 
-        {/* Right sidebar - Controls */}
+        {/* Right sidebar - Controls + Missions */}
         <Box
           sx={{
             minWidth: 300,
@@ -117,6 +119,10 @@ function GameContent() {
             p: 2,
           }}
         >
+          {/* Mission Panel - only show if player has missions */}
+          {activePlayer && activePlayer.missions.length > 0 && (
+            <MissionPanel player={activePlayer} allPlayers={gameState.players} />
+          )}
           <ControlPanel player={activePlayer} allPlayers={gameState.players} />
         </Box>
       </Box>
@@ -124,13 +130,75 @@ function GameContent() {
   )
 }
 
+/**
+ * Active game screen wrapper - provides GameContext for active gameplay
+ */
+function ActiveGameScreen({
+  initialGameState,
+  onGameStateChange
+}: {
+  initialGameState: GameState
+  onGameStateChange: (state: GameState) => void
+}) {
+  return (
+    <GameProvider
+      initialGameState={initialGameState}
+      onGameStateChange={onGameStateChange}
+    >
+      <ActiveGameContent />
+    </GameProvider>
+  )
+}
+
+/**
+ * Main app content router - routes to appropriate screen based on phase
+ */
+function AppContent() {
+  const { phase, lobbyState, gameState, returnToLobby } = useLobby()
+
+  // Handle game state changes from GameProvider
+  const handleGameStateChange = (newState: GameState) => {
+    // Check if game has ended
+    if (newState.phase === 'ended' || newState.status !== 'active') {
+      // Game state is managed internally, GameEndScreen will read from GameProvider
+    }
+  }
+
+  // Route based on phase
+  switch (phase) {
+    case 'lobby':
+      if (!lobbyState) return null
+      return <LobbyScreen />
+
+    case 'deployment':
+      if (!gameState) return null
+      return <DeploymentScreen />
+
+    case 'active':
+      if (!gameState) return null
+      return (
+        <ActiveGameScreen
+          initialGameState={gameState}
+          onGameStateChange={handleGameStateChange}
+        />
+      )
+
+    case 'ended':
+      if (!gameState) return null
+      return <GameEndScreen gameState={gameState} onPlayAgain={returnToLobby} />
+
+    default:
+      return null
+  }
+}
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <GameProvider>
-        <GameContent />
-      </GameProvider>
+      <LobbyProvider>
+        <AppContent />
+      </LobbyProvider>
     </ThemeProvider>
   )
 }

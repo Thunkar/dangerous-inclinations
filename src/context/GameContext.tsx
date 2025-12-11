@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import type { ReactNode } from 'react'
 import type {
   GameState,
-  Player,
   PlayerAction,
   Facing,
   BurnIntensity,
@@ -12,7 +11,6 @@ import type {
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from '../types/subsystems'
 import { getSubsystemConfig, canSubsystemFunction } from '../types/subsystems'
 import { TRANSFER_POINTS } from '../constants/gravityWells'
-import { createInitialShipState } from '../utils/subsystemHelpers'
 import { executeTurn as executeGameTurn } from '../game-logic/turns'
 import { calculateProjectedHeat } from '../game-logic/heat'
 import { botDecideActions } from '../ai'
@@ -82,100 +80,24 @@ interface GameContextType {
   setMovement: (movement: MovementPreview) => void
   setTacticalSequence: (sequence: TacticalAction[]) => void
   executeTurn: () => void
-  restartGame: () => void
   weaponRangeVisibility: WeaponRangeVisibility
   toggleWeaponRange: (weaponType: 'laser' | 'railgun' | 'missiles') => void
   // Animation handler registration (for BoardContext)
   registerAnimationHandlers: (handlers: AnimationHandlers) => void
+  // Callback to notify parent when game ends or needs restart
+  onGameStateChange: (newState: GameState) => void
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
 
-/**
- * Create initial players for a 6-player game (1 human + 5 bots)
- *
- * SAFE SPAWN CONFIGURATION - prevents turn 1 combat
- *
- * Key insight: Missiles are the most dangerous turn 1 weapon with ±3 sector range.
- * Ships can fire BEFORE or AFTER movement, so we must account for both positions.
- *
- * Ring velocities: R1=6, R2=4, R3=2, R4=1
- *
- * For Human at R1 S0:
- * - Pre-movement missile danger zone: S21-S3 (±3 from S0, wrapping)
- * - Post-movement (S6) missile danger zone: S3-S9
- * - Combined danger zone for R2/R3: S21-S9 (roughly half the ring)
- * - Safe zone for R2/R3 targets: S10-S20
- *
- * Layout:
- *   R1: Human S0, Bot Gamma S12 (opposite side, safe from railgun range 5)
- *   R2: Bot Alpha S12, Bot Delta S18 (both in safe zone S10-S20)
- *   R3: Bot Beta S12, Bot Epsilon S18 (both in safe zone S10-S20)
- *
- * Verification (Human attacking):
- * - R1 S0 pre-move → R2 S12: distance 12 > 3 ✓
- * - R1 S0 pre-move → R2 S18: distance 6 > 3 ✓
- * - R1 S6 post-move → R2 S12: distance 6 > 3 ✓
- * - R1 S6 post-move → R2 S18: distance 12 > 3 ✓
- * - Railgun same ring: S12 distance 12 > 5 ✓
- *
- * Verification (Bots attacking Human):
- * - Bot Alpha R2 S12 → Human R1 S6: distance 6 > 3 ✓
- * - Bot Gamma R1 S12 → Human R1 S6: distance 6 > railgun 5 ✓
- */
-const createInitialPlayers = (): Player[] => [
-  // Ring 1: S0, S12 (opposite sides, 12 sector gap > railgun 5)
-  {
-    id: 'player1',
-    name: 'Human',
-    color: '#2196f3', // Blue
-    ship: createInitialShipState({ wellId: 'blackhole', ring: 1, sector: 0, facing: 'prograde' }),
-  },
-  {
-    id: 'player4',
-    name: 'Bot Gamma',
-    color: '#ff9800', // Orange
-    ship: createInitialShipState({ wellId: 'blackhole', ring: 1, sector: 12, facing: 'prograde' }),
-  },
-  // Ring 2: S12, S18 (in safe zone S10-S20 from Human's missile range)
-  {
-    id: 'player2',
-    name: 'Bot Alpha',
-    color: '#f44336', // Red
-    ship: createInitialShipState({ wellId: 'blackhole', ring: 2, sector: 12, facing: 'prograde' }),
-  },
-  {
-    id: 'player5',
-    name: 'Bot Delta',
-    color: '#9c27b0', // Purple
-    ship: createInitialShipState({ wellId: 'blackhole', ring: 2, sector: 18, facing: 'prograde' }),
-  },
-  // Ring 3: S12, S18 (in safe zone S10-S20 from Human's missile range)
-  {
-    id: 'player3',
-    name: 'Bot Beta',
-    color: '#4caf50', // Green
-    ship: createInitialShipState({ wellId: 'blackhole', ring: 3, sector: 12, facing: 'prograde' }),
-  },
-  {
-    id: 'player6',
-    name: 'Bot Epsilon',
-    color: '#00bcd4', // Cyan
-    ship: createInitialShipState({ wellId: 'blackhole', ring: 3, sector: 18, facing: 'prograde' }),
-  },
-]
+interface GameProviderProps {
+  children: ReactNode
+  initialGameState: GameState
+  onGameStateChange: (newState: GameState) => void
+}
 
-const createInitialState = (): GameState => ({
-  turn: 1,
-  activePlayerIndex: 0,
-  players: createInitialPlayers(),
-  turnLog: [],
-  missiles: [],
-  status: 'active',
-})
-
-export function GameProvider({ children }: { children: ReactNode }) {
-  const [gameState, setGameState] = useState<GameState>(createInitialState())
+export function GameProvider({ children, initialGameState, onGameStateChange }: GameProviderProps) {
+  const [gameState, setGameState] = useState<GameState>(initialGameState)
   const [turnErrors, setTurnErrors] = useState<string[]>([])
   const [turnHistory, setTurnHistory] = useState<TurnHistoryEntry[]>([])
   const [weaponRangeVisibility, setWeaponRangeVisibility] = useState<WeaponRangeVisibility>({
@@ -196,6 +118,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     handlers.syncDisplayState(gameStateRef.current)
   }, [])
 
+  // Active player is guaranteed to exist in active phase
   const activePlayer = gameState.players[gameState.activePlayerIndex]
 
   const clearTurnErrors = useCallback(() => {
@@ -218,11 +141,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Reset pending state when active player changes or turn completes
   useEffect(() => {
+    const currentActivePlayer = gameState.players[gameState.activePlayerIndex]
+    if (!currentActivePlayer) return
+
     setPendingStateInternal({
-      subsystems: activePlayer.ship.subsystems.map(s => ({ ...s })),
-      reactor: { ...activePlayer.ship.reactor },
-      heat: { ...activePlayer.ship.heat },
-      facing: activePlayer.ship.facing,
+      subsystems: currentActivePlayer.ship.subsystems.map(s => ({ ...s })),
+      reactor: { ...currentActivePlayer.ship.reactor },
+      heat: { ...currentActivePlayer.ship.heat },
+      facing: currentActivePlayer.ship.facing,
       movement: {
         actionType: 'coast',
         sectorAdjustment: 0,
@@ -230,7 +156,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
       tacticalSequence: [],
     })
-  }, [gameState.activePlayerIndex, gameState.turn, activePlayer.ship])
+  }, [gameState.activePlayerIndex, gameState.turn])
 
   // Helper to calculate energy to return based on deallocations
   const calculateEnergyToReturn = useCallback(
@@ -249,7 +175,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   )
 
   // Helper to calculate projected heat based on planned actions (pure function)
-  // Defined early so it can be used by allocateEnergy/deallocateEnergy
   const computeProjectedHeat = (
     subsystems: Subsystem[],
     sequence: TacticalAction[],
@@ -382,7 +307,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   )
 
   // Heat venting is now automatic via dissipation - no manual venting needed
-  // This function is kept for interface compatibility but does nothing
   const ventHeat = useCallback(
     (_newTotal: number) => {
       // Heat dissipation is now automatic at start of turn
@@ -429,6 +353,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
     }))
   }, [activePlayer.ship.facing])
+
+  // Helper to update game state and notify parent
+  const updateGameState = useCallback((newState: GameState) => {
+    setGameState(newState)
+    onGameStateChange(newState)
+  }, [onGameStateChange])
 
   // Execute turn: compute diff between committed and pending, create actions using tactical sequence
   const executeTurn = useCallback(() => {
@@ -561,7 +491,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
             sequence: tacticalAction.sequence,
             data: {
               destinationWellId: tacticalAction.destinationWellId,
-              // destinationSector is automatically determined from transfer points
             },
           })
         }
@@ -601,13 +530,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Start animation - gameState will be updated when animation completes
     if (animationHandlersRef.current) {
       animationHandlersRef.current.startAnimation(gameState, afterState, actions, () => {
-        setGameState(afterState)
+        updateGameState(afterState)
       })
     } else {
       // No animation handlers registered, just update state
-      setGameState(afterState)
+      updateGameState(afterState)
     }
-  }, [activePlayer, pendingState, gameState])
+  }, [activePlayer, pendingState, gameState, updateGameState])
 
   const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missiles') => {
     setWeaponRangeVisibility(prev => ({
@@ -640,7 +569,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       lastBotTurnKeyRef.current !== currentTurnKey
     ) {
       // Mark this turn as executed IMMEDIATELY to prevent duplicate effect runs
-      // from scheduling multiple timeouts
       lastBotTurnKeyRef.current = currentTurnKey
 
       // Small delay to show state transition
@@ -677,10 +605,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           // Start animation - gameState will be updated when animation completes
           if (animationHandlersRef.current) {
             animationHandlersRef.current.startAnimation(gameState, afterState, botDecision.actions, () => {
-              setGameState(afterState)
+              updateGameState(afterState)
             })
           } else {
-            setGameState(afterState)
+            updateGameState(afterState)
           }
         } catch (error) {
           console.error(`[Bot ${currentActivePlayer.id}] Failed to execute turn:`, error)
@@ -690,37 +618,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       return () => clearTimeout(timer)
     }
-  }, [gameState])
-
-  // Restart game - reset to initial state
-  const restartGame = useCallback(() => {
-    const newGameState = createInitialState()
-    setGameState(newGameState)
-
-    // Sync display state if handlers are registered
-    if (animationHandlersRef.current) {
-      animationHandlersRef.current.syncDisplayState(newGameState)
-    }
-
-    // Reset pending state to match the new initial player
-    const newActivePlayer = newGameState.players[0]
-    setPendingStateInternal({
-      subsystems: newActivePlayer.ship.subsystems.map(s => ({ ...s })),
-      reactor: { ...newActivePlayer.ship.reactor },
-      heat: { ...newActivePlayer.ship.heat },
-      facing: newActivePlayer.ship.facing,
-      movement: {
-        actionType: 'coast',
-        sectorAdjustment: 0,
-        activateScoop: false,
-      },
-      tacticalSequence: [],
-    })
-
-    setTurnErrors([])
-    setTurnHistory([])
-    lastBotTurnKeyRef.current = ''
-  }, [])
+  }, [gameState, updateGameState])
 
   return (
     <GameContext.Provider
@@ -737,10 +635,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setMovement,
         setTacticalSequence,
         executeTurn,
-        restartGame,
         weaponRangeVisibility,
         toggleWeaponRange,
         registerAnimationHandlers,
+        onGameStateChange: updateGameState,
       }}
     >
       {children}

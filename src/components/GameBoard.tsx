@@ -17,6 +17,7 @@ import {
   WeaponRangeIndicators,
   VisualEffects,
   WeaponEffects,
+  DeploymentSectors,
   type MovementPreview,
 } from './GameBoard/index'
 import { GRAVITY_WELLS, TRANSFER_POINTS, getGravityWell } from '../constants/gravityWells'
@@ -24,17 +25,39 @@ import { GRAVITY_WELLS, TRANSFER_POINTS, getGravityWell } from '../constants/gra
 interface GameBoardProps {
   pendingFacing?: Facing
   pendingMovement?: MovementPreview
+  // Deployment mode props
+  deploymentMode?: boolean
+  availableDeploymentSectors?: number[]
+  onDeploySector?: (sector: number) => void
 }
 
-export function GameBoard({ pendingFacing, pendingMovement }: GameBoardProps) {
+export function GameBoard({
+  pendingFacing,
+  pendingMovement,
+  deploymentMode,
+  availableDeploymentSectors,
+  onDeploySector,
+}: GameBoardProps) {
   return (
     <BoardProvider>
-      <GameBoardContent pendingFacing={pendingFacing} pendingMovement={pendingMovement} />
+      <GameBoardContent
+        pendingFacing={pendingFacing}
+        pendingMovement={pendingMovement}
+        deploymentMode={deploymentMode}
+        availableDeploymentSectors={availableDeploymentSectors}
+        onDeploySector={onDeploySector}
+      />
     </BoardProvider>
   )
 }
 
-function GameBoardContent({ pendingFacing, pendingMovement }: GameBoardProps) {
+function GameBoardContent({
+  pendingFacing,
+  pendingMovement,
+  deploymentMode,
+  availableDeploymentSectors,
+  onDeploySector,
+}: GameBoardProps) {
   const { gameState, weaponRangeVisibility, pendingState } = useGame()
   const { displayState, floatingNumbers, weaponEffects, currentTime } = useBoardContext()
 
@@ -183,6 +206,14 @@ function GameBoardContent({ pendingFacing, pendingMovement }: GameBoardProps) {
               transferPoints={TRANSFER_POINTS}
             />
           ))}
+
+          {/* Deployment sectors (only in deployment mode) */}
+          {deploymentMode && availableDeploymentSectors && availableDeploymentSectors.length > 0 && onDeploySector && (
+            <DeploymentSectors
+              availableSectors={availableDeploymentSectors}
+              onSelectSector={onDeploySector}
+            />
+          )}
 
           {/* Ships with movement predictions */}
           <ShipRenderer

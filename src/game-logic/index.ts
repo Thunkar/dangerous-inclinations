@@ -52,3 +52,59 @@ export {
   disableDeterministicMode,
   type GameConfig,
 } from './config'
+
+// Mission system
+export * from './missions'
+
+// Lobby system
+export * from './lobby'
+
+// Station system
+export {
+  STATION_CONSTANTS,
+  createInitialStations,
+  updateStationPositions,
+  getStationAtPosition,
+  getStationForPlanet,
+  isShipAtStation,
+  getStationsAtShipPosition,
+} from './stations'
+
+// Cargo system
+export {
+  getPickupableCargo,
+  getDeliverableCargo,
+  pickupCargo,
+  processCargoAtStation,
+  processAllCargoAtStations,
+  getCargoStatus,
+  getNextStationForCargo,
+  getCargoMissionStatus,
+  type CargoProcessResult,
+} from './cargo'
+
+// Respawn system
+export {
+  RESPAWN_CONSTANTS,
+  findAvailableRespawnSector,
+  createRespawnedShip,
+  needsRespawn,
+  respawnPlayer,
+  processRespawn,
+  getRespawnInfo,
+  type RespawnInfo,
+} from './respawn'
+
+// Deployment system
+export {
+  DEPLOYMENT_CONSTANTS,
+  getAvailableDeploymentSectors,
+  isSectorAvailable,
+  deployShip,
+  processDeployAction,
+  checkAllDeployed,
+  getNextDeploymentPlayer,
+  transitionToActivePhase,
+  getDeploymentStatus,
+  type DeploymentResult,
+} from './deployment'

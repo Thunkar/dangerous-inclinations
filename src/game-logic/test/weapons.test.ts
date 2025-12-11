@@ -17,6 +17,10 @@ function createTestPlayer(id: string, name: string, ring: number, sector: number
       sector,
       facing,
     }),
+    missions: [],
+    completedMissionCount: 0,
+    cargo: [],
+    hasDeployed: true,
   }
 }
 

@@ -1,5 +1,7 @@
 import type { BotDecisionLog } from '../ai'
 import type { Subsystem, SubsystemType, ReactorState, HeatState } from './subsystems'
+import type { Mission, Cargo } from '../game-logic/missions/types'
+import type { GamePhase, LobbyState } from '../game-logic/lobby/types'
 
 export type Facing = 'prograde' | 'retrograde'
 
@@ -154,6 +156,16 @@ export interface WellTransferAction extends BaseAction {
 }
 
 /**
+ * Deploy ship action - used during deployment phase
+ */
+export interface DeployShipAction extends BaseAction {
+  type: 'deploy_ship'
+  data: {
+    sector: number // BH Ring 4 sector to deploy to
+  }
+}
+
+/**
  * Movement action type
  */
 export type MovementAction = CoastAction | BurnAction
@@ -169,12 +181,18 @@ export type PlayerAction =
   | DeallocateEnergyAction
   | FireWeaponAction
   | WellTransferAction
+  | DeployShipAction
 
 export interface Player {
   id: string
   name: string
   color: string
   ship: ShipState
+  // Mission system fields
+  missions: Mission[]
+  completedMissionCount: number
+  cargo: Cargo[]
+  hasDeployed: boolean
 }
 
 export interface TurnLogEntry {
@@ -207,6 +225,10 @@ export interface GameState {
   missiles: Missile[] // All missiles currently in flight
   status: GameStatus // Game win/loss status
   winnerId?: string // ID of the winning player (if status is victory or defeat)
+  // Mission system fields
+  phase: GamePhase
+  lobbyState?: LobbyState
+  stations: Station[]
 }
 
 export interface RingConfig {
@@ -214,6 +236,17 @@ export interface RingConfig {
   velocity: number
   radius: number
   sectors: number
+}
+
+/**
+ * Orbital station that orbits around a planet
+ * Ships can dock to pick up or deliver cargo
+ */
+export interface Station {
+  id: string
+  planetId: GravityWellId
+  ring: number // Always Ring 1 for planets
+  sector: number // Starts at 0, moves with orbital velocity
 }
 
 /**

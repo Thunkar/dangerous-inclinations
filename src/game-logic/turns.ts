@@ -3,6 +3,11 @@ import { processActions } from './actionProcessors'
 import { processMissiles } from './missiles'
 import { calculateHeatDamage, resetHeat } from './heat'
 import { applyDirectDamage } from './damage'
+import { processDestroyMissionCompletion, processCargoMissionCompletion, checkForWinner } from './missions/missionChecks'
+import { processCargoAtStation } from './cargo'
+import { updateStationPositions } from './stations'
+import { processRespawn, needsRespawn } from './respawn'
+import { GRAVITY_WELLS } from '../constants/gravityWells'
 
 /**
  * Result of executing a complete game turn
@@ -28,9 +33,13 @@ function createGameStateSnapshot(gameState: GameState): GameState {
         heat: { ...player.ship.heat },
         transferState: player.ship.transferState ? { ...player.ship.transferState } : null,
       },
+      // Deep copy mission system fields
+      missions: player.missions.map(m => ({ ...m })),
+      cargo: player.cargo.map(c => ({ ...c })),
     })),
     turnLog: [...gameState.turnLog],
     missiles: gameState.missiles ? gameState.missiles.map(m => ({ ...m })) : [], // Deep copy missiles array
+    stations: gameState.stations ? gameState.stations.map(s => ({ ...s })) : [], // Deep copy stations
   }
 }
 
@@ -61,8 +70,22 @@ function createGameStateSnapshot(gameState: GameState): GameState {
  */
 export function executeTurn(gameState: GameState, actions: PlayerAction[]): TurnResult {
   const activePlayerIndex = gameState.activePlayerIndex
-  const activePlayer = gameState.players[activePlayerIndex]
+  let activePlayer = gameState.players[activePlayerIndex]
   const allLogEntries: TurnLogEntry[] = []
+
+  // Handle respawn at the start of a dead player's turn
+  let workingState = gameState
+  if (needsRespawn(activePlayer)) {
+    workingState = processRespawn(workingState, activePlayer.id)
+    activePlayer = workingState.players[activePlayerIndex]
+    allLogEntries.push({
+      turn: workingState.turn,
+      playerId: activePlayer.id,
+      playerName: activePlayer.name,
+      action: 'Respawn',
+      result: `Respawned at BH Ring 4, Sector ${activePlayer.ship.sector}`,
+    })
+  }
 
   // Validate all actions belong to the active player
   const wrongPlayerActions = actions.filter(a => a.playerId !== activePlayer.id)
@@ -75,7 +98,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   }
 
   // Create a snapshot of the game state
-  const snapshot = createGameStateSnapshot(gameState)
+  const snapshot = createGameStateSnapshot(workingState)
 
   // Process actions on the snapshot (validation + execution in one step)
   const processResult = processActions(snapshot, actions)
@@ -103,29 +126,107 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     }
   }
 
-  // Move to next alive player (skip dead players)
-  let nextPlayerIndex = (gameState.activePlayerIndex + 1) % updatedGameState.players.length
-  let isNewTurn = nextPlayerIndex === 0
+  // Check for destroyed ships and process destroy mission completion
+  // (only in active phase with missions)
+  if (updatedGameState.phase === 'active' && updatedGameState.stations.length > 0) {
+    for (const player of updatedGameState.players) {
+      if (player.ship.hitPoints <= 0) {
+        // Check if any player had a destroy mission for this player
+        const beforeCompletionCount = updatedGameState.players.reduce(
+          (sum, p) => sum + p.completedMissionCount, 0
+        )
+        updatedGameState = processDestroyMissionCompletion(updatedGameState, player.id)
+        const afterCompletionCount = updatedGameState.players.reduce(
+          (sum, p) => sum + p.completedMissionCount, 0
+        )
 
-  // Skip dead players - find the next alive player
-  const startIndex = nextPlayerIndex
-  while (updatedGameState.players[nextPlayerIndex].ship.hitPoints <= 0) {
-    nextPlayerIndex = (nextPlayerIndex + 1) % updatedGameState.players.length
-    // Check if we've wrapped around to a new turn
-    if (nextPlayerIndex === 0) {
-      isNewTurn = true
+        if (afterCompletionCount > beforeCompletionCount) {
+          // Find who completed the mission
+          const completingPlayer = updatedGameState.players.find(
+            p => p.completedMissionCount > (workingState.players.find(gp => gp.id === p.id)?.completedMissionCount ?? 0)
+          )
+          if (completingPlayer) {
+            allLogEntries.push({
+              turn: updatedGameState.turn,
+              playerId: completingPlayer.id,
+              playerName: completingPlayer.name,
+              action: 'Mission Complete',
+              result: `Completed destroy mission: ${player.name} destroyed`,
+            })
+          }
+        }
+      }
     }
-    // Safety: if we've looped back to start, all players are dead - break to avoid infinite loop
-    if (nextPlayerIndex === startIndex) {
-      break
+
+    // Process cargo pickup/delivery for the active player after movement
+    const cargoResult = processCargoAtStation(
+      updatedGameState.players[activePlayerIndex],
+      updatedGameState.stations
+    )
+
+    if (cargoResult.pickedUpCargo.length > 0 || cargoResult.deliveredCargo.length > 0) {
+      const updatedPlayers = [...updatedGameState.players]
+      updatedPlayers[activePlayerIndex] = cargoResult.player
+      updatedGameState = { ...updatedGameState, players: updatedPlayers }
+
+      // Log cargo events
+      for (const msg of cargoResult.logMessages) {
+        allLogEntries.push({
+          turn: updatedGameState.turn,
+          playerId: activePlayer.id,
+          playerName: activePlayer.name,
+          action: 'Cargo',
+          result: msg,
+        })
+      }
+
+      // Check for cargo mission completion
+      updatedGameState = processCargoMissionCompletion(updatedGameState, activePlayer.id)
     }
+  }
+
+  // Move to next player
+  let nextPlayerIndex = (workingState.activePlayerIndex + 1) % updatedGameState.players.length
+  let isNewRound = nextPlayerIndex === 0
+
+  // In mission mode (with respawn), don't skip dead players - they will respawn
+  // In legacy mode (no missions), skip dead players
+  const hasMissions = updatedGameState.phase === 'active' && updatedGameState.stations.length > 0
+
+  if (!hasMissions) {
+    // Legacy mode: skip dead players
+    const startIndex = nextPlayerIndex
+    while (updatedGameState.players[nextPlayerIndex].ship.hitPoints <= 0) {
+      nextPlayerIndex = (nextPlayerIndex + 1) % updatedGameState.players.length
+      if (nextPlayerIndex === 0) {
+        isNewRound = true
+      }
+      if (nextPlayerIndex === startIndex) {
+        break
+      }
+    }
+  }
+
+  // Update station positions at the end of each round
+  if (isNewRound && updatedGameState.stations.length > 0) {
+    updatedGameState = {
+      ...updatedGameState,
+      stations: updateStationPositions(updatedGameState.stations, GRAVITY_WELLS),
+    }
+    allLogEntries.push({
+      turn: updatedGameState.turn,
+      playerId: 'system',
+      playerName: 'System',
+      action: 'Station Movement',
+      result: 'All stations advanced 4 sectors in their orbits',
+    })
   }
 
   updatedGameState = {
     ...updatedGameState,
-    turn: isNewTurn ? gameState.turn + 1 : gameState.turn,
+    turn: isNewRound ? workingState.turn + 1 : workingState.turn,
     activePlayerIndex: nextPlayerIndex,
-    turnLog: [...gameState.turnLog, ...allLogEntries],
+    turnLog: [...workingState.turnLog, ...allLogEntries],
   }
 
   // Apply heat damage to the NEXT player at the start of their turn
@@ -189,6 +290,8 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
 
 /**
  * Check for win/loss conditions
+ * In mission mode: First to complete 3 missions wins
+ * In legacy mode: Last ship standing wins
  * Note: Dead players are NOT removed from the array - they stay for UI/history purposes
  */
 function checkGameStatus(gameState: GameState): GameState {
@@ -197,10 +300,29 @@ function checkGameStatus(gameState: GameState): GameState {
     return gameState
   }
 
-  // Count alive players (don't remove them from array)
+  // Check for mission-based victory (3 completed missions)
+  const missionWinner = checkForWinner(gameState)
+  if (missionWinner) {
+    const humanPlayer = gameState.players[0]
+
+    return {
+      ...gameState,
+      phase: 'ended',
+      status: missionWinner === humanPlayer.id ? 'victory' : 'defeat',
+      winnerId: missionWinner,
+    }
+  }
+
+  // Legacy mode: check for last ship standing (only if no missions/respawn)
+  const hasMissions = gameState.phase === 'active' && gameState.stations.length > 0
+  if (hasMissions) {
+    // With respawn, game only ends via mission completion
+    return gameState
+  }
+
+  // Legacy mode below (no missions)
   const alivePlayers = gameState.players.filter(p => p.ship.hitPoints > 0)
 
-  // If all ships destroyed somehow, game is over
   if (alivePlayers.length === 0) {
     return {
       ...gameState,
@@ -208,7 +330,6 @@ function checkGameStatus(gameState: GameState): GameState {
     }
   }
 
-  // Find the human player (first player is always human in current setup)
   const humanPlayer = gameState.players[0]
   const humanAlive = humanPlayer.ship.hitPoints > 0
   const otherPlayersAlive = alivePlayers.some(p => p.id !== humanPlayer.id)
@@ -217,20 +338,16 @@ function checkGameStatus(gameState: GameState): GameState {
   let winnerId: string | undefined
 
   if (!humanAlive) {
-    // Human player is dead - defeat
     status = 'defeat'
-    // Find the survivor with highest HP as winner
     const survivor = alivePlayers.reduce((max, p) =>
       p.ship.hitPoints > max.ship.hitPoints ? p : max
     , alivePlayers[0])
     winnerId = survivor?.id
   } else if (!otherPlayersAlive) {
-    // Only human player alive - victory
     status = 'victory'
     winnerId = humanPlayer.id
   }
 
-  // Players array stays unchanged - dead players remain for UI/history
   return {
     ...gameState,
     status,
