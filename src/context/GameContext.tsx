@@ -372,8 +372,11 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
       return
     }
 
-    // Don't execute if active player is dead
-    if (activePlayer.ship.hitPoints <= 0) {
+    // Check if game has missions/respawn enabled
+    const hasMissions = gameState.phase === 'active' && gameState.stations.length > 0
+
+    // Don't execute if active player is dead (unless respawn is enabled)
+    if (activePlayer.ship.hitPoints <= 0 && !hasMissions) {
       return
     }
 
@@ -555,16 +558,19 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
     // Check if animating
     const isAnimating = animationHandlersRef.current?.isAnimating() ?? false
 
+    // Check if game has missions/respawn enabled
+    const hasMissions = gameState.phase === 'active' && gameState.stations.length > 0
+
     // Only execute bot turn if:
     // 1. Active player exists
     // 2. Active player is not player1 (the human)
-    // 3. Active player's ship is still alive
+    // 3. Active player's ship is alive OR game has respawn (missions mode)
     // 4. Animations are not playing
     // 5. Haven't already executed this specific player+turn combination
     if (
       currentActivePlayer &&
       currentActivePlayer.id !== 'player1' &&
-      currentActivePlayer.ship.hitPoints > 0 &&
+      (currentActivePlayer.ship.hitPoints > 0 || hasMissions) &&
       !isAnimating &&
       lastBotTurnKeyRef.current !== currentTurnKey
     ) {
