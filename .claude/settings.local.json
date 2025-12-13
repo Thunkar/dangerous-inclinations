@@ -21,7 +21,13 @@
       "Bash(grep:*)",
       "Bash(xargs sed:*)",
       "Bash(cat:*)",
-      "Bash(yarn tsc:*)"
+      "Bash(yarn tsc:*)",
+      "Bash(yarn test)",
+      "Bash(yarn test:*)",
+      "Bash(yarn workspace @dangerous-inclinations/engine build:*)",
+      "Bash(yarn workspace @dangerous-inclinations/engine test:*)",
+      "Bash(find:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

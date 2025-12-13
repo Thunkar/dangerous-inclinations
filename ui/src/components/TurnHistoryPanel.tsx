@@ -122,7 +122,7 @@ interface TurnHistoryItemProps {
 }
 
 function TurnHistoryItem({ entry }: TurnHistoryItemProps) {
-  const isBot = !!entry.botDecision
+  const isBot = false // !!entry.botDecision - bot decisions not currently tracked in history
   const playerColor = entry.playerId === 'player1' ? '#2196f3' : '#4caf50'
 
   return (
@@ -192,8 +192,10 @@ function PlayerTurnDetails({ entry }: { entry: TurnHistoryEntry }) {
   )
 }
 
-function BotTurnDetails({ entry }: { entry: TurnHistoryEntry }) {
-  const botDecision = entry.botDecision!
+function BotTurnDetails({ entry: _entry }: { entry: TurnHistoryEntry }) {
+  // Bot decisions are not currently tracked in turn history
+  const botDecision: any = null // entry.botDecision!
+  if (!botDecision) return null
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>

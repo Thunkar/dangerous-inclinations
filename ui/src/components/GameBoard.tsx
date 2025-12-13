@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { Box } from '@mui/material'
 import { useGame } from '../context/GameContext'
 import type { Facing } from '@dangerous-inclinations/engine'
+import { GRAVITY_WELLS, TRANSFER_POINTS } from '@dangerous-inclinations/engine'
 import {
   BoardProvider,
   useBoardContext,

@@ -15,11 +15,11 @@ import type {
 import {
   getSubsystemConfig,
   canSubsystemFunction,
-  TRANSFER_POINTS,
   executeTurn as executeGameTurn,
   calculateProjectedHeat,
+  botDecideActions,
+  TRANSFER_POINTS,
 } from '@dangerous-inclinations/engine'
-import { botDecideActions } from '../ai'
 
 interface WeaponRangeVisibility {
   laser: boolean
