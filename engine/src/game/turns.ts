@@ -85,7 +85,7 @@ function createGameStateSnapshot(gameState: GameState): GameState {
  */
 export function executeTurn(
   gameState: GameState,
-  actions: PlayerAction[],
+  actions: PlayerAction[]
 ): TurnResult {
   const activePlayerIndex = gameState.activePlayerIndex;
   let activePlayer = gameState.players[activePlayerIndex];
@@ -107,7 +107,7 @@ export function executeTurn(
 
   // Validate all actions belong to the active player
   const wrongPlayerActions = actions.filter(
-    (a) => a.playerId !== activePlayer.id,
+    (a) => a.playerId !== activePlayer.id
   );
   if (wrongPlayerActions.length > 0) {
     return {
@@ -139,7 +139,7 @@ export function executeTurn(
   // Process missiles owned by the active player (after their actions complete)
   if (updatedGameState.missiles.length > 0) {
     const playerMissiles = updatedGameState.missiles.filter(
-      (m) => m.ownerId === activePlayer.id,
+      (m) => m.ownerId === activePlayer.id
     );
     if (playerMissiles.length > 0) {
       const missileResult = processMissiles(updatedGameState, activePlayer.id);
@@ -159,15 +159,15 @@ export function executeTurn(
         // Check if any player had a destroy mission for this player
         const beforeCompletionCount = updatedGameState.players.reduce(
           (sum, p) => sum + p.completedMissionCount,
-          0,
+          0
         );
         updatedGameState = processDestroyMissionCompletion(
           updatedGameState,
-          player.id,
+          player.id
         );
         const afterCompletionCount = updatedGameState.players.reduce(
           (sum, p) => sum + p.completedMissionCount,
-          0,
+          0
         );
 
         if (afterCompletionCount > beforeCompletionCount) {
@@ -176,7 +176,7 @@ export function executeTurn(
             (p) =>
               p.completedMissionCount >
               (workingState.players.find((gp) => gp.id === p.id)
-                ?.completedMissionCount ?? 0),
+                ?.completedMissionCount ?? 0)
           );
           if (completingPlayer) {
             allLogEntries.push({
@@ -194,7 +194,7 @@ export function executeTurn(
     // Process cargo pickup/delivery for the active player after movement
     const cargoResult = processCargoAtStation(
       updatedGameState.players[activePlayerIndex],
-      updatedGameState.stations,
+      updatedGameState.stations
     );
 
     if (
@@ -219,7 +219,7 @@ export function executeTurn(
       // Check for cargo mission completion
       updatedGameState = processCargoMissionCompletion(
         updatedGameState,
-        activePlayer.id,
+        activePlayer.id
       );
     }
   }
@@ -229,32 +229,13 @@ export function executeTurn(
     (workingState.activePlayerIndex + 1) % updatedGameState.players.length;
   let isNewRound = nextPlayerIndex === 0;
 
-  // In mission mode (with respawn), don't skip dead players - they will respawn
-  // In legacy mode (no missions), skip dead players
-  const hasMissions =
-    updatedGameState.phase === "active" && updatedGameState.stations.length > 0;
-
-  if (!hasMissions) {
-    // Legacy mode: skip dead players
-    const startIndex = nextPlayerIndex;
-    while (updatedGameState.players[nextPlayerIndex].ship.hitPoints <= 0) {
-      nextPlayerIndex = (nextPlayerIndex + 1) % updatedGameState.players.length;
-      if (nextPlayerIndex === 0) {
-        isNewRound = true;
-      }
-      if (nextPlayerIndex === startIndex) {
-        break;
-      }
-    }
-  }
-
   // Update station positions at the end of each round
   if (isNewRound && updatedGameState.stations.length > 0) {
     updatedGameState = {
       ...updatedGameState,
       stations: updateStationPositions(
         updatedGameState.stations,
-        GRAVITY_WELLS,
+        GRAVITY_WELLS
       ),
     };
     allLogEntries.push({
@@ -360,46 +341,5 @@ function checkGameStatus(gameState: GameState): GameState {
     };
   }
 
-  // Legacy mode: check for last ship standing (only if no missions/respawn)
-  const hasMissions =
-    gameState.phase === "active" && gameState.stations.length > 0;
-  if (hasMissions) {
-    // With respawn, game only ends via mission completion
-    return gameState;
-  }
-
-  // Legacy mode below (no missions)
-  const alivePlayers = gameState.players.filter((p) => p.ship.hitPoints > 0);
-
-  if (alivePlayers.length === 0) {
-    return {
-      ...gameState,
-      status: "defeat",
-    };
-  }
-
-  const humanPlayer = gameState.players[0];
-  const humanAlive = humanPlayer.ship.hitPoints > 0;
-  const otherPlayersAlive = alivePlayers.some((p) => p.id !== humanPlayer.id);
-
-  let status: GameStatus = gameState.status;
-  let winnerId: string | undefined;
-
-  if (!humanAlive) {
-    status = "defeat";
-    const survivor = alivePlayers.reduce(
-      (max, p) => (p.ship.hitPoints > max.ship.hitPoints ? p : max),
-      alivePlayers[0],
-    );
-    winnerId = survivor?.id;
-  } else if (!otherPlayersAlive) {
-    status = "victory";
-    winnerId = humanPlayer.id;
-  }
-
-  return {
-    ...gameState,
-    status,
-    winnerId,
-  };
+  return gameState;
 }

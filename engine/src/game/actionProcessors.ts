@@ -26,11 +26,11 @@ import {
   calculateBurnMassCost,
 } from "../models/rings";
 import { getSubsystemConfig } from "../models/subsystems";
-import { resetSubsystemUsage } from "./subsystems";
 import { fireMissile, getMissileAmmo } from "./missiles";
 import { getGravityWell, TRANSFER_POINTS } from "../models/gravityWells";
 import type { RingConfig } from "../models/game";
 import { addHeat } from "./heat";
+import { resetSubsystemUsage } from "./energy";
 
 export interface ProcessResult {
   success: boolean;

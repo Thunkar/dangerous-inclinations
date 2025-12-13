@@ -5,7 +5,7 @@ import type {
   HeatState,
 } from "../models/subsystems";
 import type { ShipState } from "../models/game";
-import { canSubsystemFunction, getMissileStats } from "../models/subsystems";
+import { getMissileStats } from "../models/subsystems";
 import {
   STARTING_REACTION_MASS,
   DEFAULT_DISSIPATION_CAPACITY,
@@ -65,118 +65,6 @@ export function createInitialHeatState(): HeatState {
   return {
     currentHeat: 0,
   };
-}
-
-/**
- * Get a subsystem by type
- */
-export function getSubsystem(
-  subsystems: Subsystem[],
-  type: SubsystemType
-): Subsystem | undefined {
-  return subsystems.find((s) => s.type === type);
-}
-
-/**
- * Update a specific subsystem
- */
-export function updateSubsystem(
-  subsystems: Subsystem[],
-  type: SubsystemType,
-  updates: Partial<Subsystem>
-): Subsystem[] {
-  return subsystems.map((s) => (s.type === type ? { ...s, ...updates } : s));
-}
-
-/**
- * Allocate energy to a subsystem
- * Returns updated subsystems and reactor state
- */
-export function allocateEnergy(
-  subsystems: Subsystem[],
-  reactor: ReactorState,
-  subsystemType: SubsystemType,
-  amount: number
-): { subsystems: Subsystem[]; reactor: ReactorState } {
-  const subsystem = getSubsystem(subsystems, subsystemType);
-  if (!subsystem) {
-    return { subsystems, reactor };
-  }
-
-  const delta = amount - subsystem.allocatedEnergy;
-
-  // Check if we have enough energy in the reactor
-  if (delta > reactor.availableEnergy) {
-    return { subsystems, reactor };
-  }
-
-  const updatedSubsystems = updateSubsystem(subsystems, subsystemType, {
-    allocatedEnergy: amount,
-    isPowered: canSubsystemFunction({ ...subsystem, allocatedEnergy: amount }),
-  });
-
-  const updatedReactor = {
-    ...reactor,
-    availableEnergy: reactor.availableEnergy - delta,
-  };
-
-  return {
-    subsystems: updatedSubsystems,
-    reactor: updatedReactor,
-  };
-}
-
-/**
- * Deallocate energy from a subsystem (immediate, no limit)
- * Energy returns directly to reactor
- */
-export function deallocateEnergyFromSubsystem(
-  subsystems: Subsystem[],
-  reactor: ReactorState,
-  subsystemType: SubsystemType,
-  amount: number
-): { subsystems: Subsystem[]; reactor: ReactorState } {
-  const subsystem = getSubsystem(subsystems, subsystemType);
-  if (!subsystem) {
-    return { subsystems, reactor };
-  }
-
-  const returnAmount = Math.min(amount, subsystem.allocatedEnergy);
-
-  const updatedSubsystems = updateSubsystem(subsystems, subsystemType, {
-    allocatedEnergy: subsystem.allocatedEnergy - returnAmount,
-    isPowered: canSubsystemFunction({
-      ...subsystem,
-      allocatedEnergy: subsystem.allocatedEnergy - returnAmount,
-    }),
-  });
-
-  const updatedReactor = {
-    ...reactor,
-    availableEnergy: Math.min(
-      reactor.totalCapacity,
-      reactor.availableEnergy + returnAmount
-    ),
-  };
-
-  return {
-    subsystems: updatedSubsystems,
-    reactor: updatedReactor,
-  };
-}
-
-/**
- * Reset all subsystems' usedThisTurn flags at the start of a turn
- */
-export function resetSubsystemUsage(subsystems: Subsystem[]): Subsystem[] {
-  return subsystems.map((s) => ({ ...s, usedThisTurn: false }));
-}
-
-/**
- * Get total allocated energy across all subsystems
- */
-export function getTotalAllocatedEnergy(subsystems: Subsystem[]): number {
-  return subsystems.reduce((total, s) => total + s.allocatedEnergy, 0);
 }
 
 /**

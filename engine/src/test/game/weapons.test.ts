@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { calculateFiringSolutions } from "../../utils/weaponRange";
-import { calculatePostMovementPosition } from "../../utils/tacticalSequence";
 import { createInitialShipState } from "../../utils/subsystemHelpers";
 import type { Player } from "../../models/game";
 import type { WeaponStats } from "../../models/subsystems";
+import { calculatePostMovementPosition } from "../testUtils";
 
 // Helper to create test players
 function createTestPlayer(
@@ -11,7 +11,7 @@ function createTestPlayer(
   name: string,
   ring: number,
   sector: number,
-  facing: "prograde" | "retrograde",
+  facing: "prograde" | "retrograde"
 ): Player {
   return {
     id,
@@ -53,7 +53,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 5, "prograde");
 
@@ -61,7 +61,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -74,7 +74,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 4, "prograde");
 
@@ -82,7 +82,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -95,7 +95,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 6, "prograde");
 
@@ -103,7 +103,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -116,7 +116,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 1, 4, "prograde");
 
@@ -124,7 +124,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -137,7 +137,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 1, 5, "prograde");
 
@@ -145,7 +145,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -158,7 +158,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 1, 6, "prograde");
 
@@ -166,7 +166,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -179,7 +179,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 7, "prograde");
 
@@ -187,7 +187,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -200,7 +200,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 3, "prograde");
 
@@ -208,7 +208,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -221,7 +221,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 2, 5, "prograde");
 
@@ -229,7 +229,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -242,7 +242,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         5,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 4, 5, "prograde");
 
@@ -250,7 +250,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -263,7 +263,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         0,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 23, "prograde"); // 23 is one sector before 0
 
@@ -271,7 +271,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -284,7 +284,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         2,
         23,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 0, "prograde"); // 0 is one sector after 23
 
@@ -292,7 +292,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -307,7 +307,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         3,
         0,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 4, 0, "prograde");
 
@@ -315,7 +315,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -328,7 +328,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         3,
         0,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 4, "prograde");
 
@@ -336,7 +336,7 @@ describe("Weapon Targeting", () => {
         spinalRailgun,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -352,7 +352,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         3,
         0,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 4, 4, "prograde"); // Same sector after movement
 
@@ -363,7 +363,7 @@ describe("Weapon Targeting", () => {
         {
           actionType: "coast",
           sectorAdjustment: 0,
-        },
+        }
       );
 
       expect(postMoveShip.sector).toBe(4); // Ring 3 has velocity=4
@@ -373,7 +373,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         postMoveShip,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -390,7 +390,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         3,
         0,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 3, 7, "prograde");
 
@@ -400,7 +400,7 @@ describe("Weapon Targeting", () => {
         spinalRailgun,
         attacker.ship,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
       const before = beforeSolutions.find((s) => s.targetId === target.id);
       expect(before?.inRange).toBe(false); // 7 sectors is out of 6 sector range
@@ -412,7 +412,7 @@ describe("Weapon Targeting", () => {
         {
           actionType: "coast",
           sectorAdjustment: 0,
-        },
+        }
       );
 
       expect(postMoveShip.sector).toBe(4); // Ring 3 velocity=4
@@ -421,7 +421,7 @@ describe("Weapon Targeting", () => {
         spinalRailgun,
         postMoveShip,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
       const after = afterSolutions.find((s) => s.targetId === target.id);
       expect(after?.inRange).toBe(true);
@@ -433,7 +433,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         3,
         0,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 4, 4, "prograde"); // Adjusted for velocity
 
@@ -445,7 +445,7 @@ describe("Weapon Targeting", () => {
           actionType: "burn",
           burnIntensity: "soft",
           sectorAdjustment: 0,
-        },
+        }
       );
 
       // Ship is on ring 4 (transfer completes immediately)
@@ -457,7 +457,7 @@ describe("Weapon Targeting", () => {
         spinalRailgun,
         postMoveShip,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
@@ -471,7 +471,7 @@ describe("Weapon Targeting", () => {
         "Attacker",
         3,
         0,
-        "prograde",
+        "prograde"
       );
       const target = createTestPlayer("target", "Target", 4, 4, "prograde"); // Same sector after movement
 
@@ -482,7 +482,7 @@ describe("Weapon Targeting", () => {
         {
           actionType: "coast",
           sectorAdjustment: 0,
-        },
+        }
       );
 
       expect(postMoveShip.facing).toBe("retrograde");
@@ -493,7 +493,7 @@ describe("Weapon Targeting", () => {
         broadsideLaser,
         postMoveShip,
         [attacker, target],
-        attacker.id,
+        attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);

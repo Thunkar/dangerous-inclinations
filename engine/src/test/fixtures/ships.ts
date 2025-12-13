@@ -13,7 +13,7 @@ export function createTestShip(overrides: Partial<ShipState> = {}): ShipState {
       sector: 0,
       facing: "prograde",
     },
-    overrides,
+    overrides
   );
 }
 
@@ -32,7 +32,7 @@ export function createShipWithEngines(energyAmount: number = 3): ShipState {
     subsystems: ship.subsystems.map((s) =>
       s.type === "engines"
         ? { ...s, isPowered: true, allocatedEnergy: energyAmount }
-        : s,
+        : s
     ),
   };
 }
@@ -50,7 +50,7 @@ export function createShipWithRotation(): ShipState {
       availableEnergy: ship.reactor.totalCapacity - 1,
     },
     subsystems: ship.subsystems.map((s) =>
-      s.type === "rotation" ? { ...s, isPowered: true, allocatedEnergy: 1 } : s,
+      s.type === "rotation" ? { ...s, isPowered: true, allocatedEnergy: 1 } : s
     ),
   };
 }
@@ -61,7 +61,7 @@ export function createShipWithRotation(): ShipState {
  */
 export function createShipInTransfer(
   destinationRing: number,
-  sectorAdjustment: number = 0,
+  sectorAdjustment: number = 0
 ): ShipState {
   return createTestShip({
     ring: 3,
@@ -78,7 +78,7 @@ export function createShipInTransfer(
  */
 export function createShipWithWeapons(
   weaponType: "laser" | "railgun" | "missiles",
-  energyAmount: number = 4,
+  energyAmount: number = 4
 ): ShipState {
   const ship = createTestShip();
 
@@ -91,7 +91,7 @@ export function createShipWithWeapons(
     subsystems: ship.subsystems.map((s) =>
       s.type === weaponType
         ? { ...s, isPowered: true, allocatedEnergy: energyAmount }
-        : s,
+        : s
     ),
   };
 }
@@ -122,7 +122,7 @@ export function createShipWithShields(energyAmount: number = 2): ShipState {
     subsystems: ship.subsystems.map((s) =>
       s.type === "shields"
         ? { ...s, isPowered: true, allocatedEnergy: energyAmount }
-        : s,
+        : s
     ),
   };
 }

@@ -8,7 +8,7 @@ import type { Subsystem, SubsystemType } from "../models/subsystems";
 export function allocateEnergy(
   ship: ShipState,
   subsystemType: SubsystemType,
-  amount: number,
+  amount: number
 ): ShipState {
   const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
   if (!subsystem) {
@@ -41,7 +41,7 @@ export function allocateEnergy(
             allocatedEnergy: amount,
             isPowered: amount > 0,
           }
-        : s,
+        : s
     ),
   };
 }
@@ -53,7 +53,7 @@ export function allocateEnergy(
 export function deallocateEnergy(
   ship: ShipState,
   subsystemType: SubsystemType,
-  amount: number,
+  amount: number
 ): ShipState {
   const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
   if (!subsystem) {
@@ -69,7 +69,7 @@ export function deallocateEnergy(
       ...ship.reactor,
       availableEnergy: Math.min(
         ship.reactor.totalCapacity,
-        ship.reactor.availableEnergy + actualAmount,
+        ship.reactor.availableEnergy + actualAmount
       ),
     },
     subsystems: ship.subsystems.map((s) =>
@@ -79,7 +79,7 @@ export function deallocateEnergy(
             allocatedEnergy: newAllocatedEnergy,
             isPowered: newAllocatedEnergy > 0,
           }
-        : s,
+        : s
     ),
   };
 }
@@ -90,7 +90,7 @@ export function deallocateEnergy(
 export function canAllocateEnergy(
   ship: ShipState,
   subsystemType: SubsystemType,
-  amount: number,
+  amount: number
 ): { valid: boolean; reason?: string } {
   const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
   if (!subsystem) {
@@ -122,7 +122,7 @@ export function canAllocateEnergy(
  */
 export function getSubsystem(
   subsystems: Subsystem[],
-  type: SubsystemType,
+  type: SubsystemType
 ): Subsystem | undefined {
   return subsystems.find((s) => s.type === type);
 }
@@ -131,14 +131,11 @@ export function getSubsystem(
  * Resets all subsystem usage flags
  * Called at the start of each turn
  */
-export function resetSubsystemUsage(ship: ShipState): ShipState {
-  return {
-    ...ship,
-    subsystems: ship.subsystems.map((s) => ({
-      ...s,
-      usedThisTurn: false,
-    })),
-  };
+export function resetSubsystemUsage(subsystems: Subsystem[]): Subsystem[] {
+  return subsystems.map((s) => ({
+    ...s,
+    usedThisTurn: false,
+  }));
 }
 
 /**
@@ -146,12 +143,12 @@ export function resetSubsystemUsage(ship: ShipState): ShipState {
  */
 export function markSubsystemUsed(
   ship: ShipState,
-  type: SubsystemType,
+  type: SubsystemType
 ): ShipState {
   return {
     ...ship,
     subsystems: ship.subsystems.map((s) =>
-      s.type === type ? { ...s, usedThisTurn: true } : s,
+      s.type === type ? { ...s, usedThisTurn: true } : s
     ),
   };
 }
