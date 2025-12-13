@@ -1,4 +1,4 @@
-import type { GravityWell, TransferPoint, GravityWellId } from '../types/game'
+import type { GravityWell, TransferPoint, GravityWellId } from "./game";
 
 /**
  * Fixed transfer sectors for elliptic orbits between black hole and planets
@@ -35,43 +35,43 @@ import type { GravityWell, TransferPoint, GravityWellId } from '../types/game'
 const FIXED_TRANSFER_SECTORS: Record<
   string,
   {
-    outbound: { bhSector: number; planetSector: number }
-    return: { planetSector: number; bhSector: number }
+    outbound: { bhSector: number; planetSector: number };
+    return: { planetSector: number; bhSector: number };
   }
 > = {
   // Alpha at 0° (BH sector 0 points toward Alpha, planet sector 0 points toward BH)
   // Outbound: BH -4 sectors, Planet +5 sectors from midpoint (moved 1 sector away)
   // Return: Planet -6 sectors, BH +3 sectors from midpoint (moved 1 sector away)
-  'planet-alpha': {
+  "planet-alpha": {
     outbound: { bhSector: 20, planetSector: 5 }, // BH R5 S20 → Alpha R3 S5
     return: { planetSector: 18, bhSector: 3 }, // Alpha R3 S18 → BH R5 S3
   },
   // Beta at 60° (BH sector 4 points toward Beta)
-  'planet-beta': {
+  "planet-beta": {
     outbound: { bhSector: 0, planetSector: 5 }, // BH R5 S0 → Beta R3 S5
     return: { planetSector: 18, bhSector: 7 }, // Beta R3 S18 → BH R5 S7
   },
   // Gamma at 120° (BH sector 8 points toward Gamma)
-  'planet-gamma': {
+  "planet-gamma": {
     outbound: { bhSector: 4, planetSector: 5 }, // BH R5 S4 → Gamma R3 S5
     return: { planetSector: 18, bhSector: 11 }, // Gamma R3 S18 → BH R5 S11
   },
   // Delta at 180° (BH sector 12 points toward Delta)
-  'planet-delta': {
+  "planet-delta": {
     outbound: { bhSector: 8, planetSector: 5 }, // BH R5 S8 → Delta R3 S5
     return: { planetSector: 18, bhSector: 15 }, // Delta R3 S18 → BH R5 S15
   },
   // Epsilon at 240° (BH sector 16 points toward Epsilon)
-  'planet-epsilon': {
+  "planet-epsilon": {
     outbound: { bhSector: 12, planetSector: 5 }, // BH R5 S12 → Epsilon R3 S5
     return: { planetSector: 18, bhSector: 19 }, // Epsilon R3 S18 → BH R5 S19
   },
   // Zeta at 300° (BH sector 20 points toward Zeta)
-  'planet-zeta': {
+  "planet-zeta": {
     outbound: { bhSector: 16, planetSector: 5 }, // BH R5 S16 → Zeta R3 S5
     return: { planetSector: 18, bhSector: 23 }, // Zeta R3 S18 → BH R5 S23
   },
-}
+};
 
 /**
  * Calculate transfer points using fixed elliptic transfer sectors
@@ -79,35 +79,37 @@ const FIXED_TRANSFER_SECTORS: Record<
  * @param gravityWells - All gravity wells in the system
  * @returns Array of transfer points with fixed launch/arrival sectors
  */
-export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPoint[] {
-  const transferPoints: TransferPoint[] = []
+export function calculateTransferPoints(
+  gravityWells: GravityWell[],
+): TransferPoint[] {
+  const transferPoints: TransferPoint[] = [];
 
   // Find the black hole
-  const blackHole = gravityWells.find(w => w.type === 'blackhole')
+  const blackHole = gravityWells.find((w) => w.type === "blackhole");
   if (!blackHole || blackHole.rings.length < 5) {
-    return transferPoints
+    return transferPoints;
   }
 
   // Get the black hole's outermost ring (Ring 5)
-  const blackHoleOutermostRing = blackHole.rings[4] // Ring 5 (index 4)
+  const blackHoleOutermostRing = blackHole.rings[4]; // Ring 5 (index 4)
 
   // Get planets
-  const planets = gravityWells.filter(w => w.type === 'planet')
+  const planets = gravityWells.filter((w) => w.type === "planet");
 
   // Create transfer points for each planet using fixed sectors
   for (const planet of planets) {
     if (!planet.orbitalPosition || planet.rings.length < 3) {
-      continue
+      continue;
     }
 
     // Get the planet's outermost ring (Ring 3)
-    const planetOutermostRing = planet.rings[2] // Ring 3 (index 2)
+    const planetOutermostRing = planet.rings[2]; // Ring 3 (index 2)
 
     // Get fixed transfer sectors for this planet
-    const transferSectors = FIXED_TRANSFER_SECTORS[planet.id]
+    const transferSectors = FIXED_TRANSFER_SECTORS[planet.id];
     if (!transferSectors) {
-      console.warn(`No fixed transfer sectors defined for planet ${planet.id}`)
-      continue
+      console.warn(`No fixed transfer sectors defined for planet ${planet.id}`);
+      continue;
     }
 
     // OUTBOUND: Black hole -> Planet (elliptic trajectory)
@@ -119,7 +121,7 @@ export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPo
       fromSector: transferSectors.outbound.bhSector,
       toSector: transferSectors.outbound.planetSector,
       requiredEngineLevel: 3, // Requires engines at level 3
-    })
+    });
 
     // RETURN: Planet -> Black hole (elliptic trajectory)
     transferPoints.push({
@@ -130,10 +132,10 @@ export function calculateTransferPoints(gravityWells: GravityWell[]): TransferPo
       fromSector: transferSectors.return.planetSector,
       toSector: transferSectors.return.bhSector,
       requiredEngineLevel: 3, // Requires engines at level 3
-    })
+    });
   }
 
-  return transferPoints
+  return transferPoints;
 }
 
 /**
@@ -154,13 +156,16 @@ export function getAvailableWellTransfers(
   shipWellId: GravityWellId,
   shipRing: number,
   shipSector: number,
-  transferPoints: TransferPoint[]
+  transferPoints: TransferPoint[],
 ): TransferPoint[] {
   // Find all transfer points from this well/ring/sector
   // Transfer points are configured with the correct ring numbers (4 for blackhole, 3 for planets)
   return transferPoints.filter(
-    tp => tp.fromWellId === shipWellId && tp.fromRing === shipRing && tp.fromSector === shipSector
-  )
+    (tp) =>
+      tp.fromWellId === shipWellId &&
+      tp.fromRing === shipRing &&
+      tp.fromSector === shipSector,
+  );
 }
 
 /**
@@ -173,17 +178,22 @@ export function getAvailableWellTransfers(
  * @param gravityWells - Current gravity wells
  * @returns Unchanged gravity wells
  */
-export function advancePlanetaryOrbits(gravityWells: GravityWell[]): GravityWell[] {
+export function advancePlanetaryOrbits(
+  gravityWells: GravityWell[],
+): GravityWell[] {
   // Planets are static - no orbital advancement needed
   // Transfer sectors are fixed in FIXED_TRANSFER_SECTORS constant
-  return gravityWells
+  return gravityWells;
 }
 
 /**
  * Get the name of a gravity well by its ID
  * Useful for UI display
  */
-export function getWellName(wellId: GravityWellId, gravityWells: GravityWell[]): string {
-  const well = gravityWells.find(w => w.id === wellId)
-  return well?.name || wellId
+export function getWellName(
+  wellId: GravityWellId,
+  gravityWells: GravityWell[],
+): string {
+  const well = gravityWells.find((w) => w.id === wellId);
+  return well?.name || wellId;
 }

@@ -1,4 +1,12 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box } from '@mui/material'
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  Box,
+} from '@mui/material'
 import type { GameStatus } from '@dangerous-inclinations/engine'
 
 interface GameOverModalProps {
@@ -40,9 +48,7 @@ export function GameOverModal({ status, winnerName, onRestart }: GameOverModalPr
       <DialogContent>
         <Box sx={{ textAlign: 'center', py: 2 }}>
           <Typography variant="h6" color="white" gutterBottom>
-            {isVictory
-              ? 'You have destroyed all enemy ships!'
-              : 'Your ship has been destroyed!'}
+            {isVictory ? 'You have destroyed all enemy ships!' : 'Your ship has been destroyed!'}
           </Typography>
 
           {winnerName && (

@@ -44,6 +44,7 @@ dangerous-inclinations/
 **Completely UI-independent** - can run in Node.js, browser, or any JS environment.
 
 **Exports:**
+
 - All game logic (movement, combat, energy, heat, etc.)
 - Type definitions (GameState, PlayerAction, Ship, etc.)
 - Constants (gravity wells, rings, weapons)
@@ -58,12 +59,14 @@ dangerous-inclinations/
 #### HTTP Endpoints (Player & Lobby Management)
 
 **Player Authentication:**
+
 - `POST /api/players` - Create/authenticate player
   - Accepts optional `playerId` (from localStorage)
   - Returns `{ playerId, playerName }`
 - `GET /api/players/:playerId` - Get player info
 
 **Lobby Management:**
+
 - `POST /api/lobbies` - Create lobby (password-protected optional)
 - `GET /api/lobbies` - List all lobbies
 - `GET /api/lobbies/:lobbyId` - Get lobby details
@@ -78,6 +81,7 @@ dangerous-inclinations/
 **Connection:** `ws://localhost:3000/ws/game/:gameId`
 
 **Client → Server:**
+
 ```typescript
 {
   type: "SUBMIT_TURN",
@@ -89,6 +93,7 @@ dangerous-inclinations/
 ```
 
 **Server → Client:**
+
 ```typescript
 {
   type: "GAME_STATE",
@@ -99,6 +104,7 @@ dangerous-inclinations/
 #### Zod Validation
 
 All requests validated with Zod schemas:
+
 - `CreatePlayerSchema`
 - `CreateLobbySchema`, `JoinLobbySchema`
 - `PlayerActionSchema` (all action types: allocate, deallocate, burn, coast, fire weapons, etc.)
@@ -109,6 +115,7 @@ All requests validated with Zod schemas:
 **React + Vite + Material-UI**
 
 **Changes:**
+
 - All imports updated to use `@dangerous-inclinations/engine`
 - Old relative imports (`../types/game`, `../game-logic/`, etc.) → `@dangerous-inclinations/engine`
 - GameContext now ready to connect to WebSocket (currently uses local engine)
@@ -118,6 +125,7 @@ All requests validated with Zod schemas:
 Upgraded from Yarn 1 to Yarn 4 for proper workspace support with `workspace:*` protocol.
 
 **Scripts:**
+
 - `yarn dev` - Start UI only
 - `yarn dev:server` - Start server only
 - `yarn dev:all` - Start both (requires Redis)
@@ -130,28 +138,33 @@ Upgraded from Yarn 1 to Yarn 4 for proper workspace support with `workspace:*` p
 ### Development Setup
 
 1. **Install dependencies:**
+
    ```bash
    yarn install
    ```
 
 2. **Start Redis** (required for server):
+
    ```bash
    docker run -d -p 6379:6379 redis:latest
    ```
 
 3. **Start server:**
+
    ```bash
    yarn dev:server
    # Server runs on http://localhost:3000
    ```
 
 4. **Start UI:**
+
    ```bash
    yarn dev
    # UI runs on http://localhost:5173
    ```
 
    Or start both:
+
    ```bash
    yarn dev:all
    ```
@@ -159,85 +172,100 @@ Upgraded from Yarn 1 to Yarn 4 for proper workspace support with `workspace:*` p
 ### Client Integration Flow
 
 1. **Player Authentication:**
+
    ```typescript
    // Check localStorage for playerId
-   let playerId = localStorage.getItem('playerId')
+   let playerId = localStorage.getItem("playerId");
 
    // If not found, create new player
    if (!playerId) {
-     const res = await fetch('http://localhost:3000/api/players', {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ playerName: 'Alice' })
-     })
-     const player = await res.json()
-     playerId = player.playerId
-     localStorage.setItem('playerId', playerId)
+     const res = await fetch("http://localhost:3000/api/players", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ playerName: "Alice" }),
+     });
+     const player = await res.json();
+     playerId = player.playerId;
+     localStorage.setItem("playerId", playerId);
    }
    ```
 
 2. **Create/Join Lobby:**
+
    ```typescript
    // Create lobby
-   const res = await fetch('http://localhost:3000/api/lobbies', {
-     method: 'POST',
+   const res = await fetch("http://localhost:3000/api/lobbies", {
+     method: "POST",
      headers: {
-       'Content-Type': 'application/json',
-       'x-player-id': playerId
+       "Content-Type": "application/json",
+       "x-player-id": playerId,
      },
      body: JSON.stringify({
-       lobbyName: 'My Game',
-       password: 'optional',
-       maxPlayers: 6
-     })
-   })
-   const lobby = await res.json()
+       lobbyName: "My Game",
+       password: "optional",
+       maxPlayers: 6,
+     }),
+   });
+   const lobby = await res.json();
 
    // Or join existing lobby
-   const res2 = await fetch('http://localhost:3000/api/lobbies/join', {
-     method: 'POST',
+   const res2 = await fetch("http://localhost:3000/api/lobbies/join", {
+     method: "POST",
      headers: {
-       'Content-Type': 'application/json',
-       'x-player-id': playerId
+       "Content-Type": "application/json",
+       "x-player-id": playerId,
      },
      body: JSON.stringify({
        lobbyId: lobby.lobbyId,
-       password: 'optional'
-     })
-   })
+       password: "optional",
+     }),
+   });
    ```
 
 3. **Start Game:**
+
    ```typescript
-   const res = await fetch(`http://localhost:3000/api/lobbies/${lobbyId}/start`, {
-     method: 'POST',
-     headers: { 'x-player-id': playerId }
-   })
-   const { gameId } = await res.json()
+   const res = await fetch(
+     `http://localhost:3000/api/lobbies/${lobbyId}/start`,
+     {
+       method: "POST",
+       headers: { "x-player-id": playerId },
+     },
+   );
+   const { gameId } = await res.json();
    ```
 
 4. **Connect WebSocket:**
+
    ```typescript
-   const ws = new WebSocket(`ws://localhost:3000/ws/game/${gameId}`)
+   const ws = new WebSocket(`ws://localhost:3000/ws/game/${gameId}`);
 
    ws.onmessage = (event) => {
-     const message = JSON.parse(event.data)
-     if (message.type === 'GAME_STATE') {
-       setGameState(message.payload)
+     const message = JSON.parse(event.data);
+     if (message.type === "GAME_STATE") {
+       setGameState(message.payload);
      }
-   }
+   };
 
    // Submit turn
-   ws.send(JSON.stringify({
-     type: 'SUBMIT_TURN',
-     payload: {
-       gameId: gameId,
-       actions: [
-         { type: 'ALLOCATE_ENERGY', payload: { subsystem: 'engines', amount: 3 } },
-         { type: 'BURN', payload: { intensity: 'medium', direction: 'prograde' } }
-       ]
-     }
-   }))
+   ws.send(
+     JSON.stringify({
+       type: "SUBMIT_TURN",
+       payload: {
+         gameId: gameId,
+         actions: [
+           {
+             type: "ALLOCATE_ENERGY",
+             payload: { subsystem: "engines", amount: 3 },
+           },
+           {
+             type: "BURN",
+             payload: { intensity: "medium", direction: "prograde" },
+           },
+         ],
+       },
+     }),
+   );
    ```
 
 ## Architecture Benefits
@@ -304,10 +332,12 @@ Upgraded from Yarn 1 to Yarn 4 for proper workspace support with `workspace:*` p
 ## Files Changed
 
 ### Deleted (Old Structure)
+
 - `src/` (top level) - Moved to `ui/src/`
 - `index.html`, `vite.config.ts`, `tsconfig.*.json` (top level) - Moved to `ui/`
 
 ### Added (New Structure)
+
 - `engine/` - Complete new package
 - `server/` - Complete new package
 - `ui/` - Moved and updated from old `src/`
@@ -315,6 +345,7 @@ Upgraded from Yarn 1 to Yarn 4 for proper workspace support with `workspace:*` p
 - `MIGRATION.md` - This file
 
 ### Modified
+
 - `package.json` - Now workspace root with Yarn 4
 - `.yarnrc.yml` - Yarn 4 configuration
 - `.yarn/` - Yarn 4 release files
@@ -323,6 +354,7 @@ Upgraded from Yarn 1 to Yarn 4 for proper workspace support with `workspace:*` p
 ## Testing
 
 Engine build tested successfully:
+
 ```bash
 cd engine && yarn build
 # ✓ TypeScript compilation successful
@@ -330,6 +362,7 @@ cd engine && yarn build
 ```
 
 Dependencies installed successfully:
+
 ```bash
 yarn install
 # ✓ All workspace packages linked

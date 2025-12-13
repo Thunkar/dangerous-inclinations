@@ -69,7 +69,7 @@ export function DeploymentSectors({ availableSectors, onSelectSector }: Deployme
           <g
             key={sector}
             style={{ cursor: 'pointer' }}
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation()
               onSelectSector(sector)
             }}

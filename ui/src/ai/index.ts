@@ -10,7 +10,13 @@
  */
 
 import type { GameState, PlayerAction } from '@dangerous-inclinations/engine'
-import type { BotParameters, BotDecision, BotDecisionLog, TacticalSituation, ScoredActionPlan } from './types'
+import type {
+  BotParameters,
+  BotDecision,
+  BotDecisionLog,
+  TacticalSituation,
+  ScoredActionPlan,
+} from './types'
 import { DEFAULT_BOT_PARAMETERS } from './types'
 import { analyzeTacticalSituation } from './analyzer'
 import { generateActionCandidates } from './planner'
@@ -131,7 +137,9 @@ function buildDecisionLog(
 
   // Format targets
   const targetDescriptions = targets.slice(0, 3).map((target: any) => {
-    const healthPercent = Math.round((target.player.ship.hitPoints / target.player.ship.maxHitPoints) * 100)
+    const healthPercent = Math.round(
+      (target.player.ship.hitPoints / target.player.ship.maxHitPoints) * 100
+    )
     const weapons = Object.entries(target.firingSolutions)
       .filter(([_, solution]: any) => solution?.inRange)
       .map(([weapon]) => weapon)
@@ -160,11 +168,15 @@ function buildDecisionLog(
   }
 
   if (primaryTarget) {
-    reasoning.push(`Targeting ${primaryTarget.player.name} (priority ${Math.round(primaryTarget.priority)})`)
+    reasoning.push(
+      `Targeting ${primaryTarget.player.name} (priority ${Math.round(primaryTarget.priority)})`
+    )
   }
 
   if (status.healthPercent < 0.3 && parameters.useWellTransfers) {
-    reasoning.push(`Critical health (${Math.round(status.healthPercent * 100)}%) - considering escape`)
+    reasoning.push(
+      `Critical health (${Math.round(status.healthPercent * 100)}%) - considering escape`
+    )
   }
 
   // Format candidates

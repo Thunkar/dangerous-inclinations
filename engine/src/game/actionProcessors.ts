@@ -1,16 +1,17 @@
-import type {
-  GameState,
-  PlayerAction,
-  TurnLogEntry,
-  CoastAction,
-  BurnAction,
-  RotateAction,
-  AllocateEnergyAction,
-  DeallocateEnergyAction,
-  FireWeaponAction,
-  WellTransferAction,
-  ShipState,
-} from "../types/game";
+import {
+  type GameState,
+  type PlayerAction,
+  type TurnLogEntry,
+  type CoastAction,
+  type BurnAction,
+  type RotateAction,
+  type AllocateEnergyAction,
+  type DeallocateEnergyAction,
+  type FireWeaponAction,
+  type WellTransferAction,
+  type ShipState,
+  MAX_REACTION_MASS,
+} from "../models/game";
 import {
   applyOrbitalMovement,
   initiateBurn,
@@ -23,13 +24,12 @@ import {
   WELL_TRANSFER_COSTS,
   getAdjustmentRange,
   calculateBurnMassCost,
-  MAX_REACTION_MASS,
-} from "../constants/rings";
-import { getSubsystemConfig } from "../types/subsystems";
+} from "../models/rings";
+import { getSubsystemConfig } from "../models/subsystems";
 import { resetSubsystemUsage } from "./subsystems";
 import { fireMissile, getMissileAmmo } from "./missiles";
-import { getGravityWell, TRANSFER_POINTS } from "../constants/gravityWells";
-import type { RingConfig } from "../types/game";
+import { getGravityWell, TRANSFER_POINTS } from "../models/gravityWells";
+import type { RingConfig } from "../models/game";
 import { addHeat } from "./heat";
 
 export interface ProcessResult {

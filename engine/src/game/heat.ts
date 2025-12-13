@@ -1,6 +1,6 @@
-import type { ShipState } from '../types/game'
-import type { Subsystem } from '../types/subsystems'
-import { getHeatOnUse } from '../types/subsystems'
+import type { ShipState } from "../models/game";
+import type { Subsystem } from "../models/subsystems";
+import { getHeatOnUse } from "../models/subsystems";
 
 /**
  * Calculate heat damage at start of turn
@@ -14,7 +14,7 @@ import { getHeatOnUse } from '../types/subsystems'
  * 5. Repeat at next turn start
  */
 export function calculateHeatDamage(ship: ShipState): number {
-  return Math.max(0, ship.heat.currentHeat - ship.dissipationCapacity)
+  return Math.max(0, ship.heat.currentHeat - ship.dissipationCapacity);
 }
 
 /**
@@ -27,7 +27,7 @@ export function resetHeat(ship: ShipState): ShipState {
     heat: {
       currentHeat: 0,
     },
-  }
+  };
 }
 
 /**
@@ -39,18 +39,21 @@ export function addHeat(ship: ShipState, amount: number): ShipState {
     heat: {
       currentHeat: ship.heat.currentHeat + amount,
     },
-  }
+  };
 }
 
 /**
  * Generate heat from a subsystem being used
  * Returns new ship state with heat added equal to subsystem's allocated energy
  */
-export function generateHeatFromSubsystemUse(ship: ShipState, subsystem: Subsystem): ShipState {
-  const heatGenerated = getHeatOnUse(subsystem)
-  if (heatGenerated === 0) return ship
+export function generateHeatFromSubsystemUse(
+  ship: ShipState,
+  subsystem: Subsystem,
+): ShipState {
+  const heatGenerated = getHeatOnUse(subsystem);
+  if (heatGenerated === 0) return ship;
 
-  return addHeat(ship, heatGenerated)
+  return addHeat(ship, heatGenerated);
 }
 
 /**
@@ -59,16 +62,18 @@ export function generateHeatFromSubsystemUse(ship: ShipState, subsystem: Subsyst
  */
 export function calculateProjectedHeat(
   subsystems: Subsystem[],
-  subsystemsToUse: Array<'engines' | 'rotation' | 'scoop' | 'laser' | 'railgun' | 'missiles'>
+  subsystemsToUse: Array<
+    "engines" | "rotation" | "scoop" | "laser" | "railgun" | "missiles"
+  >,
 ): number {
-  let totalHeat = 0
+  let totalHeat = 0;
 
   for (const subsystemType of subsystemsToUse) {
-    const subsystem = subsystems.find(s => s.type === subsystemType)
+    const subsystem = subsystems.find((s) => s.type === subsystemType);
     if (subsystem) {
-      totalHeat += getHeatOnUse(subsystem)
+      totalHeat += getHeatOnUse(subsystem);
     }
   }
 
-  return totalHeat
+  return totalHeat;
 }

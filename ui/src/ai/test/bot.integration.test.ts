@@ -7,9 +7,18 @@ import type { BotParameters } from '../types'
 /**
  * Helper to create a test player with mission fields
  */
-function createTestPlayer(id: string, name: string, color: string, shipConfig: {
-  wellId: string, ring: number, sector: number, facing: 'prograde' | 'retrograde'
-}, shipOverrides?: Partial<ReturnType<typeof createInitialShipState>>): Player {
+function createTestPlayer(
+  id: string,
+  name: string,
+  color: string,
+  shipConfig: {
+    wellId: string
+    ring: number
+    sector: number
+    facing: 'prograde' | 'retrograde'
+  },
+  shipOverrides?: Partial<ReturnType<typeof createInitialShipState>>
+): Player {
   return {
     id,
     name,
@@ -164,8 +173,8 @@ describe('Bot AI Integration Tests', () => {
           // Next turn should deallocate from overclocked system
           gameState.activePlayerIndex = 1
           const nextDecision = botDecideActions(gameState, 'bot1')
-          const hasDeallocate = nextDecision.actions.some(a =>
-            a.type === 'deallocate_energy' && a.data.subsystemType === 'railgun'
+          const hasDeallocate = nextDecision.actions.some(
+            a => a.type === 'deallocate_energy' && a.data.subsystemType === 'railgun'
           )
 
           expect(hasDeallocate).toBe(true)

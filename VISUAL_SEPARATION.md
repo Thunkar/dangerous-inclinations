@@ -60,11 +60,14 @@ Successfully separated visual-only data from the game engine, moving it to the U
 ### In the Engine (Game Logic)
 
 ```typescript
-import { GRAVITY_WELLS, getRingConfigForWell } from '@dangerous-inclinations/engine'
+import {
+  GRAVITY_WELLS,
+  getRingConfigForWell,
+} from "@dangerous-inclinations/engine";
 
 // Get game logic data
-const blackHole = GRAVITY_WELLS[0]
-console.log(blackHole.rings) // [{ ring: 1, velocity: 8, sectors: 24 }, ...]
+const blackHole = GRAVITY_WELLS[0];
+console.log(blackHole.rings); // [{ ring: 1, velocity: 8, sectors: 24 }, ...]
 
 // No visual data available - that's in the UI!
 // ❌ blackHole.color - doesn't exist
@@ -74,24 +77,26 @@ console.log(blackHole.rings) // [{ ring: 1, velocity: 8, sectors: 24 }, ...]
 ### In the UI (Rendering)
 
 ```typescript
-import { GRAVITY_WELLS } from '@dangerous-inclinations/engine'
-import { getGravityWellVisual, getRingRadius } from '@/constants/visualConfig'
+import { GRAVITY_WELLS } from "@dangerous-inclinations/engine";
+import { getGravityWellVisual, getRingRadius } from "@/constants/visualConfig";
 
 // Get game logic data from engine
-const blackHole = GRAVITY_WELLS[0]
+const blackHole = GRAVITY_WELLS[0];
 
 // Get visual data from UI config
-const visual = getGravityWellVisual(blackHole.id)
-console.log(visual.color) // '#18181B'
-console.log(visual.radius) // 50
+const visual = getGravityWellVisual(blackHole.id);
+console.log(visual.color); // '#18181B'
+console.log(visual.radius); // 50
 
 // Get ring visual radius
-const ringRadius = getRingRadius(blackHole.id, 1)
-console.log(ringRadius) // 125
+const ringRadius = getRingRadius(blackHole.id, 1);
+console.log(ringRadius); // 125
 
 // Combine for rendering
-const ring = blackHole.rings[0]
-console.log(`Ring ${ring.ring}: velocity=${ring.velocity}, sectors=${ring.sectors}, radius=${ringRadius}px`)
+const ring = blackHole.rings[0];
+console.log(
+  `Ring ${ring.ring}: velocity=${ring.velocity}, sectors=${ring.sectors}, radius=${ringRadius}px`,
+);
 ```
 
 ## Why This Separation?
@@ -146,15 +151,16 @@ Transfer sectors are **completely fixed** and hardcoded in `transferPoints.ts`:
 
 ```typescript
 const FIXED_TRANSFER_SECTORS = {
-  'planet-alpha': {
+  "planet-alpha": {
     outbound: { bhSector: 20, planetSector: 5 },
     return: { planetSector: 18, bhSector: 3 },
   },
   // ... etc
-}
+};
 ```
 
 This means:
+
 - ✅ No angle calculation needed (transfer sectors don't depend on planet positions)
 - ✅ Planet angles are purely visual (UI can position planets anywhere for rendering)
 - ✅ Game logic uses fixed sector numbers only
@@ -162,6 +168,7 @@ This means:
 ### Planets Are Static
 
 All planets have `velocity: 0`, meaning:
+
 - ✅ No planetary movement in game logic
 - ✅ Transfer sectors never change
 - ✅ `advancePlanetaryOrbits()` is a no-op placeholder
@@ -173,13 +180,14 @@ The UI maintains separate visual configs for each planet:
 
 ```typescript
 export const PLANET_VISUALS: Record<GravityWellId, GravityWellVisualConfig> = {
-  'planet-alpha': { angle: 0, distance: 645, color: '#3B82F6', radius: 40 },
-  'planet-beta': { angle: 60, distance: 645, color: '#EF4444', radius: 35 },
+  "planet-alpha": { angle: 0, distance: 645, color: "#3B82F6", radius: 40 },
+  "planet-beta": { angle: 60, distance: 645, color: "#EF4444", radius: 35 },
   // ... etc
-}
+};
 ```
 
 This allows:
+
 - Different colors per planet (for visual distinction)
 - Different sizes per planet (Alpha is slightly larger)
 - Consistent positioning (all at 645 distance, 60° apart)
@@ -187,6 +195,7 @@ This allows:
 ## Testing
 
 Engine builds successfully:
+
 ```bash
 cd engine && yarn build
 # ✓ No errors
@@ -212,10 +221,14 @@ With this separation, you can easily add multiple visual themes:
 
 ```typescript
 // ui/src/constants/themes/dark.ts
-export const DARK_THEME_VISUALS = { /* ... */ }
+export const DARK_THEME_VISUALS = {
+  /* ... */
+};
 
 // ui/src/constants/themes/light.ts
-export const LIGHT_THEME_VISUALS = { /* ... */ }
+export const LIGHT_THEME_VISUALS = {
+  /* ... */
+};
 
 // Switch themes without touching engine
 ```
@@ -225,8 +238,8 @@ export const LIGHT_THEME_VISUALS = { /* ... */ }
 Different screen sizes can use different radii:
 
 ```typescript
-const isMobile = window.innerWidth < 768
-const ringVisuals = isMobile ? MOBILE_RING_VISUALS : DESKTOP_RING_VISUALS
+const isMobile = window.innerWidth < 768;
+const ringVisuals = isMobile ? MOBILE_RING_VISUALS : DESKTOP_RING_VISUALS;
 ```
 
 ### Custom Board Layouts
@@ -236,7 +249,9 @@ UI can experiment with different layouts (hex grid, square grid, etc.) without c
 ```typescript
 // Game logic stays the same (sectors, velocities, transfers)
 // Only visual positioning changes
-export const HEX_GRID_VISUALS = { /* ... */ }
+export const HEX_GRID_VISUALS = {
+  /* ... */
+};
 ```
 
 ## Summary

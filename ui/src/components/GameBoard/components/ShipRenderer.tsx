@@ -36,7 +36,8 @@ export function ShipRenderer({
   pendingState,
   children,
 }: ShipRendererProps) {
-  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset, displayState } = useBoardContext()
+  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset, displayState } =
+    useBoardContext()
   const { gameState } = useGame()
 
   // Need both displayState (for positions) and gameState (for game data)
@@ -68,9 +69,11 @@ export function ShipRenderer({
         // BUT only if rotation happens BEFORE movement in the tactical sequence
         const rotateAction = pendingState.tacticalSequence.find(a => a.type === 'rotate')
         const moveAction = pendingState.tacticalSequence.find(a => a.type === 'move')
-        const rotateBeforeMove = rotateAction && moveAction
-          ? (rotateAction as { sequence?: number }).sequence! < (moveAction as { sequence?: number }).sequence!
-          : true // Default to rotate before move if one is missing
+        const rotateBeforeMove =
+          rotateAction && moveAction
+            ? (rotateAction as { sequence?: number }).sequence! <
+              (moveAction as { sequence?: number }).sequence!
+            : true // Default to rotate before move if one is missing
 
         // For burn predictions, use pending facing only if rotation happens before burn
         const facingForBurn =
@@ -108,17 +111,28 @@ export function ShipRenderer({
           const burnCost = BURN_COSTS[pendingMovement.burnIntensity!]
           // Use facingForBurn which respects the rotation order in tactical sequence
           const ringChange = facingForBurn === 'prograde' ? burnCost.rings : -burnCost.rings
-          const destinationRing = Math.max(1, Math.min(well.rings.length, player.ship.ring + ringChange))
+          const destinationRing = Math.max(
+            1,
+            Math.min(well.rings.length, player.ship.ring + ringChange)
+          )
 
           const destRingConfig = well.rings.find(r => r.ring === destinationRing)
           if (destRingConfig) {
-            const baseSector = mapSectorOnTransfer(player.ship.ring, destinationRing, afterOrbitalSector)
+            const baseSector = mapSectorOnTransfer(
+              player.ship.ring,
+              destinationRing,
+              afterOrbitalSector
+            )
             const adjustment = pendingMovement.sectorAdjustment || 0
-            const finalSector = (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
+            const finalSector =
+              (baseSector + adjustment + destRingConfig.sectors) % destRingConfig.sectors
 
-            const destRadius = (getRingRadius(player.ship.wellId, destRingConfig.ring) ?? 100) * scaleFactor
+            const destRadius =
+              (getRingRadius(player.ship.wellId, destRingConfig.ring) ?? 100) * scaleFactor
             const destAngle =
-              ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+              ((finalSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+              Math.PI / 2 +
+              rotationOffset
 
             secondStepX = wellPosition.x + destRadius * Math.cos(destAngle)
             secondStepY = wellPosition.y + destRadius * Math.sin(destAngle)
@@ -139,8 +153,12 @@ export function ShipRenderer({
 
             if (transferPoint) {
               const destSector = transferPoint.toSector
-              const destRadius = (getRingRadius(pendingWellTransfer.destinationWellId, destOutermostRing.ring) ?? 100) * scaleFactor
-              const destRotationOffset = getSectorRotationOffset(pendingWellTransfer.destinationWellId)
+              const destRadius =
+                (getRingRadius(pendingWellTransfer.destinationWellId, destOutermostRing.ring) ??
+                  100) * scaleFactor
+              const destRotationOffset = getSectorRotationOffset(
+                pendingWellTransfer.destinationWellId
+              )
               const destAngle =
                 ((destSector + 0.5) / destOutermostRing.sectors) * 2 * Math.PI -
                 Math.PI / 2 +
@@ -188,7 +206,8 @@ export function ShipRenderer({
                     const awayFromBlackHoleX = midX - bhPosition.x
                     const awayFromBlackHoleY = midY - bhPosition.y
                     const awayDist = Math.sqrt(
-                      awayFromBlackHoleX * awayFromBlackHoleX + awayFromBlackHoleY * awayFromBlackHoleY
+                      awayFromBlackHoleX * awayFromBlackHoleX +
+                        awayFromBlackHoleY * awayFromBlackHoleY
                     )
 
                     const curveOffset = distance * 0.15
@@ -209,7 +228,10 @@ export function ShipRenderer({
                 ) : (
                   (() => {
                     const startAngle = Math.atan2(y - wellPosition.y, x - wellPosition.x)
-                    const endAngle = Math.atan2(predictedY - wellPosition.y, predictedX - wellPosition.x)
+                    const endAngle = Math.atan2(
+                      predictedY - wellPosition.y,
+                      predictedX - wellPosition.x
+                    )
 
                     let angleDiff = endAngle - startAngle
                     if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
@@ -221,7 +243,13 @@ export function ShipRenderer({
 
                     return (
                       <>
-                        <path d={pathData} fill="none" stroke={ship.color} strokeWidth={6} opacity={0.15} />
+                        <path
+                          d={pathData}
+                          fill="none"
+                          stroke={ship.color}
+                          strokeWidth={6}
+                          opacity={0.15}
+                        />
                         <path
                           d={pathData}
                           fill="none"
@@ -281,7 +309,10 @@ export function ShipRenderer({
                   const semiMinor = Math.sqrt(startRadius * endRadius)
 
                   const startAngle = Math.atan2(y - wellPosition.y, x - wellPosition.x)
-                  const endAngle = Math.atan2(secondStepY - wellPosition.y, secondStepX - wellPosition.x)
+                  const endAngle = Math.atan2(
+                    secondStepY - wellPosition.y,
+                    secondStepX - wellPosition.x
+                  )
 
                   let angleDiff = endAngle - startAngle
                   if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI
@@ -297,7 +328,13 @@ export function ShipRenderer({
 
                   return (
                     <>
-                      <path d={pathData} fill="none" stroke={ship.color} strokeWidth={6} opacity={0.15} />
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke={ship.color}
+                        strokeWidth={6}
+                        opacity={0.15}
+                      />
                       <path
                         d={pathData}
                         fill="none"
@@ -349,7 +386,8 @@ export function ShipRenderer({
             {(() => {
               const shieldSubsystem = player.ship.subsystems.find(s => s.type === 'shields')
               const shieldConfig = getSubsystemConfig('shields')
-              const isShieldPowered = shieldSubsystem && shieldSubsystem.allocatedEnergy >= shieldConfig.minEnergy
+              const isShieldPowered =
+                shieldSubsystem && shieldSubsystem.allocatedEnergy >= shieldConfig.minEnergy
 
               if (isShieldPowered && shieldSubsystem) {
                 return (

@@ -10,7 +10,12 @@ export interface Position {
 /**
  * Interpolate position along an arc (for orbital movement)
  */
-export function interpolateArcPosition(from: Position, to: Position, center: Position, progress: number): Position {
+export function interpolateArcPosition(
+  from: Position,
+  to: Position,
+  center: Position,
+  progress: number
+): Position {
   const fromAngle = Math.atan2(from.y - center.y, from.x - center.x)
   const toAngle = Math.atan2(to.y - center.y, to.x - center.x)
   const fromRadius = Math.sqrt((from.x - center.x) ** 2 + (from.y - center.y) ** 2)

@@ -1,5 +1,10 @@
 import { Box, Typography, Paper, Stack } from '@mui/material'
-import type { Subsystem, ReactorState, HeatState, SubsystemType } from '@dangerous-inclinations/engine'
+import type {
+  Subsystem,
+  ReactorState,
+  HeatState,
+  SubsystemType,
+} from '@dangerous-inclinations/engine'
 import { getSubsystem, getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { RadialMenu } from './RadialMenu'
 import { SubsystemButton } from './SubsystemButton'
@@ -63,7 +68,9 @@ export function RadialSubsystemPanel({
     const canAllocate =
       !subsystem.isBroken &&
       ((subsystem.allocatedEnergy === 0 && reactor.availableEnergy >= config.minEnergy) ||
-      (subsystem.allocatedEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy && reactor.availableEnergy > 0))
+        (subsystem.allocatedEnergy > 0 &&
+          subsystem.allocatedEnergy < config.maxEnergy &&
+          reactor.availableEnergy > 0))
     const canDeallocate = subsystem.allocatedEnergy > 0
 
     // Create toggle button with indicators
@@ -185,8 +192,11 @@ export function RadialSubsystemPanel({
           py: 2,
         }}
       >
-        {subsystems.map((subsystem) => (
-          <Box key={subsystem.type} sx={{ minHeight: '120px', display: 'flex', alignItems: 'center' }}>
+        {subsystems.map(subsystem => (
+          <Box
+            key={subsystem.type}
+            sx={{ minHeight: '120px', display: 'flex', alignItems: 'center' }}
+          >
             {renderSubsystemMenu(subsystem)}
           </Box>
         ))}

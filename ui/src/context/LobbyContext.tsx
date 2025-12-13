@@ -51,29 +51,38 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState | null>(null)
 
   // Lobby actions
-  const addBotToLobby = useCallback((botName?: string) => {
-    if (!lobbyState) return
-    const result = addBot(lobbyState, botName)
-    if (result.success && result.lobbyState) {
-      setLobbyState(result.lobbyState)
-    }
-  }, [lobbyState])
+  const addBotToLobby = useCallback(
+    (botName?: string) => {
+      if (!lobbyState) return
+      const result = addBot(lobbyState, botName)
+      if (result.success && result.lobbyState) {
+        setLobbyState(result.lobbyState)
+      }
+    },
+    [lobbyState]
+  )
 
-  const removeBotFromLobby = useCallback((botId: string) => {
-    if (!lobbyState) return
-    const result = removeBot(lobbyState, botId)
-    if (result.success && result.lobbyState) {
-      setLobbyState(result.lobbyState)
-    }
-  }, [lobbyState])
+  const removeBotFromLobby = useCallback(
+    (botId: string) => {
+      if (!lobbyState) return
+      const result = removeBot(lobbyState, botId)
+      if (result.success && result.lobbyState) {
+        setLobbyState(result.lobbyState)
+      }
+    },
+    [lobbyState]
+  )
 
-  const setReady = useCallback((isReady: boolean) => {
-    if (!lobbyState) return
-    const result = setPlayerReady(lobbyState, 'player1', isReady)
-    if (result.success && result.lobbyState) {
-      setLobbyState(result.lobbyState)
-    }
-  }, [lobbyState])
+  const setReady = useCallback(
+    (isReady: boolean) => {
+      if (!lobbyState) return
+      const result = setPlayerReady(lobbyState, 'player1', isReady)
+      if (result.success && result.lobbyState) {
+        setLobbyState(result.lobbyState)
+      }
+    },
+    [lobbyState]
+  )
 
   const canStart = useCallback(() => {
     if (!lobbyState) return { canStart: false, reason: 'No lobby' }
@@ -90,29 +99,32 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
   }, [lobbyState])
 
   // Deployment actions
-  const deployPlayerShip = useCallback((sector: number) => {
-    if (!gameState || phase !== 'deployment') return
+  const deployPlayerShip = useCallback(
+    (sector: number) => {
+      if (!gameState || phase !== 'deployment') return
 
-    // Find the current player who needs to deploy
-    const playerToDeployIndex = gameState.players.findIndex(p => !p.hasDeployed)
-    if (playerToDeployIndex === -1) return
+      // Find the current player who needs to deploy
+      const playerToDeployIndex = gameState.players.findIndex(p => !p.hasDeployed)
+      if (playerToDeployIndex === -1) return
 
-    const playerToDeploy = gameState.players[playerToDeployIndex]
-    const result = deployShip(gameState, playerToDeploy.id, sector)
+      const playerToDeploy = gameState.players[playerToDeployIndex]
+      const result = deployShip(gameState, playerToDeploy.id, sector)
 
-    if (result.success && result.gameState) {
-      let newState = result.gameState
+      if (result.success && result.gameState) {
+        let newState = result.gameState
 
-      // Check if all players have deployed
-      if (checkAllDeployed(newState)) {
-        newState = transitionToActivePhase(newState)
-        setGameState(newState)
-        setPhase('active')
-      } else {
-        setGameState(newState)
+        // Check if all players have deployed
+        if (checkAllDeployed(newState)) {
+          newState = transitionToActivePhase(newState)
+          setGameState(newState)
+          setPhase('active')
+        } else {
+          setGameState(newState)
+        }
       }
-    }
-  }, [gameState, phase])
+    },
+    [gameState, phase]
+  )
 
   const getDeploymentSectors = useCallback(() => {
     if (!gameState) return []

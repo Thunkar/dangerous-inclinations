@@ -1,20 +1,15 @@
 /**
  * All rings have uniform sector count for consistent tactical gameplay
  */
-export const SECTORS_PER_RING = 24
-
-export const ENERGY_PER_TURN = 10
-export const MAX_REACTION_MASS = 10
-export const STARTING_REACTION_MASS = 10
-export const DEFAULT_DISSIPATION_CAPACITY = 5
+export const SECTORS_PER_RING = 24;
 
 /**
  * Sector adjustment (phasing) costs for non-Hohmann transfers
  * Allows adjusting arrival sector by consuming extra reaction mass
  */
-export const MAX_SECTOR_ADJUSTMENT = 3 // Maximum sectors that can be added/subtracted
-export const SECTOR_ADJUSTMENT_COST_PER_SECTOR = 1 // Reaction mass cost per sector of adjustment
-export const MIN_FORWARD_MOVEMENT = 1 // Must always move at least 1 sector prograde
+export const MAX_SECTOR_ADJUSTMENT = 3; // Maximum sectors that can be added/subtracted
+export const SECTOR_ADJUSTMENT_COST_PER_SECTOR = 1; // Reaction mass cost per sector of adjustment
+export const MIN_FORWARD_MOVEMENT = 1; // Must always move at least 1 sector prograde
 
 /**
  * Burn costs for ring transfers
@@ -26,17 +21,17 @@ export const BURN_COSTS = {
   soft: { energy: 1, mass: 1, rings: 1 }, // Transfer ±1 ring (change velocity by ±1)
   medium: { energy: 2, mass: 2, rings: 2 }, // Transfer ±2 rings (change velocity by ±2)
   hard: { energy: 3, mass: 3, rings: 3 }, // Transfer ±3 rings (change velocity by ±3)
-}
+};
 
-export const ROTATION_ENERGY_COST = 1
+export const ROTATION_ENERGY_COST = 1;
 
 /**
  * Well transfer costs for jumping between gravity wells
  */
 export const WELL_TRANSFER_COSTS = {
   energy: 3, // Requires engines at level 3
-  mass: 3,   // Consumes 3 reaction mass
-}
+  mass: 3, // Consumes 3 reaction mass
+};
 
 /**
  * Maps a sector number when transferring between rings.
@@ -76,7 +71,7 @@ export function mapSectorOnTransfer(
 ): number {
   // All rings have uniform 24 sectors, so mapping is trivial: stay at same sector
   // This preserves angular position when transferring between rings
-  return currentSector % SECTORS_PER_RING
+  return currentSector % SECTORS_PER_RING;
 }
 
 /**
@@ -95,14 +90,20 @@ export function mapSectorOnTransfer(
  * - velocity 2: adjustment range -1 to +3 (total movement 1-5 sectors)
  * - velocity 1: adjustment range 0 to +3 (total movement 1-4 sectors)
  */
-export function getAdjustmentRange(velocity: number): { min: number; max: number } {
+export function getAdjustmentRange(velocity: number): {
+  min: number;
+  max: number;
+} {
   // Maximum negative adjustment: can reduce movement but must keep at least 1 sector forward
-  const maxNegativeAdjustment = Math.min(velocity - MIN_FORWARD_MOVEMENT, MAX_SECTOR_ADJUSTMENT)
+  const maxNegativeAdjustment = Math.min(
+    velocity - MIN_FORWARD_MOVEMENT,
+    MAX_SECTOR_ADJUSTMENT
+  );
 
   return {
     min: -maxNegativeAdjustment,
     max: MAX_SECTOR_ADJUSTMENT,
-  }
+  };
 }
 
 /**
@@ -112,7 +113,11 @@ export function getAdjustmentRange(velocity: number): { min: number; max: number
  * @param sectorAdjustment - Sector adjustment value (can be negative or positive)
  * @returns Total mass cost
  */
-export function calculateBurnMassCost(baseMassCost: number, sectorAdjustment: number): number {
-  const adjustmentCost = Math.abs(sectorAdjustment) * SECTOR_ADJUSTMENT_COST_PER_SECTOR
-  return baseMassCost + adjustmentCost
+export function calculateBurnMassCost(
+  baseMassCost: number,
+  sectorAdjustment: number
+): number {
+  const adjustmentCost =
+    Math.abs(sectorAdjustment) * SECTOR_ADJUSTMENT_COST_PER_SECTOR;
+  return baseMassCost + adjustmentCost;
 }

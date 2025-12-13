@@ -5,20 +5,17 @@
  * Called after relevant game events (ship destruction, cargo delivery).
  */
 
-import type { GameState, Player, Station } from '../../types/game'
-import type { Mission, DestroyShipMission, DeliverCargoMission } from './types'
-import { isDestroyShipMission, isDeliverCargoMission } from './types'
-
-/**
- * Result of checking missions for a player
- */
-export interface MissionCheckResult {
-  player: Player
-  updatedMissions: Mission[]
-  newlyCompletedMissions: Mission[]
-  completedMissionCount: number
-  hasWon: boolean
-}
+import type { GameState, Player, Station } from "../../models/game";
+import type {
+  Mission,
+  DestroyShipMission,
+  DeliverCargoMission,
+  MissionCheckResult,
+} from "../../models/missions";
+import {
+  isDestroyShipMission,
+  isDeliverCargoMission,
+} from "../../models/missions";
 
 /**
  * Check if a destroy ship mission is complete
@@ -29,7 +26,7 @@ export function checkDestroyMission(
   mission: DestroyShipMission,
   destroyedPlayerId: string
 ): boolean {
-  return mission.targetPlayerId === destroyedPlayerId
+  return mission.targetPlayerId === destroyedPlayerId;
 }
 
 /**
@@ -44,22 +41,24 @@ export function checkCargoMission(
   stations: Station[]
 ): boolean {
   // Find the cargo for this mission
-  const cargo = player.cargo.find(c => c.missionId === mission.id)
+  const cargo = player.cargo.find((c) => c.missionId === mission.id);
   if (!cargo || !cargo.isPickedUp) {
-    return false
+    return false;
   }
 
   // Check if player is at the delivery station
-  const deliveryStation = stations.find(s => s.planetId === mission.deliveryPlanetId)
+  const deliveryStation = stations.find(
+    (s) => s.planetId === mission.deliveryPlanetId
+  );
   if (!deliveryStation) {
-    return false
+    return false;
   }
 
   return (
     player.ship.wellId === mission.deliveryPlanetId &&
     player.ship.ring === deliveryStation.ring &&
     player.ship.sector === deliveryStation.sector
-  )
+  );
 }
 
 /**
@@ -71,33 +70,33 @@ export function processDestroyMissionCompletion(
   gameState: GameState,
   destroyedPlayerId: string
 ): GameState {
-  const updatedPlayers = gameState.players.map(player => {
+  const updatedPlayers = gameState.players.map((player) => {
     // Check each mission for completion
-    let missionCompleted = false
-    const updatedMissions = player.missions.map(mission => {
+    let missionCompleted = false;
+    const updatedMissions = player.missions.map((mission) => {
       if (
         isDestroyShipMission(mission) &&
         !mission.isCompleted &&
         checkDestroyMission(mission, destroyedPlayerId)
       ) {
-        missionCompleted = true
-        return { ...mission, isCompleted: true }
+        missionCompleted = true;
+        return { ...mission, isCompleted: true };
       }
-      return mission
-    })
+      return mission;
+    });
 
     if (missionCompleted) {
       return {
         ...player,
         missions: updatedMissions,
         completedMissionCount: player.completedMissionCount + 1,
-      }
+      };
     }
 
-    return player
-  })
+    return player;
+  });
 
-  return { ...gameState, players: updatedPlayers }
+  return { ...gameState, players: updatedPlayers };
 }
 
 /**
@@ -108,43 +107,43 @@ export function processCargoMissionCompletion(
   gameState: GameState,
   playerId: string
 ): GameState {
-  const playerIndex = gameState.players.findIndex(p => p.id === playerId)
-  if (playerIndex === -1) return gameState
+  const playerIndex = gameState.players.findIndex((p) => p.id === playerId);
+  if (playerIndex === -1) return gameState;
 
-  const player = gameState.players[playerIndex]
-  let completedCount = 0
+  const player = gameState.players[playerIndex];
+  let completedCount = 0;
 
   // Check each cargo mission for completion
-  const updatedMissions = player.missions.map(mission => {
+  const updatedMissions = player.missions.map((mission) => {
     if (
       isDeliverCargoMission(mission) &&
       !mission.isCompleted &&
       checkCargoMission(mission, player, gameState.stations)
     ) {
-      completedCount++
-      return { ...mission, isCompleted: true }
+      completedCount++;
+      return { ...mission, isCompleted: true };
     }
-    return mission
-  })
+    return mission;
+  });
 
   // Remove delivered cargo from player's inventory
-  const updatedCargo = player.cargo.filter(cargo => {
-    const mission = updatedMissions.find(m => m.id === cargo.missionId)
-    return mission && !mission.isCompleted
-  })
+  const updatedCargo = player.cargo.filter((cargo) => {
+    const mission = updatedMissions.find((m) => m.id === cargo.missionId);
+    return mission && !mission.isCompleted;
+  });
 
   if (completedCount > 0) {
-    const updatedPlayers = [...gameState.players]
+    const updatedPlayers = [...gameState.players];
     updatedPlayers[playerIndex] = {
       ...player,
       missions: updatedMissions,
       cargo: updatedCargo,
       completedMissionCount: player.completedMissionCount + completedCount,
-    }
-    return { ...gameState, players: updatedPlayers }
+    };
+    return { ...gameState, players: updatedPlayers };
   }
 
-  return gameState
+  return gameState;
 }
 
 /**
@@ -154,26 +153,26 @@ export function checkPlayerMissions(
   player: Player,
   gameState: GameState
 ): MissionCheckResult {
-  let newlyCompleted: Mission[] = []
-  let totalCompleted = 0
+  let newlyCompleted: Mission[] = [];
+  let totalCompleted = 0;
 
-  const updatedMissions = player.missions.map(mission => {
+  const updatedMissions = player.missions.map((mission) => {
     if (mission.isCompleted) {
-      totalCompleted++
-      return mission
+      totalCompleted++;
+      return mission;
     }
 
     // Check cargo missions (destroy missions are checked separately via events)
     if (isDeliverCargoMission(mission)) {
       if (checkCargoMission(mission, player, gameState.stations)) {
-        newlyCompleted.push(mission)
-        totalCompleted++
-        return { ...mission, isCompleted: true }
+        newlyCompleted.push(mission);
+        totalCompleted++;
+        return { ...mission, isCompleted: true };
       }
     }
 
-    return mission
-  })
+    return mission;
+  });
 
   return {
     player,
@@ -181,7 +180,7 @@ export function checkPlayerMissions(
     newlyCompletedMissions: newlyCompleted,
     completedMissionCount: totalCompleted,
     hasWon: totalCompleted >= 3,
-  }
+  };
 }
 
 /**
@@ -190,30 +189,32 @@ export function checkPlayerMissions(
 export function checkForWinner(gameState: GameState): string | null {
   for (const player of gameState.players) {
     if (player.completedMissionCount >= 3) {
-      return player.id
+      return player.id;
     }
   }
-  return null
+  return null;
 }
 
 /**
  * Get mission progress summary for a player (for UI)
  */
 export function getMissionProgress(player: Player): {
-  completed: number
-  total: number
-  destroyComplete: boolean
-  cargoComplete: number
-  cargoTotal: number
+  completed: number;
+  total: number;
+  destroyComplete: boolean;
+  cargoComplete: number;
+  cargoTotal: number;
 } {
-  const destroyMission = player.missions.find(m => m.type === 'destroy_ship')
-  const cargoMissions = player.missions.filter(m => m.type === 'deliver_cargo')
+  const destroyMission = player.missions.find((m) => m.type === "destroy_ship");
+  const cargoMissions = player.missions.filter(
+    (m) => m.type === "deliver_cargo"
+  );
 
   return {
     completed: player.completedMissionCount,
     total: player.missions.length,
     destroyComplete: destroyMission?.isCompleted ?? false,
-    cargoComplete: cargoMissions.filter(m => m.isCompleted).length,
+    cargoComplete: cargoMissions.filter((m) => m.isCompleted).length,
     cargoTotal: cargoMissions.length,
-  }
+  };
 }

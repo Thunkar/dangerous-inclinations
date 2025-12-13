@@ -1,7 +1,4 @@
-import type {
-  PlayerAction,
-  DeallocateEnergyAction,
-} from '@dangerous-inclinations/engine'
+import type { PlayerAction, DeallocateEnergyAction } from '@dangerous-inclinations/engine'
 import type { TacticalSituation, BotParameters } from '../types'
 
 /**

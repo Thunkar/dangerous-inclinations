@@ -17,6 +17,7 @@ dangerous-inclinations/
 ### 🎮 Engine (`@dangerous-inclinations/engine`)
 
 The core game engine containing:
+
 - All game logic (actions, turns, movement, combat)
 - Type definitions (GameState, PlayerAction, etc.)
 - Constants (rings, gravity wells, weapons)
@@ -27,6 +28,7 @@ The core game engine containing:
 ### 🖥️ UI (`@dangerous-inclinations/ui`)
 
 React-based frontend:
+
 - Game board visualization
 - Control panels
 - Player interactions
@@ -35,6 +37,7 @@ React-based frontend:
 ### 🚀 Server (`@dangerous-inclinations/server`)
 
 Fastify + TypeScript + Redis server:
+
 - HTTP API for player auth and lobby management
 - WebSocket for real-time game actions
 - Redis for persistent game state
@@ -98,6 +101,7 @@ docker run -d -p 6379:6379 redis:latest
 ### Option 2: Local Redis (Native)
 
 Install Redis for your platform and start it:
+
 - **Windows**: Use WSL or Redis for Windows
 - **macOS**: `brew install redis && brew services start redis`
 - **Linux**: `sudo apt install redis-server && sudo systemctl start redis`
@@ -159,6 +163,7 @@ yarn test
 #### Player Management
 
 - `POST /api/players` - Create or authenticate player
+
   ```json
   {
     "playerId": "uuid-optional",
@@ -171,6 +176,7 @@ yarn test
 #### Lobby Management
 
 - `POST /api/lobbies` - Create lobby (requires `x-player-id` header)
+
   ```json
   {
     "lobbyName": "My Game",
@@ -184,6 +190,7 @@ yarn test
 - `GET /api/lobbies/:lobbyId` - Get lobby details
 
 - `POST /api/lobbies/join` - Join lobby (requires `x-player-id` header)
+
   ```json
   {
     "lobbyId": "uuid",
@@ -253,18 +260,18 @@ Query params: `x-player-id` header required
 
 ```typescript
 // 1. Check localStorage for existing playerId
-let playerId = localStorage.getItem('playerId')
+let playerId = localStorage.getItem("playerId");
 
 // 2. If no playerId, create new player
 if (!playerId) {
-  const response = await fetch('http://localhost:3000/api/players', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ playerName: 'My Name' })
-  })
-  const player = await response.json()
-  playerId = player.playerId
-  localStorage.setItem('playerId', playerId)
+  const response = await fetch("http://localhost:3000/api/players", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playerName: "My Name" }),
+  });
+  const player = await response.json();
+  playerId = player.playerId;
+  localStorage.setItem("playerId", playerId);
 }
 
 // 3. Use playerId in all subsequent requests via x-player-id header
@@ -273,27 +280,31 @@ if (!playerId) {
 ### WebSocket Connection
 
 ```typescript
-const ws = new WebSocket(`ws://localhost:3000/ws/game/${gameId}`)
+const ws = new WebSocket(`ws://localhost:3000/ws/game/${gameId}`);
 
 // Add player ID as header (use query param workaround for browser WebSocket)
 // Better: use a WebSocket library that supports headers
 
 ws.onmessage = (event) => {
-  const message = JSON.parse(event.data)
-  if (message.type === 'GAME_STATE') {
+  const message = JSON.parse(event.data);
+  if (message.type === "GAME_STATE") {
     // Update local game state
-    setGameState(message.payload)
+    setGameState(message.payload);
   }
-}
+};
 
 // Submit turn
-ws.send(JSON.stringify({
-  type: 'SUBMIT_TURN',
-  payload: {
-    gameId: gameId,
-    actions: [/* player actions */]
-  }
-}))
+ws.send(
+  JSON.stringify({
+    type: "SUBMIT_TURN",
+    payload: {
+      gameId: gameId,
+      actions: [
+        /* player actions */
+      ],
+    },
+  }),
+);
 ```
 
 ## Project Structure Details
@@ -320,7 +331,7 @@ import {
   // Utils
   calculateWeaponRange,
   getTransferPoints,
-} from '@dangerous-inclinations/engine'
+} from "@dangerous-inclinations/engine";
 ```
 
 ### Server Architecture

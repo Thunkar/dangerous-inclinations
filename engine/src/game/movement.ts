@@ -1,15 +1,20 @@
-import type { ShipState, PlayerAction, GravityWellId } from '../types/game'
-import { BURN_COSTS, mapSectorOnTransfer, SECTORS_PER_RING, calculateBurnMassCost } from '../constants/rings'
-import { getGravityWell } from '../constants/gravityWells'
+import type { ShipState, PlayerAction, GravityWellId } from "../models/game";
+import {
+  BURN_COSTS,
+  mapSectorOnTransfer,
+  SECTORS_PER_RING,
+  calculateBurnMassCost,
+} from "../models/rings";
+import { getGravityWell } from "../models/gravityWells";
 
 /**
  * Helper to get max ring number for a gravity well
  * Black hole has 4 rings, planets have 3 rings
  */
 function getMaxRingForWell(wellId: GravityWellId): number {
-  const well = getGravityWell(wellId)
-  if (!well) return 4 // Default to black hole
-  return well.rings.length
+  const well = getGravityWell(wellId);
+  if (!well) return 4; // Default to black hole
+  return well.rings.length;
 }
 
 /**
@@ -21,25 +26,25 @@ function getMaxRingForWell(wellId: GravityWellId): number {
  */
 export function applyOrbitalMovement(ship: ShipState): ShipState {
   // Get well-specific ring configuration (planets and black hole have different velocities)
-  const well = getGravityWell(ship.wellId)
+  const well = getGravityWell(ship.wellId);
   if (!well) {
-    return ship
+    return ship;
   }
 
-  const ringConfig = well.rings.find(r => r.ring === ship.ring)
+  const ringConfig = well.rings.find((r) => r.ring === ship.ring);
   if (!ringConfig) {
-    return ship
+    return ship;
   }
 
   // All orbital movement increments sector numbers
   // The visual rotation direction is handled by the rendering (direction multiplier)
   // Sector numbers always increment regardless of well type
-  const newSector = (ship.sector + ringConfig.velocity) % ringConfig.sectors
+  const newSector = (ship.sector + ringConfig.velocity) % ringConfig.sectors;
 
   return {
     ...ship,
     sector: newSector,
-  }
+  };
 }
 
 /**
@@ -53,30 +58,27 @@ export function applyOrbitalMovement(ship: ShipState): ShipState {
  * @param ship - Current ship state
  * @param action - Burn action to execute
  */
-export function initiateBurn(
-  ship: ShipState,
-  action: PlayerAction
-): ShipState {
-  if (action.type !== 'burn') {
-    return ship
+export function initiateBurn(ship: ShipState, action: PlayerAction): ShipState {
+  if (action.type !== "burn") {
+    return ship;
   }
 
-  const burnCost = BURN_COSTS[action.data.burnIntensity]
-  const sectorAdjustment = action.data.sectorAdjustment || 0
+  const burnCost = BURN_COSTS[action.data.burnIntensity];
+  const sectorAdjustment = action.data.sectorAdjustment || 0;
 
   // Calculate total mass cost including sector adjustment
-  const totalMassCost = calculateBurnMassCost(burnCost.mass, sectorAdjustment)
+  const totalMassCost = calculateBurnMassCost(burnCost.mass, sectorAdjustment);
 
   // Use the ship's current facing (rotation should have been applied already in Phase 4)
-  const burnDirection = ship.facing
+  const burnDirection = ship.facing;
 
   // Calculate destination ring
-  const direction = burnDirection === 'prograde' ? 1 : -1
-  const destinationRing = ship.ring + direction * burnCost.rings
+  const direction = burnDirection === "prograde" ? 1 : -1;
+  const destinationRing = ship.ring + direction * burnCost.rings;
 
   // Clamp to valid ring range (1 to max rings for this well)
-  const maxRing = getMaxRingForWell(ship.wellId)
-  const clampedDestination = Math.max(1, Math.min(maxRing, destinationRing))
+  const maxRing = getMaxRingForWell(ship.wellId);
+  const clampedDestination = Math.max(1, Math.min(maxRing, destinationRing));
 
   return {
     ...ship,
@@ -85,7 +87,7 @@ export function initiateBurn(
       destinationRing: clampedDestination,
       sectorAdjustment: sectorAdjustment,
     },
-  }
+  };
 }
 
 /**
@@ -97,44 +99,50 @@ export function initiateBurn(
  */
 export function completeRingTransfer(ship: ShipState): ShipState {
   if (!ship.transferState) {
-    return ship
+    return ship;
   }
 
   // Well transfers should never reach here
   if (ship.transferState.isWellTransfer) {
-    console.error('Well transfer reached completeTransfer - this should not happen')
+    console.error(
+      "Well transfer reached completeTransfer - this should not happen",
+    );
     return {
       ...ship,
       transferState: null,
-    }
+    };
   }
 
   // Handle burn transfer (ring change within same gravity well)
-  const oldRing = ship.ring
-  const newRing = ship.transferState.destinationRing
-  const baseSector = mapSectorOnTransfer(oldRing, newRing, ship.sector)
-  const adjustment = ship.transferState.sectorAdjustment || 0
+  const oldRing = ship.ring;
+  const newRing = ship.transferState.destinationRing;
+  const baseSector = mapSectorOnTransfer(oldRing, newRing, ship.sector);
+  const adjustment = ship.transferState.sectorAdjustment || 0;
 
   // Apply sector adjustment with wraparound (all rings have 24 sectors)
-  const finalSector = (baseSector + adjustment + SECTORS_PER_RING) % SECTORS_PER_RING
+  const finalSector =
+    (baseSector + adjustment + SECTORS_PER_RING) % SECTORS_PER_RING;
 
   return {
     ...ship,
     ring: newRing,
     sector: finalSector,
     transferState: null,
-  }
+  };
 }
 
 /**
  * Pure function to rotate ship facing
  * Returns new ship state with updated facing
  */
-export function applyRotation(ship: ShipState, targetFacing: 'prograde' | 'retrograde'): ShipState {
+export function applyRotation(
+  ship: ShipState,
+  targetFacing: "prograde" | "retrograde",
+): ShipState {
   return {
     ...ship,
     facing: targetFacing,
-  }
+  };
 }
 
 /**
@@ -142,32 +150,32 @@ export function applyRotation(ship: ShipState, targetFacing: 'prograde' | 'retro
  */
 export function canExecuteBurn(
   ship: ShipState,
-  action: PlayerAction
+  action: PlayerAction,
 ): { valid: boolean; reason?: string } {
-  if (action.type !== 'burn') {
-    return { valid: false, reason: 'Not a burn action' }
+  if (action.type !== "burn") {
+    return { valid: false, reason: "Not a burn action" };
   }
 
-  const burnCost = BURN_COSTS[action.data.burnIntensity]
+  const burnCost = BURN_COSTS[action.data.burnIntensity];
 
   // Check reaction mass
   if (ship.reactionMass < burnCost.mass) {
     return {
       valid: false,
       reason: `Need ${burnCost.mass} reaction mass, have ${ship.reactionMass}`,
-    }
+    };
   }
 
   // Check engine energy
-  const enginesSubsystem = ship.subsystems.find(s => s.type === 'engines')
+  const enginesSubsystem = ship.subsystems.find((s) => s.type === "engines");
   if (!enginesSubsystem || enginesSubsystem.allocatedEnergy < burnCost.energy) {
     return {
       valid: false,
       reason: `Need ${burnCost.energy} energy in engines, have ${enginesSubsystem?.allocatedEnergy || 0}`,
-    }
+    };
   }
 
-  return { valid: true }
+  return { valid: true };
 }
 
 /**
@@ -175,28 +183,28 @@ export function canExecuteBurn(
  */
 export function canRotate(
   ship: ShipState,
-  targetFacing: 'prograde' | 'retrograde'
+  targetFacing: "prograde" | "retrograde",
 ): { valid: boolean; reason?: string } {
   // No rotation needed if already facing that direction
   if (ship.facing === targetFacing) {
-    return { valid: true }
+    return { valid: true };
   }
 
   // Check rotation subsystem
-  const rotationSubsystem = ship.subsystems.find(s => s.type === 'rotation')
+  const rotationSubsystem = ship.subsystems.find((s) => s.type === "rotation");
   if (!rotationSubsystem?.isPowered) {
     return {
       valid: false,
-      reason: 'Rotation subsystem not powered',
-    }
+      reason: "Rotation subsystem not powered",
+    };
   }
 
   if (rotationSubsystem.usedThisTurn) {
     return {
       valid: false,
-      reason: 'Rotation subsystem already used this turn',
-    }
+      reason: "Rotation subsystem already used this turn",
+    };
   }
 
-  return { valid: true }
+  return { valid: true };
 }

@@ -109,7 +109,9 @@ export function DeploymentScreen() {
                       : 'transparent',
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box
+                  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                >
                   <Typography
                     sx={{
                       color: PLAYER_COLORS[index % PLAYER_COLORS.length],
@@ -157,9 +159,16 @@ export function DeploymentScreen() {
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             Target:{' '}
-                            <span style={{ color: PLAYER_COLORS[
-                              gameState.players.findIndex(p => p.id === (mission as DestroyShipMission).targetPlayerId) % PLAYER_COLORS.length
-                            ] }}>
+                            <span
+                              style={{
+                                color:
+                                  PLAYER_COLORS[
+                                    gameState.players.findIndex(
+                                      p => p.id === (mission as DestroyShipMission).targetPlayerId
+                                    ) % PLAYER_COLORS.length
+                                  ],
+                              }}
+                            >
                               {gameState.players.find(
                                 p => p.id === (mission as DestroyShipMission).targetPlayerId
                               )?.name || 'Unknown'}
@@ -175,9 +184,11 @@ export function DeploymentScreen() {
                             Mission {index + 1}: Deliver Cargo
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {PLANET_NAMES[(mission as DeliverCargoMission).pickupPlanetId] || (mission as DeliverCargoMission).pickupPlanetId}
+                            {PLANET_NAMES[(mission as DeliverCargoMission).pickupPlanetId] ||
+                              (mission as DeliverCargoMission).pickupPlanetId}
                             {' → '}
-                            {PLANET_NAMES[(mission as DeliverCargoMission).deliveryPlanetId] || (mission as DeliverCargoMission).deliveryPlanetId}
+                            {PLANET_NAMES[(mission as DeliverCargoMission).deliveryPlanetId] ||
+                              (mission as DeliverCargoMission).deliveryPlanetId}
                           </Typography>
                         </Box>
                       </Box>
@@ -193,8 +204,8 @@ export function DeploymentScreen() {
             <Typography variant="body2" color="text.secondary">
               {isHumanTurn ? (
                 <>
-                  <strong>Your turn!</strong> Click a highlighted sector on Ring 4 to deploy
-                  your ship.
+                  <strong>Your turn!</strong> Click a highlighted sector on Ring 4 to deploy your
+                  ship.
                 </>
               ) : (
                 <>

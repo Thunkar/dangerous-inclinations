@@ -10,9 +10,12 @@ export type {
   DeliverCargoMission,
   Mission,
   Cargo,
-} from './types'
+} from "../../models/missions";
 
-export { isDestroyShipMission, isDeliverCargoMission } from './types'
+export {
+  isDestroyShipMission,
+  isDeliverCargoMission,
+} from "../../models/missions";
 
 // Mission deck and dealing
 export {
@@ -21,7 +24,7 @@ export {
   getDestroyTarget,
   getCargoMissions,
   type DealMissionsResult,
-} from './missionDeck'
+} from "./missionDeck";
 
 // Mission completion checks
 export {
@@ -33,4 +36,4 @@ export {
   checkForWinner,
   getMissionProgress,
   type MissionCheckResult,
-} from './missionChecks'
+} from "./missionChecks";

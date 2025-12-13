@@ -1,4 +1,13 @@
-import { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  type ReactNode,
+} from 'react'
 import { useGame, type AnimationHandlers } from '../../../context/GameContext'
 import type { GameState, PlayerAction, FireWeaponAction } from '@dangerous-inclinations/engine'
 import type { DisplayState, DisplayShip, DisplayMissile } from '../types/display'
@@ -18,7 +27,6 @@ import {
 } from '../utils'
 import { getRingRadius } from '@/constants/visualConfig'
 
-
 export interface BoardContextValue {
   boardSize: number
   centerX: number
@@ -32,7 +40,12 @@ export interface BoardContextValue {
   floatingNumbers: FloatingNumber[]
   weaponEffects: WeaponEffect[]
   currentTime: number
-  addFloatingNumber: (x: number, y: number, value: number | string, type: FloatingNumberType) => void
+  addFloatingNumber: (
+    x: number,
+    y: number,
+    value: number | string,
+    type: FloatingNumberType
+  ) => void
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -45,19 +58,28 @@ const ACTION_DURATIONS: Record<string, number> = {
   fire_weapon: 400,
 }
 
-function calculateShipScreenPosition(
-  ship: { wellId: string; ring: number; sector: number }
-): Position {
+function calculateShipScreenPosition(ship: {
+  wellId: string
+  ring: number
+  sector: number
+}): Position {
   const well = GRAVITY_WELLS.find(w => w.id === ship.wellId)
   if (!well) return { x: 0, y: 0 }
 
   const ringConfig = well.rings.find(r => r.ring === ship.ring)
   if (!ringConfig) return { x: 0, y: 0 }
 
-  const wellPos = getGravityWellPositionBase(ship.wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
+  const wellPos = getGravityWellPositionBase(
+    ship.wellId,
+    GRAVITY_WELLS,
+    BOARD_CENTER_X,
+    BOARD_CENTER_Y,
+    BOARD_SCALE_FACTOR
+  )
   const rotationOffset = getSectorRotationOffsetBase(ship.wellId, GRAVITY_WELLS)
   const radius = (getRingRadius(ship.wellId, ringConfig.ring) ?? 100) * BOARD_SCALE_FACTOR
-  const angle = ((ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+  const angle =
+    ((ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
   return {
     x: wellPos.x + radius * Math.cos(angle),
@@ -65,9 +87,12 @@ function calculateShipScreenPosition(
   }
 }
 
-function calculateShipRotation(
-  ship: { wellId: string; ring: number; sector: number; facing: string }
-): number {
+function calculateShipRotation(ship: {
+  wellId: string
+  ring: number
+  sector: number
+  facing: string
+}): number {
   const well = GRAVITY_WELLS.find(w => w.id === ship.wellId)
   if (!well) return 0
 
@@ -75,7 +100,8 @@ function calculateShipRotation(
   if (!ringConfig) return 0
 
   const rotationOffset = getSectorRotationOffsetBase(ship.wellId, GRAVITY_WELLS)
-  const angle = ((ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
+  const angle =
+    ((ship.sector + 0.5) / ringConfig.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 
   return ship.facing === 'prograde' ? angle + Math.PI / 2 : angle - Math.PI / 2
 }
@@ -87,11 +113,7 @@ function calculateShipRotation(
  *
  * Always applies some offset (even for single missiles) to distinguish missiles from ships.
  */
-function calculateMissileSpreadOffset(
-  index: number,
-  total: number,
-  angle: number
-): Position {
+function calculateMissileSpreadOffset(index: number, total: number, angle: number): Position {
   // Spread distance between missiles (pixels) - increased for better visibility
   const SPREAD_DISTANCE = 15
 
@@ -167,8 +189,13 @@ function gameStateToDisplayState(gameState: GameState): DisplayState {
   return { ships, missiles }
 }
 
-function createIntermediateGameState(beforeState: GameState, afterState: GameState, action: PlayerAction): GameState {
-  const isMovementAction = action.type === 'coast' || action.type === 'burn' || action.type === 'well_transfer'
+function createIntermediateGameState(
+  beforeState: GameState,
+  afterState: GameState,
+  action: PlayerAction
+): GameState {
+  const isMovementAction =
+    action.type === 'coast' || action.type === 'burn' || action.type === 'well_transfer'
 
   const players = beforeState.players.map(beforePlayer => {
     const afterPlayer = afterState.players.find(p => p.id === beforePlayer.id)
@@ -191,7 +218,9 @@ function createIntermediateGameState(beforeState: GameState, afterState: GameSta
 
   let missiles = beforeState.missiles
   if (action.type === 'fire_weapon') {
-    const newMissiles = afterState.missiles.filter(am => !beforeState.missiles.find(bm => bm.id === am.id))
+    const newMissiles = afterState.missiles.filter(
+      am => !beforeState.missiles.find(bm => bm.id === am.id)
+    )
     missiles = [...missiles, ...newMissiles]
   }
 
@@ -204,7 +233,8 @@ function computeAnimatedDisplayState(
   action: PlayerAction,
   progress: number
 ): DisplayState {
-  const isMovementAction = action.type === 'coast' || action.type === 'burn' || action.type === 'well_transfer'
+  const isMovementAction =
+    action.type === 'coast' || action.type === 'burn' || action.type === 'well_transfer'
   const isFireAction = action.type === 'fire_weapon'
 
   const ships: DisplayShip[] = beforeState.players.map((beforePlayer, index) => {
@@ -215,7 +245,13 @@ function computeAnimatedDisplayState(
     if (isMovementAction && action.playerId === beforePlayer.id && afterPlayer) {
       const afterPos = calculateShipScreenPosition(afterPlayer.ship)
       const afterRotation = calculateShipRotation(afterPlayer.ship)
-      const wellPos = getGravityWellPositionBase(beforePlayer.ship.wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
+      const wellPos = getGravityWellPositionBase(
+        beforePlayer.ship.wellId,
+        GRAVITY_WELLS,
+        BOARD_CENTER_X,
+        BOARD_CENTER_Y,
+        BOARD_SCALE_FACTOR
+      )
 
       position = interpolateArcPosition(position, afterPos, wellPos, progress)
       rotation = interpolateAngle(rotation, afterRotation, progress)
@@ -280,7 +316,9 @@ function computeAnimatedDisplayState(
 
   // New missiles during fire_weapon
   if (isFireAction) {
-    const newMissiles = afterState.missiles.filter(am => !beforeState.missiles.find(bm => bm.id === am.id))
+    const newMissiles = afterState.missiles.filter(
+      am => !beforeState.missiles.find(bm => bm.id === am.id)
+    )
 
     // Group new missiles by target location to calculate spread offsets
     // Also include existing missiles at same locations
@@ -298,7 +336,13 @@ function computeAnimatedDisplayState(
 
       const startPos = calculateShipScreenPosition(owner.ship)
       const baseEndPos = calculateShipScreenPosition(missile)
-      const wellPos = getGravityWellPositionBase(owner.ship.wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR)
+      const wellPos = getGravityWellPositionBase(
+        owner.ship.wellId,
+        GRAVITY_WELLS,
+        BOARD_CENTER_X,
+        BOARD_CENTER_Y,
+        BOARD_SCALE_FACTOR
+      )
 
       const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
       const ringConfig = well?.rings.find(r => r.ring === missile.ring)
@@ -311,7 +355,11 @@ function computeAnimatedDisplayState(
       const locationKey = `${missile.wellId}:${missile.ring}:${missile.sector}`
       const missilesInSector = newMissilesByLocation.get(locationKey) || []
       const indexInSector = missilesInSector.indexOf(missile)
-      const spreadOffset = calculateMissileSpreadOffset(indexInSector, missilesInSector.length, angle)
+      const spreadOffset = calculateMissileSpreadOffset(
+        indexInSector,
+        missilesInSector.length,
+        angle
+      )
 
       const endPos = {
         x: baseEndPos.x + spreadOffset.x,
@@ -377,26 +425,38 @@ export function BoardProvider({ children }: BoardProviderProps) {
   })
 
   // Add a new floating number
-  const addFloatingNumber = useCallback((x: number, y: number, value: number | string, type: FloatingNumberType) => {
-    const id = `floating-${floatingNumberIdRef.current++}`
-    const newNumber: FloatingNumber = {
-      id,
-      x,
-      y,
-      value,
-      type,
-      startTime: performance.now(),
-      duration: FLOATING_NUMBER_DURATION,
-    }
-    setFloatingNumbers(prev => [...prev, newNumber])
-  }, [])
+  const addFloatingNumber = useCallback(
+    (x: number, y: number, value: number | string, type: FloatingNumberType) => {
+      const id = `floating-${floatingNumberIdRef.current++}`
+      const newNumber: FloatingNumber = {
+        id,
+        x,
+        y,
+        value,
+        type,
+        startTime: performance.now(),
+        duration: FLOATING_NUMBER_DURATION,
+      }
+      setFloatingNumbers(prev => [...prev, newNumber])
+    },
+    []
+  )
 
-  const helpers = useMemo(() => ({
-    getGravityWellPosition: (wellId: string) =>
-      getGravityWellPositionBase(wellId, GRAVITY_WELLS, BOARD_CENTER_X, BOARD_CENTER_Y, BOARD_SCALE_FACTOR),
-    getSectorRotationOffset: (wellId: string) =>
-      getSectorRotationOffsetBase(wellId, GRAVITY_WELLS),
-  }), [])
+  const helpers = useMemo(
+    () => ({
+      getGravityWellPosition: (wellId: string) =>
+        getGravityWellPositionBase(
+          wellId,
+          GRAVITY_WELLS,
+          BOARD_CENTER_X,
+          BOARD_CENTER_Y,
+          BOARD_SCALE_FACTOR
+        ),
+      getSectorRotationOffset: (wellId: string) =>
+        getSectorRotationOffsetBase(wellId, GRAVITY_WELLS),
+    }),
+    []
+  )
 
   // Cleanup on unmount
   useEffect(() => {
@@ -447,26 +507,23 @@ export function BoardProvider({ children }: BoardProviderProps) {
   }, [floatingNumbers.length > 0 || weaponEffects.length > 0]) // Only re-run when transitioning between 0 and non-0
 
   // Helper to add weapon effect
-  const addWeaponEffect = useCallback((
-    type: 'laser' | 'railgun',
-    startX: number,
-    startY: number,
-    endX: number,
-    endY: number
-  ) => {
-    const id = `weapon-${weaponEffectIdRef.current++}`
-    const newEffect: WeaponEffect = {
-      id,
-      type,
-      startX,
-      startY,
-      endX,
-      endY,
-      startTime: performance.now(),
-      duration: WEAPON_EFFECT_DURATIONS[type],
-    }
-    setWeaponEffects(prev => [...prev, newEffect])
-  }, [])
+  const addWeaponEffect = useCallback(
+    (type: 'laser' | 'railgun', startX: number, startY: number, endX: number, endY: number) => {
+      const id = `weapon-${weaponEffectIdRef.current++}`
+      const newEffect: WeaponEffect = {
+        id,
+        type,
+        startX,
+        startY,
+        endX,
+        endY,
+        startTime: performance.now(),
+        duration: WEAPON_EFFECT_DURATIONS[type],
+      }
+      setWeaponEffects(prev => [...prev, newEffect])
+    },
+    []
+  )
 
   // Track which action index we last spawned weapon effects for
   const lastWeaponEffectActionRef = useRef(-1)
@@ -525,48 +582,49 @@ export function BoardProvider({ children }: BoardProviderProps) {
         } else {
           // Check damage/shield changes for each target (laser/railgun only)
           for (const targetId of fireAction.data.targetPlayerIds) {
-          const targetBefore = beforeState.players.find(p => p.id === targetId)
-          const targetAfter = afterState.players.find(p => p.id === targetId)
-          if (!targetBefore || !targetAfter) continue
+            const targetBefore = beforeState.players.find(p => p.id === targetId)
+            const targetAfter = afterState.players.find(p => p.id === targetId)
+            if (!targetBefore || !targetAfter) continue
 
-          const position = calculateShipScreenPosition(targetAfter.ship)
+            const position = calculateShipScreenPosition(targetAfter.ship)
 
-          // Hull damage (red) - when HP decreases
-          const hullDamage = targetBefore.ship.hitPoints - targetAfter.ship.hitPoints
+            // Hull damage (red) - when HP decreases
+            const hullDamage = targetBefore.ship.hitPoints - targetAfter.ship.hitPoints
 
-          // Shield absorption (blue) - detected by shield energy depletion
-          const shieldsBefore = targetBefore.ship.subsystems.find(s => s.type === 'shields')
-          const shieldsAfter = targetAfter.ship.subsystems.find(s => s.type === 'shields')
-          const shieldEnergyBefore = shieldsBefore?.allocatedEnergy || 0
-          const shieldEnergyAfter = shieldsAfter?.allocatedEnergy || 0
-          const shieldAbsorbed = shieldEnergyBefore - shieldEnergyAfter
+            // Shield absorption (blue) - detected by shield energy depletion
+            const shieldsBefore = targetBefore.ship.subsystems.find(s => s.type === 'shields')
+            const shieldsAfter = targetAfter.ship.subsystems.find(s => s.type === 'shields')
+            const shieldEnergyBefore = shieldsBefore?.allocatedEnergy || 0
+            const shieldEnergyAfter = shieldsAfter?.allocatedEnergy || 0
+            const shieldAbsorbed = shieldEnergyBefore - shieldEnergyAfter
 
-          // Check if a subsystem became broken (critical hit indicator)
-          const brokenSubsystem = targetAfter.ship.subsystems.find(
-            (s, i) => s.isBroken && !targetBefore.ship.subsystems[i]?.isBroken
-          )
+            // Check if a subsystem became broken (critical hit indicator)
+            const brokenSubsystem = targetAfter.ship.subsystems.find(
+              (s, i) => s.isBroken && !targetBefore.ship.subsystems[i]?.isBroken
+            )
 
-          // Miss detection: no hull damage AND no shield absorption AND no subsystem broken
-          // This indicates the d10 roll was 1 (miss)
-          if (hullDamage === 0 && shieldAbsorbed === 0 && !brokenSubsystem) {
-            addFloatingNumber(position.x, position.y, 'MISS!', 'miss')
-          } else {
-            // Critical hit: subsystem became broken
-            if (brokenSubsystem) {
-              const subsystemName = brokenSubsystem.type.charAt(0).toUpperCase() + brokenSubsystem.type.slice(1)
-              addFloatingNumber(position.x, position.y, `CRIT! ${subsystemName}`, 'critical')
-            }
+            // Miss detection: no hull damage AND no shield absorption AND no subsystem broken
+            // This indicates the d10 roll was 1 (miss)
+            if (hullDamage === 0 && shieldAbsorbed === 0 && !brokenSubsystem) {
+              addFloatingNumber(position.x, position.y, 'MISS!', 'miss')
+            } else {
+              // Critical hit: subsystem became broken
+              if (brokenSubsystem) {
+                const subsystemName =
+                  brokenSubsystem.type.charAt(0).toUpperCase() + brokenSubsystem.type.slice(1)
+                addFloatingNumber(position.x, position.y, `CRIT! ${subsystemName}`, 'critical')
+              }
 
-            // Show damage numbers
-            if (hullDamage > 0) {
-              addFloatingNumber(position.x, position.y, hullDamage, 'damage')
-            }
+              // Show damage numbers
+              if (hullDamage > 0) {
+                addFloatingNumber(position.x, position.y, hullDamage, 'damage')
+              }
 
-            if (shieldAbsorbed > 0) {
-              addFloatingNumber(position.x, position.y, shieldAbsorbed, 'shield')
+              if (shieldAbsorbed > 0) {
+                addFloatingNumber(position.x, position.y, shieldAbsorbed, 'shield')
+              }
             }
           }
-        }
         } // end else (non-missiles)
       }
 
@@ -578,7 +636,8 @@ export function BoardProvider({ children }: BoardProviderProps) {
         // All done - spawn heat floating numbers for active player
         const originalBeforeState = anim.current.originalBeforeState
         if (originalBeforeState) {
-          const activePlayerId = originalBeforeState.players[originalBeforeState.activePlayerIndex]?.id
+          const activePlayerId =
+            originalBeforeState.players[originalBeforeState.activePlayerIndex]?.id
 
           for (const playerAfter of afterState.players) {
             if (playerAfter.id !== activePlayerId) continue
@@ -634,7 +693,12 @@ export function BoardProvider({ children }: BoardProviderProps) {
         setDisplayState(gameStateToDisplayState(state))
       },
 
-      startAnimation: (beforeState: GameState, afterState: GameState, actions: PlayerAction[], onComplete: () => void) => {
+      startAnimation: (
+        beforeState: GameState,
+        afterState: GameState,
+        actions: PlayerAction[],
+        onComplete: () => void
+      ) => {
         // Cancel any running animation
         if (anim.current.frameId !== null) {
           cancelAnimationFrame(anim.current.frameId)

@@ -8,9 +8,18 @@ import { createInitialShipState } from '@dangerous-inclinations/engine'
 /**
  * Helper to create a test player with mission fields
  */
-function createTestPlayer(id: string, name: string, color: string, shipConfig: {
-  wellId: string, ring: number, sector: number, facing: 'prograde' | 'retrograde'
-}, shipOverrides?: Partial<ReturnType<typeof createInitialShipState>>): Player {
+function createTestPlayer(
+  id: string,
+  name: string,
+  color: string,
+  shipConfig: {
+    wellId: string
+    ring: number
+    sector: number
+    facing: 'prograde' | 'retrograde'
+  },
+  shipOverrides?: Partial<ReturnType<typeof createInitialShipState>>
+): Player {
   return {
     id,
     name,
@@ -135,14 +144,20 @@ describe('Bot AI - Action Generation', () => {
 
   it('should generate vent_heat action when heat is high', () => {
     const players: Player[] = [
-      createTestPlayer('bot1', 'Hot Bot', '#4caf50', {
-        wellId: 'blackhole',
-        ring: 3,
-        sector: 0,
-        facing: 'prograde',
-      }, {
-        heat: { currentHeat: 8 }, // 80% heat
-      }),
+      createTestPlayer(
+        'bot1',
+        'Hot Bot',
+        '#4caf50',
+        {
+          wellId: 'blackhole',
+          ring: 3,
+          sector: 0,
+          facing: 'prograde',
+        },
+        {
+          heat: { currentHeat: 8 }, // 80% heat
+        }
+      ),
     ]
 
     const gameState = createTestGameState(players)
@@ -242,14 +257,20 @@ describe('Bot AI - Tactical Analysis', () => {
         sector: 6,
         facing: 'prograde',
       }),
-      createTestPlayer('player2', 'Damaged Enemy', '#ff9800', {
-        wellId: 'blackhole',
-        ring: 3,
-        sector: 18,
-        facing: 'prograde',
-      }, {
-        hitPoints: 3,
-      }),
+      createTestPlayer(
+        'player2',
+        'Damaged Enemy',
+        '#ff9800',
+        {
+          wellId: 'blackhole',
+          ring: 3,
+          sector: 18,
+          facing: 'prograde',
+        },
+        {
+          hitPoints: 3,
+        }
+      ),
       createTestPlayer('bot1', 'Bot Ship', '#4caf50', {
         wellId: 'blackhole',
         ring: 3,
@@ -358,22 +379,28 @@ describe('Bot AI - Edge Cases', () => {
         sector: 6,
         facing: 'prograde',
       }),
-      createTestPlayer('bot1', 'Damaged Bot', '#4caf50', {
-        wellId: 'blackhole',
-        ring: 5, // On outer ring for transfer possibility (Ring 5 is now outermost)
-        sector: 20, // At a valid transfer sector (Alpha outbound: BH R5 S20 → Alpha R3 S5)
-        facing: 'prograde',
-      }, {
-        hitPoints: 2, // Critical health (20%)
-      }),
+      createTestPlayer(
+        'bot1',
+        'Damaged Bot',
+        '#4caf50',
+        {
+          wellId: 'blackhole',
+          ring: 5, // On outer ring for transfer possibility (Ring 5 is now outermost)
+          sector: 20, // At a valid transfer sector (Alpha outbound: BH R5 S20 → Alpha R3 S5)
+          facing: 'prograde',
+        },
+        {
+          hitPoints: 2, // Critical health (20%)
+        }
+      ),
     ]
 
     const gameState = createTestGameState(players)
     const result = botDecideActions(gameState, 'bot1', createBotParameters('hard'))
 
     // Decision log should mention critical health
-    const mentionsCriticalHealth = result.log.reasoning.some(r =>
-      r.toLowerCase().includes('critical') || r.toLowerCase().includes('health')
+    const mentionsCriticalHealth = result.log.reasoning.some(
+      r => r.toLowerCase().includes('critical') || r.toLowerCase().includes('health')
     )
     expect(mentionsCriticalHealth).toBe(true)
 

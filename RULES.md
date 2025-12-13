@@ -38,6 +38,7 @@ This document contains the comprehensive rules for Dangerous Inclinations.
 Ships have a **dissipation capacity** (base: 5) that represents their ability to radiate heat.
 
 **Heat Lifecycle:**
+
 1. **During turn**: Subsystem usage generates heat (engines, rotation, weapons)
 2. **Turn ends**: Heat persists on ship
 3. **When your next turn begins**: Heat is evaluated
@@ -48,6 +49,7 @@ Ships have a **dissipation capacity** (base: 5) that represents their ability to
 5. **Repeat**: Generate heat during your turn, evaluate at start of next turn
 
 This simple model makes heat easy to track:
+
 - Heat damage is applied BEFORE you see your turn (you see the damage immediately)
 - Each turn starts fresh after heat is evaluated
 - You only need to track heat generated THIS turn
@@ -56,6 +58,7 @@ This simple model makes heat easy to track:
 ### Critical Hits
 
 When a weapon hits a target, there is a **10% chance** of a critical hit:
+
 - A random powered subsystem on the target is unpowered (energy returned to reactor)
 - The unpowered subsystem's energy is converted to heat on the target ship
 - This can cascade heat damage if the target already has high heat
@@ -96,21 +99,21 @@ The game takes place in a multi-gravity-well system with a central **Black Hole*
 
 #### Black Hole Rings (5 rings, 24 sectors each)
 
-| Ring | Sectors | Velocity | Description |
-|------|---------|----------|-------------|
-| **Ring 1** | 24 | 8 | Innermost, fastest |
-| **Ring 2** | 24 | 6 | |
-| **Ring 3** | 24 | 4 | |
-| **Ring 4** | 24 | 2 | |
-| **Ring 5** | 24 | 1 | Outermost, transfer ring |
+| Ring       | Sectors | Velocity | Description              |
+| ---------- | ------- | -------- | ------------------------ |
+| **Ring 1** | 24      | 8        | Innermost, fastest       |
+| **Ring 2** | 24      | 6        |                          |
+| **Ring 3** | 24      | 4        |                          |
+| **Ring 4** | 24      | 2        |                          |
+| **Ring 5** | 24      | 1        | Outermost, transfer ring |
 
 #### Planet Rings (3 rings, 24 sectors each)
 
-| Ring | Sectors | Velocity | Description |
-|------|---------|----------|-------------|
-| **Ring 1** | 24 | 4 | Innermost |
-| **Ring 2** | 24 | 2 | |
-| **Ring 3** | 24 | 1 | Outermost, transfer ring |
+| Ring       | Sectors | Velocity | Description              |
+| ---------- | ------- | -------- | ------------------------ |
+| **Ring 1** | 24      | 4        | Innermost                |
+| **Ring 2** | 24      | 2        |                          |
+| **Ring 3** | 24      | 1        | Outermost, transfer ring |
 
 **Velocity** determines how many sectors a ship moves per turn during orbital movement. Higher velocity rings move ships faster through space.
 
@@ -118,14 +121,14 @@ The game takes place in a multi-gravity-well system with a central **Black Hole*
 
 Six planets orbit the black hole at fixed positions (60° apart):
 
-| Planet | Angle | Description |
-|--------|-------|-------------|
-| **Alpha** | 0° | Top |
-| **Beta** | 60° | |
-| **Gamma** | 120° | |
-| **Delta** | 180° | Bottom |
-| **Epsilon** | 240° | |
-| **Zeta** | 300° | |
+| Planet      | Angle | Description |
+| ----------- | ----- | ----------- |
+| **Alpha**   | 0°    | Top         |
+| **Beta**    | 60°   |             |
+| **Gamma**   | 120°  |             |
+| **Delta**   | 180°  | Bottom      |
+| **Epsilon** | 240°  |             |
+| **Zeta**    | 300°  |             |
 
 Planets have **velocity = 0** (stationary positions), simplifying gameplay. Transfer sectors remain constant.
 
@@ -198,6 +201,7 @@ Initiates a transfer to a different ring. Three burn intensities available:
 Ships can transfer between gravity wells using elliptic Hohmann-like transfer orbits. This allows travel between the central Black Hole and the six orbiting Planets.
 
 **Requirements**:
+
 - Ship must be on the **outermost ring** of current gravity well:
   - Black Hole: **Ring 5**
   - Planets: **Ring 3**
@@ -206,16 +210,17 @@ Ships can transfer between gravity wells using elliptic Hohmann-like transfer or
 
 **Transfer Sectors** (Fixed):
 
-| Planet | Outbound (BH→Planet) | Return (Planet→BH) |
-|--------|---------------------|-------------------|
-| **Alpha** | BH R5 S20 → Alpha R3 S5 | Alpha R3 S18 → BH R5 S3 |
-| **Beta**  | BH R5 S0 → Beta R3 S5   | Beta R3 S18 → BH R5 S7 |
-| **Gamma** | BH R5 S4 → Gamma R3 S5  | Gamma R3 S18 → BH R5 S11 |
-| **Delta** | BH R5 S8 → Delta R3 S5  | Delta R3 S18 → BH R5 S15 |
+| Planet      | Outbound (BH→Planet)      | Return (Planet→BH)         |
+| ----------- | ------------------------- | -------------------------- |
+| **Alpha**   | BH R5 S20 → Alpha R3 S5   | Alpha R3 S18 → BH R5 S3    |
+| **Beta**    | BH R5 S0 → Beta R3 S5     | Beta R3 S18 → BH R5 S7     |
+| **Gamma**   | BH R5 S4 → Gamma R3 S5    | Gamma R3 S18 → BH R5 S11   |
+| **Delta**   | BH R5 S8 → Delta R3 S5    | Delta R3 S18 → BH R5 S15   |
 | **Epsilon** | BH R5 S12 → Epsilon R3 S5 | Epsilon R3 S18 → BH R5 S19 |
-| **Zeta** | BH R5 S16 → Zeta R3 S5  | Zeta R3 S18 → BH R5 S23 |
+| **Zeta**    | BH R5 S16 → Zeta R3 S5    | Zeta R3 S18 → BH R5 S23    |
 
 **Transfer Mechanics**:
+
 1. Transfer is **instantaneous** - ship arrives at destination immediately
 2. Ship arrives at the **designated arrival sector** on the destination well's outermost ring
 3. After transfer, orbital movement applies normally on the next coast/turn
@@ -223,12 +228,14 @@ Ships can transfer between gravity wells using elliptic Hohmann-like transfer or
 5. No reaction mass cost (different from ring burns)
 
 **Visualization**:
+
 - **Yellow arcs**: Outbound transfers (Black Hole → Planet)
 - **Cyan arcs**: Return transfers (Planet → Black Hole)
 - Arcs curve **outward** (away from Black Hole) representing elliptic trajectories
 - Arrows indicate transfer direction toward the destination
 
 **Tabletop Implementation**:
+
 - Planets are at fixed positions (velocity = 0) so transfer sectors never change
 - Players can reference a fixed transfer chart
 - This simplifies gameplay while maintaining orbital mechanics flavor
@@ -248,21 +255,23 @@ During a burn, players can adjust their destination sector within a range determ
 **Adjustment Range**: `-(velocity - 1)` to `+3` sectors
 
 | Ring Velocity | Min Adjustment | Max Adjustment |
-|---------------|----------------|----------------|
-| 8 | -7 | +3 |
-| 6 | -5 | +3 |
-| 4 | -3 | +3 |
-| 2 | -1 | +3 |
-| 1 | 0 | +3 |
+| ------------- | -------------- | -------------- |
+| 8             | -7             | +3             |
+| 6             | -5             | +3             |
+| 4             | -3             | +3             |
+| 2             | -1             | +3             |
+| 1             | 0              | +3             |
 
 **Adjustment Cost**: Each sector of adjustment costs **1 additional reaction mass**
 
 **Examples**:
+
 - Soft burn (1 mass) with +2 adjustment = 3 total mass
 - Medium burn (2 mass) with -3 adjustment = 5 total mass
 - Perfect Hohmann (0 adjustment) = base burn cost only
 
 **Mechanics**:
+
 - Adjustment is applied after orbital movement and sector mapping
 - Wraps around at ring boundaries (sector 0 wraps to max sector)
 - Negative adjustment slows effective movement, positive speeds it up
@@ -277,6 +286,7 @@ All rings have **24 sectors**, so sector mapping is **1:1** (direct mapping):
 - No calculation needed - your sector stays the same
 
 **With Sector Adjustment**:
+
 - After base mapping, apply your chosen sector adjustment
 - Final sector = (base sector + adjustment) mod 24
 - Example: Start at S5, +3 adjustment → arrive at S8
@@ -302,12 +312,12 @@ All rings have **24 sectors**, so sector mapping is **1:1** (direct mapping):
 **Fuel Scoop Recovery by Ring** (Black Hole):
 
 | Ring | Velocity | Mass Recovered |
-|------|----------|----------------|
-| R1 | 8 | 8 |
-| R2 | 6 | 6 |
-| R3 | 4 | 4 |
-| R4 | 2 | 2 |
-| R5 | 1 | 1 |
+| ---- | -------- | -------------- |
+| R1   | 8        | 8              |
+| R2   | 6        | 6              |
+| R3   | 4        | 4              |
+| R4   | 2        | 2              |
+| R5   | 1        | 1              |
 
 Inner rings recover more mass due to denser orbital debris closer to the black hole.
 
@@ -365,10 +375,12 @@ When a weapon fires **after** the movement action:
 **When a player executes their turn**, actions are processed in phases:
 
 **Phase 1: Energy Management**:
+
 1. **Energy Allocation** (to subsystems)
 2. **Energy Deallocation** (from subsystems, unlimited)
 
 **Phase 2: Tactical Sequence Execution** (actions execute in player-defined order):
+
 - **Rotation** (if sequenced and facing change requested)
   - Generates heat = allocated energy to rotation subsystem
 - **Movement** (if sequenced: coast or burn)
@@ -379,6 +391,7 @@ When a weapon fires **after** the movement action:
   - Each fired weapon generates heat = allocated energy
 
 **End of Turn**:
+
 - Reset subsystem usage flags (prepare for next turn)
 - All subsystems' "used this turn" flags are cleared
 

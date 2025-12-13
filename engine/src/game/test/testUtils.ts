@@ -1,18 +1,23 @@
-import { executeTurn, type TurnResult } from '../turns'
-import type { GameState, Player, ShipState } from '../../types/game'
+import { executeTurn, type TurnResult } from "../turns";
+import type { GameState, Player, ShipState } from "../../models/game";
 
 /**
  * Helper to execute a turn with actions for the active player
  * Automatically assigns the correct playerId to all actions
  */
-export function executeTurnWithActions(gameState: GameState, ...actions: any[]): TurnResult {
-  const activePlayer = gameState.players[gameState.activePlayerIndex]
+export function executeTurnWithActions(
+  gameState: GameState,
+  ...actions: any[]
+): TurnResult {
+  const activePlayer = gameState.players[gameState.activePlayerIndex];
 
   const actionsWithCorrectPlayer = actions
-    .map(action => (action ? { ...action, playerId: activePlayer.id } : action))
-    .filter(Boolean)
+    .map((action) =>
+      action ? { ...action, playerId: activePlayer.id } : action
+    )
+    .filter(Boolean);
 
-  return executeTurn(gameState, actionsWithCorrectPlayer)
+  return executeTurn(gameState, actionsWithCorrectPlayer);
 }
 
 /**
@@ -33,7 +38,7 @@ export function createTestPlayer(
     completedMissionCount: 0,
     cargo: [],
     hasDeployed: true,
-  }
+  };
 }
 
 /**
@@ -46,8 +51,8 @@ export function createTestGameStateWithPlayers(players: Player[]): GameState {
     players,
     turnLog: [],
     missiles: [],
-    status: 'active',
-    phase: 'active',
+    status: "active",
+    phase: "active",
     stations: [],
-  }
+  };
 }

@@ -8,7 +8,10 @@ import { getGravityWellVisual, getRingRadius } from '@/constants/visualConfig'
 function lightenColor(hex: string, amount: number): string {
   const num = parseInt(hex.replace('#', ''), 16)
   const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * amount))
-  const g = Math.min(255, Math.floor(((num >> 8) & 0x00ff) + (255 - ((num >> 8) & 0x00ff)) * amount))
+  const g = Math.min(
+    255,
+    Math.floor(((num >> 8) & 0x00ff) + (255 - ((num >> 8) & 0x00ff)) * amount)
+  )
   const b = Math.min(255, Math.floor((num & 0x0000ff) + (255 - (num & 0x0000ff)) * amount))
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
 }
@@ -74,12 +77,7 @@ interface GravityWellProps {
 /**
  * Renders a single gravity well with its center, rings, sectors, and transfer indicators
  */
-export function GravityWell({
-  well,
-  wellColor,
-  wellRadius,
-  transferPoints,
-}: GravityWellProps) {
+export function GravityWell({ well, wellColor, wellRadius, transferPoints }: GravityWellProps) {
   const { scaleFactor, getGravityWellPosition, getSectorRotationOffset } = useBoardContext()
 
   const position = getGravityWellPosition(well.id)
@@ -154,9 +152,7 @@ export function GravityWell({
               // Sector number position - in the MIDDLE of the sector (between tick marks)
               // Add 0.5 to position between sector boundaries, plus rotation offset
               const sectorCenterAngle =
-                ((i + 0.5) / config.sectors) * 2 * Math.PI -
-                Math.PI / 2 +
-                rotationOffset
+                ((i + 0.5) / config.sectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
               const sectorLabelRadius = radius - 25
               const sectorLabelX = position.x + sectorLabelRadius * Math.cos(sectorCenterAngle)
               const sectorLabelY = position.y + sectorLabelRadius * Math.sin(sectorCenterAngle)

@@ -1,22 +1,16 @@
 interface ShieldBubbleProps {
   x: number
   y: number
-  allocation: number     // Current energy allocated (1-4)
-  maxAllocation: number  // Max energy possible (4)
-  shipSize: number       // Base ship size for scaling
+  allocation: number // Current energy allocated (1-4)
+  maxAllocation: number // Max energy possible (4)
+  shipSize: number // Base ship size for scaling
 }
 
 /**
  * ShieldBubble - Renders a semi-transparent blue bubble around a ship
  * when shields are powered. Size scales with energy allocation.
  */
-export function ShieldBubble({
-  x,
-  y,
-  allocation,
-  maxAllocation,
-  shipSize,
-}: ShieldBubbleProps) {
+export function ShieldBubble({ x, y, allocation, maxAllocation, shipSize }: ShieldBubbleProps) {
   // Base radius is 2x ship size
   const baseRadius = shipSize * 2.5
   // Scale from 60% to 100% based on allocation

@@ -82,7 +82,9 @@ export function LobbyScreen() {
                 borderRadius: 1,
                 bgcolor: slot.playerId ? 'action.selected' : 'action.hover',
                 border: '1px solid',
-                borderColor: slot.playerId ? PLAYER_COLORS[index % PLAYER_COLORS.length] : 'divider',
+                borderColor: slot.playerId
+                  ? PLAYER_COLORS[index % PLAYER_COLORS.length]
+                  : 'divider',
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -162,9 +164,9 @@ export function LobbyScreen() {
       {/* Instructions */}
       <Paper sx={{ p: 2, maxWidth: 500, bgcolor: 'background.paper' }}>
         <Typography variant="body2" color="text.secondary" align="center">
-          Add bots to fill player slots. You need at least 2 players to start.
-          Each player will receive 3 missions: 1 destroy mission and 2 cargo delivery missions.
-          First to complete all 3 missions wins!
+          Add bots to fill player slots. You need at least 2 players to start. Each player will
+          receive 3 missions: 1 destroy mission and 2 cargo delivery missions. First to complete all
+          3 missions wins!
         </Typography>
       </Paper>
     </Box>

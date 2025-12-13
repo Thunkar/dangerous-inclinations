@@ -65,23 +65,29 @@ export function DeploymentBoard({
   }, [])
 
   // Pan handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
-      // Middle click or Alt+click to pan
-      setIsPanning(true)
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-      e.preventDefault()
-    }
-  }, [pan])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        // Middle click or Alt+click to pan
+        setIsPanning(true)
+        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+        e.preventDefault()
+      }
+    },
+    [pan]
+  )
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y,
-      })
-    }
-  }, [isPanning, panStart])
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (isPanning) {
+        setPan({
+          x: e.clientX - panStart.x,
+          y: e.clientY - panStart.y,
+        })
+      }
+    },
+    [isPanning, panStart]
+  )
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false)
@@ -116,14 +122,7 @@ export function DeploymentBoard({
       return (
         <g key={player.id}>
           <circle cx={x} cy={y} r={12} fill={color} stroke="#fff" strokeWidth={2} />
-          <text
-            x={x}
-            y={y + 4}
-            textAnchor="middle"
-            fontSize={10}
-            fill="#fff"
-            fontWeight="bold"
-          >
+          <text x={x} y={y + 4} textAnchor="middle" fontSize={10} fill="#fff" fontWeight="bold">
             {player.name.charAt(0)}
           </text>
         </g>
@@ -167,13 +166,7 @@ export function DeploymentBoard({
 
         {/* Black hole center */}
         <circle cx={centerX} cy={centerY} r={30} fill="#111" stroke="#333" strokeWidth={2} />
-        <text
-          x={centerX}
-          y={centerY + 4}
-          textAnchor="middle"
-          fontSize={10}
-          fill="#666"
-        >
+        <text x={centerX} y={centerY + 4} textAnchor="middle" fontSize={10} fill="#666">
           BH
         </text>
 
@@ -251,8 +244,8 @@ export function DeploymentBoard({
                   isHovered
                     ? 'rgba(33, 150, 243, 0.6)'
                     : enabled
-                    ? 'rgba(33, 150, 243, 0.3)'
-                    : 'rgba(100, 100, 100, 0.2)'
+                      ? 'rgba(33, 150, 243, 0.3)'
+                      : 'rgba(100, 100, 100, 0.2)'
                 }
                 stroke={isHovered ? '#2196f3' : enabled ? 'rgba(33, 150, 243, 0.6)' : '#444'}
                 strokeWidth={isHovered ? 2 : 1}

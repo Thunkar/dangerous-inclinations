@@ -1,21 +1,30 @@
-import type { GameState, TurnLogEntry, PlayerAction, GameStatus } from '../types/game'
-import { processActions } from './actionProcessors'
-import { processMissiles } from './missiles'
-import { calculateHeatDamage, resetHeat } from './heat'
-import { applyDirectDamage } from './damage'
-import { processDestroyMissionCompletion, processCargoMissionCompletion, checkForWinner } from './missions/missionChecks'
-import { processCargoAtStation } from './cargo'
-import { updateStationPositions } from './stations'
-import { processRespawn, needsRespawn } from './respawn'
-import { GRAVITY_WELLS } from '../constants/gravityWells'
+import type {
+  GameState,
+  TurnLogEntry,
+  PlayerAction,
+  GameStatus,
+} from "../models/game";
+import { processActions } from "./actionProcessors";
+import { processMissiles } from "./missiles";
+import { calculateHeatDamage, resetHeat } from "./heat";
+import { applyDirectDamage } from "./damage";
+import {
+  processDestroyMissionCompletion,
+  processCargoMissionCompletion,
+  checkForWinner,
+} from "./missions/missionChecks";
+import { processCargoAtStation } from "./cargo";
+import { updateStationPositions } from "./stations";
+import { processRespawn, needsRespawn } from "./respawn";
+import { GRAVITY_WELLS } from "../models/gravityWells";
 
 /**
  * Result of executing a complete game turn
  */
 export interface TurnResult {
-  gameState: GameState
-  logEntries: TurnLogEntry[]
-  errors?: string[]
+  gameState: GameState;
+  logEntries: TurnLogEntry[];
+  errors?: string[];
 }
 
 /**
@@ -24,23 +33,29 @@ export interface TurnResult {
 function createGameStateSnapshot(gameState: GameState): GameState {
   return {
     ...gameState,
-    players: gameState.players.map(player => ({
+    players: gameState.players.map((player) => ({
       ...player,
       ship: {
         ...player.ship,
-        subsystems: player.ship.subsystems.map(s => ({ ...s })),
+        subsystems: player.ship.subsystems.map((s) => ({ ...s })),
         reactor: { ...player.ship.reactor },
         heat: { ...player.ship.heat },
-        transferState: player.ship.transferState ? { ...player.ship.transferState } : null,
+        transferState: player.ship.transferState
+          ? { ...player.ship.transferState }
+          : null,
       },
       // Deep copy mission system fields
-      missions: player.missions.map(m => ({ ...m })),
-      cargo: player.cargo.map(c => ({ ...c })),
+      missions: player.missions.map((m) => ({ ...m })),
+      cargo: player.cargo.map((c) => ({ ...c })),
     })),
     turnLog: [...gameState.turnLog],
-    missiles: gameState.missiles ? gameState.missiles.map(m => ({ ...m })) : [], // Deep copy missiles array
-    stations: gameState.stations ? gameState.stations.map(s => ({ ...s })) : [], // Deep copy stations
-  }
+    missiles: gameState.missiles
+      ? gameState.missiles.map((m) => ({ ...m }))
+      : [], // Deep copy missiles array
+    stations: gameState.stations
+      ? gameState.stations.map((s) => ({ ...s }))
+      : [], // Deep copy stations
+  };
 }
 
 /**
@@ -68,91 +83,109 @@ function createGameStateSnapshot(gameState: GameState): GameState {
  * 2. Move to next player
  * 3. Prepare next player's turn (resolve their transfer if arriving)
  */
-export function executeTurn(gameState: GameState, actions: PlayerAction[]): TurnResult {
-  const activePlayerIndex = gameState.activePlayerIndex
-  let activePlayer = gameState.players[activePlayerIndex]
-  const allLogEntries: TurnLogEntry[] = []
+export function executeTurn(
+  gameState: GameState,
+  actions: PlayerAction[],
+): TurnResult {
+  const activePlayerIndex = gameState.activePlayerIndex;
+  let activePlayer = gameState.players[activePlayerIndex];
+  const allLogEntries: TurnLogEntry[] = [];
 
   // Handle respawn at the start of a dead player's turn
-  let workingState = gameState
+  let workingState = gameState;
   if (needsRespawn(activePlayer)) {
-    workingState = processRespawn(workingState, activePlayer.id)
-    activePlayer = workingState.players[activePlayerIndex]
+    workingState = processRespawn(workingState, activePlayer.id);
+    activePlayer = workingState.players[activePlayerIndex];
     allLogEntries.push({
       turn: workingState.turn,
       playerId: activePlayer.id,
       playerName: activePlayer.name,
-      action: 'Respawn',
+      action: "Respawn",
       result: `Respawned at BH Ring 4, Sector ${activePlayer.ship.sector}`,
-    })
+    });
   }
 
   // Validate all actions belong to the active player
-  const wrongPlayerActions = actions.filter(a => a.playerId !== activePlayer.id)
+  const wrongPlayerActions = actions.filter(
+    (a) => a.playerId !== activePlayer.id,
+  );
   if (wrongPlayerActions.length > 0) {
     return {
       gameState,
       logEntries: [],
-      errors: ['All actions must belong to the active player'],
-    }
+      errors: ["All actions must belong to the active player"],
+    };
   }
 
   // Create a snapshot of the game state
-  const snapshot = createGameStateSnapshot(workingState)
+  const snapshot = createGameStateSnapshot(workingState);
 
   // Process actions on the snapshot (validation + execution in one step)
-  const processResult = processActions(snapshot, actions)
+  const processResult = processActions(snapshot, actions);
 
   // If processing failed, discard snapshot and return original state
   if (!processResult.success) {
     return {
       gameState,
       logEntries: [],
-      errors: processResult.errors || ['Failed to process actions'],
-    }
+      errors: processResult.errors || ["Failed to process actions"],
+    };
   }
 
   // Success - use the snapshot as the new game state
-  let updatedGameState = processResult.gameState
-  allLogEntries.push(...processResult.logEntries)
+  let updatedGameState = processResult.gameState;
+  allLogEntries.push(...processResult.logEntries);
 
   // Process missiles owned by the active player (after their actions complete)
   if (updatedGameState.missiles.length > 0) {
-    const playerMissiles = updatedGameState.missiles.filter(m => m.ownerId === activePlayer.id)
+    const playerMissiles = updatedGameState.missiles.filter(
+      (m) => m.ownerId === activePlayer.id,
+    );
     if (playerMissiles.length > 0) {
-      const missileResult = processMissiles(updatedGameState, activePlayer.id)
-      updatedGameState = missileResult.gameState
-      allLogEntries.push(...missileResult.logEntries)
+      const missileResult = processMissiles(updatedGameState, activePlayer.id);
+      updatedGameState = missileResult.gameState;
+      allLogEntries.push(...missileResult.logEntries);
     }
   }
 
   // Check for destroyed ships and process destroy mission completion
   // (only in active phase with missions)
-  if (updatedGameState.phase === 'active' && updatedGameState.stations.length > 0) {
+  if (
+    updatedGameState.phase === "active" &&
+    updatedGameState.stations.length > 0
+  ) {
     for (const player of updatedGameState.players) {
       if (player.ship.hitPoints <= 0) {
         // Check if any player had a destroy mission for this player
         const beforeCompletionCount = updatedGameState.players.reduce(
-          (sum, p) => sum + p.completedMissionCount, 0
-        )
-        updatedGameState = processDestroyMissionCompletion(updatedGameState, player.id)
+          (sum, p) => sum + p.completedMissionCount,
+          0,
+        );
+        updatedGameState = processDestroyMissionCompletion(
+          updatedGameState,
+          player.id,
+        );
         const afterCompletionCount = updatedGameState.players.reduce(
-          (sum, p) => sum + p.completedMissionCount, 0
-        )
+          (sum, p) => sum + p.completedMissionCount,
+          0,
+        );
 
         if (afterCompletionCount > beforeCompletionCount) {
           // Find who completed the mission
           const completingPlayer = updatedGameState.players.find(
-            p => p.completedMissionCount > (workingState.players.find(gp => gp.id === p.id)?.completedMissionCount ?? 0)
-          )
+            (p) =>
+              p.completedMissionCount >
+              (workingState.players.find((gp) => gp.id === p.id)
+                ?.completedMissionCount ?? 0),
+          );
           if (completingPlayer) {
             allLogEntries.push({
               turn: updatedGameState.turn,
               playerId: completingPlayer.id,
               playerName: completingPlayer.name,
-              action: 'Mission Complete',
+              action: "Mission Complete",
               result: `Completed destroy mission: ${player.name} destroyed`,
-            })
+            });
           }
         }
       }
@@ -161,13 +194,16 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     // Process cargo pickup/delivery for the active player after movement
     const cargoResult = processCargoAtStation(
       updatedGameState.players[activePlayerIndex],
-      updatedGameState.stations
-    )
+      updatedGameState.stations,
+    );
 
-    if (cargoResult.pickedUpCargo.length > 0 || cargoResult.deliveredCargo.length > 0) {
-      const updatedPlayers = [...updatedGameState.players]
-      updatedPlayers[activePlayerIndex] = cargoResult.player
-      updatedGameState = { ...updatedGameState, players: updatedPlayers }
+    if (
+      cargoResult.pickedUpCargo.length > 0 ||
+      cargoResult.deliveredCargo.length > 0
+    ) {
+      const updatedPlayers = [...updatedGameState.players];
+      updatedPlayers[activePlayerIndex] = cargoResult.player;
+      updatedGameState = { ...updatedGameState, players: updatedPlayers };
 
       // Log cargo events
       for (const msg of cargoResult.logMessages) {
@@ -175,34 +211,39 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
           turn: updatedGameState.turn,
           playerId: activePlayer.id,
           playerName: activePlayer.name,
-          action: 'Cargo',
+          action: "Cargo",
           result: msg,
-        })
+        });
       }
 
       // Check for cargo mission completion
-      updatedGameState = processCargoMissionCompletion(updatedGameState, activePlayer.id)
+      updatedGameState = processCargoMissionCompletion(
+        updatedGameState,
+        activePlayer.id,
+      );
     }
   }
 
   // Move to next player
-  let nextPlayerIndex = (workingState.activePlayerIndex + 1) % updatedGameState.players.length
-  let isNewRound = nextPlayerIndex === 0
+  let nextPlayerIndex =
+    (workingState.activePlayerIndex + 1) % updatedGameState.players.length;
+  let isNewRound = nextPlayerIndex === 0;
 
   // In mission mode (with respawn), don't skip dead players - they will respawn
   // In legacy mode (no missions), skip dead players
-  const hasMissions = updatedGameState.phase === 'active' && updatedGameState.stations.length > 0
+  const hasMissions =
+    updatedGameState.phase === "active" && updatedGameState.stations.length > 0;
 
   if (!hasMissions) {
     // Legacy mode: skip dead players
-    const startIndex = nextPlayerIndex
+    const startIndex = nextPlayerIndex;
     while (updatedGameState.players[nextPlayerIndex].ship.hitPoints <= 0) {
-      nextPlayerIndex = (nextPlayerIndex + 1) % updatedGameState.players.length
+      nextPlayerIndex = (nextPlayerIndex + 1) % updatedGameState.players.length;
       if (nextPlayerIndex === 0) {
-        isNewRound = true
+        isNewRound = true;
       }
       if (nextPlayerIndex === startIndex) {
-        break
+        break;
       }
     }
   }
@@ -211,15 +252,18 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   if (isNewRound && updatedGameState.stations.length > 0) {
     updatedGameState = {
       ...updatedGameState,
-      stations: updateStationPositions(updatedGameState.stations, GRAVITY_WELLS),
-    }
+      stations: updateStationPositions(
+        updatedGameState.stations,
+        GRAVITY_WELLS,
+      ),
+    };
     allLogEntries.push({
       turn: updatedGameState.turn,
-      playerId: 'system',
-      playerName: 'System',
-      action: 'Station Movement',
-      result: 'All stations advanced 4 sectors in their orbits',
-    })
+      playerId: "system",
+      playerName: "System",
+      action: "Station Movement",
+      result: "All stations advanced 4 sectors in their orbits",
+    });
   }
 
   updatedGameState = {
@@ -227,65 +271,68 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     turn: isNewRound ? workingState.turn + 1 : workingState.turn,
     activePlayerIndex: nextPlayerIndex,
     turnLog: [...workingState.turnLog, ...allLogEntries],
-  }
+  };
 
   // Apply heat damage to the NEXT player at the start of their turn
   // This happens BEFORE they see their turn, so they see the damage immediately
-  const nextPlayer = updatedGameState.players[nextPlayerIndex]
+  const nextPlayer = updatedGameState.players[nextPlayerIndex];
   if (nextPlayer.ship.hitPoints > 0) {
-    const heatDamage = calculateHeatDamage(nextPlayer.ship)
+    const heatDamage = calculateHeatDamage(nextPlayer.ship);
 
     if (heatDamage > 0) {
-      const updatedPlayers = [...updatedGameState.players]
-      const damagedShip = applyDirectDamage(nextPlayer.ship, heatDamage)
-      updatedPlayers[nextPlayerIndex] = { ...nextPlayer, ship: damagedShip }
-      updatedGameState = { ...updatedGameState, players: updatedPlayers }
+      const updatedPlayers = [...updatedGameState.players];
+      const damagedShip = applyDirectDamage(nextPlayer.ship, heatDamage);
+      updatedPlayers[nextPlayerIndex] = { ...nextPlayer, ship: damagedShip };
+      updatedGameState = { ...updatedGameState, players: updatedPlayers };
 
       allLogEntries.push({
         turn: updatedGameState.turn,
         playerId: nextPlayer.id,
         playerName: nextPlayer.name,
-        action: 'Heat Damage',
+        action: "Heat Damage",
         result: `Took ${heatDamage} hull damage from excess heat (${nextPlayer.ship.heat.currentHeat} heat - ${nextPlayer.ship.dissipationCapacity} dissipation = ${heatDamage} damage)`,
-      })
+      });
 
       // Update the turnLog with the new entry
       updatedGameState = {
         ...updatedGameState,
-        turnLog: [...updatedGameState.turnLog.slice(0, -allLogEntries.length + 1), ...allLogEntries],
-      }
+        turnLog: [
+          ...updatedGameState.turnLog.slice(0, -allLogEntries.length + 1),
+          ...allLogEntries,
+        ],
+      };
     }
 
     // Reset heat for the next player (after damage is applied)
     {
-      const updatedPlayers = [...updatedGameState.players]
-      const playerToReset = updatedPlayers[nextPlayerIndex]
-      const heatBefore = playerToReset.ship.heat.currentHeat
-      const resetShip = resetHeat(playerToReset.ship)
-      updatedPlayers[nextPlayerIndex] = { ...playerToReset, ship: resetShip }
-      updatedGameState = { ...updatedGameState, players: updatedPlayers }
+      const updatedPlayers = [...updatedGameState.players];
+      const playerToReset = updatedPlayers[nextPlayerIndex];
+      const heatBefore = playerToReset.ship.heat.currentHeat;
+      const resetShip = resetHeat(playerToReset.ship);
+      updatedPlayers[nextPlayerIndex] = { ...playerToReset, ship: resetShip };
+      updatedGameState = { ...updatedGameState, players: updatedPlayers };
 
       if (heatBefore > 0) {
         allLogEntries.push({
           turn: updatedGameState.turn,
           playerId: nextPlayer.id,
           playerName: nextPlayer.name,
-          action: 'Heat Reset',
+          action: "Heat Reset",
           result: `Cleared ${heatBefore} heat (dissipation capacity: ${nextPlayer.ship.dissipationCapacity})`,
-        })
+        });
       }
     }
   }
 
   // Check for win/loss conditions
-  updatedGameState = checkGameStatus(updatedGameState)
+  updatedGameState = checkGameStatus(updatedGameState);
 
   // All transfers complete immediately, no need to resolve on turn start
 
   return {
     gameState: updatedGameState,
     logEntries: allLogEntries,
-  }
+  };
 }
 
 /**
@@ -296,61 +343,63 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
  */
 function checkGameStatus(gameState: GameState): GameState {
   // Don't check if game is already over
-  if (gameState.status !== 'active') {
-    return gameState
+  if (gameState.status !== "active") {
+    return gameState;
   }
 
   // Check for mission-based victory (3 completed missions)
-  const missionWinner = checkForWinner(gameState)
+  const missionWinner = checkForWinner(gameState);
   if (missionWinner) {
-    const humanPlayer = gameState.players[0]
+    const humanPlayer = gameState.players[0];
 
     return {
       ...gameState,
-      phase: 'ended',
-      status: missionWinner === humanPlayer.id ? 'victory' : 'defeat',
+      phase: "ended",
+      status: missionWinner === humanPlayer.id ? "victory" : "defeat",
       winnerId: missionWinner,
-    }
+    };
   }
 
   // Legacy mode: check for last ship standing (only if no missions/respawn)
-  const hasMissions = gameState.phase === 'active' && gameState.stations.length > 0
+  const hasMissions =
+    gameState.phase === "active" && gameState.stations.length > 0;
   if (hasMissions) {
     // With respawn, game only ends via mission completion
-    return gameState
+    return gameState;
   }
 
   // Legacy mode below (no missions)
-  const alivePlayers = gameState.players.filter(p => p.ship.hitPoints > 0)
+  const alivePlayers = gameState.players.filter((p) => p.ship.hitPoints > 0);
 
   if (alivePlayers.length === 0) {
     return {
       ...gameState,
-      status: 'defeat',
-    }
+      status: "defeat",
+    };
   }
 
-  const humanPlayer = gameState.players[0]
-  const humanAlive = humanPlayer.ship.hitPoints > 0
-  const otherPlayersAlive = alivePlayers.some(p => p.id !== humanPlayer.id)
+  const humanPlayer = gameState.players[0];
+  const humanAlive = humanPlayer.ship.hitPoints > 0;
+  const otherPlayersAlive = alivePlayers.some((p) => p.id !== humanPlayer.id);
 
-  let status: GameStatus = gameState.status
-  let winnerId: string | undefined
+  let status: GameStatus = gameState.status;
+  let winnerId: string | undefined;
 
   if (!humanAlive) {
-    status = 'defeat'
-    const survivor = alivePlayers.reduce((max, p) =>
-      p.ship.hitPoints > max.ship.hitPoints ? p : max
-    , alivePlayers[0])
-    winnerId = survivor?.id
+    status = "defeat";
+    const survivor = alivePlayers.reduce(
+      (max, p) => (p.ship.hitPoints > max.ship.hitPoints ? p : max),
+      alivePlayers[0],
+    );
+    winnerId = survivor?.id;
   } else if (!otherPlayersAlive) {
-    status = 'victory'
-    winnerId = humanPlayer.id
+    status = "victory";
+    winnerId = humanPlayer.id;
   }
 
   return {
     ...gameState,
     status,
     winnerId,
-  }
+  };
 }

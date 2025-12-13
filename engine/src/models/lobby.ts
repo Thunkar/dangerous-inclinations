@@ -12,37 +12,37 @@
 /**
  * Game phases in order of progression
  */
-export type GamePhase = 'lobby' | 'setup' | 'deployment' | 'active' | 'ended'
+export type GamePhase = "lobby" | "setup" | "deployment" | "active" | "ended";
 
 /**
  * A slot in the lobby that can hold a player or be empty
  */
 export interface PlayerSlot {
-  playerId: string | null // null = empty slot
-  playerName: string | null
-  isReady: boolean
-  isBot: boolean
+  playerId: string | null; // null = empty slot
+  playerName: string | null;
+  isReady: boolean;
+  isBot: boolean;
 }
 
 /**
  * Lobby state for managing pre-game setup
  */
 export interface LobbyState {
-  id: string
-  hostPlayerId: string
-  phase: GamePhase
-  maxPlayers: number
-  minPlayers: number
-  playerSlots: PlayerSlot[]
+  id: string;
+  hostPlayerId: string;
+  phase: GamePhase;
+  maxPlayers: number;
+  minPlayers: number;
+  playerSlots: PlayerSlot[];
 }
 
 /**
  * Result of a lobby operation
  */
 export interface LobbyResult {
-  success: boolean
-  error?: string
-  lobbyState?: LobbyState
+  success: boolean;
+  error?: string;
+  lobbyState?: LobbyState;
 }
 
 /**
@@ -52,4 +52,4 @@ export const LOBBY_CONSTANTS = {
   MIN_PLAYERS: 2,
   MAX_PLAYERS: 6,
   DEFAULT_MAX_PLAYERS: 6,
-} as const
+} as const;

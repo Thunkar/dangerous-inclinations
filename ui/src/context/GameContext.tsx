@@ -12,7 +12,13 @@ import type {
   ReactorState,
   HeatState,
 } from '@dangerous-inclinations/engine'
-import { getSubsystemConfig, canSubsystemFunction, TRANSFER_POINTS, executeTurn as executeGameTurn, calculateProjectedHeat } from '@dangerous-inclinations/engine'
+import {
+  getSubsystemConfig,
+  canSubsystemFunction,
+  TRANSFER_POINTS,
+  executeTurn as executeGameTurn,
+  calculateProjectedHeat,
+} from '@dangerous-inclinations/engine'
 import { botDecideActions } from '../ai'
 
 interface WeaponRangeVisibility {
@@ -182,7 +188,9 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
     facing: Facing,
     committedFacing: Facing
   ): number => {
-    const subsystemsToUse: Array<'engines' | 'rotation' | 'scoop' | 'laser' | 'railgun' | 'missiles'> = []
+    const subsystemsToUse: Array<
+      'engines' | 'rotation' | 'scoop' | 'laser' | 'railgun' | 'missiles'
+    > = []
 
     // Check if rotation is used (facing changed and rotation action in sequence)
     const hasRotation = sequence.some(a => a.type === 'rotate')
@@ -307,13 +315,10 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
   )
 
   // Heat venting is now automatic via dissipation - no manual venting needed
-  const ventHeat = useCallback(
-    (_newTotal: number) => {
-      // Heat dissipation is now automatic at start of turn
-      // No manual venting action needed
-    },
-    []
-  )
+  const ventHeat = useCallback((_newTotal: number) => {
+    // Heat dissipation is now automatic at start of turn
+    // No manual venting action needed
+  }, [])
 
   // High-level game action: Set facing
   const setFacing = useCallback((facing: Facing) => {
@@ -321,44 +326,53 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
   }, [])
 
   // High-level game action: Set movement preview
-  const setMovement = useCallback((movement: MovementPreview) => {
-    setPendingStateInternal(prev => ({
-      ...prev,
-      movement,
-      heat: {
-        currentHeat: computeProjectedHeat(
-          prev.subsystems,
-          prev.tacticalSequence,
-          movement,
-          prev.facing,
-          activePlayer.ship.facing
-        ),
-      },
-    }))
-  }, [activePlayer.ship.facing])
+  const setMovement = useCallback(
+    (movement: MovementPreview) => {
+      setPendingStateInternal(prev => ({
+        ...prev,
+        movement,
+        heat: {
+          currentHeat: computeProjectedHeat(
+            prev.subsystems,
+            prev.tacticalSequence,
+            movement,
+            prev.facing,
+            activePlayer.ship.facing
+          ),
+        },
+      }))
+    },
+    [activePlayer.ship.facing]
+  )
 
   // High-level game action: Set tactical sequence
-  const setTacticalSequence = useCallback((sequence: TacticalAction[]) => {
-    setPendingStateInternal(prev => ({
-      ...prev,
-      tacticalSequence: sequence,
-      heat: {
-        currentHeat: computeProjectedHeat(
-          prev.subsystems,
-          sequence,
-          prev.movement,
-          prev.facing,
-          activePlayer.ship.facing
-        ),
-      },
-    }))
-  }, [activePlayer.ship.facing])
+  const setTacticalSequence = useCallback(
+    (sequence: TacticalAction[]) => {
+      setPendingStateInternal(prev => ({
+        ...prev,
+        tacticalSequence: sequence,
+        heat: {
+          currentHeat: computeProjectedHeat(
+            prev.subsystems,
+            sequence,
+            prev.movement,
+            prev.facing,
+            activePlayer.ship.facing
+          ),
+        },
+      }))
+    },
+    [activePlayer.ship.facing]
+  )
 
   // Helper to update game state and notify parent
-  const updateGameState = useCallback((newState: GameState) => {
-    setGameState(newState)
-    onGameStateChange(newState)
-  }, [onGameStateChange])
+  const updateGameState = useCallback(
+    (newState: GameState) => {
+      setGameState(newState)
+      onGameStateChange(newState)
+    },
+    [onGameStateChange]
+  )
 
   // Execute turn: compute diff between committed and pending, create actions using tactical sequence
   const executeTurn = useCallback(() => {
@@ -610,9 +624,14 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
 
           // Start animation - gameState will be updated when animation completes
           if (animationHandlersRef.current) {
-            animationHandlersRef.current.startAnimation(gameState, afterState, botDecision.actions, () => {
-              updateGameState(afterState)
-            })
+            animationHandlersRef.current.startAnimation(
+              gameState,
+              afterState,
+              botDecision.actions,
+              () => {
+                updateGameState(afterState)
+              }
+            )
           } else {
             updateGameState(afterState)
           }

@@ -1,4 +1,8 @@
-import type { PlayerAction, AllocateEnergyAction, DeallocateEnergyAction } from '@dangerous-inclinations/engine'
+import type {
+  PlayerAction,
+  AllocateEnergyAction,
+  DeallocateEnergyAction,
+} from '@dangerous-inclinations/engine'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import type { TacticalSituation, ActionPlan, BotParameters } from './types'
 import { selectTarget, generateWeaponActions, shouldFaceTarget } from './behaviors/combat'
@@ -7,10 +11,7 @@ import {
   generateRotationAction,
   generateEscapeTransfer,
 } from './behaviors/positioning'
-import {
-  generateEnergyManagement,
-  generateEnergyDeallocation,
-} from './behaviors/survival'
+import { generateEnergyManagement, generateEnergyDeallocation } from './behaviors/survival'
 
 /**
  * Calculate projected energy for a subsystem after planned allocations AND deallocations
@@ -21,14 +22,21 @@ function getProjectedEnergy(
   energyAllocations: PlayerAction[],
   energyDeallocations: PlayerAction[]
 ): number {
-  const currentEnergy = situation.botPlayer.ship.subsystems.find(s => s.type === subsystemType)?.allocatedEnergy || 0
+  const currentEnergy =
+    situation.botPlayer.ship.subsystems.find(s => s.type === subsystemType)?.allocatedEnergy || 0
 
   const allocatedEnergy = energyAllocations
-    .filter((a): a is AllocateEnergyAction => a.type === 'allocate_energy' && a.data.subsystemType === subsystemType)
+    .filter(
+      (a): a is AllocateEnergyAction =>
+        a.type === 'allocate_energy' && a.data.subsystemType === subsystemType
+    )
     .reduce((sum, a) => sum + a.data.amount, 0)
 
   const deallocatedEnergy = energyDeallocations
-    .filter((a): a is DeallocateEnergyAction => a.type === 'deallocate_energy' && a.data.subsystemType === subsystemType)
+    .filter(
+      (a): a is DeallocateEnergyAction =>
+        a.type === 'deallocate_energy' && a.data.subsystemType === subsystemType
+    )
     .reduce((sum, a) => sum + a.data.amount, 0)
 
   return Math.max(0, currentEnergy + allocatedEnergy - deallocatedEnergy)
@@ -82,7 +90,12 @@ export function generateActionSequence(
     tacticalSequence++
 
     // Still try to fire weapons if possible (with projected energy)
-    const weaponActions = generateWeaponActions(situation, target, tacticalSequence, projectedWeaponEnergy)
+    const weaponActions = generateWeaponActions(
+      situation,
+      target,
+      tacticalSequence,
+      projectedWeaponEnergy
+    )
     actions.push(...weaponActions)
 
     return actions
@@ -104,7 +117,12 @@ export function generateActionSequence(
   tacticalSequence++
 
   // Weapon firing (after movement, with projected energy)
-  const weaponActions = generateWeaponActions(situation, target, tacticalSequence, projectedWeaponEnergy)
+  const weaponActions = generateWeaponActions(
+    situation,
+    target,
+    tacticalSequence,
+    projectedWeaponEnergy
+  )
   actions.push(...weaponActions)
 
   return actions
@@ -128,7 +146,10 @@ export function generateActionCandidates(
 
   // Aggressive strategy - prioritize offense over defense
   if (situation.primaryTarget) {
-    const aggressiveParams = { ...parameters, aggressiveness: Math.min(1, parameters.aggressiveness + 0.2) }
+    const aggressiveParams = {
+      ...parameters,
+      aggressiveness: Math.min(1, parameters.aggressiveness + 0.2),
+    }
     const aggressiveActions = generateActionSequence(situation, aggressiveParams)
     candidates.push({
       actions: aggressiveActions,
@@ -138,7 +159,10 @@ export function generateActionCandidates(
 
   // Defensive strategy - prioritize survival
   if (situation.primaryThreat || situation.status.healthPercent < 0.5) {
-    const defensiveParams = { ...parameters, aggressiveness: Math.max(0, parameters.aggressiveness - 0.3) }
+    const defensiveParams = {
+      ...parameters,
+      aggressiveness: Math.max(0, parameters.aggressiveness - 0.3),
+    }
     const defensiveActions = generateActionSequence(situation, defensiveParams)
     candidates.push({
       actions: defensiveActions,

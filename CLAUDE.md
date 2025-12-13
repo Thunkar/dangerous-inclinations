@@ -5,6 +5,7 @@
 **THIS GAME MUST WORK AS A TABLETOP GAME.** This is not negotiable. Every feature, mechanic, and implementation must be feasible for players to execute with physical components, dice, and paper. The digital implementation is a simulator to validate and playtest the tabletop rules.
 
 When implementing any feature, always ask:
+
 - Can this be tracked with pen and paper?
 - Can players calculate this with simple arithmetic?
 - Are the numbers reasonable for tabletop gameplay?
@@ -15,6 +16,7 @@ When implementing any feature, always ask:
 **ALL GAME LOGIC MUST LIVE IN `src/game-logic/`** - The game will be moved to a multiplayer server implementation. This means:
 
 ### Strict Separation of Concerns:
+
 1. **Game Logic (`src/game-logic/`)**:
    - Pure functions that process game state
    - Action processors
@@ -31,6 +33,7 @@ When implementing any feature, always ask:
    - **Zero game logic** - no calculations, no rule enforcement
 
 ### Implementation Rules:
+
 - ❌ **NEVER** compute game state in UI components
 - ❌ **NEVER** put game logic in React components or hooks
 - ❌ **NEVER** calculate positions, damage, or outcomes in the UI
@@ -39,25 +42,28 @@ When implementing any feature, always ask:
 - ✅ **UI only renders state** (positions, HP, energy, etc.)
 
 ### Data Flow:
+
 ```
 User Input → UI → Action → Game Logic → New State → UI Renders
 ```
 
 Example of correct architecture:
+
 ```typescript
 // ✅ CORRECT: UI just sends action
 const handleBurn = () => {
-  dispatch({ type: 'BURN', payload: { intensity: 'low' } })
-}
+  dispatch({ type: "BURN", payload: { intensity: "low" } });
+};
 
 // ❌ WRONG: UI calculates game state
 const handleBurn = () => {
-  const newPosition = calculateBurnPosition(ship) // NO! This belongs in game-logic/
-  dispatch({ type: 'UPDATE_POSITION', payload: newPosition })
-}
+  const newPosition = calculateBurnPosition(ship); // NO! This belongs in game-logic/
+  dispatch({ type: "UPDATE_POSITION", payload: newPosition });
+};
 ```
 
 This architecture ensures the game can be moved to a server where:
+
 - Server runs `game-logic/` code
 - Clients send actions via network
 - Server broadcasts state updates
@@ -68,6 +74,7 @@ This architecture ensures the game can be moved to a server where:
 **Dangerous Inclinations** is a turn-based tactical space combat game where players control ships navigating through multiple gravity wells in a binary star system. Ships orbit around gravity wells (a central black hole and three orbiting planets), manage energy allocation, fire weapons, and transfer between gravity wells.
 
 The game combines:
+
 - **Orbital mechanics**: Ships move through circular sectors, with automatic orbital velocity
 - **Energy management**: Reactor power allocation to subsystems with heat-on-use mechanics
 - **Tactical combat**: Weapons with different firing arcs, ranges, and mechanics
@@ -83,6 +90,7 @@ The game combines:
 ## File Structure Overview
 
 ### Core Game Logic (`src/game-logic/`)
+
 - `index.ts` - Main game engine, processes turns and actions
 - `actionProcessors.ts` - Individual action processors (move, fire weapons, allocate energy, etc.)
 - `movement.ts` - Orbital movement calculations, ring transfers, well transfers
@@ -90,6 +98,7 @@ The game combines:
 - `test/` - Test fixtures and test files
 
 ### Game State & Configuration (`src/`)
+
 - `types/game.ts` - Core TypeScript types (Player, Ship, GravityWell, GameState, etc.)
 - `types/subsystems.ts` - Subsystem types and configurations
 - `constants/rings.ts` - Ring configurations (5 rings with different sector counts)
@@ -97,11 +106,13 @@ The game combines:
 - `context/GameContext.tsx` - React context managing game state
 
 ### Visualization (`src/components/`)
+
 - `GameBoard.tsx` - **CRITICAL FILE** - Main SVG visualization of gravity wells, rings, ships, and transfer sectors
 - `ControlPanel.tsx` - UI for energy allocation, weapons, movement controls
 - Other UI components
 
 ### Utilities (`src/utils/`)
+
 - `transferPoints.ts` - Calculates which sectors connect between gravity wells
 - `weaponRange.ts` - Firing solutions and range calculations
 - `tacticalSequence.ts` - Action sequencing (movement before/after weapons)
@@ -112,6 +123,7 @@ The game combines:
 **COMPREHENSIVE RULES ARE IN `RULES.md`** - Always consult this file before making changes.
 
 Key mechanics:
+
 1. **Energy System**: 10-unit reactor, allocate to subsystems, unlimited deallocation
 2. **Heat-on-Use**: Systems generate heat ONLY when used, equal to allocated energy
 3. **Heat Dissipation**: Ships have dissipation capacity (base 5, see DEFAULT_DISSIPATION_CAPACITY) that auto-removes heat at turn start; excess heat causes damage
@@ -126,7 +138,9 @@ Key mechanics:
 ## Multi-Gravity-Well System (CRITICAL)
 
 ### Overview
+
 The game features 4 gravity wells arranged in a "Venn diagram" configuration:
+
 - 1 **Black Hole** at the center
 - 3 **Planets** (Alpha, Beta, Gamma) orbiting the black hole at fixed positions:
   - Alpha: 0° (top)
@@ -134,6 +148,7 @@ The game features 4 gravity wells arranged in a "Venn diagram" configuration:
   - Gamma: 240°
 
 ### Gravity Well Configuration
+
 Location: `src/constants/gravityWells.ts`
 
 ```typescript
@@ -144,7 +159,7 @@ STANDARD_RINGS: [
   { ring: 3, velocity: 1, radius: 160, sectors: 24 },
   { ring: 4, velocity: 1, radius: 210, sectors: 48 },
   { ring: 5, velocity: 1, radius: 260, sectors: 96 }, // Transfer ring
-]
+];
 
 // Planet distance: 520 units from black hole center
 // This creates a slight overlap of Ring 5s (260 + 260 = 520, so 0 units overlap at centers)
@@ -155,6 +170,7 @@ STANDARD_RINGS: [
 **The Problem**: Two circles with different centers cannot have circular arc sectors that share boundaries geometrically. To create a "Venn diagram" overlap where transfer sectors appear shared:
 
 **The Solution** (implemented in `GameBoard.tsx:101-130`):
+
 1. **Align sector CENTERS**, not boundaries
 2. Rotate black hole **COUNTERCLOCKWISE** by half a sector: `-π/96` radians
 3. Rotate planets **CLOCKWISE** by half a sector: planet's inward angle `- π/96` radians
@@ -162,13 +178,13 @@ STANDARD_RINGS: [
 
 ```typescript
 // GameBoard.tsx - getSectorRotationOffset()
-if (well.type === 'blackhole') {
-  return -(Math.PI / blackHoleSectors) // Counterclockwise
+if (well.type === "blackhole") {
+  return -(Math.PI / blackHoleSectors); // Counterclockwise
 }
 if (well.orbitalPosition) {
-  const pointInward = ((well.orbitalPosition.angle + 180) * Math.PI) / 180
-  const halfSector = Math.PI / planetSectors
-  return pointInward - halfSector // Clockwise rotation
+  const pointInward = ((well.orbitalPosition.angle + 180) * Math.PI) / 180;
+  const halfSector = Math.PI / planetSectors;
+  return pointInward - halfSector; // Clockwise rotation
 }
 ```
 
@@ -177,10 +193,12 @@ if (well.orbitalPosition) {
 **Planets have reversed sector numbering to preserve directional meaning when transferring between gravity wells.**
 
 Gravity wells rotate like gears (opposite directions). To preserve the meaning of prograde/retrograde:
+
 - **Black hole**: Sectors 0-23 go **clockwise** (normal numbering)
 - **Planets**: Sectors 0-23 go **counterclockwise** (reversed numbering)
 
 This means:
+
 - Sector 0 remains sector 0 for both (transfer point)
 - Sector 1 in black hole maps to visual sector 23 in planet
 - Sector 2 in black hole maps to visual sector 22 in planet
@@ -191,6 +209,7 @@ This means:
 **Result**: A ship moving prograde (with orbit) in the black hole continues moving prograde (with orbit) in a planet after transfer, without needing to flip the facing label.
 
 ### Transfer Points
+
 Location: `src/utils/transferPoints.ts`
 
 - Calculated dynamically based on planet positions
@@ -199,9 +218,11 @@ Location: `src/utils/transferPoints.ts`
 - **Only available on outermost ring** (Black hole Ring 4, Planet Ring 3)
 
 ### Visualization
+
 Location: `GameBoard.tsx:302-372`
 
 The transfer sectors are visualized as **lens-shaped overlaps** (like a Venn diagram):
+
 - Two circular arcs from each ring's sector boundaries
 - Golden fill (#FFD700) with 25% opacity
 - 2px golden stroke
@@ -210,55 +231,65 @@ The transfer sectors are visualized as **lens-shaped overlaps** (like a Venn dia
 ## Key Implementation Patterns
 
 ### 1. Game State Updates
+
 ```typescript
 // ALWAYS use the context's dispatch system
-const { gameState, dispatch } = useGame()
-dispatch({ type: 'EXECUTE_TURN', payload: pendingActions })
+const { gameState, dispatch } = useGame();
+dispatch({ type: "EXECUTE_TURN", payload: pendingActions });
 ```
 
 ### 2. Sector Calculations
+
 ```typescript
 // Ships are positioned at sector CENTERS, not boundaries
-const angle = ((sector + 0.5) / totalSectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset
-const x = centerX + radius * Math.cos(angle)
-const y = centerY + radius * Math.sin(angle)
+const angle =
+  ((sector + 0.5) / totalSectors) * 2 * Math.PI - Math.PI / 2 + rotationOffset;
+const x = centerX + radius * Math.cos(angle);
+const y = centerY + radius * Math.sin(angle);
 ```
 
 ### 3. Well-Aware Positioning
+
 ```typescript
 // ALWAYS get gravity well position first
-const wellPosition = getGravityWellPosition(ship.wellId)
+const wellPosition = getGravityWellPosition(ship.wellId);
 // Then calculate position relative to that well's center
-const x = wellPosition.x + radius * Math.cos(angle)
+const x = wellPosition.x + radius * Math.cos(angle);
 ```
 
 ### 4. Rotation Offsets
+
 ```typescript
 // Each gravity well has its own sector rotation offset
-const rotationOffset = getSectorRotationOffset(wellId)
+const rotationOffset = getSectorRotationOffset(wellId);
 // Apply this to all sector angle calculations for that well
 ```
 
 ## Common Pitfalls & Solutions
 
 ### ❌ Assuming single gravity well
+
 **Wrong**: Using global center for all ships
+
 ```typescript
-const x = centerX + radius * Math.cos(angle) // WRONG
+const x = centerX + radius * Math.cos(angle); // WRONG
 ```
 
 **Right**: Get well position first
+
 ```typescript
-const wellPos = getGravityWellPosition(ship.wellId)
-const x = wellPos.x + radius * Math.cos(angle) // CORRECT
+const wellPos = getGravityWellPosition(ship.wellId);
+const x = wellPos.x + radius * Math.cos(angle); // CORRECT
 ```
 
 ### ❌ Trying to align sector boundaries
+
 **Wrong**: Making wedge-shaped sectors with radial lines from black hole center
 
 **Right**: Rotate sector CENTERS to align, keep circular arcs. The arcs naturally create identical overlaps when centers are aligned.
 
 ### ❌ Forgetting rotation offsets
+
 **Wrong**: Assuming sector 0 points "up" for all wells
 
 **Right**: Black hole rotated by -π/96, planets rotated to point sector 0 inward (toward black hole) minus π/96
@@ -266,6 +297,7 @@ const x = wellPos.x + radius * Math.cos(angle) // CORRECT
 ## Testing
 
 Tests are in `src/game-logic/test/`:
+
 - `movement.test.ts` - Orbital movement, ring transfers
 - `weapons.test.ts` - Weapon firing, damage calculations
 - `wellTransfers.test.ts` - Well transfer mechanics
@@ -286,6 +318,7 @@ npm test             # Run tests
 ## Git Status & Recent Changes
 
 Recent major changes:
+
 1. **Multi-gravity-well system**: Added 3 planets orbiting black hole
 2. **Sector alignment fix**: Implemented half-sector rotation for proper Venn diagram overlap
 3. **Transfer point visualization**: Golden lens-shaped overlaps between Ring 5s
@@ -322,17 +355,20 @@ Recent major changes:
 ## Important Constants
 
 ### Gravity Well Distances
+
 - Black hole at `(0, 0)` relative to board center
 - Planets at distance `520` from black hole center
 - Ring 5 radius: `260` units
 - Total system extent: `520 + 260 = 780` from center
 
 ### Board Scaling
+
 - Board size: `1868px` (accommodates full system + 20% padding)
 - Scale factor: `(boardSize/2 - padding) / maxExtent`
 - Max extent: `778` units (520 + 260 - 2 for overlap)
 
 ### Sector Counts
+
 - Ring 1: 6 sectors (60° each)
 - Ring 2: 12 sectors (30° each)
 - Ring 3: 24 sectors (15° each)
@@ -340,6 +376,7 @@ Recent major changes:
 - Ring 5: 96 sectors (3.75° each) ← Transfer sectors here
 
 ### Energy & Heat
+
 - Reactor capacity: 10 units
 - Deallocation: Unlimited (no rate limit)
 - Heat-on-Use: Subsystems generate heat = allocated energy when USED
@@ -351,6 +388,7 @@ Recent major changes:
 ## Emergency Reference: Key Files
 
 When running out of context, read these files first:
+
 1. **RULES.md** - Complete game rules
 2. **src/constants/gravityWells.ts** - Gravity well configuration
 3. **src/components/GameBoard.tsx** - Visualization logic (lines 101-372 critical)

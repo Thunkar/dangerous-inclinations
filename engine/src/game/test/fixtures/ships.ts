@@ -1,5 +1,5 @@
-import type { ShipState } from '../../../types/game'
-import { createInitialShipState } from '../../../utils/subsystemHelpers'
+import type { ShipState } from "../../../models/game";
+import { createInitialShipState } from "../../../utils/subsystemHelpers";
 
 /**
  * Creates a basic ship for testing with minimal configuration.
@@ -8,20 +8,20 @@ import { createInitialShipState } from '../../../utils/subsystemHelpers'
 export function createTestShip(overrides: Partial<ShipState> = {}): ShipState {
   return createInitialShipState(
     {
-      wellId: 'blackhole',
+      wellId: "blackhole",
       ring: 3,
       sector: 0,
-      facing: 'prograde',
+      facing: "prograde",
     },
-    overrides
-  )
+    overrides,
+  );
 }
 
 /**
  * Creates a ship with engines powered and ready to burn
  */
 export function createShipWithEngines(energyAmount: number = 3): ShipState {
-  const ship = createTestShip({ reactionMass: 10 })
+  const ship = createTestShip({ reactionMass: 10 });
 
   return {
     ...ship,
@@ -29,17 +29,19 @@ export function createShipWithEngines(energyAmount: number = 3): ShipState {
       ...ship.reactor,
       availableEnergy: ship.reactor.totalCapacity - energyAmount,
     },
-    subsystems: ship.subsystems.map(s =>
-      s.type === 'engines' ? { ...s, isPowered: true, allocatedEnergy: energyAmount } : s
+    subsystems: ship.subsystems.map((s) =>
+      s.type === "engines"
+        ? { ...s, isPowered: true, allocatedEnergy: energyAmount }
+        : s,
     ),
-  }
+  };
 }
 
 /**
  * Creates a ship with rotation powered
  */
 export function createShipWithRotation(): ShipState {
-  const ship = createTestShip()
+  const ship = createTestShip();
 
   return {
     ...ship,
@@ -47,10 +49,10 @@ export function createShipWithRotation(): ShipState {
       ...ship.reactor,
       availableEnergy: ship.reactor.totalCapacity - 1,
     },
-    subsystems: ship.subsystems.map(s =>
-      s.type === 'rotation' ? { ...s, isPowered: true, allocatedEnergy: 1 } : s
+    subsystems: ship.subsystems.map((s) =>
+      s.type === "rotation" ? { ...s, isPowered: true, allocatedEnergy: 1 } : s,
     ),
-  }
+  };
 }
 
 /**
@@ -59,7 +61,7 @@ export function createShipWithRotation(): ShipState {
  */
 export function createShipInTransfer(
   destinationRing: number,
-  sectorAdjustment: number = 0
+  sectorAdjustment: number = 0,
 ): ShipState {
   return createTestShip({
     ring: 3,
@@ -68,17 +70,17 @@ export function createShipInTransfer(
       destinationRing,
       sectorAdjustment,
     },
-  })
+  });
 }
 
 /**
  * Creates a ship with weapons powered
  */
 export function createShipWithWeapons(
-  weaponType: 'laser' | 'railgun' | 'missiles',
-  energyAmount: number = 4
+  weaponType: "laser" | "railgun" | "missiles",
+  energyAmount: number = 4,
 ): ShipState {
-  const ship = createTestShip()
+  const ship = createTestShip();
 
   return {
     ...ship,
@@ -86,10 +88,12 @@ export function createShipWithWeapons(
       ...ship.reactor,
       availableEnergy: ship.reactor.totalCapacity - energyAmount,
     },
-    subsystems: ship.subsystems.map(s =>
-      s.type === weaponType ? { ...s, isPowered: true, allocatedEnergy: energyAmount } : s
+    subsystems: ship.subsystems.map((s) =>
+      s.type === weaponType
+        ? { ...s, isPowered: true, allocatedEnergy: energyAmount }
+        : s,
     ),
-  }
+  };
 }
 
 /**
@@ -100,14 +104,14 @@ export function createShipWithHeat(currentHeat: number): ShipState {
     heat: {
       currentHeat,
     },
-  })
+  });
 }
 
 /**
  * Creates a ship with shields powered
  */
 export function createShipWithShields(energyAmount: number = 2): ShipState {
-  const ship = createTestShip()
+  const ship = createTestShip();
 
   return {
     ...ship,
@@ -115,8 +119,10 @@ export function createShipWithShields(energyAmount: number = 2): ShipState {
       ...ship.reactor,
       availableEnergy: ship.reactor.totalCapacity - energyAmount,
     },
-    subsystems: ship.subsystems.map(s =>
-      s.type === 'shields' ? { ...s, isPowered: true, allocatedEnergy: energyAmount } : s
+    subsystems: ship.subsystems.map((s) =>
+      s.type === "shields"
+        ? { ...s, isPowered: true, allocatedEnergy: energyAmount }
+        : s,
     ),
-  }
+  };
 }

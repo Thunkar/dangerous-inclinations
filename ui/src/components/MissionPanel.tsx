@@ -4,7 +4,11 @@ import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import WarningIcon from '@mui/icons-material/Warning'
 import type { Player } from '@dangerous-inclinations/engine'
-import type { Mission, DestroyShipMission, DeliverCargoMission } from '@dangerous-inclinations/engine'
+import type {
+  Mission,
+  DestroyShipMission,
+  DeliverCargoMission,
+} from '@dangerous-inclinations/engine'
 
 interface MissionPanelProps {
   player: Player
@@ -149,7 +153,11 @@ function CargoMissionCard({
           <Typography
             variant="body2"
             sx={{
-              color: mission.isCompleted ? 'text.secondary' : isPickedUp ? 'info.main' : 'text.secondary',
+              color: mission.isCompleted
+                ? 'text.secondary'
+                : isPickedUp
+                  ? 'info.main'
+                  : 'text.secondary',
               fontWeight: isPickedUp && !mission.isCompleted ? 'bold' : 'normal',
             }}
           >

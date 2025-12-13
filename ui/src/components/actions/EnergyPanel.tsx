@@ -1,6 +1,11 @@
 import { Box, Typography, styled } from '@mui/material'
 import { Fragment, useState, useCallback } from 'react'
-import type { Subsystem, ReactorState, HeatState, SubsystemType } from '@dangerous-inclinations/engine'
+import type {
+  Subsystem,
+  ReactorState,
+  HeatState,
+  SubsystemType,
+} from '@dangerous-inclinations/engine'
 import { RadialMenu } from './energy/RadialMenu'
 import { SubsystemButton } from './energy/SubsystemButton'
 import { getSubsystem } from '@dangerous-inclinations/engine'
@@ -291,7 +296,9 @@ export function EnergyPanel({
     // Can allocate if: unpowered and have enough for minEnergy, or powered and below max with available energy
     const canAllocate =
       (subsystem.allocatedEnergy === 0 && reactor.availableEnergy >= config.minEnergy) ||
-      (subsystem.allocatedEnergy > 0 && subsystem.allocatedEnergy < config.maxEnergy && reactor.availableEnergy > 0)
+      (subsystem.allocatedEnergy > 0 &&
+        subsystem.allocatedEnergy < config.maxEnergy &&
+        reactor.availableEnergy > 0)
     const canDeallocate = subsystem.allocatedEnergy > 0
 
     const customToggle = (
@@ -402,9 +409,7 @@ export function EnergyPanel({
         <Stat>
           <Typography variant="caption">Dissipate</Typography>
           <Vent>
-            <Typography variant="body2">
-              {dissipationCapacity}
-            </Typography>
+            <Typography variant="body2">{dissipationCapacity}</Typography>
           </Vent>
         </Stat>
         <Break />
@@ -419,9 +424,7 @@ export function EnergyPanel({
         <Stat>
           <Typography variant="caption">Heat</Typography>
           <Heat hasHeat={heat.currentHeat > 0}>
-            <Typography variant="body2">
-              {heat.currentHeat}
-            </Typography>
+            <Typography variant="body2">{heat.currentHeat}</Typography>
           </Heat>
           {heat.currentHeat > dissipationCapacity && (
             <Typography

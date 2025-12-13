@@ -3,7 +3,11 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import type { GameState } from '@dangerous-inclinations/engine'
-import type { Mission, DestroyShipMission, DeliverCargoMission } from '@dangerous-inclinations/engine'
+import type {
+  Mission,
+  DestroyShipMission,
+  DeliverCargoMission,
+} from '@dangerous-inclinations/engine'
 
 const PLAYER_COLORS = [
   '#2196f3', // Blue
@@ -183,13 +187,12 @@ export function GameEndScreen({ gameState, onPlayAgain }: GameEndScreenProps) {
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography
-                      variant="body2"
-                      sx={{ width: 24, color: 'text.secondary' }}
-                    >
+                    <Typography variant="body2" sx={{ width: 24, color: 'text.secondary' }}>
                       #{index + 1}
                     </Typography>
-                    <Typography sx={{ color, fontWeight: player.id === winner?.id ? 'bold' : 'normal' }}>
+                    <Typography
+                      sx={{ color, fontWeight: player.id === winner?.id ? 'bold' : 'normal' }}
+                    >
                       {player.name}
                     </Typography>
                   </Box>

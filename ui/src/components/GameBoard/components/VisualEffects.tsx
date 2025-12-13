@@ -56,7 +56,7 @@ export function VisualEffects({ floatingNumbers, currentTime }: VisualEffectsPro
         }
 
         // Use larger font for miss/critical text
-        const fontSize = (num.type === 'miss' || num.type === 'critical') ? 22 : 18
+        const fontSize = num.type === 'miss' || num.type === 'critical' ? 22 : 18
 
         return (
           <g key={num.id} opacity={opacity} transform={`translate(${x}, ${y}) scale(${scale})`}>

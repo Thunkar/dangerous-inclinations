@@ -71,7 +71,8 @@ function generateArcPath(
  * - No animation logic here - just render what displayState provides
  */
 export function MissileRenderer() {
-  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset, displayState } = useBoardContext()
+  const { scaleFactor, getGravityWellPosition, getSectorRotationOffset, displayState } =
+    useBoardContext()
   const { gameState } = useGame()
 
   // Need both displayState (for positions) and gameState (for game data)
@@ -121,7 +122,9 @@ export function MissileRenderer() {
         // Get well info for calculations
         const well = gameMissile ? getGravityWell(gameMissile.wellId) : null
         const currentRingConfig = well?.rings.find(r => r.ring === gameMissile?.ring)
-        const wellPosition = gameMissile ? getGravityWellPosition(gameMissile.wellId) : { x: 0, y: 0 }
+        const wellPosition = gameMissile
+          ? getGravityWellPosition(gameMissile.wellId)
+          : { x: 0, y: 0 }
         const rotationOffset = gameMissile ? getSectorRotationOffset(gameMissile.wellId) : 0
 
         // Calculate missile rotation based on target direction (prograde or retrograde)
@@ -184,7 +187,8 @@ export function MissileRenderer() {
           if (movement.ring !== gameMissile.ring || movement.sector !== gameMissile.sector) {
             const nextRingConfig = well.rings.find(r => r.ring === movement.ring)
             if (nextRingConfig) {
-              const nextRadius = (getRingRadius(gameMissile.wellId, nextRingConfig.ring) ?? 100) * scaleFactor
+              const nextRadius =
+                (getRingRadius(gameMissile.wellId, nextRingConfig.ring) ?? 100) * scaleFactor
               const nextAngle =
                 ((movement.sector + 0.5) / nextRingConfig.sectors) * 2 * Math.PI -
                 Math.PI / 2 +

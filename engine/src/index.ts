@@ -14,16 +14,20 @@ export * from "./game/respawn";
 export * from "./game/stations";
 
 // Types
-export * from "./types/game";
-export * from "./types/subsystems";
+export * from "./models/game";
+export * from "./models/subsystems";
 
 // Constants
-export * from "./constants/gravityWells";
-export * from "./constants/rings";
-export * from "./constants/weapons";
-
+export * from "./models/gravityWells";
+export * from "./models/rings";
+export * from "./models/weapons";
 // Utils
 export * from "./utils/tacticalSequence";
-export * from "./utils/transferPoints";
+export * from "./models/transferPoints";
 export * from "./utils/weaponRange";
-export { createInitialShipState, createInitialSubsystems, createInitialReactorState, createInitialHeatState } from "./utils/subsystemHelpers";
+export {
+  createInitialShipState,
+  createInitialSubsystems,
+  createInitialReactorState,
+  createInitialHeatState,
+} from "./utils/subsystemHelpers";

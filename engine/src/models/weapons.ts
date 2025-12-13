@@ -1,3 +1,32 @@
+import { SubsystemType } from "./subsystems";
+
+/**
+ * D10 hit roll result
+ * 1 = miss, 2-9 = hit, 10 = critical
+ */
+export type HitRollResult = "miss" | "hit" | "critical";
+
+/**
+ * Critical hit effect - breaks a subsystem and converts its energy to heat
+ */
+export interface CriticalHitEffect {
+  targetSubsystem: SubsystemType;
+  energyLost: number;
+  heatAdded: number;
+}
+
+/**
+ * Result of a weapon attack, including d10 roll and critical hit information
+ */
+export interface WeaponHitResult {
+  roll: number; // The d10 roll (1-10)
+  result: HitRollResult; // miss/hit/critical
+  damage: number; // Weapon damage (0 if miss)
+  damageToHull: number; // After shield absorption (0 if miss)
+  damageToHeat: number; // Absorbed by shields, converted to heat (0 if miss)
+  criticalEffect?: CriticalHitEffect; // Only present if result is 'critical'
+}
+
 /**
  * Calculate if a target is within weapon range.
  *
@@ -25,7 +54,7 @@ export function calculateWeaponRange(
   targetRing: number,
   targetSector: number,
   targetSectorCount: number,
-  weapon: { rangeInDegrees: number; ringRange: number; arc: string }
+  weapon: { rangeInDegrees: number; ringRange: number; arc: string },
 ): {
   inRange: boolean;
   angularDistance: number;

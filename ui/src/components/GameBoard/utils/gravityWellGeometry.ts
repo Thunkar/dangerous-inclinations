@@ -38,10 +38,7 @@ export function getGravityWellPosition(
  * Black hole: sector 0 points upward (0°)
  * Planets: sector 0 points toward black hole (inward)
  */
-export function getSectorRotationOffset(
-  wellId: string,
-  gravityWells: GravityWell[]
-): number {
+export function getSectorRotationOffset(wellId: string, gravityWells: GravityWell[]): number {
   const well = gravityWells.find(w => w.id === wellId)
   if (!well) return 0
 
@@ -60,4 +57,3 @@ export function getSectorRotationOffset(
 
   return 0
 }
-

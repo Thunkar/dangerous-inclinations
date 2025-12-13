@@ -9,7 +9,10 @@ import { getGravityWellVisual, getRingRadius } from '@/constants/visualConfig'
 function lightenColor(hex: string, amount: number): string {
   const num = parseInt(hex.replace('#', ''), 16)
   const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * amount))
-  const g = Math.min(255, Math.floor(((num >> 8) & 0x00ff) + (255 - ((num >> 8) & 0x00ff)) * amount))
+  const g = Math.min(
+    255,
+    Math.floor(((num >> 8) & 0x00ff) + (255 - ((num >> 8) & 0x00ff)) * amount)
+  )
   const b = Math.min(255, Math.floor((num & 0x0000ff) + (255 - (num & 0x0000ff)) * amount))
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
 }
@@ -51,7 +54,8 @@ export function TransferSectors({ transferPoints }: TransferSectorsProps) {
         const toOutermostRing = toWell.rings[toWell.rings.length - 1]
         if (!fromOutermostRing || !toOutermostRing) return null
 
-        const fromRadius = (getRingRadius(tp.fromWellId, fromOutermostRing.ring) ?? 100) * scaleFactor
+        const fromRadius =
+          (getRingRadius(tp.fromWellId, fromOutermostRing.ring) ?? 100) * scaleFactor
         const toRadius = (getRingRadius(tp.toWellId, toOutermostRing.ring) ?? 100) * scaleFactor
 
         // Get rotation offsets (all wells rotate clockwise, direction = 1)

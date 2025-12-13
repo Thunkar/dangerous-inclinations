@@ -1,5 +1,5 @@
-import type { ShipState } from '../types/game'
-import type { Subsystem, SubsystemType } from '../types/subsystems'
+import type { ShipState } from "../models/game";
+import type { Subsystem, SubsystemType } from "../models/subsystems";
 
 /**
  * Pure function to allocate energy to a subsystem
@@ -8,25 +8,25 @@ import type { Subsystem, SubsystemType } from '../types/subsystems'
 export function allocateEnergy(
   ship: ShipState,
   subsystemType: SubsystemType,
-  amount: number
+  amount: number,
 ): ShipState {
-  const subsystem = ship.subsystems.find(s => s.type === subsystemType)
+  const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
   if (!subsystem) {
-    return ship
+    return ship;
   }
 
   // Can't allocate energy to broken subsystems
   if (subsystem.isBroken) {
-    return ship
+    return ship;
   }
 
   // Can't allocate more than available
   if (amount > ship.reactor.availableEnergy) {
-    return ship
+    return ship;
   }
 
-  const oldAllocation = subsystem.allocatedEnergy
-  const difference = amount - oldAllocation
+  const oldAllocation = subsystem.allocatedEnergy;
+  const difference = amount - oldAllocation;
 
   return {
     ...ship,
@@ -34,47 +34,54 @@ export function allocateEnergy(
       ...ship.reactor,
       availableEnergy: ship.reactor.availableEnergy - difference,
     },
-    subsystems: ship.subsystems.map(s =>
+    subsystems: ship.subsystems.map((s) =>
       s.type === subsystemType
         ? {
             ...s,
             allocatedEnergy: amount,
             isPowered: amount > 0,
           }
-        : s
+        : s,
     ),
-  }
+  };
 }
 
 /**
  * Pure function to deallocate energy from a subsystem (immediate, unlimited)
  * Returns new ship state with energy returned to reactor
  */
-export function deallocateEnergy(ship: ShipState, subsystemType: SubsystemType, amount: number): ShipState {
-  const subsystem = ship.subsystems.find(s => s.type === subsystemType)
+export function deallocateEnergy(
+  ship: ShipState,
+  subsystemType: SubsystemType,
+  amount: number,
+): ShipState {
+  const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
   if (!subsystem) {
-    return ship
+    return ship;
   }
 
-  const actualAmount = Math.min(amount, subsystem.allocatedEnergy)
-  const newAllocatedEnergy = subsystem.allocatedEnergy - actualAmount
+  const actualAmount = Math.min(amount, subsystem.allocatedEnergy);
+  const newAllocatedEnergy = subsystem.allocatedEnergy - actualAmount;
 
   return {
     ...ship,
     reactor: {
       ...ship.reactor,
-      availableEnergy: Math.min(ship.reactor.totalCapacity, ship.reactor.availableEnergy + actualAmount),
+      availableEnergy: Math.min(
+        ship.reactor.totalCapacity,
+        ship.reactor.availableEnergy + actualAmount,
+      ),
     },
-    subsystems: ship.subsystems.map(s =>
+    subsystems: ship.subsystems.map((s) =>
       s.type === subsystemType
         ? {
             ...s,
             allocatedEnergy: newAllocatedEnergy,
             isPowered: newAllocatedEnergy > 0,
           }
-        : s
+        : s,
     ),
-  }
+  };
 }
 
 /**
@@ -83,28 +90,31 @@ export function deallocateEnergy(ship: ShipState, subsystemType: SubsystemType, 
 export function canAllocateEnergy(
   ship: ShipState,
   subsystemType: SubsystemType,
-  amount: number
+  amount: number,
 ): { valid: boolean; reason?: string } {
-  const subsystem = ship.subsystems.find(s => s.type === subsystemType)
+  const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
   if (!subsystem) {
-    return { valid: false, reason: 'Subsystem not found' }
+    return { valid: false, reason: "Subsystem not found" };
   }
 
   // Can't allocate energy to broken subsystems
   if (subsystem.isBroken) {
-    return { valid: false, reason: 'Subsystem is broken and cannot receive energy' }
+    return {
+      valid: false,
+      reason: "Subsystem is broken and cannot receive energy",
+    };
   }
 
-  const difference = amount - subsystem.allocatedEnergy
+  const difference = amount - subsystem.allocatedEnergy;
 
   if (difference > ship.reactor.availableEnergy) {
     return {
       valid: false,
       reason: `Not enough available energy. Need ${difference}, have ${ship.reactor.availableEnergy}`,
-    }
+    };
   }
 
-  return { valid: true }
+  return { valid: true };
 }
 
 /**
@@ -112,9 +122,9 @@ export function canAllocateEnergy(
  */
 export function getSubsystem(
   subsystems: Subsystem[],
-  type: SubsystemType
+  type: SubsystemType,
 ): Subsystem | undefined {
-  return subsystems.find(s => s.type === type)
+  return subsystems.find((s) => s.type === type);
 }
 
 /**
@@ -124,21 +134,24 @@ export function getSubsystem(
 export function resetSubsystemUsage(ship: ShipState): ShipState {
   return {
     ...ship,
-    subsystems: ship.subsystems.map(s => ({
+    subsystems: ship.subsystems.map((s) => ({
       ...s,
       usedThisTurn: false,
     })),
-  }
+  };
 }
 
 /**
  * Marks a subsystem as used this turn
  */
-export function markSubsystemUsed(ship: ShipState, type: SubsystemType): ShipState {
+export function markSubsystemUsed(
+  ship: ShipState,
+  type: SubsystemType,
+): ShipState {
   return {
     ...ship,
-    subsystems: ship.subsystems.map(s =>
-      s.type === type ? { ...s, usedThisTurn: true } : s
+    subsystems: ship.subsystems.map((s) =>
+      s.type === type ? { ...s, usedThisTurn: true } : s,
     ),
-  }
+  };
 }

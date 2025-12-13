@@ -30,26 +30,28 @@ Files accessing removed properties (`radius`, `color`) need to use `visualConfig
 #### Example Fix Pattern:
 
 **Before** (accessing engine data directly):
-```typescript
-import { getGravityWell } from '@dangerous-inclinations/engine'
 
-const well = getGravityWell('blackhole')
-const color = well.color // ❌ ERROR: Property 'color' does not exist
-const ring = well.rings[0]
-const radius = ring.radius // ❌ ERROR: Property 'radius' does not exist
+```typescript
+import { getGravityWell } from "@dangerous-inclinations/engine";
+
+const well = getGravityWell("blackhole");
+const color = well.color; // ❌ ERROR: Property 'color' does not exist
+const ring = well.rings[0];
+const radius = ring.radius; // ❌ ERROR: Property 'radius' does not exist
 ```
 
 **After** (separate game logic from visual data):
+
 ```typescript
-import { getGravityWell } from '@dangerous-inclinations/engine'
-import { getGravityWellVisual, getRingRadius } from '@/constants/visualConfig'
+import { getGravityWell } from "@dangerous-inclinations/engine";
+import { getGravityWellVisual, getRingRadius } from "@/constants/visualConfig";
 
-const well = getGravityWell('blackhole')
-const wellVisual = getGravityWellVisual(well.id)
-const color = wellVisual.color // ✅ '#18181B'
+const well = getGravityWell("blackhole");
+const wellVisual = getGravityWellVisual(well.id);
+const color = wellVisual.color; // ✅ '#18181B'
 
-const ring = well.rings[0] // Game logic: ring number, velocity, sectors
-const radius = getRingRadius(well.id, ring.ring) // ✅ Visual data: 125
+const ring = well.rings[0]; // Game logic: ring number, velocity, sectors
+const radius = getRingRadius(well.id, ring.ring); // ✅ Visual data: 125
 ```
 
 ### 3. Files Needing Updates
@@ -134,12 +136,12 @@ import { getRingRadius } from '@/constants/visualConfig'
 
 ```typescript
 // Add import at top of file
-import { getGravityWellVisual } from '@/constants/visualConfig'
+import { getGravityWellVisual } from "@/constants/visualConfig";
 
 // For planet positioning
-const wellVisual = getGravityWellVisual(planetId)
-const angle = wellVisual?.angle ?? 0
-const distance = wellVisual?.distance ?? 645
+const wellVisual = getGravityWellVisual(planetId);
+const angle = wellVisual?.angle ?? 0;
+const distance = wellVisual?.distance ?? 645;
 ```
 
 ## Testing After Fixes
@@ -162,6 +164,7 @@ yarn build
 ## Example: Complete File Fix
 
 **Before:**
+
 ```typescript
 import { getGravityWell } from '@dangerous-inclinations/engine'
 
@@ -181,6 +184,7 @@ export function MyComponent({ wellId }: Props) {
 ```
 
 **After:**
+
 ```typescript
 import { getGravityWell } from '@dangerous-inclinations/engine'
 import { getGravityWellVisual, getRingRadius } from '@/constants/visualConfig'

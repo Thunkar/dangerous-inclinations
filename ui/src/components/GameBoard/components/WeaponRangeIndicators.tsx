@@ -2,7 +2,13 @@ import type { Player, Facing, SubsystemType } from '@dangerous-inclinations/engi
 import type { MovementPreview } from '../types'
 import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
-import { calculateFiringSolutions, getSubsystem, getSubsystemConfig, calculatePostMovementPosition, getGravityWell } from '@dangerous-inclinations/engine'
+import {
+  calculateFiringSolutions,
+  getSubsystem,
+  getSubsystemConfig,
+  calculatePostMovementPosition,
+  getGravityWell,
+} from '@dangerous-inclinations/engine'
 import { getRingRadius } from '@/constants/visualConfig'
 
 interface WeaponRangeIndicatorsProps {
@@ -68,9 +74,8 @@ export function WeaponRangeIndicators({
   // Determine if rotation happens before or after movement
   const rotateAction = pendingState.tacticalSequence.find(a => a.type === 'rotate')
   const moveAction = pendingState.tacticalSequence.find(a => a.type === 'move')
-  const rotateBeforeMove = rotateAction && moveAction
-    ? rotateAction.sequence < moveAction.sequence
-    : true // Default to rotate before move
+  const rotateBeforeMove =
+    rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true // Default to rotate before move
 
   // Calculate ship position for range visualization
   let rangeVisualizationShip = player.ship
@@ -95,7 +100,8 @@ export function WeaponRangeIndicators({
     if (postMoveRingConfig && postMoveWell) {
       rangeVisualizationRing = postMoveRingConfig
       const postMoveWellPosition = getGravityWellPosition(rangeVisualizationShip.wellId)
-      rangeVisualizationRadius = (getRingRadius(rangeVisualizationShip.wellId, postMoveRingConfig.ring) ?? 100) * scaleFactor
+      rangeVisualizationRadius =
+        (getRingRadius(rangeVisualizationShip.wellId, postMoveRingConfig.ring) ?? 100) * scaleFactor
       const postMoveRotationOffset = getSectorRotationOffset(rangeVisualizationShip.wellId)
       // Visual sector same as logical sector
       rangeVisualizationAngle =
@@ -162,7 +168,9 @@ export function WeaponRangeIndicators({
                     r.ring >= minRing && r.ring <= maxRing && r.ring !== rangeVisualizationShip.ring
                 )
                 .map(targetRing => {
-                  const targetRadius = (getRingRadius(rangeVisualizationShip.wellId, targetRing.ring) ?? 100) * scaleFactor
+                  const targetRadius =
+                    (getRingRadius(rangeVisualizationShip.wellId, targetRing.ring) ?? 100) *
+                    scaleFactor
                   const targetSectorSize = (2 * Math.PI) / targetRing.sectors
 
                   const targetRotationOffset = getSectorRotationOffset(
@@ -350,7 +358,9 @@ export function WeaponRangeIndicators({
                     r.ring >= minRing && r.ring <= maxRing && r.ring !== rangeVisualizationShip.ring
                 )
                 .map(targetRing => {
-                  const targetRadius = (getRingRadius(rangeVisualizationShip.wellId, targetRing.ring) ?? 100) * scaleFactor
+                  const targetRadius =
+                    (getRingRadius(rangeVisualizationShip.wellId, targetRing.ring) ?? 100) *
+                    scaleFactor
                   const targetSectorSize = (2 * Math.PI) / targetRing.sectors
 
                   // Normalize angles
@@ -500,7 +510,8 @@ export function WeaponRangeIndicators({
               const targetWellPosition = getGravityWellPosition(otherPlayer.ship.wellId)
 
               // Draw targeting reticle
-              const otherRadius = (getRingRadius(otherPlayer.ship.wellId, otherRingConfig.ring) ?? 100) * scaleFactor
+              const otherRadius =
+                (getRingRadius(otherPlayer.ship.wellId, otherRingConfig.ring) ?? 100) * scaleFactor
               const otherRotationOffset = getSectorRotationOffset(otherPlayer.ship.wellId)
               // Visual sector same as logical sector
               const otherAngle =

@@ -18,15 +18,17 @@ export function selectTarget(
   switch (parameters.targetPreference) {
     case 'closest':
       // Already sorted by distance in analyzer
-      return targets.reduce((closest, t) =>
-        t.distance < closest.distance ? t : closest
-      , targets[0])
+      return targets.reduce(
+        (closest, t) => (t.distance < closest.distance ? t : closest),
+        targets[0]
+      )
 
     case 'weakest':
       // Highest priority = lowest HP
-      return targets.reduce((weakest, t) =>
-        t.priority > weakest.priority ? t : weakest
-      , targets[0])
+      return targets.reduce(
+        (weakest, t) => (t.priority > weakest.priority ? t : weakest),
+        targets[0]
+      )
 
     case 'threatening':
       // Target that's threatening us

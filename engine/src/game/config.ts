@@ -10,13 +10,13 @@ export interface GameConfig {
    * When true, all d10 rolls return a fixed value (default 5 = normal hit)
    * This eliminates random misses and critical hits for consistent testing
    */
-  deterministicRolls: boolean
+  deterministicRolls: boolean;
 
   /**
    * The fixed roll value when deterministicRolls is true (1-10)
    * Default: 5 (normal hit)
    */
-  fixedRollValue: number
+  fixedRollValue: number;
 }
 
 /**
@@ -25,32 +25,32 @@ export interface GameConfig {
 const defaultConfig: GameConfig = {
   deterministicRolls: false,
   fixedRollValue: 5, // Normal hit (2-9 = hit)
-}
+};
 
 /**
  * Current game configuration (mutable for testing)
  */
-let currentConfig: GameConfig = { ...defaultConfig }
+let currentConfig: GameConfig = { ...defaultConfig };
 
 /**
  * Get the current game configuration
  */
 export function getGameConfig(): Readonly<GameConfig> {
-  return currentConfig
+  return currentConfig;
 }
 
 /**
  * Set game configuration (for testing)
  */
 export function setGameConfig(config: Partial<GameConfig>): void {
-  currentConfig = { ...currentConfig, ...config }
+  currentConfig = { ...currentConfig, ...config };
 }
 
 /**
  * Reset game configuration to defaults
  */
 export function resetGameConfig(): void {
-  currentConfig = { ...defaultConfig }
+  currentConfig = { ...defaultConfig };
 }
 
 /**
@@ -61,7 +61,7 @@ export function enableDeterministicMode(rollValue: number = 5): void {
   currentConfig = {
     deterministicRolls: true,
     fixedRollValue: rollValue,
-  }
+  };
 }
 
 /**
@@ -71,5 +71,5 @@ export function disableDeterministicMode(): void {
   currentConfig = {
     ...currentConfig,
     deterministicRolls: false,
-  }
+  };
 }

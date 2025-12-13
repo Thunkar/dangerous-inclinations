@@ -72,11 +72,7 @@ export function TurnHistoryPanel({ defaultExpanded = true }: TurnHistoryPanelPro
           {/* Turn history list */}
           <Box sx={{ flex: 1, overflow: 'auto', p: 1 }}>
             {turnHistory.length === 0 ? (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ p: 2, textAlign: 'center' }}
-              >
+              <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
                 No turns yet
               </Typography>
             ) : (
@@ -84,10 +80,7 @@ export function TurnHistoryPanel({ defaultExpanded = true }: TurnHistoryPanelPro
                 .slice()
                 .reverse()
                 .map((entry, index) => (
-                  <TurnHistoryItem
-                    key={`${entry.turn}-${entry.playerId}-${index}`}
-                    entry={entry}
-                  />
+                  <TurnHistoryItem key={`${entry.turn}-${entry.playerId}-${index}`} entry={entry} />
                 ))
             )}
           </Box>
@@ -166,17 +159,11 @@ function TurnHistoryItem({ entry }: TurnHistoryItemProps) {
           >
             {entry.playerName}
           </Typography>
-          {isBot && (
-            <Psychology sx={{ fontSize: 18, color: 'secondary.main' }} />
-          )}
+          {isBot && <Psychology sx={{ fontSize: 18, color: 'secondary.main' }} />}
         </Box>
       </AccordionSummary>
       <AccordionDetails>
-        {isBot ? (
-          <BotTurnDetails entry={entry} />
-        ) : (
-          <PlayerTurnDetails entry={entry} />
-        )}
+        {isBot ? <BotTurnDetails entry={entry} /> : <PlayerTurnDetails entry={entry} />}
       </AccordionDetails>
     </Accordion>
   )
@@ -284,11 +271,19 @@ function BotTurnDetails({ entry }: { entry: TurnHistoryEntry }) {
         </Typography>
         {botDecision.candidates.map((candidate: any, idx: number) => (
           <Box key={idx} sx={{ mb: 1 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                mb: 0.5,
+              }}
+            >
               <Typography
                 variant="caption"
                 sx={{
-                  fontWeight: candidate.description === botDecision.selectedCandidate.description ? 600 : 400,
+                  fontWeight:
+                    candidate.description === botDecision.selectedCandidate.description ? 600 : 400,
                   color:
                     candidate.description === botDecision.selectedCandidate.description
                       ? 'secondary.main'
@@ -339,7 +334,10 @@ function BotTurnDetails({ entry }: { entry: TurnHistoryEntry }) {
       </Paper>
 
       {/* Selected Actions */}
-      <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'secondary.dark', borderColor: 'secondary.main' }}>
+      <Paper
+        variant="outlined"
+        sx={{ p: 1.5, bgcolor: 'secondary.dark', borderColor: 'secondary.main' }}
+      >
         <Typography
           variant="caption"
           sx={{ fontWeight: 600, mb: 1, display: 'block', color: 'secondary.light' }}

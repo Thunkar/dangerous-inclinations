@@ -4,10 +4,7 @@ import type { ActionPlan, ScoredActionPlan, TacticalSituation, BotParameters } f
 /**
  * Evaluate offense score - damage potential
  */
-function evaluateOffense(
-  actions: PlayerAction[],
-  situation: TacticalSituation
-): number {
+function evaluateOffense(actions: PlayerAction[], situation: TacticalSituation): number {
   let score = 0
 
   // Count weapon actions
@@ -64,9 +61,7 @@ function evaluatePositioning(
 
   // Check if we're in preferred range
   if (situation.primaryTarget) {
-    const ringDistance = Math.abs(
-      situation.status.ring - situation.primaryTarget.player.ship.ring
-    )
+    const ringDistance = Math.abs(situation.status.ring - situation.primaryTarget.player.ship.ring)
     const { preferredRingRange } = parameters
 
     if (ringDistance >= preferredRingRange.min && ringDistance <= preferredRingRange.max) {
@@ -83,10 +78,7 @@ function evaluatePositioning(
 /**
  * Evaluate resource efficiency - energy and heat management
  */
-function evaluateResources(
-  actions: PlayerAction[],
-  situation: TacticalSituation
-): number {
+function evaluateResources(actions: PlayerAction[], situation: TacticalSituation): number {
   let score = 50 // Base score
 
   // Efficient energy allocation
@@ -155,9 +147,7 @@ export function selectBestCandidate(
   parameters: BotParameters
 ): ScoredActionPlan {
   // Evaluate all plans
-  const scoredPlans = plans.map(plan =>
-    evaluateActionPlan(plan, situation, parameters)
-  )
+  const scoredPlans = plans.map(plan => evaluateActionPlan(plan, situation, parameters))
 
   // Sort by total score (highest first)
   scoredPlans.sort((a, b) => b.totalScore - a.totalScore)

@@ -27,7 +27,11 @@ interface AbilityBoxProps {
 
 const AbilityBox = styled(Box, {
   shouldForwardProp: prop =>
-    prop !== 'disabled' && prop !== 'isOverclocked' && prop !== 'isBroken' && prop !== 'variant' && prop !== 'shouldBlur',
+    prop !== 'disabled' &&
+    prop !== 'isOverclocked' &&
+    prop !== 'isBroken' &&
+    prop !== 'variant' &&
+    prop !== 'shouldBlur',
 })<AbilityBoxProps>(({ theme, disabled, isOverclocked, isBroken, variant, shouldBlur }) => {
   const isAction = variant === 'add' || variant === 'remove' || variant === 'vent'
 
@@ -165,7 +169,7 @@ export function SubsystemButton({
               )}
             </CostsRow>
             <TextContainer sx={{ color: isBroken ? 'error.main' : 'inherit' }}>
-              {isBroken ? 'BROKEN' : (label || config.name)}
+              {isBroken ? 'BROKEN' : label || config.name}
               {usedThisTurn && !isBroken && ' (used)'}
             </TextContainer>
           </>

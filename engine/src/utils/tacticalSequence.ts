@@ -4,7 +4,7 @@ import type {
   BurnIntensity,
   ActionType,
   TacticalAction,
-} from "../types/game";
+} from "../models/game";
 import {
   applyOrbitalMovement,
   applyRotation,
@@ -26,7 +26,7 @@ export function calculateShipPositionForWeapon(
   initialShip: ShipState,
   tacticalSequence: TacticalAction[],
   pendingFacing?: Facing,
-  weaponActionId?: string
+  weaponActionId?: string,
 ): ShipState {
   // If no weapon action specified, calculate position after all movement
   // Otherwise, calculate position just before the weapon fires
@@ -87,7 +87,7 @@ export function calculatePostMovementPosition(
     burnIntensity?: BurnIntensity;
     sectorAdjustment: number;
   },
-  rotateBeforeMove: boolean = true
+  rotateBeforeMove: boolean = true,
 ): ShipState {
   let projectedShip = { ...initialShip };
 

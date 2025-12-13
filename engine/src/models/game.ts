@@ -5,12 +5,13 @@ import type {
   HeatState,
 } from "./subsystems";
 
-// Placeholder type for bot decision logs (actual implementation in UI)
-export interface BotDecisionLog {
-  [key: string]: any;
-}
-import type { Mission, Cargo } from "../game/missions/types";
-import type { GamePhase, LobbyState } from "../game/lobby/types";
+import type { Mission, Cargo } from "./missions";
+import type { GamePhase, LobbyState } from "./lobby";
+
+export const ENERGY_PER_TURN = 10;
+export const MAX_REACTION_MASS = 10;
+export const STARTING_REACTION_MASS = 10;
+export const DEFAULT_DISSIPATION_CAPACITY = 5;
 
 export type Facing = "prograde" | "retrograde";
 
@@ -232,7 +233,6 @@ export interface TurnHistoryEntry {
   playerId: string;
   playerName: string;
   actions: PlayerAction[];
-  botDecision?: BotDecisionLog; // Only present for bot turns
 }
 
 export type GameStatus = "active" | "victory" | "defeat";
@@ -270,32 +270,4 @@ export interface Station {
   planetId: GravityWellId;
   ring: number; // Always Ring 1 for planets
   sector: number; // Starts at 0, moves with orbital velocity
-}
-
-/**
- * D10 hit roll result
- * 1 = miss, 2-9 = hit, 10 = critical
- */
-export type HitRollResult = "miss" | "hit" | "critical";
-
-/**
- * Critical hit effect - breaks a subsystem and converts its energy to heat
- */
-export interface CriticalHitEffect {
-  targetSubsystem: SubsystemType;
-  energyLost: number;
-  heatAdded: number;
-  subsystemBroken: true; // Always true - subsystem is now broken
-}
-
-/**
- * Result of a weapon attack, including d10 roll and critical hit information
- */
-export interface WeaponHitResult {
-  roll: number; // The d10 roll (1-10)
-  result: HitRollResult; // miss/hit/critical
-  damage: number; // Weapon damage (0 if miss)
-  damageToHull: number; // After shield absorption (0 if miss)
-  damageToHeat: number; // Absorbed by shields, converted to heat (0 if miss)
-  criticalEffect?: CriticalHitEffect; // Only present if result is 'critical'
 }

@@ -1,8 +1,5 @@
 import type { GravityWell } from '@dangerous-inclinations/engine'
-import {
-  getGravityWellPosition,
-  getSectorRotationOffset,
-} from './gravityWellGeometry'
+import { getGravityWellPosition, getSectorRotationOffset } from './gravityWellGeometry'
 import { getRingRadius } from '@/constants/visualConfig'
 
 export interface SectorPositionParams {
@@ -55,7 +52,5 @@ export interface SectorAngleParams {
  */
 export function calculateSectorAngle(params: SectorAngleParams): number {
   const { sector, sectorCount, rotationOffset } = params
-  return (
-    ((sector + 0.5) / sectorCount) * 2 * Math.PI - Math.PI / 2 + rotationOffset
-  )
+  return ((sector + 0.5) / sectorCount) * 2 * Math.PI - Math.PI / 2 + rotationOffset
 }

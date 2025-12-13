@@ -37,7 +37,7 @@ interface RadialChildProps {
 }
 
 const RadialChild = styled(Box, {
-  shouldForwardProp: (prop) => prop !== 'isOpen' && prop !== 'angle' && prop !== 'radius',
+  shouldForwardProp: prop => prop !== 'isOpen' && prop !== 'angle' && prop !== 'radius',
 })<RadialChildProps>(({ isOpen, angle, radius }) => ({
   position: 'absolute',
   left: '0',
@@ -59,7 +59,7 @@ interface LineProps {
 }
 
 const Line = styled(Box, {
-  shouldForwardProp: (prop) => prop !== 'isOpen' && prop !== 'angle' && prop !== 'radius',
+  shouldForwardProp: prop => prop !== 'isOpen' && prop !== 'angle' && prop !== 'radius',
 })<LineProps>(({ isOpen, angle, radius, theme }) => {
   // Button radius is approximately 25px = 1.5em
   const buttonRadius = 1.5
@@ -165,7 +165,9 @@ export function RadialMenu({
       </ChildrenContainer>
 
       {/* Toggle button */}
-      <Toggle ref={toggleRef} onClick={handleToggle}>{customToggle}</Toggle>
+      <Toggle ref={toggleRef} onClick={handleToggle}>
+        {customToggle}
+      </Toggle>
 
       {/* Menu items */}
       <ChildrenContainer

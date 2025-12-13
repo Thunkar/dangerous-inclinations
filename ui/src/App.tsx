@@ -135,16 +135,13 @@ function ActiveGameContent() {
  */
 function ActiveGameScreen({
   initialGameState,
-  onGameStateChange
+  onGameStateChange,
 }: {
   initialGameState: GameState
   onGameStateChange: (state: GameState) => void
 }) {
   return (
-    <GameProvider
-      initialGameState={initialGameState}
-      onGameStateChange={onGameStateChange}
-    >
+    <GameProvider initialGameState={initialGameState} onGameStateChange={onGameStateChange}>
       <ActiveGameContent />
     </GameProvider>
   )
@@ -177,10 +174,7 @@ function AppContent() {
     case 'active':
       if (!gameState) return null
       return (
-        <ActiveGameScreen
-          initialGameState={gameState}
-          onGameStateChange={handleGameStateChange}
-        />
+        <ActiveGameScreen initialGameState={gameState} onGameStateChange={handleGameStateChange} />
       )
 
     case 'ended':

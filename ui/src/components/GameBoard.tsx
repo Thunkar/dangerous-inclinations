@@ -20,7 +20,6 @@ import {
   DeploymentSectors,
   type MovementPreview,
 } from './GameBoard/index'
-import { GRAVITY_WELLS, TRANSFER_POINTS } from '@dangerous-inclinations/engine'
 import { getGravityWellVisual } from '@/constants/visualConfig'
 
 interface GameBoardProps {

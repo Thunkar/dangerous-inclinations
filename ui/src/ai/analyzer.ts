@@ -1,4 +1,10 @@
-import type { GameState, Player, ShipState, GravityWellId, TransferPoint } from '@dangerous-inclinations/engine'
+import type {
+  GameState,
+  Player,
+  ShipState,
+  GravityWellId,
+  TransferPoint,
+} from '@dangerous-inclinations/engine'
 import type { TacticalSituation, Threat, Target, BotStatus } from './types'
 import { calculateFiringSolutions } from '@dangerous-inclinations/engine'
 import { SUBSYSTEM_CONFIGS } from '@dangerous-inclinations/engine'
@@ -18,20 +24,18 @@ function areInSharedTransferSector(
   if (ship1.wellId === ship2.wellId) return false // Same well, not a transfer sector issue
 
   // Check if ship1's position is a transfer point that connects to ship2's well
-  const ship1Transfers = transferPoints.filter(tp =>
-    tp.fromWellId === ship1.wellId &&
-    tp.fromRing === ship1.ring &&
-    tp.fromSector === ship1.sector &&
-    tp.toWellId === ship2.wellId
+  const ship1Transfers = transferPoints.filter(
+    tp =>
+      tp.fromWellId === ship1.wellId &&
+      tp.fromRing === ship1.ring &&
+      tp.fromSector === ship1.sector &&
+      tp.toWellId === ship2.wellId
   )
 
   if (ship1Transfers.length === 0) return false
 
   // Check if ship2 is at the corresponding transfer sector
-  return ship1Transfers.some(tp =>
-    tp.toRing === ship2.ring &&
-    tp.toSector === ship2.sector
-  )
+  return ship1Transfers.some(tp => tp.toRing === ship2.ring && tp.toSector === ship2.sector)
 }
 
 /**
@@ -308,9 +312,7 @@ export function analyzeTacticalSituation(
   }
 
   // Get enemies (all other players with HP > 0)
-  const enemies = gameState.players.filter(
-    p => p.id !== botPlayerId && p.ship.hitPoints > 0
-  )
+  const enemies = gameState.players.filter(p => p.id !== botPlayerId && p.ship.hitPoints > 0)
 
   // Analyze bot status
   const status = analyzeBotStatus(botPlayer)
@@ -320,14 +322,12 @@ export function analyzeTacticalSituation(
   const targets = analyzeTargets(botPlayer, enemies, TRANSFER_POINTS)
 
   // Identify primary threat (closest enemy with weapons in range)
-  const primaryThreat = threats.find(t =>
-    t.weaponsInRange.some(w => w.inRange)
-  ) || threats[0] || null
+  const primaryThreat =
+    threats.find(t => t.weaponsInRange.some(w => w.inRange)) || threats[0] || null
 
   // Identify primary target (best firing solution + highest priority)
-  const primaryTarget = targets.find(t =>
-    Object.values(t.firingSolutions).some(s => s?.inRange)
-  ) || targets[0] || null
+  const primaryTarget =
+    targets.find(t => Object.values(t.firingSolutions).some(s => s?.inRange)) || targets[0] || null
 
   // Get available transfer points
   const availableTransfers = getAvailableWellTransfers(

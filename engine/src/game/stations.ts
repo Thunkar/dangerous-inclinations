@@ -7,7 +7,7 @@
  * Ships dock by being at the same ring/sector as a station.
  */
 
-import type { Station, GravityWell } from '../types/game'
+import type { Station, GravityWell } from "../models/game";
 
 /**
  * Station constants
@@ -16,7 +16,7 @@ export const STATION_CONSTANTS = {
   RING: 1, // Stations always orbit at Ring 1
   INITIAL_SECTOR: 0, // All stations start at sector 0
   SECTORS_PER_RING: 24, // Standard sector count
-} as const
+} as const;
 
 /**
  * Create initial stations for all planets
@@ -24,13 +24,13 @@ export const STATION_CONSTANTS = {
  */
 export function createInitialStations(gravityWells: GravityWell[]): Station[] {
   return gravityWells
-    .filter(well => well.type === 'planet')
-    .map(planet => ({
+    .filter((well) => well.type === "planet")
+    .map((planet) => ({
       id: `station-${planet.id}`,
       planetId: planet.id,
       ring: STATION_CONSTANTS.RING,
       sector: STATION_CONSTANTS.INITIAL_SECTOR,
-    }))
+    }));
 }
 
 /**
@@ -38,23 +38,27 @@ export function createInitialStations(gravityWells: GravityWell[]): Station[] {
  * Called at the end of each round (when turn wraps to player 0)
  * Ring 1 velocity is 4, so stations move 4 sectors per round
  */
-export function updateStationPositions(stations: Station[], gravityWells: GravityWell[]): Station[] {
-  return stations.map(station => {
+export function updateStationPositions(
+  stations: Station[],
+  gravityWells: GravityWell[]
+): Station[] {
+  return stations.map((station) => {
     // Find the planet's ring configuration
-    const planet = gravityWells.find(w => w.id === station.planetId)
-    if (!planet) return station
+    const planet = gravityWells.find((w) => w.id === station.planetId);
+    if (!planet) return station;
 
-    const ringConfig = planet.rings.find(r => r.ring === station.ring)
-    if (!ringConfig) return station
+    const ringConfig = planet.rings.find((r) => r.ring === station.ring);
+    if (!ringConfig) return station;
 
     // Move station by ring velocity, wrapping around
-    const newSector = (station.sector + ringConfig.velocity) % ringConfig.sectors
+    const newSector =
+      (station.sector + ringConfig.velocity) % ringConfig.sectors;
 
     return {
       ...station,
       sector: newSector,
-    }
-  })
+    };
+  });
 }
 
 /**
@@ -68,18 +72,21 @@ export function getStationAtPosition(
   sector: number
 ): Station | undefined {
   return stations.find(
-    station =>
+    (station) =>
       station.planetId === wellId &&
       station.ring === ring &&
       station.sector === sector
-  )
+  );
 }
 
 /**
  * Get the station for a specific planet
  */
-export function getStationForPlanet(stations: Station[], planetId: string): Station | undefined {
-  return stations.find(station => station.planetId === planetId)
+export function getStationForPlanet(
+  stations: Station[],
+  planetId: string
+): Station | undefined {
+  return stations.find((station) => station.planetId === planetId);
 }
 
 /**
@@ -92,7 +99,7 @@ export function isShipAtStation(
   ring: number,
   sector: number
 ): boolean {
-  return getStationAtPosition(stations, wellId, ring, sector) !== undefined
+  return getStationAtPosition(stations, wellId, ring, sector) !== undefined;
 }
 
 /**
@@ -106,9 +113,9 @@ export function getStationsAtShipPosition(
   sector: number
 ): Station[] {
   return stations.filter(
-    station =>
+    (station) =>
       station.planetId === wellId &&
       station.ring === ring &&
       station.sector === sector
-  )
+  );
 }

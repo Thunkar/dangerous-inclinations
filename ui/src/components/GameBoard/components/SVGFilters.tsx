@@ -24,13 +24,7 @@ export function SVGFilters() {
       {players.map(player => (
         <React.Fragment key={player.id}>
           {/* Ship outline filter */}
-          <filter
-            id={`outline-${player.id}`}
-            x="-50%"
-            y="-50%"
-            width="200%"
-            height="200%"
-          >
+          <filter id={`outline-${player.id}`} x="-50%" y="-50%" width="200%" height="200%">
             {/* Create colored outline (outer) */}
             <feMorphology operator="dilate" radius="4" in="SourceAlpha" result="thickenColor" />
             <feFlood floodColor={player.color} result="colorFlood" />
@@ -50,13 +44,7 @@ export function SVGFilters() {
           </filter>
 
           {/* Missile outline filter (slimmer) */}
-          <filter
-            id={`missile-outline-${player.id}`}
-            x="-50%"
-            y="-50%"
-            width="200%"
-            height="200%"
-          >
+          <filter id={`missile-outline-${player.id}`} x="-50%" y="-50%" width="200%" height="200%">
             {/* Create colored outline (outer, slimmer than ships) */}
             <feMorphology operator="dilate" radius="2" in="SourceAlpha" result="thickenColor" />
             <feFlood floodColor={player.color} result="colorFlood" />

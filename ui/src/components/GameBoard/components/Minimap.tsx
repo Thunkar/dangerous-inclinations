@@ -17,12 +17,8 @@ interface MinimapProps {
  */
 export function Minimap({ pendingFacing, zoom, pan }: MinimapProps) {
   const { gameState } = useGame()
-  const {
-    boardSize,
-    scaleFactor,
-    getGravityWellPosition,
-    getSectorRotationOffset,
-  } = useBoardContext()
+  const { boardSize, scaleFactor, getGravityWellPosition, getSectorRotationOffset } =
+    useBoardContext()
 
   // Get players and activePlayerIndex from gameState
   const players = gameState.players

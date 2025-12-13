@@ -8,9 +8,9 @@ export type {
   PlayerSlot,
   LobbyState,
   LobbyResult,
-} from './types'
+} from "../../models/lobby";
 
-export { LOBBY_CONSTANTS } from './types'
+export { LOBBY_CONSTANTS } from "../../models/lobby";
 
 // Lobby management
 export {
@@ -23,4 +23,4 @@ export {
   canStartGame,
   startGame,
   getLobbyStatus,
-} from './lobbyManager'
+} from "./lobbyManager";

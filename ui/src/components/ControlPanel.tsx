@@ -589,23 +589,32 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                 const firesAfterMovement = moveAction && panel.sequence > moveAction.sequence
 
                 // Determine if rotation happens before or after movement
-                const rotateBeforeMove = rotateAction && moveAction
-                  ? rotateAction.sequence < moveAction.sequence
-                  : true // Default to rotate before move
+                const rotateBeforeMove =
+                  rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true // Default to rotate before move
 
                 // Calculate ship position for range calculations
                 let shipForRangeCalc = ship
                 if (firesAfterMovement && actionType === 'burn') {
-                  shipForRangeCalc = calculatePostMovementPosition(ship, targetFacing, {
-                    actionType,
-                    burnIntensity,
-                    sectorAdjustment,
-                  }, rotateBeforeMove)
+                  shipForRangeCalc = calculatePostMovementPosition(
+                    ship,
+                    targetFacing,
+                    {
+                      actionType,
+                      burnIntensity,
+                      sectorAdjustment,
+                    },
+                    rotateBeforeMove
+                  )
                 } else if (firesAfterMovement && actionType === 'coast') {
-                  shipForRangeCalc = calculatePostMovementPosition(ship, targetFacing, {
-                    actionType: 'coast',
-                    sectorAdjustment: 0,
-                  }, rotateBeforeMove)
+                  shipForRangeCalc = calculatePostMovementPosition(
+                    ship,
+                    targetFacing,
+                    {
+                      actionType: 'coast',
+                      sectorAdjustment: 0,
+                    },
+                    rotateBeforeMove
+                  )
                 }
 
                 const firingSolutions = weaponStats
@@ -685,12 +694,18 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                     </select>
                     {/* Critical Target Selector */}
                     <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block', mb: 0.5 }}
+                      >
                         Critical Target (if roll = 10)
                       </Typography>
                       <select
                         value={panel.criticalTarget || 'shields'}
-                        onChange={e => updateCriticalTarget(panel.id, e.target.value as SubsystemType)}
+                        onChange={e =>
+                          updateCriticalTarget(panel.id, e.target.value as SubsystemType)
+                        }
                         style={{
                           width: '100%',
                           padding: '4px 8px',
@@ -702,7 +717,11 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                         }}
                       >
                         {TARGETABLE_SUBSYSTEMS.map(sub => (
-                          <option key={sub.type} value={sub.type} style={{ backgroundColor: '#1a1a1a' }}>
+                          <option
+                            key={sub.type}
+                            value={sub.type}
+                            style={{ backgroundColor: '#1a1a1a' }}
+                          >
                             {sub.label}
                           </option>
                         ))}
@@ -725,23 +744,32 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                 const firesAfterMovement = moveAction && panel.sequence > moveAction.sequence
 
                 // Determine if rotation happens before or after movement
-                const rotateBeforeMove = rotateAction && moveAction
-                  ? rotateAction.sequence < moveAction.sequence
-                  : true // Default to rotate before move
+                const rotateBeforeMove =
+                  rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true // Default to rotate before move
 
                 // Calculate ship position for range calculations
                 let shipForRangeCalc = ship
                 if (firesAfterMovement && actionType === 'burn') {
-                  shipForRangeCalc = calculatePostMovementPosition(ship, targetFacing, {
-                    actionType,
-                    burnIntensity,
-                    sectorAdjustment,
-                  }, rotateBeforeMove)
+                  shipForRangeCalc = calculatePostMovementPosition(
+                    ship,
+                    targetFacing,
+                    {
+                      actionType,
+                      burnIntensity,
+                      sectorAdjustment,
+                    },
+                    rotateBeforeMove
+                  )
                 } else if (firesAfterMovement && actionType === 'coast') {
-                  shipForRangeCalc = calculatePostMovementPosition(ship, targetFacing, {
-                    actionType: 'coast',
-                    sectorAdjustment: 0,
-                  }, rotateBeforeMove)
+                  shipForRangeCalc = calculatePostMovementPosition(
+                    ship,
+                    targetFacing,
+                    {
+                      actionType: 'coast',
+                      sectorAdjustment: 0,
+                    },
+                    rotateBeforeMove
+                  )
                 }
 
                 const firingSolutions = weaponStats
@@ -823,12 +851,18 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                     </select>
                     {/* Critical Target Selector */}
                     <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block', mb: 0.5 }}
+                      >
                         Critical Target (if roll = 10)
                       </Typography>
                       <select
                         value={panel.criticalTarget || 'shields'}
-                        onChange={e => updateCriticalTarget(panel.id, e.target.value as SubsystemType)}
+                        onChange={e =>
+                          updateCriticalTarget(panel.id, e.target.value as SubsystemType)
+                        }
                         style={{
                           width: '100%',
                           padding: '4px 8px',
@@ -840,7 +874,11 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                         }}
                       >
                         {TARGETABLE_SUBSYSTEMS.map(sub => (
-                          <option key={sub.type} value={sub.type} style={{ backgroundColor: '#1a1a1a' }}>
+                          <option
+                            key={sub.type}
+                            value={sub.type}
+                            style={{ backgroundColor: '#1a1a1a' }}
+                          >
                             {sub.label}
                           </option>
                         ))}
@@ -913,12 +951,18 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                     </select>
                     {/* Critical Target Selector */}
                     <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block', mb: 0.5 }}
+                      >
                         Critical Target (if roll = 10)
                       </Typography>
                       <select
                         value={panel.criticalTarget || 'shields'}
-                        onChange={e => updateCriticalTarget(panel.id, e.target.value as SubsystemType)}
+                        onChange={e =>
+                          updateCriticalTarget(panel.id, e.target.value as SubsystemType)
+                        }
                         style={{
                           width: '100%',
                           padding: '4px 8px',
@@ -930,7 +974,11 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                         }}
                       >
                         {TARGETABLE_SUBSYSTEMS.map(sub => (
-                          <option key={sub.type} value={sub.type} style={{ backgroundColor: '#1a1a1a' }}>
+                          <option
+                            key={sub.type}
+                            value={sub.type}
+                            style={{ backgroundColor: '#1a1a1a' }}
+                          >
                             {sub.label}
                           </option>
                         ))}
