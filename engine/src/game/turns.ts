@@ -1,9 +1,4 @@
-import type {
-  GameState,
-  TurnLogEntry,
-  PlayerAction,
-  GameStatus,
-} from "../models/game";
+import type { GameState, TurnLogEntry, PlayerAction } from "../models/game";
 import { processActions } from "./actionProcessors";
 import { processMissiles } from "./missiles";
 import { calculateHeatDamage, resetHeat } from "./heat";

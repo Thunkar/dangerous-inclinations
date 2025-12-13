@@ -37,9 +37,6 @@ export {
   rollToResult,
 } from "./damage";
 
-// Subsystems
-export { resetSubsystemUsage, getSubsystem } from "./subsystems";
-
 // Turn management
 export { executeTurn, type TurnResult } from "./turns";
 

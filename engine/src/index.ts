@@ -26,7 +26,6 @@ export * from "./models/gravityWells";
 export * from "./models/rings";
 export * from "./models/weapons";
 // Utils
-export * from "./utils/tacticalSequence";
 export * from "./models/transferPoints";
 export * from "./utils/weaponRange";
 export {
