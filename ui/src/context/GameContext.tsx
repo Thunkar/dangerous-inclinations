@@ -81,7 +81,6 @@ interface GameContextType {
   // High-level game actions
   allocateEnergy: (subsystemType: SubsystemType, newTotal: number) => void
   deallocateEnergy: (subsystemType: SubsystemType, amount: number) => void
-  ventHeat: (newTotal: number) => void
   setFacing: (facing: Facing) => void
   setMovement: (movement: MovementPreview) => void
   setTacticalSequence: (sequence: TacticalAction[]) => void
@@ -313,12 +312,6 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
     },
     [pendingState, activePlayer.ship.facing]
   )
-
-  // Heat venting is now automatic via dissipation - no manual venting needed
-  const ventHeat = useCallback((_newTotal: number) => {
-    // Heat dissipation is now automatic at start of turn
-    // No manual venting action needed
-  }, [])
 
   // High-level game action: Set facing
   const setFacing = useCallback((facing: Facing) => {
@@ -655,7 +648,6 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
         clearTurnErrors,
         allocateEnergy,
         deallocateEnergy,
-        ventHeat,
         setFacing,
         setMovement,
         setTacticalSequence,
