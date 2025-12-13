@@ -2,11 +2,11 @@ import {
   STARTING_REACTION_MASS,
   type GameState,
   type Player,
-} from "../../../models/game";
+} from "../../models/game";
 import {
   createInitialShipState,
   DEFAULT_HIT_POINTS,
-} from "../../../utils/subsystemHelpers";
+} from "../../utils/subsystemHelpers";
 
 // Initial state constants for easy reference in tests
 export const INITIAL_RING = 3;

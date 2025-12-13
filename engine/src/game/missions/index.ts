@@ -10,6 +10,7 @@ export type {
   DeliverCargoMission,
   Mission,
   Cargo,
+  MissionCheckResult,
 } from "../../models/missions";
 
 export {
@@ -35,5 +36,4 @@ export {
   checkPlayerMissions,
   checkForWinner,
   getMissionProgress,
-  type MissionCheckResult,
 } from "./missionChecks";

@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  createCoastAction,
-  createAllocateEnergyAction,
-  createDeallocateEnergyAction,
-} from "./fixtures/actions";
-import {
   createTestGameState,
   INITIAL_REACTOR_ENERGY,
-} from "./fixtures/gameState";
-import { executeTurnWithActions } from "./testUtils";
+} from "../fixtures/gameState";
+import {
+  createAllocateEnergyAction,
+  createDeallocateEnergyAction,
+  createCoastAction,
+} from "../fixtures/actions";
+import { executeTurnWithActions } from "../testUtils";
 
 describe("Energy Management System", () => {
   describe("Energy Allocation/Deallocation", () => {

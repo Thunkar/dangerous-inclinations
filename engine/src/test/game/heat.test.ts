@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { createCoastAction } from "./fixtures/actions";
-import { createTestGameState, INITIAL_HIT_POINTS } from "./fixtures/gameState";
-import { executeTurnWithActions } from "./testUtils";
+import {
+  createTestGameState,
+  INITIAL_HIT_POINTS,
+} from "../fixtures/gameState";
+import { createCoastAction } from "../fixtures/actions";
+import { executeTurnWithActions } from "../testUtils";
 
 /**
  * Heat System Tests

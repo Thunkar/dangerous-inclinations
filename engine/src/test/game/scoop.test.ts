@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import {
-  createCoastAction,
-  createAllocateEnergyAction,
-} from "./fixtures/actions";
-import { createTestGameState } from "./fixtures/gameState";
-import { executeTurnWithActions } from "./testUtils";
 import { getGravityWell } from "../../models/gravityWells";
+import { createTestGameState } from "../fixtures/gameState";
+import {
+  createAllocateEnergyAction,
+  createCoastAction,
+} from "../fixtures/actions";
+import { executeTurnWithActions } from "../testUtils";
 
 describe("Fuel Scoop", () => {
   describe("Scoop Activation", () => {

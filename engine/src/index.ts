@@ -13,6 +13,10 @@ export * from "./game/movement";
 export * from "./game/respawn";
 export * from "./game/stations";
 
+// AI Bot
+export * from "./ai/index";
+export * from "./ai/types";
+
 // Types
 export * from "./models/game";
 export * from "./models/subsystems";

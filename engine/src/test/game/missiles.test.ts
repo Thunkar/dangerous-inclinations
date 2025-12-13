@@ -1,18 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { executeTurn } from "../turns";
+import { executeTurn } from "../../game/turns";
 import {
   calculateMissileMovement,
   checkMissileHit,
   getMissileAmmo,
-} from "../missiles";
+} from "../../game/missiles";
 import { getMissileStats } from "../../models/subsystems";
-import { createTestGameState } from "./fixtures/gameState";
 import type {
   Missile,
   FireWeaponAction,
   AllocateEnergyAction,
   CoastAction,
 } from "../../models/game";
+import { createTestGameState } from "../fixtures/gameState";
 
 const MISSILE_STATS = getMissileStats();
 

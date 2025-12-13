@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
-  createBurnAction,
-  createCoastAction,
-  createAllocateEnergyAction,
-} from "./fixtures/actions";
-import {
   createTestGameState,
   INITIAL_RING,
   INITIAL_REACTION_MASS,
-} from "./fixtures/gameState";
-import { executeTurnWithActions } from "./testUtils";
+} from "../fixtures/gameState";
+import {
+  createAllocateEnergyAction,
+  createBurnAction,
+  createCoastAction,
+} from "../fixtures/actions";
+import { executeTurnWithActions } from "../testUtils";
 
 describe("Multi-Turn Movement", () => {
   describe("Transfer Completion Across Turns", () => {

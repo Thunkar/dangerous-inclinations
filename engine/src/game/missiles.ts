@@ -244,13 +244,14 @@ export function processMissiles(
       // HIT! Apply damage with d10 hit resolution
       // Missiles always target shields for critical (thematic: guided warhead)
       const targetIndex = updatedPlayers.findIndex((p) => p.id === target.id);
+      const currentTarget = updatedPlayers[targetIndex];
       const { ship: damagedShip, hitResult } = applyDamageWithShields(
-        target.ship,
+        currentTarget.ship,
         MISSILE_STATS.damage,
         "shields",
       );
       updatedPlayers[targetIndex] = {
-        ...target,
+        ...currentTarget,
         ship: damagedShip,
       };
 

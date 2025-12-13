@@ -1,5 +1,5 @@
-import type { ShipState } from "../../../models/game";
-import { createInitialShipState } from "../../../utils/subsystemHelpers";
+import type { ShipState } from "../../models/game";
+import { createInitialShipState } from "../../utils/subsystemHelpers";
 
 /**
  * Creates a basic ship for testing with minimal configuration.

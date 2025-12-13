@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { applyOrbitalMovement } from "../movement";
-import { processActions } from "../actionProcessors";
+import { applyOrbitalMovement } from "../../game/movement";
+import { processActions } from "../../game/actionProcessors";
 import {
   calculateTransferPoints,
   getAvailableWellTransfers,
