@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\Repos\\dangerous-inclinations\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"c:\\Repos\\dangerous-inclinations\\src\" -Directory)",
+      "Bash(test:*)",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./types/game''''|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./types/subsystems''''|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./\\.\\./types/game''''|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./\\.\\./types/subsystems''''|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./constants/|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./\\.\\./constants/|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./game-logic/|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./\\.\\./game-logic/|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./utils/|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(xargs sed -i \"s|from ''''\\.\\./\\.\\./utils/|from ''''@dangerous-inclinations/engine''''|g\")",
+      "Bash(yarn install:*)",
+      "Bash(yarn set:*)",
+      "Bash(yarn build)",
+      "Bash(grep:*)",
+      "Bash(xargs sed:*)",
+      "Bash(cat:*)",
+      "Bash(yarn tsc:*)"
+    ]
+  }
+}
