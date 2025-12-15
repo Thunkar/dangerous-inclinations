@@ -1,8 +1,9 @@
 import Redis from "ioredis";
+import type { Redis as RedisType } from "ioredis";
 
-let redis: Redis | null = null;
+let redis: RedisType | null = null;
 
-export function getRedis(): Redis {
+export function getRedis(): RedisType {
   if (!redis) {
     redis = new Redis({
       host: process.env.REDIS_HOST || "localhost",

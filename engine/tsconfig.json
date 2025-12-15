@@ -6,8 +6,8 @@
     "lib": ["ES2020"],
     "skipLibCheck": true,
 
-    /* Bundler mode */
-    "moduleResolution": "node",
+    /* Bundler mode - works for both bundler (UI) and tsx (Server) consumers */
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "moduleDetection": "force",

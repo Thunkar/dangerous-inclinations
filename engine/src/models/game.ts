@@ -6,7 +6,6 @@ import type {
 } from "./subsystems";
 
 import type { Mission, Cargo } from "./missions";
-import type { GamePhase, LobbyState } from "./lobby";
 
 export const ENERGY_PER_TURN = 10;
 export const MAX_REACTION_MASS = 10;
@@ -235,7 +234,10 @@ export interface TurnHistoryEntry {
   actions: PlayerAction[];
 }
 
-export type GameStatus = "active" | "victory" | "defeat";
+/**
+ * Game phases in order of progression
+ */
+export type GamePhase = "lobby" | "setup" | "deployment" | "active" | "ended";
 
 /**
  * Dynamic game state - changes every turn
@@ -247,11 +249,9 @@ export interface GameState {
   players: Player[];
   turnLog: TurnLogEntry[];
   missiles: Missile[]; // All missiles currently in flight
-  status: GameStatus; // Game win/loss status
   winnerId?: string; // ID of the winning player (if status is victory or defeat)
   // Mission system fields
   phase: GamePhase;
-  lobbyState?: LobbyState;
   stations: Station[];
 }
 

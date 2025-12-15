@@ -53,9 +53,6 @@ export {
 // Mission system
 export * from "./missions";
 
-// Lobby system
-export * from "./lobby";
-
 // Station system
 export {
   STATION_CONSTANTS,

@@ -3,7 +3,6 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import { playerRoutes } from "./routes/player.js";
 import { lobbyRoutes } from "./routes/lobby.js";
-import { setupGameWebSocket } from "./websocket/gameHandler.js";
 import { setupWebSocketRooms } from "./websocket/roomHandler.js";
 import { closeRedis } from "./services/redis.js";
 
@@ -26,7 +25,6 @@ await fastify.register(lobbyRoutes);
 
 // Setup WebSocket handlers
 await setupWebSocketRooms(fastify);
-await setupGameWebSocket(fastify);
 
 // Health check
 fastify.get("/health", async () => {
