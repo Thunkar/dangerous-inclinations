@@ -292,7 +292,7 @@ export async function setupWebSocketRooms(fastify: FastifyInstance) {
         // TODO: Handle game actions (will be done in Phase 4)
         fastify.log.info(`Game message from ${playerId}:`, data);
       } catch (error) {
-        fastify.log.error("WebSocket message error:", error);
+        fastify.log.error({ error }, "WebSocket message error");
       }
     });
 

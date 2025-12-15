@@ -56,7 +56,10 @@ export async function processPlayerTurn(
   }
 
   // Execute turn using the game engine
-  const newState = executeTurn(currentState, actions);
+  const turnResult = executeTurn(currentState, actions);
+
+  // Extract the new game state from the turn result
+  const newState = turnResult.gameState;
 
   await saveGameState(gameId, newState);
 

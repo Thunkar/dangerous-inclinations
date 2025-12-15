@@ -261,10 +261,3 @@ export async function startGame(
 
   return gameId;
 }
-
-export async function deleteLobby(lobbyId: string): Promise<boolean> {
-  const redis = getRedis();
-  await redis.del(`${LOBBY_KEY_PREFIX}${lobbyId}`);
-  await redis.srem(LOBBY_LIST_KEY, lobbyId);
-  return true;
-}

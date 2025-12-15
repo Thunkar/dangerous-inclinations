@@ -14,6 +14,7 @@ export async function createPlayer(
   const player: PlayerAuth = {
     playerId: id,
     playerName,
+    createdAt: Date.now(),
   };
 
   await redis.set(`${PLAYER_KEY_PREFIX}${id}`, JSON.stringify(player));

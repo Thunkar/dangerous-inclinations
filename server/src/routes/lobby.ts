@@ -1,9 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import {
-  CreateLobbySchema,
-  JoinLobbySchema,
-  LobbyActionSchema,
-} from "../schemas/lobby.js";
+import { CreateLobbySchema, JoinLobbySchema } from "../schemas/lobby.js";
 import {
   createLobby,
   getLobby,
@@ -45,7 +41,7 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
   );
 
   // List lobbies
-  fastify.get("/api/lobbies", async (request, reply) => {
+  fastify.get("/api/lobbies", async (_request, reply) => {
     const lobbies = await listLobbies();
 
     // Don't expose passwords in list
