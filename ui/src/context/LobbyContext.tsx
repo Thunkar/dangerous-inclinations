@@ -1,102 +1,206 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { GameState } from '@dangerous-inclinations/engine'
-import type { LobbyState } from '@dangerous-inclinations/engine'
-import {
-  createLobby,
-  addBot,
-  removeBot,
-  setPlayerReady,
-  startGame as startGameFromLobby,
-  canStartGame,
-} from '@dangerous-inclinations/engine'
+import type { ServerLobby } from '../api/types'
 import {
   deployShip,
   getAvailableDeploymentSectors,
   checkAllDeployed,
   transitionToActivePhase,
 } from '@dangerous-inclinations/engine'
-import { GRAVITY_WELLS } from '@dangerous-inclinations/engine'
+import { getLobby, leaveLobby, startGame as startGameAPI } from '../api/lobby'
+import { usePlayer } from './PlayerContext'
+import { useWebSocket } from './WebSocketContext'
 
-type GamePhase = 'lobby' | 'deployment' | 'active' | 'ended'
+type GamePhase = 'browser' | 'lobby' | 'deployment' | 'active' | 'ended'
 
 interface LobbyContextType {
   phase: GamePhase
-  lobbyState: LobbyState | null
+  lobbyState: ServerLobby | null
   gameState: GameState | null
+  currentLobbyId: string | null
   // Lobby actions
+  joinLobby: (lobbyId: string) => void
   addBotToLobby: (botName?: string) => void
   removeBotFromLobby: (botId: string) => void
   setReady: (isReady: boolean) => void
   startGame: () => void
   canStart: () => { canStart: boolean; reason?: string }
+  leaveLobbyAction: () => void
   // Deployment actions
   deployPlayerShip: (sector: number) => void
   getDeploymentSectors: () => number[]
   // Transition to active game
   getActiveGameState: () => GameState | null
-  // Restart (return to lobby)
+  // Restart (return to browser)
   returnToLobby: () => void
 }
 
 const LobbyContext = createContext<LobbyContextType | undefined>(undefined)
 
 export function LobbyProvider({ children }: { children: ReactNode }) {
-  const [phase, setPhase] = useState<GamePhase>('lobby')
-  const [lobbyState, setLobbyState] = useState<LobbyState | null>(() => {
-    const lobby = createLobby('player1', 'Human', 6)
-    const readyResult = setPlayerReady(lobby, 'player1', true)
-    return readyResult.success && readyResult.lobbyState ? readyResult.lobbyState : lobby
-  })
+  const { playerId, playerName } = usePlayer()
+  const { client, connect, disconnect, isConnected } = useWebSocket()
+  const [phase, setPhase] = useState<GamePhase>('browser')
+  const [currentLobbyId, setCurrentLobbyId] = useState<string | null>(null)
+  const [lobbyState, setLobbyState] = useState<ServerLobby | null>(null)
   const [gameState, setGameState] = useState<GameState | null>(null)
 
-  // Lobby actions
+  // Connect to lobby WebSocket room and listen for real-time updates
+  useEffect(() => {
+    if (phase !== 'lobby' || !currentLobbyId || !client) {
+      console.log('[LobbyContext] Skipping WebSocket setup:', { phase, currentLobbyId, hasClient: !!client })
+      return
+    }
+
+    // Load lobby state from server
+    const loadLobby = async () => {
+      try {
+        const serverLobby = await getLobby(currentLobbyId)
+        console.log('[LobbyContext] Loaded lobby:', serverLobby)
+        setLobbyState(serverLobby)
+
+        // Check if game started
+        if (serverLobby.gameId) {
+          console.log('[LobbyContext] Game already started:', serverLobby.gameId)
+          // TODO: Fetch game state and transition to deployment
+        }
+      } catch (error) {
+        console.error('[LobbyContext] Failed to load lobby:', error)
+      }
+    }
+
+    const setupConnection = async () => {
+      try {
+        // Initial load
+        await loadLobby()
+
+        // Connect to lobby room for real-time updates
+        if (!isConnected('lobby', currentLobbyId)) {
+          console.log('[LobbyContext] Connecting to lobby room:', currentLobbyId)
+          await connect('lobby', currentLobbyId)
+          console.log('[LobbyContext] Connected to lobby room')
+        }
+
+        // Listen for lobby events
+        const unsubscribe = client.onMessage('lobby', (message) => {
+          console.log('[LobbyContext] Received message:', message)
+
+          if (message.type === 'LOBBY_STATE') {
+            // Full lobby state update from server
+            console.log('[LobbyContext] Lobby state update:', message.payload)
+            setLobbyState(message.payload)
+          } else if (message.type === 'PLAYER_JOINED') {
+            // Player joined - add to state
+            console.log('[LobbyContext] Player joined:', message.payload)
+            setLobbyState((prev) => {
+              if (!prev) return prev
+              return {
+                ...prev,
+                players: [...prev.players, message.payload],
+              }
+            })
+          } else if (message.type === 'PLAYER_LEFT') {
+            // Player left - remove from state
+            console.log('[LobbyContext] Player left:', message.payload.playerId)
+            setLobbyState((prev) => {
+              if (!prev) return prev
+              return {
+                ...prev,
+                players: prev.players.filter((p) => p.playerId !== message.payload.playerId),
+              }
+            })
+          } else if (message.type === 'GAME_STARTING') {
+            // Transition to deployment phase
+            console.log('[LobbyContext] Game starting:', message.payload.gameId)
+            // TODO: Fetch game state and transition to deployment
+          }
+        }, currentLobbyId)
+
+        return unsubscribe
+      } catch (error) {
+        console.error('[LobbyContext] Failed to setup WebSocket:', error)
+      }
+    }
+
+    let unsubscribe: (() => void) | undefined
+    setupConnection().then((cleanup) => {
+      unsubscribe = cleanup
+    })
+
+    return () => {
+      unsubscribe?.()
+      disconnect('lobby', currentLobbyId)
+    }
+  }, [phase, currentLobbyId, playerId, playerName, client, connect, disconnect, isConnected])
+
+  // Join lobby action
+  const joinLobbyAction = useCallback((lobbyId: string) => {
+    setCurrentLobbyId(lobbyId)
+    setPhase('lobby')
+  }, [])
+
+  // Leave lobby action
+  const leaveLobbyAction = useCallback(async () => {
+    if (!currentLobbyId) return
+
+    try {
+      await leaveLobby(currentLobbyId)
+    } catch (error) {
+      console.error('[LobbyContext] Failed to leave lobby:', error)
+    } finally {
+      setCurrentLobbyId(null)
+      setLobbyState(null)
+      setPhase('browser')
+    }
+  }, [currentLobbyId])
+
+  // Lobby actions - now handled by server
   const addBotToLobby = useCallback(
     (botName?: string) => {
-      if (!lobbyState) return
-      const result = addBot(lobbyState, botName)
-      if (result.success && result.lobbyState) {
-        setLobbyState(result.lobbyState)
-      }
+      // TODO: Call server API to add bot
+      console.log('[LobbyContext] Add bot - not yet implemented:', botName)
     },
-    [lobbyState]
+    []
   )
 
   const removeBotFromLobby = useCallback(
     (botId: string) => {
-      if (!lobbyState) return
-      const result = removeBot(lobbyState, botId)
-      if (result.success && result.lobbyState) {
-        setLobbyState(result.lobbyState)
-      }
+      // TODO: Call server API to remove bot
+      console.log('[LobbyContext] Remove bot - not yet implemented:', botId)
     },
-    [lobbyState]
+    []
   )
 
   const setReady = useCallback(
     (isReady: boolean) => {
-      if (!lobbyState) return
-      const result = setPlayerReady(lobbyState, 'player1', isReady)
-      if (result.success && result.lobbyState) {
-        setLobbyState(result.lobbyState)
-      }
+      // TODO: Call server API to set ready status
+      console.log('[LobbyContext] Set ready - not yet implemented:', isReady)
     },
-    [lobbyState]
+    []
   )
 
   const canStart = useCallback(() => {
     if (!lobbyState) return { canStart: false, reason: 'No lobby' }
-    return canStartGame(lobbyState)
+    if (lobbyState.players.length < 2) return { canStart: false, reason: 'Need at least 2 players' }
+    if (lobbyState.gameId) return { canStart: false, reason: 'Game already started' }
+    return { canStart: true }
   }, [lobbyState])
 
-  const startGame = useCallback(() => {
-    if (!lobbyState) return
-    const result = startGameFromLobby(lobbyState, GRAVITY_WELLS)
-    if (result.success && result.gameState) {
-      setGameState(result.gameState)
-      setPhase('deployment')
+  const startGame = useCallback(async () => {
+    if (!lobbyState || !currentLobbyId) return
+
+    try {
+      // Call server to start game
+      const response = await startGameAPI(currentLobbyId)
+      console.log('[LobbyContext] Game started on server:', response.gameId)
+
+      // TODO: Transition to deployment phase when server sends game state
+      // For now, just log
+    } catch (error) {
+      console.error('[LobbyContext] Failed to start game:', error)
     }
-  }, [lobbyState])
+  }, [lobbyState, currentLobbyId])
 
   // Deployment actions
   const deployPlayerShip = useCallback(
@@ -135,13 +239,21 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
     return phase === 'active' ? gameState : null
   }, [phase, gameState])
 
-  const returnToLobby = useCallback(() => {
-    const lobby = createLobby('player1', 'Human', 6)
-    const readyResult = setPlayerReady(lobby, 'player1', true)
-    setLobbyState(readyResult.success && readyResult.lobbyState ? readyResult.lobbyState : lobby)
+  const returnToLobby = useCallback(async () => {
+    // Leave current lobby if in one
+    if (currentLobbyId) {
+      try {
+        await leaveLobby(currentLobbyId)
+      } catch (error) {
+        console.error('[LobbyContext] Failed to leave lobby:', error)
+      }
+    }
+
+    setCurrentLobbyId(null)
+    setLobbyState(null)
     setGameState(null)
-    setPhase('lobby')
-  }, [])
+    setPhase('browser')
+  }, [currentLobbyId])
 
   // Auto-deploy bots during deployment phase
   useEffect(() => {
@@ -187,11 +299,14 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
         phase,
         lobbyState,
         gameState,
+        currentLobbyId,
+        joinLobby: joinLobbyAction,
         addBotToLobby,
         removeBotFromLobby,
         setReady,
         startGame,
         canStart,
+        leaveLobbyAction,
         deployPlayerShip,
         getDeploymentSectors,
         getActiveGameState,

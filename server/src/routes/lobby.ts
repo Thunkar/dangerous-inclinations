@@ -126,16 +126,21 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
     const playerId = request.headers["x-player-id"];
     const { lobbyId } = request.params;
 
+    fastify.log.info(`[Leave Lobby] Request - lobbyId: ${lobbyId}, playerId: ${playerId}`);
+
     if (!playerId) {
+      fastify.log.warn(`[Leave Lobby] No player ID in headers`);
       return reply.code(401).send({ error: "Player ID required" });
     }
 
     const success = await leaveLobby(lobbyId, playerId);
 
     if (!success) {
+      fastify.log.warn(`[Leave Lobby] Failed - lobby not found or error`);
       return reply.code(404).send({ error: "Lobby not found" });
     }
 
+    fastify.log.info(`[Leave Lobby] Success`);
     return reply.send({ success: true });
   });
 

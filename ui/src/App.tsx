@@ -1,6 +1,8 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-import { Box } from '@mui/material'
+import { Box, CircularProgress, Typography, TextField, Button, Paper } from '@mui/material'
+import { PlayerProvider, usePlayer } from './context/PlayerContext'
+import { WebSocketProvider } from './context/WebSocketContext'
 import { LobbyProvider, useLobby } from './context/LobbyContext'
 import { GameProvider } from './context/GameContext'
 import { GameBoard } from './components/GameBoard'
@@ -8,11 +10,13 @@ import { ControlPanel } from './components/ControlPanel'
 import { StatusDisplay } from './components/StatusDisplay'
 import { TurnHistoryPanel } from './components/TurnHistoryPanel'
 import { LobbyScreen } from './components/LobbyScreen'
+import { LobbyBrowser } from './components/LobbyBrowser'
 import { DeploymentScreen } from './components/DeploymentScreen'
 import { GameEndScreen } from './components/GameEndScreen'
 import { MissionPanel } from './components/MissionPanel'
 import { useGame } from './context/GameContext'
 import type { GameState } from '@dangerous-inclinations/engine'
+import { useState } from 'react'
 
 const theme = createTheme({
   palette: {
@@ -148,10 +152,82 @@ function ActiveGameScreen({
 }
 
 /**
+ * Player name setup screen - shown if player hasn't set a custom name yet
+ */
+function PlayerNameSetup() {
+  const { playerName, setPlayerName } = usePlayer()
+  const [name, setName] = useState(playerName)
+  const [ready, setReady] = useState(false)
+
+  const handleSubmit = () => {
+    if (name.trim()) {
+      setPlayerName(name.trim())
+      setReady(true)
+    }
+  }
+
+  // If player has already confirmed their name, move to lobby
+  if (ready) {
+    return <AppContent />
+  }
+
+  return (
+    <Box
+      sx={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+      }}
+    >
+      <Paper
+        elevation={3}
+        sx={{
+          p: 4,
+          maxWidth: 400,
+          width: '90%',
+          textAlign: 'center',
+        }}
+      >
+        <Typography variant="h4" gutterBottom>
+          Welcome to Dangerous Inclinations
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+          Enter your player name to continue
+        </Typography>
+        <TextField
+          fullWidth
+          label="Player Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              handleSubmit()
+            }
+          }}
+          autoFocus
+          sx={{ mb: 2 }}
+        />
+        <Button
+          fullWidth
+          variant="contained"
+          color="primary"
+          onClick={handleSubmit}
+          disabled={!name.trim()}
+        >
+          Continue
+        </Button>
+      </Paper>
+    </Box>
+  )
+}
+
+/**
  * Main app content router - routes to appropriate screen based on phase
  */
 function AppContent() {
-  const { phase, lobbyState, gameState, returnToLobby } = useLobby()
+  const { phase, lobbyState, gameState, returnToLobby, joinLobby } = useLobby()
 
   // Handle game state changes from GameProvider
   const handleGameStateChange = (newState: GameState) => {
@@ -163,6 +239,9 @@ function AppContent() {
 
   // Route based on phase
   switch (phase) {
+    case 'browser':
+      return <LobbyBrowser onLobbyJoined={joinLobby} />
+
     case 'lobby':
       if (!lobbyState) return null
       return <LobbyScreen />
@@ -186,13 +265,78 @@ function AppContent() {
   }
 }
 
+/**
+ * App content with player authentication
+ */
+function AuthenticatedApp() {
+  const { isLoading, error, isAuthenticated } = usePlayer()
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Box
+        sx={{
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 2,
+        }}
+      >
+        <CircularProgress size={60} />
+        <Typography variant="h6" color="text.secondary">
+          Connecting to server...
+        </Typography>
+      </Box>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Box
+        sx={{
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Paper elevation={3} sx={{ p: 4, maxWidth: 400 }}>
+          <Typography variant="h5" color="error" gutterBottom>
+            Connection Error
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {error}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Please make sure the server is running and try refreshing the page.
+          </Typography>
+        </Paper>
+      </Box>
+    )
+  }
+
+  // Authenticated - show name setup
+  if (isAuthenticated) {
+    return <PlayerNameSetup />
+  }
+
+  return null
+}
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <LobbyProvider>
-        <AppContent />
-      </LobbyProvider>
+      <PlayerProvider>
+        <WebSocketProvider>
+          <LobbyProvider>
+            <AuthenticatedApp />
+          </LobbyProvider>
+        </WebSocketProvider>
+      </PlayerProvider>
     </ThemeProvider>
   )
 }

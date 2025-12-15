@@ -27,7 +27,19 @@
       "Bash(yarn workspace @dangerous-inclinations/engine build:*)",
       "Bash(yarn workspace @dangerous-inclinations/engine test:*)",
       "Bash(find:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(yarn workspace @dangerous-inclinations/ui tsc:*)",
+      "Bash(yarn build:ui:*)",
+      "Bash(echo:*)",
+      "Bash(source ~/.nvm/nvm.sh)",
+      "Bash(nvm use default)",
+      "Bash(yarn build:engine:*)",
+      "Bash(yarn workspace @dangerous-inclinations/server tsc:*)",
+      "Bash(yarn workspace:*)",
+      "Bash(npm run build:*)",
+      "Bash(bash -lc \"yarn build\")",
+      "Bash(source ~/.bashrc)",
+      "Bash(yarn workspaces foreach:*)"
     ]
   }
 }

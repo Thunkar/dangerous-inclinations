@@ -1,4 +1,11 @@
-import type { ShipState, PlayerAction, GravityWellId } from "../models/game";
+import type {
+  ShipState,
+  PlayerAction,
+  GravityWellId,
+  BurnIntensity,
+  ActionType,
+  Facing,
+} from "../models/game";
 import {
   BURN_COSTS,
   mapSectorOnTransfer,
@@ -105,7 +112,7 @@ export function completeRingTransfer(ship: ShipState): ShipState {
   // Well transfers should never reach here
   if (ship.transferState.isWellTransfer) {
     console.error(
-      "Well transfer reached completeTransfer - this should not happen",
+      "Well transfer reached completeTransfer - this should not happen"
     );
     return {
       ...ship,
@@ -137,7 +144,7 @@ export function completeRingTransfer(ship: ShipState): ShipState {
  */
 export function applyRotation(
   ship: ShipState,
-  targetFacing: "prograde" | "retrograde",
+  targetFacing: "prograde" | "retrograde"
 ): ShipState {
   return {
     ...ship,
@@ -150,7 +157,7 @@ export function applyRotation(
  */
 export function canExecuteBurn(
   ship: ShipState,
-  action: PlayerAction,
+  action: PlayerAction
 ): { valid: boolean; reason?: string } {
   if (action.type !== "burn") {
     return { valid: false, reason: "Not a burn action" };
@@ -183,7 +190,7 @@ export function canExecuteBurn(
  */
 export function canRotate(
   ship: ShipState,
-  targetFacing: "prograde" | "retrograde",
+  targetFacing: "prograde" | "retrograde"
 ): { valid: boolean; reason?: string } {
   // No rotation needed if already facing that direction
   if (ship.facing === targetFacing) {
@@ -207,4 +214,74 @@ export function canRotate(
   }
 
   return { valid: true };
+}
+
+/**
+ * Calculate ship position after movement with pending burn data
+ * This is used during the planning phase to show where the ship will be after movement
+ *
+ * IMPORTANT: With immediate transfers, burns complete on the same turn.
+ * During the current turn, weapons firing after movement will fire from:
+ * - The destination ring and sector (after transfer completion)
+ *
+ * @param initialShip - Current ship state
+ * @param pendingFacing - Facing after rotation action
+ * @param pendingMovement - Movement action data (burn or coast)
+ * @param rotateBeforeMove - Whether rotation happens before movement (default true for backwards compatibility)
+ * @returns Projected ship state after movement (at destination ring if burning)
+ */
+export function calculatePostMovementPosition(
+  initialShip: ShipState,
+  pendingFacing?: Facing,
+  pendingMovement?: {
+    actionType: ActionType;
+    burnIntensity?: BurnIntensity;
+    sectorAdjustment: number;
+  },
+  rotateBeforeMove: boolean = true
+): ShipState {
+  let projectedShip = { ...initialShip };
+
+  // Apply rotation BEFORE movement if specified (affects burn direction)
+  if (
+    rotateBeforeMove &&
+    pendingFacing &&
+    pendingFacing !== projectedShip.facing
+  ) {
+    projectedShip = applyRotation(projectedShip, pendingFacing);
+  }
+
+  // Apply orbital movement (ship moves along current ring)
+  // This happens for BOTH coast and burn actions
+  projectedShip = applyOrbitalMovement(projectedShip);
+
+  // If burning, complete the transfer immediately (same turn)
+  if (pendingMovement?.actionType === "burn" && pendingMovement.burnIntensity) {
+    // Create a mock burn action to simulate the transfer
+    const mockBurnAction = {
+      type: "burn" as const,
+      playerId: "mock",
+      data: {
+        burnIntensity: pendingMovement.burnIntensity,
+        sectorAdjustment: pendingMovement.sectorAdjustment,
+      },
+    };
+
+    // Initiate and complete burn immediately (all transfers are immediate)
+    projectedShip = initiateBurn(projectedShip, mockBurnAction);
+    if (projectedShip.transferState) {
+      projectedShip = completeRingTransfer(projectedShip);
+    }
+  }
+
+  // Apply rotation AFTER movement if specified (for facing after burn)
+  if (
+    !rotateBeforeMove &&
+    pendingFacing &&
+    pendingFacing !== projectedShip.facing
+  ) {
+    projectedShip = applyRotation(projectedShip, pendingFacing);
+  }
+
+  return projectedShip;
 }

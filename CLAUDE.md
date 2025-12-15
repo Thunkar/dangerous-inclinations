@@ -11,63 +11,151 @@ When implementing any feature, always ask:
 - Are the numbers reasonable for tabletop gameplay?
 - Would this be fun to play in person?
 
-## 🌐 Critical Architecture: Client-Server Separation
+## 🌐 Critical Architecture: Monorepo with Client-Server Separation
 
-**ALL GAME LOGIC MUST LIVE IN `src/game-logic/`** - The game will be moved to a multiplayer server implementation. This means:
+**The game is now a monorepo with three packages**: The game logic is completely separated from the UI, enabling multiplayer through a WebSocket server.
+
+### Monorepo Structure:
+
+The project is organized as a Yarn workspaces monorepo:
+
+```
+dangerous-inclinations/
+├── engine/          - @dangerous-inclinations/engine
+├── server/          - @dangerous-inclinations/server
+├── ui/              - @dangerous-inclinations/ui
+└── package.json     - Root workspace configuration
+```
+
+### Package Overview:
+
+#### 1. **Engine Package** (`engine/`)
+- **Package**: `@dangerous-inclinations/engine`
+- **Purpose**: Pure game logic, no dependencies on UI or server
+- **Location**: All game rules, state management, and action processing
+- **Key directories**:
+  - `src/game/` - Core game engine (movement, combat, energy, heat, etc.)
+  - `src/game/lobby/` - Lobby management for multiplayer
+  - `src/game/missions/` - Mission system
+  - `src/types/` - TypeScript type definitions
+  - `src/constants/` - Game constants (rings, gravity wells, subsystems)
+  - `src/utils/` - Pure utility functions
+- **Zero dependencies** on React, DOM, WebSockets, or HTTP
+- **Exports**: Game engine functions, types, constants
+- **Tests**: Vitest test suite in `engine/src/game/test/`
+
+#### 2. **Server Package** (`server/`)
+- **Package**: `@dangerous-inclinations/server`
+- **Purpose**: Multiplayer game server
+- **Tech Stack**: Fastify + WebSockets + Redis
+- **Dependencies**: `@dangerous-inclinations/engine` (workspace dependency)
+- **Key directories**:
+  - `src/services/` - Game, lobby, and player services
+  - `src/websocket/` - WebSocket handlers for game actions
+  - `src/routes/` - HTTP REST API endpoints
+  - `src/schemas/` - Zod validation schemas
+- **Responsibilities**:
+  - Hosts game instances using the engine
+  - Manages player connections via WebSockets
+  - Handles lobby creation and matchmaking
+  - Broadcasts state updates to all clients
+  - Validates actions before processing
+  - Persists game state in Redis
+
+#### 3. **UI Package** (`ui/`)
+- **Package**: `@dangerous-inclinations/ui`
+- **Purpose**: React frontend for the game
+- **Tech Stack**: React 19 + TypeScript + Vite + Material-UI
+- **Dependencies**: `@dangerous-inclinations/engine` (for types only)
+- **Key directories**:
+  - `src/components/` - React components
+  - `src/components/GameBoard/` - Main game visualization
+  - `src/components/actions/` - Action panels (movement, weapons, energy)
+  - `src/context/` - React context (transitioning to WebSocket-based state)
+  - `src/constants/` - UI constants
+- **Responsibilities**:
+  - Renders game state received from server
+  - Captures user input
+  - Sends actions to server via WebSocket
+  - Displays game state updates
+  - **Zero game logic** - NO calculations, NO rule enforcement
 
 ### Strict Separation of Concerns:
 
-1. **Game Logic (`src/game-logic/`)**:
-   - Pure functions that process game state
-   - Action processors
-   - Movement calculations
-   - Combat resolution
-   - All game rules enforcement
-   - **Zero UI dependencies** - no React, no DOM, no rendering
+#### Engine Rules:
+- ❌ **NEVER** import React, DOM APIs, or server libraries
+- ❌ **NEVER** perform I/O operations (network, file system)
+- ✅ **ALWAYS** use pure functions
+- ✅ **ALWAYS** export types for use by server and UI
+- ✅ All game rules live here (movement, combat, energy, heat, etc.)
 
-2. **UI (`src/components/`, `src/context/`)**:
-   - Renders the game state
-   - Captures user input
-   - Sends actions to game logic
-   - Displays results
-   - **Zero game logic** - no calculations, no rule enforcement
+#### Server Rules:
+- ❌ **NEVER** implement game logic - import from engine
+- ❌ **NEVER** directly modify game state - use engine functions
+- ✅ **ALWAYS** validate actions before passing to engine
+- ✅ **ALWAYS** broadcast state changes to all clients
+- ✅ Manage connections, sessions, and persistence
 
-### Implementation Rules:
-
-- ❌ **NEVER** compute game state in UI components
+#### UI Rules:
+- ❌ **NEVER** compute game state locally
 - ❌ **NEVER** put game logic in React components or hooks
-- ❌ **NEVER** calculate positions, damage, or outcomes in the UI
-- ✅ **ALWAYS** compute everything in `game-logic/`
-- ✅ **UI only sends actions** (e.g., `{ type: 'BURN', intensity: 'low' }`)
-- ✅ **UI only renders state** (positions, HP, energy, etc.)
+- ❌ **NEVER** calculate positions, damage, or outcomes
+- ❌ **NEVER** run the local engine (transitioning away from this)
+- ✅ **ALWAYS** send actions to server
+- ✅ **ALWAYS** render state received from server
+- ✅ Import types from engine for type safety
 
 ### Data Flow:
 
+#### Current Architecture (Multiplayer via Server):
+
 ```
-User Input → UI → Action → Game Logic → New State → UI Renders
+User Input → UI → WebSocket Action → Server → Engine → New State
+                                                          ↓
+UI ← WebSocket State Update ← Server ← New State ← Engine
 ```
 
-Example of correct architecture:
+#### Legacy Architecture (Being Phased Out):
+
+```
+User Input → UI → Local Engine → New State → UI Renders
+```
+
+**IMPORTANT**: The UI is being migrated to **fully use the server** and **forgo its local engine**. All game state should come from WebSocket connections to the server.
+
+### Example Patterns:
+
+#### ✅ CORRECT: UI sends action to server
 
 ```typescript
-// ✅ CORRECT: UI just sends action
+// UI sends action via WebSocket
 const handleBurn = () => {
-  dispatch({ type: "BURN", payload: { intensity: "low" } });
-};
-
-// ❌ WRONG: UI calculates game state
-const handleBurn = () => {
-  const newPosition = calculateBurnPosition(ship); // NO! This belongs in game-logic/
-  dispatch({ type: "UPDATE_POSITION", payload: newPosition });
+  ws.send(JSON.stringify({
+    type: "EXECUTE_ACTION",
+    payload: { type: "BURN", intensity: "low" }
+  }));
 };
 ```
 
-This architecture ensures the game can be moved to a server where:
+#### ❌ WRONG: UI runs engine locally
 
-- Server runs `game-logic/` code
-- Clients send actions via network
-- Server broadcasts state updates
-- Clients render the received state
+```typescript
+// NO! Don't do this anymore
+const handleBurn = () => {
+  const newState = gameEngine.processTurn(currentState, actions); // WRONG
+  setGameState(newState);
+};
+```
+
+#### ✅ CORRECT: Server uses engine
+
+```typescript
+// Server processes action using engine
+import { processTurn } from "@dangerous-inclinations/engine";
+
+const newState = processTurn(currentState, actions);
+broadcastState(gameId, newState);
+```
 
 ## Project Overview
 
@@ -79,44 +167,157 @@ The game combines:
 - **Energy management**: Reactor power allocation to subsystems with heat-on-use mechanics
 - **Tactical combat**: Weapons with different firing arcs, ranges, and mechanics
 - **Multi-gravity-well navigation**: Ships can transfer between the black hole and planet gravity wells
+- **Multiplayer**: Real-time multiplayer via WebSocket server with lobby system
+- **Mission System**: Dynamic mission objectives with rewards
+- **Trading**: Space stations for buying/selling cargo
+
+## 🚧 Current Development Phase: UI Migration to Server
+
+**IMPORTANT**: The UI is actively being migrated from local engine execution to server-based multiplayer.
+
+**What this means:**
+- **Old pattern (being removed)**: UI imports engine functions and runs game logic locally
+- **New pattern (implementing now)**: UI connects to server via WebSocket, sends actions, receives state
+- **Mixed state**: Some components may still use legacy `GameContext`, others use WebSocket
+
+**When working on UI:**
+1. ❌ Do NOT add new local engine usage in UI
+2. ✅ DO use WebSocket for all game state
+3. ✅ DO import types from engine (for TypeScript), but NOT functions
+4. ✅ DO help migrate legacy components to server-based approach
+
+**Migration Checklist for UI Components:**
+- [ ] Replace `GameContext` usage with WebSocket context
+- [ ] Change local function calls to WebSocket messages
+- [ ] Update state management to use server-provided state
+- [ ] Remove engine function imports (keep only type imports)
+- [ ] Test with live server connection
 
 ## Tech Stack
 
-- **React 18** with TypeScript
-- **Vite** for build tooling
-- **Material-UI (MUI)** for UI components
-- **State Management**: React Context API (see `src/context/GameContext.tsx`)
+### Monorepo Management
+- **Yarn Workspaces** - Monorepo package management
+- **Yarn 4** (Berry) - Modern package manager with workspace support
+
+### Engine Package
+- **TypeScript 5.9** - Strict type checking
+- **Vitest** - Fast unit testing with Vite-native support
+- **Zod** - Runtime type validation for game state
+
+### Server Package
+- **Fastify** - Fast, low-overhead web framework
+- **@fastify/websocket** - WebSocket support for real-time game updates
+- **@fastify/cors** - CORS support for browser clients
+- **ioredis** - Redis client for game state persistence
+- **Zod** - Request/response validation
+- **tsx** - TypeScript execution for development
+
+### UI Package
+- **React 19** - Latest React with improved performance
+- **TypeScript 5.9** - Type-safe component development
+- **Vite** - Fast build tooling and HMR
+- **Material-UI (MUI)** - Component library for polished UI
+- **@emotion** - CSS-in-JS styling (MUI dependency)
 
 ## File Structure Overview
 
-### Core Game Logic (`src/game-logic/`)
+### Engine Package (`engine/`)
 
-- `index.ts` - Main game engine, processes turns and actions
-- `actionProcessors.ts` - Individual action processors (move, fire weapons, allocate energy, etc.)
-- `movement.ts` - Orbital movement calculations, ring transfers, well transfers
-- `turns.ts` - Turn resolution, tactical sequence ordering
-- `test/` - Test fixtures and test files
+```
+engine/
+├── src/
+│   ├── game/                    - Core game engine
+│   │   ├── index.ts             - Main game engine, processes turns
+│   │   ├── actionProcessors.ts  - Action processors (move, fire, allocate)
+│   │   ├── movement.ts          - Orbital movement, ring/well transfers
+│   │   ├── turns.ts             - Turn resolution, tactical sequencing
+│   │   ├── energy.ts            - Energy allocation system
+│   │   ├── heat.ts              - Heat generation and dissipation
+│   │   ├── damage.ts            - Damage application and shields
+│   │   ├── missiles.ts          - Missile tracking and detonation
+│   │   ├── cargo.ts             - Cargo and resource management
+│   │   ├── stations.ts          - Space station interactions
+│   │   ├── deployment.ts        - Ship deployment mechanics
+│   │   ├── respawn.ts           - Ship respawn system
+│   │   ├── validation.ts        - Action validation
+│   │   ├── lobby/               - Lobby management
+│   │   │   ├── index.ts
+│   │   │   └── lobbyManager.ts  - Lobby state and player management
+│   │   ├── missions/            - Mission system
+│   │   │   ├── index.ts
+│   │   │   ├── missionDeck.ts   - Mission card deck
+│   │   │   └── missionChecks.ts - Mission completion checks
+│   │   └── test/                - Test suites
+│   ├── types/                   - TypeScript type definitions
+│   │   ├── game.ts              - Player, Ship, GameState, etc.
+│   │   ├── subsystems.ts        - Subsystem configurations
+│   │   ├── actions.ts           - Action type definitions
+│   │   └── ...
+│   ├── constants/               - Game constants
+│   │   ├── rings.ts             - Ring configurations (velocity, sectors)
+│   │   ├── gravityWells.ts      - **CRITICAL** - Black hole + 6 planets
+│   │   ├── subsystems.ts        - Subsystem stats and limits
+│   │   └── ...
+│   ├── utils/                   - Pure utility functions
+│   │   ├── transferPoints.ts    - Well transfer sector calculations
+│   │   ├── weaponRange.ts       - Firing solutions
+│   │   ├── tacticalSequence.ts  - Action ordering
+│   │   └── ...
+│   └── index.ts                 - Package exports
+└── package.json
+```
 
-### Game State & Configuration (`src/`)
+### Server Package (`server/`)
 
-- `types/game.ts` - Core TypeScript types (Player, Ship, GravityWell, GameState, etc.)
-- `types/subsystems.ts` - Subsystem types and configurations
-- `constants/rings.ts` - Ring configurations (5 rings with different sector counts)
-- `constants/gravityWells.ts` - **CRITICAL FILE** - Defines black hole and 3 planets with positions
-- `context/GameContext.tsx` - React context managing game state
+```
+server/
+├── src/
+│   ├── index.ts                 - Server entry point
+│   ├── services/
+│   │   ├── gameService.ts       - Game instance management
+│   │   ├── lobbyService.ts      - Lobby CRUD operations
+│   │   ├── playerService.ts     - Player session management
+│   │   └── redis.ts             - Redis connection and utilities
+│   ├── websocket/
+│   │   └── gameHandler.ts       - WebSocket action handlers
+│   ├── routes/
+│   │   ├── lobby.ts             - Lobby HTTP endpoints
+│   │   └── player.ts            - Player HTTP endpoints
+│   └── schemas/
+│       ├── game.ts              - Game validation schemas
+│       ├── lobby.ts             - Lobby validation schemas
+│       └── player.ts            - Player validation schemas
+└── package.json
+```
 
-### Visualization (`src/components/`)
+### UI Package (`ui/`)
 
-- `GameBoard.tsx` - **CRITICAL FILE** - Main SVG visualization of gravity wells, rings, ships, and transfer sectors
-- `ControlPanel.tsx` - UI for energy allocation, weapons, movement controls
-- Other UI components
-
-### Utilities (`src/utils/`)
-
-- `transferPoints.ts` - Calculates which sectors connect between gravity wells
-- `weaponRange.ts` - Firing solutions and range calculations
-- `tacticalSequence.ts` - Action sequencing (movement before/after weapons)
-- `burnPreview.ts` - Preview burn trajectories
+```
+ui/
+├── src/
+│   ├── App.tsx                  - Main application component
+│   ├── main.tsx                 - React entry point
+│   ├── components/
+│   │   ├── GameBoard/           - **CRITICAL** - Game visualization
+│   │   │   ├── GameBoard.tsx    - Main SVG board component
+│   │   │   ├── components/      - Board sub-components (rings, ships, etc.)
+│   │   │   ├── context/         - Board-specific context
+│   │   │   ├── utils/           - Visualization utilities
+│   │   │   └── types/           - Board-specific types
+│   │   ├── actions/             - Action control panels
+│   │   │   ├── energy/          - Energy allocation UI
+│   │   │   ├── MovementPanel.tsx
+│   │   │   ├── WeaponsPanel.tsx
+│   │   │   └── ...
+│   │   ├── lobby/               - Lobby and matchmaking UI
+│   │   └── ...
+│   ├── context/                 - React context providers
+│   │   ├── GameContext.tsx      - **LEGACY** - Being replaced by WebSocket
+│   │   └── WebSocketContext.tsx - WebSocket connection management
+│   ├── constants/               - UI constants
+│   └── assets/                  - Static assets
+└── package.json
+```
 
 ## Game Rules
 
@@ -230,15 +431,69 @@ The transfer sectors are visualized as **lens-shaped overlaps** (like a Venn dia
 
 ## Key Implementation Patterns
 
-### 1. Game State Updates
+### 1. WebSocket Communication (UI → Server)
 
 ```typescript
-// ALWAYS use the context's dispatch system
-const { gameState, dispatch } = useGame();
-dispatch({ type: "EXECUTE_TURN", payload: pendingActions });
+// UI sends action to server via WebSocket
+const ws = useWebSocket(); // from WebSocketContext
+
+// Send action
+ws.send(JSON.stringify({
+  type: "EXECUTE_TURN",
+  payload: { actions: pendingActions }
+}));
+
+// Receive state updates
+useEffect(() => {
+  const handleMessage = (event: MessageEvent) => {
+    const message = JSON.parse(event.data);
+    if (message.type === "STATE_UPDATE") {
+      setGameState(message.payload.state);
+    }
+  };
+
+  ws.addEventListener("message", handleMessage);
+  return () => ws.removeEventListener("message", handleMessage);
+}, [ws]);
 ```
 
-### 2. Sector Calculations
+### 2. Server-Side Game Processing
+
+```typescript
+// Server processes actions using engine
+import { processTurn } from "@dangerous-inclinations/engine";
+import type { GameState, GameAction } from "@dangerous-inclinations/engine";
+
+const currentState = await gameService.getState(gameId);
+const newState = processTurn(currentState, actions);
+
+// Persist and broadcast
+await gameService.setState(gameId, newState);
+broadcastToPlayers(gameId, { type: "STATE_UPDATE", payload: { state: newState } });
+```
+
+### 3. Engine Pure Functions
+
+```typescript
+// Engine exports pure functions - no side effects
+import type { GameState, Ship } from "../types/game";
+
+export function processMovement(state: GameState, shipId: string): GameState {
+  const ship = state.ships[shipId];
+  // Pure calculation - no mutations, no I/O
+  const newPosition = calculateNewPosition(ship);
+
+  return {
+    ...state,
+    ships: {
+      ...state.ships,
+      [shipId]: { ...ship, ...newPosition }
+    }
+  };
+}
+```
+
+### 4. Sector Calculations (Visualization in UI)
 
 ```typescript
 // Ships are positioned at sector CENTERS, not boundaries
@@ -248,7 +503,7 @@ const x = centerX + radius * Math.cos(angle);
 const y = centerY + radius * Math.sin(angle);
 ```
 
-### 3. Well-Aware Positioning
+### 5. Well-Aware Positioning (Visualization in UI)
 
 ```typescript
 // ALWAYS get gravity well position first
@@ -257,7 +512,7 @@ const wellPosition = getGravityWellPosition(ship.wellId);
 const x = wellPosition.x + radius * Math.cos(angle);
 ```
 
-### 4. Rotation Offsets
+### 6. Rotation Offsets (Visualization in UI)
 
 ```typescript
 // Each gravity well has its own sector rotation offset
@@ -267,7 +522,63 @@ const rotationOffset = getSectorRotationOffset(wellId);
 
 ## Common Pitfalls & Solutions
 
-### ❌ Assuming single gravity well
+### ❌ Running game logic in the UI
+
+**Wrong**: Computing game state in React components
+
+```typescript
+// UI component - WRONG
+const handleBurn = () => {
+  const newState = processTurn(gameState, actions); // NO!
+  setGameState(newState);
+};
+```
+
+**Right**: Send actions to server, receive state updates
+
+```typescript
+// UI component - CORRECT
+const handleBurn = () => {
+  ws.send(JSON.stringify({ type: "BURN", payload: burnAction }));
+  // State update arrives via WebSocket listener
+};
+```
+
+### ❌ Importing engine into UI for game logic
+
+**Wrong**: Using engine functions in UI to calculate outcomes
+
+```typescript
+// UI component - WRONG
+import { calculateDamage } from "@dangerous-inclinations/engine";
+const damage = calculateDamage(attacker, target); // NO!
+```
+
+**Right**: Only import types from engine in UI
+
+```typescript
+// UI component - CORRECT
+import type { Ship, GameState } from "@dangerous-inclinations/engine";
+// Use types for type safety, but don't call engine functions
+```
+
+### ❌ Modifying game state directly in server
+
+**Wrong**: Mutating state instead of using engine functions
+
+```typescript
+// Server - WRONG
+gameState.ships[shipId].position.sector += 1; // NO!
+```
+
+**Right**: Use engine functions to compute new state
+
+```typescript
+// Server - CORRECT
+const newState = processMovement(gameState, shipId);
+```
+
+### ❌ Assuming single gravity well (in UI visualization)
 
 **Wrong**: Using global center for all ships
 
@@ -282,13 +593,13 @@ const wellPos = getGravityWellPosition(ship.wellId);
 const x = wellPos.x + radius * Math.cos(angle); // CORRECT
 ```
 
-### ❌ Trying to align sector boundaries
+### ❌ Trying to align sector boundaries (in UI visualization)
 
 **Wrong**: Making wedge-shaped sectors with radial lines from black hole center
 
 **Right**: Rotate sector CENTERS to align, keep circular arcs. The arcs naturally create identical overlaps when centers are aligned.
 
-### ❌ Forgetting rotation offsets
+### ❌ Forgetting rotation offsets (in UI visualization)
 
 **Wrong**: Assuming sector 0 points "up" for all wells
 
@@ -296,45 +607,138 @@ const x = wellPos.x + radius * Math.cos(angle); // CORRECT
 
 ## Testing
 
-Tests are in `src/game-logic/test/`:
+Tests are in the **engine package** (`engine/src/game/test/`):
 
 - `movement.test.ts` - Orbital movement, ring transfers
 - `weapons.test.ts` - Weapon firing, damage calculations
 - `wellTransfers.test.ts` - Well transfer mechanics
 - `fixtures/` - Test data (ships, game states, actions)
+- Test framework: **Vitest** with coverage support
 
-Run tests: `npm test`
+### Running Tests:
+
+```bash
+# From monorepo root
+yarn test                    # Run all engine tests
+yarn workspace @dangerous-inclinations/engine test:ui        # Run with UI
+yarn workspace @dangerous-inclinations/engine test:coverage  # Run with coverage
+
+# From engine directory
+cd engine/
+yarn test                    # Run tests in watch mode
+yarn test:ui                 # Open Vitest UI
+yarn test:coverage           # Generate coverage report
+```
 
 ## Building & Running
 
+### Development
+
 ```bash
-npm install          # Install dependencies
-npm run dev          # Start dev server (http://localhost:5173)
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm test             # Run tests
+# Install all dependencies (run from root)
+yarn install
+
+# Run UI only (uses mock/local data)
+yarn dev                     # Starts UI on http://localhost:5173
+
+# Run server only
+yarn dev:server              # Starts server on http://localhost:3000
+
+# Run both UI and server concurrently
+yarn dev:all                 # Starts both with hot reload
+
+# Build engine (TypeScript compilation)
+yarn build:engine            # Compiles to engine/dist/
+```
+
+### Production Build
+
+```bash
+# Build all packages
+yarn build                   # Builds engine, server, and UI
+
+# Build individual packages
+yarn build:engine            # Build engine only
+yarn build:server            # Build server only
+yarn build:ui                # Build UI only
+
+# Start production server
+yarn workspace @dangerous-inclinations/server start
+```
+
+### Project Structure Commands
+
+```bash
+# Format code
+yarn format                  # Format all packages
+yarn format:check            # Check formatting without changes
+
+# Package-specific commands
+yarn workspace @dangerous-inclinations/engine <command>
+yarn workspace @dangerous-inclinations/server <command>
+yarn workspace @dangerous-inclinations/ui <command>
+```
+
+### Docker Setup
+
+Redis is required for the server:
+
+```bash
+# Start Redis with Docker Compose
+docker-compose up -d
+
+# Stop Redis
+docker-compose down
 ```
 
 ## Git Status & Recent Changes
 
 Recent major changes:
 
-1. **Multi-gravity-well system**: Added 3 planets orbiting black hole
-2. **Sector alignment fix**: Implemented half-sector rotation for proper Venn diagram overlap
-3. **Transfer point visualization**: Golden lens-shaped overlaps between Ring 5s
-4. **Planet distance**: Set to 520 units (tangent Ring 5s)
+1. **Monorepo Migration**: Restructured into yarn workspaces with engine/server/ui packages
+2. **Server Implementation**: Added Fastify WebSocket server with Redis persistence
+3. **Multiplayer Support**: Game now supports multiple players via WebSocket connections
+4. **Lobby System**: Added lobby creation, player joining, and game start flow
+5. **Mission System**: Implemented mission deck and completion tracking
+6. **Cargo System**: Added cargo holds and resource management
+7. **Space Stations**: Implemented station docking and trading
+8. **Multi-gravity-well system**: Added 6 planets orbiting black hole
+9. **Sector alignment fix**: Implemented half-sector rotation for proper Venn diagram overlap
+10. **Transfer point visualization**: Transfer arcs between gravity wells
 
 ## Future Development Guidelines
 
 ### When Adding New Features
 
 1. **Check RULES.md first** - Is this mechanic documented? Does it make sense for tabletop?
-2. **Update types** - Add to `types/game.ts` or `types/subsystems.ts`
-3. **Add action processor** - Create handler in `actionProcessors.ts`
-4. **Update game engine** - Add to `index.ts` if needed
-5. **Add UI controls** - Update `ControlPanel.tsx` or relevant component
-6. **Write tests** - Add to `src/game-logic/test/`
-7. **Update RULES.md** - Document the mechanic for future reference
+2. **Determine the package** - Does this belong in engine, server, or UI?
+3. **Update engine types** - Add to `engine/src/types/`
+4. **Add engine logic** - Create pure functions in `engine/src/game/`
+5. **Update server** - Add WebSocket handlers and validation in `server/src/`
+6. **Add UI controls** - Update components in `ui/src/components/`
+7. **Write tests** - Add to `engine/src/game/test/`
+8. **Update RULES.md** - Document the mechanic for future reference
+
+### Package Decision Guide
+
+**Add to Engine when:**
+- It's a game rule or mechanic
+- It processes game state
+- It needs to be tested independently
+- Both server and UI need to know about it (via types)
+
+**Add to Server when:**
+- It handles network communication
+- It manages player sessions
+- It persists game state
+- It validates incoming actions
+- It broadcasts state updates
+
+**Add to UI when:**
+- It's a visualization component
+- It captures user input
+- It formats data for display
+- It manages UI-only state (not game state)
 
 ### When Debugging Visualization Issues
 
@@ -348,9 +752,32 @@ Recent major changes:
 
 1. **Tabletop feasibility check** - Can players calculate this by hand?
 2. **Update RULES.md** - Document the change
-3. **Update tests** - Modify or add test cases
-4. **Check action processors** - Update validation logic
-5. **Update UI** - Add controls or displays as needed
+3. **Update engine** - Modify pure functions in `engine/src/game/`
+4. **Update tests** - Modify or add test cases in `engine/src/game/test/`
+5. **Update server validation** - Update schemas in `server/src/schemas/`
+6. **Update UI** - Add controls or displays in `ui/src/components/`
+
+### When Working on the UI → Server Migration
+
+The UI is currently in transition from local engine to server-based state:
+
+**Current State:**
+- Some components still use local `GameContext` (legacy)
+- Some components are being migrated to WebSocket-based state
+- Both patterns may coexist temporarily
+
+**Migration Steps:**
+1. Identify component using `GameContext`
+2. Replace with `WebSocketContext` or similar
+3. Change local actions to WebSocket messages
+4. Update state handling to receive from WebSocket
+5. Remove any local engine imports (keep type imports only)
+6. Test with live server connection
+
+**Priority:**
+- Focus on making ALL UI components use server state
+- Remove local engine execution from UI
+- Keep only type imports from engine in UI
 
 ## Important Constants
 
@@ -389,14 +816,87 @@ Recent major changes:
 
 When running out of context, read these files first:
 
-1. **RULES.md** - Complete game rules
-2. **src/constants/gravityWells.ts** - Gravity well configuration
-3. **src/components/GameBoard.tsx** - Visualization logic (lines 101-372 critical)
-4. **src/game-logic/movement.ts** - Well transfer mechanics
-5. **src/types/game.ts** - Core type definitions
+### Documentation
+1. **RULES.md** - Complete game rules (MUST READ)
+2. **MIGRATION.md** - Monorepo migration notes
+3. **README.md** - Project overview and setup
+
+### Engine (Core Game Logic)
+4. **engine/src/game/index.ts** - Main game engine
+5. **engine/src/types/game.ts** - Core type definitions
+6. **engine/src/constants/gravityWells.ts** - Black hole + 6 planets configuration
+7. **engine/src/game/movement.ts** - Movement and well transfer mechanics
+8. **engine/src/game/actionProcessors.ts** - Action processing logic
+
+### Server (Multiplayer Backend)
+9. **server/src/index.ts** - Server entry point
+10. **server/src/websocket/gameHandler.ts** - WebSocket action handlers
+11. **server/src/services/gameService.ts** - Game instance management
+
+### UI (Frontend Visualization)
+12. **ui/src/components/GameBoard/GameBoard.tsx** - Main game visualization
+13. **ui/src/context/GameContext.tsx** - LEGACY context (being phased out)
+14. **ui/src/App.tsx** - Main application component
+
+### Monorepo Configuration
+15. **package.json** (root) - Workspace configuration
+16. **engine/package.json** - Engine package config
+17. **server/package.json** - Server package config
+18. **ui/package.json** - UI package config
+
+## Monorepo Development Workflow
+
+### Typical Development Cycle
+
+**Working on Game Logic:**
+1. Make changes in `engine/src/game/`
+2. Run tests: `yarn test` (from root or engine/)
+3. Server and UI automatically pick up changes via workspace links
+
+**Working on Server:**
+1. Make changes in `server/src/`
+2. Server hot-reloads via `tsx watch`
+3. Test WebSocket endpoints with UI or test client
+
+**Working on UI:**
+1. Make changes in `ui/src/`
+2. UI hot-reloads via Vite HMR
+3. Connect to local server or use mock data
+
+### Cross-Package Dependencies
+
+Packages import from each other using workspace names:
+
+```typescript
+// In server or UI
+import { processTurn } from "@dangerous-inclinations/engine";
+import type { GameState } from "@dangerous-inclinations/engine";
+```
+
+Yarn automatically resolves these to the local workspace packages during development.
+
+### Building for Production
+
+1. Build engine first (other packages depend on it)
+2. Build server and UI in parallel
+3. `yarn build` handles this automatically
+
+### Adding New Dependencies
+
+```bash
+# Add to specific package
+yarn workspace @dangerous-inclinations/engine add vitest
+yarn workspace @dangerous-inclinations/server add fastify
+yarn workspace @dangerous-inclinations/ui add react
+
+# Add dev dependency to root (tooling)
+yarn add -D prettier -W
+```
 
 ## Contact & Notes
 
 This game is designed to be played on a tabletop with printed components. Every mechanic must translate to physical gameplay. When in doubt, prioritize tabletop feasibility over digital convenience.
 
 The visualization creates a "Venn diagram" effect where transfer sectors appear as lens-shaped overlaps between gravity wells. This is achieved by aligning sector **centers** (not boundaries) through half-sector rotation of both the black hole and planets in opposite directions.
+
+**Current Development Phase**: Migrating UI from local engine to full server-based multiplayer architecture. The UI should no longer run game logic locally - all game state comes from the server via WebSocket connections.

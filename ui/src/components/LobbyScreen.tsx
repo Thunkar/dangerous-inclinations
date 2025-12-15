@@ -3,6 +3,7 @@ import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
 import PersonIcon from '@mui/icons-material/Person'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
+import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import { useLobby } from '../context/LobbyContext'
 
 const PLAYER_COLORS = [
@@ -15,7 +16,7 @@ const PLAYER_COLORS = [
 ]
 
 export function LobbyScreen() {
-  const { lobbyState, addBotToLobby, removeBotFromLobby, startGame, canStart } = useLobby()
+  const { lobbyState, addBotToLobby, removeBotFromLobby, startGame, canStart, leaveLobbyAction } = useLobby()
 
   if (!lobbyState) {
     return (
@@ -33,8 +34,12 @@ export function LobbyScreen() {
   }
 
   const startStatus = canStart()
-  const filledSlots = lobbyState.playerSlots.filter(slot => slot.playerId !== null)
-  const botCount = filledSlots.filter(slot => slot.isBot).length
+  const botCount = lobbyState.players.filter(p => p.isBot).length
+
+  // Create slots array with max players, filling with actual players and empty slots
+  const playerSlots = Array.from({ length: lobbyState.maxPlayers }, (_, index) => {
+    return lobbyState.players[index] || null
+  })
 
   return (
     <Box
@@ -48,14 +53,28 @@ export function LobbyScreen() {
         p: 4,
       }}
     >
-      {/* Title */}
-      <Typography variant="h2" sx={{ fontWeight: 'bold', mb: 2 }}>
-        Dangerous Inclinations
-      </Typography>
-
-      <Typography variant="h5" color="text.secondary" sx={{ mb: 4 }}>
-        Game Lobby
-      </Typography>
+      {/* Header with Leave Button */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Box sx={{ flex: 1 }} />
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="h2" sx={{ fontWeight: 'bold' }}>
+            Dangerous Inclinations
+          </Typography>
+          <Typography variant="h5" color="text.secondary">
+            Game Lobby
+          </Typography>
+        </Box>
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<ExitToAppIcon />}
+            onClick={leaveLobbyAction}
+          >
+            Leave Lobby
+          </Button>
+        </Box>
+      </Box>
 
       {/* Player Slots */}
       <Paper
@@ -67,11 +86,11 @@ export function LobbyScreen() {
         }}
       >
         <Typography variant="h6" sx={{ mb: 2 }}>
-          Players ({filledSlots.length}/{lobbyState.maxPlayers})
+          Players ({lobbyState.players.length}/{lobbyState.maxPlayers})
         </Typography>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {lobbyState.playerSlots.map((slot, index) => (
+          {playerSlots.map((player, index) => (
             <Box
               key={index}
               sx={{
@@ -80,17 +99,17 @@ export function LobbyScreen() {
                 justifyContent: 'space-between',
                 p: 1.5,
                 borderRadius: 1,
-                bgcolor: slot.playerId ? 'action.selected' : 'action.hover',
+                bgcolor: player ? 'action.selected' : 'action.hover',
                 border: '1px solid',
-                borderColor: slot.playerId
+                borderColor: player
                   ? PLAYER_COLORS[index % PLAYER_COLORS.length]
                   : 'divider',
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {slot.playerId ? (
+                {player ? (
                   <>
-                    {slot.isBot ? (
+                    {player.isBot ? (
                       <SmartToyIcon sx={{ color: PLAYER_COLORS[index % PLAYER_COLORS.length] }} />
                     ) : (
                       <PersonIcon sx={{ color: PLAYER_COLORS[index % PLAYER_COLORS.length] }} />
@@ -101,9 +120,9 @@ export function LobbyScreen() {
                         fontWeight: 'medium',
                       }}
                     >
-                      {slot.playerName}
+                      {player.playerName}
                     </Typography>
-                    {slot.isReady && (
+                    {player.isReady && (
                       <Chip label="Ready" size="small" color="success" variant="outlined" />
                     )}
                   </>
@@ -113,10 +132,10 @@ export function LobbyScreen() {
               </Box>
 
               {/* Remove bot button */}
-              {slot.isBot && (
+              {player?.isBot && (
                 <IconButton
                   size="small"
-                  onClick={() => removeBotFromLobby(slot.playerId!)}
+                  onClick={() => removeBotFromLobby(player.playerId)}
                   sx={{ color: 'error.main' }}
                 >
                   <RemoveIcon />
@@ -132,7 +151,7 @@ export function LobbyScreen() {
             variant="outlined"
             startIcon={<AddIcon />}
             onClick={() => addBotToLobby()}
-            disabled={filledSlots.length >= lobbyState.maxPlayers}
+            disabled={lobbyState.players.length >= lobbyState.maxPlayers}
           >
             Add Bot ({botCount}/5)
           </Button>

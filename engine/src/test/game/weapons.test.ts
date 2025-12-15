@@ -3,7 +3,7 @@ import { calculateFiringSolutions } from "../../utils/weaponRange";
 import { createInitialShipState } from "../../utils/subsystemHelpers";
 import type { Player } from "../../models/game";
 import type { WeaponStats } from "../../models/subsystems";
-import { calculatePostMovementPosition } from "../testUtils";
+import { calculatePostMovementPosition } from "../../game/movement";
 
 // Helper to create test players
 function createTestPlayer(
