@@ -84,6 +84,9 @@ export function LobbyBrowser({
       return;
     }
 
+    let unsubscribe: (() => void) | undefined;
+    let isCleanedUp = false;
+
     // Connect to global room and set up listener
     const setupConnection = async () => {
       try {
@@ -93,8 +96,14 @@ export function LobbyBrowser({
           console.log("[LobbyBrowser] Connected to global room");
         }
 
+        // If cleanup happened while we were connecting, don't set up handler
+        if (isCleanedUp) {
+          console.log("[LobbyBrowser] Cleaned up before connection completed");
+          return;
+        }
+
         // Set up message handler after connection
-        const unsubscribe = client.onMessage("global", (message) => {
+        unsubscribe = client.onMessage("global", (message) => {
           console.log("[LobbyBrowser] Received message:", message);
 
           if (message.type === "LOBBY_CREATED") {
@@ -129,19 +138,15 @@ export function LobbyBrowser({
             );
           }
         });
-
-        return unsubscribe;
       } catch (err) {
         console.error("[LobbyBrowser] Failed to setup WebSocket:", err);
       }
     };
 
-    let unsubscribe: (() => void) | undefined;
-    setupConnection().then((cleanup) => {
-      unsubscribe = cleanup;
-    });
+    setupConnection();
 
     return () => {
+      isCleanedUp = true;
       unsubscribe?.();
     };
   }, [client, connect, isConnected]);
