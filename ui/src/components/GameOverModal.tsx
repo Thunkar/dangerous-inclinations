@@ -7,20 +7,20 @@ import {
   Typography,
   Box,
 } from '@mui/material'
-import type { GameStatus } from '@dangerous-inclinations/engine'
+import type { GamePhase } from '@dangerous-inclinations/engine'
 
 interface GameOverModalProps {
-  status: GameStatus
+  phase: GamePhase
   winnerName?: string
   onRestart: () => void
 }
 
-export function GameOverModal({ status, winnerName, onRestart }: GameOverModalProps) {
-  const open = status !== 'active'
+export function GameOverModal({ phase, winnerName, onRestart }: GameOverModalProps) {
+  const open = phase === 'ended'
 
   if (!open) return null
 
-  const isVictory = status === 'victory'
+  const isVictory = winnerName !== undefined
 
   return (
     <Dialog

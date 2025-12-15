@@ -49,7 +49,6 @@ describe("Well Transfers", () => {
       ],
       turnLog: [],
       missiles: [],
-      status: "active",
       phase: "active",
       stations: [],
     };

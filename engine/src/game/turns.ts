@@ -319,19 +319,16 @@ export function executeTurn(
  */
 function checkGameStatus(gameState: GameState): GameState {
   // Don't check if game is already over
-  if (gameState.status !== "active") {
+  if (gameState.phase !== "active") {
     return gameState;
   }
 
   // Check for mission-based victory (3 completed missions)
   const missionWinner = checkForWinner(gameState);
   if (missionWinner) {
-    const humanPlayer = gameState.players[0];
-
     return {
       ...gameState,
       phase: "ended",
-      status: missionWinner === humanPlayer.id ? "victory" : "defeat",
       winnerId: missionWinner,
     };
   }

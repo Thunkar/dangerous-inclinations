@@ -39,7 +39,8 @@
       "Bash(npm run build:*)",
       "Bash(bash -lc \"yarn build\")",
       "Bash(source ~/.bashrc)",
-      "Bash(yarn workspaces foreach:*)"
+      "Bash(yarn workspaces foreach:*)",
+      "Bash(node -e:*)"
     ]
   }
 }

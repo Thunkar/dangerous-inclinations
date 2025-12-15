@@ -232,7 +232,7 @@ function AppContent() {
   // Handle game state changes from GameProvider
   const handleGameStateChange = (newState: GameState) => {
     // Check if game has ended
-    if (newState.phase === 'ended' || newState.status !== 'active') {
+    if (newState.phase === 'ended') {
       // Game state is managed internally, GameEndScreen will read from GameProvider
     }
   }

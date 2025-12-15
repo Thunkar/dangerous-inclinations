@@ -370,7 +370,7 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
   // Execute turn: compute diff between committed and pending, create actions using tactical sequence
   const executeTurn = useCallback(() => {
     // Don't execute turns if game is over
-    if (gameState.status !== 'active') {
+    if (gameState.phase === 'ended') {
       return
     }
 

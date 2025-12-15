@@ -3,6 +3,7 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
 import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import { useLobby } from '../context/LobbyContext'
+import { usePlayer } from '../context/PlayerContext'
 import { DeploymentBoard } from './DeploymentBoard'
 import type { DestroyShipMission, DeliverCargoMission } from '@dangerous-inclinations/engine'
 
@@ -23,15 +24,16 @@ const PLANET_NAMES: Record<string, string> = {
 
 export function DeploymentScreen() {
   const { gameState, deployPlayerShip, getDeploymentSectors } = useLobby()
+  const { playerId } = usePlayer()
 
   if (!gameState) {
     return null
   }
 
   const activePlayer = gameState.players[gameState.activePlayerIndex]
-  const isHumanTurn = activePlayer?.id === 'player1'
+  const isHumanTurn = activePlayer?.id === playerId
   const availableSectors = getDeploymentSectors()
-  const humanPlayer = gameState.players.find(p => p.id === 'player1')
+  const humanPlayer = gameState.players.find(p => p.id === playerId)
 
   // Count deployed players
   const deployedCount = gameState.players.filter(p => p.hasDeployed).length

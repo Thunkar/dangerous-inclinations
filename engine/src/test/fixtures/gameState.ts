@@ -64,7 +64,6 @@ export function createTestGameState(): GameState {
     players: [player1, player2],
     turnLog: [],
     missiles: [], // No missiles in flight initially
-    status: "active",
     phase: "active",
     stations: [],
   };

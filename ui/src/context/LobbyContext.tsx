@@ -2,13 +2,9 @@ import { createContext, useContext, useState, useCallback, useEffect } from 'rea
 import type { ReactNode } from 'react'
 import type { GameState } from '@dangerous-inclinations/engine'
 import type { ServerLobby } from '../api/types'
-import {
-  deployShip,
-  getAvailableDeploymentSectors,
-  checkAllDeployed,
-  transitionToActivePhase,
-} from '@dangerous-inclinations/engine'
+import { getAvailableDeploymentSectors } from '@dangerous-inclinations/engine'
 import { getLobby, leaveLobby, startGame as startGameAPI } from '../api/lobby'
+import { getGameState as fetchGameState, deployShip as deployShipAPI } from '../api/game'
 import { usePlayer } from './PlayerContext'
 import { useWebSocket } from './WebSocketContext'
 
@@ -46,9 +42,9 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
   const [lobbyState, setLobbyState] = useState<ServerLobby | null>(null)
   const [gameState, setGameState] = useState<GameState | null>(null)
 
-  // Connect to lobby WebSocket room and listen for real-time updates
+  // Connect to lobby/game WebSocket rooms and listen for real-time updates
   useEffect(() => {
-    if (phase !== 'lobby' || !currentLobbyId || !client) {
+    if ((phase !== 'lobby' && phase !== 'deployment' && phase !== 'active') || !currentLobbyId || !client) {
       console.log('[LobbyContext] Skipping WebSocket setup:', { phase, currentLobbyId, hasClient: !!client })
       return
     }
@@ -60,10 +56,18 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
         console.log('[LobbyContext] Loaded lobby:', serverLobby)
         setLobbyState(serverLobby)
 
-        // Check if game started
+        // Check if game started - rejoin ongoing game
         if (serverLobby.gameId) {
           console.log('[LobbyContext] Game already started:', serverLobby.gameId)
-          // TODO: Fetch game state and transition to deployment
+          try {
+            const gameState = await fetchGameState(serverLobby.gameId)
+            console.log('[LobbyContext] Loaded game state:', gameState)
+            setGameState(gameState)
+            // Transition to appropriate phase based on game state
+            setPhase(gameState.phase === 'deployment' ? 'deployment' : 'active')
+          } catch (error) {
+            console.error('[LobbyContext] Failed to load game state:', error)
+          }
         }
       } catch (error) {
         console.error('[LobbyContext] Failed to load lobby:', error)
@@ -82,8 +86,17 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
           console.log('[LobbyContext] Connected to lobby room')
         }
 
+        // If in deployment or active phase, also connect to game room
+        if ((phase === 'deployment' || phase === 'active') && lobbyState?.gameId) {
+          if (!isConnected('game', lobbyState.gameId)) {
+            console.log('[LobbyContext] Connecting to game room:', lobbyState.gameId)
+            await connect('game', lobbyState.gameId)
+            console.log('[LobbyContext] Connected to game room')
+          }
+        }
+
         // Listen for lobby events
-        const unsubscribe = client.onMessage('lobby', (message) => {
+        const unsubscribeLobby = client.onMessage('lobby', (message) => {
           console.log('[LobbyContext] Received message:', message)
 
           if (message.type === 'LOBBY_STATE') {
@@ -112,27 +125,68 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
             })
           } else if (message.type === 'GAME_STARTING') {
             // Transition to deployment phase
-            console.log('[LobbyContext] Game starting:', message.payload.gameId)
-            // TODO: Fetch game state and transition to deployment
+            console.log('[LobbyContext] Game starting:', message.payload)
+            setGameState(message.payload.gameState)
+            setPhase('deployment')
+          } else if (message.type === 'GAME_STATE_UPDATED') {
+            // Game state update (from deployment or turn execution)
+            console.log('[LobbyContext] Game state updated:', message.payload)
+            const newState = message.payload as GameState
+            setGameState(newState)
+
+            // Update phase based on game state
+            if (newState.phase === 'active') {
+              setPhase('active')
+            } else if (newState.phase === 'ended') {
+              setPhase('ended')
+            }
           }
         }, currentLobbyId)
 
-        return unsubscribe
+        // Listen for game events (if in deployment/active phase)
+        let unsubscribeGame: (() => void) | undefined
+        if ((phase === 'deployment' || phase === 'active') && lobbyState?.gameId) {
+          unsubscribeGame = client.onMessage('game', (message) => {
+            console.log('[LobbyContext] Received game message:', message)
+
+            if (message.type === 'GAME_STATE_UPDATED') {
+              // Game state update (from deployment or turn execution)
+              console.log('[LobbyContext] Game state updated via game room:', message.payload)
+              const newState = message.payload as GameState
+              setGameState(newState)
+
+              // Update phase based on game state
+              if (newState.phase === 'active') {
+                setPhase('active')
+              } else if (newState.phase === 'ended') {
+                setPhase('ended')
+              }
+            }
+          }, lobbyState.gameId)
+        }
+
+        return () => {
+          unsubscribeLobby?.()
+          unsubscribeGame?.()
+        }
       } catch (error) {
         console.error('[LobbyContext] Failed to setup WebSocket:', error)
       }
     }
 
-    let unsubscribe: (() => void) | undefined
-    setupConnection().then((cleanup) => {
-      unsubscribe = cleanup
+    let cleanup: (() => void) | undefined
+    setupConnection().then((cleanupFn) => {
+      cleanup = cleanupFn
     })
 
     return () => {
-      unsubscribe?.()
+      cleanup?.()
       disconnect('lobby', currentLobbyId)
+      if (lobbyState?.gameId) {
+        disconnect('game', lobbyState.gameId)
+      }
     }
-  }, [phase, currentLobbyId, playerId, playerName, client, connect, disconnect, isConnected])
+  }, [phase, currentLobbyId, playerId, playerName, client, connect, disconnect, isConnected, lobbyState?.gameId])
 
   // Join lobby action
   const joinLobbyAction = useCallback((lobbyId: string) => {
@@ -204,30 +258,23 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
 
   // Deployment actions
   const deployPlayerShip = useCallback(
-    (sector: number) => {
-      if (!gameState || phase !== 'deployment') return
+    async (sector: number) => {
+      if (!lobbyState?.gameId || phase !== 'deployment') {
+        console.error('[LobbyContext] Cannot deploy: no game ID or not in deployment phase')
+        return
+      }
 
-      // Find the current player who needs to deploy
-      const playerToDeployIndex = gameState.players.findIndex(p => !p.hasDeployed)
-      if (playerToDeployIndex === -1) return
+      try {
+        // Call server to deploy ship
+        const updatedGameState = await deployShipAPI(lobbyState.gameId, sector)
+        console.log('[LobbyContext] Deployment successful:', updatedGameState)
 
-      const playerToDeploy = gameState.players[playerToDeployIndex]
-      const result = deployShip(gameState, playerToDeploy.id, sector)
-
-      if (result.success && result.gameState) {
-        let newState = result.gameState
-
-        // Check if all players have deployed
-        if (checkAllDeployed(newState)) {
-          newState = transitionToActivePhase(newState)
-          setGameState(newState)
-          setPhase('active')
-        } else {
-          setGameState(newState)
-        }
+        // Server will broadcast GAME_STATE_UPDATED to all players, which we'll handle in the WebSocket listener
+      } catch (error) {
+        console.error('[LobbyContext] Failed to deploy ship:', error)
       }
     },
-    [gameState, phase]
+    [lobbyState?.gameId, phase]
   )
 
   const getDeploymentSectors = useCallback(() => {
@@ -255,43 +302,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
     setPhase('browser')
   }, [currentLobbyId])
 
-  // Auto-deploy bots during deployment phase
-  useEffect(() => {
-    if (phase !== 'deployment' || !gameState) return
-
-    const activePlayer = gameState.players[gameState.activePlayerIndex]
-    if (!activePlayer) return
-
-    // Check if active player is a bot (not player1)
-    if (activePlayer.id !== 'player1' && !activePlayer.hasDeployed) {
-      // Auto-deploy bot after a short delay
-      const timer = setTimeout(() => {
-        const availableSectors = getAvailableDeploymentSectors(gameState)
-        if (availableSectors.length > 0) {
-          // Pick a random sector
-          const randomIndex = Math.floor(Math.random() * availableSectors.length)
-          const sector = availableSectors[randomIndex]
-
-          // Deploy the bot
-          const result = deployShip(gameState, activePlayer.id, sector)
-          if (result.success && result.gameState) {
-            let newState = result.gameState
-
-            // Check if all players have deployed
-            if (checkAllDeployed(newState)) {
-              newState = transitionToActivePhase(newState)
-              setGameState(newState)
-              setPhase('active')
-            } else {
-              setGameState(newState)
-            }
-          }
-        }
-      }, 500)
-
-      return () => clearTimeout(timer)
-    }
-  }, [phase, gameState])
+  // TODO: Bot auto-deployment should be handled by the server
 
   return (
     <LobbyContext.Provider

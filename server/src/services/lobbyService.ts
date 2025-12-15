@@ -3,6 +3,7 @@ import { getRedis } from "./redis.js";
 import { broadcastToRoom } from "../websocket/roomHandler.js";
 import type { CreateLobbyInput } from "../schemas/lobby.js";
 import { getPlayer } from "./playerService.js";
+import { createGame } from "./gameService.js";
 
 const LOBBY_KEY_PREFIX = "lobby:";
 const LOBBY_LIST_KEY = "lobbies";
@@ -27,7 +28,7 @@ export interface Lobby {
 
 export async function createLobby(
   input: CreateLobbyInput,
-  hostPlayerId: string,
+  hostPlayerId: string
 ): Promise<Lobby> {
   const redis = getRedis();
   const lobbyId = randomUUID();
@@ -91,7 +92,7 @@ export async function listLobbies(): Promise<Lobby[]> {
     lobbyIds.map(async (id) => {
       const data = await redis.get(`${LOBBY_KEY_PREFIX}${id}`);
       return data ? (JSON.parse(data) as Lobby) : null;
-    }),
+    })
   );
 
   return lobbies.filter((l): l is Lobby => l !== null);
@@ -100,7 +101,7 @@ export async function listLobbies(): Promise<Lobby[]> {
 export async function joinLobby(
   lobbyId: string,
   playerId: string,
-  password?: string,
+  password?: string
 ): Promise<{ success: boolean; error?: string; lobby?: Lobby }> {
   const redis = getRedis();
   const lobby = await getLobby(lobbyId);
@@ -149,7 +150,7 @@ export async function joinLobby(
       type: "PLAYER_JOINED",
       payload: newPlayer,
     },
-    lobbyId,
+    lobbyId
   );
 
   // Broadcast lobby update to global room (for lobby browser to update player count)
@@ -167,10 +168,12 @@ export async function joinLobby(
 
 export async function leaveLobby(
   lobbyId: string,
-  playerId: string,
+  playerId: string
 ): Promise<boolean> {
   const redis = getRedis();
-  console.log(`[leaveLobby] Attempting to leave - lobbyId: ${lobbyId}, playerId: ${playerId}`);
+  console.log(
+    `[leaveLobby] Attempting to leave - lobbyId: ${lobbyId}, playerId: ${playerId}`
+  );
 
   const lobby = await getLobby(lobbyId);
 
@@ -216,7 +219,7 @@ export async function leaveLobby(
       type: "PLAYER_LEFT",
       payload: { playerId },
     },
-    lobbyId,
+    lobbyId
   );
 
   // Broadcast lobby update to global room (for lobby browser to update player count)
@@ -234,7 +237,7 @@ export async function leaveLobby(
 
 export async function startGame(
   lobbyId: string,
-  hostPlayerId: string,
+  hostPlayerId: string
 ): Promise<string | null> {
   const redis = getRedis();
   const lobby = await getLobby(lobbyId);
@@ -249,14 +252,18 @@ export async function startGame(
 
   await redis.set(`${LOBBY_KEY_PREFIX}${lobbyId}`, JSON.stringify(lobby));
 
-  // Broadcast to lobby room
+  // Create initial game state
+  const playerIds = lobby.players.map((p) => p.playerId);
+  const gameState = await createGame(gameId, playerIds);
+
+  // Broadcast to lobby room with game state
   broadcastToRoom(
     "lobby",
     {
       type: "GAME_STARTING",
-      payload: { gameId },
+      payload: { gameId, gameState },
     },
-    lobbyId,
+    lobbyId
   );
 
   return gameId;

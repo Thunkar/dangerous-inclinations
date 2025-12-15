@@ -118,6 +118,13 @@ export type WebSocketMessage =
   | {
       type: "LOBBY_STATE";
       payload: ServerLobby;
+    }
+  | {
+      type: "GAME_STARTING";
+      payload: {
+        gameId: string;
+        gameState: any; // Will be GameState from engine
+      };
     };
 
 export interface SubmitTurnRequest {
