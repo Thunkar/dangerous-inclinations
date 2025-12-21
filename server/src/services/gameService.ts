@@ -12,6 +12,8 @@ import {
   deployShip,
   checkAllDeployed,
   transitionToActivePhase,
+  botDecideActions,
+  dealMissions,
 } from "@dangerous-inclinations/engine";
 import { getPlayer } from "./playerService.js";
 import { broadcastToRoom } from "../websocket/roomHandler.js";
@@ -47,7 +49,7 @@ export async function createGame(
           sector: 0, // Will be set during deployment
           facing: "prograde",
         }),
-        missions: [], // Missions will be assigned after deployment
+        missions: [],
         completedMissionCount: 0,
         cargo: [],
         hasDeployed: false, // Not deployed yet
@@ -55,13 +57,26 @@ export async function createGame(
     })
   );
 
+  // Get planets for mission generation
+  const planets = GRAVITY_WELLS.filter((well) => well.type === "planet");
+
+  // Deal missions to all players so they can see them during deployment
+  const { playerMissions, playerCargo } = dealMissions(players, planets);
+
+  // Update players with their missions and cargo
+  const playersWithMissions = players.map((player) => ({
+    ...player,
+    missions: playerMissions.get(player.id) || [],
+    cargo: playerCargo.get(player.id) || [],
+  }));
+
   // Create initial stations for all planets
   const stations = createInitialStations(GRAVITY_WELLS);
 
   const initialState: GameState = {
     turn: 0, // Turn 0 = deployment phase
     activePlayerIndex: 0,
-    players,
+    players: playersWithMissions,
     turnLog: [],
     missiles: [],
     phase: "deployment",
@@ -89,30 +104,119 @@ export async function saveGameState(
   await redis.set(`${GAME_KEY_PREFIX}${gameId}`, JSON.stringify(state));
 }
 
+export interface TurnResult {
+  success: boolean;
+  gameState?: GameState;
+  turnNumber?: number;
+  error?: string;
+  errors?: string[];
+}
+
 export async function processPlayerTurn(
   gameId: string,
   playerId: string,
   actions: PlayerAction[]
-): Promise<GameState | null> {
+): Promise<TurnResult> {
   const currentState = await getGameState(gameId);
 
-  if (!currentState) return null;
+  if (!currentState) {
+    return { success: false, error: "Game not found" };
+  }
 
   // Validate it's this player's turn
   const activePlayer = currentState.players[currentState.activePlayerIndex];
   if (activePlayer.id !== playerId) {
-    throw new Error("Not your turn");
+    return { success: false, error: "Not your turn" };
   }
+
+  const turnNumber = currentState.turn;
 
   // Execute turn using the game engine
   const turnResult = executeTurn(currentState, actions);
 
-  // Extract the new game state from the turn result
-  const newState = turnResult.gameState;
+  // Check for engine errors
+  if (turnResult.errors && turnResult.errors.length > 0) {
+    return { success: false, errors: turnResult.errors };
+  }
 
+  const newState = turnResult.gameState;
   await saveGameState(gameId, newState);
 
-  return newState;
+  return { success: true, gameState: newState, turnNumber };
+}
+
+/**
+ * Check if the current active player is a bot (non-human)
+ * @param state - Current game state
+ * @param humanPlayerIds - Set of player IDs that are humans (not bots)
+ */
+function isActivePlayerBot(
+  state: GameState,
+  humanPlayerIds: Set<string>
+): boolean {
+  const activePlayer = state.players[state.activePlayerIndex];
+  // Check if active player is NOT in the human players set
+  // Also check game is still active and player is alive
+  return (
+    activePlayer &&
+    !humanPlayerIds.has(activePlayer.id) &&
+    state.phase === "active" &&
+    activePlayer.ship.hitPoints > 0
+  );
+}
+
+/**
+ * Execute bot turns until a human player is active
+ * Broadcasts each bot turn to all clients for animation
+ * @param gameId - The game ID
+ * @param gameState - Current game state
+ * @param humanPlayerIds - Set of player IDs that are humans (not bots)
+ */
+export async function executeBotsIfNeeded(
+  gameId: string,
+  gameState: GameState,
+  humanPlayerIds: Set<string>
+): Promise<GameState> {
+  let state = gameState;
+
+  while (isActivePlayerBot(state, humanPlayerIds)) {
+    const botPlayer = state.players[state.activePlayerIndex];
+    const botPlayerId = botPlayer.id;
+    const turnNumber = state.turn;
+
+    // Get bot's decision
+    const botDecision = botDecideActions(state, botPlayerId);
+
+    // Execute the bot's turn
+    const result = executeTurn(state, botDecision.actions);
+
+    if (result.errors && result.errors.length > 0) {
+      console.error(`[Bot ${botPlayerId}] Turn errors:`, result.errors);
+      // Skip this bot's turn on error - shouldn't happen but be safe
+      break;
+    }
+
+    state = result.gameState;
+
+    // Broadcast bot turn with actions for animations
+    broadcastToRoom(
+      "game",
+      {
+        type: "TURN_EXECUTED",
+        payload: {
+          gameState: state,
+          actions: botDecision.actions,
+          playerId: botPlayerId,
+          turnNumber: turnNumber,
+        },
+      },
+      gameId
+    );
+
+    await saveGameState(gameId, state);
+  }
+
+  return state;
 }
 
 export async function processDeployment(

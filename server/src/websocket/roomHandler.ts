@@ -6,6 +6,10 @@ import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
 import { getPlayer } from "../services/playerService.js";
 import { getLobby } from "../services/lobbyService.js";
+import {
+  processPlayerTurn,
+  executeBotsIfNeeded,
+} from "../services/gameService.js";
 
 type Room = "global" | "lobby" | "game";
 
@@ -67,6 +71,14 @@ function removeFromRoom(playerId: string, room: Room, roomId?: string) {
   // Remove WebSocket connection
   const connKey = getConnectionKey(playerId, room, roomId);
   connections.delete(connKey);
+}
+
+/**
+ * Get all player IDs connected to a room
+ */
+function getConnectedPlayers(room: Room, roomId?: string): Set<string> {
+  const roomKey = getRoomKey(room, roomId);
+  return rooms.get(roomKey) || new Set();
 }
 
 /**
@@ -289,10 +301,57 @@ export async function setupWebSocketRooms(fastify: FastifyInstance) {
     socket.on("message", async (message: Buffer) => {
       try {
         const data = JSON.parse(message.toString());
-        // TODO: Handle game actions (will be done in Phase 4)
         fastify.log.info(`Game message from ${playerId}:`, data);
+
+        if (data.type === "SUBMIT_TURN") {
+          const { actions } = data.payload;
+
+          // Process the player's turn
+          const result = await processPlayerTurn(gameId!, playerId, actions);
+
+          if (result.success && result.gameState) {
+            // Broadcast human turn execution to all players in game room
+            broadcastToRoom(
+              "game",
+              {
+                type: "TURN_EXECUTED",
+                payload: {
+                  gameState: result.gameState,
+                  actions: actions,
+                  playerId: playerId,
+                  turnNumber: result.turnNumber,
+                },
+              },
+              gameId
+            );
+
+            // After human turn, execute any bot turns
+            // All players connected to the game room are humans
+            const humanPlayerIds = getConnectedPlayers("game", gameId);
+            await executeBotsIfNeeded(gameId!, result.gameState, humanPlayerIds);
+          } else {
+            // Send error back to the player who submitted
+            socket.send(
+              JSON.stringify({
+                type: "TURN_ERROR",
+                payload: {
+                  error: result.error,
+                  errors: result.errors,
+                },
+              })
+            );
+          }
+        }
       } catch (error) {
         fastify.log.error({ error }, "WebSocket message error");
+        socket.send(
+          JSON.stringify({
+            type: "TURN_ERROR",
+            payload: {
+              error: "Internal server error processing turn",
+            },
+          })
+        );
       }
     });
 

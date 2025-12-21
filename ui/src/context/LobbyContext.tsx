@@ -182,9 +182,8 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
     return () => {
       cleanup?.()
       disconnect('lobby', currentLobbyId)
-      if (lobbyState?.gameId) {
-        disconnect('game', lobbyState.gameId)
-      }
+      // Don't disconnect from game room here - GameContext manages it during active phase
+      // Only disconnect if we're leaving entirely (browser phase)
     }
   }, [phase, currentLobbyId, playerId, playerName, client, connect, disconnect, isConnected, lobbyState?.gameId])
 

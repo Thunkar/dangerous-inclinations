@@ -31,9 +31,29 @@ export class GameWebSocketClient {
   private playerId: string;
   private maxReconnectAttempts = 5;
   private baseReconnectDelay = 1000;
+  // Store handlers that were registered before connection was established
+  private pendingHandlers: Map<string, {
+    messageHandlers: Set<MessageHandler>;
+    errorHandlers: Set<ErrorHandler>;
+    closeHandlers: Set<CloseHandler>;
+  }> = new Map();
 
   constructor(playerId: string) {
     this.playerId = playerId;
+  }
+
+  /**
+   * Get or create pending handlers for a room key
+   */
+  private getPendingHandlers(key: string) {
+    if (!this.pendingHandlers.has(key)) {
+      this.pendingHandlers.set(key, {
+        messageHandlers: new Set(),
+        errorHandlers: new Set(),
+        closeHandlers: new Set(),
+      });
+    }
+    return this.pendingHandlers.get(key)!;
   }
 
   /**
@@ -95,6 +115,18 @@ export class GameWebSocketClient {
         if (ENV.DEBUG) {
           console.log(`[WS] Connected to ${key}`);
         }
+
+        // Attach any pending handlers that were registered before connection
+        const pending = this.pendingHandlers.get(key);
+        if (pending) {
+          pending.messageHandlers.forEach(h => connection.messageHandlers.add(h));
+          pending.errorHandlers.forEach(h => connection.errorHandlers.add(h));
+          pending.closeHandlers.forEach(h => connection.closeHandlers.add(h));
+          if (ENV.DEBUG && pending.messageHandlers.size > 0) {
+            console.log(`[WS] Attached ${pending.messageHandlers.size} pending message handlers to ${key}`);
+          }
+        }
+
         this.connections.set(key, connection);
         resolve(connection);
       };
@@ -166,11 +198,8 @@ export class GameWebSocketClient {
     connection.reconnectTimeout = setTimeout(async () => {
       connection.reconnectAttempts++;
       try {
-        const newConnection = await this.connect(room, roomId);
-        // Transfer handlers to new connection
-        newConnection.messageHandlers = new Set(connection.messageHandlers);
-        newConnection.errorHandlers = new Set(connection.errorHandlers);
-        newConnection.closeHandlers = new Set(connection.closeHandlers);
+        // connect() will automatically attach handlers from pendingHandlers
+        await this.connect(room, roomId);
       } catch (error) {
         console.error(`[WS] Reconnection failed:`, error);
       }
@@ -231,6 +260,8 @@ export class GameWebSocketClient {
 
   /**
    * Add message handler for a room
+   * Handlers are stored in both the active connection (if exists) and pending handlers
+   * so they survive reconnections and late registrations
    */
   onMessage(
     room: WebSocketRoom,
@@ -238,14 +269,25 @@ export class GameWebSocketClient {
     roomId?: string,
   ): () => void {
     const key = this.getConnectionKey(room, roomId);
-    const connection = this.connections.get(key);
 
+    // Always add to pending handlers so it survives reconnection
+    const pending = this.getPendingHandlers(key);
+    pending.messageHandlers.add(handler);
+
+    // Also add to active connection if it exists
+    const connection = this.connections.get(key);
     if (connection) {
       connection.messageHandlers.add(handler);
     }
 
     // Return cleanup function
     return () => {
+      // Remove from pending handlers
+      const pendingHandlers = this.pendingHandlers.get(key);
+      if (pendingHandlers) {
+        pendingHandlers.messageHandlers.delete(handler);
+      }
+      // Remove from active connection
       const conn = this.connections.get(key);
       if (conn) {
         conn.messageHandlers.delete(handler);
@@ -262,13 +304,22 @@ export class GameWebSocketClient {
     roomId?: string,
   ): () => void {
     const key = this.getConnectionKey(room, roomId);
-    const connection = this.connections.get(key);
 
+    // Always add to pending handlers
+    const pending = this.getPendingHandlers(key);
+    pending.errorHandlers.add(handler);
+
+    // Also add to active connection if it exists
+    const connection = this.connections.get(key);
     if (connection) {
       connection.errorHandlers.add(handler);
     }
 
     return () => {
+      const pendingHandlers = this.pendingHandlers.get(key);
+      if (pendingHandlers) {
+        pendingHandlers.errorHandlers.delete(handler);
+      }
       const conn = this.connections.get(key);
       if (conn) {
         conn.errorHandlers.delete(handler);
@@ -285,13 +336,22 @@ export class GameWebSocketClient {
     roomId?: string,
   ): () => void {
     const key = this.getConnectionKey(room, roomId);
-    const connection = this.connections.get(key);
 
+    // Always add to pending handlers
+    const pending = this.getPendingHandlers(key);
+    pending.closeHandlers.add(handler);
+
+    // Also add to active connection if it exists
+    const connection = this.connections.get(key);
     if (connection) {
       connection.closeHandlers.add(handler);
     }
 
     return () => {
+      const pendingHandlers = this.pendingHandlers.get(key);
+      if (pendingHandlers) {
+        pendingHandlers.closeHandlers.delete(handler);
+      }
       const conn = this.connections.get(key);
       if (conn) {
         conn.closeHandlers.delete(handler);

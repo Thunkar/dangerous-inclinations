@@ -11,15 +11,15 @@ import type {
   SubsystemType,
   ReactorState,
   HeatState,
+  Player,
 } from '@dangerous-inclinations/engine'
 import {
   getSubsystemConfig,
   canSubsystemFunction,
-  executeTurn as executeGameTurn,
   calculateProjectedHeat,
-  botDecideActions,
   TRANSFER_POINTS,
 } from '@dangerous-inclinations/engine'
+import { useWebSocket } from './WebSocketContext'
 
 interface WeaponRangeVisibility {
   laser: boolean
@@ -98,10 +98,16 @@ const GameContext = createContext<GameContextType | undefined>(undefined)
 interface GameProviderProps {
   children: ReactNode
   initialGameState: GameState
+  gameId: string
   onGameStateChange: (newState: GameState) => void
 }
 
-export function GameProvider({ children, initialGameState, onGameStateChange }: GameProviderProps) {
+export function GameProvider({
+  children,
+  initialGameState,
+  gameId,
+  onGameStateChange,
+}: GameProviderProps) {
   const [gameState, setGameState] = useState<GameState>(initialGameState)
   const [turnErrors, setTurnErrors] = useState<string[]>([])
   const [turnHistory, setTurnHistory] = useState<TurnHistoryEntry[]>([])
@@ -110,7 +116,9 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
     railgun: false,
     missiles: false,
   })
-  const lastBotTurnKeyRef = useRef<string>('')
+
+  // WebSocket client for server communication
+  const { client, connect, isConnected } = useWebSocket()
 
   // Animation handlers registered by BoardContext
   const animationHandlersRef = useRef<AnimationHandlers | null>(null)
@@ -368,6 +376,7 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
   )
 
   // Execute turn: compute diff between committed and pending, create actions using tactical sequence
+  // Then send to server via WebSocket
   const executeTurn = useCallback(() => {
     // Don't execute turns if game is over
     if (gameState.phase === 'ended') {
@@ -507,46 +516,31 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
       }
     })
 
-    // 4. Execute turn with all actions
-    const currentTurn = gameState.turn
+    // Send turn to server via WebSocket
+    // State update will happen when TURN_EXECUTED message arrives
+    client?.send(
+      'game',
+      {
+        type: 'SUBMIT_TURN',
+        payload: {
+          gameId,
+          playerId: activePlayer.id,
+          actions,
+        },
+      },
+      gameId
+    )
 
-    const result = executeGameTurn(gameState, actions)
-    if (result.errors && result.errors.length > 0) {
-      setTurnErrors(result.errors)
-      return
-    }
+    // Clear turn errors optimistically
     setTurnErrors([])
 
-    const afterState = result.gameState
-
-    // Record turn in history
-    setTurnHistory(prevHistory => [
-      ...prevHistory,
-      {
-        turn: currentTurn,
-        playerId: activePlayer.id,
-        playerName: activePlayer.name,
-        actions,
-      },
-    ])
-
-    // Reset weapon range visibility at end of turn
+    // Reset weapon range visibility
     setWeaponRangeVisibility({
       laser: false,
       railgun: false,
       missiles: false,
     })
-
-    // Start animation - gameState will be updated when animation completes
-    if (animationHandlersRef.current) {
-      animationHandlersRef.current.startAnimation(gameState, afterState, actions, () => {
-        updateGameState(afterState)
-      })
-    } else {
-      // No animation handlers registered, just update state
-      updateGameState(afterState)
-    }
-  }, [activePlayer, pendingState, gameState, updateGameState])
+  }, [activePlayer, pendingState, gameState, client, gameId])
 
   const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missiles') => {
     setWeaponRangeVisibility(prev => ({
@@ -555,88 +549,79 @@ export function GameProvider({ children, initialGameState, onGameStateChange }: 
     }))
   }, [])
 
-  // Auto-execute bot turns for non-human players
+  // Ensure we're connected to the game room and listen for messages
   useEffect(() => {
-    const currentActivePlayer = gameState.players[gameState.activePlayerIndex]
-
-    // Create a unique key for this turn to prevent duplicate execution
-    const currentTurnKey = `${gameState.activePlayerIndex}-${gameState.turn}`
-
-    // Check if animating
-    const isAnimating = animationHandlersRef.current?.isAnimating() ?? false
-
-    // Check if game has missions/respawn enabled
-    const hasMissions = gameState.phase === 'active' && gameState.stations.length > 0
-
-    // Only execute bot turn if:
-    // 1. Active player exists
-    // 2. Active player is not player1 (the human)
-    // 3. Active player's ship is alive OR game has respawn (missions mode)
-    // 4. Animations are not playing
-    // 5. Haven't already executed this specific player+turn combination
-    if (
-      currentActivePlayer &&
-      currentActivePlayer.id !== 'player1' &&
-      (currentActivePlayer.ship.hitPoints > 0 || hasMissions) &&
-      !isAnimating &&
-      lastBotTurnKeyRef.current !== currentTurnKey
-    ) {
-      // Mark this turn as executed IMMEDIATELY to prevent duplicate effect runs
-      lastBotTurnKeyRef.current = currentTurnKey
-
-      // Small delay to show state transition
-      const timer = setTimeout(() => {
-        try {
-          const botDecision = botDecideActions(gameState, currentActivePlayer.id)
-
-          const currentTurn = gameState.turn
-
-          const result = executeGameTurn(gameState, botDecision.actions)
-          if (result.errors && result.errors.length > 0) {
-            console.error(`[Bot ${currentActivePlayer.id}] Turn errors:`, result.errors)
-            setTurnErrors(result.errors)
-            // Reset on error so it can be retried
-            lastBotTurnKeyRef.current = ''
-            return
-          }
-          setTurnErrors([])
-
-          const afterState = result.gameState
-
-          // Record turn in history
-          setTurnHistory(prevHistory => [
-            ...prevHistory,
-            {
-              turn: currentTurn,
-              playerId: currentActivePlayer.id,
-              playerName: currentActivePlayer.name,
-              actions: botDecision.actions,
-              botDecision: botDecision.log,
-            },
-          ])
-
-          // Start animation - gameState will be updated when animation completes
-          if (animationHandlersRef.current) {
-            animationHandlersRef.current.startAnimation(
-              gameState,
-              afterState,
-              botDecision.actions,
-              () => {
-                updateGameState(afterState)
-              }
-            )
-          } else {
-            updateGameState(afterState)
-          }
-        } catch (error) {
-          console.error(`[Bot ${currentActivePlayer.id}] Failed to execute turn:`, error)
-          lastBotTurnKeyRef.current = '' // Reset on error
-        }
-      }, 400)
-
-      return () => clearTimeout(timer)
+    if (!client || !gameId) {
+      return
     }
-  }, [gameState, updateGameState])
+
+    // Connect to game room if not already connected
+    const ensureConnection = async () => {
+      if (!isConnected('game', gameId)) {
+        try {
+          await connect('game', gameId)
+        } catch (error) {
+          console.error('[GameContext] Failed to connect to game room:', error)
+        }
+      }
+    }
+
+    ensureConnection()
+
+    const handleMessage = (message: {
+      type: string
+      payload?: {
+        gameState?: GameState
+        actions?: PlayerAction[]
+        playerId?: string
+        turnNumber?: number
+        error?: string
+        errors?: string[]
+      }
+    }) => {
+      if (message.type === 'TURN_EXECUTED' && message.payload) {
+        const { gameState: newState, actions, playerId, turnNumber } = message.payload
+
+        if (!newState || !actions || !playerId) return
+
+        const beforeState = gameStateRef.current
+
+        // Record in turn history
+        const player = newState.players.find((p: Player) => p.id === playerId)
+        setTurnHistory(prev => [
+          ...prev,
+          {
+            turn: turnNumber ?? newState.turn - 1,
+            playerId,
+            playerName: player?.name || playerId,
+            actions,
+          },
+        ])
+
+        // Start animation with before/after states + actions
+        if (animationHandlersRef.current) {
+          animationHandlersRef.current.startAnimation(beforeState, newState, actions, () => {
+            // Animation complete - commit new state
+            updateGameState(newState)
+          })
+        } else {
+          // No animation handlers, just update
+          updateGameState(newState)
+        }
+      }
+
+      if (message.type === 'TURN_ERROR' && message.payload) {
+        const { error, errors } = message.payload
+        setTurnErrors(errors || (error ? [error] : ['Unknown error']))
+      }
+    }
+
+    // Subscribe to game room messages
+    const cleanup = client.onMessage('game', handleMessage, gameId)
+    return cleanup
+    // Note: connect/isConnected are stable refs, but we only need client and gameId for re-subscription
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, gameId, updateGameState])
 
   return (
     <GameContext.Provider
