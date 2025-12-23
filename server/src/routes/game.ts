@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { getGameState, processDeployment } from "../services/gameService.js";
+import { getHumanPlayerIds } from "../services/lobbyService.js";
 
 export async function gameRoutes(fastify: FastifyInstance) {
   // Get game state
@@ -48,7 +49,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const result = await processDeployment(gameId, playerId, sector);
+      // Get human player IDs for bot detection
+      const humanPlayerIds = await getHumanPlayerIds(gameId);
+      const result = await processDeployment(gameId, playerId, sector, humanPlayerIds);
 
       if (!result.success) {
         return reply.code(400).send({ error: result.error });

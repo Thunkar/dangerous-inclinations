@@ -7,6 +7,8 @@ import {
   joinLobby,
   leaveLobby,
   startGame,
+  addBot,
+  removeBot,
 } from "../services/lobbyService.js";
 import { getPlayer } from "../services/playerService.js";
 
@@ -159,5 +161,50 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
     }
 
     return reply.send({ gameId });
+  });
+
+  // Add bot (host only)
+  fastify.post<{
+    Headers: { "x-player-id": string };
+    Params: { lobbyId: string };
+    Body: { botName?: string };
+  }>("/api/lobbies/:lobbyId/bot", async (request, reply) => {
+    const playerId = request.headers["x-player-id"];
+    const { lobbyId } = request.params;
+    const { botName } = request.body || {};
+
+    if (!playerId) {
+      return reply.code(401).send({ error: "Player ID required" });
+    }
+
+    const result = await addBot(lobbyId, playerId, botName);
+
+    if (!result.success) {
+      return reply.code(400).send({ error: result.error });
+    }
+
+    const { password, ...safeLobby } = result.lobby!;
+    return reply.send({ ...safeLobby, hasPassword: !!password });
+  });
+
+  // Remove bot (host only)
+  fastify.delete<{
+    Headers: { "x-player-id": string };
+    Params: { lobbyId: string; botId: string };
+  }>("/api/lobbies/:lobbyId/bot/:botId", async (request, reply) => {
+    const playerId = request.headers["x-player-id"];
+    const { lobbyId, botId } = request.params;
+
+    if (!playerId) {
+      return reply.code(401).send({ error: "Player ID required" });
+    }
+
+    const result = await removeBot(lobbyId, playerId, botId);
+
+    if (!result.success) {
+      return reply.code(400).send({ error: result.error });
+    }
+
+    return reply.send({ success: true });
   });
 }

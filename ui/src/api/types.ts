@@ -3,6 +3,8 @@
  * These match the server's Zod schemas
  */
 
+import type { GameState } from "@dangerous-inclinations/engine";
+
 // ============================================================================
 // Player Types
 // ============================================================================
@@ -81,12 +83,19 @@ export interface StartGameResponse {
   gameId: string;
 }
 
+export interface PlayerStatusResponse {
+  player: Player;
+  lobby: ServerLobby | null;
+  gameState: GameState | null;
+}
+
 // ============================================================================
 // Game Types
 // ============================================================================
 
-// Import GameState from engine
-export type { GameState, PlayerAction } from "@dangerous-inclinations/engine";
+// Re-export GameState from engine
+export type { PlayerAction } from "@dangerous-inclinations/engine";
+export type { GameState };
 
 // ============================================================================
 // WebSocket Message Types

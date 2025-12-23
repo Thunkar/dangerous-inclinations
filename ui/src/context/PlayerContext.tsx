@@ -47,7 +47,6 @@ interface PlayerProviderProps {
 }
 
 const STORAGE_KEY_PLAYER_ID = "playerId";
-const STORAGE_KEY_PLAYER_NAME = "playerName";
 const DEFAULT_PLAYER_NAME = "Player";
 
 export function PlayerProvider({ children }: PlayerProviderProps) {
@@ -59,6 +58,7 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
 
   /**
    * Initialize or restore player session
+   * Only playerId is stored locally - player name comes from server
    */
   useEffect(() => {
     async function initializePlayer() {
@@ -68,15 +68,13 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
 
         // Check if we have a stored player ID
         const storedPlayerId = localStorage.getItem(STORAGE_KEY_PLAYER_ID);
-        const storedPlayerName =
-          localStorage.getItem(STORAGE_KEY_PLAYER_NAME) || DEFAULT_PLAYER_NAME;
 
         if (storedPlayerId) {
           // Try to validate existing player ID with server
           const player = await getPlayer(storedPlayerId);
 
           if (player) {
-            // Player exists on server, restore session
+            // Player exists on server, restore session (name comes from server)
             setPlayerId(player.playerId);
             setPlayerNameState(player.playerName);
             setIsAuthenticated(true);
@@ -92,11 +90,11 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
               );
             }
             localStorage.removeItem(STORAGE_KEY_PLAYER_ID);
-            await createNewPlayer(storedPlayerName);
+            await createNewPlayer(DEFAULT_PLAYER_NAME);
           }
         } else {
           // No stored player ID, create new player
-          await createNewPlayer(storedPlayerName);
+          await createNewPlayer(DEFAULT_PLAYER_NAME);
         }
       } catch (err) {
         const message =
@@ -118,9 +116,8 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
     try {
       const response = await createPlayer(name);
 
-      // Store player ID and name
+      // Only store player ID - name comes from server
       localStorage.setItem(STORAGE_KEY_PLAYER_ID, response.playerId);
-      localStorage.setItem(STORAGE_KEY_PLAYER_NAME, response.playerName);
 
       setPlayerId(response.playerId);
       setPlayerNameState(response.playerName);
@@ -137,16 +134,15 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
   }
 
   /**
-   * Update player name (persists to localStorage and eventually to server)
+   * Update player name (updates local state, should be synced to server via API)
    */
   const setPlayerName = useCallback(
     (name: string) => {
       if (!playerId) return;
 
       setPlayerNameState(name);
-      localStorage.setItem(STORAGE_KEY_PLAYER_NAME, name);
 
-      // TODO: In Phase 2, we can add API call to update name on server
+      // TODO: Add API call to update name on server
       // For now, the name will be updated when creating/joining a lobby
 
       if (ENV.DEBUG) {
@@ -161,7 +157,6 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
    */
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY_PLAYER_ID);
-    localStorage.removeItem(STORAGE_KEY_PLAYER_NAME);
     setPlayerId(null);
     setPlayerNameState(DEFAULT_PLAYER_NAME);
     setIsAuthenticated(false);

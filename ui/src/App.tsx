@@ -22,34 +22,94 @@ const theme = createTheme({
   palette: {
     mode: 'dark',
     background: {
-      default: '#000000',
-      paper: '#121212',
+      default: '#0a0a0f',
+      paper: '#16161f',
     },
     text: {
       primary: '#ffffff',
-      secondary: '#b0b0b0',
+      secondary: '#9090a0',
     },
     primary: {
-      main: '#343434',
-      light: '#4a4a4a',
-      dark: '#1a1a1a',
+      main: '#3a7bd5', // Vibrant blue for better visibility
+      light: '#5a9bf5',
+      dark: '#2a5ba5',
+      contrastText: '#ffffff',
     },
     secondary: {
-      main: '#1412b7',
-      light: '#3d3bd4',
-      dark: '#0d0a8a',
+      main: '#7c4dff', // Purple accent
+      light: '#a47fff',
+      dark: '#5c2dc0',
+      contrastText: '#ffffff',
     },
     error: {
-      main: '#d40000',
-      light: '#ff3333',
-      dark: '#9a0000',
+      main: '#f44336',
+      light: '#ff7961',
+      dark: '#ba000d',
     },
     warning: {
       main: '#ff9800',
       light: '#ffb333',
       dark: '#c77700',
     },
-    divider: '#4a4a4a',
+    success: {
+      main: '#4caf50',
+      light: '#80e27e',
+      dark: '#087f23',
+    },
+    divider: '#3a3a4a',
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none', // Don't uppercase button text
+          fontWeight: 600,
+        },
+        contained: {
+          boxShadow: '0 2px 8px rgba(58, 123, 213, 0.3)',
+          '&:hover': {
+            boxShadow: '0 4px 16px rgba(58, 123, 213, 0.4)',
+          },
+        },
+        outlined: {
+          borderWidth: 2,
+          '&:hover': {
+            borderWidth: 2,
+          },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none', // Remove default gradient overlay
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': {
+              borderColor: '#3a3a4a',
+            },
+            '&:hover fieldset': {
+              borderColor: '#5a5a6a',
+            },
+            '&.Mui-focused fieldset': {
+              borderColor: '#3a7bd5',
+            },
+          },
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontWeight: 500,
+        },
+      },
+    },
   },
 })
 
@@ -162,6 +222,7 @@ function ActiveGameScreen({
  */
 function PlayerNameSetup() {
   const { playerName, setPlayerName } = usePlayer()
+  const { isRestoringSession, phase } = useLobby()
   const [name, setName] = useState(playerName)
   const [ready, setReady] = useState(false)
 
@@ -170,6 +231,33 @@ function PlayerNameSetup() {
       setPlayerName(name.trim())
       setReady(true)
     }
+  }
+
+  // Show loading while restoring session
+  if (isRestoringSession) {
+    return (
+      <Box
+        sx={{
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 2,
+          background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%)',
+        }}
+      >
+        <CircularProgress size={60} />
+        <Typography variant="h6" color="text.secondary">
+          Restoring session...
+        </Typography>
+      </Box>
+    )
+  }
+
+  // If session was restored to a non-browser phase, skip name setup
+  if (phase !== 'browser') {
+    return <AppContent />
   }
 
   // If player has already confirmed their name, move to lobby
@@ -185,22 +273,39 @@ function PlayerNameSetup() {
         alignItems: 'center',
         justifyContent: 'center',
         bgcolor: 'background.default',
+        background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%)',
       }}
     >
       <Paper
-        elevation={3}
+        elevation={8}
         sx={{
-          p: 4,
-          maxWidth: 400,
+          p: 5,
+          maxWidth: 450,
           width: '90%',
           textAlign: 'center',
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: 'divider',
         }}
       >
-        <Typography variant="h4" gutterBottom>
-          Welcome to Dangerous Inclinations
+        <Typography
+          variant="h3"
+          sx={{
+            fontWeight: 700,
+            mb: 1,
+            background: 'linear-gradient(135deg, #3a7bd5 0%, #7c4dff 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          Dangerous Inclinations
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4 }}>
+          Tactical Space Combat
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Enter your player name to continue
+          Enter your player name to begin
         </Typography>
         <TextField
           fullWidth
@@ -213,16 +318,22 @@ function PlayerNameSetup() {
             }
           }}
           autoFocus
-          sx={{ mb: 2 }}
+          sx={{ mb: 3 }}
+          variant="outlined"
         />
         <Button
           fullWidth
           variant="contained"
           color="primary"
+          size="large"
           onClick={handleSubmit}
           disabled={!name.trim()}
+          sx={{
+            py: 1.5,
+            fontSize: '1.1rem',
+          }}
         >
-          Continue
+          Enter Game
         </Button>
       </Paper>
     </Box>
@@ -253,11 +364,25 @@ function AppContent() {
       return <LobbyScreen />
 
     case 'deployment':
-      if (!gameState) return null
+      if (!gameState) {
+        // Show loading while game state loads
+        return (
+          <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CircularProgress />
+          </Box>
+        )
+      }
       return <DeploymentScreen />
 
     case 'active':
-      if (!gameState || !lobbyState?.gameId) return null
+      if (!gameState || !lobbyState?.gameId) {
+        // Show loading while game state loads
+        return (
+          <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CircularProgress />
+          </Box>
+        )
+      }
       return (
         <ActiveGameScreen
           initialGameState={gameState}

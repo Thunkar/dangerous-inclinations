@@ -32,13 +32,15 @@ export function DeploymentBoard({
   enabled,
 }: DeploymentBoardProps) {
   const [hoveredSector, setHoveredSector] = useState<number | null>(null)
-  const [zoom, setZoom] = useState(1)
+  // Start at zoom 1 (shows full board), same viewBox approach as main GameBoard
+  const [zoom, setZoom] = useState(2)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const boardSize = 800
+  // Use same board size as main GameBoard (1850) for consistency
+  const boardSize = 1850
   const centerX = boardSize / 2
   const centerY = boardSize / 2
 
@@ -49,47 +51,63 @@ export function DeploymentBoard({
   const deploymentRing = blackhole.rings.find(r => r.ring === 4)
   if (!deploymentRing) return null
 
-  const scaleFactor = boardSize / 600 // Simple scale
+  // Scale factor matches main GameBoard calculation: (boardSize/2 - padding) / maxExtent
+  const scaleFactor = (boardSize / 2 - 20) / 778
   const deploymentRadius = (getRingRadius('blackhole', deploymentRing.ring) ?? 305) * scaleFactor
-  const innerRadius = deploymentRadius - 15
-  const outerRadius = deploymentRadius + 15
+  const innerRadius = deploymentRadius - 20
+  const outerRadius = deploymentRadius + 10
 
-  // Calculate rotation offset for black hole (aligns sector centers)
-  const rotationOffset = -(Math.PI / deploymentRing.sectors)
+  // Black hole rotation offset: 0 (matches main GameBoard behavior)
+  const rotationOffset = 0
+
+  // Calculate viewBox based on zoom and pan (same approach as main GameBoard)
+  const viewBoxSize = boardSize / zoom
+  const viewBoxX = (boardSize - viewBoxSize) / 2 + pan.x
+  const viewBoxY = (boardSize - viewBoxSize) / 2 + pan.y
 
   // Zoom handler
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
     const delta = e.deltaY > 0 ? 0.9 : 1.1
-    setZoom(prev => Math.min(Math.max(prev * delta, 0.5), 4))
+    setZoom(prev => Math.min(Math.max(prev * delta, 0.5), 8))
   }, [])
 
-  // Pan handlers
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button === 1 || (e.button === 0 && e.altKey)) {
-        // Middle click or Alt+click to pan
-        setIsPanning(true)
-        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-        e.preventDefault()
-      }
-    },
-    [pan]
-  )
+  // Pan handlers - drag to pan like the main GameBoard
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 0) {
+      // Left click to pan
+      setIsPanning(true)
+      setPanStart({ x: e.clientX, y: e.clientY })
+    }
+  }, [])
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (isPanning) {
-        setPan({
-          x: e.clientX - panStart.x,
-          y: e.clientY - panStart.y,
-        })
+      if (isPanning && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        // Convert screen pixels to SVG coordinates
+        const scaleX = viewBoxSize / rect.width
+        const scaleY = viewBoxSize / rect.height
+        const scale = Math.max(scaleX, scaleY)
+
+        const dx = (e.clientX - panStart.x) * scale
+        const dy = (e.clientY - panStart.y) * scale
+
+        setPan(prev => ({
+          x: prev.x - dx,
+          y: prev.y - dy,
+        }))
+        setPanStart({ x: e.clientX, y: e.clientY })
       }
     },
-    [isPanning, panStart]
+    [isPanning, panStart, viewBoxSize]
   )
 
   const handleMouseUp = useCallback(() => {
+    setIsPanning(false)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
     setIsPanning(false)
   }, [])
 
@@ -136,29 +154,25 @@ export function DeploymentBoard({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
       onDoubleClick={handleDoubleClick}
       sx={{
         width: '100%',
         height: '100%',
         overflow: 'hidden',
-        cursor: isPanning ? 'grabbing' : 'default',
-        bgcolor: '#0a0a0a',
+        cursor: isPanning ? 'grabbing' : 'grab',
         position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        userSelect: 'none',
       }}
     >
       <svg
-        viewBox={`0 0 ${boardSize} ${boardSize}`}
+        width="100%"
+        height="100%"
+        viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxSize} ${viewBoxSize}`}
         preserveAspectRatio="xMidYMid meet"
         style={{
-          width: '100%',
-          height: '100%',
-          maxWidth: '100%',
-          maxHeight: '100%',
-          transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
-          transformOrigin: 'center center',
+          background: 'radial-gradient(circle, #0a0a1a 0%, #000000 100%)',
+          display: 'block',
         }}
       >
         {/* Background */}
@@ -284,7 +298,7 @@ export function DeploymentBoard({
           borderRadius: 1,
         }}
       >
-        Scroll to zoom • Alt+drag to pan • Double-click to reset
+        Scroll to zoom • Drag to pan • Double-click to reset
       </Box>
     </Box>
   )

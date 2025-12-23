@@ -223,27 +223,69 @@ export function LobbyBrowser({
         height: "100vh",
         display: "flex",
         flexDirection: "column",
+        alignItems: "center",
         bgcolor: "background.default",
+        background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%)',
         p: 3,
       }}
     >
+      {/* Centered container */}
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: 900,
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          overflow: 'hidden',
+        }}
+      >
       {/* Header */}
-      <Paper sx={{ p: 2, mb: 2 }}>
+      <Paper
+        sx={{
+          p: 3,
+          mb: 3,
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
         <Stack direction="row" alignItems="center" justifyContent="space-between">
           <Box>
-            <Typography variant="h4">Multiplayer Lobbies</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Welcome, {playerName}
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #3a7bd5 0%, #7c4dff 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Game Lobbies
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+              Welcome, <strong>{playerName}</strong>
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1}>
-            <IconButton onClick={loadLobbies} disabled={loading}>
+          <Stack direction="row" spacing={2}>
+            <IconButton
+              onClick={loadLobbies}
+              disabled={loading}
+              sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                '&:hover': { borderColor: 'primary.main' },
+              }}
+            >
               <RefreshIcon />
             </IconButton>
             <Button
               variant="contained"
               color="primary"
+              size="large"
               onClick={() => setCreateDialogOpen(true)}
+              sx={{ px: 3 }}
             >
               Create Lobby
             </Button>
@@ -253,7 +295,16 @@ export function LobbyBrowser({
 
       {/* Error display */}
       {error && (
-        <Paper sx={{ p: 2, mb: 2, bgcolor: "error.dark" }}>
+        <Paper
+          sx={{
+            p: 2,
+            mb: 2,
+            bgcolor: "error.dark",
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'error.main',
+          }}
+        >
           <Typography color="error.contrastText">{error}</Typography>
         </Paper>
       )}
@@ -274,19 +325,48 @@ export function LobbyBrowser({
         /* Lobby list */
         <Box sx={{ flex: 1, overflow: "auto" }}>
           {lobbies.length === 0 ? (
-            <Paper sx={{ p: 4, textAlign: "center" }}>
-              <Typography variant="h6" color="text.secondary">
+            <Paper
+              sx={{
+                p: 6,
+                textAlign: "center",
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              <Typography variant="h5" sx={{ mb: 1 }}>
                 No lobbies available
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Create one to get started!
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                Be the first to create a game lobby!
               </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                onClick={() => setCreateDialogOpen(true)}
+              >
+                Create Lobby
+              </Button>
             </Paper>
           ) : (
             <Stack spacing={2}>
               {lobbies.map((lobby) => (
-                <Card key={lobby.lobbyId}>
-                  <CardContent>
+                <Card
+                  key={lobby.lobbyId}
+                  sx={{
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 20px rgba(58, 123, 213, 0.2)',
+                    },
+                  }}
+                >
+                  <CardContent sx={{ py: 2.5 }}>
                     <Stack
                       direction="row"
                       alignItems="center"
@@ -294,20 +374,23 @@ export function LobbyBrowser({
                     >
                       <Box sx={{ flex: 1 }}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6">{lobby.lobbyName}</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                            {lobby.lobbyName}
+                          </Typography>
                           {lobby.hasPassword && (
-                            <LockIcon fontSize="small" color="action" />
+                            <LockIcon fontSize="small" sx={{ color: 'warning.main' }} />
                           )}
                         </Stack>
-                        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                        <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
                           <Chip
                             icon={<PersonIcon />}
-                            label={`${lobby.currentPlayers}/${lobby.maxPlayers}`}
+                            label={`${lobby.currentPlayers}/${lobby.maxPlayers} players`}
                             size="small"
+                            variant="outlined"
                             color={
                               lobby.currentPlayers >= lobby.maxPlayers
                                 ? "error"
-                                : "default"
+                                : "primary"
                             }
                           />
                           {lobby.gameStarted && (
@@ -321,11 +404,13 @@ export function LobbyBrowser({
                       </Box>
                       <Button
                         variant="contained"
+                        size="large"
                         onClick={() => handleJoinLobby(lobby)}
                         disabled={
                           lobby.gameStarted ||
                           lobby.currentPlayers >= lobby.maxPlayers
                         }
+                        sx={{ px: 3 }}
                       >
                         Join
                       </Button>
@@ -337,6 +422,7 @@ export function LobbyBrowser({
           )}
         </Box>
       )}
+      </Box>
 
       {/* Create Lobby Dialog */}
       <Dialog

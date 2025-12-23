@@ -125,6 +125,16 @@ export function GameProvider({
   const gameStateRef = useRef<GameState>(gameState)
   gameStateRef.current = gameState
 
+  // Turn queue for sequential animation processing
+  interface QueuedTurn {
+    gameState: GameState
+    actions: PlayerAction[]
+    playerId: string
+    turnNumber: number
+  }
+  const turnQueueRef = useRef<QueuedTurn[]>([])
+  const isProcessingTurnRef = useRef(false)
+
   const registerAnimationHandlers = useCallback((handlers: AnimationHandlers) => {
     animationHandlersRef.current = handlers
     // Initialize display state when handlers are registered
@@ -568,6 +578,46 @@ export function GameProvider({
 
     ensureConnection()
 
+    // Process the next turn in the queue
+    const processNextTurn = () => {
+      if (turnQueueRef.current.length === 0) {
+        isProcessingTurnRef.current = false
+        return
+      }
+
+      isProcessingTurnRef.current = true
+      const turn = turnQueueRef.current.shift()!
+      const { gameState: newState, actions, playerId, turnNumber } = turn
+
+      const beforeState = gameStateRef.current
+
+      // Record in turn history
+      const player = newState.players.find((p: Player) => p.id === playerId)
+      setTurnHistory(prev => [
+        ...prev,
+        {
+          turn: turnNumber ?? newState.turn - 1,
+          playerId,
+          playerName: player?.name || playerId,
+          actions,
+        },
+      ])
+
+      // Start animation with before/after states + actions
+      if (animationHandlersRef.current) {
+        animationHandlersRef.current.startAnimation(beforeState, newState, actions, () => {
+          // Animation complete - commit new state and process next turn
+          updateGameState(newState)
+          // Use setTimeout to allow React to process state update before next animation
+          setTimeout(processNextTurn, 50)
+        })
+      } else {
+        // No animation handlers, just update and process next
+        updateGameState(newState)
+        processNextTurn()
+      }
+    }
+
     const handleMessage = (message: {
       type: string
       payload?: {
@@ -584,29 +634,17 @@ export function GameProvider({
 
         if (!newState || !actions || !playerId) return
 
-        const beforeState = gameStateRef.current
+        // Queue the turn for sequential processing
+        turnQueueRef.current.push({
+          gameState: newState,
+          actions,
+          playerId,
+          turnNumber: turnNumber ?? newState.turn - 1,
+        })
 
-        // Record in turn history
-        const player = newState.players.find((p: Player) => p.id === playerId)
-        setTurnHistory(prev => [
-          ...prev,
-          {
-            turn: turnNumber ?? newState.turn - 1,
-            playerId,
-            playerName: player?.name || playerId,
-            actions,
-          },
-        ])
-
-        // Start animation with before/after states + actions
-        if (animationHandlersRef.current) {
-          animationHandlersRef.current.startAnimation(beforeState, newState, actions, () => {
-            // Animation complete - commit new state
-            updateGameState(newState)
-          })
-        } else {
-          // No animation handlers, just update
-          updateGameState(newState)
+        // Start processing if not already doing so
+        if (!isProcessingTurnRef.current) {
+          processNextTurn()
         }
       }
 

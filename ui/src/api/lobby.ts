@@ -66,3 +66,17 @@ export async function leaveLobby(lobbyId: string): Promise<void> {
 export async function startGame(lobbyId: string): Promise<StartGameResponse> {
   return api.post<StartGameResponse>(`/api/lobbies/${lobbyId}/start`, {})
 }
+
+/**
+ * Add a bot to the lobby (host only)
+ */
+export async function addBot(lobbyId: string, botName?: string): Promise<ServerLobby> {
+  return api.post<ServerLobby>(`/api/lobbies/${lobbyId}/bot`, { botName })
+}
+
+/**
+ * Remove a bot from the lobby (host only)
+ */
+export async function removeBot(lobbyId: string, botId: string): Promise<void> {
+  await api.delete(`/api/lobbies/${lobbyId}/bot/${botId}`)
+}

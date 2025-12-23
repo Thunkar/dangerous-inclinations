@@ -12,7 +12,7 @@
     "dev": "yarn workspace @dangerous-inclinations/ui dev",
     "dev:server": "yarn workspace @dangerous-inclinations/server dev",
     "dev:all": "concurrently \"yarn dev:server\" \"yarn dev\"",
-    "build": "yarn workspaces foreach -pt run build",
+    "build": "yarn workspaces foreach -A -t run build",
     "build:engine": "yarn workspace @dangerous-inclinations/engine build",
     "build:ui": "yarn workspace @dangerous-inclinations/ui build",
     "build:server": "yarn workspace @dangerous-inclinations/server build",

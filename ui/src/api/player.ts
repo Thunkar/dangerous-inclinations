@@ -8,6 +8,7 @@ import type {
   CreatePlayerRequest,
   CreatePlayerResponse,
   Player,
+  PlayerStatusResponse,
 } from "./types";
 
 /**
@@ -43,4 +44,15 @@ export async function updatePlayerName(
   await api.put(`/api/players/${playerId}`, {
     playerName,
   });
+}
+
+/**
+ * Get player's current session status (lobby and game state)
+ */
+export async function getPlayerStatus(playerId: string): Promise<PlayerStatusResponse | null> {
+  try {
+    return await api.get<PlayerStatusResponse>(`/api/players/${playerId}/status`);
+  } catch (error) {
+    return null;
+  }
 }

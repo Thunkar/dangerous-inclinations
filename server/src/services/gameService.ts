@@ -14,6 +14,7 @@ import {
   transitionToActivePhase,
   botDecideActions,
   dealMissions,
+  getAvailableDeploymentSectors,
 } from "@dangerous-inclinations/engine";
 import { getPlayer } from "./playerService.js";
 import { broadcastToRoom } from "../websocket/roomHandler.js";
@@ -219,10 +220,76 @@ export async function executeBotsIfNeeded(
   return state;
 }
 
+/**
+ * Check if the current active player in deployment phase is a bot
+ */
+function isActiveDeploymentPlayerBot(
+  state: GameState,
+  humanPlayerIds: Set<string>
+): boolean {
+  if (state.phase !== "deployment") return false;
+
+  const activePlayer = state.players[state.activePlayerIndex];
+  return activePlayer && !activePlayer.hasDeployed && !humanPlayerIds.has(activePlayer.id);
+}
+
+/**
+ * Execute bot deployments until a human player needs to deploy
+ * @param gameId - The game ID
+ * @param gameState - Current game state
+ * @param humanPlayerIds - Set of player IDs that are humans (not bots)
+ */
+async function executeBotDeploymentsIfNeeded(
+  gameId: string,
+  gameState: GameState,
+  humanPlayerIds: Set<string>
+): Promise<GameState> {
+  let state = gameState;
+
+  while (isActiveDeploymentPlayerBot(state, humanPlayerIds)) {
+    const botPlayer = state.players[state.activePlayerIndex];
+    const availableSectors = getAvailableDeploymentSectors(state);
+
+    if (availableSectors.length === 0) {
+      console.error(`[Bot ${botPlayer.id}] No available sectors for deployment`);
+      break;
+    }
+
+    // Pick a random available sector
+    const randomIndex = Math.floor(Math.random() * availableSectors.length);
+    const chosenSector = availableSectors[randomIndex];
+
+    // Deploy the bot
+    const result = deployShip(state, botPlayer.id, chosenSector);
+
+    if (!result.success) {
+      console.error(`[Bot ${botPlayer.id}] Deployment failed:`, result.error);
+      break;
+    }
+
+    state = result.gameState;
+
+    // Broadcast bot deployment
+    broadcastToRoom(
+      "game",
+      {
+        type: "GAME_STATE_UPDATED",
+        payload: state,
+      },
+      gameId
+    );
+
+    await saveGameState(gameId, state);
+  }
+
+  return state;
+}
+
 export async function processDeployment(
   gameId: string,
   playerId: string,
-  sector: number
+  sector: number,
+  humanPlayerIds?: Set<string>
 ): Promise<DeploymentResult> {
   const currentState = await getGameState(gameId);
 
@@ -241,27 +308,45 @@ export async function processDeployment(
     return result;
   }
 
-  // Check if all players have deployed
   let finalState = result.gameState;
-  if (checkAllDeployed(finalState)) {
-    finalState = transitionToActivePhase(finalState);
+
+  // If we have humanPlayerIds, execute any bot deployments
+  if (humanPlayerIds) {
+    finalState = await executeBotDeploymentsIfNeeded(gameId, finalState, humanPlayerIds);
   }
 
-  // Save updated game state
-  await saveGameState(gameId, finalState);
+  // Check if all players have deployed
+  if (checkAllDeployed(finalState)) {
+    finalState = transitionToActivePhase(finalState);
+    await saveGameState(gameId, finalState);
 
-  // Broadcast updated game state to all players in the game room
-  broadcastToRoom(
-    "game",
-    {
-      type: "GAME_STATE_UPDATED",
-      payload: finalState,
-    },
-    gameId
-  );
+    // Broadcast the transition to active phase
+    broadcastToRoom(
+      "game",
+      {
+        type: "GAME_STATE_UPDATED",
+        payload: finalState,
+      },
+      gameId
+    );
+  } else {
+    // Save updated game state
+    await saveGameState(gameId, finalState);
+
+    // Broadcast updated game state to all players in the game room
+    broadcastToRoom(
+      "game",
+      {
+        type: "GAME_STATE_UPDATED",
+        payload: finalState,
+      },
+      gameId
+    );
+  }
 
   return {
     ...result,
     gameState: finalState,
   };
 }
+

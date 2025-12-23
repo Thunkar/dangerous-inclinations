@@ -98,6 +98,21 @@ export async function listLobbies(): Promise<Lobby[]> {
   return lobbies.filter((l): l is Lobby => l !== null);
 }
 
+/**
+ * Find the lobby that a player is currently in
+ */
+export async function findPlayerLobby(playerId: string): Promise<Lobby | null> {
+  const lobbies = await listLobbies();
+
+  for (const lobby of lobbies) {
+    if (lobby.players.some((p) => p.playerId === playerId)) {
+      return lobby;
+    }
+  }
+
+  return null;
+}
+
 export async function joinLobby(
   lobbyId: string,
   playerId: string,
@@ -164,6 +179,123 @@ export async function joinLobby(
   });
 
   return { success: true, lobby };
+}
+
+export async function addBot(
+  lobbyId: string,
+  hostPlayerId: string,
+  botName?: string
+): Promise<{ success: boolean; error?: string; lobby?: Lobby }> {
+  const redis = getRedis();
+  const lobby = await getLobby(lobbyId);
+
+  if (!lobby) {
+    return { success: false, error: "Lobby not found" };
+  }
+
+  // Only host can add bots
+  if (lobby.hostPlayerId !== hostPlayerId) {
+    return { success: false, error: "Only the host can add bots" };
+  }
+
+  if (lobby.players.length >= lobby.maxPlayers) {
+    return { success: false, error: "Lobby is full" };
+  }
+
+  if (lobby.gameId) {
+    return { success: false, error: "Game already started" };
+  }
+
+  // Generate bot player
+  const botId = `bot-${randomUUID()}`;
+  const botNumber = lobby.players.filter((p) => p.isBot).length + 1;
+  const newBot: LobbyPlayer = {
+    playerId: botId,
+    playerName: botName || `Bot ${botNumber}`,
+    isBot: true,
+    isReady: true, // Bots are always ready
+  };
+
+  lobby.players.push(newBot);
+  await redis.set(`${LOBBY_KEY_PREFIX}${lobbyId}`, JSON.stringify(lobby));
+
+  // Broadcast to lobby room
+  broadcastToRoom(
+    "lobby",
+    {
+      type: "PLAYER_JOINED",
+      payload: newBot,
+    },
+    lobbyId
+  );
+
+  // Broadcast lobby update to global room
+  broadcastToRoom("global", {
+    type: "LOBBY_UPDATED",
+    payload: {
+      lobbyId: lobby.lobbyId,
+      currentPlayers: lobby.players.length,
+      gameStarted: !!lobby.gameId,
+    },
+  });
+
+  return { success: true, lobby };
+}
+
+export async function removeBot(
+  lobbyId: string,
+  hostPlayerId: string,
+  botId: string
+): Promise<{ success: boolean; error?: string }> {
+  const redis = getRedis();
+  const lobby = await getLobby(lobbyId);
+
+  if (!lobby) {
+    return { success: false, error: "Lobby not found" };
+  }
+
+  // Only host can remove bots
+  if (lobby.hostPlayerId !== hostPlayerId) {
+    return { success: false, error: "Only the host can remove bots" };
+  }
+
+  if (lobby.gameId) {
+    return { success: false, error: "Game already started" };
+  }
+
+  // Find the bot
+  const botIndex = lobby.players.findIndex(
+    (p) => p.playerId === botId && p.isBot
+  );
+  if (botIndex === -1) {
+    return { success: false, error: "Bot not found" };
+  }
+
+  // Remove the bot
+  lobby.players.splice(botIndex, 1);
+  await redis.set(`${LOBBY_KEY_PREFIX}${lobbyId}`, JSON.stringify(lobby));
+
+  // Broadcast to lobby room
+  broadcastToRoom(
+    "lobby",
+    {
+      type: "PLAYER_LEFT",
+      payload: { playerId: botId },
+    },
+    lobbyId
+  );
+
+  // Broadcast lobby update to global room
+  broadcastToRoom("global", {
+    type: "LOBBY_UPDATED",
+    payload: {
+      lobbyId: lobby.lobbyId,
+      currentPlayers: lobby.players.length,
+      gameStarted: !!lobby.gameId,
+    },
+  });
+
+  return { success: true };
 }
 
 export async function leaveLobby(
@@ -235,6 +367,8 @@ export async function leaveLobby(
   return true;
 }
 
+const GAME_HUMANS_KEY_PREFIX = "game-humans:";
+
 export async function startGame(
   lobbyId: string,
   hostPlayerId: string
@@ -252,6 +386,15 @@ export async function startGame(
 
   await redis.set(`${LOBBY_KEY_PREFIX}${lobbyId}`, JSON.stringify(lobby));
 
+  // Store human player IDs for this game (needed for bot detection)
+  const humanPlayerIds = lobby.players
+    .filter((p) => !p.isBot)
+    .map((p) => p.playerId);
+  await redis.set(
+    `${GAME_HUMANS_KEY_PREFIX}${gameId}`,
+    JSON.stringify(humanPlayerIds)
+  );
+
   // Create initial game state
   const playerIds = lobby.players.map((p) => p.playerId);
   const gameState = await createGame(gameId, playerIds);
@@ -267,4 +410,17 @@ export async function startGame(
   );
 
   return gameId;
+}
+
+/**
+ * Get the set of human player IDs for a game
+ */
+export async function getHumanPlayerIds(gameId: string): Promise<Set<string>> {
+  const redis = getRedis();
+  const data = await redis.get(`${GAME_HUMANS_KEY_PREFIX}${gameId}`);
+
+  if (!data) return new Set();
+
+  const playerIds = JSON.parse(data) as string[];
+  return new Set(playerIds);
 }
