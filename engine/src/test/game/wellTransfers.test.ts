@@ -58,31 +58,33 @@ describe("Well Transfers", () => {
     it("should calculate transfer points for all planets", () => {
       const transferPoints = calculateTransferPoints(GRAVITY_WELLS);
 
-      // Should have bidirectional transfers for 6 planets = 12 total
-      expect(transferPoints).toHaveLength(12);
+      // Should have bidirectional transfers for 3 planets = 6 total
+      expect(transferPoints).toHaveLength(6);
 
       // Check black hole → planet transfers
       const blackHoleToPlanets = transferPoints.filter(
         (tp) => tp.fromWellId === "blackhole"
       );
-      expect(blackHoleToPlanets).toHaveLength(6);
+      expect(blackHoleToPlanets).toHaveLength(3);
 
       // Check planet → black hole transfers
       const planetsToBlackHole = transferPoints.filter(
         (tp) => tp.toWellId === "blackhole"
       );
-      expect(planetsToBlackHole).toHaveLength(6);
+      expect(planetsToBlackHole).toHaveLength(3);
     });
 
     it("should place transfer points at correct fixed sectors", () => {
       const transferPoints = calculateTransferPoints(GRAVITY_WELLS);
 
-      // Planet Alpha at 0° (BH sector 0 points toward Alpha, planet sector 0 points toward BH)
-      // Outbound: BH R4 S20 → Alpha R3 S5, Return: Alpha R3 S18 → BH R4 S3
+      // Transfer sectors are spread out to prevent quick planet-hopping
+      // BH outbound at sectors 18/2/10, returns at sectors 5/13/21
+
+      // Planet Alpha: BH S18 → Alpha S5, Alpha S18 → BH S5
       const alphaOutbound = transferPoints.find(
         (tp) => tp.fromWellId === "blackhole" && tp.toWellId === "planet-alpha"
       );
-      expect(alphaOutbound?.fromSector).toBe(20);
+      expect(alphaOutbound?.fromSector).toBe(18);
       expect(alphaOutbound?.toSector).toBe(5);
       expect(alphaOutbound?.requiredEngineLevel).toBe(3);
 
@@ -90,14 +92,14 @@ describe("Well Transfers", () => {
         (tp) => tp.fromWellId === "planet-alpha" && tp.toWellId === "blackhole"
       );
       expect(alphaReturn?.fromSector).toBe(18);
-      expect(alphaReturn?.toSector).toBe(3);
+      expect(alphaReturn?.toSector).toBe(5);
       expect(alphaReturn?.requiredEngineLevel).toBe(3);
 
-      // Planet Beta at 60° (BH sector 4 points toward Beta)
+      // Planet Beta: BH S2 → Beta S5, Beta S18 → BH S13
       const betaOutbound = transferPoints.find(
         (tp) => tp.fromWellId === "blackhole" && tp.toWellId === "planet-beta"
       );
-      expect(betaOutbound?.fromSector).toBe(0);
+      expect(betaOutbound?.fromSector).toBe(2);
       expect(betaOutbound?.toSector).toBe(5);
       expect(betaOutbound?.requiredEngineLevel).toBe(3);
 
@@ -105,14 +107,14 @@ describe("Well Transfers", () => {
         (tp) => tp.fromWellId === "planet-beta" && tp.toWellId === "blackhole"
       );
       expect(betaReturn?.fromSector).toBe(18);
-      expect(betaReturn?.toSector).toBe(7);
+      expect(betaReturn?.toSector).toBe(13);
       expect(betaReturn?.requiredEngineLevel).toBe(3);
 
-      // Planet Gamma at 120° (BH sector 8 points toward Gamma)
+      // Planet Gamma: BH S10 → Gamma S5, Gamma S18 → BH S21
       const gammaOutbound = transferPoints.find(
         (tp) => tp.fromWellId === "blackhole" && tp.toWellId === "planet-gamma"
       );
-      expect(gammaOutbound?.fromSector).toBe(4);
+      expect(gammaOutbound?.fromSector).toBe(10);
       expect(gammaOutbound?.toSector).toBe(5);
       expect(gammaOutbound?.requiredEngineLevel).toBe(3);
 
@@ -120,7 +122,7 @@ describe("Well Transfers", () => {
         (tp) => tp.fromWellId === "planet-gamma" && tp.toWellId === "blackhole"
       );
       expect(gammaReturn?.fromSector).toBe(18);
-      expect(gammaReturn?.toSector).toBe(11);
+      expect(gammaReturn?.toSector).toBe(21);
       expect(gammaReturn?.requiredEngineLevel).toBe(3);
     });
 
@@ -152,7 +154,7 @@ describe("Well Transfers", () => {
     });
 
     it("should find available transfers from black hole transfer sector", () => {
-      const ship = createTestShip("blackhole", 5, 20); // Ring 5 (outermost), Sector 20 (Alpha outbound)
+      const ship = createTestShip("blackhole", 5, 18); // Ring 5 (outermost), Sector 18 (Alpha outbound)
 
       const available = getAvailableWellTransfers(
         ship.wellId,
@@ -181,7 +183,7 @@ describe("Well Transfers", () => {
     });
 
     it("should return empty array when not at transfer sector", () => {
-      const ship = createTestShip("blackhole", 5, 10); // Ring 5, but wrong sector
+      const ship = createTestShip("blackhole", 5, 15); // Ring 5, but wrong sector (not 2, 5, 10, 13, 18, or 21)
 
       const available = getAvailableWellTransfers(
         ship.wellId,
@@ -206,16 +208,16 @@ describe("Well Transfers", () => {
       // Should be able to transfer to black hole
       expect(available).toHaveLength(1);
       expect(available[0].toWellId).toBe("blackhole");
-      expect(available[0].toSector).toBe(3);
+      expect(available[0].toSector).toBe(5);
     });
   });
 
   describe("Well Transfer Execution", () => {
-    it("should execute well transfer + coast from Black Hole R5S20 to Planet Alpha R3S5", () => {
+    it("should execute well transfer + coast from Black Hole R5S18 to Planet Alpha R3S5", () => {
       // This test uses the production action processors to execute a well transfer + coast
-      // Expected flow: Black Hole R5S20 → Planet Alpha R3S5 → coast applies orbital movement (velocity 1) → R3S6
+      // Expected flow: Black Hole R5S18 → Planet Alpha R3S5 → coast applies orbital movement (velocity 1) → R3S6
 
-      const ship = createTestShip("blackhole", 5, 20);
+      const ship = createTestShip("blackhole", 5, 18);
       const gameState = createTestGameState(ship);
 
       // Allocate 3 energy to engines (required for well transfer)
@@ -320,8 +322,8 @@ describe("Well Transfers", () => {
       expect(movedShip.sector).toBe(4); // (20 + 8) % 24 = 4
     });
 
-    it("should correctly transfer from Planet Beta R3S18 to Black Hole R5S7", () => {
-      // Planet Beta return: Beta R3 S18 → BH R5 S7
+    it("should correctly transfer from Planet Beta R3S18 to Black Hole R5S13", () => {
+      // Planet Beta return: Beta R3 S18 → BH R5 S13
       const ship = createTestShip("planet-beta", 3, 18);
       const gameState = createTestGameState(ship);
 
@@ -340,7 +342,7 @@ describe("Well Transfers", () => {
       );
       expect(availableTransfers).toHaveLength(1);
       expect(availableTransfers[0].toWellId).toBe("blackhole");
-      expect(availableTransfers[0].toSector).toBe(7);
+      expect(availableTransfers[0].toSector).toBe(13);
 
       // Execute well transfer + coast
       const wellTransferAction: WellTransferAction = {
@@ -369,15 +371,15 @@ describe("Well Transfers", () => {
       expect(result.success).toBe(true);
       const finalShip = result.gameState.players[0].ship;
 
-      // After transfer: Black Hole R5S7
-      // After coast: orbital movement applies velocity 1 → sector 8
+      // After transfer: Black Hole R5S13
+      // After coast: orbital movement applies velocity 1 → sector 14
       expect(finalShip.wellId).toBe("blackhole");
       expect(finalShip.ring).toBe(5);
-      expect(finalShip.sector).toBe(8);
+      expect(finalShip.sector).toBe(14);
     });
 
-    it("should correctly transfer from Planet Gamma R3S18 to Black Hole R5S11", () => {
-      // Planet Gamma return: Gamma R3 S18 → BH R5 S11
+    it("should correctly transfer from Planet Gamma R3S18 to Black Hole R5S21", () => {
+      // Planet Gamma return: Gamma R3 S18 → BH R5 S21
       const ship = createTestShip("planet-gamma", 3, 18);
       const gameState = createTestGameState(ship);
 
@@ -396,7 +398,7 @@ describe("Well Transfers", () => {
       );
       expect(availableTransfers).toHaveLength(1);
       expect(availableTransfers[0].toWellId).toBe("blackhole");
-      expect(availableTransfers[0].toSector).toBe(11);
+      expect(availableTransfers[0].toSector).toBe(21);
 
       // Execute well transfer + coast
       const wellTransferAction: WellTransferAction = {
@@ -425,15 +427,15 @@ describe("Well Transfers", () => {
       expect(result.success).toBe(true);
       const finalShip = result.gameState.players[0].ship;
 
-      // After transfer: Black Hole R5S11
-      // After coast: orbital movement applies velocity 1 → sector 12
+      // After transfer: Black Hole R5S21
+      // After coast: orbital movement applies velocity 1 → sector 22
       expect(finalShip.wellId).toBe("blackhole");
       expect(finalShip.ring).toBe(5);
-      expect(finalShip.sector).toBe(12);
+      expect(finalShip.sector).toBe(22);
     });
 
     it("should fail well transfer when not on outermost ring", () => {
-      const ship = createTestShip("blackhole", 4, 20); // Ring 4, not outermost
+      const ship = createTestShip("blackhole", 4, 18); // Ring 4, not outermost
       const gameState = createTestGameState(ship);
 
       // Allocate 3 energy to engines
@@ -485,7 +487,7 @@ describe("Well Transfers", () => {
     });
 
     it("should fail well transfer when engines not at level 3", () => {
-      const ship = createTestShip("blackhole", 5, 20); // Correct position (Alpha outbound)
+      const ship = createTestShip("blackhole", 5, 18); // Correct position (Alpha outbound)
       const gameState = createTestGameState(ship);
 
       // Allocate only 2 energy to engines (need 3)
@@ -511,7 +513,7 @@ describe("Well Transfers", () => {
     });
 
     it("should preserve ship facing when transferring between wells", () => {
-      const ship = createTestShip("blackhole", 5, 20); // Alpha outbound transfer sector
+      const ship = createTestShip("blackhole", 5, 18); // Alpha outbound transfer sector
       ship.facing = "prograde"; // Well transfers require prograde facing
       const gameState = createTestGameState(ship);
 
@@ -540,7 +542,7 @@ describe("Well Transfers", () => {
     });
 
     it("should fail well transfer when not facing prograde", () => {
-      const ship = createTestShip("blackhole", 5, 20); // Alpha outbound transfer sector
+      const ship = createTestShip("blackhole", 5, 18); // Alpha outbound transfer sector
       ship.facing = "retrograde"; // Ship not facing prograde
       const gameState = createTestGameState(ship);
 
@@ -568,7 +570,7 @@ describe("Well Transfers", () => {
     });
 
     it("should fail well transfer when not enough reaction mass", () => {
-      const ship = createTestShip("blackhole", 5, 20); // Alpha outbound transfer sector
+      const ship = createTestShip("blackhole", 5, 18); // Alpha outbound transfer sector
       ship.facing = "prograde";
       ship.reactionMass = 2; // Not enough (needs 3)
       const gameState = createTestGameState(ship);

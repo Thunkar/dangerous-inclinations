@@ -20,9 +20,6 @@ const PLANET_NAMES: Record<string, string> = {
   'planet-alpha': 'Alpha',
   'planet-beta': 'Beta',
   'planet-gamma': 'Gamma',
-  'planet-delta': 'Delta',
-  'planet-epsilon': 'Epsilon',
-  'planet-zeta': 'Zeta',
 }
 
 function getPlanetName(planetId: string): string {

@@ -72,12 +72,10 @@ export const BLACK_HOLE_VISUAL: GravityWellVisualConfig = {
  * Distance calculation: blackhole_R5_radius + gap + planet_R3_radius = 365 + 60 + 220 = 645
  * This creates a 60 unit gap between outermost rings
  *
- * Layout (viewing from above):
+ * Layout (viewing from above, 120° intervals):
  *                 Alpha (0°)
- *         Zeta (300°)    Beta (60°)
  *              [Black Hole]
- *      Epsilon (240°)    Gamma (120°)
- *                Delta (180°)
+ *      Gamma (240°)      Beta (120°)
  */
 export const PLANET_VISUALS: Record<GravityWellId, GravityWellVisualConfig> = {
   'planet-alpha': {
@@ -91,35 +89,14 @@ export const PLANET_VISUALS: Record<GravityWellId, GravityWellVisualConfig> = {
     id: 'planet-beta',
     color: '#EF4444', // Red
     radius: 35,
-    angle: 60,
+    angle: 120,
     distance: 645,
   },
   'planet-gamma': {
     id: 'planet-gamma',
     color: '#10B981', // Green
     radius: 35,
-    angle: 120,
-    distance: 645,
-  },
-  'planet-delta': {
-    id: 'planet-delta',
-    color: '#F97316', // Orange
-    radius: 35,
-    angle: 180, // Bottom
-    distance: 645,
-  },
-  'planet-epsilon': {
-    id: 'planet-epsilon',
-    color: '#8B5CF6', // Purple
-    radius: 35,
     angle: 240,
-    distance: 645,
-  },
-  'planet-zeta': {
-    id: 'planet-zeta',
-    color: '#06B6D4', // Cyan
-    radius: 35,
-    angle: 300,
     distance: 645,
   },
 }

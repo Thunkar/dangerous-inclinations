@@ -19,6 +19,7 @@ import {
   VisualEffects,
   WeaponEffects,
   DeploymentSectors,
+  StationRenderer,
   type MovementPreview,
 } from './GameBoard/index'
 import { getGravityWellVisual } from '@/constants/visualConfig'
@@ -207,6 +208,9 @@ function GameBoardContent({
               transferPoints={TRANSFER_POINTS}
             />
           ))}
+
+          {/* Orbital stations */}
+          <StationRenderer />
 
           {/* Deployment sectors (only in deployment mode) */}
           {deploymentMode &&

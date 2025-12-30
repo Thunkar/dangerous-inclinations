@@ -96,6 +96,19 @@ export function GravityWell({ well, wellColor, wellRadius, transferPoints }: Gra
         opacity={0.6}
       />
 
+      {/* Gravity well name label */}
+      <text
+        x={position.x}
+        y={position.y + wellRadius + 22}
+        textAnchor="middle"
+        fontSize={14}
+        fill={wellColor}
+        fontWeight="bold"
+        style={{ textShadow: '0 0 4px rgba(0,0,0,0.8)' }}
+      >
+        {well.name}
+      </text>
+
       {/* Rings */}
       {well.rings.map(config => {
         const radius = (getRingRadius(well.id, config.ring) ?? 100) * scaleFactor

@@ -42,6 +42,7 @@ export {
   VisualEffects,
   WeaponEffects,
   DeploymentSectors,
+  StationRenderer,
 } from './components'
 
 // Note: Main GameBoard component not yet migrated - still in ../GameBoard.tsx

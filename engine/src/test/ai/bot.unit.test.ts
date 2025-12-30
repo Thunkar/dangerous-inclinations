@@ -405,8 +405,8 @@ describe("Bot AI - Edge Cases", () => {
         "#4caf50",
         {
           wellId: "blackhole",
-          ring: 5, // On outer ring for transfer possibility (Ring 5 is now outermost)
-          sector: 20, // At a valid transfer sector (Alpha outbound: BH R5 S20 → Alpha R3 S5)
+          ring: 5, // On outer ring for transfer possibility (Ring 5 is outermost)
+          sector: 18, // At a valid transfer sector (Alpha outbound: BH R5 S18 → Alpha R3 S5)
           facing: "prograde",
         },
         {

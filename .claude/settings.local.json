@@ -40,7 +40,8 @@
       "Bash(bash -lc \"yarn build\")",
       "Bash(source ~/.bashrc)",
       "Bash(yarn workspaces foreach:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }

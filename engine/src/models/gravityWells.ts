@@ -75,40 +75,10 @@ export const PLANET_GAMMA: GravityWell = {
   },
 };
 
-export const PLANET_DELTA: GravityWell = {
-  id: "planet-delta",
-  name: "Delta",
-  type: "planet",
-  rings: PLANET_RINGS,
-  orbitalPosition: {
-    velocity: 0, // Static position
-  },
-};
-
-export const PLANET_EPSILON: GravityWell = {
-  id: "planet-epsilon",
-  name: "Epsilon",
-  type: "planet",
-  rings: PLANET_RINGS,
-  orbitalPosition: {
-    velocity: 0, // Static position
-  },
-};
-
-export const PLANET_ZETA: GravityWell = {
-  id: "planet-zeta",
-  name: "Zeta",
-  type: "planet",
-  rings: PLANET_RINGS,
-  orbitalPosition: {
-    velocity: 0, // Static position
-  },
-};
-
 /**
  * All gravity wells in the system
- * Index 0 is always the black hole, followed by 6 planets
- * Planets: Alpha, Beta, Gamma, Delta, Epsilon, Zeta
+ * Index 0 is always the black hole, followed by 3 planets
+ * Planets: Alpha, Beta, Gamma (positioned at 120° intervals)
  *
  * Visual layout is defined in the UI layer
  */
@@ -117,9 +87,6 @@ export const GRAVITY_WELLS: GravityWell[] = [
   PLANET_ALPHA,
   PLANET_BETA,
   PLANET_GAMMA,
-  PLANET_DELTA,
-  PLANET_EPSILON,
-  PLANET_ZETA,
 ];
 
 /**
