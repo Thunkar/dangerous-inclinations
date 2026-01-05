@@ -10,6 +10,7 @@ import {
   getGravityWell,
 } from '@dangerous-inclinations/engine'
 import { getRingRadius } from '@/constants/visualConfig'
+import { getPlayerColor } from '@/utils/playerColors'
 
 interface WeaponRangeIndicatorsProps {
   player: Player
@@ -213,7 +214,7 @@ export function WeaponRangeIndicators({
                         y1={rayStartY}
                         x2={targetStartX}
                         y2={targetStartY}
-                        stroke={player.color}
+                        stroke={getPlayerColor(playerIndex)}
                         strokeWidth={2}
                         strokeDasharray="6 3"
                         opacity={0.5}
@@ -224,7 +225,7 @@ export function WeaponRangeIndicators({
                         y1={rayEndY}
                         x2={targetEndX}
                         y2={targetEndY}
-                        stroke={player.color}
+                        stroke={getPlayerColor(playerIndex)}
                         strokeWidth={2}
                         strokeDasharray="6 3"
                         opacity={0.5}
@@ -236,7 +237,7 @@ export function WeaponRangeIndicators({
                           A ${targetRadius} ${targetRadius} 0 ${arcAngle > Math.PI ? 1 : 0} 1 ${targetEndX} ${targetEndY}
                         `}
                         fill="none"
-                        stroke={player.color}
+                        stroke={getPlayerColor(playerIndex)}
                         strokeWidth={3}
                         opacity={0.4}
                       />
@@ -244,8 +245,8 @@ export function WeaponRangeIndicators({
                   )
                 })}
               {/* Highlight ship's own sector boundaries */}
-              <circle cx={rayStartX} cy={rayStartY} r={4} fill={player.color} opacity={0.8} />
-              <circle cx={rayEndX} cy={rayEndY} r={4} fill={player.color} opacity={0.8} />
+              <circle cx={rayStartX} cy={rayStartY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
+              <circle cx={rayEndX} cy={rayEndY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
             </g>
           )
         }
@@ -301,7 +302,7 @@ export function WeaponRangeIndicators({
                   A ${rangeVisualizationRadius} ${rangeVisualizationRadius} 0 ${largeArcFlag} 1 ${arcEndX} ${arcEndY}
                 `}
                 fill="none"
-                stroke={player.color}
+                stroke={getPlayerColor(playerIndex)}
                 strokeWidth={4}
                 opacity={0.6}
               />
@@ -310,14 +311,14 @@ export function WeaponRangeIndicators({
                 cx={rangeVisualizationX}
                 cy={rangeVisualizationY}
                 r={6}
-                fill={player.color}
+                fill={getPlayerColor(playerIndex)}
                 opacity={0.9}
                 stroke="#fff"
                 strokeWidth={2}
               />
               {/* Mark arc endpoints */}
-              <circle cx={arcStartX} cy={arcStartY} r={4} fill={player.color} opacity={0.8} />
-              <circle cx={arcEndX} cy={arcEndY} r={4} fill={player.color} opacity={0.8} />
+              <circle cx={arcStartX} cy={arcStartY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
+              <circle cx={arcEndX} cy={arcEndY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
             </g>
           )
         }
@@ -408,7 +409,7 @@ export function WeaponRangeIndicators({
                         y1={rayStartY}
                         x2={targetStartX}
                         y2={targetStartY}
-                        stroke={player.color}
+                        stroke={getPlayerColor(playerIndex)}
                         strokeWidth={2}
                         strokeDasharray="6 3"
                         opacity={0.5}
@@ -418,7 +419,7 @@ export function WeaponRangeIndicators({
                         y1={rayEndY}
                         x2={targetEndX}
                         y2={targetEndY}
-                        stroke={player.color}
+                        stroke={getPlayerColor(playerIndex)}
                         strokeWidth={2}
                         strokeDasharray="6 3"
                         opacity={0.5}
@@ -429,15 +430,15 @@ export function WeaponRangeIndicators({
                           A ${targetRadius} ${targetRadius} 0 ${arcAngle > Math.PI ? 1 : 0} 1 ${targetEndX} ${targetEndY}
                         `}
                         fill="none"
-                        stroke={player.color}
+                        stroke={getPlayerColor(playerIndex)}
                         strokeWidth={3}
                         opacity={0.4}
                       />
                     </g>
                   )
                 })}
-              <circle cx={rayStartX} cy={rayStartY} r={4} fill={player.color} opacity={0.8} />
-              <circle cx={rayEndX} cy={rayEndY} r={4} fill={player.color} opacity={0.8} />
+              <circle cx={rayStartX} cy={rayStartY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
+              <circle cx={rayEndX} cy={rayEndY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
             </g>
           )
         }
@@ -529,7 +530,7 @@ export function WeaponRangeIndicators({
                     cy={otherY}
                     r={16}
                     fill="none"
-                    stroke={player.color}
+                    stroke={getPlayerColor(playerIndex)}
                     strokeWidth={2}
                     opacity={0.7}
                   />
@@ -538,7 +539,7 @@ export function WeaponRangeIndicators({
                     y1={otherY}
                     x2={otherX - 10}
                     y2={otherY}
-                    stroke={player.color}
+                    stroke={getPlayerColor(playerIndex)}
                     strokeWidth={2}
                     opacity={0.7}
                   />
@@ -547,7 +548,7 @@ export function WeaponRangeIndicators({
                     y1={otherY}
                     x2={otherX + 10}
                     y2={otherY}
-                    stroke={player.color}
+                    stroke={getPlayerColor(playerIndex)}
                     strokeWidth={2}
                     opacity={0.7}
                   />
@@ -556,7 +557,7 @@ export function WeaponRangeIndicators({
                     y1={otherY - 20}
                     x2={otherX}
                     y2={otherY - 10}
-                    stroke={player.color}
+                    stroke={getPlayerColor(playerIndex)}
                     strokeWidth={2}
                     opacity={0.7}
                   />
@@ -565,7 +566,7 @@ export function WeaponRangeIndicators({
                     y1={otherY + 20}
                     x2={otherX}
                     y2={otherY + 10}
-                    stroke={player.color}
+                    stroke={getPlayerColor(playerIndex)}
                     strokeWidth={2}
                     opacity={0.7}
                   />
@@ -575,7 +576,7 @@ export function WeaponRangeIndicators({
                     y={otherY - 24}
                     textAnchor="middle"
                     fontSize={9}
-                    fill={player.color}
+                    fill={getPlayerColor(playerIndex)}
                     fontWeight="bold"
                   >
                     D{Math.round(solution.distance)}

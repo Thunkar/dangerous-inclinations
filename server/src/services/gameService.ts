@@ -3,6 +3,7 @@ import type {
   GameState,
   PlayerAction,
   Player,
+  ShipLoadout,
 } from "@dangerous-inclinations/engine";
 import {
   executeTurn,
@@ -15,22 +16,16 @@ import {
   botDecideActions,
   dealMissions,
   getAvailableDeploymentSectors,
+  validateLoadout,
+  DEFAULT_LOADOUT,
+  createSubsystemsFromLoadout,
+  calculateShipStatsFromLoadout,
 } from "@dangerous-inclinations/engine";
 import { getPlayer } from "./playerService.js";
 import { broadcastToRoom } from "../websocket/roomHandler.js";
 import type { DeploymentResult } from "@dangerous-inclinations/engine";
 
 const GAME_KEY_PREFIX = "game:";
-
-// Player colors for up to 6 players
-const PLAYER_COLORS = [
-  "#2196f3", // Blue
-  "#f44336", // Red
-  "#4caf50", // Green
-  "#ff9800", // Orange
-  "#9c27b0", // Purple
-  "#00bcd4", // Cyan
-];
 
 export async function createGame(
   gameId: string,
@@ -43,7 +38,6 @@ export async function createGame(
       return {
         id: playerId,
         name: playerData?.playerName || `Player ${index + 1}`,
-        color: PLAYER_COLORS[index % PLAYER_COLORS.length],
         ship: createInitialShipState({
           wellId: "blackhole",
           ring: 4, // Start at BH Ring 4 (deployment ring)
@@ -54,6 +48,7 @@ export async function createGame(
         completedMissionCount: 0,
         cargo: [],
         hasDeployed: false, // Not deployed yet
+        hasSubmittedLoadout: false, // Not submitted yet
       };
     })
   );
@@ -75,12 +70,12 @@ export async function createGame(
   const stations = createInitialStations(GRAVITY_WELLS);
 
   const initialState: GameState = {
-    turn: 0, // Turn 0 = deployment phase
+    turn: 0, // Turn 0 = loadout/deployment phase
     activePlayerIndex: 0,
     players: playersWithMissions,
     turnLog: [],
     missiles: [],
-    phase: "deployment",
+    phase: "loadout", // Start in loadout phase (players choose subsystems)
     stations,
   };
 
@@ -347,6 +342,189 @@ export async function processDeployment(
   return {
     ...result,
     gameState: finalState,
+  };
+}
+
+/**
+ * Result of a loadout submission
+ */
+export interface LoadoutResult {
+  success: boolean;
+  error?: string;
+  errors?: string[];
+  gameState: GameState;
+}
+
+/**
+ * Submit a player's ship loadout
+ * Called during the loadout phase (after missions are dealt, before deployment)
+ */
+export async function submitLoadout(
+  gameId: string,
+  playerId: string,
+  loadout: ShipLoadout
+): Promise<LoadoutResult> {
+  const currentState = await getGameState(gameId);
+
+  if (!currentState) {
+    return {
+      success: false,
+      error: "Game not found",
+      gameState: {} as GameState,
+    };
+  }
+
+  // Validate game phase
+  if (currentState.phase !== "loadout") {
+    return {
+      success: false,
+      error: `Cannot submit loadout: game is in ${currentState.phase} phase`,
+      gameState: currentState,
+    };
+  }
+
+  // Find the player
+  const playerIndex = currentState.players.findIndex((p) => p.id === playerId);
+  if (playerIndex === -1) {
+    return {
+      success: false,
+      error: "Player not found in game",
+      gameState: currentState,
+    };
+  }
+
+  // Validate the loadout
+  const validation = validateLoadout(loadout);
+  if (!validation.valid) {
+    return {
+      success: false,
+      errors: validation.errors,
+      gameState: currentState,
+    };
+  }
+
+  // Calculate ship stats from loadout
+  const stats = calculateShipStatsFromLoadout(loadout);
+
+  // Update the player's ship with the loadout
+  const player = currentState.players[playerIndex];
+  const updatedShip = {
+    ...player.ship,
+    loadout,
+    subsystems: createSubsystemsFromLoadout(loadout),
+    dissipationCapacity: stats.dissipationCapacity,
+    reactionMass: stats.reactionMass,
+    criticalChance: stats.criticalChance,
+  };
+
+  const updatedPlayer = {
+    ...player,
+    ship: updatedShip,
+    hasSubmittedLoadout: true,
+  };
+
+  const updatedPlayers = [...currentState.players];
+  updatedPlayers[playerIndex] = updatedPlayer;
+
+  const updatedState: GameState = {
+    ...currentState,
+    players: updatedPlayers,
+  };
+
+  await saveGameState(gameId, updatedState);
+
+  return {
+    success: true,
+    gameState: updatedState,
+  };
+}
+
+/**
+ * Check if all players have submitted their loadouts
+ * Uses the hasSubmittedLoadout flag on each player in game state
+ */
+function checkAllLoadoutsSubmitted(gameState: GameState): boolean {
+  return gameState.players.every((p) => p.hasSubmittedLoadout);
+}
+
+/**
+ * Transition from loadout phase to deployment phase
+ * Called when all players have submitted their loadouts
+ */
+export async function transitionToDeploymentPhase(
+  gameId: string
+): Promise<GameState | null> {
+  const currentState = await getGameState(gameId);
+  if (!currentState) return null;
+
+  if (currentState.phase !== "loadout") {
+    return currentState;
+  }
+
+  const updatedState: GameState = {
+    ...currentState,
+    phase: "deployment",
+  };
+
+  await saveGameState(gameId, updatedState);
+
+  // Broadcast the transition to game room
+  // UI detects phase change from GAME_STATE_UPDATED payload
+  broadcastToRoom(
+    "game",
+    {
+      type: "GAME_STATE_UPDATED",
+      payload: updatedState,
+    },
+    gameId
+  );
+
+  return updatedState;
+}
+
+/**
+ * Submit loadout and check if all players are ready
+ * If all players have submitted, transition to deployment
+ */
+export async function submitLoadoutAndCheckReady(
+  gameId: string,
+  playerId: string,
+  loadout: ShipLoadout,
+  humanPlayerIds: Set<string>
+): Promise<LoadoutResult> {
+  // First, submit the loadout
+  let result = await submitLoadout(gameId, playerId, loadout);
+  if (!result.success) {
+    return result;
+  }
+
+  // Auto-submit DEFAULT_LOADOUT for bots that haven't submitted yet
+  let currentState = result.gameState;
+  for (const player of currentState.players) {
+    if (!humanPlayerIds.has(player.id) && !player.hasSubmittedLoadout) {
+      // Bot uses default loadout
+      const botResult = await submitLoadout(gameId, player.id, DEFAULT_LOADOUT);
+      if (botResult.success) {
+        currentState = botResult.gameState;
+      }
+    }
+  }
+
+  // Check if all players have submitted
+  if (checkAllLoadoutsSubmitted(currentState)) {
+    const finalState = await transitionToDeploymentPhase(gameId);
+    if (finalState) {
+      return {
+        success: true,
+        gameState: finalState,
+      };
+    }
+  }
+
+  // Return the current state (still in loadout phase)
+  return {
+    success: true,
+    gameState: currentState,
   };
 }
 

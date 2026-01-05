@@ -1,16 +1,16 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import type { GameState } from '@dangerous-inclinations/engine'
+import type { GameState, ShipLoadout } from '@dangerous-inclinations/engine'
 import type { ServerLobby } from '../api/types'
 import { getAvailableDeploymentSectors } from '@dangerous-inclinations/engine'
 import { getLobby, leaveLobby, startGame as startGameAPI, addBot as addBotAPI, removeBot as removeBotAPI } from '../api/lobby'
-import { getGameState as fetchGameState, deployShip as deployShipAPI } from '../api/game'
+import { getGameState as fetchGameState, deployShip as deployShipAPI, submitLoadout as submitLoadoutAPI } from '../api/game'
 import { getPlayerStatus } from '../api/player'
 import { usePlayer } from './PlayerContext'
 import { useWebSocket } from './WebSocketContext'
 import { ENV } from '../config/env'
 
-type GamePhase = 'browser' | 'lobby' | 'deployment' | 'active' | 'ended'
+type GamePhase = 'browser' | 'lobby' | 'loadout' | 'deployment' | 'active' | 'ended'
 
 interface LobbyContextType {
   phase: GamePhase
@@ -26,6 +26,8 @@ interface LobbyContextType {
   startGame: () => void
   canStart: () => { canStart: boolean; reason?: string }
   leaveLobbyAction: () => void
+  // Loadout actions
+  submitLoadout: (loadout: ShipLoadout) => Promise<void>
   // Deployment actions
   deployPlayerShip: (sector: number) => void
   getDeploymentSectors: () => number[]
@@ -98,6 +100,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
 
             // Determine phase from game state
             const gamePhase: GamePhase =
+              status.gameState.phase === 'loadout' ? 'loadout' :
               status.gameState.phase === 'deployment' ? 'deployment' :
               status.gameState.phase === 'ended' ? 'ended' : 'active'
             setPhase(gamePhase)
@@ -125,7 +128,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    if ((phase !== 'lobby' && phase !== 'deployment' && phase !== 'active') || !currentLobbyId || !client) {
+    if ((phase !== 'lobby' && phase !== 'loadout' && phase !== 'deployment' && phase !== 'active') || !currentLobbyId || !client) {
       console.log('[LobbyContext] Skipping WebSocket setup:', { phase, currentLobbyId, hasClient: !!client })
       return
     }
@@ -146,7 +149,8 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
             console.log('[LobbyContext] Loaded game state:', loadedGameState)
             setGameState(loadedGameState)
             // Transition to appropriate phase based on game state
-            const newPhase = loadedGameState.phase === 'deployment' ? 'deployment' :
+            const newPhase = loadedGameState.phase === 'loadout' ? 'loadout' :
+                           loadedGameState.phase === 'deployment' ? 'deployment' :
                            loadedGameState.phase === 'ended' ? 'ended' : 'active'
             setPhase(newPhase)
           } catch (error) {
@@ -199,10 +203,10 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
               }
             })
           } else if (message.type === 'GAME_STARTING') {
-            // Transition to deployment phase
+            // Transition to loadout phase (game now starts in loadout phase)
             console.log('[LobbyContext] Game starting:', message.payload)
             setGameState(message.payload.gameState)
-            setPhase('deployment')
+            setPhase('loadout')
             // Update currentGameId for game room connection
             currentGameId = message.payload.gameId
           } else if (message.type === 'GAME_STATE_UPDATED') {
@@ -212,7 +216,9 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
             setGameState(newState)
 
             // Update phase based on game state
-            if (newState.phase === 'active') {
+            if (newState.phase === 'deployment') {
+              setPhase('deployment')
+            } else if (newState.phase === 'active') {
               setPhase('active')
             } else if (newState.phase === 'ended') {
               setPhase('ended')
@@ -233,7 +239,9 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
               setGameState(newState)
 
               // Update phase based on game state
-              if (newState.phase === 'active') {
+              if (newState.phase === 'deployment') {
+                setPhase('deployment')
+              } else if (newState.phase === 'active') {
                 setPhase('active')
               } else if (newState.phase === 'ended') {
                 setPhase('ended')
@@ -396,6 +404,30 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
     setPhase('browser')
   }, [currentLobbyId])
 
+  // Loadout actions
+  const submitLoadout = useCallback(
+    async (loadout: ShipLoadout) => {
+      if (!lobbyState?.gameId) {
+        console.error('[LobbyContext] Cannot submit loadout: no game ID')
+        return
+      }
+
+      try {
+        const response = await submitLoadoutAPI(lobbyState.gameId, loadout)
+        console.log('[LobbyContext] Loadout submitted:', response)
+
+        if (response.gameState) {
+          setGameState(response.gameState)
+        }
+        // Server will broadcast ALL_LOADOUTS_READY when all players have submitted
+      } catch (error) {
+        console.error('[LobbyContext] Failed to submit loadout:', error)
+        throw error
+      }
+    },
+    [lobbyState?.gameId]
+  )
+
   // TODO: Bot auto-deployment should be handled by the server
 
   return (
@@ -413,6 +445,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
         startGame,
         canStart,
         leaveLobbyAction,
+        submitLoadout,
         deployPlayerShip,
         getDeploymentSectors,
         getActiveGameState,

@@ -11,7 +11,9 @@ import type {
   Player,
   DeployShipAction,
   TurnLogEntry,
+  ShipLoadout,
 } from "../models/game";
+import { DEFAULT_LOADOUT } from "../models/game";
 import { createInitialShipState } from "../utils/subsystemHelpers";
 
 /**
@@ -77,11 +79,13 @@ export interface DeploymentResult {
 
 /**
  * Deploy a player's ship to a specific sector
+ * @param loadout - Optional loadout for the ship. If not provided, uses player's existing loadout or DEFAULT_LOADOUT
  */
 export function deployShip(
   gameState: GameState,
   playerId: string,
-  sector: number
+  sector: number,
+  loadout?: ShipLoadout
 ): DeploymentResult {
   // Validate game phase
   if (gameState.phase !== "deployment") {
@@ -132,13 +136,19 @@ export function deployShip(
     };
   }
 
-  // Create ship at deployment location
-  const deployedShip = createInitialShipState({
-    wellId: DEPLOYMENT_CONSTANTS.WELL_ID,
-    ring: DEPLOYMENT_CONSTANTS.RING,
-    sector,
-    facing: "prograde",
-  });
+  // Use provided loadout, player's existing loadout, or default
+  const shipLoadout = loadout ?? player.ship.loadout ?? DEFAULT_LOADOUT;
+
+  // Create ship at deployment location with the loadout
+  const deployedShip = createInitialShipState(
+    {
+      wellId: DEPLOYMENT_CONSTANTS.WELL_ID,
+      ring: DEPLOYMENT_CONSTANTS.RING,
+      sector,
+      facing: "prograde",
+    },
+    shipLoadout
+  );
 
   // Update player
   const updatedPlayer: Player = {

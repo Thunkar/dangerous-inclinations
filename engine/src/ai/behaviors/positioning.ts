@@ -109,7 +109,7 @@ export function generateRotationAction(
 
 /**
  * Generate well transfer action for escape
- * Only used when bot is in danger
+ * Only used when bot is in danger and has engines at level 3+
  */
 export function generateEscapeTransfer(
   situation: TacticalSituation,
@@ -122,6 +122,12 @@ export function generateEscapeTransfer(
 
   // Only escape if in serious danger
   if (situation.status.healthPercent > 0.3 || situation.availableTransfers.length === 0) {
+    return null
+  }
+
+  // Well transfers require engines at level 3
+  const enginesEnergy = situation.status.subsystems.engines.energy
+  if (enginesEnergy < 3) {
     return null
   }
 

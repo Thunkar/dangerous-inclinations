@@ -11,6 +11,7 @@ import { StatusDisplay } from './components/StatusDisplay'
 import { TurnHistoryPanel } from './components/TurnHistoryPanel'
 import { LobbyScreen } from './components/LobbyScreen'
 import { LobbyBrowser } from './components/LobbyBrowser'
+import { LoadoutScreen } from './components/LoadoutScreen'
 import { DeploymentScreen } from './components/DeploymentScreen'
 import { GameEndScreen } from './components/GameEndScreen'
 import { MissionPanel } from './components/MissionPanel'
@@ -362,6 +363,17 @@ function AppContent() {
     case 'lobby':
       if (!lobbyState) return null
       return <LobbyScreen />
+
+    case 'loadout':
+      if (!gameState) {
+        // Show loading while game state loads
+        return (
+          <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CircularProgress />
+          </Box>
+        )
+      }
+      return <LoadoutScreen />
 
     case 'deployment':
       if (!gameState) {

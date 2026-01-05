@@ -11,7 +11,6 @@ import { createInitialShipState } from "../../utils/subsystemHelpers";
 function createTestPlayer(
   id: string,
   name: string,
-  color: string,
   shipConfig: {
     wellId: string;
     ring: number;
@@ -23,12 +22,12 @@ function createTestPlayer(
   return {
     id,
     name,
-    color,
-    ship: createInitialShipState(shipConfig, shipOverrides),
+    ship: createInitialShipState(shipConfig, undefined, shipOverrides),
     missions: [],
     completedMissionCount: 0,
     cargo: [],
     hasDeployed: true,
+    hasSubmittedLoadout: true,
   };
 }
 
@@ -37,13 +36,13 @@ function createTestPlayer(
  */
 function createTestGameState(customPlayers?: Player[]): GameState {
   const defaultPlayers: Player[] = [
-    createTestPlayer("player1", "Ship Alpha", "#2196f3", {
+    createTestPlayer("player1", "Ship Alpha", {
       wellId: "blackhole",
       ring: 3,
       sector: 0,
       facing: "prograde",
     }),
-    createTestPlayer("bot1", "Ship Gamma", "#4caf50", {
+    createTestPlayer("bot1", "Ship Gamma", {
       wellId: "blackhole",
       ring: 3,
       sector: 12,
@@ -118,13 +117,13 @@ describe("Bot AI - Action Generation", () => {
 
   it("should allocate energy to weapons when engaging target", () => {
     const players: Player[] = [
-      createTestPlayer("player1", "Enemy", "#2196f3", {
+      createTestPlayer("player1", "Enemy", {
         wellId: "blackhole",
         ring: 3,
         sector: 6,
         facing: "prograde",
       }),
-      createTestPlayer("bot1", "Bot Ship", "#4caf50", {
+      createTestPlayer("bot1", "Bot Ship", {
         wellId: "blackhole",
         ring: 3,
         sector: 0,
@@ -148,7 +147,6 @@ describe("Bot AI - Action Generation", () => {
       createTestPlayer(
         "bot1",
         "Hot Bot",
-        "#4caf50",
         {
           wellId: "blackhole",
           ring: 3,
@@ -211,13 +209,13 @@ describe("Bot AI - Tactical Analysis", () => {
 
   it("should identify threats correctly", () => {
     const players: Player[] = [
-      createTestPlayer("player1", "Enemy", "#2196f3", {
+      createTestPlayer("player1", "Enemy", {
         wellId: "blackhole",
         ring: 3,
         sector: 6,
         facing: "prograde",
       }),
-      createTestPlayer("bot1", "Bot Ship", "#4caf50", {
+      createTestPlayer("bot1", "Bot Ship", {
         wellId: "blackhole",
         ring: 3,
         sector: 0,
@@ -235,13 +233,13 @@ describe("Bot AI - Tactical Analysis", () => {
 
   it("should identify targets correctly", () => {
     const players: Player[] = [
-      createTestPlayer("player1", "Enemy", "#2196f3", {
+      createTestPlayer("player1", "Enemy", {
         wellId: "blackhole",
         ring: 3,
         sector: 6,
         facing: "prograde",
       }),
-      createTestPlayer("bot1", "Bot Ship", "#4caf50", {
+      createTestPlayer("bot1", "Bot Ship", {
         wellId: "blackhole",
         ring: 3,
         sector: 0,
@@ -259,7 +257,7 @@ describe("Bot AI - Tactical Analysis", () => {
 
   it("should prioritize damaged targets (weakest preference)", () => {
     const players: Player[] = [
-      createTestPlayer("player1", "Healthy Enemy", "#2196f3", {
+      createTestPlayer("player1", "Healthy Enemy", {
         wellId: "blackhole",
         ring: 3,
         sector: 6,
@@ -268,7 +266,6 @@ describe("Bot AI - Tactical Analysis", () => {
       createTestPlayer(
         "player2",
         "Damaged Enemy",
-        "#ff9800",
         {
           wellId: "blackhole",
           ring: 3,
@@ -279,7 +276,7 @@ describe("Bot AI - Tactical Analysis", () => {
           hitPoints: 3,
         }
       ),
-      createTestPlayer("bot1", "Bot Ship", "#4caf50", {
+      createTestPlayer("bot1", "Bot Ship", {
         wellId: "blackhole",
         ring: 3,
         sector: 12,
@@ -298,13 +295,13 @@ describe("Bot AI - Tactical Analysis", () => {
 
   it("should not target ships in different gravity wells", () => {
     const players: Player[] = [
-      createTestPlayer("player1", "Enemy in Planet", "#2196f3", {
+      createTestPlayer("player1", "Enemy in Planet", {
         wellId: "planet-alpha",
         ring: 3,
         sector: 0,
         facing: "prograde",
       }),
-      createTestPlayer("bot1", "Bot in Black Hole", "#4caf50", {
+      createTestPlayer("bot1", "Bot in Black Hole", {
         wellId: "blackhole",
         ring: 3,
         sector: 0,
@@ -376,7 +373,7 @@ describe("Bot AI - Difficulty Levels", () => {
 describe("Bot AI - Edge Cases", () => {
   it("should handle situations with no threats gracefully", () => {
     const gameState = createTestGameState([
-      createTestPlayer("bot1", "Lonely Ship", "#4caf50", {
+      createTestPlayer("bot1", "Lonely Ship", {
         wellId: "blackhole",
         ring: 3,
         sector: 0,
@@ -393,7 +390,7 @@ describe("Bot AI - Edge Cases", () => {
 
   it("should generate escape action when critically damaged", () => {
     const players: Player[] = [
-      createTestPlayer("player1", "Enemy", "#2196f3", {
+      createTestPlayer("player1", "Enemy", {
         wellId: "blackhole",
         ring: 3,
         sector: 6,
@@ -402,7 +399,6 @@ describe("Bot AI - Edge Cases", () => {
       createTestPlayer(
         "bot1",
         "Damaged Bot",
-        "#4caf50",
         {
           wellId: "blackhole",
           ring: 5, // On outer ring for transfer possibility (Ring 5 is outermost)
@@ -414,6 +410,15 @@ describe("Bot AI - Edge Cases", () => {
         }
       ),
     ];
+
+    // Pre-allocate engines to level 3 (required for well transfer)
+    const bot = players[1];
+    const enginesSubsystem = bot.ship.subsystems.find(
+      (s) => s.type === "engines"
+    )!;
+    enginesSubsystem.allocatedEnergy = 3;
+    enginesSubsystem.isPowered = true;
+    bot.ship.reactor.availableEnergy -= 3;
 
     const gameState = createTestGameState(players);
     const result = botDecideActions(

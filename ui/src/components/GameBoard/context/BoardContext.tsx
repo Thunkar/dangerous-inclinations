@@ -26,6 +26,7 @@ import {
   type Position,
 } from '../utils'
 import { getRingRadius } from '@/constants/visualConfig'
+import { getPlayerColor, getPlayerColorById } from '@/utils/playerColors'
 
 export interface BoardContextValue {
   boardSize: number
@@ -140,7 +141,7 @@ function gameStateToDisplayState(gameState: GameState): DisplayState {
     playerId: player.id,
     position: calculateShipScreenPosition(player.ship),
     rotation: calculateShipRotation(player.ship),
-    color: player.color,
+    color: getPlayerColor(index),
     isActive: index === gameState.activePlayerIndex,
     size: index === gameState.activePlayerIndex ? 11 : 9,
   }))
@@ -156,7 +157,6 @@ function gameStateToDisplayState(gameState: GameState): DisplayState {
 
   const missiles: DisplayMissile[] = gameState.missiles.map(missile => {
     const basePosition = calculateShipScreenPosition(missile)
-    const owner = gameState.players.find(p => p.id === missile.ownerId)
     const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
     const ringConfig = well?.rings.find(r => r.ring === missile.ring)
     const rotationOffset = getSectorRotationOffsetBase(missile.wellId, GRAVITY_WELLS)
@@ -180,7 +180,7 @@ function gameStateToDisplayState(gameState: GameState): DisplayState {
       ownerId: missile.ownerId,
       position,
       rotation: angle + Math.PI,
-      color: owner?.color || '#ffffff',
+      color: getPlayerColorById(missile.ownerId, gameState.players),
       label: `M${missile.turnFired}`,
       turnsRemaining: 3 - missile.turnsAlive,
     }
@@ -262,7 +262,7 @@ function computeAnimatedDisplayState(
       playerId: beforePlayer.id,
       position,
       rotation,
-      color: beforePlayer.color,
+      color: getPlayerColor(index),
       isActive: index === beforeState.activePlayerIndex,
       size: index === beforeState.activePlayerIndex ? 11 : 9,
     }
@@ -282,7 +282,6 @@ function computeAnimatedDisplayState(
   // Existing missiles - render at beforeState positions (no animation during player actions)
   // Missile movement happens after all player actions, shown when animation completes
   for (const missile of beforeState.missiles) {
-    const owner = beforeState.players.find(p => p.id === missile.ownerId)
     const basePosition = calculateShipScreenPosition(missile)
 
     const well = GRAVITY_WELLS.find(w => w.id === missile.wellId)
@@ -308,7 +307,7 @@ function computeAnimatedDisplayState(
       ownerId: missile.ownerId,
       position,
       rotation: angle + Math.PI,
-      color: owner?.color || '#ffffff',
+      color: getPlayerColorById(missile.ownerId, beforeState.players),
       label: `M${missile.turnFired}`,
       turnsRemaining: 3 - missile.turnsAlive,
     })
@@ -373,7 +372,7 @@ function computeAnimatedDisplayState(
         ownerId: missile.ownerId,
         position,
         rotation: angle + Math.PI,
-        color: owner.color,
+        color: getPlayerColorById(missile.ownerId, afterState.players),
         label: `M${missile.turnFired}`,
         turnsRemaining: 3 - missile.turnsAlive,
       })

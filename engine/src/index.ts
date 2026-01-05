@@ -9,6 +9,7 @@ export * from "./game/damage";
 export * from "./game/deployment";
 export * from "./game/energy";
 export * from "./game/heat";
+export * from "./game/loadout";
 export * from "./game/missiles";
 export * from "./game/movement";
 export * from "./game/respawn";

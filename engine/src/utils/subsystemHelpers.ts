@@ -4,12 +4,13 @@ import type {
   ReactorState,
   HeatState,
 } from "../models/subsystems";
-import type { ShipState } from "../models/game";
+import type { ShipState, ShipLoadout } from "../models/game";
 import { getMissileStats } from "../models/subsystems";
+import { DEFAULT_LOADOUT } from "../models/game";
 import {
-  STARTING_REACTION_MASS,
-  DEFAULT_DISSIPATION_CAPACITY,
-} from "../models/game";
+  createSubsystemsFromLoadout,
+  calculateShipStatsFromLoadout,
+} from "../game/loadout";
 
 // Constants for ship initialization
 export const DEFAULT_HIT_POINTS = 10;
@@ -17,6 +18,8 @@ export const DEFAULT_HIT_POINTS = 10;
 /**
  * Initialize a ship's subsystems with default state
  * Missiles subsystem gets ammo initialized from config
+ *
+ * @deprecated Use createSubsystemsFromLoadout instead for loadout-based ships
  */
 export function createInitialSubsystems(): Subsystem[] {
   const subsystemTypes: SubsystemType[] = [
@@ -70,6 +73,7 @@ export function createInitialHeatState(): HeatState {
 /**
  * Create an initial ship state with all default values.
  * Position fields (wellId, ring, sector, facing) must be provided.
+ * Loadout determines which subsystems are installed and affects ship stats.
  * All other fields use sensible defaults that can be overridden.
  */
 export function createInitialShipState(
@@ -79,21 +83,27 @@ export function createInitialShipState(
     sector: number;
     facing: "prograde" | "retrograde";
   },
+  loadout: ShipLoadout = DEFAULT_LOADOUT,
   overrides: Partial<ShipState> = {}
 ): ShipState {
+  // Calculate ship stats from loadout (dissipation, reaction mass, crit chance)
+  const stats = calculateShipStatsFromLoadout(loadout);
+
   return {
     wellId: position.wellId,
     ring: position.ring,
     sector: position.sector,
     facing: position.facing,
-    reactionMass: STARTING_REACTION_MASS,
+    reactionMass: stats.reactionMass,
     hitPoints: DEFAULT_HIT_POINTS,
     maxHitPoints: DEFAULT_HIT_POINTS,
     transferState: null,
-    subsystems: createInitialSubsystems(),
+    subsystems: createSubsystemsFromLoadout(loadout),
     reactor: createInitialReactorState(),
     heat: createInitialHeatState(),
-    dissipationCapacity: DEFAULT_DISSIPATION_CAPACITY,
+    dissipationCapacity: stats.dissipationCapacity,
+    loadout,
+    criticalChance: stats.criticalChance,
     ...overrides,
   };
 }

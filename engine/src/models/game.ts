@@ -7,6 +7,44 @@ import type {
 
 import type { Mission, Cargo } from "./missions";
 
+/**
+ * Ship loadout - defines which subsystems are installed in each slot
+ * Fixed subsystems (engines, rotation) are always present and not part of loadout
+ */
+export interface ShipLoadout {
+  forwardSlots: [SubsystemType | null, SubsystemType | null];
+  sideSlots: [
+    SubsystemType | null,
+    SubsystemType | null,
+    SubsystemType | null,
+    SubsystemType | null,
+  ];
+}
+
+/**
+ * Result of loadout validation
+ */
+export interface LoadoutValidation {
+  valid: boolean;
+  errors: string[];
+}
+
+/**
+ * Default loadout for backwards compatibility
+ * Matches the original fixed loadout before the loadout system was added
+ */
+export const DEFAULT_LOADOUT: ShipLoadout = {
+  forwardSlots: ["scoop", "railgun"],
+  sideSlots: ["laser", "laser", "shields", "missiles"],
+};
+
+/**
+ * Base critical hit chance (10%)
+ * Expressed as percentage points (10 = 10%, 30 = 30%)
+ * Can be increased by sensor array subsystem (+20 per sensor array)
+ */
+export const BASE_CRITICAL_CHANCE = 10;
+
 export const ENERGY_PER_TURN = 10;
 export const MAX_REACTION_MASS = 10;
 export const STARTING_REACTION_MASS = 10;
@@ -102,6 +140,9 @@ export interface ShipState {
   reactor: ReactorState;
   heat: HeatState;
   dissipationCapacity: number; // Base heat dissipation per turn (see DEFAULT_DISSIPATION_CAPACITY, can be increased by radiators)
+  // Loadout system
+  loadout: ShipLoadout; // The chosen loadout for this ship
+  criticalChance: number; // Base 0.1, can be increased by sensor array
 }
 
 /**
@@ -210,13 +251,13 @@ export type PlayerAction =
 export interface Player {
   id: string;
   name: string;
-  color: string;
   ship: ShipState;
   // Mission system fields
   missions: Mission[];
   completedMissionCount: number;
   cargo: Cargo[];
   hasDeployed: boolean;
+  hasSubmittedLoadout: boolean;
 }
 
 export interface TurnLogEntry {
@@ -236,8 +277,20 @@ export interface TurnHistoryEntry {
 
 /**
  * Game phases in order of progression
+ * - lobby: Players joining and readying up
+ * - setup: Missions being dealt
+ * - loadout: Players selecting ship loadout (after seeing missions)
+ * - deployment: Players deploying ships to starting positions
+ * - active: Game in progress
+ * - ended: Game finished
  */
-export type GamePhase = "lobby" | "setup" | "deployment" | "active" | "ended";
+export type GamePhase =
+  | "lobby"
+  | "setup"
+  | "loadout"
+  | "deployment"
+  | "active"
+  | "ended";
 
 /**
  * Dynamic game state - changes every turn

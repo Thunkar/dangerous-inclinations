@@ -26,17 +26,16 @@ export function executeTurnWithActions(
 export function createTestPlayer(
   id: string,
   name: string,
-  color: string,
   ship: ShipState
 ): Player {
   return {
     id,
     name,
-    color,
     ship,
     missions: [],
     completedMissionCount: 0,
     cargo: [],
     hasDeployed: true,
+    hasSubmittedLoadout: true,
   };
 }

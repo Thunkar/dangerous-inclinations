@@ -16,7 +16,6 @@ function createTestPlayer(
   return {
     id,
     name,
-    color: "#ffffff",
     ship: createInitialShipState({
       wellId: "blackhole",
       ring,
@@ -27,6 +26,7 @@ function createTestPlayer(
     completedMissionCount: 0,
     cargo: [],
     hasDeployed: true,
+    hasSubmittedLoadout: true,
   };
 }
 

@@ -11,7 +11,6 @@ import type { BotParameters } from "../../ai/types";
 function createTestPlayer(
   id: string,
   name: string,
-  color: string,
   shipConfig: {
     wellId: string;
     ring: number;
@@ -23,12 +22,12 @@ function createTestPlayer(
   return {
     id,
     name,
-    color,
-    ship: createInitialShipState(shipConfig, shipOverrides),
+    ship: createInitialShipState(shipConfig, undefined, shipOverrides),
     missions: [],
     completedMissionCount: 0,
     cargo: [],
     hasDeployed: true,
+    hasSubmittedLoadout: true,
   };
 }
 
@@ -41,13 +40,13 @@ describe("Bot AI Integration Tests", () => {
   // Helper to create a basic game state with two players
   function createGameState(bot1Index: number = 1): GameState {
     const players: Player[] = [
-      createTestPlayer("player1", "Ship Alpha", "#ff0000", {
+      createTestPlayer("player1", "Ship Alpha", {
         wellId: "blackhole",
         ring: 3,
         sector: 0,
         facing: "prograde",
       }),
-      createTestPlayer("bot1", "Ship Beta", "#0000ff", {
+      createTestPlayer("bot1", "Ship Beta", {
         wellId: "blackhole",
         ring: 3,
         sector: 12, // 180 degrees away

@@ -29,7 +29,6 @@ export function createTestGameState(): GameState {
   const player1: Player = {
     id: "player1",
     name: "Alpha",
-    color: "#ff0000",
     ship: createInitialShipState({
       wellId: "blackhole",
       ring: INITIAL_RING,
@@ -40,12 +39,12 @@ export function createTestGameState(): GameState {
     completedMissionCount: 0,
     cargo: [],
     hasDeployed: true,
+    hasSubmittedLoadout: true,
   };
 
   const player2: Player = {
     id: "player2",
     name: "Beta",
-    color: "#0000ff",
     ship: createInitialShipState({
       wellId: "blackhole",
       ring: PLAYER2_RING,
@@ -56,6 +55,7 @@ export function createTestGameState(): GameState {
     completedMissionCount: 0,
     cargo: [],
     hasDeployed: true,
+    hasSubmittedLoadout: true,
   };
 
   return {

@@ -1,6 +1,6 @@
 import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
-import { calculateMissileMovement } from '@dangerous-inclinations/engine'
+import { calculateMissileMovement, DEFAULT_LOADOUT, BASE_CRITICAL_CHANCE } from '@dangerous-inclinations/engine'
 import { getGravityWell } from '@dangerous-inclinations/engine'
 import { applyOrbitalMovement } from '@dangerous-inclinations/engine'
 import { getRingRadius } from '@/constants/visualConfig'
@@ -173,6 +173,8 @@ export function MissileRenderer() {
             reactor: { totalCapacity: 0, availableEnergy: 0 },
             heat: { currentHeat: 0 },
             dissipationCapacity: 0,
+            loadout: DEFAULT_LOADOUT,
+            criticalChance: BASE_CRITICAL_CHANCE,
           }
           const afterOrbital = applyOrbitalMovement(missileAsShip)
 

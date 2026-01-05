@@ -1,4 +1,4 @@
-import type { GameState, Missile, Player, TurnLogEntry } from "../models/game";
+import type { GameState, Missile, Player, TurnLogEntry, ShipState } from "../models/game";
 import type { ProcessResult } from "./actionProcessors";
 import { getGravityWell } from "../models/gravityWells";
 import { applyOrbitalMovement } from "./movement";
@@ -210,8 +210,10 @@ export function processMissiles(
         reactor: { totalCapacity: 0, availableEnergy: 0 },
         heat: { currentHeat: 0 },
         dissipationCapacity: 0,
+        loadout: { forwardSlots: [null, null] as [null, null], sideSlots: [null, null, null, null] as [null, null, null, null] },
+        criticalChance: 10,
       };
-      const afterOrbital = applyOrbitalMovement(missileAsShip);
+      const afterOrbital = applyOrbitalMovement(missileAsShip as ShipState);
 
       currentRing = afterOrbital.ring;
       currentSector = afterOrbital.sector;
@@ -243,12 +245,15 @@ export function processMissiles(
     if (checkMissileHit(missileState, target)) {
       // HIT! Apply damage with d10 hit resolution
       // Missiles always target shields for critical (thematic: guided warhead)
+      // Pass owner's ship for critical chance calculation (sensor array bonus)
       const targetIndex = updatedPlayers.findIndex((p) => p.id === target.id);
       const currentTarget = updatedPlayers[targetIndex];
       const { ship: damagedShip, hitResult } = applyDamageWithShields(
         currentTarget.ship,
         MISSILE_STATS.damage,
         "shields",
+        undefined, // Let the function roll the d10
+        owner.ship // Pass owner's ship for critical chance calculation
       );
       updatedPlayers[targetIndex] = {
         ...currentTarget,

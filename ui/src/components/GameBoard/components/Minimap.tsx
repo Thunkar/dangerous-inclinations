@@ -5,6 +5,7 @@ import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
 import { GRAVITY_WELLS, getGravityWell } from '@dangerous-inclinations/engine'
 import { getGravityWellVisual, getRingRadius } from '@/constants/visualConfig'
+import { getPlayerColor } from '@/utils/playerColors'
 
 interface MinimapProps {
   pendingFacing?: Facing
@@ -114,7 +115,7 @@ export function Minimap({ pendingFacing, zoom, pan }: MinimapProps) {
               width={minimapShipSize * 2}
               height={minimapShipSize * 2}
               opacity={0.8}
-              style={{ filter: `drop-shadow(0 0 2px ${player.color})` }}
+              style={{ filter: `drop-shadow(0 0 2px ${getPlayerColor(index)})` }}
               transform={`translate(${x}, ${y}) rotate(${(directionAngle * 180) / Math.PI})`}
             />
           )

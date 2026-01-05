@@ -15,7 +15,19 @@ export type SubsystemType =
   | "laser"
   | "railgun"
   | "missiles"
-  | "shields";
+  | "shields"
+  | "radiator"
+  | "fuel_tank"
+  | "sensor_array";
+
+/**
+ * Slot types for ship loadout system
+ * - fixed: Always present on ship (engines, rotation)
+ * - forward: Can only be installed in forward slots
+ * - side: Can only be installed in side slots
+ * - either: Can be installed in either forward or side slots
+ */
+export type SlotType = "fixed" | "forward" | "side" | "either";
 
 export interface WeaponStats {
   damage: number;
@@ -29,12 +41,24 @@ export interface WeaponStats {
   maxTurnsAlive?: number; // How many turns before projectile expires
 }
 
+/**
+ * Passive effect for subsystems that provide bonuses without energy allocation
+ */
+export interface PassiveEffect {
+  dissipationBonus?: number; // Added to ship's dissipation capacity
+  reactionMassBonus?: number; // Added to ship's starting reaction mass
+  criticalChanceBonus?: number; // Added to ship's critical hit chance (in percentage points)
+}
+
 export interface SubsystemConfig {
   id: SubsystemType;
   name: string;
-  minEnergy: number; // Minimum energy to function
+  minEnergy: number; // Minimum energy to function (0 for passive subsystems)
   maxEnergy: number; // Absolute maximum energy (hard cap, cannot exceed)
   generatesHeatOnUse: boolean; // Whether using this subsystem generates heat equal to allocated energy
+  slotType: SlotType; // Which slots this subsystem can be installed in
+  isPassive?: boolean; // If true, subsystem provides passive bonus without energy allocation
+  passiveEffect?: PassiveEffect; // Passive bonuses (only for passive subsystems)
   weaponStats?: WeaponStats; // Only present for weapon subsystems
 }
 
@@ -58,12 +82,14 @@ export interface HeatState {
 
 // Subsystem configurations
 export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
+  // Fixed subsystems (always present on ship)
   engines: {
     id: "engines",
     name: "Engines",
     minEnergy: 1,
     maxEnergy: 3,
     generatesHeatOnUse: true, // Generates heat when burn is executed
+    slotType: "fixed",
   },
   rotation: {
     id: "rotation",
@@ -71,26 +97,17 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     minEnergy: 1,
     maxEnergy: 1,
     generatesHeatOnUse: true, // Generates heat when rotation is executed
+    slotType: "fixed",
   },
+
+  // Forward slot subsystems
   scoop: {
     id: "scoop",
     name: "Fuel Scoop",
     minEnergy: 3,
     maxEnergy: 3,
     generatesHeatOnUse: true, // Generates heat when scooping
-  },
-  laser: {
-    id: "laser",
-    name: "Broadside Laser",
-    minEnergy: 2,
-    maxEnergy: 2,
-    generatesHeatOnUse: true, // Generates heat when fired
-    weaponStats: {
-      damage: 2,
-      ringRange: 1, // Can target ±1 ring (adjacent rings only)
-      sectorRange: 1, // Covers ±1 sector "visible" from current position
-      arc: "broadside", // Fires radially from ship's sector
-    },
+    slotType: "forward",
   },
   railgun: {
     id: "railgun",
@@ -98,6 +115,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     minEnergy: 4,
     maxEnergy: 4,
     generatesHeatOnUse: true, // Generates heat when fired
+    slotType: "forward",
     weaponStats: {
       damage: 4,
       ringRange: 0, // Only fires on current ring (same ring)
@@ -106,12 +124,68 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       hasRecoil: true, // Causes recoil burn without engine compensation
     },
   },
+  sensor_array: {
+    id: "sensor_array",
+    name: "Sensor Array",
+    minEnergy: 2,
+    maxEnergy: 2,
+    generatesHeatOnUse: false,
+    slotType: "forward",
+    passiveEffect: { criticalChanceBonus: 20 }, // 10% + 20% = 30% when powered
+  },
+
+  // Side slot subsystems
+  laser: {
+    id: "laser",
+    name: "Broadside Laser",
+    minEnergy: 2,
+    maxEnergy: 2,
+    generatesHeatOnUse: true, // Generates heat when fired
+    slotType: "side",
+    weaponStats: {
+      damage: 2,
+      ringRange: 1, // Can target ±1 ring (adjacent rings only)
+      sectorRange: 1, // Covers ±1 sector "visible" from current position
+      arc: "broadside", // Fires radially from ship's sector
+    },
+  },
+  shields: {
+    id: "shields",
+    name: "Shields",
+    minEnergy: 1, // Lowered min energy for flexibility
+    maxEnergy: 4, // Increased max to allow more absorption
+    generatesHeatOnUse: false, // Reactive, converts damage to heat
+    slotType: "side",
+  },
+  radiator: {
+    id: "radiator",
+    name: "Radiator",
+    minEnergy: 0, // Fully passive
+    maxEnergy: 0,
+    generatesHeatOnUse: false,
+    slotType: "side",
+    isPassive: true,
+    passiveEffect: { dissipationBonus: 2 },
+  },
+  fuel_tank: {
+    id: "fuel_tank",
+    name: "Fuel Tank",
+    minEnergy: 0, // Fully passive
+    maxEnergy: 0,
+    generatesHeatOnUse: false,
+    slotType: "side",
+    isPassive: true,
+    passiveEffect: { reactionMassBonus: 6 },
+  },
+
+  // Either slot subsystems
   missiles: {
     id: "missiles",
     name: "Missiles",
     minEnergy: 2,
     maxEnergy: 2,
     generatesHeatOnUse: true, // Generates heat when fired
+    slotType: "either",
     weaponStats: {
       damage: 2, // Damage dealt on impact (was 3, lowered for balance)
       ringRange: 2, // Can target up to 2 rings away (any direction)
@@ -121,13 +195,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       fuelPerTurn: 3, // Guidance fuel per turn (rings + sectors missile can move)
       maxTurnsAlive: 3, // Missile expires after 3 turns if it doesn't hit
     },
-  },
-  shields: {
-    id: "shields",
-    name: "Shields",
-    minEnergy: 1, // Lowered min energy for flexibility
-    maxEnergy: 4, // Increased max to allow more absorption
-    generatesHeatOnUse: false, // Reactive, converts damage to heat
   },
 };
 

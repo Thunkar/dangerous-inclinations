@@ -1151,10 +1151,13 @@ function processFireWeapon(
     if (target.ship.hitPoints <= 0) continue; // Already destroyed
 
     // Apply damage with d10 hit resolution
+    // Pass attacker ship to calculate critical chance (sensor array bonus)
     const { ship: updatedTargetShip, hitResult } = applyDamageWithShields(
       target.ship,
       damage,
-      action.data.criticalTarget
+      action.data.criticalTarget,
+      undefined, // Let the function roll the d10
+      updatedAttackerShip
     );
     updatedPlayers[targetIndex] = { ...target, ship: updatedTargetShip };
 

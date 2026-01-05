@@ -1,5 +1,6 @@
 import React from 'react'
 import { useGame } from '../../../context/GameContext'
+import { getPlayerColor } from '@/utils/playerColors'
 
 /**
  * SVG filter definitions for ship and missile outlines
@@ -21,13 +22,13 @@ export function SVGFilters() {
         </feMerge>
       </filter>
 
-      {players.map(player => (
+      {players.map((player, index) => (
         <React.Fragment key={player.id}>
           {/* Ship outline filter */}
           <filter id={`outline-${player.id}`} x="-50%" y="-50%" width="200%" height="200%">
             {/* Create colored outline (outer) */}
             <feMorphology operator="dilate" radius="4" in="SourceAlpha" result="thickenColor" />
-            <feFlood floodColor={player.color} result="colorFlood" />
+            <feFlood floodColor={getPlayerColor(index)} result="colorFlood" />
             <feComposite in="colorFlood" in2="thickenColor" operator="in" result="colorOutline" />
 
             {/* Create black outline (inner, frames the ship) */}
@@ -47,7 +48,7 @@ export function SVGFilters() {
           <filter id={`missile-outline-${player.id}`} x="-50%" y="-50%" width="200%" height="200%">
             {/* Create colored outline (outer, slimmer than ships) */}
             <feMorphology operator="dilate" radius="2" in="SourceAlpha" result="thickenColor" />
-            <feFlood floodColor={player.color} result="colorFlood" />
+            <feFlood floodColor={getPlayerColor(index)} result="colorFlood" />
             <feComposite in="colorFlood" in2="thickenColor" operator="in" result="colorOutline" />
 
             {/* Create black outline (inner, frames the missile) */}

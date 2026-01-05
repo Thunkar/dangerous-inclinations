@@ -1,4 +1,5 @@
 import type { ShipState } from "../../models/game";
+import { DEFAULT_LOADOUT } from "../../models/game";
 import { createInitialShipState } from "../../utils/subsystemHelpers";
 
 /**
@@ -13,6 +14,7 @@ export function createTestShip(overrides: Partial<ShipState> = {}): ShipState {
       sector: 0,
       facing: "prograde",
     },
+    DEFAULT_LOADOUT,
     overrides
   );
 }

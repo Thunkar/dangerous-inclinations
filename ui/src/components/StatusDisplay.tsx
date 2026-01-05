@@ -2,6 +2,7 @@ import { Box, Paper, Typography } from '@mui/material'
 import type { Player } from '@dangerous-inclinations/engine'
 import type { HeatState } from '@dangerous-inclinations/engine'
 import { STARTING_REACTION_MASS } from '@dangerous-inclinations/engine'
+import { getPlayerColor } from '@/utils/playerColors'
 
 interface StatusDisplayProps {
   players: Player[]
@@ -75,8 +76,8 @@ export function StatusDisplay({
                 px: 2,
                 py: 0.5,
                 borderRadius: 1,
-                bgcolor: isActive ? `${player.color}30` : 'transparent',
-                border: isActive ? `2px solid ${player.color}` : '2px solid transparent',
+                bgcolor: isActive ? `${getPlayerColor(index)}30` : 'transparent',
+                border: isActive ? `2px solid ${getPlayerColor(index)}` : '2px solid transparent',
                 transition: 'all 0.2s',
               }}
             >
@@ -86,9 +87,9 @@ export function StatusDisplay({
                   width: 16,
                   height: 16,
                   borderRadius: '50%',
-                  bgcolor: player.color,
-                  border: isActive ? `2px solid ${player.color}` : 'none',
-                  boxShadow: isActive ? `0 0 8px ${player.color}` : 'none',
+                  bgcolor: getPlayerColor(index),
+                  border: isActive ? `2px solid ${getPlayerColor(index)}` : 'none',
+                  boxShadow: isActive ? `0 0 8px ${getPlayerColor(index)}` : 'none',
                 }}
               />
 

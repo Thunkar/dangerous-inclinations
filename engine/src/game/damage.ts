@@ -1,8 +1,10 @@
 import type { ShipState } from "../models/game";
+import { BASE_CRITICAL_CHANCE } from "../models/game";
 import type { SubsystemType } from "../models/subsystems";
 import { getSubsystemConfig } from "../models/subsystems";
 import { calculateHeatDamage, addHeat } from "./heat";
 import { getGameConfig } from "./config";
+import { getEffectiveCriticalChance } from "./loadout";
 import {
   CriticalHitEffect,
   HitRollResult,
@@ -26,11 +28,29 @@ export function rollD10(): number {
 
 /**
  * Convert d10 roll to hit result
- * 1 = miss, 2-9 = hit, 10 = critical
+ * 1 = miss, 2-9 = hit, 10 = critical (base behavior)
+ *
+ * With variable critical chance:
+ * - Base critical chance is 10% (roll 10)
+ * - With sensor array (+20%), critical chance is 30% (roll 8, 9, or 10)
+ *
+ * @param roll d10 roll result (1-10)
+ * @param criticalChance Critical hit chance as percentage (0-100). Default is BASE_CRITICAL_CHANCE (10)
  */
-export function rollToResult(roll: number): HitRollResult {
+export function rollToResult(
+  roll: number,
+  criticalChance: number = BASE_CRITICAL_CHANCE
+): HitRollResult {
   if (roll === 1) return "miss";
-  if (roll === 10) return "critical";
+
+  // Calculate critical threshold: higher criticalChance = lower threshold needed
+  // At 10% (base), only roll 10 crits
+  // At 30% (with sensor), rolls 8-10 crit (3 values = 30%)
+  // criticalChance is in percentage points (10 = 10%, 30 = 30%)
+  const criticalValues = Math.round(criticalChance / 10);
+  const criticalThreshold = 11 - criticalValues; // 10 for 10%, 8 for 30%
+
+  if (roll >= criticalThreshold) return "critical";
   return "hit";
 }
 
@@ -40,7 +60,7 @@ export function rollToResult(roll: number): HitRollResult {
  * Hit Resolution (d10):
  * - Roll 1: Miss - no damage
  * - Roll 2-9: Hit - normal damage (shields absorb first)
- * - Roll 10: Critical - damage + targeted subsystem breaks
+ * - Roll 10: Critical (or lower threshold with sensor array) - damage + targeted subsystem breaks
  *
  * Shield mechanics:
  * - Shields convert damage to heat (up to their allocated energy)
@@ -50,16 +70,25 @@ export function rollToResult(roll: number): HitRollResult {
  * @param damage Weapon damage amount
  * @param criticalTarget Subsystem to break on critical hit (required)
  * @param roll Optional d10 roll (1-10). If not provided, rolls automatically.
+ * @param attackerShip Optional attacker ship for critical chance calculation. If not provided, uses base critical chance.
  */
 export function applyDamageWithShields(
   ship: ShipState,
   damage: number,
   criticalTarget: SubsystemType,
   roll?: number,
+  attackerShip?: ShipState
 ): { ship: ShipState; hitResult: WeaponHitResult } {
   // Roll d10 if not provided (allows deterministic testing)
   const actualRoll = roll ?? rollD10();
-  const result = rollToResult(actualRoll);
+
+  // Calculate critical chance from attacker's ship (sensor array bonus)
+  const baseCritChance = attackerShip?.criticalChance ?? BASE_CRITICAL_CHANCE;
+  const effectiveCritChance = attackerShip
+    ? getEffectiveCriticalChance(baseCritChance, attackerShip.subsystems)
+    : baseCritChance;
+
+  const result = rollToResult(actualRoll, effectiveCritChance);
 
   // Miss - no damage, no effects
   if (result === "miss") {

@@ -9,6 +9,7 @@ import type {
   DestroyShipMission,
   DeliverCargoMission,
 } from '@dangerous-inclinations/engine'
+import { getPlayerColorById } from '@/utils/playerColors'
 
 interface MissionPanelProps {
   player: Player
@@ -29,12 +30,14 @@ function getPlanetName(planetId: string): string {
 function DestroyMissionCard({
   mission,
   targetPlayer,
+  allPlayers,
 }: {
   mission: DestroyShipMission
   targetPlayer: Player | undefined
+  allPlayers: Player[]
 }) {
   const targetName = targetPlayer?.name || 'Unknown'
-  const targetColor = targetPlayer?.color || '#888'
+  const targetColor = targetPlayer ? getPlayerColorById(targetPlayer.id, allPlayers) : '#888'
 
   return (
     <Paper
@@ -224,6 +227,7 @@ export function MissionPanel({ player, allPlayers }: MissionPanelProps) {
                 key={mission.id}
                 mission={destroyMission}
                 targetPlayer={targetPlayer}
+                allPlayers={allPlayers}
               />
             )
           } else if (mission.type === 'deliver_cargo') {

@@ -7,7 +7,8 @@
  * Ship resets: HP, subsystems, heat, reaction mass
  */
 
-import type { GameState, Player, ShipState } from "../models/game";
+import type { GameState, Player, ShipState, ShipLoadout } from "../models/game";
+import { DEFAULT_LOADOUT } from "../models/game";
 import { createInitialShipState } from "../utils/subsystemHelpers";
 import type { Cargo } from "../models/missions";
 
@@ -57,18 +58,22 @@ export function findAvailableRespawnSector(gameState: GameState): number {
 
 /**
  * Create a respawned ship state
- * Keeps cargo intact, resets everything else
+ * Keeps cargo intact and loadout, resets everything else
  */
 export function createRespawnedShip(
   sector: number,
-  _cargoToPreserve: Cargo[] // Cargo is preserved on player, not ship
+  _cargoToPreserve: Cargo[], // Cargo is preserved on player, not ship
+  loadout: ShipLoadout = DEFAULT_LOADOUT
 ): ShipState {
-  return createInitialShipState({
-    wellId: RESPAWN_CONSTANTS.WELL_ID,
-    ring: RESPAWN_CONSTANTS.RING,
-    sector,
-    facing: "prograde",
-  });
+  return createInitialShipState(
+    {
+      wellId: RESPAWN_CONSTANTS.WELL_ID,
+      ring: RESPAWN_CONSTANTS.RING,
+      sector,
+      facing: "prograde",
+    },
+    loadout
+  );
 }
 
 /**
@@ -81,10 +86,13 @@ export function needsRespawn(player: Player): boolean {
 /**
  * Respawn a player's ship
  * Returns updated player with new ship at respawn location
+ * Ship keeps its loadout from before destruction
  */
 export function respawnPlayer(player: Player, gameState: GameState): Player {
   const respawnSector = findAvailableRespawnSector(gameState);
-  const newShip = createRespawnedShip(respawnSector, player.cargo);
+  // Preserve the player's loadout when respawning
+  const loadout = player.ship.loadout ?? DEFAULT_LOADOUT;
+  const newShip = createRespawnedShip(respawnSector, player.cargo, loadout);
 
   return {
     ...player,
