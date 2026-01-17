@@ -1,24 +1,23 @@
-import { Paper, Stack, Box, Typography, IconButton, Button, Tooltip } from '@mui/material'
+import { Paper, Stack, Box, Typography, IconButton, Button } from '@mui/material'
 import { useState, useEffect, useMemo } from 'react'
-import { ArrowUpward, ArrowDownward, Delete, Visibility, VisibilityOff } from '@mui/icons-material'
+import { ArrowUpward, ArrowDownward, Delete } from '@mui/icons-material'
 import type { BurnIntensity, Facing, Player, ActionType } from '@dangerous-inclinations/engine'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import { getSubsystem } from '@dangerous-inclinations/engine'
-import { getSubsystemConfig } from '@dangerous-inclinations/engine'
-import { calculateFiringSolutions } from '@dangerous-inclinations/engine'
-import { calculatePostMovementPosition } from '@dangerous-inclinations/engine'
 import { useGame, type TacticalAction, type TacticalActionType } from '../context/GameContext'
 import { getAvailableWellTransfers, getWellName } from '@dangerous-inclinations/engine'
 import { GRAVITY_WELLS, TRANSFER_POINTS } from '@dangerous-inclinations/engine'
-import { EnergyPanel } from './actions/EnergyPanel'
+import { ShipEnergyPanel } from './energy'
 import { OrientationControl } from './actions/OrientationControl'
 import { MovementControl } from './actions/MovementControl'
 import { UtilityActions } from './actions/UtilityActions'
 import { ActionSummary } from './actions/ActionSummary'
-import { STARTING_REACTION_MASS } from '@dangerous-inclinations/engine'
+import { LaserPanel } from './actions/LaserPanel'
+import { RailgunPanel } from './actions/RailgunPanel'
+import { MissilesPanel } from './actions/MissilesPanel'
+import { STARTING_REACTION_MASS, SUBSYSTEM_CONFIGS } from '@dangerous-inclinations/engine'
 import { CustomIcon } from './CustomIcon'
 import { getMissileStats } from '@dangerous-inclinations/engine'
-import { getMissileAmmo } from '@dangerous-inclinations/engine'
 import { getGravityWell } from '@dangerous-inclinations/engine'
 
 interface ControlPanelProps {
@@ -37,16 +36,6 @@ interface ActionPanel {
   criticalTarget?: SubsystemType // For weapon panels: subsystem to break on critical hit
 }
 
-// Available subsystem types that can be targeted by critical hits
-const TARGETABLE_SUBSYSTEMS: { type: SubsystemType; label: string }[] = [
-  { type: 'shields', label: 'Shields' },
-  { type: 'engines', label: 'Engines' },
-  { type: 'rotation', label: 'Thrusters' },
-  { type: 'laser', label: 'Laser' },
-  { type: 'railgun', label: 'Railgun' },
-  { type: 'missiles', label: 'Missiles' },
-  { type: 'scoop', label: 'Fuel Scoop' },
-]
 
 export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   // Get everything from context
@@ -314,118 +303,193 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
 
   const canAddLaser = !hasLaser && laserSubsystem?.isPowered && !laserSubsystem.usedThisTurn
   const canAddRailgun = !hasRailgun && railgunSubsystem?.isPowered && !railgunSubsystem.usedThisTurn
-  const missileAmmo = getMissileAmmo(ship.subsystems)
+
+  // Get all missile subsystems (player can have multiple)
+  const missileSubsystems = useMemo(
+    () => ship.subsystems.filter(s => s.type === 'missiles'),
+    [ship.subsystems]
+  )
+  const totalMissileAmmo = missileSubsystems.reduce((sum, s) => sum + (s.ammo ?? 0), 0)
   const missileStats = getMissileStats()
   const canAddMissiles =
     !hasMissiles &&
     missilesSubsystem?.isPowered &&
     !missilesSubsystem.usedThisTurn &&
-    missileAmmo > 0
+    totalMissileAmmo > 0
+
+  // Calculate fuel tank stats for reaction mass display
+  const fuelTankCount = useMemo(() => {
+    const allSlots = [...ship.loadout.forwardSlots, ...ship.loadout.sideSlots]
+    return allSlots.filter(type => type === 'fuel_tank').length
+  }, [ship.loadout])
+  const fuelTankBonus = SUBSYSTEM_CONFIGS.fuel_tank.passiveEffect?.reactionMassBonus ?? 0
+
+  // Current base fuel and external fuel
+  const baseFuel = Math.min(ship.reactionMass, STARTING_REACTION_MASS)
+  const extFuel = Math.max(0, ship.reactionMass - STARTING_REACTION_MASS)
+  const extFuelMax = fuelTankCount * fuelTankBonus
 
   return (
     <Stack spacing={2}>
-      {/* Reaction Mass Gauge */}
-      <Paper sx={{ px: 2, py: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ fontSize: '0.65rem', minWidth: 90 }}
-          >
-            REACTION MASS
-          </Typography>
-          <Box
-            sx={{
-              flex: 1,
-              position: 'relative',
-              height: 12,
-              bgcolor: 'rgba(0,0,0,0.3)',
-              borderRadius: 1,
-              overflow: 'hidden',
-            }}
-          >
-            <Box
-              sx={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: `${(ship.reactionMass / STARTING_REACTION_MASS) * 100}%`,
-                bgcolor:
-                  ship.reactionMass <= 2
-                    ? 'error.main'
-                    : ship.reactionMass <= 5
-                      ? 'warning.main'
-                      : '#00ff00',
-                transition: 'all 0.3s',
-                boxShadow: ship.reactionMass <= 2 ? '0 0 6px rgba(255,0,0,0.6)' : 'none',
-              }}
-            />
+      {/* Ship Stats Section - Hull, Fuel, Missiles */}
+      <Paper sx={{ px: 2, py: 1.5 }}>
+        <Typography
+          variant="caption"
+          sx={{
+            fontSize: '0.6rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            color: 'text.secondary',
+            display: 'block',
+            mb: 1,
+          }}
+        >
+          Ship Status
+        </Typography>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {/* Hull Bar with ticks */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>
+                HULL
+              </Typography>
+              <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.65rem' }}>
+                {player.ship.hitPoints}/{player.ship.maxHitPoints}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: '3px', height: 10 }}>
+              {Array.from({ length: player.ship.maxHitPoints }).map((_, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    flex: 1,
+                    height: '100%',
+                    bgcolor:
+                      i < player.ship.hitPoints
+                        ? player.ship.hitPoints <= 3
+                          ? '#f44336'
+                          : player.ship.hitPoints <= 5
+                            ? '#ff9800'
+                            : '#4caf50'
+                        : 'rgba(255,255,255,0.1)',
+                    borderRadius: 0.5,
+                    transition: 'all 0.3s',
+                  }}
+                />
+              ))}
+            </Box>
           </Box>
-          <Typography
-            variant="caption"
-            fontWeight="bold"
-            sx={{ fontSize: '0.75rem', minWidth: 32 }}
-          >
-            {ship.reactionMass}/{STARTING_REACTION_MASS}
-          </Typography>
+
+          {/* Fuel (Base) Bar with ticks */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>
+                FUEL (BASE)
+              </Typography>
+              <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.65rem' }}>
+                {baseFuel}/{STARTING_REACTION_MASS}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: '3px', height: 10 }}>
+              {Array.from({ length: STARTING_REACTION_MASS }).map((_, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    flex: 1,
+                    height: '100%',
+                    bgcolor:
+                      i < baseFuel
+                        ? baseFuel <= 2
+                          ? '#f44336'
+                          : baseFuel <= 5
+                            ? '#ff9800'
+                            : '#00ff00'
+                        : 'rgba(255,255,255,0.1)',
+                    borderRadius: 0.5,
+                    transition: 'all 0.3s',
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+
+          {/* External Fuel Tanks with ticks */}
+          {fuelTankCount > 0 && (
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>
+                  FUEL (EXT x{fuelTankCount})
+                </Typography>
+                <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.65rem' }}>
+                  {extFuel}/{extFuelMax}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: '3px', height: 10 }}>
+                {Array.from({ length: extFuelMax }).map((_, i) => (
+                  <Box
+                    key={i}
+                    sx={{
+                      flex: 1,
+                      height: '100%',
+                      bgcolor: i < extFuel ? '#2196f3' : 'rgba(255,255,255,0.1)',
+                      borderRadius: 0.5,
+                      transition: 'all 0.3s',
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* Missile Inventory with ticks */}
+          {missileSubsystems.map((missileSub, idx) => {
+            const ammo = missileSub.ammo ?? 0
+            return (
+              <Box key={idx}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>
+                    MISSILES{missileSubsystems.length > 1 ? ` #${idx + 1}` : ''}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    fontWeight="bold"
+                    sx={{ fontSize: '0.65rem', color: ammo === 0 ? 'error.main' : 'inherit' }}
+                  >
+                    {ammo}/{missileStats.maxAmmo}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: '3px', height: 10 }}>
+                  {Array.from({ length: missileStats.maxAmmo }).map((_, i) => (
+                    <Box
+                      key={i}
+                      sx={{
+                        flex: 1,
+                        height: '100%',
+                        bgcolor: i < ammo ? '#00ff00' : 'rgba(255,255,255,0.1)',
+                        borderRadius: 0.5,
+                        transition: 'all 0.3s',
+                        boxShadow: i < ammo ? '0 0 4px rgba(0,255,0,0.3)' : 'none',
+                      }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )
+          })}
         </Box>
       </Paper>
 
-      {/* Missile Inventory */}
-      <Paper sx={{ px: 2, py: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ fontSize: '0.65rem', minWidth: 90 }}
-          >
-            MISSILES
-          </Typography>
-          <Box
-            sx={{
-              flex: 1,
-              display: 'flex',
-              gap: 0.5,
-            }}
-          >
-            {Array.from({ length: missileStats.maxAmmo }).map((_, i) => (
-              <Box
-                key={i}
-                sx={{
-                  flex: 1,
-                  height: 12,
-                  bgcolor: i < missileAmmo ? '#00ff00' : 'rgba(0,0,0,0.3)',
-                  borderRadius: 0.5,
-                  transition: 'all 0.3s',
-                  boxShadow: i < missileAmmo ? '0 0 4px rgba(0,255,0,0.4)' : 'none',
-                }}
-              />
-            ))}
-          </Box>
-          <Typography
-            variant="caption"
-            fontWeight="bold"
-            sx={{
-              fontSize: '0.75rem',
-              minWidth: 32,
-              color: missileAmmo === 0 ? 'error.main' : 'inherit',
-            }}
-          >
-            {missileAmmo}/{missileStats.maxAmmo}
-          </Typography>
-        </Box>
-      </Paper>
-
-      {/* Ship Systems Panel - Energy Management (Always First) */}
+      {/* Ship Systems Panel - Energy Management */}
       <Box sx={{ overflow: 'visible' }}>
-        <EnergyPanel
+        <ShipEnergyPanel
           subsystems={pendingState.subsystems}
           reactor={pendingState.reactor}
           heat={pendingState.heat}
           hitPoints={player.ship.hitPoints}
           maxHitPoints={player.ship.maxHitPoints}
           dissipationCapacity={player.ship.dissipationCapacity}
+          loadout={player.ship.loadout}
           onAllocateEnergy={allocateEnergy}
           onDeallocateEnergy={deallocateEnergy}
         />
@@ -576,417 +640,73 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
               </Stack>
             )}
 
-            {panel.type === 'fire_laser' &&
-              (() => {
-                const subsystemConfig = laserSubsystem
-                  ? getSubsystemConfig(laserSubsystem.type)
-                  : null
-                const weaponStats = subsystemConfig?.weaponStats
+            {panel.type === 'fire_laser' && (() => {
+              const moveAction = panels.find(p => p.type === 'move')
+              const rotateAction = panels.find(p => p.type === 'rotate')
+              const firesAfterMovement = !!(moveAction && panel.sequence > moveAction.sequence)
+              const rotateBeforeMove = rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true
 
-                // Check if this weapon fires after movement
-                const moveAction = panels.find(p => p.type === 'move')
-                const rotateAction = panels.find(p => p.type === 'rotate')
-                const firesAfterMovement = moveAction && panel.sequence > moveAction.sequence
+              return (
+                <LaserPanel
+                  ship={ship}
+                  laserSubsystem={laserSubsystem}
+                  allPlayers={allPlayers}
+                  playerId={player.id}
+                  targetPlayerId={panel.targetPlayerId}
+                  criticalTarget={panel.criticalTarget}
+                  onTargetChange={(targetId) => updateWeaponTarget(panel.id, targetId)}
+                  onCriticalTargetChange={(subsystem) => updateCriticalTarget(panel.id, subsystem)}
+                  rangeVisible={weaponRangeVisibility.laser}
+                  onToggleRange={() => toggleWeaponRange('laser')}
+                  firesAfterMovement={firesAfterMovement}
+                  rotateBeforeMove={rotateBeforeMove}
+                  targetFacing={targetFacing}
+                  actionType={actionType}
+                  burnIntensity={burnIntensity}
+                  sectorAdjustment={sectorAdjustment}
+                />
+              )
+            })()}
 
-                // Determine if rotation happens before or after movement
-                const rotateBeforeMove =
-                  rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true // Default to rotate before move
+            {panel.type === 'fire_railgun' && (() => {
+              const moveAction = panels.find(p => p.type === 'move')
+              const rotateAction = panels.find(p => p.type === 'rotate')
+              const firesAfterMovement = !!(moveAction && panel.sequence > moveAction.sequence)
+              const rotateBeforeMove = rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true
 
-                // Calculate ship position for range calculations
-                let shipForRangeCalc = ship
-                if (firesAfterMovement && actionType === 'burn') {
-                  shipForRangeCalc = calculatePostMovementPosition(
-                    ship,
-                    targetFacing,
-                    {
-                      actionType,
-                      burnIntensity,
-                      sectorAdjustment,
-                    },
-                    rotateBeforeMove
-                  )
-                } else if (firesAfterMovement && actionType === 'coast') {
-                  shipForRangeCalc = calculatePostMovementPosition(
-                    ship,
-                    targetFacing,
-                    {
-                      actionType: 'coast',
-                      sectorAdjustment: 0,
-                    },
-                    rotateBeforeMove
-                  )
-                }
+              return (
+                <RailgunPanel
+                  ship={ship}
+                  railgunSubsystem={railgunSubsystem}
+                  allPlayers={allPlayers}
+                  playerId={player.id}
+                  targetPlayerId={panel.targetPlayerId}
+                  criticalTarget={panel.criticalTarget}
+                  onTargetChange={(targetId) => updateWeaponTarget(panel.id, targetId)}
+                  onCriticalTargetChange={(subsystem) => updateCriticalTarget(panel.id, subsystem)}
+                  rangeVisible={weaponRangeVisibility.railgun}
+                  onToggleRange={() => toggleWeaponRange('railgun')}
+                  firesAfterMovement={firesAfterMovement}
+                  rotateBeforeMove={rotateBeforeMove}
+                  targetFacing={targetFacing}
+                  actionType={actionType}
+                  burnIntensity={burnIntensity}
+                  sectorAdjustment={sectorAdjustment}
+                />
+              )
+            })()}
 
-                const firingSolutions = weaponStats
-                  ? calculateFiringSolutions(weaponStats, shipForRangeCalc, allPlayers, player.id)
-                  : []
-                const inRangeTargets = firingSolutions.filter(fs => fs.inRange)
-
-                return (
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      borderRadius: '8px',
-                      bgcolor: 'background.paper',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        mb: 1.5,
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <CustomIcon icon="laser" size={20} />
-                        <Typography variant="body2" fontWeight="bold">
-                          Broadside Laser
-                        </Typography>
-                      </Box>
-                      <Tooltip title={weaponRangeVisibility.laser ? 'Hide Range' : 'Show Range'}>
-                        <IconButton
-                          size="small"
-                          onClick={() => toggleWeaponRange('laser')}
-                          sx={{
-                            padding: '4px',
-                            color: weaponRangeVisibility.laser ? 'primary.main' : 'text.secondary',
-                          }}
-                        >
-                          {weaponRangeVisibility.laser ? (
-                            <Visibility sx={{ fontSize: 16 }} />
-                          ) : (
-                            <VisibilityOff sx={{ fontSize: 16 }} />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                    <select
-                      value={panel.targetPlayerId || ''}
-                      onChange={e => updateWeaponTarget(panel.id, e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '6px 10px',
-                        borderRadius: '4px',
-                        border: panel.targetPlayerId
-                          ? '2px solid rgba(76, 175, 80, 0.5)'
-                          : '2px solid rgba(244, 67, 54, 0.5)',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        color: 'white',
-                        fontSize: '0.875rem',
-                      }}
-                    >
-                      <option value="" style={{ backgroundColor: '#1a1a1a' }}>
-                        Select Target ({inRangeTargets.length} in range)
-                      </option>
-                      {inRangeTargets.map(solution => (
-                        <option
-                          key={solution.targetPlayer.id}
-                          value={solution.targetPlayer.id}
-                          style={{ backgroundColor: '#1a1a1a' }}
-                        >
-                          {solution.targetPlayer.name} (HP: {solution.targetPlayer.ship.hitPoints}/
-                          {solution.targetPlayer.ship.maxHitPoints})
-                        </option>
-                      ))}
-                    </select>
-                    {/* Critical Target Selector */}
-                    <Box sx={{ mt: 1 }}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: 'block', mb: 0.5 }}
-                      >
-                        Critical Target (if roll = 10)
-                      </Typography>
-                      <select
-                        value={panel.criticalTarget || 'shields'}
-                        onChange={e =>
-                          updateCriticalTarget(panel.id, e.target.value as SubsystemType)
-                        }
-                        style={{
-                          width: '100%',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          backgroundColor: 'rgba(0,0,0,0.3)',
-                          color: 'white',
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        {TARGETABLE_SUBSYSTEMS.map(sub => (
-                          <option
-                            key={sub.type}
-                            value={sub.type}
-                            style={{ backgroundColor: '#1a1a1a' }}
-                          >
-                            {sub.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Box>
-                  </Box>
-                )
-              })()}
-
-            {panel.type === 'fire_railgun' &&
-              (() => {
-                const subsystemConfig = railgunSubsystem
-                  ? getSubsystemConfig(railgunSubsystem.type)
-                  : null
-                const weaponStats = subsystemConfig?.weaponStats
-
-                // Check if this weapon fires after movement
-                const moveAction = panels.find(p => p.type === 'move')
-                const rotateAction = panels.find(p => p.type === 'rotate')
-                const firesAfterMovement = moveAction && panel.sequence > moveAction.sequence
-
-                // Determine if rotation happens before or after movement
-                const rotateBeforeMove =
-                  rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true // Default to rotate before move
-
-                // Calculate ship position for range calculations
-                let shipForRangeCalc = ship
-                if (firesAfterMovement && actionType === 'burn') {
-                  shipForRangeCalc = calculatePostMovementPosition(
-                    ship,
-                    targetFacing,
-                    {
-                      actionType,
-                      burnIntensity,
-                      sectorAdjustment,
-                    },
-                    rotateBeforeMove
-                  )
-                } else if (firesAfterMovement && actionType === 'coast') {
-                  shipForRangeCalc = calculatePostMovementPosition(
-                    ship,
-                    targetFacing,
-                    {
-                      actionType: 'coast',
-                      sectorAdjustment: 0,
-                    },
-                    rotateBeforeMove
-                  )
-                }
-
-                const firingSolutions = weaponStats
-                  ? calculateFiringSolutions(weaponStats, shipForRangeCalc, allPlayers, player.id)
-                  : []
-                const inRangeTargets = firingSolutions.filter(fs => fs.inRange)
-
-                return (
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      borderRadius: '8px',
-                      bgcolor: 'background.paper',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        mb: 1.5,
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <CustomIcon icon="railgun" size={20} />
-                        <Typography variant="body2" fontWeight="bold">
-                          Railgun
-                        </Typography>
-                      </Box>
-                      <Tooltip title={weaponRangeVisibility.railgun ? 'Hide Range' : 'Show Range'}>
-                        <IconButton
-                          size="small"
-                          onClick={() => toggleWeaponRange('railgun')}
-                          sx={{
-                            padding: '4px',
-                            color: weaponRangeVisibility.railgun
-                              ? 'primary.main'
-                              : 'text.secondary',
-                          }}
-                        >
-                          {weaponRangeVisibility.railgun ? (
-                            <Visibility sx={{ fontSize: 16 }} />
-                          ) : (
-                            <VisibilityOff sx={{ fontSize: 16 }} />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                    <select
-                      value={panel.targetPlayerId || ''}
-                      onChange={e => updateWeaponTarget(panel.id, e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '6px 10px',
-                        borderRadius: '4px',
-                        border: panel.targetPlayerId
-                          ? '2px solid rgba(76, 175, 80, 0.5)'
-                          : '2px solid rgba(244, 67, 54, 0.5)',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        color: 'white',
-                        fontSize: '0.875rem',
-                      }}
-                    >
-                      <option value="" style={{ backgroundColor: '#1a1a1a' }}>
-                        Select Target ({inRangeTargets.length} in range)
-                      </option>
-                      {inRangeTargets.map(solution => (
-                        <option
-                          key={solution.targetPlayer.id}
-                          value={solution.targetPlayer.id}
-                          style={{ backgroundColor: '#1a1a1a' }}
-                        >
-                          {solution.targetPlayer.name} (HP: {solution.targetPlayer.ship.hitPoints}/
-                          {solution.targetPlayer.ship.maxHitPoints})
-                        </option>
-                      ))}
-                    </select>
-                    {/* Critical Target Selector */}
-                    <Box sx={{ mt: 1 }}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: 'block', mb: 0.5 }}
-                      >
-                        Critical Target (if roll = 10)
-                      </Typography>
-                      <select
-                        value={panel.criticalTarget || 'shields'}
-                        onChange={e =>
-                          updateCriticalTarget(panel.id, e.target.value as SubsystemType)
-                        }
-                        style={{
-                          width: '100%',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          backgroundColor: 'rgba(0,0,0,0.3)',
-                          color: 'white',
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        {TARGETABLE_SUBSYSTEMS.map(sub => (
-                          <option
-                            key={sub.type}
-                            value={sub.type}
-                            style={{ backgroundColor: '#1a1a1a' }}
-                          >
-                            {sub.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Box>
-                  </Box>
-                )
-              })()}
-
-            {panel.type === 'fire_missiles' &&
-              (() => {
-                // Missiles can target ANY player (they're self-propelled)
-                const validTargets = allPlayers.filter(p => p.id !== player.id)
-
-                return (
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      borderRadius: '8px',
-                      bgcolor: 'background.paper',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        mb: 1.5,
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <CustomIcon icon="missiles" size={20} />
-                        <Typography variant="body2" fontWeight="bold">
-                          Missiles
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          ({missileAmmo} remaining)
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <select
-                      value={panel.targetPlayerId || ''}
-                      onChange={e => updateWeaponTarget(panel.id, e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '6px 10px',
-                        borderRadius: '4px',
-                        border: panel.targetPlayerId
-                          ? '2px solid rgba(76, 175, 80, 0.5)'
-                          : '2px solid rgba(244, 67, 54, 0.5)',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        color: 'white',
-                        fontSize: '0.875rem',
-                      }}
-                    >
-                      <option value="" style={{ backgroundColor: '#1a1a1a' }}>
-                        Select Target ({validTargets.length} available)
-                      </option>
-                      {validTargets.map(target => (
-                        <option
-                          key={target.id}
-                          value={target.id}
-                          style={{ backgroundColor: '#1a1a1a' }}
-                        >
-                          {target.name} (HP: {target.ship.hitPoints}/{target.ship.maxHitPoints})
-                        </option>
-                      ))}
-                    </select>
-                    {/* Critical Target Selector */}
-                    <Box sx={{ mt: 1 }}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: 'block', mb: 0.5 }}
-                      >
-                        Critical Target (if roll = 10)
-                      </Typography>
-                      <select
-                        value={panel.criticalTarget || 'shields'}
-                        onChange={e =>
-                          updateCriticalTarget(panel.id, e.target.value as SubsystemType)
-                        }
-                        style={{
-                          width: '100%',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          backgroundColor: 'rgba(0,0,0,0.3)',
-                          color: 'white',
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        {TARGETABLE_SUBSYSTEMS.map(sub => (
-                          <option
-                            key={sub.type}
-                            value={sub.type}
-                            style={{ backgroundColor: '#1a1a1a' }}
-                          >
-                            {sub.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Box>
-                  </Box>
-                )
-              })()}
+            {panel.type === 'fire_missiles' && (
+              <MissilesPanel
+                allPlayers={allPlayers}
+                playerId={player.id}
+                targetPlayerId={panel.targetPlayerId}
+                criticalTarget={panel.criticalTarget}
+                onTargetChange={(targetId) => updateWeaponTarget(panel.id, targetId)}
+                onCriticalTargetChange={(subsystem) => updateCriticalTarget(panel.id, subsystem)}
+                totalMissileAmmo={totalMissileAmmo}
+              />
+            )}
           </Box>
         </Paper>
       ))}

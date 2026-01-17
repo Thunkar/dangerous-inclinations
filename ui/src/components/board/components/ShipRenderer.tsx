@@ -405,7 +405,7 @@ export function ShipRenderer({
 
             {/* Ship token with colored outline */}
             <image
-              href="/assets/ship.png"
+              href="/assets/ship.svg"
               x={-ship.size * 1.5}
               y={-ship.size * 1.5}
               width={ship.size * 3}

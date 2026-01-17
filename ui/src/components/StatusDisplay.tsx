@@ -1,8 +1,8 @@
 import { Box, Paper, Typography } from '@mui/material'
 import type { Player } from '@dangerous-inclinations/engine'
 import type { HeatState } from '@dangerous-inclinations/engine'
-import { STARTING_REACTION_MASS } from '@dangerous-inclinations/engine'
 import { getPlayerColor } from '@/utils/playerColors'
+import { AbandonGameButton } from './AbandonGameButton'
 
 interface StatusDisplayProps {
   players: Player[]
@@ -15,16 +15,15 @@ export function StatusDisplay({
   players,
   activePlayerIndex,
   turn,
-  pendingHeat,
 }: StatusDisplayProps) {
   return (
     <Paper
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: 2,
-        px: 2,
-        py: 1,
+        gap: 1.5,
+        px: 1.5,
+        py: 0.75,
         borderRadius: 0,
       }}
     >
@@ -33,169 +32,102 @@ export function StatusDisplay({
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 1,
-          px: 2,
+          gap: 0.75,
+          pr: 1.5,
           borderRight: 1,
           borderColor: 'divider',
         }}
       >
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
           Turn
         </Typography>
-        <Typography variant="h6" fontWeight="bold">
+        <Typography variant="body2" fontWeight="bold">
           {turn}
         </Typography>
       </Box>
 
-      {/* Player status cards */}
+      {/* Player status - compact */}
       {players.map((player, index) => {
         const isActive = index === activePlayerIndex
-        // For active player, show pending heat, for others show committed heat
-        const heat = isActive && pendingHeat ? pendingHeat : player.ship.heat
-        const displayHeat = heat.currentHeat
+        const hp = player.ship.hitPoints
+        const maxHp = player.ship.maxHitPoints
 
         return (
-          <>
-            {index > 0 && (
-              <Box
-                key={`divider-${player.id}`}
-                sx={{
-                  width: '1px',
-                  height: 40,
-                  bgcolor: 'divider',
-                  opacity: 0.3,
-                }}
-              />
-            )}
+          <Box
+            key={player.id}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 1,
+              py: 0.25,
+              borderRadius: 1,
+              bgcolor: isActive ? `${getPlayerColor(index)}20` : 'transparent',
+              border: isActive ? `1px solid ${getPlayerColor(index)}` : '1px solid transparent',
+            }}
+          >
+            {/* Ship color indicator */}
             <Box
-              key={player.id}
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                px: 2,
-                py: 0.5,
-                borderRadius: 1,
-                bgcolor: isActive ? `${getPlayerColor(index)}30` : 'transparent',
-                border: isActive ? `2px solid ${getPlayerColor(index)}` : '2px solid transparent',
-                transition: 'all 0.2s',
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                bgcolor: getPlayerColor(index),
+                boxShadow: isActive ? `0 0 6px ${getPlayerColor(index)}` : 'none',
+              }}
+            />
+
+            {/* Player name */}
+            <Typography
+              variant="caption"
+              fontWeight={isActive ? 'bold' : 'normal'}
+              sx={{ fontSize: '0.75rem', minWidth: 60 }}
+            >
+              {player.name}
+            </Typography>
+
+            {/* Hull bar - compact */}
+            <Box sx={{ display: 'flex', gap: '2px', height: 8, minWidth: 60 }}>
+              {Array.from({ length: maxHp }).map((_, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    flex: 1,
+                    height: '100%',
+                    bgcolor:
+                      i < hp
+                        ? hp <= 3
+                          ? '#f44336'
+                          : hp <= 5
+                            ? '#ff9800'
+                            : '#4caf50'
+                        : 'rgba(255,255,255,0.15)',
+                    borderRadius: 0.5,
+                  }}
+                />
+              ))}
+            </Box>
+
+            {/* HP text - very compact */}
+            <Typography
+              variant="caption"
+              sx={{
+                fontSize: '0.6rem',
+                color: hp <= 3 ? 'error.main' : 'text.secondary',
+                minWidth: 24,
               }}
             >
-              {/* Ship indicator */}
-              <Box
-                sx={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: '50%',
-                  bgcolor: getPlayerColor(index),
-                  border: isActive ? `2px solid ${getPlayerColor(index)}` : 'none',
-                  boxShadow: isActive ? `0 0 8px ${getPlayerColor(index)}` : 'none',
-                }}
-              />
-
-              {/* Ship name */}
-              <Typography
-                variant="body2"
-                fontWeight={isActive ? 'bold' : 'normal'}
-                sx={{ minWidth: 80 }}
-              >
-                {player.name}
-              </Typography>
-
-              {/* Stats */}
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                {/* Hull */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    HP
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    fontWeight="medium"
-                    color={player.ship.hitPoints <= 3 ? 'error.main' : 'inherit'}
-                  >
-                    {player.ship.hitPoints}/{player.ship.maxHitPoints}
-                  </Typography>
-                </Box>
-
-                {/* Energy */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    E
-                  </Typography>
-                  <Typography variant="body2" fontWeight="medium">
-                    {player.ship.reactor.availableEnergy}/{player.ship.reactor.totalCapacity}
-                  </Typography>
-                </Box>
-
-                {/* Reaction Mass */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 120 }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 1,
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontSize: '0.65rem' }}
-                    >
-                      REACTION MASS
-                    </Typography>
-                    <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.7rem' }}>
-                      {player.ship.reactionMass}/{STARTING_REACTION_MASS}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      position: 'relative',
-                      height: 8,
-                      bgcolor: 'rgba(0,0,0,0.3)',
-                      borderRadius: 1,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {/* Reaction mass level bar */}
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: `${(player.ship.reactionMass / STARTING_REACTION_MASS) * 100}%`,
-                        bgcolor:
-                          player.ship.reactionMass <= 2
-                            ? 'error.main'
-                            : player.ship.reactionMass <= 5
-                              ? 'warning.main'
-                              : '#00ff00',
-                        transition: 'all 0.3s',
-                        boxShadow:
-                          player.ship.reactionMass <= 2 ? '0 0 8px rgba(255,0,0,0.6)' : 'none',
-                      }}
-                    />
-                  </Box>
-                </Box>
-
-                {/* Heat (only show if > 0) */}
-                {displayHeat > 0 && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography variant="caption" color="error.main">
-                      🔥
-                    </Typography>
-                    <Typography variant="body2" fontWeight="medium" color="error.main">
-                      {displayHeat}
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            </Box>
-          </>
+              {hp}/{maxHp}
+            </Typography>
+          </Box>
         )
       })}
+
+      {/* Spacer to push abandon button to right */}
+      <Box sx={{ flex: 1 }} />
+
+      {/* Abandon game button */}
+      <AbandonGameButton size="small" />
     </Paper>
   )
 }

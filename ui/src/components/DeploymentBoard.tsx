@@ -184,19 +184,21 @@ export function DeploymentBoard({
           BH
         </text>
 
-        {/* Ring outlines */}
-        {blackhole.rings.map(ring => (
-          <circle
-            key={ring.ring}
-            cx={centerX}
-            cy={centerY}
-            r={(getRingRadius('blackhole', ring.ring) ?? 100) * scaleFactor}
-            fill="none"
-            stroke={ring.ring === 4 ? '#444' : '#222'}
-            strokeWidth={ring.ring === 4 ? 2 : 1}
-            strokeDasharray={ring.ring === 4 ? undefined : '4,4'}
-          />
-        ))}
+        {/* Ring outlines - skip Ring 4 since deployment sectors show it */}
+        {blackhole.rings
+          .filter(ring => ring.ring !== 4)
+          .map(ring => (
+            <circle
+              key={ring.ring}
+              cx={centerX}
+              cy={centerY}
+              r={(getRingRadius('blackhole', ring.ring) ?? 100) * scaleFactor}
+              fill="none"
+              stroke="#222"
+              strokeWidth={1}
+              strokeDasharray="4,4"
+            />
+          ))}
 
         {/* Ring 4 label */}
         <text

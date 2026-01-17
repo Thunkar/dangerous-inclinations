@@ -21,7 +21,7 @@ import {
   DeploymentSectors,
   StationRenderer,
   type MovementPreview,
-} from './GameBoard/index'
+} from './board/index'
 import { getGravityWellVisual } from '@/constants/visualConfig'
 
 interface GameBoardProps {

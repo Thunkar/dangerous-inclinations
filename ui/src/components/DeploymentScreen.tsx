@@ -5,6 +5,7 @@ import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import { useLobby } from '../context/LobbyContext'
 import { usePlayer } from '../context/PlayerContext'
 import { DeploymentBoard } from './DeploymentBoard'
+import { AbandonGameButton } from './AbandonGameButton'
 import type { DestroyShipMission, DeliverCargoMission } from '@dangerous-inclinations/engine'
 
 const PLAYER_COLORS = [
@@ -76,6 +77,7 @@ export function DeploymentScreen() {
               }}
             />
           )}
+          <AbandonGameButton />
         </Box>
       </Box>
 

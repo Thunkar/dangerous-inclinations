@@ -79,8 +79,8 @@ interface GameContextType {
   turnHistory: TurnHistoryEntry[]
   clearTurnErrors: () => void
   // High-level game actions
-  allocateEnergy: (subsystemType: SubsystemType, newTotal: number) => void
-  deallocateEnergy: (subsystemType: SubsystemType, amount: number) => void
+  allocateEnergy: (subsystemIndex: number, newTotal: number) => void
+  deallocateEnergy: (subsystemIndex: number, amount: number) => void
   setFacing: (facing: Facing) => void
   setMovement: (movement: MovementPreview) => void
   setTacticalSequence: (sequence: TacticalAction[]) => void
@@ -236,18 +236,17 @@ export function GameProvider({
     return calculateProjectedHeat(subsystems, subsystemsToUse)
   }
 
-  // High-level game action: Allocate energy to a subsystem
+  // High-level game action: Allocate energy to a subsystem by index
   const allocateEnergy = useCallback(
-    (subsystemType: SubsystemType, newTotal: number) => {
-      const subsystemIndex = pendingState.subsystems.findIndex(s => s.type === subsystemType)
-      if (subsystemIndex === -1) return
+    (subsystemIndex: number, newTotal: number) => {
+      if (subsystemIndex < 0 || subsystemIndex >= pendingState.subsystems.length) return
 
       const subsystem = pendingState.subsystems[subsystemIndex]
       const currentEnergy = subsystem.allocatedEnergy
       const diff = newTotal - currentEnergy
 
       // Check if newTotal exceeds absolute maximum
-      const config = getSubsystemConfig(subsystemType)
+      const config = getSubsystemConfig(subsystem.type)
       if (newTotal > config.maxEnergy) {
         return // Cannot allocate beyond absolute maximum capacity
       }
@@ -286,11 +285,10 @@ export function GameProvider({
     [pendingState, calculateEnergyToReturn, activePlayer.ship.facing]
   )
 
-  // High-level game action: Deallocate energy from a subsystem
+  // High-level game action: Deallocate energy from a subsystem by index
   const deallocateEnergy = useCallback(
-    (subsystemType: SubsystemType, amount: number) => {
-      const subsystemIndex = pendingState.subsystems.findIndex(s => s.type === subsystemType)
-      if (subsystemIndex === -1) return
+    (subsystemIndex: number, amount: number) => {
+      if (subsystemIndex < 0 || subsystemIndex >= pendingState.subsystems.length) return
 
       const currentPendingEnergy = pendingState.subsystems[subsystemIndex].allocatedEnergy
       if (currentPendingEnergy === 0) return

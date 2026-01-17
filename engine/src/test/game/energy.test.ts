@@ -9,6 +9,12 @@ import {
   createCoastAction,
 } from "../fixtures/actions";
 import { executeTurnWithActions } from "../testUtils";
+import {
+  allocateEnergyByIndex,
+  deallocateEnergyByIndex,
+} from "../../game/energy";
+import { createInitialShipState } from "../../utils/subsystemHelpers";
+import type { ShipLoadout, Player } from "../../models/game";
 
 describe("Energy Management System", () => {
   describe("Energy Allocation/Deallocation", () => {
@@ -314,6 +320,143 @@ describe("Energy Management System", () => {
 
       // No heat - engines were powered but not used
       expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
+    });
+  });
+
+  describe("Multiple Subsystems of Same Type", () => {
+    it("should allocate energy to specific subsystem by index when duplicate types exist", () => {
+      // Create a loadout with two missiles subsystems
+      const loadoutWithDuplicates: ShipLoadout = {
+        forwardSlots: ["missiles", "missiles"], // Two missiles in forward slots
+        sideSlots: ["shields", "laser", null, null],
+      };
+
+      const ship = createInitialShipState(
+        {
+          wellId: "blackhole",
+          ring: 3,
+          sector: 0,
+          facing: "prograde",
+        },
+        loadoutWithDuplicates
+      );
+
+      // Find indices of the two missiles subsystems
+      const missileIndices = ship.subsystems
+        .map((s, i) => (s.type === "missiles" ? i : -1))
+        .filter((i) => i !== -1);
+
+      expect(missileIndices.length).toBe(2);
+      const [firstMissileIndex, secondMissileIndex] = missileIndices;
+
+      // Allocate energy to FIRST missiles subsystem only
+      let updatedShip = allocateEnergyByIndex(ship, firstMissileIndex, 2);
+
+      // First missiles should have 2 energy
+      expect(updatedShip.subsystems[firstMissileIndex].allocatedEnergy).toBe(2);
+      expect(updatedShip.subsystems[firstMissileIndex].type).toBe("missiles");
+
+      // Second missiles should still have 0 energy
+      expect(updatedShip.subsystems[secondMissileIndex].allocatedEnergy).toBe(0);
+      expect(updatedShip.subsystems[secondMissileIndex].type).toBe("missiles");
+
+      // Reactor should have 8 available (10 - 2)
+      expect(updatedShip.reactor.availableEnergy).toBe(8);
+
+      // Now allocate energy to SECOND missiles subsystem
+      updatedShip = allocateEnergyByIndex(updatedShip, secondMissileIndex, 2);
+
+      // Both should now have 2 energy each
+      expect(updatedShip.subsystems[firstMissileIndex].allocatedEnergy).toBe(2);
+      expect(updatedShip.subsystems[secondMissileIndex].allocatedEnergy).toBe(2);
+
+      // Reactor should have 6 available (10 - 2 - 2)
+      expect(updatedShip.reactor.availableEnergy).toBe(6);
+    });
+
+    it("should deallocate energy from specific subsystem by index when duplicate types exist", () => {
+      // Create a loadout with two missiles subsystems
+      const loadoutWithDuplicates: ShipLoadout = {
+        forwardSlots: ["missiles", "missiles"],
+        sideSlots: ["shields", "laser", null, null],
+      };
+
+      let ship = createInitialShipState(
+        {
+          wellId: "blackhole",
+          ring: 3,
+          sector: 0,
+          facing: "prograde",
+        },
+        loadoutWithDuplicates
+      );
+
+      // Find indices of the two missiles subsystems
+      const missileIndices = ship.subsystems
+        .map((s, i) => (s.type === "missiles" ? i : -1))
+        .filter((i) => i !== -1);
+
+      const [firstMissileIndex, secondMissileIndex] = missileIndices;
+
+      // Allocate 2 energy to each missiles subsystem
+      ship = allocateEnergyByIndex(ship, firstMissileIndex, 2);
+      ship = allocateEnergyByIndex(ship, secondMissileIndex, 2);
+
+      expect(ship.subsystems[firstMissileIndex].allocatedEnergy).toBe(2);
+      expect(ship.subsystems[secondMissileIndex].allocatedEnergy).toBe(2);
+      expect(ship.reactor.availableEnergy).toBe(6);
+
+      // Deallocate energy from FIRST missiles only
+      ship = deallocateEnergyByIndex(ship, firstMissileIndex, 2);
+
+      // First missiles should have 0 energy now
+      expect(ship.subsystems[firstMissileIndex].allocatedEnergy).toBe(0);
+      // Second missiles should still have 2 energy
+      expect(ship.subsystems[secondMissileIndex].allocatedEnergy).toBe(2);
+      // Reactor should have 8 available (10 - 2)
+      expect(ship.reactor.availableEnergy).toBe(8);
+    });
+
+    it("should correctly identify isPowered state for each subsystem independently", () => {
+      // Create a loadout with two missiles subsystems
+      const loadoutWithDuplicates: ShipLoadout = {
+        forwardSlots: ["missiles", "missiles"],
+        sideSlots: ["shields", "laser", null, null],
+      };
+
+      let ship = createInitialShipState(
+        {
+          wellId: "blackhole",
+          ring: 3,
+          sector: 0,
+          facing: "prograde",
+        },
+        loadoutWithDuplicates
+      );
+
+      const missileIndices = ship.subsystems
+        .map((s, i) => (s.type === "missiles" ? i : -1))
+        .filter((i) => i !== -1);
+
+      const [firstMissileIndex, secondMissileIndex] = missileIndices;
+
+      // Initially both should be unpowered
+      expect(ship.subsystems[firstMissileIndex].isPowered).toBe(false);
+      expect(ship.subsystems[secondMissileIndex].isPowered).toBe(false);
+
+      // Power on only the first missiles (missiles need 2 energy to function)
+      ship = allocateEnergyByIndex(ship, firstMissileIndex, 2);
+
+      // First should be powered, second should not
+      expect(ship.subsystems[firstMissileIndex].isPowered).toBe(true);
+      expect(ship.subsystems[secondMissileIndex].isPowered).toBe(false);
+
+      // Power on the second missiles
+      ship = allocateEnergyByIndex(ship, secondMissileIndex, 2);
+
+      // Both should now be powered
+      expect(ship.subsystems[firstMissileIndex].isPowered).toBe(true);
+      expect(ship.subsystems[secondMissileIndex].isPowered).toBe(true);
     });
   });
 });

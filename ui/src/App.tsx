@@ -5,7 +5,6 @@ import { PlayerProvider, usePlayer } from './context/PlayerContext'
 import { WebSocketProvider } from './context/WebSocketContext'
 import { LobbyProvider, useLobby } from './context/LobbyContext'
 import { GameProvider } from './context/GameContext'
-import { GameBoard } from './components/GameBoard'
 import { ControlPanel } from './components/ControlPanel'
 import { StatusDisplay } from './components/StatusDisplay'
 import { TurnHistoryPanel } from './components/TurnHistoryPanel'
@@ -18,6 +17,7 @@ import { MissionPanel } from './components/MissionPanel'
 import { useGame } from './context/GameContext'
 import type { GameState } from '@dangerous-inclinations/engine'
 import { useState } from 'react'
+import { GameBoard } from './components/GameBoard'
 
 const theme = createTheme({
   palette: {
@@ -312,8 +312,8 @@ function PlayerNameSetup() {
           fullWidth
           label="Player Name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyPress={(e) => {
+          onChange={e => setName(e.target.value)}
+          onKeyPress={e => {
             if (e.key === 'Enter') {
               handleSubmit()
             }
@@ -368,7 +368,14 @@ function AppContent() {
       if (!gameState) {
         // Show loading while game state loads
         return (
-          <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box
+            sx={{
+              height: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <CircularProgress />
           </Box>
         )
@@ -379,7 +386,14 @@ function AppContent() {
       if (!gameState) {
         // Show loading while game state loads
         return (
-          <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box
+            sx={{
+              height: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <CircularProgress />
           </Box>
         )
@@ -390,7 +404,14 @@ function AppContent() {
       if (!gameState || !lobbyState?.gameId) {
         // Show loading while game state loads
         return (
-          <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box
+            sx={{
+              height: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <CircularProgress />
           </Box>
         )

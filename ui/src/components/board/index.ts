@@ -44,6 +44,3 @@ export {
   DeploymentSectors,
   StationRenderer,
 } from './components'
-
-// Note: Main GameBoard component not yet migrated - still in ../GameBoard.tsx
-// All sub-components have been extracted. Next step is to update GameBoard.tsx to use these components.

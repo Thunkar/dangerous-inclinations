@@ -2,18 +2,20 @@ import type { ShipState } from "../models/game";
 import type { Subsystem, SubsystemType } from "../models/subsystems";
 
 /**
- * Pure function to allocate energy to a subsystem
+ * Pure function to allocate energy to a subsystem by index
  * Returns new ship state with updated reactor and subsystem
+ * Use this for ships with multiple subsystems of the same type
  */
-export function allocateEnergy(
+export function allocateEnergyByIndex(
   ship: ShipState,
-  subsystemType: SubsystemType,
+  subsystemIndex: number,
   amount: number
 ): ShipState {
-  const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
-  if (!subsystem) {
+  if (subsystemIndex < 0 || subsystemIndex >= ship.subsystems.length) {
     return ship;
   }
+
+  const subsystem = ship.subsystems[subsystemIndex];
 
   // Can't allocate energy to broken subsystems
   if (subsystem.isBroken) {
@@ -34,8 +36,8 @@ export function allocateEnergy(
       ...ship.reactor,
       availableEnergy: ship.reactor.availableEnergy - difference,
     },
-    subsystems: ship.subsystems.map((s) =>
-      s.type === subsystemType
+    subsystems: ship.subsystems.map((s, i) =>
+      i === subsystemIndex
         ? {
             ...s,
             allocatedEnergy: amount,
@@ -47,19 +49,40 @@ export function allocateEnergy(
 }
 
 /**
- * Pure function to deallocate energy from a subsystem (immediate, unlimited)
- * Returns new ship state with energy returned to reactor
+ * Pure function to allocate energy to a subsystem by type
+ * Returns new ship state with updated reactor and subsystem
+ * WARNING: Only use when there's at most one subsystem of each type
+ * For ships with duplicate subsystem types, use allocateEnergyByIndex
  */
-export function deallocateEnergy(
+export function allocateEnergy(
   ship: ShipState,
   subsystemType: SubsystemType,
   amount: number
 ): ShipState {
-  const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
-  if (!subsystem) {
+  const subsystemIndex = ship.subsystems.findIndex(
+    (s) => s.type === subsystemType
+  );
+  if (subsystemIndex === -1) {
+    return ship;
+  }
+  return allocateEnergyByIndex(ship, subsystemIndex, amount);
+}
+
+/**
+ * Pure function to deallocate energy from a subsystem by index (immediate, unlimited)
+ * Returns new ship state with energy returned to reactor
+ * Use this for ships with multiple subsystems of the same type
+ */
+export function deallocateEnergyByIndex(
+  ship: ShipState,
+  subsystemIndex: number,
+  amount: number
+): ShipState {
+  if (subsystemIndex < 0 || subsystemIndex >= ship.subsystems.length) {
     return ship;
   }
 
+  const subsystem = ship.subsystems[subsystemIndex];
   const actualAmount = Math.min(amount, subsystem.allocatedEnergy);
   const newAllocatedEnergy = subsystem.allocatedEnergy - actualAmount;
 
@@ -72,8 +95,8 @@ export function deallocateEnergy(
         ship.reactor.availableEnergy + actualAmount
       ),
     },
-    subsystems: ship.subsystems.map((s) =>
-      s.type === subsystemType
+    subsystems: ship.subsystems.map((s, i) =>
+      i === subsystemIndex
         ? {
             ...s,
             allocatedEnergy: newAllocatedEnergy,
@@ -85,17 +108,38 @@ export function deallocateEnergy(
 }
 
 /**
- * Validates if energy can be allocated to a subsystem
+ * Pure function to deallocate energy from a subsystem by type (immediate, unlimited)
+ * Returns new ship state with energy returned to reactor
+ * WARNING: Only use when there's at most one subsystem of each type
+ * For ships with duplicate subsystem types, use deallocateEnergyByIndex
  */
-export function canAllocateEnergy(
+export function deallocateEnergy(
   ship: ShipState,
   subsystemType: SubsystemType,
   amount: number
-): { valid: boolean; reason?: string } {
-  const subsystem = ship.subsystems.find((s) => s.type === subsystemType);
-  if (!subsystem) {
-    return { valid: false, reason: "Subsystem not found" };
+): ShipState {
+  const subsystemIndex = ship.subsystems.findIndex(
+    (s) => s.type === subsystemType
+  );
+  if (subsystemIndex === -1) {
+    return ship;
   }
+  return deallocateEnergyByIndex(ship, subsystemIndex, amount);
+}
+
+/**
+ * Validates if energy can be allocated to a subsystem by index
+ */
+export function canAllocateEnergyByIndex(
+  ship: ShipState,
+  subsystemIndex: number,
+  amount: number
+): { valid: boolean; reason?: string } {
+  if (subsystemIndex < 0 || subsystemIndex >= ship.subsystems.length) {
+    return { valid: false, reason: "Invalid subsystem index" };
+  }
+
+  const subsystem = ship.subsystems[subsystemIndex];
 
   // Can't allocate energy to broken subsystems
   if (subsystem.isBroken) {
@@ -115,6 +159,24 @@ export function canAllocateEnergy(
   }
 
   return { valid: true };
+}
+
+/**
+ * Validates if energy can be allocated to a subsystem by type
+ * WARNING: Only use when there's at most one subsystem of each type
+ */
+export function canAllocateEnergy(
+  ship: ShipState,
+  subsystemType: SubsystemType,
+  amount: number
+): { valid: boolean; reason?: string } {
+  const subsystemIndex = ship.subsystems.findIndex(
+    (s) => s.type === subsystemType
+  );
+  if (subsystemIndex === -1) {
+    return { valid: false, reason: "Subsystem not found" };
+  }
+  return canAllocateEnergyByIndex(ship, subsystemIndex, amount);
 }
 
 /**
