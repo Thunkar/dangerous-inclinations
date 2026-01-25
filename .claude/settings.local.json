@@ -41,7 +41,9 @@
       "Bash(source ~/.bashrc)",
       "Bash(yarn workspaces foreach:*)",
       "Bash(node -e:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(yarn build:server:*)",
+      "Bash(npm run build:ui:*)"
     ]
   }
 }

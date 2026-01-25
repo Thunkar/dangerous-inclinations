@@ -15,7 +15,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { createPlayer, getPlayer } from "../api/player";
+import { createPlayer, getPlayer, updatePlayerName as updatePlayerNameApi } from "../api/player";
 import { ENV } from "../config/env";
 
 // ============================================================================
@@ -26,9 +26,11 @@ interface PlayerContextValue {
   playerId: string | null;
   playerName: string;
   isAuthenticated: boolean;
+  isNewPlayer: boolean; // True if this is a newly created player (not restored from server)
   isLoading: boolean;
   error: string | null;
-  setPlayerName: (name: string) => void;
+  setPlayerName: (name: string) => Promise<void>;
+  clearNewPlayerFlag: () => void;
   logout: () => void;
 }
 
@@ -53,6 +55,7 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerNameState] = useState<string>(DEFAULT_PLAYER_NAME);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isNewPlayer, setIsNewPlayer] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +81,7 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
             setPlayerId(player.playerId);
             setPlayerNameState(player.playerName);
             setIsAuthenticated(true);
+            setIsNewPlayer(false); // Existing player restored
 
             if (ENV.DEBUG) {
               console.log("[PlayerContext] Restored session:", player);
@@ -91,10 +95,12 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
             }
             localStorage.removeItem(STORAGE_KEY_PLAYER_ID);
             await createNewPlayer(DEFAULT_PLAYER_NAME);
+            setIsNewPlayer(true); // Newly created player
           }
         } else {
           // No stored player ID, create new player
           await createNewPlayer(DEFAULT_PLAYER_NAME);
+          setIsNewPlayer(true); // Newly created player
         }
       } catch (err) {
         const message =
@@ -134,23 +140,35 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
   }
 
   /**
-   * Update player name (updates local state, should be synced to server via API)
+   * Update player name (updates local state and syncs to server)
    */
   const setPlayerName = useCallback(
-    (name: string) => {
+    async (name: string) => {
       if (!playerId) return;
 
+      // Update local state immediately for responsive UI
       setPlayerNameState(name);
 
-      // TODO: Add API call to update name on server
-      // For now, the name will be updated when creating/joining a lobby
-
-      if (ENV.DEBUG) {
-        console.log("[PlayerContext] Updated player name:", name);
+      // Sync to server
+      try {
+        await updatePlayerNameApi(playerId, name);
+        if (ENV.DEBUG) {
+          console.log("[PlayerContext] Updated player name on server:", name);
+        }
+      } catch (err) {
+        console.error("[PlayerContext] Failed to update player name on server:", err);
+        // Continue anyway - local state is updated
       }
     },
     [playerId],
   );
+
+  /**
+   * Clear the new player flag after user has set up their name
+   */
+  const clearNewPlayerFlag = useCallback(() => {
+    setIsNewPlayer(false);
+  }, []);
 
   /**
    * Logout - clears player session
@@ -160,6 +178,7 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
     setPlayerId(null);
     setPlayerNameState(DEFAULT_PLAYER_NAME);
     setIsAuthenticated(false);
+    setIsNewPlayer(false);
 
     if (ENV.DEBUG) {
       console.log("[PlayerContext] Logged out");
@@ -170,9 +189,11 @@ export function PlayerProvider({ children }: PlayerProviderProps) {
     playerId,
     playerName,
     isAuthenticated,
+    isNewPlayer,
     isLoading,
     error,
     setPlayerName,
+    clearNewPlayerFlag,
     logout,
   };
 

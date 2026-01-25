@@ -7,10 +7,12 @@
 
 // Energy management
 export {
-  allocateEnergy,
-  deallocateEnergy,
-  canAllocateEnergy,
+  allocateEnergyByIndex,
+  deallocateEnergyByIndex,
+  canAllocateEnergyByIndex,
   markSubsystemUsed,
+  getSubsystem,
+  resetSubsystemUsage,
 } from "./energy";
 
 // Heat management

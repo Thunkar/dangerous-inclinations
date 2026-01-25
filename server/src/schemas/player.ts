@@ -5,6 +5,10 @@ export const CreatePlayerSchema = z.object({
   playerName: z.string().min(1).max(50),
 });
 
+export const UpdatePlayerSchema = z.object({
+  playerName: z.string().min(1).max(50),
+});
+
 // Player data structure (not validated by Zod, used for storage/retrieval)
 export interface PlayerAuth {
   playerId: string;

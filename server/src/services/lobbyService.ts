@@ -321,9 +321,22 @@ export async function leaveLobby(
   // Remove player from lobby
   lobby.players = lobby.players.filter((p) => p.playerId !== playerId);
 
-  if (lobby.players.length === 0) {
-    // Delete empty lobby
-    console.log(`[leaveLobby] Lobby is now empty, deleting: ${lobbyId}`);
+  // Check if lobby should be deleted
+  const hasHumanPlayers = lobby.players.some((p) => !p.isBot);
+
+  if (lobby.players.length === 0 || !hasHumanPlayers) {
+    // Delete lobby if empty OR if only bots remain
+    console.log(
+      `[leaveLobby] Lobby has no humans remaining, deleting: ${lobbyId}`
+    );
+
+    // If there's an active game, delete it too
+    if (lobby.gameId) {
+      console.log(`[leaveLobby] Also deleting associated game: ${lobby.gameId}`);
+      await redis.del(`game:${lobby.gameId}`);
+      await redis.del(`${GAME_HUMANS_KEY_PREFIX}${lobby.gameId}`);
+    }
+
     await redis.del(`${LOBBY_KEY_PREFIX}${lobbyId}`);
     await redis.srem(LOBBY_LIST_KEY, lobbyId);
 
@@ -423,4 +436,34 @@ export async function getHumanPlayerIds(gameId: string): Promise<Set<string>> {
 
   const playerIds = JSON.parse(data) as string[];
   return new Set(playerIds);
+}
+
+/**
+ * Find the lobby associated with a game
+ */
+export async function findLobbyByGameId(gameId: string): Promise<Lobby | null> {
+  const lobbies = await listLobbies();
+
+  for (const lobby of lobbies) {
+    if (lobby.gameId === gameId) {
+      return lobby;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Delete a lobby completely
+ */
+export async function deleteLobby(lobbyId: string): Promise<void> {
+  const redis = getRedis();
+  await redis.del(`${LOBBY_KEY_PREFIX}${lobbyId}`);
+  await redis.srem(LOBBY_LIST_KEY, lobbyId);
+
+  // Broadcast lobby deleted to global room
+  broadcastToRoom("global", {
+    type: "LOBBY_DELETED",
+    payload: { lobbyId },
+  });
 }

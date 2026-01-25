@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { CreatePlayerSchema } from "../schemas/player.js";
-import { createPlayer, getPlayer } from "../services/playerService.js";
+import { CreatePlayerSchema, UpdatePlayerSchema } from "../schemas/player.js";
+import { createPlayer, getPlayer, updatePlayerName } from "../services/playerService.js";
 import { findPlayerLobby } from "../services/lobbyService.js";
 import { getGameState } from "../services/gameService.js";
 
@@ -45,6 +45,32 @@ export async function playerRoutes(fastify: FastifyInstance) {
         return reply.code(404).send({ error: "Player not found" });
       }
 
+      return reply.send(player);
+    },
+  );
+
+  // Update player name
+  fastify.put<{ Params: { playerId: string } }>(
+    "/api/players/:playerId",
+    async (request, reply) => {
+      const { playerId } = request.params;
+      const result = UpdatePlayerSchema.safeParse(request.body);
+
+      if (!result.success) {
+        return reply.code(400).send({
+          error: "Invalid request",
+          details: result.error.errors,
+        });
+      }
+
+      const { playerName } = result.data;
+      const success = await updatePlayerName(playerId, playerName);
+
+      if (!success) {
+        return reply.code(404).send({ error: "Player not found" });
+      }
+
+      const player = await getPlayer(playerId);
       return reply.send(player);
     },
   );

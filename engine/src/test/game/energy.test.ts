@@ -14,7 +14,7 @@ import {
   deallocateEnergyByIndex,
 } from "../../game/energy";
 import { createInitialShipState } from "../../utils/subsystemHelpers";
-import type { ShipLoadout, Player } from "../../models/game";
+import type { ShipLoadout } from "../../models/game";
 
 describe("Energy Management System", () => {
   describe("Energy Allocation/Deallocation", () => {

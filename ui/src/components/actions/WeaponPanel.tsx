@@ -3,7 +3,6 @@ import { Visibility, VisibilityOff } from '@mui/icons-material'
 import type { SubsystemType, Player } from '@dangerous-inclinations/engine'
 import { CustomIcon } from '../CustomIcon'
 
-// Available subsystem types that can be targeted by critical hits
 export const TARGETABLE_SUBSYSTEMS: { type: SubsystemType; label: string }[] = [
   { type: 'shields', label: 'Shields' },
   { type: 'engines', label: 'Engines' },
@@ -47,26 +46,11 @@ export function WeaponPanel({
   extraInfo,
 }: WeaponPanelProps) {
   return (
-    <Box
-      sx={{
-        p: 1.5,
-        borderRadius: '8px',
-        bgcolor: 'background.paper',
-        border: '1px solid',
-        borderColor: 'divider',
-      }}
-    >
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          mb: 1.5,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <CustomIcon icon={icon} size={20} />
-          <Typography variant="body2" fontWeight="bold">
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <CustomIcon icon={icon} size={16} />
+          <Typography variant="caption" fontWeight="bold">
             {title}
           </Typography>
           {extraInfo}
@@ -76,35 +60,27 @@ export function WeaponPanel({
             <IconButton
               size="small"
               onClick={onToggleRange}
-              sx={{
-                padding: '4px',
-                color: rangeVisible ? 'primary.main' : 'text.secondary',
-              }}
+              sx={{ padding: '2px', color: rangeVisible ? 'primary.main' : 'text.secondary' }}
             >
-              {rangeVisible ? (
-                <Visibility sx={{ fontSize: 16 }} />
-              ) : (
-                <VisibilityOff sx={{ fontSize: 16 }} />
-              )}
+              {rangeVisible ? <Visibility sx={{ fontSize: 14 }} /> : <VisibilityOff sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
         )}
       </Box>
 
-      {/* Target Selection */}
       <select
         value={targetPlayerId || ''}
         onChange={e => onTargetChange(e.target.value)}
         style={{
           width: '100%',
-          padding: '6px 10px',
+          padding: '4px 8px',
           borderRadius: '4px',
           border: targetPlayerId
             ? '2px solid rgba(76, 175, 80, 0.5)'
             : '2px solid rgba(244, 67, 54, 0.5)',
           backgroundColor: 'rgba(0,0,0,0.3)',
           color: 'white',
-          fontSize: '0.875rem',
+          fontSize: '0.75rem',
         }}
       >
         <option value="" style={{ backgroundColor: '#1a1a1a' }}>
@@ -122,34 +98,25 @@ export function WeaponPanel({
         ))}
       </select>
 
-      {/* Critical Target Selector */}
-      <Box sx={{ mt: 1 }}>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ display: 'block', mb: 0.5 }}
-        >
-          Critical Target (if roll = 10)
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>
+          Crit target:
         </Typography>
         <select
           value={criticalTarget}
           onChange={e => onCriticalTargetChange(e.target.value as SubsystemType)}
           style={{
-            width: '100%',
-            padding: '4px 8px',
-            borderRadius: '4px',
+            flex: 1,
+            padding: '2px 4px',
+            borderRadius: '3px',
             border: '1px solid rgba(255,255,255,0.2)',
             backgroundColor: 'rgba(0,0,0,0.3)',
             color: 'white',
-            fontSize: '0.75rem',
+            fontSize: '0.65rem',
           }}
         >
           {TARGETABLE_SUBSYSTEMS.map(sub => (
-            <option
-              key={sub.type}
-              value={sub.type}
-              style={{ backgroundColor: '#1a1a1a' }}
-            >
+            <option key={sub.type} value={sub.type} style={{ backgroundColor: '#1a1a1a' }}>
               {sub.label}
             </option>
           ))}

@@ -26,6 +26,7 @@ import { broadcastToRoom } from "../websocket/roomHandler.js";
 import type { DeploymentResult } from "@dangerous-inclinations/engine";
 
 const GAME_KEY_PREFIX = "game:";
+const GAME_HUMANS_KEY_PREFIX = "game-humans:";
 
 export async function createGame(
   gameId: string,
@@ -98,6 +99,16 @@ export async function saveGameState(
 ): Promise<void> {
   const redis = getRedis();
   await redis.set(`${GAME_KEY_PREFIX}${gameId}`, JSON.stringify(state));
+}
+
+/**
+ * Delete a game and all associated data from Redis
+ * Called when all human players have disconnected
+ */
+export async function deleteGame(gameId: string): Promise<void> {
+  const redis = getRedis();
+  await redis.del(`${GAME_KEY_PREFIX}${gameId}`);
+  await redis.del(`${GAME_HUMANS_KEY_PREFIX}${gameId}`);
 }
 
 export interface TurnResult {

@@ -16,23 +16,16 @@ interface FacingButtonProps {
   disabled: boolean
 }
 
-const Container = styled(Box)(({ theme }) => ({
-  padding: '12px',
-  borderRadius: '8px',
-  backgroundColor: theme.palette.background.paper,
-  border: `1px solid ${theme.palette.divider}`,
-}))
-
 const FacingButton = styled(Box, {
   shouldForwardProp: prop => prop !== 'isActive' && prop !== 'isCurrent' && prop !== 'disabled',
 })<FacingButtonProps>(({ theme, isActive, isCurrent, disabled }) => ({
   display: 'flex',
-  flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  padding: '12px',
-  borderRadius: '8px',
-  minWidth: '100px',
+  gap: '6px',
+  padding: '6px 12px',
+  borderRadius: '6px',
+  flex: 1,
   backgroundColor: isActive
     ? theme.palette.secondary.main
     : isCurrent
@@ -42,25 +35,13 @@ const FacingButton = styled(Box, {
     isActive ? theme.palette.secondary.light : isCurrent ? theme.palette.secondary.main : 'black'
   }`,
   cursor: disabled ? 'default' : 'pointer',
-  transition: 'all 0.2s',
+  transition: 'all 0.15s',
   opacity: disabled ? 0.5 : 1,
   '&:hover': disabled
     ? {}
     : {
         backgroundColor: theme.palette.secondary.main,
-        transform: 'scale(1.05)',
       },
-}))
-
-const StatusIndicator = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '4px',
-  fontSize: '0.75rem',
-  marginTop: '8px',
-  padding: '4px 8px',
-  borderRadius: '4px',
-  backgroundColor: theme.palette.background.default,
 }))
 
 export function OrientationControl({
@@ -74,25 +55,21 @@ export function OrientationControl({
   const isDisabled = !canRotate && needsRotation
 
   return (
-    <Container>
-      <Typography variant="body2" fontWeight="bold" gutterBottom>
-        Ship Orientation
-      </Typography>
-
-      <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+    <Box>
+      <Box sx={{ display: 'flex', gap: 0.5 }}>
         <FacingButton
           isActive={targetFacing === 'prograde' && needsRotation}
           isCurrent={currentFacing === 'prograde'}
           disabled={isDisabled && targetFacing === 'prograde'}
           onClick={() => !isDisabled && onFacingChange('prograde')}
         >
-          <CustomIcon icon="energy" size={16} />
-          <Typography variant="caption" fontWeight="bold" sx={{ mt: 0.5 }}>
+          <CustomIcon icon="energy" size={14} />
+          <Typography variant="caption" fontWeight="bold">
             Prograde
           </Typography>
           {currentFacing === 'prograde' && (
-            <Typography variant="caption" sx={{ fontSize: '0.65rem', fontStyle: 'italic' }}>
-              (current)
+            <Typography variant="caption" sx={{ fontSize: '0.6rem', opacity: 0.7 }}>
+              (now)
             </Typography>
           )}
         </FacingButton>
@@ -103,35 +80,26 @@ export function OrientationControl({
           disabled={isDisabled && targetFacing === 'retrograde'}
           onClick={() => !isDisabled && onFacingChange('retrograde')}
         >
-          <CustomIcon icon="energy" size={16} />
-          <Typography variant="caption" fontWeight="bold" sx={{ mt: 0.5 }}>
+          <CustomIcon icon="energy" size={14} />
+          <Typography variant="caption" fontWeight="bold">
             Retrograde
           </Typography>
           {currentFacing === 'retrograde' && (
-            <Typography variant="caption" sx={{ fontSize: '0.65rem', fontStyle: 'italic' }}>
-              (current)
+            <Typography variant="caption" sx={{ fontSize: '0.6rem', opacity: 0.7 }}>
+              (now)
             </Typography>
           )}
         </FacingButton>
       </Box>
 
-      <StatusIndicator>
-        <Typography variant="caption" color="text.secondary">
-          Maneuvering:
-        </Typography>
+      {needsRotation && (
         <Typography
           variant="caption"
-          color={canRotate ? 'success.main' : 'error.main'}
-          fontWeight="bold"
+          sx={{ display: 'block', mt: 0.5, fontSize: '0.65rem', color: canRotate ? 'warning.main' : 'error.main' }}
         >
-          {canRotate ? '✓ Ready' : '✗ ' + (rotationSubsystem?.usedThisTurn ? 'Used' : 'Unpowered')}
+          {canRotate ? 'Will rotate (generates heat)' : 'Rotation unpowered'}
         </Typography>
-        {needsRotation && canRotate && (
-          <Typography variant="caption" color="warning.main" sx={{ ml: 1 }}>
-            (1E to rotate)
-          </Typography>
-        )}
-      </StatusIndicator>
-    </Container>
+      )}
+    </Box>
   )
 }

@@ -48,25 +48,6 @@ export function allocateEnergyByIndex(
   };
 }
 
-/**
- * Pure function to allocate energy to a subsystem by type
- * Returns new ship state with updated reactor and subsystem
- * WARNING: Only use when there's at most one subsystem of each type
- * For ships with duplicate subsystem types, use allocateEnergyByIndex
- */
-export function allocateEnergy(
-  ship: ShipState,
-  subsystemType: SubsystemType,
-  amount: number
-): ShipState {
-  const subsystemIndex = ship.subsystems.findIndex(
-    (s) => s.type === subsystemType
-  );
-  if (subsystemIndex === -1) {
-    return ship;
-  }
-  return allocateEnergyByIndex(ship, subsystemIndex, amount);
-}
 
 /**
  * Pure function to deallocate energy from a subsystem by index (immediate, unlimited)
@@ -107,25 +88,6 @@ export function deallocateEnergyByIndex(
   };
 }
 
-/**
- * Pure function to deallocate energy from a subsystem by type (immediate, unlimited)
- * Returns new ship state with energy returned to reactor
- * WARNING: Only use when there's at most one subsystem of each type
- * For ships with duplicate subsystem types, use deallocateEnergyByIndex
- */
-export function deallocateEnergy(
-  ship: ShipState,
-  subsystemType: SubsystemType,
-  amount: number
-): ShipState {
-  const subsystemIndex = ship.subsystems.findIndex(
-    (s) => s.type === subsystemType
-  );
-  if (subsystemIndex === -1) {
-    return ship;
-  }
-  return deallocateEnergyByIndex(ship, subsystemIndex, amount);
-}
 
 /**
  * Validates if energy can be allocated to a subsystem by index
@@ -161,23 +123,6 @@ export function canAllocateEnergyByIndex(
   return { valid: true };
 }
 
-/**
- * Validates if energy can be allocated to a subsystem by type
- * WARNING: Only use when there's at most one subsystem of each type
- */
-export function canAllocateEnergy(
-  ship: ShipState,
-  subsystemType: SubsystemType,
-  amount: number
-): { valid: boolean; reason?: string } {
-  const subsystemIndex = ship.subsystems.findIndex(
-    (s) => s.type === subsystemType
-  );
-  if (subsystemIndex === -1) {
-    return { valid: false, reason: "Subsystem not found" };
-  }
-  return canAllocateEnergyByIndex(ship, subsystemIndex, amount);
-}
 
 /**
  * Gets a subsystem by type

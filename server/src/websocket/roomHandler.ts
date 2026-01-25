@@ -5,10 +5,16 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
 import { getPlayer } from "../services/playerService.js";
-import { getLobby } from "../services/lobbyService.js";
+import {
+  getLobby,
+  getHumanPlayerIds,
+  findLobbyByGameId,
+  deleteLobby,
+} from "../services/lobbyService.js";
 import {
   processPlayerTurn,
   executeBotsIfNeeded,
+  deleteGame,
 } from "../services/gameService.js";
 
 type Room = "global" | "lobby" | "game";
@@ -355,11 +361,37 @@ export async function setupWebSocketRooms(fastify: FastifyInstance) {
       }
     });
 
-    socket.on("close", () => {
+    socket.on("close", async () => {
       removeFromRoom(playerId, "game", gameId);
       fastify.log.info(
         `Player ${player.playerName} (${playerId}) disconnected from game ${gameId}`,
       );
+
+      // Check if any human players are still connected to the game
+      const connectedPlayers = getConnectedPlayers("game", gameId);
+      const humanPlayerIds = await getHumanPlayerIds(gameId);
+
+      // Check if any of the connected players are human
+      const hasConnectedHumans = Array.from(connectedPlayers).some((pid) =>
+        humanPlayerIds.has(pid)
+      );
+
+      if (!hasConnectedHumans) {
+        // No human players connected - clean up the game and lobby
+        fastify.log.info(
+          `No human players remaining in game ${gameId}, deleting game and lobby`,
+        );
+
+        // Find and delete the associated lobby
+        const lobby = await findLobbyByGameId(gameId);
+        if (lobby) {
+          await deleteLobby(lobby.lobbyId);
+          fastify.log.info(`Deleted lobby ${lobby.lobbyId}`);
+        }
+
+        // Delete the game
+        await deleteGame(gameId);
+      }
     });
   });
 }

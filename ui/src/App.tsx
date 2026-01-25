@@ -219,51 +219,66 @@ function ActiveGameScreen({
 }
 
 /**
- * Player name setup screen - shown if player hasn't set a custom name yet
+ * Loading screen while restoring session
  */
-function PlayerNameSetup() {
-  const { playerName, setPlayerName } = usePlayer()
-  const { isRestoringSession, phase } = useLobby()
-  const [name, setName] = useState(playerName)
-  const [ready, setReady] = useState(false)
+function SessionLoading() {
+  return (
+    <Box
+      sx={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: 2,
+        background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%)',
+      }}
+    >
+      <CircularProgress size={60} />
+      <Typography variant="h6" color="text.secondary">
+        Restoring session...
+      </Typography>
+    </Box>
+  )
+}
 
-  const handleSubmit = () => {
-    if (name.trim()) {
-      setPlayerName(name.trim())
-      setReady(true)
-    }
-  }
+/**
+ * App router - decides which screen to show based on session state
+ * Show name setup only for newly created players (not restored from server)
+ */
+function AppRouter() {
+  const { isNewPlayer } = usePlayer()
+  const { isRestoringSession } = useLobby()
 
   // Show loading while restoring session
   if (isRestoringSession) {
-    return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
-          gap: 2,
-          background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%)',
-        }}
-      >
-        <CircularProgress size={60} />
-        <Typography variant="h6" color="text.secondary">
-          Restoring session...
-        </Typography>
-      </Box>
-    )
+    return <SessionLoading />
   }
 
-  // If session was restored to a non-browser phase, skip name setup
-  if (phase !== 'browser') {
-    return <AppContent />
+  // If player was just created (no existing ID in localStorage or server didn't know their ID),
+  // show name setup. Otherwise, go directly to content.
+  if (isNewPlayer) {
+    return <PlayerNameSetup />
   }
 
-  // If player has already confirmed their name, move to lobby
-  if (ready) {
-    return <AppContent />
+  return <AppContent />
+}
+
+/**
+ * Player name setup screen - shown only for newly created players
+ */
+function PlayerNameSetup() {
+  const { playerName, setPlayerName, clearNewPlayerFlag } = usePlayer()
+  const [name, setName] = useState(playerName)
+  const [saving, setSaving] = useState(false)
+
+  const handleSubmit = async () => {
+    if (name.trim() && !saving) {
+      setSaving(true)
+      await setPlayerName(name.trim())
+      clearNewPlayerFlag() // This will cause AppRouter to show AppContent
+      setSaving(false)
+    }
   }
 
   return (
@@ -328,13 +343,13 @@ function PlayerNameSetup() {
           color="primary"
           size="large"
           onClick={handleSubmit}
-          disabled={!name.trim()}
+          disabled={!name.trim() || saving}
           sx={{
             py: 1.5,
             fontSize: '1.1rem',
           }}
         >
-          Enter Game
+          {saving ? <CircularProgress size={24} color="inherit" /> : 'Enter Game'}
         </Button>
       </Paper>
     </Box>
@@ -486,9 +501,9 @@ function AuthenticatedApp() {
     )
   }
 
-  // Authenticated - show name setup
+  // Authenticated - route to appropriate screen
   if (isAuthenticated) {
-    return <PlayerNameSetup />
+    return <AppRouter />
   }
 
   return null
