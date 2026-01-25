@@ -14,6 +14,7 @@ import { ActionSummary } from './actions/ActionSummary'
 import { LaserPanel } from './actions/LaserPanel'
 import { RailgunPanel } from './actions/RailgunPanel'
 import { MissilesPanel } from './actions/MissilesPanel'
+import { MovementPlanner } from './actions/MovementPlanner'
 import { STARTING_REACTION_MASS, SUBSYSTEM_CONFIGS } from '@dangerous-inclinations/engine'
 import { CustomIcon } from './CustomIcon'
 import { getMissileStats } from '@dangerous-inclinations/engine'
@@ -48,6 +49,12 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     toggleWeaponRange,
     turnErrors,
     clearTurnErrors,
+    // Movement planner
+    isSelectingDestination,
+    selectedDestination,
+    setMovementPlan,
+    startSelectingDestination,
+    cancelSelectingDestination,
   } = useGame()
 
   const [targetFacing, setTargetFacing] = useState<Facing>(player.ship.facing)
@@ -372,6 +379,16 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
           onDeallocateEnergy={deallocateEnergy}
         />
       </Box>
+
+      {/* Movement Planner */}
+      <MovementPlanner
+        ship={ship}
+        onPlanChange={setMovementPlan}
+        isSelectingDestination={isSelectingDestination}
+        onStartSelectingDestination={startSelectingDestination}
+        onCancelSelectingDestination={cancelSelectingDestination}
+        selectedDestination={selectedDestination}
+      />
 
       {/* Action Panels */}
       {panels.map(panel => (

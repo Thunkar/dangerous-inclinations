@@ -43,4 +43,6 @@ export {
   WeaponEffects,
   DeploymentSectors,
   StationRenderer,
+  PlannedPath,
+  SelectableSectors,
 } from './components'

@@ -20,6 +20,8 @@ import {
   WeaponEffects,
   DeploymentSectors,
   StationRenderer,
+  PlannedPath,
+  SelectableSectors,
   type MovementPreview,
 } from './board/index'
 import { getGravityWellVisual } from '@/constants/visualConfig'
@@ -60,7 +62,7 @@ function GameBoardContent({
   availableDeploymentSectors,
   onDeploySector,
 }: GameBoardProps) {
-  const { gameState, weaponRangeVisibility, pendingState } = useGame()
+  const { gameState, weaponRangeVisibility, pendingState, movementPlan, isSelectingDestination, selectDestination } = useGame()
   const { displayState, floatingNumbers, weaponEffects, currentTime } = useBoardContext()
 
   // Pan and zoom state - must be declared before any conditional returns (Rules of Hooks)
@@ -223,6 +225,9 @@ function GameBoardContent({
               />
             )}
 
+          {/* Selectable sectors for movement planner destination */}
+          {isSelectingDestination && <SelectableSectors onSelectSector={selectDestination} />}
+
           {/* Ships with movement predictions */}
           <ShipRenderer
             pendingFacing={pendingFacing}
@@ -245,6 +250,9 @@ function GameBoardContent({
               )
             }}
           </ShipRenderer>
+
+          {/* Planned movement path */}
+          {movementPlan && <PlannedPath plan={movementPlan} />}
 
           {/* Missiles in flight */}
           <MissileRenderer />

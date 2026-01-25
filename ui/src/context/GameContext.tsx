@@ -12,6 +12,8 @@ import type {
   ReactorState,
   HeatState,
   Player,
+  MovementPlan,
+  PlannerPosition,
 } from '@dangerous-inclinations/engine'
 import {
   getSubsystemConfig,
@@ -91,6 +93,14 @@ interface GameContextType {
   registerAnimationHandlers: (handlers: AnimationHandlers) => void
   // Callback to notify parent when game ends or needs restart
   onGameStateChange: (newState: GameState) => void
+  // Movement planner state
+  movementPlan: MovementPlan | null
+  isSelectingDestination: boolean
+  selectedDestination: PlannerPosition | null
+  setMovementPlan: (plan: MovementPlan | null) => void
+  startSelectingDestination: () => void
+  cancelSelectingDestination: () => void
+  selectDestination: (destination: PlannerPosition) => void
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
@@ -116,6 +126,26 @@ export function GameProvider({
     railgun: false,
     missiles: false,
   })
+
+  // Movement planner state
+  const [movementPlan, setMovementPlan] = useState<MovementPlan | null>(null)
+  const [isSelectingDestination, setIsSelectingDestination] = useState(false)
+  const [selectedDestination, setSelectedDestination] = useState<PlannerPosition | null>(null)
+
+  const startSelectingDestination = useCallback(() => {
+    setIsSelectingDestination(true)
+  }, [])
+
+  const cancelSelectingDestination = useCallback(() => {
+    setIsSelectingDestination(false)
+    setSelectedDestination(null)
+    setMovementPlan(null)
+  }, [])
+
+  const selectDestination = useCallback((destination: PlannerPosition) => {
+    setSelectedDestination(destination)
+    setIsSelectingDestination(false)
+  }, [])
 
   // WebSocket client for server communication
   const { client, connect, isConnected } = useWebSocket()
@@ -677,6 +707,14 @@ export function GameProvider({
         toggleWeaponRange,
         registerAnimationHandlers,
         onGameStateChange: updateGameState,
+        // Movement planner
+        movementPlan,
+        isSelectingDestination,
+        selectedDestination,
+        setMovementPlan,
+        startSelectingDestination,
+        cancelSelectingDestination,
+        selectDestination,
       }}
     >
       {children}
