@@ -23,8 +23,6 @@ export const BURN_COSTS = {
   hard: { energy: 3, mass: 3, rings: 3 }, // Transfer ±3 rings (change velocity by ±3)
 };
 
-export const ROTATION_ENERGY_COST = 1;
-
 /**
  * Well transfer costs for jumping between gravity wells
  */

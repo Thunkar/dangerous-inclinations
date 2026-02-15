@@ -1,8 +1,10 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Box, Typography, Button, styled, Collapse } from '@mui/material'
+import { Box, Typography, Button, styled, Collapse, TextField } from '@mui/material'
 import {
   planMovementAlternatives,
   GRAVITY_WELLS,
+  MAX_REACTION_MASS,
+  SUBSYSTEM_CONFIGS,
   type MovementPlan,
   type MovementAlternatives,
   type GravityWellId,
@@ -92,6 +94,16 @@ function getWellName(wellId: GravityWellId): string {
   return well?.name || wellId
 }
 
+function getFuelBreakdown(plan: MovementPlan): { spent: number; recovered: number } {
+  let spent = 0
+  let recovered = 0
+  for (const step of plan.steps) {
+    if (step.massCost > 0) spent += step.massCost
+    else if (step.massCost < 0) recovered += Math.abs(step.massCost)
+  }
+  return { spent, recovered }
+}
+
 export function MovementPlanner({
   ship,
   onPlanChange,
@@ -102,6 +114,14 @@ export function MovementPlanner({
 }: MovementPlannerProps) {
   const [selectedAlternativeIndex, setSelectedAlternativeIndex] = useState(0)
   const [expanded, setExpanded] = useState(false)
+  const [fuelReserve, setFuelReserve] = useState(0)
+
+  const hasFuelScoop = useMemo(() => ship.subsystems.some(s => s.type === 'scoop'), [ship.subsystems])
+  const maxFuelCapacity = useMemo(() => {
+    const fuelTankCount = ship.subsystems.filter(s => s.type === 'fuel_tank').length
+    const fuelTankBonus = SUBSYSTEM_CONFIGS.fuel_tank.passiveEffect?.reactionMassBonus ?? 0
+    return MAX_REACTION_MASS + fuelTankCount * fuelTankBonus
+  }, [ship.subsystems])
 
   // Calculate all route alternatives
   const alternatives: MovementAlternatives | null = useMemo(() => {
@@ -114,13 +134,18 @@ export function MovementPlanner({
       facing: ship.facing,
     }
 
+    const effectiveMass = Math.max(0, ship.reactionMass - fuelReserve)
+
     return planMovementAlternatives(origin, selectedDestination, {
-      availableMass: ship.reactionMass,
+      availableMass: effectiveMass,
       currentFacing: ship.facing,
       allowWellTransfers: true,
       maxTurns: 20,
+      hasFuelScoop,
+      fuelReserve,
+      maxFuelCapacity,
     })
-  }, [ship, selectedDestination])
+  }, [ship, selectedDestination, fuelReserve, hasFuelScoop, maxFuelCapacity])
 
   // Get the currently selected plan
   const plan = useMemo(() => {
@@ -223,6 +248,31 @@ export function MovementPlanner({
           </Box>
         )}
 
+        {/* Fuel reserve */}
+        {selectedDestination && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+              Fuel reserve:
+            </Typography>
+            <TextField
+              type="number"
+              size="small"
+              value={fuelReserve}
+              onChange={(e) => setFuelReserve(Math.max(0, Math.min(ship.reactionMass, parseInt(e.target.value) || 0)))}
+              inputProps={{ min: 0, max: ship.reactionMass, style: { padding: '4px 8px', width: '40px' } }}
+              sx={{ '& .MuiOutlinedInput-root': { height: '28px' } }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              / {ship.reactionMass} RM
+            </Typography>
+            {hasFuelScoop && (
+              <Typography variant="caption" color="success.main">
+                Scoop
+              </Typography>
+            )}
+          </Box>
+        )}
+
         {/* Route alternatives */}
         {alternatives && alternatives.alternatives.length > 1 && (
           <Box sx={{ mt: 1, mb: 1 }}>
@@ -239,12 +289,20 @@ export function MovementPlanner({
                   <Typography variant="body2" fontWeight="bold" sx={{ fontSize: '0.8rem' }}>
                     {alt.label || `Route ${index + 1}`}
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
                     <Typography variant="caption" color="text.secondary">
                       {alt.totalTurns}T
                     </Typography>
                     <Typography variant="caption" color="warning.main">
-                      {alt.totalMassCost}M
+                      -{getFuelBreakdown(alt).spent}M
+                    </Typography>
+                    {getFuelBreakdown(alt).recovered > 0 && (
+                      <Typography variant="caption" color="success.main">
+                        +{getFuelBreakdown(alt).recovered}M
+                      </Typography>
+                    )}
+                    <Typography variant="caption" fontWeight="bold" color={alt.totalMassCost <= 0 ? 'success.main' : 'warning.main'}>
+                      ={alt.totalMassCost}M
                     </Typography>
                   </Box>
                 </Box>
@@ -269,12 +327,19 @@ export function MovementPlanner({
               <Typography variant="caption" fontWeight="bold">
                 {plan.totalTurns} turn{plan.totalTurns !== 1 ? 's' : ''}
               </Typography>
-              <Typography variant="caption" fontWeight="bold">
-                {plan.totalMassCost} mass
-              </Typography>
-              <Typography variant="caption" fontWeight="bold">
-                {plan.totalEnergyCost} energy
-              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Typography variant="caption" fontWeight="bold" color="warning.main">
+                  -{getFuelBreakdown(plan).spent}M
+                </Typography>
+                {getFuelBreakdown(plan).recovered > 0 && (
+                  <Typography variant="caption" fontWeight="bold" color="success.main">
+                    +{getFuelBreakdown(plan).recovered}M
+                  </Typography>
+                )}
+                <Typography variant="caption" fontWeight="bold">
+                  (net {plan.totalMassCost}M)
+                </Typography>
+              </Box>
             </Box>
 
             {/* Step list */}
@@ -316,6 +381,11 @@ export function MovementPlanner({
                       -{step.massCost}M
                     </Typography>
                   )}
+                  {step.massCost < 0 && (
+                    <Typography variant="caption" color="success.main">
+                      +{Math.abs(step.massCost)}M
+                    </Typography>
+                  )}
                 </StepItem>
               ))}
             </Box>
@@ -349,7 +419,7 @@ export function MovementPlanner({
       {!expanded && selectedDestination && plan && (
         <Typography variant="caption" color="text.secondary">
           {getWellName(selectedDestination.wellId as GravityWellId)} R{selectedDestination.ring}S
-          {selectedDestination.sector} • {plan.totalTurns}T / {plan.totalMassCost}M
+          {selectedDestination.sector} • {plan.totalTurns}T / -{getFuelBreakdown(plan).spent}M{getFuelBreakdown(plan).recovered > 0 ? ` +${getFuelBreakdown(plan).recovered}M` : ''} (net {plan.totalMassCost}M)
           {alternatives && alternatives.alternatives.length > 1 && plan.label && ` (${plan.label})`}
         </Typography>
       )}

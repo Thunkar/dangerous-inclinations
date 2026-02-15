@@ -1,8 +1,17 @@
-import type { Facing } from '../../models/game'
-import { BURN_COSTS, SECTORS_PER_RING, getAdjustmentRange, WELL_TRANSFER_COSTS } from '../../models/rings'
-import { getGravityWell, getRingConfigForWell, TRANSFER_POINTS } from '../../models/gravityWells'
-import { PriorityQueue } from './priorityQueue'
-import { getPredecessors } from './predecessors'
+import type { Facing } from "../../models/game";
+import { MAX_REACTION_MASS } from "../../models/game";
+import {
+  BURN_COSTS,
+  SECTORS_PER_RING,
+  getAdjustmentRange,
+  WELL_TRANSFER_COSTS,
+} from "../../models/rings";
+import {
+  getGravityWell,
+  getRingConfigForWell,
+  TRANSFER_POINTS,
+} from "../../models/gravityWells";
+import { getPredecessors } from "./predecessors";
 import type {
   OrbitalPosition,
   OrientedPosition,
@@ -12,26 +21,32 @@ import type {
   PlannerMode,
   SearchNode,
   MovementAlternatives,
-} from './types'
-import { positionKey, positionsMatch } from './types'
+} from "./types";
+import { positionKey, positionsMatch } from "./types";
 
 /**
  * Default planner options
  */
 const DEFAULT_OPTIONS: PlannerOptions = {
-  mode: 'fastest',
+  mode: "fastest",
   maxTurns: 20,
-  availableMass: 100,
-  currentFacing: 'prograde',
+  availableMass: MAX_REACTION_MASS,
+  currentFacing: "prograde",
   allowWellTransfers: true,
-  considerSlingshots: false,
-}
+  fuelReserve: 0,
+  hasFuelScoop: false,
+  maxFuelCapacity: MAX_REACTION_MASS,
+};
 
 /**
  * Plan optimal movement from origin to destination.
  *
- * Uses reverse Dijkstra search: starts from destination, finds all positions
- * that can reach it in one turn (predecessors), expands until origin is found.
+ * Uses reverse turn-layered BFS: starts from destination, expands predecessors
+ * layer by layer (one turn per layer). This correctly handles negative edge
+ * weights from fuel scoop recovery, which breaks standard Dijkstra.
+ *
+ * - "fastest" mode: early-terminates on first origin find (turns only increase)
+ * - "economical" mode: processes all layers to find globally cheapest path
  *
  * @param origin - Starting position with facing
  * @param destination - Target position (facing doesn't matter)
@@ -41,22 +56,24 @@ const DEFAULT_OPTIONS: PlannerOptions = {
 export function planMovement(
   origin: OrientedPosition,
   destination: OrbitalPosition,
-  options: Partial<PlannerOptions> = {}
+  options: Partial<PlannerOptions> = {},
 ): MovementPlan | null {
-  const opts: PlannerOptions = { ...DEFAULT_OPTIONS, ...options }
+  const opts: PlannerOptions = { ...DEFAULT_OPTIONS, ...options };
 
-  // Priority queue ordered by cost (turns for fastest, mass for economical)
-  const compareFn =
-    opts.mode === 'fastest'
-      ? (a: SearchNode, b: SearchNode) => a.turns - b.turns || a.massCost - b.massCost
-      : (a: SearchNode, b: SearchNode) => a.massCost - b.massCost || a.turns - b.turns
+  // bestAt: tracks Pareto-optimal paths to each spatial position.
+  // With negative edge weights (scoop), a position may be reached at turn T with
+  // massCost M1, and again at turn T+1 with massCost M2 < M1. Both are useful:
+  // the T-path is faster, but the (T+1)-path has more fuel for subsequent burns.
+  // We keep all non-dominated entries (lower turns OR lower massCost).
+  const bestAt = new Map<
+    string,
+    Array<{ turns: number; massCost: number; node: SearchNode }>
+  >();
 
-  const openSet = new PriorityQueue<SearchNode>(compareFn)
-  const visited = new Map<string, SearchNode>()
-
-  // Start from destination with both facings (we don't care about final facing)
-  for (const facing of ['prograde', 'retrograde'] as const) {
-    const startNode: SearchNode = {
+  // Seed destination into turn-0 layer (both facings)
+  let currentLayer: SearchNode[] = [];
+  for (const facing of ["prograde", "retrograde"] as const) {
+    currentLayer.push({
       position: { ...destination, facing },
       turns: 0,
       massCost: 0,
@@ -64,62 +81,120 @@ export function planMovement(
       burnIntensity: null,
       sectorAdjustment: 0,
       nextInPath: null,
-    }
-    openSet.enqueue(startNode)
+    });
   }
 
-  while (!openSet.isEmpty()) {
-    const current = openSet.dequeue()
-    if (!current) break
+  // For economical mode, track best origin node across all layers
+  let bestOriginNode: SearchNode | null = null;
 
-    const key = positionKey(current.position)
+  for (let turn = 0; turn <= opts.maxTurns; turn++) {
+    if (currentLayer.length === 0) break;
 
-    // Skip if already visited with better cost
-    if (visited.has(key)) continue
-    visited.set(key, current)
-
-    // Check if we've exceeded max turns
-    if (current.turns > opts.maxTurns) continue
-
-    // Found origin?
-    if (positionsMatch(current.position, origin)) {
-      // Check if facing matches (we need to rotate if not)
-      if (current.position.facing === origin.facing) {
-        return reconstructPlan(current, origin, destination, opts)
+    // Deduplicate within layer: keep best massCost per positionKey
+    const layerBest = new Map<string, SearchNode>();
+    for (const node of currentLayer) {
+      const key = positionKey(node.position);
+      const existing = layerBest.get(key);
+      if (!existing || node.massCost < existing.massCost) {
+        layerBest.set(key, node);
       }
-      // If facing doesn't match, we can still use this path - rotation is free but uses heat
-      // We'll accept this path but note that rotation is needed at the start
-      return reconstructPlan(current, origin, destination, opts)
     }
 
-    // Expand predecessors (positions that can reach current in one turn)
-    const predecessors = getPredecessors(current.position, opts.availableMass, opts.allowWellTransfers)
+    const nextLayer: SearchNode[] = [];
 
-    for (const pred of predecessors) {
-      const predKey = positionKey(pred.position)
-
-      // Skip if already visited
-      if (visited.has(predKey)) continue
-
-      const newNode: SearchNode = {
-        position: pred.position,
-        turns: current.turns + 1,
-        massCost: current.massCost + pred.massCost,
-        action: pred.actionType,
-        burnIntensity: pred.burnIntensity || null,
-        sectorAdjustment: pred.sectorAdjustment,
-        nextInPath: current,
+    for (const [key, node] of layerBest) {
+      // Check against Pareto frontier — skip if dominated by any existing entry.
+      // A node is dominated if some previous entry has turns <= node.turns AND
+      // massCost <= node.massCost (i.e., it's at least as good in both dimensions).
+      const frontier = bestAt.get(key);
+      if (frontier) {
+        const dominated = frontier.some(
+          (e) => e.turns <= node.turns && e.massCost <= node.massCost,
+        );
+        if (dominated) continue;
       }
 
-      // Check mass constraint
-      if (newNode.massCost > opts.availableMass) continue
+      // Add to frontier (and prune entries this node dominates)
+      const newFrontier = frontier
+        ? frontier.filter(
+            (e) => !(node.turns <= e.turns && node.massCost <= e.massCost),
+          )
+        : [];
+      newFrontier.push({ turns: node.turns, massCost: node.massCost, node });
+      bestAt.set(key, newFrontier);
 
-      openSet.enqueue(newNode)
+      // Check if origin found (accept either facing — rotation is free)
+      if (positionsMatch(node.position, origin)) {
+        if (opts.mode === "fastest") {
+          // First find at minimum turn = optimal. Return immediately.
+          return reconstructPlan(node, origin, destination, opts);
+        } else {
+          // Track best for economical mode — keep searching for cheaper
+          if (
+            !bestOriginNode ||
+            node.massCost < bestOriginNode.massCost ||
+            (node.massCost === bestOriginNode.massCost &&
+              node.turns < bestOriginNode.turns)
+          ) {
+            bestOriginNode = node;
+          }
+        }
+      }
+
+      // Expand predecessors (positions that can reach this node in one turn)
+      const predecessors = getPredecessors(
+        node.position,
+        opts.availableMass,
+        opts.allowWellTransfers,
+      );
+
+      for (const pred of predecessors) {
+        // Calculate mass cost for this step
+        let stepMassCost = pred.massCost;
+
+        // Fuel scoop: coasting recovers mass equal to ring velocity
+        if (opts.hasFuelScoop && pred.actionType === "coast") {
+          const ringConfig = getRingConfigForWell(
+            pred.position.wellId,
+            pred.position.ring,
+          );
+          const scoopRecovery = ringConfig?.velocity ?? 0;
+          stepMassCost = -scoopRecovery;
+        }
+
+        let newMassCost = node.massCost + stepMassCost;
+
+        // Clamp: fuel on hand can't exceed maxFuelCapacity
+        const minMassCost = -(opts.maxFuelCapacity - opts.availableMass);
+        if (newMassCost < minMassCost) {
+          newMassCost = minMassCost;
+        }
+
+        // Prune over-budget paths
+        if (newMassCost > opts.availableMass) continue;
+
+        nextLayer.push({
+          position: pred.position,
+          turns: turn + 1,
+          massCost: newMassCost,
+          action: pred.actionType,
+          burnIntensity: pred.burnIntensity || null,
+          sectorAdjustment: pred.sectorAdjustment,
+          nextInPath: node,
+        });
+      }
     }
+
+    currentLayer = nextLayer;
+  }
+
+  // For economical mode, return best origin found across all layers
+  if (bestOriginNode) {
+    return reconstructPlan(bestOriginNode, origin, destination, opts);
   }
 
   // No path found
-  return null
+  return null;
 }
 
 /**
@@ -130,16 +205,16 @@ function reconstructPlan(
   endNode: SearchNode,
   origin: OrientedPosition,
   destination: OrbitalPosition,
-  options: PlannerOptions
+  options: PlannerOptions,
 ): MovementPlan {
-  const steps: MovementStep[] = []
-  let crossesWells = false
+  const steps: MovementStep[] = [];
+  let crossesWells = false;
 
   // Walk the path from origin toward destination
-  let current: SearchNode | null = endNode
+  let current: SearchNode | null = endNode;
 
   while (current && current.nextInPath) {
-    const next: SearchNode = current.nextInPath
+    const next: SearchNode = current.nextInPath;
 
     // The action stored in `current` is the action that reaches `next`
     // So the step is: from current.position -> to next.position
@@ -153,16 +228,17 @@ function reconstructPlan(
       actionType: current.action!,
       burnIntensity: current.burnIntensity ?? undefined,
       sectorAdjustment: current.sectorAdjustment,
-      requiresRotation: current.position.facing !== origin.facing && steps.length === 0,
+      requiresRotation:
+        current.position.facing !== origin.facing && steps.length === 0,
       massCost: current.massCost - (current.nextInPath?.massCost ?? 0),
+    };
+
+    if (step.actionType === "well_transfer") {
+      crossesWells = true;
     }
 
-    if (step.actionType === 'well_transfer') {
-      crossesWells = true
-    }
-
-    steps.push(step)
-    current = next
+    steps.push(step);
+    current = next;
   }
 
   return {
@@ -173,7 +249,7 @@ function reconstructPlan(
     totalTurns: endNode.turns,
     crossesWells,
     mode: options.mode,
-  }
+  };
 }
 
 /**
@@ -185,15 +261,15 @@ export function isReachable(
   destination: OrbitalPosition,
   maxTurns: number,
   availableMass: number,
-  allowWellTransfers: boolean = true
+  allowWellTransfers: boolean = true,
 ): boolean {
   const plan = planMovement(origin, destination, {
-    mode: 'fastest',
+    mode: "fastest",
     maxTurns,
     availableMass,
     allowWellTransfers,
-  })
-  return plan !== null
+  });
+  return plan !== null;
 }
 
 /**
@@ -209,16 +285,19 @@ export function getReachablePositions(
   origin: OrientedPosition,
   maxTurns: number,
   availableMass: number,
-  allowWellTransfers: boolean = true
+  allowWellTransfers: boolean = true,
 ): Map<string, { position: OrbitalPosition; turns: number; massCost: number }> {
-  const reachable = new Map<string, { position: OrbitalPosition; turns: number; massCost: number }>()
+  const reachable = new Map<
+    string,
+    { position: OrbitalPosition; turns: number; massCost: number }
+  >();
 
   // Use forward BFS from origin
-  const visited = new Map<string, SearchNode>()
-  const queue: SearchNode[] = []
+  const visited = new Map<string, SearchNode>();
+  const queue: SearchNode[] = [];
 
   // Start from origin with both facings
-  for (const facing of ['prograde', 'retrograde'] as Facing[]) {
+  for (const facing of ["prograde", "retrograde"] as Facing[]) {
     queue.push({
       position: { ...origin, facing },
       turns: 0,
@@ -227,19 +306,19 @@ export function getReachablePositions(
       burnIntensity: null,
       sectorAdjustment: 0,
       nextInPath: null,
-    })
+    });
   }
 
   while (queue.length > 0) {
-    const current = queue.shift()!
-    const key = positionKey(current.position)
+    const current = queue.shift()!;
+    const key = positionKey(current.position);
 
-    if (visited.has(key)) continue
-    visited.set(key, current)
+    if (visited.has(key)) continue;
+    visited.set(key, current);
 
     // Record this position as reachable (use position without facing for result)
-    const posKey = `${current.position.wellId}:${current.position.ring}:${current.position.sector}`
-    const existing = reachable.get(posKey)
+    const posKey = `${current.position.wellId}:${current.position.ring}:${current.position.sector}`;
+    const existing = reachable.get(posKey);
     if (!existing || existing.turns > current.turns) {
       reachable.set(posKey, {
         position: {
@@ -249,18 +328,22 @@ export function getReachablePositions(
         },
         turns: current.turns,
         massCost: current.massCost,
-      })
+      });
     }
 
     // Stop expanding if at max turns
-    if (current.turns >= maxTurns) continue
+    if (current.turns >= maxTurns) continue;
 
     // Get all positions this can reach in one turn (forward expansion)
-    const successors = getSuccessors(current.position, availableMass - current.massCost, allowWellTransfers)
+    const successors = getSuccessors(
+      current.position,
+      availableMass - current.massCost,
+      allowWellTransfers,
+    );
 
     for (const succ of successors) {
-      const succKey = positionKey(succ.position)
-      if (visited.has(succKey)) continue
+      const succKey = positionKey(succ.position);
+      if (visited.has(succKey)) continue;
 
       queue.push({
         position: succ.position,
@@ -270,11 +353,11 @@ export function getReachablePositions(
         burnIntensity: succ.burnIntensity || null,
         sectorAdjustment: succ.sectorAdjustment,
         nextInPath: current,
-      })
+      });
     }
   }
 
-  return reachable
+  return reachable;
 }
 
 /**
@@ -284,88 +367,107 @@ export function getReachablePositions(
 function getSuccessors(
   position: OrientedPosition,
   availableMass: number,
-  allowWellTransfers: boolean
+  allowWellTransfers: boolean,
 ): Array<{
-  position: OrientedPosition
-  actionType: 'coast' | 'burn_prograde' | 'burn_retrograde' | 'well_transfer'
-  burnIntensity?: 'soft' | 'medium' | 'hard'
-  sectorAdjustment: number
-  massCost: number
+  position: OrientedPosition;
+  actionType: "coast" | "burn_prograde" | "burn_retrograde" | "well_transfer";
+  burnIntensity?: "soft" | "medium" | "hard";
+  sectorAdjustment: number;
+  massCost: number;
 }> {
   // For now, we can approximate by finding positions that have `position` as a predecessor
   // This is less efficient but correct
   // TODO: Implement direct forward calculation for better performance
 
   const results: Array<{
-    position: OrientedPosition
-    actionType: 'coast' | 'burn_prograde' | 'burn_retrograde' | 'well_transfer'
-    burnIntensity?: 'soft' | 'medium' | 'hard'
-    sectorAdjustment: number
-    massCost: number
-  }> = []
+    position: OrientedPosition;
+    actionType: "coast" | "burn_prograde" | "burn_retrograde" | "well_transfer";
+    burnIntensity?: "soft" | "medium" | "hard";
+    sectorAdjustment: number;
+    massCost: number;
+  }> = [];
 
-  const well = getGravityWell(position.wellId)
-  if (!well) return results
+  const well = getGravityWell(position.wellId);
+  if (!well) return results;
 
-  const ringConfig = getRingConfigForWell(position.wellId, position.ring)
-  if (!ringConfig) return results
+  const ringConfig = getRingConfigForWell(position.wellId, position.ring);
+  if (!ringConfig) return results;
 
-  const velocity = ringConfig.velocity
+  const velocity = ringConfig.velocity;
 
   // 1. Coast: apply orbital movement
-  const coastSector = (position.sector + velocity) % SECTORS_PER_RING
+  const coastSector = (position.sector + velocity) % SECTORS_PER_RING;
   results.push({
-    position: { wellId: position.wellId, ring: position.ring, sector: coastSector, facing: position.facing },
-    actionType: 'coast',
+    position: {
+      wellId: position.wellId,
+      ring: position.ring,
+      sector: coastSector,
+      facing: position.facing,
+    },
+    actionType: "coast",
     sectorAdjustment: 0,
     massCost: 0,
-  })
+  });
 
   // 2. Burns (real orbital mechanics)
-  const burnIntensities = ['soft', 'medium', 'hard'] as const
+  const burnIntensities = ["soft", "medium", "hard"] as const;
   for (const intensity of burnIntensities) {
-    const burnCost = BURN_COSTS[intensity]
-    if (burnCost.mass > availableMass) continue
+    const burnCost = BURN_COSTS[intensity];
+    if (burnCost.mass > availableMass) continue;
 
     // Prograde burn: accelerates with orbit = raises orbit = move to HIGHER ring (outward)
-    if (position.facing === 'prograde') {
-      const destRing = position.ring + burnCost.rings
+    if (position.facing === "prograde") {
+      const destRing = position.ring + burnCost.rings;
       if (destRing <= well.rings.length) {
-        const adjustmentRange = getAdjustmentRange(velocity)
+        const adjustmentRange = getAdjustmentRange(velocity);
         for (let adj = adjustmentRange.min; adj <= adjustmentRange.max; adj++) {
-          const totalMass = burnCost.mass + Math.abs(adj)
-          if (totalMass > availableMass) continue
+          const totalMass = burnCost.mass + Math.abs(adj);
+          if (totalMass > availableMass) continue;
 
           // Orbital movement first, then ring change + adjustment
-          const destSector = (position.sector + velocity + adj + 2 * SECTORS_PER_RING) % SECTORS_PER_RING
+          const destSector =
+            (position.sector + velocity + adj + 2 * SECTORS_PER_RING) %
+            SECTORS_PER_RING;
           results.push({
-            position: { wellId: position.wellId, ring: destRing, sector: destSector, facing: position.facing },
-            actionType: 'burn_prograde',
+            position: {
+              wellId: position.wellId,
+              ring: destRing,
+              sector: destSector,
+              facing: position.facing,
+            },
+            actionType: "burn_prograde",
             burnIntensity: intensity,
             sectorAdjustment: adj,
             massCost: totalMass,
-          })
+          });
         }
       }
     }
 
     // Retrograde burn: decelerates = lowers orbit = move to LOWER ring (inward)
-    if (position.facing === 'retrograde') {
-      const destRing = position.ring - burnCost.rings
+    if (position.facing === "retrograde") {
+      const destRing = position.ring - burnCost.rings;
       if (destRing >= 1) {
-        const adjustmentRange = getAdjustmentRange(velocity)
+        const adjustmentRange = getAdjustmentRange(velocity);
         for (let adj = adjustmentRange.min; adj <= adjustmentRange.max; adj++) {
-          const totalMass = burnCost.mass + Math.abs(adj)
-          if (totalMass > availableMass) continue
+          const totalMass = burnCost.mass + Math.abs(adj);
+          if (totalMass > availableMass) continue;
 
-          const destSector = (position.sector + velocity + adj + 2 * SECTORS_PER_RING) % SECTORS_PER_RING
+          const destSector =
+            (position.sector + velocity + adj + 2 * SECTORS_PER_RING) %
+            SECTORS_PER_RING;
           results.push({
-            position: { wellId: position.wellId, ring: destRing, sector: destSector, facing: position.facing },
-            actionType: 'burn_retrograde',
+            position: {
+              wellId: position.wellId,
+              ring: destRing,
+              sector: destSector,
+              facing: position.facing,
+            },
+            actionType: "burn_retrograde",
             burnIntensity: intensity,
             sectorAdjustment: adj,
             massCost: totalMass,
-          })
+          });
         }
       }
     }
@@ -374,24 +476,34 @@ function getSuccessors(
   // 3. Well transfers
   if (allowWellTransfers && WELL_TRANSFER_COSTS.mass <= availableMass) {
     for (const tp of TRANSFER_POINTS) {
-      if (tp.fromWellId === position.wellId && tp.fromRing === position.ring && tp.fromSector === position.sector) {
+      if (
+        tp.fromWellId === position.wellId &&
+        tp.fromRing === position.ring &&
+        tp.fromSector === position.sector
+      ) {
         // Found valid transfer point
-        const destRingConfig = getRingConfigForWell(tp.toWellId, tp.toRing)
-        if (!destRingConfig) continue
+        const destRingConfig = getRingConfigForWell(tp.toWellId, tp.toRing);
+        if (!destRingConfig) continue;
 
         // After transfer, orbital movement happens
-        const finalSector = (tp.toSector + destRingConfig.velocity) % SECTORS_PER_RING
+        const finalSector =
+          (tp.toSector + destRingConfig.velocity) % SECTORS_PER_RING;
         results.push({
-          position: { wellId: tp.toWellId, ring: tp.toRing, sector: finalSector, facing: position.facing },
-          actionType: 'well_transfer',
+          position: {
+            wellId: tp.toWellId,
+            ring: tp.toRing,
+            sector: finalSector,
+            facing: position.facing,
+          },
+          actionType: "well_transfer",
           sectorAdjustment: 0,
           massCost: WELL_TRANSFER_COSTS.mass,
-        })
+        });
       }
     }
   }
 
-  return results
+  return results;
 }
 
 /**
@@ -400,21 +512,21 @@ function getSuccessors(
 export function comparePlans(
   a: MovementPlan | null,
   b: MovementPlan | null,
-  mode: PlannerMode
+  mode: PlannerMode,
 ): MovementPlan | null {
-  if (!a) return b
-  if (!b) return a
+  if (!a) return b;
+  if (!b) return a;
 
-  if (mode === 'fastest') {
+  if (mode === "fastest") {
     if (a.totalTurns !== b.totalTurns) {
-      return a.totalTurns < b.totalTurns ? a : b
+      return a.totalTurns < b.totalTurns ? a : b;
     }
-    return a.totalMassCost < b.totalMassCost ? a : b
+    return a.totalMassCost < b.totalMassCost ? a : b;
   } else {
     if (a.totalMassCost !== b.totalMassCost) {
-      return a.totalMassCost < b.totalMassCost ? a : b
+      return a.totalMassCost < b.totalMassCost ? a : b;
     }
-    return a.totalTurns < b.totalTurns ? a : b
+    return a.totalTurns < b.totalTurns ? a : b;
   }
 }
 
@@ -424,24 +536,26 @@ export function comparePlans(
  */
 function planSignature(plan: MovementPlan): string {
   return plan.steps
-    .map(s => `${s.actionType}:${s.to.wellId}:${s.to.ring}:${s.to.sector}:${s.sectorAdjustment}`)
-    .join('|')
+    .map(
+      (s) =>
+        `${s.actionType}:${s.to.wellId}:${s.to.ring}:${s.to.sector}:${s.sectorAdjustment}`,
+    )
+    .join("|");
 }
 
 /**
  * Check if two plans are essentially the same route
  */
 function plansAreEquivalent(a: MovementPlan, b: MovementPlan): boolean {
-  return planSignature(a) === planSignature(b)
+  return planSignature(a) === planSignature(b);
 }
 
 /**
  * Plan multiple alternative routes from origin to destination.
  * Returns up to 3 distinct paths: fastest, economical, and balanced (if different).
  *
- * For cross-well routes, alternatives are computed in two phases:
- * 1. Origin → transfer point (in source well)
- * 2. Landing sector → destination (in destination well)
+ * Uses the single-pass planMovement for all routes (including cross-well),
+ * which correctly handles fuel scoop recovery and well transfers.
  *
  * @param origin - Starting position with facing
  * @param destination - Target position (facing doesn't matter)
@@ -451,293 +565,66 @@ function plansAreEquivalent(a: MovementPlan, b: MovementPlan): boolean {
 export function planMovementAlternatives(
   origin: OrientedPosition,
   destination: OrbitalPosition,
-  options: Partial<Omit<PlannerOptions, 'mode'>> = {}
+  options: Partial<Omit<PlannerOptions, "mode">> = {},
 ): MovementAlternatives | null {
-  const baseOptions = { ...DEFAULT_OPTIONS, ...options }
-
-  // Check if this is a cross-well route
-  if (origin.wellId !== destination.wellId && baseOptions.allowWellTransfers) {
-    return planCrossWellAlternatives(origin, destination, baseOptions)
-  }
-
-  // Same-well route - use standard logic
-  return planSameWellAlternatives(origin, destination, baseOptions)
-}
-
-/**
- * Plan alternatives for same-well routes
- */
-function planSameWellAlternatives(
-  origin: OrientedPosition,
-  destination: OrbitalPosition,
-  baseOptions: PlannerOptions
-): MovementAlternatives | null {
-  const alternatives: MovementPlan[] = []
+  const baseOptions = { ...DEFAULT_OPTIONS, ...options };
+  const alternatives: MovementPlan[] = [];
 
   // 1. Find fastest route
-  const fastest = planMovement(origin, destination, { ...baseOptions, mode: 'fastest' })
+  const fastest = planMovement(origin, destination, {
+    ...baseOptions,
+    mode: "fastest",
+  });
   if (fastest) {
-    fastest.label = '⚡ Fastest'
-    alternatives.push(fastest)
+    fastest.label = "⚡ Fastest";
+    alternatives.push(fastest);
   }
 
   // 2. Find most economical route
-  const economical = planMovement(origin, destination, { ...baseOptions, mode: 'economical' })
+  const economical = planMovement(origin, destination, {
+    ...baseOptions,
+    mode: "economical",
+  });
   if (economical) {
-    // Only add if different from fastest
     if (!fastest || !plansAreEquivalent(economical, fastest)) {
-      economical.label = '💰 Economical'
-      alternatives.push(economical)
+      economical.label = "💰 Economical";
+      alternatives.push(economical);
     }
   }
 
   // 3. Try to find a "balanced" route by limiting turns slightly beyond fastest
   if (fastest && economical && !plansAreEquivalent(fastest, economical)) {
-    const balancedOptions = {
+    const balanced = planMovement(origin, destination, {
       ...baseOptions,
-      mode: 'economical' as PlannerMode,
+      mode: "economical" as PlannerMode,
       maxTurns: fastest.totalTurns + 1,
-    }
-    const balanced = planMovement(origin, destination, balancedOptions)
+    });
 
     if (balanced) {
-      const isDifferentFromFastest = !plansAreEquivalent(balanced, fastest)
-      const isDifferentFromEconomical = !plansAreEquivalent(balanced, economical)
+      const isDifferentFromFastest = !plansAreEquivalent(balanced, fastest);
+      const isDifferentFromEconomical = !plansAreEquivalent(
+        balanced,
+        economical,
+      );
       const isTrulyBalanced =
         balanced.totalTurns <= economical.totalTurns &&
-        balanced.totalMassCost <= fastest.totalMassCost
+        balanced.totalMassCost <= fastest.totalMassCost;
 
-      if (isDifferentFromFastest && isDifferentFromEconomical && isTrulyBalanced) {
-        balanced.label = '⚖️ Balanced'
-        alternatives.splice(1, 0, balanced)
+      if (
+        isDifferentFromFastest &&
+        isDifferentFromEconomical &&
+        isTrulyBalanced
+      ) {
+        balanced.label = "⚖️ Balanced";
+        alternatives.splice(1, 0, balanced);
       }
     }
   }
 
   if (alternatives.length === 0) {
-    return null
+    return null;
   }
 
-  return { destination, alternatives }
+  return { destination, alternatives };
 }
 
-/**
- * Plan alternatives for cross-well routes.
- * Computes routes in two phases and explores different transfer points.
- */
-function planCrossWellAlternatives(
-  origin: OrientedPosition,
-  destination: OrbitalPosition,
-  baseOptions: PlannerOptions
-): MovementAlternatives | null {
-  const alternatives: MovementPlan[] = []
-
-  // Find all transfer points from origin well to destination well
-  const relevantTransferPoints = TRANSFER_POINTS.filter(
-    tp => tp.fromWellId === origin.wellId && tp.toWellId === destination.wellId
-  )
-
-  if (relevantTransferPoints.length === 0) {
-    // No direct transfer - try the single-phase planner which might find multi-hop routes
-    return planSameWellAlternatives(origin, destination, baseOptions)
-  }
-
-  // For each transfer point, compute two-phase routes
-  for (const tp of relevantTransferPoints) {
-    // Phase 1: Plan from origin to transfer point
-    const transferSectorPosition: OrbitalPosition = {
-      wellId: origin.wellId,
-      ring: tp.fromRing,
-      sector: tp.fromSector,
-    }
-
-    // Try both fastest and economical for leg 1
-    for (const mode of ['fastest', 'economical'] as PlannerMode[]) {
-      const leg1 = planMovement(origin, transferSectorPosition, {
-        ...baseOptions,
-        mode,
-        allowWellTransfers: false, // Stay in source well for this leg
-      })
-
-      if (!leg1) continue
-
-      // Calculate landing position after transfer
-      // After well transfer, ship lands at toSector then orbital movement applies
-      const destRingConfig = getRingConfigForWell(destination.wellId, tp.toRing)
-      if (!destRingConfig) continue
-
-      const landingSector = (tp.toSector + destRingConfig.velocity) % SECTORS_PER_RING
-      const landingPosition: OrientedPosition = {
-        wellId: destination.wellId,
-        ring: tp.toRing,
-        sector: landingSector,
-        facing: origin.facing, // Facing is preserved through transfer
-      }
-
-      // Check if we're already at destination after landing
-      if (positionsMatch(landingPosition, destination)) {
-        // No leg 2 needed - just the transfer
-        const fullPlan = buildCrossWellPlan(origin, destination, leg1, null, tp, baseOptions.mode)
-        addUniqueAlternative(alternatives, fullPlan)
-        continue
-      }
-
-      // Phase 2: Plan from landing position to destination
-      const remainingMass = baseOptions.availableMass - leg1.totalMassCost - WELL_TRANSFER_COSTS.mass
-
-      // Try both modes for leg 2
-      for (const mode2 of ['fastest', 'economical'] as PlannerMode[]) {
-        const leg2 = planMovement(landingPosition, destination, {
-          ...baseOptions,
-          mode: mode2,
-          availableMass: remainingMass,
-          allowWellTransfers: false, // Stay in destination well
-        })
-
-        if (!leg2) continue
-
-        // Build combined plan
-        const combinedMode = mode === 'fastest' && mode2 === 'fastest' ? 'fastest' : 'economical'
-        const fullPlan = buildCrossWellPlan(origin, destination, leg1, leg2, tp, combinedMode)
-        addUniqueAlternative(alternatives, fullPlan)
-      }
-    }
-  }
-
-  if (alternatives.length === 0) {
-    // Fallback to single-phase planner
-    return planSameWellAlternatives(origin, destination, baseOptions)
-  }
-
-  // Sort alternatives by turns first, then by mass cost
-  alternatives.sort((a, b) => {
-    if (a.totalTurns !== b.totalTurns) return a.totalTurns - b.totalTurns
-    return a.totalMassCost - b.totalMassCost
-  })
-
-  // Before limiting, ensure we include the most economical option if it would be cut
-  // Find the most economical (lowest mass)
-  let economicalIndex = 0
-  for (let i = 1; i < alternatives.length; i++) {
-    if (alternatives[i].totalMassCost < alternatives[economicalIndex].totalMassCost) {
-      economicalIndex = i
-    }
-  }
-
-  // If the economical option would be cut off (index >= 3), swap it in
-  if (economicalIndex >= 3 && alternatives.length > 3) {
-    // Swap the economical one into position 2 (third spot)
-    const economical = alternatives[economicalIndex]
-    alternatives.splice(economicalIndex, 1)
-    alternatives.splice(2, 0, economical)
-    economicalIndex = 2
-  }
-
-  // Limit to 3 alternatives
-  const finalAlternatives = alternatives.slice(0, 3)
-
-  // Label the alternatives
-  // First (fastest by turns) gets "Fastest"
-  if (finalAlternatives.length >= 1) {
-    finalAlternatives[0].label = '⚡ Fastest'
-  }
-
-  // Label the economical one if it's in the final set and different from fastest
-  if (finalAlternatives.length >= 2) {
-    // Find most economical in the final set
-    let finalEconomicalIndex = 0
-    for (let i = 1; i < finalAlternatives.length; i++) {
-      if (finalAlternatives[i].totalMassCost < finalAlternatives[finalEconomicalIndex].totalMassCost) {
-        finalEconomicalIndex = i
-      }
-    }
-    if (finalEconomicalIndex !== 0) {
-      finalAlternatives[finalEconomicalIndex].label = '💰 Economical'
-    }
-  }
-
-  // Label remaining unlabeled alternatives as "Balanced"
-  for (const alt of finalAlternatives) {
-    if (!alt.label) {
-      alt.label = '⚖️ Balanced'
-    }
-  }
-
-  return {
-    destination,
-    alternatives: finalAlternatives,
-  }
-}
-
-/**
- * Build a complete cross-well plan from two legs
- */
-function buildCrossWellPlan(
-  origin: OrientedPosition,
-  destination: OrbitalPosition,
-  leg1: MovementPlan,
-  leg2: MovementPlan | null,
-  transferPoint: typeof TRANSFER_POINTS[0],
-  mode: PlannerMode
-): MovementPlan {
-  const destRingConfig = getRingConfigForWell(destination.wellId, transferPoint.toRing)
-  const landingSector = destRingConfig
-    ? (transferPoint.toSector + destRingConfig.velocity) % SECTORS_PER_RING
-    : transferPoint.toSector
-
-  // Create the transfer step
-  const lastLeg1Step = leg1.steps[leg1.steps.length - 1]
-  const transferFrom: OrientedPosition = lastLeg1Step
-    ? { ...lastLeg1Step.to, facing: origin.facing }
-    : origin
-
-  const transferStep: MovementStep = {
-    from: transferFrom,
-    to: {
-      wellId: destination.wellId,
-      ring: transferPoint.toRing,
-      sector: landingSector,
-    },
-    actionType: 'well_transfer',
-    sectorAdjustment: 0,
-    requiresRotation: false,
-    massCost: WELL_TRANSFER_COSTS.mass,
-  }
-
-  // Combine all steps
-  const allSteps: MovementStep[] = [
-    ...leg1.steps,
-    transferStep,
-    ...(leg2?.steps || []),
-  ]
-
-  const totalMassCost =
-    leg1.totalMassCost +
-    WELL_TRANSFER_COSTS.mass +
-    (leg2?.totalMassCost || 0)
-
-  const totalTurns =
-    leg1.totalTurns +
-    1 + // Transfer turn
-    (leg2?.totalTurns || 0)
-
-  return {
-    origin,
-    destination,
-    steps: allSteps,
-    totalMassCost,
-    totalTurns,
-    crossesWells: true,
-    mode,
-  }
-}
-
-/**
- * Add a plan to alternatives if it's unique
- */
-function addUniqueAlternative(alternatives: MovementPlan[], plan: MovementPlan): void {
-  const isDuplicate = alternatives.some(existing => plansAreEquivalent(existing, plan))
-  if (!isDuplicate) {
-    alternatives.push(plan)
-  }
-}

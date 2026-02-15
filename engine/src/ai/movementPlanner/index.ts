@@ -6,8 +6,8 @@
  * - fastest: Minimize number of turns
  * - economical: Minimize fuel (reaction mass) usage
  *
- * Uses reverse Dijkstra search from destination, finding all positions that can
- * reach the target and expanding backwards until the origin is found.
+ * Uses reverse turn-layered BFS from destination, expanding backwards layer by
+ * layer (one turn per layer) until the origin is found.
  *
  * @example
  * ```typescript
@@ -60,9 +60,6 @@ export type {
 
 export { positionKey, orbitalPositionKey, positionsMatch } from "./types";
 
-// Priority queue (for advanced usage)
-export { PriorityQueue } from "./priorityQueue";
-
 // ============================================================================
 // Convenience functions for bot integration
 // ============================================================================
@@ -73,6 +70,8 @@ import type {
   Facing,
   ActionType,
 } from "../../models/game";
+import { MAX_REACTION_MASS } from "../../models/game";
+import { SUBSYSTEM_CONFIGS } from "../../models/subsystems";
 import { planMovement, isReachable } from "./planner";
 import type {
   OrbitalPosition,
@@ -102,12 +101,19 @@ export function planFromShip(
     facing: ship.facing,
   };
 
+  const hasFuelScoop = ship.subsystems.some((s) => s.type === "scoop");
+  const fuelTankCount = ship.subsystems.filter((s) => s.type === "fuel_tank").length;
+  const fuelTankBonus = SUBSYSTEM_CONFIGS.fuel_tank.passiveEffect?.reactionMassBonus ?? 0;
+  const maxFuelCapacity = MAX_REACTION_MASS + fuelTankCount * fuelTankBonus;
+
   return planMovement(origin, target, {
     mode,
     availableMass: ship.reactionMass,
     currentFacing: ship.facing,
     allowWellTransfers: true,
     maxTurns: 20,
+    hasFuelScoop,
+    maxFuelCapacity,
   });
 }
 

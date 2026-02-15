@@ -297,7 +297,6 @@ export {
   getFirstAction,
   canReachTarget,
   estimateTurnsToTarget,
-  PriorityQueue,
 } from "./movementPlanner";
 
 // Re-export movement planner types with distinct names to avoid collision with models/game.ts
