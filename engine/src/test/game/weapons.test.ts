@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { calculateFiringSolutions } from "../../utils/weaponRange";
 import { createInitialShipState } from "../../utils/subsystemHelpers";
 import type { Player } from "../../models/game";
-import type { WeaponStats } from "../../models/subsystems";
+import type { Subsystem } from "../../models/subsystems";
 import { calculatePostMovementPosition } from "../../game/movement";
 
 // Helper to create test players
@@ -30,21 +30,26 @@ function createTestPlayer(
   };
 }
 
-describe("Weapon Targeting", () => {
-  const broadsideLaser: WeaponStats = {
-    arc: "broadside",
-    ringRange: 1, // Can target ±1 ring
-    sectorRange: 1, // Can target ±1 sector
-    damage: 2,
+// Helper to create a test subsystem (type determines weapon stats via config)
+function createTestSubsystem(
+  type: Subsystem["type"],
+  overrides?: Partial<Subsystem>,
+): Subsystem {
+  return {
+    type,
+    allocatedEnergy: 0,
+    isPowered: false,
+    usedThisTurn: false,
+    ...overrides,
   };
+}
 
-  const spinalRailgun: WeaponStats = {
-    arc: "spinal",
-    ringRange: 0, // Same ring only
-    sectorRange: 6, // Fixed 6 sector range
-    damage: 4,
-    hasRecoil: true,
-  };
+describe("Weapon Targeting", () => {
+  // Laser: broadside arc, ringRange=2, sectorRange=1, sideRestricted
+  const laserSubsystem = createTestSubsystem("laser", { slotType: "side", slotIndex: 0 });
+
+  // Railgun: spinal arc, ringRange=0, sectorRange=5
+  const railgunSubsystem = createTestSubsystem("railgun", { slotType: "forward", slotIndex: 0 });
 
   describe("Broadside Laser Targeting (±1 sector spread)", () => {
     it("should hit target at same sector on outer adjacent ring", () => {
@@ -58,7 +63,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 3, 5, "prograde");
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -79,7 +84,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 3, 4, "prograde");
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -100,7 +105,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 3, 6, "prograde");
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -110,28 +115,7 @@ describe("Weapon Targeting", () => {
       expect(targetSolution?.inRange).toBe(true);
     });
 
-    it("should hit target at sector-1 on inner adjacent ring", () => {
-      const attacker = createTestPlayer(
-        "attacker",
-        "Attacker",
-        2,
-        5,
-        "prograde"
-      );
-      const target = createTestPlayer("target", "Target", 1, 4, "prograde");
-
-      const solutions = calculateFiringSolutions(
-        broadsideLaser,
-        attacker.ship,
-        [attacker, target],
-        attacker.id
-      );
-
-      const targetSolution = solutions.find((s) => s.targetId === target.id);
-      expect(targetSolution?.inRange).toBe(true);
-    });
-
-    it("should hit target at same sector on inner adjacent ring", () => {
+    it("should NOT hit inner ring with port laser when prograde (port fires outward)", () => {
       const attacker = createTestPlayer(
         "attacker",
         "Attacker",
@@ -141,8 +125,32 @@ describe("Weapon Targeting", () => {
       );
       const target = createTestPlayer("target", "Target", 1, 5, "prograde");
 
+      // Port laser (slotIndex 0) fires outward when prograde → inner ring is wrong direction
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
+        attacker.ship,
+        [attacker, target],
+        attacker.id
+      );
+
+      const targetSolution = solutions.find((s) => s.targetId === target.id);
+      expect(targetSolution?.inRange).toBe(false);
+    });
+
+    it("should hit inner ring with starboard laser when prograde (starboard fires inward)", () => {
+      const attacker = createTestPlayer(
+        "attacker",
+        "Attacker",
+        2,
+        5,
+        "prograde"
+      );
+      const target = createTestPlayer("target", "Target", 1, 5, "prograde");
+
+      // Starboard laser (slotIndex 2) fires inward when prograde
+      const starboardLaser = createTestSubsystem("laser", { slotType: "side", slotIndex: 2 });
+      const solutions = calculateFiringSolutions(
+        starboardLaser,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -152,18 +160,19 @@ describe("Weapon Targeting", () => {
       expect(targetSolution?.inRange).toBe(true);
     });
 
-    it("should hit target at sector+1 on inner adjacent ring", () => {
+    it("should hit inner ring with port laser when retrograde (sides flip)", () => {
       const attacker = createTestPlayer(
         "attacker",
         "Attacker",
         2,
         5,
-        "prograde"
+        "retrograde"
       );
-      const target = createTestPlayer("target", "Target", 1, 6, "prograde");
+      const target = createTestPlayer("target", "Target", 1, 5, "prograde");
 
+      // Port laser (slotIndex 0) fires inward when retrograde
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -184,7 +193,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 3, 7, "prograde");
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -205,7 +214,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 3, 3, "prograde");
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -226,7 +235,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 2, 5, "prograde");
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -236,7 +245,7 @@ describe("Weapon Targeting", () => {
       expect(targetSolution?.inRange).toBe(false);
     });
 
-    it("should NOT hit target 2 rings away", () => {
+    it("should hit target 2 rings away (ringRange=2, port fires outward when prograde)", () => {
       const attacker = createTestPlayer(
         "attacker",
         "Attacker",
@@ -246,8 +255,30 @@ describe("Weapon Targeting", () => {
       );
       const target = createTestPlayer("target", "Target", 4, 5, "prograde");
 
+      // Port laser fires outward when prograde → ring 4 > ring 2 → valid direction
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
+        attacker.ship,
+        [attacker, target],
+        attacker.id
+      );
+
+      const targetSolution = solutions.find((s) => s.targetId === target.id);
+      expect(targetSolution?.inRange).toBe(true);
+    });
+
+    it("should NOT hit target 3 rings away (exceeds ringRange=2)", () => {
+      const attacker = createTestPlayer(
+        "attacker",
+        "Attacker",
+        1,
+        5,
+        "prograde"
+      );
+      const target = createTestPlayer("target", "Target", 4, 5, "prograde");
+
+      const solutions = calculateFiringSolutions(
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -268,7 +299,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 3, 23, "prograde"); // 23 is one sector before 0
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -289,7 +320,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 3, 0, "prograde"); // 0 is one sector after 23
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -312,7 +343,7 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 4, 0, "prograde");
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
@@ -333,14 +364,14 @@ describe("Weapon Targeting", () => {
       const target = createTestPlayer("target", "Target", 3, 4, "prograde");
 
       const solutions = calculateFiringSolutions(
-        spinalRailgun,
+        railgunSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
-      // Target at R3S4, attacker at R3S0 -> 4 sectors away, within range (6 sectors)
+      // Target at R3S4, attacker at R3S0 -> 4 sectors away, within range (5 sectors)
       expect(targetSolution?.inRange).toBe(true);
     });
   });
@@ -370,16 +401,15 @@ describe("Weapon Targeting", () => {
       expect(postMoveShip.ring).toBe(3);
 
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         postMoveShip,
         [attacker, target],
         attacker.id
       );
 
       const targetSolution = solutions.find((s) => s.targetId === target.id);
-      // Attacker at R3S4 projects onto R4
-      // Broadside laser has ±1 ring, ±1 sector range
-      // Target at R4S4 is within range (same sector, adjacent ring)
+      // Attacker at R3S4, port laser fires outward when prograde
+      // Target at R4S4 is within range (same sector, adjacent ring, outward direction)
       expect(targetSolution).toBeDefined();
       expect(targetSolution?.inRange).toBe(true);
     });
@@ -394,16 +424,15 @@ describe("Weapon Targeting", () => {
       );
       const target = createTestPlayer("target", "Target", 3, 7, "prograde");
 
-      // Before movement: 7 sectors away (within Ring 3 railgun range of 6 sectors? No, 7 is out of range)
-      // Let's verify what's in range before: 0 to 7 = 7 sectors, railgun range = 6, so NOT in range
+      // Before movement: 7 sectors away (railgun range = 5 sectors, so NOT in range)
       const beforeSolutions = calculateFiringSolutions(
-        spinalRailgun,
+        railgunSubsystem,
         attacker.ship,
         [attacker, target],
         attacker.id
       );
       const before = beforeSolutions.find((s) => s.targetId === target.id);
-      expect(before?.inRange).toBe(false); // 7 sectors is out of 6 sector range
+      expect(before?.inRange).toBe(false); // 7 sectors is out of 5 sector range
 
       // After movement: attacker moves to S4 (velocity=4), target still at S7 -> 3 sectors away
       const postMoveShip = calculatePostMovementPosition(
@@ -418,7 +447,7 @@ describe("Weapon Targeting", () => {
       expect(postMoveShip.sector).toBe(4); // Ring 3 velocity=4
 
       const afterSolutions = calculateFiringSolutions(
-        spinalRailgun,
+        railgunSubsystem,
         postMoveShip,
         [attacker, target],
         attacker.id
@@ -454,7 +483,7 @@ describe("Weapon Targeting", () => {
 
       // Calculate weapon range from destination ring (R4)
       const solutions = calculateFiringSolutions(
-        spinalRailgun,
+        railgunSubsystem,
         postMoveShip,
         [attacker, target],
         attacker.id
@@ -465,7 +494,7 @@ describe("Weapon Targeting", () => {
       expect(targetSolution?.inRange).toBe(false); // Can't target self position
     });
 
-    it("should calculate broadside range after rotation", () => {
+    it("should calculate broadside range after rotation (side restriction flips)", () => {
       const attacker = createTestPlayer(
         "attacker",
         "Attacker",
@@ -473,7 +502,7 @@ describe("Weapon Targeting", () => {
         0,
         "prograde"
       );
-      const target = createTestPlayer("target", "Target", 4, 4, "prograde"); // Same sector after movement
+      const target = createTestPlayer("target", "Target", 2, 4, "prograde"); // Inner ring
 
       // Rotate to retrograde before movement
       const postMoveShip = calculatePostMovementPosition(
@@ -488,9 +517,9 @@ describe("Weapon Targeting", () => {
       expect(postMoveShip.facing).toBe("retrograde");
       expect(postMoveShip.sector).toBe(4); // Ring 3 velocity=4
 
-      // Calculate weapon range (broadside doesn't care about facing)
+      // Port laser (slotIndex 0) fires inward when retrograde → inner ring R2 is valid
       const solutions = calculateFiringSolutions(
-        broadsideLaser,
+        laserSubsystem,
         postMoveShip,
         [attacker, target],
         attacker.id

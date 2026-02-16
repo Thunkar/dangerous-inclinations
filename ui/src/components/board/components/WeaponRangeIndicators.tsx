@@ -4,10 +4,11 @@ import { useBoardContext } from '../context'
 import { useGame } from '../../../context/GameContext'
 import {
   calculateFiringSolutions,
-  getSubsystem,
   getSubsystemConfig,
   calculatePostMovementPosition,
   getGravityWell,
+  getSubsystemSide,
+  getSideFiringDirection,
 } from '@dangerous-inclinations/engine'
 import { getRingRadius } from '@/constants/visualConfig'
 import { getPlayerColor } from '@/utils/playerColors'
@@ -24,6 +25,7 @@ interface WeaponRangeIndicatorsProps {
     laser: boolean
     railgun: boolean
     missiles: boolean
+    ballistic_rack: boolean
   }
 }
 
@@ -67,7 +69,8 @@ export function WeaponRangeIndicators({
     const isWeapon =
       action.type === 'fire_laser' ||
       action.type === 'fire_railgun' ||
-      action.type === 'fire_missiles'
+      action.type === 'fire_missiles' ||
+      action.type === 'fire_ballistic_rack'
     const moveAction = pendingState.tacticalSequence.find(a => a.type === 'move')
     return isWeapon && moveAction && action.sequence > moveAction.sequence
   })
@@ -119,134 +122,192 @@ export function WeaponRangeIndicators({
   return (
     <>
       {/* Render range visualization for each toggled weapon */}
-      {(['laser', 'railgun', 'missiles'] as const).map(weaponKey => {
+      {(['laser', 'railgun', 'missiles', 'ballistic_rack'] as const).map(weaponKey => {
         // Only show if toggled on
         if (!weaponRangeVisibility[weaponKey]) return null
 
         const subsystemType: SubsystemType = weaponKey
 
-        // Get weapon subsystem
-        const weaponSubsystem = getSubsystem(player.ship.subsystems, subsystemType)
-        if (!weaponSubsystem) return null
+        // Get ALL weapon subsystems of this type (ship may have multiple on different sides)
+        const weaponSubsystems = rangeVisualizationShip.subsystems.filter(s => s.type === subsystemType)
+        if (weaponSubsystems.length === 0) return null
 
         const weaponConfig = getSubsystemConfig(subsystemType)
         const weaponStats = weaponConfig.weaponStats
         if (!weaponStats) return null
 
-        // For broadside weapons, cast rays showing ±sectorRange sector spread on adjacent rings
+        // For broadside weapons, draw filled polygon areas showing coverage
         if (weaponStats.arc === 'broadside') {
           const rangeWellPosition = getGravityWellPosition(rangeVisualizationShip.wellId)
-
-          // Calculate attacker's sector boundaries
-          const sectorSize = (2 * Math.PI) / rangeVisualizationRing.sectors
-          const sectorStartAngle = rangeVisualizationAngle - sectorSize / 2
-          const sectorEndAngle = rangeVisualizationAngle + sectorSize / 2
-
-          // Calculate ray start points on ship's ring
-          const rayStartX =
-            rangeWellPosition.x + rangeVisualizationRadius * Math.cos(sectorStartAngle)
-          const rayStartY =
-            rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorStartAngle)
-          const rayEndX = rangeWellPosition.x + rangeVisualizationRadius * Math.cos(sectorEndAngle)
-          const rayEndY = rangeWellPosition.y + rangeVisualizationRadius * Math.sin(sectorEndAngle)
-
-          // Get rings within weapon's ring range (±ringRange, but not same ring)
           const rangeWell = getGravityWell(rangeVisualizationShip.wellId)
           if (!rangeWell) return null
 
-          const minRing = Math.max(1, rangeVisualizationShip.ring - weaponStats.ringRange)
-          const maxRing = Math.min(
-            rangeWell.rings.length,
-            rangeVisualizationShip.ring + weaponStats.ringRange
-          )
+          const sectorSize = (2 * Math.PI) / rangeVisualizationRing.sectors
+          const rotOff = getSectorRotationOffset(rangeVisualizationShip.wellId)
+          const shipRing = rangeVisualizationShip.ring
+          const shipSector = rangeVisualizationShip.sector
+          const sectors = rangeVisualizationRing.sectors
+          const color = getPlayerColor(playerIndex)
+
+          // Use pending facing if active player
+          const effectiveFacing =
+            playerIndex === activePlayerIndex && pendingFacing
+              ? pendingFacing
+              : rangeVisualizationShip.facing
+
+          // Determine which ring directions are valid based on side-restriction
+          let validDirections: Set<'inward' | 'outward'> = new Set(['inward', 'outward'])
+          if (weaponStats.sideRestricted) {
+            validDirections = new Set()
+            for (const sub of weaponSubsystems) {
+              const side = getSubsystemSide(sub)
+              if (side) {
+                validDirections.add(getSideFiringDirection(side, effectiveFacing))
+              }
+            }
+          }
+
+          // Helper: get the angle of a sector boundary (the edge between sector s-1 and sector s)
+          const sectorBoundaryAngle = (sector: number) =>
+            (sector / sectors) * 2 * Math.PI - Math.PI / 2 + rotOff
+
+          // Helper: point on a ring at an angle
+          const ringPoint = (ringNum: number, ang: number) => {
+            const r = (getRingRadius(rangeVisualizationShip.wellId, ringNum) ?? 100) * scaleFactor
+            return {
+              x: rangeWellPosition.x + r * Math.cos(ang),
+              y: rangeWellPosition.y + r * Math.sin(ang),
+            }
+          }
+
+          // Helper: get scaled radius for a ring
+          const ringRadius = (ringNum: number) =>
+            (getRingRadius(rangeVisualizationShip.wellId, ringNum) ?? 100) * scaleFactor
+
+          // Ship sector boundary angles
+          // "back" = retrograde edge (lower sector boundary), "tip" = prograde edge (higher sector boundary)
+          const backAngle = sectorBoundaryAngle(shipSector)
+          const tipAngle = sectorBoundaryAngle(shipSector + 1)
+
+          // Coverage sector boundaries: ship ± sectorRange
+          const coverageBackSector = (shipSector - weaponStats.sectorRange + sectors) % sectors
+          const coverageTipSector = (shipSector + weaponStats.sectorRange + 1) % sectors
+          const coverageBackAngle = sectorBoundaryAngle(coverageBackSector)
+          const coverageTipAngle = sectorBoundaryAngle(coverageTipSector)
+
+          // Arc span for the coverage
+          const arcSpan = weaponStats.sectorRange * 2 + 1
+          const arcAngle = arcSpan * sectorSize
+
+          // Build SVG path for a directional wedge (outward or inward)
+          // Creates a staircase shape: starts at ship's own sector, steps out to ±sectorRange
+          // coverage at the adjacent ring, then continues to the far ring.
+          // Example (laser, ship R3S15, outward, sectorRange=1):
+          //   R3S15 tip → R4S16 tip → R5S16 tip → arc R5 → R5S14 back → R4S14 back → R3S15 back → arc R3
+          const buildWedgePath = (direction: 'outward' | 'inward') => {
+            let farRing: number
+            if (direction === 'outward') {
+              farRing = Math.min(rangeWell.rings.length, shipRing + weaponStats.ringRange)
+              if (farRing <= shipRing) return null
+            } else {
+              farRing = Math.max(1, shipRing - weaponStats.ringRange)
+              if (farRing >= shipRing) return null
+            }
+
+            const adjacentRing = direction === 'outward' ? shipRing + 1 : shipRing - 1
+
+            const shipTip = ringPoint(shipRing, tipAngle)
+            const shipBack = ringPoint(shipRing, backAngle)
+            const adjTip = ringPoint(adjacentRing, coverageTipAngle)
+            const adjBack = ringPoint(adjacentRing, coverageBackAngle)
+            const farTip = ringPoint(farRing, coverageTipAngle)
+            const farBack = ringPoint(farRing, coverageBackAngle)
+
+            const farR = ringRadius(farRing)
+            const shipR = ringRadius(shipRing)
+
+            // Build the path as a staircase polygon
+            let d = `M ${shipTip.x} ${shipTip.y}`
+
+            // Prograde side: step from ship sector tip to coverage tip at adjacent ring
+            d += ` L ${adjTip.x} ${adjTip.y}`
+
+            // If far ring is beyond the adjacent ring, continue straight to far ring
+            if (farRing !== adjacentRing) {
+              d += ` L ${farTip.x} ${farTip.y}`
+            }
+
+            // Arc along far ring from coverage tip to coverage back
+            // tip→back is counter-clockwise (decreasing sector angle), sweep=0
+            d += ` A ${farR} ${farR} 0 ${arcAngle > Math.PI ? 1 : 0} 0 ${farBack.x} ${farBack.y}`
+
+            // Retrograde side: come back from far ring to adjacent ring, then step to ship sector
+            if (farRing !== adjacentRing) {
+              d += ` L ${adjBack.x} ${adjBack.y}`
+            }
+
+            // Step from coverage back at adjacent ring to ship sector back
+            d += ` L ${shipBack.x} ${shipBack.y}`
+
+            // Arc along ship ring from back to tip (clockwise, sweep=1)
+            d += ` A ${shipR} ${shipR} 0 0 1 ${shipTip.x} ${shipTip.y}`
+            d += ' Z'
+
+            return d
+          }
+
+          // Build a single unified polygon for weapons that cover both directions + same ring
+          // (e.g. ballistic rack: ±1 ring, ±1 sector, not side-restricted, canTargetSameRing)
+          // Shape: simple annular wedge from innermost ring to outermost ring
+          const buildUnifiedPath = () => {
+            if (!weaponStats.canTargetSameRing || weaponStats.sideRestricted) return null
+
+            const innerRing = Math.max(1, shipRing - weaponStats.ringRange)
+            const outerRing = Math.min(rangeWell.rings.length, shipRing + weaponStats.ringRange)
+            if (innerRing >= outerRing) return null
+
+            const innerR = ringRadius(innerRing)
+            const outerR = ringRadius(outerRing)
+
+            const outerTip = ringPoint(outerRing, coverageTipAngle)
+            const outerBack = ringPoint(outerRing, coverageBackAngle)
+            const innerTip = ringPoint(innerRing, coverageTipAngle)
+            const innerBack = ringPoint(innerRing, coverageBackAngle)
+
+            // Outer arc: tip → back (counter-clockwise, sweep=0)
+            // Inner arc: back → tip (clockwise, sweep=1) — but we're going from innerBack to innerTip
+            // which is back→tip = counter-clockwise on inner ring... wait:
+            // We traverse: outerTip → arc to outerBack → line to innerBack → arc to innerTip → line to outerTip
+            // Inner arc from back to tip goes clockwise (increasing angle), sweep=1
+            return `M ${outerTip.x} ${outerTip.y}` +
+              ` A ${outerR} ${outerR} 0 ${arcAngle > Math.PI ? 1 : 0} 0 ${outerBack.x} ${outerBack.y}` +
+              ` L ${innerBack.x} ${innerBack.y}` +
+              ` A ${innerR} ${innerR} 0 ${arcAngle > Math.PI ? 1 : 0} 1 ${innerTip.x} ${innerTip.y}` +
+              ` L ${outerTip.x} ${outerTip.y} Z`
+          }
+
+          const unifiedPath = buildUnifiedPath()
+
+          // For unified weapons (ballistic rack), draw one shape; otherwise use separate wedges
+          if (unifiedPath) {
+            return (
+              <g key={`weapon-visibility-${weaponKey}`}>
+                <path d={unifiedPath} fill={color} fillOpacity={0.12} stroke={color} strokeWidth={1.5} opacity={0.7} />
+              </g>
+            )
+          }
+
+          const outwardPath = validDirections.has('outward') ? buildWedgePath('outward') : null
+          const inwardPath = validDirections.has('inward') ? buildWedgePath('inward') : null
 
           return (
             <g key={`weapon-visibility-${weaponKey}`}>
-              {/* Draw rays and arcs for each adjacent ring */}
-              {rangeWell.rings
-                .filter(
-                  r =>
-                    r.ring >= minRing && r.ring <= maxRing && r.ring !== rangeVisualizationShip.ring
-                )
-                .map(targetRing => {
-                  const targetRadius =
-                    (getRingRadius(rangeVisualizationShip.wellId, targetRing.ring) ?? 100) *
-                    scaleFactor
-                  const targetSectorSize = (2 * Math.PI) / targetRing.sectors
-
-                  const targetRotationOffset = getSectorRotationOffset(
-                    rangeVisualizationShip.wellId
-                  )
-
-                  // Calculate first and last targetable sectors (current ±sectorRange)
-                  const firstTargetSector =
-                    (rangeVisualizationShip.sector -
-                      weaponStats.sectorRange +
-                      rangeVisualizationRing.sectors) %
-                    rangeVisualizationRing.sectors
-                  const lastTargetSector =
-                    (rangeVisualizationShip.sector + weaponStats.sectorRange) %
-                    rangeVisualizationRing.sectors
-
-                  // Calculate boundary angles on target ring
-                  const targetStartAngle =
-                    firstTargetSector * targetSectorSize - Math.PI / 2 + targetRotationOffset
-                  const targetEndAngle =
-                    (lastTargetSector + 1) * targetSectorSize - Math.PI / 2 + targetRotationOffset
-
-                  // Calculate ray endpoints on target ring
-                  const targetStartX =
-                    rangeWellPosition.x + targetRadius * Math.cos(targetStartAngle)
-                  const targetStartY =
-                    rangeWellPosition.y + targetRadius * Math.sin(targetStartAngle)
-                  const targetEndX = rangeWellPosition.x + targetRadius * Math.cos(targetEndAngle)
-                  const targetEndY = rangeWellPosition.y + targetRadius * Math.sin(targetEndAngle)
-
-                  // Calculate arc coverage angle
-                  const arcSpan = weaponStats.sectorRange * 2 + 1
-                  const arcAngle = arcSpan * targetSectorSize
-
-                  return (
-                    <g key={`rays-${targetRing.ring}`}>
-                      {/* Ray from start of ship's sector to start of first targetable sector */}
-                      <line
-                        x1={rayStartX}
-                        y1={rayStartY}
-                        x2={targetStartX}
-                        y2={targetStartY}
-                        stroke={getPlayerColor(playerIndex)}
-                        strokeWidth={2}
-                        strokeDasharray="6 3"
-                        opacity={0.5}
-                      />
-                      {/* Ray from end of ship's sector to end of last targetable sector */}
-                      <line
-                        x1={rayEndX}
-                        y1={rayEndY}
-                        x2={targetEndX}
-                        y2={targetEndY}
-                        stroke={getPlayerColor(playerIndex)}
-                        strokeWidth={2}
-                        strokeDasharray="6 3"
-                        opacity={0.5}
-                      />
-                      {/* Arc covering all targetable sectors */}
-                      <path
-                        d={`
-                          M ${targetStartX} ${targetStartY}
-                          A ${targetRadius} ${targetRadius} 0 ${arcAngle > Math.PI ? 1 : 0} 1 ${targetEndX} ${targetEndY}
-                        `}
-                        fill="none"
-                        stroke={getPlayerColor(playerIndex)}
-                        strokeWidth={3}
-                        opacity={0.4}
-                      />
-                    </g>
-                  )
-                })}
-              {/* Highlight ship's own sector boundaries */}
-              <circle cx={rayStartX} cy={rayStartY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
-              <circle cx={rayEndX} cy={rayEndY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
+              {outwardPath && (
+                <path d={outwardPath} fill={color} fillOpacity={0.12} stroke={color} strokeWidth={1.5} opacity={0.7} />
+              )}
+              {inwardPath && (
+                <path d={inwardPath} fill={color} fillOpacity={0.12} stroke={color} strokeWidth={1.5} opacity={0.7} />
+              )}
             </g>
           )
         }
@@ -447,19 +508,18 @@ export function WeaponRangeIndicators({
       })}
 
       {/* Show targeting indicators for all toggled weapons */}
-      {(['laser', 'railgun', 'missiles'] as const).map(weaponKey => {
+      {(['laser', 'railgun', 'missiles', 'ballistic_rack'] as const).map(weaponKey => {
         // Only show if toggled on
         if (!weaponRangeVisibility[weaponKey]) return null
 
         const subsystemType: SubsystemType = weaponKey
 
-        // Get weapon subsystem and stats
-        const weaponSubsystem = getSubsystem(player.ship.subsystems, subsystemType)
-        if (!weaponSubsystem) return null
+        // Get ALL weapon subsystems of this type
+        const weaponSubsystems = player.ship.subsystems.filter(s => s.type === subsystemType)
+        if (weaponSubsystems.length === 0) return null
 
         const weaponConfig = getSubsystemConfig(subsystemType)
-        const weaponStats = weaponConfig.weaponStats
-        if (!weaponStats) return null
+        if (!weaponConfig.weaponStats) return null
 
         // Determine if this weapon fires after movement in the tactical sequence
         let shipPositionForRangeCalc = player.ship
@@ -471,7 +531,9 @@ export function WeaponRangeIndicators({
               ? 'fire_laser'
               : weaponKey === 'railgun'
                 ? 'fire_railgun'
-                : 'fire_missiles'
+                : weaponKey === 'ballistic_rack'
+                  ? 'fire_ballistic_rack'
+                  : 'fire_missiles'
           const weaponAction = pendingState.tacticalSequence.find(a => a.type === weaponActionType)
           const moveAction = pendingState.tacticalSequence.find(a => a.type === 'move')
 
@@ -486,14 +548,24 @@ export function WeaponRangeIndicators({
           }
         }
 
-        // Calculate firing solutions for all targets
-        const firingSolutions = calculateFiringSolutions(
-          weaponStats,
-          shipPositionForRangeCalc,
-          players,
-          player.id,
-          playerIndex === activePlayerIndex ? pendingFacing : undefined
-        )
+        // Calculate firing solutions using all subsystem instances, deduplicating targets
+        const allSolutions = new Map<string, ReturnType<typeof calculateFiringSolutions>[number]>()
+        for (const sub of weaponSubsystems) {
+          const solutions = calculateFiringSolutions(
+            sub,
+            shipPositionForRangeCalc,
+            players,
+            player.id,
+            playerIndex === activePlayerIndex ? pendingFacing : undefined
+          )
+          for (const sol of solutions) {
+            // Keep the solution if target not yet seen or if this one is in range
+            if (!allSolutions.has(sol.targetPlayer.id) || sol.inRange) {
+              allSolutions.set(sol.targetPlayer.id, sol)
+            }
+          }
+        }
+        const firingSolutions = Array.from(allSolutions.values())
 
         return (
           <g key={`targeting-${weaponKey}`}>

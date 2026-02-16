@@ -163,12 +163,13 @@ function isActivePlayerBot(
 ): boolean {
   const activePlayer = state.players[state.activePlayerIndex];
   // Check if active player is NOT in the human players set
-  // Also check game is still active and player is alive
+  // Also check game is still active
+  // Note: Dead bots still need their turn processed — the engine handles
+  // respawning at the start of executeTurn, so we must not skip them here.
   return (
     activePlayer &&
     !humanPlayerIds.has(activePlayer.id) &&
-    state.phase === "active" &&
-    activePlayer.ship.hitPoints > 0
+    state.phase === "active"
   );
 }
 
@@ -191,16 +192,44 @@ export async function executeBotsIfNeeded(
     const botPlayerId = botPlayer.id;
     const turnNumber = state.turn;
 
-    // Get bot's decision
-    const botDecision = botDecideActions(state, botPlayerId);
+    // If bot is dead, submit a simple coast — the engine will respawn them
+    // at the start of executeTurn before processing any actions.
+    const botDecision = botPlayer.ship.hitPoints <= 0
+      ? {
+          actions: [{
+            type: 'coast' as const,
+            playerId: botPlayerId,
+            sequence: 1,
+            data: { activateScoop: false },
+          }],
+          log: {
+            timestamp: new Date().toISOString(),
+            situation: { health: 'Dead', heat: '0', energy: '0', position: 'Respawning', threatCount: 0, targetCount: 0 },
+            threats: [],
+            targets: [],
+            reasoning: ['Dead — respawning this turn'],
+            candidates: [],
+            selectedCandidate: { description: 'Respawn coast', totalScore: 0, actionSummary: ['Coast (respawning)'] },
+          },
+        }
+      : botDecideActions(state, botPlayerId);
 
     // Execute the bot's turn
-    const result = executeTurn(state, botDecision.actions);
+    let result = executeTurn(state, botDecision.actions);
 
     if (result.errors && result.errors.length > 0) {
       console.error(`[Bot ${botPlayerId}] Turn errors:`, result.errors);
-      // Skip this bot's turn on error - shouldn't happen but be safe
-      break;
+      // Fallback: submit a simple coast so the turn advances instead of freezing
+      result = executeTurn(state, [{
+        type: 'coast' as const,
+        playerId: botPlayerId,
+        sequence: 1,
+        data: { activateScoop: false },
+      }]);
+      if (result.errors && result.errors.length > 0) {
+        console.error(`[Bot ${botPlayerId}] Coast fallback also failed:`, result.errors);
+        break;
+      }
     }
 
     state = result.gameState;

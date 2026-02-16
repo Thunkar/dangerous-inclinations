@@ -1,7 +1,6 @@
 import type { FireWeaponAction } from '../../models/game'
-import type { TacticalSituation, Target, BotParameters } from '../types'
-import { getSubsystemConfig } from '../../models/subsystems'
-import { getMissileAmmo } from '../../game/missiles'
+import type { TacticalSituation, Target, BotParameters, SubsystemStatus } from '../types'
+import { SUBSYSTEM_CONFIGS } from '../../models/subsystems'
 
 /**
  * Select best target based on parameters
@@ -18,26 +17,38 @@ export function selectTarget(
 
   switch (parameters.targetPreference) {
     case 'closest':
-      // Already sorted by distance in analyzer
       return targets.reduce(
         (closest, t) => (t.distance < closest.distance ? t : closest),
         targets[0]
       )
 
     case 'weakest':
-      // Highest priority = lowest HP
       return targets.reduce(
         (weakest, t) => (t.priority > weakest.priority ? t : weakest),
         targets[0]
       )
 
-    case 'threatening':
-      // Target that's threatening us
+    case 'threatening': {
       const threat = situation.primaryThreat
       if (threat) {
         return targets.find(t => t.player.id === threat.player.id) || targets[0]
       }
       return targets[0]
+    }
+
+    case 'mission': {
+      // Prioritize destroy mission target
+      const goal = situation.currentGoal
+      if (goal && goal.type === 'destroy_target' && goal.targetPlayerId) {
+        const missionTarget = targets.find(t => t.player.id === goal.targetPlayerId)
+        if (missionTarget) return missionTarget
+      }
+      // Fall back to closest
+      return targets.reduce(
+        (closest, t) => (t.distance < closest.distance ? t : closest),
+        targets[0]
+      )
+    }
 
     default:
       return targets[0]
@@ -45,95 +56,113 @@ export function selectTarget(
 }
 
 /**
- * Projected energy for weapons after planned allocations
+ * Weapon priority for firing order.
+ * Lower number = fires first.
  */
-export interface ProjectedWeaponEnergy {
-  railgun: number
-  laser: number
-  missiles: number
+function getWeaponPriority(type: string): number {
+  switch (type) {
+    case 'railgun': return 0 // Highest damage, fires first
+    case 'laser': return 1
+    case 'ballistic_rack': return 2
+    case 'missiles': return 3 // Lowest priority (conserve ammo)
+    default: return 4
+  }
 }
 
 /**
- * Generate weapon firing actions for the selected target
- * Returns actions ordered by sequence number
+ * Generate weapon firing actions for the selected target.
+ * Iterates ALL weapon subsystems dynamically.
+ * Includes missile conservation logic.
  *
- * @param projectedEnergy - Optional projected energy values after planned allocations.
- *                          If not provided, uses current subsystem energy.
+ * @param projectedEnergy - Map of subsystem index → projected energy after allocations
  */
 export function generateWeaponActions(
   situation: TacticalSituation,
   target: Target | null,
   startSequence: number,
-  projectedEnergy?: ProjectedWeaponEnergy
+  parameters: BotParameters,
+  projectedEnergy?: Map<number, number>
 ): FireWeaponAction[] {
   if (!target) {
     return []
   }
 
   const actions: FireWeaponAction[] = []
-  const { botPlayer } = situation
+  const { botPlayer, status } = situation
   const { firingSolutions } = target
 
-  // Priority order: railgun (highest damage, spinal) > laser (versatile) > missiles (turret)
+  // Collect all eligible weapons with their priority
+  const eligibleWeapons: Array<{
+    sub: SubsystemStatus
+    priority: number
+  }> = []
 
-  // Helper to check if weapon can fire (has enough energy)
-  // Uses projected energy if provided, otherwise checks current allocation
-  const canFireWeapon = (weaponType: 'railgun' | 'laser' | 'missiles'): boolean => {
-    const subsystem = botPlayer.ship.subsystems.find(s => s.type === weaponType)
-    if (!subsystem || subsystem.usedThisTurn) return false
+  // Track whether we have any direct (non-missile) weapon in range
+  let hasDirectWeaponInRange = false
 
-    const subsystemConfig = getSubsystemConfig(weaponType)
-    if (!subsystemConfig) return false
+  for (const sub of status.weapons) {
+    if (sub.used || sub.broken) continue
 
-    // Use projected energy if provided, otherwise use current
-    const availableEnergy = projectedEnergy
-      ? projectedEnergy[weaponType]
-      : subsystem.allocatedEnergy
+    const config = SUBSYSTEM_CONFIGS[sub.type]
+    if (!config.weaponStats) continue
 
-    return availableEnergy >= subsystemConfig.minEnergy
-  }
+    // Check if weapon has enough energy (projected or current)
+    const energy = projectedEnergy?.get(sub.index) ?? sub.energy
+    if (energy < config.minEnergy) continue
 
-  // AI targeting strategy: prioritize breaking shields to enable future hull damage
-  const criticalTarget = 'shields' as const
+    // Check firing solution for this specific subsystem
+    const solution = firingSolutions.get(sub.index)
 
-  // Railgun - high damage spinal weapon
-  if (firingSolutions.railgun?.inRange && canFireWeapon('railgun')) {
-    actions.push({
-      type: 'fire_weapon',
-      playerId: botPlayer.id,
-      sequence: startSequence + actions.length,
-      data: {
-        weaponType: 'railgun',
-        targetPlayerIds: [target.player.id],
-        criticalTarget,
-      },
+    // For missiles, we check ammo not range (they're self-propelled)
+    if (sub.type === 'missiles') {
+      if (sub.ammo !== undefined && sub.ammo <= 0) continue
+      // Missile eligible - range check handled by conservation logic below
+    } else {
+      // Direct weapons need to be in range
+      if (!solution || !solution.inRange) continue
+      hasDirectWeaponInRange = true
+    }
+
+    eligibleWeapons.push({
+      sub,
+      priority: getWeaponPriority(sub.type),
     })
   }
 
-  // Laser - good all-around weapon
-  if (firingSolutions.laser?.inRange && canFireWeapon('laser')) {
-    actions.push({
-      type: 'fire_weapon',
-      playerId: botPlayer.id,
-      sequence: startSequence + actions.length,
-      data: {
-        weaponType: 'laser',
-        targetPlayerIds: [target.player.id],
-        criticalTarget,
-      },
-    })
-  }
+  // Sort by priority
+  eligibleWeapons.sort((a, b) => a.priority - b.priority)
 
-  // Missiles - self-propelled, can target any player (check ammo instead of range)
-  if (canFireWeapon('missiles') && getMissileAmmo(botPlayer.ship.subsystems) > 0) {
+  // Generate fire actions
+  for (const { sub } of eligibleWeapons) {
+    // Missile conservation logic
+    if (sub.type === 'missiles') {
+      const solution = firingSolutions.get(sub.index)
+      const missileInRange = solution?.inRange ?? false
+
+      // Check if this is a mission target
+      const isMissionTarget = situation.currentGoal?.type === 'destroy_target' &&
+        situation.currentGoal.targetPlayerId === target.player.id
+
+      if (parameters.conserveAmmo) {
+        // Only fire if: no direct weapon in range, OR it's a mission target with ammo >= 2
+        if (hasDirectWeaponInRange) continue
+        if (isMissionTarget && (sub.ammo ?? 0) < 2) continue
+      } else {
+        // Even without conserveAmmo, don't fire missiles if we have direct weapons
+        // unless the missile is actually in range or it's a mission target
+        if (hasDirectWeaponInRange && !missileInRange && !isMissionTarget) continue
+      }
+    }
+
     actions.push({
       type: 'fire_weapon',
       playerId: botPlayer.id,
       sequence: startSequence + actions.length,
       data: {
-        weaponType: 'missiles',
+        weaponType: sub.type as 'laser' | 'railgun' | 'missiles' | 'ballistic_rack',
         targetPlayerIds: [target.player.id],
-        criticalTarget,
+        criticalTarget: 'shields',
+        subsystemIndex: sub.index,
       },
     })
   }
@@ -142,31 +171,44 @@ export function generateWeaponActions(
 }
 
 /**
- * Determine if bot should face toward or away from target
+ * Determine if bot should face toward or away from target.
+ * Considers mission target and railgun (spinal weapon needs correct facing).
  */
 export function shouldFaceTarget(
   situation: TacticalSituation,
-  target: Target | null
+  target: Target | null,
+  plannedMovementFacing?: 'prograde' | 'retrograde'
 ): 'prograde' | 'retrograde' | null {
   if (!target) {
-    return null
+    return plannedMovementFacing ?? null
   }
 
   const { status } = situation
-  const { firingSolutions } = target
 
-  // If railgun is in range, we should be facing toward target (spinal weapon)
-  if (firingSolutions.railgun?.inRange) {
-    // Determine if target is ahead or behind based on sector positions
-    // This is a simplification - real calculation would need well-specific logic
-    return status.facing // Keep current facing if railgun in range
+  // Check if we have a railgun (spinal weapon) that could fire
+  const hasRailgun = status.weapons.some(w =>
+    w.type === 'railgun' && !w.used && !w.broken
+  )
+
+  if (hasRailgun) {
+    // Railgun is spinal - needs facing direction. Check firing solution.
+    for (const sub of status.weapons) {
+      if (sub.type !== 'railgun') continue
+      const solution = target.firingSolutions.get(sub.index)
+      if (solution?.wrongFacing) {
+        // Need to flip facing for railgun
+        return status.facing === 'prograde' ? 'retrograde' : 'prograde'
+      }
+      if (solution?.inRange) {
+        // Railgun is in range with current facing - keep it
+        return status.facing
+      }
+    }
   }
 
-  // If under heavy fire, consider facing away to reduce laser damage
-  const underFire = situation.primaryThreat?.weaponsInRange.some(w => w.inRange)
-  if (underFire && status.healthPercent < 0.5) {
-    // Face away from threat
-    return status.facing === 'prograde' ? 'retrograde' : 'prograde'
+  // If movement planner suggests a facing, use it
+  if (plannedMovementFacing && plannedMovementFacing !== status.facing) {
+    return plannedMovementFacing
   }
 
   // Default: keep current facing

@@ -296,6 +296,7 @@ describe("Bot AI Integration Tests", () => {
         useWellTransfers: true, // Enable transfers
         energyReserve: 2,
         conserveAmmo: true,
+        missionStrategy: "auto",
       };
 
       gameState.activePlayerIndex = 1;
@@ -333,6 +334,7 @@ describe("Bot AI Integration Tests", () => {
         useWellTransfers: false,
         energyReserve: 3,
         conserveAmmo: true,
+        missionStrategy: "auto",
       };
 
       const hardParams: BotParameters = {
@@ -344,6 +346,7 @@ describe("Bot AI Integration Tests", () => {
         useWellTransfers: true,
         energyReserve: 1,
         conserveAmmo: false,
+        missionStrategy: "auto",
       };
 
       gameState.activePlayerIndex = 1;

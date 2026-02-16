@@ -27,6 +27,7 @@ interface WeaponRangeVisibility {
   laser: boolean
   railgun: boolean
   missiles: boolean
+  ballistic_rack: boolean
 }
 
 interface MovementPreview {
@@ -42,6 +43,7 @@ export type TacticalActionType =
   | 'fire_laser'
   | 'fire_railgun'
   | 'fire_missiles'
+  | 'fire_ballistic_rack'
   | 'well_transfer'
 
 export interface TacticalAction {
@@ -88,7 +90,7 @@ interface GameContextType {
   setTacticalSequence: (sequence: TacticalAction[]) => void
   executeTurn: () => void
   weaponRangeVisibility: WeaponRangeVisibility
-  toggleWeaponRange: (weaponType: 'laser' | 'railgun' | 'missiles') => void
+  toggleWeaponRange: (weaponType: 'laser' | 'railgun' | 'missiles' | 'ballistic_rack') => void
   // Animation handler registration (for BoardContext)
   registerAnimationHandlers: (handlers: AnimationHandlers) => void
   // Callback to notify parent when game ends or needs restart
@@ -125,6 +127,7 @@ export function GameProvider({
     laser: false,
     railgun: false,
     missiles: false,
+    ballistic_rack: false,
   })
 
   // Movement planner state
@@ -535,6 +538,17 @@ export function GameProvider({
             criticalTarget: tacticalAction.criticalTarget || 'shields',
           },
         })
+      } else if (tacticalAction.type === 'fire_ballistic_rack' && tacticalAction.targetPlayerId) {
+        actions.push({
+          playerId: activePlayer.id,
+          type: 'fire_weapon',
+          sequence: tacticalAction.sequence,
+          data: {
+            weaponType: 'ballistic_rack',
+            targetPlayerIds: [tacticalAction.targetPlayerId],
+            criticalTarget: tacticalAction.criticalTarget || 'shields',
+          },
+        })
       } else if (tacticalAction.type === 'well_transfer' && tacticalAction.destinationWellId) {
         const transferPoint = TRANSFER_POINTS.find(
           tp =>
@@ -577,10 +591,11 @@ export function GameProvider({
       laser: false,
       railgun: false,
       missiles: false,
+      ballistic_rack: false,
     })
   }, [activePlayer, pendingState, gameState, client, gameId])
 
-  const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missiles') => {
+  const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missiles' | 'ballistic_rack') => {
     setWeaponRangeVisibility(prev => ({
       ...prev,
       [weaponType]: !prev[weaponType],

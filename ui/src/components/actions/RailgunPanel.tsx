@@ -1,5 +1,5 @@
 import type { ShipState, Subsystem, SubsystemType, Player, Facing, ActionType, BurnIntensity } from '@dangerous-inclinations/engine'
-import { getSubsystemConfig, calculateFiringSolutions, calculatePostMovementPosition } from '@dangerous-inclinations/engine'
+import { calculateFiringSolutions, calculatePostMovementPosition } from '@dangerous-inclinations/engine'
 import { WeaponPanel } from './WeaponPanel'
 
 interface RailgunPanelProps {
@@ -40,9 +40,6 @@ export function RailgunPanel({
   burnIntensity,
   sectorAdjustment,
 }: RailgunPanelProps) {
-  const subsystemConfig = railgunSubsystem ? getSubsystemConfig(railgunSubsystem.type) : null
-  const weaponStats = subsystemConfig?.weaponStats
-
   // Calculate ship position for range calculations
   let shipForRangeCalc = ship
   if (firesAfterMovement && actionType === 'burn') {
@@ -61,8 +58,8 @@ export function RailgunPanel({
     )
   }
 
-  const firingSolutions = weaponStats
-    ? calculateFiringSolutions(weaponStats, shipForRangeCalc, allPlayers, playerId)
+  const firingSolutions = railgunSubsystem
+    ? calculateFiringSolutions(railgunSubsystem, shipForRangeCalc, allPlayers, playerId)
     : []
   const inRangeTargets = firingSolutions.filter(fs => fs.inRange)
 

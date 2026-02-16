@@ -14,6 +14,7 @@ import { ActionSummary } from './actions/ActionSummary'
 import { LaserPanel } from './actions/LaserPanel'
 import { RailgunPanel } from './actions/RailgunPanel'
 import { MissilesPanel } from './actions/MissilesPanel'
+import { BallisticRackPanel } from './actions/BallisticRackPanel'
 import { MovementPlanner } from './actions/MovementPlanner'
 import { STARTING_REACTION_MASS, SUBSYSTEM_CONFIGS } from '@dangerous-inclinations/engine'
 import { CustomIcon } from './CustomIcon'
@@ -25,7 +26,7 @@ interface ControlPanelProps {
   allPlayers: Player[]
 }
 
-type PanelType = 'rotate' | 'move' | 'scoop' | 'fire_laser' | 'fire_railgun' | 'fire_missiles'
+type PanelType = 'rotate' | 'move' | 'scoop' | 'fire_laser' | 'fire_railgun' | 'fire_missiles' | 'fire_ballistic_rack'
 
 interface ActionPanel {
   id: string
@@ -73,6 +74,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   const laserSubsystem = getSubsystem(subsystems, 'laser')
   const railgunSubsystem = getSubsystem(subsystems, 'railgun')
   const missilesSubsystem = getSubsystem(subsystems, 'missiles')
+  const ballisticRackSubsystems = useMemo(() => subsystems.filter(s => s.type === 'ballistic_rack'), [subsystems])
 
   const availableWellTransfers = useMemo(
     () => getAvailableWellTransfers(ship.wellId, ship.ring, ship.sector, TRANSFER_POINTS),
@@ -92,6 +94,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   const missileSubsystems = useMemo(() => ship.subsystems.filter(s => s.type === 'missiles'), [ship.subsystems])
   const totalMissileAmmo = missileSubsystems.reduce((sum, s) => sum + (s.ammo ?? 0), 0)
   const missilesPowered = missilesSubsystem?.isPowered && !missilesSubsystem.usedThisTurn && totalMissileAmmo > 0
+  const ballisticRackPowered = ballisticRackSubsystems.some(s => s.isPowered && !s.usedThisTurn)
   const scoopPowered = scoopSubsystem?.isPowered && !scoopSubsystem.usedThisTurn
   const canUseScoop = actionType === 'coast' && scoopPowered
 
@@ -124,10 +127,13 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
     if (missilesPowered) {
       basePanels.push({ id: 'missiles-panel', type: 'fire_missiles', sequence: seq++, criticalTarget: 'shields' })
     }
+    if (ballisticRackPowered) {
+      basePanels.push({ id: 'ballistic-rack-panel', type: 'fire_ballistic_rack', sequence: seq++, criticalTarget: 'shields' })
+    }
 
     setPanels(basePanels)
     setTacticalSequence([{ id: 'move-panel', type: 'move', sequence: 1 }])
-  }, [pendingState.tacticalSequence.length, setTacticalSequence, rotationPowered, laserPowered, railgunPowered, missilesPowered, canUseScoop])
+  }, [pendingState.tacticalSequence.length, setTacticalSequence, rotationPowered, laserPowered, railgunPowered, missilesPowered, ballisticRackPowered, canUseScoop])
 
   // Update panels when subsystem power changes
   useEffect(() => {
@@ -188,10 +194,21 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
       changed = true
     }
 
+    // Ballistic Rack
+    const hasBallisticRack = updated.some(p => p.type === 'fire_ballistic_rack')
+    if (ballisticRackPowered && !hasBallisticRack) {
+      updated.push({ id: `ballistic-rack-${Date.now()}`, type: 'fire_ballistic_rack', sequence: updated.length + 1, criticalTarget: 'shields' })
+      changed = true
+    } else if (!ballisticRackPowered && hasBallisticRack) {
+      if (weaponRangeVisibility.ballistic_rack) toggleWeaponRange('ballistic_rack')
+      updated = updated.filter(p => p.type !== 'fire_ballistic_rack')
+      changed = true
+    }
+
     if (changed) {
       setPanels(updated.map((p, i) => ({ ...p, sequence: i + 1 })))
     }
-  }, [rotationPowered, canUseScoop, laserPowered, railgunPowered, missilesPowered, panels, weaponRangeVisibility, toggleWeaponRange])
+  }, [rotationPowered, canUseScoop, laserPowered, railgunPowered, missilesPowered, ballisticRackPowered, panels, weaponRangeVisibility, toggleWeaponRange])
 
   useEffect(() => {
     setTargetFacing(player.ship.facing)
@@ -290,6 +307,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
       case 'fire_laser': return 'Laser'
       case 'fire_railgun': return 'Railgun'
       case 'fire_missiles': return 'Missiles'
+      case 'fire_ballistic_rack': return 'Ballistic Rack'
     }
   }
 
@@ -480,6 +498,23 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
                 totalMissileAmmo={totalMissileAmmo}
               />
             )}
+
+            {panel.type === 'fire_ballistic_rack' && (() => {
+              const moveAction = panels.find(p => p.type === 'move')
+              const rotateAction = panels.find(p => p.type === 'rotate')
+              const firesAfterMovement = !!(moveAction && panel.sequence > moveAction.sequence)
+              const rotateBeforeMove = rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true
+              return (
+                <BallisticRackPanel
+                  ship={ship} ballisticRackSubsystems={ballisticRackSubsystems} allPlayers={allPlayers} playerId={player.id}
+                  targetPlayerId={panel.targetPlayerId} criticalTarget={panel.criticalTarget}
+                  onTargetChange={(id) => updateWeaponTarget(panel.id, id)} onCriticalTargetChange={(s) => updateCriticalTarget(panel.id, s)}
+                  rangeVisible={weaponRangeVisibility.ballistic_rack} onToggleRange={() => toggleWeaponRange('ballistic_rack')}
+                  firesAfterMovement={firesAfterMovement} rotateBeforeMove={rotateBeforeMove}
+                  targetFacing={targetFacing} actionType={actionType} burnIntensity={burnIntensity} sectorAdjustment={sectorAdjustment}
+                />
+              )
+            })()}
           </Box>
         </Paper>
       ))}

@@ -113,25 +113,28 @@ export function validateLoadout(loadout: ShipLoadout): LoadoutValidation {
 /**
  * Create subsystem instances from a loadout
  * Always includes fixed subsystems (engines, rotation) plus loadout subsystems
+ * Side slot subsystems get slotIndex and slotType metadata for port/starboard determination
  */
 export function createSubsystemsFromLoadout(loadout: ShipLoadout): Subsystem[] {
   const subsystems: Subsystem[] = [];
 
-  // Always add fixed subsystems first
+  // Always add fixed subsystems first (no slot metadata)
   subsystems.push(createSubsystemInstance("engines"));
   subsystems.push(createSubsystemInstance("rotation"));
 
-  // Add forward slot subsystems
-  for (const type of loadout.forwardSlots) {
+  // Add forward slot subsystems with slot metadata
+  for (let i = 0; i < loadout.forwardSlots.length; i++) {
+    const type = loadout.forwardSlots[i];
     if (type !== null) {
-      subsystems.push(createSubsystemInstance(type));
+      subsystems.push(createSubsystemInstance(type, { slotIndex: i, slotType: "forward" }));
     }
   }
 
-  // Add side slot subsystems
-  for (const type of loadout.sideSlots) {
+  // Add side slot subsystems with slot metadata
+  for (let i = 0; i < loadout.sideSlots.length; i++) {
+    const type = loadout.sideSlots[i];
     if (type !== null) {
-      subsystems.push(createSubsystemInstance(type));
+      subsystems.push(createSubsystemInstance(type, { slotIndex: i, slotType: "side" }));
     }
   }
 
@@ -141,12 +144,16 @@ export function createSubsystemsFromLoadout(loadout: ShipLoadout): Subsystem[] {
 /**
  * Create a single subsystem instance
  */
-function createSubsystemInstance(type: SubsystemType): Subsystem {
+function createSubsystemInstance(
+  type: SubsystemType,
+  slotInfo?: { slotIndex: number; slotType: "forward" | "side" },
+): Subsystem {
   const subsystem: Subsystem = {
     type,
     allocatedEnergy: 0,
     isPowered: false,
     usedThisTurn: false,
+    ...(slotInfo && { slotIndex: slotInfo.slotIndex, slotType: slotInfo.slotType }),
   };
 
   // Add ammo for missiles

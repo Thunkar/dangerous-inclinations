@@ -119,6 +119,16 @@ describe("Loadout System", () => {
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
+
+    it("should allow ballistic rack in side slots", () => {
+      const loadout: ShipLoadout = {
+        forwardSlots: ["scoop", "railgun"],
+        sideSlots: ["ballistic_rack", "ballistic_rack", "shields", "laser"],
+      };
+      const result = validateLoadout(loadout);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
   });
 
   describe("createSubsystemsFromLoadout", () => {

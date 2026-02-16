@@ -5,13 +5,14 @@ import type {
   GravityWellId,
   TransferPoint,
 } from '../models/game'
-import type { TacticalSituation, Threat, Target, BotStatus } from './types'
-import { calculateFiringSolutions } from '../utils/weaponRange'
+import type { TacticalSituation, Threat, Target, BotStatus, SubsystemStatus } from './types'
 import { SUBSYSTEM_CONFIGS } from '../models/subsystems'
+import { calculateFiringSolutions } from '../utils/weaponRange'
 import { getAvailableWellTransfers } from '../models/transferPoints'
 import { TRANSFER_POINTS } from '../models/gravityWells'
 import { applyOrbitalMovement } from '../game/movement'
 import { SECTORS_PER_RING } from '../models/rings'
+import { computeMissionGoals, selectCurrentGoal } from './behaviors/missions'
 
 /**
  * Check if two ships are in a shared transfer sector (can target across wells)
@@ -21,9 +22,8 @@ function areInSharedTransferSector(
   ship2: ShipState,
   transferPoints: TransferPoint[]
 ): boolean {
-  if (ship1.wellId === ship2.wellId) return false // Same well, not a transfer sector issue
+  if (ship1.wellId === ship2.wellId) return false
 
-  // Check if ship1's position is a transfer point that connects to ship2's well
   const ship1Transfers = transferPoints.filter(
     tp =>
       tp.fromWellId === ship1.wellId &&
@@ -34,7 +34,6 @@ function areInSharedTransferSector(
 
   if (ship1Transfers.length === 0) return false
 
-  // Check if ship2 is at the corresponding transfer sector
   return ship1Transfers.some(tp => tp.toRing === ship2.ring && tp.toSector === ship2.sector)
 }
 
@@ -50,10 +49,8 @@ function calculateDistance(
   ringDistance: number
   sectorDistance: number
 } {
-  // Ships in different wells - check if they're in a shared transfer sector
   if (ship1.wellId !== ship2.wellId) {
     if (areInSharedTransferSector(ship1, ship2, transferPoints)) {
-      // They're in the shared transfer sector - treat as adjacent (distance 0)
       return { total: 0, ringDistance: 0, sectorDistance: 0 }
     }
     return { total: 999, ringDistance: 999, sectorDistance: 999 }
@@ -61,7 +58,6 @@ function calculateDistance(
 
   const ringDistance = Math.abs(ship1.ring - ship2.ring)
 
-  // Calculate shortest sector distance (accounting for wrap-around)
   let sectorDistance = Math.abs(ship1.sector - ship2.sector)
   const halfRing = SECTORS_PER_RING / 2
   if (sectorDistance > halfRing) {
@@ -83,7 +79,6 @@ function predictShipPosition(ship: ShipState): {
   ring: number
   sector: number
 } {
-  // Simple prediction: assume ship will coast (apply orbital movement)
   const afterMovement = applyOrbitalMovement(ship)
 
   return {
@@ -94,58 +89,54 @@ function predictShipPosition(ship: ShipState): {
 }
 
 /**
- * Analyze bot's current status
+ * Analyze bot's current status - dynamic, works with any loadout
  */
 function analyzeBotStatus(bot: Player): BotStatus {
   const ship = bot.ship
-  const subsystems = ship.subsystems
+  const subsystemStatuses: SubsystemStatus[] = []
 
-  const getSubsystem = (type: string) => subsystems.find(s => s.type === type)
+  for (let i = 0; i < ship.subsystems.length; i++) {
+    const sub = ship.subsystems[i]
+    subsystemStatuses.push({
+      type: sub.type,
+      index: i,
+      powered: sub.isPowered,
+      energy: sub.allocatedEnergy,
+      used: sub.usedThisTurn,
+      broken: sub.isBroken ?? false,
+      slotType: sub.slotType,
+      slotIndex: sub.slotIndex,
+      ammo: sub.ammo,
+    })
+  }
 
-  const engines = getSubsystem('engines')
-  const rotation = getSubsystem('rotation')
-  const laser = getSubsystem('laser')
-  const railgun = getSubsystem('railgun')
-  const missiles = getSubsystem('missiles')
-  const shields = getSubsystem('shields')
+  // Find fixed subsystems (always present)
+  const engines = subsystemStatuses.find(s => s.type === 'engines')!
+  const rotation = subsystemStatuses.find(s => s.type === 'rotation')!
+
+  // Find all weapon subsystems
+  const weapons = subsystemStatuses.filter(s => {
+    const config = SUBSYSTEM_CONFIGS[s.type]
+    return config?.weaponStats != null
+  })
+
+  const hasScoop = subsystemStatuses.some(s => s.type === 'scoop')
+  const hasShields = subsystemStatuses.some(s => s.type === 'shields')
 
   return {
     health: ship.hitPoints,
     healthPercent: ship.hitPoints / ship.maxHitPoints,
     heat: ship.heat.currentHeat,
-    heatPercent: ship.heat.currentHeat / 10, // Heat scales with ship, assume max ~10 for percentage
+    heatPercent: ship.heat.currentHeat / 10,
     reactionMass: ship.reactionMass,
+    maxReactionMass: ship.reactionMass, // Will be corrected if we have the stats
     availableEnergy: ship.reactor.availableEnergy,
-    subsystems: {
-      engines: {
-        powered: engines?.isPowered || false,
-        energy: engines?.allocatedEnergy || 0,
-      },
-      rotation: {
-        powered: rotation?.isPowered || false,
-        energy: rotation?.allocatedEnergy || 0,
-        used: rotation?.usedThisTurn || false,
-      },
-      laser: {
-        powered: laser?.isPowered || false,
-        energy: laser?.allocatedEnergy || 0,
-        used: laser?.usedThisTurn || false,
-      },
-      railgun: {
-        powered: railgun?.isPowered || false,
-        energy: railgun?.allocatedEnergy || 0,
-        used: railgun?.usedThisTurn || false,
-      },
-      missiles: {
-        powered: missiles?.isPowered || false,
-        energy: missiles?.allocatedEnergy || 0,
-        used: missiles?.usedThisTurn || false,
-      },
-      shields: {
-        powered: shields?.isPowered || false,
-        energy: shields?.allocatedEnergy || 0,
-      },
-    },
+    subsystems: subsystemStatuses,
+    engines,
+    rotation,
+    weapons,
+    hasScoop,
+    hasShields,
     wellId: ship.wellId,
     ring: ship.ring,
     sector: ship.sector,
@@ -154,7 +145,7 @@ function analyzeBotStatus(bot: Player): BotStatus {
 }
 
 /**
- * Analyze threats (enemy ships that can harm us)
+ * Analyze threats (enemy ships that can harm us) - dynamic weapon detection
  */
 function analyzeThreats(bot: Player, enemies: Player[], transferPoints: TransferPoint[]): Threat[] {
   const threats: Threat[] = []
@@ -163,51 +154,25 @@ function analyzeThreats(bot: Player, enemies: Player[], transferPoints: Transfer
     const distance = calculateDistance(bot.ship, enemy.ship, transferPoints)
     const predictedPosition = predictShipPosition(enemy.ship)
 
-    // Check which enemy weapons can hit us
-    const weaponsInRange = []
+    // Check ALL weapon subsystems on enemy ship
+    const weaponsInRange: Threat['weaponsInRange'] = []
 
-    // Laser check
-    const laserSubsystem = enemy.ship.subsystems.find(s => s.type === 'laser')
-    if (laserSubsystem?.isPowered && SUBSYSTEM_CONFIGS.laser.weaponStats) {
-      const laserSolutions = calculateFiringSolutions(
-        SUBSYSTEM_CONFIGS.laser.weaponStats,
+    for (let i = 0; i < enemy.ship.subsystems.length; i++) {
+      const sub = enemy.ship.subsystems[i]
+      const config = SUBSYSTEM_CONFIGS[sub.type]
+      if (!config?.weaponStats) continue
+      if (!sub.isPowered) continue
+
+      const solutions = calculateFiringSolutions(
+        sub,
         enemy.ship,
         [bot],
         enemy.id
       )
       weaponsInRange.push({
-        weaponType: 'laser' as const,
-        inRange: laserSolutions.some(s => s.inRange),
-      })
-    }
-
-    // Railgun check
-    const railgunSubsystem = enemy.ship.subsystems.find(s => s.type === 'railgun')
-    if (railgunSubsystem?.isPowered && SUBSYSTEM_CONFIGS.railgun.weaponStats) {
-      const railgunSolutions = calculateFiringSolutions(
-        SUBSYSTEM_CONFIGS.railgun.weaponStats,
-        enemy.ship,
-        [bot],
-        enemy.id
-      )
-      weaponsInRange.push({
-        weaponType: 'railgun' as const,
-        inRange: railgunSolutions.some(s => s.inRange),
-      })
-    }
-
-    // Missiles check
-    const missilesSubsystem = enemy.ship.subsystems.find(s => s.type === 'missiles')
-    if (missilesSubsystem?.isPowered && SUBSYSTEM_CONFIGS.missiles.weaponStats) {
-      const missileSolutions = calculateFiringSolutions(
-        SUBSYSTEM_CONFIGS.missiles.weaponStats,
-        enemy.ship,
-        [bot],
-        enemy.id
-      )
-      weaponsInRange.push({
-        weaponType: 'missiles' as const,
-        inRange: missileSolutions.some(s => s.inRange),
+        weaponType: sub.type,
+        subsystemIndex: i,
+        inRange: solutions.some(s => s.inRange),
       })
     }
 
@@ -221,14 +186,13 @@ function analyzeThreats(bot: Player, enemies: Player[], transferPoints: Transfer
     })
   }
 
-  // Sort by distance (closest first)
   threats.sort((a, b) => a.distance - b.distance)
 
   return threats
 }
 
 /**
- * Analyze targets (enemies we can attack)
+ * Analyze targets (enemies we can attack) - dynamic weapon detection
  */
 function analyzeTargets(bot: Player, enemies: Player[], transferPoints: TransferPoint[]): Target[] {
   const targets: Target[] = []
@@ -237,49 +201,26 @@ function analyzeTargets(bot: Player, enemies: Player[], transferPoints: Transfer
     const distance = calculateDistance(bot.ship, enemy.ship, transferPoints)
     const predictedPosition = predictShipPosition(enemy.ship)
 
-    // Calculate firing solutions for each weapon
-    const firingSolutions: Target['firingSolutions'] = {}
+    // Calculate firing solutions for EVERY weapon subsystem on our ship
+    const firingSolutions = new Map<number, import('../utils/weaponRange').FiringSolution>()
 
-    const laserSubsystem = bot.ship.subsystems.find(s => s.type === 'laser')
-    if (laserSubsystem?.isPowered && SUBSYSTEM_CONFIGS.laser.weaponStats) {
+    for (let i = 0; i < bot.ship.subsystems.length; i++) {
+      const sub = bot.ship.subsystems[i]
+      const config = SUBSYSTEM_CONFIGS[sub.type]
+      if (!config?.weaponStats) continue
+      if (!sub.isPowered) continue
+
       const solutions = calculateFiringSolutions(
-        SUBSYSTEM_CONFIGS.laser.weaponStats,
+        sub,
         bot.ship,
         [enemy],
         bot.id
       )
       if (solutions.length > 0) {
-        firingSolutions.laser = solutions[0]
+        firingSolutions.set(i, solutions[0])
       }
     }
 
-    const railgunSubsystem = bot.ship.subsystems.find(s => s.type === 'railgun')
-    if (railgunSubsystem?.isPowered && SUBSYSTEM_CONFIGS.railgun.weaponStats) {
-      const solutions = calculateFiringSolutions(
-        SUBSYSTEM_CONFIGS.railgun.weaponStats,
-        bot.ship,
-        [enemy],
-        bot.id
-      )
-      if (solutions.length > 0) {
-        firingSolutions.railgun = solutions[0]
-      }
-    }
-
-    const missilesSubsystem = bot.ship.subsystems.find(s => s.type === 'missiles')
-    if (missilesSubsystem?.isPowered && SUBSYSTEM_CONFIGS.missiles.weaponStats) {
-      const solutions = calculateFiringSolutions(
-        SUBSYSTEM_CONFIGS.missiles.weaponStats,
-        bot.ship,
-        [enemy],
-        bot.id
-      )
-      if (solutions.length > 0) {
-        firingSolutions.missiles = solutions[0]
-      }
-    }
-
-    // Priority: lower HP = higher priority
     const priority = 100 - (enemy.ship.hitPoints / enemy.ship.maxHitPoints) * 100
 
     targets.push({
@@ -291,7 +232,6 @@ function analyzeTargets(bot: Player, enemies: Player[], transferPoints: Transfer
     })
   }
 
-  // Sort by priority (highest priority first)
   targets.sort((a, b) => b.priority - a.priority)
 
   return targets
@@ -305,31 +245,29 @@ export function analyzeTacticalSituation(
   gameState: GameState,
   botPlayerId: string
 ): TacticalSituation {
-  // Find bot player
   const botPlayer = gameState.players.find(p => p.id === botPlayerId)
   if (!botPlayer) {
     throw new Error(`Bot player ${botPlayerId} not found`)
   }
 
-  // Get enemies (all other players with HP > 0)
   const enemies = gameState.players.filter(p => p.id !== botPlayerId && p.ship.hitPoints > 0)
 
-  // Analyze bot status
   const status = analyzeBotStatus(botPlayer)
 
-  // Analyze threats and targets (passing transferPoints for cross-well targeting)
   const threats = analyzeThreats(botPlayer, enemies, TRANSFER_POINTS)
   const targets = analyzeTargets(botPlayer, enemies, TRANSFER_POINTS)
 
-  // Identify primary threat (closest enemy with weapons in range)
   const primaryThreat =
     threats.find(t => t.weaponsInRange.some(w => w.inRange)) || threats[0] || null
 
-  // Identify primary target (best firing solution + highest priority)
   const primaryTarget =
-    targets.find(t => Object.values(t.firingSolutions).some(s => s?.inRange)) || targets[0] || null
+    targets.find(t => {
+      for (const sol of t.firingSolutions.values()) {
+        if (sol.inRange) return true
+      }
+      return false
+    }) || targets[0] || null
 
-  // Get available transfer points
   const availableTransfers = getAvailableWellTransfers(
     botPlayer.ship.wellId,
     botPlayer.ship.ring,
@@ -341,6 +279,10 @@ export function analyzeTacticalSituation(
     toSector: tp.toSector,
   }))
 
+  // Compute mission-derived goals
+  const allGoals = computeMissionGoals(botPlayer, gameState)
+  const currentGoal = selectCurrentGoal(allGoals, 'auto')
+
   return {
     botPlayer,
     status,
@@ -349,5 +291,7 @@ export function analyzeTacticalSituation(
     primaryThreat,
     primaryTarget,
     availableTransfers,
+    currentGoal,
+    allGoals,
   }
 }

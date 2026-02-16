@@ -1,443 +1,305 @@
 import type { PlayerAction, DeallocateEnergyAction } from '../../models/game'
+import type { SubsystemType } from '../../models/subsystems'
+import { SUBSYSTEM_CONFIGS } from '../../models/subsystems'
 import type { TacticalSituation, BotParameters } from '../types'
 
 /**
- * Heat venting is now automatic based on dissipationCapacity
- * This function is deprecated and no longer needed
+ * Energy request for priority-based budgeting
  */
-
-/**
- * Energy requirements for each subsystem to be functional
- */
-const ENERGY_REQUIREMENTS = {
-  engines: 1,
-  rotation: 1,
-  scoop: 3,
-  laser: 2,
-  railgun: 4,
-  missiles: 2,
-  shields: 1,
-} as const
-
-/**
- * Helper to check if a subsystem needs more energy to function
- * and calculate how much additional energy is needed
- */
-function getEnergyNeeded(
-  subsystemType: keyof typeof ENERGY_REQUIREMENTS,
-  currentEnergy: number
-): number {
-  const required = ENERGY_REQUIREMENTS[subsystemType]
-  const needed = required - currentEnergy
-  return needed > 0 ? needed : 0
+interface EnergyRequest {
+  subsystemIndex: number
+  type: SubsystemType
+  energy: number // Total energy needed (minEnergy)
+  priority: number // Lower = higher priority (0 = most urgent)
 }
 
 /**
- * Generate energy allocation actions to power essential systems
- * Strategy varies based on aggressiveness parameter
+ * Build a priority-ordered energy budget based on the current tactical situation
+ * and the planned actions for this turn.
+ *
+ * Priority levels:
+ * P0: Engines (if burning or well transfer planned)
+ * P1: Rotation (if rotating), Shields (if under threat)
+ * P2: Weapons in range of target
+ * P3: Scoop (if coasting), Sensor array (if firing weapons)
+ * P4: Weapons not in range but target exists (preparation)
+ * SKIP: Anything not needed this turn
+ */
+/**
+ * Context for energy budgeting decisions
+ */
+export interface EnergyContext {
+  willBurn: boolean
+  willCoast: boolean
+  willRotate: boolean
+  willTransfer: boolean
+  hasTargetInRange: boolean
+  hasTarget: boolean
+  underThreat: boolean
+  requiredEngineEnergy?: number // How much energy engines need (1=soft, 2=medium, 3=hard/transfer)
+}
+
+function buildEnergyBudget(
+  situation: TacticalSituation,
+  _parameters: BotParameters,
+  context: EnergyContext
+): EnergyRequest[] {
+  const { status } = situation
+  const requests: EnergyRequest[] = []
+
+  for (const sub of status.subsystems) {
+    const config = SUBSYSTEM_CONFIGS[sub.type]
+    if (sub.broken) continue
+    if (config.minEnergy === 0) continue // Passive subsystems (radiator, fuel_tank)
+
+    let priority = -1 // -1 means skip
+    let requiredEnergy = config.minEnergy
+
+    switch (sub.type) {
+      case 'engines':
+        if (context.willBurn || context.willTransfer) {
+          priority = 0
+          // Use specific engine energy requirement if provided
+          requiredEnergy = context.requiredEngineEnergy ?? config.minEnergy
+        }
+        break
+
+      case 'rotation':
+        if (context.willRotate) {
+          priority = 1
+        }
+        break
+
+      case 'shields':
+        if (context.underThreat) {
+          priority = 1
+        } else if (context.hasTarget) {
+          // Low priority shields if enemy exists but not threatening
+          priority = 5
+        }
+        break
+
+      case 'scoop':
+        if (context.willCoast && status.reactionMass < 8) {
+          priority = 3
+        }
+        break
+
+      case 'sensor_array':
+        if (context.hasTargetInRange) {
+          priority = 3 // Boost crit chance when firing
+        }
+        break
+
+      default: {
+        // Weapon subsystems
+        if (config.weaponStats) {
+          if (context.hasTargetInRange) {
+            // Check if THIS specific weapon is in range
+            const target = situation.primaryTarget
+            if (target && target.firingSolutions.has(sub.index)) {
+              const solution = target.firingSolutions.get(sub.index)!
+              if (solution.inRange) {
+                priority = 2 // High priority - weapon in range
+              } else {
+                priority = 4 // Lower priority - weapon exists but not in range
+              }
+            } else {
+              priority = 4
+            }
+          } else if (context.hasTarget) {
+            priority = 4 // Target exists but nothing in range
+          }
+          // If missile and conserveAmmo and has no ammo, skip
+          if (sub.type === 'missiles' && sub.ammo !== undefined && sub.ammo <= 0) {
+            priority = -1
+          }
+        }
+        break
+      }
+    }
+
+    if (priority >= 0) {
+      requests.push({
+        subsystemIndex: sub.index,
+        type: sub.type,
+        energy: requiredEnergy,
+        priority,
+      })
+    }
+  }
+
+  // Sort by priority (lower = more important)
+  requests.sort((a, b) => a.priority - b.priority)
+
+  return requests
+}
+
+/**
+ * Generate energy allocation actions using priority-based budgeting.
+ * Allocates greedily in priority order, respecting reactor capacity.
  */
 export function generateEnergyManagement(
   situation: TacticalSituation,
-  parameters: BotParameters
+  parameters: BotParameters,
+  context?: EnergyContext,
+  energyFreedByDeallocation: number = 0
 ): PlayerAction[] {
-  const { status, primaryTarget, primaryThreat } = situation
+  const { status } = situation
   const actions: PlayerAction[] = []
 
-  // Track remaining energy as we allocate
-  let remainingEnergy = status.availableEnergy
-
-  // Aggressive strategy: weapons first, then essentials
-  if (parameters.aggressiveness >= 0.7) {
-    // Prioritize weapons over everything
-    if (primaryTarget) {
-      // Max out railgun for high damage (need 4 energy to fire)
-      const railgunNeeded = getEnergyNeeded('railgun', status.subsystems.railgun.energy)
-      if (railgunNeeded > 0 && remainingEnergy >= railgunNeeded) {
-        actions.push({
-          type: 'allocate_energy',
-          playerId: situation.botPlayer.id,
-          data: {
-            subsystemType: 'railgun',
-            amount: railgunNeeded,
-          },
-        })
-        remainingEnergy -= railgunNeeded
-      }
-
-      // Power laser (need 2 energy)
-      const laserNeeded = getEnergyNeeded('laser', status.subsystems.laser.energy)
-      if (laserNeeded > 0 && remainingEnergy >= laserNeeded) {
-        actions.push({
-          type: 'allocate_energy',
-          playerId: situation.botPlayer.id,
-          data: {
-            subsystemType: 'laser',
-            amount: laserNeeded,
-          },
-        })
-        remainingEnergy -= laserNeeded
-      }
-
-      // Power missiles if energy left (need 2 energy)
-      const missilesNeeded = getEnergyNeeded('missiles', status.subsystems.missiles.energy)
-      if (missilesNeeded > 0 && remainingEnergy >= missilesNeeded) {
-        actions.push({
-          type: 'allocate_energy',
-          playerId: situation.botPlayer.id,
-          data: {
-            subsystemType: 'missiles',
-            amount: missilesNeeded,
-          },
-        })
-        remainingEnergy -= missilesNeeded
-      }
-    }
-
-    // Engines last for aggressive bots (need 1 energy)
-    const enginesNeeded = getEnergyNeeded('engines', status.subsystems.engines.energy)
-    if (enginesNeeded > 0 && remainingEnergy >= enginesNeeded) {
-      actions.push({
-        type: 'allocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'engines',
-          amount: enginesNeeded,
-        },
-      })
-      remainingEnergy -= enginesNeeded
-    }
-
-    return actions
+  // Default context if not provided (backward compat)
+  const ctx = context ?? {
+    willBurn: true,
+    willCoast: false,
+    willRotate: false,
+    willTransfer: false,
+    hasTargetInRange: situation.primaryTarget != null && Array.from(situation.primaryTarget.firingSolutions.values()).some(s => s.inRange),
+    hasTarget: situation.primaryTarget != null,
+    underThreat: situation.primaryThreat != null && situation.primaryThreat.weaponsInRange.some(w => w.inRange),
   }
 
-  // Defensive strategy: shields and engines first
-  if (parameters.aggressiveness <= 0.4) {
-    // Shields are priority #1 when defensive (need 1, but allocate 2 for defense)
-    const shieldsNeeded = getEnergyNeeded('shields', status.subsystems.shields.energy)
-    if (primaryThreat && shieldsNeeded > 0 && remainingEnergy >= 2) {
-      // Allocate extra energy to shields when defensive
-      const shieldsToAllocate = Math.min(2, remainingEnergy)
-      actions.push({
-        type: 'allocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'shields',
-          amount: shieldsToAllocate,
-        },
-      })
-      remainingEnergy -= shieldsToAllocate
-    }
+  const budget = buildEnergyBudget(situation, parameters, ctx)
 
-    // Engines for maneuvering (need 1, but allocate 2 for speed)
-    const enginesNeeded = getEnergyNeeded('engines', status.subsystems.engines.energy)
-    if (enginesNeeded > 0 && remainingEnergy >= 2) {
-      // Allocate extra energy for faster movement
-      const enginesToAllocate = Math.min(2, remainingEnergy)
-      actions.push({
-        type: 'allocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'engines',
-          amount: enginesToAllocate,
-        },
-      })
-      remainingEnergy -= enginesToAllocate
-    }
+  // Track remaining energy as we allocate.
+  // Include energy that will be freed by deallocation actions (processed before allocations).
+  let remainingEnergy = status.availableEnergy + energyFreedByDeallocation
 
-    // Rotation for defensive positioning (need 1 energy)
-    const rotationNeeded = getEnergyNeeded('rotation', status.subsystems.rotation.energy)
-    if (rotationNeeded > 0 && remainingEnergy >= rotationNeeded) {
-      actions.push({
-        type: 'allocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'rotation',
-          amount: rotationNeeded,
-        },
-      })
-      remainingEnergy -= rotationNeeded
-    }
+  // Also track total allocated across all subsystems to stay under reactor cap (10)
+  let totalAllocated = status.subsystems.reduce((sum, s) => sum + s.energy, 0)
+  const REACTOR_CAP = 10
 
-    // Only power weapons with leftover energy
-    if (primaryTarget) {
-      const laserNeeded = getEnergyNeeded('laser', status.subsystems.laser.energy)
-      if (laserNeeded > 0 && remainingEnergy >= laserNeeded) {
-        actions.push({
-          type: 'allocate_energy',
-          playerId: situation.botPlayer.id,
-          data: {
-            subsystemType: 'laser',
-            amount: laserNeeded,
-          },
-        })
-        remainingEnergy -= laserNeeded
-      }
+  // IMPORTANT: The game engine identifies subsystems by TYPE (not index) via findIndex.
+  // When multiple subsystems share a type (e.g. two lasers), only the FIRST one is targeted.
+  // We must track which types we've already allocated to and skip duplicates.
+  const allocatedTypes = new Set<SubsystemType>()
 
-      // No railgun when defensive (saves energy)
-    }
+  for (const request of budget) {
+    const sub = status.subsystems[request.subsystemIndex]
+    if (!sub) continue
 
-    return actions
-  }
+    // Skip if we already allocated to this subsystem type this turn
+    if (allocatedTypes.has(request.type)) continue
 
-  // Balanced strategy: engines > weapons > shields > rotation
-  // 1. Ensure engines have at least 1 energy (for soft burns)
-  const enginesNeeded = getEnergyNeeded('engines', status.subsystems.engines.energy)
-  if (enginesNeeded > 0 && remainingEnergy >= enginesNeeded) {
+    // For subsystems that already have energy, find the actual game subsystem
+    // to check against (the engine uses findIndex, so it targets the first one)
+    const gameSubsystem = situation.botPlayer.ship.subsystems.find(s => s.type === request.type)
+    if (!gameSubsystem) continue
+
+    const currentEnergy = gameSubsystem.allocatedEnergy
+    const needed = request.energy - currentEnergy
+    if (needed <= 0) continue // Already has enough energy
+
+    // Check both available energy and reactor cap
+    const canAllocate = Math.min(needed, remainingEnergy, REACTOR_CAP - totalAllocated)
+    if (canAllocate <= 0) continue
+
+    // Only allocate if we'd reach minEnergy (partial allocation is useless)
+    if (currentEnergy + canAllocate < request.energy) continue
+
     actions.push({
       type: 'allocate_energy',
       playerId: situation.botPlayer.id,
       data: {
-        subsystemType: 'engines',
-        amount: enginesNeeded,
+        subsystemType: request.type,
+        amount: canAllocate,
       },
     })
-    remainingEnergy -= enginesNeeded
-  }
-
-  // 2. Power weapons if we have a target
-  if (primaryTarget) {
-    // Power laser (versatile, moderate energy cost - need 2)
-    const laserNeeded = getEnergyNeeded('laser', status.subsystems.laser.energy)
-    if (laserNeeded > 0 && remainingEnergy >= laserNeeded) {
-      actions.push({
-        type: 'allocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'laser',
-          amount: laserNeeded,
-        },
-      })
-      remainingEnergy -= laserNeeded
-    }
-
-    // Power railgun (high damage, but expensive - need 4)
-    const railgunNeeded = getEnergyNeeded('railgun', status.subsystems.railgun.energy)
-    if (railgunNeeded > 0 && remainingEnergy >= railgunNeeded) {
-      actions.push({
-        type: 'allocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'railgun',
-          amount: railgunNeeded,
-        },
-      })
-      remainingEnergy -= railgunNeeded
-    }
-
-    // Power missiles if we have energy left (need 2)
-    const missilesNeeded = getEnergyNeeded('missiles', status.subsystems.missiles.energy)
-    if (missilesNeeded > 0 && remainingEnergy >= missilesNeeded) {
-      actions.push({
-        type: 'allocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'missiles',
-          amount: missilesNeeded,
-        },
-      })
-      remainingEnergy -= missilesNeeded
-    }
-  }
-
-  // 3. Power shields if under fire (need 1)
-  const shieldsNeeded = getEnergyNeeded('shields', status.subsystems.shields.energy)
-  if (primaryThreat && shieldsNeeded > 0 && remainingEnergy >= shieldsNeeded) {
-    actions.push({
-      type: 'allocate_energy',
-      playerId: situation.botPlayer.id,
-      data: {
-        subsystemType: 'shields',
-        amount: shieldsNeeded,
-      },
-    })
-    remainingEnergy -= shieldsNeeded
-  }
-
-  // 4. Power rotation if we need to maneuver (need 1)
-  const rotationNeeded = getEnergyNeeded('rotation', status.subsystems.rotation.energy)
-  if (rotationNeeded > 0 && remainingEnergy >= rotationNeeded) {
-    actions.push({
-      type: 'allocate_energy',
-      playerId: situation.botPlayer.id,
-      data: {
-        subsystemType: 'rotation',
-        amount: rotationNeeded,
-      },
-    })
-    remainingEnergy -= rotationNeeded
+    remainingEnergy -= canAllocate
+    totalAllocated += canAllocate
+    allocatedTypes.add(request.type)
   }
 
   return actions
 }
 
 /**
- * Generate energy deallocation if we have excess energy in unused systems
- * PRIORITY: Deallocate from systems that aren't needed
- *
- * NOTE: Subsystems can only be unpowered (0) or powered (>= minEnergy).
- * When deallocating, we either turn off completely or reduce by 1 (staying above minEnergy).
+ * Generate energy deallocation actions.
+ * Deallocates from subsystems that aren't in the energy budget.
  */
 export function generateEnergyDeallocation(
   situation: TacticalSituation,
-  parameters: BotParameters
+  parameters: BotParameters,
+  context?: EnergyContext
 ): DeallocateEnergyAction[] {
-  const { status, primaryTarget, primaryThreat } = situation
+  const { status } = situation
   const actions: DeallocateEnergyAction[] = []
 
-  // Helper to calculate valid deallocation amount
-  // Returns amount to deallocate to reach target, ensuring we don't leave partial state
-  const getValidDeallocAmount = (
-    subsystemType: keyof typeof ENERGY_REQUIREMENTS,
-    currentEnergy: number,
-    turnOff: boolean
-  ): number => {
-    if (currentEnergy === 0) return 0
+  const ctx = context ?? {
+    willBurn: true,
+    willCoast: false,
+    willRotate: false,
+    willTransfer: false,
+    hasTargetInRange: situation.primaryTarget != null && Array.from(situation.primaryTarget.firingSolutions.values()).some(s => s.inRange),
+    hasTarget: situation.primaryTarget != null,
+    underThreat: situation.primaryThreat != null && situation.primaryThreat.weaponsInRange.some(w => w.inRange),
+  }
 
-    const minEnergy = ENERGY_REQUIREMENTS[subsystemType]
+  const budget = buildEnergyBudget(situation, parameters, ctx)
+  const budgetedTypes = new Set(budget.map(r => r.type))
 
-    if (turnOff) {
-      // Turn off completely - deallocate all
-      return currentEnergy
-    } else {
-      // Try to reduce but stay powered (at or above minEnergy)
-      const excessAboveMin = currentEnergy - minEnergy
-      // Can only reduce if we have excess above minimum
-      return excessAboveMin > 0 ? 1 : 0
+  // IMPORTANT: Game engine targets subsystems by TYPE via findIndex.
+  // Track which types we've already deallocated to avoid duplicates.
+  const deallocatedTypes = new Set<SubsystemType>()
+
+  // Deallocate from subsystems not in budget
+  // We only check the first subsystem of each type (since that's what the engine targets)
+  for (const sub of status.subsystems) {
+    if (sub.energy <= 0) continue
+    if (deallocatedTypes.has(sub.type)) continue
+
+    const gameSubsystem = situation.botPlayer.ship.subsystems.find(s => s.type === sub.type)
+    if (!gameSubsystem || gameSubsystem.allocatedEnergy <= 0) continue
+
+    if (sub.broken) {
+      actions.push({
+        type: 'deallocate_energy',
+        playerId: situation.botPlayer.id,
+        data: {
+          subsystemType: sub.type,
+          amount: gameSubsystem.allocatedEnergy,
+        },
+      })
+      deallocatedTypes.add(sub.type)
+      continue
+    }
+
+    if (!budgetedTypes.has(sub.type)) {
+      actions.push({
+        type: 'deallocate_energy',
+        playerId: situation.botPlayer.id,
+        data: {
+          subsystemType: sub.type,
+          amount: gameSubsystem.allocatedEnergy,
+        },
+      })
+      deallocatedTypes.add(sub.type)
     }
   }
 
-  // CRITICAL: If we have heat accumulating, deallocate from high-energy systems
-  // Heat threshold check: if we're at or approaching the threshold, start deallocating
-  const heatDanger = status.heatPercent >= parameters.heatThreshold * 0.8 // Start at 80% of threshold
+  // Also deallocate if heat is dangerously high
+  if (status.heatPercent >= parameters.panicHeatThreshold) {
+    const nonEssential = status.subsystems
+      .filter(s => s.energy > 0 && s.type !== 'engines' && s.type !== 'shields' && !deallocatedTypes.has(s.type))
+      .sort((a, b) => b.energy - a.energy)
 
-  if (heatDanger || status.heat > 0) {
-    // Priority 1: Turn off railgun if no target or heat is critical
-    if (status.subsystems.railgun.energy > 0) {
-      if (!primaryTarget || status.heat >= 3) {
-        const amount = getValidDeallocAmount('railgun', status.subsystems.railgun.energy, true)
-        if (amount > 0) {
+    for (const sub of nonEssential) {
+      if (budgetedTypes.has(sub.type)) {
+        const gameSubsystem = situation.botPlayer.ship.subsystems.find(s => s.type === sub.type)
+        if (gameSubsystem && gameSubsystem.allocatedEnergy > 0) {
           actions.push({
             type: 'deallocate_energy',
             playerId: situation.botPlayer.id,
             data: {
-              subsystemType: 'railgun',
-              amount,
+              subsystemType: sub.type,
+              amount: gameSubsystem.allocatedEnergy,
             },
           })
-          return actions // Return immediately to handle heat emergency
+          deallocatedTypes.add(sub.type)
         }
+        break
       }
     }
-
-    // Priority 2: Reduce engines if above minimum and heat is building
-    if (status.subsystems.engines.energy > ENERGY_REQUIREMENTS.engines && status.heat >= 2) {
-      const amount = getValidDeallocAmount('engines', status.subsystems.engines.energy, false)
-      if (amount > 0) {
-        actions.push({
-          type: 'deallocate_energy',
-          playerId: situation.botPlayer.id,
-          data: {
-            subsystemType: 'engines',
-            amount,
-          },
-        })
-        return actions
-      }
-    }
-  }
-
-  // Detect combat situation
-  const noCombatNeeded = !primaryTarget && !primaryThreat
-  const underThreatOnly = !primaryTarget && primaryThreat
-
-  // If no combat needed at all, turn off ALL weapons and shields
-  if (noCombatNeeded) {
-    // Turn off all weapons completely
-    if (status.subsystems.missiles.energy > 0) {
-      actions.push({
-        type: 'deallocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'missiles',
-          amount: status.subsystems.missiles.energy, // Turn off completely
-        },
-      })
-    }
-
-    if (status.subsystems.railgun.energy > 0) {
-      actions.push({
-        type: 'deallocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'railgun',
-          amount: status.subsystems.railgun.energy, // Turn off completely
-        },
-      })
-    }
-
-    if (status.subsystems.laser.energy > 0) {
-      actions.push({
-        type: 'deallocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'laser',
-          amount: status.subsystems.laser.energy, // Turn off completely
-        },
-      })
-    }
-
-    // Turn off shields too (no combat = no need for defense)
-    if (status.subsystems.shields.energy > 0) {
-      actions.push({
-        type: 'deallocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'shields',
-          amount: status.subsystems.shields.energy, // Turn off completely
-        },
-      })
-    }
-  }
-  // If under threat but can't attack back, keep shields but turn off weapons
-  else if (underThreatOnly) {
-    // Keep shields for defense, but turn off offensive weapons completely
-    if (status.subsystems.missiles.energy > 0) {
-      actions.push({
-        type: 'deallocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'missiles',
-          amount: status.subsystems.missiles.energy, // Turn off completely
-        },
-      })
-    }
-
-    if (status.subsystems.railgun.energy > 0) {
-      actions.push({
-        type: 'deallocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'railgun',
-          amount: status.subsystems.railgun.energy, // Turn off completely
-        },
-      })
-    }
-
-    if (status.subsystems.laser.energy > 0) {
-      actions.push({
-        type: 'deallocate_energy',
-        playerId: situation.botPlayer.id,
-        data: {
-          subsystemType: 'laser',
-          amount: status.subsystems.laser.energy, // Turn off completely
-        },
-      })
-    }
-  }
-  // If we have a target, only deallocate if no combat (handled by noCombatNeeded above)
-  else if (primaryTarget) {
-    // Keep weapons powered when we have a target
-    // No deallocation needed
   }
 
   return actions

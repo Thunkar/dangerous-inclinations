@@ -15,6 +15,7 @@ const ICON_MAP: Record<string, string> = {
   shields: '/assets/icons/shield.png',
   energy: '/assets/icons/energy.png',
   heat: '/assets/icons/heat.png',
+  ballistic_rack: '/assets/icons/ballistic_rack.png',
 }
 
 export function CustomIcon({ icon, size = 24 }: CustomIconProps) {

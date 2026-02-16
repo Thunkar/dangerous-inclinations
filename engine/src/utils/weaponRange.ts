@@ -1,6 +1,12 @@
 import type { Player, ShipState } from "../models/game";
-import type { WeaponStats } from "../models/subsystems";
+import type { WeaponStats, Subsystem } from "../models/subsystems";
+import { getSubsystemConfig } from "../models/subsystems";
 import { SECTORS_PER_RING } from "../models/rings";
+import {
+  getSubsystemSide,
+  getSideFiringDirection,
+  isRingDirectionValid,
+} from "./subsystemHelpers";
 
 export interface FiringSolution {
   targetId: string;
@@ -14,18 +20,22 @@ export interface FiringSolution {
 }
 
 /**
- * Calculate all firing solutions for a weapon
- * Uses separate ring range and sector range
+ * Calculate all firing solutions for a weapon subsystem.
+ * Resolves weapon stats from the subsystem's type config.
  *
- * Weapons can only target ships in the same gravity well
+ * Weapons can only target ships in the same gravity well.
  */
 export function calculateFiringSolutions(
-  weapon: WeaponStats,
+  subsystem: Subsystem,
   attackerShip: ShipState,
   allPlayers: Player[],
   currentPlayerId: string,
   pendingFacing?: string,
 ): FiringSolution[] {
+  const config = getSubsystemConfig(subsystem.type);
+  const weapon = config.weaponStats;
+  if (!weapon) return [];
+
   // Use pending facing if provided (planning phase), otherwise use committed facing
   const effectiveShip: ShipState = {
     ...attackerShip,
@@ -40,7 +50,7 @@ export function calculateFiringSolutions(
         p.ship.wellId === attackerShip.wellId, // Only target ships in same gravity well
     )
     .map((targetPlayer) =>
-      calculateSingleTarget(weapon, effectiveShip, targetPlayer),
+      calculateSingleTarget(weapon, effectiveShip, targetPlayer, subsystem),
     );
 }
 
@@ -51,6 +61,7 @@ function calculateSingleTarget(
   weapon: WeaponStats,
   attackerShip: ShipState,
   targetPlayer: Player,
+  subsystem: Subsystem,
 ): FiringSolution {
   const targetShip = targetPlayer.ship;
 
@@ -110,11 +121,28 @@ function calculateSingleTarget(
     }
   } else if (weapon.arc === "broadside") {
     // Broadside weapons fire radially from current sector
-    // Must be within ring range and sector overlap
-    inRange =
-      ringDist <= weapon.ringRange &&
-      ringDist > 0 &&
-      checkSectorOverlap(attackerShip, targetShip, weapon.sectorRange);
+    // Standard broadside: must be on a different ring within ringRange
+    const sectorInRange = checkSectorOverlap(attackerShip, targetShip, weapon.sectorRange);
+    let basicInRange = ringDist <= weapon.ringRange && ringDist > 0 && sectorInRange;
+
+    // canTargetSameRing: also allow targeting on the same ring (for ballistic rack)
+    if (!basicInRange && weapon.canTargetSameRing && ringDist === 0 && sectorDist > 0) {
+      basicInRange = sectorInRange;
+    }
+
+    // Side restriction: weapon can only fire toward the ring direction matching its mounted side
+    // Only enforced for cross-ring fire (ringDist > 0), same-ring fire is not directional
+    if (basicInRange && weapon.sideRestricted && ringDist > 0) {
+      const side = getSubsystemSide(subsystem);
+      if (side) {
+        const direction = getSideFiringDirection(side, attackerShip.facing);
+        if (!isRingDirectionValid(attackerShip.ring, targetShip.ring, direction)) {
+          basicInRange = false;
+        }
+      }
+    }
+
+    inRange = basicInRange;
   } else if (weapon.arc === "turret") {
     // Turret has no facing restrictions
     inRange =

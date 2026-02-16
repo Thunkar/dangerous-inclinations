@@ -11,6 +11,7 @@ export const SUBSYSTEM_ICONS: Partial<Record<SubsystemType, string>> = {
   radiator: '/assets/icons/heat.png',
   fuel_tank: '/assets/icons/fuel.png',
   missiles: '/assets/icons/missile_rack.png',
+  ballistic_rack: '/assets/icons/ballistic_rack.png',
 }
 
 export function getSubsystemIcon(type: SubsystemType): string | undefined {

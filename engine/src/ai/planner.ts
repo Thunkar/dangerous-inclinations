@@ -7,7 +7,7 @@ import type { SubsystemType } from '../models/subsystems'
 import type { TacticalSituation, ActionPlan, BotParameters } from './types'
 import { selectTarget, generateWeaponActions, shouldFaceTarget } from './behaviors/combat'
 import {
-  generateMovementAction,
+  planMovementAction,
   generateRotationAction,
   generateEscapeTransfer,
 } from './behaviors/positioning'
@@ -18,12 +18,13 @@ import { generateEnergyManagement, generateEnergyDeallocation } from './behavior
  */
 function getProjectedEnergy(
   situation: TacticalSituation,
+  subsystemIndex: number,
   subsystemType: SubsystemType,
   energyAllocations: PlayerAction[],
   energyDeallocations: PlayerAction[]
 ): number {
   const currentEnergy =
-    situation.botPlayer.ship.subsystems.find(s => s.type === subsystemType)?.allocatedEnergy || 0
+    situation.botPlayer.ship.subsystems[subsystemIndex]?.allocatedEnergy || 0
 
   const allocatedEnergy = energyAllocations
     .filter(
@@ -43,89 +44,146 @@ function getProjectedEnergy(
 }
 
 /**
- * Generate a complete action sequence for the bot
- * Returns actions in proper execution order:
- * 1. Energy allocation
- * 2. Energy deallocation
- * 3. Rotation (if needed)
- * 4. Well transfer OR movement (coast/burn)
- * 5. Weapon firing
+ * Generate a complete action sequence for the bot.
+ *
+ * Order of operations (revised):
+ * 1. Select target
+ * 2. Plan movement (determines burn/coast/transfer)
+ * 3. Determine weapon situation and facing
+ * 4. Build energy budget based on planned actions
+ * 5. Generate energy allocation/deallocation
+ * 6. Generate rotation, movement, weapon actions
  */
 export function generateActionSequence(
   situation: TacticalSituation,
   parameters: BotParameters
 ): PlayerAction[] {
   const actions: PlayerAction[] = []
-  let tacticalSequence = 1 // Sequence counter for tactical actions
+  let tacticalSequence = 1
 
-  // === PHASE 1: Resource Management (no sequence numbers) ===
-
-  // Energy allocation - power up essential systems
-  const energyAllocations = generateEnergyManagement(situation, parameters)
-  actions.push(...energyAllocations)
-
-  // Energy deallocation - free up unused energy and manage heat
-  const energyDeallocations = generateEnergyDeallocation(situation, parameters)
-  actions.push(...energyDeallocations)
-
-  // Heat venting is now automatic via dissipationCapacity - no action needed
-
-  // === PHASE 2: Tactical Actions (with sequence numbers) ===
-
-  // Select target
+  // Step 1: Select target
   const target = selectTarget(situation, parameters)
 
-  // Calculate projected energy for weapons after allocations AND deallocations
-  const projectedWeaponEnergy = {
-    railgun: getProjectedEnergy(situation, 'railgun', energyAllocations, energyDeallocations),
-    laser: getProjectedEnergy(situation, 'laser', energyAllocations, energyDeallocations),
-    missiles: getProjectedEnergy(situation, 'missiles', energyAllocations, energyDeallocations),
+  // Step 2: Plan movement (informed by goal and target)
+  const movementResult = planMovementAction(situation, target, parameters, tacticalSequence)
+
+  // Step 3: Determine weapon situation
+  const hasTargetInRange = target != null && Array.from(target.firingSolutions.values()).some(s => s.inRange)
+  const hasTarget = target != null
+
+  const underThreat = situation.primaryThreat != null &&
+    situation.primaryThreat.weaponsInRange.some(w => w.inRange)
+
+  // Step 4: Determine facing (considers both weapons and movement)
+  const movementFacing = movementResult.desiredFacing
+  const weaponFacing = shouldFaceTarget(situation, target, movementFacing ?? undefined)
+  const desiredFacing = weaponFacing ?? movementFacing
+
+  const willBurn = movementResult.action.type === 'burn'
+  const willCoast = movementResult.action.type === 'coast'
+  const willTransfer = movementResult.action.type === 'well_transfer'
+  const willRotate = desiredFacing != null && desiredFacing !== situation.status.facing
+
+  // Determine required engine energy based on burn intensity
+  let requiredEngineEnergy = 1 // Default: soft burn
+  if (willBurn && movementResult.action.type === 'burn') {
+    const intensity = movementResult.action.data.burnIntensity
+    if (intensity === 'medium') requiredEngineEnergy = 2
+    else if (intensity === 'hard') requiredEngineEnergy = 3
+  } else if (willTransfer) {
+    requiredEngineEnergy = 3 // Well transfers require engines at 3
   }
 
-  // Check if we should escape via well transfer
+  // Step 5: Build energy context
+  const energyContext = {
+    willBurn,
+    willCoast,
+    willRotate,
+    willTransfer,
+    hasTargetInRange,
+    hasTarget,
+    underThreat,
+    requiredEngineEnergy,
+  }
+
+  // Check for escape transfer first
   const escapeTransfer = generateEscapeTransfer(situation, parameters, tacticalSequence)
   if (escapeTransfer) {
-    // Emergency escape - skip other tactical actions
+    const escapeEnergyCtx = {
+      ...energyContext,
+      willTransfer: true,
+      willBurn: false,
+      willCoast: false,
+      requiredEngineEnergy: 3, // Well transfers require engines at 3
+    }
+
+    const energyDeallocations = generateEnergyDeallocation(situation, parameters, escapeEnergyCtx)
+    const freedEnergy = energyDeallocations.reduce((sum, a) => sum + a.data.amount, 0)
+    const energyAllocations = generateEnergyManagement(situation, parameters, escapeEnergyCtx, freedEnergy)
+
+    actions.push(...energyDeallocations)
+    actions.push(...energyAllocations)
     actions.push(escapeTransfer)
     tacticalSequence++
 
-    // Still try to fire weapons if possible (with projected energy)
-    const weaponActions = generateWeaponActions(
-      situation,
-      target,
-      tacticalSequence,
-      projectedWeaponEnergy
-    )
+    // Try to fire weapons
+    const projectedEnergy = buildProjectedEnergyMap(situation, energyAllocations, energyDeallocations)
+    const weaponActions = generateWeaponActions(situation, target, tacticalSequence, parameters, projectedEnergy)
     actions.push(...weaponActions)
 
     return actions
   }
 
-  // Determine desired facing
-  const desiredFacing = shouldFaceTarget(situation, target)
+  // Normal flow
+  const energyDeallocations = generateEnergyDeallocation(situation, parameters, energyContext)
+  const freedEnergy = energyDeallocations.reduce((sum, a) => sum + a.data.amount, 0)
+  const energyAllocations = generateEnergyManagement(situation, parameters, energyContext, freedEnergy)
 
-  // Rotation (if needed, before movement/weapons)
+  actions.push(...energyDeallocations)
+  actions.push(...energyAllocations)
+
+  // Rotation
   const rotationAction = generateRotationAction(situation, desiredFacing, tacticalSequence)
   if (rotationAction) {
     actions.push(rotationAction)
     tacticalSequence++
   }
 
-  // Movement (coast or burn)
-  const movementAction = generateMovementAction(situation, target, parameters, tacticalSequence)
-  actions.push(movementAction)
+  // Movement
+  movementResult.action.sequence = tacticalSequence
+  actions.push(movementResult.action)
   tacticalSequence++
 
-  // Weapon firing (after movement, with projected energy)
-  const weaponActions = generateWeaponActions(
-    situation,
-    target,
-    tacticalSequence,
-    projectedWeaponEnergy
-  )
+  // Weapons
+  const projectedEnergy = buildProjectedEnergyMap(situation, energyAllocations, energyDeallocations)
+  const weaponActions = generateWeaponActions(situation, target, tacticalSequence, parameters, projectedEnergy)
   actions.push(...weaponActions)
 
   return actions
+}
+
+/**
+ * Build a map of subsystem index → projected energy after allocations
+ */
+function buildProjectedEnergyMap(
+  situation: TacticalSituation,
+  energyAllocations: PlayerAction[],
+  energyDeallocations: PlayerAction[]
+): Map<number, number> {
+  const map = new Map<number, number>()
+
+  for (const sub of situation.status.weapons) {
+    const projected = getProjectedEnergy(
+      situation,
+      sub.index,
+      sub.type,
+      energyAllocations,
+      energyDeallocations
+    )
+    map.set(sub.index, projected)
+  }
+
+  return map
 }
 
 /**
@@ -144,11 +202,12 @@ export function generateActionCandidates(
     description: 'Balanced',
   })
 
-  // Aggressive strategy - prioritize offense over defense
+  // Aggressive strategy
   if (situation.primaryTarget) {
     const aggressiveParams = {
       ...parameters,
       aggressiveness: Math.min(1, parameters.aggressiveness + 0.2),
+      conserveAmmo: false,
     }
     const aggressiveActions = generateActionSequence(situation, aggressiveParams)
     candidates.push({
@@ -157,16 +216,31 @@ export function generateActionCandidates(
     })
   }
 
-  // Defensive strategy - prioritize survival
+  // Defensive strategy
   if (situation.primaryThreat || situation.status.healthPercent < 0.5) {
     const defensiveParams = {
       ...parameters,
       aggressiveness: Math.max(0, parameters.aggressiveness - 0.3),
+      conserveAmmo: true,
     }
     const defensiveActions = generateActionSequence(situation, defensiveParams)
     candidates.push({
       actions: defensiveActions,
       description: 'Defensive',
+    })
+  }
+
+  // Mission pursuit candidate
+  if (situation.currentGoal) {
+    const missionParams: BotParameters = {
+      ...parameters,
+      targetPreference: 'mission',
+      missionStrategy: 'auto',
+    }
+    const missionActions = generateActionSequence(situation, missionParams)
+    candidates.push({
+      actions: missionActions,
+      description: `Mission: ${situation.currentGoal.type}`,
     })
   }
 

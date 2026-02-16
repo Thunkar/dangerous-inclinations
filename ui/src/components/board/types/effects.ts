@@ -39,7 +39,7 @@ export const FLOATING_NUMBER_OFFSETS: Record<FloatingNumberType, { x: number; y:
 /**
  * Weapon visual effect types
  */
-export type WeaponEffectType = 'laser' | 'railgun'
+export type WeaponEffectType = 'laser' | 'railgun' | 'ballistic_rack'
 
 export interface WeaponEffect {
   id: string
@@ -55,9 +55,11 @@ export interface WeaponEffect {
 export const WEAPON_EFFECT_COLORS: Record<WeaponEffectType, string> = {
   laser: '#ff2222', // Bright red beam
   railgun: '#aa44ff', // Purple projectile
+  ballistic_rack: '#ffaa22', // Orange tracer rounds
 }
 
 export const WEAPON_EFFECT_DURATIONS: Record<WeaponEffectType, number> = {
   laser: 300, // Quick beam flash
   railgun: 350, // Slightly slower projectile
+  ballistic_rack: 400, // Burst of rounds
 }

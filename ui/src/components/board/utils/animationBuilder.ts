@@ -11,6 +11,7 @@ import type {
   RotateAnimationData,
   LaserAnimationData,
   RailgunAnimationData,
+  BallisticRackAnimationData,
   MissileAnimationData,
   DamageAnimationData,
 } from '../types/animations'
@@ -197,6 +198,25 @@ export function buildAnimationsFromTurn(
               toSector: targetBefore.ship.sector,
               facing: currentFacing,
             } satisfies RailgunAnimationData,
+          })
+        } else if (weaponType === 'ballistic_rack') {
+          animations.push({
+            id: generateAnimationId(),
+            type: 'ballistic_rack',
+            playerId: action.playerId,
+            targetPlayerId: targetId,
+            startTime: Date.now(),
+            duration: ANIMATION_DURATIONS.BALLISTIC_RACK,
+            progress: 0,
+            data: {
+              type: 'ballistic_rack',
+              fromWellId: currentWellId,
+              fromRing: currentRing,
+              fromSector: currentSector,
+              toWellId: targetBefore.ship.wellId,
+              toRing: targetBefore.ship.ring,
+              toSector: targetBefore.ship.sector,
+            } satisfies BallisticRackAnimationData,
           })
         } else if (weaponType === 'missiles') {
           animations.push({

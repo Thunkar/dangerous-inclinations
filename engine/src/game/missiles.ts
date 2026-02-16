@@ -2,8 +2,9 @@ import type { GameState, Missile, Player, TurnLogEntry, ShipState } from "../mod
 import type { ProcessResult } from "./actionProcessors";
 import { getGravityWell } from "../models/gravityWells";
 import { applyOrbitalMovement } from "./movement";
-import { applyDamageWithShields } from "./damage";
+import { applyDamageWithShields, rollD10 } from "./damage";
 import { getMissileStats } from "../models/subsystems";
+import { addHeat } from "./heat";
 
 // Get missile stats from centralized config
 const MISSILE_STATS = getMissileStats();
@@ -154,6 +155,36 @@ export function checkMissileHit(missile: Missile, target: Player): boolean {
 }
 
 /**
+ * Attempt to intercept a missile using the target ship's ballistic rack (PDC).
+ * Finds the first available (powered, not broken, not used) ballistic rack
+ * and rolls d10: 2-10 = intercept, 1 = miss.
+ *
+ * @returns Object with interception result, rack index, and roll value
+ */
+export function attemptMissileInterception(
+  targetShip: ShipState,
+): { intercepted: boolean; rackIndex: number | null; roll: number } {
+  // Find first available ballistic rack
+  const rackIndex = targetShip.subsystems.findIndex(
+    (s) =>
+      s.type === "ballistic_rack" &&
+      s.isPowered &&
+      !s.isBroken &&
+      !s.usedThisTurn,
+  );
+
+  if (rackIndex === -1) {
+    return { intercepted: false, rackIndex: null, roll: 0 };
+  }
+
+  // Roll d10: 2-10 = intercept, 1 = miss
+  const roll = rollD10();
+  const intercepted = roll >= 2;
+
+  return { intercepted, rackIndex, roll };
+}
+
+/**
  * Process missiles in flight
  * Called during turn execution AFTER player tactical actions
  *
@@ -243,20 +274,66 @@ export function processMissiles(
     };
 
     if (checkMissileHit(missileState, target)) {
+      const targetIndex = updatedPlayers.findIndex((p) => p.id === target.id);
+      const currentTarget = updatedPlayers[targetIndex];
+
+      // PDC Interception: attempt to intercept with ballistic rack before damage
+      const interception = attemptMissileInterception(currentTarget.ship);
+
+      if (interception.rackIndex !== null) {
+        // A ballistic rack attempted interception — mark it used and generate heat
+        const rack = currentTarget.ship.subsystems[interception.rackIndex];
+        const interceptHeat = rack.allocatedEnergy;
+        let updatedTargetShip: ShipState = {
+          ...currentTarget.ship,
+          subsystems: currentTarget.ship.subsystems.map((s, i) =>
+            i === interception.rackIndex
+              ? { ...s, usedThisTurn: true }
+              : s,
+          ),
+        };
+        if (interceptHeat > 0) {
+          updatedTargetShip = addHeat(updatedTargetShip, interceptHeat);
+        }
+        updatedPlayers[targetIndex] = { ...currentTarget, ship: updatedTargetShip };
+
+        if (interception.intercepted) {
+          // Missile destroyed by PDC
+          missilesToRemove.push(missile.id);
+          logEntries.push({
+            turn: gameState.turn,
+            playerId: currentTarget.id,
+            playerName: currentTarget.name,
+            action: "PDC Intercept",
+            result: `${currentTarget.name}'s ballistic rack intercepted ${owner.name}'s missile (rolled ${interception.roll})${interceptHeat > 0 ? ` (+${interceptHeat} heat)` : ""}`,
+          });
+          continue;
+        } else {
+          // PDC fired but missed — missile damage proceeds
+          logEntries.push({
+            turn: gameState.turn,
+            playerId: currentTarget.id,
+            playerName: currentTarget.name,
+            action: "PDC Miss",
+            result: `${currentTarget.name}'s ballistic rack failed to intercept ${owner.name}'s missile (rolled ${interception.roll})${interceptHeat > 0 ? ` (+${interceptHeat} heat)` : ""}`,
+          });
+        }
+      }
+
       // HIT! Apply damage with d10 hit resolution
       // Missiles always target shields for critical (thematic: guided warhead)
       // Pass owner's ship for critical chance calculation (sensor array bonus)
-      const targetIndex = updatedPlayers.findIndex((p) => p.id === target.id);
-      const currentTarget = updatedPlayers[targetIndex];
+      // Re-read current target state (may have been updated by PDC attempt)
+      const latestTarget = updatedPlayers[targetIndex];
       const { ship: damagedShip, hitResult } = applyDamageWithShields(
-        currentTarget.ship,
+        latestTarget.ship,
         MISSILE_STATS.damage,
         "shields",
         undefined, // Let the function roll the d10
         owner.ship // Pass owner's ship for critical chance calculation
       );
       updatedPlayers[targetIndex] = {
-        ...currentTarget,
+        ...latestTarget,
         ship: damagedShip,
       };
 

@@ -5,79 +5,240 @@ import type {
   WellTransferAction,
 } from '../../models/game'
 import type { TacticalSituation, Target, BotParameters } from '../types'
+import { planFromShip, getFirstAction } from '../movementPlanner'
+import type { OrbitalPosition } from '../movementPlanner'
+import { MAX_REACTION_MASS } from '../../models/game'
+import { SUBSYSTEM_CONFIGS } from '../../models/subsystems'
 
 /**
- * Determine if bot should move closer or farther from target
+ * Result of movement planning that informs energy allocation
  */
-export function calculateDesiredRange(
-  situation: TacticalSituation,
-  target: Target | null,
-  parameters: BotParameters
-): 'closer' | 'farther' | 'maintain' {
-  if (!target) {
-    return 'maintain'
-  }
-
-  const currentRing = situation.status.ring
-  const targetRing = target.player.ship.ring
-  const ringDistance = Math.abs(currentRing - targetRing)
-
-  const { preferredRingRange } = parameters
-
-  // If target is too far, move closer
-  if (ringDistance > preferredRingRange.max) {
-    return 'closer'
-  }
-
-  // If target is too close, move farther
-  if (ringDistance < preferredRingRange.min) {
-    return 'farther'
-  }
-
-  // In optimal range
-  return 'maintain'
+export interface MovementPlanResult {
+  action: CoastAction | BurnAction | WellTransferAction
+  needsRotation: boolean
+  desiredFacing: 'prograde' | 'retrograde' | null
 }
 
 /**
- * Generate movement action (coast or burn)
+ * Determine target position for the movement planner based on current goal
  */
-export function generateMovementAction(
+function getTargetPosition(
+  situation: TacticalSituation,
+  target: Target | null,
+  parameters: BotParameters
+): OrbitalPosition | null {
+  const { currentGoal } = situation
+
+  if (currentGoal) {
+    switch (currentGoal.type) {
+      case 'destroy_target': {
+        // Navigate toward target player's predicted position
+        if (currentGoal.targetPlayerId) {
+          const targetPlayer = situation.targets.find(
+            t => t.player.id === currentGoal.targetPlayerId
+          )
+          if (targetPlayer) {
+            return {
+              wellId: targetPlayer.predictedPosition.wellId,
+              ring: targetPlayer.predictedPosition.ring,
+              sector: targetPlayer.predictedPosition.sector,
+            }
+          }
+        }
+        break
+      }
+      case 'pickup_cargo':
+      case 'deliver_cargo': {
+        // Navigate to station position (from goal)
+        if (currentGoal.targetWellId != null && currentGoal.targetRing != null && currentGoal.targetSector != null) {
+          return {
+            wellId: currentGoal.targetWellId,
+            ring: currentGoal.targetRing,
+            sector: currentGoal.targetSector,
+          }
+        }
+        break
+      }
+      case 'combat_opportunistic':
+        // Fall through to target-based positioning
+        break
+    }
+  }
+
+  // Fall back to target-based range management
+  if (target) {
+    const { preferredRingRange } = parameters
+    const targetRing = target.player.ship.ring
+    const currentRing = situation.status.ring
+    const ringDist = Math.abs(currentRing - targetRing)
+
+    // If already in preferred range, stay put
+    if (ringDist >= preferredRingRange.min && ringDist <= preferredRingRange.max) {
+      return null
+    }
+
+    // Move toward preferred range
+    let desiredRing: number
+    if (ringDist > preferredRingRange.max) {
+      // Too far, move closer
+      desiredRing = currentRing > targetRing
+        ? targetRing + preferredRingRange.max
+        : targetRing - preferredRingRange.max
+    } else {
+      // Too close, move farther
+      desiredRing = currentRing > targetRing
+        ? targetRing + preferredRingRange.min
+        : targetRing - preferredRingRange.min
+    }
+
+    desiredRing = Math.max(1, Math.min(5, desiredRing))
+
+    return {
+      wellId: target.player.ship.wellId,
+      ring: desiredRing,
+      sector: target.player.ship.sector,
+    }
+  }
+
+  return null
+}
+
+/**
+ * Plan movement using the movement planner.
+ * Returns the movement action plus info about whether rotation is needed.
+ */
+export function planMovementAction(
   situation: TacticalSituation,
   target: Target | null,
   parameters: BotParameters,
   sequence: number
-): CoastAction | BurnAction {
+): MovementPlanResult {
   const { botPlayer, status } = situation
-  const desiredRange = calculateDesiredRange(situation, target, parameters)
+  const ship = botPlayer.ship
 
-  // If we want to change range and have reaction mass, burn
-  if (desiredRange !== 'maintain' && status.reactionMass >= 1) {
-    // TODO: Determine burn direction and face correctly before burning
-    // const targetRing = target?.player.ship.ring || status.ring
-    // const shouldMoveInward = desiredRange === 'closer' ? targetRing < status.ring : targetRing > status.ring
-    // const desiredFacing: 'prograde' | 'retrograde' = shouldMoveInward ? 'retrograde' : 'prograde'
+  // Get target position
+  const targetPos = getTargetPosition(situation, target, parameters)
 
-    // Simple burn (soft intensity, no sector adjustment)
+  // If no target position, coast (with scoop if available and fuel-efficient)
+  if (!targetPos) {
     return {
-      type: 'burn',
-      playerId: botPlayer.id,
-      sequence,
-      data: {
-        burnIntensity: 'soft',
-        sectorAdjustment: 0,
+      action: {
+        type: 'coast',
+        playerId: botPlayer.id,
+        sequence,
+        data: {
+          activateScoop: shouldActivateScoop(situation),
+        },
       },
+      needsRotation: false,
+      desiredFacing: null,
     }
   }
 
-  // Default: coast
-  return {
-    type: 'coast',
-    playerId: botPlayer.id,
-    sequence,
-    data: {
-      activateScoop: false, // For simplicity, don't activate scoop
-    },
+  // Use movement planner to find path
+  const plan = planFromShip(ship, targetPos, 'fastest')
+
+  if (!plan || plan.steps.length === 0) {
+    // No path found - coast
+    return {
+      action: {
+        type: 'coast',
+        playerId: botPlayer.id,
+        sequence,
+        data: {
+          activateScoop: shouldActivateScoop(situation),
+        },
+      },
+      needsRotation: false,
+      desiredFacing: null,
+    }
   }
+
+  // Extract first step
+  const firstAction = getFirstAction(plan)
+  if (!firstAction) {
+    return {
+      action: {
+        type: 'coast',
+        playerId: botPlayer.id,
+        sequence,
+        data: {
+          activateScoop: shouldActivateScoop(situation),
+        },
+      },
+      needsRotation: false,
+      desiredFacing: null,
+    }
+  }
+
+  // Check if rotation is needed
+  const needsRotation = firstAction.targetFacing != null && firstAction.targetFacing !== status.facing
+  const desiredFacing = firstAction.targetFacing ?? null
+
+  // Convert to game action
+  if (firstAction.actionType === 'burn') {
+    // Check if we have enough reaction mass
+    if (status.reactionMass < 1) {
+      return {
+        action: {
+          type: 'coast',
+          playerId: botPlayer.id,
+          sequence,
+          data: {
+            activateScoop: shouldActivateScoop(situation),
+          },
+        },
+        needsRotation: false,
+        desiredFacing: null,
+      }
+    }
+
+    return {
+      action: {
+        type: 'burn',
+        playerId: botPlayer.id,
+        sequence,
+        data: {
+          burnIntensity: firstAction.burnIntensity ?? 'soft',
+          sectorAdjustment: firstAction.sectorAdjustment,
+        },
+      },
+      needsRotation,
+      desiredFacing,
+    }
+  }
+
+  // Coast (default)
+  return {
+    action: {
+      type: 'coast',
+      playerId: botPlayer.id,
+      sequence,
+      data: {
+        activateScoop: shouldActivateScoop(situation),
+      },
+    },
+    needsRotation,
+    desiredFacing,
+  }
+}
+
+/**
+ * Check if scoop should be activated when coasting
+ */
+function shouldActivateScoop(situation: TacticalSituation): boolean {
+  const { status } = situation
+
+  // Need a scoop subsystem that's powered
+  const scoop = status.subsystems.find(s => s.type === 'scoop')
+  if (!scoop || !scoop.powered || scoop.broken) return false
+
+  // Only scoop if we need fuel
+  const fuelTankCount = status.subsystems.filter(s => s.type === 'fuel_tank').length
+  const fuelTankBonus = SUBSYSTEM_CONFIGS.fuel_tank.passiveEffect?.reactionMassBonus ?? 0
+  const maxFuel = MAX_REACTION_MASS + fuelTankCount * fuelTankBonus
+
+  return status.reactionMass < maxFuel
 }
 
 /**
@@ -93,7 +254,8 @@ export function generateRotationAction(
   }
 
   // Check if rotation is available
-  if (situation.status.subsystems.rotation.used || !situation.status.subsystems.rotation.powered) {
+  const rotation = situation.status.rotation
+  if (rotation.used || !rotation.powered) {
     return null
   }
 
@@ -109,7 +271,6 @@ export function generateRotationAction(
 
 /**
  * Generate well transfer action for escape
- * Only used when bot is in danger and has engines at level 3+
  */
 export function generateEscapeTransfer(
   situation: TacticalSituation,
@@ -126,7 +287,7 @@ export function generateEscapeTransfer(
   }
 
   // Well transfers require engines at level 3
-  const enginesEnergy = situation.status.subsystems.engines.energy
+  const enginesEnergy = situation.status.engines.energy
   if (enginesEnergy < 3) {
     return null
   }

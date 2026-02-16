@@ -29,6 +29,18 @@ export function WeaponEffects({ weaponEffects, currentTime }: WeaponEffectsProps
               color={color}
             />
           )
+        } else if (effect.type === 'ballistic_rack') {
+          return (
+            <BallisticBurst
+              key={effect.id}
+              startX={effect.startX}
+              startY={effect.startY}
+              endX={effect.endX}
+              endY={effect.endY}
+              progress={progress}
+              color={color}
+            />
+          )
         } else {
           return (
             <RailgunProjectile
@@ -192,6 +204,73 @@ function RailgunProjectile({ startX, startY, endX, endY, progress, color }: Beam
         opacity={0.3}
         transform={`rotate(${angleDeg}, ${currentX}, ${currentY})`}
       />
+    </g>
+  )
+}
+
+/**
+ * Ballistic burst - rapid-fire tracer rounds traveling from start to end
+ * Multiple small projectiles staggered along the path
+ */
+function BallisticBurst({ startX, startY, endX, endY, progress, color }: BeamProps) {
+  const angle = Math.atan2(endY - startY, endX - startX)
+  const angleDeg = (angle * 180) / Math.PI
+
+  // 3 rounds fired in quick succession
+  const rounds = [0, 0.15, 0.3]
+
+  // Fade out at the end
+  const opacity = progress > 0.85 ? 1 - (progress - 0.85) / 0.15 : 1
+
+  return (
+    <g opacity={opacity}>
+      {rounds.map((offset, i) => {
+        const roundProgress = Math.max(0, Math.min((progress - offset) / (1 - offset), 1))
+        if (roundProgress <= 0) return null
+
+        const rx = startX + (endX - startX) * roundProgress
+        const ry = startY + (endY - startY) * roundProgress
+
+        // Trail behind each round
+        const trailLen = Math.min(20, 20 * (1 - roundProgress * 0.5))
+        const trailX = rx - Math.cos(angle) * trailLen
+        const trailY = ry - Math.sin(angle) * trailLen
+
+        return (
+          <g key={i}>
+            {/* Tracer trail */}
+            <line
+              x1={trailX}
+              y1={trailY}
+              x2={rx}
+              y2={ry}
+              stroke={color}
+              strokeWidth={2}
+              strokeLinecap="round"
+              opacity={0.6}
+            />
+            {/* Round core */}
+            <ellipse
+              cx={rx}
+              cy={ry}
+              rx={4}
+              ry={2}
+              fill={color}
+              transform={`rotate(${angleDeg}, ${rx}, ${ry})`}
+            />
+            {/* Hot center */}
+            <ellipse
+              cx={rx}
+              cy={ry}
+              rx={2}
+              ry={1}
+              fill="#ffffff"
+              opacity={0.9}
+              transform={`rotate(${angleDeg}, ${rx}, ${ry})`}
+            />
+          </g>
+        )
+      })}
     </g>
   )
 }

@@ -20,7 +20,7 @@ export interface FiringSolution {
 
 interface WeaponPanelProps {
   title: string
-  icon: 'laser' | 'railgun' | 'missiles'
+  icon: 'laser' | 'railgun' | 'missiles' | 'ballistic_rack'
   targetPlayerId?: string
   criticalTarget?: SubsystemType
   inRangeTargets: FiringSolution[]

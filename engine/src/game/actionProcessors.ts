@@ -346,11 +346,13 @@ function validateFireWeaponAction(
   const player = gameState.players[playerIndex];
   const errors: string[] = [];
 
-  // Check weapon subsystem exists and is powered
-  const weaponSubsystem = player.ship.subsystems.find(
-    (s) => s.type === action.data.weaponType
-  );
-  if (!weaponSubsystem) {
+  // Find weapon subsystem: use subsystemIndex if provided, otherwise find by type
+  const weaponSubsystem =
+    action.data.subsystemIndex !== undefined
+      ? player.ship.subsystems[action.data.subsystemIndex]
+      : player.ship.subsystems.find((s) => s.type === action.data.weaponType);
+
+  if (!weaponSubsystem || weaponSubsystem.type !== action.data.weaponType) {
     errors.push(`${action.data.weaponType} not found`);
     return errors;
   }
@@ -1053,9 +1055,12 @@ function processFireWeapon(
   const logEntries: TurnLogEntry[] = [];
 
   const weaponConfig = getSubsystemConfig(action.data.weaponType);
-  const weaponSubsystem = player.ship.subsystems.find(
-    (s) => s.type === action.data.weaponType
-  );
+  // Find weapon subsystem: use subsystemIndex if provided, otherwise find by type
+  const weaponSubsystemIndex =
+    action.data.subsystemIndex !== undefined
+      ? action.data.subsystemIndex
+      : player.ship.subsystems.findIndex((s) => s.type === action.data.weaponType);
+  const weaponSubsystem = player.ship.subsystems[weaponSubsystemIndex];
   const heatGenerated = weaponSubsystem?.allocatedEnergy || 0;
 
   // Special handling for missiles: create missile entity instead of dealing instant damage
@@ -1087,8 +1092,8 @@ function processFireWeapon(
     const currentAmmo = getMissileAmmo(player.ship.subsystems);
     let updatedAttackerShip = {
       ...player.ship,
-      subsystems: player.ship.subsystems.map((s) =>
-        s.type === "missiles"
+      subsystems: player.ship.subsystems.map((s, i) =>
+        i === weaponSubsystemIndex
           ? { ...s, usedThisTurn: true, ammo: currentAmmo - 1 }
           : s
       ),
@@ -1128,11 +1133,11 @@ function processFireWeapon(
   // Apply damage to each target
   let updatedPlayers = [...gameState.players];
 
-  // Update attacker's ship first (mark weapon used, generate heat)
+  // Update attacker's ship first (mark specific weapon instance used, generate heat)
   let updatedAttackerShip = {
     ...player.ship,
-    subsystems: player.ship.subsystems.map((s) =>
-      s.type === action.data.weaponType ? { ...s, usedThisTurn: true } : s
+    subsystems: player.ship.subsystems.map((s, i) =>
+      i === weaponSubsystemIndex ? { ...s, usedThisTurn: true } : s
     ),
   };
 

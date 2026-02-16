@@ -35,4 +35,8 @@ export {
   createInitialSubsystems,
   createInitialReactorState,
   createInitialHeatState,
+  getSubsystemSide,
+  getSideFiringDirection,
+  isRingDirectionValid,
 } from "./utils/subsystemHelpers";
+export type { ShipSide, RingDirection } from "./utils/subsystemHelpers";

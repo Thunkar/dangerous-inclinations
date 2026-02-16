@@ -1,5 +1,21 @@
 import type { Player, PlayerAction, GravityWellId } from '../models/game'
+import type { SubsystemType } from '../models/subsystems'
 import type { FiringSolution } from '../utils/weaponRange'
+
+/**
+ * Dynamic subsystem status - works with any loadout
+ */
+export interface SubsystemStatus {
+  type: SubsystemType
+  index: number // index into ship.subsystems[]
+  powered: boolean
+  energy: number
+  used: boolean
+  broken: boolean
+  slotType?: 'forward' | 'side'
+  slotIndex?: number
+  ammo?: number
+}
 
 /**
  * Represents a potential threat to the bot
@@ -9,9 +25,10 @@ export interface Threat {
   distance: number // Combined ring + sector distance
   ringDistance: number
   sectorDistance: number
-  // Weapons that can hit us
+  // Weapons that can hit us (dynamic, any weapon type)
   weaponsInRange: Array<{
-    weaponType: 'laser' | 'railgun' | 'missiles'
+    weaponType: SubsystemType
+    subsystemIndex: number
     inRange: boolean
   }>
   // Predicted position after their movement
@@ -28,12 +45,8 @@ export interface Threat {
 export interface Target {
   player: Player
   distance: number
-  // Available firing solutions for each weapon
-  firingSolutions: {
-    laser?: FiringSolution
-    railgun?: FiringSolution
-    missiles?: FiringSolution
-  }
+  // Firing solutions keyed by bot's subsystem index
+  firingSolutions: Map<number, FiringSolution>
   // Target's predicted position after movement
   predictedPosition: {
     wellId: GravityWellId
@@ -45,6 +58,24 @@ export interface Target {
 }
 
 /**
+ * Bot goal types derived from missions
+ */
+export type BotGoalType = 'destroy_target' | 'pickup_cargo' | 'deliver_cargo' | 'combat_opportunistic'
+
+/**
+ * A mission-derived goal that drives bot behavior
+ */
+export interface BotGoal {
+  type: BotGoalType
+  missionId: string
+  targetPlayerId?: string // For destroy
+  targetWellId?: GravityWellId // For cargo
+  targetRing?: number
+  targetSector?: number
+  estimatedTurns: number // Lower = more urgent
+}
+
+/**
  * Bot's current ship status
  */
 export interface BotStatus {
@@ -53,16 +84,17 @@ export interface BotStatus {
   heat: number
   heatPercent: number // heat / heat capacity
   reactionMass: number
+  maxReactionMass: number
   availableEnergy: number
-  // Subsystem status
-  subsystems: {
-    engines: { powered: boolean; energy: number }
-    rotation: { powered: boolean; energy: number; used: boolean }
-    laser: { powered: boolean; energy: number; used: boolean }
-    railgun: { powered: boolean; energy: number; used: boolean }
-    missiles: { powered: boolean; energy: number; used: boolean }
-    shields: { powered: boolean; energy: number }
-  }
+  // Dynamic subsystem list (works with any loadout)
+  subsystems: SubsystemStatus[]
+  // Convenience accessors for fixed subsystems
+  engines: SubsystemStatus
+  rotation: SubsystemStatus
+  // Derived lists
+  weapons: SubsystemStatus[] // All subsystems with weaponStats
+  hasScoop: boolean
+  hasShields: boolean
   // Position
   wellId: GravityWellId
   ring: number
@@ -88,6 +120,9 @@ export interface TacticalSituation {
     fromSector: number
     toSector: number
   }>
+  // Mission-derived goals
+  currentGoal: BotGoal | null
+  allGoals: BotGoal[]
 }
 
 /**
@@ -109,6 +144,7 @@ export interface ScoredActionPlan {
     defense: number // Safety/survival (0-100)
     positioning: number // Tactical position (0-100)
     resources: number // Energy/heat efficiency (0-100)
+    missionProgress: number // Progress toward mission goals (0-100)
   }
   totalScore: number
 }
@@ -119,7 +155,7 @@ export interface ScoredActionPlan {
 export interface BotParameters {
   // Combat behavior
   aggressiveness: number // 0-1: how willing to take risks for kills
-  targetPreference: 'closest' | 'weakest' | 'threatening' // Target selection strategy
+  targetPreference: 'closest' | 'weakest' | 'threatening' | 'mission' // Target selection strategy
 
   // Heat management
   heatThreshold: number // 0-1: start venting at this % of capacity
@@ -131,7 +167,10 @@ export interface BotParameters {
 
   // Resource management
   energyReserve: number // Minimum energy to keep available
-  conserveAmmo: boolean // Whether to be conservative with reaction mass
+  conserveAmmo: boolean // Whether to be conservative with missiles
+
+  // Mission strategy
+  missionStrategy: 'combat' | 'cargo' | 'balanced' | 'auto'
 }
 
 /**
@@ -139,13 +178,14 @@ export interface BotParameters {
  */
 export const DEFAULT_BOT_PARAMETERS: BotParameters = {
   aggressiveness: 0.6,
-  targetPreference: 'weakest',
+  targetPreference: 'mission',
   heatThreshold: 0.7,
   panicHeatThreshold: 0.9,
   preferredRingRange: { min: 2, max: 3 },
   useWellTransfers: true,
   energyReserve: 2,
   conserveAmmo: false,
+  missionStrategy: 'auto',
 }
 
 /**
@@ -156,30 +196,31 @@ export interface BotDecisionLog {
   timestamp: string
   // Bot's analysis
   situation: {
-    health: string // e.g., "80% HP (8/10)"
-    heat: string // e.g., "50% Heat (5/10)"
-    energy: string // e.g., "3 available"
-    position: string // e.g., "Blackhole R3S12"
+    health: string
+    heat: string
+    energy: string
+    position: string
     threatCount: number
     targetCount: number
+    currentGoal?: string
   }
   // Thoughts about threats
-  threats: string[] // e.g., ["Ship Alpha in laser range", "Taking damage from railgun"]
+  threats: string[]
   // Thoughts about targets
-  targets: string[] // e.g., ["Ship Gamma weakened (40% HP)", "Laser in range"]
+  targets: string[]
   // Decision reasoning
-  reasoning: string[] // e.g., ["Heat critical - venting 3 units", "Targeting weakest enemy"]
+  reasoning: string[]
   // Candidate evaluation
   candidates: Array<{
     description: string
-    scores: { offense: number; defense: number; positioning: number; resources: number }
+    scores: { offense: number; defense: number; positioning: number; resources: number; missionProgress: number }
     totalScore: number
   }>
   // Final decision
   selectedCandidate: {
     description: string
     totalScore: number
-    actionSummary: string[] // e.g., ["Allocate 2 energy to laser", "Fire laser at Ship Gamma"]
+    actionSummary: string[]
   }
 }
 

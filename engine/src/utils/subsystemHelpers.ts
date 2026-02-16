@@ -4,7 +4,7 @@ import type {
   ReactorState,
   HeatState,
 } from "../models/subsystems";
-import type { ShipState, ShipLoadout } from "../models/game";
+import type { ShipState, ShipLoadout, Facing } from "../models/game";
 import { getMissileStats } from "../models/subsystems";
 import { DEFAULT_LOADOUT } from "../models/game";
 import {
@@ -106,4 +106,47 @@ export function createInitialShipState(
     criticalChance: stats.criticalChance,
     ...overrides,
   };
+}
+
+// ============================================================================
+// Port/Starboard Side Helpers
+// ============================================================================
+
+export type ShipSide = "port" | "starboard";
+export type RingDirection = "outward" | "inward";
+
+/**
+ * Determine which side of the ship a subsystem is mounted on.
+ * Port = side slots 0-1, Starboard = side slots 2-3.
+ * Returns null for non-side subsystems (fixed, forward).
+ */
+export function getSubsystemSide(subsystem: Subsystem): ShipSide | null {
+  if (subsystem.slotType !== "side" || subsystem.slotIndex === undefined) return null;
+  return subsystem.slotIndex <= 1 ? "port" : "starboard";
+}
+
+/**
+ * Determine which ring direction a side can fire at, given the ship's facing.
+ * When prograde: port faces outward (higher rings), starboard faces inward (lower rings).
+ * When retrograde: sides flip.
+ */
+export function getSideFiringDirection(side: ShipSide, facing: Facing): RingDirection {
+  if (facing === "prograde") {
+    return side === "port" ? "outward" : "inward";
+  } else {
+    return side === "port" ? "inward" : "outward";
+  }
+}
+
+/**
+ * Check if a target ring is valid for a side-restricted weapon.
+ * Outward = target ring > attacker ring, Inward = target ring < attacker ring.
+ */
+export function isRingDirectionValid(
+  attackerRing: number,
+  targetRing: number,
+  direction: RingDirection,
+): boolean {
+  if (direction === "outward") return targetRing > attackerRing;
+  return targetRing < attackerRing;
 }

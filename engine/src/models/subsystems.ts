@@ -18,7 +18,8 @@ export type SubsystemType =
   | "shields"
   | "radiator"
   | "fuel_tank"
-  | "sensor_array";
+  | "sensor_array"
+  | "ballistic_rack";
 
 /**
  * Slot types for ship loadout system
@@ -35,6 +36,8 @@ export interface WeaponStats {
   sectorRange: number; // Sector spread: broadside uses ±sectorRange, turret uses sector visibility count
   arc: "spinal" | "broadside" | "turret"; // Firing arc type
   hasRecoil?: boolean; // Only for railgun
+  sideRestricted?: boolean; // If true, can only fire toward the ring direction matching mounted side (port/starboard)
+  canTargetSameRing?: boolean; // If true, broadside weapons can also target ringDist=0 (same ring ±sectorRange)
   // Ammunition-based weapon stats (for missiles, future torpedo/bomb systems)
   maxAmmo?: number; // Maximum ammunition capacity (undefined = unlimited)
   fuelPerTurn?: number; // Fuel available per turn for guided projectiles
@@ -69,6 +72,8 @@ export interface Subsystem {
   usedThisTurn: boolean; // Whether the subsystem was activated this turn (resets each turn)
   ammo?: number; // Current ammunition (only for ammo-based weapons like missiles)
   isBroken?: boolean; // If true, subsystem is broken and cannot be used until repaired (critical hit effect)
+  slotIndex?: number; // Which slot this subsystem is in (0-1 for forward, 0-3 for side)
+  slotType?: "forward" | "side"; // Which slot group (undefined for fixed subsystems like engines, rotation)
 }
 
 export interface ReactorState {
@@ -144,9 +149,10 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     slotType: "side",
     weaponStats: {
       damage: 2,
-      ringRange: 1, // Can target ±1 ring (adjacent rings only)
+      ringRange: 2, // Can target ±2 rings (but side-restricted to inward or outward only)
       sectorRange: 1, // Covers ±1 sector "visible" from current position
       arc: "broadside", // Fires radially from ship's sector
+      sideRestricted: true, // Can only fire toward the ring direction matching the mounted side
     },
   },
   shields: {
@@ -194,6 +200,24 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       maxAmmo: 4, // Maximum missile capacity
       fuelPerTurn: 3, // Guidance fuel per turn (rings + sectors missile can move)
       maxTurnsAlive: 3, // Missile expires after 3 turns if it doesn't hit
+    },
+  },
+
+  // Side slot subsystems (PDC)
+  ballistic_rack: {
+    id: "ballistic_rack",
+    name: "Ballistic Rack",
+    minEnergy: 2,
+    maxEnergy: 2,
+    generatesHeatOnUse: true, // Generates heat when fired or when intercepting missiles
+    slotType: "side",
+    weaponStats: {
+      damage: 1, // Lower than laser (2) — balanced by PDC ability + same-ring coverage
+      ringRange: 1, // ±1 ring (shorter than laser's ±2)
+      sectorRange: 1, // ±1 sector spread
+      arc: "broadside", // Uses broadside arc logic
+      sideRestricted: false, // NOT side-restricted: fires both inward and outward
+      canTargetSameRing: true, // Unique: can also hit same ring ±1 sector
     },
   },
 };

@@ -63,6 +63,7 @@ export type TacticalActionType =
   | "fire_laser"
   | "fire_railgun"
   | "fire_missiles"
+  | "fire_ballistic_rack"
   | "well_transfer";
 
 export interface TacticalAction {
@@ -206,9 +207,10 @@ export interface DeallocateEnergyAction extends BaseAction {
 export interface FireWeaponAction extends BaseAction {
   type: "fire_weapon";
   data: {
-    weaponType: "laser" | "railgun" | "missiles";
+    weaponType: "laser" | "railgun" | "missiles" | "ballistic_rack";
     targetPlayerIds: string[]; // Array for multi-target weapons like lasers
     criticalTarget: SubsystemType; // REQUIRED: Declared subsystem to break if critical hit (roll=10) occurs
+    subsystemIndex?: number; // Index into ship.subsystems[] to identify which specific instance fires (needed for side-restricted weapons)
   };
 }
 

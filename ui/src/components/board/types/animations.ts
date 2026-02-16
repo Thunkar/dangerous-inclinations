@@ -10,6 +10,7 @@ export type AnimationType =
   | 'rotate' // Ship rotation
   | 'laser' // Laser beam firing
   | 'railgun' // Railgun shot
+  | 'ballistic_rack' // Ballistic rack burst
   | 'missile_launch' // Missile launch
   | 'missile_move' // Missile movement
   | 'missile_impact' // Missile impact
@@ -36,6 +37,7 @@ export type AnimationData =
   | RotateAnimationData
   | LaserAnimationData
   | RailgunAnimationData
+  | BallisticRackAnimationData
   | MissileAnimationData
   | DamageAnimationData
   | ExplosionAnimationData
@@ -79,6 +81,16 @@ export interface RailgunAnimationData {
   toRing: number
   toSector: number
   facing: 'prograde' | 'retrograde'
+}
+
+export interface BallisticRackAnimationData {
+  type: 'ballistic_rack'
+  fromWellId: string
+  fromRing: number
+  fromSector: number
+  toWellId: string
+  toRing: number
+  toSector: number
 }
 
 export interface MissileAnimationData {
@@ -125,6 +137,7 @@ export const ANIMATION_DURATIONS = {
   ROTATE: 600, // Ship rotation
   LASER: 400, // Laser beam
   RAILGUN: 600, // Railgun shot
+  BALLISTIC_RACK: 500, // Ballistic rack burst
   MISSILE_LAUNCH: 500, // Missile launch
   MISSILE_MOVE: 800, // Missile movement per turn
   MISSILE_IMPACT: 400, // Missile impact

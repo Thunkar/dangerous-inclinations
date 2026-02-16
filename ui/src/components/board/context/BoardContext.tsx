@@ -507,7 +507,7 @@ export function BoardProvider({ children }: BoardProviderProps) {
 
   // Helper to add weapon effect
   const addWeaponEffect = useCallback(
-    (type: 'laser' | 'railgun', startX: number, startY: number, endX: number, endY: number) => {
+    (type: 'laser' | 'railgun' | 'ballistic_rack', startX: number, startY: number, endX: number, endY: number) => {
       const id = `weapon-${weaponEffectIdRef.current++}`
       const newEffect: WeaponEffect = {
         id,
@@ -548,8 +548,8 @@ export function BoardProvider({ children }: BoardProviderProps) {
       const fireAction = action as FireWeaponAction
       const weaponType = fireAction.data.weaponType
 
-      // Only laser and railgun get visual effects (missiles have their own animation)
-      if (weaponType === 'laser' || weaponType === 'railgun') {
+      // Laser, railgun, and ballistic rack get visual effects (missiles have their own animation)
+      if (weaponType === 'laser' || weaponType === 'railgun' || weaponType === 'ballistic_rack') {
         const attacker = beforeState.players.find(p => p.id === action.playerId)
         if (attacker) {
           const attackerPos = calculateShipScreenPosition(attacker.ship)

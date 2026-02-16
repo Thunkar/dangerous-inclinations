@@ -24,22 +24,6 @@ import { selectBestCandidate, evaluateActionPlan } from "./evaluator";
 
 /**
  * Main bot decision-making function
- *
- * @param gameState - Current game state
- * @param botPlayerId - ID of the bot player
- * @param parameters - Optional bot behavior parameters (defaults to medium difficulty)
- * @returns Bot decision with actions and detailed decision log
- *
- * @example
- * ```typescript
- * // In GameContext when it's a bot's turn:
- * const botId = gameState.players[gameState.activePlayerIndex].id
- * if (botId !== 'player1') { // Not the human player
- *   const decision = botDecideActions(gameState, botId)
- *   console.log(decision.log) // View bot's thinking
- *   executeTurn(gameState, decision.actions)
- * }
- * ```
  */
 export function botDecideActions(
   gameState: GameState,
@@ -113,23 +97,25 @@ function buildDecisionLog(
   bestPlan: ScoredActionPlan,
   parameters: BotParameters,
 ): BotDecisionLog {
-  const { status, threats, targets, primaryThreat, primaryTarget } = situation;
+  const { status, threats, targets, primaryThreat, primaryTarget, currentGoal } = situation;
 
   // Format situation
+  const maxHp = status.healthPercent > 0 ? Math.round(status.health / status.healthPercent) : 0;
   const situationSummary = {
-    health: `${Math.round(status.healthPercent * 100)}% HP (${status.health}/${status.health / status.healthPercent})`,
+    health: `${Math.round(status.healthPercent * 100)}% HP (${status.health}/${maxHp})`,
     heat: `${Math.round(status.heatPercent * 100)}% Heat (${status.heat}/10)`,
     energy: `${status.availableEnergy} available`,
     position: `${status.wellId} R${status.ring}S${status.sector} (${status.facing})`,
     threatCount: threats.length,
     targetCount: targets.length,
+    currentGoal: currentGoal ? `${currentGoal.type} (${currentGoal.estimatedTurns} turns)` : undefined,
   };
 
   // Format threats
-  const threatDescriptions = threats.slice(0, 3).map((threat: any) => {
+  const threatDescriptions = threats.slice(0, 3).map((threat) => {
     const weapons = threat.weaponsInRange
-      .filter((w: any) => w.inRange)
-      .map((w: any) => w.weaponType)
+      .filter((w) => w.inRange)
+      .map((w) => w.weaponType)
       .join(", ");
     if (weapons) {
       return `${threat.player.name} has ${weapons} in range (${threat.ringDistance}R ${threat.sectorDistance}S away)`;
@@ -138,14 +124,18 @@ function buildDecisionLog(
   });
 
   // Format targets
-  const targetDescriptions = targets.slice(0, 3).map((target: any) => {
+  const targetDescriptions = targets.slice(0, 3).map((target) => {
     const healthPercent = Math.round(
       (target.player.ship.hitPoints / target.player.ship.maxHitPoints) * 100,
     );
-    const weapons = Object.entries(target.firingSolutions)
-      .filter(([_, solution]: any) => solution?.inRange)
-      .map(([weapon]) => weapon)
-      .join(", ");
+    const weaponNames: string[] = [];
+    for (const [idx, solution] of target.firingSolutions.entries()) {
+      if (solution.inRange) {
+        const sub = situation.botPlayer.ship.subsystems[idx];
+        if (sub) weaponNames.push(sub.type);
+      }
+    }
+    const weapons = weaponNames.join(", ");
     if (weapons) {
       return `${target.player.name} (${healthPercent}% HP) - ${weapons} in range`;
     }
@@ -155,6 +145,10 @@ function buildDecisionLog(
   // Build reasoning
   const reasoning: string[] = [];
 
+  if (currentGoal) {
+    reasoning.push(`Current goal: ${currentGoal.type} (est. ${currentGoal.estimatedTurns} turns)`);
+  }
+
   if (status.heatPercent >= parameters.heatThreshold) {
     reasoning.push(
       `Heat at ${Math.round(status.heatPercent * 100)}% - need to vent`,
@@ -163,8 +157,8 @@ function buildDecisionLog(
 
   if (primaryThreat) {
     const weapons = primaryThreat.weaponsInRange
-      .filter((w: any) => w.inRange)
-      .map((w: any) => w.weaponType)
+      .filter((w) => w.inRange)
+      .map((w) => w.weaponType)
       .join(", ");
     if (weapons) {
       reasoning.push(
@@ -244,12 +238,13 @@ export function createBotParameters(
       return {
         aggressiveness: 0.4,
         targetPreference: "closest",
-        heatThreshold: 0.5, // Vents early
+        heatThreshold: 0.5,
         panicHeatThreshold: 0.7,
-        preferredRingRange: { min: 1, max: 4 }, // Less picky about range
-        useWellTransfers: false, // Doesn't escape
+        preferredRingRange: { min: 1, max: 4 },
+        useWellTransfers: false,
         energyReserve: 3,
         conserveAmmo: true,
+        missionStrategy: "auto",
       };
 
     case "medium":
@@ -259,15 +254,19 @@ export function createBotParameters(
       return {
         aggressiveness: 0.8,
         targetPreference: "weakest",
-        heatThreshold: 0.8, // Tolerates more heat
+        heatThreshold: 0.8,
         panicHeatThreshold: 0.95,
-        preferredRingRange: { min: 2, max: 3 }, // Precise positioning
+        preferredRingRange: { min: 2, max: 3 },
         useWellTransfers: true,
         energyReserve: 1,
         conserveAmmo: false,
+        missionStrategy: "auto",
       };
   }
 }
+
+// Bot loadout selection
+export { selectBotLoadout, BOT_LOADOUT_TEMPLATES } from "./behaviors/loadout";
 
 // Re-export types for consumers
 export type {

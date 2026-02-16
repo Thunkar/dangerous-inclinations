@@ -7,11 +7,9 @@ import type { ActionPlan, ScoredActionPlan, TacticalSituation, BotParameters } f
 function evaluateOffense(actions: PlayerAction[], situation: TacticalSituation): number {
   let score = 0
 
-  // Count weapon actions
   const weaponActions = actions.filter(a => a.type === 'fire_weapon')
-  score += weaponActions.length * 30 // 30 points per weapon fired
+  score += weaponActions.length * 30
 
-  // Bonus if we have a target in range
   if (situation.primaryTarget) {
     score += 20
   }
@@ -27,12 +25,8 @@ function evaluateDefense(
   situation: TacticalSituation,
   _parameters: BotParameters
 ): number {
-  let score = 50 // Base score
+  let score = 50
 
-  // Heat management - now automatic via dissipationCapacity
-  // Heat is passively vented each turn, no action needed
-
-  // Escape when low health
   const wellTransferAction = actions.find(a => a.type === 'well_transfer')
   if (situation.status.healthPercent < 0.3) {
     score += wellTransferAction ? 20 : 0
@@ -43,7 +37,13 @@ function evaluateDefense(
     const shieldsAllocated = actions.some(
       a => a.type === 'allocate_energy' && a.data.subsystemType === 'shields'
     )
-    score += shieldsAllocated || situation.status.subsystems.shields.powered ? 10 : -10
+    const shieldsSub = situation.status.subsystems.find(s => s.type === 'shields')
+    score += shieldsAllocated || (shieldsSub?.powered ?? false) ? 10 : -10
+  }
+
+  const deallocateActions = actions.filter(a => a.type === 'deallocate_energy')
+  if (deallocateActions.length > 0) {
+    score += 5 // Good: cleaning up unused subsystems
   }
 
   return Math.min(100, Math.max(0, score))
@@ -57,18 +57,17 @@ function evaluatePositioning(
   situation: TacticalSituation,
   parameters: BotParameters
 ): number {
-  let score = 50 // Base score
+  let score = 50
 
-  // Check if we're in preferred range
   if (situation.primaryTarget) {
     const ringDistance = Math.abs(situation.status.ring - situation.primaryTarget.player.ship.ring)
     const { preferredRingRange } = parameters
 
     if (ringDistance >= preferredRingRange.min && ringDistance <= preferredRingRange.max) {
-      score += 30 // In optimal range
+      score += 30
     } else {
       const burnAction = actions.find(a => a.type === 'burn')
-      score += burnAction ? 10 : -10 // Bonus for trying to adjust range
+      score += burnAction ? 10 : -10
     }
   }
 
@@ -79,26 +78,93 @@ function evaluatePositioning(
  * Evaluate resource efficiency - energy and heat management
  */
 function evaluateResources(actions: PlayerAction[], situation: TacticalSituation): number {
-  let score = 50 // Base score
+  let score = 50
 
-  // Efficient energy allocation
   const allocateActions = actions.filter(a => a.type === 'allocate_energy')
   const deallocateActions = actions.filter(a => a.type === 'deallocate_energy')
 
-  // Bonus for managing energy (not just leaving it unused)
   if (allocateActions.length > 0) {
     score += 20
   }
 
-  // Small bonus for deallocating unused systems
   if (deallocateActions.length > 0) {
     score += 10
   }
 
-  // Penalty for wasting reaction mass when not needed
   const burnAction = actions.find(a => a.type === 'burn')
   if (burnAction && situation.status.reactionMass < 3) {
-    score -= 15 // Don't waste mass when low
+    score -= 15
+  }
+
+  return Math.min(100, Math.max(0, score))
+}
+
+/**
+ * Evaluate mission progress - how well the action plan advances mission goals
+ */
+function evaluateMissionProgress(
+  actions: PlayerAction[],
+  situation: TacticalSituation,
+  _parameters: BotParameters
+): number {
+  const { currentGoal } = situation
+
+  // No goal → neutral
+  if (!currentGoal) {
+    return 30
+  }
+
+  let score = 30 // Base
+
+  switch (currentGoal.type) {
+    case 'destroy_target': {
+      // Firing at mission target
+      const fireActions = actions.filter(a => a.type === 'fire_weapon')
+      const firingAtTarget = fireActions.some(a =>
+        a.data.targetPlayerIds.includes(currentGoal.targetPlayerId!)
+      )
+      if (firingAtTarget) {
+        score += 50
+      }
+
+      // Moving toward target (burn action when not in range)
+      const burnAction = actions.find(a => a.type === 'burn')
+      if (burnAction && !firingAtTarget) {
+        score += 20 // Approaching
+      }
+      break
+    }
+
+    case 'pickup_cargo':
+    case 'deliver_cargo': {
+      // Moving toward station
+      const burnAction = actions.find(a => a.type === 'burn')
+      if (burnAction) {
+        score += 30
+      }
+
+      // Coasting with scoop is good for cargo runs
+      const coastAction = actions.find(a => a.type === 'coast')
+      if (coastAction && coastAction.data.activateScoop) {
+        score += 20
+      }
+
+      // Well transfer toward target
+      const transferAction = actions.find(a => a.type === 'well_transfer')
+      if (transferAction && currentGoal.targetWellId) {
+        if (transferAction.data.destinationWellId === currentGoal.targetWellId) {
+          score += 40 // Moving to correct well
+        }
+      }
+      break
+    }
+
+    case 'combat_opportunistic':
+      // Any combat action is good
+      if (actions.some(a => a.type === 'fire_weapon')) {
+        score += 30
+      }
+      break
   }
 
   return Math.min(100, Math.max(0, score))
@@ -116,24 +182,27 @@ export function evaluateActionPlan(
   const defense = evaluateDefense(plan.actions, situation, parameters)
   const positioning = evaluatePositioning(plan.actions, situation, parameters)
   const resources = evaluateResources(plan.actions, situation)
+  const missionProgress = evaluateMissionProgress(plan.actions, situation, parameters)
 
   // Weighted total score
-  // Aggressiveness determines offense vs defense weighting
-  const offenseWeight = 0.3 + parameters.aggressiveness * 0.3 // 0.3 to 0.6
-  const defenseWeight = 0.3 + (1 - parameters.aggressiveness) * 0.3 // 0.3 to 0.6
-  const positioningWeight = 0.2
-  const resourcesWeight = 0.2
+  // Aggressiveness shifts weight between offense and defense
+  const offenseWeight = 0.2 + parameters.aggressiveness * 0.15
+  const defenseWeight = 0.2 + (1 - parameters.aggressiveness) * 0.15
+  const positioningWeight = 0.1
+  const resourcesWeight = 0.1
+  const missionWeight = 0.25
 
   const totalScore =
     offense * offenseWeight +
     defense * defenseWeight +
     positioning * positioningWeight +
-    resources * resourcesWeight
+    resources * resourcesWeight +
+    missionProgress * missionWeight
 
   return {
     actions: plan.actions,
     description: plan.description,
-    scores: { offense, defense, positioning, resources },
+    scores: { offense, defense, positioning, resources, missionProgress },
     totalScore,
   }
 }
@@ -146,11 +215,7 @@ export function selectBestCandidate(
   situation: TacticalSituation,
   parameters: BotParameters
 ): ScoredActionPlan {
-  // Evaluate all plans
   const scoredPlans = plans.map(plan => evaluateActionPlan(plan, situation, parameters))
-
-  // Sort by total score (highest first)
   scoredPlans.sort((a, b) => b.totalScore - a.totalScore)
-
   return scoredPlans[0]
 }
