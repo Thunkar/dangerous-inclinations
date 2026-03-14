@@ -118,9 +118,9 @@ export function MovementPlanner({
 
   const hasFuelScoop = useMemo(() => ship.subsystems.some(s => s.type === 'scoop'), [ship.subsystems])
   const maxFuelCapacity = useMemo(() => {
-    const fuelTankCount = ship.subsystems.filter(s => s.type === 'fuel_tank').length
-    const fuelTankBonus = SUBSYSTEM_CONFIGS.fuel_tank.passiveEffect?.reactionMassBonus ?? 0
-    return MAX_REACTION_MASS + fuelTankCount * fuelTankBonus
+    const compressorCount = ship.subsystems.filter(s => s.type === 'fuel_compressor').length
+    const compressorBonus = SUBSYSTEM_CONFIGS.fuel_compressor.passiveEffect?.reactionMassBonus ?? 0
+    return MAX_REACTION_MASS + compressorCount * compressorBonus
   }, [ship.subsystems])
 
   // Calculate all route alternatives

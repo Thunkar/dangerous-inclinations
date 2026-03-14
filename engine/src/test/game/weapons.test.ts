@@ -22,6 +22,7 @@ function createTestPlayer(
       sector,
       facing,
     }),
+    missionOffers: [],
     missions: [],
     completedMissionCount: 0,
     cargo: [],

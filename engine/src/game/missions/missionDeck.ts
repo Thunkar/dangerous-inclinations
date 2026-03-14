@@ -12,6 +12,7 @@ import type {
   Mission,
   DestroyShipMission,
   DeliverCargoMission,
+  InterceptTransmissionMission,
   Cargo,
 } from "../../models/missions";
 
@@ -20,6 +21,7 @@ import type {
  */
 export const MISSION_CONSTANTS = {
   MISSIONS_PER_PLAYER: 3,
+  MISSION_OFFERS_PER_PLAYER: 5,
 } as const;
 
 /**
@@ -124,8 +126,8 @@ function dealDestroyMissions(
 
 /**
  * Deal cargo missions from the available pool
- * Each player gets (MISSIONS_PER_PLAYER - 1) cargo missions
- * (since they get 1 destroy mission)
+ * Each player gets 1 cargo mission
+ * (1 destroy + 1 intercept + 1 cargo = 3 missions total)
  */
 function dealCargoMissions(
   players: Player[],
@@ -135,7 +137,7 @@ function dealCargoMissions(
   const shuffledMissions = shuffleArray(cargoMissions);
   let missionIndex = 0;
 
-  const cargoMissionsPerPlayer = MISSION_CONSTANTS.MISSIONS_PER_PLAYER - 1; // 2 cargo missions each
+  const cargoMissionsPerPlayer = 1;
 
   for (const player of players) {
     const playerMissions: DeliverCargoMission[] = [];
@@ -169,10 +171,41 @@ function createCargoForMissions(missions: DeliverCargoMission[]): Cargo[] {
   return missions.map((mission) => ({
     id: mission.cargoId,
     missionId: mission.id,
+    type: "standard" as const,
     pickupPlanetId: mission.pickupPlanetId,
     deliveryPlanetId: mission.deliveryPlanetId,
     isPickedUp: false,
   }));
+}
+
+/**
+ * Deal intercept transmission missions — each player targets a different player
+ * Uses circular assignment similar to destroy missions.
+ * The assigned target is the player whose transmission they must intercept.
+ */
+function dealInterceptMissions(
+  players: Player[]
+): Map<string, InterceptTransmissionMission> {
+  const assignments = new Map<string, InterceptTransmissionMission>();
+
+  // Shuffle in reverse direction to avoid same pairing as destroy missions
+  const shuffledPlayers = shuffleArray([...players]).reverse();
+
+  for (let i = 0; i < shuffledPlayers.length; i++) {
+    const spy = shuffledPlayers[i];
+    const target = shuffledPlayers[(i + 1) % shuffledPlayers.length];
+    const missionId = generateMissionId("intercept", i);
+    assignments.set(spy.id, {
+      id: missionId,
+      type: "intercept_transmission",
+      isCompleted: false,
+      targetPlayerId: target.id,
+      scanAcquired: false,
+      scanCargoId: generateCargoId(missionId),
+    });
+  }
+
+  return assignments;
 }
 
 /**
@@ -187,7 +220,8 @@ export interface DealMissionsResult {
  * Deal missions to all players
  * Each player receives:
  * - 1 destroy ship mission (targeting one specific other player)
- * - 2 cargo delivery missions
+ * - 1 intercept transmission mission (shadow a different player with sensor_array)
+ * - 1 cargo delivery mission
  *
  * Returns a map of playerId -> missions and playerId -> cargo
  */
@@ -201,7 +235,10 @@ export function dealMissions(
   // Deal destroy missions (one per player, circular targeting)
   const destroyAssignments = dealDestroyMissions(players);
 
-  // Deal cargo missions
+  // Deal intercept missions (different circular order from destroy)
+  const interceptAssignments = dealInterceptMissions(players);
+
+  // Deal cargo missions (1 per player instead of 2)
   const cargoAssignments = dealCargoMissions(players, cargoMissions);
 
   // Combine missions and create cargo objects
@@ -217,13 +254,19 @@ export function dealMissions(
       missions.push(destroyMission);
     }
 
-    // Add cargo missions
+    // Add intercept mission
+    const interceptMission = interceptAssignments.get(player.id);
+    if (interceptMission) {
+      missions.push(interceptMission);
+    }
+
+    // Add cargo mission (1 per player)
     const cargoMissionsList = cargoAssignments.get(player.id) || [];
     missions.push(...cargoMissionsList);
 
     playerMissions.set(player.id, missions);
 
-    // Create cargo for cargo missions
+    // Create cargo for standard cargo missions only (scan_data cargo is created at scan time)
     playerCargo.set(player.id, createCargoForMissions(cargoMissionsList));
   }
 
@@ -247,4 +290,132 @@ export function getCargoMissions(missions: Mission[]): DeliverCargoMission[] {
   return missions.filter(
     (m) => m.type === "deliver_cargo"
   ) as DeliverCargoMission[];
+}
+
+/**
+ * Result of dealing mission offers
+ */
+export interface DealMissionOffersResult {
+  playerOffers: Map<string, Mission[]>;
+}
+
+/**
+ * Build a full mission deck for one player, containing every possible mission
+ * they could draw. The deck is shuffled and they draw MISSION_OFFERS_PER_PLAYER
+ * cards from the top — just like a real tabletop card draw.
+ */
+function buildPlayerDeck(
+  _player: Player,
+  otherPlayers: Player[],
+  planets: GravityWell[]
+): Mission[] {
+  const deck: Mission[] = [];
+  let idx = 0;
+
+  // Destroy missions — one per opponent
+  for (const target of otherPlayers) {
+    deck.push({
+      id: generateMissionId("destroy", idx++),
+      type: "destroy_ship",
+      isCompleted: false,
+      targetPlayerId: target.id,
+    });
+  }
+
+  // Intercept missions — one per opponent
+  for (const target of otherPlayers) {
+    const missionId = generateMissionId("intercept", idx++);
+    deck.push({
+      id: missionId,
+      type: "intercept_transmission",
+      isCompleted: false,
+      targetPlayerId: target.id,
+      scanAcquired: false,
+      scanCargoId: generateCargoId(missionId),
+    });
+  }
+
+  // Cargo missions — all planet pair routes
+  for (const pickup of planets) {
+    for (const delivery of planets) {
+      if (pickup.id !== delivery.id) {
+        const missionId = generateMissionId("cargo", idx++);
+        deck.push({
+          id: missionId,
+          type: "deliver_cargo",
+          isCompleted: false,
+          pickupPlanetId: pickup.id,
+          deliveryPlanetId: delivery.id,
+          cargoId: generateCargoId(missionId),
+        });
+      }
+    }
+  }
+
+  return shuffleArray(deck);
+}
+
+/**
+ * Deal mission offers to all players.
+ * Each player draws MISSION_OFFERS_PER_PLAYER (5) from their own shuffled deck.
+ * The draw is completely random — mimicking a real tabletop card draw.
+ * They will pick MISSIONS_PER_PLAYER (3) when submitting their loadout.
+ */
+export function dealMissionOffers(
+  players: Player[],
+  planets: GravityWell[]
+): DealMissionOffersResult {
+  const playerOffers = new Map<string, Mission[]>();
+
+  for (const player of players) {
+    const otherPlayers = players.filter((p) => p.id !== player.id);
+    const deck = buildPlayerDeck(player, otherPlayers, planets);
+    const drawn = deck.slice(0, MISSION_CONSTANTS.MISSION_OFFERS_PER_PLAYER);
+    playerOffers.set(player.id, drawn);
+  }
+
+  return { playerOffers };
+}
+
+/**
+ * Select missions from a player's offered pool and create associated cargo.
+ * Validates that exactly MISSIONS_PER_PLAYER IDs are selected, all from the offer.
+ * Returns the selected missions and their cargo items.
+ */
+export function selectMissionsFromOffers(
+  offeredMissions: Mission[],
+  selectedIds: string[]
+): { missions: Mission[]; cargo: Cargo[]; error?: string } {
+  if (selectedIds.length !== MISSION_CONSTANTS.MISSIONS_PER_PLAYER) {
+    return {
+      missions: [],
+      cargo: [],
+      error: `Must select exactly ${MISSION_CONSTANTS.MISSIONS_PER_PLAYER} missions (got ${selectedIds.length})`,
+    };
+  }
+
+  const selectedSet = new Set(selectedIds);
+  const selected = offeredMissions.filter((m) => selectedSet.has(m.id));
+
+  if (selected.length !== MISSION_CONSTANTS.MISSIONS_PER_PLAYER) {
+    return {
+      missions: [],
+      cargo: [],
+      error: "One or more selected mission IDs not found in your offers",
+    };
+  }
+
+  // Create cargo for deliver_cargo missions
+  const cargo: Cargo[] = selected
+    .filter((m): m is DeliverCargoMission => m.type === "deliver_cargo")
+    .map((m) => ({
+      id: m.cargoId,
+      missionId: m.id,
+      type: "standard" as const,
+      pickupPlanetId: m.pickupPlanetId,
+      deliveryPlanetId: m.deliveryPlanetId,
+      isPickedUp: false,
+    }));
+
+  return { missions: selected, cargo };
 }

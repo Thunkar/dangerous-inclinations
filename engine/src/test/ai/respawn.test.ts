@@ -14,6 +14,7 @@ function createTestPlayer(
     id,
     name,
     ship: createInitialShipState(config, undefined, shipOverrides),
+    missionOffers: [],
     missions: [],
     completedMissionCount: 0,
     cargo: [],

@@ -37,6 +37,7 @@ function createTestPlayer(
     id,
     name,
     ship: createInitialShipState(config),
+    missionOffers: [],
     missions,
     completedMissionCount: 0,
     cargo: [],
@@ -167,7 +168,7 @@ describe('Mission Goal System', () => {
         },
       ])
       // No cargo picked up yet
-      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: false }]
+      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: false }]
 
       const gameState = createTestGameState([bot])
       const goals = computeMissionGoals(bot, gameState)
@@ -192,7 +193,7 @@ describe('Mission Goal System', () => {
         },
       ])
       // Cargo already picked up
-      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: true }]
+      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: true }]
 
       const gameState = createTestGameState([bot])
       const goals = computeMissionGoals(bot, gameState)
@@ -224,7 +225,7 @@ describe('Mission Goal System', () => {
           cargoId: 'cargo-1',
         },
       ])
-      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: false }]
+      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: false }]
 
       const gameState = createTestGameState([bot, target])
       const goals = computeMissionGoals(bot, gameState)

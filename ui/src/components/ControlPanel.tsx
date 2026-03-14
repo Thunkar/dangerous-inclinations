@@ -312,14 +312,14 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   }
 
   const missileStats = getMissileStats()
-  const fuelTankCount = useMemo(() => {
+  const compressorCount = useMemo(() => {
     const allSlots = [...ship.loadout.forwardSlots, ...ship.loadout.sideSlots]
-    return allSlots.filter(type => type === 'fuel_tank').length
+    return allSlots.filter(type => type === 'fuel_compressor').length
   }, [ship.loadout])
-  const fuelTankBonus = SUBSYSTEM_CONFIGS.fuel_tank.passiveEffect?.reactionMassBonus ?? 0
+  const compressorBonus = SUBSYSTEM_CONFIGS.fuel_compressor.passiveEffect?.reactionMassBonus ?? 0
   const baseFuel = Math.min(ship.reactionMass, STARTING_REACTION_MASS)
   const extFuel = Math.max(0, ship.reactionMass - STARTING_REACTION_MASS)
-  const extFuelMax = fuelTankCount * fuelTankBonus
+  const extFuelMax = compressorCount * compressorBonus
 
   return (
     <Stack spacing={1}>
@@ -351,7 +351,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
               ))}
             </Box>
           </Box>
-          {fuelTankCount > 0 && (
+          {compressorCount > 0 && (
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.55rem' }}>EXT FUEL</Typography>
@@ -533,7 +533,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
       )}
 
       {/* Execute Button */}
-      <ActionSummary validationErrors={validationErrors} warnings={[]} onExecute={executeTurn} />
+      <ActionSummary validationErrors={validationErrors} warnings={[]} onExecute={executeTurn} isDead={player.ship.hitPoints <= 0} />
     </Stack>
   )
 }

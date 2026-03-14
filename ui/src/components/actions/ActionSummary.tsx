@@ -5,6 +5,7 @@ interface ActionSummaryProps {
   validationErrors: string[]
   warnings?: string[]
   onExecute: () => void
+  isDead?: boolean
 }
 
 const Container = styled(Box)(({ theme }) => ({
@@ -26,9 +27,30 @@ const ExecuteButton = styled(Button)(() => ({
   },
 }))
 
-export function ActionSummary({ validationErrors, warnings = [], onExecute }: ActionSummaryProps) {
+export function ActionSummary({ validationErrors, warnings = [], onExecute, isDead = false }: ActionSummaryProps) {
   const hasErrors = validationErrors.length > 0
   const hasWarnings = warnings.length > 0
+
+  if (isDead) {
+    return (
+      <Container>
+        <Alert severity="error" sx={{ mb: 2, py: 0.5 }}>
+          <Typography variant="caption" component="div" sx={{ lineHeight: 1.4 }}>
+            Your ship has been destroyed. Click below to respawn at the Black Hole.
+          </Typography>
+        </Alert>
+        <ExecuteButton
+          variant="contained"
+          color="error"
+          size="large"
+          onClick={onExecute}
+          startIcon={<CustomIcon icon="hull" size={16} />}
+        >
+          Respawn
+        </ExecuteButton>
+      </Container>
+    )
+  }
 
   return (
     <Container>

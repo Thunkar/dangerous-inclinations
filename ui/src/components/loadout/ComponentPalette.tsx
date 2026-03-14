@@ -12,10 +12,10 @@ interface ComponentPaletteProps {
   installedSide: (SubsystemType | null)[]
 }
 
-// Forward-only subsystems
-const FORWARD_SUBSYSTEMS: SubsystemType[] = ['scoop', 'railgun', 'sensor_array']
+// Forward-only subsystems (scoop is now fixed — always present, not in loadout)
+const FORWARD_SUBSYSTEMS: SubsystemType[] = ['railgun', 'sensor_array']
 // Side-only subsystems
-const SIDE_SUBSYSTEMS: SubsystemType[] = ['laser', 'ballistic_rack', 'shields', 'radiator', 'fuel_tank']
+const SIDE_SUBSYSTEMS: SubsystemType[] = ['laser', 'ballistic_rack', 'shields', 'radiator', 'fuel_compressor']
 // Either slot subsystems (can go in forward OR side)
 const EITHER_SUBSYSTEMS: SubsystemType[] = ['missiles']
 

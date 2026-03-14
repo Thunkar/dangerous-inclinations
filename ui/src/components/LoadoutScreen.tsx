@@ -8,6 +8,7 @@ import type {
   SubsystemType,
   DestroyShipMission,
   DeliverCargoMission,
+  InterceptTransmissionMission,
 } from '@dangerous-inclinations/engine'
 import {
   DEFAULT_LOADOUT,
@@ -20,10 +21,10 @@ import { ShipDisplay } from './ship'
 import { LoadoutSlot, ComponentPalette } from './loadout'
 import type { SlotType } from './loadout'
 
-// Forward-only subsystems
-const FORWARD_SUBSYSTEMS: SubsystemType[] = ['scoop', 'railgun', 'sensor_array']
+// Forward-only subsystems (scoop is now fixed — always present, not in loadout)
+const FORWARD_SUBSYSTEMS: SubsystemType[] = ['railgun', 'sensor_array']
 // Side-only subsystems
-const SIDE_SUBSYSTEMS: SubsystemType[] = ['laser', 'ballistic_rack', 'shields', 'radiator', 'fuel_tank']
+const SIDE_SUBSYSTEMS: SubsystemType[] = ['laser', 'ballistic_rack', 'shields', 'radiator', 'fuel_compressor']
 // Either slot subsystems (can go in forward OR side)
 const EITHER_SUBSYSTEMS: SubsystemType[] = ['missiles']
 
@@ -49,6 +50,7 @@ export function LoadoutScreen() {
   const [error, setError] = useState<string | null>(null)
   const [selectedComponent, setSelectedComponent] = useState<{ type: SubsystemType; slotType: SlotType } | null>(null)
   const [draggingComponent, setDraggingComponent] = useState<SubsystemType | null>(null)
+  const [selectedMissionIds, setSelectedMissionIds] = useState<Set<string>>(new Set())
 
   const currentPlayer = gameState?.players.find(p => p.id === playerId)
   const stats = useMemo(() => calculateShipStatsFromLoadout(loadout), [loadout])
@@ -111,9 +113,30 @@ export function LoadoutScreen() {
     setDraggingComponent(null)
   }, [])
 
+  const missionOffers = currentPlayer?.missionOffers ?? []
+  const hasOffers = missionOffers.length > 0
+  const missionsValid = !hasOffers || selectedMissionIds.size === 3
+
+  const handleToggleMission = useCallback((missionId: string) => {
+    setSelectedMissionIds(prev => {
+      const next = new Set(prev)
+      if (next.has(missionId)) {
+        next.delete(missionId)
+      } else if (next.size < 3) {
+        next.add(missionId)
+      }
+      return next
+    })
+  }, [])
+
   const handleSubmit = async () => {
     if (!validation.valid) {
       setError(validation.errors.join(', '))
+      return
+    }
+
+    if (hasOffers && selectedMissionIds.size !== 3) {
+      setError('Select exactly 3 missions before confirming')
       return
     }
 
@@ -121,7 +144,8 @@ export function LoadoutScreen() {
     setError(null)
 
     try {
-      await submitLoadout(loadout)
+      const missionIds = hasOffers ? Array.from(selectedMissionIds) : undefined
+      await submitLoadout(loadout, missionIds)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit loadout')
     } finally {
@@ -309,10 +333,56 @@ export function LoadoutScreen() {
               </Paper>
 
               <Paper sx={{ p: 1.5, flex: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Missions
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                  Missions{hasOffers ? ` — Pick 3 (${selectedMissionIds.size}/3)` : ''}
                 </Typography>
-                {currentPlayer.missions.length === 0 ? (
+                {hasOffers ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {missionOffers.map((mission) => {
+                      const selected = selectedMissionIds.has(mission.id)
+                      const disabled = !selected && selectedMissionIds.size >= 3
+
+                      let label = ''
+                      let color: 'error' | 'info' | 'warning' = 'info'
+
+                      if (mission.type === 'destroy_ship') {
+                        const target = allPlayers.find(p => p.id === (mission as DestroyShipMission).targetPlayerId)
+                        label = `💀 Kill ${target?.name || '?'}`
+                        color = 'error'
+                      } else if (mission.type === 'deliver_cargo') {
+                        const m = mission as DeliverCargoMission
+                        label = `📦 ${getPlanetName(m.pickupPlanetId)} → ${getPlanetName(m.deliveryPlanetId)}`
+                        color = 'info'
+                      } else if (mission.type === 'intercept_transmission') {
+                        const target = allPlayers.find(p => p.id === (mission as InterceptTransmissionMission).targetPlayerId)
+                        label = `📡 Shadow ${target?.name || '?'}`
+                        color = 'warning'
+                      }
+
+                      return (
+                        <Chip
+                          key={mission.id}
+                          label={label}
+                          size="small"
+                          color={selected ? color : 'default'}
+                          variant={selected ? 'filled' : 'outlined'}
+                          onClick={disabled ? undefined : () => handleToggleMission(mission.id)}
+                          sx={{
+                            fontSize: '0.65rem',
+                            height: 22,
+                            cursor: disabled ? 'not-allowed' : 'pointer',
+                            opacity: disabled ? 0.45 : 1,
+                          }}
+                        />
+                      )
+                    })}
+                    {!missionsValid && (
+                      <Typography variant="caption" color="warning.main">
+                        Select {3 - selectedMissionIds.size} more
+                      </Typography>
+                    )}
+                  </Box>
+                ) : currentPlayer.missions.length === 0 ? (
                   <Typography variant="caption" color="text.secondary">
                     No missions
                   </Typography>
@@ -395,7 +465,7 @@ export function LoadoutScreen() {
                   variant="contained"
                   size="small"
                   onClick={handleSubmit}
-                  disabled={!validation.valid || isSubmitting}
+                  disabled={!validation.valid || !missionsValid || isSubmitting}
                   sx={{ flex: 1 }}
                 >
                   {isSubmitting ? <CircularProgress size={20} /> : 'Confirm'}

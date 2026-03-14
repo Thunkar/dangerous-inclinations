@@ -69,11 +69,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
   fastify.post<{
     Headers: { "x-player-id": string };
     Params: { gameId: string };
-    Body: { loadout: ShipLoadout };
+    Body: { loadout: ShipLoadout; selectedMissionIds?: string[] };
   }>("/api/games/:gameId/loadout", async (request, reply) => {
     const playerId = request.headers["x-player-id"];
     const { gameId } = request.params;
-    const { loadout } = request.body;
+    const { loadout, selectedMissionIds } = request.body;
 
     if (!playerId) {
       return reply.code(401).send({ error: "Player ID required" });
@@ -90,7 +90,8 @@ export async function gameRoutes(fastify: FastifyInstance) {
         gameId,
         playerId,
         loadout,
-        humanPlayerIds
+        humanPlayerIds,
+        selectedMissionIds
       );
 
       if (!result.success) {

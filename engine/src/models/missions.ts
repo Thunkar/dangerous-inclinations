@@ -8,7 +8,7 @@
 
 import { Player } from "./game";
 
-export type MissionType = "destroy_ship" | "deliver_cargo";
+export type MissionType = "destroy_ship" | "deliver_cargo" | "intercept_transmission";
 
 /**
  * Base mission interface shared by all mission types
@@ -42,21 +42,38 @@ export interface DeliverCargoMission extends BaseMission {
 }
 
 /**
+ * Intercept Transmission Mission
+ * Phase 1 — Scan: Be in the same ring as the target player, within ±3 sectors,
+ *   with sensor_array powered for 1 turn. This adds a scan_data cargo to inventory.
+ * Phase 2 — Deliver: Deliver the scan_data cargo to any station.
+ * The powered sensor_array reveals intent, creating tension: shadow then run.
+ */
+export interface InterceptTransmissionMission extends BaseMission {
+  type: "intercept_transmission";
+  targetPlayerId: string;
+  scanAcquired: boolean; // true once scan phase is complete
+  scanCargoId: string;   // ID of the scan_data cargo item (may not be in inventory yet)
+}
+
+/**
  * Union type of all mission types
  */
-export type Mission = DestroyShipMission | DeliverCargoMission;
+export type Mission = DestroyShipMission | DeliverCargoMission | InterceptTransmissionMission;
 
 /**
  * Cargo being transported by a player
  * Created when a DeliverCargoMission is dealt
  * Picked up when player is at pickup station
  * Delivered when player is at delivery station
+ *
+ * For InterceptTransmissionMission, type is "scan_data" and deliveryPlanetId is "any"
  */
 export interface Cargo {
   id: string;
   missionId: string; // Links back to the mission
+  type: "standard" | "scan_data";
   pickupPlanetId: string;
-  deliveryPlanetId: string;
+  deliveryPlanetId: string; // "any" for scan_data cargo
   isPickedUp: boolean;
 }
 
@@ -76,6 +93,15 @@ export function isDeliverCargoMission(
   mission: Mission
 ): mission is DeliverCargoMission {
   return mission.type === "deliver_cargo";
+}
+
+/**
+ * Type guard for InterceptTransmissionMission
+ */
+export function isInterceptTransmissionMission(
+  mission: Mission
+): mission is InterceptTransmissionMission {
+  return mission.type === "intercept_transmission";
 }
 
 /**

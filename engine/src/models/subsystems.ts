@@ -17,7 +17,7 @@ export type SubsystemType =
   | "missiles"
   | "shields"
   | "radiator"
-  | "fuel_tank"
+  | "fuel_compressor"
   | "sensor_array"
   | "ballistic_rack";
 
@@ -49,8 +49,9 @@ export interface WeaponStats {
  */
 export interface PassiveEffect {
   dissipationBonus?: number; // Added to ship's dissipation capacity
-  reactionMassBonus?: number; // Added to ship's starting reaction mass
+  reactionMassBonus?: number; // Added to ship's starting reaction mass (and max capacity)
   criticalChanceBonus?: number; // Added to ship's critical hit chance (in percentage points)
+  refuelOnWellTransfer?: boolean; // If true, refill reaction mass to max on well transfer
 }
 
 export interface SubsystemConfig {
@@ -105,15 +106,17 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     slotType: "fixed",
   },
 
-  // Forward slot subsystems
+  // Fixed subsystem — always present (like engines/rotation)
   scoop: {
     id: "scoop",
     name: "Fuel Scoop",
     minEnergy: 3,
     maxEnergy: 3,
     generatesHeatOnUse: true, // Generates heat when scooping
-    slotType: "forward",
+    slotType: "fixed",
   },
+
+  // Forward slot subsystems
   railgun: {
     id: "railgun",
     name: "Railgun",
@@ -173,15 +176,16 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     isPassive: true,
     passiveEffect: { dissipationBonus: 2 },
   },
-  fuel_tank: {
-    id: "fuel_tank",
-    name: "Fuel Tank",
+  fuel_compressor: {
+    id: "fuel_compressor",
+    name: "Fuel Compressor",
     minEnergy: 0, // Fully passive
     maxEnergy: 0,
     generatesHeatOnUse: false,
     slotType: "side",
     isPassive: true,
-    passiveEffect: { reactionMassBonus: 6 },
+    // +6 reaction mass capacity; well transfers are free (compressor scoops 3 mass during jump)
+    passiveEffect: { reactionMassBonus: 6, refuelOnWellTransfer: true },
   },
 
   // Either slot subsystems

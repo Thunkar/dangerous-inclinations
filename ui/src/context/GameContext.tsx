@@ -429,11 +429,26 @@ export function GameProvider({
       return
     }
 
-    // Check if game has missions/respawn enabled
-    const hasMissions = gameState.phase === 'active' && gameState.stations.length > 0
-
-    // Don't execute if active player is dead (unless respawn is enabled)
-    if (activePlayer.ship.hitPoints <= 0 && !hasMissions) {
+    // If the active player is dead, submit a coast — the engine will respawn them
+    if (activePlayer.ship.hitPoints <= 0) {
+      client?.send(
+        'game',
+        {
+          type: 'SUBMIT_TURN',
+          payload: {
+            gameId,
+            playerId: activePlayer.id,
+            actions: [{
+              playerId: activePlayer.id,
+              type: 'coast',
+              sequence: 1,
+              data: { activateScoop: false },
+            }],
+          },
+        },
+        gameId
+      )
+      setTurnErrors([])
       return
     }
 

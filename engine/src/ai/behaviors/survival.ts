@@ -50,7 +50,7 @@ function buildEnergyBudget(
   for (const sub of status.subsystems) {
     const config = SUBSYSTEM_CONFIGS[sub.type]
     if (sub.broken) continue
-    if (config.minEnergy === 0) continue // Passive subsystems (radiator, fuel_tank)
+    if (config.minEnergy === 0) continue // Passive subsystems (radiator, fuel_compressor)
 
     let priority = -1 // -1 means skip
     let requiredEnergy = config.minEnergy

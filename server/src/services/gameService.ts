@@ -14,7 +14,8 @@ import {
   checkAllDeployed,
   transitionToActivePhase,
   botDecideActions,
-  dealMissions,
+  dealMissionOffers,
+  selectMissionsFromOffers,
   getAvailableDeploymentSectors,
   validateLoadout,
   DEFAULT_LOADOUT,
@@ -45,6 +46,7 @@ export async function createGame(
           sector: 0, // Will be set during deployment
           facing: "prograde",
         }),
+        missionOffers: [],
         missions: [],
         completedMissionCount: 0,
         cargo: [],
@@ -57,14 +59,15 @@ export async function createGame(
   // Get planets for mission generation
   const planets = GRAVITY_WELLS.filter((well) => well.type === "planet");
 
-  // Deal missions to all players so they can see them during deployment
-  const { playerMissions, playerCargo } = dealMissions(players, planets);
+  // Deal 5 mission offers per player — they pick 3 during loadout
+  const { playerOffers } = dealMissionOffers(players, planets);
 
-  // Update players with their missions and cargo
+  // Update players with their mission offers (missions stay empty until loadout submitted)
   const playersWithMissions = players.map((player) => ({
     ...player,
-    missions: playerMissions.get(player.id) || [],
-    cargo: playerCargo.get(player.id) || [],
+    missionOffers: playerOffers.get(player.id) || [],
+    missions: [],
+    cargo: [],
   }));
 
   // Create initial stations for all planets
@@ -396,13 +399,14 @@ export interface LoadoutResult {
 }
 
 /**
- * Submit a player's ship loadout
- * Called during the loadout phase (after missions are dealt, before deployment)
+ * Submit a player's ship loadout and mission selection
+ * Called during the loadout phase — player picks 3 missions from their 5 offers
  */
 export async function submitLoadout(
   gameId: string,
   playerId: string,
-  loadout: ShipLoadout
+  loadout: ShipLoadout,
+  selectedMissionIds?: string[]
 ): Promise<LoadoutResult> {
   const currentState = await getGameState(gameId);
 
@@ -446,8 +450,33 @@ export async function submitLoadout(
   // Calculate ship stats from loadout
   const stats = calculateShipStatsFromLoadout(loadout);
 
-  // Update the player's ship with the loadout
+  // Resolve mission selection
   const player = currentState.players[playerIndex];
+  let finalMissions = player.missions;
+  let finalCargo = player.cargo;
+
+  if (selectedMissionIds && selectedMissionIds.length > 0) {
+    const selectionResult = selectMissionsFromOffers(player.missionOffers, selectedMissionIds);
+    if (selectionResult.error) {
+      return {
+        success: false,
+        error: selectionResult.error,
+        gameState: currentState,
+      };
+    }
+    finalMissions = selectionResult.missions;
+    finalCargo = selectionResult.cargo;
+  } else if (player.missionOffers.length > 0 && player.missions.length === 0) {
+    // Auto-select first 3 offers (used by bots)
+    const autoIds = player.missionOffers.slice(0, 3).map((m) => m.id);
+    const selectionResult = selectMissionsFromOffers(player.missionOffers, autoIds);
+    if (!selectionResult.error) {
+      finalMissions = selectionResult.missions;
+      finalCargo = selectionResult.cargo;
+    }
+  }
+
+  // Update the player's ship with the loadout
   const updatedShip = {
     ...player.ship,
     loadout,
@@ -460,6 +489,8 @@ export async function submitLoadout(
   const updatedPlayer = {
     ...player,
     ship: updatedShip,
+    missions: finalMissions,
+    cargo: finalCargo,
     hasSubmittedLoadout: true,
   };
 
@@ -530,19 +561,19 @@ export async function submitLoadoutAndCheckReady(
   gameId: string,
   playerId: string,
   loadout: ShipLoadout,
-  humanPlayerIds: Set<string>
+  humanPlayerIds: Set<string>,
+  selectedMissionIds?: string[]
 ): Promise<LoadoutResult> {
-  // First, submit the loadout
-  let result = await submitLoadout(gameId, playerId, loadout);
+  // First, submit the loadout (with mission selection)
+  let result = await submitLoadout(gameId, playerId, loadout, selectedMissionIds);
   if (!result.success) {
     return result;
   }
 
-  // Auto-submit DEFAULT_LOADOUT for bots that haven't submitted yet
+  // Auto-submit DEFAULT_LOADOUT for bots (auto-picks first 3 mission offers)
   let currentState = result.gameState;
   for (const player of currentState.players) {
     if (!humanPlayerIds.has(player.id) && !player.hasSubmittedLoadout) {
-      // Bot uses default loadout
       const botResult = await submitLoadout(gameId, player.id, DEFAULT_LOADOUT);
       if (botResult.success) {
         currentState = botResult.gameState;

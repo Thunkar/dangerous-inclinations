@@ -6,6 +6,7 @@ import { applyDirectDamage } from "./damage";
 import {
   processDestroyMissionCompletion,
   processCargoMissionCompletion,
+  processInterceptScans,
   checkForWinner,
 } from "./missions/missionChecks";
 import { processCargoAtStation } from "./cargo";
@@ -211,11 +212,46 @@ export function executeTurn(
         });
       }
 
-      // Check for cargo mission completion
-      updatedGameState = processCargoMissionCompletion(
-        updatedGameState,
-        activePlayer.id
-      );
+      // Check for cargo mission completion using the delivered cargo list.
+      // processCargoAtStation already removed delivered cargo from inventory,
+      // so we pass the delivered cargo IDs directly rather than re-checking position.
+      if (cargoResult.deliveredCargo.length > 0) {
+        updatedGameState = processCargoMissionCompletion(
+          updatedGameState,
+          activePlayer.id,
+          cargoResult.deliveredCargo.map((c) => c.missionId)
+        );
+
+        // Log scan data delivery for intercept missions
+        for (const cargo of cargoResult.deliveredCargo) {
+          if (cargo.type === "scan_data") {
+            allLogEntries.push({
+              turn: updatedGameState.turn,
+              playerId: activePlayer.id,
+              playerName: activePlayer.name,
+              action: "Mission Complete",
+              result: "Delivered intercepted scan data to station",
+            });
+          }
+        }
+      }
+    }
+
+    // Check intercept scan conditions for the active player (after movement)
+    const interceptResult = processInterceptScans(updatedGameState);
+    if (interceptResult.scanEvents.length > 0) {
+      updatedGameState = interceptResult.gameState;
+      for (const event of interceptResult.scanEvents) {
+        const spyPlayer = updatedGameState.players.find((p) => p.id === event.spyId);
+        const targetPlayer = updatedGameState.players.find((p) => p.id === event.targetId);
+        allLogEntries.push({
+          turn: updatedGameState.turn,
+          playerId: event.spyId,
+          playerName: spyPlayer?.name ?? event.spyId,
+          action: "Intercept",
+          result: `Intercepted transmission from ${targetPlayer?.name ?? event.targetId} — scan data acquired`,
+        });
+      }
     }
   }
 

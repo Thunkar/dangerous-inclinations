@@ -46,17 +46,17 @@ describe('Bot Loadout System', () => {
       expect(sideSlots).toContain('missiles')
     })
 
-    it('cargo template should have scoop and fuel tank', () => {
+    it('cargo template should have sensor_array and fuel_compressor (scoop is now fixed)', () => {
       const { forwardSlots, sideSlots } = BOT_LOADOUT_TEMPLATES.cargo
-      expect(forwardSlots).toContain('scoop')
-      expect(sideSlots).toContain('fuel_tank')
+      expect(forwardSlots).toContain('sensor_array')
+      expect(sideSlots).toContain('fuel_compressor')
       expect(sideSlots).toContain('shields')
     })
 
-    it('balanced template should have scoop and railgun', () => {
+    it('balanced template should have railgun and sensor_array', () => {
       const { forwardSlots, sideSlots } = BOT_LOADOUT_TEMPLATES.balanced
-      expect(forwardSlots).toContain('scoop')
       expect(forwardSlots).toContain('railgun')
+      expect(forwardSlots).toContain('sensor_array')
       expect(sideSlots).toContain('shields')
     })
 

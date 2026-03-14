@@ -27,7 +27,7 @@ interface LobbyContextType {
   canStart: () => { canStart: boolean; reason?: string }
   leaveLobbyAction: () => void
   // Loadout actions
-  submitLoadout: (loadout: ShipLoadout) => Promise<void>
+  submitLoadout: (loadout: ShipLoadout, selectedMissionIds?: string[]) => Promise<void>
   // Deployment actions
   deployPlayerShip: (sector: number) => void
   getDeploymentSectors: () => number[]
@@ -406,14 +406,14 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
 
   // Loadout actions
   const submitLoadout = useCallback(
-    async (loadout: ShipLoadout) => {
+    async (loadout: ShipLoadout, selectedMissionIds?: string[]) => {
       if (!lobbyState?.gameId) {
         console.error('[LobbyContext] Cannot submit loadout: no game ID')
         return
       }
 
       try {
-        const response = await submitLoadoutAPI(lobbyState.gameId, loadout)
+        const response = await submitLoadoutAPI(lobbyState.gameId, loadout, selectedMissionIds)
         console.log('[LobbyContext] Loadout submitted:', response)
 
         if (response.gameState) {

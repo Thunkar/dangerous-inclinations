@@ -121,6 +121,7 @@ export function createSubsystemsFromLoadout(loadout: ShipLoadout): Subsystem[] {
   // Always add fixed subsystems first (no slot metadata)
   subsystems.push(createSubsystemInstance("engines"));
   subsystems.push(createSubsystemInstance("rotation"));
+  subsystems.push(createSubsystemInstance("scoop"));
 
   // Add forward slot subsystems with slot metadata
   for (let i = 0; i < loadout.forwardSlots.length; i++) {

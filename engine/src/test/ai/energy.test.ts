@@ -20,6 +20,7 @@ function createBotPlayer(
     id: 'bot1',
     name: 'Bot',
     ship: createInitialShipState(config, undefined, overrides as Partial<ReturnType<typeof createInitialShipState>>),
+    missionOffers: [],
     missions: [],
     completedMissionCount: 0,
     cargo: [],

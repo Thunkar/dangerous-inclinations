@@ -28,6 +28,7 @@ function createTestPlayer(
       { wellId: "blackhole", ring, sector, facing },
       loadout,
     ),
+    missionOffers: [],
     missions: [],
     completedMissionCount: 0,
     cargo: [],
@@ -234,16 +235,21 @@ describe("Ballistic Rack Direct Fire", () => {
 describe("Slot Metadata in Loadout", () => {
   it("should assign slotType and slotIndex to forward slots", () => {
     const loadout: ShipLoadout = {
-      forwardSlots: ["scoop", "railgun"],
+      forwardSlots: ["sensor_array", "railgun"],
       sideSlots: [null, null, null, null],
     };
     const subsystems = createSubsystemsFromLoadout(loadout);
 
-    const scoop = subsystems.find((s) => s.type === "scoop");
+    const sensor = subsystems.find((s) => s.type === "sensor_array");
     const railgun = subsystems.find((s) => s.type === "railgun");
 
-    expect(scoop?.slotType).toBe("forward");
-    expect(scoop?.slotIndex).toBe(0);
+    // scoop is now fixed — no slotType/slotIndex
+    const scoop = subsystems.find((s) => s.type === "scoop");
+    expect(scoop?.slotType).toBeUndefined();
+    expect(scoop?.slotIndex).toBeUndefined();
+
+    expect(sensor?.slotType).toBe("forward");
+    expect(sensor?.slotIndex).toBe(0);
     expect(railgun?.slotType).toBe("forward");
     expect(railgun?.slotIndex).toBe(1);
   });

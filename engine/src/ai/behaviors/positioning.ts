@@ -234,9 +234,9 @@ function shouldActivateScoop(situation: TacticalSituation): boolean {
   if (!scoop || !scoop.powered || scoop.broken) return false
 
   // Only scoop if we need fuel
-  const fuelTankCount = status.subsystems.filter(s => s.type === 'fuel_tank').length
-  const fuelTankBonus = SUBSYSTEM_CONFIGS.fuel_tank.passiveEffect?.reactionMassBonus ?? 0
-  const maxFuel = MAX_REACTION_MASS + fuelTankCount * fuelTankBonus
+  const compressorCount = status.subsystems.filter(s => s.type === 'fuel_compressor').length
+  const compressorBonus = SUBSYSTEM_CONFIGS.fuel_compressor.passiveEffect?.reactionMassBonus ?? 0
+  const maxFuel = MAX_REACTION_MASS + compressorCount * compressorBonus
 
   return status.reactionMass < maxFuel
 }

@@ -22,10 +22,12 @@ export async function deployShip(gameId: string, sector: number): Promise<GameSt
 
 /**
  * Submit ship loadout during loadout phase
+ * selectedMissionIds: IDs of the 3 missions chosen from the player's 5 offers
  */
 export async function submitLoadout(
   gameId: string,
-  loadout: ShipLoadout
+  loadout: ShipLoadout,
+  selectedMissionIds?: string[]
 ): Promise<{ success: boolean; gameState: GameState }> {
-  return api.post<{ success: boolean; gameState: GameState }>(`/api/games/${gameId}/loadout`, { loadout })
+  return api.post<{ success: boolean; gameState: GameState }>(`/api/games/${gameId}/loadout`, { loadout, selectedMissionIds })
 }

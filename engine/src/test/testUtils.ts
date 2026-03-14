@@ -32,6 +32,7 @@ export function createTestPlayer(
     id,
     name,
     ship,
+    missionOffers: [],
     missions: [],
     completedMissionCount: 0,
     cargo: [],

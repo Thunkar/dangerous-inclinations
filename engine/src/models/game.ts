@@ -34,7 +34,7 @@ export interface LoadoutValidation {
  * Matches the original fixed loadout before the loadout system was added
  */
 export const DEFAULT_LOADOUT: ShipLoadout = {
-  forwardSlots: ["scoop", "railgun"],
+  forwardSlots: ["railgun", "sensor_array"],
   sideSlots: ["laser", "laser", "shields", "missiles"],
 };
 
@@ -255,7 +255,8 @@ export interface Player {
   name: string;
   ship: ShipState;
   // Mission system fields
-  missions: Mission[];
+  missionOffers: Mission[]; // Offered during loadout — player picks 3 from these
+  missions: Mission[];       // Finalized missions (chosen from missionOffers)
   completedMissionCount: number;
   cargo: Cargo[];
   hasDeployed: boolean;

@@ -23,6 +23,7 @@ function createTestPlayer(
     id,
     name,
     ship: createInitialShipState(shipConfig, undefined, shipOverrides),
+    missionOffers: [],
     missions: [],
     completedMissionCount: 0,
     cargo: [],

@@ -4,13 +4,14 @@ import type { Mission } from '../../models/missions'
 
 /**
  * Predefined loadout templates for bot ships.
+ * Note: scoop is now a fixed subsystem (always present, no slot needed).
  *
- * | Template   | Forward             | Side                               | When                    |
- * |------------|---------------------|------------------------------------|-------------------------|
- * | Combat     | railgun, sensor     | laser, laser, shields, missiles    | Destroy mission primary |
- * | Cargo      | scoop, sensor       | shields, radiator, fuel_tank, laser| Cargo missions primary  |
- * | Balanced   | scoop, railgun      | laser, laser, shields, missiles    | Default                 |
- * | Aggressive | railgun, sensor     | laser, ballistic_rack, shields, missiles | Close destroy target |
+ * | Template   | Forward              | Side                                      | When                    |
+ * |------------|----------------------|-------------------------------------------|-------------------------|
+ * | Combat     | railgun, sensor      | laser, laser, shields, missiles           | Destroy mission primary |
+ * | Cargo      | sensor_array, null   | shields, radiator, fuel_compressor, laser | Cargo missions primary  |
+ * | Balanced   | railgun, sensor      | laser, laser, shields, missiles           | Default                 |
+ * | Aggressive | railgun, sensor      | laser, ballistic_rack, shields, missiles  | Close destroy target    |
  */
 
 export const BOT_LOADOUT_TEMPLATES: Record<string, ShipLoadout> = {
@@ -19,11 +20,11 @@ export const BOT_LOADOUT_TEMPLATES: Record<string, ShipLoadout> = {
     sideSlots: ['laser', 'laser', 'shields', 'missiles'],
   },
   cargo: {
-    forwardSlots: ['scoop', 'sensor_array'],
-    sideSlots: ['shields', 'radiator', 'fuel_tank', 'laser'],
+    forwardSlots: ['sensor_array', null],
+    sideSlots: ['shields', 'radiator', 'fuel_compressor', 'laser'],
   },
   balanced: {
-    forwardSlots: ['scoop', 'railgun'],
+    forwardSlots: ['railgun', 'sensor_array'],
     sideSlots: ['laser', 'laser', 'shields', 'missiles'],
   },
   aggressive: {

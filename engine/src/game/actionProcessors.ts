@@ -32,6 +32,15 @@ import type { RingConfig } from "../models/game";
 import { addHeat } from "./heat";
 import { resetSubsystemUsage } from "./energy";
 
+/**
+ * Compute effective max reaction mass for a ship.
+ * Base 10 + 6 per fuel_compressor installed.
+ */
+function getMaxReactionMass(ship: ShipState): number {
+  const compressorCount = ship.subsystems.filter(s => s.type === "fuel_compressor").length;
+  return MAX_REACTION_MASS + compressorCount * 6;
+}
+
 export interface ProcessResult {
   success: boolean;
   gameState: GameState;
@@ -693,10 +702,10 @@ function processCoast(
     const ringConfig = well?.rings.find((r) => r.ring === updatedShip.ring);
     const velocity = ringConfig?.velocity || 1;
 
-    // Recover reaction mass equal to velocity, capped at max
+    // Recover reaction mass equal to velocity, capped at effective max
     const massRecovered = Math.min(
       velocity,
-      MAX_REACTION_MASS - updatedShip.reactionMass
+      getMaxReactionMass(updatedShip) - updatedShip.reactionMass
     );
     updatedShip = {
       ...updatedShip,
@@ -722,7 +731,7 @@ function processCoast(
       playerId: player.id,
       playerName: player.name,
       action: "Coast",
-      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ` (scoop recovered ${Math.min(getGravityWell(updatedShip.wellId)?.rings.find((r) => r.ring === updatedShip.ring)?.velocity || 1, MAX_REACTION_MASS - player.ship.reactionMass)} mass)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ""}` : ""}`,
+      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ` (scoop recovered ${Math.min(getGravityWell(updatedShip.wellId)?.rings.find((r) => r.ring === updatedShip.ring)?.velocity || 1, getMaxReactionMass(player.ship) - player.ship.reactionMass)} mass)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ""}` : ""}`,
     },
   ];
 
@@ -1003,8 +1012,12 @@ function processWellTransfer(
     };
   }
 
-  // Consume reaction mass
-  const newReactionMass = player.ship.reactionMass - WELL_TRANSFER_COSTS.mass;
+  // Consume reaction mass (fuel compressor scoops during jump, recovering the cost)
+  const hasFuelCompressor = player.ship.subsystems.some(s => s.type === "fuel_compressor");
+  const massAfterTransfer = player.ship.reactionMass - WELL_TRANSFER_COSTS.mass;
+  const newReactionMass = hasFuelCompressor
+    ? Math.min(massAfterTransfer + WELL_TRANSFER_COSTS.mass, getMaxReactionMass(player.ship))
+    : massAfterTransfer;
 
   // Transfer to destination well immediately
   // Orbital movement will be applied by the movement action (coast/burn) that follows

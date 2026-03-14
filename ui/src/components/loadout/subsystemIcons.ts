@@ -9,7 +9,7 @@ export const SUBSYSTEM_ICONS: Partial<Record<SubsystemType, string>> = {
   laser: '/assets/icons/laser.png',
   shields: '/assets/icons/shield.png',
   radiator: '/assets/icons/heat.png',
-  fuel_tank: '/assets/icons/fuel.png',
+  fuel_compressor: '/assets/icons/fuel.png',
   missiles: '/assets/icons/missile_rack.png',
   ballistic_rack: '/assets/icons/ballistic_rack.png',
 }

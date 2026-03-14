@@ -47,6 +47,7 @@ export function getPickupableCargo(
 /**
  * Check if a player can deliver cargo at their current position
  * Returns cargo that can be delivered (picked up, at delivery station)
+ * Scan data cargo ("any" deliveryPlanetId) can be delivered at any station
  */
 export function getDeliverableCargo(
   player: Player,
@@ -54,6 +55,16 @@ export function getDeliverableCargo(
 ): Cargo[] {
   return player.cargo.filter((cargo) => {
     if (!cargo.isPickedUp) return false;
+
+    // Scan data can be delivered at any station the player is currently at
+    if (cargo.deliveryPlanetId === "any") {
+      return stations.some(
+        (s) =>
+          player.ship.wellId === s.planetId &&
+          player.ship.ring === s.ring &&
+          player.ship.sector === s.sector
+      );
+    }
 
     // Check if player is at the delivery station for this cargo
     const deliveryStation = stations.find(
