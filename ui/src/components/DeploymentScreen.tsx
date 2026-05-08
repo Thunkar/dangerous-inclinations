@@ -6,7 +6,8 @@ import { useLobby } from '../context/LobbyContext'
 import { usePlayer } from '../context/PlayerContext'
 import { DeploymentBoard } from './DeploymentBoard'
 import { AbandonGameButton } from './AbandonGameButton'
-import type { DestroyShipMission, DeliverCargoMission } from '@dangerous-inclinations/engine'
+import type { DestroyShipMission, DeliverCargoMission, InterceptTransmissionMission } from '@dangerous-inclinations/engine'
+import SatelliteAltIcon from '@mui/icons-material/SatelliteAlt'
 
 const PLAYER_COLORS = [
   '#2196f3', // Blue
@@ -175,6 +176,32 @@ export function DeploymentScreen() {
                             >
                               {gameState.players.find(
                                 p => p.id === (mission as DestroyShipMission).targetPlayerId
+                              )?.name || 'Unknown'}
+                            </span>
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ) : mission.type === 'intercept_transmission' ? (
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <SatelliteAltIcon sx={{ color: 'warning.main', fontSize: 20, mt: 0.3 }} />
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            Mission {index + 1}: Shadow
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Target:{' '}
+                            <span
+                              style={{
+                                color:
+                                  PLAYER_COLORS[
+                                    gameState.players.findIndex(
+                                      p => p.id === (mission as InterceptTransmissionMission).targetPlayerId
+                                    ) % PLAYER_COLORS.length
+                                  ],
+                              }}
+                            >
+                              {gameState.players.find(
+                                p => p.id === (mission as InterceptTransmissionMission).targetPlayerId
                               )?.name || 'Unknown'}
                             </span>
                           </Typography>

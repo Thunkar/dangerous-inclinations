@@ -12,7 +12,7 @@ import type { Mission, Cargo } from "./missions";
  * Fixed subsystems (engines, rotation) are always present and not part of loadout
  */
 export interface ShipLoadout {
-  forwardSlots: [SubsystemType | null, SubsystemType | null];
+  forwardSlots: [SubsystemType | null];
   sideSlots: [
     SubsystemType | null,
     SubsystemType | null,
@@ -34,7 +34,7 @@ export interface LoadoutValidation {
  * Matches the original fixed loadout before the loadout system was added
  */
 export const DEFAULT_LOADOUT: ShipLoadout = {
-  forwardSlots: ["railgun", "sensor_array"],
+  forwardSlots: ["railgun"],
   sideSlots: ["laser", "laser", "shields", "missiles"],
 };
 
@@ -211,6 +211,7 @@ export interface FireWeaponAction extends BaseAction {
     targetPlayerIds: string[]; // Array for multi-target weapons like lasers
     criticalTarget: SubsystemType; // REQUIRED: Declared subsystem to break if critical hit (roll=10) occurs
     subsystemIndex?: number; // Index into ship.subsystems[] to identify which specific instance fires (needed for side-restricted weapons)
+    compensateRecoil?: boolean; // For railgun: if true, engines cancel the recoil burn (costs 1 mass + 1 heat). If false/undefined, ship drifts 1 ring in facing direction.
   };
 }
 

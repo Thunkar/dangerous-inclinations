@@ -233,15 +233,14 @@ describe("Ballistic Rack Direct Fire", () => {
 });
 
 describe("Slot Metadata in Loadout", () => {
-  it("should assign slotType and slotIndex to forward slots", () => {
+  it("should assign slotType and slotIndex to forward and side slots", () => {
     const loadout: ShipLoadout = {
-      forwardSlots: ["sensor_array", "railgun"],
-      sideSlots: [null, null, null, null],
+      forwardSlots: ["sensor_array"],
+      sideSlots: ["laser", "shields", "laser", "ballistic_rack"],
     };
     const subsystems = createSubsystemsFromLoadout(loadout);
 
     const sensor = subsystems.find((s) => s.type === "sensor_array");
-    const railgun = subsystems.find((s) => s.type === "railgun");
 
     // scoop is now fixed — no slotType/slotIndex
     const scoop = subsystems.find((s) => s.type === "scoop");
@@ -250,13 +249,11 @@ describe("Slot Metadata in Loadout", () => {
 
     expect(sensor?.slotType).toBe("forward");
     expect(sensor?.slotIndex).toBe(0);
-    expect(railgun?.slotType).toBe("forward");
-    expect(railgun?.slotIndex).toBe(1);
   });
 
   it("should assign slotType and slotIndex to side slots", () => {
     const loadout: ShipLoadout = {
-      forwardSlots: [null, null],
+      forwardSlots: ["railgun"],
       sideSlots: ["laser", "shields", "laser", "ballistic_rack"],
     };
     const subsystems = createSubsystemsFromLoadout(loadout);
@@ -279,7 +276,7 @@ describe("Slot Metadata in Loadout", () => {
 
   it("should NOT assign slot metadata to fixed subsystems", () => {
     const loadout: ShipLoadout = {
-      forwardSlots: [null, null],
+      forwardSlots: [null],
       sideSlots: [null, null, null, null],
     };
     const subsystems = createSubsystemsFromLoadout(loadout);
@@ -305,7 +302,7 @@ describe("PDC Missile Interception", () => {
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
-        forwardSlots: [null, null],
+        forwardSlots: [null],
         sideSlots: ["ballistic_rack", null, null, null],
       },
     );
@@ -331,7 +328,7 @@ describe("PDC Missile Interception", () => {
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
-        forwardSlots: [null, null],
+        forwardSlots: [null],
         sideSlots: ["ballistic_rack", null, null, null],
       },
     );
@@ -354,7 +351,7 @@ describe("PDC Missile Interception", () => {
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
-        forwardSlots: [null, null],
+        forwardSlots: [null],
         sideSlots: ["ballistic_rack", null, null, null],
       },
     );
@@ -370,7 +367,7 @@ describe("PDC Missile Interception", () => {
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
-        forwardSlots: [null, null],
+        forwardSlots: [null],
         sideSlots: ["ballistic_rack", null, null, null],
       },
     );
@@ -392,7 +389,7 @@ describe("PDC Missile Interception", () => {
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
-        forwardSlots: [null, null],
+        forwardSlots: [null],
         sideSlots: ["ballistic_rack", null, null, null],
       },
     );
@@ -426,7 +423,7 @@ describe("PDC Missile Interception", () => {
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
-        forwardSlots: [null, null],
+        forwardSlots: [null],
         sideSlots: ["ballistic_rack", "ballistic_rack", null, null],
       },
     );
@@ -465,7 +462,7 @@ describe("PDC Missile Interception", () => {
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
-        forwardSlots: [null, null],
+        forwardSlots: [null],
         sideSlots: ["ballistic_rack", null, null, null],
       },
     );

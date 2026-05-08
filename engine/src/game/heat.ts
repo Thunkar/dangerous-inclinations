@@ -63,7 +63,7 @@ export function generateHeatFromSubsystemUse(
 export function calculateProjectedHeat(
   subsystems: Subsystem[],
   subsystemsToUse: Array<
-    "engines" | "rotation" | "scoop" | "laser" | "railgun" | "missiles"
+    "engines" | "rotation" | "scoop" | "laser" | "railgun" | "missiles" | "ballistic_rack"
   >,
 ): number {
   let totalHeat = 0;

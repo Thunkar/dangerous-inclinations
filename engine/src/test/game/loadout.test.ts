@@ -26,7 +26,7 @@ describe("Loadout System", () => {
 
     it("should accept a valid custom loadout", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["railgun", "sensor_array"],
+        forwardSlots: ["railgun"],
         sideSlots: ["laser", "shields", "radiator", "fuel_compressor"],
       };
       const result = validateLoadout(loadout);
@@ -34,19 +34,30 @@ describe("Loadout System", () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it("should accept empty slots (null)", () => {
+    it("should reject empty forward slot (null)", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, "railgun"],
+        forwardSlots: [null],
+        sideSlots: ["shields", "shields", "missiles", "missiles"],
+      };
+      const result = validateLoadout(loadout);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Forward slot 1: must be filled");
+    });
+
+    it("should reject empty side slots (null)", () => {
+      const loadout: ShipLoadout = {
+        forwardSlots: ["railgun"],
         sideSlots: [null, null, "shields", "missiles"],
       };
       const result = validateLoadout(loadout);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Side slot 1: must be filled");
+      expect(result.errors).toContain("Side slot 2: must be filled");
     });
 
     it("should reject side-only subsystem in forward slot", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["laser", "railgun"], // laser is side-only
+        forwardSlots: ["laser"], // laser is side-only
         sideSlots: ["shields", "shields", "missiles", "missiles"],
       };
       const result = validateLoadout(loadout);
@@ -58,7 +69,7 @@ describe("Loadout System", () => {
 
     it("should reject fixed subsystems (engines, rotation, scoop) in any slot", () => {
       const loadout1: ShipLoadout = {
-        forwardSlots: ["engines", "railgun"], // engines is fixed
+        forwardSlots: ["engines"], // engines is fixed
         sideSlots: ["shields", "shields", "missiles", "missiles"],
       };
       const result1 = validateLoadout(loadout1);
@@ -68,7 +79,7 @@ describe("Loadout System", () => {
       );
 
       const loadout2: ShipLoadout = {
-        forwardSlots: ["railgun", null],
+        forwardSlots: ["railgun"],
         sideSlots: ["rotation", "shields", "missiles", "missiles"], // rotation is fixed
       };
       const result2 = validateLoadout(loadout2);
@@ -78,7 +89,7 @@ describe("Loadout System", () => {
       );
 
       const loadout3: ShipLoadout = {
-        forwardSlots: ["scoop", "railgun"], // scoop is now fixed
+        forwardSlots: ["scoop"], // scoop is now fixed
         sideSlots: ["shields", "shields", "missiles", "missiles"],
       };
       const result3 = validateLoadout(loadout3);
@@ -88,9 +99,9 @@ describe("Loadout System", () => {
       );
     });
 
-    it("should allow 'either' slot type subsystems in both forward and side slots", () => {
+    it("should allow 'either' slot type subsystems in forward and side slots", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["missiles", "missiles"], // missiles can go in either slot
+        forwardSlots: ["missiles"], // missiles can go in either slot
         sideSlots: ["missiles", "missiles", "shields", "shields"],
       };
       const result = validateLoadout(loadout);
@@ -98,9 +109,9 @@ describe("Loadout System", () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it("should allow duplicate subsystems", () => {
+    it("should allow duplicate subsystems in side slots", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["railgun", "railgun"],
+        forwardSlots: ["railgun"],
         sideSlots: ["laser", "laser", "laser", "laser"],
       };
       const result = validateLoadout(loadout);
@@ -110,7 +121,7 @@ describe("Loadout System", () => {
 
     it("should allow all radiators (passive side slot)", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["railgun", null],
+        forwardSlots: ["railgun"],
         sideSlots: ["radiator", "radiator", "radiator", "radiator"],
       };
       const result = validateLoadout(loadout);
@@ -120,7 +131,7 @@ describe("Loadout System", () => {
 
     it("should allow ballistic rack in side slots", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["railgun", null],
+        forwardSlots: ["railgun"],
         sideSlots: ["ballistic_rack", "ballistic_rack", "shields", "laser"],
       };
       const result = validateLoadout(loadout);
@@ -130,7 +141,7 @@ describe("Loadout System", () => {
 
     it("should allow fuel_compressor in side slots", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["sensor_array", null],
+        forwardSlots: ["sensor_array"],
         sideSlots: ["fuel_compressor", "shields", "radiator", "laser"],
       };
       const result = validateLoadout(loadout);
@@ -142,8 +153,8 @@ describe("Loadout System", () => {
   describe("createSubsystemsFromLoadout", () => {
     it("should always include engines, rotation, and scoop (fixed subsystems)", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, null],
-        sideSlots: [null, null, null, null],
+        forwardSlots: ["railgun"],
+        sideSlots: ["laser", "laser", "shields", "missiles"],
       };
       const subsystems = createSubsystemsFromLoadout(loadout);
 
@@ -154,7 +165,7 @@ describe("Loadout System", () => {
 
     it("should include subsystems from loadout slots", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["railgun", null],
+        forwardSlots: ["railgun"],
         sideSlots: ["laser", "shields", "radiator", "missiles"],
       };
       const subsystems = createSubsystemsFromLoadout(loadout);
@@ -166,21 +177,10 @@ describe("Loadout System", () => {
       expect(subsystems.find((s) => s.type === "missiles")).toBeDefined();
     });
 
-    it("should not include null slots", () => {
-      const loadout: ShipLoadout = {
-        forwardSlots: [null, "railgun"],
-        sideSlots: [null, null, "shields", null],
-      };
-      const subsystems = createSubsystemsFromLoadout(loadout);
-
-      // Should have: engines, rotation, scoop (fixed) + railgun, shields = 5 subsystems
-      expect(subsystems).toHaveLength(5);
-    });
-
     it("should create subsystems with proper initial state", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, null],
-        sideSlots: ["missiles", null, null, null],
+        forwardSlots: ["railgun"],
+        sideSlots: ["missiles", "laser", "shields", "radiator"],
       };
       const subsystems = createSubsystemsFromLoadout(loadout);
 
@@ -193,8 +193,8 @@ describe("Loadout System", () => {
 
     it("should initialize missiles with ammo", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, null],
-        sideSlots: ["missiles", null, null, null],
+        forwardSlots: ["railgun"],
+        sideSlots: ["missiles", "laser", "shields", "radiator"],
       };
       const subsystems = createSubsystemsFromLoadout(loadout);
 
@@ -205,7 +205,7 @@ describe("Loadout System", () => {
 
     it("should create multiple instances for duplicate subsystems", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, null],
+        forwardSlots: ["railgun"],
         sideSlots: ["laser", "laser", "shields", "shields"],
       };
       const subsystems = createSubsystemsFromLoadout(loadout);
@@ -229,7 +229,7 @@ describe("Loadout System", () => {
 
     it("should increase dissipation with radiator", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["railgun", null],
+        forwardSlots: ["railgun"],
         sideSlots: ["radiator", "shields", "missiles", "missiles"],
       };
       const stats = calculateShipStatsFromLoadout(loadout);
@@ -240,7 +240,7 @@ describe("Loadout System", () => {
 
     it("should stack radiator bonuses", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, null],
+        forwardSlots: ["railgun"],
         sideSlots: ["radiator", "radiator", "radiator", "radiator"],
       };
       const stats = calculateShipStatsFromLoadout(loadout);
@@ -251,7 +251,7 @@ describe("Loadout System", () => {
 
     it("should increase reaction mass with fuel_compressor", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["railgun", null],
+        forwardSlots: ["railgun"],
         sideSlots: ["fuel_compressor", "shields", "missiles", "missiles"],
       };
       const stats = calculateShipStatsFromLoadout(loadout);
@@ -262,7 +262,7 @@ describe("Loadout System", () => {
 
     it("should NOT increase critical chance from loadout alone (sensor array bonus only applies when powered)", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["sensor_array", "railgun"],
+        forwardSlots: ["sensor_array"],
         sideSlots: ["shields", "shields", "missiles", "missiles"],
       };
       const stats = calculateShipStatsFromLoadout(loadout);
@@ -272,7 +272,7 @@ describe("Loadout System", () => {
 
     it("should stack radiator and fuel_compressor bonuses but not sensor array bonus", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["sensor_array", "sensor_array"],
+        forwardSlots: ["sensor_array"],
         sideSlots: ["radiator", "radiator", "fuel_compressor", "fuel_compressor"],
       };
       const stats = calculateShipStatsFromLoadout(loadout);
@@ -285,9 +285,9 @@ describe("Loadout System", () => {
       expect(stats.criticalChance).toBe(BASE_CRITICAL_CHANCE);
     });
 
-    it("should handle empty slots", () => {
+    it("should handle all-null slots", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, null],
+        forwardSlots: [null],
         sideSlots: [null, null, null, null],
       };
       const stats = calculateShipStatsFromLoadout(loadout);
@@ -301,17 +301,16 @@ describe("Loadout System", () => {
   describe("hasSubsystemInLoadout", () => {
     it("should return true for subsystems in forward slots", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["railgun", "sensor_array"],
-        sideSlots: [null, null, null, null],
+        forwardSlots: ["railgun"],
+        sideSlots: ["laser", "shields", "missiles", "radiator"],
       };
 
       expect(hasSubsystemInLoadout(loadout, "railgun")).toBe(true);
-      expect(hasSubsystemInLoadout(loadout, "sensor_array")).toBe(true);
     });
 
     it("should return true for subsystems in side slots", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, null],
+        forwardSlots: ["railgun"],
         sideSlots: ["laser", "shields", "missiles", "radiator"],
       };
 
@@ -323,19 +322,17 @@ describe("Loadout System", () => {
 
     it("should return false for subsystems not in loadout", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: ["sensor_array", null],
-        sideSlots: ["laser", null, null, null],
+        forwardSlots: ["sensor_array"],
+        sideSlots: ["laser", "shields", "missiles", "radiator"],
       };
 
       expect(hasSubsystemInLoadout(loadout, "railgun")).toBe(false);
-      expect(hasSubsystemInLoadout(loadout, "shields")).toBe(false);
-      expect(hasSubsystemInLoadout(loadout, "missiles")).toBe(false);
     });
 
     it("should always return true for fixed subsystems (engines, rotation, scoop)", () => {
       const loadout: ShipLoadout = {
-        forwardSlots: [null, null],
-        sideSlots: [null, null, null, null],
+        forwardSlots: ["railgun"],
+        sideSlots: ["laser", "shields", "missiles", "radiator"],
       };
 
       expect(hasSubsystemInLoadout(loadout, "engines")).toBe(true);

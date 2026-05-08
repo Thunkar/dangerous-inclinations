@@ -9,6 +9,7 @@ interface FixedSubsystemSlotProps {
 const SUBSYSTEM_ICONS: Partial<Record<SubsystemType, string>> = {
   engines: '/assets/icons/thrusters.png',
   rotation: '/assets/icons/maneuvering_thrusters.png',
+  scoop: '/assets/icons/scoop.png',
 }
 
 const SlotContainer = styled(Box)(({ theme }) => ({

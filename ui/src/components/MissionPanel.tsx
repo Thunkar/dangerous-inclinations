@@ -4,6 +4,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import WarningIcon from '@mui/icons-material/Warning'
+import SatelliteAltIcon from '@mui/icons-material/SatelliteAlt'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import type { Player } from '@dangerous-inclinations/engine'
@@ -11,6 +12,7 @@ import type {
   Mission,
   DestroyShipMission,
   DeliverCargoMission,
+  InterceptTransmissionMission,
 } from '@dangerous-inclinations/engine'
 import { getPlayerColorById } from '@/utils/playerColors'
 
@@ -172,6 +174,87 @@ function CargoMissionCard({
   )
 }
 
+function InterceptMissionCard({
+  mission,
+  targetPlayer,
+  allPlayers,
+  cargo,
+}: {
+  mission: InterceptTransmissionMission
+  targetPlayer: Player | undefined
+  allPlayers: Player[]
+  cargo: { isPickedUp: boolean } | undefined
+}) {
+  const targetName = targetPlayer?.name || 'Unknown'
+  const targetColor = targetPlayer ? getPlayerColorById(targetPlayer.id, allPlayers) : '#888'
+  const scanAcquired = mission.scanAcquired
+  const isPickedUp = cargo?.isPickedUp || false
+
+  return (
+    <Paper
+      sx={{
+        p: 1.5,
+        bgcolor: mission.isCompleted ? 'success.dark' : 'background.paper',
+        border: '1px solid',
+        borderColor: mission.isCompleted ? 'success.main' : 'divider',
+        opacity: mission.isCompleted ? 0.8 : 1,
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+        {mission.isCompleted ? (
+          <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />
+        ) : (
+          <SatelliteAltIcon sx={{ color: 'warning.main', fontSize: 20 }} />
+        )}
+        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+          Intercept Transmission
+        </Typography>
+        {mission.isCompleted && (
+          <Chip label="Complete" size="small" color="success" sx={{ ml: 'auto' }} />
+        )}
+      </Box>
+      <Box sx={{ ml: 3.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">
+            Shadow:
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: targetColor,
+              fontWeight: 'medium',
+              textDecoration: mission.isCompleted ? 'line-through' : 'none',
+            }}
+          >
+            {targetName}
+          </Typography>
+        </Box>
+        {!mission.isCompleted && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title={scanAcquired ? 'Scan data acquired' : 'Shadow target with sensor array powered'}>
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  bgcolor: scanAcquired ? 'warning.main' : 'grey.600',
+                }}
+              />
+            </Tooltip>
+            <Typography variant="caption" color="text.secondary">
+              {scanAcquired
+                ? isPickedUp
+                  ? 'Scan data aboard - deliver to any station'
+                  : 'Scan data ready - pick up at station'
+                : 'Shadow target (same ring, ±3 sectors, sensor array on)'}
+            </Typography>
+          </Box>
+        )}
+      </Box>
+    </Paper>
+  )
+}
+
 export function MissionPanel({ player, allPlayers }: MissionPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const completedCount = player.completedMissionCount
@@ -267,6 +350,19 @@ export function MissionPanel({ player, allPlayers }: MissionPanelProps) {
                 const cargoMission = mission as DeliverCargoMission
                 const cargo = player.cargo.find(c => c.missionId === mission.id)
                 return <CargoMissionCard key={mission.id} mission={cargoMission} cargo={cargo} />
+              } else if (mission.type === 'intercept_transmission') {
+                const interceptMission = mission as InterceptTransmissionMission
+                const targetPlayer = allPlayers.find(p => p.id === interceptMission.targetPlayerId)
+                const cargo = player.cargo.find(c => c.missionId === mission.id)
+                return (
+                  <InterceptMissionCard
+                    key={mission.id}
+                    mission={interceptMission}
+                    targetPlayer={targetPlayer}
+                    allPlayers={allPlayers}
+                    cargo={cargo}
+                  />
+                )
               }
               return null
             })}

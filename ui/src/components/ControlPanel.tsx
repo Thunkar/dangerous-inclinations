@@ -62,6 +62,7 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   const [actionType, setActionType] = useState<ActionType>('coast')
   const [burnIntensity, setBurnIntensity] = useState<BurnIntensity>('soft')
   const [sectorAdjustment, setSectorAdjustment] = useState<number>(0)
+  const [compensateRecoil, setCompensateRecoil] = useState<boolean>(false)
 
   const [panels, setPanels] = useState<ActionPanel[]>([])
 
@@ -256,11 +257,12 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
           targetPlayerId: p.targetPlayerId,
           destinationWellId: p.destinationWellId,
           criticalTarget: p.criticalTarget,
+          ...(p.type === 'fire_railgun' ? { compensateRecoil } : {}),
         }
       })
 
     setTacticalSequence(tacticalActions)
-  }, [panels, targetFacing, player.ship.facing, actionType, availableWellTransfers, setTacticalSequence])
+  }, [panels, targetFacing, player.ship.facing, actionType, availableWellTransfers, setTacticalSequence, compensateRecoil])
 
   const canMovePanel = (id: string, direction: 'up' | 'down'): boolean => {
     const index = panels.findIndex(p => p.id === id)
@@ -480,12 +482,13 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
               const rotateBeforeMove = rotateAction && moveAction ? rotateAction.sequence < moveAction.sequence : true
               return (
                 <RailgunPanel
-                  ship={ship} railgunSubsystem={railgunSubsystem} allPlayers={allPlayers} playerId={player.id}
+                  ship={ship} pendingSubsystems={pendingState.subsystems} railgunSubsystem={railgunSubsystem} allPlayers={allPlayers} playerId={player.id}
                   targetPlayerId={panel.targetPlayerId} criticalTarget={panel.criticalTarget}
                   onTargetChange={(id) => updateWeaponTarget(panel.id, id)} onCriticalTargetChange={(s) => updateCriticalTarget(panel.id, s)}
                   rangeVisible={weaponRangeVisibility.railgun} onToggleRange={() => toggleWeaponRange('railgun')}
                   firesAfterMovement={firesAfterMovement} rotateBeforeMove={rotateBeforeMove}
                   targetFacing={targetFacing} actionType={actionType} burnIntensity={burnIntensity} sectorAdjustment={sectorAdjustment}
+                  compensateRecoil={compensateRecoil} onCompensateRecoilChange={setCompensateRecoil}
                 />
               )
             })()}

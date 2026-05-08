@@ -53,6 +53,7 @@ export interface TacticalAction {
   targetPlayerId?: string // For weapon actions
   destinationWellId?: string // For well transfer actions
   criticalTarget?: SubsystemType // For weapon actions - subsystem to break on critical hit
+  compensateRecoil?: boolean // For railgun - whether engines compensate recoil
 }
 
 interface PendingState {
@@ -239,7 +240,7 @@ export function GameProvider({
     committedFacing: Facing
   ): number => {
     const subsystemsToUse: Array<
-      'engines' | 'rotation' | 'scoop' | 'laser' | 'railgun' | 'missiles'
+      'engines' | 'rotation' | 'scoop' | 'laser' | 'railgun' | 'missiles' | 'ballistic_rack'
     > = []
 
     // Check if rotation is used (facing changed and rotation action in sequence)
@@ -263,6 +264,8 @@ export function GameProvider({
         subsystemsToUse.push('railgun')
       } else if (action.type === 'fire_missiles') {
         subsystemsToUse.push('missiles')
+      } else if (action.type === 'fire_ballistic_rack') {
+        subsystemsToUse.push('ballistic_rack')
       }
     }
 
@@ -540,6 +543,7 @@ export function GameProvider({
             weaponType: 'railgun',
             targetPlayerIds: [tacticalAction.targetPlayerId],
             criticalTarget: tacticalAction.criticalTarget || 'shields',
+            compensateRecoil: tacticalAction.compensateRecoil,
           },
         })
       } else if (tacticalAction.type === 'fire_missiles' && tacticalAction.targetPlayerId) {

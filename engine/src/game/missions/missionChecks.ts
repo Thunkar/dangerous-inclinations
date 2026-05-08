@@ -224,15 +224,19 @@ export function processInterceptMissionCompletion(
 
 /**
  * Process mission completion for a destroyed player
- * Checks all players' destroy missions against the destroyed player
- * Returns updated players with completed missions marked
+ * Only the killer (player who dealt the final blow) can complete the mission.
+ * Damage during a player's turn comes from their weapons/missiles, so the
+ * active player is the killer.
  */
 export function processDestroyMissionCompletion(
   gameState: GameState,
-  destroyedPlayerId: string
+  destroyedPlayerId: string,
+  killerPlayerId: string
 ): GameState {
   const updatedPlayers = gameState.players.map((player) => {
-    // Check each mission for completion
+    // Only the killer can complete the destroy mission
+    if (player.id !== killerPlayerId) return player;
+
     let missionCompleted = false;
     const updatedMissions = player.missions.map((mission) => {
       if (

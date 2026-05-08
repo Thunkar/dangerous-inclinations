@@ -58,13 +58,26 @@ export function LoadoutScreen() {
 
   const handleForwardSlotChange = useCallback((index: number, type: SubsystemType | null) => {
     setLoadout(prev => {
-      const newForward = [...prev.forwardSlots] as [SubsystemType | null, SubsystemType | null]
+      const newForward = [...prev.forwardSlots] as [SubsystemType | null]
       newForward[index] = type
+      // If sensor array was removed, deselect any shadow missions
+      if (prev.forwardSlots[index] === 'sensor_array' && type !== 'sensor_array') {
+        const shadowIds = new Set(
+          (currentPlayer?.missionOffers ?? [])
+            .filter(m => m.type === 'intercept_transmission')
+            .map(m => m.id)
+        )
+        setSelectedMissionIds(prev => {
+          const next = new Set(prev)
+          for (const id of shadowIds) next.delete(id)
+          return next.size === prev.size ? prev : next
+        })
+      }
       return { ...prev, forwardSlots: newForward }
     })
     setError(null)
     setSelectedComponent(null)
-  }, [])
+  }, [currentPlayer?.missionOffers])
 
   const handleSideSlotChange = useCallback((index: number, type: SubsystemType | null) => {
     setLoadout(prev => {
@@ -229,16 +242,6 @@ export function LoadoutScreen() {
                       isSelected={selectedComponent?.slotType === 'forward' || selectedComponent?.slotType === 'either'}
                       acceptingDrag={!!draggingComponent && canGoInForward(draggingComponent)}
                     />,
-                    <LoadoutSlot
-                      key="f1"
-                      slotType="forward"
-                      component={loadout.forwardSlots[1]}
-                      onDrop={type => handleForwardSlotChange(1, type)}
-                      onClick={() => handleSlotClick('forward', 1)}
-                      isHighlighted={isForwardDragValid}
-                      isSelected={selectedComponent?.slotType === 'forward' || selectedComponent?.slotType === 'either'}
-                      acceptingDrag={!!draggingComponent && canGoInForward(draggingComponent)}
-                    />,
                   ],
                   side: [
                     <LoadoutSlot
@@ -340,7 +343,10 @@ export function LoadoutScreen() {
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {missionOffers.map((mission) => {
                       const selected = selectedMissionIds.has(mission.id)
-                      const disabled = !selected && selectedMissionIds.size >= 3
+                      const hasSensorArray = loadout.forwardSlots.includes('sensor_array')
+                      const needsSensor = mission.type === 'intercept_transmission'
+                      const sensorBlocked = needsSensor && !hasSensorArray
+                      const disabled = sensorBlocked || (!selected && selectedMissionIds.size >= 3)
 
                       let label = ''
                       let color: 'error' | 'info' | 'warning' = 'info'
@@ -362,7 +368,7 @@ export function LoadoutScreen() {
                       return (
                         <Chip
                           key={mission.id}
-                          label={label}
+                          label={sensorBlocked ? `${label} (needs sensor)` : label}
                           size="small"
                           color={selected ? color : 'default'}
                           variant={selected ? 'filled' : 'outlined'}
@@ -412,6 +418,18 @@ export function LoadoutScreen() {
                             sx={{ fontSize: '0.65rem', height: 20 }}
                           />
                         )
+                      } else if (mission.type === 'intercept_transmission') {
+                        const interceptMission = mission as InterceptTransmissionMission
+                        const targetPlayer = allPlayers.find(p => p.id === interceptMission.targetPlayerId)
+                        return (
+                          <Chip
+                            key={index}
+                            label={`Shadow ${targetPlayer?.name || '?'}`}
+                            size="small"
+                            color="warning"
+                            sx={{ fontSize: '0.65rem', height: 20 }}
+                          />
+                        )
                       }
                       return null
                     })}
@@ -429,7 +447,7 @@ export function LoadoutScreen() {
               </Typography>
 
               <Alert severity="info" sx={{ mb: 2, py: 0 }}>
-                <Typography variant="caption">Engines & Thrusters are always installed</Typography>
+                <Typography variant="caption">Engines, Thrusters & Fuel Scoop are always installed</Typography>
               </Alert>
 
               <ComponentPalette
@@ -454,6 +472,12 @@ export function LoadoutScreen() {
                       {err}
                     </Typography>
                   ))}
+                </Alert>
+              )}
+
+              {!missionsValid && (
+                <Alert severity="warning" sx={{ mt: 2, py: 0 }}>
+                  <Typography variant="caption">Select 3 missions before confirming</Typography>
                 </Alert>
               )}
 

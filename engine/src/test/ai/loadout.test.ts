@@ -29,9 +29,9 @@ describe('Bot Loadout System', () => {
       expect(result.errors).toEqual([])
     })
 
-    it('all templates should have 2 forward and 4 side slots', () => {
+    it('all templates should have 1 forward and 4 side slots', () => {
       for (const [name, template] of Object.entries(BOT_LOADOUT_TEMPLATES)) {
-        expect(template.forwardSlots.length, `${name} forward slots`).toBe(2)
+        expect(template.forwardSlots.length, `${name} forward slots`).toBe(1)
         expect(template.sideSlots.length, `${name} side slots`).toBe(4)
       }
     })
@@ -41,7 +41,6 @@ describe('Bot Loadout System', () => {
     it('combat template should have railgun and weapons focus', () => {
       const { forwardSlots, sideSlots } = BOT_LOADOUT_TEMPLATES.combat
       expect(forwardSlots).toContain('railgun')
-      expect(forwardSlots).toContain('sensor_array')
       expect(sideSlots).toContain('shields')
       expect(sideSlots).toContain('missiles')
     })
@@ -53,9 +52,8 @@ describe('Bot Loadout System', () => {
       expect(sideSlots).toContain('shields')
     })
 
-    it('balanced template should have railgun and sensor_array', () => {
+    it('balanced template should have sensor_array in forward', () => {
       const { forwardSlots, sideSlots } = BOT_LOADOUT_TEMPLATES.balanced
-      expect(forwardSlots).toContain('railgun')
       expect(forwardSlots).toContain('sensor_array')
       expect(sideSlots).toContain('shields')
     })

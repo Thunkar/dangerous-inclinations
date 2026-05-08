@@ -314,13 +314,11 @@ export function WeaponRangeIndicators({
 
         // For spinal weapons (railgun), show arc along same ring in facing direction
         if (weaponStats.arc === 'spinal') {
-          // Spinal weapons fire tangentially along the current ring
-          // Use fixed sectorRange from weapon stats
           const spinalRange = weaponStats.sectorRange
-
-          // Calculate current position angle
-          const sectorSize = (2 * Math.PI) / rangeVisualizationRing.sectors
-          const currentAngle = rangeVisualizationAngle
+          const rotOff = getSectorRotationOffset(rangeVisualizationShip.wellId)
+          const shipSector = rangeVisualizationShip.sector
+          const sectors = rangeVisualizationRing.sectors
+          const rangeWellPosition = getGravityWellPosition(rangeVisualizationShip.wellId)
 
           // Use pending facing if available
           const effectiveFacing =
@@ -328,35 +326,39 @@ export function WeaponRangeIndicators({
               ? pendingFacing
               : rangeVisualizationShip.facing
 
-          // Calculate the arc in facing direction
+          // Sector boundary angles (edges, not centers)
+          const sectorBoundaryAngle = (s: number) =>
+            (s / sectors) * 2 * Math.PI - Math.PI / 2 + rotOff
+
+          // Arc spans from sector edge next to ship to spinalRange sectors ahead
+          // Prograde: sectors shipSector+1 through shipSector+spinalRange
+          // Retrograde: sectors shipSector-spinalRange through shipSector-1
           let arcStartAngle: number
           let arcEndAngle: number
 
           if (effectiveFacing === 'prograde') {
-            // Fire forward (counter-clockwise on display)
-            arcStartAngle = currentAngle
-            arcEndAngle = currentAngle + spinalRange * sectorSize
+            const startSector = (shipSector + 1) % sectors
+            const endSector = (shipSector + spinalRange + 1) % sectors
+            arcStartAngle = sectorBoundaryAngle(startSector)
+            arcEndAngle = sectorBoundaryAngle(endSector)
           } else {
-            // Fire backward (clockwise on display)
-            arcStartAngle = currentAngle - spinalRange * sectorSize
-            arcEndAngle = currentAngle
+            const startSector = (shipSector - spinalRange + sectors) % sectors
+            const endSector = shipSector % sectors
+            arcStartAngle = sectorBoundaryAngle(startSector)
+            arcEndAngle = sectorBoundaryAngle(endSector)
           }
 
-          // Calculate arc endpoints
-          const rangeWellPosition = getGravityWellPosition(rangeVisualizationShip.wellId)
           const arcStartX = rangeWellPosition.x + rangeVisualizationRadius * Math.cos(arcStartAngle)
           const arcStartY = rangeWellPosition.y + rangeVisualizationRadius * Math.sin(arcStartAngle)
           const arcEndX = rangeWellPosition.x + rangeVisualizationRadius * Math.cos(arcEndAngle)
           const arcEndY = rangeWellPosition.y + rangeVisualizationRadius * Math.sin(arcEndAngle)
 
-          // Calculate if this is a large arc (> 180°)
-          let arcAngle = arcEndAngle - arcStartAngle
-          if (arcAngle < 0) arcAngle += 2 * Math.PI
-          const largeArcFlag = arcAngle > Math.PI ? 1 : 0
+          let sweepAngle = arcEndAngle - arcStartAngle
+          if (sweepAngle < 0) sweepAngle += 2 * Math.PI
+          const largeArcFlag = sweepAngle > Math.PI ? 1 : 0
 
           return (
             <g key={`weapon-spinal-${weaponKey}`}>
-              {/* Draw arc showing firing range along orbit */}
               <path
                 d={`
                   M ${arcStartX} ${arcStartY}
@@ -367,7 +369,6 @@ export function WeaponRangeIndicators({
                 strokeWidth={4}
                 opacity={0.6}
               />
-              {/* Mark ship position */}
               <circle
                 cx={rangeVisualizationX}
                 cy={rangeVisualizationY}
@@ -377,7 +378,6 @@ export function WeaponRangeIndicators({
                 stroke="#fff"
                 strokeWidth={2}
               />
-              {/* Mark arc endpoints */}
               <circle cx={arcStartX} cy={arcStartY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
               <circle cx={arcEndX} cy={arcEndY} r={4} fill={getPlayerColor(playerIndex)} opacity={0.8} />
             </g>

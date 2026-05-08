@@ -327,8 +327,8 @@ describe("Energy Management System", () => {
     it("should allocate energy to specific subsystem by index when duplicate types exist", () => {
       // Create a loadout with two missiles subsystems
       const loadoutWithDuplicates: ShipLoadout = {
-        forwardSlots: ["missiles", "missiles"], // Two missiles in forward slots
-        sideSlots: ["shields", "laser", null, null],
+        forwardSlots: ["missiles"],
+        sideSlots: ["missiles", "shields", "laser", "laser"],
       };
 
       const ship = createInitialShipState(
@@ -377,8 +377,8 @@ describe("Energy Management System", () => {
     it("should deallocate energy from specific subsystem by index when duplicate types exist", () => {
       // Create a loadout with two missiles subsystems
       const loadoutWithDuplicates: ShipLoadout = {
-        forwardSlots: ["missiles", "missiles"],
-        sideSlots: ["shields", "laser", null, null],
+        forwardSlots: ["missiles"],
+        sideSlots: ["missiles", "shields", "laser", "laser"],
       };
 
       let ship = createInitialShipState(
@@ -420,8 +420,8 @@ describe("Energy Management System", () => {
     it("should correctly identify isPowered state for each subsystem independently", () => {
       // Create a loadout with two missiles subsystems
       const loadoutWithDuplicates: ShipLoadout = {
-        forwardSlots: ["missiles", "missiles"],
-        sideSlots: ["shields", "laser", null, null],
+        forwardSlots: ["missiles"],
+        sideSlots: ["missiles", "shields", "laser", "laser"],
       };
 
       let ship = createInitialShipState(

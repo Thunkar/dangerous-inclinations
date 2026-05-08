@@ -152,14 +152,15 @@ export function executeTurn(
   ) {
     for (const player of updatedGameState.players) {
       if (player.ship.hitPoints <= 0) {
-        // Check if any player had a destroy mission for this player
+        // Only the active player (whose turn it is) can get credit for the kill
         const beforeCompletionCount = updatedGameState.players.reduce(
           (sum, p) => sum + p.completedMissionCount,
           0
         );
         updatedGameState = processDestroyMissionCompletion(
           updatedGameState,
-          player.id
+          player.id,
+          activePlayer.id
         );
         const afterCompletionCount = updatedGameState.players.reduce(
           (sum, p) => sum + p.completedMissionCount,

@@ -22,7 +22,8 @@ import {
   BatteryChargingFull,
 } from '@mui/icons-material'
 import { useGame } from '../context/GameContext'
-import type { TurnHistoryEntry, PlayerAction } from '@dangerous-inclinations/engine'
+import type { TurnHistoryEntry, PlayerAction, Player } from '@dangerous-inclinations/engine'
+import { getPlayerColorById } from '@/utils/playerColors'
 
 interface TurnHistoryPanelProps {
   defaultExpanded?: boolean
@@ -71,6 +72,50 @@ export function TurnHistoryPanel({ defaultExpanded = true }: TurnHistoryPanelPro
 
           {/* Turn history list */}
           <Box sx={{ flex: 1, overflow: 'auto', p: 1 }}>
+            {/* Environmental events (missile movement, station orbits, PDC interceptions — things not in player actions) */}
+            {(() => {
+              const ENVIRONMENTAL_ACTIONS = new Set([
+                'Missile Tracking', 'Missile Hit', 'Missile Miss', 'Missile CRITICAL!', 'Missile Expired',
+                'PDC Intercept', 'PDC Miss',
+                'Station Movement',
+                'Subsystem BROKEN!',
+              ])
+              const envEntries = gameState.turnLog.filter(e => ENVIRONMENTAL_ACTIONS.has(e.action))
+              if (envEntries.length === 0) return null
+              return (
+                <Paper sx={{ mb: 1, p: 1, bgcolor: 'rgba(255,255,255,0.03)' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: '0.05em' }}>
+                    Environment
+                  </Typography>
+                  {envEntries
+                    .slice(-12)
+                    .reverse()
+                    .map((entry, index) => (
+                    <Typography
+                      key={index}
+                      variant="caption"
+                      display="block"
+                      sx={{
+                        mt: 0.5,
+                        pl: 1,
+                        fontSize: '0.65rem',
+                        color: entry.action.includes('CRITICAL') || entry.action === 'Missile Hit'
+                          ? 'error.main'
+                          : entry.action.includes('Intercept')
+                            ? 'success.main'
+                            : entry.action.includes('Miss') || entry.action.includes('Expired')
+                              ? 'text.disabled'
+                              : 'text.secondary',
+                      }}
+                    >
+                      <strong>T{entry.turn}</strong> {entry.result}
+                    </Typography>
+                  ))}
+                </Paper>
+              )
+            })()}
+
+            {/* Player turn history */}
             {turnHistory.length === 0 ? (
               <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
                 No turns yet
@@ -122,8 +167,9 @@ interface TurnHistoryItemProps {
 }
 
 function TurnHistoryItem({ entry }: TurnHistoryItemProps) {
+  const { gameState } = useGame()
   const isBot = false // !!entry.botDecision - bot decisions not currently tracked in history
-  const playerColor = entry.playerId === 'player1' ? '#2196f3' : '#4caf50'
+  const playerColor = getPlayerColorById(entry.playerId, gameState.players)
 
   return (
     <Accordion
@@ -170,9 +216,10 @@ function TurnHistoryItem({ entry }: TurnHistoryItemProps) {
 }
 
 function PlayerTurnDetails({ entry }: { entry: TurnHistoryEntry }) {
+  const { gameState } = useGame()
   const actionSummary = entry.actions.map((action, idx) => (
     <Typography key={idx} variant="caption" display="block" sx={{ mb: 0.5, pl: 1 }}>
-      • {formatAction(action)}
+      • {formatAction(action, gameState.players)}
     </Typography>
   ))
 
@@ -362,7 +409,17 @@ function BotTurnDetails({ entry: _entry }: { entry: TurnHistoryEntry }) {
   )
 }
 
-function formatAction(action: PlayerAction): string {
+const WELL_NAMES: Record<string, string> = {
+  'blackhole': 'Black Hole',
+  'planet-alpha': 'Alpha',
+  'planet-beta': 'Beta',
+  'planet-gamma': 'Gamma',
+}
+
+function formatAction(action: PlayerAction, players: Player[]): string {
+  const resolveNames = (ids: string[]) =>
+    ids.map(id => players.find(p => p.id === id)?.name || id).join(', ')
+
   switch (action.type) {
     case 'allocate_energy':
       return `Allocate ${action.data.amount} energy to ${action.data.subsystemType}`
@@ -375,9 +432,9 @@ function formatAction(action: PlayerAction): string {
     case 'coast':
       return `Coast${action.data.activateScoop ? ' with scoop' : ''}`
     case 'fire_weapon':
-      return `Fire ${action.data.weaponType} at ${action.data.targetPlayerIds.join(', ')}`
+      return `Fire ${action.data.weaponType} at ${resolveNames(action.data.targetPlayerIds)}`
     case 'well_transfer':
-      return `Transfer to ${action.data.destinationWellId}`
+      return `Transfer to ${WELL_NAMES[action.data.destinationWellId] || action.data.destinationWellId}`
     default:
       return 'Unknown action'
   }

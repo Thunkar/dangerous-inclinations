@@ -7,6 +7,7 @@ import type {
   Mission,
   DestroyShipMission,
   DeliverCargoMission,
+  InterceptTransmissionMission,
 } from '@dangerous-inclinations/engine'
 
 const PLAYER_COLORS = [
@@ -131,6 +132,18 @@ export function GameEndScreen({ gameState, onPlayAgain }: GameEndScreenProps) {
                         Target:{' '}
                         {gameState.players.find(
                           p => p.id === (mission as DestroyShipMission).targetPlayerId
+                        )?.name || 'Unknown'}
+                      </Typography>
+                    </>
+                  ) : mission.type === 'intercept_transmission' ? (
+                    <>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                        Mission {index + 1}: Shadow
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Target:{' '}
+                        {gameState.players.find(
+                          p => p.id === (mission as InterceptTransmissionMission).targetPlayerId
                         )?.name || 'Unknown'}
                       </Typography>
                     </>

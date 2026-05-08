@@ -81,10 +81,19 @@ export function ShipDisplay({
           {slots.side[1]}
         </SlotRegion>
 
-        {/* Forward region - forward slots 0, 1 */}
+        {/* Forward region - fuel scoop (fixed) + forward slot 0 */}
         <SlotRegion position="forward" shouldBlur={blurShip}>
-          {slots.forward[0]}
-          {slots.forward[1]}
+          {fixedSlots?.forward ? (
+            <>
+              {fixedSlots.forward}
+              {slots.forward[0]}
+            </>
+          ) : (
+            <>
+              <FixedSubsystemSlot subsystemType="scoop" label="Fuel Scoop" />
+              {slots.forward[0]}
+            </>
+          )}
         </SlotRegion>
 
         {/* Starboard region - side slots 2, 3 (lower side) */}

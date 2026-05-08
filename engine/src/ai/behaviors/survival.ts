@@ -94,6 +94,11 @@ function buildEnergyBudget(
       default: {
         // Weapon subsystems
         if (config.weaponStats) {
+          // Skip ammo-depleted weapons entirely (don't waste energy)
+          if (sub.type === 'missiles' && sub.ammo !== undefined && sub.ammo <= 0) {
+            priority = -1
+            break
+          }
           if (context.hasTargetInRange) {
             // Check if THIS specific weapon is in range
             const target = situation.primaryTarget
@@ -109,10 +114,6 @@ function buildEnergyBudget(
             }
           } else if (context.hasTarget) {
             priority = 4 // Target exists but nothing in range
-          }
-          // If missile and conserveAmmo and has no ammo, skip
-          if (sub.type === 'missiles' && sub.ammo !== undefined && sub.ammo <= 0) {
-            priority = -1
           }
         }
         break

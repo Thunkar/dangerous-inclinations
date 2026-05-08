@@ -78,10 +78,12 @@ export function canInstallInSideSlot(type: SubsystemType): boolean {
 export function validateLoadout(loadout: ShipLoadout): LoadoutValidation {
   const errors: string[] = [];
 
-  // Validate forward slots
+  // Validate forward slots — all must be filled
   for (let i = 0; i < loadout.forwardSlots.length; i++) {
     const subsystem = loadout.forwardSlots[i];
-    if (subsystem !== null) {
+    if (subsystem === null) {
+      errors.push(`Forward slot ${i + 1}: must be filled`);
+    } else {
       if (!canInstallInForwardSlot(subsystem)) {
         const config = getSubsystemConfig(subsystem);
         errors.push(
@@ -91,10 +93,12 @@ export function validateLoadout(loadout: ShipLoadout): LoadoutValidation {
     }
   }
 
-  // Validate side slots
+  // Validate side slots — all must be filled
   for (let i = 0; i < loadout.sideSlots.length; i++) {
     const subsystem = loadout.sideSlots[i];
-    if (subsystem !== null) {
+    if (subsystem === null) {
+      errors.push(`Side slot ${i + 1}: must be filled`);
+    } else {
       if (!canInstallInSideSlot(subsystem)) {
         const config = getSubsystemConfig(subsystem);
         errors.push(

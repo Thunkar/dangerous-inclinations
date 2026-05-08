@@ -3,12 +3,13 @@ import type { ReactNode } from 'react'
 export type SlotPosition = 'forward' | 'side'
 
 export interface ShipSlotContent {
-  forward: [ReactNode, ReactNode]
+  forward: [ReactNode]
   side: [ReactNode, ReactNode, ReactNode, ReactNode]
 }
 
 export interface FixedSlotContent {
   aft?: ReactNode[]
+  forward?: ReactNode[]
 }
 
 export interface ShipDisplayProps {

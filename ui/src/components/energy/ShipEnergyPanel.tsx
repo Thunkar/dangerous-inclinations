@@ -81,6 +81,12 @@ export function ShipEnergyPanel({
     return data
   }, [subsystems, usedIndices])
 
+  const scoopData = useMemo(() => {
+    const data = findSubsystemWithIndex(subsystems, 'scoop')
+    if (data) usedIndices.add(data.index)
+    return data
+  }, [subsystems, usedIndices])
+
   // Get shield energy for worst-case heat projection
   const shieldEnergy = useMemo(() => {
     const shieldsData = findSubsystemWithIndex(subsystems, 'shields')
@@ -173,8 +179,7 @@ export function ShipEnergyPanel({
         slots={{
           forward: [
             renderEnergySlot(forwardSubsystemData[0], 'f0'),
-            renderEnergySlot(forwardSubsystemData[1], 'f1'),
-          ] as [React.ReactNode, React.ReactNode],
+          ] as [React.ReactNode],
           side: [
             renderEnergySlot(sideSubsystemData[0], 's0'),
             renderEnergySlot(sideSubsystemData[1], 's1'),
@@ -186,6 +191,9 @@ export function ShipEnergyPanel({
           aft: [
             renderFixedSlot(enginesData, 'engines'),
             renderFixedSlot(rotationData, 'rotation'),
+          ].filter(Boolean) as React.ReactNode[],
+          forward: [
+            renderFixedSlot(scoopData, 'scoop'),
           ].filter(Boolean) as React.ReactNode[],
         }}
       />

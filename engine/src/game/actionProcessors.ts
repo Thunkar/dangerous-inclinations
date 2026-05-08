@@ -24,6 +24,8 @@ import {
   WELL_TRANSFER_COSTS,
   getAdjustmentRange,
   calculateBurnMassCost,
+  mapSectorOnTransfer,
+  SECTORS_PER_RING,
 } from "../models/rings";
 import { getSubsystemConfig } from "../models/subsystems";
 import { fireMissile, getMissileAmmo } from "./missiles";
@@ -404,6 +406,36 @@ function validateFireWeaponAction(
   if (action.data.weaponType === "missiles") {
     if (getMissileAmmo(player.ship.subsystems) <= 0) {
       errors.push("No missiles remaining");
+    }
+  }
+
+  // Recoil validation (any weapon with hasRecoil)
+  if (weaponConfig.weaponStats?.hasRecoil) {
+    const recoilDirection = player.ship.facing === "prograde" ? 1 : -1;
+    const recoilRing = player.ship.ring + recoilDirection;
+    const maxRing = getGravityWell(player.ship.wellId)?.rings.length ?? 5;
+
+    if (action.data.compensateRecoil) {
+      // Compensation requires engines powered at soft level (1) and not already used
+      const engines = player.ship.subsystems.find(s => s.type === "engines");
+      if (!engines || engines.allocatedEnergy < BURN_COSTS.soft.energy) {
+        errors.push("Engines must be powered (level 1+) to compensate railgun recoil");
+      }
+      if (engines?.usedThisTurn) {
+        errors.push("Engines already used this turn — cannot compensate recoil");
+      }
+      // Compensation also costs 1 reaction mass
+      if (player.ship.reactionMass < BURN_COSTS.soft.mass) {
+        errors.push("Not enough reaction mass to compensate recoil (need 1)");
+      }
+    } else {
+      // No compensation — check if recoil would push ship to invalid ring
+      if (recoilRing < 1) {
+        errors.push("Cannot fire railgun: recoil would push ship into the gravity well (compensate with engines or rotate)");
+      }
+      if (recoilRing > maxRing) {
+        errors.push("Cannot fire railgun: recoil would push ship beyond outermost ring (compensate with engines or rotate)");
+      }
     }
   }
 
@@ -1020,13 +1052,22 @@ function processWellTransfer(
     : massAfterTransfer;
 
   // Transfer to destination well immediately
-  // Orbital movement will be applied by the movement action (coast/burn) that follows
+  // Engines are used for the transfer burn — generate heat
+  const enginesSubsystem = player.ship.subsystems.find(s => s.type === "engines");
+  const engineHeat = enginesSubsystem ? enginesSubsystem.allocatedEnergy : 0;
+
   const updatedShip: ShipState = {
     ...player.ship,
     wellId: action.data.destinationWellId,
     ring: transferPoint.toRing,
     sector: transferPoint.toSector,
     reactionMass: newReactionMass,
+    heat: {
+      currentHeat: player.ship.heat.currentHeat + engineHeat,
+    },
+    subsystems: player.ship.subsystems.map(s =>
+      s.type === "engines" ? { ...s, usedThisTurn: true } : s
+    ),
     // Facing is preserved (sector numbering handles direction reversal)
   };
 
@@ -1234,6 +1275,52 @@ function processFireWeapon(
           result: `${target.name} has been destroyed!`,
         });
       }
+    }
+  }
+
+  // Recoil: shift attacker 1 ring in facing direction (like a soft burn)
+  if (weaponConfig.weaponStats?.hasRecoil) {
+    const attackerIndex = playerIndex;
+    const attacker = updatedPlayers[attackerIndex];
+    const recoilDirection = attacker.ship.facing === "prograde" ? 1 : -1;
+
+    if (action.data.compensateRecoil) {
+      // Engine compensation: cancel recoil, but costs 1 mass and generates engine heat
+      const engines = attacker.ship.subsystems.find(s => s.type === "engines");
+      const engineHeat = engines ? engines.allocatedEnergy : 0;
+      const compensatedShip: ShipState = {
+        ...attacker.ship,
+        reactionMass: attacker.ship.reactionMass - BURN_COSTS.soft.mass,
+        heat: { currentHeat: attacker.ship.heat.currentHeat + engineHeat },
+        subsystems: attacker.ship.subsystems.map(s =>
+          s.type === "engines" ? { ...s, usedThisTurn: true } : s
+        ),
+      };
+      updatedPlayers[attackerIndex] = { ...attacker, ship: compensatedShip };
+      logEntries.push({
+        turn: gameState.turn,
+        playerId: attacker.id,
+        playerName: attacker.name,
+        action: "Recoil Compensated",
+        result: `Engines fired to compensate ${weaponConfig.name} recoil (-1 mass, +${engineHeat} heat)`,
+      });
+    } else {
+      // Uncompensated recoil: drift 1 ring in facing direction
+      const newRing = attacker.ship.ring + recoilDirection;
+      const newSector = mapSectorOnTransfer(attacker.ship.ring, newRing, attacker.ship.sector);
+      const recoiledShip: ShipState = {
+        ...attacker.ship,
+        ring: newRing,
+        sector: newSector % SECTORS_PER_RING,
+      };
+      updatedPlayers[attackerIndex] = { ...attacker, ship: recoiledShip };
+      logEntries.push({
+        turn: gameState.turn,
+        playerId: attacker.id,
+        playerName: attacker.name,
+        action: "Weapon Recoil",
+        result: `${weaponConfig.name} recoil pushed ship to Ring ${newRing} (${attacker.ship.facing === "prograde" ? "outward" : "inward"})`,
+      });
     }
   }
 

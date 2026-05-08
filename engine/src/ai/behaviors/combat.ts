@@ -1,6 +1,8 @@
 import type { FireWeaponAction } from '../../models/game'
 import type { TacticalSituation, Target, BotParameters, SubsystemStatus } from '../types'
 import { SUBSYSTEM_CONFIGS } from '../../models/subsystems'
+import { BURN_COSTS } from '../../models/rings'
+import { getGravityWell } from '../../models/gravityWells'
 
 /**
  * Select best target based on parameters
@@ -154,6 +156,23 @@ export function generateWeaponActions(
       }
     }
 
+    // Railgun recoil check: skip if recoil would be invalid and can't compensate
+    let compensateRecoil: boolean | undefined
+    if (sub.type === 'railgun') {
+      const ship = botPlayer.ship
+      const recoilDir = ship.facing === 'prograde' ? 1 : -1
+      const recoilRing = ship.ring + recoilDir
+      const maxRing = getGravityWell(ship.wellId)?.rings.length ?? 5
+      const wouldBeInvalid = recoilRing < 1 || recoilRing > maxRing
+
+      const engines = status.engines
+      const canCompensate = engines.powered && !engines.used &&
+        engines.energy >= BURN_COSTS.soft.energy && ship.reactionMass >= BURN_COSTS.soft.mass
+
+      if (wouldBeInvalid && !canCompensate) continue // Can't fire safely
+      compensateRecoil = wouldBeInvalid || canCompensate // Compensate if we can or must
+    }
+
     actions.push({
       type: 'fire_weapon',
       playerId: botPlayer.id,
@@ -163,6 +182,7 @@ export function generateWeaponActions(
         targetPlayerIds: [target.player.id],
         criticalTarget: 'shields',
         subsystemIndex: sub.index,
+        ...(compensateRecoil !== undefined ? { compensateRecoil } : {}),
       },
     })
   }

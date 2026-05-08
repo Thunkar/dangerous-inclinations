@@ -632,21 +632,83 @@ export function BoardProvider({ children }: BoardProviderProps) {
       anim.current.actionIndex++
 
       if (anim.current.actionIndex >= actions.length) {
-        // All done - spawn heat floating numbers for active player
+        // All done - detect missile impacts and PDC interceptions from state diff
+        // These happen in processMissiles (after player actions) and aren't covered by action-based animation
         const originalBeforeState = anim.current.originalBeforeState
         if (originalBeforeState) {
           const activePlayerId =
             originalBeforeState.players[originalBeforeState.activePlayerIndex]?.id
 
+          // Check all non-active players for missile damage (missiles resolve after actions)
           for (const playerAfter of afterState.players) {
-            if (playerAfter.id !== activePlayerId) continue
+            if (playerAfter.id === activePlayerId) continue
 
             const playerBefore = originalBeforeState.players.find(p => p.id === playerAfter.id)
             if (!playerBefore) continue
 
+            const hullDamage = playerBefore.ship.hitPoints - playerAfter.ship.hitPoints
+            if (hullDamage <= 0) continue
+
+            // Check if this damage was already shown by a fire_weapon action
+            const wasDirectTarget = actions.some(
+              a => a.type === 'fire_weapon' && (a as FireWeaponAction).data.targetPlayerIds.includes(playerAfter.id)
+                && (a as FireWeaponAction).data.weaponType !== 'missiles'
+            )
+            if (wasDirectTarget) continue
+
+            // This is missile damage — show floating numbers
             const position = calculateShipScreenPosition(playerAfter.ship)
-            const heatBefore = playerBefore.ship.heat?.currentHeat || 0
-            const heatAfter = playerAfter.ship.heat?.currentHeat || 0
+            addFloatingNumber(position.x, position.y, hullDamage, 'damage')
+
+            // Check for critical hit from missile
+            const brokenSubsystem = playerAfter.ship.subsystems.find(
+              (s, i) => s.isBroken && !playerBefore.ship.subsystems[i]?.isBroken
+            )
+            if (brokenSubsystem) {
+              const subsystemName = brokenSubsystem.type.charAt(0).toUpperCase() + brokenSubsystem.type.slice(1)
+              addFloatingNumber(position.x, position.y, `CRIT! ${subsystemName}`, 'critical')
+            }
+          }
+
+          // Check for PDC interceptions — missiles that disappeared without the target taking full damage
+          // Show weapon effect from target (PDC owner) toward where the missile was
+          const missilesBefore = originalBeforeState.missiles || []
+          const missilesAfter = afterState.missiles || []
+          const interceptedMissiles = missilesBefore.filter(
+            mb => !missilesAfter.some(ma => ma.id === mb.id)
+          )
+          for (const missile of interceptedMissiles) {
+            const target = afterState.players.find(p => p.id === missile.targetId)
+            if (!target) continue
+
+            // Check if this target has a ballistic rack (PDC interception indicator)
+            const hasPDC = target.ship.subsystems.some(s => s.type === 'ballistic_rack' && s.isPowered)
+            if (!hasPDC) continue
+
+            // Check that target didn't take full missile damage (interception, not just a hit)
+            const targetBefore = originalBeforeState.players.find(p => p.id === target.id)
+            if (!targetBefore) continue
+
+            // Show PDC animation from target toward missile position
+            const missilePos = calculateShipScreenPosition({
+              wellId: missile.wellId,
+              ring: missile.ring,
+              sector: missile.sector,
+            })
+            const targetPos = calculateShipScreenPosition(target.ship)
+            addWeaponEffect('ballistic_rack', targetPos.x, targetPos.y, missilePos.x, missilePos.y)
+          }
+
+          // Spawn heat floating numbers for active player
+          for (const playerAfter2 of afterState.players) {
+            if (playerAfter2.id !== activePlayerId) continue
+
+            const playerBefore2 = originalBeforeState.players.find(p => p.id === playerAfter2.id)
+            if (!playerBefore2) continue
+
+            const position = calculateShipScreenPosition(playerAfter2.ship)
+            const heatBefore = playerBefore2.ship.heat?.currentHeat || 0
+            const heatAfter = playerAfter2.ship.heat?.currentHeat || 0
             const heatGenerated = heatAfter - heatBefore
 
             if (heatGenerated > 0) {

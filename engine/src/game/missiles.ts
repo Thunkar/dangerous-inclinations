@@ -241,7 +241,7 @@ export function processMissiles(
         reactor: { totalCapacity: 0, availableEnergy: 0 },
         heat: { currentHeat: 0 },
         dissipationCapacity: 0,
-        loadout: { forwardSlots: [null, null] as [null, null], sideSlots: [null, null, null, null] as [null, null, null, null] },
+        loadout: { forwardSlots: [null] as [null], sideSlots: [null, null, null, null] as [null, null, null, null] },
         criticalChance: 10,
       };
       const afterOrbital = applyOrbitalMovement(missileAsShip as ShipState);

@@ -88,6 +88,9 @@ export function ShipRenderer({
         let secondStepX: number | null = null
         let secondStepY: number | null = null
         let secondStepRing: number | null = null
+        let recoilX: number | null = null
+        let recoilY: number | null = null
+        let recoilRing: number | null = null
 
         const isActivePlayer = index === gameState.activePlayerIndex
         const hasPendingBurn =
@@ -176,6 +179,52 @@ export function ShipRenderer({
           predictedX = wellPosition.x + radius * Math.cos(predictedAngle)
           predictedY = wellPosition.y + radius * Math.sin(predictedAngle)
           predictedRing = player.ship.ring
+        }
+
+        // Recoil prediction: check for any weapon with hasRecoil in the sequence without compensation
+        const recoilWeaponAction = isActivePlayer
+          ? pendingState.tacticalSequence.find(a => {
+              if (a.type !== 'fire_railgun' && a.type !== 'fire_laser' && a.type !== 'fire_ballistic_rack') return false
+              // Map tactical action type to subsystem type
+              const subType = a.type === 'fire_railgun' ? 'railgun' : a.type === 'fire_laser' ? 'laser' : 'ballistic_rack'
+              const config = getSubsystemConfig(subType)
+              return config.weaponStats?.hasRecoil && !(a as any).compensateRecoil
+            })
+          : null
+        if (recoilWeaponAction) {
+          // Determine the ship's position and ring after movement (the base for recoil)
+          const postMoveRing = secondStepRing ?? predictedRing ?? player.ship.ring
+          const postMoveSector = (() => {
+            if (secondStepX !== null && secondStepY !== null) {
+              // Reverse-calculate sector from secondStep angle
+              const ang = Math.atan2(secondStepY - wellPosition.y, secondStepX - wellPosition.x)
+              const normalizedAngle = ((ang + Math.PI / 2 - rotationOffset) + 2 * Math.PI) % (2 * Math.PI)
+              return Math.floor((normalizedAngle / (2 * Math.PI)) * ringConfig.sectors)
+            }
+            if (predictedX !== null && predictedY !== null) {
+              const ang = Math.atan2(predictedY - wellPosition.y, predictedX - wellPosition.x)
+              const normalizedAngle = ((ang + Math.PI / 2 - rotationOffset) + 2 * Math.PI) % (2 * Math.PI)
+              return Math.floor((normalizedAngle / (2 * Math.PI)) * ringConfig.sectors)
+            }
+            return player.ship.sector
+          })()
+
+          const recoilDir = facingForBurn === 'prograde' ? 1 : -1
+          const destRing = postMoveRing + recoilDir
+          if (destRing >= 1 && destRing <= well.rings.length) {
+            const destRingConfig = well.rings.find(r => r.ring === destRing)
+            if (destRingConfig) {
+              const recoilSector = mapSectorOnTransfer(postMoveRing, destRing, postMoveSector)
+              const destRadius = (getRingRadius(player.ship.wellId, destRing) ?? 100) * scaleFactor
+              const destAngle =
+                ((recoilSector + 0.5) / destRingConfig.sectors) * 2 * Math.PI -
+                Math.PI / 2 +
+                rotationOffset
+              recoilX = wellPosition.x + destRadius * Math.cos(destAngle)
+              recoilY = wellPosition.y + destRadius * Math.sin(destAngle)
+              recoilRing = destRing
+            }
+          }
         }
 
         return (
@@ -367,6 +416,46 @@ export function ShipRenderer({
                 </text>
               </>
             )}
+
+            {/* Railgun recoil prediction */}
+            {recoilX !== null && recoilY !== null && (() => {
+              // Draw from the post-movement position (secondStep or predicted) to recoil destination
+              const fromX = secondStepX ?? predictedX ?? x
+              const fromY = secondStepY ?? predictedY ?? y
+              return (
+                <>
+                  <line
+                    x1={fromX}
+                    y1={fromY}
+                    x2={recoilX}
+                    y2={recoilY}
+                    stroke="#ff9800"
+                    strokeWidth={2}
+                    strokeDasharray="4 3"
+                    opacity={0.7}
+                  />
+                  <circle
+                    cx={recoilX}
+                    cy={recoilY}
+                    r={8}
+                    fill="#ff9800"
+                    opacity={0.5}
+                    stroke="#ff9800"
+                    strokeWidth={2}
+                  />
+                  <text
+                    x={recoilX}
+                    y={recoilY - 12}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fill="#ff9800"
+                    fontWeight="bold"
+                  >
+                    Recoil R{recoilRing}
+                  </text>
+                </>
+              )
+            })()}
 
             {/* Transfer state indicator */}
             {player.ship.transferState && (
