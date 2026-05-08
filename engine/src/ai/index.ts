@@ -53,8 +53,10 @@ export function botDecideActions(
       log,
     };
   } catch (error) {
-    // Fallback: if bot AI fails, just coast
-    console.error(`[Bot ${botPlayerId}] Error in decision-making:`, error);
+    // Fallback: if bot AI fails, just coast. The error is captured in the
+    // decision log so callers (server, sim) can surface it however they like;
+    // we don't log here so the engine stays pure.
+    const message = error instanceof Error ? error.message : String(error);
     return {
       actions: [
         {
@@ -76,7 +78,7 @@ export function botDecideActions(
         },
         threats: [],
         targets: [],
-        reasoning: ["Error in decision-making - defaulting to coast"],
+        reasoning: [`Error in decision-making — defaulting to coast: ${message}`],
         candidates: [],
         selectedCandidate: {
           description: "Emergency fallback",
@@ -298,10 +300,10 @@ export {
   estimateTurnsToTarget,
 } from "./movementPlanner/index.ts";
 
-// Re-export movement planner types with distinct names to avoid collision with models/game.ts
+// Re-export movement planner types
 export type {
-  OrbitalPosition as PlannerPosition,
-  OrientedPosition as OrientedPlannerPosition,
+  OrbitalPosition,
+  OrientedPosition,
   MovementStep,
   MovementPlan,
   MovementAlternatives,

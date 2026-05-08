@@ -23,12 +23,10 @@ export {
 // Mission deck and dealing
 export {
   MISSION_CONSTANTS,
-  dealMissions,
   dealMissionOffers,
   selectMissionsFromOffers,
   getDestroyTarget,
   getCargoMissions,
-  type DealMissionsResult,
   type DealMissionOffersResult,
 } from "./missionDeck.ts";
 

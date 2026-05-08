@@ -198,16 +198,16 @@ export function applyDirectDamage(ship: ShipState, damage: number): ShipState {
 }
 
 /**
- * Apply heat damage to a ship based on current heat and dissipation
- * Heat damage is excess heat above dissipation capacity
+ * Apply heat damage to a ship based on current heat and dissipation.
+ * Returns the (possibly unchanged) ship and the damage actually applied so
+ * callers can build log messages without recomputing.
  */
-export function applyHeatDamageToShip(ship: ShipState): ShipState {
+export function applyHeatDamageToShip(
+  ship: ShipState
+): { ship: ShipState; damage: number } {
   const damage = calculateHeatDamage(ship);
-  if (damage === 0) {
-    return ship;
-  }
-
-  return applyDirectDamage(ship, damage);
+  if (damage === 0) return { ship, damage: 0 };
+  return { ship: applyDirectDamage(ship, damage), damage };
 }
 
 /**

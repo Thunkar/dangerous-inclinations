@@ -120,11 +120,12 @@ describe("Fuel Scoop", () => {
   });
 
   describe("Scoop Validation", () => {
-    it("should fail if scoop has insufficient energy", () => {
+    it("should reject powering scoop below its minEnergy", () => {
       const gameState = createTestGameState();
       gameState.players[0].ship.reactionMass = 5;
 
-      // Only allocate 2 energy (need 3)
+      // Only allocate 2 energy (scoop minEnergy is 3) — caught by allocation
+      // validation before coast even runs.
       const allocateAction = createAllocateEnergyAction("scoop", 2, "player1");
       const coastAction = createCoastAction("player1", "prograde", true);
 
@@ -134,9 +135,8 @@ describe("Fuel Scoop", () => {
         coastAction,
       );
 
-      // Should have validation error
       expect(result.errors).toBeDefined();
-      expect(result.errors?.[0]).toContain("Need 3 energy in scoop");
+      expect(result.errors?.[0]).toMatch(/Must allocate at least 3 energy to power scoop/);
     });
 
     it("should fail if scoop has no energy allocated", () => {

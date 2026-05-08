@@ -9,8 +9,8 @@ import {
   type MovementAlternatives,
   type GravityWellId,
   type ShipState,
-  type PlannerPosition,
-  type OrientedPlannerPosition,
+  type OrbitalPosition,
+  type OrientedPosition,
 } from '@dangerous-inclinations/engine'
 import { CustomIcon } from '../CustomIcon'
 
@@ -20,7 +20,7 @@ interface MovementPlannerProps {
   isSelectingDestination: boolean
   onStartSelectingDestination: () => void
   onCancelSelectingDestination: () => void
-  selectedDestination: PlannerPosition | null
+  selectedDestination: OrbitalPosition | null
 }
 
 const Container = styled(Box)(({ theme }) => ({
@@ -127,7 +127,7 @@ export function MovementPlanner({
   const alternatives: MovementAlternatives | null = useMemo(() => {
     if (!selectedDestination) return null
 
-    const origin: OrientedPlannerPosition = {
+    const origin: OrientedPosition = {
       wellId: ship.wellId,
       ring: ship.ring,
       sector: ship.sector,

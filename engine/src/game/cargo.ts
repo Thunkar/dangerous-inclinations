@@ -1,13 +1,19 @@
 /**
  * Cargo System for Dangerous Inclinations
  *
- * Handles cargo pickup and delivery at planetary stations.
- * Cargo is automatically picked up/delivered when a ship is at a station.
+ * Handles cargo pickup and delivery at planetary stations. Cargo is
+ * automatically picked up/delivered when a ship is at a station.
+ *
+ * Public API:
+ * - {@link processCargoAtStation} runs once per turn for the active player
+ *   and applies any auto-pickup / auto-delivery for their current position.
+ *
+ * Helpers below are kept module-private intentionally. Don't export them
+ * unless a real caller appears.
  */
 
-import type { GameState, Player, Station } from "../models/game.ts";
-import type { Cargo, DeliverCargoMission } from "../models/missions.ts";
-import { isDeliverCargoMission } from "../models/missions.ts";
+import type { Player, Station } from "../models/game.ts";
+import type { Cargo } from "../models/missions.ts";
 
 /**
  * Result of processing cargo at a station
@@ -20,17 +26,13 @@ export interface CargoProcessResult {
 }
 
 /**
- * Check if a player can pick up cargo at their current position
- * Returns cargo that can be picked up (not yet picked up, at pickup station)
+ * Cargo a player can pick up at their current position — not yet picked up,
+ * standing at the pickup station for the cargo's mission.
  */
-export function getPickupableCargo(
-  player: Player,
-  stations: Station[]
-): Cargo[] {
+function getPickupableCargo(player: Player, stations: Station[]): Cargo[] {
   return player.cargo.filter((cargo) => {
     if (cargo.isPickedUp) return false;
 
-    // Check if player is at the pickup station for this cargo
     const pickupStation = stations.find(
       (s) => s.planetId === cargo.pickupPlanetId
     );
@@ -45,18 +47,14 @@ export function getPickupableCargo(
 }
 
 /**
- * Check if a player can deliver cargo at their current position
- * Returns cargo that can be delivered (picked up, at delivery station)
- * Scan data cargo ("any" deliveryPlanetId) can be delivered at any station
+ * Cargo a player can deliver at their current position. Scan-data cargo
+ * (deliveryPlanetId === "any") delivers at any station the player is on;
+ * normal cargo requires the specific delivery station.
  */
-export function getDeliverableCargo(
-  player: Player,
-  stations: Station[]
-): Cargo[] {
+function getDeliverableCargo(player: Player, stations: Station[]): Cargo[] {
   return player.cargo.filter((cargo) => {
     if (!cargo.isPickedUp) return false;
 
-    // Scan data can be delivered at any station the player is currently at
     if (cargo.deliveryPlanetId === "any") {
       return stations.some(
         (s) =>
@@ -66,7 +64,6 @@ export function getDeliverableCargo(
       );
     }
 
-    // Check if player is at the delivery station for this cargo
     const deliveryStation = stations.find(
       (s) => s.planetId === cargo.deliveryPlanetId
     );
@@ -81,17 +78,10 @@ export function getDeliverableCargo(
 }
 
 /**
- * Pick up cargo at the current station
- * Updates cargo's isPickedUp flag to true
- */
-export function pickupCargo(cargo: Cargo): Cargo {
-  return { ...cargo, isPickedUp: true };
-}
-
-/**
- * Process all cargo operations for a player at their current position
- * Automatically picks up and delivers cargo as appropriate
- * Returns the updated player and log messages
+ * Process all cargo operations for a player at their current position.
+ * Auto-picks up and delivers cargo as appropriate. Returns the updated
+ * player plus the cargo events that occurred (for logging and mission
+ * completion follow-up).
  */
 export function processCargoAtStation(
   player: Player,
@@ -101,29 +91,27 @@ export function processCargoAtStation(
   const deliveredCargo: Cargo[] = [];
   const logMessages: string[] = [];
 
-  // Get cargo that can be picked up or delivered
   const pickupable = getPickupableCargo(player, stations);
   const deliverable = getDeliverableCargo(player, stations);
 
-  // Update cargo state
+  // Mark pickups
   let updatedCargo = player.cargo.map((cargo) => {
-    // Check for pickup
     if (pickupable.includes(cargo)) {
       pickedUpCargo.push(cargo);
       logMessages.push(
         `Picked up cargo for delivery to ${cargo.deliveryPlanetId}`
       );
-      return pickupCargo(cargo);
+      return { ...cargo, isPickedUp: true };
     }
     return cargo;
   });
 
-  // Filter out delivered cargo
+  // Drop deliveries from inventory
   updatedCargo = updatedCargo.filter((cargo) => {
     if (deliverable.some((d) => d.id === cargo.id)) {
       deliveredCargo.push(cargo);
       logMessages.push(`Delivered cargo to ${cargo.deliveryPlanetId}`);
-      return false; // Remove from inventory
+      return false;
     }
     return true;
   });
@@ -134,72 +122,4 @@ export function processCargoAtStation(
     deliveredCargo,
     logMessages,
   };
-}
-
-/**
- * Process cargo for all players in the game
- * Called after movement phase
- */
-export function processAllCargoAtStations(gameState: GameState): GameState {
-  const updatedPlayers = gameState.players.map((player) => {
-    const result = processCargoAtStation(player, gameState.stations);
-    return result.player;
-  });
-
-  return { ...gameState, players: updatedPlayers };
-}
-
-/**
- * Get cargo status for a player (for UI display)
- */
-export function getCargoStatus(player: Player): {
-  totalCargo: number;
-  pickedUp: number;
-  awaitingPickup: number;
-} {
-  const pickedUp = player.cargo.filter((c) => c.isPickedUp).length;
-  return {
-    totalCargo: player.cargo.length,
-    pickedUp,
-    awaitingPickup: player.cargo.length - pickedUp,
-  };
-}
-
-/**
- * Get the station a player needs to visit for a specific cargo
- */
-export function getNextStationForCargo(
-  cargo: Cargo,
-  stations: Station[]
-): Station | undefined {
-  const targetPlanetId = cargo.isPickedUp
-    ? cargo.deliveryPlanetId
-    : cargo.pickupPlanetId;
-  return stations.find((s) => s.planetId === targetPlanetId);
-}
-
-/**
- * Get all cargo missions and their current status for a player
- */
-export function getCargoMissionStatus(player: Player): Array<{
-  mission: DeliverCargoMission;
-  cargo: Cargo | undefined;
-  status: "awaiting_pickup" | "in_transit" | "delivered";
-}> {
-  const cargoMissions = player.missions.filter(isDeliverCargoMission);
-
-  return cargoMissions.map((mission) => {
-    const cargo = player.cargo.find((c) => c.missionId === mission.id);
-
-    let status: "awaiting_pickup" | "in_transit" | "delivered";
-    if (mission.isCompleted) {
-      status = "delivered";
-    } else if (cargo?.isPickedUp) {
-      status = "in_transit";
-    } else {
-      status = "awaiting_pickup";
-    }
-
-    return { mission, cargo, status };
-  });
 }

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useBoardContext } from '../context'
-import { GRAVITY_WELLS, type PlannerPosition } from '@dangerous-inclinations/engine'
+import { GRAVITY_WELLS, type OrbitalPosition } from '@dangerous-inclinations/engine'
 import { getRingRadius } from '@/constants/visualConfig'
 
 interface SelectableSectorsProps {
-  onSelectSector: (position: PlannerPosition) => void
+  onSelectSector: (position: OrbitalPosition) => void
 }
 
 /**

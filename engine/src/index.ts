@@ -54,9 +54,6 @@ export * from "./models/transferPoints.ts";
 export * from "./utils/weaponRange.ts";
 export {
   createInitialShipState,
-  createInitialSubsystems,
-  createInitialReactorState,
-  createInitialHeatState,
   getSubsystemSide,
   getSideFiringDirection,
   isRingDirectionValid,

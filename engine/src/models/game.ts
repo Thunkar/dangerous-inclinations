@@ -82,7 +82,7 @@ export type GravityWellType = "blackhole" | "planet";
 
 // Orbital velocity for planets (currently all static with velocity = 0)
 // Transfer sectors are fixed and hardcoded, so angle/distance not needed for game logic
-export interface OrbitalPosition {
+export interface OrbitalVelocity {
   velocity: number; // Angular velocity in degrees per turn (game logic for potential planet drift)
 }
 
@@ -91,7 +91,7 @@ export interface GravityWell {
   name: string;
   type: GravityWellType;
   rings: RingConfig[]; // Ring configuration for this gravity well (game logic only: ring, velocity, sectors)
-  orbitalPosition?: OrbitalPosition; // Only for planets - velocity for potential orbit updates
+  orbitalVelocity?: OrbitalVelocity; // Only for planets - velocity for potential orbit updates
 }
 
 export interface TransferPoint {

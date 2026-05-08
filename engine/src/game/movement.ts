@@ -109,11 +109,10 @@ export function completeRingTransfer(ship: ShipState): ShipState {
     return ship;
   }
 
-  // Well transfers should never reach here
+  // Well transfers are handled inline in actionProcessors and never set
+  // `isWellTransfer` on a state that reaches here. If we see one, drop it
+  // safely — but this is a programming error and should never happen.
   if (ship.transferState.isWellTransfer) {
-    console.error(
-      "Well transfer reached completeTransfer - this should not happen"
-    );
     return {
       ...ship,
       transferState: null,
@@ -150,70 +149,6 @@ export function applyRotation(
     ...ship,
     facing: targetFacing,
   };
-}
-
-/**
- * Validates if a burn action is possible given current ship state
- */
-export function canExecuteBurn(
-  ship: ShipState,
-  action: PlayerAction
-): { valid: boolean; reason?: string } {
-  if (action.type !== "burn") {
-    return { valid: false, reason: "Not a burn action" };
-  }
-
-  const burnCost = BURN_COSTS[action.data.burnIntensity];
-
-  // Check reaction mass
-  if (ship.reactionMass < burnCost.mass) {
-    return {
-      valid: false,
-      reason: `Need ${burnCost.mass} reaction mass, have ${ship.reactionMass}`,
-    };
-  }
-
-  // Check engine energy
-  const enginesSubsystem = ship.subsystems.find((s) => s.type === "engines");
-  if (!enginesSubsystem || enginesSubsystem.allocatedEnergy < burnCost.energy) {
-    return {
-      valid: false,
-      reason: `Need ${burnCost.energy} energy in engines, have ${enginesSubsystem?.allocatedEnergy || 0}`,
-    };
-  }
-
-  return { valid: true };
-}
-
-/**
- * Validates if rotation is possible
- */
-export function canRotate(
-  ship: ShipState,
-  targetFacing: "prograde" | "retrograde"
-): { valid: boolean; reason?: string } {
-  // No rotation needed if already facing that direction
-  if (ship.facing === targetFacing) {
-    return { valid: true };
-  }
-
-  // Check rotation subsystem
-  const rotationSubsystem = ship.subsystems.find((s) => s.type === "rotation");
-  if (!rotationSubsystem?.isPowered) {
-    return {
-      valid: false,
-      reason: "Rotation subsystem not powered",
-    };
-  }
-
-  if (rotationSubsystem.usedThisTurn) {
-    return {
-      valid: false,
-      reason: "Rotation subsystem already used this turn",
-    };
-  }
-
-  return { valid: true };
 }
 
 /**

@@ -1,9 +1,11 @@
 import { Paper, Stack, Box, Typography, IconButton } from '@mui/material'
 import { useState, useEffect, useMemo } from 'react'
 import { ArrowUpward, ArrowDownward } from '@mui/icons-material'
-import type { BurnIntensity, Facing, Player, ActionType } from '@dangerous-inclinations/engine'
+import type { BurnIntensity, Facing, Player, ActionType, Subsystem } from '@dangerous-inclinations/engine'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { getSubsystem } from '@dangerous-inclinations/engine'
+
+const findSubsystem = (subs: Subsystem[], type: SubsystemType): Subsystem | undefined =>
+  subs.find((s) => s.type === type)
 import { useGame, type TacticalAction, type TacticalActionType } from '../context/GameContext'
 import { getAvailableWellTransfers, getWellName } from '@dangerous-inclinations/engine'
 import { GRAVITY_WELLS, TRANSFER_POINTS } from '@dangerous-inclinations/engine'
@@ -69,12 +71,12 @@ export function ControlPanel({ player, allPlayers }: ControlPanelProps) {
   const { ship } = player
   const subsystems = pendingState.subsystems
 
-  const enginesSubsystem = getSubsystem(subsystems, 'engines')
-  const rotationSubsystem = getSubsystem(subsystems, 'rotation')
-  const scoopSubsystem = getSubsystem(subsystems, 'scoop')
-  const laserSubsystem = getSubsystem(subsystems, 'laser')
-  const railgunSubsystem = getSubsystem(subsystems, 'railgun')
-  const missilesSubsystem = getSubsystem(subsystems, 'missiles')
+  const enginesSubsystem = findSubsystem(subsystems, 'engines')
+  const rotationSubsystem = findSubsystem(subsystems, 'rotation')
+  const scoopSubsystem = findSubsystem(subsystems, 'scoop')
+  const laserSubsystem = findSubsystem(subsystems, 'laser')
+  const railgunSubsystem = findSubsystem(subsystems, 'railgun')
+  const missilesSubsystem = findSubsystem(subsystems, 'missiles')
   const ballisticRackSubsystems = useMemo(() => subsystems.filter(s => s.type === 'ballistic_rack'), [subsystems])
 
   const availableWellTransfers = useMemo(

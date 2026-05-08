@@ -88,17 +88,18 @@ export function calculateTransferPoints(
 
   // Create transfer points for each planet using fixed sectors
   for (const planet of planets) {
-    if (!planet.orbitalPosition || planet.rings.length < 3) {
+    if (!planet.orbitalVelocity || planet.rings.length < 3) {
       continue;
     }
 
     // Get the planet's outermost ring (Ring 3)
     const planetOutermostRing = planet.rings[2]; // Ring 3 (index 2)
 
-    // Get fixed transfer sectors for this planet
+    // Get fixed transfer sectors for this planet. Skip silently if a planet
+    // has no defined sectors (configuration mistake; surfaced by the caller
+    // noticing missing transfer routes rather than a console side-effect).
     const transferSectors = FIXED_TRANSFER_SECTORS[planet.id];
     if (!transferSectors) {
-      console.warn(`No fixed transfer sectors defined for planet ${planet.id}`);
       continue;
     }
 

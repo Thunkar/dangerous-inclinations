@@ -1,8 +1,8 @@
 import type { GameState, TurnLogEntry, PlayerAction } from "../models/game.ts";
 import { processActions } from "./actionProcessors.ts";
 import { processMissiles } from "./missiles.ts";
-import { calculateHeatDamage, resetHeat } from "./heat.ts";
-import { applyDirectDamage } from "./damage.ts";
+import { resetHeat } from "./heat.ts";
+import { applyHeatDamageToShip } from "./damage.ts";
 import {
   processDestroyMissionCompletion,
   processCargoMissionCompletion,
@@ -286,33 +286,28 @@ export function executeTurn(
     turnLog: [...workingState.turnLog, ...allLogEntries],
   };
 
-  // Apply heat damage to the NEXT player at the start of their turn
-  // This happens BEFORE they see their turn, so they see the damage immediately
+  // Apply heat damage to the NEXT player at the start of their turn.
+  // This happens BEFORE they see their turn, so they see the damage immediately.
   const nextPlayer = updatedGameState.players[nextPlayerIndex];
   if (nextPlayer.ship.hitPoints > 0) {
-    const heatDamage = calculateHeatDamage(nextPlayer.ship);
+    const heatResult = applyHeatDamageToShip(nextPlayer.ship);
 
-    if (heatDamage > 0) {
+    if (heatResult.damage > 0) {
       const updatedPlayers = [...updatedGameState.players];
-      const damagedShip = applyDirectDamage(nextPlayer.ship, heatDamage);
-      updatedPlayers[nextPlayerIndex] = { ...nextPlayer, ship: damagedShip };
+      updatedPlayers[nextPlayerIndex] = { ...nextPlayer, ship: heatResult.ship };
       updatedGameState = { ...updatedGameState, players: updatedPlayers };
 
-      allLogEntries.push({
+      const heatDamageEntry: TurnLogEntry = {
         turn: updatedGameState.turn,
         playerId: nextPlayer.id,
         playerName: nextPlayer.name,
         action: "Heat Damage",
-        result: `Took ${heatDamage} hull damage from excess heat (${nextPlayer.ship.heat.currentHeat} heat - ${nextPlayer.ship.dissipationCapacity} dissipation = ${heatDamage} damage)`,
-      });
-
-      // Update the turnLog with the new entry
+        result: `Took ${heatResult.damage} hull damage from excess heat (${nextPlayer.ship.heat.currentHeat} heat - ${nextPlayer.ship.dissipationCapacity} dissipation = ${heatResult.damage} damage)`,
+      };
+      allLogEntries.push(heatDamageEntry);
       updatedGameState = {
         ...updatedGameState,
-        turnLog: [
-          ...updatedGameState.turnLog.slice(0, -allLogEntries.length + 1),
-          ...allLogEntries,
-        ],
+        turnLog: [...updatedGameState.turnLog, heatDamageEntry],
       };
     }
 
@@ -339,8 +334,6 @@ export function executeTurn(
 
   // Check for win/loss conditions
   updatedGameState = checkGameStatus(updatedGameState);
-
-  // All transfers complete immediately, no need to resolve on turn start
 
   return {
     gameState: updatedGameState,

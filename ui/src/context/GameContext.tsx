@@ -13,7 +13,7 @@ import type {
   HeatState,
   Player,
   MovementPlan,
-  PlannerPosition,
+  OrbitalPosition,
 } from '@dangerous-inclinations/engine'
 import {
   getSubsystemConfig,
@@ -99,11 +99,11 @@ interface GameContextType {
   // Movement planner state
   movementPlan: MovementPlan | null
   isSelectingDestination: boolean
-  selectedDestination: PlannerPosition | null
+  selectedDestination: OrbitalPosition | null
   setMovementPlan: (plan: MovementPlan | null) => void
   startSelectingDestination: () => void
   cancelSelectingDestination: () => void
-  selectDestination: (destination: PlannerPosition) => void
+  selectDestination: (destination: OrbitalPosition) => void
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
@@ -143,7 +143,7 @@ export function GameProvider({
   // Movement planner state
   const [movementPlan, setMovementPlan] = useState<MovementPlan | null>(null)
   const [isSelectingDestination, setIsSelectingDestination] = useState(false)
-  const [selectedDestination, setSelectedDestination] = useState<PlannerPosition | null>(null)
+  const [selectedDestination, setSelectedDestination] = useState<OrbitalPosition | null>(null)
 
   const startSelectingDestination = useCallback(() => {
     setIsSelectingDestination(true)
@@ -155,7 +155,7 @@ export function GameProvider({
     setMovementPlan(null)
   }, [])
 
-  const selectDestination = useCallback((destination: PlannerPosition) => {
+  const selectDestination = useCallback((destination: OrbitalPosition) => {
     setSelectedDestination(destination)
     setIsSelectingDestination(false)
   }, [])

@@ -7,8 +7,7 @@ import type {
 import type { TacticalSituation, Target, BotParameters } from '../types.ts'
 import { planFromShip, getFirstAction } from '../movementPlanner/index.ts'
 import type { OrbitalPosition } from '../movementPlanner/index.ts'
-import { MAX_REACTION_MASS } from '../../models/game.ts'
-import { SUBSYSTEM_CONFIGS } from '../../models/subsystems.ts'
+import { getMaxReactionMass } from '../../game/loadout.ts'
 
 /**
  * Result of movement planning that informs energy allocation
@@ -234,11 +233,7 @@ function shouldActivateScoop(situation: TacticalSituation): boolean {
   if (!scoop || !scoop.powered || scoop.broken) return false
 
   // Only scoop if we need fuel
-  const compressorCount = status.subsystems.filter(s => s.type === 'fuel_compressor').length
-  const compressorBonus = SUBSYSTEM_CONFIGS.fuel_compressor.passiveEffect?.reactionMassBonus ?? 0
-  const maxFuel = MAX_REACTION_MASS + compressorCount * compressorBonus
-
-  return status.reactionMass < maxFuel
+  return status.reactionMass < getMaxReactionMass(status.subsystems)
 }
 
 /**

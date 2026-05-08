@@ -2,18 +2,12 @@
  * Game Logic Library
  *
  * Pure functions for managing game state, ship mechanics, and turn resolution.
- * All functions are immutable - they return new state objects rather than modifying existing ones.
+ * All functions are immutable — they return new state objects rather than
+ * modifying existing ones.
  */
 
 // Energy management
-export {
-  allocateEnergyByIndex,
-  deallocateEnergyByIndex,
-  canAllocateEnergyByIndex,
-  markSubsystemUsed,
-  getSubsystem,
-  resetSubsystemUsage,
-} from "./energy.ts";
+export { resetSubsystemUsage } from "./energy.ts";
 
 // Heat management
 export {
@@ -57,14 +51,7 @@ export {
 
 // Cargo system
 export {
-  getPickupableCargo,
-  getDeliverableCargo,
-  pickupCargo,
   processCargoAtStation,
-  processAllCargoAtStations,
-  getCargoStatus,
-  getNextStationForCargo,
-  getCargoMissionStatus,
   type CargoProcessResult,
 } from "./cargo.ts";
 

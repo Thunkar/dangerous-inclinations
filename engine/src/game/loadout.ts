@@ -16,6 +16,7 @@ import type { ShipLoadout, LoadoutValidation } from "../models/game.ts";
 import {
   DEFAULT_DISSIPATION_CAPACITY,
   STARTING_REACTION_MASS,
+  MAX_REACTION_MASS,
   BASE_CRITICAL_CHANCE,
 } from "../models/game.ts";
 
@@ -235,6 +236,26 @@ export function countSubsystemInLoadout(
 ): number {
   const allSlots = [...loadout.forwardSlots, ...loadout.sideSlots];
   return allSlots.filter((t) => t === type).length;
+}
+
+/**
+ * Compute the effective max reaction mass for a ship's installed subsystems.
+ * Base capacity + per-fuel_compressor bonus from passive config.
+ *
+ * Single source of truth — engine processors and AI planners both call this
+ * so the formula can't drift if the config changes. Accepts any array of
+ * objects that carry `type: SubsystemType` (real Subsystem or AI's
+ * SubsystemStatus).
+ */
+export function getMaxReactionMass(
+  subsystems: ReadonlyArray<{ type: SubsystemType }>
+): number {
+  const compressorBonus =
+    SUBSYSTEM_CONFIGS.fuel_compressor.passiveEffect?.reactionMassBonus ?? 0;
+  const compressorCount = subsystems.filter(
+    (s) => s.type === "fuel_compressor"
+  ).length;
+  return MAX_REACTION_MASS + compressorCount * compressorBonus;
 }
 
 /**

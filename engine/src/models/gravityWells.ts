@@ -50,7 +50,7 @@ export const PLANET_ALPHA: GravityWell = {
   name: "Alpha",
   type: "planet",
   rings: PLANET_RINGS,
-  orbitalPosition: {
+  orbitalVelocity: {
     velocity: 0, // Static position
   },
 };
@@ -60,7 +60,7 @@ export const PLANET_BETA: GravityWell = {
   name: "Beta",
   type: "planet",
   rings: PLANET_RINGS,
-  orbitalPosition: {
+  orbitalVelocity: {
     velocity: 0, // Static position
   },
 };
@@ -70,7 +70,7 @@ export const PLANET_GAMMA: GravityWell = {
   name: "Gamma",
   type: "planet",
   rings: PLANET_RINGS,
-  orbitalPosition: {
+  orbitalVelocity: {
     velocity: 0, // Static position
   },
 };

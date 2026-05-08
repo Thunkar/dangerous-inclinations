@@ -70,8 +70,7 @@ import type {
   Facing,
   ActionType,
 } from "../../models/game.ts";
-import { MAX_REACTION_MASS } from "../../models/game.ts";
-import { SUBSYSTEM_CONFIGS } from "../../models/subsystems.ts";
+import { getMaxReactionMass } from "../../game/loadout.ts";
 import { planMovement, isReachable } from "./planner.ts";
 import type {
   OrbitalPosition,
@@ -102,9 +101,7 @@ export function planFromShip(
   };
 
   const hasFuelScoop = ship.subsystems.some((s) => s.type === "scoop"); // always true (fixed)
-  const compressorCount = ship.subsystems.filter((s) => s.type === "fuel_compressor").length;
-  const compressorBonus = SUBSYSTEM_CONFIGS.fuel_compressor.passiveEffect?.reactionMassBonus ?? 0;
-  const maxFuelCapacity = MAX_REACTION_MASS + compressorCount * compressorBonus;
+  const maxFuelCapacity = getMaxReactionMass(ship.subsystems);
 
   return planMovement(origin, target, {
     mode,

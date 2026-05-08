@@ -1,16 +1,16 @@
-import {
-  type GameState,
-  type PlayerAction,
-  type TurnLogEntry,
-  type CoastAction,
-  type BurnAction,
-  type RotateAction,
-  type AllocateEnergyAction,
-  type DeallocateEnergyAction,
-  type FireWeaponAction,
-  type WellTransferAction,
-  type ShipState,
-  MAX_REACTION_MASS,
+import type {
+  GameState,
+  PlayerAction,
+  TurnLogEntry,
+  CoastAction,
+  BurnAction,
+  RotateAction,
+  AllocateEnergyAction,
+  DeallocateEnergyAction,
+  FireWeaponAction,
+  WellTransferAction,
+  ShipState,
+  RingConfig,
 } from "../models/game.ts";
 import {
   applyOrbitalMovement,
@@ -19,116 +19,35 @@ import {
   completeRingTransfer,
 } from "./movement.ts";
 import { applyDamageWithShields, getWeaponDamage } from "./damage.ts";
+import { getMaxReactionMass } from "./loadout.ts";
 import { rollD10 } from "../utils/rng.ts";
 import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
-  getAdjustmentRange,
-  calculateBurnMassCost,
   mapSectorOnTransfer,
   SECTORS_PER_RING,
 } from "../models/rings.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { fireMissile, getMissileAmmo } from "./missiles.ts";
 import { getGravityWell, TRANSFER_POINTS } from "../models/gravityWells.ts";
-import type { RingConfig } from "../models/game.ts";
 import { addHeat } from "./heat.ts";
 import { resetSubsystemUsage } from "./energy.ts";
-
-/**
- * Compute effective max reaction mass for a ship.
- * Base 10 + 6 per fuel_compressor installed.
- */
-function getMaxReactionMass(ship: ShipState): number {
-  const compressorCount = ship.subsystems.filter(s => s.type === "fuel_compressor").length;
-  return MAX_REACTION_MASS + compressorCount * 6;
-}
+import {
+  validateActionSequence,
+  validateAllocateEnergyAction,
+  validateDeallocateEnergyAction,
+  validateRotateAction,
+  validateCoastAction,
+  validateBurnAction,
+  validateFireWeaponAction,
+  validateWellTransferAction,
+} from "./validators.ts";
 
 export interface ProcessResult {
   success: boolean;
   gameState: GameState;
   logEntries: TurnLogEntry[];
   errors?: string[];
-}
-
-/**
- * Validation functions - these check if actions are valid without modifying state
- */
-
-/**
- * Validate action sequence ordering for tactical actions
- */
-function validateActionSequence(actions: PlayerAction[]): string[] {
-  const errors: string[] = [];
-
-  // Filter tactical actions that should have sequences
-  const tacticalActions = actions.filter(
-    (a) =>
-      a.type === "rotate" ||
-      a.type === "coast" ||
-      a.type === "burn" ||
-      a.type === "fire_weapon" ||
-      a.type === "well_transfer"
-  );
-
-  if (tacticalActions.length === 0) {
-    return []; // No tactical actions, no sequence validation needed
-  }
-
-  // Check all tactical actions have sequence numbers
-  const missingSequence = tacticalActions.filter(
-    (a) => a.sequence === undefined
-  );
-  if (missingSequence.length > 0) {
-    errors.push(
-      `Tactical actions must have sequence numbers (found ${missingSequence.length} without)`
-    );
-    return errors;
-  }
-
-  // Get all sequences and sort them
-  const sequences = tacticalActions
-    .map((a) => a.sequence!)
-    .sort((a, b) => a - b);
-
-  // Check for duplicates
-  const uniqueSequences = new Set(sequences);
-  if (uniqueSequences.size !== sequences.length) {
-    errors.push("Action sequences must be unique (no duplicates)");
-  }
-
-  // Check sequences are continuous starting from 1
-  for (let i = 0; i < sequences.length; i++) {
-    if (sequences[i] !== i + 1) {
-      errors.push(
-        `Action sequences must be continuous starting from 1 (expected ${i + 1}, found ${sequences[i]})`
-      );
-      break;
-    }
-  }
-
-  // Well transfer specific rules
-  const wellTransferAction = tacticalActions.find(
-    (a) => a.type === "well_transfer"
-  );
-  const burnAction = tacticalActions.find((a) => a.type === "burn");
-  const coastAction = tacticalActions.find((a) => a.type === "coast");
-  const moveAction = burnAction || coastAction;
-
-  if (wellTransferAction && burnAction) {
-    errors.push(
-      "Cannot burn while initiating a well transfer (burning is disallowed during well transfers)"
-    );
-  }
-
-  if (wellTransferAction && moveAction) {
-    // Well transfer must happen before the move action
-    if (wellTransferAction.sequence! > moveAction.sequence!) {
-      errors.push("Well transfer must happen before movement (coast) action");
-    }
-  }
-
-  return errors;
 }
 
 /**
@@ -165,362 +84,6 @@ function validateAndProcessActions<T extends PlayerAction>(
   };
 }
 
-function validateAllocateEnergyAction(
-  gameState: GameState,
-  action: AllocateEnergyAction
-): string[] {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-  const errors: string[] = [];
-
-  const subsystem = player.ship.subsystems.find(
-    (s) => s.type === action.data.subsystemType
-  );
-  if (!subsystem) {
-    errors.push(`Subsystem ${action.data.subsystemType} not found`);
-    return errors;
-  }
-
-  // Check reactor has enough available energy
-  if (player.ship.reactor.availableEnergy < action.data.amount) {
-    errors.push(
-      `Not enough energy available (need ${action.data.amount}, have ${player.ship.reactor.availableEnergy})`
-    );
-  }
-
-  // Check absolute maximum
-  const config = getSubsystemConfig(action.data.subsystemType);
-  const newTotal = subsystem.allocatedEnergy + action.data.amount;
-  if (newTotal > config.maxEnergy) {
-    errors.push(
-      `Would exceed ${action.data.subsystemType} absolute maximum capacity (${newTotal}/${config.maxEnergy})`
-    );
-  }
-
-  return errors;
-}
-
-function validateDeallocateEnergyAction(
-  gameState: GameState,
-  action: DeallocateEnergyAction
-): string[] {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-  const errors: string[] = [];
-
-  const subsystem = player.ship.subsystems.find(
-    (s) => s.type === action.data.subsystemType
-  );
-  if (!subsystem) {
-    errors.push(`Subsystem ${action.data.subsystemType} not found`);
-    return errors;
-  }
-
-  // Check subsystem has energy to deallocate
-  if (subsystem.allocatedEnergy === 0) {
-    errors.push(`${action.data.subsystemType} has no energy to deallocate`);
-  }
-
-  // Check we're not trying to deallocate more than available
-  if (action.data.amount > subsystem.allocatedEnergy) {
-    errors.push(
-      `Cannot deallocate ${action.data.amount} from ${action.data.subsystemType} (only ${subsystem.allocatedEnergy} allocated)`
-    );
-  }
-
-  return errors;
-}
-
-function validateRotateAction(
-  gameState: GameState,
-  action: RotateAction
-): string[] {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-  const errors: string[] = [];
-
-  // No rotation needed if already facing that direction
-  if (player.ship.facing === action.data.targetFacing) {
-    errors.push("Already facing that direction");
-    return errors;
-  }
-
-  // Check if rotation subsystem is powered
-  const rotationSubsystem = player.ship.subsystems.find(
-    (s) => s.type === "rotation"
-  );
-  if (!rotationSubsystem) {
-    errors.push("Rotation subsystem not found");
-    return errors;
-  }
-
-  if (rotationSubsystem.allocatedEnergy === 0) {
-    errors.push("Rotation subsystem not powered");
-  }
-
-  if (rotationSubsystem.usedThisTurn) {
-    errors.push("Rotation subsystem already used this turn");
-  }
-
-  return errors;
-}
-
-function validateCoastAction(
-  gameState: GameState,
-  action: CoastAction
-): string[] {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-  const errors: string[] = [];
-
-  // Check scoop energy if scoop is activated
-  if (action.data.activateScoop) {
-    const scoopSubsystem = player.ship.subsystems.find(
-      (s) => s.type === "scoop"
-    );
-    const currentScoopEnergy = scoopSubsystem?.allocatedEnergy || 0;
-    const scoopConfig = getSubsystemConfig("scoop");
-
-    if (currentScoopEnergy < scoopConfig.minEnergy) {
-      errors.push(
-        `Need ${scoopConfig.minEnergy} energy in scoop to activate (have ${currentScoopEnergy})`
-      );
-    }
-  }
-
-  return errors;
-}
-
-function validateBurnAction(
-  gameState: GameState,
-  action: BurnAction
-): string[] {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-  const errors: string[] = [];
-
-  const burnCost = BURN_COSTS[action.data.burnIntensity];
-  const sectorAdjustment = action.data.sectorAdjustment || 0;
-
-  // Check engine energy
-  const enginesSubsystem = player.ship.subsystems.find(
-    (s) => s.type === "engines"
-  );
-  const currentEngineEnergy = enginesSubsystem?.allocatedEnergy || 0;
-
-  if (currentEngineEnergy < burnCost.energy) {
-    errors.push(
-      `Need ${burnCost.energy} energy in engines for ${action.data.burnIntensity} burn (have ${currentEngineEnergy})`
-    );
-  }
-
-  // Get current ring velocity to determine allowed adjustment range
-  const well = getGravityWell(player.ship.wellId);
-  const ringConfig = well?.rings.find((r) => r.ring === player.ship.ring);
-  const velocity = ringConfig?.velocity || 1;
-
-  // Validate sector adjustment range
-  const { min, max } = getAdjustmentRange(velocity);
-  if (sectorAdjustment < min || sectorAdjustment > max) {
-    errors.push(
-      `Sector adjustment ${sectorAdjustment} out of range (${min} to ${max} for velocity ${velocity})`
-    );
-  }
-
-  // Check total reaction mass including adjustment cost
-  const totalMassCost = calculateBurnMassCost(burnCost.mass, sectorAdjustment);
-  if (player.ship.reactionMass < totalMassCost) {
-    errors.push(
-      `Need ${totalMassCost} reaction mass (${burnCost.mass} base + ${Math.abs(sectorAdjustment)} adjustment), have ${player.ship.reactionMass}`
-    );
-  }
-
-  return errors;
-}
-
-function validateFireWeaponAction(
-  gameState: GameState,
-  action: FireWeaponAction
-): string[] {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-  const errors: string[] = [];
-
-  // Find weapon subsystem: use subsystemIndex if provided, otherwise find by type
-  const weaponSubsystem =
-    action.data.subsystemIndex !== undefined
-      ? player.ship.subsystems[action.data.subsystemIndex]
-      : player.ship.subsystems.find((s) => s.type === action.data.weaponType);
-
-  if (!weaponSubsystem || weaponSubsystem.type !== action.data.weaponType) {
-    errors.push(`${action.data.weaponType} not found`);
-    return errors;
-  }
-
-  if (!weaponSubsystem.isPowered) {
-    errors.push(`${action.data.weaponType} not powered`);
-  }
-
-  if (weaponSubsystem.usedThisTurn) {
-    errors.push(`${action.data.weaponType} already used this turn`);
-  }
-
-  // Get weapon config
-  const weaponConfig = getSubsystemConfig(action.data.weaponType);
-  if (!weaponConfig) {
-    errors.push(`Unknown weapon type: ${action.data.weaponType}`);
-    return errors;
-  }
-
-  // Check target count
-  if (action.data.targetPlayerIds.length === 0) {
-    errors.push("Must have at least one target");
-  }
-
-  if (action.data.targetPlayerIds.length > 1) {
-    errors.push(
-      `${action.data.weaponType} can only target 1 player at a time, got ${action.data.targetPlayerIds.length}`
-    );
-  }
-
-  // Check energy cost
-  const totalEnergyCost = weaponConfig.minEnergy;
-  if (weaponSubsystem.allocatedEnergy < totalEnergyCost) {
-    errors.push(
-      `Not enough energy (need ${totalEnergyCost}, have ${weaponSubsystem.allocatedEnergy})`
-    );
-  }
-
-  // Check missile inventory (stored on missiles subsystem)
-  if (action.data.weaponType === "missiles") {
-    if (getMissileAmmo(player.ship.subsystems) <= 0) {
-      errors.push("No missiles remaining");
-    }
-  }
-
-  // Recoil validation (any weapon with hasRecoil)
-  if (weaponConfig.weaponStats?.hasRecoil) {
-    const recoilDirection = player.ship.facing === "prograde" ? 1 : -1;
-    const recoilRing = player.ship.ring + recoilDirection;
-    const maxRing = getGravityWell(player.ship.wellId)?.rings.length ?? 5;
-
-    if (action.data.compensateRecoil) {
-      // Compensation requires engines powered at soft level (1) and not already used
-      const engines = player.ship.subsystems.find(s => s.type === "engines");
-      if (!engines || engines.allocatedEnergy < BURN_COSTS.soft.energy) {
-        errors.push("Engines must be powered (level 1+) to compensate railgun recoil");
-      }
-      if (engines?.usedThisTurn) {
-        errors.push("Engines already used this turn — cannot compensate recoil");
-      }
-      // Compensation also costs 1 reaction mass
-      if (player.ship.reactionMass < BURN_COSTS.soft.mass) {
-        errors.push("Not enough reaction mass to compensate recoil (need 1)");
-      }
-    } else {
-      // No compensation — check if recoil would push ship to invalid ring
-      if (recoilRing < 1) {
-        errors.push("Cannot fire railgun: recoil would push ship into the gravity well (compensate with engines or rotate)");
-      }
-      if (recoilRing > maxRing) {
-        errors.push("Cannot fire railgun: recoil would push ship beyond outermost ring (compensate with engines or rotate)");
-      }
-    }
-  }
-
-  return errors;
-}
-
-function validateWellTransferAction(
-  gameState: GameState,
-  action: WellTransferAction
-): string[] {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-  const errors: string[] = [];
-
-  // Ship must be on outermost ring of current well
-  const currentWell = getGravityWell(player.ship.wellId);
-  if (!currentWell) {
-    errors.push("Current gravity well not found");
-    return errors;
-  }
-
-  const outermostRing = currentWell.rings[currentWell.rings.length - 1];
-  if (player.ship.ring !== outermostRing.ring) {
-    errors.push(
-      `Well transfers can only be initiated from Ring ${outermostRing.ring} (outermost ring of ${currentWell.name || currentWell.id})`
-    );
-    return errors;
-  }
-
-  // Ship cannot already be in transfer
-  if (player.ship.transferState) {
-    errors.push("Cannot initiate well transfer while already in transfer");
-    return errors;
-  }
-
-  // Check if a transfer point exists from current position to destination
-  const transferPoint = TRANSFER_POINTS.find(
-    (tp) =>
-      tp.fromWellId === player.ship.wellId &&
-      tp.fromSector === player.ship.sector &&
-      tp.toWellId === action.data.destinationWellId
-  );
-
-  if (!transferPoint) {
-    errors.push(
-      "No transfer point available from current position to destination well"
-    );
-    return errors;
-  }
-
-  // Check engine level requirement (NEW for elliptic transfers)
-  if (transferPoint.requiredEngineLevel) {
-    const enginesSubsystem = player.ship.subsystems.find(
-      (s) => s.type === "engines"
-    );
-    if (
-      !enginesSubsystem ||
-      enginesSubsystem.allocatedEnergy < transferPoint.requiredEngineLevel
-    ) {
-      errors.push(
-        `Well transfer requires engines at level ${transferPoint.requiredEngineLevel} (current: ${enginesSubsystem?.allocatedEnergy || 0})`
-      );
-      return errors;
-    }
-  }
-
-  // Ship must be facing prograde for well transfers
-  if (player.ship.facing !== "prograde") {
-    errors.push("Ship must be facing prograde to initiate well transfer");
-    return errors;
-  }
-
-  // Check reaction mass
-  if (player.ship.reactionMass < WELL_TRANSFER_COSTS.mass) {
-    errors.push(
-      `Not enough reaction mass for well transfer (need ${WELL_TRANSFER_COSTS.mass}, have ${player.ship.reactionMass})`
-    );
-    return errors;
-  }
-
-  return errors;
-}
 
 /**
  * Process all actions for the active player in the correct order
@@ -738,7 +301,7 @@ function processCoast(
     // Recover reaction mass equal to velocity, capped at effective max
     const massRecovered = Math.min(
       velocity,
-      getMaxReactionMass(updatedShip) - updatedShip.reactionMass
+      getMaxReactionMass(updatedShip.subsystems) - updatedShip.reactionMass
     );
     updatedShip = {
       ...updatedShip,
@@ -764,7 +327,7 @@ function processCoast(
       playerId: player.id,
       playerName: player.name,
       action: "Coast",
-      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ` (scoop recovered ${Math.min(getGravityWell(updatedShip.wellId)?.rings.find((r) => r.ring === updatedShip.ring)?.velocity || 1, getMaxReactionMass(player.ship) - player.ship.reactionMass)} mass)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ""}` : ""}`,
+      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ` (scoop recovered ${Math.min(getGravityWell(updatedShip.wellId)?.rings.find((r) => r.ring === updatedShip.ring)?.velocity || 1, getMaxReactionMass(player.ship.subsystems) - player.ship.reactionMass)} mass)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ""}` : ""}`,
     },
   ];
 
@@ -1049,7 +612,7 @@ function processWellTransfer(
   const hasFuelCompressor = player.ship.subsystems.some(s => s.type === "fuel_compressor");
   const massAfterTransfer = player.ship.reactionMass - WELL_TRANSFER_COSTS.mass;
   const newReactionMass = hasFuelCompressor
-    ? Math.min(massAfterTransfer + WELL_TRANSFER_COSTS.mass, getMaxReactionMass(player.ship))
+    ? Math.min(massAfterTransfer + WELL_TRANSFER_COSTS.mass, getMaxReactionMass(player.ship.subsystems))
     : massAfterTransfer;
 
   // Transfer to destination well immediately
