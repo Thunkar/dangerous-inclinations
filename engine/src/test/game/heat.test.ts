@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   createTestGameState,
   INITIAL_HIT_POINTS,
-} from "../fixtures/gameState";
-import { createCoastAction } from "../fixtures/actions";
-import { executeTurnWithActions } from "../testUtils";
+} from "../fixtures/gameState.ts";
+import { createCoastAction } from "../fixtures/actions.ts";
+import { executeTurnWithActions } from "../testUtils.ts";
 
 /**
  * Heat System Tests
@@ -136,7 +136,7 @@ describe("Heat System", () => {
         data: { burnIntensity: "soft" as const, sectorAdjustment: 0 },
       };
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction,
@@ -174,7 +174,7 @@ describe("Heat System", () => {
         data: { activateScoop: false },
       };
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         rotateAction,
@@ -196,7 +196,7 @@ describe("Heat System", () => {
         data: { subsystemType: "engines" as const, amount: 3 },
       };
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         createCoastAction(),
@@ -238,7 +238,7 @@ describe("Heat System", () => {
         data: { burnIntensity: "soft" as const, sectorAdjustment: 0 },
       };
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateEngines,
         allocateRotation,

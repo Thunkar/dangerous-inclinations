@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import { CreatePlayerSchema, UpdatePlayerSchema } from "../schemas/player.js";
-import { createPlayer, getPlayer, updatePlayerName } from "../services/playerService.js";
-import { findPlayerLobby } from "../services/lobbyService.js";
-import { getGameState } from "../services/gameService.js";
+import { CreatePlayerSchema, UpdatePlayerSchema } from "../schemas/player.ts";
+import { createPlayer, getPlayer, updatePlayerName } from "../services/playerService.ts";
+import { findPlayerLobby } from "../services/lobbyService.ts";
+import { getGameState } from "../services/gameService.ts";
 
 export async function playerRoutes(fastify: FastifyInstance) {
   // Create or authenticate player

@@ -3,13 +3,13 @@ import {
   createTestGameState,
   INITIAL_RING,
   INITIAL_REACTION_MASS,
-} from "../fixtures/gameState";
+} from "../fixtures/gameState.ts";
 import {
   createAllocateEnergyAction,
   createBurnAction,
   createCoastAction,
-} from "../fixtures/actions";
-import { executeTurnWithActions } from "../testUtils";
+} from "../fixtures/actions.ts";
+import { executeTurnWithActions } from "../testUtils.ts";
 
 describe("Multi-Turn Movement", () => {
   describe("Transfer Completion Across Turns", () => {
@@ -24,7 +24,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("soft", "prograde", 0, "player1"); // Soft burn: +1 ring
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -55,7 +55,7 @@ describe("Multi-Turn Movement", () => {
       // Turn 1: Allocate energy and burn retrograde
       const allocateAction = createAllocateEnergyAction("engines", 1);
       const burnAction = createBurnAction("soft", "retrograde", 0);
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -77,7 +77,7 @@ describe("Multi-Turn Movement", () => {
       // Turn 1: Allocate energy and burn (no sector adjustment in new system)
       const allocateAction = createAllocateEnergyAction("engines", 1);
       const burnAction = createBurnAction("soft", "prograde", 0); // No sector adjustment
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -242,7 +242,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("soft", "prograde", 3, "player1"); // +3 adjustment
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -268,7 +268,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("soft", "prograde", -1, "player1"); // -1 adjustment
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -292,7 +292,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("soft", "prograde", 0, "player1"); // No adjustment
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -307,7 +307,7 @@ describe("Multi-Turn Movement", () => {
     });
 
     it("should reject sector adjustment beyond maximum positive range", () => {
-      let gameState = createTestGameState();
+      const gameState = createTestGameState();
       // Ring 3 has velocity=4, so max adjustment is +3
 
       const allocateAction = createAllocateEnergyAction(
@@ -317,7 +317,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("soft", "prograde", 4, "player1"); // +4 is out of range
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -329,7 +329,7 @@ describe("Multi-Turn Movement", () => {
     });
 
     it("should reject sector adjustment beyond maximum negative range", () => {
-      let gameState = createTestGameState();
+      const gameState = createTestGameState();
       // Ring 3 has velocity=4, so min adjustment is -3 (velocity - 1)
 
       const allocateAction = createAllocateEnergyAction(
@@ -339,7 +339,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("soft", "prograde", -4, "player1"); // -4 is out of range
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -351,7 +351,7 @@ describe("Multi-Turn Movement", () => {
     });
 
     it("should reject sector adjustment when insufficient reaction mass", () => {
-      let gameState = createTestGameState();
+      const gameState = createTestGameState();
       gameState.players[0].ship.reactionMass = 3; // Only 3 mass available
 
       const allocateAction = createAllocateEnergyAction(
@@ -361,7 +361,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("soft", "prograde", 3, "player1"); // Needs 1 base + 3 adjustment = 4 mass
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -383,7 +383,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("soft", "prograde", -3, "player1"); // velocity 8, can adjust -7 to +3, -3 is valid
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -399,7 +399,7 @@ describe("Multi-Turn Movement", () => {
     });
 
     it("should limit negative adjustment for low velocity rings", () => {
-      let gameState = createTestGameState();
+      const gameState = createTestGameState();
       gameState.players[0].ship.ring = 5; // Ring 5 has velocity=1
 
       const allocateAction = createAllocateEnergyAction(
@@ -410,7 +410,7 @@ describe("Multi-Turn Movement", () => {
       // velocity 1, can only adjust 0 to +3 (no negative adjustment, must always move at least 1 sector)
       const burnAction = createBurnAction("soft", "prograde", -1, "player1");
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -434,7 +434,7 @@ describe("Multi-Turn Movement", () => {
 
       gameState.players[0].ship.facing = "retrograde"; // Already facing retrograde
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction
@@ -460,7 +460,7 @@ describe("Multi-Turn Movement", () => {
       );
       const burnAction = createBurnAction("medium", "prograde", 2, "player1");
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction

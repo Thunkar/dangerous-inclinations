@@ -9,18 +9,18 @@
  *   // Execute actions using game engine
  */
 
-import type { GameState, PlayerAction } from "../models/game";
+import type { GameState, PlayerAction } from "../models/game.ts";
 import type {
   BotParameters,
   BotDecision,
   BotDecisionLog,
   TacticalSituation,
   ScoredActionPlan,
-} from "./types";
-import { DEFAULT_BOT_PARAMETERS } from "./types";
-import { analyzeTacticalSituation } from "./analyzer";
-import { generateActionCandidates } from "./planner";
-import { selectBestCandidate, evaluateActionPlan } from "./evaluator";
+} from "./types.ts";
+import { DEFAULT_BOT_PARAMETERS } from "./types.ts";
+import { analyzeTacticalSituation } from "./analyzer.ts";
+import { generateActionCandidates } from "./planner.ts";
+import { selectBestCandidate, evaluateActionPlan } from "./evaluator.ts";
 
 /**
  * Main bot decision-making function
@@ -266,7 +266,7 @@ export function createBotParameters(
 }
 
 // Bot loadout selection
-export { selectBotLoadout, BOT_LOADOUT_TEMPLATES } from "./behaviors/loadout";
+export { selectBotLoadout, BOT_LOADOUT_TEMPLATES } from "./behaviors/loadout.ts";
 
 // Re-export types for consumers
 export type {
@@ -276,10 +276,10 @@ export type {
   ScoredActionPlan,
   BotDecision,
   BotDecisionLog,
-} from "./types";
+} from "./types.ts";
 
 // Movement Planner - Multi-turn path planning
-// Note: Import directly from './movementPlanner' to access types to avoid name collisions
+// Note: Import directly from './movementPlanner/index.ts' to access types to avoid name collisions
 export {
   planMovement,
   planMovementAlternatives,
@@ -296,7 +296,7 @@ export {
   getFirstAction,
   canReachTarget,
   estimateTurnsToTarget,
-} from "./movementPlanner";
+} from "./movementPlanner/index.ts";
 
 // Re-export movement planner types with distinct names to avoid collision with models/game.ts
 export type {
@@ -310,4 +310,4 @@ export type {
   MovementActionType,
   SlingshotAnalysis,
   PredecessorInfo,
-} from "./movementPlanner";
+} from "./movementPlanner/index.ts";

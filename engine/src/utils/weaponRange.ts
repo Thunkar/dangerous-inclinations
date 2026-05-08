@@ -1,12 +1,12 @@
-import type { Player, ShipState } from "../models/game";
-import type { WeaponStats, Subsystem } from "../models/subsystems";
-import { getSubsystemConfig } from "../models/subsystems";
-import { SECTORS_PER_RING } from "../models/rings";
+import type { Player, ShipState } from "../models/game.ts";
+import type { WeaponStats, Subsystem } from "../models/subsystems.ts";
+import { getSubsystemConfig } from "../models/subsystems.ts";
+import { SECTORS_PER_RING } from "../models/rings.ts";
 import {
   getSubsystemSide,
   getSideFiringDirection,
   isRingDirectionValid,
-} from "./subsystemHelpers";
+} from "./subsystemHelpers.ts";
 
 export interface FiringSolution {
   targetId: string;

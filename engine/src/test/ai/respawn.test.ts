@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { botDecideActions } from "../../ai/index";
-import { executeTurn } from "../../game/index";
-import { createInitialShipState } from "../../utils/subsystemHelpers";
-import type { GameState, Player } from "../../models/game";
+import { botDecideActions } from "../../ai/index.ts";
+import { executeTurn } from "../../game/index.ts";
+import { createInitialShipState } from "../../utils/subsystemHelpers.ts";
+import type { GameState, Player } from "../../models/game.ts";
+import { testDeterminismDefaults } from "../fixtures/gameState.ts";
 
 function createTestPlayer(
   id: string,
@@ -43,6 +44,7 @@ describe("Bot Respawn Integration", () => {
       missiles: [],
       phase: "active",
       stations: [],
+      ...testDeterminismDefaults(),
     };
 
     // Step 1: Dead bot coasts (engine will respawn)
@@ -112,6 +114,7 @@ describe("Bot Respawn Integration", () => {
       missiles: [],
       phase: "active",
       stations: [],
+      ...testDeterminismDefaults(),
     };
 
     // Dead bot coast → respawn
@@ -178,6 +181,7 @@ describe("Bot Respawn Integration", () => {
       missiles: [],
       phase: "active",
       stations: [],
+      ...testDeterminismDefaults(),
     };
 
     // Dead bot coast → respawn
@@ -233,6 +237,7 @@ describe("Bot Respawn Integration", () => {
       missiles: [],
       phase: "active",
       stations: [],
+      ...testDeterminismDefaults(),
     };
 
     for (let cycle = 0; cycle < 3; cycle++) {

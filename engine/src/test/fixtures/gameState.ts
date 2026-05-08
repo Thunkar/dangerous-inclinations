@@ -2,11 +2,12 @@ import {
   STARTING_REACTION_MASS,
   type GameState,
   type Player,
-} from "../../models/game";
+} from "../../models/game.ts";
 import {
   createInitialShipState,
   DEFAULT_HIT_POINTS,
-} from "../../utils/subsystemHelpers";
+} from "../../utils/subsystemHelpers.ts";
+import { createDeterminismFields } from "../../utils/rng.ts";
 
 // Initial state constants for easy reference in tests
 export const INITIAL_RING = 3;
@@ -60,6 +61,9 @@ export function createTestGameState(): GameState {
     hasSubmittedLoadout: true,
   };
 
+  // Default test state pins d10 rolls to 5 (normal hit) so non-RNG-aware tests
+  // remain stable. Tests that need a different forced value can set it on the
+  // returned state, or override per call (via the explicit `roll` arg).
   return {
     turn: 1,
     activePlayerIndex: 0,
@@ -68,5 +72,20 @@ export function createTestGameState(): GameState {
     missiles: [], // No missiles in flight initially
     phase: "active",
     stations: [],
+    ...testDeterminismDefaults(),
   };
+}
+
+/**
+ * Determinism defaults for inline test GameStates: stable seed + forced d10=5.
+ * Spread this into any test-constructed GameState to satisfy the type and keep
+ * legacy tests deterministic.
+ */
+export function testDeterminismDefaults(seed: number = 0xdeadbeef): {
+  rngSeed: number;
+  rngState: number;
+  nextEntityId: number;
+  forcedRollValue: number;
+} {
+  return { ...createDeterminismFields(seed), forcedRollValue: 5 };
 }

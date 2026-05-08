@@ -6,14 +6,14 @@ import type {
   FireWeaponAction,
   RotateAction,
   BurnAction,
-} from "../models/game";
-import { getSubsystemConfig } from "../models/subsystems";
+} from "../models/game.ts";
+import { getSubsystemConfig } from "../models/subsystems.ts";
 import {
   BURN_COSTS,
   getAdjustmentRange,
   calculateBurnMassCost,
-} from "../models/rings";
-import { getGravityWell } from "../models/gravityWells";
+} from "../models/rings.ts";
+import { getGravityWell } from "../models/gravityWells.ts";
 
 export interface ValidationResult {
   valid: boolean;

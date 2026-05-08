@@ -1,6 +1,6 @@
-import type { Player, PlayerAction, GravityWellId } from '../models/game'
-import type { SubsystemType } from '../models/subsystems'
-import type { FiringSolution } from '../utils/weaponRange'
+import type { Player, PlayerAction, GravityWellId } from '../models/game.ts'
+import type { SubsystemType } from '../models/subsystems.ts'
+import type { FiringSolution } from '../utils/weaponRange.ts'
 
 /**
  * Dynamic subsystem status - works with any loadout

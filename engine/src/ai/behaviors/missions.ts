@@ -1,8 +1,8 @@
-import type { Player, GameState } from '../../models/game'
-import { isDestroyShipMission, isDeliverCargoMission } from '../../models/missions'
-import type { BotGoal } from '../types'
-import { estimateTurnsToTarget } from '../movementPlanner'
-import { getStationForPlanet, STATION_CONSTANTS } from '../../game/stations'
+import type { Player, GameState } from '../../models/game.ts'
+import { isDestroyShipMission, isDeliverCargoMission } from '../../models/missions.ts'
+import type { BotGoal } from '../types.ts'
+import { estimateTurnsToTarget } from '../movementPlanner/index.ts'
+import { getStationForPlanet, STATION_CONSTANTS } from '../../game/stations.ts'
 
 /**
  * Predict where a station will be after a certain number of turns.

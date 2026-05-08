@@ -2,16 +2,16 @@ import type {
   PlayerAction,
   AllocateEnergyAction,
   DeallocateEnergyAction,
-} from '../models/game'
-import type { SubsystemType } from '../models/subsystems'
-import type { TacticalSituation, ActionPlan, BotParameters } from './types'
-import { selectTarget, generateWeaponActions, shouldFaceTarget } from './behaviors/combat'
+} from '../models/game.ts'
+import type { SubsystemType } from '../models/subsystems.ts'
+import type { TacticalSituation, ActionPlan, BotParameters } from './types.ts'
+import { selectTarget, generateWeaponActions, shouldFaceTarget } from './behaviors/combat.ts'
 import {
   planMovementAction,
   generateRotationAction,
   generateEscapeTransfer,
-} from './behaviors/positioning'
-import { generateEnergyManagement, generateEnergyDeallocation } from './behaviors/survival'
+} from './behaviors/positioning.ts'
+import { generateEnergyManagement, generateEnergyDeallocation } from './behaviors/survival.ts'
 
 /**
  * Calculate projected energy for a subsystem after planned allocations AND deallocations

@@ -1,6 +1,6 @@
-import type { ShipState } from "../../models/game";
-import { DEFAULT_LOADOUT } from "../../models/game";
-import { createInitialShipState } from "../../utils/subsystemHelpers";
+import type { ShipState } from "../../models/game.ts";
+import { DEFAULT_LOADOUT } from "../../models/game.ts";
+import { createInitialShipState } from "../../utils/subsystemHelpers.ts";
 
 /**
  * Creates a basic ship for testing with minimal configuration.

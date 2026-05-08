@@ -1,19 +1,20 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { applyOrbitalMovement } from "../../game/movement";
-import { processActions } from "../../game/actionProcessors";
+import { applyOrbitalMovement } from "../../game/movement.ts";
+import { processActions } from "../../game/actionProcessors.ts";
 import {
   calculateTransferPoints,
   getAvailableWellTransfers,
-} from "../../models/transferPoints";
-import { GRAVITY_WELLS, TRANSFER_POINTS } from "../../models/gravityWells";
+} from "../../models/transferPoints.ts";
+import { GRAVITY_WELLS, TRANSFER_POINTS } from "../../models/gravityWells.ts";
 import type {
   ShipState,
   TransferPoint,
   GameState,
   WellTransferAction,
   CoastAction,
-} from "../../models/game";
-import { createInitialShipState } from "../../utils/subsystemHelpers";
+} from "../../models/game.ts";
+import { createInitialShipState } from "../../utils/subsystemHelpers.ts";
+import { testDeterminismDefaults } from "../fixtures/gameState.ts";
 
 describe("Well Transfers", () => {
   // Helper to create a test ship
@@ -52,6 +53,7 @@ describe("Well Transfers", () => {
       missiles: [],
       phase: "active",
       stations: [],
+      ...testDeterminismDefaults(),
     };
   }
 

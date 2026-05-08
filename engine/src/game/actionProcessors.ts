@@ -11,14 +11,15 @@ import {
   type WellTransferAction,
   type ShipState,
   MAX_REACTION_MASS,
-} from "../models/game";
+} from "../models/game.ts";
 import {
   applyOrbitalMovement,
   initiateBurn,
   applyRotation,
   completeRingTransfer,
-} from "./movement";
-import { applyDamageWithShields, getWeaponDamage } from "./damage";
+} from "./movement.ts";
+import { applyDamageWithShields, getWeaponDamage } from "./damage.ts";
+import { rollD10 } from "../utils/rng.ts";
 import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
@@ -26,13 +27,13 @@ import {
   calculateBurnMassCost,
   mapSectorOnTransfer,
   SECTORS_PER_RING,
-} from "../models/rings";
-import { getSubsystemConfig } from "../models/subsystems";
-import { fireMissile, getMissileAmmo } from "./missiles";
-import { getGravityWell, TRANSFER_POINTS } from "../models/gravityWells";
-import type { RingConfig } from "../models/game";
-import { addHeat } from "./heat";
-import { resetSubsystemUsage } from "./energy";
+} from "../models/rings.ts";
+import { getSubsystemConfig } from "../models/subsystems.ts";
+import { fireMissile, getMissileAmmo } from "./missiles.ts";
+import { getGravityWell, TRANSFER_POINTS } from "../models/gravityWells.ts";
+import type { RingConfig } from "../models/game.ts";
+import { addHeat } from "./heat.ts";
+import { resetSubsystemUsage } from "./energy.ts";
 
 /**
  * Compute effective max reaction mass for a ship.
@@ -1185,7 +1186,7 @@ function processFireWeapon(
   const damage = getWeaponDamage(action.data.weaponType);
 
   // Apply damage to each target
-  let updatedPlayers = [...gameState.players];
+  const updatedPlayers = [...gameState.players];
 
   // Update attacker's ship first (mark specific weapon instance used, generate heat)
   let updatedAttackerShip = {
@@ -1211,11 +1212,12 @@ function processFireWeapon(
 
     // Apply damage with d10 hit resolution
     // Pass attacker ship to calculate critical chance (sensor array bonus)
+    const damageRoll = rollD10(gameState);
     const { ship: updatedTargetShip, hitResult } = applyDamageWithShields(
       target.ship,
       damage,
       action.data.criticalTarget,
-      undefined, // Let the function roll the d10
+      damageRoll,
       updatedAttackerShip
     );
     updatedPlayers[targetIndex] = { ...target, ship: updatedTargetShip };

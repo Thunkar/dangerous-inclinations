@@ -1,8 +1,8 @@
-import type { FireWeaponAction } from '../../models/game'
-import type { TacticalSituation, Target, BotParameters, SubsystemStatus } from '../types'
-import { SUBSYSTEM_CONFIGS } from '../../models/subsystems'
-import { BURN_COSTS } from '../../models/rings'
-import { getGravityWell } from '../../models/gravityWells'
+import type { FireWeaponAction } from '../../models/game.ts'
+import type { TacticalSituation, Target, BotParameters, SubsystemStatus } from '../types.ts'
+import { SUBSYSTEM_CONFIGS } from '../../models/subsystems.ts'
+import { BURN_COSTS } from '../../models/rings.ts'
+import { getGravityWell } from '../../models/gravityWells.ts'
 
 /**
  * Select best target based on parameters

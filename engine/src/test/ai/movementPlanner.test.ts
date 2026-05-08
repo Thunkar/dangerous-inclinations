@@ -6,8 +6,8 @@ import {
   getPredecessors,
   getReachablePositions,
   positionsMatch,
-} from '../../ai/movementPlanner'
-import type { OrientedPosition, OrbitalPosition } from '../../ai/movementPlanner/types'
+} from '../../ai/movementPlanner/index.ts'
+import type { OrientedPosition, OrbitalPosition } from '../../ai/movementPlanner/types.ts'
 
 describe('Movement Planner', () => {
   describe('Predecessors', () => {

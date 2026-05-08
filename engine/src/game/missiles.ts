@@ -1,10 +1,11 @@
-import type { GameState, Missile, Player, TurnLogEntry, ShipState } from "../models/game";
-import type { ProcessResult } from "./actionProcessors";
-import { getGravityWell } from "../models/gravityWells";
-import { applyOrbitalMovement } from "./movement";
-import { applyDamageWithShields, rollD10 } from "./damage";
-import { getMissileStats } from "../models/subsystems";
-import { addHeat } from "./heat";
+import type { GameState, Missile, Player, TurnLogEntry, ShipState } from "../models/game.ts";
+import type { ProcessResult } from "./actionProcessors.ts";
+import { getGravityWell } from "../models/gravityWells.ts";
+import { applyOrbitalMovement } from "./movement.ts";
+import { applyDamageWithShields } from "./damage.ts";
+import { getMissileStats } from "../models/subsystems.ts";
+import { addHeat } from "./heat.ts";
+import { rollD10, nextEntityId } from "../utils/rng.ts";
 
 // Get missile stats from centralized config
 const MISSILE_STATS = getMissileStats();
@@ -157,12 +158,15 @@ export function checkMissileHit(missile: Missile, target: Player): boolean {
 /**
  * Attempt to intercept a missile using the target ship's ballistic rack (PDC).
  * Finds the first available (powered, not broken, not used) ballistic rack
- * and rolls d10: 2-10 = intercept, 1 = miss.
+ * and rolls d10 against the supplied GameState: 2-10 = intercept, 1 = miss.
  *
+ * @param targetShip Ship attempting interception
+ * @param state GameState — its rngState is mutated when a roll is consumed
  * @returns Object with interception result, rack index, and roll value
  */
 export function attemptMissileInterception(
   targetShip: ShipState,
+  state: GameState,
 ): { intercepted: boolean; rackIndex: number | null; roll: number } {
   // Find first available ballistic rack
   const rackIndex = targetShip.subsystems.findIndex(
@@ -178,7 +182,7 @@ export function attemptMissileInterception(
   }
 
   // Roll d10: 2-10 = intercept, 1 = miss
-  const roll = rollD10();
+  const roll = rollD10(state);
   const intercepted = roll >= 2;
 
   return { intercepted, rackIndex, roll };
@@ -278,7 +282,7 @@ export function processMissiles(
       const currentTarget = updatedPlayers[targetIndex];
 
       // PDC Interception: attempt to intercept with ballistic rack before damage
-      const interception = attemptMissileInterception(currentTarget.ship);
+      const interception = attemptMissileInterception(currentTarget.ship, updatedGameState);
 
       if (interception.rackIndex !== null) {
         // A ballistic rack attempted interception — mark it used and generate heat
@@ -325,11 +329,12 @@ export function processMissiles(
       // Pass owner's ship for critical chance calculation (sensor array bonus)
       // Re-read current target state (may have been updated by PDC attempt)
       const latestTarget = updatedPlayers[targetIndex];
+      const damageRoll = rollD10(updatedGameState);
       const { ship: damagedShip, hitResult } = applyDamageWithShields(
         latestTarget.ship,
         MISSILE_STATS.damage,
         "shields",
-        undefined, // Let the function roll the d10
+        damageRoll,
         owner.ship // Pass owner's ship for critical chance calculation
       );
       updatedPlayers[targetIndex] = {
@@ -473,7 +478,7 @@ export function fireMissile(
   }
 
   // Create missile at ship's position
-  const missileId = `missile-${ownerId}-${gameState.turn}-${Date.now()}`;
+  const missileId = nextEntityId(gameState, `missile-${ownerId}`);
   const missile: Missile = {
     id: missileId,
     ownerId,

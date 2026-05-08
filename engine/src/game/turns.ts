@@ -1,18 +1,18 @@
-import type { GameState, TurnLogEntry, PlayerAction } from "../models/game";
-import { processActions } from "./actionProcessors";
-import { processMissiles } from "./missiles";
-import { calculateHeatDamage, resetHeat } from "./heat";
-import { applyDirectDamage } from "./damage";
+import type { GameState, TurnLogEntry, PlayerAction } from "../models/game.ts";
+import { processActions } from "./actionProcessors.ts";
+import { processMissiles } from "./missiles.ts";
+import { calculateHeatDamage, resetHeat } from "./heat.ts";
+import { applyDirectDamage } from "./damage.ts";
 import {
   processDestroyMissionCompletion,
   processCargoMissionCompletion,
   processInterceptScans,
   checkForWinner,
-} from "./missions/missionChecks";
-import { processCargoAtStation } from "./cargo";
-import { updateStationPositions } from "./stations";
-import { processRespawn, needsRespawn } from "./respawn";
-import { GRAVITY_WELLS } from "../models/gravityWells";
+} from "./missions/missionChecks.ts";
+import { processCargoAtStation } from "./cargo.ts";
+import { updateStationPositions } from "./stations.ts";
+import { processRespawn, needsRespawn } from "./respawn.ts";
+import { GRAVITY_WELLS } from "../models/gravityWells.ts";
 
 /**
  * Result of executing a complete game turn
@@ -257,9 +257,9 @@ export function executeTurn(
   }
 
   // Move to next player
-  let nextPlayerIndex =
+  const nextPlayerIndex =
     (workingState.activePlayerIndex + 1) % updatedGameState.players.length;
-  let isNewRound = nextPlayerIndex === 0;
+  const isNewRound = nextPlayerIndex === 0;
 
   // Update station positions at the end of each round
   if (isNewRound && updatedGameState.stations.length > 0) {

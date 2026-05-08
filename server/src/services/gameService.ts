@@ -1,4 +1,4 @@
-import { getRedis } from "./redis.js";
+import { getRedis } from "./redis.ts";
 import type {
   GameState,
   PlayerAction,
@@ -21,9 +21,16 @@ import {
   DEFAULT_LOADOUT,
   createSubsystemsFromLoadout,
   calculateShipStatsFromLoadout,
+  createDeterminismFields,
+  Rng,
 } from "@dangerous-inclinations/engine";
-import { getPlayer } from "./playerService.js";
-import { broadcastToRoom } from "../websocket/roomHandler.js";
+import { getPlayer } from "./playerService.ts";
+import { broadcastToRoom } from "../websocket/roomHandler.ts";
+import {
+  appendTurn,
+  finalizeRecording,
+  initRecording,
+} from "./recordingService.ts";
 import type { DeploymentResult } from "@dangerous-inclinations/engine";
 
 const GAME_KEY_PREFIX = "game:";
@@ -59,8 +66,14 @@ export async function createGame(
   // Get planets for mission generation
   const planets = GRAVITY_WELLS.filter((well) => well.type === "planet");
 
+  // Initialize determinism fields with a fresh seed; the seed is captured on
+  // GameState so the rest of the game (mission deal, d10 rolls, respawns) is
+  // reproducible from this point.
+  const determinism = createDeterminismFields();
+  const rng = new Rng(determinism.rngState);
+
   // Deal 5 mission offers per player — they pick 3 during loadout
-  const { playerOffers } = dealMissionOffers(players, planets);
+  const { playerOffers } = dealMissionOffers(players, planets, rng);
 
   // Update players with their mission offers (missions stay empty until loadout submitted)
   const playersWithMissions = players.map((player) => ({
@@ -81,6 +94,9 @@ export async function createGame(
     missiles: [],
     phase: "loadout", // Start in loadout phase (players choose subsystems)
     stations,
+    rngSeed: determinism.rngSeed,
+    rngState: rng.state, // mission deal advanced the RNG; persist the new state
+    nextEntityId: determinism.nextEntityId,
   };
 
   await saveGameState(gameId, initialState);
@@ -151,6 +167,20 @@ export async function processPlayerTurn(
 
   const newState = turnResult.gameState;
   await saveGameState(gameId, newState);
+
+  // Append the turn to the live recording (no-op if no recording yet).
+  await appendTurn(gameId, {
+    turnNumber,
+    playerId,
+    actions,
+    resultingState: newState,
+    logEntries: turnResult.logEntries,
+  });
+
+  // If the game just ended, archive the recording to disk.
+  if (newState.phase === "ended" && currentState.phase === "active") {
+    await finalizeRecording(gameId, newState, "victory");
+  }
 
   return { success: true, gameState: newState, turnNumber };
 }
@@ -235,6 +265,7 @@ export async function executeBotsIfNeeded(
       }
     }
 
+    const previousPhase = state.phase;
     state = result.gameState;
 
     // Broadcast bot turn with actions for animations
@@ -253,6 +284,20 @@ export async function executeBotsIfNeeded(
     );
 
     await saveGameState(gameId, state);
+
+    // Record this bot's turn.
+    await appendTurn(gameId, {
+      turnNumber,
+      playerId: botPlayerId,
+      actions: botDecision.actions,
+      resultingState: state,
+      logEntries: result.logEntries,
+    });
+
+    // If a bot's turn just won the game, archive the recording.
+    if (state.phase === "ended" && previousPhase === "active") {
+      await finalizeRecording(gameId, state, "victory");
+    }
   }
 
   return state;
@@ -357,6 +402,12 @@ export async function processDeployment(
   if (checkAllDeployed(finalState)) {
     finalState = transitionToActivePhase(finalState);
     await saveGameState(gameId, finalState);
+
+    // Start recording from the post-deployment state. Replays/scrubbing then
+    // begin at "active" — no need to reproduce loadout or deployment.
+    if (humanPlayerIds) {
+      await initRecording(gameId, finalState, humanPlayerIds);
+    }
 
     // Broadcast the transition to active phase
     broadcastToRoom(
@@ -565,7 +616,7 @@ export async function submitLoadoutAndCheckReady(
   selectedMissionIds?: string[]
 ): Promise<LoadoutResult> {
   // First, submit the loadout (with mission selection)
-  let result = await submitLoadout(gameId, playerId, loadout, selectedMissionIds);
+  const result = await submitLoadout(gameId, playerId, loadout, selectedMissionIds);
   if (!result.success) {
     return result;
   }

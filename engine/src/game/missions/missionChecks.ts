@@ -5,7 +5,7 @@
  * Called after relevant game events (ship destruction, cargo delivery).
  */
 
-import type { GameState, Player, Station } from "../../models/game";
+import type { GameState, Player, Station } from "../../models/game.ts";
 import type {
   Mission,
   DestroyShipMission,
@@ -13,12 +13,12 @@ import type {
   InterceptTransmissionMission,
   MissionCheckResult,
   Cargo,
-} from "../../models/missions";
+} from "../../models/missions.ts";
 import {
   isDestroyShipMission,
   isDeliverCargoMission,
   isInterceptTransmissionMission,
-} from "../../models/missions";
+} from "../../models/missions.ts";
 
 /** Sectors in outermost ring (Ring 5 transfer ring; Ring 3 is used for intercept range) */
 const INTERCEPT_SECTOR_RANGE = 3;
@@ -322,7 +322,7 @@ export function checkPlayerMissions(
   player: Player,
   gameState: GameState
 ): MissionCheckResult {
-  let newlyCompleted: Mission[] = [];
+  const newlyCompleted: Mission[] = [];
   let totalCompleted = 0;
 
   const updatedMissions = player.missions.map((mission) => {

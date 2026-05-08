@@ -1,4 +1,4 @@
-import { SubsystemType } from "./subsystems";
+import type { SubsystemType } from "./subsystems.ts";
 
 /**
  * D10 hit roll result
@@ -134,20 +134,22 @@ export function calculateWeaponRange(
       withinArc = true;
       break;
 
-    case "forward":
+    case "forward": {
       // Fires tangent to orbit in direction of travel
       // Prograde = +90° (clockwise from radial), Retrograde = -90° (counter-clockwise)
       arcCenter = attackerFacing === "prograde" ? 90 : -90;
       const degreesFromForward = Math.abs(relativeAngle - arcCenter);
       withinArc = degreesFromForward <= weapon.rangeInDegrees / 2;
       break;
+    }
 
-    case "aft":
+    case "aft": {
       // Fires tangent to orbit opposite to direction of travel
       arcCenter = attackerFacing === "prograde" ? -90 : 90;
       const degreesFromAft = Math.abs(relativeAngle - arcCenter);
       withinArc = degreesFromAft <= weapon.rangeInDegrees / 2;
       break;
+    }
   }
 
   // Step 6: Final check - within arc AND within range

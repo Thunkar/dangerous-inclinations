@@ -5,16 +5,16 @@ import {
   calculateShipStatsFromLoadout,
   hasSubsystemInLoadout,
   getEffectiveCriticalChance,
-} from "../../game/loadout";
-import type { ShipLoadout } from "../../models/game";
+} from "../../game/loadout.ts";
+import type { ShipLoadout } from "../../models/game.ts";
 import {
   DEFAULT_LOADOUT,
   BASE_CRITICAL_CHANCE,
   DEFAULT_DISSIPATION_CAPACITY,
   STARTING_REACTION_MASS,
-} from "../../models/game";
-import type { Subsystem } from "../../models/subsystems";
-import { SUBSYSTEM_CONFIGS } from "../../models/subsystems";
+} from "../../models/game.ts";
+import type { Subsystem } from "../../models/subsystems.ts";
+import { SUBSYSTEM_CONFIGS } from "../../models/subsystems.ts";
 
 describe("Loadout System", () => {
   describe("validateLoadout", () => {

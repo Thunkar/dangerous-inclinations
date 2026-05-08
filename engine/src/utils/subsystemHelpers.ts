@@ -3,14 +3,14 @@ import type {
   SubsystemType,
   ReactorState,
   HeatState,
-} from "../models/subsystems";
-import type { ShipState, ShipLoadout, Facing } from "../models/game";
-import { getMissileStats } from "../models/subsystems";
-import { DEFAULT_LOADOUT } from "../models/game";
+} from "../models/subsystems.ts";
+import type { ShipState, ShipLoadout, Facing } from "../models/game.ts";
+import { getMissileStats } from "../models/subsystems.ts";
+import { DEFAULT_LOADOUT } from "../models/game.ts";
 import {
   createSubsystemsFromLoadout,
   calculateShipStatsFromLoadout,
-} from "../game/loadout";
+} from "../game/loadout.ts";
 
 // Constants for ship initialization
 export const DEFAULT_HIT_POINTS = 10;

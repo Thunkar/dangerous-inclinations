@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { getGameState, processDeployment, submitLoadoutAndCheckReady } from "../services/gameService.js";
-import { getHumanPlayerIds } from "../services/lobbyService.js";
+import { getGameState, processDeployment, submitLoadoutAndCheckReady } from "../services/gameService.ts";
+import { getHumanPlayerIds } from "../services/lobbyService.ts";
 import type { ShipLoadout } from "@dangerous-inclinations/engine";
 
 export async function gameRoutes(fastify: FastifyInstance) {

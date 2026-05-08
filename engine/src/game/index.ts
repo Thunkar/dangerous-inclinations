@@ -13,7 +13,7 @@ export {
   markSubsystemUsed,
   getSubsystem,
   resetSubsystemUsage,
-} from "./energy";
+} from "./energy.ts";
 
 // Heat management
 export {
@@ -22,10 +22,10 @@ export {
   addHeat,
   generateHeatFromSubsystemUse,
   calculateProjectedHeat,
-} from "./heat";
+} from "./heat.ts";
 
 // Movement and orbital mechanics
-export { applyOrbitalMovement } from "./movement";
+export { applyOrbitalMovement } from "./movement.ts";
 
 // Damage and hit resolution
 export {
@@ -35,25 +35,14 @@ export {
   isShipDestroyed,
   applyDamageWithShields,
   applyCriticalHit,
-  rollD10,
   rollToResult,
-} from "./damage";
+} from "./damage.ts";
 
 // Turn management
-export { executeTurn, type TurnResult } from "./turns";
-
-// Configuration (for testing)
-export {
-  getGameConfig,
-  setGameConfig,
-  resetGameConfig,
-  enableDeterministicMode,
-  disableDeterministicMode,
-  type GameConfig,
-} from "./config";
+export { executeTurn, type TurnResult } from "./turns.ts";
 
 // Mission system
-export * from "./missions";
+export * from "./missions/index.ts";
 
 // Station system
 export {
@@ -64,7 +53,7 @@ export {
   getStationForPlanet,
   isShipAtStation,
   getStationsAtShipPosition,
-} from "./stations";
+} from "./stations.ts";
 
 // Cargo system
 export {
@@ -77,7 +66,7 @@ export {
   getNextStationForCargo,
   getCargoMissionStatus,
   type CargoProcessResult,
-} from "./cargo";
+} from "./cargo.ts";
 
 // Respawn system
 export {
@@ -89,7 +78,7 @@ export {
   processRespawn,
   getRespawnInfo,
   type RespawnInfo,
-} from "./respawn";
+} from "./respawn.ts";
 
 // Deployment system
 export {
@@ -103,4 +92,4 @@ export {
   transitionToActivePhase,
   getDeploymentStatus,
   type DeploymentResult,
-} from "./deployment";
+} from "./deployment.ts";

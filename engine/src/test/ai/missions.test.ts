@@ -3,10 +3,11 @@ import {
   computeMissionGoals,
   selectCurrentGoal,
   predictStationPosition,
-} from '../../ai/behaviors/missions'
-import type { Player, GameState } from '../../models/game'
-import type { Mission } from '../../models/missions'
-import { createInitialShipState } from '../../utils/subsystemHelpers'
+} from '../../ai/behaviors/missions.ts'
+import type { Player, GameState } from '../../models/game.ts'
+import type { Mission } from '../../models/missions.ts'
+import { createInitialShipState } from '../../utils/subsystemHelpers.ts'
+import { testDeterminismDefaults } from '../fixtures/gameState.ts'
 
 /**
  * Helper to create a minimal game state
@@ -24,6 +25,7 @@ function createTestGameState(players: Player[]): GameState {
       { id: 'station-beta', planetId: 'beta', ring: 1, sector: 0 },
       { id: 'station-gamma', planetId: 'gamma', ring: 1, sector: 0 },
     ],
+    ...testDeterminismDefaults(),
   }
 }
 

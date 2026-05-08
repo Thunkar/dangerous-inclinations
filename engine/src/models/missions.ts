@@ -6,7 +6,7 @@
  * First player to complete all 3 missions wins.
  */
 
-import { Player } from "./game";
+import type { Player } from "./game.ts";
 
 export type MissionType = "destroy_ship" | "deliver_cargo" | "intercept_transmission";
 

@@ -1,5 +1,5 @@
-import type { PlayerAction } from '../models/game'
-import type { ActionPlan, ScoredActionPlan, TacticalSituation, BotParameters } from './types'
+import type { PlayerAction } from '../models/game.ts'
+import type { ActionPlan, ScoredActionPlan, TacticalSituation, BotParameters } from './types.ts'
 
 /**
  * Evaluate offense score - damage potential

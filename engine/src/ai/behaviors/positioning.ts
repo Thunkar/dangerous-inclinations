@@ -3,12 +3,12 @@ import type {
   BurnAction,
   RotateAction,
   WellTransferAction,
-} from '../../models/game'
-import type { TacticalSituation, Target, BotParameters } from '../types'
-import { planFromShip, getFirstAction } from '../movementPlanner'
-import type { OrbitalPosition } from '../movementPlanner'
-import { MAX_REACTION_MASS } from '../../models/game'
-import { SUBSYSTEM_CONFIGS } from '../../models/subsystems'
+} from '../../models/game.ts'
+import type { TacticalSituation, Target, BotParameters } from '../types.ts'
+import { planFromShip, getFirstAction } from '../movementPlanner/index.ts'
+import type { OrbitalPosition } from '../movementPlanner/index.ts'
+import { MAX_REACTION_MASS } from '../../models/game.ts'
+import { SUBSYSTEM_CONFIGS } from '../../models/subsystems.ts'
 
 /**
  * Result of movement planning that informs energy allocation

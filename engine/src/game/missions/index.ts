@@ -12,13 +12,13 @@ export type {
   Mission,
   Cargo,
   MissionCheckResult,
-} from "../../models/missions";
+} from "../../models/missions.ts";
 
 export {
   isDestroyShipMission,
   isDeliverCargoMission,
   isInterceptTransmissionMission,
-} from "../../models/missions";
+} from "../../models/missions.ts";
 
 // Mission deck and dealing
 export {
@@ -30,7 +30,7 @@ export {
   getCargoMissions,
   type DealMissionsResult,
   type DealMissionOffersResult,
-} from "./missionDeck";
+} from "./missionDeck.ts";
 
 // Mission completion checks
 export {
@@ -41,4 +41,4 @@ export {
   checkPlayerMissions,
   checkForWinner,
   getMissionProgress,
-} from "./missionChecks";
+} from "./missionChecks.ts";

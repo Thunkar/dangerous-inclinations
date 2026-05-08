@@ -7,10 +7,11 @@
  * Ship resets: HP, subsystems, heat, reaction mass
  */
 
-import type { GameState, Player, ShipState, ShipLoadout } from "../models/game";
-import { DEFAULT_LOADOUT } from "../models/game";
-import { createInitialShipState } from "../utils/subsystemHelpers";
-import type { Cargo } from "../models/missions";
+import type { GameState, Player, ShipState, ShipLoadout } from "../models/game.ts";
+import { DEFAULT_LOADOUT } from "../models/game.ts";
+import { createInitialShipState } from "../utils/subsystemHelpers.ts";
+import { pickIndex } from "../utils/rng.ts";
+import type { Cargo } from "../models/missions.ts";
 
 /**
  * Respawn constants
@@ -52,8 +53,8 @@ export function findAvailableRespawnSector(gameState: GameState): number {
     return 0;
   }
 
-  // Return a random available sector
-  return availableSectors[Math.floor(Math.random() * availableSectors.length)];
+  // Return a deterministic random available sector using GameState's seeded RNG
+  return availableSectors[pickIndex(gameState, availableSectors)];
 }
 
 /**

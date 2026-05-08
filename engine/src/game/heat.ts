@@ -1,6 +1,6 @@
-import type { ShipState } from "../models/game";
-import type { Subsystem } from "../models/subsystems";
-import { getHeatOnUse } from "../models/subsystems";
+import type { ShipState } from "../models/game.ts";
+import type { Subsystem } from "../models/subsystems.ts";
+import { getHeatOnUse } from "../models/subsystems.ts";
 
 /**
  * Calculate heat damage at start of turn

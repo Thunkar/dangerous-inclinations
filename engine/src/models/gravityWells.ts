@@ -1,5 +1,5 @@
-import type { GravityWell, RingConfig, TransferPoint } from "./game";
-import { calculateTransferPoints } from "./transferPoints";
+import type { GravityWell, RingConfig, TransferPoint } from "./game.ts";
+import { calculateTransferPoints } from "./transferPoints.ts";
 
 /**
  * Black hole ring configuration - 5 rings with variable velocity

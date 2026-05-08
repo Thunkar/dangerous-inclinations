@@ -1,17 +1,17 @@
-import type { Facing } from "../../models/game";
-import { MAX_REACTION_MASS } from "../../models/game";
+import type { Facing } from "../../models/game.ts";
+import { MAX_REACTION_MASS } from "../../models/game.ts";
 import {
   BURN_COSTS,
   SECTORS_PER_RING,
   getAdjustmentRange,
   WELL_TRANSFER_COSTS,
-} from "../../models/rings";
+} from "../../models/rings.ts";
 import {
   getGravityWell,
   getRingConfigForWell,
   TRANSFER_POINTS,
-} from "../../models/gravityWells";
-import { getPredecessors } from "./predecessors";
+} from "../../models/gravityWells.ts";
+import { getPredecessors } from "./predecessors.ts";
 import type {
   OrbitalPosition,
   OrientedPosition,
@@ -21,8 +21,8 @@ import type {
   PlannerMode,
   SearchNode,
   MovementAlternatives,
-} from "./types";
-import { positionKey, positionsMatch } from "./types";
+} from "./types.ts";
+import { positionKey, positionsMatch } from "./types.ts";
 
 /**
  * Default planner options

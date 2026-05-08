@@ -3,9 +3,9 @@ import type {
   SubsystemType,
   ReactorState,
   HeatState,
-} from "./subsystems";
+} from "./subsystems.ts";
 
-import type { Mission, Cargo } from "./missions";
+import type { Mission, Cargo } from "./missions.ts";
 
 /**
  * Ship loadout - defines which subsystems are installed in each slot
@@ -310,6 +310,11 @@ export interface GameState {
   // Mission system fields
   phase: GamePhase;
   stations: Station[];
+  // Determinism fields — required for recording, replay, and sim
+  rngSeed: number; // Original seed; never changes after game creation. For replay/debug reference.
+  rngState: number; // Current PRNG state; mutated as randomness is consumed.
+  nextEntityId: number; // Monotonic counter for missile/scan/etc. entity IDs.
+  forcedRollValue?: number; // Test-only override for d10 rolls; never set in production.
 }
 
 export interface RingConfig {

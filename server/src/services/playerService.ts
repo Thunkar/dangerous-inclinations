@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
-import { getRedis } from "./redis.js";
-import type { PlayerAuth } from "../schemas/player.js";
+import { getRedis } from "./redis.ts";
+import type { PlayerAuth } from "../schemas/player.ts";
 
 const PLAYER_KEY_PREFIX = "player:";
 

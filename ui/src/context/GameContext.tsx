@@ -108,6 +108,15 @@ interface GameContextType {
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
 
+/**
+ * Raw context handle — exported so replay-mode providers can supply a stub
+ * value (no live websocket, no mutations). Most consumers should keep using
+ * `useGame()` instead.
+ */
+export const GameContextRaw = GameContext
+
+export type { GameContextType, PendingState }
+
 interface GameProviderProps {
   children: ReactNode
   initialGameState: GameState

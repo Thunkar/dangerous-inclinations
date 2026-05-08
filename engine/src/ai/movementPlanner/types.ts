@@ -1,4 +1,4 @@
-import type { GravityWellId, Facing, BurnIntensity } from "../../models/game";
+import type { GravityWellId, Facing, BurnIntensity } from "../../models/game.ts";
 
 /**
  * Position within an orbital system (well, ring, sector)

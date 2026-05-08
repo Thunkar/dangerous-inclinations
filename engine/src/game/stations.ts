@@ -7,7 +7,7 @@
  * Ships dock by being at the same ring/sector as a station.
  */
 
-import type { Station, GravityWell } from "../models/game";
+import type { Station, GravityWell } from "../models/game.ts";
 
 /**
  * Station constants

@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { botDecideActions, createBotParameters } from "../../ai/index";
-import { analyzeTacticalSituation } from "../../ai/analyzer";
-import { selectTarget } from "../../ai/behaviors/combat";
-import type { GameState, Player } from "../../models/game";
-import { createInitialShipState } from "../../utils/subsystemHelpers";
+import { botDecideActions, createBotParameters } from "../../ai/index.ts";
+import { analyzeTacticalSituation } from "../../ai/analyzer.ts";
+import { selectTarget } from "../../ai/behaviors/combat.ts";
+import type { GameState, Player } from "../../models/game.ts";
+import { createInitialShipState } from "../../utils/subsystemHelpers.ts";
+import { testDeterminismDefaults } from "../fixtures/gameState.ts";
 
 /**
  * Helper to create a test player with mission fields
@@ -59,6 +60,7 @@ function createTestGameState(customPlayers?: Player[]): GameState {
     missiles: [],
     phase: "active",
     stations: [],
+    ...testDeterminismDefaults(),
   };
 }
 

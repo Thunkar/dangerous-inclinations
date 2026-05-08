@@ -1,9 +1,9 @@
 import { randomUUID } from "crypto";
-import { getRedis } from "./redis.js";
-import { broadcastToRoom } from "../websocket/roomHandler.js";
-import type { CreateLobbyInput } from "../schemas/lobby.js";
-import { getPlayer } from "./playerService.js";
-import { createGame } from "./gameService.js";
+import { getRedis } from "./redis.ts";
+import { broadcastToRoom } from "../websocket/roomHandler.ts";
+import type { CreateLobbyInput } from "../schemas/lobby.ts";
+import { getPlayer } from "./playerService.ts";
+import { createGame } from "./gameService.ts";
 
 const LOBBY_KEY_PREFIX = "lobby:";
 const LOBBY_LIST_KEY = "lobbies";

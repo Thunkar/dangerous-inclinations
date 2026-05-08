@@ -13,13 +13,13 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "sim": "node --experimental-strip-types --no-warnings src/sim/cli.ts"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@vitest/coverage-v8": "^4.0.8",
     "@vitest/ui": "^4.0.8",
-    "typescript": "~5.9.3",
     "vitest": "^4.0.8"
   },
   "dependencies": {

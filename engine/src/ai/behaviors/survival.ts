@@ -1,7 +1,7 @@
-import type { PlayerAction, DeallocateEnergyAction } from '../../models/game'
-import type { SubsystemType } from '../../models/subsystems'
-import { SUBSYSTEM_CONFIGS } from '../../models/subsystems'
-import type { TacticalSituation, BotParameters } from '../types'
+import type { PlayerAction, DeallocateEnergyAction } from '../../models/game.ts'
+import type { SubsystemType } from '../../models/subsystems.ts'
+import { SUBSYSTEM_CONFIGS } from '../../models/subsystems.ts'
+import type { TacticalSituation, BotParameters } from '../types.ts'
 
 /**
  * Energy request for priority-based budgeting

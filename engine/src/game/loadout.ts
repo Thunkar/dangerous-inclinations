@@ -6,18 +6,18 @@
  * Fixed subsystems (engines, rotation) are always present and not part of loadout.
  */
 
-import type { Subsystem, SubsystemType } from "../models/subsystems";
+import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
 import {
   SUBSYSTEM_CONFIGS,
   getSubsystemConfig,
   getMissileStats,
-} from "../models/subsystems";
-import type { ShipLoadout, LoadoutValidation } from "../models/game";
+} from "../models/subsystems.ts";
+import type { ShipLoadout, LoadoutValidation } from "../models/game.ts";
 import {
   DEFAULT_DISSIPATION_CAPACITY,
   STARTING_REACTION_MASS,
   BASE_CRITICAL_CHANCE,
-} from "../models/game";
+} from "../models/game.ts";
 
 /**
  * Subsystems that can be installed in forward slots
@@ -180,7 +180,7 @@ export function calculateShipStatsFromLoadout(loadout: ShipLoadout): {
 } {
   let dissipationCapacity = DEFAULT_DISSIPATION_CAPACITY;
   let reactionMass = STARTING_REACTION_MASS;
-  let criticalChance = BASE_CRITICAL_CHANCE;
+  const criticalChance = BASE_CRITICAL_CHANCE;
 
   // Combine all loadout slots
   const allSlots = [...loadout.forwardSlots, ...loadout.sideSlots];

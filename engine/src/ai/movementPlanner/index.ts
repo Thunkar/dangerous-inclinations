@@ -35,14 +35,14 @@ export {
   isReachable,
   getReachablePositions,
   comparePlans,
-} from "./planner";
+} from "./planner.ts";
 
 // Predecessor calculation (for advanced usage)
 export {
   getPredecessors,
   getVelocityAtPosition,
   getMaxRingForWell,
-} from "./predecessors";
+} from "./predecessors.ts";
 
 // Types
 export type {
@@ -56,9 +56,9 @@ export type {
   MovementActionType,
   SlingshotAnalysis,
   PredecessorInfo,
-} from "./types";
+} from "./types.ts";
 
-export { positionKey, orbitalPositionKey, positionsMatch } from "./types";
+export { positionKey, orbitalPositionKey, positionsMatch } from "./types.ts";
 
 // ============================================================================
 // Convenience functions for bot integration
@@ -69,16 +69,16 @@ import type {
   BurnIntensity,
   Facing,
   ActionType,
-} from "../../models/game";
-import { MAX_REACTION_MASS } from "../../models/game";
-import { SUBSYSTEM_CONFIGS } from "../../models/subsystems";
-import { planMovement, isReachable } from "./planner";
+} from "../../models/game.ts";
+import { MAX_REACTION_MASS } from "../../models/game.ts";
+import { SUBSYSTEM_CONFIGS } from "../../models/subsystems.ts";
+import { planMovement, isReachable } from "./planner.ts";
 import type {
   OrbitalPosition,
   OrientedPosition,
   MovementPlan,
   PlannerMode,
-} from "./types";
+} from "./types.ts";
 
 /**
  * Plan movement from a ship's current position to a target.

@@ -1,5 +1,5 @@
-import type { ShipState } from "../models/game";
-import type { Subsystem, SubsystemType } from "../models/subsystems";
+import type { ShipState } from "../models/game.ts";
+import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
 
 /**
  * Pure function to allocate energy to a subsystem by index

@@ -1,4 +1,4 @@
-import type { GravityWell, TransferPoint, GravityWellId } from "./game";
+import type { GravityWell, TransferPoint, GravityWellId } from "./game.ts";
 
 /**
  * Fixed transfer sectors for elliptic orbits between black hole and planets

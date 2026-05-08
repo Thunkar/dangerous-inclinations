@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { botDecideActions } from "../../ai/index";
-import { executeTurn } from "../../game/index";
-import { createInitialShipState } from "../../utils/subsystemHelpers";
-import type { GameState, Player } from "../../models/game";
-import type { BotParameters } from "../../ai/types";
+import { botDecideActions } from "../../ai/index.ts";
+import { executeTurn } from "../../game/index.ts";
+import { createInitialShipState } from "../../utils/subsystemHelpers.ts";
+import type { GameState, Player } from "../../models/game.ts";
+import type { BotParameters } from "../../ai/types.ts";
+import { testDeterminismDefaults } from "../fixtures/gameState.ts";
 
 /**
  * Helper to create a test player with mission fields
@@ -63,6 +64,7 @@ describe("Bot AI Integration Tests", () => {
       missiles: [],
       phase: "active",
       stations: [],
+      ...testDeterminismDefaults(),
     };
   }
 
@@ -209,7 +211,7 @@ describe("Bot AI Integration Tests", () => {
 
   describe("Combat Scenarios", () => {
     it("should handle ship destruction gracefully", () => {
-      let gameState = createGameState(1);
+      const gameState = createGameState(1);
       const bot = gameState.players[1];
       bot.ship.hitPoints = 1; // Nearly destroyed
 
@@ -274,7 +276,7 @@ describe("Bot AI Integration Tests", () => {
 
   describe("Well Transfer Integration", () => {
     it("should execute well transfers when parameters allow", () => {
-      let gameState = createGameState(1);
+      const gameState = createGameState(1);
       const bot = gameState.players[1];
 
       // Position bot at transfer sector (Beta: BH R5 S0 → Beta R3 S5)

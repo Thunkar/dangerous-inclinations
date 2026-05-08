@@ -4,15 +4,16 @@ import type {
   ShipState,
   GravityWellId,
   TransferPoint,
-} from '../models/game'
-import type { TacticalSituation, Threat, Target, BotStatus, SubsystemStatus } from './types'
-import { SUBSYSTEM_CONFIGS } from '../models/subsystems'
-import { calculateFiringSolutions } from '../utils/weaponRange'
-import { getAvailableWellTransfers } from '../models/transferPoints'
-import { TRANSFER_POINTS } from '../models/gravityWells'
-import { applyOrbitalMovement } from '../game/movement'
-import { SECTORS_PER_RING } from '../models/rings'
-import { computeMissionGoals, selectCurrentGoal } from './behaviors/missions'
+} from '../models/game.ts'
+import type { TacticalSituation, Threat, Target, BotStatus, SubsystemStatus } from './types.ts'
+import { SUBSYSTEM_CONFIGS } from '../models/subsystems.ts'
+import { calculateFiringSolutions } from '../utils/weaponRange.ts'
+import type { FiringSolution } from '../utils/weaponRange.ts'
+import { getAvailableWellTransfers } from '../models/transferPoints.ts'
+import { TRANSFER_POINTS } from '../models/gravityWells.ts'
+import { applyOrbitalMovement } from '../game/movement.ts'
+import { SECTORS_PER_RING } from '../models/rings.ts'
+import { computeMissionGoals, selectCurrentGoal } from './behaviors/missions.ts'
 
 /**
  * Check if two ships are in a shared transfer sector (can target across wells)
@@ -202,7 +203,7 @@ function analyzeTargets(bot: Player, enemies: Player[], transferPoints: Transfer
     const predictedPosition = predictShipPosition(enemy.ship)
 
     // Calculate firing solutions for EVERY weapon subsystem on our ship
-    const firingSolutions = new Map<number, import('../utils/weaponRange').FiringSolution>()
+    const firingSolutions = new Map<number, FiringSolution>()
 
     for (let i = 0; i < bot.ship.subsystems.length; i++) {
       const sub = bot.ship.subsystems[i]

@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { getGravityWell } from "../../models/gravityWells";
-import { createTestGameState } from "../fixtures/gameState";
+import { getGravityWell } from "../../models/gravityWells.ts";
+import { createTestGameState } from "../fixtures/gameState.ts";
 import {
   createAllocateEnergyAction,
   createCoastAction,
-} from "../fixtures/actions";
-import { executeTurnWithActions } from "../testUtils";
+} from "../fixtures/actions.ts";
+import { executeTurnWithActions } from "../testUtils.ts";
 
 describe("Fuel Scoop", () => {
   describe("Scoop Activation", () => {
@@ -121,7 +121,7 @@ describe("Fuel Scoop", () => {
 
   describe("Scoop Validation", () => {
     it("should fail if scoop has insufficient energy", () => {
-      let gameState = createTestGameState();
+      const gameState = createTestGameState();
       gameState.players[0].ship.reactionMass = 5;
 
       // Only allocate 2 energy (need 3)
@@ -140,7 +140,7 @@ describe("Fuel Scoop", () => {
     });
 
     it("should fail if scoop has no energy allocated", () => {
-      let gameState = createTestGameState();
+      const gameState = createTestGameState();
       gameState.players[0].ship.reactionMass = 5;
 
       // No energy allocation

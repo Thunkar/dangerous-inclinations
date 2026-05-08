@@ -1,5 +1,5 @@
-import { executeTurn, type TurnResult } from "../game/turns";
-import type { GameState, Player, ShipState } from "../models/game";
+import { executeTurn, type TurnResult } from "../game/turns.ts";
+import type { GameState, Player, ShipState } from "../models/game.ts";
 
 /**
  * Helper to execute a turn with actions for the active player

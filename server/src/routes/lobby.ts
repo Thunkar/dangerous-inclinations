@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { CreateLobbySchema, JoinLobbySchema } from "../schemas/lobby.js";
+import { CreateLobbySchema, JoinLobbySchema } from "../schemas/lobby.ts";
 import {
   createLobby,
   getLobby,
@@ -9,8 +9,8 @@ import {
   startGame,
   addBot,
   removeBot,
-} from "../services/lobbyService.js";
-import { getPlayer } from "../services/playerService.js";
+} from "../services/lobbyService.ts";
+import { getPlayer } from "../services/playerService.ts";
 
 export async function lobbyRoutes(fastify: FastifyInstance) {
   // Create lobby

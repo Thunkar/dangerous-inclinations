@@ -2,19 +2,19 @@ import { describe, it, expect } from "vitest";
 import {
   createTestGameState,
   INITIAL_REACTOR_ENERGY,
-} from "../fixtures/gameState";
+} from "../fixtures/gameState.ts";
 import {
   createAllocateEnergyAction,
   createDeallocateEnergyAction,
   createCoastAction,
-} from "../fixtures/actions";
-import { executeTurnWithActions } from "../testUtils";
+} from "../fixtures/actions.ts";
+import { executeTurnWithActions } from "../testUtils.ts";
 import {
   allocateEnergyByIndex,
   deallocateEnergyByIndex,
-} from "../../game/energy";
-import { createInitialShipState } from "../../utils/subsystemHelpers";
-import type { ShipLoadout } from "../../models/game";
+} from "../../game/energy.ts";
+import { createInitialShipState } from "../../utils/subsystemHelpers.ts";
+import type { ShipLoadout } from "../../models/game.ts";
 
 describe("Energy Management System", () => {
   describe("Energy Allocation/Deallocation", () => {
@@ -107,7 +107,7 @@ describe("Energy Management System", () => {
       // Turn 1: Allocate energy incrementally
       const allocate1 = createAllocateEnergyAction("engines", 2);
       const allocate2 = createAllocateEnergyAction("engines", 1);
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocate1,
         allocate2,
@@ -169,7 +169,7 @@ describe("Energy Management System", () => {
     });
 
     it("should reject allocation beyond subsystem absolute maximum", () => {
-      let gameState = createTestGameState();
+      const gameState = createTestGameState();
 
       // Engines have maxEnergy: 3 (absolute maximum)
       // Try to allocate 4 energy (beyond max)
@@ -204,7 +204,7 @@ describe("Energy Management System", () => {
       // Engines: minEnergy=1, maxEnergy=3
       // Allocate 3 energy (at max)
       const allocateAction = createAllocateEnergyAction("engines", 3);
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         createCoastAction(),
@@ -295,7 +295,7 @@ describe("Energy Management System", () => {
         data: { burnIntensity: "soft" as const, sectorAdjustment: 0 },
       };
 
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         burnAction,
@@ -311,7 +311,7 @@ describe("Energy Management System", () => {
 
       // Allocate energy to engines but coast instead
       const allocateAction = createAllocateEnergyAction("engines", 3);
-      let result = executeTurnWithActions(
+      const result = executeTurnWithActions(
         gameState,
         allocateAction,
         createCoastAction(),

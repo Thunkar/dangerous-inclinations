@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { calculateFiringSolutions } from "../../utils/weaponRange";
-import { createInitialShipState } from "../../utils/subsystemHelpers";
-import type { Player } from "../../models/game";
-import type { Subsystem } from "../../models/subsystems";
-import { calculatePostMovementPosition } from "../../game/movement";
+import { calculateFiringSolutions } from "../../utils/weaponRange.ts";
+import { createInitialShipState } from "../../utils/subsystemHelpers.ts";
+import type { Player } from "../../models/game.ts";
+import type { Subsystem } from "../../models/subsystems.ts";
+import { calculatePostMovementPosition } from "../../game/movement.ts";
 
 // Helper to create test players
 function createTestPlayer(

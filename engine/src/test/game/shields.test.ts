@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { applyDamageWithShields, applyCriticalHit } from "../../game/damage";
-import { getSubsystemConfig } from "../../models/subsystems";
+import { applyDamageWithShields, applyCriticalHit } from "../../game/damage.ts";
+import { getSubsystemConfig } from "../../models/subsystems.ts";
 import {
   createTestShip,
   createShipWithShields,
-} from "../fixtures/ships";
+} from "../fixtures/ships.ts";
 
 describe("Shield System", () => {
   describe("applyDamageWithShields", () => {

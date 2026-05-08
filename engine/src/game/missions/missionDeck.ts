@@ -7,14 +7,15 @@
  * - Cargo missions: Transport cargo between planet stations
  */
 
-import type { Player, GravityWell } from "../../models/game";
+import type { Player, GravityWell } from "../../models/game.ts";
 import type {
   Mission,
   DestroyShipMission,
   DeliverCargoMission,
   InterceptTransmissionMission,
   Cargo,
-} from "../../models/missions";
+} from "../../models/missions.ts";
+import type { Rng } from "../../utils/rng.ts";
 
 /**
  * Mission deck constants
@@ -25,48 +26,36 @@ export const MISSION_CONSTANTS = {
 } as const;
 
 /**
- * Generate a unique mission ID
+ * Mutable issuer for deterministic mission/cargo IDs.
+ * Pass through deck generation so all IDs are stable for a given game seed.
  */
-function generateMissionId(type: string, index: number): string {
-  return `mission-${type}-${index}-${Date.now()}`;
+interface IdIssuer {
+  next: number;
 }
 
-/**
- * Generate a unique cargo ID linked to a mission
- */
+function generateMissionId(issuer: IdIssuer, type: string): string {
+  return `mission-${type}-${issuer.next++}`;
+}
+
 function generateCargoId(missionId: string): string {
   return `cargo-${missionId}`;
 }
-
-/**
- * Generate all possible destroy ship missions
- * Each mission targets a specific player
- * NOTE: Not currently used - we use circular targeting instead (dealDestroyMissions)
- */
-function _generateDestroyMissions(players: Player[]): DestroyShipMission[] {
-  return players.map((player, index) => ({
-    id: generateMissionId("destroy", index),
-    type: "destroy_ship" as const,
-    isCompleted: false,
-    targetPlayerId: player.id,
-  }));
-}
-// Suppress unused warning - kept for potential future use
-void _generateDestroyMissions;
 
 /**
  * Generate all possible cargo delivery missions
  * Creates missions for all planet pairs (A→B, B→A, etc.)
  * 6 planets = 30 possible routes (6 * 5)
  */
-function generateCargoMissions(planets: GravityWell[]): DeliverCargoMission[] {
+function generateCargoMissions(
+  planets: GravityWell[],
+  issuer: IdIssuer
+): DeliverCargoMission[] {
   const missions: DeliverCargoMission[] = [];
-  let index = 0;
 
   for (const pickupPlanet of planets) {
     for (const deliveryPlanet of planets) {
       if (pickupPlanet.id !== deliveryPlanet.id) {
-        const missionId = generateMissionId("cargo", index);
+        const missionId = generateMissionId(issuer, "cargo");
         missions.push({
           id: missionId,
           type: "deliver_cargo" as const,
@@ -75,24 +64,11 @@ function generateCargoMissions(planets: GravityWell[]): DeliverCargoMission[] {
           deliveryPlanetId: deliveryPlanet.id,
           cargoId: generateCargoId(missionId),
         });
-        index++;
       }
     }
   }
 
   return missions;
-}
-
-/**
- * Shuffle an array using Fisher-Yates algorithm
- */
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
 }
 
 /**
@@ -102,19 +78,21 @@ function shuffleArray<T>(array: T[]): T[] {
  * This ensures everyone is targeted by exactly one player.
  */
 function dealDestroyMissions(
-  players: Player[]
+  players: Player[],
+  rng: Rng,
+  issuer: IdIssuer
 ): Map<string, DestroyShipMission> {
   const assignments = new Map<string, DestroyShipMission>();
 
   // Shuffle player order for randomization
-  const shuffledPlayers = shuffleArray(players);
+  const shuffledPlayers = rng.shuffle(players);
 
   for (let i = 0; i < shuffledPlayers.length; i++) {
     const attacker = shuffledPlayers[i];
     const target = shuffledPlayers[(i + 1) % shuffledPlayers.length];
 
     assignments.set(attacker.id, {
-      id: generateMissionId("destroy", i),
+      id: generateMissionId(issuer, "destroy"),
       type: "destroy_ship",
       isCompleted: false,
       targetPlayerId: target.id,
@@ -131,10 +109,12 @@ function dealDestroyMissions(
  */
 function dealCargoMissions(
   players: Player[],
-  cargoMissions: DeliverCargoMission[]
+  cargoMissions: DeliverCargoMission[],
+  rng: Rng,
+  issuer: IdIssuer
 ): Map<string, DeliverCargoMission[]> {
   const assignments = new Map<string, DeliverCargoMission[]>();
-  const shuffledMissions = shuffleArray(cargoMissions);
+  const shuffledMissions = rng.shuffle(cargoMissions);
   let missionIndex = 0;
 
   const cargoMissionsPerPlayer = 1;
@@ -149,7 +129,7 @@ function dealCargoMissions(
     ) {
       // Create a new mission with a unique ID for this player
       const baseMission = shuffledMissions[missionIndex];
-      const missionId = generateMissionId("cargo", missionIndex);
+      const missionId = generateMissionId(issuer, "cargo");
       playerMissions.push({
         ...baseMission,
         id: missionId,
@@ -184,17 +164,19 @@ function createCargoForMissions(missions: DeliverCargoMission[]): Cargo[] {
  * The assigned target is the player whose transmission they must intercept.
  */
 function dealInterceptMissions(
-  players: Player[]
+  players: Player[],
+  rng: Rng,
+  issuer: IdIssuer
 ): Map<string, InterceptTransmissionMission> {
   const assignments = new Map<string, InterceptTransmissionMission>();
 
   // Shuffle in reverse direction to avoid same pairing as destroy missions
-  const shuffledPlayers = shuffleArray([...players]).reverse();
+  const shuffledPlayers = rng.shuffle(players).reverse();
 
   for (let i = 0; i < shuffledPlayers.length; i++) {
     const spy = shuffledPlayers[i];
     const target = shuffledPlayers[(i + 1) % shuffledPlayers.length];
-    const missionId = generateMissionId("intercept", i);
+    const missionId = generateMissionId(issuer, "intercept");
     assignments.set(spy.id, {
       id: missionId,
       type: "intercept_transmission",
@@ -224,22 +206,28 @@ export interface DealMissionsResult {
  * - 1 cargo delivery mission
  *
  * Returns a map of playerId -> missions and playerId -> cargo
+ *
+ * The supplied Rng instance is mutated; pass a fresh handle derived from
+ * GameState if you want the deck deal to be replayable.
  */
 export function dealMissions(
   players: Player[],
-  planets: GravityWell[]
+  planets: GravityWell[],
+  rng: Rng
 ): DealMissionsResult {
+  const issuer: IdIssuer = { next: 0 };
+
   // Generate mission pools
-  const cargoMissions = generateCargoMissions(planets);
+  const cargoMissions = generateCargoMissions(planets, issuer);
 
   // Deal destroy missions (one per player, circular targeting)
-  const destroyAssignments = dealDestroyMissions(players);
+  const destroyAssignments = dealDestroyMissions(players, rng, issuer);
 
   // Deal intercept missions (different circular order from destroy)
-  const interceptAssignments = dealInterceptMissions(players);
+  const interceptAssignments = dealInterceptMissions(players, rng, issuer);
 
   // Deal cargo missions (1 per player instead of 2)
-  const cargoAssignments = dealCargoMissions(players, cargoMissions);
+  const cargoAssignments = dealCargoMissions(players, cargoMissions, rng, issuer);
 
   // Combine missions and create cargo objects
   const playerMissions = new Map<string, Mission[]>();
@@ -307,15 +295,16 @@ export interface DealMissionOffersResult {
 function buildPlayerDeck(
   _player: Player,
   otherPlayers: Player[],
-  planets: GravityWell[]
+  planets: GravityWell[],
+  rng: Rng,
+  issuer: IdIssuer
 ): Mission[] {
   const deck: Mission[] = [];
-  let idx = 0;
 
   // Destroy missions — one per opponent
   for (const target of otherPlayers) {
     deck.push({
-      id: generateMissionId("destroy", idx++),
+      id: generateMissionId(issuer, "destroy"),
       type: "destroy_ship",
       isCompleted: false,
       targetPlayerId: target.id,
@@ -324,7 +313,7 @@ function buildPlayerDeck(
 
   // Intercept missions — one per opponent
   for (const target of otherPlayers) {
-    const missionId = generateMissionId("intercept", idx++);
+    const missionId = generateMissionId(issuer, "intercept");
     deck.push({
       id: missionId,
       type: "intercept_transmission",
@@ -339,7 +328,7 @@ function buildPlayerDeck(
   for (const pickup of planets) {
     for (const delivery of planets) {
       if (pickup.id !== delivery.id) {
-        const missionId = generateMissionId("cargo", idx++);
+        const missionId = generateMissionId(issuer, "cargo");
         deck.push({
           id: missionId,
           type: "deliver_cargo",
@@ -352,24 +341,27 @@ function buildPlayerDeck(
     }
   }
 
-  return shuffleArray(deck);
+  return rng.shuffle(deck);
 }
 
 /**
  * Deal mission offers to all players.
  * Each player draws MISSION_OFFERS_PER_PLAYER (5) from their own shuffled deck.
- * The draw is completely random — mimicking a real tabletop card draw.
+ * The draw uses the supplied Rng (mutated) — mimicking a tabletop card draw,
+ * but deterministic for a given seed.
  * They will pick MISSIONS_PER_PLAYER (3) when submitting their loadout.
  */
 export function dealMissionOffers(
   players: Player[],
-  planets: GravityWell[]
+  planets: GravityWell[],
+  rng: Rng
 ): DealMissionOffersResult {
   const playerOffers = new Map<string, Mission[]>();
+  const issuer: IdIssuer = { next: 0 };
 
   for (const player of players) {
     const otherPlayers = players.filter((p) => p.id !== player.id);
-    const deck = buildPlayerDeck(player, otherPlayers, planets);
+    const deck = buildPlayerDeck(player, otherPlayers, planets, rng, issuer);
     const drawn = deck.slice(0, MISSION_CONSTANTS.MISSION_OFFERS_PER_PLAYER);
     playerOffers.set(player.id, drawn);
   }

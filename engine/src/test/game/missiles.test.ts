@@ -1,18 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { executeTurn } from "../../game/turns";
+import { executeTurn } from "../../game/turns.ts";
 import {
   calculateMissileMovement,
   checkMissileHit,
   getMissileAmmo,
-} from "../../game/missiles";
-import { getMissileStats } from "../../models/subsystems";
+} from "../../game/missiles.ts";
+import { getMissileStats } from "../../models/subsystems.ts";
 import type {
   Missile,
   FireWeaponAction,
   AllocateEnergyAction,
   CoastAction,
-} from "../../models/game";
-import { createTestGameState } from "../fixtures/gameState";
+} from "../../models/game.ts";
+import { createTestGameState } from "../fixtures/gameState.ts";
 
 const MISSILE_STATS = getMissileStats();
 
@@ -161,7 +161,7 @@ describe("Missile System", () => {
     });
 
     it("should not fire missile with 0 ammo", () => {
-      let gameState = createTestGameState();
+      const gameState = createTestGameState();
 
       // Set ammo to 0 on missiles subsystem
       gameState.players[0].ship.subsystems =
@@ -573,7 +573,7 @@ describe("Missile System", () => {
       // Fire AFTER burn: missile starts at post-burn position, no orbital drift
 
       // Test case 1: Fire BEFORE movement
-      let gameState1 = createTestGameState();
+      const gameState1 = createTestGameState();
       gameState1.players[0].ship.ring = 3;
       gameState1.players[0].ship.sector = 0;
       gameState1.players[0].ship.facing = "prograde";
@@ -604,11 +604,11 @@ describe("Missile System", () => {
         data: { activateScoop: false },
       };
 
-      let result1 = executeTurn(gameState1, [allocate1, fire1, coast1]);
+      const result1 = executeTurn(gameState1, [allocate1, fire1, coast1]);
       const missileBeforeMove = result1.gameState.missiles[0];
 
       // Test case 2: Fire AFTER movement
-      let gameState2 = createTestGameState();
+      const gameState2 = createTestGameState();
       gameState2.players[0].ship.ring = 3;
       gameState2.players[0].ship.sector = 0;
       gameState2.players[0].ship.facing = "prograde";
@@ -639,7 +639,7 @@ describe("Missile System", () => {
         },
       };
 
-      let result2 = executeTurn(gameState2, [allocate2, coast2, fire2]);
+      const result2 = executeTurn(gameState2, [allocate2, coast2, fire2]);
       const missileAfterMove = result2.gameState.missiles[0];
 
       // Both missiles should end up at the same sector!

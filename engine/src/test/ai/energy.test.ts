@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { generateEnergyManagement, generateEnergyDeallocation } from '../../ai/behaviors/survival'
-import type { EnergyContext } from '../../ai/behaviors/survival'
-import type { TacticalSituation, SubsystemStatus, BotParameters } from '../../ai/types'
-import { DEFAULT_BOT_PARAMETERS } from '../../ai/types'
-import type { Player, AllocateEnergyAction } from '../../models/game'
-import { createInitialShipState } from '../../utils/subsystemHelpers'
-import { SUBSYSTEM_CONFIGS } from '../../models/subsystems'
+import { generateEnergyManagement, generateEnergyDeallocation } from '../../ai/behaviors/survival.ts'
+import type { EnergyContext } from '../../ai/behaviors/survival.ts'
+import type { TacticalSituation, SubsystemStatus, BotParameters } from '../../ai/types.ts'
+import { DEFAULT_BOT_PARAMETERS } from '../../ai/types.ts'
+import type { Player, AllocateEnergyAction } from '../../models/game.ts'
+import { createInitialShipState } from '../../utils/subsystemHelpers.ts'
+import { SUBSYSTEM_CONFIGS } from '../../models/subsystems.ts'
 
 /**
  * Helper to create a bot player for energy tests

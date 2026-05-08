@@ -16,8 +16,12 @@ import { GameEndScreen } from './components/GameEndScreen'
 import { MissionPanel } from './components/MissionPanel'
 import { useGame } from './context/GameContext'
 import type { GameState } from '@dangerous-inclinations/engine'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { GameBoard } from './components/GameBoard'
+import { ReplayScreen } from './components/ReplayScreen'
+import { RecordingsBrowser } from './components/RecordingsBrowser'
+
+type ReplayRoute = { kind: 'app' } | { kind: 'replay'; id: string } | { kind: 'browser' }
 
 const theme = createTheme({
   palette: {
@@ -509,18 +513,77 @@ function AuthenticatedApp() {
   return null
 }
 
+/**
+ * Read replay routing flags off the URL. We use plain query params (instead of
+ * a full router) to keep the dependency surface small.
+ *   ?replay=<id>     → load that recording into ReplayScreen
+ *   ?recordings=1    → show the recordings browser
+ */
+function useReplayRoute(): { route: ReplayRoute; goTo: (next: ReplayRoute) => void } {
+  const [route, setRoute] = useState<ReplayRoute>(() => parseReplayRoute(window.location.search))
+
+  useEffect(() => {
+    const handler = () => setRoute(parseReplayRoute(window.location.search))
+    window.addEventListener('popstate', handler)
+    return () => window.removeEventListener('popstate', handler)
+  }, [])
+
+  const goTo = useCallback((next: ReplayRoute) => {
+    const params = new URLSearchParams(window.location.search)
+    params.delete('replay')
+    params.delete('recordings')
+    if (next.kind === 'replay') params.set('replay', next.id)
+    if (next.kind === 'browser') params.set('recordings', '1')
+    const search = params.toString()
+    const url = search ? `?${search}` : window.location.pathname
+    window.history.pushState(null, '', url)
+    setRoute(next)
+  }, [])
+
+  return { route, goTo }
+}
+
+function parseReplayRoute(search: string): ReplayRoute {
+  const params = new URLSearchParams(search)
+  const replay = params.get('replay')
+  if (replay) return { kind: 'replay', id: replay }
+  if (params.get('recordings') === '1') return { kind: 'browser' }
+  return { kind: 'app' }
+}
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <PlayerProvider>
-        <WebSocketProvider>
-          <LobbyProvider>
-            <AuthenticatedApp />
-          </LobbyProvider>
-        </WebSocketProvider>
-      </PlayerProvider>
+      <RootRouter />
     </ThemeProvider>
+  )
+}
+
+function RootRouter() {
+  const { route, goTo } = useReplayRoute()
+
+  if (route.kind === 'replay') {
+    return <ReplayScreen recordingId={route.id} onExit={() => goTo({ kind: 'app' })} />
+  }
+
+  if (route.kind === 'browser') {
+    return (
+      <RecordingsBrowser
+        onOpen={(id) => goTo({ kind: 'replay', id })}
+        onExit={() => goTo({ kind: 'app' })}
+      />
+    )
+  }
+
+  return (
+    <PlayerProvider>
+      <WebSocketProvider>
+        <LobbyProvider>
+          <AuthenticatedApp />
+        </LobbyProvider>
+      </WebSocketProvider>
+    </PlayerProvider>
   )
 }
 

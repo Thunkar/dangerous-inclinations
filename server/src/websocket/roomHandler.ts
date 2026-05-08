@@ -4,18 +4,18 @@
 
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
-import { getPlayer } from "../services/playerService.js";
+import { getPlayer } from "../services/playerService.ts";
 import {
   getLobby,
   getHumanPlayerIds,
   findLobbyByGameId,
   deleteLobby,
-} from "../services/lobbyService.js";
+} from "../services/lobbyService.ts";
 import {
   processPlayerTurn,
   executeBotsIfNeeded,
   deleteGame,
-} from "../services/gameService.js";
+} from "../services/gameService.ts";
 
 type Room = "global" | "lobby" | "game";
 

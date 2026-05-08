@@ -1,16 +1,26 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { calculateFiringSolutions } from "../../utils/weaponRange";
+import { describe, it, expect } from "vitest";
+import { calculateFiringSolutions } from "../../utils/weaponRange.ts";
 import {
   getSubsystemSide,
   getSideFiringDirection,
   isRingDirectionValid,
   createInitialShipState,
-} from "../../utils/subsystemHelpers";
-import { attemptMissileInterception } from "../../game/missiles";
-import { createSubsystemsFromLoadout } from "../../game/loadout";
-import { enableDeterministicMode, resetGameConfig } from "../../game/config";
-import type { Player, ShipLoadout } from "../../models/game";
-import type { Subsystem } from "../../models/subsystems";
+} from "../../utils/subsystemHelpers.ts";
+import { attemptMissileInterception } from "../../game/missiles.ts";
+import { createSubsystemsFromLoadout } from "../../game/loadout.ts";
+import type { GameState, Player, ShipLoadout } from "../../models/game.ts";
+import type { Subsystem } from "../../models/subsystems.ts";
+import { createTestGameState } from "../fixtures/gameState.ts";
+
+/**
+ * Make a minimal GameState for tests that exercise interception roll values.
+ * `forcedRollValue` pins the d10; the seeded RNG is otherwise unused.
+ */
+function gameStateWithForcedRoll(rollValue: number): GameState {
+  const state = createTestGameState();
+  state.forcedRollValue = rollValue;
+  return state;
+}
 
 // Helper to create test players
 function createTestPlayer(
@@ -292,13 +302,8 @@ describe("Slot Metadata in Loadout", () => {
 });
 
 describe("PDC Missile Interception", () => {
-  afterEach(() => {
-    resetGameConfig();
-  });
-
   it("should intercept missile when powered rack rolls 2-10", () => {
-    enableDeterministicMode(5); // Roll 5 = intercept
-
+    const state = gameStateWithForcedRoll(5); // Roll 5 = intercept
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
@@ -316,15 +321,14 @@ describe("PDC Missile Interception", () => {
       ),
     };
 
-    const result = attemptMissileInterception(poweredShip);
+    const result = attemptMissileInterception(poweredShip, state);
     expect(result.intercepted).toBe(true);
     expect(result.rackIndex).not.toBeNull();
     expect(result.roll).toBe(5);
   });
 
   it("should fail interception when rack rolls 1", () => {
-    enableDeterministicMode(1); // Roll 1 = miss
-
+    const state = gameStateWithForcedRoll(1); // Roll 1 = miss
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
@@ -341,13 +345,14 @@ describe("PDC Missile Interception", () => {
       ),
     };
 
-    const result = attemptMissileInterception(poweredShip);
+    const result = attemptMissileInterception(poweredShip, state);
     expect(result.intercepted).toBe(false);
     expect(result.rackIndex).not.toBeNull(); // Rack was found and tried
     expect(result.roll).toBe(1);
   });
 
   it("should not attempt interception with unpowered rack", () => {
+    const state = gameStateWithForcedRoll(5);
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
@@ -357,13 +362,14 @@ describe("PDC Missile Interception", () => {
     );
     // Leave rack unpowered (default)
 
-    const result = attemptMissileInterception(ship);
+    const result = attemptMissileInterception(ship, state);
     expect(result.intercepted).toBe(false);
     expect(result.rackIndex).toBeNull();
     expect(result.roll).toBe(0);
   });
 
   it("should not attempt interception with broken rack", () => {
+    const state = gameStateWithForcedRoll(5);
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
@@ -380,12 +386,13 @@ describe("PDC Missile Interception", () => {
       ),
     };
 
-    const result = attemptMissileInterception(brokenShip);
+    const result = attemptMissileInterception(brokenShip, state);
     expect(result.intercepted).toBe(false);
     expect(result.rackIndex).toBeNull();
   });
 
   it("should not attempt interception with already-used rack", () => {
+    const state = gameStateWithForcedRoll(5);
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
@@ -402,24 +409,24 @@ describe("PDC Missile Interception", () => {
       ),
     };
 
-    const result = attemptMissileInterception(usedShip);
+    const result = attemptMissileInterception(usedShip, state);
     expect(result.intercepted).toBe(false);
     expect(result.rackIndex).toBeNull();
   });
 
   it("should not attempt interception when no rack is installed", () => {
+    const state = gameStateWithForcedRoll(5);
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
     );
 
-    const result = attemptMissileInterception(ship);
+    const result = attemptMissileInterception(ship, state);
     expect(result.intercepted).toBe(false);
     expect(result.rackIndex).toBeNull();
   });
 
   it("two racks should intercept two missiles (one each)", () => {
-    enableDeterministicMode(5); // Roll 5 = intercept
-
+    const state = gameStateWithForcedRoll(5); // Roll 5 = intercept
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
@@ -437,7 +444,7 @@ describe("PDC Missile Interception", () => {
     };
 
     // First interception
-    const result1 = attemptMissileInterception(poweredShip);
+    const result1 = attemptMissileInterception(poweredShip, state);
     expect(result1.intercepted).toBe(true);
     expect(result1.rackIndex).not.toBeNull();
 
@@ -450,15 +457,14 @@ describe("PDC Missile Interception", () => {
     };
 
     // Second interception — should use the other rack
-    const result2 = attemptMissileInterception(poweredShip);
+    const result2 = attemptMissileInterception(poweredShip, state);
     expect(result2.intercepted).toBe(true);
     expect(result2.rackIndex).not.toBeNull();
     expect(result2.rackIndex).not.toBe(result1.rackIndex);
   });
 
   it("one rack, two missiles: first intercepted, second hits", () => {
-    enableDeterministicMode(5); // Roll 5 = intercept
-
+    const state = gameStateWithForcedRoll(5); // Roll 5 = intercept
     const ship = createInitialShipState(
       { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
       {
@@ -476,7 +482,7 @@ describe("PDC Missile Interception", () => {
     };
 
     // First missile — intercepted
-    const result1 = attemptMissileInterception(poweredShip);
+    const result1 = attemptMissileInterception(poweredShip, state);
     expect(result1.intercepted).toBe(true);
 
     // Mark rack as used
@@ -488,7 +494,7 @@ describe("PDC Missile Interception", () => {
     };
 
     // Second missile — no rack available
-    const result2 = attemptMissileInterception(poweredShip);
+    const result2 = attemptMissileInterception(poweredShip, state);
     expect(result2.intercepted).toBe(false);
     expect(result2.rackIndex).toBeNull();
   });

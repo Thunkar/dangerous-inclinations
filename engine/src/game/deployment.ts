@@ -12,9 +12,9 @@ import type {
   DeployShipAction,
   TurnLogEntry,
   ShipLoadout,
-} from "../models/game";
-import { DEFAULT_LOADOUT } from "../models/game";
-import { createInitialShipState } from "../utils/subsystemHelpers";
+} from "../models/game.ts";
+import { DEFAULT_LOADOUT } from "../models/game.ts";
+import { createInitialShipState } from "../utils/subsystemHelpers.ts";
 
 /**
  * Deployment constants

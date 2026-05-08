@@ -1,30 +1,18 @@
-import type { ShipState } from "../models/game";
-import { BASE_CRITICAL_CHANCE } from "../models/game";
-import type { SubsystemType } from "../models/subsystems";
-import { getSubsystemConfig } from "../models/subsystems";
-import { calculateHeatDamage, addHeat } from "./heat";
-import { getGameConfig } from "./config";
-import { getEffectiveCriticalChance } from "./loadout";
-import {
+import type { ShipState } from "../models/game.ts";
+import { BASE_CRITICAL_CHANCE } from "../models/game.ts";
+import type { SubsystemType } from "../models/subsystems.ts";
+import { getSubsystemConfig } from "../models/subsystems.ts";
+import { calculateHeatDamage, addHeat } from "./heat.ts";
+import { getEffectiveCriticalChance } from "./loadout.ts";
+import type {
   CriticalHitEffect,
   HitRollResult,
   WeaponHitResult,
-} from "../models/weapons";
+} from "../models/weapons.ts";
 
-/**
- * Roll a d10 for hit resolution
- * Returns 1-10 (inclusive)
- *
- * When deterministicRolls is enabled in game config, returns the fixed roll value
- * instead of a random number. This is useful for consistent testing.
- */
-export function rollD10(): number {
-  const config = getGameConfig();
-  if (config.deterministicRolls) {
-    return config.fixedRollValue;
-  }
-  return Math.floor(Math.random() * 10) + 1;
-}
+// d10 rolling lives on the seeded RNG: see ../utils/rng.ts (rollD10).
+// Damage helpers below take an explicit roll value so they remain pure and
+// don't have a hidden dependency on global state.
 
 /**
  * Convert d10 roll to hit result
@@ -69,18 +57,17 @@ export function rollToResult(
  * @param ship Target ship state
  * @param damage Weapon damage amount
  * @param criticalTarget Subsystem to break on critical hit (required)
- * @param roll Optional d10 roll (1-10). If not provided, rolls automatically.
+ * @param roll d10 roll (1-10). Caller must roll using GameState's RNG (see utils/rng.ts).
  * @param attackerShip Optional attacker ship for critical chance calculation. If not provided, uses base critical chance.
  */
 export function applyDamageWithShields(
   ship: ShipState,
   damage: number,
   criticalTarget: SubsystemType,
-  roll?: number,
+  roll: number,
   attackerShip?: ShipState
 ): { ship: ShipState; hitResult: WeaponHitResult } {
-  // Roll d10 if not provided (allows deterministic testing)
-  const actualRoll = roll ?? rollD10();
+  const actualRoll = roll;
 
   // Calculate critical chance from attacker's ship (sensor array bonus)
   const baseCritChance = attackerShip?.criticalChance ?? BASE_CRITICAL_CHANCE;

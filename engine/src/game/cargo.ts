@@ -5,9 +5,9 @@
  * Cargo is automatically picked up/delivered when a ship is at a station.
  */
 
-import type { GameState, Player, Station } from "../models/game";
-import type { Cargo, DeliverCargoMission } from "../models/missions";
-import { isDeliverCargoMission } from "../models/missions";
+import type { GameState, Player, Station } from "../models/game.ts";
+import type { Cargo, DeliverCargoMission } from "../models/missions.ts";
+import { isDeliverCargoMission } from "../models/missions.ts";
 
 /**
  * Result of processing cargo at a station

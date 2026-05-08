@@ -6,8 +6,8 @@ import type {
   FireWeaponAction,
   BurnIntensity,
   Facing,
-} from "../../models/game";
-import type { SubsystemType } from "../../models/subsystems";
+} from "../../models/game.ts";
+import type { SubsystemType } from "../../models/subsystems.ts";
 
 /**
  * Creates a coast action (no burn)

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { selectBotLoadout, BOT_LOADOUT_TEMPLATES } from '../../ai/behaviors/loadout'
-import { validateLoadout } from '../../game/loadout'
-import type { Mission } from '../../models/missions'
+import { selectBotLoadout, BOT_LOADOUT_TEMPLATES } from '../../ai/behaviors/loadout.ts'
+import { validateLoadout } from '../../game/loadout.ts'
+import type { Mission } from '../../models/missions.ts'
 
 describe('Bot Loadout System', () => {
   describe('Template Validation', () => {

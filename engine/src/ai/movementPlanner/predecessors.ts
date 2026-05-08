@@ -1,7 +1,7 @@
-import type { BurnIntensity, GravityWellId } from '../../models/game'
-import { BURN_COSTS, SECTORS_PER_RING, getAdjustmentRange, WELL_TRANSFER_COSTS } from '../../models/rings'
-import { getGravityWell, getRingConfigForWell, TRANSFER_POINTS } from '../../models/gravityWells'
-import type { OrientedPosition, PredecessorInfo } from './types'
+import type { BurnIntensity, GravityWellId } from '../../models/game.ts'
+import { BURN_COSTS, SECTORS_PER_RING, getAdjustmentRange, WELL_TRANSFER_COSTS } from '../../models/rings.ts'
+import { getGravityWell, getRingConfigForWell, TRANSFER_POINTS } from '../../models/gravityWells.ts'
+import type { OrientedPosition, PredecessorInfo } from './types.ts'
 
 /**
  * Find all positions that can reach the target position in one turn.

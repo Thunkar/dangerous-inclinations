@@ -28,7 +28,7 @@ export async function createPlayer(
 export async function getPlayer(playerId: string): Promise<Player | null> {
   try {
     return await api.get<Player>(`/api/players/${playerId}`);
-  } catch (error) {
+  } catch {
     // Player not found
     return null;
   }
@@ -52,7 +52,7 @@ export async function updatePlayerName(
 export async function getPlayerStatus(playerId: string): Promise<PlayerStatusResponse | null> {
   try {
     return await api.get<PlayerStatusResponse>(`/api/players/${playerId}/status`);
-  } catch (error) {
+  } catch {
     return null;
   }
 }

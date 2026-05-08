@@ -5,14 +5,14 @@ import type {
   BurnIntensity,
   ActionType,
   Facing,
-} from "../models/game";
+} from "../models/game.ts";
 import {
   BURN_COSTS,
   mapSectorOnTransfer,
   SECTORS_PER_RING,
   calculateBurnMassCost,
-} from "../models/rings";
-import { getGravityWell } from "../models/gravityWells";
+} from "../models/rings.ts";
+import { getGravityWell } from "../models/gravityWells.ts";
 
 /**
  * Helper to get max ring number for a gravity well

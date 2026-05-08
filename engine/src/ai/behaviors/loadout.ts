@@ -1,6 +1,6 @@
-import type { ShipLoadout } from '../../models/game'
-import { isDestroyShipMission, isDeliverCargoMission } from '../../models/missions'
-import type { Mission } from '../../models/missions'
+import type { ShipLoadout } from '../../models/game.ts'
+import { isDestroyShipMission, isDeliverCargoMission } from '../../models/missions.ts'
+import type { Mission } from '../../models/missions.ts'
 
 /**
  * Predefined loadout templates for bot ships.

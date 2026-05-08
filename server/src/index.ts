@@ -1,11 +1,12 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
-import { playerRoutes } from "./routes/player.js";
-import { lobbyRoutes } from "./routes/lobby.js";
-import { gameRoutes } from "./routes/game.js";
-import { setupWebSocketRooms } from "./websocket/roomHandler.js";
-import { closeRedis } from "./services/redis.js";
+import { playerRoutes } from "./routes/player.ts";
+import { lobbyRoutes } from "./routes/lobby.ts";
+import { gameRoutes } from "./routes/game.ts";
+import { recordingRoutes } from "./routes/recordings.ts";
+import { setupWebSocketRooms } from "./websocket/roomHandler.ts";
+import { closeRedis } from "./services/redis.ts";
 
 const fastify = Fastify({
   logger: true,
@@ -24,6 +25,7 @@ await fastify.register(websocket);
 await fastify.register(playerRoutes);
 await fastify.register(lobbyRoutes);
 await fastify.register(gameRoutes);
+await fastify.register(recordingRoutes);
 
 // Setup WebSocket handlers
 await setupWebSocketRooms(fastify);
