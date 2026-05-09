@@ -52,7 +52,7 @@ import type {
   PlannerOptions,
   MovementActionType,
 } from "./types.ts";
-import { positionKey } from "./types.ts";
+import { positionKeyInt } from "./types.ts";
 import type { BurnIntensity } from "../../models/game.ts";
 import { getSuccessors } from "./successors.ts";
 import type { PlannerTarget } from "./targets.ts";
@@ -126,48 +126,55 @@ export function planMovementToTarget(
     });
   }
 
-  // Visited frontier: (positionKey + mass-bucket) → best node we've reached
-  // there. Mass-bucket = floor(massCost). Two paths to the same spatial
-  // position with the same mass are equivalent — we keep the one with
-  // fewer turns. Negative edge weights from scoop coast mean a longer path
-  // can have *less* mass cost, so we keep both if neither dominates.
-  const frontier = new Map<string, ForwardNode>();
+  // Visited frontier: int-encoded (position + mass-bucket) → best node.
+  // Two paths to the same spatial position with the same mass are
+  // equivalent; keep the one with fewer turns. Negative edge weights from
+  // scoop coast mean a longer path can have *less* mass cost, so we keep
+  // both if neither dominates. The integer key is materially faster than
+  // a string key on this hot path — see {@link positionKeyInt}.
+  const frontier = new Map<number, ForwardNode>();
   for (const node of layerZero) {
-    frontier.set(frontierKey(node.position, node.massCost), node);
+    frontier.set(frontierKeyInt(node.position, node.massCost), node);
   }
 
   let currentLayer: ForwardNode[] = layerZero;
+  const maxTurns = opts.maxTurns;
+  const availableMass = opts.availableMass;
+  const minMassCost = -(opts.maxFuelCapacity - availableMass);
+  const hasIsMatch = target.isMatch != null;
 
-  for (let turn = 0; turn < opts.maxTurns; turn++) {
+  for (let turn = 0; turn < maxTurns; turn++) {
     const nextLayer: ForwardNode[] = [];
 
     for (const node of currentLayer) {
       const successors = getSuccessors(
         node.position,
-        opts.availableMass - node.massCost,
+        availableMass - node.massCost,
         {
           allowWellTransfers: opts.allowWellTransfers,
           hasFuelScoop: opts.hasFuelScoop,
         },
       );
 
-      for (const succ of successors) {
-        let newMassCost = node.massCost + succ.massCost;
+      const nodeMassCost = node.massCost;
+      const nextTurn = turn + 1;
+      for (let s = 0; s < successors.length; s++) {
+        const succ = successors[s];
+        let newMassCost = nodeMassCost + succ.massCost;
         // Clamp recovered mass so the ship can never carry more than the
         // tank holds (initial fuel + recovered ≤ maxFuelCapacity).
-        const minMassCost = -(opts.maxFuelCapacity - opts.availableMass);
         if (newMassCost < minMassCost) newMassCost = minMassCost;
-        if (newMassCost > opts.availableMass) continue;
+        if (newMassCost > availableMass) continue;
 
         // Dedup: skip if a strictly-better node already reached this
         // (position, mass-bucket).
-        const key = frontierKey(succ.position, newMassCost);
+        const key = frontierKeyInt(succ.position, newMassCost);
         const existing = frontier.get(key);
-        if (existing && existing.turns <= turn + 1) continue;
+        if (existing !== undefined && existing.turns <= nextTurn) continue;
 
         const child: ForwardNode = {
           position: succ.position,
-          turns: turn + 1,
+          turns: nextTurn,
           massCost: newMassCost,
           action: succ.actionType,
           burnIntensity: succ.burnIntensity ?? null,
@@ -179,9 +186,9 @@ export function planMovementToTarget(
 
         // Goal check: did we just land on (or "match") the target this
         // turn? Spatial check is the default; targets may override.
-        const matched = target.isMatch
-          ? target.isMatch(child.position, child.turns)
-          : positionsEqual(child.position, target.positionAt(child.turns));
+        const matched = hasIsMatch
+          ? target.isMatch!(child.position, nextTurn)
+          : positionsEqual(child.position, target.positionAt(nextTurn));
         if (matched) {
           return reconstructForwardPlan(child, origin, target, opts);
         }
@@ -195,10 +202,19 @@ export function planMovementToTarget(
   return null;
 }
 
-/** Coarse mass bucket so the frontier doesn't blow up on tiny mass deltas. */
-function frontierKey(position: OrientedPosition, mass: number): string {
-  return `${positionKey(position)}|${Math.round(mass)}`;
+/**
+ * Bit-packed key combining {@link positionKeyInt} (oriented position) with
+ * a coarse mass bucket. We push the position into the high bits so the
+ * mass bucket sits in low bits where small integers live in V8's smi range.
+ */
+function frontierKeyInt(position: OrientedPosition, mass: number): number {
+  // Mass can be negative (fuel scoop recovery). Shift by 32 so the bucket
+  // is non-negative, then put it in low 6 bits (range 0-63 covers full
+  // recovery + tank size for any realistic loadout).
+  const massBucket = (Math.round(mass) + 32) & 0x3f;
+  return positionKeyInt(position) * 64 + massBucket;
 }
+
 
 function positionsEqual(a: OrbitalPosition, b: OrbitalPosition): boolean {
   return a.wellId === b.wellId && a.ring === b.ring && a.sector === b.sector;

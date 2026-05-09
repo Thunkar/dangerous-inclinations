@@ -242,9 +242,10 @@ describe('Bot Loadout System', () => {
       expect(selectBotMissions(offers, ship, [enemy], stations)).toBe(offers)
     })
 
-    it('prefers monotype combos when other things are equal (synergy bonus)', () => {
-      // 5 offers: 3 destroy, 2 cargo.
-      // The destroy archetype wins by monotype + same-target proximity.
+    it('prefers cheap-and-coherent combos (cargo wins over destroy when destroys carry combat cost)', () => {
+      // 5 offers: 3 destroy (at close range but +15 combat buffer), 2
+      // cargo (cross-well but no combat buffer). With the difficulty
+      // bias in scoreMissionCost, cargo legs actually score better.
       const enemyA = makePlayer('enemyA', makeShip('blackhole', 4, 6))
       const enemyB = makePlayer('enemyB', makeShip('blackhole', 4, 12))
       const enemyC = makePlayer('enemyC', makeShip('blackhole', 4, 18))
@@ -258,9 +259,11 @@ describe('Bot Loadout System', () => {
       const ship = makeShip('blackhole', 4, 0)
       const chosen = selectBotMissions(offers, ship, [enemyA, enemyB, enemyC], stations)
       expect(chosen.length).toBe(3)
-      // All 3 destroy missions should be chosen — monotype + proximity.
-      const ids = chosen.map(m => m.id).sort()
-      expect(ids).toEqual(['d1', 'd2', 'd3'])
+      // Both cargos should be in the chosen trio (they're cheaper than
+      // any individual destroy mission once combat buffer is applied).
+      const ids = chosen.map(m => m.id)
+      expect(ids).toContain('c1')
+      expect(ids).toContain('c2')
     })
 
     it('rejects combos containing infeasible (unreachable) missions', () => {

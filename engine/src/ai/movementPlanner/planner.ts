@@ -22,7 +22,7 @@ import type {
   SearchNode,
   MovementAlternatives,
 } from "./types.ts";
-import { positionKey, positionsMatch } from "./types.ts";
+import { positionKey, positionKeyInt, positionsMatch } from "./types.ts";
 
 /**
  * Default planner options
@@ -65,8 +65,9 @@ export function planMovement(
   // massCost M1, and again at turn T+1 with massCost M2 < M1. Both are useful:
   // the T-path is faster, but the (T+1)-path has more fuel for subsequent burns.
   // We keep all non-dominated entries (lower turns OR lower massCost).
+  // Keyed by integer-encoded position — see {@link positionKeyInt}.
   const bestAt = new Map<
-    string,
+    number,
     Array<{ turns: number; massCost: number; node: SearchNode }>
   >();
 
@@ -91,9 +92,9 @@ export function planMovement(
     if (currentLayer.length === 0) break;
 
     // Deduplicate within layer: keep best massCost per positionKey
-    const layerBest = new Map<string, SearchNode>();
+    const layerBest = new Map<number, SearchNode>();
     for (const node of currentLayer) {
-      const key = positionKey(node.position);
+      const key = positionKeyInt(node.position);
       const existing = layerBest.get(key);
       if (!existing || node.massCost < existing.massCost) {
         layerBest.set(key, node);

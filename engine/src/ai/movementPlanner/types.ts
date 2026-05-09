@@ -137,6 +137,51 @@ export function positionKey(pos: OrientedPosition): string {
 }
 
 /**
+ * Bit-packed integer encoding of an oriented position. Used by hot-path
+ * planner code that visits many positions per call: a `Map<number, …>`
+ * keyed on this integer is materially faster than a `Map<string, …>`
+ * keyed on {@link positionKey}, because we avoid string concatenation
+ * and the engine's string-hash overhead.
+ *
+ * Encoding (bits, low → high):
+ *
+ *   bit  0     facing            (1 bit)   0 = prograde, 1 = retrograde
+ *   bits 1-5   sector            (5 bits)  0-23 (range 0-31)
+ *   bits 6-8   ring              (3 bits)  1-5 (range 0-7)
+ *   bits 9-12  wellIndex         (4 bits)  one slot per gravity well
+ *
+ * Well index is interned via `wellIdToIndex` below; the 4-bit budget
+ * supports up to 16 distinct wells, which is well above the game's 4
+ * (black hole + 3 planets) and leaves headroom.
+ */
+// Plain object is faster than Map.get on the hot BFS path: V8 optimizes
+// monomorphic property access on a hidden-class-stable object, whereas
+// Map.get is a method call. The hash collision risk is nil since wellId
+// strings are short, well-known constants.
+const wellIndexCache: Record<string, number> = Object.create(null);
+let wellIndexCount = 0;
+function wellIdToIndex(wellId: string): number {
+  const cached = wellIndexCache[wellId];
+  if (cached !== undefined) return cached;
+  if (wellIndexCount >= 16) {
+    throw new Error(`positionKeyInt: wellId budget (16) exceeded by ${wellId}`);
+  }
+  const idx = wellIndexCount++;
+  wellIndexCache[wellId] = idx;
+  return idx;
+}
+
+export function positionKeyInt(pos: OrientedPosition): number {
+  const facing = pos.facing === "retrograde" ? 1 : 0;
+  return (
+    facing |
+    (pos.sector << 1) |
+    (pos.ring << 6) |
+    (wellIdToIndex(pos.wellId) << 9)
+  );
+}
+
+/**
  * Key for position without facing (for destination matching)
  */
 export function orbitalPositionKey(pos: OrbitalPosition): string {

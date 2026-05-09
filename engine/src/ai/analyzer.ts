@@ -13,7 +13,7 @@ import { getAvailableWellTransfers } from '../models/transferPoints.ts'
 import { TRANSFER_POINTS } from '../models/gravityWells.ts'
 import { applyOrbitalMovement } from '../game/movement.ts'
 import { SECTORS_PER_RING } from '../models/rings.ts'
-import { computeMissionGoals, selectCurrentGoal } from './behaviors/missions.ts'
+import { computeMissionGoals, selectCurrentGoal, attachPlanToGoal } from './behaviors/missions.ts'
 
 /**
  * Check if two ships are in a shared transfer sector (can target across wells)
@@ -280,9 +280,14 @@ export function analyzeTacticalSituation(
     toSector: tp.toSector,
   }))
 
-  // Compute mission-derived goals
+  // Compute mission-derived goals (cheap heuristic), pick one, then run
+  // the BFS planner on the chosen goal only — see {@link computeMissionGoals}
+  // for why this lazy approach matters for sim throughput.
   const allGoals = computeMissionGoals(botPlayer, gameState)
-  const currentGoal = selectCurrentGoal(allGoals, 'auto')
+  const rawCurrentGoal = selectCurrentGoal(allGoals, 'auto')
+  const currentGoal = rawCurrentGoal
+    ? attachPlanToGoal(rawCurrentGoal, botPlayer, gameState)
+    : null
 
   return {
     botPlayer,

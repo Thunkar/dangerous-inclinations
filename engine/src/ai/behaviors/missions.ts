@@ -15,15 +15,59 @@ import {
   estimateTurnsToTarget,
   planStationMeetUp,
 } from '../movementPlanner/index.ts'
-import { getStationForPlanet } from '../../game/stations.ts'
+import { getStationForPlanet, STATION_CONSTANTS } from '../../game/stations.ts'
+
+/**
+ * Cheap, planner-free turn estimate for goal **ranking**. We can't afford
+ * to run a full BFS for every mission every turn (it's the dominant CPU
+ * cost), so this approximates "how far is X from where I am?" with simple
+ * orbital-geometry arithmetic. The chosen goal then gets a real plan.
+ *
+ * Same-well: ring distance + min(forward, backward) sector distance, both
+ * scaled by average ring velocity (~3 sectors/turn).
+ *
+ * Cross-well: a fixed transfer overhead (well-transfers cost a few turns
+ * to set up plus the target-side approach).
+ *
+ * Conservative bias toward overestimating: false negatives (saying a
+ * mission is harder than it is) just nudge selection toward simpler ones,
+ * which is the right behaviour when the planner is the limiting resource.
+ */
+function cheapTurnEstimate(
+  ship: ShipState,
+  target: { wellId: string; ring: number; sector: number },
+): number {
+  const ringDiff = Math.abs(ship.ring - target.ring)
+  if (ship.wellId === target.wellId) {
+    const sectorsInRing = STATION_CONSTANTS.SECTORS_PER_RING
+    const rawDelta = Math.abs(ship.sector - target.sector)
+    const sectorDiff = Math.min(rawDelta, sectorsInRing - rawDelta)
+    // Avg sector velocity ~3 (planets R1 vel 4, R2 vel 2; BH similar mix).
+    return ringDiff + Math.ceil(sectorDiff / 3)
+  }
+  // Cross-well: well-transfer + transit on each side.
+  return 8 + ringDiff
+}
 
 /**
  * Compute mission-derived goals for the bot.
- * Each incomplete mission generates a goal with estimated turns to completion.
+ *
+ * **Performance contract**: this builds *lightweight* goals using a cheap
+ * geometry heuristic. Goals do NOT carry a `plan` here — running the BFS
+ * planner for every mission every turn was the dominant cost in the sim
+ * profile (76% of total CPU). Only the chosen goal gets a real plan, via
+ * {@link attachPlanToGoal}. Callers using the legacy entry point (UI,
+ * tests) can opt back into eager planning by calling that helper after
+ * {@link selectCurrentGoal}.
+ *
+ * The geometry estimate doesn't need to be exactly right — it just needs
+ * to rank goals consistently enough that the bot picks a sane mission.
+ * The actual movement (which is what matters for reaching the target) is
+ * always computed by the real planner once a goal is selected.
  */
 export function computeMissionGoals(
   player: Player,
-  gameState: GameState
+  gameState: GameState,
 ): BotGoal[] {
   const goals: BotGoal[] = []
 
@@ -31,75 +75,76 @@ export function computeMissionGoals(
     if (mission.isCompleted) continue
 
     if (isDestroyShipMission(mission)) {
-      // Find target player
       const targetPlayer = gameState.players.find(p => p.id === mission.targetPlayerId)
       if (!targetPlayer || targetPlayer.ship.hitPoints <= 0) continue
 
-      // Estimate turns to reach target
-      const turnsToTarget = estimateTurnsToTarget(player.ship, {
+      const cheap = cheapTurnEstimate(player.ship, {
         wellId: targetPlayer.ship.wellId,
         ring: targetPlayer.ship.ring,
         sector: targetPlayer.ship.sector,
       })
-
       goals.push({
         type: 'destroy_target',
         missionId: mission.id,
         targetPlayerId: mission.targetPlayerId,
-        estimatedTurns: turnsToTarget === Infinity ? 20 : turnsToTarget + 3, // +3 for combat
+        estimatedTurns: cheap + 3, // combat resolution buffer
       })
     } else if (isDeliverCargoMission(mission)) {
-      // Check if cargo is picked up
       const cargo = player.cargo.find(c => c.missionId === mission.id)
       const isPickedUp = cargo?.isPickedUp ?? false
+      const stationPlanetId = isPickedUp
+        ? mission.deliveryPlanetId
+        : mission.pickupPlanetId
+      const station = getStationForPlanet(gameState.stations, stationPlanetId)
+      if (!station) continue
 
+      // Cost = leg to current target. For not-yet-picked-up missions we
+      // also factor the future delivery leg so ranking sees the *full*
+      // mission cost (otherwise pickup-only missions look artificially
+      // cheaper than mid-flight ones).
+      let cheap = cheapTurnEstimate(player.ship, {
+        wellId: stationPlanetId,
+        ring: station.ring,
+        sector: station.sector,
+      })
       if (!isPickedUp) {
-        // Need to pick up cargo first
-        const pickupStation = getStationForPlanet(gameState.stations, mission.pickupPlanetId)
-        if (pickupStation) {
-          const meet = planStationMeetUp(player.ship, pickupStation)
-          if (meet) {
-            goals.push({
-              type: 'pickup_cargo',
-              missionId: mission.id,
-              targetWellId: mission.pickupPlanetId,
-              targetRing: meet.meetPosition.ring,
-              targetSector: meet.meetPosition.sector,
-              estimatedTurns: meet.totalTurns,
-              plan: meet.plan,
-            })
-          }
-        }
-      } else {
-        // Cargo picked up, need to deliver
-        const deliveryStation = getStationForPlanet(gameState.stations, mission.deliveryPlanetId)
+        const deliveryStation = getStationForPlanet(
+          gameState.stations,
+          mission.deliveryPlanetId,
+        )
         if (deliveryStation) {
-          const meet = planStationMeetUp(player.ship, deliveryStation)
-          if (meet) {
-            goals.push({
-              type: 'deliver_cargo',
-              missionId: mission.id,
-              targetWellId: mission.deliveryPlanetId,
-              targetRing: meet.meetPosition.ring,
-              targetSector: meet.meetPosition.sector,
-              estimatedTurns: meet.totalTurns,
-              plan: meet.plan,
-            })
-          }
+          // Delivery leg estimated from pickup station — approximate, but
+          // consistent across all candidate cargo missions.
+          cheap += cheapTurnEstimate(
+            {
+              ...player.ship,
+              wellId: mission.pickupPlanetId,
+              ring: station.ring,
+              sector: station.sector,
+            },
+            {
+              wellId: mission.deliveryPlanetId,
+              ring: deliveryStation.ring,
+              sector: deliveryStation.sector,
+            },
+          )
         }
       }
+
+      goals.push({
+        type: isPickedUp ? 'deliver_cargo' : 'pickup_cargo',
+        missionId: mission.id,
+        targetWellId: stationPlanetId,
+        targetRing: station.ring,
+        targetSector: station.sector,
+        estimatedTurns: cheap,
+      })
     } else if (isInterceptTransmissionMission(mission)) {
-      // Intercept missions are two-phase: shadow → deliver scan.
-      // Phase 1 (shadow): be in same well + same ring + within ±3 sectors,
-      //                   AND have sensor_array powered.
-      // Phase 2 (deliver): take the scan_data cargo to ANY station.
       const targetPlayer = gameState.players.find(p => p.id === mission.targetPlayerId)
       if (!targetPlayer || targetPlayer.ship.hitPoints <= 0) continue
 
       if (!mission.scanAcquired) {
-        // Shadow the target. Aim at their predicted position to be
-        // inside the scan window (same ring, same sector is closest).
-        const turnsToTarget = estimateTurnsToTarget(player.ship, {
+        const cheap = cheapTurnEstimate(player.ship, {
           wellId: targetPlayer.ship.wellId,
           ring: targetPlayer.ship.ring,
           sector: targetPlayer.ship.sector,
@@ -111,44 +156,93 @@ export function computeMissionGoals(
           targetWellId: targetPlayer.ship.wellId,
           targetRing: targetPlayer.ship.ring,
           targetSector: targetPlayer.ship.sector,
-          estimatedTurns:
-            turnsToTarget === Infinity ? 20 : turnsToTarget + 1, // +1 for scan acquire turn
+          estimatedTurns: cheap + 1, // +1 to power sensor + scan
         })
       } else {
-        // Carry scan to any station — pick the closest meet-up. Scan cargo
-        // has deliveryPlanetId === "any"; the bot just needs to be at any
-        // station when its action ends.
-        let bestMeet:
-          | (ReturnType<typeof planStationMeetUp> & { planetId: string })
-          | undefined
+        // Pick the cheapest station to deliver scan to (any station works).
+        let bestStation: Station | undefined
+        let bestCost = Infinity
         for (const station of gameState.stations) {
-          const meet = planStationMeetUp(player.ship, station)
-          if (
-            meet &&
-            (bestMeet === undefined || meet.totalTurns < bestMeet.totalTurns)
-          ) {
-            bestMeet = { ...meet, planetId: station.planetId }
+          const cost = cheapTurnEstimate(player.ship, {
+            wellId: station.planetId,
+            ring: station.ring,
+            sector: station.sector,
+          })
+          if (cost < bestCost) {
+            bestCost = cost
+            bestStation = station
           }
         }
-        if (bestMeet) {
+        if (bestStation) {
           goals.push({
             type: 'deliver_scan',
             missionId: mission.id,
-            targetWellId: bestMeet.planetId,
-            targetRing: bestMeet.meetPosition.ring,
-            targetSector: bestMeet.meetPosition.sector,
-            estimatedTurns: bestMeet.totalTurns,
-            plan: bestMeet.plan,
+            targetWellId: bestStation.planetId,
+            targetRing: bestStation.ring,
+            targetSector: bestStation.sector,
+            estimatedTurns: bestCost,
           })
         }
       }
     }
   }
 
-  // Sort by estimated turns (most urgent first)
   goals.sort((a, b) => a.estimatedTurns - b.estimatedTurns)
-
   return goals
+}
+
+/**
+ * Enrich a goal with a real movement plan from the BFS planner. Called
+ * once per turn — only on the goal the bot has actually chosen to pursue
+ * — so we pay the BFS cost for one mission rather than three.
+ *
+ * For station meet-ups (cargo, scan delivery), uses the dynamic-target
+ * forward BFS via {@link planStationMeetUp}. For destroy/shadow goals,
+ * the existing positioning logic uses `planFromShip` (reverse BFS) on
+ * the goal's target sector — no plan attachment needed here, since those
+ * targets are essentially static (predicted enemy position).
+ *
+ * Returns the goal with the plan attached when applicable, or the goal
+ * unchanged when no plan is needed (or planning fails).
+ */
+export function attachPlanToGoal(
+  goal: BotGoal,
+  player: Player,
+  gameState: GameState,
+): BotGoal {
+  if (goal.plan) return goal // already planned
+
+  // Only station-meet goals benefit from the dynamic planner here.
+  // Destroy/shadow goals navigate via positioning.ts using planFromShip.
+  if (
+    goal.type !== 'pickup_cargo' &&
+    goal.type !== 'deliver_cargo' &&
+    goal.type !== 'deliver_scan'
+  ) {
+    return goal
+  }
+
+  if (goal.targetWellId == null) return goal
+  // For deliver_scan, find the actual station object (target sector matches
+  // the chosen one's current sector, so a Station object is at hand).
+  const station = gameState.stations.find(
+    s =>
+      s.planetId === goal.targetWellId &&
+      s.ring === goal.targetRing &&
+      s.sector === goal.targetSector,
+  )
+  if (!station) return goal
+
+  const meet = planStationMeetUp(player.ship, station)
+  if (!meet) return goal
+
+  return {
+    ...goal,
+    targetRing: meet.meetPosition.ring,
+    targetSector: meet.meetPosition.sector,
+    estimatedTurns: meet.totalTurns,
+    plan: meet.plan,
+  }
 }
 
 /**

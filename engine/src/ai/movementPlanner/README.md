@@ -211,6 +211,100 @@ isMatch: (pos, turn) => {
 
 ## Performance notes
 
-The forward BFS's worst-case search space is `(positions × mass-buckets)` per layer — bounded because positions are finite (≤ 720 across all wells with both facings) and mass is clamped. Empirically the BFS terminates in a few milliseconds for realistic ship states; we run it once per goal per bot per turn in the simulator (4 bots × 3 missions × ~12 layers × ~10 successors per state) and the parallel sim still hits ~1 game per second on an M-series Mac.
+The forward BFS's worst-case search space is `(positions × mass-buckets)` per layer — bounded because positions are finite (≤ 720 across all wells with both facings) and mass is clamped. Empirically the BFS terminates in a sub-millisecond for realistic ship states.
 
-If this becomes a bottleneck, the next step is to memoize "(origin position, target identity) → plan" across consecutive bot turns — most of the time the bot's situation hasn't changed enough to invalidate the previous plan, just _executed_ its first step.
+Two changes turned out to matter for sim throughput. They're independent and stack roughly multiplicatively: an A/B at 20 sequential games shows 113 s pre-optimisation → 54 s with lazy planning alone → 14 s with both.
+
+### Lazy planning
+
+Mission ranking is the dominant per-turn cost. Every turn the bot has to decide *which* mission to pursue, and the obvious way to do that is "compute a real plan for each mission, pick the cheapest." With 3 missions per bot, that's three BFS invocations per bot per turn — and only one plan ever gets used (the chosen one).
+
+The fix is to **rank with a cheap heuristic, plan only the winner**. `computeMissionGoals` ([behaviors/missions.ts](../behaviors/missions.ts)) now uses a planner-free `cheapTurnEstimate` to score missions; once `selectCurrentGoal` picks one, `attachPlanToGoal` runs the real BFS for that single goal.
+
+#### How `cheapTurnEstimate` works
+
+The function asks "roughly how many bot-turns from this ship to that orbital position?" — and answers it from geometry alone. Two cases:
+
+**Same well.** Distance is ring distance plus the shorter way around the ring (cyclic sector distance), divided by an "average" sector velocity:
+
+```ts
+const ringDiff = Math.abs(ship.ring - target.ring)        // ring layers between
+const rawDelta = Math.abs(ship.sector - target.sector)
+const sectorDiff = Math.min(rawDelta, 24 - rawDelta)      // shorter direction
+return ringDiff + Math.ceil(sectorDiff / 3)
+```
+
+The numbers come from the game's actual ring velocities:
+
+| Ring | BH velocity | Planet velocity |
+|------|-------------|-----------------|
+| 1    | 8           | 4               |
+| 2    | 6           | 2               |
+| 3    | 4           | 1               |
+| 4    | 2           | —               |
+| 5    | 1           | —               |
+
+A bot in the middle rings averages ~3 sectors of orbital advance per turn (the simple arithmetic mean across rings is closer to 4, but ranking accuracy doesn't matter here, only *consistency*; we picked 3 to bias toward overestimating, which is the safer error). Each `+1` to ring distance counts as one full burn-turn — that's roughly right too: a ring change costs one burn action, regardless of intensity.
+
+**Cross-well.** A flat penalty:
+
+```ts
+return 8 + ringDiff
+```
+
+The `8` covers two things implicitly: a few turns to maneuver to the well-transfer point, plus the well_transfer + landing-side approach. We don't bother modelling the source-side trip in detail because the chosen-goal planner will figure it out exactly. The `+ ringDiff` then acknowledges that arrival-side rings still vary in cost.
+
+#### Why "approximate" is fine
+
+The heuristic only has to rank goals consistently enough that the bot picks a sane one — it doesn't drive movement. Once a goal is chosen, the real BFS plans the actual path with full fidelity, including station orbit, fuel constraints, and ring transitions. A small ranking error (saying mission A is 12 turns when it's actually 9) does no harm: the bot still pursues a mission it can complete, and the planner gives it a correct route.
+
+The bias matters more than the precision: we deliberately overestimate (using `Math.ceil` on the sector divide, picking 3 sectors/turn instead of 4, adding a +15 combat buffer to destroy missions in `scoreMissionCost`). When the planner is the limiting resource, "overestimate" is the right way to be wrong — it nudges selection toward easier missions, which is exactly what helps the bot win more games.
+
+### Integer position keys
+
+The forward BFS's `Map<key, Node>` is consulted twice per node expansion (one `get`, one `set`). Originally we keyed it on a template-literal string like `"blackhole:3:5:prograde|−2"`; now we use a bit-packed integer (`positionKeyInt`) so the key is just a number:
+
+```text
+   bit  0     facing  (1 bit)   prograde / retrograde
+   bits 1-5   sector  (5 bits)  0-23
+   bits 6-8   ring    (3 bits)  1-5
+   bits 9-12  well    (4 bits)  interned via Object lookup
+```
+
+A controlled A/B (lazy planning kept identical, only the key encoding changed) measured **54 s → 14 s** for 20 sequential games — about 3.9× faster.
+
+The original framing of this change as "string-hash overhead" was wrong, or at best incomplete. The hashing itself is fast either way; the real costs are:
+
+1. **String allocation per lookup.** The template literal allocates a fresh string on every node expansion — tens of millions of allocations per game. That's the biggest single cost: GC pressure, not arithmetic.
+2. **V8's Smi fast path.** Small-integer keys (Smi) live in a different specialised path inside V8's `Map` implementation than strings do. Strings get atomized/canonicalised before lookup; Smis don't.
+3. **Collision comparisons.** When two keys hash to the same bucket, V8 falls back to equality checks. For strings that's char-by-char; for Smis it's a single value compare.
+
+Of those, (1) dominates. We didn't replace a slow hash with a fast hash — we replaced a path that allocated with one that didn't.
+
+### Bench numbers (M-series Mac, 4 bots × 500 max turns)
+
+20 sequential games (single worker — measures planner cost directly, no parallelism noise):
+
+| Sim configuration                            | Time | Speedup |
+|----------------------------------------------|------|---------|
+| Pre-redesign (eager planning, string keys)   | 113 s | —       |
+| + lazy planning                              | 54 s  | 2.1×    |
+| + integer position keys (final)              | 14 s  | 3.9× more, 8.0× total |
+
+500 parallel games (8 workers, real-world throughput):
+
+| Sim configuration                | Time / 500 games | Games/sec |
+|----------------------------------|------------------|-----------|
+| Pre-redesign                     | ~555 s           | 0.9       |
+| Final (lazy + int keys)          | **~59 s**        | **8.5**   |
+
+Win rate stays at ~98% across all rows; the changes are pure performance.
+
+### Where time still goes
+
+After both optimizations, the CPU profile shows `planMovementToTarget` ~37%, `getSuccessors` ~23%, `planMovement` ~16%. Further gains would come from:
+
+- **Plan reuse across turns**: most of the time the bot is mid-execution of a plan from the previous turn — the first step has applied and the rest is still valid. A persistent per-bot plan slot would cut planner calls dramatically. Tradeoff: requires inter-turn state, which is invasive in the engine's current pure-function reducer model.
+- **Successor object pooling**: `getSuccessors` allocates an array of objects per call. A pre-allocated buffer or a generator-style API would cut GC pressure further, at the cost of API ergonomics.
+
+Neither is needed for current throughput (~8 games/sec on 8 workers handles a 5,000-game batch in ~10 minutes). Revisit if simulation budgets grow.
