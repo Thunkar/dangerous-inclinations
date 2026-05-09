@@ -266,21 +266,34 @@ describe('Mission Goal System', () => {
       expect(selectCurrentGoal([], 'auto')).toBeNull()
     })
 
-    it('should pick cheapest goal with auto strategy', () => {
+    // Cargo-in-hand commitment: deliver_cargo trumps every other goal
+    // regardless of strategy. The bot has invested ~25-30 turns getting
+    // the pickup; bailing now means starting over. Tests below use
+    // pickupGoal+destroyGoal (no deliver_cargo) when exercising strategy
+    // tie-breakers.
+    it('deliver_cargo always wins when cargo is in hand', () => {
       const goals = [pickupGoal, destroyGoal, deliverGoal]
-      // Sorted by estimatedTurns: pickup(3), destroy(5), deliver(8)
-      const result = selectCurrentGoal(goals, 'auto')
-      expect(result).toEqual(goals[0]) // First in array (already sorted by estimatedTurns)
+      for (const strategy of ['auto', 'combat', 'cargo', 'balanced'] as const) {
+        const result = selectCurrentGoal(goals, strategy)
+        expect(result?.type).toBe('deliver_cargo')
+      }
     })
 
-    it('should prefer destroy missions with combat strategy', () => {
-      const goals = [pickupGoal, destroyGoal, deliverGoal]
+    it('should pick cheapest goal with auto strategy (no in-progress goal)', () => {
+      const goals = [pickupGoal, destroyGoal]
+      // Sorted by estimatedTurns: pickup(3), destroy(5)
+      const result = selectCurrentGoal(goals, 'auto')
+      expect(result).toEqual(goals[0])
+    })
+
+    it('should prefer destroy missions with combat strategy (no in-progress goal)', () => {
+      const goals = [pickupGoal, destroyGoal]
       const result = selectCurrentGoal(goals, 'combat')
       expect(result?.type).toBe('destroy_target')
     })
 
-    it('should prefer cargo missions with cargo strategy', () => {
-      const goals = [destroyGoal, pickupGoal, deliverGoal]
+    it('should prefer cargo missions with cargo strategy (no in-progress goal)', () => {
+      const goals = [destroyGoal, pickupGoal]
       const result = selectCurrentGoal(goals, 'cargo')
       expect(result?.type).toBe('pickup_cargo')
     })

@@ -47,9 +47,17 @@ function getTargetPosition(
         break
       }
       case 'pickup_cargo':
-      case 'deliver_cargo': {
-        // Navigate to station position (from goal)
-        if (currentGoal.targetWellId != null && currentGoal.targetRing != null && currentGoal.targetSector != null) {
+      case 'deliver_cargo':
+      case 'deliver_scan':
+      case 'shadow_target': {
+        // Navigate to the goal's target position. shadow_target uses the
+        // tracked player's ring/sector so the bot moves into scan range
+        // (same well, same ring, ±3 sectors).
+        if (
+          currentGoal.targetWellId != null &&
+          currentGoal.targetRing != null &&
+          currentGoal.targetSector != null
+        ) {
           return {
             wellId: currentGoal.targetWellId,
             ring: currentGoal.targetRing,
@@ -126,7 +134,7 @@ export function planMovementAction(
         playerId: botPlayer.id,
         sequence,
         data: {
-          activateScoop: shouldActivateScoop(situation),
+          activateScoop: shouldActivateScoop(situation, parameters),
         },
       },
       needsRotation: false,
@@ -145,7 +153,7 @@ export function planMovementAction(
         playerId: botPlayer.id,
         sequence,
         data: {
-          activateScoop: shouldActivateScoop(situation),
+          activateScoop: shouldActivateScoop(situation, parameters),
         },
       },
       needsRotation: false,
@@ -162,7 +170,7 @@ export function planMovementAction(
         playerId: botPlayer.id,
         sequence,
         data: {
-          activateScoop: shouldActivateScoop(situation),
+          activateScoop: shouldActivateScoop(situation, parameters),
         },
       },
       needsRotation: false,
@@ -174,7 +182,10 @@ export function planMovementAction(
   const needsRotation = firstAction.targetFacing != null && firstAction.targetFacing !== status.facing
   const desiredFacing = firstAction.targetFacing ?? null
 
-  // Convert to game action
+  // Convert planner action → engine action.
+  // The planner emits 'burn', 'coast', or 'well_transfer'. Each requires a
+  // distinct engine action; previously well_transfer fell through to coast,
+  // which silently kept the bot stranded on the black hole.
   if (firstAction.actionType === 'burn') {
     // Check if we have enough reaction mass
     if (status.reactionMass < 1) {
@@ -184,7 +195,7 @@ export function planMovementAction(
           playerId: botPlayer.id,
           sequence,
           data: {
-            activateScoop: shouldActivateScoop(situation),
+            activateScoop: shouldActivateScoop(situation, parameters),
           },
         },
         needsRotation: false,
@@ -207,6 +218,23 @@ export function planMovementAction(
     }
   }
 
+  if (firstAction.actionType === 'well_transfer' && firstAction.destinationWellId) {
+    // The planner already validated this transfer is legal; emit the action.
+    // The destination well lives on the planner's step.to.wellId.
+    return {
+      action: {
+        type: 'well_transfer',
+        playerId: botPlayer.id,
+        sequence,
+        data: {
+          destinationWellId: firstAction.destinationWellId,
+        },
+      },
+      needsRotation,
+      desiredFacing,
+    }
+  }
+
   // Coast (default)
   return {
     action: {
@@ -214,7 +242,7 @@ export function planMovementAction(
       playerId: botPlayer.id,
       sequence,
       data: {
-        activateScoop: shouldActivateScoop(situation),
+        activateScoop: shouldActivateScoop(situation, parameters),
       },
     },
     needsRotation,
@@ -223,26 +251,44 @@ export function planMovementAction(
 }
 
 /**
- * Check if scoop should be activated when coasting
+ * Check if scoop should be activated when coasting.
+ *
+ * The scoop must be currently powered — we don't speculate whether the
+ * energy budget will fund a new allocation, because allocation can fail
+ * (reactor full of higher-priority subsystems). Activating a coast with
+ * `activateScoop: true` against an unpowered scoop fails validation.
+ *
+ * The fuel threshold (parameters.lowFuelThreshold) is shared with the
+ * scoop allocation rule in survival.ts:buildEnergyBudget — both must agree
+ * or the bot emits inconsistent actions.
  */
-function shouldActivateScoop(situation: TacticalSituation): boolean {
+function shouldActivateScoop(
+  situation: TacticalSituation,
+  parameters: BotParameters
+): boolean {
   const { status } = situation
 
-  // Need a scoop subsystem that's powered
   const scoop = status.subsystems.find(s => s.type === 'scoop')
   if (!scoop || !scoop.powered || scoop.broken) return false
 
-  // Only scoop if we need fuel
-  return status.reactionMass < getMaxReactionMass(status.subsystems)
+  const max = getMaxReactionMass(status.subsystems)
+  return status.reactionMass < Math.min(parameters.lowFuelThreshold, max)
 }
 
 /**
- * Generate rotation action if needed
+ * Generate rotation action if needed.
+ *
+ * `projectedRotationEnergy` is the rotation subsystem's energy AFTER this
+ * turn's energy allocations apply (the engine processes allocations before
+ * tactical actions). Without it we'd check current `rotation.powered` and
+ * skip the rotate even when the budget plans to power rotation this turn —
+ * leaving the bot unable to flip orientation.
  */
 export function generateRotationAction(
   situation: TacticalSituation,
   desiredFacing: 'prograde' | 'retrograde' | null,
-  sequence: number
+  sequence: number,
+  projectedRotationEnergy?: number
 ): RotateAction | null {
   if (!desiredFacing || desiredFacing === situation.status.facing) {
     return null
@@ -250,7 +296,11 @@ export function generateRotationAction(
 
   // Check if rotation is available
   const rotation = situation.status.rotation
-  if (rotation.used || !rotation.powered) {
+  if (rotation.used || rotation.broken) {
+    return null
+  }
+  const energyAtFireTime = projectedRotationEnergy ?? rotation.energy
+  if (energyAtFireTime <= 0) {
     return null
   }
 
@@ -284,6 +334,15 @@ export function generateEscapeTransfer(
   // Well transfers require engines at level 3
   const enginesEnergy = situation.status.engines.energy
   if (enginesEnergy < 3) {
+    return null
+  }
+
+  // Well transfers cost 3 reaction mass (refunded if a fuel_compressor is
+  // installed). Don't propose the action when the engine would reject it.
+  const hasFuelCompressor = situation.status.subsystems.some(
+    s => s.type === 'fuel_compressor'
+  )
+  if (!hasFuelCompressor && situation.botPlayer.ship.reactionMass < 3) {
     return null
   }
 

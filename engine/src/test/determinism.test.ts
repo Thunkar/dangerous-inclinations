@@ -88,8 +88,9 @@ function buildSeededGame(seed: number): GameState {
 
 /**
  * Run N turns of bot-vs-bot, returning the final state and recorded actions.
- * Mirrors the server's behavior of falling back to coast when a bot's plan
- * fails validation, so transient bot bugs don't break determinism tests.
+ *
+ * Strict: any invalid bot turn fails the test. We rely on the playtest sim
+ * having flushed bot bugs, so a regression here is what we want to catch.
  */
 function runBotGame(
   initialState: GameState,
@@ -117,25 +118,13 @@ function runBotGame(
       actions = decision.actions;
     }
 
-    let result = executeTurn(state, actions);
+    const result = executeTurn(state, actions);
     if (result.errors && result.errors.length > 0) {
-      // Fallback to coast — same behavior as the server, and required for the
-      // game to progress when a bot generates an invalid plan.
-      const coast: PlayerAction[] = [
-        {
-          type: "coast",
-          playerId: activePlayer.id,
-          sequence: 1,
-          data: { activateScoop: false },
-        },
-      ];
-      allActions.push(coast);
-      result = executeTurn(state, coast);
-      if (result.errors && result.errors.length > 0) break;
-    } else {
-      allActions.push(actions);
+      throw new Error(
+        `Bot ${activePlayer.id} invalid turn at T${state.turn}: ${result.errors.join("; ")}\nActions: ${JSON.stringify(actions)}`
+      );
     }
-
+    allActions.push(actions);
     state = result.gameState;
   }
 

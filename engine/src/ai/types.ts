@@ -60,7 +60,13 @@ export interface Target {
 /**
  * Bot goal types derived from missions
  */
-export type BotGoalType = 'destroy_target' | 'pickup_cargo' | 'deliver_cargo' | 'combat_opportunistic'
+export type BotGoalType =
+  | 'destroy_target'
+  | 'pickup_cargo'
+  | 'deliver_cargo'
+  | 'shadow_target' // For intercept_transmission: get same ring, within ±3 sectors, power sensor_array
+  | 'deliver_scan' // After scan acquired, bring scan_data cargo to any station
+  | 'combat_opportunistic'
 
 /**
  * A mission-derived goal that drives bot behavior
@@ -168,6 +174,7 @@ export interface BotParameters {
   // Resource management
   energyReserve: number // Minimum energy to keep available
   conserveAmmo: boolean // Whether to be conservative with missiles
+  lowFuelThreshold: number // Reaction-mass level below which the bot powers + activates scoop
 
   // Mission strategy
   missionStrategy: 'combat' | 'cargo' | 'balanced' | 'auto'
@@ -185,6 +192,7 @@ export const DEFAULT_BOT_PARAMETERS: BotParameters = {
   useWellTransfers: true,
   energyReserve: 2,
   conserveAmmo: false,
+  lowFuelThreshold: 8,
   missionStrategy: 'auto',
 }
 

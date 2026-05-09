@@ -37,11 +37,17 @@ export interface EnergyContext {
   hasTarget: boolean
   underThreat: boolean
   requiredEngineEnergy?: number // How much energy engines need (1=soft, 2=medium, 3=hard/transfer)
+  /**
+   * The bot is pursuing an intercept_transmission mission and wants the
+   * sensor_array powered this turn so the scan-window check fires. Set when
+   * the current goal is `shadow_target`.
+   */
+  willShadow?: boolean
 }
 
 function buildEnergyBudget(
   situation: TacticalSituation,
-  _parameters: BotParameters,
+  parameters: BotParameters,
   context: EnergyContext
 ): EnergyRequest[] {
   const { status } = situation
@@ -80,13 +86,19 @@ function buildEnergyBudget(
         break
 
       case 'scoop':
-        if (context.willCoast && status.reactionMass < 8) {
+        // The scoop's "low on fuel" threshold lives on BotParameters so
+        // shouldActivateScoop in positioning.ts uses the same value — if the
+        // budget refuses scoop here, the coast action mustn't activate it.
+        if (context.willCoast && status.reactionMass < parameters.lowFuelThreshold) {
           priority = 3
         }
         break
 
       case 'sensor_array':
-        if (context.hasTargetInRange) {
+        if (context.willShadow) {
+          // Required to acquire scan on intercept_transmission missions.
+          priority = 1
+        } else if (context.hasTargetInRange) {
           priority = 3 // Boost crit chance when firing
         }
         break

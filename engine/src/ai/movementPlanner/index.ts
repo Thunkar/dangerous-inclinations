@@ -126,16 +126,37 @@ export function getFirstAction(plan: MovementPlan): {
   burnIntensity?: BurnIntensity;
   sectorAdjustment: number;
   targetFacing?: Facing;
+  /**
+   * For well_transfer actions only — the well the planner intends to jump
+   * to. Required by the bot to construct a `WellTransferAction`.
+   */
+  destinationWellId?: string;
 } | null {
   if (plan.steps.length === 0) return null;
 
   const step = plan.steps[0];
 
-  // Determine if we need to rotate first
-  const needsRotation = step.requiresRotation;
-  const targetFacing = needsRotation ? step.from.facing : undefined;
+  // `targetFacing` is the facing the ship MUST be in for this step to
+  // succeed (i.e. the post-rotation facing). For burns, that's the burn
+  // direction. Setting it to `step.from.facing` (the pre-rotation source
+  // facing) would never trigger a rotation — exactly the bug that kept
+  // bots stuck on planet R3 when they needed to retrograde-burn inward.
+  let targetFacing: Facing | undefined;
+  if (step.actionType === "burn_prograde") {
+    targetFacing = "prograde";
+  } else if (step.actionType === "burn_retrograde") {
+    targetFacing = "retrograde";
+  } else if (step.actionType === "well_transfer") {
+    // Well transfers require prograde facing.
+    targetFacing = "prograde";
+  } else {
+    targetFacing = undefined; // coast — no rotation required by the step itself
+  }
 
-  // Map action type
+  // Map planner step type → engine action type. Each is a distinct
+  // action; well transfers in particular MUST be emitted as a real
+  // well_transfer action, not collapsed into coast (which previously
+  // stranded bots on the black hole because no one ever issued the jump).
   let actionType: ActionType;
   if (step.actionType === "coast") {
     actionType = "coast";
@@ -145,8 +166,7 @@ export function getFirstAction(plan: MovementPlan): {
   ) {
     actionType = "burn";
   } else {
-    // Well transfer needs special handling
-    actionType = "coast"; // Well transfers are followed by coast
+    actionType = "well_transfer";
   }
 
   return {
@@ -154,6 +174,8 @@ export function getFirstAction(plan: MovementPlan): {
     burnIntensity: step.burnIntensity,
     sectorAdjustment: step.sectorAdjustment,
     targetFacing,
+    destinationWellId:
+      step.actionType === "well_transfer" ? step.to.wellId : undefined,
   };
 }
 

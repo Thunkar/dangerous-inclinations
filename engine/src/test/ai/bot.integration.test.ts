@@ -299,6 +299,7 @@ describe("Bot AI Integration Tests", () => {
         useWellTransfers: true, // Enable transfers
         energyReserve: 2,
         conserveAmmo: true,
+        lowFuelThreshold: 8,
         missionStrategy: "auto",
       };
 
@@ -337,6 +338,7 @@ describe("Bot AI Integration Tests", () => {
         useWellTransfers: false,
         energyReserve: 3,
         conserveAmmo: true,
+        lowFuelThreshold: 8,
         missionStrategy: "auto",
       };
 
@@ -349,6 +351,7 @@ describe("Bot AI Integration Tests", () => {
         useWellTransfers: true,
         energyReserve: 1,
         conserveAmmo: false,
+        lowFuelThreshold: 8,
         missionStrategy: "auto",
       };
 

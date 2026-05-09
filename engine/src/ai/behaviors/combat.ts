@@ -83,7 +83,29 @@ export function generateWeaponActions(
   target: Target | null,
   startSequence: number,
   parameters: BotParameters,
-  projectedEnergy?: Map<number, number>
+  projectedEnergy?: Map<number, number>,
+  /**
+   * Reaction mass projected to be available AFTER the planned movement
+   * action has consumed fuel. Used by railgun recoil-compensation logic
+   * which itself burns 1 reaction mass — without this, the bot can decide
+   * to compensate on a turn where the burn has already drained its tank.
+   * Falls back to current mass if not provided.
+   */
+  projectedReactionMass?: number,
+  /**
+   * Whether the planned movement (burn or well_transfer) will mark engines
+   * as `usedThisTurn` before weapons fire. Recoil compensation also uses
+   * engines, so when engines are already used this turn we can't
+   * compensate — the validator rejects it.
+   */
+  enginesWillBeUsedByMovement?: boolean,
+  /**
+   * Ring/facing the ship will occupy when weapons fire — i.e. AFTER the
+   * planned rotation and movement. Recoil safety depends on the post-move
+   * ring (a burn from R5 → R3 makes recoil safe even if R5 wasn't).
+   * Falls back to the current ship's position.
+   */
+  postMovementShip?: { ring: number; facing: 'prograde' | 'retrograde' }
 ): FireWeaponAction[] {
   if (!target) {
     return []
@@ -156,18 +178,27 @@ export function generateWeaponActions(
       }
     }
 
-    // Railgun recoil check: skip if recoil would be invalid and can't compensate
+    // Railgun recoil check: skip if recoil would be invalid and can't compensate.
+    // Decisions use post-movement state — by the time the railgun fires,
+    // the planned burn/transfer has already moved the ship and engines may
+    // have been used. The energy budget may also have deallocated engines.
     let compensateRecoil: boolean | undefined
     if (sub.type === 'railgun') {
       const ship = botPlayer.ship
-      const recoilDir = ship.facing === 'prograde' ? 1 : -1
-      const recoilRing = ship.ring + recoilDir
+      const firingRing = postMovementShip?.ring ?? ship.ring
+      const firingFacing = postMovementShip?.facing ?? ship.facing
+      const recoilDir = firingFacing === 'prograde' ? 1 : -1
+      const recoilRing = firingRing + recoilDir
       const maxRing = getGravityWell(ship.wellId)?.rings.length ?? 5
       const wouldBeInvalid = recoilRing < 1 || recoilRing > maxRing
 
       const engines = status.engines
-      const canCompensate = engines.powered && !engines.used &&
-        engines.energy >= BURN_COSTS.soft.energy && ship.reactionMass >= BURN_COSTS.soft.mass
+      const projectedEngineEnergy = projectedEnergy?.get(engines.index) ?? engines.energy
+      const massForRecoil = projectedReactionMass ?? ship.reactionMass
+      const enginesUsed = engines.used || (enginesWillBeUsedByMovement ?? false)
+      const canCompensate = !enginesUsed &&
+        projectedEngineEnergy >= BURN_COSTS.soft.energy &&
+        massForRecoil >= BURN_COSTS.soft.mass
 
       if (wouldBeInvalid && !canCompensate) continue // Can't fire safely
       compensateRecoil = wouldBeInvalid || canCompensate // Compensate if we can or must

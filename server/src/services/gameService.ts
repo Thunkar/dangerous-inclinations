@@ -247,22 +247,21 @@ export async function executeBotsIfNeeded(
         }
       : botDecideActions(state, botPlayerId);
 
-    // Execute the bot's turn
-    let result = executeTurn(state, botDecision.actions);
+    // Execute the bot's turn. Strict mode: a bot bug surfaces immediately
+    // — no coast fallback, no silent recovery. The dispatcher logs and
+    // throws so the server crashes loudly and the bug gets fixed.
+    const result = executeTurn(state, botDecision.actions);
 
     if (result.errors && result.errors.length > 0) {
-      console.error(`[Bot ${botPlayerId}] Turn errors:`, result.errors);
-      // Fallback: submit a simple coast so the turn advances instead of freezing
-      result = executeTurn(state, [{
-        type: 'coast' as const,
-        playerId: botPlayerId,
-        sequence: 1,
-        data: { activateScoop: false },
-      }]);
-      if (result.errors && result.errors.length > 0) {
-        console.error(`[Bot ${botPlayerId}] Coast fallback also failed:`, result.errors);
-        break;
-      }
+      console.error(
+        `[Bot ${botPlayerId}] Invalid turn at T${turnNumber}:`,
+        result.errors,
+        "\nActions:",
+        JSON.stringify(botDecision.actions, null, 2)
+      );
+      throw new Error(
+        `Bot ${botPlayerId} produced an invalid turn (T${turnNumber}): ${result.errors.join("; ")}`
+      );
     }
 
     const previousPhase = state.phase;

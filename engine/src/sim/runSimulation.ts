@@ -36,6 +36,26 @@ import {
 } from "../game/deployment.ts";
 
 /**
+ * Thrown by {@link runSimulation} when a bot produces an action plan that
+ * fails engine validation. Strict mode: no coast fallback, the run halts
+ * and the caller decides what to do. The error carries enough context to
+ * diagnose the bot bug.
+ */
+export class BotInvalidActionError extends Error {
+  constructor(
+    public readonly turnNumber: number,
+    public readonly playerId: string,
+    public readonly actions: PlayerAction[],
+    public readonly errors: string[]
+  ) {
+    super(
+      `Bot ${playerId} produced an invalid turn at T${turnNumber}: ${errors.join("; ")}`
+    );
+    this.name = "BotInvalidActionError";
+  }
+}
+
+/**
  * Configuration for a single sim run.
  */
 export interface SimConfig {
@@ -98,33 +118,19 @@ export function runSimulation(config: SimConfig = {}): SimResult {
     const activePlayer = state.players[state.activePlayerIndex];
     const actions = decideActionsForTurn(state, activePlayer);
 
-    // Execute, with coast fallback on validation failure.
-    let result = executeTurn(state, actions);
-    let appliedActions = actions;
-
+    // Strict execution: a bot bug = a thrown error. No coast fallback.
+    // Use strictBatch.runStrictGame if you want to capture failures
+    // structurally instead of crashing.
+    const result = executeTurn(state, actions);
     if (result.errors && result.errors.length > 0) {
-      const coast: PlayerAction[] = [
-        {
-          type: "coast",
-          playerId: activePlayer.id,
-          sequence: 1,
-          data: { activateScoop: false },
-        },
-      ];
-      result = executeTurn(state, coast);
-      appliedActions = coast;
-      if (result.errors && result.errors.length > 0) {
-        // Coast itself failed — give up on this run.
-        endReason = "fatal_error";
-        break;
-      }
+      throw new BotInvalidActionError(turnNumber, activePlayer.id, actions, result.errors);
     }
 
     state = result.gameState;
     turns.push({
       turnNumber,
       playerId: activePlayer.id,
-      actions: appliedActions,
+      actions,
       resultingStateSnapshot: cloneState(state),
       logEntries: result.logEntries,
     });

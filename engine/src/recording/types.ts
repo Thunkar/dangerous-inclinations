@@ -43,7 +43,7 @@ export interface RecordingMetadata {
   /** Winner player id, if the game ended. */
   winnerId?: string;
   /** Reason the run stopped. */
-  endReason: "victory" | "max_turns" | "fatal_error";
+  endReason: "victory" | "max_turns";
 }
 
 /**

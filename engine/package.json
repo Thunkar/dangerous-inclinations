@@ -14,7 +14,8 @@
     "build": "tsc",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "sim": "node --experimental-strip-types --no-warnings src/sim/cli.ts"
+    "sim": "node --experimental-strip-types --no-warnings src/sim/cli.ts",
+    "strict-sim": "node --experimental-strip-types --no-warnings src/sim/strictCli.ts"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

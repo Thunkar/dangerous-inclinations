@@ -459,7 +459,16 @@ export function validateWellTransferAction(
     return errors;
   }
 
-  if (player.ship.reactionMass < WELL_TRANSFER_COSTS.mass) {
+  // Fuel compressor refunds the well-transfer mass cost (rules:
+  // "+6 max mass, free well transfers"). The action processor handles the
+  // refund, so we only require mass when no compressor is installed.
+  const hasFuelCompressor = player.ship.subsystems.some(
+    (s) => s.type === "fuel_compressor"
+  );
+  if (
+    !hasFuelCompressor &&
+    player.ship.reactionMass < WELL_TRANSFER_COSTS.mass
+  ) {
     errors.push(
       `Not enough reaction mass for well transfer (need ${WELL_TRANSFER_COSTS.mass}, have ${player.ship.reactionMass})`
     );

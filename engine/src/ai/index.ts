@@ -246,6 +246,7 @@ export function createBotParameters(
         useWellTransfers: false,
         energyReserve: 3,
         conserveAmmo: true,
+        lowFuelThreshold: 8,
         missionStrategy: "auto",
       };
 
@@ -262,6 +263,7 @@ export function createBotParameters(
         useWellTransfers: true,
         energyReserve: 1,
         conserveAmmo: false,
+        lowFuelThreshold: 8,
         missionStrategy: "auto",
       };
   }
