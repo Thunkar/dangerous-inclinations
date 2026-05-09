@@ -18,7 +18,7 @@ import type {
 } from "../recording/types.ts";
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { executeTurn } from "../game/turns.ts";
-import { botDecideActions } from "../ai/index.ts";
+import { botDecideActions, selectBotMissions } from "../ai/index.ts";
 import { selectBotLoadout } from "../ai/behaviors/loadout.ts";
 import { dealMissionOffers, selectMissionsFromOffers } from "../game/missions/missionDeck.ts";
 import { createInitialShipState } from "../utils/subsystemHelpers.ts";
@@ -190,12 +190,14 @@ function setupGame(seed: number, botCount: number): GameState {
   const rng = new Rng(determinism.rngState);
   const { playerOffers } = dealMissionOffers(players, planets, rng);
 
-  // Auto-pick + pick a loadout matched to the chosen missions.
+  const stations = createInitialStations(GRAVITY_WELLS);
+  // Smart 3-of-5 pick + matching loadout.
   const playersAfterLoadout = players.map((p) => {
     const offers = playerOffers.get(p.id) ?? [];
+    const chosen = selectBotMissions(offers, p.ship, players, stations);
     const selection = selectMissionsFromOffers(
       offers,
-      offers.slice(0, 3).map((m) => m.id)
+      chosen.map((m) => m.id),
     );
     const missions = selection.missions;
     const cargo = selection.cargo;
@@ -227,7 +229,7 @@ function setupGame(seed: number, botCount: number): GameState {
     turnLog: [],
     missiles: [],
     phase: "deployment",
-    stations: createInitialStations(GRAVITY_WELLS),
+    stations,
     rngSeed: determinism.rngSeed,
     rngState: rng.state,
     nextEntityId: determinism.nextEntityId,

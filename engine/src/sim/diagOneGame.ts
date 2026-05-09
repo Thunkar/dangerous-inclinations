@@ -8,7 +8,7 @@
 
 import type { GameState, Player, PlayerAction } from "../models/game.ts";
 import { executeTurn } from "../game/turns.ts";
-import { botDecideActions } from "../ai/index.ts";
+import { botDecideActions, selectBotMissions } from "../ai/index.ts";
 import { selectBotLoadout } from "../ai/behaviors/loadout.ts";
 import {
   dealMissionOffers,
@@ -73,11 +73,13 @@ function setupGame(seed: number, botCount: number): GameState {
   const rng = new Rng(determinism.rngState);
   const { playerOffers } = dealMissionOffers(players, planets, rng);
 
+  const stations = createInitialStations(GRAVITY_WELLS);
   const playersAfterLoadout = players.map((p) => {
     const offers = playerOffers.get(p.id) ?? [];
+    const chosen = selectBotMissions(offers, p.ship, players, stations);
     const selection = selectMissionsFromOffers(
       offers,
-      offers.slice(0, 3).map((m) => m.id)
+      chosen.map((m) => m.id),
     );
     const loadout = selectBotLoadout(selection.missions);
     const stats = calculateShipStatsFromLoadout(loadout);
@@ -105,7 +107,7 @@ function setupGame(seed: number, botCount: number): GameState {
     turnLog: [],
     missiles: [],
     phase: "deployment",
-    stations: createInitialStations(GRAVITY_WELLS),
+    stations,
     rngSeed: determinism.rngSeed,
     rngState: rng.state,
     nextEntityId: determinism.nextEntityId,
@@ -196,7 +198,7 @@ function main(): void {
       const goals = computeMissionGoals(active, state);
       const goal = selectCurrentGoal(goals, "auto");
       process.stdout.write(
-        `T${state.turn} ${active.id}: ${summarizeShip(active)} | ${summarizeMissions(active)} | goal=${describeGoal(goal)} | actions=${actions.map((a) => a.type).join(",")}\n`
+        `T${state.turn} ${active.id}: ${summarizeShip(active)} | ${summarizeMissions(active)} | goal=${describeGoal(goal)} | stations=${summarizeStations(state)} | actions=${actions.map((a) => a.type).join(",")}\n`
       );
     }
 

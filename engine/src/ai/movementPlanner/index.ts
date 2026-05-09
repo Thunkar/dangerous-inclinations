@@ -28,7 +28,7 @@
  * ```
  */
 
-// Main planner functions
+// Main planner functions — reverse BFS, static targets only
 export {
   planMovement,
   planMovementAlternatives,
@@ -37,12 +37,21 @@ export {
   comparePlans,
 } from "./planner.ts";
 
-// Predecessor calculation (for advanced usage)
+// Forward BFS planner — supports static and dynamic targets
+export { planMovementToTarget } from "./forward.ts";
+
+// Target abstraction — used to express static or dynamic goals
+export type { PlannerTarget } from "./targets.ts";
+export { staticTarget, orbitingTarget } from "./targets.ts";
+
+// Predecessor / successor primitives (for advanced usage)
 export {
   getPredecessors,
   getVelocityAtPosition,
   getMaxRingForWell,
 } from "./predecessors.ts";
+export { getSuccessors } from "./successors.ts";
+export type { SuccessorInfo } from "./successors.ts";
 
 // Types
 export type {
@@ -72,6 +81,10 @@ import type {
 } from "../../models/game.ts";
 import { getMaxReactionMass } from "../../game/loadout.ts";
 import { planMovement, isReachable } from "./planner.ts";
+import { planMovementToTarget } from "./forward.ts";
+import { orbitingTarget } from "./targets.ts";
+import { STATION_CONSTANTS } from "../../game/stations.ts";
+import { getGravityWell } from "../../models/gravityWells.ts";
 import type {
   OrbitalPosition,
   OrientedPosition,
@@ -216,4 +229,80 @@ export function estimateTurnsToTarget(
 ): number {
   const plan = planFromShip(ship, target, "fastest");
   return plan?.totalTurns ?? Infinity;
+}
+
+/**
+ * Result of a station meet-up plan: the position the ship should aim at,
+ * how many bot turns the meet takes, and the underlying plan.
+ */
+export interface StationMeetPlan {
+  meetPosition: OrbitalPosition;
+  totalTurns: number;
+  plan: MovementPlan;
+}
+
+/**
+ * Plan a meet-up with an orbiting station.
+ *
+ * Stations advance once per round, in lockstep with `isNewRound`. From the
+ * planner's perspective each bot turn equals one round, with the orbit
+ * advance landing **between** the bot's turn-N match check and its turn-N+1
+ * action — see {@link orbitingTarget} for the full timing rules.
+ *
+ * Internally this builds an `orbitingTarget` for the station and dispatches
+ * to {@link planMovementToTarget}; that function's forward, time-layered
+ * BFS naturally lines up the ship's "where will I be?" with the station's
+ * "where will *it* be?", which a static-target planner cannot do.
+ *
+ * @param ship - Bot ship state.
+ * @param station - The station to meet (planet id + ring + sector). Ring is
+ *   conventionally 1; the sector is its current sector.
+ * @returns A {@link StationMeetPlan} or `null` if no meet within `maxTurns`.
+ */
+export function planStationMeetUp(
+  ship: ShipState,
+  station: { planetId: string; ring: number; sector: number },
+  maxTurns: number = 12,
+): StationMeetPlan | null {
+  const origin: OrientedPosition = {
+    wellId: ship.wellId,
+    ring: ship.ring,
+    sector: ship.sector,
+    facing: ship.facing,
+  };
+
+  const well = getGravityWell(station.planetId);
+  const ringConfig = well?.rings.find((r) => r.ring === station.ring);
+  const sectorsPerRound = ringConfig?.velocity ?? 4;
+
+  const target = orbitingTarget(
+    {
+      wellId: station.planetId,
+      ring: station.ring,
+      sector: station.sector,
+    },
+    sectorsPerRound,
+    STATION_CONSTANTS.SECTORS_PER_RING,
+  );
+
+  const hasFuelScoop = ship.subsystems.some((s) => s.type === "scoop");
+  const maxFuelCapacity = getMaxReactionMass(ship.subsystems);
+
+  const plan = planMovementToTarget(origin, target, {
+    mode: "fastest",
+    availableMass: ship.reactionMass,
+    currentFacing: ship.facing,
+    allowWellTransfers: true,
+    maxTurns,
+    hasFuelScoop,
+    maxFuelCapacity,
+  });
+
+  if (!plan) return null;
+
+  return {
+    meetPosition: plan.destination,
+    totalTurns: plan.totalTurns,
+    plan,
+  };
 }

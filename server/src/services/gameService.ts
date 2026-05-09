@@ -14,6 +14,7 @@ import {
   checkAllDeployed,
   transitionToActivePhase,
   botDecideActions,
+  selectBotMissions,
   dealMissionOffers,
   selectMissionsFromOffers,
   getAvailableDeploymentSectors,
@@ -517,9 +518,21 @@ export async function submitLoadout(
     finalMissions = selectionResult.missions;
     finalCargo = selectionResult.cargo;
   } else if (player.missionOffers.length > 0 && player.missions.length === 0) {
-    // Auto-select first 3 offers (used by bots)
-    const autoIds = player.missionOffers.slice(0, 3).map((m) => m.id);
-    const selectionResult = selectMissionsFromOffers(player.missionOffers, autoIds);
+    // Auto-select via the bot mission selector (used when a human leaves
+    // the loadout up to the AI, or when a bot reaches this code path).
+    // Scores 3-of-5 combos by planner-grounded feasibility + archetype
+    // synergy bonuses so the chosen trio is something the bot can actually
+    // pursue together.
+    const chosen = selectBotMissions(
+      player.missionOffers,
+      player.ship,
+      currentState.players,
+      currentState.stations,
+    );
+    const selectionResult = selectMissionsFromOffers(
+      player.missionOffers,
+      chosen.map((m) => m.id),
+    );
     if (!selectionResult.error) {
       finalMissions = selectionResult.missions;
       finalCargo = selectionResult.cargo;

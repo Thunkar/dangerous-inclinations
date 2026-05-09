@@ -11,7 +11,7 @@
 
 import type { GameState, PlayerAction } from "../models/game.ts";
 import { executeTurn } from "../game/turns.ts";
-import { botDecideActions } from "../ai/index.ts";
+import { botDecideActions, selectBotMissions } from "../ai/index.ts";
 import { selectBotLoadout } from "../ai/behaviors/loadout.ts";
 import {
   dealMissionOffers,
@@ -203,11 +203,16 @@ function setupGame(seed: number, botCount: number): GameState {
   const rng = new Rng(determinism.rngState);
   const { playerOffers } = dealMissionOffers(players, planets, rng);
 
+  const stations = createInitialStations(GRAVITY_WELLS);
   const playersAfterLoadout = players.map((p) => {
     const offers = playerOffers.get(p.id) ?? [];
+    // Smart 3-of-5 pick: scores combos by planner-grounded feasibility +
+    // archetype synergy bonuses. Falls back to first-3 if every offer is
+    // judged infeasible (degenerate case).
+    const chosen = selectBotMissions(offers, p.ship, players, stations);
     const selection = selectMissionsFromOffers(
       offers,
-      offers.slice(0, 3).map((m) => m.id)
+      chosen.map((m) => m.id),
     );
     const loadout = selectBotLoadout(selection.missions);
     const stats = calculateShipStatsFromLoadout(loadout);
@@ -235,7 +240,7 @@ function setupGame(seed: number, botCount: number): GameState {
     turnLog: [],
     missiles: [],
     phase: "deployment",
-    stations: createInitialStations(GRAVITY_WELLS),
+    stations,
     rngSeed: determinism.rngSeed,
     rngState: rng.state,
     nextEntityId: determinism.nextEntityId,

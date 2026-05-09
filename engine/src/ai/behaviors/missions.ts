@@ -1,101 +1,21 @@
-import type { Player, GameState } from '../../models/game.ts'
+import type { Player, GameState, Station, ShipState } from '../../models/game.ts'
 import {
   isDestroyShipMission,
   isDeliverCargoMission,
   isInterceptTransmissionMission,
 } from '../../models/missions.ts'
+import type {
+  Mission,
+  DestroyShipMission,
+  DeliverCargoMission,
+  InterceptTransmissionMission,
+} from '../../models/missions.ts'
 import type { BotGoal } from '../types.ts'
-import { estimateTurnsToTarget } from '../movementPlanner/index.ts'
-import { getStationForPlanet, STATION_CONSTANTS } from '../../game/stations.ts'
-import { getGravityWell } from '../../models/gravityWells.ts'
-
-/**
- * Per-planet station velocity. Stations live on Ring 1 of each planet, which
- * has the planet's Ring-1 velocity (4 per game rules). Stations advance
- * once per ROUND, not per turn. The default here is the right
- * sectors-per-round assumption; actual lookups should use
- * {@link stationSectorsPerRound} below.
- */
-const DEFAULT_STATION_SECTORS_PER_ROUND = 4
-
-/**
- * Predict where a station will be after a number of turns elapse. Stations
- * advance once per round (= once per `playerCount` turns). Consumers must
- * pass `sectorsPerRound` (from the planet's ring config) and `playerCount`.
- */
-export function predictStationPosition(
-  currentSector: number,
-  turnsAhead: number,
-  sectorsInRing: number = STATION_CONSTANTS.SECTORS_PER_RING,
-  sectorsPerRound: number = DEFAULT_STATION_SECTORS_PER_ROUND,
-  playerCount: number = 1
-): number {
-  const rounds = Math.floor(turnsAhead / Math.max(1, playerCount))
-  return (currentSector + sectorsPerRound * rounds) % sectorsInRing
-}
-
-/**
- * Look up the orbital velocity (sectors-per-round) of the station orbiting
- * a given planet. Falls back to the default if the well is missing.
- */
-function stationSectorsPerRound(planetId: string): number {
-  const well = getGravityWell(planetId)
-  const ring1 = well?.rings.find(r => r.ring === STATION_CONSTANTS.RING)
-  return ring1?.velocity ?? DEFAULT_STATION_SECTORS_PER_ROUND
-}
-
-/**
- * Wrapper that returns the current station sector if the bot can't reach it
- * (turns = Infinity → no path), else the projected sector that accounts for
- * orbital velocity and round-vs-turn cadence. This is what the goal target
- * sector should aim at.
- */
-function predictStationSectorOrCurrent(
-  currentSector: number,
-  turnsToStation: number,
-  planetId: string,
-  playerCount: number
-): number {
-  if (turnsToStation === Infinity) return currentSector
-  return predictStationPosition(
-    currentSector,
-    turnsToStation,
-    STATION_CONSTANTS.SECTORS_PER_RING,
-    stationSectorsPerRound(planetId),
-    playerCount
-  )
-}
-
-/**
- * Pick the station closest to the bot. For scan delivery missions where
- * any station works, we just want the lowest-cost trip.
- */
-function pickClosestStation(
-  player: Player,
-  gameState: GameState
-):
-  | { planetId: string; ring: number; sector: number }
-  | undefined {
-  let best:
-    | { planetId: string; ring: number; sector: number; turns: number }
-    | undefined
-  for (const station of gameState.stations) {
-    const turns = estimateTurnsToTarget(player.ship, {
-      wellId: station.planetId,
-      ring: station.ring,
-      sector: station.sector,
-    })
-    if (best === undefined || turns < best.turns) {
-      best = {
-        planetId: station.planetId,
-        ring: station.ring,
-        sector: station.sector,
-        turns,
-      }
-    }
-  }
-  return best && { planetId: best.planetId, ring: best.ring, sector: best.sector }
-}
+import {
+  estimateTurnsToTarget,
+  planStationMeetUp,
+} from '../movementPlanner/index.ts'
+import { getStationForPlanet } from '../../game/stations.ts'
 
 /**
  * Compute mission-derived goals for the bot.
@@ -137,51 +57,35 @@ export function computeMissionGoals(
         // Need to pick up cargo first
         const pickupStation = getStationForPlanet(gameState.stations, mission.pickupPlanetId)
         if (pickupStation) {
-          const turnsToStation = estimateTurnsToTarget(player.ship, {
-            wellId: mission.pickupPlanetId,
-            ring: pickupStation.ring,
-            sector: pickupStation.sector,
-          })
-          const predictedSector = predictStationSectorOrCurrent(
-            pickupStation.sector,
-            turnsToStation,
-            mission.pickupPlanetId,
-            gameState.players.length
-          )
-
-          goals.push({
-            type: 'pickup_cargo',
-            missionId: mission.id,
-            targetWellId: mission.pickupPlanetId,
-            targetRing: pickupStation.ring,
-            targetSector: predictedSector,
-            estimatedTurns: turnsToStation === Infinity ? 20 : turnsToStation,
-          })
+          const meet = planStationMeetUp(player.ship, pickupStation)
+          if (meet) {
+            goals.push({
+              type: 'pickup_cargo',
+              missionId: mission.id,
+              targetWellId: mission.pickupPlanetId,
+              targetRing: meet.meetPosition.ring,
+              targetSector: meet.meetPosition.sector,
+              estimatedTurns: meet.totalTurns,
+              plan: meet.plan,
+            })
+          }
         }
       } else {
         // Cargo picked up, need to deliver
         const deliveryStation = getStationForPlanet(gameState.stations, mission.deliveryPlanetId)
         if (deliveryStation) {
-          const turnsToStation = estimateTurnsToTarget(player.ship, {
-            wellId: mission.deliveryPlanetId,
-            ring: deliveryStation.ring,
-            sector: deliveryStation.sector,
-          })
-          const predictedSector = predictStationSectorOrCurrent(
-            deliveryStation.sector,
-            turnsToStation,
-            mission.deliveryPlanetId,
-            gameState.players.length
-          )
-
-          goals.push({
-            type: 'deliver_cargo',
-            missionId: mission.id,
-            targetWellId: mission.deliveryPlanetId,
-            targetRing: deliveryStation.ring,
-            targetSector: predictedSector,
-            estimatedTurns: turnsToStation === Infinity ? 20 : turnsToStation,
-          })
+          const meet = planStationMeetUp(player.ship, deliveryStation)
+          if (meet) {
+            goals.push({
+              type: 'deliver_cargo',
+              missionId: mission.id,
+              targetWellId: mission.deliveryPlanetId,
+              targetRing: meet.meetPosition.ring,
+              targetSector: meet.meetPosition.sector,
+              estimatedTurns: meet.totalTurns,
+              plan: meet.plan,
+            })
+          }
         }
       }
     } else if (isInterceptTransmissionMission(mission)) {
@@ -211,28 +115,30 @@ export function computeMissionGoals(
             turnsToTarget === Infinity ? 20 : turnsToTarget + 1, // +1 for scan acquire turn
         })
       } else {
-        // Carry scan to any station — pick the closest. Scan cargo has
-        // deliveryPlanetId === "any"; we just need to be at any station.
-        const closestStation = pickClosestStation(player, gameState)
-        if (closestStation) {
-          const turnsToStation = estimateTurnsToTarget(player.ship, {
-            wellId: closestStation.planetId,
-            ring: closestStation.ring,
-            sector: closestStation.sector,
-          })
-          const predictedSector = predictStationSectorOrCurrent(
-            closestStation.sector,
-            turnsToStation,
-            closestStation.planetId,
-            gameState.players.length
-          )
+        // Carry scan to any station — pick the closest meet-up. Scan cargo
+        // has deliveryPlanetId === "any"; the bot just needs to be at any
+        // station when its action ends.
+        let bestMeet:
+          | (ReturnType<typeof planStationMeetUp> & { planetId: string })
+          | undefined
+        for (const station of gameState.stations) {
+          const meet = planStationMeetUp(player.ship, station)
+          if (
+            meet &&
+            (bestMeet === undefined || meet.totalTurns < bestMeet.totalTurns)
+          ) {
+            bestMeet = { ...meet, planetId: station.planetId }
+          }
+        }
+        if (bestMeet) {
           goals.push({
             type: 'deliver_scan',
             missionId: mission.id,
-            targetWellId: closestStation.planetId,
-            targetRing: closestStation.ring,
-            targetSector: predictedSector,
-            estimatedTurns: turnsToStation === Infinity ? 20 : turnsToStation,
+            targetWellId: bestMeet.planetId,
+            targetRing: bestMeet.meetPosition.ring,
+            targetSector: bestMeet.meetPosition.sector,
+            estimatedTurns: bestMeet.totalTurns,
+            plan: bestMeet.plan,
           })
         }
       }
@@ -283,4 +189,226 @@ export function selectCurrentGoal(
     default:
       return goals[0] // already sorted by estimatedTurns
   }
+}
+
+// ============================================================================
+// Smart mission selection — choose 3 of 5 offered missions
+// ============================================================================
+
+/**
+ * Bot ship archetypes. The bot picks an archetype based on the cheapest
+ * achievable trio of missions and matches its loadout to it.
+ *
+ * - **destroyer**: kill missions, heavy weapons (railgun + lasers + missiles)
+ * - **cargo_trucker**: pickup/deliver across wells, fuel-heavy + long legs
+ *   (sensor_array + fuel_compressor + radiator + light weapons)
+ * - **stealth_interceptor**: shadow + scan delivery, sensor + flexible
+ *   (sensor_array + fuel_compressor + missiles + shields)
+ *
+ * The same loadout sometimes serves multiple archetypes (cargo_trucker and
+ * stealth_interceptor both want sensor_array + fuel_compressor) — the
+ * archetype picks WHICH missions to prefer, the loadout picks the matching
+ * tools.
+ */
+export type BotArchetype = 'destroyer' | 'cargo_trucker' | 'stealth_interceptor'
+
+/**
+ * Score a single offered mission as cost (turns to complete). Lower is
+ * better. Returns `Infinity` for missions the bot cannot complete (e.g. the
+ * destroy target is dead, or the planner finds no path).
+ *
+ * Uses the dynamic-target planner under the hood, so cargo and intercept
+ * missions are scored against actual orbital meet-ups — not a flat
+ * "20 turns" heuristic.
+ */
+function scoreMissionCost(
+  mission: Mission,
+  ship: ShipState,
+  allPlayers: Player[],
+  stations: Station[],
+): number {
+  if (isDestroyShipMission(mission)) {
+    const target = allPlayers.find(p => p.id === mission.targetPlayerId)
+    if (!target || target.ship.hitPoints <= 0) return Infinity
+    const turns = estimateTurnsToTarget(ship, {
+      wellId: target.ship.wellId,
+      ring: target.ship.ring,
+      sector: target.ship.sector,
+    })
+    if (turns === Infinity) return Infinity
+    // Combat buffer is large because: (1) the target moves and may flee,
+    // (2) destroying 10 HP takes several firing turns, (3) the bot must
+    // line up firing solutions which often costs an extra burn.
+    // Empirically destroy missions complete much less often than cargo,
+    // so we cost them higher to bias selection toward achievable trios.
+    return turns + 15
+  }
+
+  if (isDeliverCargoMission(mission)) {
+    const pickup = getStationForPlanet(stations, mission.pickupPlanetId)
+    const delivery = getStationForPlanet(stations, mission.deliveryPlanetId)
+    if (!pickup || !delivery) return Infinity
+
+    const pickupMeet = planStationMeetUp(ship, pickup)
+    if (!pickupMeet) return Infinity
+
+    // After pickup, bot is at the meet position; estimate the delivery leg
+    // by treating that position as a fresh origin. Conservative — doesn't
+    // account for fuel spent reaching pickup, but the static-leg estimate
+    // is good enough for relative ranking across offers.
+    const postPickupShip: ShipState = {
+      ...ship,
+      wellId: pickupMeet.meetPosition.wellId,
+      ring: pickupMeet.meetPosition.ring,
+      sector: pickupMeet.meetPosition.sector,
+      facing: 'prograde',
+    }
+    const deliveryMeet = planStationMeetUp(postPickupShip, delivery)
+    if (!deliveryMeet) return Infinity
+
+    return pickupMeet.totalTurns + deliveryMeet.totalTurns
+  }
+
+  if (isInterceptTransmissionMission(mission)) {
+    const target = allPlayers.find(p => p.id === mission.targetPlayerId)
+    if (!target || target.ship.hitPoints <= 0) return Infinity
+    const shadowTurns = estimateTurnsToTarget(ship, {
+      wellId: target.ship.wellId,
+      ring: target.ship.ring,
+      sector: target.ship.sector,
+    })
+    if (shadowTurns === Infinity) return Infinity
+    // +1 turn to actually acquire the scan, then ~6 to deliver to nearest
+    // station (cheap end-of-mission leg, varies by spawn).
+    return shadowTurns + 7
+  }
+
+  return Infinity
+}
+
+/**
+ * Score a 3-mission combo. Combines individual costs with synergy bonuses
+ * that reward sets of missions a coherent ship can pursue together:
+ *
+ *   - **Same target across destroy + intercept**: ~2 missions for the price
+ *     of one approach.
+ *   - **Cargo legs sharing a planet**: a delivery whose destination is
+ *     another mission's pickup means one trip serves two missions.
+ *   - **Monotype combos**: 3 missions of the same kind let the loadout
+ *     fully specialize (cargo trucker doesn't need weapons, destroyer
+ *     doesn't need fuel scoop, etc.).
+ *
+ * Returns a *score* (higher is better), not a cost — synergy bonuses are
+ * additive after we negate the summed cost so combos are ranked uniformly.
+ */
+function scoreMissionCombo(
+  combo: Mission[],
+  ship: ShipState,
+  allPlayers: Player[],
+  stations: Station[],
+): number {
+  let totalCost = 0
+  for (const mission of combo) {
+    const cost = scoreMissionCost(mission, ship, allPlayers, stations)
+    if (cost === Infinity) return -Infinity // any infeasible mission kills the combo
+    totalCost += cost
+  }
+
+  let synergy = 0
+
+  // Destroy + intercept on same target: shared approach, big saving
+  const destroys = combo.filter(isDestroyShipMission) as DestroyShipMission[]
+  const intercepts = combo.filter(isInterceptTransmissionMission) as InterceptTransmissionMission[]
+  const destroyIds = new Set(destroys.map(m => m.targetPlayerId))
+  const overlap = intercepts.filter(m => destroyIds.has(m.targetPlayerId)).length
+  synergy += overlap * 8
+
+  // Cargo legs sharing a planet — one trip serves two missions
+  const cargos = combo.filter(isDeliverCargoMission) as DeliverCargoMission[]
+  if (cargos.length >= 2) {
+    const planets = new Set<string>()
+    for (const m of cargos) {
+      planets.add(m.pickupPlanetId)
+      planets.add(m.deliveryPlanetId)
+    }
+    const expected = cargos.length * 2
+    synergy += (expected - planets.size) * 5
+  }
+
+  // Monotype bonus: same mission TYPE means the loadout can fully specialize
+  const types = combo.map(m => m.type)
+  const monoCount = Math.max(
+    types.filter(t => t === 'destroy_ship').length,
+    types.filter(t => t === 'deliver_cargo').length,
+    types.filter(t => t === 'intercept_transmission').length,
+  )
+  if (monoCount === 3) synergy += 6
+  else if (monoCount === 2) synergy += 2
+
+  return -totalCost + synergy
+}
+
+/**
+ * Pick the most promising 3 of 5 offered missions for a bot.
+ *
+ * Iterates all C(5, 3) = 10 combinations, scores each via
+ * {@link scoreMissionCombo}, and returns the highest-scoring trio. Falls
+ * back to the first 3 offers if every combo is judged infeasible (e.g.
+ * targets dead in a degenerate game state) so we never crash the loadout
+ * phase on a corner case.
+ *
+ * The `ship` argument is the bot's ship as it exists *before* loadout —
+ * default mass + no extra subsystems. That's a conservative feasibility
+ * test: missions reachable here will be at least as reachable once the
+ * loadout is finalized.
+ */
+export function selectBotMissions(
+  offers: Mission[],
+  ship: ShipState,
+  allPlayers: Player[],
+  stations: Station[],
+): Mission[] {
+  if (offers.length <= 3) return offers
+
+  let best: Mission[] = offers.slice(0, 3)
+  let bestScore = -Infinity
+
+  for (let i = 0; i < offers.length - 2; i++) {
+    for (let j = i + 1; j < offers.length - 1; j++) {
+      for (let k = j + 1; k < offers.length; k++) {
+        const combo = [offers[i], offers[j], offers[k]]
+        const score = scoreMissionCombo(combo, ship, allPlayers, stations)
+        if (score > bestScore) {
+          bestScore = score
+          best = combo
+        }
+      }
+    }
+  }
+
+  return best
+}
+
+/**
+ * Identify the dominant archetype for a chosen mission set. Drives loadout
+ * selection — the loadout differs noticeably between archetypes (combat
+ * ships carry railgun + missiles, cargo trucks carry sensor_array +
+ * fuel_compressor, etc.).
+ *
+ * The classification is intentionally conservative: tied counts fall back
+ * to `stealth_interceptor`, which uses a flexible sensor + missile loadout
+ * that performs adequately for any mix.
+ */
+export function classifyArchetype(missions: Mission[]): BotArchetype {
+  const incomplete = missions.filter(m => !m.isCompleted)
+  const destroy = incomplete.filter(isDestroyShipMission).length
+  const cargo = incomplete.filter(isDeliverCargoMission).length
+  const intercept = incomplete.filter(isInterceptTransmissionMission).length
+
+  if (destroy >= 2 && destroy >= cargo && destroy >= intercept) return 'destroyer'
+  if (cargo >= 2 && cargo >= destroy && cargo >= intercept) return 'cargo_trucker'
+  if (intercept >= 2 && intercept >= destroy && intercept >= cargo) return 'stealth_interceptor'
+  // Mixed or single-type: stealth_interceptor's sensor + missile loadout
+  // generalises the best across mission flavours.
+  return 'stealth_interceptor'
 }

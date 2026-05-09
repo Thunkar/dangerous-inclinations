@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   computeMissionGoals,
   selectCurrentGoal,
-  predictStationPosition,
 } from '../../ai/behaviors/missions.ts'
 import type { Player, GameState } from '../../models/game.ts'
 import type { Mission } from '../../models/missions.ts'
@@ -21,9 +20,9 @@ function createTestGameState(players: Player[]): GameState {
     missiles: [],
     phase: 'active',
     stations: [
-      { id: 'station-alpha', planetId: 'alpha', ring: 1, sector: 0 },
-      { id: 'station-beta', planetId: 'beta', ring: 1, sector: 0 },
-      { id: 'station-gamma', planetId: 'gamma', ring: 1, sector: 0 },
+      { id: 'station-alpha', planetId: 'planet-alpha', ring: 1, sector: 0 },
+      { id: 'station-beta', planetId: 'planet-beta', ring: 1, sector: 0 },
+      { id: 'station-gamma', planetId: 'planet-gamma', ring: 1, sector: 0 },
     ],
     ...testDeterminismDefaults(),
   }
@@ -49,32 +48,9 @@ function createTestPlayer(
 }
 
 describe('Mission Goal System', () => {
-  describe('predictStationPosition', () => {
-    it('should predict station position after N turns', () => {
-      // Station at sector 0, velocity 1, 6 sectors in ring
-      expect(predictStationPosition(0, 3, 6, 1)).toBe(3)
-    })
-
-    it('should wrap around when exceeding sector count', () => {
-      // Station at sector 4, moves 3 turns at velocity 1 in 6-sector ring
-      expect(predictStationPosition(4, 3, 6, 1)).toBe(1) // (4+3) % 6 = 1
-    })
-
-    it('should handle velocity > 1', () => {
-      // Station at sector 0, velocity 4, 24 sectors
-      expect(predictStationPosition(0, 3, 24, 4)).toBe(12) // (0 + 4*3) % 24 = 12
-    })
-
-    it('should handle zero turns ahead', () => {
-      expect(predictStationPosition(5, 0, 24, 1)).toBe(5)
-    })
-
-    it('should handle large turn counts with wrapping', () => {
-      // After enough turns, should wrap multiple times
-      expect(predictStationPosition(0, 24, 24, 1)).toBe(0) // Full loop
-      expect(predictStationPosition(0, 25, 24, 1)).toBe(1) // One past
-    })
-  })
+  // Station-position prediction has moved into the planner (see
+  // movementPlanner/targets.ts:orbitingTarget). Tests for the math live
+  // alongside the planner; this suite covers mission-goal generation.
 
   describe('computeMissionGoals', () => {
     it('should return empty goals when player has no missions', () => {
@@ -164,45 +140,49 @@ describe('Mission Goal System', () => {
           id: 'mission-2',
           type: 'deliver_cargo',
           isCompleted: false,
-          pickupPlanetId: 'alpha',
-          deliveryPlanetId: 'beta',
+          pickupPlanetId: 'planet-alpha',
+          deliveryPlanetId: 'planet-beta',
           cargoId: 'cargo-1',
         },
       ])
       // No cargo picked up yet
-      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: false }]
+      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'planet-alpha', deliveryPlanetId: 'planet-beta', isPickedUp: false }]
 
       const gameState = createTestGameState([bot])
       const goals = computeMissionGoals(bot, gameState)
 
       expect(goals.length).toBe(1)
       expect(goals[0].type).toBe('pickup_cargo')
-      expect(goals[0].targetWellId).toBe('alpha')
+      expect(goals[0].targetWellId).toBe('planet-alpha')
       expect(goals[0].missionId).toBe('mission-2')
     })
 
     it('should create deliver_cargo goal when cargo is picked up', () => {
+      // Bot is right at the BH→planet-beta transfer point on alpha (R3 S18)
+      // so the planner can land it on planet-beta R1 within its budget.
+      // (The planner now omits goals it cannot reach; we test reachability
+      // separately above.)
       const bot = createTestPlayer('bot1', 'Bot', {
-        wellId: 'alpha', ring: 1, sector: 0, facing: 'prograde',
+        wellId: 'planet-alpha', ring: 3, sector: 18, facing: 'prograde',
       }, [
         {
           id: 'mission-2',
           type: 'deliver_cargo',
           isCompleted: false,
-          pickupPlanetId: 'alpha',
-          deliveryPlanetId: 'beta',
+          pickupPlanetId: 'planet-alpha',
+          deliveryPlanetId: 'planet-beta',
           cargoId: 'cargo-1',
         },
       ])
       // Cargo already picked up
-      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: true }]
+      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'planet-alpha', deliveryPlanetId: 'planet-beta', isPickedUp: true }]
 
       const gameState = createTestGameState([bot])
       const goals = computeMissionGoals(bot, gameState)
 
       expect(goals.length).toBe(1)
       expect(goals[0].type).toBe('deliver_cargo')
-      expect(goals[0].targetWellId).toBe('beta')
+      expect(goals[0].targetWellId).toBe('planet-beta')
     })
 
     it('should sort goals by estimated turns (most urgent first)', () => {
@@ -222,12 +202,12 @@ describe('Mission Goal System', () => {
           id: 'mission-2',
           type: 'deliver_cargo',
           isCompleted: false,
-          pickupPlanetId: 'alpha',
-          deliveryPlanetId: 'beta',
+          pickupPlanetId: 'planet-alpha',
+          deliveryPlanetId: 'planet-beta',
           cargoId: 'cargo-1',
         },
       ])
-      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'alpha', deliveryPlanetId: 'beta', isPickedUp: false }]
+      bot.cargo = [{ id: 'cargo-1', missionId: 'mission-2', type: 'standard' as const, pickupPlanetId: 'planet-alpha', deliveryPlanetId: 'planet-beta', isPickedUp: false }]
 
       const gameState = createTestGameState([bot, target])
       const goals = computeMissionGoals(bot, gameState)
@@ -248,7 +228,7 @@ describe('Mission Goal System', () => {
     const pickupGoal = {
       type: 'pickup_cargo' as const,
       missionId: 'm2',
-      targetWellId: 'alpha' as const,
+      targetWellId: 'planet-alpha' as const,
       targetRing: 1,
       targetSector: 0,
       estimatedTurns: 3,
@@ -256,7 +236,7 @@ describe('Mission Goal System', () => {
     const deliverGoal = {
       type: 'deliver_cargo' as const,
       missionId: 'm3',
-      targetWellId: 'beta' as const,
+      targetWellId: 'planet-beta' as const,
       targetRing: 1,
       targetSector: 0,
       estimatedTurns: 8,

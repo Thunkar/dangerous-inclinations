@@ -1,6 +1,7 @@
 import type { Player, PlayerAction, GravityWellId } from '../models/game.ts'
 import type { SubsystemType } from '../models/subsystems.ts'
 import type { FiringSolution } from '../utils/weaponRange.ts'
+import type { MovementPlan } from './movementPlanner/index.ts'
 
 /**
  * Dynamic subsystem status - works with any loadout
@@ -69,7 +70,19 @@ export type BotGoalType =
   | 'combat_opportunistic'
 
 /**
- * A mission-derived goal that drives bot behavior
+ * A mission-derived goal that drives bot behavior.
+ *
+ * `targetWellId` / `targetRing` / `targetSector` describe the meet-up
+ * position the bot should aim at. For dynamic targets (stations) this is
+ * where the bot lands at the end of {@link plan} — *not* the target's
+ * current sector. Tooling that displays goals can render this directly.
+ *
+ * `plan`, when present, is the authoritative movement to follow. It was
+ * computed alongside the goal (e.g. via the planner's forward BFS for
+ * stations) and accounts for target motion. Consumers should emit its
+ * first step rather than recomputing a path with a static-target planner —
+ * doing so would find a shorter route that *looks* faster but never
+ * actually intercepts the moving target.
  */
 export interface BotGoal {
   type: BotGoalType
@@ -79,6 +92,7 @@ export interface BotGoal {
   targetRing?: number
   targetSector?: number
   estimatedTurns: number // Lower = more urgent
+  plan?: MovementPlan
 }
 
 /**

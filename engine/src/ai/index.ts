@@ -272,6 +272,13 @@ export function createBotParameters(
 // Bot loadout selection
 export { selectBotLoadout, BOT_LOADOUT_TEMPLATES } from "./behaviors/loadout.ts";
 
+// Bot mission selection (3-of-5 from offered)
+export {
+  selectBotMissions,
+  classifyArchetype,
+} from "./behaviors/missions.ts";
+export type { BotArchetype } from "./behaviors/missions.ts";
+
 // Re-export types for consumers
 export type {
   BotParameters,

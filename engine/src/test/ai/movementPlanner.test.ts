@@ -2,12 +2,23 @@ import { describe, it, expect } from 'vitest'
 import {
   planMovement,
   planMovementAlternatives,
+  planMovementToTarget,
+  planStationMeetUp,
   isReachable,
   getPredecessors,
   getReachablePositions,
   positionsMatch,
+  staticTarget,
+  orbitingTarget,
+  estimateTurnsToTarget,
 } from '../../ai/movementPlanner/index.ts'
 import type { OrientedPosition, OrbitalPosition } from '../../ai/movementPlanner/types.ts'
+import type { ShipState, Facing } from '../../models/game.ts'
+import { createInitialShipState } from '../../utils/subsystemHelpers.ts'
+import {
+  calculateShipStatsFromLoadout,
+  createSubsystemsFromLoadout,
+} from '../../game/loadout.ts'
 
 describe('Movement Planner', () => {
   describe('Predecessors', () => {
@@ -790,5 +801,221 @@ describe('Movement Planner', () => {
         expect(plans[i].turns).toBeGreaterThanOrEqual(plans[i - 1].turns)
       }
     })
+  })
+})
+
+// ============================================================================
+// Dynamic-target planning: forward BFS, station meet-ups, orbitingTarget math
+// ============================================================================
+
+/** Create a ship with full fuel and a generic loadout for path tests. */
+function makeShip(
+  wellId: string,
+  ring: number,
+  sector: number,
+  facing: Facing = 'prograde',
+): ShipState {
+  const loadout = {
+    forwardSlots: ['sensor_array'] as never,
+    sideSlots: ['shields', 'radiator', 'fuel_compressor', 'laser'] as never,
+  }
+  const stats = calculateShipStatsFromLoadout(loadout)
+  return {
+    ...createInitialShipState({ wellId, ring, sector, facing }),
+    loadout,
+    subsystems: createSubsystemsFromLoadout(loadout),
+    reactionMass: stats.reactionMass,
+  }
+}
+
+describe('movementPlanner: orbitingTarget', () => {
+  it('positionAt(0) returns the origin (no advances yet)', () => {
+    const target = orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 4 }, 4)
+    expect(target.positionAt(0)).toEqual({ wellId: 'planet-alpha', ring: 1, sector: 4 })
+  })
+
+  it('positionAt(1) returns the same position — round-end happens AFTER turn 1', () => {
+    // The bot's first action's match check fires before the round ends, so
+    // the station hasn't moved yet at turn 1.
+    const target = orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 4 }, 4)
+    expect(target.positionAt(1).sector).toBe(4)
+  })
+
+  it('positionAt advances by sectorsPerRound starting from turn 2', () => {
+    const target = orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 0 }, 4)
+    expect(target.positionAt(2).sector).toBe(4)
+    expect(target.positionAt(3).sector).toBe(8)
+    expect(target.positionAt(7).sector).toBe(0) // (0 + 4*6) % 24 = 0
+  })
+
+  it('wraps cleanly across the ring boundary', () => {
+    const target = orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 20 }, 4, 24)
+    expect(target.positionAt(2).sector).toBe(0) // 20 + 4 = 24 → 0
+    expect(target.positionAt(3).sector).toBe(4)
+  })
+
+  it('isMatch checks spatial equality at the right turn', () => {
+    const target = orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 0 }, 4)
+    expect(
+      target.isMatch!({ wellId: 'planet-alpha', ring: 1, sector: 4 }, 2),
+    ).toBe(true)
+    expect(
+      target.isMatch!({ wellId: 'planet-alpha', ring: 1, sector: 4 }, 3),
+    ).toBe(false)
+  })
+})
+
+describe('movementPlanner: staticTarget', () => {
+  it('returns the same position regardless of turn', () => {
+    const target = staticTarget({ wellId: 'blackhole', ring: 3, sector: 5 })
+    expect(target.positionAt(0)).toEqual({ wellId: 'blackhole', ring: 3, sector: 5 })
+    expect(target.positionAt(5)).toEqual({ wellId: 'blackhole', ring: 3, sector: 5 })
+  })
+
+  it('matches by exact spatial equality', () => {
+    const target = staticTarget({ wellId: 'blackhole', ring: 3, sector: 5 })
+    expect(target.isMatch!({ wellId: 'blackhole', ring: 3, sector: 5 }, 0)).toBe(true)
+    expect(target.isMatch!({ wellId: 'blackhole', ring: 3, sector: 6 }, 0)).toBe(false)
+  })
+})
+
+describe('movementPlanner: planMovementToTarget (forward BFS)', () => {
+  it('reaches a static target identically to the legacy reverse BFS', () => {
+    const origin: OrientedPosition = {
+      wellId: 'planet-alpha',
+      ring: 1,
+      sector: 8,
+      facing: 'prograde',
+    }
+    const target = staticTarget({ wellId: 'planet-alpha', ring: 1, sector: 12 })
+    const fwd = planMovementToTarget(origin, target, { availableMass: 16 })
+    const rev = planMovement(origin, { wellId: 'planet-alpha', ring: 1, sector: 12 }, { availableMass: 16 })
+    expect(fwd).not.toBeNull()
+    expect(rev).not.toBeNull()
+    expect(fwd!.totalTurns).toBe(rev!.totalTurns)
+  })
+
+  it('intercepts an orbiting station the bot trails by 8 sectors', () => {
+    // Bot at R1S8 retrograde. Station starts at R1S16, advancing +4/round.
+    // Pure-coast trails the station forever (same sector velocity); the
+    // planner must find a ring detour that times the meet correctly. This
+    // is the exact bug that motivated the redesign.
+    const plan = planMovementToTarget(
+      { wellId: 'planet-alpha', ring: 1, sector: 8, facing: 'retrograde' },
+      orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 16 }, 4),
+      { availableMass: 16 },
+    )
+    expect(plan).not.toBeNull()
+    expect(plan!.totalTurns).toBeGreaterThanOrEqual(2)
+    expect(plan!.totalTurns).toBeLessThanOrEqual(5)
+    const last = plan!.steps[plan!.steps.length - 1]
+    const expected = orbitingTarget(
+      { wellId: 'planet-alpha', ring: 1, sector: 16 },
+      4,
+    ).positionAt(plan!.totalTurns)
+    expect(last.to.sector).toBe(expected.sector)
+    expect(last.to.ring).toBe(1)
+  })
+
+  it('returns null when the bot cannot intercept within the turn budget', () => {
+    const plan = planMovementToTarget(
+      { wellId: 'planet-alpha', ring: 1, sector: 8, facing: 'retrograde' },
+      orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 16 }, 4),
+      { availableMass: 16, maxTurns: 1 }, // can't reach R1S? in 1 turn that matches station S16
+    )
+    expect(plan).toBeNull()
+  })
+
+  it('handles cross-well dynamic targets', () => {
+    // BH R5 S18 is the BH→alpha transfer point, so the well_transfer
+    // is available on turn 1. After landing on alpha R3 S5 the bot still
+    // has to navigate down to R1 — easily within budget.
+    const plan = planMovementToTarget(
+      { wellId: 'blackhole', ring: 5, sector: 18, facing: 'prograde' },
+      orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 0 }, 4),
+      { availableMass: 16 },
+    )
+    expect(plan).not.toBeNull()
+    expect(plan!.crossesWells).toBe(true)
+  })
+
+  it("does not falsely match at layer 0 (origin has no match check)", () => {
+    // Bot starts at the station's current sector but hasn't acted yet.
+    // The planner should still find a *real* meet at layer ≥ 1, not a
+    // 0-turn match that would give the bot nothing to do.
+    const plan = planMovementToTarget(
+      { wellId: 'planet-alpha', ring: 1, sector: 4, facing: 'prograde' },
+      orbitingTarget({ wellId: 'planet-alpha', ring: 1, sector: 4 }, 4),
+      { availableMass: 16 },
+    )
+    expect(plan).not.toBeNull()
+    expect(plan!.totalTurns).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('movementPlanner: planStationMeetUp (convenience)', () => {
+  it('produces a plan whose final position matches the station at arrival', () => {
+    const ship = makeShip('planet-alpha', 1, 8, 'retrograde')
+    const meet = planStationMeetUp(ship, {
+      planetId: 'planet-alpha',
+      ring: 1,
+      sector: 16,
+    })
+    expect(meet).not.toBeNull()
+    const expected = orbitingTarget(
+      { wellId: 'planet-alpha', ring: 1, sector: 16 },
+      4,
+    ).positionAt(meet!.totalTurns)
+    expect(meet!.meetPosition).toEqual(expected)
+  })
+
+  it('returns null when the station is unreachable within the budget', () => {
+    const ship = makeShip('planet-alpha', 1, 0, 'prograde')
+    ship.reactionMass = 1
+    const meet = planStationMeetUp(ship, {
+      planetId: 'planet-beta',
+      ring: 1,
+      sector: 0,
+    })
+    expect(meet).toBeNull()
+  })
+
+  it('chooses a plan that actually intercepts the station (regression: trailing bug)', () => {
+    // This is the bug that drove the redesign — at R1 the bot's orbital
+    // velocity matches the station's, so coasting trails it forever. The
+    // station-meet planner must prove it lands on the station, not adjacent.
+    const ship = makeShip('planet-alpha', 1, 8, 'retrograde')
+    const meet = planStationMeetUp(ship, {
+      planetId: 'planet-alpha',
+      ring: 1,
+      sector: 16,
+    })
+    expect(meet).not.toBeNull()
+    const last = meet!.plan.steps[meet!.plan.steps.length - 1]
+    const expectedSector =
+      (16 + 4 * Math.max(0, meet!.totalTurns - 1)) % 24
+    expect(last.to.sector).toBe(expectedSector)
+    expect(last.to.ring).toBe(1)
+  })
+})
+
+describe('movementPlanner: estimateTurnsToTarget — sanity', () => {
+  it('agrees with planMovement for reachable targets', () => {
+    const ship = makeShip('planet-alpha', 1, 8, 'retrograde')
+    const plan = planMovement(
+      { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing: ship.facing },
+      { wellId: 'planet-alpha', ring: 1, sector: 16 },
+      { availableMass: ship.reactionMass },
+    )
+    expect(estimateTurnsToTarget(ship, { wellId: 'planet-alpha', ring: 1, sector: 16 }))
+      .toBe(plan!.totalTurns)
+  })
+
+  it('returns Infinity for unreachable targets', () => {
+    const ship = makeShip('planet-alpha', 1, 0, 'prograde')
+    ship.reactionMass = 0
+    expect(estimateTurnsToTarget(ship, {
+      wellId: 'planet-beta', ring: 1, sector: 0,
+    })).toBe(Infinity)
   })
 })

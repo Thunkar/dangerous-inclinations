@@ -6,7 +6,7 @@ import type {
 } from '../../models/game.ts'
 import type { TacticalSituation, Target, BotParameters } from '../types.ts'
 import { planFromShip, getFirstAction } from '../movementPlanner/index.ts'
-import type { OrbitalPosition } from '../movementPlanner/index.ts'
+import type { OrbitalPosition, MovementPlan } from '../movementPlanner/index.ts'
 import { getMaxReactionMass } from '../../game/loadout.ts'
 
 /**
@@ -113,6 +113,14 @@ function getTargetPosition(
 /**
  * Plan movement using the movement planner.
  * Returns the movement action plus info about whether rotation is needed.
+ *
+ * If the bot's current goal already carries a {@link MovementPlan} (which
+ * the mission system attaches for station meet-ups), we honour it directly.
+ * Recomputing a path with the static-target planner can find a *shorter*
+ * route that intercepts the station's *current* sector — but the station
+ * is no longer there by the time the bot arrives, leaving the bot stuck
+ * trailing it forever. The pre-computed plan is built with the dynamic
+ * forward-BFS planner that times the meet correctly.
  */
 export function planMovementAction(
   situation: TacticalSituation,
@@ -120,8 +128,20 @@ export function planMovementAction(
   parameters: BotParameters,
   sequence: number
 ): MovementPlanResult {
-  const { botPlayer, status } = situation
+  const { botPlayer, status, currentGoal } = situation
   const ship = botPlayer.ship
+
+  // If the goal carries an authoritative plan (station meet-up), follow it.
+  if (currentGoal?.plan && currentGoal.plan.steps.length > 0) {
+    const result = movementResultFromPlan(
+      currentGoal.plan,
+      situation,
+      parameters,
+      sequence
+    )
+    if (result) return result
+  }
+  // (function continues below; movementResultFromPlan is defined later in this file)
 
   // Get target position
   const targetPos = getTargetPosition(situation, target, parameters)
@@ -356,5 +376,81 @@ export function generateEscapeTransfer(
     data: {
       destinationWellId: transfer.toWellId,
     },
+  }
+}
+
+/**
+ * Convert the first step of a pre-computed {@link MovementPlan} into the
+ * `MovementPlanResult` the rest of the bot pipeline expects. Returns `null`
+ * if the plan can't be honoured (e.g. the bot lacks fuel for the planned
+ * burn) so the caller can fall back to a freshly-computed path.
+ *
+ * The plan was computed by the dynamic-target planner in `missions.ts` and
+ * already accounts for moving stations; we trust it instead of recomputing
+ * a path with the static-target planner that doesn't see the target's
+ * motion. See {@link planMovementAction} for why.
+ */
+function movementResultFromPlan(
+  plan: MovementPlan,
+  situation: TacticalSituation,
+  parameters: BotParameters,
+  sequence: number
+): MovementPlanResult | null {
+  const { botPlayer, status } = situation
+  const step = plan.steps[0]
+  if (!step) return null
+
+  // Determine post-rotation facing for this step.
+  let desiredFacing: 'prograde' | 'retrograde' | null = null
+  if (step.actionType === 'burn_prograde') desiredFacing = 'prograde'
+  else if (step.actionType === 'burn_retrograde') desiredFacing = 'retrograde'
+  else if (step.actionType === 'well_transfer') desiredFacing = 'prograde'
+  const needsRotation =
+    desiredFacing != null && desiredFacing !== status.facing
+
+  if (step.actionType === 'burn_prograde' || step.actionType === 'burn_retrograde') {
+    if (status.reactionMass < 1) return null
+    return {
+      action: {
+        type: 'burn',
+        playerId: botPlayer.id,
+        sequence,
+        data: {
+          burnIntensity: step.burnIntensity ?? 'soft',
+          sectorAdjustment: step.sectorAdjustment,
+        },
+      },
+      needsRotation,
+      desiredFacing,
+    }
+  }
+
+  if (step.actionType === 'well_transfer') {
+    return {
+      action: {
+        type: 'well_transfer',
+        playerId: botPlayer.id,
+        sequence,
+        data: {
+          destinationWellId: step.to.wellId,
+        },
+      },
+      needsRotation,
+      desiredFacing,
+    }
+  }
+
+  // Coast
+  return {
+    action: {
+      type: 'coast',
+      playerId: botPlayer.id,
+      sequence,
+      data: {
+        activateScoop: shouldActivateScoop(situation, parameters),
+      },
+    },
+    needsRotation: false,
+    desiredFacing: null,
   }
 }
