@@ -1,7 +1,40 @@
 import type { PlayerAction, DeallocateEnergyAction } from '../../models/game.ts'
 import type { SubsystemType } from '../../models/subsystems.ts'
 import { SUBSYSTEM_CONFIGS } from '../../models/subsystems.ts'
+import { SECTORS_PER_RING } from '../../models/rings.ts'
 import type { TacticalSituation, BotParameters } from '../types.ts'
+
+/**
+ * Whether the bot is close enough to its shadow target that powering the
+ * sensor_array is worthwhile. The engine's scan-acquired check requires
+ * same well + same ring + ±3 sectors + sensor powered, all evaluated at
+ * end of turn — and bots can move several sectors per turn at high
+ * velocities, so "close enough" means same well + same ring + a slightly
+ * generous sector window (±8) to cover same-turn approaches.
+ *
+ * The earlier rule "always allocate sensor for shadow_target" cost 2E of
+ * reactor for the whole approach (often 10+ turns of empty space). The
+ * stricter "only when in range" rule missed scan opportunities because
+ * the bot would *arrive* in range during its own turn but the sensor
+ * wasn't allocated until the next one. The ±8-sector buffer is the
+ * compromise: pay sensor for one or two pre-arrival turns, then let it
+ * fire on the right turn.
+ */
+function isNearShadowTarget(situation: TacticalSituation): boolean {
+  const goal = situation.currentGoal
+  if (!goal || goal.type !== 'shadow_target') return false
+  if (goal.targetWellId == null || goal.targetRing == null || goal.targetSector == null) {
+    return false
+  }
+  const ship = situation.botPlayer.ship
+  if (ship.wellId !== goal.targetWellId) return false
+  // Same ring is required for scan; ±1 ring also gets the sensor up
+  // because a single burn changes ring on arrival.
+  if (Math.abs(ship.ring - goal.targetRing) > 1) return false
+  const raw = Math.abs(ship.sector - goal.targetSector)
+  const cyclic = Math.min(raw, SECTORS_PER_RING - raw)
+  return cyclic <= 8
+}
 
 /**
  * Energy request for priority-based budgeting
@@ -77,11 +110,15 @@ function buildEnergyBudget(
         break
 
       case 'shields':
+        // Only power shields when something is actually threatening us.
+        // The previous "low priority shields if any enemy exists anywhere"
+        // rule kept shields alight for hundreds of turns of cargo runs in
+        // empty space — wasted reactor capacity that could fund scoop or
+        // weapons. Shields can be allocated and absorb damage on the same
+        // turn the threat arrives, so there's no first-turn-of-attack
+        // penalty for being lazy about them.
         if (context.underThreat) {
           priority = 1
-        } else if (context.hasTarget) {
-          // Low priority shields if enemy exists but not threatening
-          priority = 5
         }
         break
 
@@ -95,37 +132,40 @@ function buildEnergyBudget(
         break
 
       case 'sensor_array':
-        if (context.willShadow) {
-          // Required to acquire scan on intercept_transmission missions.
+        // Two reasons to power the sensor:
+        // 1. Boost crit chance on a weapon firing this turn (priority 3).
+        // 2. Acquire a scan for an intercept mission — but only when
+        //    actually inside the scan window (same well + same ring + ±3
+        //    sectors of the target). The naive "always on for shadow
+        //    goals" rule kept the sensor allocated for dozens of turns of
+        //    approach travel, blocking 2E of reactor capacity that could
+        //    fund the burns to *get* into scan range. Allocate-and-scan
+        //    are same-turn in the engine pipeline, so flipping it on the
+        //    moment we arrive is sufficient.
+        if (context.willShadow && isNearShadowTarget(situation)) {
           priority = 1
         } else if (context.hasTargetInRange) {
-          priority = 3 // Boost crit chance when firing
+          priority = 3
         }
         break
 
       default: {
-        // Weapon subsystems
+        // Weapon subsystems — only allocate when *this* weapon has a
+        // firing solution. Allocation and firing happen in the same turn
+        // (allocate runs before fire in the engine pipeline), so there's
+        // nothing to gain from keeping weapons hot when the target's out
+        // of range — and a lot to lose: held-but-idle weapons block
+        // reactor slots that could fund scoop, sensor, or shields when
+        // they're actually needed.
         if (config.weaponStats) {
-          // Skip ammo-depleted weapons entirely (don't waste energy)
           if (sub.type === 'missiles' && sub.ammo !== undefined && sub.ammo <= 0) {
             priority = -1
             break
           }
-          if (context.hasTargetInRange) {
-            // Check if THIS specific weapon is in range
-            const target = situation.primaryTarget
-            if (target && target.firingSolutions.has(sub.index)) {
-              const solution = target.firingSolutions.get(sub.index)!
-              if (solution.inRange) {
-                priority = 2 // High priority - weapon in range
-              } else {
-                priority = 4 // Lower priority - weapon exists but not in range
-              }
-            } else {
-              priority = 4
-            }
-          } else if (context.hasTarget) {
-            priority = 4 // Target exists but nothing in range
+          const target = situation.primaryTarget
+          const solution = target?.firingSolutions.get(sub.index)
+          if (solution?.inRange) {
+            priority = 2
           }
         }
         break

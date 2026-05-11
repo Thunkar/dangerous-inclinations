@@ -21,7 +21,15 @@ import { GameBoard } from './components/GameBoard'
 import { ReplayScreen } from './components/ReplayScreen'
 import { RecordingsBrowser } from './components/RecordingsBrowser'
 
-type ReplayRoute = { kind: 'app' } | { kind: 'replay'; id: string } | { kind: 'browser' }
+type ReplayRoute =
+  | { kind: 'app' }
+  | { kind: 'replay'; id: string }
+  | { kind: 'browser' }
+  // `fork`: render the live game tree pointed at a specific gameId
+  // (e.g. one minted by `POST /api/games/fork`). Bypasses the lobby
+  // flow — no LobbyProvider, no GAME_STARTING handshake; we connect
+  // straight into the game's WebSocket room and render ActiveGameScreen.
+  | { kind: 'fork'; gameId: string }
 
 const theme = createTheme({
   palette: {
@@ -445,7 +453,13 @@ function AppContent() {
 
     case 'ended':
       if (!gameState) return null
-      return <GameEndScreen gameState={gameState} onPlayAgain={returnToLobby} />
+      return (
+        <GameEndScreen
+          gameState={gameState}
+          gameId={lobbyState?.gameId}
+          onPlayAgain={returnToLobby}
+        />
+      )
 
     default:
       return null
@@ -532,8 +546,10 @@ function useReplayRoute(): { route: ReplayRoute; goTo: (next: ReplayRoute) => vo
     const params = new URLSearchParams(window.location.search)
     params.delete('replay')
     params.delete('recordings')
+    params.delete('fork')
     if (next.kind === 'replay') params.set('replay', next.id)
     if (next.kind === 'browser') params.set('recordings', '1')
+    if (next.kind === 'fork') params.set('fork', next.gameId)
     const search = params.toString()
     const url = search ? `?${search}` : window.location.pathname
     window.history.pushState(null, '', url)
@@ -548,6 +564,8 @@ function parseReplayRoute(search: string): ReplayRoute {
   const replay = params.get('replay')
   if (replay) return { kind: 'replay', id: replay }
   if (params.get('recordings') === '1') return { kind: 'browser' }
+  const fork = params.get('fork')
+  if (fork) return { kind: 'fork', gameId: fork }
   return { kind: 'app' }
 }
 
@@ -576,6 +594,19 @@ function RootRouter() {
     )
   }
 
+  if (route.kind === 'fork') {
+    return (
+      <PlayerProvider>
+        <WebSocketProvider>
+          <ForkedGameRoot
+            gameId={route.gameId}
+            onExit={() => goTo({ kind: 'app' })}
+          />
+        </WebSocketProvider>
+      </PlayerProvider>
+    )
+  }
+
   return (
     <PlayerProvider>
       <WebSocketProvider>
@@ -584,6 +615,90 @@ function RootRouter() {
         </LobbyProvider>
       </WebSocketProvider>
     </PlayerProvider>
+  )
+}
+
+/**
+ * Render an existing game by id, bypassing the lobby flow. Used by
+ * `?fork=<gameId>` URLs after `POST /api/games/fork` mints a new game
+ * out of a recording snapshot. Fetches the game state once on mount and
+ * hands it to ActiveGameScreen, which manages its own WS subscription
+ * and animation queue from there.
+ */
+function ForkedGameRoot({
+  gameId,
+  onExit,
+}: {
+  gameId: string
+  onExit: () => void
+}) {
+  const { isLoading: playerLoading } = usePlayer()
+  const [initialState, setInitialState] = useState<GameState | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (playerLoading) return
+    let cancelled = false
+    import('./api/game').then(({ getGameState }) =>
+      getGameState(gameId)
+        .then((state) => {
+          if (!cancelled) setInitialState(state)
+        })
+        .catch((e) => {
+          if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+        }),
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [gameId, playerLoading])
+
+  if (error) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Typography color="error">Failed to load forked game: {error}</Typography>
+        <Button onClick={onExit} sx={{ mt: 2 }}>
+          Back
+        </Button>
+      </Box>
+    )
+  }
+
+  if (!initialState || playerLoading) {
+    return (
+      <Box
+        sx={{
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  // The forked game has phase already set ("active" most often) — reuse
+  // ActiveGameScreen for the live tree. The end-of-game transition is
+  // handled by GameContext via TURN_EXECUTED, just like a normal game.
+  if (initialState.phase === 'ended') {
+    return (
+      <GameEndScreen gameState={initialState} gameId={gameId} onPlayAgain={onExit} />
+    )
+  }
+
+  return (
+    <ActiveGameScreen
+      initialGameState={initialState}
+      gameId={gameId}
+      onGameStateChange={(newState) => {
+        // Once a forked game ends, swap to the end screen on the next
+        // render. ActiveGameScreen unmounts and we route through the
+        // phase=ended branch above on the next state arrival.
+        if (newState.phase === 'ended') setInitialState(newState)
+      }}
+    />
   )
 }
 

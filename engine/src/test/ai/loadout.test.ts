@@ -168,7 +168,7 @@ describe('Bot Loadout System', () => {
   })
 
   describe('classifyArchetype', () => {
-    it('classifies 2+ destroy as destroyer', () => {
+    it('classifies 2+ destroy as destroyer (when no intercept)', () => {
       expect(
         classifyArchetype([
           { id: 'a', type: 'destroy_ship', isCompleted: false, targetPlayerId: 'p1' },
@@ -176,6 +176,16 @@ describe('Bot Loadout System', () => {
           { id: 'c', type: 'deliver_cargo', isCompleted: false, pickupPlanetId: 'planet-alpha', deliveryPlanetId: 'planet-beta', cargoId: 'c1' },
         ]),
       ).toBe('destroyer')
+    })
+
+    it('routes 2 destroy + 1 intercept away from destroyer (combat lacks sensor_array)', () => {
+      expect(
+        classifyArchetype([
+          { id: 'a', type: 'destroy_ship', isCompleted: false, targetPlayerId: 'p1' },
+          { id: 'b', type: 'destroy_ship', isCompleted: false, targetPlayerId: 'p2' },
+          { id: 'c', type: 'intercept_transmission', isCompleted: false, targetPlayerId: 'p3', scanAcquired: false, scanCargoId: 'sc1' },
+        ]),
+      ).toBe('stealth_interceptor')
     })
 
     it('classifies 2+ cargo as cargo_trucker', () => {

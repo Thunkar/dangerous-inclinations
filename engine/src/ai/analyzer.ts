@@ -202,14 +202,18 @@ function analyzeTargets(bot: Player, enemies: Player[], transferPoints: Transfer
     const distance = calculateDistance(bot.ship, enemy.ship, transferPoints)
     const predictedPosition = predictShipPosition(enemy.ship)
 
-    // Calculate firing solutions for EVERY weapon subsystem on our ship
+    // Calculate firing solutions for EVERY weapon subsystem on our ship,
+    // *including unpowered ones*. The energy budget uses these solutions
+    // to decide whether to power up a weapon this turn — gating solution
+    // computation on `isPowered` would create a chicken-and-egg deadlock
+    // (no power → no solution → no allocation → no power), and the bot
+    // would never fire a weapon that wasn't already on.
     const firingSolutions = new Map<number, FiringSolution>()
 
     for (let i = 0; i < bot.ship.subsystems.length; i++) {
       const sub = bot.ship.subsystems[i]
       const config = SUBSYSTEM_CONFIGS[sub.type]
       if (!config?.weaponStats) continue
-      if (!sub.isPowered) continue
 
       const solutions = calculateFiringSolutions(
         sub,

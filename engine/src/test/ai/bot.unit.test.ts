@@ -119,11 +119,15 @@ describe("Bot AI - Action Generation", () => {
   });
 
   it("should allocate energy to weapons when engaging target", () => {
+    // Enemy must be in firing range — the bot only powers weapons when at
+    // least one has a valid firing solution (it can allocate and fire in
+    // the same turn, so there's no reason to keep weapons hot for targets
+    // that are out of reach).
     const players: Player[] = [
       createTestPlayer("player1", "Enemy", {
         wellId: "blackhole",
         ring: 3,
-        sector: 6,
+        sector: 1,
         facing: "prograde",
       }),
       createTestPlayer("bot1", "Bot Ship", {

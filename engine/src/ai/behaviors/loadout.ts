@@ -12,19 +12,25 @@ import type { BotArchetype } from './missions.ts'
  *
  * | Template            | Forward      | Side                                            | Archetype                                       |
  * |---------------------|--------------|-------------------------------------------------|-------------------------------------------------|
- * | combat              | railgun      | laser, laser, shields, missiles                 | destroyer (mixed-type 2 destroy, 1 other)       |
+ * | combat              | railgun      | laser, ballistic_rack, shields, missiles        | destroyer (2 destroy, no intercept)             |
  * | aggressive          | railgun      | laser, ballistic_rack, shields, missiles        | destroyer (3 destroy, all-in)                   |
  * | cargo               | sensor_array | shields, radiator, fuel_compressor, laser       | cargo_trucker                                    |
- * | stealth             | sensor_array | shields, fuel_compressor, missiles, laser       | stealth_interceptor (also "balanced" fallback)  |
+ * | stealth             | sensor_array | shields, fuel_compressor, missiles, laser       | stealth_interceptor (also fallback)             |
  *
- * Stealth replaces the previous "balanced" template because it covers the
- * same mixed-mission ground while *also* having fuel_compressor for the
- * cross-well delivery legs intercept missions require.
+ * `combat` used to carry two lasers, but the engine's `allocate_energy`
+ * action targets subsystems by TYPE (not slot index) — see
+ * actionProcessors.ts:processAllocateEnergy — so a second laser of the
+ * same type can never be powered. We swapped the duplicate slot for
+ * `ballistic_rack` (a PDC that intercepts incoming missiles and adds a
+ * 1-damage close-range option). Sensor_array can't go here because it's
+ * a forward-only subsystem; instead, `classifyArchetype` ensures bots
+ * with any intercept mission are routed to the stealth or cargo
+ * archetype, both of which include sensor_array.
  */
 export const BOT_LOADOUT_TEMPLATES: Record<string, ShipLoadout> = {
   combat: {
     forwardSlots: ['railgun'],
-    sideSlots: ['laser', 'laser', 'shields', 'missiles'],
+    sideSlots: ['laser', 'ballistic_rack', 'shields', 'missiles'],
   },
   aggressive: {
     forwardSlots: ['railgun'],

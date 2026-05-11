@@ -78,6 +78,10 @@ export interface AnimationHandlers {
 }
 
 interface GameContextType {
+  /** Live game id this context is tracking. Exposed so child components
+   *  can issue per-game API calls (rewind, etc.) without re-plumbing it
+   *  through props. */
+  gameId: string
   gameState: GameState
   pendingState: PendingState
   turnErrors: string[]
@@ -735,6 +739,7 @@ export function GameProvider({
   return (
     <GameContext.Provider
       value={{
+        gameId,
         gameState,
         pendingState,
         turnErrors,

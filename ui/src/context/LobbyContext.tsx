@@ -232,13 +232,27 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
           unsubscribeGame = client.onMessage('game', (message) => {
             console.log('[LobbyContext] Received game message:', message)
 
-            if (message.type === 'GAME_STATE_UPDATED') {
-              // Game state update (from deployment or turn execution)
-              console.log('[LobbyContext] Game state updated via game room:', message.payload)
-              const newState = message.payload as GameState
-              setGameState(newState)
+            // Two messages can carry a fresh GameState we need to mirror:
+            //   • GAME_STATE_UPDATED — sent during deployment / phase
+            //     transitions, where the server is announcing a new
+            //     non-action-driven state.
+            //   • TURN_EXECUTED — sent on every bot/human action, including
+            //     the one that flips phase to "ended" when a player
+            //     completes their third mission. Without this branch the
+            //     LobbyContext's phase never advances past "active" and
+            //     App.tsx keeps rendering ActiveGameScreen on the next
+            //     bot's turn — which presents as the game "freezing"
+            //     immediately after a human victory.
+            const payload = message.payload as { gameState?: GameState }
+            const newState =
+              message.type === 'GAME_STATE_UPDATED'
+                ? (message.payload as GameState)
+                : message.type === 'TURN_EXECUTED'
+                  ? payload?.gameState
+                  : undefined
 
-              // Update phase based on game state
+            if (newState) {
+              setGameState(newState)
               if (newState.phase === 'deployment') {
                 setPhase('deployment')
               } else if (newState.phase === 'active') {

@@ -68,6 +68,10 @@ export function ReplayGameContextBridge({ children }: { children: ReactNode }) {
 
   const value: GameContextType = useMemo(
     () => ({
+      // Replay mode has no live gameId — components that try to issue
+      // game-mutating API calls in this context (rewind, etc.) should
+      // gate on the empty string. The bridge stays read-only.
+      gameId: '',
       gameState,
       pendingState,
       turnErrors: [],

@@ -24,6 +24,7 @@ import {
 import { useGame } from '../context/GameContext'
 import type { TurnHistoryEntry, PlayerAction, Player } from '@dangerous-inclinations/engine'
 import { getPlayerColorById } from '@/utils/playerColors'
+import { RewindControls } from './RewindControls'
 
 interface TurnHistoryPanelProps {
   defaultExpanded?: boolean
@@ -67,7 +68,10 @@ export function TurnHistoryPanel({ defaultExpanded = true }: TurnHistoryPanelPro
             }}
           >
             <Typography variant="h6">Turn History</Typography>
-            <Chip label={`Turn ${gameState.turn}`} color="primary" size="small" />
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <Chip label={`Turn ${gameState.turn}`} color="primary" size="small" />
+              <RewindControls />
+            </Box>
           </Box>
 
           {/* Turn history list */}

@@ -1,8 +1,86 @@
-import type { FireWeaponAction } from '../../models/game.ts'
+import type { FireWeaponAction, ShipState } from '../../models/game.ts'
 import type { TacticalSituation, Target, BotParameters, SubsystemStatus } from '../types.ts'
-import { SUBSYSTEM_CONFIGS } from '../../models/subsystems.ts'
-import { BURN_COSTS } from '../../models/rings.ts'
+import { SUBSYSTEM_CONFIGS, getMissileStats } from '../../models/subsystems.ts'
+import { BURN_COSTS, SECTORS_PER_RING } from '../../models/rings.ts'
 import { getGravityWell } from '../../models/gravityWells.ts'
+
+function ringVelocity(wellId: string, ring: number): number {
+  const well = getGravityWell(wellId)
+  return well?.rings.find(r => r.ring === ring)?.velocity ?? 1
+}
+
+/**
+ * Best-case simulation of a missile's flight against a target the engine
+ * considers "in range" by static ring-and-sector geometry. Returns `true`
+ * if a missile fired *now* can land on the target before expiring, given:
+ *
+ *   - `maxTurnsAlive` turns of life, `fuelPerTurn` fuel each — both
+ *     pulled from {@link getMissileStats} so this code stays in sync if
+ *     missile balance changes in the engine.
+ *   - Orbital advance every turn (skipped on the first turn since the
+ *     bot fires after movement — see actionProcessors.ts:225).
+ *   - Fuel spent on ring change first, then sector approach (mirroring
+ *     {@link ../../game/missiles.ts:calculateMissileMovement}).
+ *   - Target moves only via its own ring's orbital velocity (best-case
+ *     for the missile — assumes target doesn't burn away).
+ *
+ * Why this matters: the engine's static "in range" check is a per-turn
+ * snapshot, but missile flight takes multiple turns and orbital mechanics
+ * shift the target during that time. The fuel budget is **per turn** —
+ * 3 units of (ring + sector) movement each turn — so a 6-unit gap over
+ * 1 turn is unreachable even if the *total* lifetime budget would suffice.
+ * Trailing targets at faster rings are the classic offender: the missile
+ * inherits our slow orbit while the target's sector accelerates away
+ * each round.
+ *
+ * We deliberately do NOT model the sector-remap on ring change (the
+ * engine has it, but our wells use a uniform 24 sectors so it's a no-op).
+ */
+function missileCanHit(botShip: ShipState, targetShip: ShipState): boolean {
+  if (botShip.wellId !== targetShip.wellId) return false
+
+  const stats = getMissileStats()
+  let mRing = botShip.ring
+  let mSector = botShip.sector
+  let tRing = targetShip.ring
+  let tSector = targetShip.sector
+
+  for (let turn = 0; turn < stats.maxTurnsAlive; turn++) {
+    // Step 1: missile orbital (skipped on first turn — fired post-move).
+    if (turn > 0) {
+      mSector = (mSector + ringVelocity(botShip.wellId, mRing)) % SECTORS_PER_RING
+    }
+
+    // Step 2: spend this turn's fuel toward target. Ring change has
+    // priority over sector adjustment (engine rule). The fuel budget is
+    // PER TURN, not over the whole flight — leftover fuel does not roll
+    // over.
+    let fuel = stats.fuelPerTurn
+    const ringDiff = tRing - mRing
+    if (ringDiff !== 0 && fuel > 0) {
+      const ringSteps = Math.min(Math.abs(ringDiff), fuel)
+      mRing += Math.sign(ringDiff) * ringSteps
+      fuel -= ringSteps
+    }
+    if (fuel > 0) {
+      const raw = (tSector - mSector + SECTORS_PER_RING) % SECTORS_PER_RING
+      const signed = raw > SECTORS_PER_RING / 2 ? raw - SECTORS_PER_RING : raw
+      const sectorSteps = Math.min(Math.abs(signed), fuel)
+      mSector =
+        ((mSector + Math.sign(signed) * sectorSteps) % SECTORS_PER_RING +
+          SECTORS_PER_RING) %
+        SECTORS_PER_RING
+    }
+
+    if (mRing === tRing && mSector === tSector) return true
+
+    // Step 3: target orbital advances at its own ring's velocity (we're
+    // optimistic and assume the target doesn't burn this turn).
+    tSector = (tSector + ringVelocity(targetShip.wellId, tRing)) % SECTORS_PER_RING
+  }
+
+  return false
+}
 
 /**
  * Select best target based on parameters
@@ -156,8 +234,17 @@ export function generateWeaponActions(
   // Sort by priority
   eligibleWeapons.sort((a, b) => a.priority - b.priority)
 
+  // Engine limitation: `allocate_energy` targets subsystems by TYPE, not
+  // by index — only the first matching subsystem of a given type can be
+  // powered (see actionProcessors.ts:processAllocateEnergy). That makes
+  // the second laser in the `combat` loadout effectively dead weight: we
+  // can't power it, so we shouldn't try to fire it. Track which weapon
+  // types we've already queued and skip duplicates.
+  const firedTypes = new Set<string>()
+
   // Generate fire actions
   for (const { sub } of eligibleWeapons) {
+    if (firedTypes.has(sub.type)) continue
     // Missile conservation logic
     if (sub.type === 'missiles') {
       const solution = firingSolutions.get(sub.index)
@@ -176,6 +263,15 @@ export function generateWeaponActions(
         // unless the missile is actually in range or it's a mission target
         if (hasDirectWeaponInRange && !missileInRange && !isMissionTarget) continue
       }
+
+      // Feasibility gate: the engine's "in range" check for turrets is a
+      // static per-turn snapshot, but missile flight takes multiple turns
+      // and the per-turn fuel budget (3 units of ring+sector movement) is
+      // tight. Simulate the flight optimistically (target only orbits,
+      // doesn't burn) and refuse to fire when even the rosy sim says we
+      // miss — trailing targets at faster rings are the classic case
+      // where the missile can't outpace the target's per-turn drift.
+      if (!missileCanHit(botPlayer.ship, target.player.ship)) continue
     }
 
     // Railgun recoil check: skip if recoil would be invalid and can't compensate.
@@ -216,6 +312,7 @@ export function generateWeaponActions(
         ...(compensateRecoil !== undefined ? { compensateRecoil } : {}),
       },
     })
+    firedTypes.add(sub.type)
   }
 
   return actions

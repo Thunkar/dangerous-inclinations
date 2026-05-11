@@ -1,7 +1,8 @@
-import { Box, Typography, Button, Paper, Chip } from '@mui/material'
+import { Box, Typography, Button, Paper, Chip, Stack } from '@mui/material'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'
 import type { GameState } from '@dangerous-inclinations/engine'
 import type {
   Mission,
@@ -32,10 +33,12 @@ function getPlanetName(planetId: string): string {
 
 interface GameEndScreenProps {
   gameState: GameState
+  /** Game id of the run that just ended; used to deep-link into ReplayScreen. */
+  gameId?: string
   onPlayAgain: () => void
 }
 
-export function GameEndScreen({ gameState, onPlayAgain }: GameEndScreenProps) {
+export function GameEndScreen({ gameState, gameId, onPlayAgain }: GameEndScreenProps) {
   const winner = gameState.winnerId
     ? gameState.players.find(p => p.id === gameState.winnerId)
     : null
@@ -218,21 +221,35 @@ export function GameEndScreen({ gameState, onPlayAgain }: GameEndScreenProps) {
         </Box>
       </Paper>
 
-      {/* Play Again Button */}
-      <Button
-        variant="contained"
-        size="large"
-        startIcon={<RestartAltIcon />}
-        onClick={onPlayAgain}
-        sx={{
-          px: 6,
-          py: 1.5,
-          fontSize: '1.2rem',
-          mt: 2,
-        }}
-      >
-        Play Again
-      </Button>
+      {/* Action buttons: replay this game (if recorded) and play again */}
+      <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+        {gameId && (
+          <Button
+            variant="outlined"
+            size="large"
+            startIcon={<PlayCircleOutlineIcon />}
+            // Recordings are keyed by gameId in Redis with a 24h TTL — see
+            // server/src/services/recordingService.ts. The replay route
+            // resolves it via /api/recordings/:id and falls through to
+            // the on-disk archive for older runs.
+            onClick={() => {
+              window.location.assign(`?replay=${encodeURIComponent(gameId)}`)
+            }}
+            sx={{ px: 4, py: 1.5, fontSize: '1.1rem' }}
+          >
+            Watch Replay
+          </Button>
+        )}
+        <Button
+          variant="contained"
+          size="large"
+          startIcon={<RestartAltIcon />}
+          onClick={onPlayAgain}
+          sx={{ px: 6, py: 1.5, fontSize: '1.2rem' }}
+        >
+          Play Again
+        </Button>
+      </Stack>
     </Box>
   )
 }

@@ -499,7 +499,13 @@ export function classifyArchetype(missions: Mission[]): BotArchetype {
   const cargo = incomplete.filter(isDeliverCargoMission).length
   const intercept = incomplete.filter(isInterceptTransmissionMission).length
 
-  if (destroy >= 2 && destroy >= cargo && destroy >= intercept) return 'destroyer'
+  // Intercept missions REQUIRE sensor_array to acquire scan; the
+  // destroyer loadouts (combat, aggressive) lack one because their
+  // forward slot is occupied by the railgun. If the mission set has any
+  // intercept, classify away from destroyer even when destroys are the
+  // majority — better to give up some firepower than to leave the bot
+  // unable to ever complete one of its missions.
+  if (destroy >= 2 && destroy >= cargo && intercept === 0) return 'destroyer'
   if (cargo >= 2 && cargo >= destroy && cargo >= intercept) return 'cargo_trucker'
   if (intercept >= 2 && intercept >= destroy && intercept >= cargo) return 'stealth_interceptor'
   // Mixed or single-type: stealth_interceptor's sensor + missile loadout

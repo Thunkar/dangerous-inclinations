@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import {
   listArchivedRecordings,
-  loadRecording,
+  loadRecordingByAnyId,
 } from "../services/recordingService.ts";
 
 /**
@@ -46,20 +46,20 @@ export async function recordingRoutes(fastify: FastifyInstance) {
     "/api/recordings/:id",
     async (request, reply) => {
       const { id } = request.params;
-
-      // Try live (Redis-backed) first — recordingService keys recordings by gameId.
-      const live = await loadRecording(id);
-      if (live) return reply.send(live);
-
-      // Fall back to disk archive: filenames are `${recordingId}.json`.
-      const archived = listArchivedRecordings();
-      const match = archived.find((p) => basename(p) === `${id}.json`);
-      if (match && existsSync(match)) {
-        const raw = readFileSync(match, "utf8");
-        return reply.send(JSON.parse(raw));
+      // The lookup helper handles all three id flavours we accept:
+      // gameId (Redis), recordingId (archive filename), and the metadata
+      // fallback. See loadRecordingByAnyId for the resolution order.
+      const recording = await loadRecordingByAnyId(id);
+      if (!recording) {
+        // Last-ditch fallback: archive filename match — useful for old
+        // recordings whose recordingId format predates the loader's
+        // pattern guard.
+        const archived = listArchivedRecordings();
+        const exact = archived.find((p) => basename(p) === `${id}.json`);
+        if (exact) return reply.send(JSON.parse(readFileSync(exact, "utf8")));
+        return reply.code(404).send({ error: "Recording not found" });
       }
-
-      return reply.code(404).send({ error: "Recording not found" });
+      return reply.send(recording);
     }
   );
 }

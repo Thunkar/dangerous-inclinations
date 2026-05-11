@@ -530,4 +530,96 @@ describe("Weapon Targeting", () => {
       expect(targetSolution?.inRange).toBe(true);
     });
   });
+
+  describe("Turret (missile) targeting", () => {
+    // Missile: turret arc, ringRange=2, sectorRange=3, no facing restriction
+    const missileSubsystem = createTestSubsystem("missiles", {
+      slotType: "side",
+      slotIndex: 0,
+    });
+
+    it("hits a same-ring target within sector range", () => {
+      // Same ring is legitimate for missiles — they navigate via orbital
+      // motion + per-turn fuel. The previous "ringDist > 0" rule wrongly
+      // excluded this whole geometry.
+      const attacker = createTestPlayer("attacker", "Attacker", 3, 0, "prograde");
+      const target = createTestPlayer("target", "Target", 3, 2, "prograde");
+      const solutions = calculateFiringSolutions(
+        missileSubsystem,
+        attacker.ship,
+        [attacker, target],
+        attacker.id
+      );
+      const sol = solutions.find((s) => s.targetId === target.id);
+      expect(sol?.inRange).toBe(true);
+    });
+
+    it("hits a same-ring target trailing in orbit", () => {
+      // The orbital direction is irrelevant to a turret — the missile's
+      // fuel can move sectors backward as easily as forward.
+      const attacker = createTestPlayer("attacker", "Attacker", 3, 0, "prograde");
+      const target = createTestPlayer("target", "Target", 3, 22, "prograde");
+      const solutions = calculateFiringSolutions(
+        missileSubsystem,
+        attacker.ship,
+        [attacker, target],
+        attacker.id
+      );
+      const sol = solutions.find((s) => s.targetId === target.id);
+      expect(sol?.inRange).toBe(true);
+    });
+
+    it("rejects a target at the attacker's exact position", () => {
+      // No real target geometry — same well, same ring, same sector.
+      const attacker = createTestPlayer("attacker", "Attacker", 3, 0, "prograde");
+      const target = createTestPlayer("target", "Target", 3, 0, "prograde");
+      const solutions = calculateFiringSolutions(
+        missileSubsystem,
+        attacker.ship,
+        [attacker, target],
+        attacker.id
+      );
+      const sol = solutions.find((s) => s.targetId === target.id);
+      expect(sol?.inRange).toBe(false);
+    });
+
+    it("hits a cross-ring target within ring range", () => {
+      const attacker = createTestPlayer("attacker", "Attacker", 3, 0, "prograde");
+      const target = createTestPlayer("target", "Target", 1, 1, "prograde");
+      const solutions = calculateFiringSolutions(
+        missileSubsystem,
+        attacker.ship,
+        [attacker, target],
+        attacker.id
+      );
+      const sol = solutions.find((s) => s.targetId === target.id);
+      expect(sol?.inRange).toBe(true);
+    });
+
+    it("rejects a target beyond ring range", () => {
+      const attacker = createTestPlayer("attacker", "Attacker", 1, 0, "prograde");
+      const target = createTestPlayer("target", "Target", 4, 0, "prograde");
+      const solutions = calculateFiringSolutions(
+        missileSubsystem,
+        attacker.ship,
+        [attacker, target],
+        attacker.id
+      );
+      const sol = solutions.find((s) => s.targetId === target.id);
+      expect(sol?.inRange).toBe(false);
+    });
+
+    it("rejects a target beyond sector range", () => {
+      const attacker = createTestPlayer("attacker", "Attacker", 3, 0, "prograde");
+      const target = createTestPlayer("target", "Target", 3, 5, "prograde");
+      const solutions = calculateFiringSolutions(
+        missileSubsystem,
+        attacker.ship,
+        [attacker, target],
+        attacker.id
+      );
+      const sol = solutions.find((s) => s.targetId === target.id);
+      expect(sol?.inRange).toBe(false);
+    });
+  });
 });

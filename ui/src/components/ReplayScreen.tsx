@@ -20,6 +20,7 @@ import { fetchRecording } from "../api/recordings.ts";
 import { ReplayProvider, useReplay } from "../context/ReplayContext.tsx";
 import { ReplayGameContextBridge } from "../context/ReplayGameContextBridge.tsx";
 import { GameBoard } from "./GameBoard.tsx";
+import { ForkFromReplay } from "./ForkFromReplay.tsx";
 
 interface ReplayScreenProps {
   recordingId: string;
@@ -97,6 +98,7 @@ function ReplayLayout({ onExit }: { onExit: () => void }) {
           {recording.metadata.source} · {turnCount} turns
           {winner ? ` · winner: ${winner}` : ""}
         </Typography>
+        <ForkFromReplay recording={recording} turnIndex={turnIndex} />
       </Paper>
 
       {/* Body: board on left, turn log on right */}

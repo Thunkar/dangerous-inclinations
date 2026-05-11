@@ -24,6 +24,7 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import LockIcon from '@mui/icons-material/Lock'
 import PersonIcon from '@mui/icons-material/Person'
 import EditIcon from '@mui/icons-material/Edit'
+import VideoLibraryIcon from '@mui/icons-material/VideoLibrary'
 import { listLobbies, createLobby, joinLobby } from '../api/lobby'
 import type { LobbyListItem } from '../api/types'
 import { usePlayer } from '../context/PlayerContext'
@@ -290,6 +291,19 @@ export function LobbyBrowser({ onLobbyJoined }: { onLobbyJoined: (lobbyId: strin
               >
                 <RefreshIcon />
               </IconButton>
+              <Button
+                variant="outlined"
+                size="large"
+                startIcon={<VideoLibraryIcon />}
+                // App-level routing reads `?recordings=1` from the URL via
+                // useReplayRoute() in App.tsx. Full-page navigation is the
+                // simplest hand-off here — the browser parses the new
+                // query string and renders RecordingsBrowser at mount.
+                onClick={() => window.location.assign('?recordings=1')}
+                sx={{ px: 3 }}
+              >
+                Recordings
+              </Button>
               <Button
                 variant="contained"
                 color="primary"

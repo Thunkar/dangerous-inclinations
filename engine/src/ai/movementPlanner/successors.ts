@@ -81,23 +81,18 @@ export function getSuccessors(
 
   const velocity = ringConfig.velocity;
 
-  // 1. Coast — orbital movement only. With a fuel scoop, we recover mass
-  //    equal to the ring's velocity (the scoop's defining bonus).
-  const coastSector = (position.sector + velocity) % SECTORS_PER_RING;
-  const scoopRecovery = options.hasFuelScoop ? velocity : 0;
-  results.push({
-    position: {
-      wellId: position.wellId,
-      ring: position.ring,
-      sector: coastSector,
-      facing: position.facing,
-    },
-    actionType: "coast",
-    sectorAdjustment: 0,
-    massCost: -scoopRecovery,
-  });
+  // Order matters here. The forward BFS returns the *first* node it finds
+  // that matches the target — when multiple equal-length paths exist, it
+  // returns the one whose successors were explored first. We list **burns
+  // before coast** so burn-committal plans of length N are preferred over
+  // coast-first plans of length N. That matters because at high-velocity
+  // rings (BH R1 vel 8) you can often align with a target in N turns
+  // either by coasting first or by burning first — and the bot replans
+  // every turn from its new position, so a coast-first plan never gets
+  // *executed* past step 1: each replan finds another coast-first plan
+  // and the bot oscillates. Burn-first plans give it commitment.
 
-  // 2. Burns — ring change × sector adjustment × intensity, in BOTH
+  // 1. Burns — ring change × sector adjustment × intensity, in BOTH
   //    directions. Rotation is free within a turn (engine processes the
   //    rotate action before the burn), so a ship facing retrograde can
   //    still burn prograde — it just emits a rotate alongside the burn.
@@ -154,6 +149,22 @@ export function getSuccessors(
       }
     }
   }
+
+  // 2. Coast — orbital movement only. With a fuel scoop, we recover mass
+  //    equal to the ring's velocity (the scoop's defining bonus).
+  const coastSector = (position.sector + velocity) % SECTORS_PER_RING;
+  const scoopRecovery = options.hasFuelScoop ? velocity : 0;
+  results.push({
+    position: {
+      wellId: position.wellId,
+      ring: position.ring,
+      sector: coastSector,
+      facing: position.facing,
+    },
+    actionType: "coast",
+    sectorAdjustment: 0,
+    massCost: -scoopRecovery,
+  });
 
   // 3. Well transfer — only valid from a configured transfer point. After
   //    transfer the destination ring's orbital movement also fires this

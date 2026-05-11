@@ -31,6 +31,9 @@ import {
   appendTurn,
   finalizeRecording,
   initRecording,
+  loadRecording,
+  loadRecordingByAnyId,
+  truncateRecording,
 } from "./recordingService.ts";
 import type { DeploymentResult } from "@dangerous-inclinations/engine";
 
@@ -129,6 +132,231 @@ export async function deleteGame(gameId: string): Promise<void> {
   const redis = getRedis();
   await redis.del(`${GAME_KEY_PREFIX}${gameId}`);
   await redis.del(`${GAME_HUMANS_KEY_PREFIX}${gameId}`);
+}
+
+/**
+ * Rewind a live game's state to the snapshot at recording-turn `turnIndex`.
+ *
+ * Behaviour:
+ *   • `turnIndex === -1` → restore `recording.initialState` (post-deploy).
+ *   • `turnIndex >= 0`   → restore `recording.turns[turnIndex].resultingStateSnapshot`.
+ *
+ * The recording is truncated to match: turns after the chosen index are
+ * dropped, and any winner / end-reason metadata clears so the game can
+ * continue. Subsequent appendTurn calls write fresh history on top.
+ *
+ * Caller is responsible for kicking the bot loop back to life — if the
+ * active player after rewind is a bot, no one is waiting for input and
+ * the game will appear frozen until something nudges it.
+ */
+export async function rewindGame(
+  gameId: string,
+  turnIndex: number
+): Promise<TurnResult> {
+  const recording = await loadRecording(gameId);
+  if (!recording) {
+    return { success: false, error: "No recording for this game" };
+  }
+  if (turnIndex < -1 || turnIndex >= recording.turns.length) {
+    return {
+      success: false,
+      error: `turnIndex ${turnIndex} out of range (-1..${recording.turns.length - 1})`,
+    };
+  }
+
+  const snapshot =
+    turnIndex === -1
+      ? recording.initialState
+      : recording.turns[turnIndex].resultingStateSnapshot;
+
+  // Force phase back to active in case the rewound state happens to be a
+  // post-victory snapshot. Without this, `executeBotsIfNeeded` and the
+  // turn pipeline would refuse to advance.
+  const restored: GameState = {
+    ...snapshot,
+    phase: snapshot.phase === "ended" ? "active" : snapshot.phase,
+    winnerId: undefined,
+  };
+
+  await saveGameState(gameId, restored);
+  await truncateRecording(gameId, turnIndex);
+  return { success: true, gameState: restored, turnNumber: restored.turn };
+}
+
+/**
+ * Create a new game by forking off a recording. The caller picks a turn
+ * index to start from and (optionally) which original player to step into.
+ * The original player's id+name in the snapshot are renamed to the
+ * forking human's id+name so the existing turn-validation path
+ * ("active player matches submitting player") works without a translation
+ * layer. Other players in the snapshot keep their ids and run as bots.
+ *
+ * Returns the new gameId; the caller redirects the human into it.
+ *
+ * Limitations:
+ *   • One impersonation per fork. Multi-human forks would need a richer
+ *     mapping and a way to distribute "who controls what" to clients.
+ *   • Mid-deployment forks aren't supported (the snapshot must be from
+ *     after deployment); enforce by requiring `turnIndex >= -1` against
+ *     a recording whose `initialState.phase === "active"`.
+ */
+export async function forkGameFromRecording(
+  recordingId: string,
+  turnIndex: number,
+  options: {
+    impersonateOriginalPlayerId?: string;
+    humanPlayerId: string;
+    humanPlayerName: string;
+  }
+): Promise<{ success: false; error: string } | { success: true; gameId: string; gameState: GameState }> {
+  const recording = await loadRecordingByAnyId(recordingId);
+  if (!recording) {
+    return { success: false, error: "Recording not found" };
+  }
+  if (turnIndex < -1 || turnIndex >= recording.turns.length) {
+    return {
+      success: false,
+      error: `turnIndex ${turnIndex} out of range (-1..${recording.turns.length - 1})`,
+    };
+  }
+
+  const snapshot: GameState =
+    turnIndex === -1
+      ? recording.initialState
+      : recording.turns[turnIndex].resultingStateSnapshot;
+
+  // Forking only works against snapshots in `active` or `ended` phase.
+  // The UI's ForkedGameRoot mounts ActiveGameScreen, which assumes
+  // post-deploy state shape (loadout chosen, ships placed). A
+  // deployment / loadout snapshot would render a broken screen and the
+  // engine has no path to "resume from mid-deployment with a different
+  // controller". Refuse early with a clear message — the caller (UI
+  // dialog) can then disable the action and explain why.
+  //
+  // Note: `ended` is fine because we remap phase → "active" below; the
+  // game just continues from a state where someone had won, and the
+  // engine re-checks win conditions every turn so a fresh winner can
+  // emerge from new actions.
+  if (snapshot.phase !== "active" && snapshot.phase !== "ended") {
+    return {
+      success: false,
+      error: `Cannot fork from a snapshot in "${snapshot.phase}" phase — only "active" (or "ended") phases can be resumed. Pick a turn after deployment finishes.`,
+    };
+  }
+
+  // Validate that the impersonation target exists in the snapshot.
+  if (options.impersonateOriginalPlayerId) {
+    const exists = snapshot.players.some(
+      (p) => p.id === options.impersonateOriginalPlayerId
+    );
+    if (!exists) {
+      return {
+        success: false,
+        error: `Player "${options.impersonateOriginalPlayerId}" not found in recording`,
+      };
+    }
+  }
+
+  const forked: GameState = {
+    ...snapshot,
+    phase: snapshot.phase === "ended" ? "active" : snapshot.phase,
+    winnerId: undefined,
+  };
+
+  // Apply impersonation by renaming the target player's id everywhere it
+  // appears in the snapshot (player.id, mission.targetPlayerId, missile
+  // owner/target ids, gameState.winnerId).
+  const renamed = options.impersonateOriginalPlayerId
+    ? renamePlayerEverywhere(
+        forked,
+        options.impersonateOriginalPlayerId,
+        options.humanPlayerId,
+        options.humanPlayerName
+      )
+    : forked;
+
+  // Generate a new gameId. Plain timestamp + random tail — collisions
+  // would be rare and the worst case is a re-fork picking a fresh id.
+  const newGameId = `fork-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await saveGameState(newGameId, renamed);
+
+  // Persist the human-player set for this game so isActivePlayerBot can
+  // distinguish humans from bots correctly.
+  const redis = getRedis();
+  const humans = options.impersonateOriginalPlayerId
+    ? [options.humanPlayerId]
+    : [];
+  await redis.set(`${GAME_HUMANS_KEY_PREFIX}${newGameId}`, JSON.stringify(humans));
+
+  // Start a fresh recording on the forked game so the new playthrough is
+  // captured from turn 0 of the fork (not appended to the source).
+  await initRecording(
+    newGameId,
+    renamed,
+    new Set(humans),
+    `fork from ${recording.recordingId} @ turn ${turnIndex}`
+  );
+
+  return { success: true, gameId: newGameId, gameState: renamed };
+}
+
+/**
+ * Walk a GameState and rewrite every reference to `oldId` so it points at
+ * `newId` instead. Updates the **active** references the engine reads at
+ * runtime:
+ *
+ *   • `player.id` (and `player.name`)
+ *   • Mission target pointers in both `missions` (chosen 3) and
+ *     `missionOffers` (the 5 originally drawn) — destroy / intercept.
+ *   • Missile owner / target ids.
+ *   • `winnerId`.
+ *
+ * **Not rewritten** — `turnLog[].playerId / playerName`. Those are
+ * historical entries describing what the *previous* controller did; the
+ * fork narrative is "human X is now flying the ship Bot 2 was flying",
+ * not "human X did everything Bot 2 ever did". Future log entries
+ * naturally use the new name because the engine sources `playerName`
+ * from the current `players[].name` at write time.
+ */
+function renamePlayerEverywhere(
+  state: GameState,
+  oldId: string,
+  newId: string,
+  newName: string
+): GameState {
+  const renameMissions = <T extends { type: string; targetPlayerId?: string }>(
+    missions: T[]
+  ): T[] =>
+    missions.map((m) => {
+      if (
+        (m.type === "destroy_ship" || m.type === "intercept_transmission") &&
+        (m as unknown as { targetPlayerId?: string }).targetPlayerId === oldId
+      ) {
+        return { ...m, targetPlayerId: newId };
+      }
+      return m;
+    });
+
+  return {
+    ...state,
+    players: state.players.map((p) => {
+      const updated = {
+        ...p,
+        missions: renameMissions(p.missions),
+        missionOffers: renameMissions(p.missionOffers),
+      };
+      if (p.id === oldId) {
+        return { ...updated, id: newId, name: newName };
+      }
+      return updated;
+    }),
+    missiles: state.missiles.map((m) => ({
+      ...m,
+      ownerId: m.ownerId === oldId ? newId : m.ownerId,
+      targetId: m.targetId === oldId ? newId : m.targetId,
+    })),
+    winnerId: state.winnerId === oldId ? newId : state.winnerId,
+  };
 }
 
 export interface TurnResult {

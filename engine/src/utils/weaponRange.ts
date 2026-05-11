@@ -144,10 +144,15 @@ function calculateSingleTarget(
 
     inRange = basicInRange;
   } else if (weapon.arc === "turret") {
-    // Turret has no facing restrictions
+    // Turret weapons (missiles) have no facing restrictions and follow
+    // orbital + fuel rules during flight, so a same-ring target is
+    // legitimately reachable — the missile spends fuel on sector approach
+    // instead of ring change. The only excluded geometry is firing at
+    // the attacker's own exact position (no real target to hit).
+    const samePosition = ringDist === 0 && sectorDist === 0;
     inRange =
+      !samePosition &&
       ringDist <= weapon.ringRange &&
-      ringDist > 0 &&
       checkSectorOverlap(attackerShip, targetShip, weapon.sectorRange);
   }
 

@@ -15,7 +15,7 @@
  * - Archive: `recordings/{recordingId}.json` on disk, gitignored.
  */
 
-import { mkdirSync, existsSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdirSync, existsSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getRedis } from "./redis.ts";
 import {
@@ -140,6 +140,86 @@ export async function loadRecording(
   const data = await redis.get(`${RECORDING_KEY_PREFIX}${gameId}`);
   if (!data) return null;
   return JSON.parse(data) as GameRecording;
+}
+
+/**
+ * Truncate a recording so it ends at `throughTurnIndex` (inclusive). Used by
+ * rewind: when a player time-travels back to step N, every turn after N
+ * stops being part of the canonical history and gets dropped. Subsequent
+ * `appendTurn` calls write fresh history on top of the truncated tail.
+ *
+ * No-op if the recording doesn't exist or `throughTurnIndex` is past the
+ * current end.
+ */
+export async function truncateRecording(
+  gameId: string,
+  throughTurnIndex: number
+): Promise<void> {
+  const recording = await loadRecording(gameId);
+  if (!recording) return;
+  if (throughTurnIndex < -1) return;
+  // throughTurnIndex === -1 means "rewind to initial state", drop all turns.
+  recording.turns = recording.turns.slice(0, throughTurnIndex + 1);
+  recording.metadata.turnCount = recording.turns.length;
+  recording.finalState = undefined;
+  recording.metadata.winnerId = undefined;
+  recording.metadata.endReason = "max_turns";
+  await saveRecording(gameId, recording);
+}
+
+/**
+ * Resolve a user-supplied id to the canonical Redis key (`gameId`) used by
+ * the recording store, then return the recording. Accepts:
+ *
+ *   • The active gameId — Redis hit on `recording:{gameId}`.
+ *   • The recording's own `recordingId` (e.g. `live-{gameId}-{ts}`) —
+ *     extract the gameId portion and look up the live key.
+ *   • An archived `recordingId` whose Redis key has expired — fall back
+ *     to the on-disk archive.
+ *
+ * Returns the recording (live or archived) or `null` if none match.
+ */
+export async function loadRecordingByAnyId(
+  id: string
+): Promise<GameRecording | null> {
+  // 1. Direct gameId hit.
+  const direct = await loadRecording(id);
+  if (direct) return direct;
+
+  // 2. Try interpreting `id` as a recordingId of the form `live-{gameId}-{ts}`.
+  const liveMatch = id.match(/^live-(.+)-\d+$/);
+  if (liveMatch) {
+    const fromRedis = await loadRecording(liveMatch[1]);
+    if (fromRedis) return fromRedis;
+  }
+
+  // 3. Archive fallback: scan disk files. Slow but bounded by total games
+  //    ever played; recordings is a development-scale dataset for now.
+  for (const path of listArchivedRecordings()) {
+    try {
+      const raw = readFileSyncSafe(path);
+      if (!raw) continue;
+      const rec = JSON.parse(raw) as GameRecording;
+      if (rec.recordingId === id) return rec;
+      if (liveMatch && rec.recordingId.startsWith(`live-${liveMatch[1]}-`)) return rec;
+    } catch {
+      // skip
+    }
+  }
+  return null;
+}
+
+/**
+ * Read a file from disk if present; return `null` on any I/O error rather
+ * than throwing. Keeps the archive scan loop simple — one flaky file
+ * shouldn't break the whole search.
+ */
+function readFileSyncSafe(path: string): string | null {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
 }
 
 /**
