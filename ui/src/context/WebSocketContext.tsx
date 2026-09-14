@@ -1,103 +1,69 @@
 /**
- * WebSocketContext - Manages WebSocket connections across the app
+ * WebSocketContext - one client per authenticated player, shared by the
+ * lobby browser, the lobby room and the game room.
  */
-
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from "react";
-import { GameWebSocketClient } from "../api/websocket";
-import { usePlayer } from "./PlayerContext";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { GameWebSocketClient, type WebSocketRoom } from '../api/websocket'
+import { usePlayer } from './PlayerContext'
 
 interface WebSocketContextValue {
-  client: GameWebSocketClient | null;
-  isConnected: (room: "global" | "lobby" | "game", roomId?: string) => boolean;
-  connect: (room: "global" | "lobby" | "game", roomId?: string) => Promise<void>;
-  disconnect: (room: "global" | "lobby" | "game", roomId?: string) => void;
-  send: (room: "global" | "lobby" | "game", message: any, roomId?: string) => void;
+  client: GameWebSocketClient | null
+  isConnected: (room: WebSocketRoom, roomId?: string) => boolean
+  connect: (room: WebSocketRoom, roomId?: string) => Promise<void>
+  disconnect: (room: WebSocketRoom, roomId?: string) => void
+  send: (room: WebSocketRoom, message: unknown, roomId?: string) => boolean
 }
 
-const WebSocketContext = createContext<WebSocketContextValue | null>(null);
+const WebSocketContext = createContext<WebSocketContextValue | null>(null)
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
-  const { playerId, isAuthenticated } = usePlayer();
-  const [client, setClient] = useState<GameWebSocketClient | null>(null);
+  const { playerId, isAuthenticated } = usePlayer()
+  const [client, setClient] = useState<GameWebSocketClient | null>(null)
 
-  // Initialize client when player is authenticated
   useEffect(() => {
-    if (isAuthenticated && playerId) {
-      const wsClient = new GameWebSocketClient(playerId);
-      setClient(wsClient);
-
-      // Cleanup on unmount
-      return () => {
-        wsClient.disconnectAll();
-      };
+    if (!isAuthenticated || !playerId) return
+    const wsClient = new GameWebSocketClient(playerId)
+    setClient(wsClient)
+    return () => {
+      wsClient.disconnectAll()
+      setClient(null)
     }
-  }, [isAuthenticated, playerId]);
+  }, [isAuthenticated, playerId])
 
   const connect = useCallback(
-    async (room: "global" | "lobby" | "game", roomId?: string) => {
-      if (!client) {
-        throw new Error("WebSocket client not initialized");
-      }
-      await client.connect(room, roomId);
+    async (room: WebSocketRoom, roomId?: string) => {
+      if (!client) throw new Error('WebSocket client not initialised')
+      await client.connect(room, roomId)
     },
     [client],
-  );
+  )
 
   const disconnect = useCallback(
-    (room: "global" | "lobby" | "game", roomId?: string) => {
-      if (!client) return;
-      client.disconnect(room, roomId);
+    (room: WebSocketRoom, roomId?: string) => {
+      client?.disconnect(room, roomId)
     },
     [client],
-  );
+  )
 
   const send = useCallback(
-    (room: "global" | "lobby" | "game", message: any, roomId?: string) => {
-      if (!client) {
-        console.error("[WebSocketContext] Client not initialized");
-        return;
-      }
-      client.send(room, message, roomId);
-    },
+    (room: WebSocketRoom, message: unknown, roomId?: string): boolean => client?.send(room, message, roomId) ?? false,
     [client],
-  );
+  )
 
   const isConnected = useCallback(
-    (room: "global" | "lobby" | "game", roomId?: string): boolean => {
-      if (!client) return false;
-      return client.isConnected(room, roomId);
-    },
+    (room: WebSocketRoom, roomId?: string): boolean => client?.isConnected(room, roomId) ?? false,
     [client],
-  );
-
-  const value: WebSocketContextValue = {
-    client,
-    isConnected,
-    connect,
-    disconnect,
-    send,
-  };
+  )
 
   return (
-    <WebSocketContext.Provider value={value}>
+    <WebSocketContext.Provider value={{ client, isConnected, connect, disconnect, send }}>
       {children}
     </WebSocketContext.Provider>
-  );
+  )
 }
 
 export function useWebSocket(): WebSocketContextValue {
-  const context = useContext(WebSocketContext);
-
-  if (!context) {
-    throw new Error("useWebSocket must be used within a WebSocketProvider");
-  }
-
-  return context;
+  const context = useContext(WebSocketContext)
+  if (!context) throw new Error('useWebSocket must be used within a WebSocketProvider')
+  return context
 }

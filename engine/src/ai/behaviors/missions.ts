@@ -1,514 +1,411 @@
-import type { Player, GameState, Station, ShipState } from '../../models/game.ts'
-import {
-  isDestroyShipMission,
-  isDeliverCargoMission,
-  isInterceptTransmissionMission,
-} from '../../models/missions.ts'
-import type {
-  Mission,
-  DestroyShipMission,
-  DeliverCargoMission,
-  InterceptTransmissionMission,
-} from '../../models/missions.ts'
-import type { BotGoal } from '../types.ts'
-import {
-  estimateTurnsToTarget,
-  planStationMeetUp,
-} from '../movementPlanner/index.ts'
-import { getStationForPlanet, STATION_CONSTANTS } from '../../game/stations.ts'
-
 /**
- * Cheap, planner-free turn estimate for goal **ranking**. We can't afford
- * to run a full BFS for every mission every turn (it's the dominant CPU
- * cost), so this approximates "how far is X from where I am?" with simple
- * orbital-geometry arithmetic. The chosen goal then gets a real plan.
+ * Goals. Each incomplete mission becomes a goal with a cheap turn estimate;
+ * the cheapest (after urgency) is pursued and gets a real movement plan.
+ * Four mission types, plus three standing goals that no card names:
  *
- * Same-well: ring distance + min(forward, backward) sector distance, both
- * scaled by average ring velocity (~3 sectors/turn).
+ *   destroy_ship               → hunt: get weapons on the target
+ *   deliver_cargo              → dock at pickup, then at delivery
+ *   intercept_transmission     → shadow (scan range), then dock anywhere
+ *   survey                     → black hole ring 1, then dock anywhere
+ *   an opponent about to win    → interdict: meet them where their cargo must go
+ *   broken systems / low hull  → dock at the nearest station (repairs)
+ *   nothing at all             → dock at the nearest station (fuel, cargo)
  *
- * Cross-well: a fixed transfer overhead (well-transfers cost a few turns
- * to set up plus the target-side approach).
- *
- * Conservative bias toward overestimating: false negatives (saying a
- * mission is harder than it is) just nudge selection toward simpler ones,
- * which is the right behaviour when the planner is the limiting resource.
+ * Interdiction is the one goal that is not about the bot's own hand. A race
+ * for three cards is also a race to stop whoever is ahead: a player two
+ * cards down with a crate aboard is one dock from the win, and their route
+ * is public (see `danger.ts`). Shooting them there costs them the crate and
+ * a turn whether or not anyone holds their Destroy card.
  */
-function cheapTurnEstimate(
-  ship: ShipState,
-  target: { wellId: string; ring: number; sector: number },
-): number {
-  const ringDiff = Math.abs(ship.ring - target.ring)
-  if (ship.wellId === target.wellId) {
-    const sectorsInRing = STATION_CONSTANTS.SECTORS_PER_RING
-    const rawDelta = Math.abs(ship.sector - target.sector)
-    const sectorDiff = Math.min(rawDelta, sectorsInRing - rawDelta)
-    // Avg sector velocity ~3 (planets R1 vel 4, R2 vel 2; BH similar mix).
-    return ringDiff + Math.ceil(sectorDiff / 3)
+import type { Player, Position } from "../../models/game.ts";
+import type { Mission } from "../../models/missions.ts";
+import { SCAN_SECTOR_RANGE, SURVEY_RING } from "../../models/missions.ts";
+import {
+  BLACK_HOLE_ID,
+  PLANETS,
+  PLANET_OUTER_RING,
+  STATION_RING,
+} from "../../models/gravityWells.ts";
+import type { GameView } from "../../game/view.ts";
+import { getStationForPlanet } from "../../game/stations.ts";
+import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
+import {
+  anySectorOnRing,
+  nearDriftingShip,
+  planFromShip,
+  planShipToTarget,
+  planStationMeetUp,
+} from "../movementPlanner/index.ts";
+import {
+  CRITICAL_DANGER,
+  INTERDICT_DANGER,
+  cheapTurnEstimate,
+  planInterception,
+  stationPositionFor,
+} from "./danger.ts";
+import { volleyPotential, weaponRangeTarget } from "./combat.ts";
+
+export { cheapTurnEstimate } from "./danger.ts";
+
+/** Turns the chosen goal's plan may take. */
+const PLAN_TURNS = 12;
+const HUNT_PLAN_TURNS = 10;
+/** Ambushes are set further ahead than a chase: the meeting point is fixed. */
+const INTERDICT_PLAN_TURNS = 14;
+/**
+ * Turns of grace on an ambush. Arriving with the target is enough — the shot
+ * happens on the way in — but arriving several turns after they have docked
+ * is a wasted trip.
+ */
+const INTERDICT_SLACK = 2;
+/** Ring plus sector distance at which an opponent is close enough to simply chase. */
+const INTERDICT_CHASE_RANGE = 6;
+
+export const REPAIR_GOAL_ID = "repair";
+/** Goal of last resort: a station is always worth something (fuel, repairs, cargo). */
+export const IDLE_GOAL_ID = "idle";
+/** Standing goal: stop the player who is about to win. */
+export const INTERDICT_GOAL_ID = "interdict";
+
+/** Weapons that could actually be fired this trip (missiles need ammo). */
+function usableWeapons(status: BotStatus) {
+  return status.weapons.filter((w) => !w.isBroken && (w.type !== "missiles" || (w.ammo ?? 0) > 0));
+}
+
+function nearestPlanet(
+  view: GameView,
+  from: Position,
+  candidates: string[]
+): { planetId: string; turns: number } | null {
+  let best: { planetId: string; turns: number } | null = null;
+  for (const planetId of candidates) {
+    const pos = stationPositionFor(view.stations, planetId);
+    if (!pos) continue;
+    const turns = cheapTurnEstimate(from, pos);
+    if (!best || turns < best.turns) best = { planetId, turns };
   }
-  // Cross-well: well-transfer + transit on each side.
-  return 8 + ringDiff
+  return best;
+}
+
+function dockGoal(
+  view: GameView,
+  from: Position,
+  mission: Pick<Mission, "id">,
+  planetId: string,
+  description: string,
+  urgency: number
+): BotGoal | null {
+  const pos = stationPositionFor(view.stations, planetId);
+  if (!pos) return null;
+  return {
+    type: "dock",
+    missionId: mission.id,
+    description,
+    planetId,
+    estimatedTurns: cheapTurnEstimate(from, pos),
+    urgency,
+  };
+}
+
+function dockAnywhereGoal(
+  view: GameView,
+  from: Position,
+  mission: Mission,
+  description: string,
+  urgency: number
+): BotGoal | null {
+  const nearest = nearestPlanet(
+    view,
+    from,
+    PLANETS.map((p) => p.id)
+  );
+  if (!nearest) return null;
+  return {
+    type: "dock",
+    missionId: mission.id,
+    description,
+    planetId: nearest.planetId,
+    estimatedTurns: nearest.turns,
+    urgency,
+  };
 }
 
 /**
- * Compute mission-derived goals for the bot.
+ * The opponent worth diverting for, if any.
  *
- * **Performance contract**: this builds *lightweight* goals using a cheap
- * geometry heuristic. Goals do NOT carry a `plan` here — running the BFS
- * planner for every mission every turn was the dominant cost in the sim
- * profile (76% of total CPU). Only the chosen goal gets a real plan, via
- * {@link attachPlanToGoal}. Callers using the legacy entry point (UI,
- * tests) can opt back into eager planning by calling that helper after
- * {@link selectCurrentGoal}.
+ * Conditions, all from public information:
  *
- * The geometry estimate doesn't need to be exactly right — it just needs
- * to rank goals consistently enough that the bot picks a sane mission.
- * The actual movement (which is what matters for reaching the target) is
- * always computed by the real planner once a goal is selected.
+ * - they are close enough to the win to score {@link INTERDICT_DANGER};
+ * - the bot is not itself winning the race — if its own turns-to-win is no
+ *   worse than theirs, racing beats fighting;
+ * - its guns can actually beat the shield cubes it can see on them (a shield
+ *   tile absorbs four damage a turn and is refilled for free, so a smaller
+ *   volley never reaches their hull however often it lands);
+ * - and it can be where they have to be before they get there. Arriving two
+ *   turns after the delivery is a trip for nothing.
+ *
+ * Ties break on the player id so the choice is deterministic.
  */
-export function computeMissionGoals(
-  player: Player,
-  gameState: GameState,
+export function interdictionTarget(
+  opponents: Opponent[],
+  from: Position,
+  status: BotStatus,
+  myDanger: OpponentDanger
+): Opponent | null {
+  const potential = volleyPotential(usableWeapons(status));
+  if (potential <= 0) return null;
+  let best: Opponent | null = null;
+  for (const opponent of opponents) {
+    if (opponent.danger.score < INTERDICT_DANGER) continue;
+    if (myDanger.turnsToWin <= opponent.danger.turnsToWin) continue;
+    if (potential <= opponent.shieldAbsorption) continue;
+    const meet = opponent.danger.deliveryPosition ?? opponent.position;
+    const nearby =
+      opponent.sameWell && opponent.ringDistance + opponent.sectorDistance <= INTERDICT_CHASE_RANGE;
+    if (
+      !nearby &&
+      cheapTurnEstimate(from, meet) > opponent.danger.turnsToDelivery + INTERDICT_SLACK
+    ) {
+      continue;
+    }
+    if (
+      !best ||
+      opponent.danger.score > best.danger.score ||
+      (opponent.danger.score === best.danger.score && opponent.player.id < best.player.id)
+    ) {
+      best = opponent;
+    }
+  }
+  return best;
+}
+
+export function computeGoals(
+  view: GameView,
+  me: Player,
+  status: BotStatus,
+  opponents: Opponent[],
+  myDanger: OpponentDanger,
+  parameters: BotParameters
 ): BotGoal[] {
-  const goals: BotGoal[] = []
+  const goals: BotGoal[] = [];
+  const from = status.position;
+  const opponent = (id: string) => opponents.find((o) => o.player.id === id);
 
-  for (const mission of player.missions) {
-    if (mission.isCompleted) continue
-
-    if (isDestroyShipMission(mission)) {
-      const targetPlayer = gameState.players.find(p => p.id === mission.targetPlayerId)
-      if (!targetPlayer || targetPlayer.ship.hitPoints <= 0) continue
-
-      const cheap = cheapTurnEstimate(player.ship, {
-        wellId: targetPlayer.ship.wellId,
-        ring: targetPlayer.ship.ring,
-        sector: targetPlayer.ship.sector,
-      })
-      goals.push({
-        type: 'destroy_target',
-        missionId: mission.id,
-        targetPlayerId: mission.targetPlayerId,
-        estimatedTurns: cheap + 3, // combat resolution buffer
-      })
-    } else if (isDeliverCargoMission(mission)) {
-      const cargo = player.cargo.find(c => c.missionId === mission.id)
-      const isPickedUp = cargo?.isPickedUp ?? false
-      const stationPlanetId = isPickedUp
-        ? mission.deliveryPlanetId
-        : mission.pickupPlanetId
-      const station = getStationForPlanet(gameState.stations, stationPlanetId)
-      if (!station) continue
-
-      // Cost = leg to current target. For not-yet-picked-up missions we
-      // also factor the future delivery leg so ranking sees the *full*
-      // mission cost (otherwise pickup-only missions look artificially
-      // cheaper than mid-flight ones).
-      let cheap = cheapTurnEstimate(player.ship, {
-        wellId: stationPlanetId,
-        ring: station.ring,
-        sector: station.sector,
-      })
-      if (!isPickedUp) {
-        const deliveryStation = getStationForPlanet(
-          gameState.stations,
-          mission.deliveryPlanetId,
-        )
-        if (deliveryStation) {
-          // Delivery leg estimated from pickup station — approximate, but
-          // consistent across all candidate cargo missions.
-          cheap += cheapTurnEstimate(
-            {
-              ...player.ship,
-              wellId: mission.pickupPlanetId,
-              ring: station.ring,
-              sector: station.sector,
-            },
-            {
-              wellId: mission.deliveryPlanetId,
-              ring: deliveryStation.ring,
-              sector: deliveryStation.sector,
-            },
-          )
-        }
-      }
-
-      goals.push({
-        type: isPickedUp ? 'deliver_cargo' : 'pickup_cargo',
-        missionId: mission.id,
-        targetWellId: stationPlanetId,
-        targetRing: station.ring,
-        targetSector: station.sector,
-        estimatedTurns: cheap,
-      })
-    } else if (isInterceptTransmissionMission(mission)) {
-      const targetPlayer = gameState.players.find(p => p.id === mission.targetPlayerId)
-      if (!targetPlayer || targetPlayer.ship.hitPoints <= 0) continue
-
-      if (!mission.scanAcquired) {
-        const cheap = cheapTurnEstimate(player.ship, {
-          wellId: targetPlayer.ship.wellId,
-          ring: targetPlayer.ship.ring,
-          sector: targetPlayer.ship.sector,
-        })
+  for (const mission of me.missions) {
+    if (mission.isCompleted) continue;
+    switch (mission.type) {
+      case "destroy_ship": {
+        const target = opponent(mission.targetPlayerId);
+        if (!target || usableWeapons(status).length === 0) break;
+        // A target with cargo aboard has to dock, and everyone can see where:
+        // the hunt is a wait at a known place rather than a search.
+        const meet = target.danger.deliveryPosition ?? target.position;
+        const predictable = target.danger.deliveryPosition !== null;
         goals.push({
-          type: 'shadow_target',
+          type: "hunt",
           missionId: mission.id,
-          targetPlayerId: mission.targetPlayerId,
-          targetWellId: targetPlayer.ship.wellId,
-          targetRing: targetPlayer.ship.ring,
-          targetSector: targetPlayer.ship.sector,
-          estimatedTurns: cheap + 1, // +1 to power sensor + scan
-        })
-      } else {
-        // Pick the cheapest station to deliver scan to (any station works).
-        let bestStation: Station | undefined
-        let bestCost = Infinity
-        for (const station of gameState.stations) {
-          const cost = cheapTurnEstimate(player.ship, {
-            wellId: station.planetId,
-            ring: station.ring,
-            sector: station.sector,
-          })
-          if (cost < bestCost) {
-            bestCost = cost
-            bestStation = station
-          }
-        }
-        if (bestStation) {
+          description: `Destroy ${target.player.name}`,
+          targetPlayerId: target.player.id,
+          estimatedTurns: cheapTurnEstimate(from, meet) + (predictable ? 2 : 4),
+          urgency: target.danger.score >= INTERDICT_DANGER ? 3 : predictable ? 1 : 0,
+        });
+        break;
+      }
+      case "deliver_cargo": {
+        const crate = me.cargo.find((c) => c.missionId === mission.id);
+        const inHand = crate?.isPickedUp ?? false;
+        const planetId = inHand ? mission.deliveryPlanetId : mission.pickupPlanetId;
+        const goal = dockGoal(
+          view,
+          from,
+          mission,
+          planetId,
+          inHand ? `Deliver crate to ${planetId}` : `Pick up crate at ${planetId}`,
+          inHand ? 2 : 0
+        );
+        if (goal) goals.push(goal);
+        break;
+      }
+      case "intercept_transmission": {
+        if (!mission.scanAcquired) {
+          const target = opponent(mission.targetPlayerId);
+          if (!target || status.sensors.every((s) => s.isBroken)) break;
           goals.push({
-            type: 'deliver_scan',
+            type: "shadow",
             missionId: mission.id,
-            targetWellId: bestStation.planetId,
-            targetRing: bestStation.ring,
-            targetSector: bestStation.sector,
-            estimatedTurns: bestCost,
-          })
+            description: `Scan ${target.player.name}`,
+            targetPlayerId: target.player.id,
+            estimatedTurns: cheapTurnEstimate(from, target.position) + 1,
+            urgency: 0,
+          });
+        } else {
+          const goal = dockAnywhereGoal(view, from, mission, "Deliver scan data", 2);
+          if (goal) goals.push(goal);
         }
+        break;
+      }
+      case "survey": {
+        if (!mission.surveyAcquired) {
+          goals.push({
+            type: "survey",
+            missionId: mission.id,
+            description: "Survey the event horizon",
+            estimatedTurns: cheapTurnEstimate(from, {
+              wellId: BLACK_HOLE_ID,
+              ring: SURVEY_RING,
+              sector: from.sector,
+            }),
+            urgency: 0,
+          });
+        } else {
+          const goal = dockAnywhereGoal(view, from, mission, "Deliver survey data", 2);
+          if (goal) goals.push(goal);
+        }
+        break;
       }
     }
   }
 
-  goals.sort((a, b) => a.estimatedTurns - b.estimatedTurns)
-  return goals
+  // Interdiction: no card names this, the scoreboard does. A player two
+  // cards down with cargo aboard wins on their next dock unless someone
+  // meets them there. It is only worth the detour while the detour is no
+  // longer than the bot's own next card — a turn spent away from a delivery
+  // that was about to land is a turn given to everyone else at the table.
+  const prey = interdictionTarget(opponents, from, status, myDanger);
+  const hunting = me.missions.some(
+    (m) => !m.isCompleted && m.type === "destroy_ship" && m.targetPlayerId === prey?.player.id
+  );
+  if (prey && !hunting) {
+    const meet = prey.danger.deliveryPosition ?? prey.position;
+    const detour = cheapTurnEstimate(from, meet);
+    const ownNext = goals.reduce((best, g) => Math.min(best, g.estimatedTurns), Infinity);
+    if (detour <= ownNext + INTERDICT_SLACK) {
+      goals.push({
+        type: "interdict",
+        missionId: INTERDICT_GOAL_ID,
+        description: `Interdict ${prey.player.name} (${prey.danger.completedMissions} cards, ${prey.danger.crates + prey.danger.data} aboard)`,
+        targetPlayerId: prey.player.id,
+        estimatedTurns: detour,
+        urgency: prey.danger.score >= CRITICAL_DANGER ? 4 : 2,
+      });
+    }
+  }
+
+  // Repair: docking fixes every broken tile, restores hull and reloads.
+  if (status.brokenSubsystems.length > 0 || status.hull <= parameters.repairHullThreshold) {
+    const nearest = nearestPlanet(
+      view,
+      from,
+      PLANETS.map((p) => p.id)
+    );
+    if (nearest) {
+      goals.push({
+        type: "dock",
+        missionId: REPAIR_GOAL_ID,
+        description: `Repair at ${nearest.planetId}`,
+        planetId: nearest.planetId,
+        estimatedTurns: nearest.turns,
+        urgency:
+          status.brokenSubsystems.length > 0 && status.hull <= parameters.repairHullThreshold
+            ? 4
+            : 3,
+      });
+    }
+  }
+
+  // Never stand still: with nothing else to chase, a station is worth a
+  // trip for the fuel, the repairs and whatever cargo turns up there.
+  if (goals.length === 0) {
+    const nearest = nearestPlanet(
+      view,
+      from,
+      PLANETS.map((p) => p.id)
+    );
+    if (nearest) {
+      goals.push({
+        type: "dock",
+        missionId: IDLE_GOAL_ID,
+        description: `Resupply at ${nearest.planetId}`,
+        planetId: nearest.planetId,
+        estimatedTurns: nearest.turns,
+        urgency: 0,
+      });
+    }
+  }
+
+  return goals.sort((a, b) => goalPriority(a) - goalPriority(b));
+}
+
+/** Lower is pursued first. */
+function goalPriority(goal: BotGoal): number {
+  return goal.estimatedTurns - goal.urgency * 3;
+}
+
+export function selectCurrentGoal(goals: BotGoal[]): BotGoal | null {
+  return goals[0] ?? null;
 }
 
 /**
- * Enrich a goal with a real movement plan from the BFS planner. Called
- * once per turn — only on the goal the bot has actually chosen to pursue
- * — so we pay the BFS cost for one mission rather than three.
- *
- * For station meet-ups (cargo, scan delivery), uses the dynamic-target
- * forward BFS via {@link planStationMeetUp}. For destroy/shadow goals,
- * the existing positioning logic uses `planFromShip` (reverse BFS) on
- * the goal's target sector — no plan attachment needed here, since those
- * targets are essentially static (predicted enemy position).
- *
- * Returns the goal with the plan attached when applicable, or the goal
- * unchanged when no plan is needed (or planning fails).
+ * Give the chosen goal a real movement plan. Falls back to coarser targets
+ * when the precise one is out of reach within the planning horizon, so the
+ * bot still moves in the right direction.
  */
 export function attachPlanToGoal(
   goal: BotGoal,
-  player: Player,
-  gameState: GameState,
+  me: Player,
+  view: GameView,
+  opponents: Opponent[],
+  status: BotStatus
 ): BotGoal {
-  if (goal.plan) return goal // already planned
+  const ship = me.ship;
+  const planned = (plan: ReturnType<typeof planFromShip>): BotGoal =>
+    plan ? { ...goal, plan, estimatedTurns: plan.totalTurns } : goal;
 
-  // Only station-meet goals benefit from the dynamic planner here.
-  // Destroy/shadow goals navigate via positioning.ts using planFromShip.
-  if (
-    goal.type !== 'pickup_cargo' &&
-    goal.type !== 'deliver_cargo' &&
-    goal.type !== 'deliver_scan'
-  ) {
-    return goal
-  }
-
-  if (goal.targetWellId == null) return goal
-  // For deliver_scan, find the actual station object (target sector matches
-  // the chosen one's current sector, so a Station object is at hand).
-  const station = gameState.stations.find(
-    s =>
-      s.planetId === goal.targetWellId &&
-      s.ring === goal.targetRing &&
-      s.sector === goal.targetSector,
-  )
-  if (!station) return goal
-
-  const meet = planStationMeetUp(player.ship, station)
-  if (!meet) return goal
-
-  return {
-    ...goal,
-    targetRing: meet.meetPosition.ring,
-    targetSector: meet.meetPosition.sector,
-    estimatedTurns: meet.totalTurns,
-    plan: meet.plan,
-  }
-}
-
-/**
- * Select the current goal to pursue.
- * Strategy-based selection:
- * - 'combat': Prefer destroy missions
- * - 'cargo': Prefer cargo missions
- * - 'balanced'/'auto': Pick cheapest (lowest estimatedTurns)
- */
-export function selectCurrentGoal(
-  goals: BotGoal[],
-  strategy: 'combat' | 'cargo' | 'balanced' | 'auto'
-): BotGoal | null {
-  if (goals.length === 0) return null
-
-  // Commitment rule: a cargo mission with the cargo already on board takes
-  // precedence regardless of strategy. The bot has invested ~25-30 turns
-  // getting the pickup; bailing now to chase a destroy target that wanders
-  // into range means starting over. Scan delivery is intentionally NOT
-  // committed — any station works for delivery so the trip is fast and
-  // letting the bot keep its options open empirically yields more wins.
-  const cargoInHand = goals.find(g => g.type === 'deliver_cargo')
-  if (cargoInHand) return cargoInHand
-
-  switch (strategy) {
-    case 'combat': {
-      const combatGoal = goals.find(g => g.type === 'destroy_target')
-      return combatGoal ?? goals[0]
+  switch (goal.type) {
+    case "dock": {
+      const station = getStationForPlanet(view.stations, goal.planetId!);
+      if (!station) return goal;
+      const meet = planStationMeetUp(ship, station, PLAN_TURNS);
+      if (meet) return planned(meet.plan);
+      return planned(
+        planShipToTarget(ship, anySectorOnRing(station.planetId, STATION_RING), PLAN_TURNS) ??
+          planShipToTarget(ship, anySectorOnRing(station.planetId, PLANET_OUTER_RING), PLAN_TURNS)
+      );
     }
-    case 'cargo': {
-      const cargoGoal = goals.find(
-        g => g.type === 'pickup_cargo' || g.type === 'deliver_cargo'
-      )
-      return cargoGoal ?? goals[0]
+    case "survey":
+      return planned(
+        planShipToTarget(ship, anySectorOnRing(BLACK_HOLE_ID, SURVEY_RING), PLAN_TURNS)
+      );
+    case "shadow": {
+      const target = opponents.find((o) => o.player.id === goal.targetPlayerId);
+      if (!target) return goal;
+      return planned(
+        planShipToTarget(
+          ship,
+          nearDriftingShip(target.position, SCAN_SECTOR_RANGE),
+          HUNT_PLAN_TURNS
+        ) ?? planFromShip(ship, target.position, "fastest", PLAN_TURNS)
+      );
     }
-    case 'balanced':
-    case 'auto':
-    default:
-      return goals[0] // already sorted by estimatedTurns
-  }
-}
-
-// ============================================================================
-// Smart mission selection — choose 3 of 5 offered missions
-// ============================================================================
-
-/**
- * Bot ship archetypes. The bot picks an archetype based on the cheapest
- * achievable trio of missions and matches its loadout to it.
- *
- * - **destroyer**: kill missions, heavy weapons (railgun + lasers + missiles)
- * - **cargo_trucker**: pickup/deliver across wells, fuel-heavy + long legs
- *   (sensor_array + fuel_compressor + radiator + light weapons)
- * - **stealth_interceptor**: shadow + scan delivery, sensor + flexible
- *   (sensor_array + fuel_compressor + missiles + shields)
- *
- * The same loadout sometimes serves multiple archetypes (cargo_trucker and
- * stealth_interceptor both want sensor_array + fuel_compressor) — the
- * archetype picks WHICH missions to prefer, the loadout picks the matching
- * tools.
- */
-export type BotArchetype = 'destroyer' | 'cargo_trucker' | 'stealth_interceptor'
-
-/**
- * Score a single offered mission as cost (turns to complete). Lower is
- * better. Returns `Infinity` for missions the bot cannot complete (e.g. the
- * destroy target is dead, or the planner finds no path).
- *
- * Uses the dynamic-target planner under the hood, so cargo and intercept
- * missions are scored against actual orbital meet-ups — not a flat
- * "20 turns" heuristic.
- */
-function scoreMissionCost(
-  mission: Mission,
-  ship: ShipState,
-  allPlayers: Player[],
-  stations: Station[],
-): number {
-  if (isDestroyShipMission(mission)) {
-    const target = allPlayers.find(p => p.id === mission.targetPlayerId)
-    if (!target || target.ship.hitPoints <= 0) return Infinity
-    const turns = estimateTurnsToTarget(ship, {
-      wellId: target.ship.wellId,
-      ring: target.ship.ring,
-      sector: target.ship.sector,
-    })
-    if (turns === Infinity) return Infinity
-    // Combat buffer is large because: (1) the target moves and may flee,
-    // (2) destroying 10 HP takes several firing turns, (3) the bot must
-    // line up firing solutions which often costs an extra burn.
-    // Empirically destroy missions complete much less often than cargo,
-    // so we cost them higher to bias selection toward achievable trios.
-    return turns + 15
-  }
-
-  if (isDeliverCargoMission(mission)) {
-    const pickup = getStationForPlanet(stations, mission.pickupPlanetId)
-    const delivery = getStationForPlanet(stations, mission.deliveryPlanetId)
-    if (!pickup || !delivery) return Infinity
-
-    const pickupMeet = planStationMeetUp(ship, pickup)
-    if (!pickupMeet) return Infinity
-
-    // After pickup, bot is at the meet position; estimate the delivery leg
-    // by treating that position as a fresh origin. Conservative — doesn't
-    // account for fuel spent reaching pickup, but the static-leg estimate
-    // is good enough for relative ranking across offers.
-    const postPickupShip: ShipState = {
-      ...ship,
-      wellId: pickupMeet.meetPosition.wellId,
-      ring: pickupMeet.meetPosition.ring,
-      sector: pickupMeet.meetPosition.sector,
-      facing: 'prograde',
-    }
-    const deliveryMeet = planStationMeetUp(postPickupShip, delivery)
-    if (!deliveryMeet) return Infinity
-
-    return pickupMeet.totalTurns + deliveryMeet.totalTurns
-  }
-
-  if (isInterceptTransmissionMission(mission)) {
-    const target = allPlayers.find(p => p.id === mission.targetPlayerId)
-    if (!target || target.ship.hitPoints <= 0) return Infinity
-    const shadowTurns = estimateTurnsToTarget(ship, {
-      wellId: target.ship.wellId,
-      ring: target.ship.ring,
-      sector: target.ship.sector,
-    })
-    if (shadowTurns === Infinity) return Infinity
-    // +1 turn to actually acquire the scan, then ~6 to deliver to nearest
-    // station (cheap end-of-mission leg, varies by spawn).
-    return shadowTurns + 7
-  }
-
-  return Infinity
-}
-
-/**
- * Score a 3-mission combo. Combines individual costs with synergy bonuses
- * that reward sets of missions a coherent ship can pursue together:
- *
- *   - **Same target across destroy + intercept**: ~2 missions for the price
- *     of one approach.
- *   - **Cargo legs sharing a planet**: a delivery whose destination is
- *     another mission's pickup means one trip serves two missions.
- *   - **Monotype combos**: 3 missions of the same kind let the loadout
- *     fully specialize (cargo trucker doesn't need weapons, destroyer
- *     doesn't need fuel scoop, etc.).
- *
- * Returns a *score* (higher is better), not a cost — synergy bonuses are
- * additive after we negate the summed cost so combos are ranked uniformly.
- */
-function scoreMissionCombo(
-  combo: Mission[],
-  ship: ShipState,
-  allPlayers: Player[],
-  stations: Station[],
-): number {
-  let totalCost = 0
-  for (const mission of combo) {
-    const cost = scoreMissionCost(mission, ship, allPlayers, stations)
-    if (cost === Infinity) return -Infinity // any infeasible mission kills the combo
-    totalCost += cost
-  }
-
-  let synergy = 0
-
-  // Destroy + intercept on same target: shared approach, big saving
-  const destroys = combo.filter(isDestroyShipMission) as DestroyShipMission[]
-  const intercepts = combo.filter(isInterceptTransmissionMission) as InterceptTransmissionMission[]
-  const destroyIds = new Set(destroys.map(m => m.targetPlayerId))
-  const overlap = intercepts.filter(m => destroyIds.has(m.targetPlayerId)).length
-  synergy += overlap * 8
-
-  // Cargo legs sharing a planet — one trip serves two missions
-  const cargos = combo.filter(isDeliverCargoMission) as DeliverCargoMission[]
-  if (cargos.length >= 2) {
-    const planets = new Set<string>()
-    for (const m of cargos) {
-      planets.add(m.pickupPlanetId)
-      planets.add(m.deliveryPlanetId)
-    }
-    const expected = cargos.length * 2
-    synergy += (expected - planets.size) * 5
-  }
-
-  // Monotype bonus: same mission TYPE means the loadout can fully specialize
-  const types = combo.map(m => m.type)
-  const monoCount = Math.max(
-    types.filter(t => t === 'destroy_ship').length,
-    types.filter(t => t === 'deliver_cargo').length,
-    types.filter(t => t === 'intercept_transmission').length,
-  )
-  if (monoCount === 3) synergy += 6
-  else if (monoCount === 2) synergy += 2
-
-  return -totalCost + synergy
-}
-
-/**
- * Pick the most promising 3 of 5 offered missions for a bot.
- *
- * Iterates all C(5, 3) = 10 combinations, scores each via
- * {@link scoreMissionCombo}, and returns the highest-scoring trio. Falls
- * back to the first 3 offers if every combo is judged infeasible (e.g.
- * targets dead in a degenerate game state) so we never crash the loadout
- * phase on a corner case.
- *
- * The `ship` argument is the bot's ship as it exists *before* loadout —
- * default mass + no extra subsystems. That's a conservative feasibility
- * test: missions reachable here will be at least as reachable once the
- * loadout is finalized.
- */
-export function selectBotMissions(
-  offers: Mission[],
-  ship: ShipState,
-  allPlayers: Player[],
-  stations: Station[],
-): Mission[] {
-  if (offers.length <= 3) return offers
-
-  let best: Mission[] = offers.slice(0, 3)
-  let bestScore = -Infinity
-
-  for (let i = 0; i < offers.length - 2; i++) {
-    for (let j = i + 1; j < offers.length - 1; j++) {
-      for (let k = j + 1; k < offers.length; k++) {
-        const combo = [offers[i], offers[j], offers[k]]
-        const score = scoreMissionCombo(combo, ship, allPlayers, stations)
-        if (score > bestScore) {
-          bestScore = score
-          best = combo
-        }
+    case "hunt":
+    case "interdict": {
+      const target = opponents.find((o) => o.player.id === goal.targetPlayerId);
+      if (!target) return goal;
+      const weapons = usableWeapons(status);
+      const horizon = goal.type === "interdict" ? INTERDICT_PLAN_TURNS : HUNT_PLAN_TURNS;
+      const interception = planInterception(ship, weapons, target.position, target.danger, horizon);
+      if (interception) {
+        return {
+          ...goal,
+          plan: interception.plan,
+          estimatedTurns: interception.plan.totalTurns,
+          description: `${goal.description} [${interception.kind}]`,
+        };
       }
+      return planned(
+        planShipToTarget(ship, weaponRangeTarget(weapons, target.position), horizon) ??
+          planFromShip(ship, target.position, "fastest", PLAN_TURNS)
+      );
     }
   }
-
-  return best
-}
-
-/**
- * Identify the dominant archetype for a chosen mission set. Drives loadout
- * selection — the loadout differs noticeably between archetypes (combat
- * ships carry railgun + missiles, cargo trucks carry sensor_array +
- * fuel_compressor, etc.).
- *
- * The classification is intentionally conservative: tied counts fall back
- * to `stealth_interceptor`, which uses a flexible sensor + missile loadout
- * that performs adequately for any mix.
- */
-export function classifyArchetype(missions: Mission[]): BotArchetype {
-  const incomplete = missions.filter(m => !m.isCompleted)
-  const destroy = incomplete.filter(isDestroyShipMission).length
-  const cargo = incomplete.filter(isDeliverCargoMission).length
-  const intercept = incomplete.filter(isInterceptTransmissionMission).length
-
-  // Intercept missions REQUIRE sensor_array to acquire scan; the
-  // destroyer loadouts (combat, aggressive) lack one because their
-  // forward slot is occupied by the railgun. If the mission set has any
-  // intercept, classify away from destroyer even when destroys are the
-  // majority — better to give up some firepower than to leave the bot
-  // unable to ever complete one of its missions.
-  if (destroy >= 2 && destroy >= cargo && intercept === 0) return 'destroyer'
-  if (cargo >= 2 && cargo >= destroy && cargo >= intercept) return 'cargo_trucker'
-  if (intercept >= 2 && intercept >= destroy && intercept >= cargo) return 'stealth_interceptor'
-  // Mixed or single-type: stealth_interceptor's sensor + missile loadout
-  // generalises the best across mission flavours.
-  return 'stealth_interceptor'
 }

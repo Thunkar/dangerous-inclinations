@@ -1,426 +1,225 @@
 /**
- * WebSocket room handler - supports global, lobby, and game rooms
+ * WebSocket endpoints: global (lobby list), lobby, and game rooms.
+ * Game messages follow docs/protocol.md.
  */
-
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
+import type { PlayerAction } from "@dangerous-inclinations/engine";
 import { getPlayer } from "../services/playerService.ts";
+import { getLobby, findLobbyByGameId, deleteLobby } from "../services/lobbyService.ts";
+import { gameService } from "../services/live.ts";
+import { SubmitTurnSchema } from "../schemas/game.ts";
+import type { ServerGameMessage } from "../protocol.ts";
 import {
-  getLobby,
-  getHumanPlayerIds,
-  findLobbyByGameId,
-  deleteLobby,
-} from "../services/lobbyService.ts";
-import {
-  processPlayerTurn,
-  executeBotsIfNeeded,
-  deleteGame,
-} from "../services/gameService.ts";
+  broadcastToRoom,
+  getConnectedPlayers,
+  registerConnection,
+  releaseConnection,
+  unregisterConnection,
+} from "./rooms.ts";
 
-type Room = "global" | "lobby" | "game";
-
-interface RoomConnection {
-  playerId: string;
-  ws: WebSocket;
-  roomKey: string;
-}
-
-// Store all WebSocket connections by roomKey (e.g., "global:playerId", "lobby:lobbyId:playerId")
-const connections = new Map<string, RoomConnection>();
-
-// Store room memberships (roomKey -> Set<playerId>)
-const rooms = new Map<string, Set<string>>();
-
-/**
- * Get room key
- */
-function getRoomKey(room: Room, roomId?: string): string {
-  return roomId ? `${room}:${roomId}` : room;
+function send(
+  ws: WebSocket,
+  message: ServerGameMessage | { type: string; room: string; roomId?: string }
+): void {
+  ws.send(JSON.stringify(message));
 }
 
 /**
- * Add connection to a room
+ * Abandoned-game teardown. When the last human socket of a game closes we wait
+ * ABANDON_GRACE_MS before deleting the game and its lobby, so a page reload or
+ * a flaky connection doesn't destroy a game in progress. Any human reconnecting
+ * cancels the timer.
  */
-function addToRoom(playerId: string, room: Room, roomId?: string) {
-  const roomKey = getRoomKey(room, roomId);
+const ABANDON_GRACE_MS = 90_000;
+const abandonTimers = new Map<string, NodeJS.Timeout>();
 
-  // Add to room membership
-  if (!rooms.has(roomKey)) {
-    rooms.set(roomKey, new Set());
+function cancelAbandonTimer(gameId: string): void {
+  const t = abandonTimers.get(gameId);
+  if (t) {
+    clearTimeout(t);
+    abandonTimers.delete(gameId);
   }
-  rooms.get(roomKey)!.add(playerId);
 }
 
-/**
- * Get connection key for storing WebSocket
- */
-function getConnectionKey(playerId: string, room: Room, roomId?: string): string {
-  const roomKey = getRoomKey(room, roomId);
-  return `${roomKey}:${playerId}`;
+async function humansStillConnected(gameId: string): Promise<boolean> {
+  const connected = getConnectedPlayers("game", gameId);
+  const humans = await gameService.getHumanPlayerIds(gameId);
+  return [...connected].some((id) => humans.has(id));
 }
 
-/**
- * Remove connection from a room
- */
-function removeFromRoom(playerId: string, room: Room, roomId?: string) {
-  const roomKey = getRoomKey(room, roomId);
-
-  // Remove from room membership
-  const roomMembers = rooms.get(roomKey);
-  if (roomMembers) {
-    roomMembers.delete(playerId);
-    if (roomMembers.size === 0) {
-      rooms.delete(roomKey);
-    }
-  }
-
-  // Remove WebSocket connection
-  const connKey = getConnectionKey(playerId, room, roomId);
-  connections.delete(connKey);
+function scheduleAbandonCheck(gameId: string): void {
+  cancelAbandonTimer(gameId);
+  abandonTimers.set(
+    gameId,
+    setTimeout(async () => {
+      abandonTimers.delete(gameId);
+      try {
+        if (await humansStillConnected(gameId)) return;
+        const lobby = await findLobbyByGameId(gameId);
+        if (lobby) await deleteLobby(lobby.lobbyId);
+        await gameService.deleteGame(gameId);
+      } catch {
+        // Best effort: a failed cleanup is retried on the next disconnect.
+      }
+    }, ABANDON_GRACE_MS)
+  );
 }
 
-/**
- * Get all player IDs connected to a room
- */
-function getConnectedPlayers(room: Room, roomId?: string): Set<string> {
-  const roomKey = getRoomKey(room, roomId);
-  return rooms.get(roomKey) || new Set();
-}
-
-/**
- * Broadcast message to all members of a room
- */
-export function broadcastToRoom(
-  room: Room,
-  message: any,
-  roomId?: string,
-  excludePlayerId?: string,
-) {
-  const roomKey = getRoomKey(room, roomId);
-  const members = rooms.get(roomKey);
-
-  if (!members) return;
-
-  const messageStr = JSON.stringify(message);
-
-  members.forEach((playerId) => {
-    if (playerId === excludePlayerId) return;
-
-    // Find connection for this player in this room
-    const connKey = `${roomKey}:${playerId}`;
-    const connection = connections.get(connKey);
-    if (connection && connection.ws.readyState === 1) {
-      // OPEN
-      connection.ws.send(messageStr);
-    }
-  });
-}
-
-/**
- * Setup WebSocket room handlers
- */
 export async function setupWebSocketRooms(fastify: FastifyInstance) {
   /**
-   * Global room - for lobby list updates
-   * URL: /ws/global?playerId=xxx
+   * Global room - lobby list updates. URL: /ws/global?playerId=xxx
    */
   fastify.get("/ws/global", { websocket: true }, async (socket, request) => {
-    const query = request.query as { playerId?: string };
-    const playerId = query.playerId;
-
-    if (!playerId) {
-      socket.close(1008, "Player ID required");
-      return;
-    }
+    const { playerId } = request.query as { playerId?: string };
+    if (!playerId) return socket.close(1008, "Player ID required");
 
     const player = await getPlayer(playerId);
-    if (!player) {
-      socket.close(1008, "Invalid player");
-      return;
-    }
+    if (!player) return socket.close(1008, "Invalid player");
 
-    // Register WebSocket connection
-    const connKey = getConnectionKey(playerId, "global");
-    connections.set(connKey, {
-      playerId,
-      ws: socket as WebSocket,
-      roomKey: "global",
-    });
-
-    // Add to global room
-    addToRoom(playerId, "global");
-
-    fastify.log.info(
-      `Player ${player.playerName} (${playerId}) connected to global room`,
-    );
-
-    // Send welcome message
-    socket.send(
-      JSON.stringify({
-        type: "CONNECTED",
-        room: "global",
-      }),
-    );
+    registerConnection("global", undefined, playerId, socket);
+    fastify.log.info(`Player ${player.playerName} (${playerId}) connected to global room`);
+    send(socket, { type: "CONNECTED", room: "global" });
 
     socket.on("close", () => {
-      removeFromRoom(playerId, "global");
-      fastify.log.info(
-        `Player ${player.playerName} (${playerId}) disconnected from global room`,
-      );
+      unregisterConnection("global", undefined, playerId, socket);
+      fastify.log.info(`Player ${player.playerName} (${playerId}) disconnected from global room`);
     });
   });
 
   /**
-   * Lobby room - for lobby-specific updates
-   * URL: /ws/lobby?playerId=xxx&roomId=lobbyId
+   * Lobby room. URL: /ws/lobby?playerId=xxx&roomId=lobbyId
    */
   fastify.get("/ws/lobby", { websocket: true }, async (socket, request) => {
-    const query = request.query as { playerId?: string; roomId?: string };
-    const playerId = query.playerId;
-    const lobbyId = query.roomId;
-
-    if (!playerId) {
-      socket.close(1008, "Player ID required");
-      return;
-    }
-
-    if (!lobbyId) {
-      socket.close(1008, "Lobby ID required");
-      return;
-    }
+    const { playerId, roomId: lobbyId } = request.query as { playerId?: string; roomId?: string };
+    if (!playerId) return socket.close(1008, "Player ID required");
+    if (!lobbyId) return socket.close(1008, "Lobby ID required");
 
     const player = await getPlayer(playerId);
-    if (!player) {
-      socket.close(1008, "Invalid player");
-      return;
-    }
+    if (!player) return socket.close(1008, "Invalid player");
 
     const lobby = await getLobby(lobbyId);
-    if (!lobby) {
-      socket.close(1008, "Lobby not found");
-      return;
-    }
+    if (!lobby) return socket.close(1008, "Lobby not found");
+    if (!lobby.players.some((p) => p.playerId === playerId))
+      return socket.close(1008, "Player not in lobby");
 
-    // Verify player is in lobby
-    if (!lobby.players.some((p) => p.playerId === playerId)) {
-      socket.close(1008, "Player not in lobby");
-      return;
-    }
+    registerConnection("lobby", lobbyId, playerId, socket);
+    fastify.log.info(`Player ${player.playerName} (${playerId}) connected to lobby ${lobbyId}`);
+    send(socket, { type: "CONNECTED", room: "lobby", roomId: lobbyId });
 
-    // Register WebSocket connection
-    const connKey = getConnectionKey(playerId, "lobby", lobbyId);
-    connections.set(connKey, {
-      playerId,
-      ws: socket as WebSocket,
-      roomKey: getRoomKey("lobby", lobbyId),
-    });
-
-    // Add to lobby room
-    addToRoom(playerId, "lobby", lobbyId);
-
-    fastify.log.info(
-      `Player ${player.playerName} (${playerId}) connected to lobby ${lobbyId}`,
-    );
-
-    // Send welcome message
-    socket.send(
-      JSON.stringify({
-        type: "CONNECTED",
-        room: "lobby",
-        roomId: lobbyId,
-      }),
-    );
-
-    // Note: PLAYER_JOINED is now broadcast from lobbyService.joinLobby()
-    // with full LobbyPlayer data when a player joins via API
-    // This WebSocket connection notification is separate
-
+    // PLAYER_JOINED is broadcast by lobbyService.joinLobby with the full LobbyPlayer.
     socket.on("close", () => {
-      removeFromRoom(playerId, "lobby", lobbyId);
-
-      // Notify others in lobby
-      broadcastToRoom("lobby", {
-        type: "PLAYER_LEFT",
-        payload: {
-          playerId,
-        },
-      }, lobbyId);
-
+      unregisterConnection("lobby", lobbyId, playerId, socket);
+      // Another tab of the same player may still be in the lobby.
+      if (!getConnectedPlayers("lobby", lobbyId).has(playerId)) {
+        broadcastToRoom("lobby", { type: "PLAYER_LEFT", payload: { playerId } }, lobbyId);
+      }
       fastify.log.info(
-        `Player ${player.playerName} (${playerId}) disconnected from lobby ${lobbyId}`,
+        `Player ${player.playerName} (${playerId}) disconnected from lobby ${lobbyId}`
       );
     });
   });
 
   /**
-   * Game room - for game state updates
-   * URL: /ws/game?playerId=xxx&roomId=gameId
+   * Game room. URL: /ws/game?playerId=xxx&roomId=gameId
+   * Only players of the game may join; each receives its own view.
    */
   fastify.get("/ws/game", { websocket: true }, async (socket, request) => {
-    const query = request.query as { playerId?: string; roomId?: string };
-    const playerId = query.playerId;
-    const gameId = query.roomId;
-
-    if (!playerId) {
-      socket.close(1008, "Player ID required");
-      return;
-    }
-
-    if (!gameId) {
-      socket.close(1008, "Game ID required");
-      return;
-    }
+    const { playerId, roomId: gameId } = request.query as { playerId?: string; roomId?: string };
+    if (!playerId) return socket.close(1008, "Player ID required");
+    if (!gameId) return socket.close(1008, "Game ID required");
 
     const player = await getPlayer(playerId);
-    if (!player) {
-      socket.close(1008, "Invalid player");
-      return;
-    }
+    if (!player) return socket.close(1008, "Invalid player");
 
-    // TODO: Verify player is in game
+    const game = await gameService.getGame(gameId);
+    if (!game) return socket.close(1008, "Game not found");
+    if (!game.players.some((p) => p.id === playerId))
+      return socket.close(1008, "Player not in game");
 
-    // Register WebSocket connection
-    const connKey = getConnectionKey(playerId, "game", gameId);
-    connections.set(connKey, {
-      playerId,
-      ws: socket as WebSocket,
-      roomKey: getRoomKey("game", gameId),
-    });
+    fastify.log.info(`Player ${player.playerName} (${playerId}) connected to game ${gameId}`);
+    send(socket, { type: "CONNECTED", room: "game", roomId: gameId });
 
-    // Add to game room
-    addToRoom(playerId, "game", gameId);
-
-    fastify.log.info(
-      `Player ${player.playerName} (${playerId}) connected to game ${gameId}`,
-    );
-
-    // Send welcome message
-    socket.send(
-      JSON.stringify({
-        type: "CONNECTED",
-        room: "game",
-        roomId: gameId,
-      }),
-    );
-
-    // Handle game messages (turn submission, etc.)
-    socket.on("message", async (message: Buffer) => {
+    async function handleSubmission(raw: Buffer): Promise<void> {
       try {
-        const data = JSON.parse(message.toString());
-        fastify.log.info(`Game message from ${playerId}:`, data);
-
-        if (data.type === "SUBMIT_TURN") {
-          const { actions } = data.payload;
-
-          // Process the player's turn
-          const result = await processPlayerTurn(gameId!, playerId, actions);
-
-          if (result.success && result.gameState) {
-            // Broadcast human turn execution to all players in game room
-            broadcastToRoom(
-              "game",
-              {
-                type: "TURN_EXECUTED",
-                payload: {
-                  gameState: result.gameState,
-                  actions: actions,
-                  playerId: playerId,
-                  turnNumber: result.turnNumber,
-                },
-              },
-              gameId
-            );
-
-            // After human turn, execute any bot turns
-            // All players connected to the game room are humans
-            const humanPlayerIds = getConnectedPlayers("game", gameId);
-            await executeBotsIfNeeded(gameId!, result.gameState, humanPlayerIds);
-          } else {
-            // Send error back to the player who submitted
-            socket.send(
-              JSON.stringify({
-                type: "TURN_ERROR",
-                payload: {
-                  error: result.error,
-                  errors: result.errors,
-                },
-              })
-            );
-          }
+        const parsed = SubmitTurnSchema.safeParse(JSON.parse(raw.toString()));
+        if (!parsed.success) {
+          // A malformed action fails the whole submission: never a silent coast.
+          const errors = parsed.error.errors.map(
+            (issue) => `${issue.path.join(".") || "payload"}: ${issue.message}`
+          );
+          return send(socket, {
+            type: "TURN_ERROR",
+            payload: { error: "Invalid SUBMIT_TURN message", errors },
+          });
+        }
+        const { actions, turn, activePlayerId } = parsed.data.payload;
+        const result = await gameService.submitTurn(gameId!, playerId!, actions as PlayerAction[], {
+          turn,
+          activePlayerId,
+        });
+        if (!result.ok) {
+          send(socket, {
+            type: "TURN_ERROR",
+            payload: { error: result.error, errors: result.errors },
+          });
         }
       } catch (error) {
-        fastify.log.error({ error }, "WebSocket message error");
-        socket.send(
-          JSON.stringify({
-            type: "TURN_ERROR",
-            payload: {
-              error: "Internal server error processing turn",
-            },
-          })
-        );
+        fastify.log.error({ error, gameId, playerId }, "WebSocket message error");
+        send(socket, {
+          type: "TURN_ERROR",
+          payload: { error: "Internal server error processing turn" },
+        });
       }
+    }
+
+    // The listener goes on before the initial view is awaited: a SUBMIT_TURN
+    // that arrives during the handshake is queued, not dropped.
+    let handshakeDone = false;
+    const queued: Buffer[] = [];
+    socket.on("message", (raw: Buffer) => {
+      if (!handshakeDone) {
+        queued.push(raw);
+        return;
+      }
+      void handleSubmission(raw);
     });
 
-    socket.on("close", async () => {
-      removeFromRoom(playerId, "game", gameId);
+    // A human reconnecting cancels any pending teardown of this game.
+    cancelAbandonTimer(gameId);
+
+    // Installed before the handshake completes so a socket that closes mid-join
+    // is still cleaned up.
+    let closed = false;
+    socket.on("close", () => {
+      closed = true;
+      unregisterConnection("game", gameId, playerId, socket);
       fastify.log.info(
-        `Player ${player.playerName} (${playerId}) disconnected from game ${gameId}`,
+        `Player ${player.playerName} (${playerId}) disconnected from game ${gameId}`
       );
-
-      // Check if any human players are still connected to the game
-      const connectedPlayers = getConnectedPlayers("game", gameId);
-      const humanPlayerIds = await getHumanPlayerIds(gameId);
-
-      // Check if any of the connected players are human
-      const hasConnectedHumans = Array.from(connectedPlayers).some((pid) =>
-        humanPlayerIds.has(pid)
-      );
-
-      if (!hasConnectedHumans) {
-        // No human players connected - clean up the game and lobby
-        fastify.log.info(
-          `No human players remaining in game ${gameId}, deleting game and lobby`,
-        );
-
-        // Find and delete the associated lobby
-        const lobby = await findLobbyByGameId(gameId);
-        if (lobby) {
-          await deleteLobby(lobby.lobbyId);
-          fastify.log.info(`Deleted lobby ${lobby.lobbyId}`);
-        }
-
-        // Delete the game
-        await deleteGame(gameId);
-      }
+      scheduleAbandonCheck(gameId);
     });
-  });
-}
 
-/**
- * Clean up all connections for a player
- */
-export function cleanupConnection(playerId: string) {
-  // Find all connections for this player
-  const playerConnKeys: string[] = [];
-  connections.forEach((conn, key) => {
-    if (conn.playerId === playerId) {
-      playerConnKeys.push(key);
+    // The room is joined inside the same critical section that snapshots the
+    // view, and the socket buffers until that view has been sent, so a
+    // TURN_EXECUTED can neither overtake the initial GAME_VIEW nor be lost.
+    const initial = await gameService.getViewWithHistory(gameId, playerId, () =>
+      registerConnection("game", gameId, playerId, socket, { buffered: true })
+    );
+    if (!initial) {
+      fastify.log.info(`Game ${gameId} disappeared before ${playerId} could join`);
+      return socket.close(1001, "Game not found");
     }
-  });
+    if (closed) return unregisterConnection("game", gameId, playerId, socket);
 
-  // Remove from all rooms and delete connections
-  playerConnKeys.forEach((connKey) => {
-    const connection = connections.get(connKey);
-    if (connection) {
-      // Remove from room membership
-      const roomMembers = rooms.get(connection.roomKey);
-      if (roomMembers) {
-        roomMembers.delete(playerId);
-        if (roomMembers.size === 0) {
-          rooms.delete(connection.roomKey);
-        }
-      }
-      connections.delete(connKey);
-    }
+    send(socket, { type: "GAME_VIEW", payload: initial });
+    releaseConnection("game", gameId, playerId, socket);
+    handshakeDone = true;
+    for (const raw of queued.splice(0)) await handleSubmission(raw);
+
+    // A game left with a bot to act (server restart) continues now that someone is watching.
+    gameService
+      .resumeBots(gameId)
+      .catch((error) => fastify.log.error({ error, gameId }, "Failed to resume bot turns"));
   });
 }

@@ -1,116 +1,107 @@
 /**
- * Mission Types for Dangerous Inclinations
+ * Missions: secret objectives. First player to complete MISSIONS_TO_WIN wins.
  *
- * Missions are private objectives that players must complete to win.
- * Each player receives 3 missions at game start.
- * First player to complete all 3 missions wins.
+ * Four mission types:
+ *   destroy_ship, deliver_cargo, intercept_transmission, survey
+ *
+ * Completed missions are face-up: everyone can see them.
  */
 
-import type { Player } from "./game.ts";
+export const MISSIONS_TO_WIN = 3;
+export const MISSIONS_PER_PLAYER = 3;
+export const MISSION_OFFERS_PER_PLAYER = 5;
 
-export type MissionType = "destroy_ship" | "deliver_cargo" | "intercept_transmission";
+/** Black hole ring a ship must end its turn on to complete a Survey. */
+export const SURVEY_RING = 1;
+/** Scan range for the scan action (same ring, ±sectors). */
+export const SCAN_SECTOR_RANGE = 3;
 
-/**
- * Base mission interface shared by all mission types
- */
-export interface BaseMission {
+export type MissionType = "destroy_ship" | "deliver_cargo" | "intercept_transmission" | "survey";
+
+export type MissionFamily = "combat" | "trade" | "daring";
+
+export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
+  destroy_ship: "combat",
+  deliver_cargo: "trade",
+  intercept_transmission: "trade",
+  survey: "daring",
+};
+
+interface BaseMission {
   id: string;
   type: MissionType;
   isCompleted: boolean;
 }
 
-/**
- * Destroy Ship Mission
- * Objective: Destroy a specific player's ship (they will respawn)
- * Completion: When target's HP reaches 0
- */
+/** Reduce the target's hull to 0. */
 export interface DestroyShipMission extends BaseMission {
   type: "destroy_ship";
   targetPlayerId: string;
 }
 
-/**
- * Deliver Cargo Mission
- * Objective: Pick up cargo at one planet's station, deliver to another
- * Completion: When cargo is delivered to destination station
- */
+/** Dock at the pickup station, then dock at the delivery station with the crate. */
 export interface DeliverCargoMission extends BaseMission {
   type: "deliver_cargo";
   pickupPlanetId: string;
   deliveryPlanetId: string;
-  cargoId: string; // Links to cargo in player's inventory
+  cargoId: string;
 }
 
-/**
- * Intercept Transmission Mission
- * Phase 1 — Scan: Be in the same ring as the target player, within ±3 sectors,
- *   with sensor_array powered for 1 turn. This adds a scan_data cargo to inventory.
- * Phase 2 — Deliver: Deliver the scan_data cargo to any station.
- * The powered sensor_array reveals intent, creating tension: shadow then run.
- */
+/** Scan the target, then dock at any station with the data. */
 export interface InterceptTransmissionMission extends BaseMission {
   type: "intercept_transmission";
   targetPlayerId: string;
-  scanAcquired: boolean; // true once scan phase is complete
-  scanCargoId: string;   // ID of the scan_data cargo item (may not be in inventory yet)
+  scanAcquired: boolean;
+  dataCargoId: string;
 }
 
-/**
- * Union type of all mission types
- */
-export type Mission = DestroyShipMission | DeliverCargoMission | InterceptTransmissionMission;
+/** End a turn on black hole ring SURVEY_RING, then dock at any station with the data. */
+export interface SurveyMission extends BaseMission {
+  type: "survey";
+  surveyAcquired: boolean;
+  dataCargoId: string;
+}
+
+export type Mission =
+  | DestroyShipMission
+  | DeliverCargoMission
+  | InterceptTransmissionMission
+  | SurveyMission;
+
+export type CargoKind = "crate" | "data";
 
 /**
- * Cargo being transported by a player
- * Created when a DeliverCargoMission is dealt
- * Picked up when player is at pickup station
- * Delivered when player is at delivery station
- *
- * For InterceptTransmissionMission, type is "scan_data" and deliveryPlanetId is "any"
+ * Something a ship carries.
+ * - crate: belongs to a Deliver mission; picked up at its origin station.
+ * - data: from a scan or survey; delivered at any station.
+ * Destroyed ships drop everything: crates go back to their origin, data is lost.
  */
 export interface Cargo {
   id: string;
-  missionId: string; // Links back to the mission
-  type: "standard" | "scan_data";
-  pickupPlanetId: string;
-  deliveryPlanetId: string; // "any" for scan_data cargo
+  kind: CargoKind;
+  /** Mission this item belongs to. */
+  missionId: string;
+  pickupPlanetId?: string;
+  /** Planet id, or "any". */
+  deliveryPlanetId: string;
   isPickedUp: boolean;
 }
 
-/**
- * Type guard for DestroyShipMission
- */
-export function isDestroyShipMission(
+export function missionTargetsPlayer(
   mission: Mission
-): mission is DestroyShipMission {
-  return mission.type === "destroy_ship";
+): mission is DestroyShipMission | InterceptTransmissionMission {
+  return mission.type === "destroy_ship" || mission.type === "intercept_transmission";
 }
 
-/**
- * Type guard for DeliverCargoMission
- */
-export function isDeliverCargoMission(
-  mission: Mission
-): mission is DeliverCargoMission {
-  return mission.type === "deliver_cargo";
+export function isDestroyShipMission(m: Mission): m is DestroyShipMission {
+  return m.type === "destroy_ship";
 }
-
-/**
- * Type guard for InterceptTransmissionMission
- */
-export function isInterceptTransmissionMission(
-  mission: Mission
-): mission is InterceptTransmissionMission {
-  return mission.type === "intercept_transmission";
+export function isDeliverCargoMission(m: Mission): m is DeliverCargoMission {
+  return m.type === "deliver_cargo";
 }
-
-/**
- * Result of checking missions for a player
- */
-export interface MissionCheckResult {
-  player: Player;
-  updatedMissions: Mission[];
-  newlyCompletedMissions: Mission[];
-  completedMissionCount: number;
-  hasWon: boolean;
+export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
+  return m.type === "intercept_transmission";
+}
+export function isSurveyMission(m: Mission): m is SurveyMission {
+  return m.type === "survey";
 }

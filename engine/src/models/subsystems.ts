@@ -1,11 +1,24 @@
 /**
- * Subsystem-based energy and heat management
+ * Subsystems: the tiles a ship carries.
  *
- * Each subsystem has independent energy allocation that persists across turns.
- * Energy deallocation is unlimited.
- * Heat is generated when subsystems are USED, equal to their allocated energy.
- * Ships have a dissipation capacity (see DEFAULT_DISSIPATION_CAPACITY) that automatically removes heat each turn.
- * Excess heat (above dissipation capacity) causes hull damage.
+ * A ship always has three fixed systems (engines, thrusters, scoop) plus one
+ * forward slot and four side slots chosen at loadout. Every subsystem has a
+ * stable id derived from its slot ("engines", "forward-0", "side-2"), and all
+ * actions refer to subsystems by that id.
+ *
+ * Energy and heat:
+ * - Energy allocated to a subsystem persists across turns.
+ * - Using a subsystem generates heat equal to its allocated energy.
+ * - Heat above the ship's dissipation capacity becomes hull damage at the end
+ *   of the owner's turn, then heat resets to 0.
+ *
+ * Hidden information:
+ * - Loadout tiles start face-down (`isRevealed: false`). A tile flips face-up
+ *   the first time it does something visible (fires, absorbs, scans, refunds,
+ *   prevents heat damage) or when it is broken by a critical hit.
+ * - Fixed systems are always revealed.
+ * - Energy on a tile is public even while the tile is face-down: everyone can
+ *   see how much a rival routes to each slot, not what the slot holds.
  */
 
 export type SubsystemType =
@@ -21,80 +34,104 @@ export type SubsystemType =
   | "sensor_array"
   | "ballistic_rack";
 
+export type WeaponType = "laser" | "railgun" | "missiles" | "ballistic_rack";
+
+/** Stable identifier: "engines" | "rotation" | "scoop" | "forward-0" | "side-0".."side-3". */
+export type SubsystemId = string;
+
+export type SlotGroup = "forward" | "side";
+
 /**
- * Slot types for ship loadout system
- * - fixed: Always present on ship (engines, rotation)
- * - forward: Can only be installed in forward slots
- * - side: Can only be installed in side slots
- * - either: Can be installed in either forward or side slots
+ * Slot types for the loadout system
+ * - fixed: always present (engines, rotation, scoop)
+ * - forward / side: restricted to that slot group
+ * - either: forward or side
  */
-export type SlotType = "fixed" | "forward" | "side" | "either";
+export type SlotType = "fixed" | SlotGroup | "either";
+
+export const FIXED_SUBSYSTEM_TYPES: readonly SubsystemType[] = ["engines", "rotation", "scoop"];
+
+export const FORWARD_SLOT_COUNT = 1;
+export const SIDE_SLOT_COUNT = 4;
+
+export function slotSubsystemId(group: SlotGroup, index: number): SubsystemId {
+  return `${group}-${index}`;
+}
+
+/** All slot ids on a ship, forward first, in a fixed order. */
+export const SLOT_IDS: readonly SubsystemId[] = [
+  ...Array.from({ length: FORWARD_SLOT_COUNT }, (_, i) => slotSubsystemId("forward", i)),
+  ...Array.from({ length: SIDE_SLOT_COUNT }, (_, i) => slotSubsystemId("side", i)),
+];
+
+/** Every subsystem id a ship can have (fixed systems + slots). */
+export const ALL_SUBSYSTEM_IDS: readonly SubsystemId[] = [...FIXED_SUBSYSTEM_TYPES, ...SLOT_IDS];
 
 export interface WeaponStats {
   damage: number;
   ringRange: number; // How many rings away can be targeted (±ringRange)
-  sectorRange: number; // Sector spread: broadside uses ±sectorRange, turret uses sector visibility count
-  arc: "spinal" | "broadside" | "turret"; // Firing arc type
-  hasRecoil?: boolean; // Only for railgun
-  sideRestricted?: boolean; // If true, can only fire toward the ring direction matching mounted side (port/starboard)
-  canTargetSameRing?: boolean; // If true, broadside weapons can also target ringDist=0 (same ring ±sectorRange)
-  // Ammunition-based weapon stats (for missiles, future torpedo/bomb systems)
-  maxAmmo?: number; // Maximum ammunition capacity (undefined = unlimited)
-  fuelPerTurn?: number; // Fuel available per turn for guided projectiles
-  maxTurnsAlive?: number; // How many turns before projectile expires
+  sectorRange: number; // ±sectors covered (spinal: sectors ahead)
+  arc: "spinal" | "broadside" | "turret";
+  hasRecoil?: boolean; // Railgun: pushes the ship one ring unless compensated
+  sideRestricted?: boolean; // Broadside weapons on a side only fire toward that side
+  canTargetSameRing?: boolean; // Broadside weapons that also cover the same ring
+  maxAmmo?: number; // Ammunition-based weapons
+  fuelPerTurn?: number; // Guided projectiles: steps per move
+  maxMoves?: number; // Guided projectiles: moves before expiry
 }
 
-/**
- * Passive effect for subsystems that provide bonuses without energy allocation
- */
+/** Passive bonuses that need no energy. */
 export interface PassiveEffect {
-  dissipationBonus?: number; // Added to ship's dissipation capacity
-  reactionMassBonus?: number; // Added to ship's starting reaction mass (and max capacity)
-  criticalChanceBonus?: number; // Added to ship's critical hit chance (in percentage points)
-  refuelOnWellTransfer?: boolean; // If true, refill reaction mass to max on well transfer
+  dissipationBonus?: number;
+  reactionMassBonus?: number;
+  criticalChanceBonus?: number; // percentage points, only while powered
+  refuelOnWellTransfer?: boolean;
 }
 
 export interface SubsystemConfig {
   id: SubsystemType;
   name: string;
-  minEnergy: number; // Minimum energy to function (0 for passive subsystems)
-  maxEnergy: number; // Absolute maximum energy (hard cap, cannot exceed)
-  generatesHeatOnUse: boolean; // Whether using this subsystem generates heat equal to allocated energy
-  slotType: SlotType; // Which slots this subsystem can be installed in
-  isPassive?: boolean; // If true, subsystem provides passive bonus without energy allocation
-  passiveEffect?: PassiveEffect; // Passive bonuses (only for passive subsystems)
-  weaponStats?: WeaponStats; // Only present for weapon subsystems
+  minEnergy: number; // Minimum energy to function (0 for passive)
+  maxEnergy: number;
+  generatesHeatOnUse: boolean;
+  slotType: SlotType;
+  /** How many of this tile a player's set contains (default 1). */
+  maxPerShip?: number;
+  isPassive?: boolean;
+  passiveEffect?: PassiveEffect;
+  weaponStats?: WeaponStats;
 }
 
 export interface Subsystem {
+  id: SubsystemId;
   type: SubsystemType;
-  allocatedEnergy: number; // Current energy allocation (persists across turns)
-  isPowered: boolean; // Whether subsystem has enough energy to function
-  usedThisTurn: boolean; // Whether the subsystem was activated this turn (resets each turn)
-  ammo?: number; // Current ammunition (only for ammo-based weapons like missiles)
-  isBroken?: boolean; // If true, subsystem is broken and cannot be used until repaired (critical hit effect)
-  slotIndex?: number; // Which slot this subsystem is in (0-1 for forward, 0-3 for side)
-  slotType?: "forward" | "side"; // Which slot group (undefined for fixed subsystems like engines, rotation)
+  allocatedEnergy: number;
+  isPowered: boolean;
+  usedThisTurn: boolean;
+  isBroken: boolean;
+  /** Face-up for everyone at the table. Fixed systems start revealed. */
+  isRevealed: boolean;
+  ammo?: number;
+  slotGroup?: SlotGroup;
+  slotIndex?: number;
 }
 
 export interface ReactorState {
-  totalCapacity: number; // Total reactor capacity (fixed at 10)
-  availableEnergy: number; // Unallocated energy in reactor
+  totalCapacity: number;
+  availableEnergy: number;
 }
 
 export interface HeatState {
-  currentHeat: number; // Current heat level
+  currentHeat: number;
 }
 
-// Subsystem configurations
 export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
-  // Fixed subsystems (always present on ship)
   engines: {
     id: "engines",
     name: "Engines",
     minEnergy: 1,
     maxEnergy: 3,
-    generatesHeatOnUse: true, // Generates heat when burn is executed
+    generatesHeatOnUse: true,
     slotType: "fixed",
   },
   rotation: {
@@ -102,34 +139,31 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Maneuvering Thrusters",
     minEnergy: 1,
     maxEnergy: 1,
-    generatesHeatOnUse: true, // Generates heat when rotation is executed
+    generatesHeatOnUse: true,
     slotType: "fixed",
   },
-
-  // Fixed subsystem — always present (like engines/rotation)
   scoop: {
     id: "scoop",
     name: "Fuel Scoop",
     minEnergy: 3,
     maxEnergy: 3,
-    generatesHeatOnUse: true, // Generates heat when scooping
+    generatesHeatOnUse: true,
     slotType: "fixed",
   },
 
-  // Forward slot subsystems
   railgun: {
     id: "railgun",
     name: "Railgun",
     minEnergy: 4,
     maxEnergy: 4,
-    generatesHeatOnUse: true, // Generates heat when fired
+    generatesHeatOnUse: true,
     slotType: "forward",
     weaponStats: {
       damage: 4,
-      ringRange: 0, // Only fires on current ring (same ring)
-      sectorRange: 5, // Range of 5 sectors along orbit in facing direction
-      arc: "spinal", // Fires tangentially along orbit in facing direction
-      hasRecoil: true, // Causes recoil burn without engine compensation
+      ringRange: 0,
+      sectorRange: 5,
+      arc: "spinal",
+      hasRecoil: true,
     },
   },
   sensor_array: {
@@ -137,39 +171,39 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Sensor Array",
     minEnergy: 2,
     maxEnergy: 2,
-    generatesHeatOnUse: false,
+    generatesHeatOnUse: true, // scanning generates heat
     slotType: "forward",
-    passiveEffect: { criticalChanceBonus: 20 }, // 10% + 20% = 30% when powered
+    passiveEffect: { criticalChanceBonus: 20 },
   },
 
-  // Side slot subsystems
   laser: {
     id: "laser",
     name: "Broadside Laser",
     minEnergy: 2,
     maxEnergy: 2,
-    generatesHeatOnUse: true, // Generates heat when fired
+    generatesHeatOnUse: true,
     slotType: "side",
+    maxPerShip: 2,
     weaponStats: {
       damage: 2,
-      ringRange: 2, // Can target ±2 rings (but side-restricted to inward or outward only)
-      sectorRange: 1, // Covers ±1 sector "visible" from current position
-      arc: "broadside", // Fires radially from ship's sector
-      sideRestricted: true, // Can only fire toward the ring direction matching the mounted side
+      ringRange: 2,
+      sectorRange: 1,
+      arc: "broadside",
+      sideRestricted: true,
     },
   },
   shields: {
     id: "shields",
     name: "Shields",
-    minEnergy: 1, // Lowered min energy for flexibility
-    maxEnergy: 4, // Increased max to allow more absorption
-    generatesHeatOnUse: false, // Reactive, converts damage to heat
+    minEnergy: 1,
+    maxEnergy: 4,
+    generatesHeatOnUse: false,
     slotType: "side",
   },
   radiator: {
     id: "radiator",
     name: "Radiator",
-    minEnergy: 0, // Fully passive
+    minEnergy: 0,
     maxEnergy: 0,
     generatesHeatOnUse: false,
     slotType: "side",
@@ -179,87 +213,76 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   fuel_compressor: {
     id: "fuel_compressor",
     name: "Fuel Compressor",
-    minEnergy: 0, // Fully passive
+    minEnergy: 0,
     maxEnergy: 0,
     generatesHeatOnUse: false,
     slotType: "side",
     isPassive: true,
-    // +6 reaction mass capacity; well transfers are free (compressor scoops 3 mass during jump)
     passiveEffect: { reactionMassBonus: 6, refuelOnWellTransfer: true },
   },
 
-  // Either slot subsystems
   missiles: {
     id: "missiles",
     name: "Missiles",
     minEnergy: 2,
     maxEnergy: 2,
-    generatesHeatOnUse: true, // Generates heat when fired
+    generatesHeatOnUse: true,
     slotType: "either",
     weaponStats: {
-      damage: 2, // Damage dealt on impact (was 3, lowered for balance)
-      ringRange: 2, // Can target up to 2 rings away (any direction)
-      sectorRange: 3, // Covers ±3 sectors from current position
-      arc: "turret", // Can fire in any direction
-      maxAmmo: 4, // Maximum missile capacity
-      fuelPerTurn: 3, // Guidance fuel per turn (rings + sectors missile can move)
-      maxTurnsAlive: 3, // Missile expires after 3 turns if it doesn't hit
+      damage: 2,
+      ringRange: 2,
+      sectorRange: 3,
+      arc: "turret",
+      maxAmmo: 4,
+      fuelPerTurn: 3,
+      maxMoves: 3,
     },
   },
 
-  // Side slot subsystems (PDC)
   ballistic_rack: {
     id: "ballistic_rack",
     name: "Ballistic Rack",
     minEnergy: 2,
     maxEnergy: 2,
-    generatesHeatOnUse: true, // Generates heat when fired or when intercepting missiles
+    generatesHeatOnUse: true,
     slotType: "side",
     weaponStats: {
-      damage: 1, // Lower than laser (2) — balanced by PDC ability + same-ring coverage
-      ringRange: 1, // ±1 ring (shorter than laser's ±2)
-      sectorRange: 1, // ±1 sector spread
-      arc: "broadside", // Uses broadside arc logic
-      sideRestricted: false, // NOT side-restricted: fires both inward and outward
-      canTargetSameRing: true, // Unique: can also hit same ring ±1 sector
+      damage: 1,
+      ringRange: 1,
+      sectorRange: 1,
+      arc: "broadside",
+      sideRestricted: false,
+      canTargetSameRing: true,
     },
   },
 };
 
-// Helper functions
 export function getSubsystemConfig(type: SubsystemType): SubsystemConfig {
   return SUBSYSTEM_CONFIGS[type];
 }
 
-/**
- * Get heat generated when a subsystem is used.
- * Returns allocated energy if subsystem generates heat on use, otherwise 0.
- */
-export function getHeatOnUse(subsystem: Subsystem): number {
-  const config = getSubsystemConfig(subsystem.type);
-  if (!config.generatesHeatOnUse) return 0;
-  return subsystem.allocatedEnergy;
+/** Tiles of this type in one player's set. */
+export function getMaxPerShip(type: SubsystemType): number {
+  return SUBSYSTEM_CONFIGS[type].maxPerShip ?? 1;
+}
+
+export function isWeaponType(type: SubsystemType): type is WeaponType {
+  return SUBSYSTEM_CONFIGS[type].weaponStats !== undefined;
 }
 
 export function canSubsystemFunction(subsystem: Subsystem): boolean {
   if (subsystem.isBroken) return false;
-  const config = getSubsystemConfig(subsystem.type);
-  return subsystem.allocatedEnergy >= config.minEnergy;
+  return subsystem.allocatedEnergy >= SUBSYSTEM_CONFIGS[subsystem.type].minEnergy;
 }
 
-/**
- * Get missile-specific stats from the missiles subsystem config
- * Throws if called for non-missile subsystem
- */
 export function getMissileStats(): Required<
-  Pick<WeaponStats, "damage" | "maxAmmo" | "fuelPerTurn" | "maxTurnsAlive">
+  Pick<WeaponStats, "damage" | "maxAmmo" | "fuelPerTurn" | "maxMoves">
 > {
-  const config = SUBSYSTEM_CONFIGS.missiles;
-  const stats = config.weaponStats!;
+  const stats = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
   return {
     damage: stats.damage,
     maxAmmo: stats.maxAmmo!,
     fuelPerTurn: stats.fuelPerTurn!,
-    maxTurnsAlive: stats.maxTurnsAlive!,
+    maxMoves: stats.maxMoves!,
   };
 }

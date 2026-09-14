@@ -1,275 +1,136 @@
+/**
+ * Weapon damage resolution (d10).
+ *
+ * 1 = miss, 2-9 = hit, 10 = critical. Each powered sensor array on the attacker
+ * lowers the critical threshold by two (8-10 with one array).
+ *
+ * Shields absorb damage up to their allocated energy; absorbed damage becomes
+ * heat and the shield energy returns to the reactor. A critical that still
+ * reaches the hull breaks the slot the attacker named.
+ */
 import type { ShipState } from "../models/game.ts";
 import { BASE_CRITICAL_CHANCE } from "../models/game.ts";
-import type { SubsystemType } from "../models/subsystems.ts";
-import { getSubsystemConfig } from "../models/subsystems.ts";
-import { calculateHeatDamage, addHeat } from "./heat.ts";
-import { getEffectiveCriticalChance } from "./loadout.ts";
-import type {
-  CriticalHitEffect,
-  HitRollResult,
-  WeaponHitResult,
-} from "../models/weapons.ts";
+import type { SubsystemId } from "../models/subsystems.ts";
+import type { EventDraft } from "../models/events.ts";
+import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
+import {
+  addHeat,
+  breakSubsystem,
+  findSubsystem,
+  getEffectiveCriticalChance,
+  revealSubsystem,
+  updateSubsystem,
+} from "./ship.ts";
 
-// d10 rolling lives on the seeded RNG: see ../utils/rng.ts (rollD10).
-// Damage helpers below take an explicit roll value so they remain pure and
-// don't have a hidden dependency on global state.
-
-/**
- * Convert d10 roll to hit result
- * 1 = miss, 2-9 = hit, 10 = critical (base behavior)
- *
- * With variable critical chance:
- * - Base critical chance is 10% (roll 10)
- * - With sensor array (+20%), critical chance is 30% (roll 8, 9, or 10)
- *
- * @param roll d10 roll result (1-10)
- * @param criticalChance Critical hit chance as percentage (0-100). Default is BASE_CRITICAL_CHANCE (10)
- */
 export function rollToResult(
   roll: number,
   criticalChance: number = BASE_CRITICAL_CHANCE
 ): HitRollResult {
-  if (roll === 1) return "miss";
-
-  // Calculate critical threshold: higher criticalChance = lower threshold needed
-  // At 10% (base), only roll 10 crits
-  // At 30% (with sensor), rolls 8-10 crit (3 values = 30%)
-  // criticalChance is in percentage points (10 = 10%, 30 = 30%)
+  if (roll <= 1) return "miss";
   const criticalValues = Math.round(criticalChance / 10);
-  const criticalThreshold = 11 - criticalValues; // 10 for 10%, 8 for 30%
+  const threshold = 11 - criticalValues; // 10 at 10%, 8 at 30%
+  return roll >= threshold ? "critical" : "hit";
+}
 
-  if (roll >= criticalThreshold) return "critical";
-  return "hit";
+export interface AttackOutcome {
+  ship: ShipState;
+  hitResult: WeaponHitResult;
+  events: EventDraft[];
 }
 
 /**
- * Apply weapon attack to a ship using d10 hit resolution
- *
- * Hit Resolution (d10):
- * - Roll 1: Miss - no damage
- * - Roll 2-9: Hit - normal damage (shields absorb first)
- * - Roll 10: Critical (or lower threshold with sensor array) - damage + targeted subsystem breaks
- *
- * Shield mechanics:
- * - Shields convert damage to heat (up to their allocated energy)
- * - Shield energy is CONSUMED when absorbing damage
- *
- * @param ship Target ship state
- * @param damage Weapon damage amount
- * @param criticalTarget Subsystem to break on critical hit (required)
- * @param roll d10 roll (1-10). Caller must roll using GameState's RNG (see utils/rng.ts).
- * @param attackerShip Optional attacker ship for critical chance calculation. If not provided, uses base critical chance.
+ * Resolve one attack against `target`.
+ * @param targetPlayerId owner of the target ship (for events)
+ * @param roll d10 result, already rolled against the game's RNG
  */
-export function applyDamageWithShields(
-  ship: ShipState,
+export function resolveAttack(
+  target: ShipState,
+  targetPlayerId: string,
   damage: number,
-  criticalTarget: SubsystemType,
+  criticalTarget: SubsystemId,
   roll: number,
-  attackerShip?: ShipState
-): { ship: ShipState; hitResult: WeaponHitResult } {
-  const actualRoll = roll;
+  attacker: ShipState,
+  attackerPlayerId?: string
+): AttackOutcome {
+  const critChance = getEffectiveCriticalChance(attacker.subsystems);
+  const result = rollToResult(roll, critChance);
+  const sensorAssistedCritical = result === "critical" && rollToResult(roll) !== "critical";
 
-  // Calculate critical chance from attacker's ship (sensor array bonus)
-  const baseCritChance = attackerShip?.criticalChance ?? BASE_CRITICAL_CHANCE;
-  const effectiveCritChance = attackerShip
-    ? getEffectiveCriticalChance(baseCritChance, attackerShip.subsystems)
-    : baseCritChance;
-
-  const result = rollToResult(actualRoll, effectiveCritChance);
-
-  // Miss - no damage, no effects
   if (result === "miss") {
     return {
-      ship,
+      ship: target,
+      events: [],
       hitResult: {
-        roll: actualRoll,
-        result: "miss",
+        roll,
+        result,
         damage: 0,
         damageToHull: 0,
         damageToHeat: 0,
+        sensorAssistedCritical: false,
       },
     };
   }
 
-  // Hit or Critical - apply damage with shields
-  const shieldSubsystem = ship.subsystems.find((s) => s.type === "shields");
-  const shieldCapacity =
-    shieldSubsystem?.isPowered && !shieldSubsystem.isBroken
-      ? shieldSubsystem.allocatedEnergy
-      : 0;
+  const events: EventDraft[] = [];
+  let ship = target;
 
-  // Shields absorb damage up to their allocated energy
-  const damageAbsorbed = Math.min(damage, shieldCapacity);
-  const damageToHull = damage - damageAbsorbed;
-
-  // Apply hull damage, deplete shield energy, and return energy to reactor
-  const newShieldEnergy = shieldCapacity - damageAbsorbed;
-  let updatedShip: ShipState = {
-    ...ship,
-    hitPoints: Math.max(0, ship.hitPoints - damageToHull),
-    // Shields lose energy equal to damage absorbed, energy returns to reactor
-    reactor: {
-      ...ship.reactor,
-      availableEnergy: Math.min(
-        ship.reactor.totalCapacity,
-        ship.reactor.availableEnergy + damageAbsorbed,
-      ),
-    },
-    subsystems: ship.subsystems.map((s) =>
-      s.type === "shields"
-        ? {
-            ...s,
-            allocatedEnergy: newShieldEnergy,
-            isPowered: newShieldEnergy > 0,
-          }
-        : s,
-    ),
-  };
-
-  // Convert absorbed damage to heat
-  if (damageAbsorbed > 0) {
-    updatedShip = addHeat(updatedShip, damageAbsorbed);
+  // Shields absorb first, tile by tile in slot order.
+  let remainingDamage = damage;
+  let absorbed = 0;
+  for (const shield of ship.subsystems.filter(
+    (s) => s.type === "shields" && s.isPowered && !s.isBroken
+  )) {
+    if (remainingDamage <= 0) break;
+    const take = Math.min(remainingDamage, shield.allocatedEnergy);
+    if (take <= 0) continue;
+    const left = shield.allocatedEnergy - take;
+    ship = {
+      ...ship,
+      reactor: {
+        ...ship.reactor,
+        availableEnergy: Math.min(ship.reactor.totalCapacity, ship.reactor.availableEnergy + take),
+      },
+    };
+    ship = updateSubsystem(ship, shield.id, { allocatedEnergy: left, isPowered: left > 0 });
+    ship = addHeat(ship, take);
+    const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
+    ship = r.ship;
+    events.push(...r.events);
+    remainingDamage -= take;
+    absorbed += take;
   }
+  const toHull = remainingDamage;
 
-  // Critical hit - break the targeted subsystem
-  // IMPORTANT: Critical only triggers if hull was hit (damage penetrated shields)
-  let criticalEffect: CriticalHitEffect | undefined;
-  if (result === "critical" && damageToHull > 0) {
-    const targetSubsystem = updatedShip.subsystems.find(
-      (s) => s.type === criticalTarget,
-    );
+  ship = { ...ship, hitPoints: Math.max(0, ship.hitPoints - toHull) };
 
-    // Only break if subsystem exists and isn't already broken
-    if (targetSubsystem && !targetSubsystem.isBroken) {
-      const energyLost = targetSubsystem.allocatedEnergy;
-
-      // Break the subsystem, unpower it, and return energy to reactor
-      updatedShip = {
-        ...updatedShip,
-        reactor: {
-          ...updatedShip.reactor,
-          availableEnergy: Math.min(
-            updatedShip.reactor.totalCapacity,
-            updatedShip.reactor.availableEnergy + energyLost,
-          ),
-        },
-        subsystems: updatedShip.subsystems.map((s) =>
-          s.type === criticalTarget
-            ? { ...s, allocatedEnergy: 0, isPowered: false, isBroken: true }
-            : s,
-        ),
-      };
-
-      // Add heat equal to the lost energy
-      if (energyLost > 0) {
-        updatedShip = addHeat(updatedShip, energyLost);
-      }
-
+  let criticalEffect: WeaponHitResult["criticalEffect"];
+  if (result === "critical" && toHull > 0) {
+    const sub = findSubsystem(ship, criticalTarget);
+    if (sub && !sub.isBroken) {
+      const broken = breakSubsystem(ship, targetPlayerId, criticalTarget);
+      ship = broken.ship;
+      events.push(
+        ...broken.events.map((e) => (e.type === "subsystem_broken" ? { ...e, by: attackerPlayerId } : e))
+      );
       criticalEffect = {
-        targetSubsystem: criticalTarget,
-        energyLost,
-        heatAdded: energyLost,
+        subsystemId: criticalTarget,
+        subsystemType: sub.type,
+        energyLost: broken.energyLost,
       };
     }
   }
 
   return {
-    ship: updatedShip,
+    ship,
+    events,
     hitResult: {
-      roll: actualRoll,
+      roll,
       result,
       damage,
-      damageToHull,
-      damageToHeat: damageAbsorbed,
+      damageToHull: toHull,
+      damageToHeat: absorbed,
       criticalEffect,
-    },
-  };
-}
-
-/**
- * Apply weapon damage directly to hull (bypasses shields)
- * Used for heat damage
- */
-export function applyDirectDamage(ship: ShipState, damage: number): ShipState {
-  return {
-    ...ship,
-    hitPoints: Math.max(0, ship.hitPoints - damage),
-  };
-}
-
-/**
- * Apply heat damage to a ship based on current heat and dissipation.
- * Returns the (possibly unchanged) ship and the damage actually applied so
- * callers can build log messages without recomputing.
- */
-export function applyHeatDamageToShip(
-  ship: ShipState
-): { ship: ShipState; damage: number } {
-  const damage = calculateHeatDamage(ship);
-  if (damage === 0) return { ship, damage: 0 };
-  return { ship: applyDirectDamage(ship, damage), damage };
-}
-
-/**
- * Get weapon damage amount from a subsystem
- */
-export function getWeaponDamage(weaponType: SubsystemType): number {
-  const config = getSubsystemConfig(weaponType);
-  return config.weaponStats?.damage || 0;
-}
-
-/**
- * Check if a ship is destroyed (hit points <= 0)
- */
-export function isShipDestroyed(ship: ShipState): boolean {
-  return ship.hitPoints <= 0;
-}
-
-/**
- * Apply a critical hit effect to a ship (for deterministic testing)
- * This breaks and unpowers the target subsystem and converts its energy to heat
- */
-export function applyCriticalHit(
-  ship: ShipState,
-  targetSubsystem: SubsystemType,
-): { ship: ShipState; effect: CriticalHitEffect | null } {
-  const subsystem = ship.subsystems.find((s) => s.type === targetSubsystem);
-
-  // Can only crit subsystems that aren't already broken
-  if (!subsystem || subsystem.isBroken) {
-    return { ship, effect: null };
-  }
-
-  const energyLost = subsystem.allocatedEnergy;
-
-  // Break the subsystem, unpower it, and return energy to reactor
-  let updatedShip: ShipState = {
-    ...ship,
-    reactor: {
-      ...ship.reactor,
-      availableEnergy: Math.min(
-        ship.reactor.totalCapacity,
-        ship.reactor.availableEnergy + energyLost,
-      ),
-    },
-    subsystems: ship.subsystems.map((s) =>
-      s.type === targetSubsystem
-        ? { ...s, allocatedEnergy: 0, isPowered: false, isBroken: true }
-        : s,
-    ),
-  };
-
-  // Add heat equal to the lost energy
-  if (energyLost > 0) {
-    updatedShip = addHeat(updatedShip, energyLost);
-  }
-
-  return {
-    ship: updatedShip,
-    effect: {
-      targetSubsystem,
-      energyLost,
-      heatAdded: energyLost,
+      sensorAssistedCritical,
     },
   };
 }

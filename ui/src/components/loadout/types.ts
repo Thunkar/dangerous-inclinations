@@ -1,35 +1,24 @@
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 
+/** Where a palette card may be installed. Mirrors the engine's slot types. */
 export type SlotType = 'forward' | 'side' | 'either'
 
+/** What travels on the HTML5 drag: the tile and the rail it came from. */
 export interface DragItem {
-  type: 'component'
   componentType: SubsystemType
   slotType: SlotType
 }
 
-export interface LoadoutSlotProps {
-  slotType: SlotType
-  component: SubsystemType | null
-  onDrop: (componentType: SubsystemType | null) => void
-  onClick: () => void
-  isHighlighted?: boolean
-  isSelected?: boolean
-  acceptingDrag?: boolean
-}
+export const DRAG_MIME = 'application/x-di-component'
 
-export interface ComponentCardProps {
-  componentType: SubsystemType
-  slotType: SlotType
-  onDragStart: () => void
-  onDragEnd: () => void
-  onClick: () => void
-  isSelected?: boolean
-  isInstalled?: boolean
-}
-
-export interface ComponentPaletteProps {
-  onComponentSelect: (componentType: SubsystemType, slotType: SlotType) => void
-  selectedComponent: SubsystemType | null
-  installedComponents: Map<SubsystemType, number>
+export function readDragItem(transfer: DataTransfer): DragItem | null {
+  const raw = transfer.getData(DRAG_MIME) || transfer.getData('application/json') || transfer.getData('text/plain')
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as Partial<DragItem>
+    if (typeof parsed?.componentType !== 'string') return null
+    return { componentType: parsed.componentType as SubsystemType, slotType: (parsed.slotType ?? 'either') as SlotType }
+  } catch {
+    return null
+  }
 }

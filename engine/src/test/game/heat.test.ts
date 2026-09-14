@@ -1,326 +1,235 @@
 import { describe, it, expect } from "vitest";
+import { DEFAULT_DISSIPATION_CAPACITY } from "../../models/game.ts";
+import { calculateHeatDamage, resolveEndOfTurnHeat } from "../../game/heat.ts";
+import { getDissipationCapacity } from "../../game/ship.ts";
+import type { ShipLoadout } from "../../models/game.ts";
 import {
-  createTestGameState,
-  INITIAL_HIT_POINTS,
-} from "../fixtures/gameState.ts";
-import { createCoastAction } from "../fixtures/actions.ts";
-import { executeTurnWithActions } from "../testUtils.ts";
+  BH,
+  burn,
+  coast,
+  eventsOf,
+  eventTypes,
+  executeTurnAs,
+  fire,
+  getShip,
+  getSub,
+  jump,
+  makeTwoPlayerGame,
+  mustExecute,
+  rotate,
+  scan,
+  withPlayer,
+  withPower,
+  withShip,
+  withSub,
+} from "../testUtils.ts";
 
-/**
- * Heat System Tests
- *
- * Heat lifecycle:
- * 1. During turn: subsystem usage generates heat
- * 2. When turn switches to a player: evaluate their heat, take damage from excess
- * 3. Heat resets to 0 for that player
- * 4. Player takes their turn (sees damage already applied)
- * 5. Repeat
- *
- * NOTE: Heat damage is applied when switching TO a player, not when they execute actions.
- * This means the player sees the damage BEFORE they plan their turn.
- */
-describe("Heat System", () => {
-  describe("Heat Damage at Start of Turn", () => {
-    it("should not take damage when heat is within dissipation capacity", () => {
-      let gameState = createTestGameState();
+const SENSOR_LOADOUT: ShipLoadout = {
+  forwardSlots: ["sensor_array"],
+  sideSlots: ["laser", "laser", "shields", "missiles"],
+};
+const RADIATOR_LOADOUT: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["radiator", "laser", "shields", "laser"],
+};
+const TWO_RADIATORS: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["radiator", "radiator", "shields", "laser"],
+};
 
-      // Set heat equal to dissipation capacity (5) on player1
-      gameState.players[0].ship.heat.currentHeat = 5;
+describe("heat: subsystems heat up by their allocated energy when used", () => {
+  it.each([
+    ["engines (burn)", "engines", 3, burn(1, "soft"), "burned"],
+    ["scoop (coast)", "scoop", 3, coast(1, true), "coasted"],
+    ["laser (fire)", "side-0", 2, fire(1, "side-0", "p2"), "weapon_fired"],
+    ["railgun (fire)", "forward-0", 4, fire(1, "forward-0", "p2"), "weapon_fired"],
+  ] as const)(
+    "%s adds heat equal to its energy",
+    (_label, subsystemId, energy, action, eventType) => {
+      // p2 sits one sector ahead of p1 (R3 S0): the railgun needs it on the same ring, the port laser one ring out.
+      const targetRing = subsystemId === "forward-0" ? 3 : 4;
+      let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: targetRing, sector: 1 });
+      state = withPower(state, "p1", subsystemId, energy);
+      const result = executeTurnAs(state, action);
+      expect(result.errors).toBeUndefined();
+      const [event] = eventsOf(result.events, eventType);
+      expect(event).toBeDefined();
+      expect((event as { heat: number }).heat).toBe(energy);
+    }
+  );
 
-      const initialHP = gameState.players[0].ship.hitPoints;
-
-      // Player1 executes turn - heat damage is applied to NEXT player (player2), not player1
-      let result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Player2's turn now - execute their turn to switch back to player1
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Now player1's heat should have been evaluated when switching to them
-      // No damage because heat (5) <= dissipation capacity (5)
-      expect(gameState.players[0].ship.hitPoints).toBe(initialHP);
-      // Heat resets to 0 when switching to player
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
-    });
-
-    it("should take damage when heat exceeds dissipation capacity", () => {
-      let gameState = createTestGameState();
-
-      // Set heat above dissipation capacity on player1
-      gameState.players[0].ship.heat.currentHeat = 8;
-
-      const initialHP = gameState.players[0].ship.hitPoints;
-
-      // Player1 executes turn - switches to player2
-      let result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Player2's turn - execute to switch back to player1
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Damage = heat (8) - dissipation capacity (5) = 3
-      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 3);
-      // Heat resets to 0 after damage
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
-    });
-
-    it("should apply heat damage when switching to player", () => {
-      let gameState = createTestGameState();
-
-      // Set heat above dissipation capacity on player1
-      gameState.players[0].ship.heat.currentHeat = 8;
-
-      const initialHP = INITIAL_HIT_POINTS;
-
-      // Player1 executes turn - switches to player2
-      let result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Player1 still has full HP (damage hasn't been applied yet - it happens when switching TO them)
-      // Actually NO - after player1's turn, they switch to player2, so player1's heat stays
-      // Let's check player1's HP - should still be full since damage is applied when switching TO them
-      expect(gameState.players[0].ship.hitPoints).toBe(initialHP);
-      // Player1 still has heat (will be evaluated when switching back to them)
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(8);
-
-      // Player2's turn - execute to switch back to player1
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // NOW damage should be applied (8 - 5 = 3)
-      expect(gameState.players[0].ship.hitPoints).toBe(initialHP - 3);
-      // Heat resets to 0 after evaluation
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
-    });
-
-    it("should kill ship when heat damage exceeds remaining HP", () => {
-      let gameState = createTestGameState();
-
-      // Set ship to low HP
-      gameState.players[0].ship.hitPoints = 2;
-
-      // Set heat that will cause more damage than remaining HP
-      gameState.players[0].ship.heat.currentHeat = 8; // Damage = 8 - 5 = 3
-
-      // Player1 executes turn - switches to player2
-      let result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Player2's turn - execute to switch back to player1
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Ship should be destroyed (HP <= 0)
-      expect(gameState.players[0].ship.hitPoints).toBeLessThanOrEqual(0);
-    });
+  it("scanning heats the sensor array", () => {
+    let state = makeTwoPlayerGame({ loadout: SENSOR_LOADOUT }, { ring: 3, sector: 2 });
+    state = withPower(state, "p1", "forward-0", 2);
+    const result = executeTurnAs(state, scan(1, "p2", "side-0"));
+    expect(eventsOf(result.events, "scanned")[0].heat).toBe(2);
   });
 
-  describe("Heat Generation from Subsystem Use", () => {
-    it("should generate heat when engines are used for burn", () => {
-      let gameState = createTestGameState();
-
-      // Allocate 3 energy to engines
-      const allocateAction = {
-        type: "allocate_energy" as const,
-        playerId: "player1",
-        data: { subsystemType: "engines" as const, amount: 3 },
-      };
-
-      // Burn action
-      const burnAction = {
-        type: "burn" as const,
-        playerId: "player1",
-        sequence: 1,
-        data: { burnIntensity: "soft" as const, sectorAdjustment: 0 },
-      };
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction,
-      );
-      gameState = result.gameState;
-
-      // Should have generated 3 heat from engines (allocated energy)
-      // Heat starts at 0, burn generates 3
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(3);
-    });
-
-    it("should generate heat when rotation is used", () => {
-      let gameState = createTestGameState();
-
-      // Allocate 1 energy to rotation
-      const allocateAction = {
-        type: "allocate_energy" as const,
-        playerId: "player1",
-        data: { subsystemType: "rotation" as const, amount: 1 },
-      };
-
-      // Rotate action
-      const rotateAction = {
-        type: "rotate" as const,
-        playerId: "player1",
-        sequence: 1,
-        data: { targetFacing: "retrograde" as const },
-      };
-
-      // Coast action to complete the turn
-      const coastAction = {
-        type: "coast" as const,
-        playerId: "player1",
-        sequence: 2,
-        data: { activateScoop: false },
-      };
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        rotateAction,
-        coastAction,
-      );
-      gameState = result.gameState;
-
-      // Should have generated 1 heat from rotation
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(1);
-    });
-
-    it("should not generate heat from subsystems that are not used", () => {
-      let gameState = createTestGameState();
-
-      // Allocate energy to engines but don't use them (coast instead)
-      const allocateAction = {
-        type: "allocate_energy" as const,
-        playerId: "player1",
-        data: { subsystemType: "engines" as const, amount: 3 },
-      };
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      // Should have no heat - engines were powered but not used
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
-    });
-
-    it("should accumulate heat from multiple actions in same turn", () => {
-      let gameState = createTestGameState();
-
-      // Allocate energy to engines and rotation
-      const allocateEngines = {
-        type: "allocate_energy" as const,
-        playerId: "player1",
-        data: { subsystemType: "engines" as const, amount: 3 },
-      };
-
-      const allocateRotation = {
-        type: "allocate_energy" as const,
-        playerId: "player1",
-        data: { subsystemType: "rotation" as const, amount: 1 },
-      };
-
-      // Rotate then burn
-      const rotateAction = {
-        type: "rotate" as const,
-        playerId: "player1",
-        sequence: 1,
-        data: { targetFacing: "retrograde" as const },
-      };
-
-      const burnAction = {
-        type: "burn" as const,
-        playerId: "player1",
-        sequence: 2,
-        data: { burnIntensity: "soft" as const, sectorAdjustment: 0 },
-      };
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateEngines,
-        allocateRotation,
-        rotateAction,
-        burnAction,
-      );
-      gameState = result.gameState;
-
-      // Should have 1 (rotation) + 3 (engines) = 4 heat
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(4);
-    });
+  it("jumping heats the engines", () => {
+    let state = makeTwoPlayerGame({ ring: 5, sector: 5 });
+    state = withPower(state, "p1", "engines", 3);
+    const result = executeTurnAs(state, jump(1, "planet-alpha"));
+    expect(eventsOf(result.events, "jumped")[0].heat).toBe(3);
   });
 
-  describe("Heat Persistence Between Turns", () => {
-    it("should carry heat to next turn for damage evaluation", () => {
-      let gameState = createTestGameState();
-      gameState.players[0].ship.hitPoints = 50;
-      gameState.players[0].ship.maxHitPoints = 50;
+  it("powered but unused subsystems generate no heat", () => {
+    let state = makeTwoPlayerGame();
+    state = withPower(state, "p1", "forward-0", 4);
+    state = withPower(state, "p1", "engines", 3);
+    state = withPower(state, "p1", "scoop", 3);
+    const result = executeTurnAs(state, coast(1));
+    expect(eventsOf(result.events, "coasted")[0].heat).toBe(0);
+    expect(eventsOf(result.events, "heat_damage")).toEqual([]);
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(10);
+  });
 
-      // Allocate energy to engines
-      const allocateEngines = {
-        type: "allocate_energy" as const,
-        playerId: "player1",
-        data: { subsystemType: "engines" as const, amount: 3 },
-      };
+  it("heat from several actions accumulates and excess over dissipation damages the hull", () => {
+    // laser 2 + rotation 1 + engines 3 = 6 heat against dissipation 5.
+    let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 });
+    state = withPower(state, "p1", "side-0", 2);
+    state = withPower(state, "p1", "rotation", 1);
+    state = withPower(state, "p1", "engines", 3);
+    const result = executeTurnAs(
+      state,
+      fire(1, "side-0", "p2"),
+      rotate(2, "retrograde"),
+      burn(3, "soft")
+    );
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "heat_damage")).toEqual([
+      expect.objectContaining({ playerId: "p1", heat: 6, dissipation: 5, damage: 1 }),
+    ]);
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(9);
+    expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(0);
+  });
+});
 
-      // Burn to generate 3 heat
-      const burnAction = {
-        type: "burn" as const,
-        playerId: "player1",
-        sequence: 1,
-        data: { burnIntensity: "soft" as const, sectorAdjustment: 0 },
-      };
+describe("heat: end-of-turn resolution", () => {
+  it.each([
+    [0, 10, false],
+    [5, 10, false],
+    [6, 9, true],
+    [9, 6, true],
+  ])("heat %i at end of turn leaves the hull at %i", (heat, hull, damaged) => {
+    const state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: heat } });
+    const result = executeTurnAs(state, coast(1));
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(hull);
+    expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(0);
+    expect(eventsOf(result.events, "heat_damage").length > 0).toBe(damaged);
+  });
 
-      let result = executeTurnWithActions(
-        gameState,
-        allocateEngines,
-        burnAction,
-      );
-      gameState = result.gameState;
+  it("only the active player's heat is resolved; a target keeps shield heat until its own turn ends", () => {
+    let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 });
+    state = withPower(state, "p1", "side-0", 2);
+    state = withPower(state, "p2", "side-2", 2);
+    const afterP1 = mustExecute(state, fire(1, "side-0", "p2"));
+    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(2);
+    const afterP2 = mustExecute(afterP1, coast(1));
+    expect(getShip(afterP2, "p2").heat.currentHeat).toBe(0);
+    expect(getShip(afterP2, "p2").hitPoints).toBe(10);
+  });
 
-      // Should have 3 heat after turn
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(3);
-      // No damage yet (heat is evaluated at START of turn)
-      expect(gameState.players[0].ship.hitPoints).toBe(50);
-
-      // Player 2's turn
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Player 1's next turn - heat should be evaluated
-      // 3 heat < 5 dissipation, so no damage
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      expect(gameState.players[0].ship.hitPoints).toBe(50); // No damage
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0); // Reset after evaluation
+  it("heat death destroys the ship with cause heat and no killer, dropping cargo", () => {
+    let state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: 8 }, hitPoints: 2 });
+    state = withPlayer(state, "p1", {
+      cargo: [
+        {
+          id: "c",
+          missionId: "m",
+          kind: "crate",
+          pickupPlanetId: "planet-alpha",
+          deliveryPlanetId: "planet-beta",
+          isPickedUp: true,
+        },
+      ],
     });
+    const result = executeTurnAs(state, coast(1));
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(0);
+    expect(eventsOf(result.events, "ship_destroyed")).toEqual([
+      expect.objectContaining({ victimId: "p1", cause: "heat" }),
+    ]);
+    expect(eventsOf(result.events, "ship_destroyed")[0]).not.toHaveProperty("killerId");
+    expect(eventsOf(result.events, "cargo_dropped")).toHaveLength(1);
+    expect(result.gameState.players[0].cargo[0].isPickedUp).toBe(false);
+  });
 
-    it("should deal damage from excess heat when switching to player", () => {
-      let gameState = createTestGameState();
-      gameState.players[0].ship.hitPoints = 50;
-      gameState.players[0].ship.maxHitPoints = 50;
+  it("heat damage never takes the hull below zero", () => {
+    const state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: 30 }, hitPoints: 3 });
+    const result = executeTurnAs(state, coast(1));
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(0);
+  });
+});
 
-      // Generate 8 heat (above dissipation capacity of 5)
-      gameState.players[0].ship.heat.currentHeat = 8;
+describe("heat: radiators", () => {
+  it.each([
+    [
+      "no radiator",
+      {
+        forwardSlots: ["railgun"],
+        sideSlots: ["laser", "laser", "shields", "missiles"],
+      } as ShipLoadout,
+      5,
+    ],
+    ["one radiator", RADIATOR_LOADOUT, 7],
+    ["two radiators", TWO_RADIATORS, 9],
+  ])("%s gives dissipation %i", (_label, loadout, expected) => {
+    const state = makeTwoPlayerGame({ loadout });
+    expect(getDissipationCapacity(getShip(state, "p1").subsystems)).toBe(expected);
+  });
 
-      // Player1 executes turn - switches to player2
-      let result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Player1 still has 50 HP (damage applied when switching TO them, not when they act)
-      expect(gameState.players[0].ship.hitPoints).toBe(50);
-
-      // Player2's turn - execute to switch back to player1
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // NOW damage is applied: 8 - 5 = 3
-      expect(gameState.players[0].ship.hitPoints).toBe(47);
-      // Heat resets to 0
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
+  it("a broken radiator does not dissipate", () => {
+    const state = withSub(makeTwoPlayerGame({ loadout: RADIATOR_LOADOUT }), "p1", "side-0", {
+      isBroken: true,
     });
+    expect(getDissipationCapacity(getShip(state, "p1").subsystems)).toBe(
+      DEFAULT_DISSIPATION_CAPACITY
+    );
+    expect(calculateHeatDamage({ ...getShip(state, "p1"), heat: { currentHeat: 7 } })).toBe(2);
+  });
+
+  it("a radiator that prevents heat damage is revealed", () => {
+    const state = withShip(makeTwoPlayerGame({ loadout: RADIATOR_LOADOUT }), "p1", {
+      heat: { currentHeat: 7 },
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(10);
+    expect(eventsOf(result.events, "subsystem_revealed")).toEqual([
+      expect.objectContaining({
+        playerId: "p1",
+        subsystemId: "side-0",
+        subsystemType: "radiator",
+        reason: "prevented_heat_damage",
+      }),
+    ]);
+    expect(getSub(result.gameState, "p1", "side-0").isRevealed).toBe(true);
+  });
+
+  it("a radiator stays face-down while heat is within the base 5", () => {
+    const state = withShip(makeTwoPlayerGame({ loadout: RADIATOR_LOADOUT }), "p1", {
+      heat: { currentHeat: 5 },
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventTypes(result.events)).not.toContain("subsystem_revealed");
+    expect(getSub(result.gameState, "p1", "side-0").isRevealed).toBe(false);
+  });
+
+  it("resolveEndOfTurnHeat reports damage and resets heat", () => {
+    const ship = { ...getShip(makeTwoPlayerGame(), "p1"), heat: { currentHeat: 8 } };
+    const result = resolveEndOfTurnHeat(ship, "p1");
+    expect(result.damage).toBe(3);
+    expect(result.ship.hitPoints).toBe(7);
+    expect(result.ship.heat.currentHeat).toBe(0);
+    expect(result.events).toEqual([
+      { type: "heat_damage", playerId: "p1", heat: 8, dissipation: 5, damage: 3 },
+    ]);
+  });
+
+  it("wells do not matter: a ship on a planet ring dissipates the same", () => {
+    const state = withShip(makeTwoPlayerGame({ wellId: "planet-beta", ring: 2, sector: 0 }), "p1", {
+      heat: { currentHeat: 6 },
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(9);
+    expect(getShip(result.gameState, "p1").wellId).not.toBe(BH);
   });
 });

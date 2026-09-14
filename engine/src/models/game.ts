@@ -1,15 +1,15 @@
 import type {
   Subsystem,
+  SubsystemId,
   SubsystemType,
   ReactorState,
   HeatState,
 } from "./subsystems.ts";
-
 import type { Mission, Cargo } from "./missions.ts";
 
 /**
- * Ship loadout - defines which subsystems are installed in each slot
- * Fixed subsystems (engines, rotation) are always present and not part of loadout
+ * Ship loadout: one forward slot and four side slots.
+ * Fixed systems (engines, thrusters, scoop) are always present.
  */
 export interface ShipLoadout {
   forwardSlots: [SubsystemType | null];
@@ -21,315 +21,252 @@ export interface ShipLoadout {
   ];
 }
 
-/**
- * Result of loadout validation
- */
 export interface LoadoutValidation {
   valid: boolean;
   errors: string[];
 }
 
-/**
- * Default loadout for backwards compatibility
- * Matches the original fixed loadout before the loadout system was added
- */
 export const DEFAULT_LOADOUT: ShipLoadout = {
   forwardSlots: ["railgun"],
   sideSlots: ["laser", "laser", "shields", "missiles"],
 };
 
-/**
- * Base critical hit chance (10%)
- * Expressed as percentage points (10 = 10%, 30 = 30%)
- * Can be increased by sensor array subsystem (+20 per sensor array)
- */
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 4;
+
+/** Base critical hit chance in percentage points (10 = d10 roll of 10). */
 export const BASE_CRITICAL_CHANCE = 10;
 
-export const ENERGY_PER_TURN = 10;
+export const REACTOR_CAPACITY = 10;
 export const MAX_REACTION_MASS = 10;
 export const STARTING_REACTION_MASS = 10;
 export const DEFAULT_DISSIPATION_CAPACITY = 5;
+export const STARTING_HIT_POINTS = 10;
+
+/** Hull restored when a ship ends its turn docked at a station. */
+export const DOCK_HULL_REPAIR = 3;
 
 export type Facing = "prograde" | "retrograde";
-
 export type BurnIntensity = "soft" | "medium" | "hard";
 
-export type ActionType = "well_transfer" | "coast" | "burn";
-
-// Tactical action types for sequencing
-export type TacticalActionType =
-  | "rotate"
-  | "move"
-  | "fire_laser"
-  | "fire_railgun"
-  | "fire_missiles"
-  | "fire_ballistic_rack"
-  | "well_transfer";
-
-export interface TacticalAction {
-  id: string; // unique identifier for this action instance
-  type: TacticalActionType;
-  sequence: number;
-  targetPlayerId?: string; // For weapon actions
-  destinationWellId?: string; // For well transfer actions
-  criticalTarget?: SubsystemType; // For weapon actions - subsystem to break on critical hit
-}
-
-// Identifier for which gravity well a ship is in
-export type GravityWellId = string; // e.g., 'blackhole', 'planet-alpha', 'planet-beta'
-
+export type GravityWellId = string; // 'blackhole' | 'planet-alpha' | ...
 export type GravityWellType = "blackhole" | "planet";
 
-// Orbital velocity for planets (currently all static with velocity = 0)
-// Transfer sectors are fixed and hardcoded, so angle/distance not needed for game logic
-export interface OrbitalVelocity {
-  velocity: number; // Angular velocity in degrees per turn (game logic for potential planet drift)
+export interface Position {
+  wellId: GravityWellId;
+  ring: number;
+  sector: number;
+}
+
+export interface RingConfig {
+  ring: number;
+  velocity: number; // sectors per turn
+  sectors: number;
 }
 
 export interface GravityWell {
   id: GravityWellId;
   name: string;
   type: GravityWellType;
-  rings: RingConfig[]; // Ring configuration for this gravity well (game logic only: ring, velocity, sectors)
-  orbitalVelocity?: OrbitalVelocity; // Only for planets - velocity for potential orbit updates
-}
-
-export interface TransferPoint {
-  fromWellId: GravityWellId;
-  toWellId: GravityWellId;
-  fromRing: number; // 4 for blackhole, 3 for planets
-  toRing: number; // 4 for blackhole, 3 for planets
-  fromSector: number; // Launch sector (fixed per planet)
-  toSector: number; // Arrival sector (fixed per planet)
-  requiredEngineLevel: number; // Engine level required for transfer (e.g., 3 for elliptic transfers)
-}
-
-export interface TransferState {
-  destinationRing: number;
-  destinationWellId?: GravityWellId; // If transferring between gravity wells
-  destinationSector?: number; // For well transfers, the exact destination sector
-  sectorAdjustment: number; // -1, 0, or +1 sector adjustment from natural mapping
-  isWellTransfer?: boolean; // true if transferring between gravity wells
+  rings: RingConfig[];
 }
 
 /**
- * Missile entity in flight
+ * A contiguous run of sectors on one ring that belongs to a transfer lane.
  */
-export interface Missile {
-  id: string; // Unique identifier (e.g., "missile-player1-1")
-  ownerId: string; // Player who fired it
-  targetId: string; // Target player ID
-  wellId: GravityWellId; // Current gravity well
-  ring: number; // Current ring position
-  sector: number; // Current sector position
-  turnFired: number; // Game turn when missile was launched
-  turnsAlive: number; // How many turns missile has been alive (0-2, explodes at 3)
-  skipOrbitalThisTurn?: boolean; // Skip orbital movement this turn (set when fired after ship movement)
+export interface TransferArc {
+  wellId: GravityWellId;
+  ring: number;
+  startSector: number;
+  length: number;
 }
 
+/**
+ * A two-way lane connecting an arc on the black hole's outer ring with an
+ * arc on a planet's outer ring. Jumping keeps the ship's offset inside the arc.
+ */
+export interface TransferLane {
+  id: string;
+  planetId: GravityWellId;
+  blackHoleArc: TransferArc;
+  planetArc: TransferArc;
+}
+
+/**
+ * Missile in flight. Missiles are public tokens on the board.
+ */
+export interface Missile {
+  id: string;
+  ownerId: string;
+  targetId: string;
+  wellId: GravityWellId;
+  ring: number;
+  sector: number;
+  turnFired: number;
+  /** Times this missile has moved at the end of its owner's turn. Expires at maxMoves. */
+  movesMade: number;
+  /** Slot the warhead breaks on a critical hit. */
+  criticalTarget: SubsystemId;
+  /**
+   * Launched after the ship had already moved this turn: it rode along with
+   * the ship, so it does not drift again at the end of this turn.
+   */
+  launchedAfterMove: boolean;
+}
+
+
 export interface ShipState {
-  wellId: GravityWellId; // Which gravity well the ship is currently in
+  wellId: GravityWellId;
   ring: number;
   sector: number;
   facing: Facing;
   reactionMass: number;
   hitPoints: number;
   maxHitPoints: number;
-  transferState: TransferState | null;
-  // Subsystem-based energy/heat system
-  subsystems: Subsystem[]; // Note: missiles subsystem has ammo field for inventory
+  subsystems: Subsystem[];
   reactor: ReactorState;
   heat: HeatState;
-  dissipationCapacity: number; // Base heat dissipation per turn (see DEFAULT_DISSIPATION_CAPACITY, can be increased by radiators)
-  // Loadout system
-  loadout: ShipLoadout; // The chosen loadout for this ship
-  criticalChance: number; // Base 0.1, can be increased by sensor array
+  loadout: ShipLoadout;
 }
 
-/**
- * Base action properties shared by all action types
- */
 interface BaseAction {
   playerId: string;
-  sequence?: number; // For tactical actions (rotate/move/fire), determines execution order
+  /** Tactical actions (rotate/move/fire/scan/jump) execute in sequence order. */
+  sequence?: number;
 }
-
-/**
- * Movement Actions (mutually exclusive per turn)
- */
 
 export interface CoastAction extends BaseAction {
   type: "coast";
-  data: {
-    activateScoop: boolean;
-  };
+  data: { activateScoop: boolean };
 }
 
 export interface BurnAction extends BaseAction {
   type: "burn";
-  data: {
-    burnIntensity: BurnIntensity;
-    sectorAdjustment: number;
-  };
+  data: { burnIntensity: BurnIntensity; sectorAdjustment: number };
 }
 
 export interface RotateAction extends BaseAction {
   type: "rotate";
-  data: {
-    targetFacing: Facing;
-  };
+  data: { targetFacing: Facing };
 }
-
-/**
- * Resource Management Actions
- */
 
 export interface AllocateEnergyAction extends BaseAction {
   type: "allocate_energy";
-  data: {
-    subsystemType: SubsystemType;
-    amount: number;
-  };
+  data: { subsystemId: SubsystemId; amount: number };
 }
 
 export interface DeallocateEnergyAction extends BaseAction {
   type: "deallocate_energy";
-  data: {
-    subsystemType: SubsystemType;
-    amount: number; // Amount of energy to return to reactor (limited by maxReturnRate)
-  };
+  data: { subsystemId: SubsystemId; amount: number };
 }
-
-/**
- * Combat Actions
- */
 
 export interface FireWeaponAction extends BaseAction {
   type: "fire_weapon";
   data: {
-    weaponType: "laser" | "railgun" | "missiles" | "ballistic_rack";
-    targetPlayerIds: string[]; // Array for multi-target weapons like lasers
-    criticalTarget: SubsystemType; // REQUIRED: Declared subsystem to break if critical hit (roll=10) occurs
-    subsystemIndex?: number; // Index into ship.subsystems[] to identify which specific instance fires (needed for side-restricted weapons)
-    compensateRecoil?: boolean; // For railgun: if true, engines cancel the recoil burn (costs 1 mass + 1 heat). If false/undefined, ship drifts 1 ring in facing direction.
+    subsystemId: SubsystemId; // which weapon fires
+    targetPlayerId: string;
+    /** Slot to break if the shot is a critical hit. */
+    criticalTarget: SubsystemId;
+    /** Railgun only: engines cancel the recoil (1 mass, engine heat). */
+    compensateRecoil?: boolean;
+  };
+}
+
+export interface ScanAction extends BaseAction {
+  type: "scan";
+  data: {
+    targetPlayerId: string;
+    /** Face-down slot of the target to look at. */
+    peekSlot: SubsystemId;
   };
 }
 
 export interface WellTransferAction extends BaseAction {
   type: "well_transfer";
-  data: {
-    destinationWellId: GravityWellId;
-    // destinationSector is determined automatically by transfer points
-  };
+  data: { destinationWellId: GravityWellId };
 }
 
-/**
- * Deploy ship action - used during deployment phase
- */
+/** Deployment phase: place your ship and Home marker on a planet's outer ring. */
 export interface DeployShipAction extends BaseAction {
   type: "deploy_ship";
-  data: {
-    sector: number; // BH Ring 4 sector to deploy to
-  };
+  data: { wellId: GravityWellId; sector: number };
 }
 
-/**
- * Movement action type
- */
-export type MovementAction = CoastAction | BurnAction;
+export type MovementAction = CoastAction | BurnAction | WellTransferAction;
 
-/**
- * Discriminated union of all player actions
- */
-export type PlayerAction =
+export type TacticalAction =
+  | RotateAction
   | CoastAction
   | BurnAction
-  | RotateAction
+  | WellTransferAction
+  | FireWeaponAction
+  | ScanAction;
+
+export type PlayerAction =
+  | TacticalAction
   | AllocateEnergyAction
   | DeallocateEnergyAction
-  | FireWeaponAction
-  | WellTransferAction
   | DeployShipAction;
+
+export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
+  "rotate",
+  "coast",
+  "burn",
+  "well_transfer",
+  "fire_weapon",
+  "scan",
+]);
+
+export function isTacticalAction(action: PlayerAction): action is TacticalAction {
+  return TACTICAL_ACTION_TYPES.has(action.type);
+}
 
 export interface Player {
   id: string;
   name: string;
   ship: ShipState;
-  // Mission system fields
-  missionOffers: Mission[]; // Offered during loadout — player picks 3 from these
-  missions: Mission[];       // Finalized missions (chosen from missionOffers)
+  /** Offered during loadout; the player keeps MISSIONS_PER_PLAYER of them. */
+  missionOffers: Mission[];
+  missions: Mission[];
   completedMissionCount: number;
   cargo: Cargo[];
   hasDeployed: boolean;
   hasSubmittedLoadout: boolean;
+  /** Where the ship deployed; destroyed ships return here. */
+  home: Position | null;
+  /**
+   * Face-down slots of other players this player has seen through scans.
+   * Private knowledge; the table only sees face-up tiles.
+   */
+  intel: Record<string, SubsystemId[]>;
 }
 
-export interface TurnLogEntry {
-  turn: number;
-  playerId: string;
-  playerName: string;
-  action: string;
-  result: string;
-}
+export type GamePhase = "lobby" | "setup" | "loadout" | "deployment" | "active" | "ended";
 
-export interface TurnHistoryEntry {
-  turn: number;
-  playerId: string;
-  playerName: string;
-  actions: PlayerAction[];
+export interface Station {
+  id: string;
+  planetId: GravityWellId;
+  ring: number;
+  sector: number;
 }
 
 /**
- * Game phases in order of progression
- * - lobby: Players joining and readying up
- * - setup: Missions being dealt
- * - loadout: Players selecting ship loadout (after seeing missions)
- * - deployment: Players deploying ships to starting positions
- * - active: Game in progress
- * - ended: Game finished
- */
-export type GamePhase =
-  | "lobby"
-  | "setup"
-  | "loadout"
-  | "deployment"
-  | "active"
-  | "ended";
-
-/**
- * Dynamic game state - changes every turn
- * Static data (gravityWells, transferPoints) is accessed via constants directly
+ * Dynamic game state. Static data (wells, lanes, configs) lives in constants.
+ * The state carries no log: `executeTurn` returns the events of each turn and
+ * callers (server, sim, recording) keep the history.
  */
 export interface GameState {
   turn: number;
   activePlayerIndex: number;
   players: Player[];
-  turnLog: TurnLogEntry[];
-  missiles: Missile[]; // All missiles currently in flight
-  winnerId?: string; // ID of the winning player (if status is victory or defeat)
-  // Mission system fields
-  phase: GamePhase;
+  missiles: Missile[];
   stations: Station[];
-  // Determinism fields — required for recording, replay, and sim
-  rngSeed: number; // Original seed; never changes after game creation. For replay/debug reference.
-  rngState: number; // Current PRNG state; mutated as randomness is consumed.
-  nextEntityId: number; // Monotonic counter for missile/scan/etc. entity IDs.
-  forcedRollValue?: number; // Test-only override for d10 rolls; never set in production.
-}
-
-export interface RingConfig {
-  ring: number; // Ring number (1-5 for blackhole, 1-3 for planets)
-  velocity: number; // Movement speed in sectors per turn (game logic)
-  sectors: number; // Number of sectors in this ring (game logic)
-}
-
-/**
- * Orbital station that orbits around a planet
- * Ships can dock to pick up or deliver cargo
- */
-export interface Station {
-  id: string;
-  planetId: GravityWellId;
-  ring: number; // Always Ring 1 for planets
-  sector: number; // Starts at 0, moves with orbital velocity
+  phase: GamePhase;
+  winnerId?: string;
+  // Determinism
+  rngSeed: number;
+  rngState: number;
+  nextEntityId: number;
+  /** Test-only override for d10 rolls. */
+  forcedRollValue?: number;
 }

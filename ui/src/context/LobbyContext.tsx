@@ -1,468 +1,248 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
-import type { ReactNode } from 'react'
-import type { GameState, ShipLoadout } from '@dangerous-inclinations/engine'
-import type { ServerLobby } from '../api/types'
-import { getAvailableDeploymentSectors } from '@dangerous-inclinations/engine'
-import { getLobby, leaveLobby, startGame as startGameAPI, addBot as addBotAPI, removeBot as removeBotAPI } from '../api/lobby'
-import { getGameState as fetchGameState, deployShip as deployShipAPI, submitLoadout as submitLoadoutAPI } from '../api/game'
+/**
+ * LobbyContext - the seat before the game: browsing lobbies, sitting in one,
+ * and the hand-off to a game. Once a lobby has a `gameId` the game tree
+ * (GameProvider) takes over; this context only remembers which game it is.
+ */
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import type { ServerLobby, LobbySocketMessage } from '../api/types'
+import {
+  getLobby,
+  leaveLobby,
+  startGame as startGameAPI,
+  addBot as addBotAPI,
+  removeBot as removeBotAPI,
+} from '../api/lobby'
 import { getPlayerStatus } from '../api/player'
 import { usePlayer } from './PlayerContext'
 import { useWebSocket } from './WebSocketContext'
-import { ENV } from '../config/env'
 
-type GamePhase = 'browser' | 'lobby' | 'loadout' | 'deployment' | 'active' | 'ended'
+export type LobbyPhase = 'browser' | 'lobby' | 'game'
 
 interface LobbyContextType {
-  phase: GamePhase
+  phase: LobbyPhase
   lobbyState: ServerLobby | null
-  gameState: GameState | null
   currentLobbyId: string | null
+  /** Set once the lobby's game has started. */
+  gameId: string | null
   isRestoringSession: boolean
-  // Lobby actions
+  error: string | null
   joinLobby: (lobbyId: string) => void
-  addBotToLobby: (botName?: string) => void
-  removeBotFromLobby: (botId: string) => void
-  setReady: (isReady: boolean) => void
-  startGame: () => void
+  addBotToLobby: (botName?: string) => Promise<void>
+  removeBotFromLobby: (botId: string) => Promise<void>
+  startGame: () => Promise<void>
   canStart: () => { canStart: boolean; reason?: string }
-  leaveLobbyAction: () => void
-  // Loadout actions
-  submitLoadout: (loadout: ShipLoadout, selectedMissionIds?: string[]) => Promise<void>
-  // Deployment actions
-  deployPlayerShip: (sector: number) => void
-  getDeploymentSectors: () => number[]
-  // Transition to active game
-  getActiveGameState: () => GameState | null
-  // Restart (return to browser)
-  returnToLobby: () => void
+  leaveLobbyAction: () => Promise<void>
+  /** Leave the table entirely and go back to the browser. */
+  returnToLobby: () => Promise<void>
 }
 
 const LobbyContext = createContext<LobbyContextType | undefined>(undefined)
 
+function isLobbyMessage(data: unknown): data is LobbySocketMessage {
+  return typeof data === 'object' && data !== null && typeof (data as { type?: unknown }).type === 'string'
+}
+
 export function LobbyProvider({ children }: { children: ReactNode }) {
-  const { playerId, playerName, isLoading: isPlayerLoading } = usePlayer()
-  const { client, connect, disconnect, isConnected } = useWebSocket()
-  const [phase, setPhase] = useState<GamePhase>('browser')
+  const { playerId, isLoading: isPlayerLoading } = usePlayer()
+  const { client, connect, disconnect } = useWebSocket()
+  const [phase, setPhase] = useState<LobbyPhase>('browser')
   const [currentLobbyId, setCurrentLobbyId] = useState<string | null>(null)
   const [lobbyState, setLobbyState] = useState<ServerLobby | null>(null)
-  const [gameState, setGameState] = useState<GameState | null>(null)
+  const [gameId, setGameId] = useState<string | null>(null)
   const [isRestoringSession, setIsRestoringSession] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const sessionRestoredRef = useRef(false)
 
-  // Restore session from server on mount - server is single source of truth
+  // Restore the session from the server once the player is known.
   useEffect(() => {
-    // Wait for player authentication to complete AND WebSocket client to be ready
-    if (isPlayerLoading || !playerId || !client) {
-      if (ENV.DEBUG) {
-        console.log('[LobbyContext] Waiting for dependencies:', { isPlayerLoading, playerId: !!playerId, client: !!client })
-      }
-      return
-    }
-
-    // Only restore once
-    if (sessionRestoredRef.current) {
-      return
-    }
+    if (isPlayerLoading || !playerId || !client || sessionRestoredRef.current) return
     sessionRestoredRef.current = true
 
-    const restoreSession = async () => {
-      if (ENV.DEBUG) {
-        console.log('[LobbyContext] Fetching player status from server')
-      }
-
+    const restore = async () => {
       try {
         const status = await getPlayerStatus(playerId)
-
-        if (!status) {
-          if (ENV.DEBUG) {
-            console.log('[LobbyContext] No player status found')
-          }
-          setIsRestoringSession(false)
-          return
-        }
-
-        // If player is in a lobby
-        if (status.lobby) {
-          if (ENV.DEBUG) {
-            console.log('[LobbyContext] Found lobby:', status.lobby)
-          }
-
+        if (status?.lobby) {
           setCurrentLobbyId(status.lobby.lobbyId)
           setLobbyState(status.lobby)
-
-          // If there's an active game
-          if (status.gameState) {
-            if (ENV.DEBUG) {
-              console.log('[LobbyContext] Found game state:', status.gameState.phase)
-            }
-
-            setGameState(status.gameState)
-
-            // Determine phase from game state
-            const gamePhase: GamePhase =
-              status.gameState.phase === 'loadout' ? 'loadout' :
-              status.gameState.phase === 'deployment' ? 'deployment' :
-              status.gameState.phase === 'ended' ? 'ended' : 'active'
-            setPhase(gamePhase)
+          if (status.lobby.gameId) {
+            setGameId(status.lobby.gameId)
+            setPhase('game')
           } else {
-            // In lobby but no game started
             setPhase('lobby')
           }
         }
-        // If no lobby, player starts at browser phase (default)
-      } catch (error) {
-        console.error('[LobbyContext] Failed to restore session:', error)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to restore session')
+      } finally {
+        setIsRestoringSession(false)
       }
-
-      setIsRestoringSession(false)
     }
-
-    restoreSession()
+    restore()
   }, [isPlayerLoading, playerId, client])
 
-  // Connect to lobby/game WebSocket rooms and listen for real-time updates
+  // Lobby room: live roster updates and the GAME_STARTING hand-off.
   useEffect(() => {
-    // Don't setup WebSocket connections during session restoration
-    if (isRestoringSession) {
-      console.log('[LobbyContext] Skipping WebSocket setup during session restoration')
-      return
-    }
+    if (isRestoringSession || !client || !currentLobbyId || phase === 'browser') return
 
-    if ((phase !== 'lobby' && phase !== 'loadout' && phase !== 'deployment' && phase !== 'active') || !currentLobbyId || !client) {
-      console.log('[LobbyContext] Skipping WebSocket setup:', { phase, currentLobbyId, hasClient: !!client })
-      return
-    }
+    let cancelled = false
+    const lobbyId = currentLobbyId
 
-    const setupConnection = async () => {
+    const unsubscribe = client.onMessage(
+      'lobby',
+      (data) => {
+        if (!isLobbyMessage(data)) return
+        switch (data.type) {
+          case 'LOBBY_STATE':
+            setLobbyState(data.payload)
+            // A roster update can be the first news that the game started.
+            if (data.payload.gameId) {
+              setGameId(data.payload.gameId)
+              setPhase('game')
+            }
+            break
+          case 'PLAYER_JOINED':
+            setLobbyState((prev) =>
+              prev && !prev.players.some((p) => p.playerId === data.payload.playerId)
+                ? { ...prev, players: [...prev.players, data.payload] }
+                : prev,
+            )
+            break
+          case 'PLAYER_LEFT':
+            setLobbyState((prev) =>
+              prev ? { ...prev, players: prev.players.filter((p) => p.playerId !== data.payload.playerId) } : prev,
+            )
+            break
+          case 'GAME_STARTING':
+            setLobbyState((prev) => (prev ? { ...prev, gameId: data.payload.gameId } : prev))
+            setGameId(data.payload.gameId)
+            setPhase('game')
+            break
+          default:
+            break
+        }
+      },
+      lobbyId,
+    )
+
+    const setup = async () => {
       try {
-        // Load lobby state from server
-        const serverLobby = await getLobby(currentLobbyId)
-        console.log('[LobbyContext] Loaded lobby:', serverLobby)
+        const serverLobby = await getLobby(lobbyId)
+        if (cancelled) return
         setLobbyState(serverLobby)
-
-        // Check if game started - rejoin ongoing game
-        let currentGameId = serverLobby.gameId
-        if (currentGameId) {
-          console.log('[LobbyContext] Game already started:', currentGameId)
-          try {
-            const loadedGameState = await fetchGameState(currentGameId)
-            console.log('[LobbyContext] Loaded game state:', loadedGameState)
-            setGameState(loadedGameState)
-            // Transition to appropriate phase based on game state
-            const newPhase = loadedGameState.phase === 'loadout' ? 'loadout' :
-                           loadedGameState.phase === 'deployment' ? 'deployment' :
-                           loadedGameState.phase === 'ended' ? 'ended' : 'active'
-            setPhase(newPhase)
-          } catch (error) {
-            console.error('[LobbyContext] Failed to load game state:', error)
-          }
+        if (serverLobby.gameId) {
+          setGameId(serverLobby.gameId)
+          setPhase('game')
         }
-
-        // Connect to lobby room for real-time updates
-        if (!isConnected('lobby', currentLobbyId)) {
-          console.log('[LobbyContext] Connecting to lobby room:', currentLobbyId)
-          await connect('lobby', currentLobbyId)
-          console.log('[LobbyContext] Connected to lobby room')
-        }
-
-        // If game exists, also connect to game room
-        if (currentGameId) {
-          if (!isConnected('game', currentGameId)) {
-            console.log('[LobbyContext] Connecting to game room:', currentGameId)
-            await connect('game', currentGameId)
-            console.log('[LobbyContext] Connected to game room')
-          }
-        }
-
-        // Listen for lobby events
-        const unsubscribeLobby = client.onMessage('lobby', (message) => {
-          console.log('[LobbyContext] Received message:', message)
-
-          if (message.type === 'LOBBY_STATE') {
-            // Full lobby state update from server
-            console.log('[LobbyContext] Lobby state update:', message.payload)
-            setLobbyState(message.payload)
-          } else if (message.type === 'PLAYER_JOINED') {
-            // Player joined - add to state
-            console.log('[LobbyContext] Player joined:', message.payload)
-            setLobbyState((prev) => {
-              if (!prev) return prev
-              return {
-                ...prev,
-                players: [...prev.players, message.payload],
-              }
-            })
-          } else if (message.type === 'PLAYER_LEFT') {
-            // Player left - remove from state
-            console.log('[LobbyContext] Player left:', message.payload.playerId)
-            setLobbyState((prev) => {
-              if (!prev) return prev
-              return {
-                ...prev,
-                players: prev.players.filter((p) => p.playerId !== message.payload.playerId),
-              }
-            })
-          } else if (message.type === 'GAME_STARTING') {
-            // Transition to loadout phase (game now starts in loadout phase)
-            console.log('[LobbyContext] Game starting:', message.payload)
-            setGameState(message.payload.gameState)
-            setPhase('loadout')
-            // Update currentGameId for game room connection
-            currentGameId = message.payload.gameId
-          } else if (message.type === 'GAME_STATE_UPDATED') {
-            // Game state update (from deployment or turn execution)
-            console.log('[LobbyContext] Game state updated:', message.payload)
-            const newState = message.payload as GameState
-            setGameState(newState)
-
-            // Update phase based on game state
-            if (newState.phase === 'deployment') {
-              setPhase('deployment')
-            } else if (newState.phase === 'active') {
-              setPhase('active')
-            } else if (newState.phase === 'ended') {
-              setPhase('ended')
-            }
-          }
-        }, currentLobbyId)
-
-        // Listen for game events if we have a game
-        let unsubscribeGame: (() => void) | undefined
-        if (currentGameId) {
-          unsubscribeGame = client.onMessage('game', (message) => {
-            console.log('[LobbyContext] Received game message:', message)
-
-            // Two messages can carry a fresh GameState we need to mirror:
-            //   • GAME_STATE_UPDATED — sent during deployment / phase
-            //     transitions, where the server is announcing a new
-            //     non-action-driven state.
-            //   • TURN_EXECUTED — sent on every bot/human action, including
-            //     the one that flips phase to "ended" when a player
-            //     completes their third mission. Without this branch the
-            //     LobbyContext's phase never advances past "active" and
-            //     App.tsx keeps rendering ActiveGameScreen on the next
-            //     bot's turn — which presents as the game "freezing"
-            //     immediately after a human victory.
-            const payload = message.payload as { gameState?: GameState }
-            const newState =
-              message.type === 'GAME_STATE_UPDATED'
-                ? (message.payload as GameState)
-                : message.type === 'TURN_EXECUTED'
-                  ? payload?.gameState
-                  : undefined
-
-            if (newState) {
-              setGameState(newState)
-              if (newState.phase === 'deployment') {
-                setPhase('deployment')
-              } else if (newState.phase === 'active') {
-                setPhase('active')
-              } else if (newState.phase === 'ended') {
-                setPhase('ended')
-              }
-            }
-          }, currentGameId)
-        }
-
-        return () => {
-          unsubscribeLobby?.()
-          unsubscribeGame?.()
-        }
-      } catch (error) {
-        console.error('[LobbyContext] Failed to setup WebSocket:', error)
+        await connect('lobby', lobbyId)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to join lobby room')
       }
     }
-
-    let cleanup: (() => void) | undefined
-    setupConnection().then((cleanupFn) => {
-      cleanup = cleanupFn
-    })
+    setup()
 
     return () => {
-      cleanup?.()
-      disconnect('lobby', currentLobbyId)
-      // Don't disconnect from game room here - GameContext manages it during active phase
-      // Only disconnect if we're leaving entirely (browser phase)
+      cancelled = true
+      unsubscribe()
+      disconnect('lobby', lobbyId)
     }
-  }, [phase, currentLobbyId, playerId, playerName, client, connect, disconnect, isConnected, isRestoringSession])
+  }, [phase, currentLobbyId, client, connect, disconnect, isRestoringSession])
 
-  // Join lobby action
   const joinLobbyAction = useCallback((lobbyId: string) => {
+    setError(null)
     setCurrentLobbyId(lobbyId)
     setPhase('lobby')
   }, [])
 
-  // Leave lobby action
+  const clearSeat = useCallback(() => {
+    setCurrentLobbyId(null)
+    setLobbyState(null)
+    setGameId(null)
+    setPhase('browser')
+  }, [])
+
   const leaveLobbyAction = useCallback(async () => {
     if (!currentLobbyId) return
-
     try {
       await leaveLobby(currentLobbyId)
-    } catch (error) {
-      console.error('[LobbyContext] Failed to leave lobby:', error)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to leave lobby')
     } finally {
-      setCurrentLobbyId(null)
-      setLobbyState(null)
-      setPhase('browser')
+      clearSeat()
     }
-  }, [currentLobbyId])
+  }, [currentLobbyId, clearSeat])
 
-  // Lobby actions - now handled by server
   const addBotToLobby = useCallback(
     async (botName?: string) => {
-      if (!currentLobbyId) {
-        console.error('[LobbyContext] Cannot add bot: no lobby ID')
-        return
-      }
-
+      if (!currentLobbyId) return
       try {
         await addBotAPI(currentLobbyId, botName)
-        // Server will broadcast PLAYER_JOINED to all players via WebSocket
-      } catch (error) {
-        console.error('[LobbyContext] Failed to add bot:', error)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add bot')
       }
     },
-    [currentLobbyId]
+    [currentLobbyId],
   )
 
   const removeBotFromLobby = useCallback(
     async (botId: string) => {
-      if (!currentLobbyId) {
-        console.error('[LobbyContext] Cannot remove bot: no lobby ID')
-        return
-      }
-
+      if (!currentLobbyId) return
       try {
         await removeBotAPI(currentLobbyId, botId)
-        // Server will broadcast PLAYER_LEFT to all players via WebSocket
-      } catch (error) {
-        console.error('[LobbyContext] Failed to remove bot:', error)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to remove bot')
       }
     },
-    [currentLobbyId]
-  )
-
-  const setReady = useCallback(
-    (isReady: boolean) => {
-      // TODO: Call server API to set ready status
-      console.log('[LobbyContext] Set ready - not yet implemented:', isReady)
-    },
-    []
+    [currentLobbyId],
   )
 
   const canStart = useCallback(() => {
     if (!lobbyState) return { canStart: false, reason: 'No lobby' }
     if (lobbyState.players.length < 2) return { canStart: false, reason: 'Need at least 2 players' }
     if (lobbyState.gameId) return { canStart: false, reason: 'Game already started' }
+    if (playerId && lobbyState.hostPlayerId !== playerId) {
+      return { canStart: false, reason: 'Waiting for the host to start' }
+    }
     return { canStart: true }
-  }, [lobbyState])
+  }, [lobbyState, playerId])
 
   const startGame = useCallback(async () => {
-    if (!lobbyState || !currentLobbyId) return
-
+    if (!currentLobbyId) return
     try {
-      // Call server to start game
       const response = await startGameAPI(currentLobbyId)
-      console.log('[LobbyContext] Game started on server:', response.gameId)
-
-      // TODO: Transition to deployment phase when server sends game state
-      // For now, just log
-    } catch (error) {
-      console.error('[LobbyContext] Failed to start game:', error)
+      // GAME_STARTING normally arrives over the lobby socket; the REST reply is a fallback.
+      setGameId(response.gameId)
+      setPhase('game')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start game')
     }
-  }, [lobbyState, currentLobbyId])
-
-  // Deployment actions
-  const deployPlayerShip = useCallback(
-    async (sector: number) => {
-      if (!lobbyState?.gameId || phase !== 'deployment') {
-        console.error('[LobbyContext] Cannot deploy: no game ID or not in deployment phase')
-        return
-      }
-
-      try {
-        // Call server to deploy ship
-        const updatedGameState = await deployShipAPI(lobbyState.gameId, sector)
-        console.log('[LobbyContext] Deployment successful:', updatedGameState)
-
-        // Server will broadcast GAME_STATE_UPDATED to all players, which we'll handle in the WebSocket listener
-      } catch (error) {
-        console.error('[LobbyContext] Failed to deploy ship:', error)
-      }
-    },
-    [lobbyState?.gameId, phase]
-  )
-
-  const getDeploymentSectors = useCallback(() => {
-    if (!gameState) return []
-    return getAvailableDeploymentSectors(gameState)
-  }, [gameState])
-
-  const getActiveGameState = useCallback(() => {
-    return phase === 'active' ? gameState : null
-  }, [phase, gameState])
+  }, [currentLobbyId])
 
   const returnToLobby = useCallback(async () => {
-    // Leave current lobby if in one
     if (currentLobbyId) {
       try {
         await leaveLobby(currentLobbyId)
-      } catch (error) {
-        console.error('[LobbyContext] Failed to leave lobby:', error)
+      } catch {
+        // Already gone; nothing to do.
       }
     }
-
-    setCurrentLobbyId(null)
-    setLobbyState(null)
-    setGameState(null)
-    setPhase('browser')
-  }, [currentLobbyId])
-
-  // Loadout actions
-  const submitLoadout = useCallback(
-    async (loadout: ShipLoadout, selectedMissionIds?: string[]) => {
-      if (!lobbyState?.gameId) {
-        console.error('[LobbyContext] Cannot submit loadout: no game ID')
-        return
-      }
-
-      try {
-        const response = await submitLoadoutAPI(lobbyState.gameId, loadout, selectedMissionIds)
-        console.log('[LobbyContext] Loadout submitted:', response)
-
-        if (response.gameState) {
-          setGameState(response.gameState)
-        }
-        // Server will broadcast ALL_LOADOUTS_READY when all players have submitted
-      } catch (error) {
-        console.error('[LobbyContext] Failed to submit loadout:', error)
-        throw error
-      }
-    },
-    [lobbyState?.gameId]
-  )
-
-  // TODO: Bot auto-deployment should be handled by the server
+    clearSeat()
+  }, [currentLobbyId, clearSeat])
 
   return (
     <LobbyContext.Provider
       value={{
         phase,
         lobbyState,
-        gameState,
         currentLobbyId,
+        gameId,
         isRestoringSession,
+        error,
         joinLobby: joinLobbyAction,
         addBotToLobby,
         removeBotFromLobby,
-        setReady,
         startGame,
         canStart,
         leaveLobbyAction,
-        submitLoadout,
-        deployPlayerShip,
-        getDeploymentSectors,
-        getActiveGameState,
         returnToLobby,
       }}
     >
@@ -473,8 +253,6 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
 
 export function useLobby() {
   const context = useContext(LobbyContext)
-  if (!context) {
-    throw new Error('useLobby must be used within a LobbyProvider')
-  }
+  if (!context) throw new Error('useLobby must be used within a LobbyProvider')
   return context
 }

@@ -1,395 +1,197 @@
 /**
- * WebSocket client with room support
- * Handles connections to different "rooms" (global, lobby, game)
+ * WebSocket client with room support (global, lobby, game). Handlers
+ * registered before a connection opens are attached when it does, and
+ * survive reconnection.
+ *
+ * One socket per room key: a connection is registered the moment it is
+ * created, so a second `connect()` while the first is still dialling joins
+ * that attempt instead of opening a rival socket. A connection that drops
+ * keeps its entry (and its pending retry timer) in the map until the retry
+ * fires or someone disconnects, so `disconnect`/`disconnectAll` can always
+ * cancel the reconnect they are cleaning up after.
  */
+import { ENV } from '../config/env'
 
-import { ENV } from "../config/env";
+type MessageHandler = (data: unknown) => void
+type CloseHandler = () => void
 
-type MessageHandler = (data: any) => void;
-type ErrorHandler = (error: Event) => void;
-type CloseHandler = () => void;
-
-export type WebSocketRoom = "global" | "lobby" | "game";
+export type WebSocketRoom = 'global' | 'lobby' | 'game'
 
 interface RoomConnection {
-  ws: WebSocket;
-  room: WebSocketRoom;
-  roomId?: string; // For lobby/game rooms
-  reconnectAttempts: number;
-  reconnectTimeout?: ReturnType<typeof setTimeout>;
-  messageHandlers: Set<MessageHandler>;
-  errorHandlers: Set<ErrorHandler>;
-  closeHandlers: Set<CloseHandler>;
-  intentionalDisconnect: boolean; // Flag to prevent auto-reconnect
+  ws: WebSocket
+  room: WebSocketRoom
+  roomId?: string
+  reconnectAttempts: number
+  reconnectTimeout?: ReturnType<typeof setTimeout>
+  intentionalDisconnect: boolean
+  /** Settles when this socket opens; shared by every connect() call made while it dials. */
+  opening?: Promise<void>
 }
 
-/**
- * WebSocket client that manages multiple room connections
- */
+interface HandlerSet {
+  message: Set<MessageHandler>
+  close: Set<CloseHandler>
+}
+
 export class GameWebSocketClient {
-  private connections: Map<string, RoomConnection> = new Map();
-  private playerId: string;
-  private maxReconnectAttempts = 5;
-  private baseReconnectDelay = 1000;
-  // Store handlers that were registered before connection was established
-  private pendingHandlers: Map<string, {
-    messageHandlers: Set<MessageHandler>;
-    errorHandlers: Set<ErrorHandler>;
-    closeHandlers: Set<CloseHandler>;
-  }> = new Map();
+  private readonly playerId: string
+  private connections = new Map<string, RoomConnection>()
+  private handlers = new Map<string, HandlerSet>()
+  private readonly maxReconnectAttempts = 5
+  private readonly baseReconnectDelay = 1000
 
   constructor(playerId: string) {
-    this.playerId = playerId;
+    this.playerId = playerId
   }
 
-  /**
-   * Get or create pending handlers for a room key
-   */
-  private getPendingHandlers(key: string) {
-    if (!this.pendingHandlers.has(key)) {
-      this.pendingHandlers.set(key, {
-        messageHandlers: new Set(),
-        errorHandlers: new Set(),
-        closeHandlers: new Set(),
-      });
+  private key(room: WebSocketRoom, roomId?: string): string {
+    return roomId ? `${room}:${roomId}` : room
+  }
+
+  private handlersFor(key: string): HandlerSet {
+    let set = this.handlers.get(key)
+    if (!set) {
+      set = { message: new Set(), close: new Set() }
+      this.handlers.set(key, set)
     }
-    return this.pendingHandlers.get(key)!;
+    return set
   }
 
-  /**
-   * Get connection key for a room
-   */
-  private getConnectionKey(room: WebSocketRoom, roomId?: string): string {
-    return roomId ? `${room}:${roomId}` : room;
-  }
-
-  /**
-   * Connect to a WebSocket room
-   */
-  async connect(
-    room: WebSocketRoom,
-    roomId?: string,
-  ): Promise<RoomConnection> {
-    const key = this.getConnectionKey(room, roomId);
-
-    // If already connected, return existing connection
-    const existing = this.connections.get(key);
-    if (
-      existing &&
-      (existing.ws.readyState === WebSocket.OPEN ||
-        existing.ws.readyState === WebSocket.CONNECTING)
-    ) {
-      if (ENV.DEBUG) {
-        console.log(`[WS] Already connected to ${key}`);
+  async connect(room: WebSocketRoom, roomId?: string): Promise<void> {
+    const key = this.key(room, roomId)
+    const existing = this.connections.get(key)
+    if (existing) {
+      if (existing.ws.readyState === WebSocket.OPEN) return
+      // Already dialling: wait on that attempt rather than opening a second socket.
+      if (existing.ws.readyState === WebSocket.CONNECTING) return existing.opening
+      // A retry was pending for this key; we are doing it now.
+      if (existing.reconnectTimeout) {
+        clearTimeout(existing.reconnectTimeout)
+        existing.reconnectTimeout = undefined
       }
-      return existing;
     }
 
-    return new Promise((resolve, reject) => {
-      // Build WebSocket URL
-      let wsUrl = `${ENV.WS_URL}/ws/${room}?playerId=${this.playerId}`;
-      if (roomId) {
-        wsUrl += `&roomId=${roomId}`;
+    const url = `${ENV.WS_URL}/ws/${room}?playerId=${encodeURIComponent(this.playerId)}${
+      roomId ? `&roomId=${encodeURIComponent(roomId)}` : ''
+    }`
+    const ws = new WebSocket(url)
+    const connection: RoomConnection = {
+      ws,
+      room,
+      roomId,
+      reconnectAttempts: existing?.reconnectAttempts ?? 0,
+      intentionalDisconnect: false,
+    }
+    // Registered before it opens: two connect() calls can never race into two sockets.
+    this.connections.set(key, connection)
+
+    const opening = new Promise<void>((resolve, reject) => {
+      let settled = false
+      const settle = (finish: () => void) => {
+        if (settled) return
+        settled = true
+        finish()
       }
 
-      if (ENV.DEBUG) {
-        console.log(`[WS] Connecting to ${key}:`, wsUrl);
-      }
-
-      const ws = new WebSocket(wsUrl);
-
-      const connection: RoomConnection = {
-        ws,
-        room,
-        roomId,
-        reconnectAttempts: 0,
-        messageHandlers: new Set(),
-        errorHandlers: new Set(),
-        closeHandlers: new Set(),
-        intentionalDisconnect: false,
-      };
-
-      // Setup event handlers
       ws.onopen = () => {
-        connection.reconnectAttempts = 0;
-        if (ENV.DEBUG) {
-          console.log(`[WS] Connected to ${key}`);
-        }
-
-        // Attach any pending handlers that were registered before connection
-        const pending = this.pendingHandlers.get(key);
-        if (pending) {
-          pending.messageHandlers.forEach(h => connection.messageHandlers.add(h));
-          pending.errorHandlers.forEach(h => connection.errorHandlers.add(h));
-          pending.closeHandlers.forEach(h => connection.closeHandlers.add(h));
-          if (ENV.DEBUG && pending.messageHandlers.size > 0) {
-            console.log(`[WS] Attached ${pending.messageHandlers.size} pending message handlers to ${key}`);
-          }
-        }
-
-        this.connections.set(key, connection);
-        resolve(connection);
-      };
+        connection.reconnectAttempts = 0
+        connection.opening = undefined
+        settle(resolve)
+      }
 
       ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          if (ENV.DEBUG) {
-            console.log(`[WS] Message from ${key}:`, data);
-          }
-          // Notify all handlers
-          connection.messageHandlers.forEach((handler) => handler(data));
-        } catch (error) {
-          console.error(`[WS] Failed to parse message from ${key}:`, error);
+          const data: unknown = JSON.parse(event.data as string)
+          this.handlersFor(key).message.forEach((handler) => handler(data))
+        } catch {
+          // Malformed frame; ignore.
         }
-      };
+      }
 
-      ws.onerror = (error) => {
-        console.error(`[WS] Error on ${key}:`, error);
-        connection.errorHandlers.forEach((handler) => handler(error));
-        reject(error);
-      };
+      ws.onerror = () => {
+        settle(() => reject(new Error(`WebSocket error on ${key}`)))
+      }
 
       ws.onclose = () => {
-        if (ENV.DEBUG) {
-          console.log(`[WS] Connection closed: ${key}, intentional: ${connection.intentionalDisconnect}`);
+        connection.opening = undefined
+        this.handlersFor(key).close.forEach((handler) => handler())
+        settle(() => reject(new Error(`WebSocket ${key} closed before it opened`)))
+        // Superseded by a newer socket for this key: nothing to clean up.
+        if (this.connections.get(key) !== connection) return
+        if (connection.intentionalDisconnect || connection.reconnectAttempts >= this.maxReconnectAttempts) {
+          this.connections.delete(key)
+          return
         }
-
-        // Notify close handlers
-        connection.closeHandlers.forEach((handler) => handler());
-
-        // Remove from connections
-        this.connections.delete(key);
-
-        // Only attempt reconnection if this wasn't an intentional disconnect
-        if (!connection.intentionalDisconnect) {
-          this.scheduleReconnect(room, roomId, connection);
-        }
-      };
-    });
-  }
-
-  /**
-   * Schedule reconnection with exponential backoff
-   */
-  private scheduleReconnect(
-    room: WebSocketRoom,
-    roomId: string | undefined,
-    connection: RoomConnection,
-  ): void {
-    if (connection.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error(
-        `[WS] Max reconnect attempts reached for ${room}${roomId ? `:${roomId}` : ""}`,
-      );
-      return;
-    }
-
-    const delay = Math.min(
-      this.baseReconnectDelay * 2 ** connection.reconnectAttempts,
-      10000,
-    );
-
-    if (ENV.DEBUG) {
-      console.log(
-        `[WS] Reconnecting to ${room}${roomId ? `:${roomId}` : ""} in ${delay}ms...`,
-      );
-    }
-
-    connection.reconnectTimeout = setTimeout(async () => {
-      connection.reconnectAttempts++;
-      try {
-        // connect() will automatically attach handlers from pendingHandlers
-        await this.connect(room, roomId);
-      } catch (error) {
-        console.error(`[WS] Reconnection failed:`, error);
+        this.scheduleReconnect(room, roomId, connection)
       }
-    }, delay);
+    })
+    connection.opening = opening
+    return opening
   }
 
-  /**
-   * Disconnect from a room
-   */
+  private scheduleReconnect(room: WebSocketRoom, roomId: string | undefined, connection: RoomConnection): void {
+    const delay = Math.min(this.baseReconnectDelay * 2 ** connection.reconnectAttempts, 10000)
+    connection.reconnectTimeout = setTimeout(() => {
+      connection.reconnectTimeout = undefined
+      if (connection.intentionalDisconnect) return
+      connection.reconnectAttempts++
+      this.connect(room, roomId).catch(() => {
+        // onclose schedules the next attempt.
+      })
+    }, delay)
+  }
+
+  /** Stop retrying and close the socket. The entry must already be out of the map. */
+  private teardown(connection: RoomConnection): void {
+    connection.intentionalDisconnect = true
+    if (connection.reconnectTimeout) {
+      clearTimeout(connection.reconnectTimeout)
+      connection.reconnectTimeout = undefined
+    }
+    if (connection.ws.readyState === WebSocket.OPEN || connection.ws.readyState === WebSocket.CONNECTING) {
+      connection.ws.close()
+    }
+  }
+
   disconnect(room: WebSocketRoom, roomId?: string): void {
-    const key = this.getConnectionKey(room, roomId);
-    const connection = this.connections.get(key);
-
-    if (connection) {
-      // Mark as intentional disconnect to prevent auto-reconnect
-      connection.intentionalDisconnect = true;
-
-      if (connection.reconnectTimeout) {
-        clearTimeout(connection.reconnectTimeout);
-      }
-
-      if (
-        connection.ws.readyState === WebSocket.OPEN ||
-        connection.ws.readyState === WebSocket.CONNECTING
-      ) {
-        connection.ws.close();
-      }
-
-      this.connections.delete(key);
-
-      if (ENV.DEBUG) {
-        console.log(`[WS] Disconnected from ${key}`);
-      }
-    }
+    const key = this.key(room, roomId)
+    const connection = this.connections.get(key)
+    if (!connection) return
+    this.connections.delete(key)
+    this.teardown(connection)
   }
 
-  /**
-   * Send a message to a room
-   */
-  send(room: WebSocketRoom, message: any, roomId?: string): void {
-    const key = this.getConnectionKey(room, roomId);
-    const connection = this.connections.get(key);
-
-    if (!connection) {
-      console.error(`[WS] Not connected to ${key}`);
-      return;
-    }
-
-    if (connection.ws.readyState === WebSocket.OPEN) {
-      connection.ws.send(JSON.stringify(message));
-      if (ENV.DEBUG) {
-        console.log(`[WS] Sent to ${key}:`, message);
-      }
-    } else {
-      console.error(`[WS] WebSocket not ready for ${key}`);
-    }
+  send(room: WebSocketRoom, message: unknown, roomId?: string): boolean {
+    const connection = this.connections.get(this.key(room, roomId))
+    if (!connection || connection.ws.readyState !== WebSocket.OPEN) return false
+    connection.ws.send(JSON.stringify(message))
+    return true
   }
 
-  /**
-   * Add message handler for a room
-   * Handlers are stored in both the active connection (if exists) and pending handlers
-   * so they survive reconnections and late registrations
-   */
-  onMessage(
-    room: WebSocketRoom,
-    handler: MessageHandler,
-    roomId?: string,
-  ): () => void {
-    const key = this.getConnectionKey(room, roomId);
-
-    // Always add to pending handlers so it survives reconnection
-    const pending = this.getPendingHandlers(key);
-    pending.messageHandlers.add(handler);
-
-    // Also add to active connection if it exists
-    const connection = this.connections.get(key);
-    if (connection) {
-      connection.messageHandlers.add(handler);
-    }
-
-    // Return cleanup function
+  onMessage(room: WebSocketRoom, handler: MessageHandler, roomId?: string): () => void {
+    const set = this.handlersFor(this.key(room, roomId))
+    set.message.add(handler)
     return () => {
-      // Remove from pending handlers
-      const pendingHandlers = this.pendingHandlers.get(key);
-      if (pendingHandlers) {
-        pendingHandlers.messageHandlers.delete(handler);
-      }
-      // Remove from active connection
-      const conn = this.connections.get(key);
-      if (conn) {
-        conn.messageHandlers.delete(handler);
-      }
-    };
-  }
-
-  /**
-   * Add error handler for a room
-   */
-  onError(
-    room: WebSocketRoom,
-    handler: ErrorHandler,
-    roomId?: string,
-  ): () => void {
-    const key = this.getConnectionKey(room, roomId);
-
-    // Always add to pending handlers
-    const pending = this.getPendingHandlers(key);
-    pending.errorHandlers.add(handler);
-
-    // Also add to active connection if it exists
-    const connection = this.connections.get(key);
-    if (connection) {
-      connection.errorHandlers.add(handler);
+      set.message.delete(handler)
     }
-
-    return () => {
-      const pendingHandlers = this.pendingHandlers.get(key);
-      if (pendingHandlers) {
-        pendingHandlers.errorHandlers.delete(handler);
-      }
-      const conn = this.connections.get(key);
-      if (conn) {
-        conn.errorHandlers.delete(handler);
-      }
-    };
   }
 
-  /**
-   * Add close handler for a room
-   */
-  onClose(
-    room: WebSocketRoom,
-    handler: CloseHandler,
-    roomId?: string,
-  ): () => void {
-    const key = this.getConnectionKey(room, roomId);
-
-    // Always add to pending handlers
-    const pending = this.getPendingHandlers(key);
-    pending.closeHandlers.add(handler);
-
-    // Also add to active connection if it exists
-    const connection = this.connections.get(key);
-    if (connection) {
-      connection.closeHandlers.add(handler);
+  onClose(room: WebSocketRoom, handler: CloseHandler, roomId?: string): () => void {
+    const set = this.handlersFor(this.key(room, roomId))
+    set.close.add(handler)
+    return () => {
+      set.close.delete(handler)
     }
-
-    return () => {
-      const pendingHandlers = this.pendingHandlers.get(key);
-      if (pendingHandlers) {
-        pendingHandlers.closeHandlers.delete(handler);
-      }
-      const conn = this.connections.get(key);
-      if (conn) {
-        conn.closeHandlers.delete(handler);
-      }
-    };
   }
 
-  /**
-   * Check if connected to a room
-   */
   isConnected(room: WebSocketRoom, roomId?: string): boolean {
-    const key = this.getConnectionKey(room, roomId);
-    const connection = this.connections.get(key);
-    return connection ? connection.ws.readyState === WebSocket.OPEN : false;
+    const connection = this.connections.get(this.key(room, roomId))
+    return connection ? connection.ws.readyState === WebSocket.OPEN : false
   }
 
-  /**
-   * Disconnect all connections
-   */
   disconnectAll(): void {
-    this.connections.forEach((connection) => {
-      // Mark as intentional disconnect to prevent auto-reconnect
-      connection.intentionalDisconnect = true;
-
-      if (connection.reconnectTimeout) {
-        clearTimeout(connection.reconnectTimeout);
-      }
-      if (
-        connection.ws.readyState === WebSocket.OPEN ||
-        connection.ws.readyState === WebSocket.CONNECTING
-      ) {
-        connection.ws.close();
-      }
-    });
-    this.connections.clear();
-
-    if (ENV.DEBUG) {
-      console.log("[WS] Disconnected from all rooms");
-    }
+    const all = [...this.connections.values()]
+    this.connections.clear()
+    all.forEach((connection) => this.teardown(connection))
   }
 }

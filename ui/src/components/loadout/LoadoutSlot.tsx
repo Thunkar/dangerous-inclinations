@@ -1,155 +1,139 @@
-import { Box, styled } from '@mui/material'
-import { Add, Close } from '@mui/icons-material'
-import { SUBSYSTEM_CONFIGS } from '@dangerous-inclinations/engine'
-import type { SubsystemType } from '@dangerous-inclinations/engine'
-import type { SlotType } from './types'
-import { getSubsystemIcon } from './subsystemIcons'
+/**
+ * An empty bay on the mat, or the tile seated in it. Drop a palette card on
+ * it, or click it while a card is selected. The little × pulls the tile back
+ * out.
+ */
+import { useState } from 'react'
+import { Box, Tooltip } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
+import AddIcon from '@mui/icons-material/Add'
+import type { SlotGroup, SubsystemType } from '@dangerous-inclinations/engine'
+import { canInstallInSlot, getSubsystemConfig } from '@dangerous-inclinations/engine'
+import { subsystemCategoryColor } from '../../utils/icons'
+import { SubsystemIcon } from '../common/SubsystemIcon'
+import { FONT_MONO, TABLE } from '../../theme'
+import { readDragItem } from './types'
 
 interface LoadoutSlotProps {
-  slotType: SlotType
+  group: SlotGroup
+  label: string
   component: SubsystemType | null
   onDrop: (componentType: SubsystemType | null) => void
   onClick: () => void
+  /** Something is selected or being dragged that would fit here. */
   isHighlighted?: boolean
   isSelected?: boolean
-  acceptingDrag?: boolean
+  size?: number
 }
-
-function getSubsystemColor(type: SubsystemType): string {
-  const config = SUBSYSTEM_CONFIGS[type]
-  if (config.weaponStats) return '#f44336'
-  if (config.isPassive) return '#4caf50'
-  if (type === 'shields') return '#2196f3'
-  return '#ff9800'
-}
-
-const SlotContainer = styled(Box, {
-  shouldForwardProp: prop => !['isHighlighted', 'isSelected', 'acceptingDrag', 'hasComponent'].includes(prop as string),
-})<{ isHighlighted?: boolean; isSelected?: boolean; acceptingDrag?: boolean; hasComponent?: boolean }>(
-  ({ theme, isHighlighted, isSelected, acceptingDrag, hasComponent }) => ({
-    width: 44,
-    height: 44,
-    borderRadius: '50%',
-    border: `2px ${hasComponent ? 'solid' : 'dashed'} ${
-      isSelected ? theme.palette.primary.main : isHighlighted ? theme.palette.success.main : theme.palette.divider
-    }`,
-    backgroundColor: acceptingDrag
-      ? theme.palette.success.dark + '40'
-      : hasComponent
-        ? theme.palette.background.paper
-        : 'transparent',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    position: 'relative',
-    '&:hover': {
-      borderColor: theme.palette.primary.main,
-      backgroundColor: hasComponent ? theme.palette.action.hover : theme.palette.action.hover,
-    },
-  })
-)
-
-const ComponentIcon = styled(Box, {
-  shouldForwardProp: prop => prop !== 'color',
-})<{ color: string }>(({ color }) => ({
-  width: 36,
-  height: 36,
-  borderRadius: '50%',
-  backgroundColor: color,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}))
-
-const ClearButton = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  top: -4,
-  right: -4,
-  width: 16,
-  height: 16,
-  borderRadius: '50%',
-  backgroundColor: theme.palette.error.main,
-  color: theme.palette.error.contrastText,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer',
-  opacity: 0,
-  transition: 'opacity 0.2s',
-  '&:hover': {
-    backgroundColor: theme.palette.error.dark,
-  },
-}))
-
-const SlotWrapper = styled(Box)({
-  position: 'relative',
-  '&:hover .clear-button': {
-    opacity: 1,
-  },
-})
 
 export function LoadoutSlot({
-  slotType,
+  group,
+  label,
   component,
   onDrop,
   onClick,
   isHighlighted = false,
   isSelected = false,
-  acceptingDrag = false,
+  size = 44,
 }: LoadoutSlotProps) {
+  const [over, setOver] = useState(false)
+  const config = component ? getSubsystemConfig(component) : null
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.dropEffect = 'copy'
+    if (!over) setOver(true)
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'))
-      if (data.slotType === slotType) {
-        onDrop(data.componentType)
-      }
-    } catch {
-      // Invalid data, ignore
-    }
+    setOver(false)
+    const item = readDragItem(e.dataTransfer)
+    if (item && canInstallInSlot(item.componentType, group)) onDrop(item.componentType)
   }
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onDrop(null)
-  }
-
-  const color = component ? getSubsystemColor(component) : ''
-  const icon = component ? getSubsystemIcon(component) : undefined
+  const edge = isSelected || over ? TABLE.accent : isHighlighted ? TABLE.accentDim : TABLE.plateEdge
 
   return (
-    <SlotWrapper>
-      <SlotContainer
+    <Tooltip title={config ? `${label}: ${config.name}` : `${label}: empty`}>
+      <Box
         onClick={onClick}
         onDragOver={handleDragOver}
+        onDragLeave={() => setOver(false)}
         onDrop={handleDrop}
-        isHighlighted={isHighlighted}
-        isSelected={isSelected}
-        acceptingDrag={acceptingDrag}
-        hasComponent={!!component}
+        data-slot={label}
+        sx={{
+          position: 'relative',
+          width: size,
+          height: size,
+          borderRadius: '4px',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          border: `1px ${component ? 'solid' : 'dashed'} ${edge}`,
+          ...(component ? { borderTop: `2px solid ${subsystemCategoryColor(component)}` } : null),
+          background: component
+            ? `linear-gradient(180deg, ${TABLE.plateHi} 0%, ${TABLE.plateSunk} 100%)`
+            : over
+              ? 'rgba(255,180,69,0.12)'
+              : 'rgba(126,165,205,0.04)',
+          boxShadow: over || isSelected ? `0 0 0 1px ${TABLE.accentGlow}, 0 0 14px ${TABLE.accentGlow}` : 'none',
+          transition: 'border-color 140ms ease, box-shadow 140ms ease, background 140ms ease',
+          '&:hover': { borderColor: TABLE.accent },
+          '&:hover .di-clear': { opacity: 1 },
+        }}
       >
         {component ? (
-          <ComponentIcon color={color}>
-            {icon && (
-              <img src={icon} alt={component} style={{ width: 22, height: 22, filter: 'brightness(0) invert(1)' }} />
-            )}
-          </ComponentIcon>
+          <SubsystemIcon type={component} size={size * 0.56} />
         ) : (
-          <Add sx={{ color: 'text.disabled', fontSize: 20 }} />
+          <AddIcon sx={{ fontSize: size * 0.4, color: TABLE.inkFaint }} />
         )}
-      </SlotContainer>
-      {component && (
-        <ClearButton className="clear-button" onClick={handleClear}>
-          <Close sx={{ fontSize: 12 }} />
-        </ClearButton>
-      )}
-    </SlotWrapper>
+
+        <Box
+          component="span"
+          sx={{
+            position: 'absolute',
+            bottom: -14,
+            fontFamily: FONT_MONO,
+            fontSize: 11,
+            letterSpacing: '0.1em',
+            color: TABLE.inkFaint,
+            pointerEvents: 'none',
+          }}
+        >
+          {label}
+        </Box>
+
+        {component && (
+          <Box
+            className="di-clear"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDrop(null)
+            }}
+            sx={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              width: 15,
+              height: 15,
+              borderRadius: '50%',
+              bgcolor: TABLE.danger,
+              color: '#0b0f14',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0,
+              transition: 'opacity 140ms ease',
+              '&:hover': { filter: 'brightness(1.15)' },
+            }}
+          >
+            <CloseIcon sx={{ fontSize: 11 }} />
+          </Box>
+        )}
+      </Box>
+    </Tooltip>
   )
 }

@@ -1,107 +1,75 @@
-import { Box, styled } from '@mui/material'
+/**
+ * The ship mat: the hull silhouette with its slot rails around it — the
+ * forward slot at the nose, two side slots down each flank, the fixed systems
+ * at the stern and the scoop at the bow.
+ *
+ * The same mat is used to fit the ship out at the start of the game (the
+ * rails hold drop targets) and to run it at the table (the rails hold the
+ * tiles and their energy cells).
+ */
+import { Box } from '@mui/material'
+import { TABLE } from '../../theme'
 import { SlotRegion } from './SlotRegion'
-import type { ShipDisplayProps } from './types'
-import { FixedSubsystemSlot } from './FixedSubsystemSlot'
-
-const buttonContainerWidth = 60
-const positioningMargin = 5
-
-const Container = styled(Box)({
-  display: 'flex',
-  flexDirection: 'row',
-  position: 'relative',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '1.5em 0.5em',
-  width: '100%',
-})
-
-const Systems = styled(Box)({
-  display: 'flex',
-  position: 'relative',
-  overflow: 'visible',
-  width: '340px',
-  height: '280px',
-})
-
-const ShipImage = styled('img', {
-  shouldForwardProp: prop => prop !== 'shouldBlur',
-})<{ shouldBlur?: boolean }>(({ shouldBlur }) => ({
-  margin: `${buttonContainerWidth + positioningMargin * 2}px`,
-  width: '190px',
-  height: '150px',
-  objectFit: 'contain',
-  zIndex: 1,
-  filter: shouldBlur ? 'blur(4px)' : undefined,
-  transition: 'filter 0.3s',
-}))
-
-const StatsOverlay = styled(Box)({
-  display: 'flex',
-  flexWrap: 'wrap',
-  position: 'absolute',
-  justifyContent: 'space-between',
-  height: '280px',
-  width: '340px',
-  left: '50%',
-  top: '50%',
-  transform: 'translate(-50%, -50%)',
-  pointerEvents: 'none',
-})
+import { DEFAULT_SHIP_METRICS } from './types'
+import type { ShipDisplayProps, ShipMetrics } from './types'
 
 export function ShipDisplay({
   slots,
-  fixedSlots,
-  stats,
+  fixed,
   shipImageSrc = '/assets/ship.svg',
-  blurShip = false,
+  metrics,
+  faded,
+  activeRails,
 }: ShipDisplayProps) {
+  const m: ShipMetrics = { ...DEFAULT_SHIP_METRICS, ...metrics }
+  const inset = m.band + 6
+  const hullWidth = Math.max(60, m.width - inset * 2 - 16)
+
   return (
-    <Container>
-      {stats && <StatsOverlay>{stats}</StatsOverlay>}
+    <Box sx={{ position: 'relative', width: m.width, height: m.height, flexShrink: 0 }}>
+      {/* The hull itself, lit from above */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: `${inset}px`,
+          borderRadius: '6px',
+          background: 'radial-gradient(ellipse at 50% 30%, rgba(73,195,255,0.07) 0%, rgba(0,0,0,0) 70%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+        }}
+      >
+        <Box
+          component="img"
+          src={shipImageSrc}
+          alt="Ship"
+          sx={{
+            width: hullWidth,
+            maxHeight: '100%',
+            objectFit: 'contain',
+            opacity: faded ? 0.3 : 0.75,
+            filter: `drop-shadow(0 0 8px ${TABLE.energy}44)`,
+            transition: 'opacity 200ms ease',
+          }}
+        />
+      </Box>
 
-      <Systems>
-        <ShipImage src={shipImageSrc} alt="Ship" shouldBlur={blurShip} />
-
-        {/* Aft region - engines/rotation (fixed, not removable) */}
-        <SlotRegion position="aft" shouldBlur={blurShip}>
-          {fixedSlots?.aft ? (
-            fixedSlots.aft
-          ) : (
-            <>
-              <FixedSubsystemSlot subsystemType="engines" label="Engines" />
-              <FixedSubsystemSlot subsystemType="rotation" label="Thrusters" />
-            </>
-          )}
-        </SlotRegion>
-
-        {/* Port region - side slots 0, 1 (upper side) */}
-        <SlotRegion position="port" shouldBlur={blurShip}>
-          {slots.side[0]}
-          {slots.side[1]}
-        </SlotRegion>
-
-        {/* Forward region - fuel scoop (fixed) + forward slot 0 */}
-        <SlotRegion position="forward" shouldBlur={blurShip}>
-          {fixedSlots?.forward ? (
-            <>
-              {fixedSlots.forward}
-              {slots.forward[0]}
-            </>
-          ) : (
-            <>
-              <FixedSubsystemSlot subsystemType="scoop" label="Fuel Scoop" />
-              {slots.forward[0]}
-            </>
-          )}
-        </SlotRegion>
-
-        {/* Starboard region - side slots 2, 3 (lower side) */}
-        <SlotRegion position="starboard" shouldBlur={blurShip}>
-          {slots.side[2]}
-          {slots.side[3]}
-        </SlotRegion>
-      </Systems>
-    </Container>
+      <SlotRegion position="aft" metrics={m}>
+        {fixed?.aft}
+      </SlotRegion>
+      <SlotRegion position="port" metrics={m} active={activeRails?.side}>
+        {slots.side[0]}
+        {slots.side[1]}
+      </SlotRegion>
+      <SlotRegion position="forward" metrics={m} active={activeRails?.forward}>
+        {fixed?.forward}
+        {slots.forward[0]}
+      </SlotRegion>
+      <SlotRegion position="starboard" metrics={m} active={activeRails?.side}>
+        {slots.side[2]}
+        {slots.side[3]}
+      </SlotRegion>
+    </Box>
   )
 }

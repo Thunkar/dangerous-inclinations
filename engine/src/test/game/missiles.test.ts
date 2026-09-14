@@ -1,830 +1,438 @@
 import { describe, it, expect } from "vitest";
-import { executeTurn } from "../../game/turns.ts";
-import {
-  calculateMissileMovement,
-  checkMissileHit,
-  getMissileAmmo,
-} from "../../game/missiles.ts";
+import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game/missiles.ts";
+import { processActions } from "../../game/actionProcessors.ts";
 import { getMissileStats } from "../../models/subsystems.ts";
-import type {
-  Missile,
-  FireWeaponAction,
-  AllocateEnergyAction,
-  CoastAction,
-} from "../../models/game.ts";
-import { createTestGameState } from "../fixtures/gameState.ts";
+import type { GameState, Missile, PlayerAction, ShipLoadout } from "../../models/game.ts";
+import {
+  ALPHA,
+  BH,
+  coast,
+  eventsOf,
+  eventTypes,
+  executeTurnAs,
+  fire,
+  getShip,
+  getSub,
+  burn,
+  makeGameState,
+  makeMissile,
+  makePlayer,
+  makeTwoPlayerGame,
+  mustExecute,
+  withPlayer,
+  withPower,
+  withShip,
+  withSub,
+} from "../testUtils.ts";
 
-const MISSILE_STATS = getMissileStats();
+const RACK: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["ballistic_rack", "laser", "shields", "laser"],
+};
+const TWO_RACKS: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["ballistic_rack", "laser", "ballistic_rack", "laser"],
+};
 
-describe("Missile System", () => {
-  describe("Missile Pathfinding", () => {
-    it("should calculate missile movement towards target", () => {
-      const gameState = createTestGameState();
+/** p1 at R3 S0 with powered missiles; p2 at the given spot. */
+function launcher(target = { ring: 5, sector: 0 }, targetLoadout?: ShipLoadout) {
+  return withPower(
+    makeTwoPlayerGame({ ring: 3, sector: 0 }, { ...target, loadout: targetLoadout }),
+    "p1",
+    "side-3",
+    2
+  );
+}
 
-      const missile: Missile = {
-        id: "test-missile-1",
-        ownerId: "player1",
-        targetId: "player2",
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        turnFired: 1,
-        turnsAlive: 0,
-      };
+function missileAt(
+  state: GameState,
+  ring: number,
+  sector: number,
+  extra: Partial<Missile> = {}
+): GameState {
+  return { ...state, missiles: [...state.missiles, makeMissile({ ring, sector, ...extra })] };
+}
 
-      // Player 2 is at ring 3, sector 12 (from fixture)
-      const target = gameState.players[1];
-
-      const movement = calculateMissileMovement(missile, target, gameState);
-
-      expect(movement.ring).toBe(3); // Same ring, no ring change
-      expect(movement.fuelSpent).toBeGreaterThan(0);
-      expect(movement.fuelSpent).toBeLessThanOrEqual(MISSILE_STATS.fuelPerTurn);
-      expect(movement.path.length).toBeGreaterThan(0);
-    });
-
-    it("should prioritize ring changes over sector moves", () => {
-      const gameState = createTestGameState();
-
-      // Missile at R1S0, target at R3S5
-      const missile: Missile = {
-        id: "test-missile-1",
-        ownerId: "player1",
-        targetId: "player2",
-        wellId: "blackhole",
-        ring: 1,
-        sector: 0,
-        turnFired: 1,
-        turnsAlive: 0,
-      };
-
-      // Modify target to be on a different ring
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 5;
-      const target = gameState.players[1];
-
-      const movement = calculateMissileMovement(missile, target, gameState);
-
-      // Should move towards ring 3 first (2 rings = 2 fuel)
-      expect(movement.ring).toBe(3);
-      // Should have 1 fuel left for sector movement
-      expect(movement.fuelSpent).toBe(3);
-    });
-
-    it("should wrap around sectors correctly", () => {
-      const gameState = createTestGameState();
-
-      // Missile at sector 23, target at sector 1 (wrap around is shorter than going backwards)
-      const missile: Missile = {
-        id: "test-missile-1",
-        ownerId: "player1",
-        targetId: "player2",
-        wellId: "blackhole",
-        ring: 3,
-        sector: 23,
-        turnFired: 1,
-        turnsAlive: 0,
-      };
-
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 1;
-      const target = gameState.players[1];
-
-      const movement = calculateMissileMovement(missile, target, gameState);
-
-      // Should wrap around (23 -> 0 -> 1 = 2 sectors)
-      expect(movement.sector).toBe(1);
-      expect(movement.fuelSpent).toBe(2);
-    });
-
-    it("should detect hit when at same position as target", () => {
-      const gameState = createTestGameState();
-
-      const missile: Missile = {
-        id: "test-missile-1",
-        ownerId: "player1",
-        targetId: "player2",
-        wellId: "blackhole",
-        ring: 3,
-        sector: 12,
-        turnFired: 1,
-        turnsAlive: 0,
-      };
-
-      const target = gameState.players[1];
-
-      const hit = checkMissileHit(missile, target);
-
-      expect(hit).toBe(true);
-    });
+describe("missiles: pathing", () => {
+  it("closes rings before sectors and stops after the given steps", () => {
+    expect(
+      stepToward({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 5, sector: 3 }, 3)
+    ).toEqual({ wellId: BH, ring: 5, sector: 1 });
+    expect(
+      stepToward({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 1, sector: 0 }, 1)
+    ).toEqual({ wellId: BH, ring: 2, sector: 0 });
   });
 
-  describe("Missile Firing and Tracking", () => {
-    it("should fire missile and decrement inventory", () => {
-      let gameState = createTestGameState();
+  it("takes the short way round the ring", () => {
+    expect(
+      stepToward({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 3, sector: 20 }, 3)
+    ).toEqual({ wellId: BH, ring: 3, sector: 21 });
+  });
 
-      // Allocate energy to missiles
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
+  it("stops on the target and never crosses wells", () => {
+    const target = { wellId: BH, ring: 3, sector: 1 };
+    expect(stepToward({ wellId: BH, ring: 3, sector: 0 }, target, 3)).toEqual(target);
+    expect(
+      stepToward({ wellId: BH, ring: 3, sector: 0 }, { wellId: ALPHA, ring: 3, sector: 1 }, 3)
+    ).toEqual({ wellId: BH, ring: 3, sector: 0 });
+  });
 
-      // Fire missile
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
+  it("projectMissilePath starts with the drift and ends on the target when reachable", () => {
+    expect(
+      projectMissilePath({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 5, sector: 4 })
+    ).toEqual([
+      { wellId: BH, ring: 3, sector: 4 },
+      { wellId: BH, ring: 4, sector: 4 },
+      { wellId: BH, ring: 5, sector: 4 },
+    ]);
+    expect(
+      projectMissilePath({ wellId: BH, ring: 5, sector: 0 }, { wellId: ALPHA, ring: 3, sector: 4 })
+    ).toEqual([{ wellId: BH, ring: 5, sector: 1 }]);
+  });
 
-      const result = executeTurn(gameState, [allocateAction, fireAction]);
-      gameState = result.gameState;
+  it("projectMissilePath skips the drift segment for a missile launched after the ship moved", () => {
+    const from = { wellId: BH, ring: 3, sector: 0 };
+    const target = { wellId: BH, ring: 3, sector: 10 };
+    expect(projectMissilePath({ ...from, launchedAfterMove: true }, target)[0]).toEqual(from);
+    expect(projectMissilePath(from, target)[0]).toEqual({ ...from, sector: 4 });
+  });
 
-      expect(result.errors).toBeUndefined();
+  it("never plans more than the missile's fuel allowance", () => {
+    const path = projectMissilePath(
+      { wellId: BH, ring: 5, sector: 0 },
+      { wellId: BH, ring: 1, sector: 12 }
+    );
+    expect(path).toHaveLength(getMissileStats().fuelPerTurn + 1);
+  });
 
-      // Check missile ammo decremented (stored on missiles subsystem)
-      const player1 = gameState.players.find((p) => p.id === "player1")!;
-      expect(getMissileAmmo(player1.ship.subsystems)).toBe(3); // Started with 4
+  const pathCases: Array<
+    [
+      string,
+      { ring: number; sector: number; launchedAfterMove?: boolean },
+      { ring: number; sector: number },
+    ]
+  > = [
+    ["a target it reaches", { ring: 5, sector: 0 }, { ring: 5, sector: 13 }],
+    ["a target it falls short of", { ring: 1, sector: 0 }, { ring: 5, sector: 12 }],
+    [
+      "a missile launched after moving",
+      { ring: 3, sector: 6, launchedAfterMove: true },
+      { ring: 4, sector: 20 },
+    ],
+  ];
 
-      // Check missile was added to game state
-      expect(gameState.missiles.length).toBe(1);
-      expect(gameState.missiles[0].ownerId).toBe("player1");
-      expect(gameState.missiles[0].targetId).toBe("player2");
-    });
-
-    it("should not fire missile with 0 ammo", () => {
-      const gameState = createTestGameState();
-
-      // Set ammo to 0 on missiles subsystem
-      gameState.players[0].ship.subsystems =
-        gameState.players[0].ship.subsystems.map((s) =>
-          s.type === "missiles" ? { ...s, ammo: 0 } : s,
-        );
-
-      // Allocate energy to missiles
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      // Try to fire missile
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      const result = executeTurn(gameState, [allocateAction, fireAction]);
-
-      expect(result.errors).toBeDefined();
-      expect(result.errors).toContain("No missiles remaining");
-    });
-
-    it("should track missile over multiple turns", () => {
-      let gameState = createTestGameState();
-
-      // Position player 1 at R3S0, player 2 at R3S10 (far enough that missile won't hit in one turn)
-      // Ring 3 velocity = 4, missile fuel = 3, so need targets > 3 sectors apart
-      gameState.players[0].ship.ring = 3;
-      gameState.players[0].ship.sector = 0;
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 10;
-
-      // Turn 1: Player 1 fires missile
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      let result = executeTurn(gameState, [allocateAction, fireAction]);
-      gameState = result.gameState;
-
-      expect(gameState.missiles.length).toBe(1);
-      const missileId = gameState.missiles[0].id;
-
-      // Turn 2: Player 2 does nothing, missiles process at end of turn
-      result = executeTurn(gameState, []);
-      gameState = result.gameState;
-
-      // Missile should still be tracking
-      const missile = gameState.missiles.find((m) => m.id === missileId);
-      if (missile) {
-        expect(missile.turnsAlive).toBe(1);
-      } else {
-        // If missile is gone, it must have hit
-        expect(
-          gameState.missiles.find((m) => m.id === missileId),
-        ).toBeUndefined();
-      }
-    });
-
-    it("should expire missile after 3 turns", () => {
-      let gameState = createTestGameState();
-
-      // Position players far apart so missile won't hit
-      gameState.players[0].ship.ring = 1;
-      gameState.players[0].ship.sector = 0;
-      gameState.players[1].ship.ring = 4;
-      gameState.players[1].ship.sector = 23;
-
-      // Turn 1: Player 1 fires missile
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      let result = executeTurn(gameState, [allocateAction, fireAction]);
-      gameState = result.gameState;
-
-      expect(gameState.missiles.length).toBe(1);
-      const missileId = gameState.missiles[0].id;
-
-      // Missile should have turnsAlive = 1 after player1's turn (processed immediately)
-      let missile = gameState.missiles.find((m) => m.id === missileId);
-      expect(missile).toBeDefined();
-      expect(missile?.turnsAlive).toBe(1);
-
-      // Turn 2: Player 2's turn (missile doesn't process since it's owned by player1)
-      result = executeTurn(gameState, []);
-      gameState = result.gameState;
-
-      // Missile should still have turnsAlive = 1
-      missile = gameState.missiles.find((m) => m.id === missileId);
-      expect(missile?.turnsAlive).toBe(1);
-
-      // Turn 3: Player 1's turn again (missile processes again)
-      result = executeTurn(gameState, []);
-      gameState = result.gameState;
-
-      // Missile should have turnsAlive = 2
-      missile = gameState.missiles.find((m) => m.id === missileId);
-      expect(missile).toBeDefined();
-      expect(missile?.turnsAlive).toBe(2);
-
-      // Turn 4: Player 2's turn (missile doesn't process)
-      result = executeTurn(gameState, []);
-      gameState = result.gameState;
-
-      // Turn 5: Player 1's turn (missile processes 3rd time and expires)
-      result = executeTurn(gameState, []);
-      gameState = result.gameState;
-
-      // Missile should be expired and removed (turnsAlive reached 3)
-      expect(
-        gameState.missiles.find((m) => m.id === missileId),
-      ).toBeUndefined();
-    });
-
-    it("should allow multiple missiles targeting same ship", () => {
-      let gameState = createTestGameState();
-
-      // Initial subsystems already have 4 ammo (maxAmmo from config)
-
-      // Fire first missile
-      const allocate1: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      const fire1: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      let result = executeTurn(gameState, [allocate1, fire1]);
-      gameState = result.gameState;
-
-      expect(gameState.missiles.length).toBe(1);
-
-      // Player 2's turn (skip)
-      result = executeTurn(gameState, []);
-      gameState = result.gameState;
-
-      // Fire second missile from player 1
-      const allocate2: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      const fire2: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      result = executeTurn(gameState, [allocate2, fire2]);
-      gameState = result.gameState;
-
-      // Should have 2 missiles targeting player2
-      const missilesTargetingP2 = gameState.missiles.filter(
-        (m) => m.targetId === "player2",
-      );
-      expect(missilesTargetingP2.length).toBeGreaterThanOrEqual(1); // At least 1 (second one), first might have hit
-    });
-
-    it("should deal damage when missile hits", () => {
-      let gameState = createTestGameState();
-
-      // Position ships close together
-      gameState.players[0].ship.ring = 3;
-      gameState.players[0].ship.sector = 0;
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 2; // Close enough to hit quickly
-
-      // Fire missile
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      let result = executeTurn(gameState, [allocateAction, fireAction]);
-      gameState = result.gameState;
-
-      // Process several turns to let missile hit
-      for (let i = 0; i < 5; i++) {
-        result = executeTurn(gameState, []);
-        gameState = result.gameState;
-
-        // Check if missile hit
-        if (gameState.missiles.length === 0) {
-          // Missile exploded or hit
-          break;
+  it.each(pathCases)(
+    "projectMissilePath agrees with processOwnerMissiles for %s",
+    (_label, missile, target) => {
+      const state = missileAt(
+        withShip(makeTwoPlayerGame(), "p2", { wellId: BH, ...target }),
+        missile.ring,
+        missile.sector,
+        {
+          launchedAfterMove: missile.launchedAfterMove ?? false,
         }
-      }
+      );
+      const path = projectMissilePath(state.missiles[0], { wellId: BH, ...target });
+      const result = processOwnerMissiles(state, "p1");
+      const landed = result.state.missiles[0]
+        ? {
+            wellId: result.state.missiles[0].wellId,
+            ring: result.state.missiles[0].ring,
+            sector: result.state.missiles[0].sector,
+          }
+        : { wellId: BH, ...target };
+      expect(path[path.length - 1]).toEqual(landed);
+    }
+  );
+});
 
-      // Either missile hit or expired - we just check the missile is gone
-      expect(gameState.missiles.length).toBe(0);
+describe("missiles: launch", () => {
+  it("places a missile at the ship's position and spends one round of ammo", () => {
+    const result = executeTurnAs(launcher(), fire(1, "side-3", "p2", "side-1"), coast(2));
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "missile_launched")).toEqual([
+      expect.objectContaining({
+        ownerId: "p1",
+        targetId: "p2",
+        at: { wellId: BH, ring: 3, sector: 0 },
+      }),
+    ]);
+    expect(getSub(result.gameState, "p1", "side-3").ammo).toBe(3);
+    expect(getSub(result.gameState, "p1", "side-3").isRevealed).toBe(true);
+    expect(eventsOf(result.events, "attack_resolved")).toEqual([]);
+    const [missile] = result.gameState.missiles;
+    expect(missile).toMatchObject({
+      ownerId: "p1",
+      targetId: "p2",
+      criticalTarget: "side-1",
+      turnFired: 1,
+      movesMade: 1,
     });
   });
 
-  describe("Missile Orbital Movement Timing", () => {
-    it("should skip orbital drift for missiles fired AFTER movement", () => {
-      // This test verifies that missiles fired after the ship moves don't get "double movement"
-      // The ship's position already accounts for orbital drift, so the missile shouldn't drift again
-      let gameState = createTestGameState();
+  it("refuses to launch with no ammo", () => {
+    const state = withSub(launcher(), "p1", "side-3", { ammo: 0 });
+    expect(executeTurnAs(state, fire(1, "side-3", "p2")).errors?.[0]).toMatch(/no missiles/i);
+  });
 
-      // Position player 1 at R3S0
-      gameState.players[0].ship.ring = 3;
-      gameState.players[0].ship.sector = 0;
-      // Position player 2 far away so missile won't hit immediately
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 12;
+  it("is a turret: fires backwards too", () => {
+    const state = withPower(
+      makeTwoPlayerGame({ ring: 3, sector: 0, facing: "retrograde" }, { ring: 3, sector: 3 }),
+      "p1",
+      "side-3",
+      2
+    );
+    expect(executeTurnAs(state, fire(1, "side-3", "p2")).errors).toBeUndefined();
+  });
 
-      // Allocate energy to missiles
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      // Coast action with sequence 1 (happens first)
-      const coastAction: CoastAction = {
-        type: "coast",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          activateScoop: false,
-        },
-      };
-
-      // Fire missile with sequence 2 (happens AFTER movement)
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 2,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      const result = executeTurn(gameState, [
-        allocateAction,
-        coastAction,
-        fireAction,
-      ]);
-      gameState = result.gameState;
-
-      expect(result.errors).toBeUndefined();
-      expect(gameState.missiles.length).toBe(1);
-
-      const missile = gameState.missiles[0];
-
-      // Ring 3 in blackhole has velocity 4 (4 sectors per turn)
-      // After coast, ship moves from S0 to S4 (orbital drift of 4)
-      // Missile is fired at ship's new position (S4)
-      // Missile should NOT get additional orbital drift since it was fired after movement
-      // With 3 fuel, missile moves 3 sectors toward target (S12)
-      // So missile should be at S4 + 3 = S7 (not S11 which would happen with double drift)
-      expect(missile.sector).toBe(7);
+  it("launches from wherever the ship is when the shot resolves", () => {
+    const state = launcher({ ring: 5, sector: 1 });
+    const before = executeTurnAs(state, fire(1, "side-3", "p2"), coast(2));
+    const after = executeTurnAs(state, coast(1), fire(2, "side-3", "p2"));
+    expect(eventsOf(before.events, "missile_launched")[0].at).toEqual({
+      wellId: BH,
+      ring: 3,
+      sector: 0,
     });
-
-    it("should apply orbital drift for missiles fired BEFORE movement", () => {
-      // This test verifies that missiles fired before movement DO get orbital drift
-      let gameState = createTestGameState();
-
-      // Position player 1 at R3S0
-      gameState.players[0].ship.ring = 3;
-      gameState.players[0].ship.sector = 0;
-      // Position player 2 far away
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 12;
-
-      // Allocate energy to missiles
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      // Fire missile with sequence 1 (happens BEFORE movement)
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      // Coast action with sequence 2 (happens after firing)
-      const coastAction: CoastAction = {
-        type: "coast",
-        playerId: "player1",
-        sequence: 2,
-        data: {
-          activateScoop: false,
-        },
-      };
-
-      const result = executeTurn(gameState, [
-        allocateAction,
-        fireAction,
-        coastAction,
-      ]);
-      gameState = result.gameState;
-
-      expect(result.errors).toBeUndefined();
-      expect(gameState.missiles.length).toBe(1);
-
-      const missile = gameState.missiles[0];
-
-      // Ring 3 in blackhole has velocity 4 (4 sectors per turn)
-      // Missile fired at S0 (before ship moves)
-      // Missile gets orbital drift: S0 -> S4
-      // Then missile uses 3 fuel to move toward target (S12): S4 + 3 = S7
-      // Total: S0 -> S4 (orbital) -> S7 (fuel)
-      expect(missile.sector).toBe(7);
-    });
-
-    it("should result in different positions for fire-before vs fire-after when ship burns", () => {
-      // More explicit test: with a burn, the position difference is clearer
-      // Fire BEFORE burn: missile starts at original position, gets orbital drift
-      // Fire AFTER burn: missile starts at post-burn position, no orbital drift
-
-      // Test case 1: Fire BEFORE movement
-      const gameState1 = createTestGameState();
-      gameState1.players[0].ship.ring = 3;
-      gameState1.players[0].ship.sector = 0;
-      gameState1.players[0].ship.facing = "prograde";
-      gameState1.players[1].ship.ring = 3;
-      gameState1.players[1].ship.sector = 20; // Far away
-
-      const allocate1: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: { subsystemType: "missiles", amount: 2 },
-      };
-
-      const fire1: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1, // BEFORE coast
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      const coast1: CoastAction = {
-        type: "coast",
-        playerId: "player1",
-        sequence: 2, // AFTER fire
-        data: { activateScoop: false },
-      };
-
-      const result1 = executeTurn(gameState1, [allocate1, fire1, coast1]);
-      const missileBeforeMove = result1.gameState.missiles[0];
-
-      // Test case 2: Fire AFTER movement
-      const gameState2 = createTestGameState();
-      gameState2.players[0].ship.ring = 3;
-      gameState2.players[0].ship.sector = 0;
-      gameState2.players[0].ship.facing = "prograde";
-      gameState2.players[1].ship.ring = 3;
-      gameState2.players[1].ship.sector = 20; // Same far away target
-
-      const allocate2: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: { subsystemType: "missiles", amount: 2 },
-      };
-
-      const coast2: CoastAction = {
-        type: "coast",
-        playerId: "player1",
-        sequence: 1, // BEFORE fire
-        data: { activateScoop: false },
-      };
-
-      const fire2: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 2, // AFTER coast
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      const result2 = executeTurn(gameState2, [allocate2, coast2, fire2]);
-      const missileAfterMove = result2.gameState.missiles[0];
-
-      // Both missiles should end up at the same sector!
-      // Ring 3 in blackhole has velocity 4, so orbital drift = 4 sectors
-      // Fire before: S0 (start) -> S4 (orbital drift) -> S7 (3 fuel toward S20)
-      // Fire after: S4 (ship moved) -> no orbital -> S7 (3 fuel toward S20)
-      // The key insight: the NEW model makes them equal, the OLD model would have fire-after at S11
-      expect(missileBeforeMove.sector).toBe(missileAfterMove.sector);
+    expect(eventsOf(after.events, "missile_launched")[0].at).toEqual({
+      wellId: BH,
+      ring: 3,
+      sector: 4,
     });
   });
 
-  describe("Missile Shield Interaction", () => {
-    it("should have shields absorb missile damage", () => {
-      let gameState = createTestGameState();
+  it.each([
+    ["false when nothing has moved yet", [fire(1, "side-3", "p2")], false],
+    ["false when the move comes after the shot", [fire(1, "side-3", "p2"), coast(2)], false],
+    ["true when a coast came first", [coast(1), fire(2, "side-3", "p2")], true],
+    ["true when a burn came first", [burn(1, "soft"), fire(2, "side-3", "p2")], true],
+  ])("launchedAfterMove is %s", (_label, actions, expected) => {
+    const state = withPower(launcher({ ring: 5, sector: 2 }), "p1", "engines", 1);
+    const stamped = actions.map((a) => ({ ...a, playerId: "p1" }) as PlayerAction);
+    const processed = processActions(state, stamped);
+    expect(processed.success).toBe(true);
+    expect(processed.state.missiles).toHaveLength(1);
+    expect(processed.state.missiles[0].launchedAfterMove).toBe(expected);
+  });
+});
 
-      // Position ships close together for quick hit
-      gameState.players[0].ship.ring = 3;
-      gameState.players[0].ship.sector = 0;
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 1; // 1 sector away - will hit quickly
-
-      // Give player 2 shields with 2 energy allocated
-      gameState.players[1].ship.subsystems =
-        gameState.players[1].ship.subsystems.map((s) =>
-          s.type === "shields"
-            ? { ...s, isPowered: true, allocatedEnergy: 2 }
-            : s,
-        );
-      gameState.players[1].ship.reactor.availableEnergy -= 2;
-
-      const initialHp = gameState.players[1].ship.hitPoints;
-
-      // Fire missile from player 1
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      let result = executeTurn(gameState, [allocateAction, fireAction]);
-      gameState = result.gameState;
-
-      // Process turns until missile hits or expires
-      for (let i = 0; i < 6; i++) {
-        if (gameState.missiles.length === 0) break;
-        result = executeTurn(gameState, []);
-        gameState = result.gameState;
+describe("missiles: movement at the end of the owner's turn", () => {
+  it.each([
+    ["drifts first when it was launched before the ship moved", false, 1],
+    ["starts where it was dropped when it was launched after the ship moved", true, 0],
+  ])("a missile %s", (_label, launchedAfterMove, driftedSectors) => {
+    // The target sits in another well, so the missile can only ride its orbit.
+    const state = missileAt(
+      withShip(makeTwoPlayerGame(), "p2", { wellId: ALPHA, ring: 3, sector: 0 }),
+      5,
+      0,
+      {
+        launchedAfterMove,
       }
-
-      // Missile should have hit
-      expect(gameState.missiles.length).toBe(0);
-
-      // Verify shield absorption worked
-      const player2 = gameState.players.find((p) => p.id === "player2")!;
-
-      // With 2 shields, all 2 damage should be absorbed as heat
-      // Hull damage = 2 - 2 = 0
-      expect(player2.ship.hitPoints).toBe(initialHp);
-
-      // Note: Heat is reset at the start of each player's turn, so we can't check
-      // heat directly after multiple turns. The key verification is that hull
-      // damage was prevented by shields.
+    );
+    const result = processOwnerMissiles(state, "p1");
+    expect(result.state.missiles[0]).toMatchObject({
+      ring: 5,
+      sector: driftedSectors,
+      movesMade: 1,
     });
+    expect(result.state.missiles[0].launchedAfterMove).toBe(false);
+  });
 
-    it("should partially absorb missile damage when shields have less capacity", () => {
-      let gameState = createTestGameState();
+  it("drifts with its ring, then moves up to 3 steps (rings first)", () => {
+    const result = executeTurnAs(launcher(), fire(1, "side-3", "p2"));
+    // Launched R3 S0 -> drift to S4 -> R4, R5 -> one sector toward S0 -> R5 S3.
+    expect(eventsOf(result.events, "missile_moved")).toEqual([
+      expect.objectContaining({
+        ownerId: "p1",
+        to: { wellId: BH, ring: 5, sector: 3 },
+        movesLeft: 2,
+      }),
+    ]);
+    expect(result.gameState.missiles[0]).toMatchObject({ ring: 5, sector: 3, movesMade: 1 });
+  });
 
-      // Position ships close together
-      gameState.players[0].ship.ring = 3;
-      gameState.players[0].ship.sector = 0;
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 1;
+  it("keeps tracking across turns and attacks when it reaches the target", () => {
+    let state = mustExecute(launcher(), fire(1, "side-3", "p2")); // missile R5 S3, p2 R5 S0
+    state = mustExecute(state, coast(1)); // p2 drifts to S1
+    const result = executeTurnAs(state, coast(1)); // missile drifts to S4 then steps 4->3->2->1
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "attack_resolved")).toEqual([
+      expect.objectContaining({
+        attackerId: "p1",
+        targetId: "p2",
+        weaponType: "missiles",
+        damage: 2,
+        toHull: 2,
+        targetHullAfter: 8,
+      }),
+    ]);
+    expect(result.gameState.missiles).toEqual([]);
+    expect(getShip(result.gameState, "p2").hitPoints).toBe(8);
+  });
 
-      // Give player 2 shields with only 1 energy (less than missile damage of 2)
-      gameState.players[1].ship.subsystems =
-        gameState.players[1].ship.subsystems.map((s) =>
-          s.type === "shields"
-            ? { ...s, isPowered: true, allocatedEnergy: 1 }
-            : s,
-        );
-      gameState.players[1].ship.reactor.availableEnergy -= 1;
+  it("expires after three moves without hitting", () => {
+    const far = missileAt(makeTwoPlayerGame({}, { ring: 5, sector: 12 }), 1, 0, { movesMade: 2 });
+    const result = processOwnerMissiles(far, "p1");
+    expect(result.state.missiles).toEqual([]);
+    expect(result.events).toEqual([
+      expect.objectContaining({ type: "missile_expired", missileId: "m-1" }),
+    ]);
+  });
 
-      const initialHp = gameState.players[1].ship.hitPoints;
-
-      // Fire missile
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      let result = executeTurn(gameState, [allocateAction, fireAction]);
-      gameState = result.gameState;
-
-      // Process turns until missile hits
-      for (let i = 0; i < 6; i++) {
-        if (gameState.missiles.length === 0) break;
-        result = executeTurn(gameState, []);
-        gameState = result.gameState;
-      }
-
-      const player2 = gameState.players.find((p) => p.id === "player2")!;
-
-      // Missile does 2 damage, shields absorb 1 -> 1 to hull
-      expect(player2.ship.hitPoints).toBe(initialHp - 1);
+  it("only moves the active owner's missiles", () => {
+    const state = missileAt(makeTwoPlayerGame({}, { ring: 5, sector: 12 }), 1, 0, {
+      ownerId: "p2",
+      targetId: "p1",
     });
+    const result = processOwnerMissiles(state, "p1");
+    expect(result.state.missiles).toEqual(state.missiles);
+    expect(result.events).toEqual([]);
+  });
 
-    it("should deal full missile damage when target has no shields", () => {
-      let gameState = createTestGameState();
-
-      // Position ships close together
-      gameState.players[0].ship.ring = 3;
-      gameState.players[0].ship.sector = 0;
-      gameState.players[1].ship.ring = 3;
-      gameState.players[1].ship.sector = 1;
-
-      // Player 2 has no shields powered (default state)
-      const initialHp = gameState.players[1].ship.hitPoints;
-      const initialHeat = gameState.players[1].ship.heat?.currentHeat || 0;
-
-      // Fire missile
-      const allocateAction: AllocateEnergyAction = {
-        type: "allocate_energy",
-        playerId: "player1",
-        data: {
-          subsystemType: "missiles",
-          amount: 2,
-        },
-      };
-
-      const fireAction: FireWeaponAction = {
-        type: "fire_weapon",
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "missiles",
-          targetPlayerIds: ["player2"],
-          criticalTarget: "shields",
-        },
-      };
-
-      let result = executeTurn(gameState, [allocateAction, fireAction]);
-      gameState = result.gameState;
-
-      // Process turns until missile hits
-      for (let i = 0; i < 6; i++) {
-        if (gameState.missiles.length === 0) break;
-        result = executeTurn(gameState, []);
-        gameState = result.gameState;
-      }
-
-      const player2 = gameState.players.find((p) => p.id === "player2")!;
-
-      // Full 2 damage to hull
-      expect(player2.ship.hitPoints).toBe(initialHp - MISSILE_STATS.damage);
-      // No heat from shield absorption
-      expect(player2.ship.heat?.currentHeat).toBe(initialHeat);
+  it("drifts but cannot pursue a target in another well", () => {
+    const state = missileAt(
+      withShip(makeTwoPlayerGame(), "p2", { wellId: ALPHA, ring: 3, sector: 0 }),
+      5,
+      0
+    );
+    const result = processOwnerMissiles(state, "p1");
+    expect(result.state.missiles[0]).toMatchObject({
+      wellId: BH,
+      ring: 5,
+      sector: 1,
+      movesMade: 1,
     });
+  });
+
+  it.each([
+    ["destroyed", (s: GameState) => withShip(s, "p2", { hitPoints: 0 })],
+    ["not deployed", (s: GameState) => withPlayer(s, "p2", { hasDeployed: false })],
+  ])("expires when its target is %s", (_label, setup) => {
+    const state = missileAt(setup(makeTwoPlayerGame()), 3, 12);
+    const result = processOwnerMissiles(state, "p1");
+    expect(result.state.missiles).toEqual([]);
+    expect(eventTypes(result.events as never)).toEqual(["missile_expired"]);
+  });
+});
+
+describe("missiles: on the target's sector", () => {
+  /** A missile already sitting where p2 will still be after its drift: p2 on R5 S12 (drift 1) -> S13; missile on R5 S12 drifts to S13. */
+  const onTarget = (targetLoadout?: ShipLoadout) =>
+    missileAt(makeTwoPlayerGame({}, { ring: 5, sector: 13, loadout: targetLoadout }), 5, 12);
+
+  it("attacks with the missile's own critical target", () => {
+    const state = withPower({ ...onTarget(), forcedRollValue: 10 }, "p2", "side-1", 2);
+    const result = processOwnerMissiles(
+      { ...state, missiles: [{ ...state.missiles[0], criticalTarget: "side-1" }] },
+      "p1"
+    );
+    expect(getSub(result.state, "p2", "side-1").isBroken).toBe(true);
+    expect(eventsOf(result.events as never, "attack_resolved")[0]).toMatchObject({
+      result: "critical",
+      weaponType: "missiles",
+    });
+  });
+
+  it("a killing missile destroys the target and credits the owner", () => {
+    const state = withShip(onTarget(), "p2", { hitPoints: 2 });
+    const result = processOwnerMissiles(state, "p1");
+    expect(eventsOf(result.events as never, "ship_destroyed")).toEqual([
+      expect.objectContaining({ victimId: "p2", killerId: "p1", cause: "missile" }),
+    ]);
+  });
+
+  it("a powered ballistic rack intercepts on 2+: rack used, heated and revealed, target unharmed", () => {
+    const state = withPower(onTarget(RACK), "p2", "side-0", 2);
+    const result = processOwnerMissiles(state, "p1");
+    expect(eventsOf(result.events as never, "missile_intercepted")).toEqual([
+      expect.objectContaining({ missileId: "m-1", targetId: "p2", roll: 5, heat: 2 }),
+    ]);
+    expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
+    expect(result.state.missiles).toEqual([]);
+    const rack = getSub(result.state, "p2", "side-0");
+    expect(rack).toMatchObject({ usedThisTurn: true, isRevealed: true });
+    expect(getShip(result.state, "p2")).toMatchObject({ hitPoints: 10, heat: { currentHeat: 2 } });
+    expect(eventsOf(result.events as never, "subsystem_revealed")[0]).toMatchObject({
+      subsystemId: "side-0",
+      reason: "intercepted",
+    });
+  });
+
+  it("a rack that rolls 1 misses and the missile attacks anyway", () => {
+    const state = withPower({ ...onTarget(RACK), forcedRollValue: 1 }, "p2", "side-0", 2);
+    const result = processOwnerMissiles(state, "p1");
+    expect(eventTypes(result.events as never)).toContain("missile_intercepted");
+    expect(eventsOf(result.events as never, "missile_intercepted")[0].roll).toBe(1);
+    expect(eventTypes(result.events as never)).toContain("attack_resolved");
+    expect(result.state.missiles).toEqual([]);
+  });
+
+  it.each([
+    ["unpowered", (s: GameState) => s],
+    [
+      "broken",
+      (s: GameState) =>
+        withSub(withPower(s, "p2", "side-0", 2), "p2", "side-0", { isBroken: true }),
+    ],
+    [
+      "already used",
+      (s: GameState) =>
+        withSub(withPower(s, "p2", "side-0", 2), "p2", "side-0", { usedThisTurn: true }),
+    ],
+  ])("a rack that is %s does not intercept", (_label, setup) => {
+    const result = processOwnerMissiles(setup(onTarget(RACK)), "p1");
+    expect(eventTypes(result.events as never)).not.toContain("missile_intercepted");
+    expect(getShip(result.state, "p2").hitPoints).toBe(8);
+  });
+
+  it("two racks stop two missiles; one rack stops only the first", () => {
+    const second = (s: GameState) => ({
+      ...s,
+      missiles: [...s.missiles, { ...s.missiles[0], id: "m-2" }],
+    });
+    const two = withPower(
+      withPower(second(onTarget(TWO_RACKS)), "p2", "side-0", 2),
+      "p2",
+      "side-2",
+      2
+    );
+    const twoResult = processOwnerMissiles(two, "p1");
+    expect(eventsOf(twoResult.events as never, "missile_intercepted")).toHaveLength(2);
+    expect(getShip(twoResult.state, "p2").hitPoints).toBe(10);
+
+    const one = withPower(second(onTarget(RACK)), "p2", "side-0", 2);
+    const oneResult = processOwnerMissiles(one, "p1");
+    expect(eventsOf(oneResult.events as never, "missile_intercepted")).toHaveLength(1);
+    expect(eventsOf(oneResult.events as never, "attack_resolved")).toHaveLength(1);
+    expect(getShip(oneResult.state, "p2").hitPoints).toBe(8);
+  });
+
+  it("shields absorb missile damage like any other", () => {
+    const state = withPower(onTarget(), "p2", "side-2", 2);
+    const result = processOwnerMissiles(state, "p1");
+    expect(getShip(result.state, "p2").hitPoints).toBe(10);
+    expect(eventsOf(result.events as never, "attack_resolved")[0]).toMatchObject({
+      toHull: 0,
+      toHeat: 2,
+    });
+  });
+});
+
+describe("missiles: through executeTurn", () => {
+  it("a missile that hits during the owner's turn counts toward that turn's missions and destruction", () => {
+    let state = makeGameState([
+      makePlayer("p1", { wellId: BH, ring: 5, sector: 10 }),
+      makePlayer("p2", { wellId: BH, ring: 5, sector: 13 }),
+    ]);
+    state = withShip(state, "p2", { hitPoints: 2 });
+    state = missileAt(state, 5, 12);
+    const result = executeTurnAs(state, coast(1));
+    expect(eventsOf(result.events, "ship_destroyed")[0]).toMatchObject({
+      victimId: "p2",
+      killerId: "p1",
+      cause: "missile",
+    });
+    expect(eventsOf(result.events, "cargo_dropped")).toEqual([]); // nothing carried
   });
 });

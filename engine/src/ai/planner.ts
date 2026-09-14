@@ -1,506 +1,459 @@
-import type {
-  PlayerAction,
-  AllocateEnergyAction,
-  DeallocateEnergyAction,
-} from '../models/game.ts'
-import type { SubsystemType } from '../models/subsystems.ts'
-import type { TacticalSituation, ActionPlan, BotParameters, Target } from './types.ts'
-import { selectTarget, generateWeaponActions, shouldFaceTarget } from './behaviors/combat.ts'
-import {
-  planMovementAction,
-  generateRotationAction,
-  generateEscapeTransfer,
-} from './behaviors/positioning.ts'
-import { generateEnergyManagement, generateEnergyDeallocation } from './behaviors/survival.ts'
-import { getGravityWell } from '../models/gravityWells.ts'
-import { BURN_COSTS, calculateBurnMassCost, WELL_TRANSFER_COSTS } from '../models/rings.ts'
-import { calculatePostMovementPosition } from '../game/movement.ts'
-
 /**
- * True when the bot has a railgun in range and the recoil would otherwise
- * push it past a ring boundary — i.e. the bot will need to compensate
- * recoil with engines. Used to keep engines powered in the energy budget
- * on coast-and-fire turns.
- */
-function willFireRailgunWithRecoilCompensation(
-  situation: TacticalSituation,
-  target: Target | null
-): boolean {
-  if (!target) return false
-  const ship = situation.botPlayer.ship
-  const railgun = situation.status.weapons.find(w => w.type === 'railgun')
-  if (!railgun || railgun.broken || railgun.used) return false
-
-  const solution = target.firingSolutions.get(railgun.index)
-  if (!solution || !solution.inRange) return false
-
-  const recoilDir = ship.facing === 'prograde' ? 1 : -1
-  const recoilRing = ship.ring + recoilDir
-  const maxRing = getGravityWell(ship.wellId)?.rings.length ?? 5
-  const wouldBeInvalid = recoilRing < 1 || recoilRing > maxRing
-  if (!wouldBeInvalid) return false
-
-  // Engines and reaction mass must be available for compensation to work.
-  return ship.reactionMass >= BURN_COSTS.soft.mass
-}
-
-/**
- * Calculate projected energy for a subsystem after planned allocations AND deallocations
- */
-function getProjectedEnergy(
-  situation: TacticalSituation,
-  subsystemIndex: number,
-  subsystemType: SubsystemType,
-  energyAllocations: PlayerAction[],
-  energyDeallocations: PlayerAction[]
-): number {
-  const currentEnergy =
-    situation.botPlayer.ship.subsystems[subsystemIndex]?.allocatedEnergy || 0
-
-  const allocatedEnergy = energyAllocations
-    .filter(
-      (a): a is AllocateEnergyAction =>
-        a.type === 'allocate_energy' && a.data.subsystemType === subsystemType
-    )
-    .reduce((sum, a) => sum + a.data.amount, 0)
-
-  const deallocatedEnergy = energyDeallocations
-    .filter(
-      (a): a is DeallocateEnergyAction =>
-        a.type === 'deallocate_energy' && a.data.subsystemType === subsystemType
-    )
-    .reduce((sum, a) => sum + a.data.amount, 0)
-
-  return Math.max(0, currentEnergy + allocatedEnergy - deallocatedEnergy)
-}
-
-/**
- * Generate a complete action sequence for the bot.
+ * Candidate action sequences.
  *
- * Order of operations (revised):
- * 1. Select target
- * 2. Plan movement (determines burn/coast/transfer)
- * 3. Determine weapon situation and facing
- * 4. Build energy budget based on planned actions
- * 5. Generate energy allocation/deallocation
- * 6. Generate rotation, movement, weapon actions
+ * A candidate is built around one movement choice (follow the goal plan,
+ * close on a target, or hold position). Everything else — facing, energy,
+ * heat, which weapons fire and when, scans, scoop, shields — is derived
+ * from that movement so that every action in the sequence is valid for the
+ * engine at the moment it executes:
+ *
+ *   1. rotate (if the movement or the railgun needs a facing)
+ *   2. shots and scans that are in range from the current position
+ *   3. the movement (coast / burn / jump)
+ *   4. shots and scans that are in range from the projected position
+ *
+ * Energy allocations precede all of that (the engine applies them first);
+ * the reactor holds 10 and heat above the dissipation capacity at the end
+ * of the turn costs hull, so both are budgeted while the sequence is built.
  */
-export function generateActionSequence(
+import type {
+  Facing,
+  FireWeaponAction,
+  PlayerAction,
+  ScanAction,
+  TacticalAction,
+} from "../models/game.ts";
+import { REACTOR_CAPACITY } from "../models/game.ts";
+import { SURVEY_RING } from "../models/missions.ts";
+import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
+import { getSubsystemConfig } from "../models/subsystems.ts";
+import { BURN_COSTS } from "../models/rings.ts";
+import { projectPosition } from "../game/movement.ts";
+import { getStationAt } from "../game/stations.ts";
+import { isInWeaponRange } from "../game/targeting.ts";
+import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
+import { INTERDICT_DANGER } from "./types.ts";
+import {
+  chooseCriticalTarget,
+  destroyTargetIds,
+  firingOptions,
+  isWeaponReady,
+  selectTarget,
+  weaponDamage,
+  weaponRangeTarget,
+} from "./behaviors/combat.ts";
+import type { FireIntent } from "./behaviors/combat.ts";
+import { scanOption } from "./behaviors/scanning.ts";
+import type { ScanIntent } from "./behaviors/scanning.ts";
+import { assignDefensiveEnergy, energyActions, totalEnergy } from "./behaviors/survival.ts";
+import type { EnergyTargets } from "./behaviors/survival.ts";
+import { coastChoice, movementFromPlan } from "./behaviors/positioning.ts";
+import type { MovementChoice } from "./behaviors/positioning.ts";
+import { planShipToTarget } from "./movementPlanner/index.ts";
+
+/** Hull the bot keeps when it accepts heat damage for a decisive volley. */
+const MIN_HULL_AFTER_OVERHEAT = 3;
+/** Hull damage from heat the bot will accept for a shot that is worth it. */
+const MAX_OVERHEAT = 2;
+/** Planning horizon for closing on a target outside the current goal. */
+const ENGAGE_PLAN_TURNS = 6;
+/**
+ * Denial premium for a kill, in "points of hull damage": a destroyed ship
+ * drops its cargo (crates go back to their pickup station) and spends its
+ * next whole turn respawning at Home.
+ */
+const KILL_DENIAL = 6;
+/** Extra denial per token the victim was carrying when the volley lands. */
+const CARGO_DENIAL = 4;
+
+const flip = (f: Facing): Facing => (f === "prograde" ? "retrograde" : "prograde");
+
+/**
+ * Build the full action sequence for one movement choice.
+ */
+export function buildCandidate(
   situation: TacticalSituation,
-  parameters: BotParameters
-): PlayerAction[] {
-  const actions: PlayerAction[] = []
-  let tacticalSequence = 1
+  parameters: BotParameters,
+  movementIn: MovementChoice,
+  description: string,
+  followsGoal: boolean
+): ActionPlan {
+  const { me, ship, status, view } = situation;
+  let movement = movementIn;
 
-  // Step 1: Select target
-  const target = selectTarget(situation, parameters)
-
-  // Step 2: Plan movement (informed by goal and target)
-  const movementResult = planMovementAction(situation, target, parameters, tacticalSequence)
-
-  // Step 3: Determine weapon situation
-  const hasTargetInRange = target != null && Array.from(target.firingSolutions.values()).some(s => s.inRange)
-  const hasTarget = target != null
-
-  const underThreat = situation.primaryThreat != null &&
-    situation.primaryThreat.weaponsInRange.some(w => w.inRange)
-
-  // Step 4: Determine facing (considers both weapons and movement)
-  const movementFacing = movementResult.desiredFacing
-  const weaponFacing = shouldFaceTarget(situation, target, movementFacing ?? undefined)
-  const desiredFacing = weaponFacing ?? movementFacing
-
-  const willBurn = movementResult.action.type === 'burn'
-  const willCoast = movementResult.action.type === 'coast'
-  const willTransfer = movementResult.action.type === 'well_transfer'
-  const willRotate = desiredFacing != null && desiredFacing !== situation.status.facing
-
-  // Determine required engine energy based on burn intensity
-  let requiredEngineEnergy = 1 // Default: soft burn
-  if (willBurn && movementResult.action.type === 'burn') {
-    const intensity = movementResult.action.data.burnIntensity
-    if (intensity === 'medium') requiredEngineEnergy = 2
-    else if (intensity === 'hard') requiredEngineEnergy = 3
-  } else if (willTransfer) {
-    requiredEngineEnergy = 3 // Well transfers require engines at 3
+  // A movement whose heat alone would gut the hull is not worth it.
+  const movementHeatDamage = Math.max(0, status.heat + movement.engineEnergy - status.dissipation);
+  if (movementHeatDamage > 0 && status.hull - movementHeatDamage < MIN_HULL_AFTER_OVERHEAT) {
+    movement = coastChoice(false);
   }
 
-  // If the bot is likely to fire railgun with recoil that would push it out
-  // of bounds, engines must stay powered (level 1) to compensate. Without
-  // this signal, the energy budget would deallocate engines on coast turns
-  // and the railgun fire would fail validation.
-  const needsRecoilCompensation = willFireRailgunWithRecoilCompensation(
-    situation,
-    target
-  )
-  if (needsRecoilCompensation && requiredEngineEnergy < 1) {
-    requiredEngineEnergy = 1
-  }
-  const willBurnOrCompensate = willBurn || needsRecoilCompensation
-
-  // Step 5: Build energy context. `willBurn` includes the railgun-recoil
-  // case so the engines stay in the energy budget on a coast-and-fire turn.
-  // `willShadow` keeps the sensor_array powered while pursuing an
-  // intercept_transmission mission so the scan-acquire check actually fires.
-  const willShadow = situation.currentGoal?.type === 'shadow_target'
-  const energyContext = {
-    willBurn: willBurnOrCompensate,
-    willCoast,
-    willRotate,
-    willTransfer,
-    hasTargetInRange,
-    hasTarget,
-    underThreat,
-    requiredEngineEnergy,
-    willShadow,
-  }
-
-  // Check for escape transfer first
-  const escapeTransfer = generateEscapeTransfer(situation, parameters, tacticalSequence)
-  if (escapeTransfer) {
-    const escapeEnergyCtx = {
-      ...energyContext,
-      willTransfer: true,
-      willBurn: false,
-      willCoast: false,
-      requiredEngineEnergy: 3, // Well transfers require engines at 3
+  // Facing: the burn direction, or whatever gives the railgun a shot.
+  const canRotate = !status.rotation.isBroken && !status.rotation.usedThisTurn;
+  let facing: Facing = movement.requiredFacing ?? ship.facing;
+  if (movement.requiredFacing === null && canRotate) {
+    const railgun = status.weapons.find((w) => w.type === "railgun" && isWeaponReady(w));
+    if (railgun) {
+      const shotsWith = (f: Facing) => {
+        const post = projectPosition(ship, f, movement.preview);
+        return situation.opponents.filter(
+          (o) => o.sameWell && isInWeaponRange(railgun, post, o.position)
+        ).length;
+      };
+      if (shotsWith(ship.facing) === 0 && shotsWith(flip(ship.facing)) > 0)
+        facing = flip(ship.facing);
     }
-
-    const energyDeallocations = generateEnergyDeallocation(situation, parameters, escapeEnergyCtx)
-    const freedEnergy = energyDeallocations.reduce((sum, a) => sum + a.data.amount, 0)
-    const energyAllocations = generateEnergyManagement(situation, parameters, escapeEnergyCtx, freedEnergy)
-
-    actions.push(...energyDeallocations)
-    actions.push(...energyAllocations)
-    actions.push(escapeTransfer)
-    tacticalSequence++
-
-    // Try to fire weapons. Well transfer drains mass and uses engines;
-    // project both so recoil compensation respects post-transfer state.
-    const projectedEnergy = buildProjectedEnergyMap(situation, energyAllocations, energyDeallocations)
-    const projectedMass = projectMassAfterMovement(situation, escapeTransfer)
-    const postMovementShip = projectShipPosition(situation, desiredFacing, escapeTransfer)
-    const weaponActions = generateWeaponActions(
-      situation,
-      target,
-      tacticalSequence,
-      parameters,
-      projectedEnergy,
-      projectedMass,
-      true, // well transfer uses engines
-      postMovementShip
-    )
-    actions.push(...weaponActions)
-
-    return actions
   }
+  const rotate = facing !== ship.facing;
 
-  // Normal flow
-  const energyDeallocations = generateEnergyDeallocation(situation, parameters, energyContext)
-  const freedEnergy = energyDeallocations.reduce((sum, a) => sum + a.data.amount, 0)
-  const energyAllocations = generateEnergyManagement(situation, parameters, energyContext, freedEnergy)
+  const pre = { ...status.position, facing };
+  const post = projectPosition(ship, facing, movement.preview);
+  const landsOnStation = getStationAt(view.stations, post) !== undefined;
+  const surveying =
+    post.wellId === BLACK_HOLE_ID &&
+    post.ring === SURVEY_RING &&
+    me.missions.some((m) => m.type === "survey" && !m.isCompleted && !m.surveyAcquired);
+  // Docking and the survey are both resolved from where the ship ends its
+  // turn, so an uncompensated railgun recoil must not move it.
+  const postPositionMatters = landsOnStation || surveying;
 
-  // Reconcile planned movement with what the energy budget can actually fund.
-  // The movement planner picks an intensity assuming engines will be powered;
-  // the energy budget can fail to fund it (reactor full, higher-priority
-  // subsystems). When that happens, downgrade or replace movement so the
-  // emitted actions stay valid.
-  const reconciledMovement = reconcileMovementWithEnergy(
-    situation,
-    movementResult.action,
-    energyAllocations,
-    energyDeallocations
-  )
-
-  actions.push(...energyDeallocations)
-  actions.push(...energyAllocations)
-
-  // Rotation — pass projected rotation energy so the rotate action is
-  // generated when the budget will power rotation this turn (allocations
-  // run before tactical actions in the engine's turn pipeline).
-  const rotationProjected = getProjectedEnergy(
-    situation,
-    situation.botPlayer.ship.subsystems.findIndex(s => s.type === 'rotation'),
-    'rotation',
-    energyAllocations,
-    energyDeallocations
-  )
-  const rotationAction = generateRotationAction(
-    situation,
-    desiredFacing,
-    tacticalSequence,
-    rotationProjected
-  )
-  if (rotationAction) {
-    actions.push(rotationAction)
-    tacticalSequence++
+  // Budgets.
+  const targets: EnergyTargets = new Map();
+  let heatUsed = 0;
+  if (movement.engineEnergy > 0) {
+    targets.set(status.engines.id, movement.engineEnergy);
+    heatUsed += movement.engineEnergy;
   }
-
-  // Movement
-  reconciledMovement.sequence = tacticalSequence
-  actions.push(reconciledMovement)
-  tacticalSequence++
-
-  // Weapons. Pass projected mass + engines-used flag + post-movement position
-  // so recoil-compensation decisions reflect post-movement ship state.
-  const projectedEnergy = buildProjectedEnergyMap(situation, energyAllocations, energyDeallocations)
-  const projectedMass = projectMassAfterMovement(situation, reconciledMovement)
-  const enginesUsedByMovement = movementUsesEngines(reconciledMovement)
-  const postMovementShip = projectShipPosition(situation, desiredFacing, reconciledMovement)
-  const weaponActions = generateWeaponActions(
-    situation,
-    target,
-    tacticalSequence,
-    parameters,
-    projectedEnergy,
-    projectedMass,
-    enginesUsedByMovement,
-    postMovementShip
-  )
-  actions.push(...weaponActions)
-
-  return actions
-}
-
-/**
- * Predict the ship's ring + facing AFTER the planned rotation and movement
- * have applied. Used by recoil safety checks. Reuses the engine's
- * {@link calculatePostMovementPosition} so AI prediction stays in sync with
- * what the engine will actually compute.
- */
-function projectShipPosition(
-  situation: TacticalSituation,
-  desiredFacing: 'prograde' | 'retrograde' | null,
-  movement: PlayerAction
-): { ring: number; facing: 'prograde' | 'retrograde' } {
-  const ship = situation.botPlayer.ship
-  if (movement.type === 'burn') {
-    const projected = calculatePostMovementPosition(
-      ship,
-      desiredFacing ?? undefined,
-      {
-        actionType: 'burn',
-        burnIntensity: movement.data.burnIntensity,
-        sectorAdjustment: movement.data.sectorAdjustment,
-      }
-    )
-    return { ring: projected.ring, facing: projected.facing }
+  if (rotate) {
+    targets.set(status.rotation.id, getSubsystemConfig("rotation").minEnergy);
+    heatUsed += getSubsystemConfig("rotation").minEnergy;
   }
-  // Coast / well_transfer / other: ring stays the same on the originating
-  // turn (well_transfer hops only after the entire turn resolves; recoil
-  // safety is evaluated against the post-departure outermost ring which is
-  // still this well's outermost).
-  return { ring: ship.ring, facing: desiredFacing ?? ship.facing }
-}
+  const heatBudget = status.heatBudget;
+  const fits = (energy: number, heat: number, overflow = 0) =>
+    totalEnergy(targets) + energy <= REACTOR_CAPACITY && heatUsed + heat <= heatBudget + overflow;
 
-/**
- * True when the planned movement marks the engines subsystem as used this
- * turn — i.e., a burn or a well transfer. Recoil compensation can't run on
- * already-used engines, so this gates that decision.
- */
-function movementUsesEngines(movement: PlayerAction): boolean {
-  return movement.type === 'burn' || movement.type === 'well_transfer'
-}
+  // Scoop the plan relies on comes before weapons; low-fuel scooping after.
+  const scoopEnergy = getSubsystemConfig("scoop").minEnergy;
+  let scoop = false;
+  const canScoop =
+    movement.kind === "coast" && !status.scoop.isBroken && !status.scoop.usedThisTurn;
+  const tryScoop = () => {
+    if (scoop || !canScoop || status.reactionMass >= status.maxReactionMass) return;
+    if (!fits(scoopEnergy, scoopEnergy)) return;
+    targets.set(status.scoop.id, scoopEnergy);
+    heatUsed += scoopEnergy;
+    scoop = true;
+  };
+  if (movement.wantsScoop) tryScoop();
 
-/**
- * Reaction mass remaining after a planned movement action consumes fuel.
- * Movement is the only thing in a turn that drains mass before weapons fire.
- */
-function projectMassAfterMovement(
-  situation: TacticalSituation,
-  movement: PlayerAction
-): number {
-  const current = situation.botPlayer.ship.reactionMass
-  if (movement.type === 'burn') {
-    const burnCost = BURN_COSTS[movement.data.burnIntensity]
-    const totalCost = calculateBurnMassCost(
-      burnCost.mass,
-      movement.data.sectorAdjustment ?? 0
-    )
-    return Math.max(0, current - totalCost)
-  }
-  if (movement.type === 'well_transfer') {
-    return Math.max(0, current - WELL_TRANSFER_COSTS.mass)
-  }
-  return current
-}
+  // Mission scan first: it completes a mission step.
+  const scan: ScanIntent | null = scanOption(situation, pre, post, parameters);
+  let scanChosen: ScanIntent | null = null;
+  const tryScan = () => {
+    if (!scan || scanChosen || !fits(scan.energy, scan.heat)) return;
+    targets.set(scan.sensor.id, scan.energy);
+    heatUsed += scan.heat;
+    scanChosen = scan;
+  };
+  if (scan?.forMission) tryScan();
 
-/**
- * Burn intensities require specific engine energy levels: soft=1, medium=2,
- * hard=3. Returns the highest intensity affordable at `engineEnergy`, or
- * null if even soft can't be powered.
- */
-function affordableBurnIntensity(
-  engineEnergy: number
-): 'soft' | 'medium' | 'hard' | null {
-  if (engineEnergy >= 3) return 'hard'
-  if (engineEnergy >= 2) return 'medium'
-  if (engineEnergy >= 1) return 'soft'
-  return null
-}
+  // Weapons: concentrate on one target, biggest hits first, spilling
+  // over to the next once that one is already accounted for.
+  const ctx = {
+    pre,
+    post,
+    enginesUsedByMovement: movement.kind !== "coast",
+    massAfterMovement: status.reactionMass - movement.massCost,
+    postPositionMatters,
+  };
+  // A shield tile absorbs damage up to the cubes on it and is refilled for
+  // free on its owner's next turn, so a volley that cannot beat the cubes we
+  // can see never reaches a hull, never lands a critical (a critical only
+  // breaks a tile if the shot reaches the hull) and buys nothing but our own
+  // heat, a missile off the rack and a tile turned face-up. A ship whose
+  // whole volley falls inside the visible shields is not fired on at all.
+  const options = situation.opponents
+    .filter((o) => o.sameWell)
+    .map((opponent) => ({
+      opponent,
+      intents: firingOptions(situation, opponent, ctx, parameters),
+    }))
+    .filter(
+      (o) =>
+        o.intents.length > 0 &&
+        o.intents.reduce((sum, i) => sum + i.damage, 0) > o.opponent.shieldAbsorption
+    );
+  // Ships we are trying to kill rather than merely defang: a Destroy card
+  // names them, or they are one dock from winning. Criticals aim at their
+  // shields, and missiles are spent on them rather than held.
+  const destroyTargets = destroyTargetIds(situation.me);
+  const killIntent = (o: Opponent) =>
+    destroyTargets.has(o.player.id) || o.danger.score >= INTERDICT_DANGER;
+  const chosen = selectTarget(situation, options, parameters);
+  const target: Opponent | null = chosen?.opponent ?? null;
 
-/**
- * Reconcile a planned movement action against the energy budget. The
- * movement planner picks an action assuming engines will be powered to
- * the level it needs; the energy budget can fail to fund that. When it
- * does, downgrade or replace the movement so what we emit is valid:
- *   - burn: pick highest affordable burn intensity, else coast
- *   - well_transfer: keep only if engines projected at 3, else coast
- */
-function reconcileMovementWithEnergy(
-  situation: TacticalSituation,
-  movement: PlayerAction,
-  energyAllocations: PlayerAction[],
-  energyDeallocations: PlayerAction[]
-): PlayerAction {
-  if (movement.type !== 'burn' && movement.type !== 'well_transfer') {
-    return movement
-  }
-
-  const enginesIndex = situation.botPlayer.ship.subsystems.findIndex(
-    s => s.type === 'engines'
-  )
-  const projectedEngineEnergy = getProjectedEnergy(
-    situation,
-    enginesIndex,
-    'engines',
-    energyAllocations,
-    energyDeallocations
-  )
-
-  if (movement.type === 'well_transfer') {
-    // Well transfers require engines at level 3 AND the bot must have at
-    // least 3 reaction mass (unless a fuel_compressor refunds it).
-    const hasFuelCompressor = situation.status.subsystems.some(
-      s => s.type === 'fuel_compressor'
-    )
-    const enoughMass =
-      hasFuelCompressor || situation.botPlayer.ship.reactionMass >= 3
-    if (projectedEngineEnergy >= 3 && enoughMass) return movement
-    return {
-      type: 'coast',
-      playerId: movement.playerId,
-      sequence: movement.sequence,
-      data: { activateScoop: false },
+  // Damage that has to land before a ship dies: its hull plus the shield
+  // cubes the bot can see (each cube soaks one point of the volley, then
+  // is spent). Nothing is gained by firing past that, and the engine
+  // skips shots at a ship that died earlier in the turn anyway, so the
+  // later weapons are offered to the next target in range instead.
+  const lethalDamage = (o: Opponent) => o.hull + o.shieldAbsorption;
+  const byDamage = (a: FireIntent, b: FireIntent) => b.damage - a.damage;
+  const queue: Array<{ opponent: Opponent; intent: FireIntent }> = [];
+  for (const option of chosen ? [chosen, ...options.filter((o) => o !== chosen)] : []) {
+    for (const intent of [...option.intents].sort(byDamage)) {
+      queue.push({ opponent: option.opponent, intent });
     }
   }
 
-  const required =
-    movement.data.burnIntensity === 'hard'
-      ? 3
-      : movement.data.burnIntensity === 'medium'
-      ? 2
-      : 1
-  if (projectedEngineEnergy >= required) return movement
-
-  const affordable = affordableBurnIntensity(projectedEngineEnergy)
-  if (affordable === null) {
-    // Can't burn at all — fall back to coast. Drop the sector adjustment;
-    // coasting doesn't take one and the bot will replan next turn.
-    return {
-      type: 'coast',
-      playerId: movement.playerId,
-      sequence: movement.sequence,
-      data: { activateScoop: false },
-    }
+  const shots: Array<{ opponent: Opponent; intent: FireIntent }> = [];
+  const fired = new Set<string>();
+  const dealtTo = new Map<string, number>();
+  for (const { opponent, intent } of queue) {
+    if (fired.has(intent.weapon.id)) continue;
+    const already = dealtTo.get(opponent.player.id) ?? 0;
+    if (already >= lethalDamage(opponent)) continue;
+    const energy = intent.energy + (intent.compensateRecoil ? BURN_COSTS.soft.energy : 0);
+    const decisive = already + intent.damage >= lethalDamage(opponent);
+    // Heat over the dissipation is hull damage at the end of the turn. It is
+    // worth paying for a shot that finishes a ship — and for any shot at a
+    // player about to win, whatever else the bot was doing this turn, because
+    // the shot costs them cargo and tempo they cannot buy back.
+    const worthOverheating = decisive || opponent.danger.score >= INTERDICT_DANGER;
+    const overflow = worthOverheating
+      ? Math.max(
+          0,
+          Math.min(
+            MAX_OVERHEAT,
+            status.hull - MIN_HULL_AFTER_OVERHEAT - (status.heat + heatUsed - status.dissipation)
+          )
+        )
+      : 0;
+    if (!fits(energy, intent.heat, overflow)) continue;
+    if (intent.compensateRecoil)
+      targets.set(
+        status.engines.id,
+        Math.max(targets.get(status.engines.id) ?? 0, BURN_COSTS.soft.energy)
+      );
+    targets.set(intent.weapon.id, intent.energy);
+    heatUsed += intent.heat;
+    fired.add(intent.weapon.id);
+    dealtTo.set(opponent.player.id, already + intent.damage);
+    shots.push({ opponent, intent });
   }
 
-  // Sector adjustment is only valid up to ring velocity; keeping it for
-  // a downgraded burn is conservative since velocity bounds don't depend
-  // on intensity. The movement planner picked an adjustment that fits the
-  // current ring, so re-using it here is safe.
-  return {
-    ...movement,
+  let expectedDamage = 0;
+  let expectedHullDamage = 0;
+  let denialValue = 0;
+  for (const option of options) {
+    const raw = dealtTo.get(option.opponent.player.id) ?? 0;
+    expectedDamage += raw;
+    const hull = Math.max(0, raw - option.opponent.shieldAbsorption);
+    expectedHullDamage += hull;
+    if (hull <= 0) continue;
+    // Denial: the same damage is worth more against a player whose next dock
+    // wins the game. A kill also empties their hold and skips their turn.
+    const { danger } = option.opponent;
+    const kills = hull >= option.opponent.hull;
+    denialValue +=
+      danger.score *
+      (hull + (kills ? KILL_DENIAL + (danger.crates + danger.data) * CARGO_DENIAL : 0));
+  }
+
+  // Opportunistic scan and low-fuel scoop with what is left.
+  tryScan();
+  if (status.reactionMass < parameters.lowFuelThreshold) tryScoop();
+
+  // Spare energy goes to defence.
+  const enemiesNear = situation.opponents.some((o) => o.sameWell);
+  assignDefensiveEnergy(
+    targets,
+    status.shields,
+    status.racks.filter((r) => !shots.some((s) => s.intent.weapon.id === r.id)),
+    enemiesNear || situation.incomingMissiles > 0,
+    situation.incomingMissiles > 0
+  );
+
+  // Assemble.
+  const { deallocations, allocations } = energyActions(me, targets);
+  const tactical: TacticalAction[] = [];
+  let sequence = 1;
+  const fire = (shot: { opponent: Opponent; intent: FireIntent }): FireWeaponAction => ({
+    type: "fire_weapon",
+    playerId: me.id,
+    sequence: sequence++,
     data: {
-      ...movement.data,
-      burnIntensity: affordable,
+      subsystemId: shot.intent.weapon.id,
+      targetPlayerId: shot.intent.targetId,
+      criticalTarget: chooseCriticalTarget(
+        shot.opponent,
+        killIntent(shot.opponent) ? "kill" : "suppress"
+      ),
+      ...(shot.intent.weapon.type === "railgun"
+        ? { compensateRecoil: shot.intent.compensateRecoil === true }
+        : {}),
     },
+  });
+  const scanAction = (intent: ScanIntent): ScanAction => ({
+    type: "scan",
+    playerId: me.id,
+    sequence: sequence++,
+    data: { targetPlayerId: intent.targetId, peekSlot: intent.peekSlot },
+  });
+
+  // An uncompensated railgun recoil changes the ring, which would put any
+  // later shot or scan out of the range it was checked against, so the
+  // railgun always goes last within its phase.
+  const inPhase = (phase: "pre" | "post") =>
+    shots
+      .filter((s) => s.intent.phase === phase)
+      .sort(
+        (a, b) =>
+          Number(a.intent.weapon.type === "railgun") - Number(b.intent.weapon.type === "railgun")
+      );
+
+  if (rotate)
+    tactical.push({
+      type: "rotate",
+      playerId: me.id,
+      sequence: sequence++,
+      data: { targetFacing: facing },
+    });
+  if (scanChosen && (scanChosen as ScanIntent).phase === "pre")
+    tactical.push(scanAction(scanChosen));
+  for (const s of inPhase("pre")) tactical.push(fire(s));
+
+  switch (movement.kind) {
+    case "coast":
+      tactical.push({
+        type: "coast",
+        playerId: me.id,
+        sequence: sequence++,
+        data: { activateScoop: scoop },
+      });
+      break;
+    case "burn":
+      tactical.push({
+        type: "burn",
+        playerId: me.id,
+        sequence: sequence++,
+        data: {
+          burnIntensity: movement.burnIntensity!,
+          sectorAdjustment: movement.sectorAdjustment ?? 0,
+        },
+      });
+      break;
+    case "jump":
+      tactical.push({
+        type: "well_transfer",
+        playerId: me.id,
+        sequence: sequence++,
+        data: { destinationWellId: movement.destinationWellId! },
+      });
+      break;
   }
+
+  if (scanChosen && (scanChosen as ScanIntent).phase === "post")
+    tactical.push(scanAction(scanChosen));
+  for (const s of inPhase("post")) tactical.push(fire(s));
+
+  const actions: PlayerAction[] = [...deallocations, ...allocations, ...tactical];
+  const killsTarget =
+    target !== null &&
+    Math.max(0, (dealtTo.get(target.player.id) ?? 0) - target.shieldAbsorption) >= target.hull;
+  const scansForMission = scanChosen !== null && (scanChosen as ScanIntent).forMission;
+
+  return {
+    actions,
+    description,
+    expectedDamage,
+    expectedHullDamage,
+    killsTarget,
+    targetId: target?.player.id,
+    followsGoal,
+    scans: scanChosen !== null,
+    heatDamage: Math.max(0, status.heat + heatUsed - status.dissipation),
+    massSpent:
+      movement.massCost + (shots.some((s) => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0),
+    completesStep: landsOnStation || surveying || scansForMission || killsTarget,
+    denialValue,
+  };
 }
 
 /**
- * Build a map of subsystem index → projected energy after allocations.
- * Covers all subsystems (not just weapons) so consumers can check engines,
- * shields, etc. for downstream decisions like railgun recoil compensation.
+ * Distinct candidates for this turn: follow the goal, close on a target,
+ * hold position. Identical action sequences are merged.
  */
-function buildProjectedEnergyMap(
-  situation: TacticalSituation,
-  energyAllocations: PlayerAction[],
-  energyDeallocations: PlayerAction[]
-): Map<number, number> {
-  const map = new Map<number, number>()
-
-  for (const sub of situation.status.subsystems) {
-    const projected = getProjectedEnergy(
-      situation,
-      sub.index,
-      sub.type,
-      energyAllocations,
-      energyDeallocations
-    )
-    map.set(sub.index, projected)
-  }
-
-  return map
-}
-
-/**
- * Generate multiple action sequence candidates with different strategies
- */
-export function generateActionCandidates(
+export function generateCandidates(
   situation: TacticalSituation,
   parameters: BotParameters
 ): ActionPlan[] {
-  const candidates: ActionPlan[] = []
+  const { ship, status, currentGoal } = situation;
+  const candidates: ActionPlan[] = [];
 
-  // Standard balanced strategy
-  const standardActions = generateActionSequence(situation, parameters)
-  candidates.push({
-    actions: standardActions,
-    description: 'Balanced',
-  })
-
-  // Aggressive strategy
-  if (situation.primaryTarget) {
-    const aggressiveParams = {
-      ...parameters,
-      aggressiveness: Math.min(1, parameters.aggressiveness + 0.2),
-      conserveAmmo: false,
-    }
-    const aggressiveActions = generateActionSequence(situation, aggressiveParams)
-    candidates.push({
-      actions: aggressiveActions,
-      description: 'Aggressive',
-    })
+  const goalMovement = currentGoal?.plan ? movementFromPlan(ship, status, currentGoal.plan) : null;
+  if (goalMovement && currentGoal) {
+    candidates.push(
+      buildCandidate(situation, parameters, goalMovement, `Goal: ${currentGoal.description}`, true)
+    );
   }
 
-  // Defensive strategy
-  if (situation.primaryThreat || situation.status.healthPercent < 0.5) {
-    const defensiveParams = {
-      ...parameters,
-      aggressiveness: Math.max(0, parameters.aggressiveness - 0.3),
-      conserveAmmo: true,
+  // Close on the most relevant enemy in this well when the goal is not already doing so.
+  const readyWeapons = status.weapons.filter(isWeaponReady);
+  if (readyWeapons.length > 0 && parameters.aggressiveness > 0) {
+    // Worth leaving the route for: a ship a Destroy card names, a ship one
+    // dock from winning the game, or a ship this turn's volley could finish
+    // outright. Trading a turn of a cargo run for two points of hull on a
+    // bystander who will repair at their next station is not a trade.
+    const missionTargets = destroyTargetIds(situation.me);
+    const volley = readyWeapons.reduce((sum, w) => sum + weaponDamage(w), 0);
+    const prey = situation.opponents
+      .filter(
+        (o) =>
+          o.sameWell &&
+          o.ringDistance <= 3 &&
+          (missionTargets.has(o.player.id) ||
+            o.danger.score >= INTERDICT_DANGER ||
+            volley >= o.hull + o.shieldAbsorption)
+      )
+      .sort(
+        (a, b) =>
+          Number(missionTargets.has(b.player.id)) - Number(missionTargets.has(a.player.id)) ||
+          b.danger.score - a.danger.score ||
+          a.ringDistance + a.sectorDistance - (b.ringDistance + b.sectorDistance)
+      )[0];
+    const alreadyChasing =
+      (currentGoal?.type === "hunt" || currentGoal?.type === "interdict") &&
+      currentGoal.targetPlayerId === prey?.player.id;
+    if (prey && !alreadyChasing) {
+      const plan = planShipToTarget(
+        ship,
+        weaponRangeTarget(readyWeapons, prey.position),
+        ENGAGE_PLAN_TURNS
+      );
+      const movement = plan ? movementFromPlan(ship, status, plan) : null;
+      if (movement) {
+        candidates.push(
+          buildCandidate(situation, parameters, movement, `Engage ${prey.player.name}`, false)
+        );
+      }
     }
-    const defensiveActions = generateActionSequence(situation, defensiveParams)
-    candidates.push({
-      actions: defensiveActions,
-      description: 'Defensive',
-    })
   }
 
-  // Mission pursuit candidate
-  if (situation.currentGoal) {
-    const missionParams: BotParameters = {
-      ...parameters,
-      targetPreference: 'mission',
-      missionStrategy: 'auto',
-    }
-    const missionActions = generateActionSequence(situation, missionParams)
-    candidates.push({
-      actions: missionActions,
-      description: `Mission: ${situation.currentGoal.type}`,
-    })
-  }
+  candidates.push(
+    buildCandidate(
+      situation,
+      parameters,
+      coastChoice(false),
+      "Hold position",
+      goalMovement?.kind === "coast"
+    )
+  );
 
-  return candidates
+  const seen = new Set<string>();
+  return candidates.filter((c) => {
+    const key = JSON.stringify(c.actions);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

@@ -1,494 +1,222 @@
-import type { GameState, Missile, Player, TurnLogEntry, ShipState } from "../models/game.ts";
-import type { ProcessResult } from "./actionProcessors.ts";
-import { getGravityWell } from "../models/gravityWells.ts";
-import { applyOrbitalMovement } from "./movement.ts";
-import { applyDamageWithShields } from "./damage.ts";
-import { getMissileStats } from "../models/subsystems.ts";
-import { addHeat } from "./heat.ts";
-import { rollD10, nextEntityId } from "../utils/rng.ts";
-
-// Get missile stats from centralized config
-const MISSILE_STATS = getMissileStats();
-
 /**
- * Calculate shortest sector distance accounting for wrap-around
+ * Missiles.
+ *
+ * Launch: the missile appears at the firing ship's position.
+ * At the end of the owner's turn each of their missiles drifts with its ring
+ * (unless it was launched after the ship had already moved this turn: it rode
+ * along, so it starts from where it was dropped), then moves up to
+ * `fuelPerTurn` steps toward its target (a step is one ring or one sector;
+ * rings close first). If it ends on the target's sector it
+ * attacks: a powered ballistic rack may intercept it on a 2+, otherwise it
+ * rolls to hit like any weapon. A missile that has moved `maxMoves` times
+ * without hitting is removed. Missiles never cross gravity wells.
  */
-function calculateSectorDistance(
-  fromSector: number,
-  toSector: number,
-  sectorCount: number,
-): { distance: number; direction: 1 | -1 } {
-  let diff = toSector - fromSector;
-  const halfSectors = sectorCount / 2;
+import type { GameState, Missile, Player, Position } from "../models/game.ts";
+import type { SubsystemId } from "../models/subsystems.ts";
+import { getMissileStats } from "../models/subsystems.ts";
+import type { EventDraft } from "../models/events.ts";
+import { rollD10, nextEntityId } from "../utils/rng.ts";
+import {
+  driftPosition,
+  positionOf,
+  samePosition,
+  sectorStepToward,
+  wrapSector,
+} from "./geometry.ts";
+import { resolveAttack } from "./damage.ts";
+import { isDestroyed, revealSubsystem, useSubsystem } from "./ship.ts";
 
-  // Normalize to shortest path
-  if (diff > halfSectors) {
-    diff -= sectorCount;
-  } else if (diff < -halfSectors) {
-    diff += sectorCount;
-  }
+const MISSILE = getMissileStats();
 
+export function createMissile(
+  state: GameState,
+  owner: Player,
+  targetId: string,
+  criticalTarget: SubsystemId,
+  launchedAfterMove: boolean
+): Missile {
   return {
-    distance: Math.abs(diff),
-    direction: diff >= 0 ? 1 : -1,
+    id: nextEntityId(state, `missile-${owner.id}`),
+    ownerId: owner.id,
+    targetId,
+    ...positionOf(owner.ship),
+    turnFired: state.turn,
+    movesMade: 0,
+    criticalTarget,
+    launchedAfterMove,
   };
 }
 
+/** Move up to `steps` toward `target`: rings first, then sectors. Same well only. */
+export function stepToward(from: Position, target: Position, steps: number): Position {
+  if (from.wellId !== target.wellId) return from;
+  let { ring, sector } = from;
+  let left = steps;
+  while (left > 0 && ring !== target.ring) {
+    ring += target.ring > ring ? 1 : -1;
+    left--;
+  }
+  while (left > 0 && wrapSector(sector) !== wrapSector(target.sector)) {
+    sector = wrapSector(sector + sectorStepToward(sector, target.sector));
+    left--;
+  }
+  return { wellId: from.wellId, ring, sector };
+}
+
 /**
- * Move missile towards target using available fuel
- * Returns new position and fuel spent
+ * Where a missile will be after its next move, plus the intermediate points
+ * (for drawing the path): [position after drift (or start, if it skips the
+ * drift), ...each step].
  */
-export function calculateMissileMovement(
-  missile: Missile,
-  target: Player,
-  _gameState: GameState,
-): { ring: number; sector: number; fuelSpent: number; path: string[] } {
-  const fuel = MISSILE_STATS.fuelPerTurn;
-  const path: string[] = [];
-
-  // Start from missile's current position
-  let currentRing = missile.ring;
-  let currentSector = missile.sector;
-  let fuelRemaining = fuel;
-
-  // Target position
-  const targetRing = target.ship.ring;
-  const targetSector = target.ship.sector;
-
-  // Check if target is in same gravity well
-  if (missile.wellId !== target.ship.wellId) {
-    // Missile can't cross wells, just drift
-    path.push(`Target in different gravity well - missile drifts`);
-    return { ring: currentRing, sector: currentSector, fuelSpent: 0, path };
+export function projectMissilePath(
+  missile: Position & { launchedAfterMove?: boolean },
+  target: Position
+): Position[] {
+  const path: Position[] = [];
+  const drifted = missile.launchedAfterMove ? positionOf(missile) : driftPosition(missile);
+  path.push(drifted);
+  if (missile.wellId !== target.wellId) return path;
+  let current = drifted;
+  for (let i = 0; i < MISSILE.fuelPerTurn && !samePosition(current, target); i++) {
+    current = stepToward(current, target, 1);
+    path.push(current);
   }
+  return path;
+}
 
-  // Calculate distances
-  const ringDiff = targetRing - currentRing;
-  const ringDistance = Math.abs(ringDiff);
+export interface MissileProcessResult {
+  state: GameState;
+  events: EventDraft[];
+}
 
-  const well = getGravityWell(missile.wellId);
-  if (!well) {
-    path.push(`Invalid gravity well - missile drifts`);
-    return { ring: currentRing, sector: currentSector, fuelSpent: 0, path };
-  }
+/**
+ * Move and resolve every missile owned by `ownerId`. Called at the end of the
+ * owner's turn, after their actions.
+ */
+export function processOwnerMissiles(state: GameState, ownerId: string): MissileProcessResult {
+  const events: EventDraft[] = [];
+  const ownerIndex = state.players.findIndex((p) => p.id === ownerId);
+  if (ownerIndex === -1) return { state, events };
 
-  const currentRingConfig = well.rings.find((r) => r.ring === currentRing);
-  if (!currentRingConfig) {
-    path.push(
-      `Invalid ring ${currentRing} in gravity well ${missile.wellId} - missile lost`,
-    );
-    return { ring: currentRing, sector: currentSector, fuelSpent: 0, path };
-  }
-  const sectorInfo = calculateSectorDistance(
-    currentSector,
-    targetSector,
-    currentRingConfig.sectors,
-  );
+  let players = [...state.players];
+  const survivors: Missile[] = [];
 
-  path.push(
-    `Start: R${currentRing}S${currentSector}, Target: R${targetRing}S${targetSector}`,
-  );
-  path.push(
-    `Ring distance: ${ringDistance}, Sector distance: ${sectorInfo.distance}`,
-  );
-
-  // PRIORITY 1: Change rings (bigger impact on closing distance)
-  if (ringDiff !== 0 && fuelRemaining > 0) {
-    const ringSteps = Math.min(ringDistance, fuelRemaining);
-    const ringDirection = ringDiff > 0 ? 1 : -1;
-    currentRing += ringDirection * ringSteps;
-    fuelRemaining -= ringSteps;
-    path.push(
-      `Moved ${ringSteps} ring(s) ${ringDirection > 0 ? "outward" : "inward"} to R${currentRing}`,
-    );
-
-    // If we changed rings, we need to remap the sector
-    const newRingConfig = well.rings.find((r) => r.ring === currentRing)!;
-    if (newRingConfig.sectors !== currentRingConfig.sectors) {
-      // Remap sector proportionally (1:1 mapping since all rings have 24 sectors)
-      // This is simplified - in reality all rings have same sector count
-      currentSector = Math.floor(
-        (currentSector / currentRingConfig.sectors) * newRingConfig.sectors,
-      );
-      path.push(`Remapped to S${currentSector} on new ring`);
+  for (const missile of state.missiles) {
+    if (missile.ownerId !== ownerId) {
+      survivors.push(missile);
+      continue;
     }
-  }
+    const targetIndex = players.findIndex((p) => p.id === missile.targetId);
+    const target = targetIndex >= 0 ? players[targetIndex] : undefined;
+    const at = positionOf(missile);
 
-  // PRIORITY 2: Move sectors towards target
-  if (fuelRemaining > 0) {
-    // Recalculate sector distance from new position
-    const newRingConfig = well.rings.find((r) => r.ring === currentRing)!;
-    const newSectorInfo = calculateSectorDistance(
-      currentSector,
-      targetSector,
-      newRingConfig.sectors,
-    );
-
-    if (newSectorInfo.distance > 0) {
-      const sectorSteps = Math.min(newSectorInfo.distance, fuelRemaining);
-      currentSector += newSectorInfo.direction * sectorSteps;
-      // Wrap around
-      currentSector =
-        ((currentSector % newRingConfig.sectors) + newRingConfig.sectors) %
-        newRingConfig.sectors;
-      fuelRemaining -= sectorSteps;
-      path.push(`Moved ${sectorSteps} sector(s) to S${currentSector}`);
-    }
-  }
-
-  const fuelSpent = fuel - fuelRemaining;
-  if (fuelSpent === 0) {
-    path.push(`Already at target or no path available`);
-  }
-
-  return { ring: currentRing, sector: currentSector, fuelSpent, path };
-}
-
-/**
- * Check if missile has hit its target
- */
-export function checkMissileHit(missile: Missile, target: Player): boolean {
-  return (
-    missile.wellId === target.ship.wellId &&
-    missile.ring === target.ship.ring &&
-    missile.sector === target.ship.sector
-  );
-}
-
-/**
- * Attempt to intercept a missile using the target ship's ballistic rack (PDC).
- * Finds the first available (powered, not broken, not used) ballistic rack
- * and rolls d10 against the supplied GameState: 2-10 = intercept, 1 = miss.
- *
- * @param targetShip Ship attempting interception
- * @param state GameState — its rngState is mutated when a roll is consumed
- * @returns Object with interception result, rack index, and roll value
- */
-export function attemptMissileInterception(
-  targetShip: ShipState,
-  state: GameState,
-): { intercepted: boolean; rackIndex: number | null; roll: number } {
-  // Find first available ballistic rack
-  const rackIndex = targetShip.subsystems.findIndex(
-    (s) =>
-      s.type === "ballistic_rack" &&
-      s.isPowered &&
-      !s.isBroken &&
-      !s.usedThisTurn,
-  );
-
-  if (rackIndex === -1) {
-    return { intercepted: false, rackIndex: null, roll: 0 };
-  }
-
-  // Roll d10: 2-10 = intercept, 1 = miss
-  const roll = rollD10(state);
-  const intercepted = roll >= 2;
-
-  return { intercepted, rackIndex, roll };
-}
-
-/**
- * Process missiles in flight
- * Called during turn execution AFTER player tactical actions
- *
- * @param gameState - Current game state
- * @param ownerId - Optional filter to only process missiles owned by this player
- */
-export function processMissiles(
-  gameState: GameState,
-  ownerId?: string,
-): ProcessResult {
-  const logEntries: TurnLogEntry[] = [];
-  let updatedGameState = { ...gameState };
-  const missilesToRemove: string[] = [];
-  const updatedPlayers = [...gameState.players];
-
-  // Filter missiles by owner if specified
-  const missilesToProcess = ownerId
-    ? gameState.missiles.filter((m) => m.ownerId === ownerId)
-    : gameState.missiles;
-
-  // Process each missile
-  for (const missile of missilesToProcess) {
-    const owner = updatedPlayers.find((p) => p.id === missile.ownerId);
-    const target = updatedPlayers.find((p) => p.id === missile.targetId);
-
-    if (!owner || !target) {
-      missilesToRemove.push(missile.id);
-      logEntries.push({
-        turn: gameState.turn,
-        playerId: missile.ownerId,
-        playerName: owner?.name || "Unknown",
-        action: "Missile",
-        result: `Missile ${missile.id} removed (missing owner or target)`,
-      });
+    if (!target || isDestroyed(target.ship) || !target.hasDeployed) {
+      events.push({ type: "missile_expired", missileId: missile.id, ownerId, at });
       continue;
     }
 
-    // Step 1: Apply orbital movement to missile (unless skipped for missiles fired after movement)
-    let currentRing = missile.ring;
-    let currentSector = missile.sector;
-    let currentWellId = missile.wellId;
+    const targetPos = positionOf(target.ship);
+    // A missile launched after the ship moved already rode along with it.
+    const start = missile.launchedAfterMove ? at : driftPosition(at);
+    const moved = stepToward(start, targetPos, MISSILE.fuelPerTurn);
 
-    if (!missile.skipOrbitalThisTurn) {
-      const missileAsShip = {
-        wellId: missile.wellId,
-        ring: missile.ring,
-        sector: missile.sector,
-        facing: "prograde" as const,
-        reactionMass: 0,
-        hitPoints: 1,
-        maxHitPoints: 1,
-        transferState: null,
-        subsystems: [],
-        reactor: { totalCapacity: 0, availableEnergy: 0 },
-        heat: { currentHeat: 0 },
-        dissipationCapacity: 0,
-        loadout: { forwardSlots: [null] as [null], sideSlots: [null, null, null, null] as [null, null, null, null] },
-        criticalChance: 10,
-      };
-      const afterOrbital = applyOrbitalMovement(missileAsShip as ShipState);
-
-      currentRing = afterOrbital.ring;
-      currentSector = afterOrbital.sector;
-      currentWellId = afterOrbital.wellId;
+    if (!samePosition(moved, targetPos)) {
+      const movesMade = missile.movesMade + 1;
+      if (movesMade >= MISSILE.maxMoves) {
+        events.push({ type: "missile_expired", missileId: missile.id, ownerId, at: moved });
+      } else {
+        survivors.push({ ...missile, ...moved, movesMade, launchedAfterMove: false });
+        events.push({
+          type: "missile_moved",
+          missileId: missile.id,
+          ownerId,
+          to: moved,
+          movesLeft: MISSILE.maxMoves - movesMade,
+        });
+      }
+      continue;
     }
 
-    // Step 2: Spend fuel to approach target
-    const movement = calculateMissileMovement(
-      {
-        ...missile,
-        ring: currentRing,
-        sector: currentSector,
-        wellId: currentWellId,
-      },
-      target,
-      updatedGameState,
+    // On target. Point defence first.
+    let targetShip = target.ship;
+    const rack = targetShip.subsystems.find(
+      (s) => s.type === "ballistic_rack" && s.isPowered && !s.isBroken && !s.usedThisTurn
     );
-    currentRing = movement.ring;
-    currentSector = movement.sector;
-
-    // Step 3: Check for collision
-    const missileState = {
-      ...missile,
-      ring: currentRing,
-      sector: currentSector,
-      wellId: currentWellId,
-    };
-
-    if (checkMissileHit(missileState, target)) {
-      const targetIndex = updatedPlayers.findIndex((p) => p.id === target.id);
-      const currentTarget = updatedPlayers[targetIndex];
-
-      // PDC Interception: attempt to intercept with ballistic rack before damage
-      const interception = attemptMissileInterception(currentTarget.ship, updatedGameState);
-
-      if (interception.rackIndex !== null) {
-        // A ballistic rack attempted interception — mark it used and generate heat
-        const rack = currentTarget.ship.subsystems[interception.rackIndex];
-        const interceptHeat = rack.allocatedEnergy;
-        let updatedTargetShip: ShipState = {
-          ...currentTarget.ship,
-          subsystems: currentTarget.ship.subsystems.map((s, i) =>
-            i === interception.rackIndex
-              ? { ...s, usedThisTurn: true }
-              : s,
-          ),
-        };
-        if (interceptHeat > 0) {
-          updatedTargetShip = addHeat(updatedTargetShip, interceptHeat);
-        }
-        updatedPlayers[targetIndex] = { ...currentTarget, ship: updatedTargetShip };
-
-        if (interception.intercepted) {
-          // Missile destroyed by PDC
-          missilesToRemove.push(missile.id);
-          logEntries.push({
-            turn: gameState.turn,
-            playerId: currentTarget.id,
-            playerName: currentTarget.name,
-            action: "PDC Intercept",
-            result: `${currentTarget.name}'s ballistic rack intercepted ${owner.name}'s missile (rolled ${interception.roll})${interceptHeat > 0 ? ` (+${interceptHeat} heat)` : ""}`,
-          });
-          continue;
-        } else {
-          // PDC fired but missed — missile damage proceeds
-          logEntries.push({
-            turn: gameState.turn,
-            playerId: currentTarget.id,
-            playerName: currentTarget.name,
-            action: "PDC Miss",
-            result: `${currentTarget.name}'s ballistic rack failed to intercept ${owner.name}'s missile (rolled ${interception.roll})${interceptHeat > 0 ? ` (+${interceptHeat} heat)` : ""}`,
-          });
-        }
+    if (rack) {
+      const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");
+      targetShip = used.ship;
+      events.push(...used.events);
+      const roll = rollD10(state);
+      const destroyed = roll >= 2;
+      events.push({
+        type: "missile_intercepted",
+        missileId: missile.id,
+        ownerId,
+        targetId: target.id,
+        roll,
+        destroyed,
+        heat: used.heat,
+      });
+      if (destroyed) {
+        players[targetIndex] = { ...target, ship: targetShip };
+        continue;
       }
+      // roll of 1: the rack fired but missed; fall through to the attack
+    }
 
-      // HIT! Apply damage with d10 hit resolution
-      // Missiles always target shields for critical (thematic: guided warhead)
-      // Pass owner's ship for critical chance calculation (sensor array bonus)
-      // Re-read current target state (may have been updated by PDC attempt)
-      const latestTarget = updatedPlayers[targetIndex];
-      const damageRoll = rollD10(updatedGameState);
-      const { ship: damagedShip, hitResult } = applyDamageWithShields(
-        latestTarget.ship,
-        MISSILE_STATS.damage,
-        "shields",
-        damageRoll,
-        owner.ship // Pass owner's ship for critical chance calculation
-      );
-      updatedPlayers[targetIndex] = {
-        ...latestTarget,
-        ship: damagedShip,
-      };
-
-      missilesToRemove.push(missile.id);
-
-      // Build result message based on hit result
-      if (hitResult.result === "miss") {
-        logEntries.push({
-          turn: gameState.turn,
-          playerId: owner.id,
-          playerName: owner.name,
-          action: "Missile Miss",
-          result: `${owner.name}'s missile missed ${target.name} (rolled ${hitResult.roll}) at R${currentRing}S${currentSector}`,
-        });
-      } else {
-        let resultMsg = `${owner.name}'s missile hit ${target.name} (rolled ${hitResult.roll})`;
-        if (hitResult.damageToHeat > 0) {
-          resultMsg += ` for ${MISSILE_STATS.damage} damage (${hitResult.damageToHeat} absorbed by shields → heat, ${hitResult.damageToHull} to hull)`;
-        } else {
-          resultMsg += ` for ${MISSILE_STATS.damage} damage`;
-        }
-        resultMsg += ` (R${currentRing}S${currentSector})`;
-
-        logEntries.push({
-          turn: gameState.turn,
-          playerId: owner.id,
-          playerName: owner.name,
-          action:
-            hitResult.result === "critical"
-              ? "Missile CRITICAL!"
-              : "Missile Hit",
-          result: resultMsg,
-        });
-
-        // Log critical hit effect if it occurred
-        if (hitResult.result === "critical" && hitResult.criticalEffect) {
-          logEntries.push({
-            turn: gameState.turn,
-            playerId: owner.id,
-            playerName: owner.name,
-            action: "Subsystem BROKEN!",
-            result: `${target.name}'s Shields were destroyed by missile impact!`,
-          });
-        }
-      }
-    } else {
-      // Update missile position and clear the skipOrbitalThisTurn flag
-      const updatedMissile = {
-        ...missile,
-        ring: currentRing,
-        sector: currentSector,
-        wellId: currentWellId,
-        turnsAlive: missile.turnsAlive + 1,
-        skipOrbitalThisTurn: undefined, // Clear flag for next turn
-      };
-
-      // Check if missile has expired
-      if (updatedMissile.turnsAlive >= MISSILE_STATS.maxTurnsAlive) {
-        missilesToRemove.push(missile.id);
-        logEntries.push({
-          turn: gameState.turn,
-          playerId: owner.id,
-          playerName: owner.name,
-          action: "Missile Expired",
-          result: `${owner.name}'s missile exploded (3 turn limit) at R${currentRing}S${currentSector}`,
-        });
-      } else {
-        // Keep missile active
-        updatedGameState = {
-          ...updatedGameState,
-          missiles: updatedGameState.missiles.map((m) =>
-            m.id === missile.id ? updatedMissile : m,
-          ),
-        };
-
-        logEntries.push({
-          turn: gameState.turn,
-          playerId: owner.id,
-          playerName: owner.name,
-          action: "Missile Tracking",
-          result: `${owner.name}'s missile tracking ${target.name}: R${currentRing}S${currentSector} (Turn ${updatedMissile.turnsAlive + 1}/3, spent ${movement.fuelSpent} fuel)`,
-        });
-      }
+    const owner = players[ownerIndex];
+    const roll = rollD10(state);
+    const outcome = resolveAttack(
+      targetShip,
+      target.id,
+      MISSILE.damage,
+      missile.criticalTarget,
+      roll,
+      owner.ship,
+      ownerId
+    );
+    players[targetIndex] = { ...target, ship: outcome.ship };
+    events.push({
+      type: "attack_resolved",
+      attackerId: ownerId,
+      targetId: target.id,
+      weaponType: "missiles",
+      roll,
+      result: outcome.hitResult.result,
+      damage: outcome.hitResult.damage,
+      toHull: outcome.hitResult.damageToHull,
+      toHeat: outcome.hitResult.damageToHeat,
+      targetHullAfter: outcome.ship.hitPoints,
+    });
+    events.push(...outcome.events);
+    if (outcome.hitResult.sensorAssistedCritical) {
+      const revealed = revealSensors(players[ownerIndex]);
+      players[ownerIndex] = revealed.player;
+      events.push(...revealed.events);
+    }
+    if (isDestroyed(outcome.ship) && !isDestroyed(target.ship)) {
+      events.push({
+        type: "ship_destroyed",
+        victimId: target.id,
+        killerId: ownerId,
+        cause: "missile",
+      });
     }
   }
 
-  // Remove hit/expired missiles
-  updatedGameState = {
-    ...updatedGameState,
-    missiles: updatedGameState.missiles.filter(
-      (m) => !missilesToRemove.includes(m.id),
-    ),
-    players: updatedPlayers,
-  };
-
-  return {
-    success: true,
-    gameState: updatedGameState,
-    logEntries,
-  };
+  return { state: { ...state, players, missiles: survivors }, events };
 }
 
-/**
- * Get missile ammo from a ship's missiles subsystem
- */
-export function getMissileAmmo(
-  subsystems: { type: string; ammo?: number }[],
-): number {
-  const missilesSubsystem = subsystems.find((s) => s.type === "missiles");
-  return missilesSubsystem?.ammo ?? 0;
-}
-
-/**
- * Fire a missile from a ship
- * Called from action processor when fire_weapon action is processed
- */
-export function fireMissile(
-  gameState: GameState,
-  ownerId: string,
-  targetId: string,
-): { missile: Missile | null; error?: string } {
-  const owner = gameState.players.find((p) => p.id === ownerId);
-  const target = gameState.players.find((p) => p.id === targetId);
-
-  if (!owner) {
-    return { missile: null, error: "Owner not found" };
+/** Reveal the attacker's powered sensor arrays after a sensor-assisted critical. */
+export function revealSensors(player: Player): { player: Player; events: EventDraft[] } {
+  const events: EventDraft[] = [];
+  let ship = player.ship;
+  for (const sensor of ship.subsystems.filter(
+    (s) => s.type === "sensor_array" && s.isPowered && !s.isRevealed
+  )) {
+    const r = revealSubsystem(ship, player.id, sensor.id, "critical_bonus");
+    ship = r.ship;
+    events.push(...r.events);
   }
-
-  if (!target) {
-    return { missile: null, error: "Target not found" };
-  }
-
-  // Check inventory from missiles subsystem
-  const ammo = getMissileAmmo(owner.ship.subsystems);
-  if (ammo <= 0) {
-    return { missile: null, error: "No missiles remaining" };
-  }
-
-  // Create missile at ship's position
-  const missileId = nextEntityId(gameState, `missile-${ownerId}`);
-  const missile: Missile = {
-    id: missileId,
-    ownerId,
-    targetId,
-    wellId: owner.ship.wellId,
-    ring: owner.ship.ring,
-    sector: owner.ship.sector,
-    turnFired: gameState.turn,
-    turnsAlive: 0,
-  };
-
-  return { missile };
+  return { player: { ...player, ship }, events };
 }

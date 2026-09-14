@@ -1,151 +1,167 @@
 /**
- * Type definitions for API requests and responses
- * These match the server's Zod schemas
+ * Types for REST requests/responses and WebSocket messages.
+ * The shapes follow docs/protocol.md.
  */
+import type { GameEvent, GameView, PlayerAction } from '@dangerous-inclinations/engine'
 
-import type { GameState } from "@dangerous-inclinations/engine";
-
-// ============================================================================
-// Player Types
-// ============================================================================
+// ---------------------------------------------------------------------------
+// Players
+// ---------------------------------------------------------------------------
 
 export interface Player {
-  playerId: string;
-  playerName: string;
-  createdAt: number;
+  playerId: string
+  playerName: string
+  createdAt: number
 }
 
 export interface CreatePlayerRequest {
-  playerName: string;
+  playerName: string
 }
 
 export interface CreatePlayerResponse {
-  playerId: string;
-  playerName: string;
+  playerId: string
+  playerName: string
 }
 
-// ============================================================================
-// Lobby Types
-// ============================================================================
+// ---------------------------------------------------------------------------
+// Lobbies
+// ---------------------------------------------------------------------------
 
 export interface LobbyPlayer {
-  playerId: string;
-  playerName: string;
-  isBot: boolean;
-  isReady: boolean;
+  playerId: string
+  playerName: string
+  isBot: boolean
+  isReady: boolean
 }
 
 export interface ServerLobby {
-  lobbyId: string;
-  lobbyName: string;
-  hasPassword: boolean;
-  maxPlayers: number;
-  players: LobbyPlayer[];
-  hostPlayerId: string;
-  gameId?: string; // Set when game starts
-  createdAt: number;
+  lobbyId: string
+  lobbyName: string
+  hasPassword: boolean
+  maxPlayers: number
+  players: LobbyPlayer[]
+  hostPlayerId: string
+  /** Set once the game has started. */
+  gameId?: string
+  createdAt: number
 }
 
 export interface LobbyListItem {
-  lobbyId: string;
-  lobbyName: string;
-  hasPassword: boolean;
-  maxPlayers: number;
-  currentPlayers: number;
-  gameStarted: boolean;
-  createdAt: number;
+  lobbyId: string
+  lobbyName: string
+  hasPassword: boolean
+  maxPlayers: number
+  currentPlayers: number
+  gameStarted: boolean
+  createdAt: number
 }
 
 export interface CreateLobbyRequest {
-  lobbyName: string;
-  password?: string;
-  maxPlayers: number;
+  lobbyName: string
+  password?: string
+  maxPlayers: number
 }
 
 export interface CreateLobbyResponse {
-  lobbyId: string;
-  lobbyName: string;
-  maxPlayers: number;
-  hostPlayerId: string;
+  lobbyId: string
+  lobbyName: string
+  maxPlayers: number
+  hostPlayerId: string
 }
 
 export interface JoinLobbyRequest {
-  lobbyId: string;
-  password?: string;
+  lobbyId: string
+  password?: string
 }
 
 export interface JoinLobbyResponse {
-  success: boolean;
-  lobby: ServerLobby;
+  success: boolean
+  lobby: ServerLobby
 }
 
 export interface StartGameResponse {
-  gameId: string;
+  gameId: string
 }
 
+/** `GET /api/players/:id/status` — the lobby (with its gameId) is all the client needs to resume. */
 export interface PlayerStatusResponse {
-  player: Player;
-  lobby: ServerLobby | null;
-  gameState: GameState | null;
+  player: Player
+  lobby: ServerLobby | null
 }
 
-// ============================================================================
-// Game Types
-// ============================================================================
+// ---------------------------------------------------------------------------
+// Games
+// ---------------------------------------------------------------------------
 
-// Re-export GameState from engine
-export type { PlayerAction } from "@dangerous-inclinations/engine";
-export type { GameState };
-
-// ============================================================================
-// WebSocket Message Types
-// ============================================================================
-
-export type WebSocketMessage =
-  | {
-      type: "GAME_STATE";
-      payload: {
-        gameState: any; // Will be GameState from engine
-      };
-    }
-  | {
-      type: "ERROR";
-      payload: {
-        message: string;
-      };
-    }
-  | {
-      type: "PLAYER_JOINED";
-      payload: LobbyPlayer;
-    }
-  | {
-      type: "PLAYER_LEFT";
-      payload: {
-        playerId: string;
-      };
-    }
-  | {
-      type: "LOBBY_STATE";
-      payload: ServerLobby;
-    }
-  | {
-      type: "GAME_STARTING";
-      payload: {
-        gameId: string;
-        gameState: any; // Will be GameState from engine
-      };
-    };
-
-export interface SubmitTurnRequest {
-  gameId: string;
-  actions: any[]; // Will be PlayerAction[] from engine
+/** `GET /api/games/:gameId` and every phase-change message carry a view plus the visible history. */
+export interface GameViewResponse {
+  view: GameView
+  events: GameEvent[]
 }
 
-// ============================================================================
-// API Error Types
-// ============================================================================
+export interface ViewResponse {
+  view: GameView
+}
+
+export interface ForkResponse {
+  gameId: string
+  view: GameView
+}
+
+// ---------------------------------------------------------------------------
+// WebSocket messages
+// ---------------------------------------------------------------------------
+
+export interface TurnExecutedPayload {
+  view: GameView
+  events: GameEvent[]
+  playerId: string
+  turnNumber: number
+  /** Only present when the recipient is the player who acted. */
+  actions?: PlayerAction[]
+  rewind?: true
+}
+
+export type GameSocketMessage =
+  | { type: 'CONNECTED'; room: 'game'; roomId: string }
+  | { type: 'GAME_VIEW'; payload: GameViewResponse }
+  | { type: 'TURN_EXECUTED'; payload: TurnExecutedPayload }
+  | { type: 'TURN_ERROR'; payload: { error?: string; errors?: string[] } }
+
+export type LobbySocketMessage =
+  | { type: 'CONNECTED'; room: 'lobby'; roomId: string }
+  | { type: 'LOBBY_STATE'; payload: ServerLobby }
+  | { type: 'PLAYER_JOINED'; payload: LobbyPlayer }
+  | { type: 'PLAYER_LEFT'; payload: { playerId: string } }
+  | { type: 'GAME_STARTING'; payload: { gameId: string } }
+
+export type GlobalSocketMessage =
+  | { type: 'CONNECTED'; room: 'global' }
+  | {
+      type: 'LOBBY_CREATED'
+      payload: {
+        lobbyId: string
+        lobbyName: string
+        hasPassword: boolean
+        maxPlayers: number
+        currentPlayers: number
+        createdAt: number
+      }
+    }
+  | { type: 'LOBBY_DELETED'; payload: { lobbyId: string } }
+  | { type: 'LOBBY_UPDATED'; payload: { lobbyId: string; currentPlayers: number; gameStarted: boolean } }
+
+export interface SubmitTurnMessage {
+  type: 'SUBMIT_TURN'
+  payload: { actions: PlayerAction[]; turn: number; activePlayerId: string }
+}
+
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
 
 export interface APIError {
-  error: string;
-  statusCode?: number;
+  error?: string
+  errors?: string[]
+  statusCode?: number
 }

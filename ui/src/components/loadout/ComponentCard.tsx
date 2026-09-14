@@ -1,8 +1,15 @@
-import { Box, Typography, styled } from '@mui/material'
-import { SUBSYSTEM_CONFIGS } from '@dangerous-inclinations/engine'
+/**
+ * A tile in the palette. Drag it onto a slot on the mat, or click it and then
+ * click the slot — both work, because at the table you would just pick the
+ * chit up.
+ */
+import { Box, Tooltip, Typography } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import type { SlotType } from './types'
-import { getSubsystemIcon } from './subsystemIcons'
+import { getMaxPerShip, getSubsystemConfig } from '@dangerous-inclinations/engine'
+import { CATEGORY_LABEL, subsystemCategory, subsystemCategoryColor } from '../../utils/icons'
+import { SubsystemIcon } from '../common/SubsystemIcon'
+import { FONT_MONO, TABLE } from '../../theme'
+import { DRAG_MIME, type SlotType } from './types'
 
 interface ComponentCardProps {
   componentType: SubsystemType
@@ -14,66 +21,6 @@ interface ComponentCardProps {
   installCount?: number
 }
 
-function getSubsystemColor(type: SubsystemType): string {
-  const config = SUBSYSTEM_CONFIGS[type]
-  if (config.weaponStats) return '#f44336'
-  if (config.isPassive) return '#4caf50'
-  if (type === 'shields') return '#2196f3'
-  return '#ff9800'
-}
-
-const Card = styled(Box, {
-  shouldForwardProp: prop => !['isSelected', 'color'].includes(prop as string),
-})<{ isSelected?: boolean; color: string }>(({ theme, isSelected, color }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: theme.spacing(1),
-  borderRadius: theme.shape.borderRadius,
-  backgroundColor: theme.palette.background.paper,
-  border: `2px solid ${isSelected ? color : theme.palette.divider}`,
-  cursor: 'grab',
-  transition: 'all 0.2s',
-  minWidth: 70,
-  '&:hover': {
-    borderColor: color,
-    transform: 'scale(1.05)',
-  },
-  '&:active': {
-    cursor: 'grabbing',
-  },
-}))
-
-const IconCircle = styled(Box, {
-  shouldForwardProp: prop => prop !== 'color',
-})<{ color: string }>(({ color }) => ({
-  width: 36,
-  height: 36,
-  borderRadius: '50%',
-  backgroundColor: color,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: 4,
-}))
-
-const InstallBadge = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  top: -6,
-  right: -6,
-  width: 18,
-  height: 18,
-  borderRadius: '50%',
-  backgroundColor: theme.palette.primary.main,
-  color: theme.palette.primary.contrastText,
-  fontSize: '0.7rem',
-  fontWeight: 'bold',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}))
-
 export function ComponentCard({
   componentType,
   slotType,
@@ -83,40 +30,91 @@ export function ComponentCard({
   isSelected = false,
   installCount = 0,
 }: ComponentCardProps) {
-  const config = SUBSYSTEM_CONFIGS[componentType]
-  const color = getSubsystemColor(componentType)
-  const icon = getSubsystemIcon(componentType)
+  const config = getSubsystemConfig(componentType)
+  const max = getMaxPerShip(componentType)
+  const exhausted = installCount >= max
 
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData('application/json', JSON.stringify({ componentType, slotType }))
-    e.dataTransfer.effectAllowed = 'move'
+    const payload = JSON.stringify({ componentType, slotType })
+    e.dataTransfer.setData(DRAG_MIME, payload)
+    e.dataTransfer.setData('text/plain', payload)
+    e.dataTransfer.effectAllowed = 'copy'
     onDragStart()
   }
 
+  const energy = config.maxEnergy === 0 ? 'passive' : `${config.minEnergy}–${config.maxEnergy}⚡`
+
   return (
-    <Box sx={{ position: 'relative' }}>
-      <Card
+    <Tooltip
+      title={`${config.name} · ${CATEGORY_LABEL[subsystemCategory(componentType)]} · ${energy}${
+        max > 1 ? ` · ${max} in your set` : ''
+      }${config.weaponStats ? ` · ${config.weaponStats.damage} damage` : ''}`}
+    >
+      <Box
         draggable
         onDragStart={handleDragStart}
         onDragEnd={onDragEnd}
         onClick={onClick}
-        isSelected={isSelected}
-        color={color}
+        sx={{
+          position: 'relative',
+          width: 84,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 0.4,
+          px: 0.5,
+          py: 0.75,
+          borderRadius: 1,
+          cursor: 'grab',
+          userSelect: 'none',
+          background: `linear-gradient(180deg, ${TABLE.plateHi} 0%, ${TABLE.plateSunk} 100%)`,
+          border: `1px solid ${isSelected ? TABLE.accent : TABLE.plateEdge}`,
+          borderTop: `2px solid ${subsystemCategoryColor(componentType)}`,
+          boxShadow: isSelected ? `0 0 0 1px ${TABLE.accentGlow}, 0 0 14px ${TABLE.accentGlow}` : 'none',
+          opacity: exhausted ? 0.42 : 1,
+          transition: 'border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease',
+          '&:hover': { borderColor: TABLE.accent },
+          '&:active': { cursor: 'grabbing' },
+        }}
       >
-        <IconCircle color={color}>
-          {icon ? (
-            <img src={icon} alt={config.name} style={{ width: 24, height: 24, filter: 'brightness(0) invert(1)' }} />
-          ) : (
-            <Typography variant="caption" sx={{ color: 'white', fontWeight: 'bold', fontSize: '0.65rem' }}>
-              {componentType.slice(0, 3).toUpperCase()}
-            </Typography>
-          )}
-        </IconCircle>
-        <Typography variant="caption" sx={{ fontSize: '0.65rem', textAlign: 'center' }}>
+        <SubsystemIcon type={componentType} size={28} />
+        <Typography
+          sx={{
+            fontFamily: FONT_MONO,
+            fontSize: '0.78rem',
+            lineHeight: 1.15,
+            textAlign: 'center',
+            color: TABLE.ink,
+          }}
+        >
           {config.name}
         </Typography>
-      </Card>
-      {installCount > 0 && <InstallBadge>{installCount}</InstallBadge>}
-    </Box>
+        <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.75rem', color: TABLE.inkFaint }}>{energy}</Typography>
+        {installCount > 0 && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              minWidth: 17,
+              height: 17,
+              px: '3px',
+              borderRadius: '9px',
+              bgcolor: TABLE.accent,
+              color: '#12181f',
+              fontFamily: FONT_MONO,
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: `0 0 10px ${TABLE.accentGlow}`,
+            }}
+          >
+            {max > 1 ? `${installCount}/${max}` : installCount}
+          </Box>
+        )}
+      </Box>
+    </Tooltip>
   )
 }

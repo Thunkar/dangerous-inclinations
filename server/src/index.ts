@@ -7,35 +7,61 @@ import { gameRoutes } from "./routes/game.ts";
 import { recordingRoutes } from "./routes/recordings.ts";
 import { setupWebSocketRooms } from "./websocket/roomHandler.ts";
 import { closeRedis } from "./services/redis.ts";
+import { setLogger } from "./services/logger.ts";
+import { gameService, recordings, RECORDINGS_DIR } from "./services/live.ts";
 
 const fastify = Fastify({
   logger: true,
 });
 
-// Register CORS
+// Services log through Fastify's logger once it exists.
+setLogger({
+  info: (msg) => fastify.log.info(msg),
+  warn: (msg) => fastify.log.warn(msg),
+  error: (msg) => fastify.log.error(msg),
+});
+
 await fastify.register(cors, {
   origin: process.env.CORS_ORIGIN || "http://localhost:5173",
   credentials: true,
 });
 
-// Register WebSocket support
 await fastify.register(websocket);
 
-// Register routes
 await fastify.register(playerRoutes);
 await fastify.register(lobbyRoutes);
 await fastify.register(gameRoutes);
 await fastify.register(recordingRoutes);
 
-// Setup WebSocket handlers
 await setupWebSocketRooms(fastify);
 
-// Health check
-fastify.get("/health", async () => {
-  return { status: "ok" };
+/**
+ * Health and liveness. `botInvalidTurns` counts live bot turns the engine
+ * rejected (each was replaced by an empty turn so the game could go on);
+ * anything above 0 is a bug in the AI or the rules worth chasing.
+ *
+ * The tick doubles as the retry for finished games whose archive write failed:
+ * `pendingFinalizations` is how many are still waiting.
+ */
+fastify.get("/api/health", async () => {
+  let pendingFinalizations = 0;
+  try {
+    ({ pending: pendingFinalizations } = await recordings.retryPendingFinalizations());
+  } catch (error) {
+    fastify.log.error({ error }, "Failed to retry pending recording finalizations");
+  }
+  return {
+    status: "ok",
+    uptimeSeconds: Math.round(process.uptime()),
+    botInvalidTurns: gameService.getBotInvalidTurnCount(),
+    pendingFinalizations,
+    recordingsDir: RECORDINGS_DIR,
+  };
 });
 
-// Graceful shutdown
+// Legacy path kept for existing probes.
+fastify.get("/health", async () => ({ status: "ok" }));
+
 const signals = ["SIGINT", "SIGTERM"];
 signals.forEach((signal) => {
   process.on(signal, async () => {
@@ -46,7 +72,6 @@ signals.forEach((signal) => {
   });
 });
 
-// Start server
 const start = async () => {
   try {
     const port = parseInt(process.env.PORT || "3000");

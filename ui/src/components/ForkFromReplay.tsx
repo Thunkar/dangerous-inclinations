@@ -1,10 +1,10 @@
 /**
- * "Fork from here" UI for ReplayScreen.
+ * "Play on from here" for the replay screen.
  *
- * Opens a dialog with a list of players in the recording's snapshot at
- * the current scrub position. The user picks one to step into (or
- * "spectate" to leave everyone as bots), submits, and gets redirected
- * into the new live game's URL.
+ * Picks a ship in the game you are watching and starts a fresh live game from
+ * this turn with you in that seat; everyone else carries on as bots. Only a
+ * bot's seat or your own can be taken — another player's seat would hand you
+ * their missions, cargo and everything their scans found.
  */
 
 import { useMemo, useState } from 'react'
@@ -23,71 +23,78 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import CallSplitIcon from '@mui/icons-material/CallSplit'
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'
+import { MISSIONS_TO_WIN } from '@dangerous-inclinations/engine'
 import type { GameRecording } from '@dangerous-inclinations/engine'
+import { getStoredPlayerId } from '../api/client.ts'
 import { forkRecording } from '../api/game.ts'
 
 interface ForkFromReplayProps {
   recording: GameRecording
   /**
-   * Current scrub position. `-1` means "before any turn has been played"
-   * (i.e. the post-deployment initial state). Otherwise it's an index
-   * into `recording.turns[]`.
+   * Where the replay is scrubbed to. `-1` is the table as it stood before the
+   * first turn; otherwise it is an index into `recording.turns[]`.
    */
   turnIndex: number
 }
 
-const SPECTATE_VALUE = '__spectate__'
-
 export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
   const [open, setOpen] = useState(false)
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(SPECTATE_VALUE)
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Pull the snapshot for the chosen turn so we can show the player
-  // roster *and* gate the fork action on the snapshot's phase. The
-  // server only accepts snapshots in `active` or `ended` phase — see
-  // forkGameFromRecording — so a mid-deployment scrub position has no
-  // valid fork target.
+  // The table as it stood at this point: who was still flying, and how they stood.
   const snapshot = useMemo(() => {
     return turnIndex === -1
       ? recording.initialState
-      : recording.turns[turnIndex]?.resultingStateSnapshot ?? recording.initialState
+      : (recording.turns[turnIndex]?.resultingStateSnapshot ?? recording.initialState)
   }, [recording, turnIndex])
 
-  const playersAtTurn = useMemo(() => {
-    return snapshot.players.map((p) => ({
-      id: p.id,
-      name: p.name,
-      hp: p.ship.hitPoints,
-      missionsDone: p.completedMissionCount,
-    }))
-  }, [snapshot])
+  const myPlayerId = getStoredPlayerId()
 
-  // Phase guard: server-side validation will reject anything that isn't
-  // `active`/`ended`, but disabling the button here gives an immediate
-  // affordance and a tooltip explaining the limitation.
-  const canFork =
-    snapshot.phase === 'active' || snapshot.phase === 'ended'
-  const blockReason = canFork
-    ? null
-    : `Forking requires an "active" or "ended" snapshot — this one is "${snapshot.phase}". Scrub past the deployment phase first.`
+  const seats = useMemo(() => {
+    const kinds = new Map(recording.metadata.playerKinds.map((k) => [k.playerId, k.kind]))
+    return snapshot.players
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        isBot: kinds.get(p.id) !== 'human',
+        isMine: p.id === myPlayerId,
+        hull: p.ship.hitPoints,
+        maxHull: p.ship.maxHitPoints,
+        missionsDone: p.completedMissionCount,
+      }))
+      // Another human's seat would expose their hand; the server refuses it too.
+      .filter((p) => p.isBot || p.isMine)
+  }, [snapshot, recording.metadata.playerKinds, myPlayerId])
+
+  // Only a turn that was actually played can be continued: before deployment
+  // is over there is no game to carry on with.
+  const isPlayable = snapshot.phase === 'active' || snapshot.phase === 'ended'
+  const blockReason = !isPlayable
+    ? 'The game had not started here — scrub forward to a turn that was played.'
+    : seats.length === 0
+      ? 'Every ship in this game was played by someone else, so there is no seat to take.'
+      : null
+
+  const turnLabel =
+    turnIndex === -1
+      ? 'the table as it was set up'
+      : `turn ${recording.turns[turnIndex]?.turnNumber ?? turnIndex + 1}`
 
   const submit = async () => {
+    if (!selectedPlayerId) return
     setSubmitting(true)
     setError(null)
     try {
       const result = await forkRecording({
         recordingId: recording.recordingId,
         turnIndex,
-        impersonateOriginalPlayerId:
-          selectedPlayerId === SPECTATE_VALUE ? undefined : selectedPlayerId,
+        impersonateOriginalPlayerId: selectedPlayerId,
       })
-      // Hand off to the App's URL routing — the `?fork=<gameId>` flag is
-      // recognised in App.tsx and mounts the live game tree directly,
-      // bypassing the lobby flow.
-      window.location.assign(`?fork=${encodeURIComponent(result.gameId)}`)
+      // App routes `?game=<id>` straight to the live table.
+      window.location.assign(`?game=${encodeURIComponent(result.gameId)}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setSubmitting(false)
@@ -96,73 +103,50 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
 
   return (
     <>
-      <Tooltip title={blockReason ?? 'Fork this recording into a new live game'}>
+      <Tooltip title={blockReason ?? 'Take a ship and play the rest of this game yourself'}>
         {/* Tooltip's child needs to accept refs; wrap to support disabled. */}
         <span>
           <Button
-            startIcon={<CallSplitIcon />}
+            startIcon={<PlayCircleOutlineIcon />}
             variant="outlined"
             size="small"
-            disabled={!canFork}
+            disabled={blockReason !== null}
             onClick={() => {
               setError(null)
+              setSelectedPlayerId(seats[0]?.id ?? '')
               setOpen(true)
             }}
           >
-            Fork from here
+            Play on from here
           </Button>
         </span>
       </Tooltip>
 
-      <Dialog
-        open={open}
-        onClose={() => !submitting && setOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Fork into a live game</DialogTitle>
+      <Dialog open={open} onClose={() => !submitting && setOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Play on from {turnLabel}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            A new live game will start from{' '}
-            {turnIndex === -1
-              ? 'the recording\'s initial state'
-              : `turn ${recording.turns[turnIndex].turnNumber} (step ${turnIndex + 1} of ${recording.turns.length})`}
-            . Pick a ship to take over, or spectate to watch the bots play
-            it out from there.
+            A new game starts from {turnLabel}, with the board, the cards and the damage exactly as they
+            are here. Take one of the ships; the rest play on as bots.
           </Typography>
 
           <FormControl component="fieldset" sx={{ width: '100%' }}>
-            <RadioGroup
-              value={selectedPlayerId}
-              onChange={(e) => setSelectedPlayerId(e.target.value)}
-            >
-              <FormControlLabel
-                value={SPECTATE_VALUE}
-                control={<Radio />}
-                label={
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                      Spectate
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      All ships continue as bots — you watch them play.
-                    </Typography>
-                  </Box>
-                }
-              />
-              <Stack spacing={0.5} sx={{ mt: 1 }}>
-                {playersAtTurn.map((p) => (
+            <RadioGroup value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)}>
+              <Stack spacing={0.5}>
+                {seats.map((seat) => (
                   <FormControlLabel
-                    key={p.id}
-                    value={p.id}
+                    key={seat.id}
+                    value={seat.id}
                     control={<Radio />}
                     label={
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          Take over {p.name}
+                          Play from this turn as {seat.name}
+                          {seat.isMine ? ' (your seat)' : ''}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          HP {p.hp} · {p.missionsDone}/3 missions complete
+                          Hull {seat.hull}/{seat.maxHull} · {seat.missionsDone} of {MISSIONS_TO_WIN} missions
+                          completed
                         </Typography>
                       </Box>
                     }
@@ -182,8 +166,8 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
           <Button onClick={() => setOpen(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={submit} variant="contained" disabled={submitting}>
-            {submitting ? 'Forking…' : 'Fork'}
+          <Button onClick={submit} variant="contained" disabled={submitting || !selectedPlayerId}>
+            {submitting ? 'Setting up…' : 'Take this ship'}
           </Button>
         </DialogActions>
       </Dialog>

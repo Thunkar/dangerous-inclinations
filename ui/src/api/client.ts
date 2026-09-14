@@ -1,122 +1,64 @@
 /**
- * Base API client for making HTTP requests to the server
- * Automatically handles authentication headers and error parsing
+ * Base API client. Adds the player id header and turns error bodies into
+ * exceptions.
  */
-
-import { ENV } from "../config/env";
-import type { APIError } from "./types";
+import { ENV } from '../config/env'
+import type { APIError } from './types'
 
 export class APIClientError extends Error {
-  public statusCode?: number;
+  public statusCode?: number
 
   constructor(message: string, statusCode?: number) {
-    super(message);
-    this.name = "APIClientError";
-    this.statusCode = statusCode;
+    super(message)
+    this.name = 'APIClientError'
+    this.statusCode = statusCode
   }
 }
 
-/**
- * Base fetch wrapper with automatic authentication and error handling
- */
-export async function apiCall<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<T> {
-  // Get player ID from localStorage if available
-  const playerId = localStorage.getItem("playerId");
+/** Where this browser remembers who is sitting here. */
+export const STORAGE_KEY_PLAYER_ID = 'playerId'
 
-  // Build headers
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+export function getStoredPlayerId(): string | null {
+  return localStorage.getItem(STORAGE_KEY_PLAYER_ID)
+}
 
-  // Merge existing headers
+export async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const playerId = getStoredPlayerId()
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (options.headers) {
-    const existingHeaders =
+    const existing =
       options.headers instanceof Headers
         ? Object.fromEntries(options.headers.entries())
-        : options.headers;
-    Object.assign(headers, existingHeaders);
+        : (options.headers as Record<string, string>)
+    Object.assign(headers, existing)
   }
+  if (playerId) headers['x-player-id'] = playerId
 
-  // Add authentication header if player ID exists
-  if (playerId) {
-    headers["x-player-id"] = playerId;
-  }
-
-  // Build full URL
-  const url = `${ENV.API_URL}${endpoint}`;
-
-  if (ENV.DEBUG) {
-    console.log(`[API] ${options.method || "GET"} ${url}`, {
-      playerId,
-      body: options.body,
-    });
-  }
+  const url = `${ENV.API_URL}${endpoint}`
 
   try {
-    // Make request
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    const response = await fetch(url, { ...options, headers })
+    const data = (await response.json().catch(() => null)) as (APIError & T) | null
 
-    // Parse response
-    const data = await response.json().catch(() => null);
-
-    // Handle errors
     if (!response.ok) {
-      const error = data as APIError;
-      throw new APIClientError(
-        error?.error || `HTTP ${response.status}`,
-        response.status,
-      );
+      const message =
+        data?.error ?? (data?.errors && data.errors.length > 0 ? data.errors.join('; ') : `HTTP ${response.status}`)
+      throw new APIClientError(message, response.status)
     }
 
-    if (ENV.DEBUG) {
-      console.log(`[API] Response:`, data);
-    }
-
-    return data as T;
+    return data as T
   } catch (error) {
-    if (error instanceof APIClientError) {
-      throw error;
-    }
-
-    // Network error or other fetch error
-    if (ENV.DEBUG) {
-      console.error(`[API] Error:`, error);
-    }
-    throw new APIClientError(
-      error instanceof Error ? error.message : "Network error",
-    );
+    if (error instanceof APIClientError) throw error
+    throw new APIClientError(error instanceof Error ? error.message : 'Network error')
   }
 }
 
-/**
- * Convenience methods for common HTTP verbs
- */
 export const api = {
-  get: <T>(endpoint: string) =>
-    apiCall<T>(endpoint, {
-      method: "GET",
-    }),
-
+  get: <T>(endpoint: string) => apiCall<T>(endpoint, { method: 'GET' }),
   post: <T>(endpoint: string, body?: unknown) =>
-    apiCall<T>(endpoint, {
-      method: "POST",
-      body: body ? JSON.stringify(body) : undefined,
-    }),
-
+    apiCall<T>(endpoint, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   put: <T>(endpoint: string, body?: unknown) =>
-    apiCall<T>(endpoint, {
-      method: "PUT",
-      body: body ? JSON.stringify(body) : undefined,
-    }),
-
-  delete: <T>(endpoint: string) =>
-    apiCall<T>(endpoint, {
-      method: "DELETE",
-    }),
-};
+    apiCall<T>(endpoint, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  delete: <T>(endpoint: string) => apiCall<T>(endpoint, { method: 'DELETE' }),
+}

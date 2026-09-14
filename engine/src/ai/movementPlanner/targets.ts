@@ -1,107 +1,153 @@
 /**
  * Target abstraction for the movement planner.
  *
- * Targets describe **where** the planner should try to land. They can be
- * **static** (a fixed orbital position — e.g. "Black-Hole R3 S5") or
- * **dynamic** (a position that varies with time — e.g. an orbiting station,
- * or a moving enemy ship). The planner's forward search asks the target
- * "are we matching at this turn?" at each layer of expansion, so dynamic
- * targets just have to answer that question.
+ * Targets describe where the planner should try to land. They can be
+ * static (a fixed orbital position) or dynamic (a position that varies with
+ * time: an orbiting station, a drifting enemy ship). The forward search asks
+ * the target "are we matching at this turn?" at each layer of expansion, so
+ * dynamic targets just have to answer that question.
  *
- * Time inside the planner is measured in **bot turns** (= rounds in the
- * 4-player game): layer 0 is the origin (no action taken), layer k (k ≥ 1)
- * is the ship's state immediately after taking k actions. Cargo / collision
- * checks fire at the end of each bot action, so {@link PlannerTarget.isMatch}
- * is consulted on every reachable state at layer ≥ 1.
+ * Time inside the planner is measured in bot turns (= rounds): layer 0 is
+ * the origin (no action taken), layer k (k ≥ 1) is the ship's state right
+ * after its k-th movement. Docking, scans and firing all resolve during the
+ * bot's own turn, so {@link PlannerTarget.isMatch} is consulted on every
+ * reachable state at layer ≥ 1.
  */
 
 import { SECTORS_PER_RING } from "../../models/rings.ts";
+import { ringVelocity, samePosition, sectorDistance, wrapSector } from "../../game/geometry.ts";
 import type { OrbitalPosition } from "./types.ts";
-import { positionsMatch } from "./types.ts";
 
 export interface PlannerTarget {
   /**
    * Where the target sits at planner turn `turn`.
    *
-   * - `turn = 0` represents the moment **before** the ship takes its first
-   *   action. For dynamic targets this should be their current position.
-   * - `turn = k ≥ 1` represents the moment the ship's k-th action completes
-   *   and its match-check fires.
-   *
-   * The default {@link isMatch} consults this; custom matchers may override.
+   * - `turn = 0` is the moment before the ship takes its first action.
+   * - `turn = k ≥ 1` is the moment the ship's k-th action completes.
    */
   positionAt(turn: number): OrbitalPosition;
 
   /**
    * Whether the ship being at `pos` at planner turn `turn` counts as a
-   * "match". Defaults to a strict spatial equality with `positionAt(turn)`,
-   * which is correct for stations and intercept points. Override for fuzzy
-   * targets (e.g. "within ±3 sectors of an enemy ship in the same ring").
+   * match. Defaults to spatial equality with `positionAt(turn)`. Override
+   * for fuzzy targets ("within ±3 sectors of the enemy on my ring").
    */
   isMatch?(pos: OrbitalPosition, turn: number): boolean;
+
+  /**
+   * Number of turns after which the target's motion repeats. The forward
+   * BFS dedupes search states on (position, mass, turn mod period): two
+   * visits to the same position with the same phase have identical futures,
+   * so the earlier one dominates. Static targets have period 1 (time is
+   * irrelevant); a station advancing 4 sectors per round has period 6.
+   */
+  period: number;
 
   /** Optional human-readable description for plan logs / debug dumps. */
   describe?(): string;
 }
 
+/** Turns until a body drifting `sectorsPerRound` per round is back where it started. */
+export function driftPeriod(
+  sectorsPerRound: number,
+  sectorsInRing: number = SECTORS_PER_RING
+): number {
+  const v = Math.abs(sectorsPerRound) % sectorsInRing;
+  if (v === 0) return 1;
+  let a = sectorsInRing;
+  let b = v;
+  while (b !== 0) [a, b] = [b, a % b];
+  return sectorsInRing / a;
+}
+
 /**
- * Wrap a fixed `OrbitalPosition` as a static target. The planner sees the
- * destination as time-invariant — same behavior as the legacy reverse BFS
- * planner's destination handling.
+ * Wrap a fixed position as a static target.
  */
 export function staticTarget(pos: OrbitalPosition): PlannerTarget {
   return {
     positionAt: () => pos,
-    isMatch: (p) => positionsMatch(p, pos),
+    isMatch: (p) => samePosition(p, pos),
+    period: 1,
     describe: () => `${pos.wellId} R${pos.ring} S${pos.sector}`,
   };
 }
 
 /**
+ * Sector of a body that started at `start` and advances `sectorsPerRound`
+ * once per round, at the bot's `turn`-th action.
+ *
+ * Round-end (and thus the advance) happens after every player has acted:
+ *
+ *   1. Bot's own action executes and resolves (docking, firing, scanning)
+ *   2. Other players act
+ *   3. Round ends: stations advance; opponents have each drifted once
+ *
+ * So at the bot's k-th action (k ≥ 1) the body has advanced k − 1 times.
+ */
+export function orbitSectorAt(
+  start: OrbitalPosition,
+  sectorsPerRound: number,
+  turn: number
+): number {
+  return wrapSector(start.sector + sectorsPerRound * Math.max(0, turn - 1));
+}
+
+/**
  * A target orbiting at a constant sector velocity, advancing exactly once
- * per **round** in game time. Stations are the canonical example.
- *
- * Round-end (and thus the orbit advance) happens **after** every player has
- * acted, so the order within one bot's perspective is:
- *
- *   1. Bot's own action executes
- *   2. Match check fires (cargo pickup / delivery, etc.)
- *   3. Other players act in sequence
- *   4. Round ends — station advances by `sectorsPerRound`
- *   5. Repeat: bot's next action starts here
- *
- * That means at the bot's k-th action (k ≥ 1), the station has advanced
- * exactly `k − 1` times from its initial position:
- *
- * ```text
- *   layer 0    →  start                       (origin, before any action)
- *   layer 1    →  start                       (round hasn't ended yet)
- *   layer 2    →  start +  1 × sectorsPerRound
- *   layer k    →  start + (k − 1) × sectorsPerRound
- * ```
- *
- * This matches the engine's {@link updateStationPositions} call site: it
- * fires only when the active-player rotation wraps to player 0
- * (`isNewRound`), which always sits *after* the previous bot's match check.
+ * per round. Stations are the canonical example.
  */
 export function orbitingTarget(
   start: OrbitalPosition,
   sectorsPerRound: number,
-  sectorsInRing: number = SECTORS_PER_RING,
+  sectorsInRing: number = SECTORS_PER_RING
 ): PlannerTarget {
-  const positionAt = (turn: number): OrbitalPosition => {
-    const advances = Math.max(0, turn - 1);
-    const wrapped =
-      ((start.sector + sectorsPerRound * advances) % sectorsInRing +
-        sectorsInRing) %
-      sectorsInRing;
-    return { ...start, sector: wrapped };
-  };
-
+  const positionAt = (turn: number): OrbitalPosition => ({
+    ...start,
+    sector: wrapSector(start.sector + sectorsPerRound * Math.max(0, turn - 1)),
+  });
   return {
     positionAt,
-    isMatch: (pos, turn) => positionsMatch(pos, positionAt(turn)),
-    describe: () =>
-      `orbit@${start.wellId}R${start.ring}S${start.sector}+${sectorsPerRound}/round`,
+    isMatch: (pos, turn) => samePosition(pos, positionAt(turn)),
+    period: driftPeriod(sectorsPerRound, sectorsInRing),
+    describe: () => `orbit@${start.wellId}R${start.ring}S${start.sector}+${sectorsPerRound}/round`,
+  };
+}
+
+/**
+ * A drifting ship (assumed to coast on its ring) that the planner wants to
+ * get near: same well, same ring, within `sectors` sectors. Used for scans
+ * and for closing to weapon range.
+ */
+export function nearDriftingShip(start: OrbitalPosition, sectors: number): PlannerTarget {
+  const velocity = ringVelocity(start.wellId, start.ring);
+  const positionAt = (turn: number): OrbitalPosition => ({
+    ...start,
+    sector: orbitSectorAt(start, velocity, turn),
+  });
+  return {
+    positionAt,
+    isMatch: (pos, turn) => {
+      const t = positionAt(turn);
+      return (
+        pos.wellId === t.wellId &&
+        pos.ring === t.ring &&
+        sectorDistance(pos.sector, t.sector) <= sectors
+      );
+    },
+    period: driftPeriod(velocity),
+    describe: () => `within ${sectors} of ${start.wellId} R${start.ring} S${start.sector}`,
+  };
+}
+
+/**
+ * Any sector of a given ring in a given well (e.g. black hole ring 1 for a
+ * survey).
+ */
+export function anySectorOnRing(wellId: string, ring: number): PlannerTarget {
+  return {
+    positionAt: () => ({ wellId, ring, sector: 0 }),
+    isMatch: (pos) => pos.wellId === wellId && pos.ring === ring,
+    period: 1,
+    describe: () => `${wellId} R${ring} (any sector)`,
   };
 }

@@ -1,156 +1,184 @@
 #!/usr/bin/env node
 /**
- * CLI entry for running batch simulations.
+ * Batch simulation CLI.
  *
- * Usage (from the engine package):
- *   yarn sim --games=200 --bots=4 --maxTurns=120 --output=./sim-out
+ *   yarn sim --games=100 --bots=3 --maxTurns=200 --baseSeed=1 --workers=8 --output=./sim-out
  *
- * Args:
- *   --games=N      Number of games to run (required, default 100)
- *   --bots=N       Bot count per game (default 2)
- *   --maxTurns=N   Per-game turn cap (default 200)
- *   --baseSeed=N   Base seed; each game gets baseSeed+i (default: random)
- *   --label=STR    Label included in recordings/aggregate
- *   --output=PATH  Directory to write recordings/ + summary.json (optional)
- *   --quiet        Suppress per-game progress lines
+ * Flags:
+ *   --games=N     games to run (default 50)
+ *   --bots=N      bots per game (default 3)
+ *   --maxTurns=N  cap on player-turns per game (default 240)
+ *   --baseSeed=N  first seed; game i uses baseSeed+i (default: random)
+ *   --workers=N   worker threads (default: CPU count - 1)
+ *   --record      keep recordings and write them to --output/recordings/
+ *   --output=DIR  write summary.json (+ recordings) here
+ *   --label=STR   label stored in recordings
+ *   --quiet       no per-game progress
  */
-
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { cpus } from "node:os";
 import { runBatch } from "./batch.ts";
-import type { GameRecording } from "../recording/types.ts";
+import { formatFailure } from "./runGame.ts";
+import type { AggregateStats } from "./stats.ts";
 
-interface CliArgs {
+interface Args {
   games: number;
   bots: number;
   maxTurns: number;
   baseSeed?: number;
-  label?: string;
+  workers: number;
+  record: boolean;
   output?: string;
+  label?: string;
   quiet: boolean;
 }
 
-function parseArgs(argv: string[]): CliArgs {
-  const out: CliArgs = {
-    games: 100,
-    bots: 2,
-    maxTurns: 200,
+function parseArgs(argv: string[]): Args {
+  const args: Args = {
+    games: 50,
+    bots: 3,
+    maxTurns: 240,
+    workers: Math.max(1, cpus().length - 1),
+    record: false,
     quiet: false,
   };
-
-  for (const arg of argv) {
-    if (!arg.startsWith("--")) continue;
-    const [key, rawValue] = arg.slice(2).split("=");
-    const value = rawValue ?? "true";
-
+  for (const raw of argv) {
+    if (!raw.startsWith("--")) continue;
+    const [key, value = "true"] = raw.slice(2).split("=");
+    const num = () => {
+      const n = Number(value);
+      if (!Number.isFinite(n)) {
+        console.error(`--${key} must be a number`);
+        process.exit(2);
+      }
+      return n;
+    };
     switch (key) {
       case "games":
-        out.games = parseIntOrDie(key, value);
+        args.games = num();
         break;
       case "bots":
-        out.bots = parseIntOrDie(key, value);
+        args.bots = num();
         break;
       case "maxTurns":
-        out.maxTurns = parseIntOrDie(key, value);
+        args.maxTurns = num();
         break;
       case "baseSeed":
-        out.baseSeed = parseIntOrDie(key, value);
+        args.baseSeed = num();
         break;
-      case "label":
-        out.label = value;
+      case "workers":
+        args.workers = num();
+        break;
+      case "record":
+        args.record = value !== "false";
         break;
       case "output":
-        out.output = value;
+        args.output = value;
+        break;
+      case "label":
+        args.label = value;
         break;
       case "quiet":
-        out.quiet = value !== "false";
+        args.quiet = value !== "false";
         break;
       default:
-        console.warn(`Unknown flag: --${key}`);
+        console.warn(`Unknown flag --${key}`);
     }
   }
-
-  return out;
+  return args;
 }
 
-function parseIntOrDie(name: string, raw: string): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n)) {
-    console.error(`--${name} must be a number, got ${raw}`);
-    process.exit(2);
-  }
-  return n;
+function pct(n: number, total: number): string {
+  return total === 0 ? "0%" : `${Math.round((100 * n) / total)}%`;
 }
 
-function main(): void {
-  const args = parseArgs(process.argv.slice(2));
-
+function printSummary(a: AggregateStats): void {
+  const g = a.gameCount;
+  console.log(`\n=== ${g} games ===`);
   console.log(
-    `Running ${args.games} games (${args.bots} bots each, max ${args.maxTurns} turns)...`
+    `End reasons: ${Object.entries(a.endReasons)
+      .map(([k, v]) => `${k} ${pct(v, g)}`)
+      .join(", ")}`
+  );
+  console.log(
+    `Rounds to finish: median ${a.rounds.median}, p25 ${a.rounds.p25}, p75 ${a.rounds.p75}, max ${a.rounds.max}`
+  );
+  console.log(`Destructions/game: median ${a.destructions.median}, mean ${a.destructions.mean}`);
+  console.log(`Hull damage/game: median ${a.totalDamage.median}, mean ${a.totalDamage.mean}`);
+  console.log(
+    `Mission completions/game: median ${a.missionCompletions.median}, mean ${a.missionCompletions.mean}`
+  );
+  console.log(`Completions by type: ${JSON.stringify(a.completionsByType)}`);
+  console.log(`Winners' mission types: ${JSON.stringify(a.winnerMissionTypes)}`);
+  console.log(
+    `First dock (turn): median ${a.firstDockRound.median} (${a.firstDockRound.count} players docked)`
+  );
+  console.log(
+    `First jump (turn): median ${a.firstJumpRound.median} (${a.firstJumpRound.count} players jumped)`
+  );
+  console.log(
+    `Scans/game: mean ${a.scansPerGame.mean}; hidden tiles per player at end: mean ${a.hiddenTilesAtEnd.mean} of 5`
+  );
+  console.log(`Wins by seat: ${JSON.stringify(a.winsByPlayer)}`);
+  const loadouts = Object.entries(a.loadoutWins)
+    .sort((x, y) => y[1].games - x[1].games)
+    .slice(0, 8);
+  console.log("Loadouts (games, win rate):");
+  for (const [l, r] of loadouts) console.log(`  ${l}: ${r.games} games, ${pct(r.wins, r.games)}`);
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  console.log(
+    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)...`
   );
   const start = Date.now();
 
-  const batch = runBatch({
+  const batch = await runBatch({
     games: args.games,
     botCount: args.bots,
     maxTurns: args.maxTurns,
     baseSeed: args.baseSeed,
+    workers: args.workers,
+    record: args.record,
     label: args.label,
     onProgress: args.quiet
       ? undefined
       : (done, total, last) => {
-          const winner = last.recording.metadata.winnerId ?? "—";
           process.stdout.write(
-            `  [${done}/${total}] turns=${last.recording.turns.length} winner=${winner} reason=${last.endReason}\n`
+            `  [${done}/${total}] seed=${last.seed} rounds=${last.rounds} winner=${last.winnerId ?? "—"} ${last.endReason}\n`
           );
         },
   });
 
-  const elapsedMs = Date.now() - start;
-  console.log(`Done in ${elapsedMs}ms.`);
+  console.log(`Done in ${((Date.now() - start) / 1000).toFixed(1)}s.`);
   printSummary(batch.aggregate);
 
+  if (batch.failures.length > 0) {
+    console.log(`\n!!! ${batch.failures.length} game(s) stopped on an invalid bot turn:`);
+    for (const f of batch.failures.slice(0, 5)) console.log(formatFailure(f.failure));
+  }
+
   if (args.output) {
-    writeOutput(args.output, batch.recordings, batch);
-    console.log(`Recordings + summary written to ${args.output}`);
-  }
-}
-
-function printSummary(agg: ReturnType<typeof runBatch>["aggregate"]): void {
-  console.log("\n=== Aggregate ===");
-  console.log(`Games: ${agg.gameCount}`);
-  console.log(`End reasons: ${JSON.stringify(agg.endReasons)}`);
-  console.log(`Turn count: median=${agg.turnCount.median} p25=${agg.turnCount.p25} p75=${agg.turnCount.p75} max=${agg.turnCount.max}`);
-  console.log(`Damage dealt: median=${agg.totalDamageDealt.median} max=${agg.totalDamageDealt.max}`);
-  console.log(`Mission completions: median=${agg.missionCompletions.median}`);
-  console.log(`Wins by player:`, agg.winsByPlayer);
-}
-
-function writeOutput(
-  dir: string,
-  recordings: GameRecording[],
-  batch: ReturnType<typeof runBatch>
-): void {
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const recordingsDir = join(dir, "recordings");
-  if (!existsSync(recordingsDir)) mkdirSync(recordingsDir);
-
-  for (const rec of recordings) {
-    const path = join(recordingsDir, `${rec.recordingId}.json`);
-    writeFileSync(path, JSON.stringify(rec));
+    mkdirSync(args.output, { recursive: true });
+    writeFileSync(
+      join(args.output, "summary.json"),
+      JSON.stringify({ aggregate: batch.aggregate, perGame: batch.perGame }, null, 2)
+    );
+    if (args.record) {
+      const dir = join(args.output, "recordings");
+      mkdirSync(dir, { recursive: true });
+      for (const rec of batch.recordings)
+        writeFileSync(join(dir, `${rec.recordingId}.json`), JSON.stringify(rec));
+    }
+    console.log(`Written to ${args.output}`);
   }
 
-  writeFileSync(
-    join(dir, "summary.json"),
-    JSON.stringify(
-      {
-        aggregate: batch.aggregate,
-        perGame: batch.perGame,
-      },
-      null,
-      2
-    )
-  );
+  process.exit(batch.failures.length > 0 ? 1 : 0);
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

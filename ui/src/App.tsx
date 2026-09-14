@@ -1,607 +1,249 @@
-import { ThemeProvider, createTheme } from '@mui/material/styles'
+/**
+ * App root: theme, identity, sockets, and which screen is on the table.
+ *
+ * Routing is four query flags rather than a router dependency:
+ *   ?recordings=1   the list of finished games
+ *   ?replay=<id>    replay one of them
+ *   ?game=<id>      drop straight into a live game (forks land here)
+ *   (none)          lobby browser → lobby → game
+ */
+import { useCallback, useEffect, useState } from 'react'
+import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-import { Box, CircularProgress, Typography, TextField, Button, Paper } from '@mui/material'
+import { Box, Button, CircularProgress, Paper, TextField, Typography } from '@mui/material'
+import { theme, TABLE } from './theme'
 import { PlayerProvider, usePlayer } from './context/PlayerContext'
 import { WebSocketProvider } from './context/WebSocketContext'
 import { LobbyProvider, useLobby } from './context/LobbyContext'
-import { GameProvider } from './context/GameContext'
-import { ControlPanel } from './components/ControlPanel'
-import { StatusDisplay } from './components/StatusDisplay'
-import { TurnHistoryPanel } from './components/TurnHistoryPanel'
-import { LobbyScreen } from './components/LobbyScreen'
-import { LobbyBrowser } from './components/LobbyBrowser'
-import { LoadoutScreen } from './components/LoadoutScreen'
-import { DeploymentScreen } from './components/DeploymentScreen'
-import { GameEndScreen } from './components/GameEndScreen'
-import { MissionPanel } from './components/MissionPanel'
-import { useGame } from './context/GameContext'
-import type { GameState } from '@dangerous-inclinations/engine'
-import { useCallback, useEffect, useState } from 'react'
-import { GameBoard } from './components/GameBoard'
-import { ReplayScreen } from './components/ReplayScreen'
-import { RecordingsBrowser } from './components/RecordingsBrowser'
+import { GameProvider, useGame } from './context/GameContext'
+import { LobbyBrowser } from './components/screens/LobbyBrowser'
+import { LobbyScreen } from './components/screens/LobbyScreen'
+import { LoadoutScreen } from './components/screens/LoadoutScreen'
+import { DeploymentScreen } from './components/screens/DeploymentScreen'
+import { GameEndScreen } from './components/screens/GameEndScreen'
+import { ReplayScreen } from './components/screens/ReplayScreen'
+import { RecordingsBrowser } from './components/screens/RecordingsBrowser'
+import { TableRoot } from './components/table/TableRoot'
+import { AbandonGameButton } from './components/AbandonGameButton'
 
-type ReplayRoute =
+// ---------------------------------------------------------------------------
+// Routing
+// ---------------------------------------------------------------------------
+
+type Route =
   | { kind: 'app' }
+  | { kind: 'recordings' }
   | { kind: 'replay'; id: string }
-  | { kind: 'browser' }
-  // `fork`: render the live game tree pointed at a specific gameId
-  // (e.g. one minted by `POST /api/games/fork`). Bypasses the lobby
-  // flow — no LobbyProvider, no GAME_STARTING handshake; we connect
-  // straight into the game's WebSocket room and render ActiveGameScreen.
-  | { kind: 'fork'; gameId: string }
+  | { kind: 'game'; gameId: string }
 
-const theme = createTheme({
-  palette: {
-    mode: 'dark',
-    background: {
-      default: '#0a0a0f',
-      paper: '#16161f',
-    },
-    text: {
-      primary: '#ffffff',
-      secondary: '#9090a0',
-    },
-    primary: {
-      main: '#3a7bd5', // Vibrant blue for better visibility
-      light: '#5a9bf5',
-      dark: '#2a5ba5',
-      contrastText: '#ffffff',
-    },
-    secondary: {
-      main: '#7c4dff', // Purple accent
-      light: '#a47fff',
-      dark: '#5c2dc0',
-      contrastText: '#ffffff',
-    },
-    error: {
-      main: '#f44336',
-      light: '#ff7961',
-      dark: '#ba000d',
-    },
-    warning: {
-      main: '#ff9800',
-      light: '#ffb333',
-      dark: '#c77700',
-    },
-    success: {
-      main: '#4caf50',
-      light: '#80e27e',
-      dark: '#087f23',
-    },
-    divider: '#3a3a4a',
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none', // Don't uppercase button text
-          fontWeight: 600,
-        },
-        contained: {
-          boxShadow: '0 2px 8px rgba(58, 123, 213, 0.3)',
-          '&:hover': {
-            boxShadow: '0 4px 16px rgba(58, 123, 213, 0.4)',
-          },
-        },
-        outlined: {
-          borderWidth: 2,
-          '&:hover': {
-            borderWidth: 2,
-          },
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none', // Remove default gradient overlay
-        },
-      },
-    },
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            '& fieldset': {
-              borderColor: '#3a3a4a',
-            },
-            '&:hover fieldset': {
-              borderColor: '#5a5a6a',
-            },
-            '&.Mui-focused fieldset': {
-              borderColor: '#3a7bd5',
-            },
-          },
-        },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          fontWeight: 500,
-        },
-      },
-    },
-  },
-})
-
-/**
- * Active game screen - the main gameplay view
- * Wrapped in GameProvider which handles active gameplay
- */
-function ActiveGameContent() {
-  const { gameState, pendingState } = useGame()
-  const activePlayer = gameState.players[gameState.activePlayerIndex]
-
-  return (
-    <Box
-      sx={{
-        height: '100vh',
-        width: '100vw',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Status Bar */}
-      <StatusDisplay
-        players={gameState.players}
-        activePlayerIndex={gameState.activePlayerIndex}
-        turn={gameState.turn}
-        pendingHeat={pendingState.heat}
-      />
-
-      {/* Main content area */}
-      <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
-        {/* Left sidebar - Turn History */}
-        <TurnHistoryPanel defaultExpanded={true} />
-
-        {/* Center - Game Board */}
-        <Box
-          sx={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            minWidth: 0,
-          }}
-        >
-          <Box
-            sx={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <GameBoard
-              pendingFacing={pendingState.facing}
-              pendingMovement={pendingState.movement}
-            />
-          </Box>
-        </Box>
-
-        {/* Right sidebar - Controls + Missions */}
-        <Box
-          sx={{
-            minWidth: 300,
-            maxWidth: 400,
-            width: '25%',
-            borderLeft: 1,
-            borderColor: 'divider',
-            overflow: 'auto',
-            p: 2,
-          }}
-        >
-          {/* Mission Panel - only show if player has missions */}
-          {activePlayer && activePlayer.missions.length > 0 && (
-            <MissionPanel player={activePlayer} allPlayers={gameState.players} />
-          )}
-          <ControlPanel player={activePlayer} allPlayers={gameState.players} />
-        </Box>
-      </Box>
-    </Box>
-  )
+function parseRoute(search: string): Route {
+  const params = new URLSearchParams(search)
+  const replay = params.get('replay')
+  if (replay) return { kind: 'replay', id: replay }
+  if (params.get('recordings') === '1') return { kind: 'recordings' }
+  const game = params.get('game') ?? params.get('fork')
+  if (game) return { kind: 'game', gameId: game }
+  return { kind: 'app' }
 }
 
-/**
- * Active game screen wrapper - provides GameContext for active gameplay
- */
-function ActiveGameScreen({
-  initialGameState,
-  gameId,
-  onGameStateChange,
-}: {
-  initialGameState: GameState
-  gameId: string
-  onGameStateChange: (state: GameState) => void
-}) {
-  return (
-    <GameProvider
-      initialGameState={initialGameState}
-      gameId={gameId}
-      onGameStateChange={onGameStateChange}
-    >
-      <ActiveGameContent />
-    </GameProvider>
-  )
-}
-
-/**
- * Loading screen while restoring session
- */
-function SessionLoading() {
-  return (
-    <Box
-      sx={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        gap: 2,
-        background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%)',
-      }}
-    >
-      <CircularProgress size={60} />
-      <Typography variant="h6" color="text.secondary">
-        Restoring session...
-      </Typography>
-    </Box>
-  )
-}
-
-/**
- * App router - decides which screen to show based on session state
- * Show name setup only for newly created players (not restored from server)
- */
-function AppRouter() {
-  const { isNewPlayer } = usePlayer()
-  const { isRestoringSession } = useLobby()
-
-  // Show loading while restoring session
-  if (isRestoringSession) {
-    return <SessionLoading />
-  }
-
-  // If player was just created (no existing ID in localStorage or server didn't know their ID),
-  // show name setup. Otherwise, go directly to content.
-  if (isNewPlayer) {
-    return <PlayerNameSetup />
-  }
-
-  return <AppContent />
-}
-
-/**
- * Player name setup screen - shown only for newly created players
- */
-function PlayerNameSetup() {
-  const { playerName, setPlayerName, clearNewPlayerFlag } = usePlayer()
-  const [name, setName] = useState(playerName)
-  const [saving, setSaving] = useState(false)
-
-  const handleSubmit = async () => {
-    if (name.trim() && !saving) {
-      setSaving(true)
-      await setPlayerName(name.trim())
-      clearNewPlayerFlag() // This will cause AppRouter to show AppContent
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Box
-      sx={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        bgcolor: 'background.default',
-        background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%)',
-      }}
-    >
-      <Paper
-        elevation={8}
-        sx={{
-          p: 5,
-          maxWidth: 450,
-          width: '90%',
-          textAlign: 'center',
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Typography
-          variant="h3"
-          sx={{
-            fontWeight: 700,
-            mb: 1,
-            background: 'linear-gradient(135deg, #3a7bd5 0%, #7c4dff 100%)',
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}
-        >
-          Dangerous Inclinations
-        </Typography>
-        <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4 }}>
-          Tactical Space Combat
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Enter your player name to begin
-        </Typography>
-        <TextField
-          fullWidth
-          label="Player Name"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyPress={e => {
-            if (e.key === 'Enter') {
-              handleSubmit()
-            }
-          }}
-          autoFocus
-          sx={{ mb: 3 }}
-          variant="outlined"
-        />
-        <Button
-          fullWidth
-          variant="contained"
-          color="primary"
-          size="large"
-          onClick={handleSubmit}
-          disabled={!name.trim() || saving}
-          sx={{
-            py: 1.5,
-            fontSize: '1.1rem',
-          }}
-        >
-          {saving ? <CircularProgress size={24} color="inherit" /> : 'Enter Game'}
-        </Button>
-      </Paper>
-    </Box>
-  )
-}
-
-/**
- * Main app content router - routes to appropriate screen based on phase
- */
-function AppContent() {
-  const { phase, lobbyState, gameState, returnToLobby, joinLobby } = useLobby()
-
-  // Handle game state changes from GameProvider
-  const handleGameStateChange = (newState: GameState) => {
-    // Check if game has ended
-    if (newState.phase === 'ended') {
-      // Game state is managed internally, GameEndScreen will read from GameProvider
-    }
-  }
-
-  // Route based on phase
-  switch (phase) {
-    case 'browser':
-      return <LobbyBrowser onLobbyJoined={joinLobby} />
-
-    case 'lobby':
-      if (!lobbyState) return null
-      return <LobbyScreen />
-
-    case 'loadout':
-      if (!gameState) {
-        // Show loading while game state loads
-        return (
-          <Box
-            sx={{
-              height: '100vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <CircularProgress />
-          </Box>
-        )
-      }
-      return <LoadoutScreen />
-
-    case 'deployment':
-      if (!gameState) {
-        // Show loading while game state loads
-        return (
-          <Box
-            sx={{
-              height: '100vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <CircularProgress />
-          </Box>
-        )
-      }
-      return <DeploymentScreen />
-
-    case 'active':
-      if (!gameState || !lobbyState?.gameId) {
-        // Show loading while game state loads
-        return (
-          <Box
-            sx={{
-              height: '100vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <CircularProgress />
-          </Box>
-        )
-      }
-      return (
-        <ActiveGameScreen
-          initialGameState={gameState}
-          gameId={lobbyState.gameId}
-          onGameStateChange={handleGameStateChange}
-        />
-      )
-
-    case 'ended':
-      if (!gameState) return null
-      return (
-        <GameEndScreen
-          gameState={gameState}
-          gameId={lobbyState?.gameId}
-          onPlayAgain={returnToLobby}
-        />
-      )
-
-    default:
-      return null
-  }
-}
-
-/**
- * App content with player authentication
- */
-function AuthenticatedApp() {
-  const { isLoading, error, isAuthenticated } = usePlayer()
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
-          gap: 2,
-        }}
-      >
-        <CircularProgress size={60} />
-        <Typography variant="h6" color="text.secondary">
-          Connecting to server...
-        </Typography>
-      </Box>
-    )
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Paper elevation={3} sx={{ p: 4, maxWidth: 400 }}>
-          <Typography variant="h5" color="error" gutterBottom>
-            Connection Error
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            {error}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Please make sure the server is running and try refreshing the page.
-          </Typography>
-        </Paper>
-      </Box>
-    )
-  }
-
-  // Authenticated - route to appropriate screen
-  if (isAuthenticated) {
-    return <AppRouter />
-  }
-
-  return null
-}
-
-/**
- * Read replay routing flags off the URL. We use plain query params (instead of
- * a full router) to keep the dependency surface small.
- *   ?replay=<id>     → load that recording into ReplayScreen
- *   ?recordings=1    → show the recordings browser
- */
-function useReplayRoute(): { route: ReplayRoute; goTo: (next: ReplayRoute) => void } {
-  const [route, setRoute] = useState<ReplayRoute>(() => parseReplayRoute(window.location.search))
+function useRoute(): { route: Route; goTo: (next: Route) => void } {
+  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.search))
 
   useEffect(() => {
-    const handler = () => setRoute(parseReplayRoute(window.location.search))
-    window.addEventListener('popstate', handler)
-    return () => window.removeEventListener('popstate', handler)
+    const onPop = () => setRoute(parseRoute(window.location.search))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  const goTo = useCallback((next: ReplayRoute) => {
-    const params = new URLSearchParams(window.location.search)
-    params.delete('replay')
-    params.delete('recordings')
-    params.delete('fork')
+  const goTo = useCallback((next: Route) => {
+    const params = new URLSearchParams()
     if (next.kind === 'replay') params.set('replay', next.id)
-    if (next.kind === 'browser') params.set('recordings', '1')
-    if (next.kind === 'fork') params.set('fork', next.gameId)
+    if (next.kind === 'recordings') params.set('recordings', '1')
+    if (next.kind === 'game') params.set('game', next.gameId)
     const search = params.toString()
-    const url = search ? `?${search}` : window.location.pathname
-    window.history.pushState(null, '', url)
+    window.history.pushState(null, '', search ? `?${search}` : window.location.pathname)
     setRoute(next)
   }, [])
 
   return { route, goTo }
 }
 
-function parseReplayRoute(search: string): ReplayRoute {
-  const params = new URLSearchParams(search)
-  const replay = params.get('replay')
-  if (replay) return { kind: 'replay', id: replay }
-  if (params.get('recordings') === '1') return { kind: 'browser' }
-  const fork = params.get('fork')
-  if (fork) return { kind: 'fork', gameId: fork }
-  return { kind: 'app' }
-}
+// ---------------------------------------------------------------------------
+// Shared chrome
+// ---------------------------------------------------------------------------
 
-function App() {
+function Loading({ message }: { message: string }) {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <RootRouter />
-    </ThemeProvider>
+    <Box
+      sx={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 2,
+      }}
+    >
+      <CircularProgress size={44} />
+      <Typography sx={{ color: TABLE.inkSoft }}>{message}</Typography>
+    </Box>
   )
 }
 
-function RootRouter() {
-  const { route, goTo } = useReplayRoute()
+function Failure({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <Box sx={{ height: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
+      <Paper sx={{ p: 3, maxWidth: 440 }}>
+        <Typography variant="h6" color="error" gutterBottom>
+          Something went wrong
+        </Typography>
+        <Typography variant="body2" sx={{ mb: 2 }}>
+          {message}
+        </Typography>
+        {onRetry && (
+          <Button variant="contained" onClick={onRetry}>
+            Try again
+          </Button>
+        )}
+      </Paper>
+    </Box>
+  )
+}
 
-  if (route.kind === 'replay') {
-    return <ReplayScreen recordingId={route.id} onExit={() => goTo({ kind: 'app' })} />
+function PlayerNameSetup() {
+  const { playerName, setPlayerName, clearNewPlayerFlag } = usePlayer()
+  const [name, setName] = useState(playerName)
+  const [saving, setSaving] = useState(false)
+
+  const submit = async () => {
+    if (!name.trim() || saving) return
+    setSaving(true)
+    await setPlayerName(name.trim())
+    clearNewPlayerFlag()
+    setSaving(false)
   }
 
-  if (route.kind === 'browser') {
+  return (
+    <Box sx={{ height: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
+      <Paper sx={{ p: 4, maxWidth: 420, width: '100%', textAlign: 'center' }}>
+        <Typography variant="h4" gutterBottom>
+          Dangerous Inclinations
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Orbital manoeuvre, heat and hidden objectives. What shall we call you?
+        </Typography>
+        <TextField
+          fullWidth
+          label="Your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          autoFocus
+          sx={{ mb: 2 }}
+        />
+        <Button fullWidth variant="contained" size="large" onClick={submit} disabled={!name.trim() || saving}>
+          {saving ? <CircularProgress size={22} color="inherit" /> : 'Sit down'}
+        </Button>
+      </Paper>
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Game screens
+// ---------------------------------------------------------------------------
+
+/** Picks the screen for the game's phase. Perspective is always this player. */
+function GameScreens({ headerRight, onLeave }: { headerRight?: React.ReactNode; onLeave?: () => void }) {
+  const { view } = useGame()
+
+  switch (view.phase) {
+    case 'lobby':
+    case 'setup':
+    case 'loadout':
+      return <LoadoutScreen headerRight={headerRight} />
+    case 'deployment':
+      return <DeploymentScreen headerRight={headerRight} />
+    case 'ended':
+      return <GameEndScreen onLeave={onLeave} />
+    case 'active':
+    default:
+      return (
+        <Box sx={{ height: '100vh', width: '100vw' }}>
+          <TableRoot headerRight={headerRight} />
+        </Box>
+      )
+  }
+}
+
+function LiveGame({ gameId, headerRight, onLeave }: { gameId: string; headerRight?: React.ReactNode; onLeave?: () => void }) {
+  return (
+    <GameProvider
+      gameId={gameId}
+      fallback={<Loading message="Setting up the table…" />}
+      renderError={(message) => <Failure message={message} />}
+    >
+      <GameScreens headerRight={headerRight} onLeave={onLeave} />
+    </GameProvider>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Lobby flow
+// ---------------------------------------------------------------------------
+
+function LobbyFlow({ onOpenRecordings }: { onOpenRecordings: () => void }) {
+  const { phase, gameId, joinLobby, isRestoringSession, returnToLobby } = useLobby()
+
+  if (isRestoringSession) return <Loading message="Finding your seat…" />
+
+  switch (phase) {
+    case 'browser':
+      return <LobbyBrowser onLobbyJoined={joinLobby} onOpenRecordings={onOpenRecordings} />
+    case 'lobby':
+      return <LobbyScreen />
+    case 'game':
+      if (!gameId) return <Loading message="Waiting for the game to start…" />
+      return <LiveGame gameId={gameId} headerRight={<AbandonGameButton />} onLeave={returnToLobby} />
+  }
+}
+
+function AuthenticatedApp({ onOpenRecordings }: { onOpenRecordings: () => void }) {
+  const { isLoading, error, isAuthenticated, isNewPlayer, canRetry, retry } = usePlayer()
+
+  if (isLoading) return <Loading message="Connecting to the server…" />
+  // A transient failure keeps the saved seat: retry in place rather than reloading.
+  if (error) return <Failure message={error} onRetry={canRetry ? retry : () => window.location.reload()} />
+  if (!isAuthenticated) return null
+  if (isNewPlayer) return <PlayerNameSetup />
+
+  return (
+    <LobbyProvider>
+      <LobbyFlow onOpenRecordings={onOpenRecordings} />
+    </LobbyProvider>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
+function RootRouter() {
+  const { route, goTo } = useRoute()
+
+  if (route.kind === 'replay') {
+    return <ReplayScreen recordingId={route.id} onExit={() => goTo({ kind: 'recordings' })} />
+  }
+
+  if (route.kind === 'recordings') {
     return (
-      <RecordingsBrowser
-        onOpen={(id) => goTo({ kind: 'replay', id })}
-        onExit={() => goTo({ kind: 'app' })}
-      />
+      <RecordingsBrowser onOpen={(id) => goTo({ kind: 'replay', id })} onExit={() => goTo({ kind: 'app' })} />
     )
   }
 
-  if (route.kind === 'fork') {
+  if (route.kind === 'game') {
     return (
       <PlayerProvider>
         <WebSocketProvider>
-          <ForkedGameRoot
-            gameId={route.gameId}
-            onExit={() => goTo({ kind: 'app' })}
-          />
+          <LiveGame gameId={route.gameId} onLeave={() => goTo({ kind: 'app' })} />
         </WebSocketProvider>
       </PlayerProvider>
     )
@@ -610,96 +252,17 @@ function RootRouter() {
   return (
     <PlayerProvider>
       <WebSocketProvider>
-        <LobbyProvider>
-          <AuthenticatedApp />
-        </LobbyProvider>
+        <AuthenticatedApp onOpenRecordings={() => goTo({ kind: 'recordings' })} />
       </WebSocketProvider>
     </PlayerProvider>
   )
 }
 
-/**
- * Render an existing game by id, bypassing the lobby flow. Used by
- * `?fork=<gameId>` URLs after `POST /api/games/fork` mints a new game
- * out of a recording snapshot. Fetches the game state once on mount and
- * hands it to ActiveGameScreen, which manages its own WS subscription
- * and animation queue from there.
- */
-function ForkedGameRoot({
-  gameId,
-  onExit,
-}: {
-  gameId: string
-  onExit: () => void
-}) {
-  const { isLoading: playerLoading } = usePlayer()
-  const [initialState, setInitialState] = useState<GameState | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (playerLoading) return
-    let cancelled = false
-    import('./api/game').then(({ getGameState }) =>
-      getGameState(gameId)
-        .then((state) => {
-          if (!cancelled) setInitialState(state)
-        })
-        .catch((e) => {
-          if (!cancelled) setError(e instanceof Error ? e.message : String(e))
-        }),
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [gameId, playerLoading])
-
-  if (error) {
-    return (
-      <Box sx={{ p: 4 }}>
-        <Typography color="error">Failed to load forked game: {error}</Typography>
-        <Button onClick={onExit} sx={{ mt: 2 }}>
-          Back
-        </Button>
-      </Box>
-    )
-  }
-
-  if (!initialState || playerLoading) {
-    return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    )
-  }
-
-  // The forked game has phase already set ("active" most often) — reuse
-  // ActiveGameScreen for the live tree. The end-of-game transition is
-  // handled by GameContext via TURN_EXECUTED, just like a normal game.
-  if (initialState.phase === 'ended') {
-    return (
-      <GameEndScreen gameState={initialState} gameId={gameId} onPlayAgain={onExit} />
-    )
-  }
-
+export default function App() {
   return (
-    <ActiveGameScreen
-      initialGameState={initialState}
-      gameId={gameId}
-      onGameStateChange={(newState) => {
-        // Once a forked game ends, swap to the end screen on the next
-        // render. ActiveGameScreen unmounts and we route through the
-        // phase=ended branch above on the next state arrival.
-        if (newState.phase === 'ended') setInitialState(newState)
-      }}
-    />
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <RootRouter />
+    </ThemeProvider>
   )
 }
-
-export default App

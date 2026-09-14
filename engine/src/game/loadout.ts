@@ -1,282 +1,126 @@
 /**
- * Ship Loadout System
- *
- * Handles validation and creation of ship loadouts.
- * Ships have 2 forward slots and 4 side slots.
- * Fixed subsystems (engines, rotation) are always present and not part of loadout.
+ * Ship loadout: validation and subsystem instantiation.
+ * Ships have one forward slot and four side slots; every slot must be filled.
  */
-
-import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
+import type { Subsystem, SubsystemType, SlotGroup } from "../models/subsystems.ts";
 import {
   SUBSYSTEM_CONFIGS,
+  FIXED_SUBSYSTEM_TYPES,
+  FORWARD_SLOT_COUNT,
+  SIDE_SLOT_COUNT,
   getSubsystemConfig,
+  getMaxPerShip,
   getMissileStats,
+  slotSubsystemId,
 } from "../models/subsystems.ts";
 import type { ShipLoadout, LoadoutValidation } from "../models/game.ts";
-import {
-  DEFAULT_DISSIPATION_CAPACITY,
-  STARTING_REACTION_MASS,
-  MAX_REACTION_MASS,
-  BASE_CRITICAL_CHANCE,
-} from "../models/game.ts";
+import { DEFAULT_DISSIPATION_CAPACITY, STARTING_REACTION_MASS } from "../models/game.ts";
 
-/**
- * Subsystems that can be installed in forward slots
- */
-export const FORWARD_SLOT_SUBSYSTEMS: SubsystemType[] = Object.entries(
-  SUBSYSTEM_CONFIGS
-)
-  .filter(([_, config]) => config.slotType === "forward")
-  .map(([type]) => type as SubsystemType);
+const byGroup = (predicate: (slotType: string) => boolean): SubsystemType[] =>
+  (Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]).filter((t) =>
+    predicate(SUBSYSTEM_CONFIGS[t].slotType)
+  );
 
-/**
- * Subsystems that can be installed in side slots
- */
-export const SIDE_SLOT_SUBSYSTEMS: SubsystemType[] = Object.entries(
-  SUBSYSTEM_CONFIGS
-)
-  .filter(([_, config]) => config.slotType === "side")
-  .map(([type]) => type as SubsystemType);
+export const FORWARD_SLOT_SUBSYSTEMS: SubsystemType[] = byGroup((s) => s === "forward");
+export const SIDE_SLOT_SUBSYSTEMS: SubsystemType[] = byGroup((s) => s === "side");
+export const EITHER_SLOT_SUBSYSTEMS: SubsystemType[] = byGroup((s) => s === "either");
+export const INSTALLABLE_SUBSYSTEMS: SubsystemType[] = byGroup((s) => s !== "fixed");
 
-/**
- * Subsystems that can be installed in either slot type
- */
-export const EITHER_SLOT_SUBSYSTEMS: SubsystemType[] = Object.entries(
-  SUBSYSTEM_CONFIGS
-)
-  .filter(([_, config]) => config.slotType === "either")
-  .map(([type]) => type as SubsystemType);
-
-/**
- * All installable subsystems (excludes fixed)
- */
-export const INSTALLABLE_SUBSYSTEMS: SubsystemType[] = Object.entries(
-  SUBSYSTEM_CONFIGS
-)
-  .filter(([_, config]) => config.slotType !== "fixed")
-  .map(([type]) => type as SubsystemType);
-
-/**
- * Check if a subsystem can be installed in a forward slot
- */
-export function canInstallInForwardSlot(type: SubsystemType): boolean {
-  const config = getSubsystemConfig(type);
-  return config.slotType === "forward" || config.slotType === "either";
+export function canInstallInSlot(type: SubsystemType, group: SlotGroup): boolean {
+  const slotType = getSubsystemConfig(type).slotType;
+  return slotType === group || slotType === "either";
 }
 
-/**
- * Check if a subsystem can be installed in a side slot
- */
-export function canInstallInSideSlot(type: SubsystemType): boolean {
-  const config = getSubsystemConfig(type);
-  return config.slotType === "side" || config.slotType === "either";
-}
-
-/**
- * Validate a ship loadout
- * Returns validation result with any errors
- */
 export function validateLoadout(loadout: ShipLoadout): LoadoutValidation {
   const errors: string[] = [];
-
-  // Validate forward slots — all must be filled
-  for (let i = 0; i < loadout.forwardSlots.length; i++) {
-    const subsystem = loadout.forwardSlots[i];
-    if (subsystem === null) {
-      errors.push(`Forward slot ${i + 1}: must be filled`);
-    } else {
-      if (!canInstallInForwardSlot(subsystem)) {
-        const config = getSubsystemConfig(subsystem);
+  if (!Array.isArray(loadout?.forwardSlots) || loadout.forwardSlots.length !== FORWARD_SLOT_COUNT) {
+    return {
+      valid: false,
+      errors: [`Loadout must have exactly ${FORWARD_SLOT_COUNT} forward slot`],
+    };
+  }
+  if (!Array.isArray(loadout.sideSlots) || loadout.sideSlots.length !== SIDE_SLOT_COUNT) {
+    return { valid: false, errors: [`Loadout must have exactly ${SIDE_SLOT_COUNT} side slots`] };
+  }
+  const check = (slots: ReadonlyArray<SubsystemType | null>, group: SlotGroup, label: string) => {
+    slots.forEach((type, i) => {
+      if (type === null) {
+        errors.push(`${label} slot ${i + 1}: must be filled`);
+      } else if (!canInstallInSlot(type, group)) {
         errors.push(
-          `Forward slot ${i + 1}: ${config.name} cannot be installed in a forward slot`
+          `${label} slot ${i + 1}: ${getSubsystemConfig(type).name} cannot be installed in a ${group} slot`
         );
       }
-    }
-  }
-
-  // Validate side slots — all must be filled
-  for (let i = 0; i < loadout.sideSlots.length; i++) {
-    const subsystem = loadout.sideSlots[i];
-    if (subsystem === null) {
-      errors.push(`Side slot ${i + 1}: must be filled`);
-    } else {
-      if (!canInstallInSideSlot(subsystem)) {
-        const config = getSubsystemConfig(subsystem);
-        errors.push(
-          `Side slot ${i + 1}: ${config.name} cannot be installed in a side slot`
-        );
-      }
-    }
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
+    });
   };
+  check(loadout.forwardSlots, "forward", "Forward");
+  check(loadout.sideSlots, "side", "Side");
+
+  // One set of tiles per player: at most maxPerShip of each type.
+  const counts = new Map<SubsystemType, number>();
+  for (const type of [...loadout.forwardSlots, ...loadout.sideSlots]) {
+    if (type !== null) counts.set(type, (counts.get(type) ?? 0) + 1);
+  }
+  for (const [type, n] of counts) {
+    const max = getMaxPerShip(type);
+    if (n > max)
+      errors.push(`${getSubsystemConfig(type).name}: only ${max} per ship (loadout has ${n})`);
+  }
+  return { valid: errors.length === 0, errors };
 }
 
-/**
- * Create subsystem instances from a loadout
- * Always includes fixed subsystems (engines, rotation) plus loadout subsystems
- * Side slot subsystems get slotIndex and slotType metadata for port/starboard determination
- */
-export function createSubsystemsFromLoadout(loadout: ShipLoadout): Subsystem[] {
-  const subsystems: Subsystem[] = [];
-
-  // Always add fixed subsystems first (no slot metadata)
-  subsystems.push(createSubsystemInstance("engines"));
-  subsystems.push(createSubsystemInstance("rotation"));
-  subsystems.push(createSubsystemInstance("scoop"));
-
-  // Add forward slot subsystems with slot metadata
-  for (let i = 0; i < loadout.forwardSlots.length; i++) {
-    const type = loadout.forwardSlots[i];
-    if (type !== null) {
-      subsystems.push(createSubsystemInstance(type, { slotIndex: i, slotType: "forward" }));
-    }
-  }
-
-  // Add side slot subsystems with slot metadata
-  for (let i = 0; i < loadout.sideSlots.length; i++) {
-    const type = loadout.sideSlots[i];
-    if (type !== null) {
-      subsystems.push(createSubsystemInstance(type, { slotIndex: i, slotType: "side" }));
-    }
-  }
-
-  return subsystems;
-}
-
-/**
- * Create a single subsystem instance
- */
 function createSubsystemInstance(
   type: SubsystemType,
-  slotInfo?: { slotIndex: number; slotType: "forward" | "side" },
+  slot?: { group: SlotGroup; index: number }
 ): Subsystem {
   const subsystem: Subsystem = {
+    id: slot ? slotSubsystemId(slot.group, slot.index) : type,
     type,
     allocatedEnergy: 0,
     isPowered: false,
     usedThisTurn: false,
-    ...(slotInfo && { slotIndex: slotInfo.slotIndex, slotType: slotInfo.slotType }),
+    isBroken: false,
+    isRevealed: slot === undefined, // fixed systems are always known
+    ...(slot && { slotGroup: slot.group, slotIndex: slot.index }),
   };
-
-  // Add ammo for missiles
-  if (type === "missiles") {
-    subsystem.ammo = getMissileStats().maxAmmo;
-  }
-
+  if (type === "missiles") subsystem.ammo = getMissileStats().maxAmmo;
   return subsystem;
 }
 
-/**
- * Calculate ship stats from a loadout
- * Returns dissipation capacity, reaction mass, and critical chance
- */
+/** Fixed systems first, then forward slots, then side slots. */
+export function createSubsystemsFromLoadout(loadout: ShipLoadout): Subsystem[] {
+  const subsystems: Subsystem[] = FIXED_SUBSYSTEM_TYPES.map((t) => createSubsystemInstance(t));
+  loadout.forwardSlots.forEach((type, i) => {
+    if (type !== null)
+      subsystems.push(createSubsystemInstance(type, { group: "forward", index: i }));
+  });
+  loadout.sideSlots.forEach((type, i) => {
+    if (type !== null) subsystems.push(createSubsystemInstance(type, { group: "side", index: i }));
+  });
+  return subsystems;
+}
+
+/** Starting stats implied by a loadout (for the loadout screen). */
 export function calculateShipStatsFromLoadout(loadout: ShipLoadout): {
   dissipationCapacity: number;
   reactionMass: number;
-  criticalChance: number;
 } {
   let dissipationCapacity = DEFAULT_DISSIPATION_CAPACITY;
   let reactionMass = STARTING_REACTION_MASS;
-  const criticalChance = BASE_CRITICAL_CHANCE;
-
-  // Combine all loadout slots
-  const allSlots = [...loadout.forwardSlots, ...loadout.sideSlots];
-
-  for (const type of allSlots) {
+  for (const type of [...loadout.forwardSlots, ...loadout.sideSlots]) {
     if (type === null) continue;
-
-    const config = getSubsystemConfig(type);
-    if (config.passiveEffect) {
-      if (config.passiveEffect.dissipationBonus) {
-        dissipationCapacity += config.passiveEffect.dissipationBonus;
-      }
-      if (config.passiveEffect.reactionMassBonus) {
-        reactionMass += config.passiveEffect.reactionMassBonus;
-      }
-      // Note: criticalChanceBonus is only applied when sensor array is powered
-      // So we don't add it here - it's handled during combat
-    }
+    const effect = getSubsystemConfig(type).passiveEffect;
+    dissipationCapacity += effect?.dissipationBonus ?? 0;
+    reactionMass += effect?.reactionMassBonus ?? 0;
   }
-
-  return {
-    dissipationCapacity,
-    reactionMass,
-    criticalChance,
-  };
+  return { dissipationCapacity, reactionMass };
 }
 
-/**
- * Check if a ship has a specific subsystem in its loadout
- * Fixed subsystems (engines, rotation) are always present
- */
-export function hasSubsystemInLoadout(
-  loadout: ShipLoadout,
-  type: SubsystemType
-): boolean {
-  // Fixed subsystems are always present
-  const config = getSubsystemConfig(type);
-  if (config.slotType === "fixed") {
-    return true;
-  }
-
-  const allSlots = [...loadout.forwardSlots, ...loadout.sideSlots];
-  return allSlots.includes(type);
+export function countSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): number {
+  return [...loadout.forwardSlots, ...loadout.sideSlots].filter((t) => t === type).length;
 }
 
-/**
- * Count how many of a specific subsystem are in a loadout
- */
-export function countSubsystemInLoadout(
-  loadout: ShipLoadout,
-  type: SubsystemType
-): number {
-  const allSlots = [...loadout.forwardSlots, ...loadout.sideSlots];
-  return allSlots.filter((t) => t === type).length;
-}
-
-/**
- * Compute the effective max reaction mass for a ship's installed subsystems.
- * Base capacity + per-fuel_compressor bonus from passive config.
- *
- * Single source of truth — engine processors and AI planners both call this
- * so the formula can't drift if the config changes. Accepts any array of
- * objects that carry `type: SubsystemType` (real Subsystem or AI's
- * SubsystemStatus).
- */
-export function getMaxReactionMass(
-  subsystems: ReadonlyArray<{ type: SubsystemType }>
-): number {
-  const compressorBonus =
-    SUBSYSTEM_CONFIGS.fuel_compressor.passiveEffect?.reactionMassBonus ?? 0;
-  const compressorCount = subsystems.filter(
-    (s) => s.type === "fuel_compressor"
-  ).length;
-  return MAX_REACTION_MASS + compressorCount * compressorBonus;
-}
-
-/**
- * Get the effective critical chance for a ship
- * Base chance + sensor array bonus for each powered sensor array
- * Note: Critical chance values are in percentage points (10 = 10%, not 0.1)
- */
-export function getEffectiveCriticalChance(
-  baseCriticalChance: number,
-  subsystems: Subsystem[]
-): number {
-  const sensorArrays = subsystems.filter((s) => s.type === "sensor_array");
-  let totalBonus = 0;
-
-  for (const sensorArray of sensorArrays) {
-    if (sensorArray.isPowered && !sensorArray.isBroken) {
-      const config = getSubsystemConfig("sensor_array");
-      const bonus = config.passiveEffect?.criticalChanceBonus || 0;
-      totalBonus += bonus;
-    }
-  }
-
-  return baseCriticalChance + totalBonus;
+export function hasSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): boolean {
+  if (getSubsystemConfig(type).slotType === "fixed") return true;
+  return countSubsystemInLoadout(loadout, type) > 0;
 }

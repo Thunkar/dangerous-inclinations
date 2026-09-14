@@ -29,11 +29,13 @@ These flavours share an interface — [`PlannerTarget`](targets.ts) — so consu
 interface PlannerTarget {
   positionAt(turn: number): OrbitalPosition
   isMatch?(pos: OrbitalPosition, turn: number): boolean
+  /** Turns after which the target's motion repeats; used to dedupe search states. */
+  period: number
   describe?(): string
 }
 ```
 
-`staticTarget(pos)` and `orbitingTarget(start, sectorsPerRound)` are the two builders we ship; consumers can write their own (e.g. `pursueShip(ship, predictedTrajectory)`).
+`staticTarget(pos)`, `orbitingTarget(start, sectorsPerRound)` (stations), `nearDriftingShip(start, sectors)` (scan and weapon range) and `anySectorOnRing(wellId, ring)` are the builders we ship; consumers can write their own.
 
 ---
 
@@ -169,6 +171,20 @@ Mass is also the reason planning can return `null`: a path that exists in pure-t
 
 ---
 
+## Interception: three targets for one goal
+
+The `hunt` and `interdict` goals both ask the same question — *where do I stand so my guns bear on that ship?* — and `planInterception` ([behaviors/danger.ts](../behaviors/danger.ts)) answers it by planning three targets with this module and comparing them in turns:
+
+| Target | Built from | Why it is a planner target |
+|---|---|---|
+| chase | `weaponRangeTarget(weapons, theirPosition)` | their ship drifts on its ring; the match test is "any weapon bears from here at this turn" |
+| station | `weaponRangeTarget(weapons, theirDeliveryStation)` | stations drift 4 sectors a round, which is exactly what `orbitSectorAt` models |
+| lane | `laneArrivalTarget(planetId)` | the arrival arcs are fixed sectors; a ship entering that well has to land on one |
+
+A chase that lands within two turns wins outright; otherwise the chase carries a three-turn penalty, because it is the only one of the three that assumes the target keeps coasting. The station and the lane are places the target has to come to.
+
+---
+
 ## Conventions
 
 - **Rotation is free.** The engine treats rotate as a separate action that can be combined with burn/coast in the same turn, so the planner emits successors and predecessors with both facings — the ship rotates implicitly when it needs to.
@@ -219,7 +235,7 @@ Two changes turned out to matter for sim throughput. They're independent and sta
 
 Mission ranking is the dominant per-turn cost. Every turn the bot has to decide *which* mission to pursue, and the obvious way to do that is "compute a real plan for each mission, pick the cheapest." With 3 missions per bot, that's three BFS invocations per bot per turn — and only one plan ever gets used (the chosen one).
 
-The fix is to **rank with a cheap heuristic, plan only the winner**. `computeMissionGoals` ([behaviors/missions.ts](../behaviors/missions.ts)) now uses a planner-free `cheapTurnEstimate` to score missions; once `selectCurrentGoal` picks one, `attachPlanToGoal` runs the real BFS for that single goal.
+The fix is to **rank with a cheap heuristic, plan only the winner**. `computeGoals` ([behaviors/missions.ts](../behaviors/missions.ts)) now uses a planner-free `cheapTurnEstimate` (defined in [behaviors/danger.ts](../behaviors/danger.ts), which also uses it to guess how long a rival needs to reach their delivery) to score missions; once `selectCurrentGoal` picks one, `attachPlanToGoal` runs the real BFS for that single goal.
 
 #### How `cheapTurnEstimate` works
 

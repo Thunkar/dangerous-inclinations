@@ -1,59 +1,43 @@
 /**
  * Movement Planner Module
  *
- * Provides multi-turn path planning for ships navigating between orbital positions.
- * Supports two optimization modes:
- * - fastest: Minimize number of turns
- * - economical: Minimize fuel (reaction mass) usage
+ * Multi-turn path planning for ships navigating between orbital positions.
  *
- * Uses reverse turn-layered BFS from destination, expanding backwards layer by
- * layer (one turn per layer) until the origin is found.
+ * - {@link planMovement}: reverse turn-layered BFS for static destinations
+ *   ("fastest" or "economical").
+ * - {@link planMovementToTarget}: forward turn-layered BFS for any
+ *   {@link PlannerTarget}, including moving ones (stations, drifting ships).
  *
  * @example
  * ```typescript
- * import { planMovement, analyzeSlingshots } from './movementPlanner'
- *
  * const plan = planMovement(
- *   { wellId: 'blackhole', ring: 3, sector: 5, facing: 'prograde' },
- *   { wellId: 'planet-alpha', ring: 2, sector: 10 },
- *   { mode: 'fastest', availableMass: 20 }
- * )
- *
- * if (plan) {
- *   console.log(`Path found: ${plan.totalTurns} turns, ${plan.totalMassCost} mass`)
- *   for (const step of plan.steps) {
- *     console.log(`  ${step.actionType}: ${step.from.sector} → ${step.to.sector}`)
- *   }
- * }
+ *   { wellId: "blackhole", ring: 3, sector: 5, facing: "prograde" },
+ *   { wellId: "planet-alpha", ring: 2, sector: 10 },
+ *   { mode: "fastest", availableMass: 10 },
+ * );
  * ```
  */
 
-// Main planner functions — reverse BFS, static targets only
 export {
   planMovement,
   planMovementAlternatives,
   isReachable,
   getReachablePositions,
-  comparePlans,
 } from "./planner.ts";
-
-// Forward BFS planner — supports static and dynamic targets
 export { planMovementToTarget } from "./forward.ts";
-
-// Target abstraction — used to express static or dynamic goals
 export type { PlannerTarget } from "./targets.ts";
-export { staticTarget, orbitingTarget } from "./targets.ts";
-
-// Predecessor / successor primitives (for advanced usage)
 export {
-  getPredecessors,
-  getVelocityAtPosition,
-  getMaxRingForWell,
-} from "./predecessors.ts";
+  staticTarget,
+  orbitingTarget,
+  nearDriftingShip,
+  anySectorOnRing,
+  orbitSectorAt,
+  driftPeriod,
+} from "./targets.ts";
+export { getPredecessors } from "./predecessors.ts";
+export type { PredecessorOptions } from "./predecessors.ts";
 export { getSuccessors } from "./successors.ts";
-export type { SuccessorInfo } from "./successors.ts";
-
-// Types
+export type { SuccessorInfo, SuccessorOptions } from "./successors.ts";
 export type {
   OrbitalPosition,
   OrientedPosition,
@@ -63,177 +47,131 @@ export type {
   PlannerOptions,
   PlannerMode,
   MovementActionType,
-  SlingshotAnalysis,
   PredecessorInfo,
 } from "./types.ts";
-
-export { positionKey, orbitalPositionKey, positionsMatch } from "./types.ts";
+export { positionKey, DEFAULT_PLANNER_OPTIONS } from "./types.ts";
 
 // ============================================================================
 // Convenience functions for bot integration
 // ============================================================================
 
-import type {
-  ShipState,
-  BurnIntensity,
-  Facing,
-  ActionType,
-} from "../../models/game.ts";
-import { getMaxReactionMass } from "../../game/loadout.ts";
-import { planMovement, isReachable } from "./planner.ts";
+import type { ShipState, BurnIntensity, Facing, Station } from "../../models/game.ts";
+import { getMaxReactionMass, hasWorkingCompressor } from "../../game/ship.ts";
+import { ringVelocity } from "../../game/geometry.ts";
+import { planMovement } from "./planner.ts";
 import { planMovementToTarget } from "./forward.ts";
-import { orbitingTarget } from "./targets.ts";
-import { STATION_CONSTANTS } from "../../game/stations.ts";
-import { getGravityWell } from "../../models/gravityWells.ts";
+import { orbitingTarget, staticTarget } from "./targets.ts";
+import type { PlannerTarget } from "./targets.ts";
 import type {
   OrbitalPosition,
   OrientedPosition,
   MovementPlan,
   PlannerMode,
+  PlannerOptions,
 } from "./types.ts";
 
+export function shipOrigin(ship: ShipState): OrientedPosition {
+  return { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing: ship.facing };
+}
+
+/** Planner options describing the ship's tank, scoop and compressor. */
+export function shipPlannerOptions(ship: ShipState, maxTurns: number): PlannerOptions {
+  const scoop = ship.subsystems.find((s) => s.type === "scoop");
+  return {
+    mode: "fastest",
+    maxTurns,
+    availableMass: ship.reactionMass,
+    allowWellTransfers: true,
+    hasFuelScoop: scoop !== undefined && !scoop.isBroken,
+    maxFuelCapacity: getMaxReactionMass(ship.subsystems),
+    hasFuelCompressor: hasWorkingCompressor(ship),
+  };
+}
+
 /**
- * Plan movement from a ship's current position to a target.
- * Convenience wrapper that extracts position from ShipState.
+ * Plan movement from a ship's current position to a static target.
  *
- * @param ship - Current ship state
- * @param target - Target orbital position
- * @param mode - Optimization mode ('fastest' or 'economical')
- * @returns Movement plan or null if unreachable
+ * The reverse search caps every predecessor's burn by the fuel the ship has
+ * *now*, so from a near-empty tank it reports "unreachable" for routes that
+ * are perfectly possible once the scoop has run for a turn or two. The
+ * forward search tracks fuel along the path and does model scooping, so it
+ * is the fallback whenever the reverse search comes back empty on a ship
+ * that has a working scoop. It only runs on that failure, so the common
+ * case still costs one reverse search.
  */
 export function planFromShip(
   ship: ShipState,
   target: OrbitalPosition,
   mode: PlannerMode = "fastest",
+  maxTurns: number = 20
 ): MovementPlan | null {
-  const origin: OrientedPosition = {
-    wellId: ship.wellId,
-    ring: ship.ring,
-    sector: ship.sector,
-    facing: ship.facing,
-  };
-
-  const hasFuelScoop = ship.subsystems.some((s) => s.type === "scoop"); // always true (fixed)
-  const maxFuelCapacity = getMaxReactionMass(ship.subsystems);
-
-  return planMovement(origin, target, {
-    mode,
-    availableMass: ship.reactionMass,
-    currentFacing: ship.facing,
-    allowWellTransfers: true,
-    maxTurns: 20,
-    hasFuelScoop,
-    maxFuelCapacity,
-  });
+  const options = shipPlannerOptions(ship, maxTurns);
+  const origin = shipOrigin(ship);
+  const plan = planMovement(origin, target, { ...options, mode });
+  if (plan || !options.hasFuelScoop) return plan;
+  return planMovementToTarget(origin, staticTarget(target), options);
 }
 
 /**
- * Get the first action from a movement plan.
- * Useful for bots that want to execute one step at a time.
+ * Plan movement from a ship to any {@link PlannerTarget} (forward BFS).
+ */
+export function planShipToTarget(
+  ship: ShipState,
+  target: PlannerTarget,
+  maxTurns: number = 12
+): MovementPlan | null {
+  return planMovementToTarget(shipOrigin(ship), target, shipPlannerOptions(ship, maxTurns));
+}
+
+/**
+ * The first step of a plan as engine action data.
  *
- * @param plan - Movement plan from planMovement
- * @returns Action data for the first step, or null if plan is empty
+ * `targetFacing` is the facing the ship must have for the step (the burn
+ * direction); it is undefined for coasts and jumps, which work from either
+ * facing.
  */
 export function getFirstAction(plan: MovementPlan): {
-  actionType: ActionType;
+  actionType: "coast" | "burn" | "well_transfer";
   burnIntensity?: BurnIntensity;
   sectorAdjustment: number;
   targetFacing?: Facing;
-  /**
-   * For well_transfer actions only — the well the planner intends to jump
-   * to. Required by the bot to construct a `WellTransferAction`.
-   */
   destinationWellId?: string;
+  /** Mass the planner expects this step to spend (negative = scoop recovery). */
+  massCost: number;
 } | null {
-  if (plan.steps.length === 0) return null;
-
   const step = plan.steps[0];
+  if (!step) return null;
 
-  // `targetFacing` is the facing the ship MUST be in for this step to
-  // succeed (i.e. the post-rotation facing). For burns, that's the burn
-  // direction. Setting it to `step.from.facing` (the pre-rotation source
-  // facing) would never trigger a rotation — exactly the bug that kept
-  // bots stuck on planet R3 when they needed to retrograde-burn inward.
-  let targetFacing: Facing | undefined;
-  if (step.actionType === "burn_prograde") {
-    targetFacing = "prograde";
-  } else if (step.actionType === "burn_retrograde") {
-    targetFacing = "retrograde";
-  } else if (step.actionType === "well_transfer") {
-    // Well transfers require prograde facing.
-    targetFacing = "prograde";
-  } else {
-    targetFacing = undefined; // coast — no rotation required by the step itself
+  if (step.actionType === "burn_prograde" || step.actionType === "burn_retrograde") {
+    return {
+      actionType: "burn",
+      burnIntensity: step.burnIntensity,
+      sectorAdjustment: step.sectorAdjustment,
+      targetFacing: step.actionType === "burn_prograde" ? "prograde" : "retrograde",
+      massCost: step.massCost,
+    };
   }
-
-  // Map planner step type → engine action type. Each is a distinct
-  // action; well transfers in particular MUST be emitted as a real
-  // well_transfer action, not collapsed into coast (which previously
-  // stranded bots on the black hole because no one ever issued the jump).
-  let actionType: ActionType;
-  if (step.actionType === "coast") {
-    actionType = "coast";
-  } else if (
-    step.actionType === "burn_prograde" ||
-    step.actionType === "burn_retrograde"
-  ) {
-    actionType = "burn";
-  } else {
-    actionType = "well_transfer";
+  if (step.actionType === "well_transfer") {
+    return {
+      actionType: "well_transfer",
+      sectorAdjustment: 0,
+      destinationWellId: step.to.wellId,
+      massCost: step.massCost,
+    };
   }
-
-  return {
-    actionType,
-    burnIntensity: step.burnIntensity,
-    sectorAdjustment: step.sectorAdjustment,
-    targetFacing,
-    destinationWellId:
-      step.actionType === "well_transfer" ? step.to.wellId : undefined,
-  };
+  return { actionType: "coast", sectorAdjustment: 0, massCost: step.massCost };
 }
 
 /**
- * Check if a target position is reachable from a ship's position.
- *
- * @param ship - Current ship state
- * @param target - Target orbital position
- * @param maxTurns - Maximum turns to search
- * @returns True if target is reachable
+ * Turns to reach a static target, or Infinity if unreachable.
  */
-export function canReachTarget(
-  ship: ShipState,
-  target: OrbitalPosition,
-  maxTurns: number = 10,
-): boolean {
-  const origin: OrientedPosition = {
-    wellId: ship.wellId,
-    ring: ship.ring,
-    sector: ship.sector,
-    facing: ship.facing,
-  };
-
-  return isReachable(origin, target, maxTurns, ship.reactionMass, true);
+export function estimateTurnsToTarget(ship: ShipState, target: OrbitalPosition): number {
+  return planFromShip(ship, target, "fastest")?.totalTurns ?? Infinity;
 }
 
 /**
- * Estimate how many turns it will take to reach a target.
- * Returns Infinity if unreachable.
- *
- * @param ship - Current ship state
- * @param target - Target orbital position
- * @returns Number of turns, or Infinity if unreachable
- */
-export function estimateTurnsToTarget(
-  ship: ShipState,
-  target: OrbitalPosition,
-): number {
-  const plan = planFromShip(ship, target, "fastest");
-  return plan?.totalTurns ?? Infinity;
-}
-
-/**
- * Result of a station meet-up plan: the position the ship should aim at,
- * how many bot turns the meet takes, and the underlying plan.
+ * Result of a station meet-up plan: where the ship lands, how many turns it
+ * takes, and the plan itself.
  */
 export interface StationMeetPlan {
   meetPosition: OrbitalPosition;
@@ -241,68 +179,26 @@ export interface StationMeetPlan {
   plan: MovementPlan;
 }
 
+/** Planner target for a station (advances once per round by its ring velocity). */
+export function stationTarget(
+  station: Pick<Station, "planetId" | "ring" | "sector">
+): PlannerTarget {
+  return orbitingTarget(
+    { wellId: station.planetId, ring: station.ring, sector: station.sector },
+    ringVelocity(station.planetId, station.ring)
+  );
+}
+
 /**
- * Plan a meet-up with an orbiting station.
- *
- * Stations advance once per round, in lockstep with `isNewRound`. From the
- * planner's perspective each bot turn equals one round, with the orbit
- * advance landing **between** the bot's turn-N match check and its turn-N+1
- * action — see {@link orbitingTarget} for the full timing rules.
- *
- * Internally this builds an `orbitingTarget` for the station and dispatches
- * to {@link planMovementToTarget}; that function's forward, time-layered
- * BFS naturally lines up the ship's "where will I be?" with the station's
- * "where will *it* be?", which a static-target planner cannot do.
- *
- * @param ship - Bot ship state.
- * @param station - The station to meet (planet id + ring + sector). Ring is
- *   conventionally 1; the sector is its current sector.
- * @returns A {@link StationMeetPlan} or `null` if no meet within `maxTurns`.
+ * Plan a meet-up with an orbiting station using the forward BFS, which
+ * lines up "where will I be?" with "where will it be?" at every turn.
  */
 export function planStationMeetUp(
   ship: ShipState,
-  station: { planetId: string; ring: number; sector: number },
-  maxTurns: number = 12,
+  station: Pick<Station, "planetId" | "ring" | "sector">,
+  maxTurns: number = 12
 ): StationMeetPlan | null {
-  const origin: OrientedPosition = {
-    wellId: ship.wellId,
-    ring: ship.ring,
-    sector: ship.sector,
-    facing: ship.facing,
-  };
-
-  const well = getGravityWell(station.planetId);
-  const ringConfig = well?.rings.find((r) => r.ring === station.ring);
-  const sectorsPerRound = ringConfig?.velocity ?? 4;
-
-  const target = orbitingTarget(
-    {
-      wellId: station.planetId,
-      ring: station.ring,
-      sector: station.sector,
-    },
-    sectorsPerRound,
-    STATION_CONSTANTS.SECTORS_PER_RING,
-  );
-
-  const hasFuelScoop = ship.subsystems.some((s) => s.type === "scoop");
-  const maxFuelCapacity = getMaxReactionMass(ship.subsystems);
-
-  const plan = planMovementToTarget(origin, target, {
-    mode: "fastest",
-    availableMass: ship.reactionMass,
-    currentFacing: ship.facing,
-    allowWellTransfers: true,
-    maxTurns,
-    hasFuelScoop,
-    maxFuelCapacity,
-  });
-
+  const plan = planShipToTarget(ship, stationTarget(station), maxTurns);
   if (!plan) return null;
-
-  return {
-    meetPosition: plan.destination,
-    totalTurns: plan.totalTurns,
-    plan,
-  };
+  return { meetPosition: plan.destination, totalTurns: plan.totalTurns, plan };
 }

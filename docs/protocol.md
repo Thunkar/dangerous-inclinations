@@ -1,0 +1,78 @@
+# Client ↔ Server Protocol
+
+The server is authoritative and holds `GameState`. Clients never receive a
+`GameState` during a live game: every message carries a `GameView`
+(`engine/src/game/view.ts`) computed for the recipient with `viewFor(state,
+playerId)`, plus the turn's `GameEvent[]` filtered with `filterEventsFor`.
+Bots receive exactly the same view through `viewFor`.
+
+## Identity
+
+Every request carries the player id (`x-player-id` header on REST, `playerId`
+query on the WebSocket). The server checks the player belongs to the game
+before joining the room or answering. Player ids are not secrets; this is a
+trust boundary against accidental leaks, not authentication.
+
+## REST (`/api/games`)
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| GET | `/api/games/:gameId` | — | `{ view: GameView, events: GameEvent[] }` (full filtered history) |
+| POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[] }` | `{ view }` or `400 { error }` |
+| POST | `/api/games/:gameId/deploy` | `{ wellId: string, sector: number }` | `{ view }` or `400 { error }` |
+| POST | `/api/games/:gameId/rewind` | `{ turnIndex: number }` | `{ view }` (dev tool; live games only, refused once a game is finalized) |
+| POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` | `{ gameId, view }` (archived recordings only; the seat must be your own original seat or a bot's) |
+| GET | `/api/health` | — | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }` |
+| GET | `/api/recordings` | — | list of **finished** recordings only |
+| GET | `/api/recordings/:id` | — | a finished recording (full states; the game is over) |
+
+Loadout and deployment submissions for bots happen server-side through the AI
+(`botChooseLoadout`, `botChooseDeployment` with the game's seeded RNG via
+`pickIndex`).
+
+## WebSocket (`/ws/game?playerId=&roomId=<gameId>`)
+
+Server → client:
+
+```ts
+{ type: "CONNECTED", room: "game", roomId }
+{ type: "GAME_VIEW", payload: { view: GameView, events: GameEvent[] } }
+  // on connect (events = full filtered history) and on any phase change
+{ type: "TURN_EXECUTED", payload: {
+    view: GameView,            // for this recipient
+    events: GameEvent[],       // this turn's events, filtered for this recipient
+    playerId: string,          // who acted
+    turnNumber: number,
+    actions?: PlayerAction[],  // only included when recipient === playerId
+    rewind?: true } }
+{ type: "TURN_ERROR", payload: { error?: string, errors?: string[] } }
+```
+
+Client → server:
+
+```ts
+{ type: "SUBMIT_TURN", payload: { actions: PlayerAction[], turn: number, activePlayerId: string } }
+  // rejected with TURN_ERROR if turn/activePlayerId don't match the server state (stale or duplicate submission)
+  // actions are schema-checked (strict discriminated union, finite integers); one malformed action rejects the submission
+```
+
+Per-recipient sending: `sendToPlayer(room, roomId, playerId, message)` and
+`broadcastViews(room, roomId, (playerId) => message)`; the old single-string
+`broadcastToRoom` remains only for lobby messages that carry no game state.
+
+## Ordering guarantees
+
+1. The server saves the new state (and appends to the recording) **before**
+   sending `TURN_EXECUTED`.
+2. Bot turns are executed one at a time in the same loop; each produces its
+   own `TURN_EXECUTED`.
+3. The human player set comes from the persisted registry
+   (`getHumanPlayerIds`), never from who happens to be connected.
+4. A game is torn down only after its last human socket has been closed for
+   90 seconds with no human reconnecting, so reloads and flaky connections
+   don't destroy a game in progress.
+
+## Recordings
+
+Live recordings hold full states and stay private until the game ends. The
+recordings API only lists and serves finalized recordings.

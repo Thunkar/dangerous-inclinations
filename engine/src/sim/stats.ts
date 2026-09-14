@@ -1,200 +1,195 @@
 /**
- * Per-game and aggregate stats extraction from sim recordings.
- *
- * Stats are computed by walking the turn log + final state. The per-game
- * shape is intentionally flat so it serializes cleanly to CSV/JSON for
- * downstream analysis.
+ * Stats from game events. Nothing here parses text: every number comes from
+ * a typed event or from the final state.
  */
-
-import type { GameRecording, RecordedTurn } from "../recording/types.ts";
-import type { Player, TurnLogEntry } from "../models/game.ts";
-
-export interface PerGameStats {
-  recordingId: string;
-  seed: number;
-  turnCount: number;
-  endReason: GameRecording["metadata"]["endReason"];
-  winnerId?: string;
-  playerCount: number;
-
-  /** Per-player metrics keyed by playerId. */
-  perPlayer: Record<string, PerPlayerStats>;
-
-  /** Total damage dealt across all players. */
-  totalDamageDealt: number;
-  /** Number of times any ship was destroyed. */
-  shipDestructions: number;
-  /** Number of heat-overflow damage events (turn-start excess heat → hull). */
-  heatOverflowEvents: number;
-  /** Number of mission completions across all players. */
-  missionCompletions: number;
-}
+import type { GameEvent } from "../models/events.ts";
+import type { MissionType } from "../models/missions.ts";
+import type { GameRunResult } from "./runGame.ts";
 
 export interface PerPlayerStats {
   playerId: string;
-  playerName: string;
   completedMissions: number;
-  finalHitPoints: number;
-  /** Times this player was destroyed and respawned. */
-  respawns: number;
-  /** Damage dealt by this player. */
+  completedByType: Partial<Record<MissionType, number>>;
+  finalHull: number;
   damageDealt: number;
-  /** Number of times this player fired each weapon type. */
-  weaponShots: Record<string, number>;
-  /** Critical hits landed by this player. */
-  criticalHits: number;
-  /** Misses by this player. */
-  misses: number;
-  /** Heat overflow damage taken. */
+  damageTaken: number;
+  kills: number;
+  deaths: number;
   heatDamageTaken: number;
+  shotsFired: Record<string, number>;
+  hits: number;
+  misses: number;
+  criticals: number;
+  missilesLaunched: number;
+  missilesIntercepted: number;
+  scans: number;
+  docks: number;
+  jumps: number;
+  burns: number;
+  firstDockTurn: number | null;
+  firstJumpTurn: number | null;
+  /** Loadout tiles still face-down when the game ended. */
+  hiddenTilesAtEnd: number;
+  loadout: string;
 }
 
-/**
- * Compute per-game stats from a recording.
- */
-export function computePerGameStats(recording: GameRecording): PerGameStats {
-  const finalState = recording.finalState ?? recording.initialState;
+export interface PerGameStats {
+  seed: number;
+  playerCount: number;
+  playerTurns: number;
+  rounds: number;
+  endReason: GameRunResult["endReason"];
+  winnerId?: string;
+  winnerMissionTypes: MissionType[];
+  totalDamage: number;
+  destructions: number;
+  missionCompletions: number;
+  completionsByType: Partial<Record<MissionType, number>>;
+  perPlayer: Record<string, PerPlayerStats>;
+}
+
+export function computePerGameStats(run: GameRunResult): PerGameStats {
+  const final = run.finalState;
   const perPlayer: Record<string, PerPlayerStats> = {};
-
-  for (const p of finalState.players) {
-    perPlayer[p.id] = initPerPlayer(p);
-  }
-
-  let totalDamageDealt = 0;
-  let shipDestructions = 0;
-  let heatOverflowEvents = 0;
-
-  for (const turn of recording.turns) {
-    creditActions(turn, perPlayer);
-    const turnTotals = creditLogEntries(turn.logEntries, perPlayer);
-    totalDamageDealt += turnTotals.damage;
-    shipDestructions += turnTotals.destructions;
-    heatOverflowEvents += turnTotals.heatOverflow;
-  }
-
-  const missionCompletions = finalState.players.reduce(
-    (sum, p) => sum + p.completedMissionCount,
-    0
-  );
-
-  return {
-    recordingId: recording.recordingId,
-    seed: recording.seed,
-    turnCount: recording.turns.length,
-    endReason: recording.metadata.endReason,
-    winnerId: recording.metadata.winnerId,
-    playerCount: finalState.players.length,
-    perPlayer,
-    totalDamageDealt,
-    shipDestructions,
-    heatOverflowEvents,
-    missionCompletions,
-  };
-}
-
-function initPerPlayer(p: Player): PerPlayerStats {
-  return {
-    playerId: p.id,
-    playerName: p.name,
-    completedMissions: p.completedMissionCount,
-    finalHitPoints: p.ship.hitPoints,
-    respawns: 0,
-    damageDealt: 0,
-    weaponShots: {},
-    criticalHits: 0,
-    misses: 0,
-    heatDamageTaken: 0,
-  };
-}
-
-/**
- * Credit weapon shots based on declared actions (not log entries — log entries
- * count hits, this counts attempts).
- */
-function creditActions(
-  turn: RecordedTurn,
-  perPlayer: Record<string, PerPlayerStats>
-): void {
-  const stats = perPlayer[turn.playerId];
-  if (!stats) return;
-
-  for (const action of turn.actions) {
-    if (action.type === "fire_weapon") {
-      const w = action.data.weaponType;
-      stats.weaponShots[w] = (stats.weaponShots[w] ?? 0) + 1;
+  for (const p of final.players) {
+    perPlayer[p.id] = {
+      playerId: p.id,
+      completedMissions: p.completedMissionCount,
+      completedByType: {},
+      finalHull: p.ship.hitPoints,
+      damageDealt: 0,
+      damageTaken: 0,
+      kills: 0,
+      deaths: 0,
+      heatDamageTaken: 0,
+      shotsFired: {},
+      hits: 0,
+      misses: 0,
+      criticals: 0,
+      missilesLaunched: 0,
+      missilesIntercepted: 0,
+      scans: 0,
+      docks: 0,
+      jumps: 0,
+      burns: 0,
+      firstDockTurn: null,
+      firstJumpTurn: null,
+      hiddenTilesAtEnd: p.ship.subsystems.filter((s) => s.slotGroup !== undefined && !s.isRevealed)
+        .length,
+      loadout: [...p.ship.loadout.forwardSlots, ...p.ship.loadout.sideSlots].join(","),
+    };
+    for (const m of p.missions) {
+      if (m.isCompleted)
+        perPlayer[p.id].completedByType[m.type] =
+          (perPlayer[p.id].completedByType[m.type] ?? 0) + 1;
     }
   }
-}
 
-/**
- * Walk a turn's log entries and credit damage / criticals / misses / events.
- * The log is parsed loosely from the action+result strings; the engine doesn't
- * (yet) emit structured combat events, so we extract what we can with regex.
- */
-function creditLogEntries(
-  logEntries: TurnLogEntry[],
-  perPlayer: Record<string, PerPlayerStats>
-): { damage: number; destructions: number; heatOverflow: number } {
-  let damage = 0;
+  let totalDamage = 0;
   let destructions = 0;
-  let heatOverflow = 0;
+  const completionsByType: Partial<Record<MissionType, number>> = {};
 
-  for (const entry of logEntries) {
-    const stats = perPlayer[entry.playerId];
-
-    if (entry.action === "Respawn" && stats) {
-      stats.respawns += 1;
-    }
-
-    if (entry.action === "Heat Damage" && stats) {
-      const m = /Took (\d+) hull damage/.exec(entry.result);
-      if (m) stats.heatDamageTaken += Number(m[1]);
-      heatOverflow += 1;
-    }
-
-    if (
-      stats &&
-      (entry.action.endsWith("Miss") || entry.action.includes("Missile Miss"))
-    ) {
-      stats.misses += 1;
-    }
-
-    if (stats && entry.action.includes("Critical")) {
-      stats.criticalHits += 1;
-    }
-
-    // "dealt N damage" appears in fire-weapon and missile hit logs
-    const dmgMatch = /dealt (\d+) damage/.exec(entry.result);
-    if (dmgMatch && stats) {
-      const dealt = Number(dmgMatch[1]);
-      stats.damageDealt += dealt;
-      damage += dealt;
-    }
-
-    // Track destroy mission completions as a proxy for destructions
-    if (entry.action === "Mission Complete" && entry.result.includes("destroyed")) {
-      destructions += 1;
-    }
+  for (const turn of run.turns) {
+    for (const e of turn.events)
+      creditEvent(
+        e,
+        perPlayer,
+        (d) => (totalDamage += d),
+        () => destructions++,
+        completionsByType
+      );
   }
 
-  return { damage, destructions, heatOverflow };
+  const winner = run.finalState.winnerId
+    ? final.players.find((p) => p.id === run.finalState.winnerId)
+    : undefined;
+
+  return {
+    seed: run.seed,
+    playerCount: final.players.length,
+    playerTurns: run.turnsPlayed,
+    rounds: Math.ceil(run.turnsPlayed / final.players.length),
+    endReason: run.endReason,
+    winnerId: run.finalState.winnerId,
+    winnerMissionTypes: winner
+      ? winner.missions.filter((m) => m.isCompleted).map((m) => m.type)
+      : [],
+    totalDamage,
+    destructions,
+    missionCompletions: final.players.reduce((s, p) => s + p.completedMissionCount, 0),
+    completionsByType,
+    perPlayer,
+  };
 }
 
-/**
- * Aggregate stats across many games. Computes simple distributions to support
- * balance work (e.g., "median turns to win", "win rate per loadout").
- */
-export interface AggregateStats {
-  gameCount: number;
-  endReasons: Record<GameRecording["metadata"]["endReason"], number>;
-  /** Distribution of turn counts. */
-  turnCount: Distribution;
-  /** Distribution of total damage dealt. */
-  totalDamageDealt: Distribution;
-  /** Distribution of mission completions. */
-  missionCompletions: Distribution;
-  /** Win count per playerId. */
-  winsByPlayer: Record<string, number>;
+function creditEvent(
+  e: GameEvent,
+  per: Record<string, PerPlayerStats>,
+  addDamage: (d: number) => void,
+  addDestruction: () => void,
+  completionsByType: Partial<Record<MissionType, number>>
+): void {
+  const first = (s: PerPlayerStats, key: "firstDockTurn" | "firstJumpTurn") => {
+    if (s[key] === null) s[key] = e.turn;
+  };
+  switch (e.type) {
+    case "weapon_fired": {
+      const s = per[e.attackerId];
+      if (!s) break;
+      s.shotsFired[e.weaponType] = (s.shotsFired[e.weaponType] ?? 0) + 1;
+      break;
+    }
+    case "missile_launched":
+      if (per[e.ownerId]) per[e.ownerId].missilesLaunched++;
+      break;
+    case "missile_intercepted":
+      if (e.destroyed && per[e.targetId]) per[e.targetId].missilesIntercepted++;
+      break;
+    case "attack_resolved": {
+      const a = per[e.attackerId];
+      const t = per[e.targetId];
+      if (a) {
+        if (e.result === "miss") a.misses++;
+        else a.hits++;
+        if (e.result === "critical") a.criticals++;
+        a.damageDealt += e.toHull;
+      }
+      if (t) t.damageTaken += e.toHull;
+      addDamage(e.toHull);
+      break;
+    }
+    case "ship_destroyed":
+      addDestruction();
+      if (per[e.victimId]) per[e.victimId].deaths++;
+      if (e.killerId && per[e.killerId]) per[e.killerId].kills++;
+      break;
+    case "heat_damage":
+      if (per[e.playerId]) per[e.playerId].heatDamageTaken += e.damage;
+      break;
+    case "scanned":
+      if (per[e.scannerId]) per[e.scannerId].scans++;
+      break;
+    case "docked":
+      if (per[e.playerId]) {
+        per[e.playerId].docks++;
+        first(per[e.playerId], "firstDockTurn");
+      }
+      break;
+    case "jumped":
+      if (per[e.playerId]) {
+        per[e.playerId].jumps++;
+        first(per[e.playerId], "firstJumpTurn");
+      }
+      break;
+    case "burned":
+      if (per[e.playerId]) per[e.playerId].burns++;
+      break;
+    case "mission_completed":
+      completionsByType[e.mission.type] = (completionsByType[e.mission.type] ?? 0) + 1;
+      break;
+    default:
+      break;
+  }
 }
 
 export interface Distribution {
@@ -207,51 +202,88 @@ export interface Distribution {
   count: number;
 }
 
+export interface AggregateStats {
+  gameCount: number;
+  endReasons: Record<string, number>;
+  rounds: Distribution;
+  playerTurns: Distribution;
+  totalDamage: Distribution;
+  destructions: Distribution;
+  missionCompletions: Distribution;
+  completionsByType: Partial<Record<MissionType, number>>;
+  winnerMissionTypes: Partial<Record<MissionType, number>>;
+  winsByPlayer: Record<string, number>;
+  /** Per player id across games. */
+  firstDockRound: Distribution;
+  firstJumpRound: Distribution;
+  hiddenTilesAtEnd: Distribution;
+  scansPerGame: Distribution;
+  loadoutWins: Record<string, { games: number; wins: number }>;
+}
+
 export function aggregateStats(games: PerGameStats[]): AggregateStats {
   const endReasons: Record<string, number> = {};
   const winsByPlayer: Record<string, number> = {};
-  const turnCounts: number[] = [];
-  const damages: number[] = [];
-  const completions: number[] = [];
+  const completionsByType: Partial<Record<MissionType, number>> = {};
+  const winnerMissionTypes: Partial<Record<MissionType, number>> = {};
+  const loadoutWins: Record<string, { games: number; wins: number }> = {};
+  const firstDock: number[] = [];
+  const firstJump: number[] = [];
+  const hidden: number[] = [];
+  const scans: number[] = [];
 
   for (const g of games) {
     endReasons[g.endReason] = (endReasons[g.endReason] ?? 0) + 1;
-    if (g.winnerId) {
-      winsByPlayer[g.winnerId] = (winsByPlayer[g.winnerId] ?? 0) + 1;
+    if (g.winnerId) winsByPlayer[g.winnerId] = (winsByPlayer[g.winnerId] ?? 0) + 1;
+    for (const [type, n] of Object.entries(g.completionsByType)) {
+      completionsByType[type as MissionType] =
+        (completionsByType[type as MissionType] ?? 0) + (n ?? 0);
     }
-    turnCounts.push(g.turnCount);
-    damages.push(g.totalDamageDealt);
-    completions.push(g.missionCompletions);
+    for (const type of g.winnerMissionTypes)
+      winnerMissionTypes[type] = (winnerMissionTypes[type] ?? 0) + 1;
+    let gameScans = 0;
+    for (const p of Object.values(g.perPlayer)) {
+      if (p.firstDockTurn !== null) firstDock.push(p.firstDockTurn);
+      if (p.firstJumpTurn !== null) firstJump.push(p.firstJumpTurn);
+      hidden.push(p.hiddenTilesAtEnd);
+      gameScans += p.scans;
+      const lw = (loadoutWins[p.loadout] ??= { games: 0, wins: 0 });
+      lw.games++;
+      if (g.winnerId === p.playerId) lw.wins++;
+    }
+    scans.push(gameScans);
   }
 
   return {
     gameCount: games.length,
-    endReasons: endReasons as AggregateStats["endReasons"],
-    turnCount: distribution(turnCounts),
-    totalDamageDealt: distribution(damages),
-    missionCompletions: distribution(completions),
+    endReasons,
+    rounds: distribution(games.map((g) => g.rounds)),
+    playerTurns: distribution(games.map((g) => g.playerTurns)),
+    totalDamage: distribution(games.map((g) => g.totalDamage)),
+    destructions: distribution(games.map((g) => g.destructions)),
+    missionCompletions: distribution(games.map((g) => g.missionCompletions)),
+    completionsByType,
+    winnerMissionTypes,
     winsByPlayer,
+    firstDockRound: distribution(firstDock),
+    firstJumpRound: distribution(firstJump),
+    hiddenTilesAtEnd: distribution(hidden),
+    scansPerGame: distribution(scans),
+    loadoutWins,
   };
 }
 
-function distribution(values: number[]): Distribution {
-  if (values.length === 0) {
-    return { min: 0, max: 0, mean: 0, median: 0, p25: 0, p75: 0, count: 0 };
-  }
+export function distribution(values: number[]): Distribution {
+  if (values.length === 0) return { min: 0, max: 0, mean: 0, median: 0, p25: 0, p75: 0, count: 0 };
   const sorted = [...values].sort((a, b) => a - b);
-  const sum = sorted.reduce((s, v) => s + v, 0);
+  const at = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
   return {
     min: sorted[0],
     max: sorted[sorted.length - 1],
-    mean: sum / sorted.length,
-    median: percentile(sorted, 0.5),
-    p25: percentile(sorted, 0.25),
-    p75: percentile(sorted, 0.75),
+    mean: Math.round((sorted.reduce((s, v) => s + v, 0) / sorted.length) * 10) / 10,
+    median: at(0.5),
+    p25: at(0.25),
+    p75: at(0.75),
     count: sorted.length,
   };
-}
-
-function percentile(sorted: number[], p: number): number {
-  const idx = Math.min(sorted.length - 1, Math.floor(p * sorted.length));
-  return sorted[idx];
 }

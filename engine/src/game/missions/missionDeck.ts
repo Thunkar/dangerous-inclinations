@@ -1,192 +1,139 @@
 /**
- * Mission Deck System for Dangerous Inclinations
+ * Mission deck. Each player draws MISSION_OFFERS_PER_PLAYER cards from their
+ * own shuffled deck of every mission they could hold, then keeps
+ * MISSIONS_PER_PLAYER of them during loadout.
  *
- * Generates and deals missions to players at game start.
- * Each player receives exactly 3 missions:
- * - Destroy missions: Each player targets exactly ONE other player
- * - Cargo missions: Transport cargo between planet stations
+ * Deck per player: one Destroy and one Intercept per opponent; every Deliver
+ * route between two different planets; two Survey.
  */
-
-import type { Player, GravityWell } from "../../models/game.ts";
-import type {
-  Mission,
-  DestroyShipMission,
-  DeliverCargoMission,
-  Cargo,
-} from "../../models/missions.ts";
+import type { Player } from "../../models/game.ts";
+import type { Cargo, Mission } from "../../models/missions.ts";
+import { MISSIONS_PER_PLAYER, MISSION_OFFERS_PER_PLAYER } from "../../models/missions.ts";
+import { PLANETS } from "../../models/gravityWells.ts";
 import type { Rng } from "../../utils/rng.ts";
 
-/**
- * Mission deck constants
- */
-export const MISSION_CONSTANTS = {
-  MISSIONS_PER_PLAYER: 3,
-  MISSION_OFFERS_PER_PLAYER: 5,
-} as const;
+export const SURVEY_CARDS_PER_DECK = 2;
+
+/** A card before it gets an id (distributive over the mission union). */
+export type MissionBlueprint = {
+  [K in Mission["type"]]: Omit<Extract<Mission, { type: K }>, "id">;
+}[Mission["type"]];
 
 /**
- * Mutable issuer for deterministic mission/cargo IDs.
- * Pass through deck generation so all IDs are stable for a given game seed.
+ * Every card a player could hold, in a fixed order. Ids are assigned AFTER
+ * shuffling (see dealMissionOffers) so that an id says nothing about the
+ * card: cargo and data chits are named after their mission id and are public
+ * tokens, and a predictable id would let opponents read a crate's route.
  */
-interface IdIssuer {
-  next: number;
-}
+export function buildMissionDeck(
+  opponents: ReadonlyArray<Pick<Player, "id">>,
+  planetIds: readonly string[]
+): MissionBlueprint[] {
+  const deck: MissionBlueprint[] = [];
 
-function generateMissionId(issuer: IdIssuer, type: string): string {
-  return `mission-${type}-${issuer.next++}`;
-}
-
-function generateCargoId(missionId: string): string {
-  return `cargo-${missionId}`;
-}
-
-/**
- * Get the destroy target for a player (for UI/debug purposes)
- */
-export function getDestroyTarget(missions: Mission[]): string | undefined {
-  const destroyMission = missions.find((m) => m.type === "destroy_ship") as
-    | DestroyShipMission
-    | undefined;
-  return destroyMission?.targetPlayerId;
-}
-
-/**
- * Get cargo missions for a player
- */
-export function getCargoMissions(missions: Mission[]): DeliverCargoMission[] {
-  return missions.filter(
-    (m) => m.type === "deliver_cargo"
-  ) as DeliverCargoMission[];
-}
-
-/**
- * Result of dealing mission offers
- */
-export interface DealMissionOffersResult {
-  playerOffers: Map<string, Mission[]>;
-}
-
-/**
- * Build a full mission deck for one player, containing every possible mission
- * they could draw. The deck is shuffled and they draw MISSION_OFFERS_PER_PLAYER
- * cards from the top — just like a real tabletop card draw.
- */
-function buildPlayerDeck(
-  _player: Player,
-  otherPlayers: Player[],
-  planets: GravityWell[],
-  rng: Rng,
-  issuer: IdIssuer
-): Mission[] {
-  const deck: Mission[] = [];
-
-  // Destroy missions — one per opponent
-  for (const target of otherPlayers) {
+  for (const target of opponents) {
+    deck.push({ type: "destroy_ship", isCompleted: false, targetPlayerId: target.id });
     deck.push({
-      id: generateMissionId(issuer, "destroy"),
-      type: "destroy_ship",
-      isCompleted: false,
-      targetPlayerId: target.id,
-    });
-  }
-
-  // Intercept missions — one per opponent
-  for (const target of otherPlayers) {
-    const missionId = generateMissionId(issuer, "intercept");
-    deck.push({
-      id: missionId,
       type: "intercept_transmission",
       isCompleted: false,
       targetPlayerId: target.id,
       scanAcquired: false,
-      scanCargoId: generateCargoId(missionId),
+      dataCargoId: "",
     });
   }
-
-  // Cargo missions — all planet pair routes
-  for (const pickup of planets) {
-    for (const delivery of planets) {
-      if (pickup.id !== delivery.id) {
-        const missionId = generateMissionId(issuer, "cargo");
-        deck.push({
-          id: missionId,
-          type: "deliver_cargo",
-          isCompleted: false,
-          pickupPlanetId: pickup.id,
-          deliveryPlanetId: delivery.id,
-          cargoId: generateCargoId(missionId),
-        });
-      }
+  for (const pickup of planetIds) {
+    for (const delivery of planetIds) {
+      if (pickup === delivery) continue;
+      deck.push({
+        type: "deliver_cargo",
+        isCompleted: false,
+        pickupPlanetId: pickup,
+        deliveryPlanetId: delivery,
+        cargoId: "",
+      });
     }
   }
+  for (let i = 0; i < SURVEY_CARDS_PER_DECK; i++)
+    deck.push({ type: "survey", isCompleted: false, surveyAcquired: false, dataCargoId: "" });
 
-  return rng.shuffle(deck);
+  return deck;
+}
+
+/** Give a shuffled card its (opaque) id and derived token ids. */
+export function assignMissionId(card: MissionBlueprint, id: string): Mission {
+  switch (card.type) {
+    case "deliver_cargo":
+      return { ...card, id, cargoId: `crate-${id}` };
+    case "intercept_transmission":
+      return { ...card, id, dataCargoId: `data-${id}` };
+    case "survey":
+      return { ...card, id, dataCargoId: `data-${id}` };
+    case "destroy_ship":
+      return { ...card, id };
+  }
 }
 
 /**
- * Deal mission offers to all players.
- * Each player draws MISSION_OFFERS_PER_PLAYER (5) from their own shuffled deck.
- * The draw uses the supplied Rng (mutated) — mimicking a tabletop card draw,
- * but deterministic for a given seed.
- * They will pick MISSIONS_PER_PLAYER (3) when submitting their loadout.
+ * Deal offers to every player, advancing `rng`. Deterministic for a seed.
+ * Ids are sequential over the shuffled decks, so they carry no information.
  */
 export function dealMissionOffers(
-  players: Player[],
-  planets: GravityWell[],
-  rng: Rng
-): DealMissionOffersResult {
-  const playerOffers = new Map<string, Mission[]>();
-  const issuer: IdIssuer = { next: 0 };
-
+  players: ReadonlyArray<Pick<Player, "id">>,
+  rng: Rng,
+  planetIds: readonly string[] = PLANETS.map((p) => p.id)
+): Map<string, Mission[]> {
+  const offers = new Map<string, Mission[]>();
+  let next = 0;
   for (const player of players) {
-    const otherPlayers = players.filter((p) => p.id !== player.id);
-    const deck = buildPlayerDeck(player, otherPlayers, planets, rng, issuer);
-    const drawn = deck.slice(0, MISSION_CONSTANTS.MISSION_OFFERS_PER_PLAYER);
-    playerOffers.set(player.id, drawn);
+    const opponents = players.filter((p) => p.id !== player.id);
+    const shuffled = rng.shuffle(buildMissionDeck(opponents, planetIds));
+    const deck = shuffled.map((card) => assignMissionId(card, `m${next++}`));
+    offers.set(player.id, deck.slice(0, MISSION_OFFERS_PER_PLAYER));
   }
-
-  return { playerOffers };
+  return offers;
 }
 
 /**
- * Select missions from a player's offered pool and create associated cargo.
- * Validates that exactly MISSIONS_PER_PLAYER IDs are selected, all from the offer.
- * Returns the selected missions and their cargo items.
+ * Keep MISSIONS_PER_PLAYER of the offered missions. Creates the crates for
+ * Deliver missions (to be picked up at their origin station).
  */
 export function selectMissionsFromOffers(
-  offeredMissions: Mission[],
+  offers: Mission[],
   selectedIds: string[]
 ): { missions: Mission[]; cargo: Cargo[]; error?: string } {
-  if (selectedIds.length !== MISSION_CONSTANTS.MISSIONS_PER_PLAYER) {
+  if (selectedIds.length !== MISSIONS_PER_PLAYER) {
     return {
       missions: [],
       cargo: [],
-      error: `Must select exactly ${MISSION_CONSTANTS.MISSIONS_PER_PLAYER} missions (got ${selectedIds.length})`,
+      error: `Must select exactly ${MISSIONS_PER_PLAYER} missions (got ${selectedIds.length})`,
     };
   }
-
-  const selectedSet = new Set(selectedIds);
-  const selected = offeredMissions.filter((m) => selectedSet.has(m.id));
-
-  if (selected.length !== MISSION_CONSTANTS.MISSIONS_PER_PLAYER) {
+  const selected = new Set(selectedIds);
+  const missions = offers.filter((m) => selected.has(m.id));
+  if (missions.length !== MISSIONS_PER_PLAYER) {
     return {
       missions: [],
       cargo: [],
       error: "One or more selected mission IDs not found in your offers",
     };
   }
+  return { missions, cargo: cratesForMissions(missions) };
+}
 
-  // Create cargo for deliver_cargo missions
-  const cargo: Cargo[] = selected
-    .filter((m): m is DeliverCargoMission => m.type === "deliver_cargo")
-    .map((m) => ({
-      id: m.cargoId,
-      missionId: m.id,
-      type: "standard" as const,
-      pickupPlanetId: m.pickupPlanetId,
-      deliveryPlanetId: m.deliveryPlanetId,
-      isPickedUp: false,
-    }));
-
-  return { missions: selected, cargo };
+/** Crates for every Deliver mission in the list, not yet picked up. */
+export function cratesForMissions(missions: Mission[]): Cargo[] {
+  return missions.flatMap((m) =>
+    m.type === "deliver_cargo"
+      ? [
+          {
+            id: m.cargoId,
+            missionId: m.id,
+            kind: "crate" as const,
+            pickupPlanetId: m.pickupPlanetId,
+            deliveryPlanetId: m.deliveryPlanetId,
+            isPickedUp: false,
+          },
+        ]
+      : []
+  );
 }

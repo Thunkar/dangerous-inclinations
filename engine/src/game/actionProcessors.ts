@@ -1,7 +1,13 @@
+/**
+ * Action processing for one turn.
+ *
+ * Order: deallocations, allocations, then tactical actions in the sequence
+ * the player chose. Each action is validated against the state as it stands
+ * when its turn comes, then applied. Any failure aborts the whole turn.
+ */
 import type {
   GameState,
   PlayerAction,
-  TurnLogEntry,
   CoastAction,
   BurnAction,
   RotateAction,
@@ -9,29 +15,29 @@ import type {
   DeallocateEnergyAction,
   FireWeaponAction,
   WellTransferAction,
-  ShipState,
-  RingConfig,
+  ScanAction,
+  Player,
 } from "../models/game.ts";
-import {
-  applyOrbitalMovement,
-  initiateBurn,
-  applyRotation,
-  completeRingTransfer,
-} from "./movement.ts";
-import { applyDamageWithShields, getWeaponDamage } from "./damage.ts";
-import { getMaxReactionMass } from "./loadout.ts";
+import { isTacticalAction } from "../models/game.ts";
+import type { EventDraft } from "../models/events.ts";
+import { getSubsystemConfig, isWeaponType } from "../models/subsystems.ts";
+import { BURN_COSTS, WELL_TRANSFER_COSTS } from "../models/rings.ts";
+import { findJump, getMaxRing } from "../models/gravityWells.ts";
 import { rollD10 } from "../utils/rng.ts";
+import { positionOf, ringVelocity } from "./geometry.ts";
+import { applyOrbitalMovement, applyBurn, applyRotation } from "./movement.ts";
+import { resolveAttack } from "./damage.ts";
+import { createMissile, revealSensors } from "./missiles.ts";
+import { processScan } from "./scan.ts";
 import {
-  BURN_COSTS,
-  WELL_TRANSFER_COSTS,
-  mapSectorOnTransfer,
-  SECTORS_PER_RING,
-} from "../models/rings.ts";
-import { getSubsystemConfig } from "../models/subsystems.ts";
-import { fireMissile, getMissileAmmo } from "./missiles.ts";
-import { getGravityWell, TRANSFER_POINTS } from "../models/gravityWells.ts";
-import { addHeat } from "./heat.ts";
-import { resetSubsystemUsage } from "./energy.ts";
+  findSubsystem,
+  getMaxReactionMass,
+  hasWorkingCompressor,
+  isDestroyed,
+  revealSubsystem,
+  updateSubsystem,
+  useSubsystem,
+} from "./ship.ts";
 import {
   validateActionSequence,
   validateAllocateEnergyAction,
@@ -40,858 +46,462 @@ import {
   validateCoastAction,
   validateBurnAction,
   validateFireWeaponAction,
+  validateScanAction,
   validateWellTransferAction,
 } from "./validators.ts";
 
 export interface ProcessResult {
   success: boolean;
-  gameState: GameState;
-  logEntries: TurnLogEntry[];
+  state: GameState;
+  events: EventDraft[];
   errors?: string[];
 }
 
+type Step = { state: GameState; events: EventDraft[] };
+
 /**
- * Helper to validate and process an array of actions
+ * A shot or scan declared at a ship that was destroyed earlier in the same
+ * turn is simply not taken (nobody fires at debris). Targets that were never
+ * valid still fail validation.
  */
-function validateAndProcessActions<T extends PlayerAction>(
-  gameState: GameState,
-  actions: T[],
-  validate: (state: GameState, action: T) => string[],
-  process: (state: GameState, action: T) => ProcessResult
-): ProcessResult {
-  let currentGameState = gameState;
-  const logEntries: TurnLogEntry[] = [];
-
-  for (const action of actions) {
-    const validationErrors = validate(currentGameState, action);
-    if (validationErrors.length > 0) {
-      return {
-        success: false,
-        gameState,
-        logEntries: [],
-        errors: validationErrors,
-      };
-    }
-    const result = process(currentGameState, action);
-    currentGameState = result.gameState;
-    logEntries.push(...result.logEntries);
-  }
-
-  return {
-    success: true,
-    gameState: currentGameState,
-    logEntries,
-  };
+function targetGone(state: GameState, targetId: string): boolean {
+  const target = state.players.find((p) => p.id === targetId);
+  return !!target && target.hasDeployed && isDestroyed(target.ship);
 }
 
+function withPlayer(state: GameState, playerId: string, update: (p: Player) => Player): GameState {
+  return { ...state, players: state.players.map((p) => (p.id === playerId ? update(p) : p)) };
+}
 
-/**
- * Process all actions for the active player in the correct order
- *
- * NEW Turn sequence:
- * Phase 0 (Start of Turn - Automatic):
- *   0a. Calculate heat damage (excess heat above dissipation capacity)
- *   0b. Apply heat dissipation (remove heat up to dissipation capacity)
- *
- * Phase 1 (Fixed order - Energy Management):
- *   1. Energy Allocation (unlimited)
- *   2. Energy Deallocation (unlimited)
- *
- * Phase 2 (User-specified order - Tactical Actions):
- *   - Rotation (generates heat when executed)
- *   - Movement: coast or burn (burn generates heat when executed)
- *   - Weapon Firing (generates heat when fired, includes shield absorption and crits)
- *   (Order determined by sequence field on each action)
- *
- * Phase 3 (Fixed order - End of Turn):
- *   - Reset Subsystem Usage (prepare for next turn)
- *
- * Note: Heat is now generated when subsystems are USED, not from overclocking.
- */
-export function processActions(
-  gameState: GameState,
-  actions: PlayerAction[]
-): ProcessResult {
-  const logEntries: TurnLogEntry[] = [];
-  let currentGameState = gameState;
-  const activePlayerIndex = gameState.activePlayerIndex;
-
-  // Validate action sequence ordering
+export function processActions(state: GameState, actions: PlayerAction[]): ProcessResult {
   const sequenceErrors = validateActionSequence(actions);
-  if (sequenceErrors.length > 0) {
-    return {
-      success: false,
-      gameState,
-      logEntries: [],
-      errors: sequenceErrors,
-    };
+  if (sequenceErrors.length > 0)
+    return { success: false, state, events: [], errors: sequenceErrors };
+
+  let current = state;
+  const events: EventDraft[] = [];
+
+  const run = <A extends PlayerAction>(
+    action: A,
+    validate: (s: GameState, a: A) => string[],
+    process: (s: GameState, a: A) => Step
+  ): string[] | null => {
+    const errors = validate(current, action);
+    if (errors.length > 0) return errors;
+    const step = process(current, action);
+    current = step.state;
+    events.push(...step.events);
+    return null;
+  };
+
+  const deallocations = actions.filter(
+    (a): a is DeallocateEnergyAction => a.type === "deallocate_energy"
+  );
+  const allocations = actions.filter(
+    (a): a is AllocateEnergyAction => a.type === "allocate_energy"
+  );
+  const tactical = actions
+    .filter(isTacticalAction)
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+
+  for (const a of deallocations) {
+    const err = run(a, validateDeallocateEnergyAction, processDeallocateEnergy);
+    if (err) return { success: false, state, events: [], errors: err };
   }
-
-  // NOTE: Heat damage and reset are now handled in turns.ts when switching to next player
-  // This ensures the player sees the damage BEFORE their turn starts
-
-  // PHASE 1: Energy Management (fixed order, now unlimited)
-  // IMPORTANT: Deallocations must be processed BEFORE allocations
-  // so that freed energy is available for new allocations
-
-  // Phase 1.1: Energy Deallocation (must come first to free up energy)
-  const deallocateActions = actions.filter(
-    (a) => a.type === "deallocate_energy"
-  ) as DeallocateEnergyAction[];
-  const deallocateResult = validateAndProcessActions(
-    currentGameState,
-    deallocateActions,
-    validateDeallocateEnergyAction,
-    processDeallocateEnergy
+  for (const a of allocations) {
+    const err = run(a, validateAllocateEnergyAction, processAllocateEnergy);
+    if (err) return { success: false, state, events: [], errors: err };
+  }
+  // Ships alive when the turn began: shots at one of these that dies mid-turn are skipped, not errors.
+  const aliveAtStart = new Set(
+    state.players.filter((p) => p.hasDeployed && !isDestroyed(p.ship)).map((p) => p.id)
   );
-  if (!deallocateResult.success) return deallocateResult;
-  currentGameState = deallocateResult.gameState;
-  logEntries.push(...deallocateResult.logEntries);
-
-  // Phase 1.2: Energy Allocation (uses energy freed by deallocations)
-  const allocateActions = actions.filter(
-    (a) => a.type === "allocate_energy"
-  ) as AllocateEnergyAction[];
-  const allocateResult = validateAndProcessActions(
-    currentGameState,
-    allocateActions,
-    validateAllocateEnergyAction,
-    processAllocateEnergy
-  );
-  if (!allocateResult.success) return allocateResult;
-  currentGameState = allocateResult.gameState;
-  logEntries.push(...allocateResult.logEntries);
-
-  // PHASE 2: Tactical Actions (user-specified order via sequence field)
-
-  const tacticalActions = actions
-    .filter(
-      (a) =>
-        a.type === "rotate" ||
-        a.type === "coast" ||
-        a.type === "burn" ||
-        a.type === "fire_weapon" ||
-        a.type === "well_transfer"
-    )
-    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-
-  // Track whether movement has happened (for missile orbital skip logic)
-  let movementHappened = false;
-
-  for (const action of tacticalActions) {
-    if (action.type === "rotate") {
-      const rotateResult = validateAndProcessActions(
-        currentGameState,
-        [action as RotateAction],
-        validateRotateAction,
-        processRotation
-      );
-      if (!rotateResult.success) return rotateResult;
-      currentGameState = rotateResult.gameState;
-      logEntries.push(...rotateResult.logEntries);
-    } else if (action.type === "coast") {
-      const coastResult = validateAndProcessActions(
-        currentGameState,
-        [action as CoastAction],
-        validateCoastAction,
-        processCoast
-      );
-      if (!coastResult.success) return coastResult;
-      currentGameState = coastResult.gameState;
-      logEntries.push(...coastResult.logEntries);
-      movementHappened = true;
-    } else if (action.type === "burn") {
-      const burnResult = validateAndProcessActions(
-        currentGameState,
-        [action as BurnAction],
-        validateBurnAction,
-        processBurn
-      );
-      if (!burnResult.success) return burnResult;
-      currentGameState = burnResult.gameState;
-      logEntries.push(...burnResult.logEntries);
-      movementHappened = true;
-    } else if (action.type === "fire_weapon") {
-      const weaponResult = validateAndProcessActions(
-        currentGameState,
-        [action as FireWeaponAction],
-        validateFireWeaponAction,
-        processFireWeapon
-      );
-      if (!weaponResult.success) return weaponResult;
-      currentGameState = weaponResult.gameState;
-      logEntries.push(...weaponResult.logEntries);
-
-      // If movement already happened, mark any new missiles to skip orbital this turn
-      if (movementHappened) {
-        const fireAction = action as FireWeaponAction;
-        if (fireAction.data.weaponType === "missiles") {
-          // Find newly added missiles (those without skipOrbitalThisTurn set yet)
-          currentGameState = {
-            ...currentGameState,
-            missiles: currentGameState.missiles.map((m) =>
-              m.turnFired === currentGameState.turn &&
-              m.skipOrbitalThisTurn === undefined
-                ? { ...m, skipOrbitalThisTurn: true }
-                : m
-            ),
-          };
+  let movedThisTurn = false;
+  for (const a of tactical) {
+    let err: string[] | null = null;
+    switch (a.type) {
+      case "rotate":
+        err = run(a, validateRotateAction, processRotation);
+        break;
+      case "coast":
+        err = run(a, validateCoastAction, processCoast);
+        movedThisTurn = true;
+        break;
+      case "burn":
+        err = run(a, validateBurnAction, processBurn);
+        movedThisTurn = true;
+        break;
+      case "well_transfer":
+        err = run(a, validateWellTransferAction, processWellTransfer);
+        movedThisTurn = true;
+        break;
+      case "fire_weapon":
+        if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
+          events.push({
+            type: "action_skipped",
+            playerId: a.playerId,
+            action: "fire_weapon",
+            targetId: a.data.targetPlayerId,
+            reason: "target_destroyed",
+          });
+          break;
         }
-      }
-    } else if (action.type === "well_transfer") {
-      const wellTransferResult = validateAndProcessActions(
-        currentGameState,
-        [action as WellTransferAction],
-        validateWellTransferAction,
-        processWellTransfer
-      );
-      if (!wellTransferResult.success) return wellTransferResult;
-      currentGameState = wellTransferResult.gameState;
-      logEntries.push(...wellTransferResult.logEntries);
-      movementHappened = true;
+        err = run(a, validateFireWeaponAction, (s, fa: FireWeaponAction) =>
+          processFireWeapon(s, fa, movedThisTurn)
+        );
+        break;
+      case "scan":
+        if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
+          events.push({
+            type: "action_skipped",
+            playerId: a.playerId,
+            action: "scan",
+            targetId: a.data.targetPlayerId,
+            reason: "target_destroyed",
+          });
+          break;
+        }
+        err = run(a, validateScanAction, (s, sa: ScanAction) => processScan(s, sa));
+        break;
     }
+    if (err) return { success: false, state, events: [], errors: err };
   }
 
-  // PHASE 3: End of Turn (fixed order)
-
-  // Reset subsystem usage flags for next turn
-  const updatedPlayers = [...currentGameState.players];
-  const currentPlayer = updatedPlayers[activePlayerIndex];
-  updatedPlayers[activePlayerIndex] = {
-    ...currentPlayer,
-    ship: {
-      ...currentPlayer.ship,
-      subsystems: resetSubsystemUsage(currentPlayer.ship.subsystems),
-    },
-  };
-  currentGameState = {
-    ...currentGameState,
-    players: updatedPlayers,
-  };
-
-  return {
-    success: true,
-    gameState: currentGameState,
-    logEntries,
-  };
-}
-
-/**
- * Process a coast action (orbital movement only)
- */
-function processCoast(
-  gameState: GameState,
-  action: CoastAction
-): ProcessResult {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-
-  // Apply orbital movement
-  let updatedShip = applyOrbitalMovement(player.ship);
-
-  // Apply fuel scoop if activated
-  let heatGenerated = 0;
-  if (action.data.activateScoop) {
-    const well = getGravityWell(updatedShip.wellId);
-    const ringConfig = well?.rings.find((r) => r.ring === updatedShip.ring);
-    const velocity = ringConfig?.velocity || 1;
-
-    // Recover reaction mass equal to velocity, capped at effective max
-    const massRecovered = Math.min(
-      velocity,
-      getMaxReactionMass(updatedShip.subsystems) - updatedShip.reactionMass
+  // Orbital drift is not optional: a turn without a movement action coasts.
+  if (
+    !tactical.some((a) => a.type === "coast" || a.type === "burn" || a.type === "well_transfer")
+  ) {
+    const active = current.players[current.activePlayerIndex];
+    const err = run(
+      {
+        type: "coast",
+        playerId: active.id,
+        sequence: tactical.length + 1,
+        data: { activateScoop: false },
+      } as CoastAction,
+      validateCoastAction,
+      processCoast
     );
-    updatedShip = {
-      ...updatedShip,
-      reactionMass: updatedShip.reactionMass + massRecovered,
-    };
-
-    // Generate heat from scoop (heat = allocated energy)
-    const scoopSubsystem = updatedShip.subsystems.find(
-      (s) => s.type === "scoop"
-    );
-    if (scoopSubsystem) {
-      heatGenerated = scoopSubsystem.allocatedEnergy;
-      updatedShip = addHeat(updatedShip, heatGenerated);
-    }
+    if (err) return { success: false, state, events: [], errors: err };
   }
 
-  const updatedPlayers = [...gameState.players];
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip };
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: "Coast",
-      result: `Moved to sector ${updatedShip.sector}${action.data.activateScoop ? ` (scoop recovered ${Math.min(getGravityWell(updatedShip.wellId)?.rings.find((r) => r.ring === updatedShip.ring)?.velocity || 1, getMaxReactionMass(player.ship.subsystems) - player.ship.reactionMass)} mass)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ""}` : ""}`,
-    },
-  ];
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  };
+  return { success: true, state: current, events };
 }
 
-/**
- * Process a burn action (initiate and complete transfer on same turn)
- */
-function processBurn(gameState: GameState, action: BurnAction): ProcessResult {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
+// ---------------------------------------------------------------------------
+// Energy
+// ---------------------------------------------------------------------------
 
-  // Apply orbital movement first, then initiate burn
-  let updatedShip = applyOrbitalMovement(player.ship);
-  updatedShip = initiateBurn(updatedShip, action);
-
-  // Complete the transfer immediately (all transfers complete same turn)
-  const destinationRing = updatedShip.transferState?.destinationRing;
-  if (updatedShip.transferState) {
-    updatedShip = completeRingTransfer(updatedShip);
-  }
-
-  // Generate heat from engines (heat = allocated energy)
-  const enginesSubsystem = updatedShip.subsystems.find(
-    (s) => s.type === "engines"
-  );
-  const heatGenerated = enginesSubsystem?.allocatedEnergy || 0;
-  if (heatGenerated > 0) {
-    updatedShip = addHeat(updatedShip, heatGenerated);
-  }
-
-  const updatedPlayers = [...gameState.players];
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip };
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: "Burn",
-      result: `${action.data.burnIntensity} burn completed to ring ${destinationRing}, sector ${updatedShip.sector}${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ""}`,
-    },
-  ];
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  };
-}
-
-/**
- * Process rotation action
- */
-function processRotation(
-  gameState: GameState,
-  action: RotateAction
-): ProcessResult {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-
-  let updatedShip = applyRotation(player.ship, action.data.targetFacing);
-
-  // Mark rotation subsystem as used
-  const rotationSubsystem = updatedShip.subsystems.find(
-    (s) => s.type === "rotation"
-  );
-  const updatedSubsystems = updatedShip.subsystems.map((s) =>
-    s.type === "rotation" ? { ...s, usedThisTurn: true } : s
-  );
-
-  updatedShip = {
-    ...updatedShip,
-    subsystems: updatedSubsystems,
-  };
-
-  // Generate heat from rotation (heat = allocated energy)
-  const heatGenerated = rotationSubsystem?.allocatedEnergy || 0;
-  if (heatGenerated > 0) {
-    updatedShip = addHeat(updatedShip, heatGenerated);
-  }
-
-  const updatedPlayers = [...gameState.players];
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip };
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: "Rotate",
-      result: `Rotated to ${action.data.targetFacing}${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ""}`,
-    },
-  ];
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  };
-}
-
-/**
- * Process energy allocation action
- */
-function processAllocateEnergy(
-  gameState: GameState,
-  action: AllocateEnergyAction
-): ProcessResult {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-
-  const subsystemIndex = player.ship.subsystems.findIndex(
-    (s) => s.type === action.data.subsystemType
-  );
-  const subsystem = player.ship.subsystems[subsystemIndex];
-  const newAllocatedEnergy = subsystem.allocatedEnergy + action.data.amount;
-
-  // Create new subsystems array with updated subsystem
-  const updatedSubsystems = [...player.ship.subsystems];
-  updatedSubsystems[subsystemIndex] = {
-    ...subsystem,
-    allocatedEnergy: newAllocatedEnergy,
-    isPowered: newAllocatedEnergy > 0,
-  };
-
-  // Update reactor and ship
-  const updatedShip = {
-    ...player.ship,
-    subsystems: updatedSubsystems,
-    reactor: {
-      ...player.ship.reactor,
-      availableEnergy: player.ship.reactor.availableEnergy - action.data.amount,
-    },
-  };
-
-  const updatedPlayers = [...gameState.players];
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip };
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: "Allocate Energy",
-      result: `+${action.data.amount} to ${action.data.subsystemType}`,
-    },
-  ];
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  };
-}
-
-/**
- * Process energy deallocation action
- */
-function processDeallocateEnergy(
-  gameState: GameState,
-  action: DeallocateEnergyAction
-): ProcessResult {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-
-  const subsystemIndex = player.ship.subsystems.findIndex(
-    (s) => s.type === action.data.subsystemType
-  );
-  const subsystem = player.ship.subsystems[subsystemIndex];
-  const amountToReturn = Math.min(
-    action.data.amount,
-    subsystem.allocatedEnergy
-  );
-  const newAllocatedEnergy = subsystem.allocatedEnergy - amountToReturn;
-
-  // Create new subsystems array with updated subsystem
-  const updatedSubsystems = [...player.ship.subsystems];
-  updatedSubsystems[subsystemIndex] = {
-    ...subsystem,
-    allocatedEnergy: newAllocatedEnergy,
-    isPowered: newAllocatedEnergy > 0,
-  };
-
-  // Update reactor (energy returns WITHOUT generating heat - heat only generated from overclocking)
-  const updatedShip = {
-    ...player.ship,
-    subsystems: updatedSubsystems,
-    reactor: {
-      ...player.ship.reactor,
-      availableEnergy: player.ship.reactor.availableEnergy + amountToReturn,
-    },
-  };
-
-  const updatedPlayers = [...gameState.players];
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip };
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: "Deallocate Energy",
-      result: `Deallocated ${amountToReturn} from ${action.data.subsystemType} (${newAllocatedEnergy} remaining)`,
-    },
-  ];
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  };
-}
-
-/**
- * Process well transfer action (complete transfer between gravity wells immediately)
- * Well transfers happen instantly on the same turn - ship changes wells and moves with destination ring's velocity
- */
-function processWellTransfer(
-  gameState: GameState,
-  action: WellTransferAction
-): ProcessResult {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-
-  // Find the transfer point
-  const transferPoint = TRANSFER_POINTS.find(
-    (tp) =>
-      tp.fromWellId === player.ship.wellId &&
-      tp.fromSector === player.ship.sector &&
-      tp.toWellId === action.data.destinationWellId
-  );
-
-  if (!transferPoint) {
-    return {
-      success: false,
-      gameState,
-      logEntries: [],
-      errors: ["Transfer point no longer available"],
-    };
-  }
-
-  // Get destination well and ring config for orbital movement
-  const destinationWell = getGravityWell(action.data.destinationWellId);
-  if (!destinationWell) {
-    return {
-      success: false,
-      gameState,
-      logEntries: [],
-      errors: ["Destination well not found"],
-    };
-  }
-
-  const destinationRing = destinationWell.rings.find(
-    (r: RingConfig) => r.ring === transferPoint.toRing
-  );
-  if (!destinationRing) {
-    return {
-      success: false,
-      gameState,
-      logEntries: [],
-      errors: ["Destination ring not found"],
-    };
-  }
-
-  // Consume reaction mass (fuel compressor scoops during jump, recovering the cost)
-  const hasFuelCompressor = player.ship.subsystems.some(s => s.type === "fuel_compressor");
-  const massAfterTransfer = player.ship.reactionMass - WELL_TRANSFER_COSTS.mass;
-  const newReactionMass = hasFuelCompressor
-    ? Math.min(massAfterTransfer + WELL_TRANSFER_COSTS.mass, getMaxReactionMass(player.ship.subsystems))
-    : massAfterTransfer;
-
-  // Transfer to destination well immediately
-  // Engines are used for the transfer burn — generate heat
-  const enginesSubsystem = player.ship.subsystems.find(s => s.type === "engines");
-  const engineHeat = enginesSubsystem ? enginesSubsystem.allocatedEnergy : 0;
-
-  const updatedShip: ShipState = {
-    ...player.ship,
-    wellId: action.data.destinationWellId,
-    ring: transferPoint.toRing,
-    sector: transferPoint.toSector,
-    reactionMass: newReactionMass,
-    heat: {
-      currentHeat: player.ship.heat.currentHeat + engineHeat,
-    },
-    subsystems: player.ship.subsystems.map(s =>
-      s.type === "engines" ? { ...s, usedThisTurn: true } : s
-    ),
-    // Facing is preserved (sector numbering handles direction reversal)
-  };
-
-  const updatedPlayers = [...gameState.players];
-  updatedPlayers[playerIndex] = { ...player, ship: updatedShip };
-
-  // Get well names for logging
-  const fromWell = getGravityWell(player.ship.wellId);
-  const toWell = getGravityWell(action.data.destinationWellId);
-
-  const logEntries: TurnLogEntry[] = [
-    {
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: "Well Transfer",
-      result: `Transferred from ${fromWell?.name || player.ship.wellId} to ${toWell?.name || action.data.destinationWellId} R${updatedShip.ring}S${updatedShip.sector}`,
-    },
-  ];
-
-  return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
-  };
-}
-
-/**
- * Process weapon firing action
- */
-function processFireWeapon(
-  gameState: GameState,
-  action: FireWeaponAction
-): ProcessResult {
-  const playerIndex = gameState.players.findIndex(
-    (p) => p.id === action.playerId
-  );
-  const player = gameState.players[playerIndex];
-  const logEntries: TurnLogEntry[] = [];
-
-  const weaponConfig = getSubsystemConfig(action.data.weaponType);
-  // Find weapon subsystem: use subsystemIndex if provided, otherwise find by type
-  const weaponSubsystemIndex =
-    action.data.subsystemIndex !== undefined
-      ? action.data.subsystemIndex
-      : player.ship.subsystems.findIndex((s) => s.type === action.data.weaponType);
-  const weaponSubsystem = player.ship.subsystems[weaponSubsystemIndex];
-  const heatGenerated = weaponSubsystem?.allocatedEnergy || 0;
-
-  // Special handling for missiles: create missile entity instead of dealing instant damage
-  if (action.data.weaponType === "missiles") {
-    const targetId = action.data.targetPlayerIds[0]; // Missiles target one player at a time
-    const targetPlayer = gameState.players.find((p) => p.id === targetId);
-
-    if (!targetPlayer) {
-      return {
-        success: false,
-        gameState,
-        logEntries: [],
-        errors: ["Target player not found"],
-      };
-    }
-
-    const { missile, error } = fireMissile(gameState, player.id, targetId);
-
-    if (error || !missile) {
-      return {
-        success: false,
-        gameState,
-        logEntries: [],
-        errors: [error || "Failed to fire missile"],
-      };
-    }
-
-    // Add missile to game state, decrement ammo on missiles subsystem, mark used, and generate heat
-    const currentAmmo = getMissileAmmo(player.ship.subsystems);
-    let updatedAttackerShip = {
-      ...player.ship,
-      subsystems: player.ship.subsystems.map((s, i) =>
-        i === weaponSubsystemIndex
-          ? { ...s, usedThisTurn: true, ammo: currentAmmo - 1 }
-          : s
-      ),
-    };
-
-    // Generate heat from firing
-    if (heatGenerated > 0) {
-      updatedAttackerShip = addHeat(updatedAttackerShip, heatGenerated);
-    }
-
-    const updatedPlayers = gameState.players.map((p) =>
-      p.id === player.id ? { ...p, ship: updatedAttackerShip } : p
-    );
-
-    logEntries.push({
-      turn: gameState.turn,
-      playerId: player.id,
-      playerName: player.name,
-      action: "Fire Missile",
-      result: `Fired missile at ${targetPlayer.name} (${currentAmmo - 1} missiles remaining)${heatGenerated > 0 ? ` (+${heatGenerated} heat)` : ""}`,
-    });
-
-    return {
-      success: true,
-      gameState: {
-        ...gameState,
-        missiles: [...gameState.missiles, missile],
-        players: updatedPlayers,
+function processAllocateEnergy(state: GameState, action: AllocateEnergyAction): Step {
+  const next = withPlayer(state, action.playerId, (p) => {
+    let ship = updateSubsystem(p.ship, action.data.subsystemId, (s) => ({
+      allocatedEnergy: s.allocatedEnergy + action.data.amount,
+      isPowered: true,
+    }));
+    ship = {
+      ...ship,
+      reactor: {
+        ...ship.reactor,
+        availableEnergy: ship.reactor.availableEnergy - action.data.amount,
       },
-      logEntries,
     };
-  }
-
-  // Regular weapons (laser, railgun): instant damage with shields and criticals
-  const damage = getWeaponDamage(action.data.weaponType);
-
-  // Apply damage to each target
-  const updatedPlayers = [...gameState.players];
-
-  // Update attacker's ship first (mark specific weapon instance used, generate heat)
-  let updatedAttackerShip = {
-    ...player.ship,
-    subsystems: player.ship.subsystems.map((s, i) =>
-      i === weaponSubsystemIndex ? { ...s, usedThisTurn: true } : s
-    ),
-  };
-
-  // Generate heat from firing
-  if (heatGenerated > 0) {
-    updatedAttackerShip = addHeat(updatedAttackerShip, heatGenerated);
-  }
-
-  updatedPlayers[playerIndex] = { ...player, ship: updatedAttackerShip };
-
-  for (const targetId of action.data.targetPlayerIds) {
-    const targetIndex = updatedPlayers.findIndex((p) => p.id === targetId);
-    if (targetIndex === -1) continue;
-
-    const target = updatedPlayers[targetIndex];
-    if (target.ship.hitPoints <= 0) continue; // Already destroyed
-
-    // Apply damage with d10 hit resolution
-    // Pass attacker ship to calculate critical chance (sensor array bonus)
-    const damageRoll = rollD10(gameState);
-    const { ship: updatedTargetShip, hitResult } = applyDamageWithShields(
-      target.ship,
-      damage,
-      action.data.criticalTarget,
-      damageRoll,
-      updatedAttackerShip
-    );
-    updatedPlayers[targetIndex] = { ...target, ship: updatedTargetShip };
-
-    // Log based on hit result
-    if (hitResult.result === "miss") {
-      // Roll 1 - Miss
-      logEntries.push({
-        turn: gameState.turn,
-        playerId: player.id,
-        playerName: player.name,
-        action: `${weaponConfig.name} Miss`,
-        result:
-          `Rolled ${hitResult.roll} - missed ${target.name}!` +
-          (heatGenerated > 0 ? ` (+${heatGenerated} heat to attacker)` : ""),
-      });
-    } else {
-      // Roll 2-10 - Hit or Critical
-      let resultMsg = "";
-      if (hitResult.damageToHeat > 0) {
-        resultMsg = `Rolled ${hitResult.roll} - dealt ${damage} damage to ${target.name} (${hitResult.damageToHeat} absorbed by shields → heat, ${hitResult.damageToHull} to hull, ${updatedTargetShip.hitPoints}/${target.ship.maxHitPoints} HP)`;
-      } else {
-        resultMsg = `Rolled ${hitResult.roll} - dealt ${damage} damage to ${target.name} (${updatedTargetShip.hitPoints}/${target.ship.maxHitPoints} HP)`;
-      }
-
-      logEntries.push({
-        turn: gameState.turn,
-        playerId: player.id,
-        playerName: player.name,
-        action:
-          hitResult.result === "critical"
-            ? `${weaponConfig.name} CRITICAL!`
-            : `${weaponConfig.name} Hit`,
-        result:
-          resultMsg +
-          (heatGenerated > 0 ? ` (+${heatGenerated} heat to attacker)` : ""),
-      });
-
-      // Log critical hit effect if it occurred
-      if (hitResult.result === "critical" && hitResult.criticalEffect) {
-        const critEffect = hitResult.criticalEffect;
-        logEntries.push({
-          turn: gameState.turn,
-          playerId: player.id,
-          playerName: player.name,
-          action: "Subsystem BROKEN!",
-          result: `${target.name}'s ${getSubsystemConfig(critEffect.targetSubsystem).name} was destroyed! (${critEffect.energyLost} energy → ${critEffect.heatAdded} heat)`,
-        });
-      }
-
-      if (updatedTargetShip.hitPoints <= 0) {
-        logEntries.push({
-          turn: gameState.turn,
-          playerId: target.id,
-          playerName: target.name,
-          action: "Ship Destroyed",
-          result: `${target.name} has been destroyed!`,
-        });
-      }
-    }
-  }
-
-  // Recoil: shift attacker 1 ring in facing direction (like a soft burn)
-  if (weaponConfig.weaponStats?.hasRecoil) {
-    const attackerIndex = playerIndex;
-    const attacker = updatedPlayers[attackerIndex];
-    const recoilDirection = attacker.ship.facing === "prograde" ? 1 : -1;
-
-    if (action.data.compensateRecoil) {
-      // Engine compensation: cancel recoil, but costs 1 mass and generates engine heat
-      const engines = attacker.ship.subsystems.find(s => s.type === "engines");
-      const engineHeat = engines ? engines.allocatedEnergy : 0;
-      const compensatedShip: ShipState = {
-        ...attacker.ship,
-        reactionMass: attacker.ship.reactionMass - BURN_COSTS.soft.mass,
-        heat: { currentHeat: attacker.ship.heat.currentHeat + engineHeat },
-        subsystems: attacker.ship.subsystems.map(s =>
-          s.type === "engines" ? { ...s, usedThisTurn: true } : s
-        ),
-      };
-      updatedPlayers[attackerIndex] = { ...attacker, ship: compensatedShip };
-      logEntries.push({
-        turn: gameState.turn,
-        playerId: attacker.id,
-        playerName: attacker.name,
-        action: "Recoil Compensated",
-        result: `Engines fired to compensate ${weaponConfig.name} recoil (-1 mass, +${engineHeat} heat)`,
-      });
-    } else {
-      // Uncompensated recoil: drift 1 ring in facing direction
-      const newRing = attacker.ship.ring + recoilDirection;
-      const newSector = mapSectorOnTransfer(attacker.ship.ring, newRing, attacker.ship.sector);
-      const recoiledShip: ShipState = {
-        ...attacker.ship,
-        ring: newRing,
-        sector: newSector % SECTORS_PER_RING,
-      };
-      updatedPlayers[attackerIndex] = { ...attacker, ship: recoiledShip };
-      logEntries.push({
-        turn: gameState.turn,
-        playerId: attacker.id,
-        playerName: attacker.name,
-        action: "Weapon Recoil",
-        result: `${weaponConfig.name} recoil pushed ship to Ring ${newRing} (${attacker.ship.facing === "prograde" ? "outward" : "inward"})`,
-      });
-    }
-  }
-
+    return { ...p, ship };
+  });
   return {
-    success: true,
-    gameState: { ...gameState, players: updatedPlayers },
-    logEntries,
+    state: next,
+    events: [
+      {
+        type: "energy_allocated",
+        playerId: action.playerId,
+        subsystemId: action.data.subsystemId,
+        amount: action.data.amount,
+      },
+    ],
   };
+}
+
+function processDeallocateEnergy(state: GameState, action: DeallocateEnergyAction): Step {
+  const next = withPlayer(state, action.playerId, (p) => {
+    let ship = updateSubsystem(p.ship, action.data.subsystemId, (s) => {
+      const remaining = s.allocatedEnergy - action.data.amount;
+      return { allocatedEnergy: remaining, isPowered: remaining > 0 };
+    });
+    ship = {
+      ...ship,
+      reactor: {
+        ...ship.reactor,
+        availableEnergy: ship.reactor.availableEnergy + action.data.amount,
+      },
+    };
+    return { ...p, ship };
+  });
+  return {
+    state: next,
+    events: [
+      {
+        type: "energy_deallocated",
+        playerId: action.playerId,
+        subsystemId: action.data.subsystemId,
+        amount: action.data.amount,
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Movement
+// ---------------------------------------------------------------------------
+
+function processRotation(state: GameState, action: RotateAction): Step {
+  const events: EventDraft[] = [];
+  const next = withPlayer(state, action.playerId, (p) => {
+    const used = useSubsystem(applyRotation(p.ship, action.data.targetFacing), p.id, "rotation");
+    events.push(...used.events);
+    return { ...p, ship: used.ship };
+  });
+  events.push({ type: "rotated", playerId: action.playerId, facing: action.data.targetFacing });
+  return { state: next, events };
+}
+
+function processCoast(state: GameState, action: CoastAction): Step {
+  const events: EventDraft[] = [];
+  let massScooped = 0;
+  let heat = 0;
+  const next = withPlayer(state, action.playerId, (p) => {
+    let ship = applyOrbitalMovement(p.ship);
+    if (action.data.activateScoop) {
+      const used = useSubsystem(ship, p.id, "scoop");
+      ship = used.ship;
+      heat = used.heat;
+      events.push(...used.events);
+      // Headroom can be negative if a compressor was broken while the tank was above base capacity.
+      massScooped = Math.max(
+        0,
+        Math.min(
+          ringVelocity(ship.wellId, ship.ring),
+          getMaxReactionMass(ship.subsystems) - ship.reactionMass
+        )
+      );
+      ship = { ...ship, reactionMass: ship.reactionMass + massScooped };
+    }
+    return { ...p, ship };
+  });
+  const to = positionOf(next.players.find((p) => p.id === action.playerId)!.ship);
+  events.push({
+    type: "coasted",
+    playerId: action.playerId,
+    to,
+    scooped: action.data.activateScoop,
+    heat,
+  });
+  if (action.data.activateScoop) {
+    // Fuel is behind the screen: the exact gain is the owner's business.
+    events.push({
+      type: "fuel_scooped",
+      playerId: action.playerId,
+      amount: massScooped,
+      privateTo: [action.playerId],
+    });
+  }
+  return { state: next, events };
+}
+
+function processBurn(state: GameState, action: BurnAction): Step {
+  const events: EventDraft[] = [];
+  const before = positionOf(state.players.find((p) => p.id === action.playerId)!.ship);
+  let massSpent = 0;
+  let heat = 0;
+  const next = withPlayer(state, action.playerId, (p) => {
+    const drifted = applyOrbitalMovement(p.ship);
+    const burned = applyBurn(drifted, action.data.burnIntensity, action.data.sectorAdjustment ?? 0);
+    massSpent = burned.massSpent;
+    const used = useSubsystem(burned.ship, p.id, "engines");
+    heat = used.heat;
+    events.push(...used.events);
+    return { ...p, ship: used.ship };
+  });
+  const to = positionOf(next.players.find((p) => p.id === action.playerId)!.ship);
+  events.push({
+    type: "burned",
+    playerId: action.playerId,
+    intensity: action.data.burnIntensity,
+    from: before,
+    to,
+    massSpent,
+    heat,
+  });
+  return { state: next, events };
+}
+
+function processWellTransfer(state: GameState, action: WellTransferAction): Step {
+  const events: EventDraft[] = [];
+  const player = state.players.find((p) => p.id === action.playerId)!;
+  const from = positionOf(player.ship);
+  const jump = findJump(from, action.data.destinationWellId)!;
+  let heat = 0;
+  const refunded = hasWorkingCompressor(player.ship);
+
+  const next = withPlayer(state, action.playerId, (p) => {
+    let ship = { ...p.ship, ...jump.destination };
+    if (!refunded) ship = { ...ship, reactionMass: ship.reactionMass - WELL_TRANSFER_COSTS.mass };
+    const used = useSubsystem(ship, p.id, "engines");
+    ship = used.ship;
+    heat = used.heat;
+    events.push(...used.events);
+    if (refunded) {
+      for (const compressor of ship.subsystems.filter(
+        (s) => s.type === "fuel_compressor" && !s.isBroken
+      )) {
+        const r = revealSubsystem(ship, p.id, compressor.id, "refunded_jump");
+        ship = r.ship;
+        events.push(...r.events);
+      }
+    }
+    return { ...p, ship };
+  });
+  events.push({
+    type: "jumped",
+    playerId: action.playerId,
+    from,
+    to: jump.destination,
+    refunded,
+    heat,
+  });
+  return { state: next, events };
+}
+
+// ---------------------------------------------------------------------------
+// Weapons
+// ---------------------------------------------------------------------------
+
+function processFireWeapon(
+  state: GameState,
+  action: FireWeaponAction,
+  movedThisTurn: boolean
+): Step {
+  const events: EventDraft[] = [];
+  const players = [...state.players];
+  const attackerIndex = players.findIndex((p) => p.id === action.playerId);
+  const targetIndex = players.findIndex((p) => p.id === action.data.targetPlayerId);
+  let attacker = players[attackerIndex];
+  const weapon = findSubsystem(attacker.ship, action.data.subsystemId)!;
+  if (!isWeaponType(weapon.type)) return { state, events };
+  const config = getSubsystemConfig(weapon.type);
+  const weaponType = weapon.type;
+
+  const used = useSubsystem(attacker.ship, attacker.id, weapon.id, "fired");
+  attacker = { ...attacker, ship: used.ship };
+  events.push({
+    type: "weapon_fired",
+    attackerId: attacker.id,
+    targetId: action.data.targetPlayerId,
+    subsystemId: weapon.id,
+    weaponType,
+    heat: used.heat,
+  });
+  events.push(...used.events);
+
+  let working: GameState = { ...state, players };
+
+  if (weaponType === "missiles") {
+    const missile = createMissile(
+      working,
+      attacker,
+      action.data.targetPlayerId,
+      action.data.criticalTarget,
+      movedThisTurn
+    );
+    attacker = {
+      ...attacker,
+      ship: updateSubsystem(attacker.ship, weapon.id, (s) => ({ ammo: (s.ammo ?? 1) - 1 })),
+    };
+    players[attackerIndex] = attacker;
+    working = { ...working, players, missiles: [...working.missiles, missile] };
+    events.push({
+      type: "missile_launched",
+      ownerId: attacker.id,
+      missileId: missile.id,
+      targetId: action.data.targetPlayerId,
+      at: positionOf(attacker.ship),
+      criticalTarget: action.data.criticalTarget,
+    });
+  } else {
+    players[attackerIndex] = attacker;
+    const target = players[targetIndex];
+    const roll = rollD10(working);
+    const outcome = resolveAttack(
+      target.ship,
+      target.id,
+      config.weaponStats!.damage,
+      action.data.criticalTarget,
+      roll,
+      attacker.ship,
+      attacker.id
+    );
+    players[targetIndex] = { ...target, ship: outcome.ship };
+    events.push({
+      type: "attack_resolved",
+      attackerId: attacker.id,
+      targetId: target.id,
+      weaponType,
+      roll,
+      result: outcome.hitResult.result,
+      damage: outcome.hitResult.damage,
+      toHull: outcome.hitResult.damageToHull,
+      toHeat: outcome.hitResult.damageToHeat,
+      targetHullAfter: outcome.ship.hitPoints,
+    });
+    events.push(...outcome.events);
+    if (outcome.hitResult.sensorAssistedCritical) {
+      const revealed = revealSensors(attacker);
+      attacker = revealed.player;
+      players[attackerIndex] = attacker;
+      events.push(...revealed.events);
+    }
+    if (isDestroyed(outcome.ship) && !isDestroyed(target.ship)) {
+      events.push({
+        type: "ship_destroyed",
+        victimId: target.id,
+        killerId: attacker.id,
+        cause: "weapon",
+      });
+    }
+    working = { ...working, players };
+  }
+
+  // Recoil.
+  if (config.weaponStats?.hasRecoil) {
+    if (action.data.compensateRecoil) {
+      const compensated = useSubsystem(attacker.ship, attacker.id, "engines");
+      const ship = {
+        ...compensated.ship,
+        reactionMass: compensated.ship.reactionMass - BURN_COSTS.soft.mass,
+      };
+      attacker = { ...attacker, ship };
+      events.push(...compensated.events);
+      events.push({
+        type: "recoil",
+        playerId: attacker.id,
+        compensated: true,
+        massSpent: BURN_COSTS.soft.mass,
+        heat: compensated.heat,
+      });
+    } else {
+      const pushed = attacker.ship.ring + (attacker.ship.facing === "prograde" ? 1 : -1);
+      const ring = Math.max(1, Math.min(getMaxRing(attacker.ship.wellId), pushed)); // validated earlier; clamp defensively
+      attacker = { ...attacker, ship: { ...attacker.ship, ring } };
+      events.push({
+        type: "recoil",
+        playerId: attacker.id,
+        compensated: false,
+        to: positionOf(attacker.ship),
+        massSpent: 0,
+        heat: 0,
+      });
+    }
+    players[attackerIndex] = attacker;
+    working = { ...working, players };
+  }
+
+  return { state: working, events };
 }

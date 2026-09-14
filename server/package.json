@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "node --experimental-strip-types --no-warnings --watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "smoke": "node --experimental-transform-types --no-warnings --import ./scripts/engine-source-loader.mjs scripts/smoke.ts"
   },
   "dependencies": {
     "@dangerous-inclinations/engine": "workspace:*",

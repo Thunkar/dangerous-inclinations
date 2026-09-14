@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "..",
+    "baseUrl": ".",
+    "paths": {
+      "@dangerous-inclinations/engine": ["../engine/src/index.ts"]
+    }
+  },
+  "include": ["src", "scripts"]
+}

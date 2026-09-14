@@ -1,456 +1,125 @@
-import type {
-  CoastAction,
-  BurnAction,
-  RotateAction,
-  WellTransferAction,
-} from '../../models/game.ts'
-import type { TacticalSituation, Target, BotParameters } from '../types.ts'
-import { planFromShip, getFirstAction } from '../movementPlanner/index.ts'
-import type { OrbitalPosition, MovementPlan } from '../movementPlanner/index.ts'
-import { getMaxReactionMass } from '../../game/loadout.ts'
-
 /**
- * Result of movement planning that informs energy allocation
+ * Movement. Turns the first step of a movement plan into an engine action
+ * the current ship can actually perform, checking each burn against
+ * getAdjustmentRange / calculateBurnMassCost and each jump against
+ * findJump, engine state and fuel. Anything that fails becomes a coast.
  */
-export interface MovementPlanResult {
-  action: CoastAction | BurnAction | WellTransferAction
-  needsRotation: boolean
-  desiredFacing: 'prograde' | 'retrograde' | null
+import type { BurnIntensity, Facing, ShipState } from "../../models/game.ts";
+import {
+  BURN_COSTS,
+  WELL_TRANSFER_COSTS,
+  calculateBurnMassCost,
+  getAdjustmentRange,
+} from "../../models/rings.ts";
+import { findJump } from "../../models/gravityWells.ts";
+import { ringVelocity } from "../../game/geometry.ts";
+import type { MovementPreview } from "../../game/movement.ts";
+import type { MovementPlan } from "../movementPlanner/index.ts";
+import { getFirstAction } from "../movementPlanner/index.ts";
+import type { BotStatus } from "../types.ts";
+
+export interface MovementChoice {
+  kind: "coast" | "burn" | "jump";
+  /** Engine's projection input. */
+  preview: MovementPreview;
+  /** Facing the ship must have when the movement executes; null = any. */
+  requiredFacing: Facing | null;
+  /** Energy the engines need (0 for a coast). */
+  engineEnergy: number;
+  /** Reaction mass the movement spends. */
+  massCost: number;
+  /** The plan counted on scooping during this coast. */
+  wantsScoop: boolean;
+  burnIntensity?: BurnIntensity;
+  sectorAdjustment?: number;
+  destinationWellId?: string;
 }
 
-/**
- * Determine target position for the movement planner based on current goal
- */
-function getTargetPosition(
-  situation: TacticalSituation,
-  target: Target | null,
-  parameters: BotParameters
-): OrbitalPosition | null {
-  const { currentGoal } = situation
-
-  if (currentGoal) {
-    switch (currentGoal.type) {
-      case 'destroy_target': {
-        // Navigate toward target player's predicted position
-        if (currentGoal.targetPlayerId) {
-          const targetPlayer = situation.targets.find(
-            t => t.player.id === currentGoal.targetPlayerId
-          )
-          if (targetPlayer) {
-            return {
-              wellId: targetPlayer.predictedPosition.wellId,
-              ring: targetPlayer.predictedPosition.ring,
-              sector: targetPlayer.predictedPosition.sector,
-            }
-          }
-        }
-        break
-      }
-      case 'pickup_cargo':
-      case 'deliver_cargo':
-      case 'deliver_scan':
-      case 'shadow_target': {
-        // Navigate to the goal's target position. shadow_target uses the
-        // tracked player's ring/sector so the bot moves into scan range
-        // (same well, same ring, ±3 sectors).
-        if (
-          currentGoal.targetWellId != null &&
-          currentGoal.targetRing != null &&
-          currentGoal.targetSector != null
-        ) {
-          return {
-            wellId: currentGoal.targetWellId,
-            ring: currentGoal.targetRing,
-            sector: currentGoal.targetSector,
-          }
-        }
-        break
-      }
-      case 'combat_opportunistic':
-        // Fall through to target-based positioning
-        break
-    }
-  }
-
-  // Fall back to target-based range management
-  if (target) {
-    const { preferredRingRange } = parameters
-    const targetRing = target.player.ship.ring
-    const currentRing = situation.status.ring
-    const ringDist = Math.abs(currentRing - targetRing)
-
-    // If already in preferred range, stay put
-    if (ringDist >= preferredRingRange.min && ringDist <= preferredRingRange.max) {
-      return null
-    }
-
-    // Move toward preferred range
-    let desiredRing: number
-    if (ringDist > preferredRingRange.max) {
-      // Too far, move closer
-      desiredRing = currentRing > targetRing
-        ? targetRing + preferredRingRange.max
-        : targetRing - preferredRingRange.max
-    } else {
-      // Too close, move farther
-      desiredRing = currentRing > targetRing
-        ? targetRing + preferredRingRange.min
-        : targetRing - preferredRingRange.min
-    }
-
-    desiredRing = Math.max(1, Math.min(5, desiredRing))
-
-    return {
-      wellId: target.player.ship.wellId,
-      ring: desiredRing,
-      sector: target.player.ship.sector,
-    }
-  }
-
-  return null
-}
-
-/**
- * Plan movement using the movement planner.
- * Returns the movement action plus info about whether rotation is needed.
- *
- * If the bot's current goal already carries a {@link MovementPlan} (which
- * the mission system attaches for station meet-ups), we honour it directly.
- * Recomputing a path with the static-target planner can find a *shorter*
- * route that intercepts the station's *current* sector — but the station
- * is no longer there by the time the bot arrives, leaving the bot stuck
- * trailing it forever. The pre-computed plan is built with the dynamic
- * forward-BFS planner that times the meet correctly.
- */
-export function planMovementAction(
-  situation: TacticalSituation,
-  target: Target | null,
-  parameters: BotParameters,
-  sequence: number
-): MovementPlanResult {
-  const { botPlayer, status, currentGoal } = situation
-  const ship = botPlayer.ship
-
-  // If the goal carries an authoritative plan (station meet-up), follow it.
-  if (currentGoal?.plan && currentGoal.plan.steps.length > 0) {
-    const result = movementResultFromPlan(
-      currentGoal.plan,
-      situation,
-      parameters,
-      sequence
-    )
-    if (result) return result
-  }
-  // (function continues below; movementResultFromPlan is defined later in this file)
-
-  // Get target position
-  const targetPos = getTargetPosition(situation, target, parameters)
-
-  // If no target position, coast (with scoop if available and fuel-efficient)
-  if (!targetPos) {
-    return {
-      action: {
-        type: 'coast',
-        playerId: botPlayer.id,
-        sequence,
-        data: {
-          activateScoop: shouldActivateScoop(situation, parameters),
-        },
-      },
-      needsRotation: false,
-      desiredFacing: null,
-    }
-  }
-
-  // Use movement planner to find path
-  const plan = planFromShip(ship, targetPos, 'fastest')
-
-  if (!plan || plan.steps.length === 0) {
-    // No path found - coast
-    return {
-      action: {
-        type: 'coast',
-        playerId: botPlayer.id,
-        sequence,
-        data: {
-          activateScoop: shouldActivateScoop(situation, parameters),
-        },
-      },
-      needsRotation: false,
-      desiredFacing: null,
-    }
-  }
-
-  // Extract first step
-  const firstAction = getFirstAction(plan)
-  if (!firstAction) {
-    return {
-      action: {
-        type: 'coast',
-        playerId: botPlayer.id,
-        sequence,
-        data: {
-          activateScoop: shouldActivateScoop(situation, parameters),
-        },
-      },
-      needsRotation: false,
-      desiredFacing: null,
-    }
-  }
-
-  // Check if rotation is needed
-  const needsRotation = firstAction.targetFacing != null && firstAction.targetFacing !== status.facing
-  const desiredFacing = firstAction.targetFacing ?? null
-
-  // Convert planner action → engine action.
-  // The planner emits 'burn', 'coast', or 'well_transfer'. Each requires a
-  // distinct engine action; previously well_transfer fell through to coast,
-  // which silently kept the bot stranded on the black hole.
-  if (firstAction.actionType === 'burn') {
-    // Check if we have enough reaction mass
-    if (status.reactionMass < 1) {
-      return {
-        action: {
-          type: 'coast',
-          playerId: botPlayer.id,
-          sequence,
-          data: {
-            activateScoop: shouldActivateScoop(situation, parameters),
-          },
-        },
-        needsRotation: false,
-        desiredFacing: null,
-      }
-    }
-
-    return {
-      action: {
-        type: 'burn',
-        playerId: botPlayer.id,
-        sequence,
-        data: {
-          burnIntensity: firstAction.burnIntensity ?? 'soft',
-          sectorAdjustment: firstAction.sectorAdjustment,
-        },
-      },
-      needsRotation,
-      desiredFacing,
-    }
-  }
-
-  if (firstAction.actionType === 'well_transfer' && firstAction.destinationWellId) {
-    // The planner already validated this transfer is legal; emit the action.
-    // The destination well lives on the planner's step.to.wellId.
-    return {
-      action: {
-        type: 'well_transfer',
-        playerId: botPlayer.id,
-        sequence,
-        data: {
-          destinationWellId: firstAction.destinationWellId,
-        },
-      },
-      needsRotation,
-      desiredFacing,
-    }
-  }
-
-  // Coast (default)
+export function coastChoice(wantsScoop: boolean): MovementChoice {
   return {
-    action: {
-      type: 'coast',
-      playerId: botPlayer.id,
-      sequence,
-      data: {
-        activateScoop: shouldActivateScoop(situation, parameters),
-      },
-    },
-    needsRotation,
-    desiredFacing,
-  }
+    kind: "coast",
+    preview: { kind: "coast" },
+    requiredFacing: null,
+    engineEnergy: 0,
+    massCost: 0,
+    wantsScoop,
+  };
 }
 
 /**
- * Check if scoop should be activated when coasting.
- *
- * The scoop must be currently powered — we don't speculate whether the
- * energy budget will fund a new allocation, because allocation can fail
- * (reactor full of higher-priority subsystems). Activating a coast with
- * `activateScoop: true` against an unpowered scoop fails validation.
- *
- * The fuel threshold (parameters.lowFuelThreshold) is shared with the
- * scoop allocation rule in survival.ts:buildEnergyBudget — both must agree
- * or the bot emits inconsistent actions.
+ * Whether a burn from `ship` (current ring) is legal for the engine.
  */
-function shouldActivateScoop(
-  situation: TacticalSituation,
-  parameters: BotParameters
+export function burnIsValid(
+  ship: ShipState,
+  status: BotStatus,
+  intensity: BurnIntensity,
+  adjustment: number
 ): boolean {
-  const { status } = situation
+  if (status.engines.isBroken || status.engines.usedThisTurn) return false;
+  const { min, max } = getAdjustmentRange(ringVelocity(ship.wellId, ship.ring));
+  if (adjustment < min || adjustment > max) return false;
+  return ship.reactionMass >= calculateBurnMassCost(BURN_COSTS[intensity].mass, adjustment);
+}
 
-  const scoop = status.subsystems.find(s => s.type === 'scoop')
-  if (!scoop || !scoop.powered || scoop.broken) return false
-
-  const max = getMaxReactionMass(status.subsystems)
-  return status.reactionMass < Math.min(parameters.lowFuelThreshold, max)
+export function jumpIsValid(
+  ship: ShipState,
+  status: BotStatus,
+  destinationWellId: string
+): boolean {
+  if (status.engines.isBroken || status.engines.usedThisTurn) return false;
+  if (!findJump({ wellId: ship.wellId, ring: ship.ring, sector: ship.sector }, destinationWellId))
+    return false;
+  return status.hasCompressor || ship.reactionMass >= WELL_TRANSFER_COSTS.mass;
 }
 
 /**
- * Generate rotation action if needed.
- *
- * `projectedRotationEnergy` is the rotation subsystem's energy AFTER this
- * turn's energy allocations apply (the engine processes allocations before
- * tactical actions). Without it we'd check current `rotation.powered` and
- * skip the rotate even when the budget plans to power rotation this turn —
- * leaving the bot unable to flip orientation.
+ * The first step of `plan` as a movement the ship can perform now, or null
+ * when the step is impossible (the caller then coasts and replans).
  */
-export function generateRotationAction(
-  situation: TacticalSituation,
-  desiredFacing: 'prograde' | 'retrograde' | null,
-  sequence: number,
-  projectedRotationEnergy?: number
-): RotateAction | null {
-  if (!desiredFacing || desiredFacing === situation.status.facing) {
-    return null
+export function movementFromPlan(
+  ship: ShipState,
+  status: BotStatus,
+  plan: MovementPlan
+): MovementChoice | null {
+  const first = getFirstAction(plan);
+  if (!first) return null;
+
+  if (first.actionType === "coast") {
+    return coastChoice(first.massCost < 0 && !status.scoop.isBroken);
   }
 
-  // Check if rotation is available
-  const rotation = situation.status.rotation
-  if (rotation.used || rotation.broken) {
-    return null
-  }
-  const energyAtFireTime = projectedRotationEnergy ?? rotation.energy
-  if (energyAtFireTime <= 0) {
-    return null
-  }
-
-  return {
-    type: 'rotate',
-    playerId: situation.botPlayer.id,
-    sequence,
-    data: {
-      targetFacing: desiredFacing,
-    },
-  }
-}
-
-/**
- * Generate well transfer action for escape
- */
-export function generateEscapeTransfer(
-  situation: TacticalSituation,
-  parameters: BotParameters,
-  sequence: number
-): WellTransferAction | null {
-  if (!parameters.useWellTransfers) {
-    return null
-  }
-
-  // Only escape if in serious danger
-  if (situation.status.healthPercent > 0.3 || situation.availableTransfers.length === 0) {
-    return null
-  }
-
-  // Well transfers require engines at level 3
-  const enginesEnergy = situation.status.engines.energy
-  if (enginesEnergy < 3) {
-    return null
-  }
-
-  // Well transfers cost 3 reaction mass (refunded if a fuel_compressor is
-  // installed). Don't propose the action when the engine would reject it.
-  const hasFuelCompressor = situation.status.subsystems.some(
-    s => s.type === 'fuel_compressor'
-  )
-  if (!hasFuelCompressor && situation.botPlayer.ship.reactionMass < 3) {
-    return null
-  }
-
-  // Simple heuristic: use first available transfer
-  const transfer = situation.availableTransfers[0]
-
-  return {
-    type: 'well_transfer',
-    playerId: situation.botPlayer.id,
-    sequence,
-    data: {
-      destinationWellId: transfer.toWellId,
-    },
-  }
-}
-
-/**
- * Convert the first step of a pre-computed {@link MovementPlan} into the
- * `MovementPlanResult` the rest of the bot pipeline expects. Returns `null`
- * if the plan can't be honoured (e.g. the bot lacks fuel for the planned
- * burn) so the caller can fall back to a freshly-computed path.
- *
- * The plan was computed by the dynamic-target planner in `missions.ts` and
- * already accounts for moving stations; we trust it instead of recomputing
- * a path with the static-target planner that doesn't see the target's
- * motion. See {@link planMovementAction} for why.
- */
-function movementResultFromPlan(
-  plan: MovementPlan,
-  situation: TacticalSituation,
-  parameters: BotParameters,
-  sequence: number
-): MovementPlanResult | null {
-  const { botPlayer, status } = situation
-  const step = plan.steps[0]
-  if (!step) return null
-
-  // Determine post-rotation facing for this step.
-  let desiredFacing: 'prograde' | 'retrograde' | null = null
-  if (step.actionType === 'burn_prograde') desiredFacing = 'prograde'
-  else if (step.actionType === 'burn_retrograde') desiredFacing = 'retrograde'
-  else if (step.actionType === 'well_transfer') desiredFacing = 'prograde'
-  const needsRotation =
-    desiredFacing != null && desiredFacing !== status.facing
-
-  if (step.actionType === 'burn_prograde' || step.actionType === 'burn_retrograde') {
-    if (status.reactionMass < 1) return null
+  if (first.actionType === "burn") {
+    const intensity = first.burnIntensity ?? "soft";
+    const adjustment = first.sectorAdjustment;
+    if (!burnIsValid(ship, status, intensity, adjustment)) return null;
+    const facing = first.targetFacing ?? ship.facing;
+    if (facing !== ship.facing && (status.rotation.isBroken || status.rotation.usedThisTurn))
+      return null;
     return {
-      action: {
-        type: 'burn',
-        playerId: botPlayer.id,
-        sequence,
-        data: {
-          burnIntensity: step.burnIntensity ?? 'soft',
-          sectorAdjustment: step.sectorAdjustment,
-        },
-      },
-      needsRotation,
-      desiredFacing,
-    }
+      kind: "burn",
+      preview: { kind: "burn", burnIntensity: intensity, sectorAdjustment: adjustment },
+      requiredFacing: facing,
+      engineEnergy: BURN_COSTS[intensity].energy,
+      massCost: calculateBurnMassCost(BURN_COSTS[intensity].mass, adjustment),
+      wantsScoop: false,
+      burnIntensity: intensity,
+      sectorAdjustment: adjustment,
+    };
   }
 
-  if (step.actionType === 'well_transfer') {
-    return {
-      action: {
-        type: 'well_transfer',
-        playerId: botPlayer.id,
-        sequence,
-        data: {
-          destinationWellId: step.to.wellId,
-        },
-      },
-      needsRotation,
-      desiredFacing,
-    }
-  }
-
-  // Coast
+  const destination = first.destinationWellId!;
+  if (!jumpIsValid(ship, status, destination)) return null;
+  const jump = findJump(
+    { wellId: ship.wellId, ring: ship.ring, sector: ship.sector },
+    destination
+  )!;
   return {
-    action: {
-      type: 'coast',
-      playerId: botPlayer.id,
-      sequence,
-      data: {
-        activateScoop: shouldActivateScoop(situation, parameters),
-      },
-    },
-    needsRotation: false,
-    desiredFacing: null,
-  }
+    kind: "jump",
+    preview: { kind: "jump", jumpDestination: jump.destination },
+    requiredFacing: null,
+    engineEnergy: WELL_TRANSFER_COSTS.energy,
+    massCost: status.hasCompressor ? 0 : WELL_TRANSFER_COSTS.mass,
+    wantsScoop: false,
+    destinationWellId: destination,
+  };
 }

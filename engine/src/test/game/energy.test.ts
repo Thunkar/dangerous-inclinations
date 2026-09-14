@@ -1,320 +1,161 @@
 import { describe, it, expect } from "vitest";
+import { REACTOR_CAPACITY } from "../../models/game.ts";
 import {
-  createTestGameState,
-  INITIAL_REACTOR_ENERGY,
-} from "../fixtures/gameState.ts";
-import {
-  createAllocateEnergyAction,
-  createDeallocateEnergyAction,
-  createCoastAction,
-} from "../fixtures/actions.ts";
-import { executeTurnWithActions } from "../testUtils.ts";
+  allocate,
+  deallocate,
+  coast,
+  executeTurnAs,
+  getShip,
+  getSub,
+  makeTwoPlayerGame,
+  mustExecute,
+  totalEnergy,
+  withPower,
+  withSub,
+  eventsOf,
+} from "../testUtils.ts";
 
-describe("Energy Management System", () => {
-  describe("Energy Allocation/Deallocation", () => {
-    it("should allocate energy to subsystems and deallocate it back to reactor", () => {
-      let gameState = createTestGameState();
-
-      // Turn 1: Allocate 3 energy to engines
-      const allocateAction = createAllocateEnergyAction("engines", 3);
-      let result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      // After turn 1, engines should have 3 energy
-      const enginesSubsystem = gameState.players[0].ship.subsystems.find(
-        (s) => s.type === "engines",
-      );
-      expect(enginesSubsystem?.allocatedEnergy).toBe(3);
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY - 3,
-      );
-
-      // Advance player 2
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Turn 2: Deallocate energy (returns to reactor immediately - no rate limit)
-      const deallocateAction = createDeallocateEnergyAction("engines", 3);
-      result = executeTurnWithActions(
-        gameState,
-        deallocateAction,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      // After turn 2, energy should be back in reactor
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY,
-      );
-      // No heat generated - deallocation doesn't generate heat, and engines weren't used
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
-    });
-
-    it("should deallocate energy from multiple subsystems at once", () => {
-      let gameState = createTestGameState();
-
-      // Turn 1: Allocate energy to multiple subsystems (total 5 energy)
-      const allocate1 = createAllocateEnergyAction("engines", 3);
-      const allocate2 = createAllocateEnergyAction("shields", 2);
-      let result = executeTurnWithActions(
-        gameState,
-        allocate1,
-        allocate2,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY - 5,
-      );
-
-      // Advance player 2
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Turn 2: Deallocate both subsystems at once (no rate limit now)
-      const deallocate1 = createDeallocateEnergyAction("engines", 3);
-      const deallocate2 = createDeallocateEnergyAction("shields", 2);
-      result = executeTurnWithActions(
-        gameState,
-        deallocate1,
-        deallocate2,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      // All energy should return to reactor immediately
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY,
-      );
-      // No heat - subsystems weren't used
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
-    });
-
-    it("should allow allocating and using energy in the same turn", () => {
-      let gameState = createTestGameState();
-
-      // Turn 1: Allocate energy incrementally
-      const allocate1 = createAllocateEnergyAction("engines", 2);
-      const allocate2 = createAllocateEnergyAction("engines", 1);
-      const result = executeTurnWithActions(
-        gameState,
-        allocate1,
-        allocate2,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      // After turn 1, engines should have 3 energy total
-      const enginesSubsystem = gameState.players[0].ship.subsystems.find(
-        (s) => s.type === "engines",
-      );
-      expect(enginesSubsystem?.allocatedEnergy).toBe(3);
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY - 3,
-      );
-    });
-
-    it("should allow unlimited deallocation (no rate limit)", () => {
-      let gameState = createTestGameState();
-
-      // Turn 1: Allocate 4 energy to railgun
-      const allocateAction = createAllocateEnergyAction("railgun", 4);
-      let result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      const railgunSubsystem = gameState.players[0].ship.subsystems.find(
-        (s) => s.type === "railgun",
-      );
-      expect(railgunSubsystem?.allocatedEnergy).toBe(4);
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY - 4,
-      );
-
-      // Advance player 2
-      result = executeTurnWithActions(gameState, createCoastAction());
-      gameState = result.gameState;
-
-      // Turn 2: Deallocate all 4 energy at once (no rate limit)
-      const deallocateAction = createDeallocateEnergyAction("railgun", 4);
-      result = executeTurnWithActions(
-        gameState,
-        deallocateAction,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      // Should have deallocated all energy
-      const railgunSubsystem2 = gameState.players[0].ship.subsystems.find(
-        (s) => s.type === "railgun",
-      );
-      expect(railgunSubsystem2?.allocatedEnergy).toBe(0);
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY,
-      );
-    });
-
-    it("should reject allocation beyond subsystem absolute maximum", () => {
-      const gameState = createTestGameState();
-
-      // Engines have maxEnergy: 3 (absolute maximum)
-      // Try to allocate 4 energy (beyond max)
-      const allocateAction = createAllocateEnergyAction("engines", 4);
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        createCoastAction(),
-      );
-
-      // Turn should fail validation
-      expect(result.errors).toBeDefined();
-      expect(result.errors?.length).toBeGreaterThan(0);
-      expect(result.errors?.[0]).toContain("maximum");
-
-      // Game state should be unchanged
-      expect(result.gameState).toBe(gameState);
-
-      // Verify engines still have 0 energy
-      const enginesSubsystem = result.gameState.players[0].ship.subsystems.find(
-        (s) => s.type === "engines",
-      );
-      expect(enginesSubsystem?.allocatedEnergy).toBe(0);
-      expect(result.gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY,
-      );
-    });
-
-    it("should allow allocation up to absolute maximum", () => {
-      let gameState = createTestGameState();
-
-      // Engines: minEnergy=1, maxEnergy=3
-      // Allocate 3 energy (at max)
-      const allocateAction = createAllocateEnergyAction("engines", 3);
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      // Should succeed
-      expect(result.errors).toBeUndefined();
-      const enginesSubsystem = gameState.players[0].ship.subsystems.find(
-        (s) => s.type === "engines",
-      );
-      expect(enginesSubsystem?.allocatedEnergy).toBe(3);
-      expect(gameState.players[0].ship.reactor.availableEnergy).toBe(
-        INITIAL_REACTOR_ENERGY - 3,
-      );
-
-      // No heat - engines weren't used (just coasted)
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
-    });
+describe("energy: allocation", () => {
+  it("moves energy from the reactor to the subsystem and powers it", () => {
+    const state = mustExecute(makeTwoPlayerGame(), allocate("engines", 2));
+    const engines = getSub(state, "p1", "engines");
+    expect(engines.allocatedEnergy).toBe(2);
+    expect(engines.isPowered).toBe(true);
+    expect(getShip(state, "p1").reactor.availableEnergy).toBe(REACTOR_CAPACITY - 2);
   });
 
-  describe("Energy allocation and firing weapons", () => {
-    it("should allow firing railgun after allocating 4 energy to it", () => {
-      let gameState = createTestGameState();
-
-      // Mirror user's scenario: engines at 3, rotation at 1, railgun at 4
-      const allocateEngines = createAllocateEnergyAction("engines", 3);
-      const allocateRotation = createAllocateEnergyAction("rotation", 1);
-      const allocateRailgun = createAllocateEnergyAction("railgun", 4);
-
-      // Fire railgun at player 2 (need to set up targeting)
-      const fireRailgun = {
-        type: "fire_weapon" as const,
-        playerId: "player1",
-        sequence: 1,
-        data: {
-          weaponType: "railgun" as const,
-          targetPlayerIds: ["player2"],
-        },
-      };
-
-      // Move player 2 to be within railgun range (same ring, 4 sectors ahead)
-      gameState = {
-        ...gameState,
-        players: gameState.players.map((p) =>
-          p.id === "player2"
-            ? {
-                ...p,
-                ship: {
-                  ...p.ship,
-                  ring: 3, // Same ring as player 1
-                  sector: 4, // 4 sectors ahead (within 6 sector range)
-                },
-              }
-            : p,
-        ),
-      };
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateEngines,
-        allocateRotation,
-        allocateRailgun,
-        fireRailgun,
-      );
-
-      // Should succeed without errors
-      expect(result.errors).toBeUndefined();
-
-      // Check railgun has 4 energy allocated
-      const railgunSubsystem = result.gameState.players[0].ship.subsystems.find(
-        (s) => s.type === "railgun",
-      );
-      expect(railgunSubsystem?.allocatedEnergy).toBe(4);
-    });
+  it("emits a public energy_allocated event: cubes sit on the tiles in the open", () => {
+    const result = executeTurnAs(makeTwoPlayerGame(), allocate("engines", 2));
+    const [event] = eventsOf(result.events, "energy_allocated");
+    expect(event).toMatchObject({ playerId: "p1", subsystemId: "engines", amount: 2 });
+    expect(event).not.toHaveProperty("privateTo");
   });
 
-  describe("Heat Generation on Use", () => {
-    it("should generate heat when using engines for burn", () => {
-      let gameState = createTestGameState();
-
-      // Allocate 3 energy to engines and use them
-      const allocateAction = createAllocateEnergyAction("engines", 3);
-      const burnAction = {
-        type: "burn" as const,
-        playerId: "player1",
-        sequence: 1,
-        data: { burnIntensity: "soft" as const, sectorAdjustment: 0 },
-      };
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction,
-      );
-      gameState = result.gameState;
-
-      // Should generate 3 heat from using engines
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(3);
-    });
-
-    it("should not generate heat when subsystem is powered but not used", () => {
-      let gameState = createTestGameState();
-
-      // Allocate energy to engines but coast instead
-      const allocateAction = createAllocateEnergyAction("engines", 3);
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        createCoastAction(),
-      );
-      gameState = result.gameState;
-
-      // No heat - engines were powered but not used
-      expect(gameState.players[0].ship.heat.currentHeat).toBe(0);
-    });
+  it("powers slot tiles independently: two lasers can differ", () => {
+    const state = mustExecute(makeTwoPlayerGame(), allocate("side-0", 2));
+    expect(getSub(state, "p1", "side-0").isPowered).toBe(true);
+    expect(getSub(state, "p1", "side-1").isPowered).toBe(false);
+    expect(getSub(state, "p1", "side-1").allocatedEnergy).toBe(0);
   });
 
+  it("stacks allocations across turns up to the maximum", () => {
+    let state = withPower(makeTwoPlayerGame(), "p1", "side-2", 2);
+    state = { ...state, activePlayerIndex: 0 };
+    state = mustExecute(state, allocate("side-2", 2));
+    expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(4);
+  });
+
+  it("deallocation returns energy and unpowers the tile at zero", () => {
+    const result = executeTurnAs(
+      withPower(makeTwoPlayerGame(), "p1", "engines", 3),
+      deallocate("engines", 3)
+    );
+    const state = result.gameState;
+    const engines = getSub(state, "p1", "engines");
+    expect(engines.allocatedEnergy).toBe(0);
+    expect(engines.isPowered).toBe(false);
+    expect(getShip(state, "p1").reactor.availableEnergy).toBe(REACTOR_CAPACITY);
+    expect(eventsOf(result.events, "energy_deallocated")).toEqual([
+      expect.objectContaining({ playerId: "p1", subsystemId: "engines", amount: 3 }),
+    ]);
+    expect(eventsOf(result.events, "energy_deallocated")[0]).not.toHaveProperty("privateTo");
+  });
+
+  it("deallocations are processed before allocations, so energy can be moved in one turn", () => {
+    let state = makeTwoPlayerGame();
+    state = withPower(state, "p1", "forward-0", 4);
+    state = withPower(state, "p1", "engines", 3);
+    state = withPower(state, "p1", "scoop", 3);
+    expect(getShip(state, "p1").reactor.availableEnergy).toBe(0);
+
+    const next = mustExecute(state, allocate("side-0", 2), deallocate("scoop", 3));
+    expect(getSub(next, "p1", "scoop").allocatedEnergy).toBe(0);
+    expect(getSub(next, "p1", "side-0").allocatedEnergy).toBe(2);
+    expect(getShip(next, "p1").reactor.availableEnergy).toBe(1);
+  });
+
+  it("allocated energy persists across turns and is conserved", () => {
+    let state = mustExecute(makeTwoPlayerGame(), allocate("engines", 3), allocate("side-2", 1));
+    state = mustExecute(state, coast(1)); // p2
+    state = mustExecute(state, allocate("side-2", 2)); // p1 again
+    expect(getSub(state, "p1", "engines").allocatedEnergy).toBe(3);
+    expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(3);
+    expect(totalEnergy(getShip(state, "p1"))).toBe(REACTOR_CAPACITY);
+  });
+});
+
+describe("energy: rejected allocations", () => {
+  it.each([
+    ["zero amount", allocate("engines", 0)],
+    ["negative amount", allocate("engines", -1)],
+    ["fractional amount", allocate("engines", 1.5)],
+    ["above the subsystem maximum", allocate("engines", 4)],
+    ["below the minimum from zero", allocate("forward-0", 3)],
+    ["scoop below its minimum of 3", allocate("scoop", 2)],
+    ["unknown subsystem", allocate("side-9", 1)],
+  ])("rejects %s and leaves the state untouched", (_label, action) => {
+    const state = makeTwoPlayerGame();
+    const result = executeTurnAs(state, action);
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(result.gameState).toBe(state);
+  });
+
+  it("rejects allocating more than the reactor has left", () => {
+    const state = withPower(makeTwoPlayerGame(), "p1", "forward-0", 4); // 6 left
+    const result = executeTurnAs(
+      state,
+      allocate("engines", 3),
+      allocate("scoop", 3),
+      allocate("side-0", 2)
+    );
+    expect(result.errors?.[0]).toMatch(/not enough energy/i);
+  });
+
+  it("rejects energy for a broken subsystem", () => {
+    const state = withSub(makeTwoPlayerGame(), "p1", "engines", { isBroken: true });
+    const result = executeTurnAs(state, allocate("engines", 1));
+    expect(result.errors?.[0]).toMatch(/broken/i);
+  });
+
+  it("rejects energy for passive tiles (radiator)", () => {
+    const state = makeTwoPlayerGame({
+      loadout: { forwardSlots: ["railgun"], sideSlots: ["radiator", "laser", "shields", "laser"] },
+    });
+    const result = executeTurnAs(state, allocate("side-0", 1));
+    expect(result.errors?.[0]).toMatch(/passive/i);
+  });
+
+  it("a rejected allocation aborts the whole turn, including valid actions", () => {
+    const state = makeTwoPlayerGame();
+    const result = executeTurnAs(state, allocate("engines", 1), allocate("engines", 9));
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(getSub(result.gameState, "p1", "engines").allocatedEnergy).toBe(0);
+    expect(result.gameState.activePlayerIndex).toBe(0);
+  });
+});
+
+describe("energy: rejected deallocations", () => {
+  it.each([
+    ["nothing allocated", 0, 1],
+    ["more than allocated", 2, 3],
+    ["zero", 2, 0],
+    ["negative", 2, -1],
+  ])("rejects deallocating %s", (_label, allocated, amount) => {
+    const state =
+      allocated > 0
+        ? withPower(makeTwoPlayerGame(), "p1", "engines", allocated)
+        : makeTwoPlayerGame();
+    const result = executeTurnAs(state, deallocate("engines", amount));
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(getSub(result.gameState, "p1", "engines").allocatedEnergy).toBe(allocated);
+  });
+
+  it("allows partial deallocation while the remainder still meets the minimum", () => {
+    const state = mustExecute(
+      withPower(makeTwoPlayerGame(), "p1", "side-2", 4),
+      deallocate("side-2", 3)
+    );
+    expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(1);
+    expect(getSub(state, "p1", "side-2").isPowered).toBe(true);
+  });
 });

@@ -1,364 +1,345 @@
-import type { FireWeaponAction, ShipState } from '../../models/game.ts'
-import type { TacticalSituation, Target, BotParameters, SubsystemStatus } from '../types.ts'
-import { SUBSYSTEM_CONFIGS, getMissileStats } from '../../models/subsystems.ts'
-import { BURN_COSTS, SECTORS_PER_RING } from '../../models/rings.ts'
-import { getGravityWell } from '../../models/gravityWells.ts'
+/**
+ * Weapons. Every shot the bot proposes is checked with the engine's own
+ * range function from the position the ship will occupy when the shot
+ * executes (before or after this turn's movement), so the engine never
+ * rejects a bot's fire action for range.
+ */
+import type { Facing, Player, Position } from "../../models/game.ts";
+import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
+import { getMissileStats, getSubsystemConfig } from "../../models/subsystems.ts";
+import { BURN_COSTS } from "../../models/rings.ts";
+import { getMaxRing } from "../../models/gravityWells.ts";
+import { driftPosition, ringVelocity, samePosition } from "../../game/geometry.ts";
+import { projectMissilePath } from "../../game/missiles.ts";
+import { isInWeaponRange } from "../../game/targeting.ts";
+import type { BotParameters, Opponent, SuspectedSlot, TacticalSituation } from "../types.ts";
+import { INTERDICT_DANGER } from "../types.ts";
+import type { PlannerTarget } from "../movementPlanner/index.ts";
+import { driftPeriod, orbitSectorAt } from "../movementPlanner/index.ts";
 
-function ringVelocity(wellId: string, ring: number): number {
-  const well = getGravityWell(wellId)
-  return well?.rings.find(r => r.ring === ring)?.velocity ?? 1
+export type FiringPhase = "pre" | "post";
+
+/** Players a Destroy card in hand names: the ships worth spending a turn on. */
+export function destroyTargetIds(me: Player): Set<string> {
+  return new Set(
+    me.missions.flatMap((m) =>
+      !m.isCompleted && m.type === "destroy_ship" ? [m.targetPlayerId] : []
+    )
+  );
+}
+
+export interface FirePosition extends Position {
+  facing: Facing;
 }
 
 /**
- * Best-case simulation of a missile's flight against a target the engine
- * considers "in range" by static ring-and-sector geometry. Returns `true`
- * if a missile fired *now* can land on the target before expiring, given:
- *
- *   - `maxTurnsAlive` turns of life, `fuelPerTurn` fuel each — both
- *     pulled from {@link getMissileStats} so this code stays in sync if
- *     missile balance changes in the engine.
- *   - Orbital advance every turn (skipped on the first turn since the
- *     bot fires after movement — see actionProcessors.ts:225).
- *   - Fuel spent on ring change first, then sector approach (mirroring
- *     {@link ../../game/missiles.ts:calculateMissileMovement}).
- *   - Target moves only via its own ring's orbital velocity (best-case
- *     for the missile — assumes target doesn't burn away).
- *
- * Why this matters: the engine's static "in range" check is a per-turn
- * snapshot, but missile flight takes multiple turns and orbital mechanics
- * shift the target during that time. The fuel budget is **per turn** —
- * 3 units of (ring + sector) movement each turn — so a 6-unit gap over
- * 1 turn is unreachable even if the *total* lifetime budget would suffice.
- * Trailing targets at faster rings are the classic offender: the missile
- * inherits our slow orbit while the target's sector accelerates away
- * each round.
- *
- * We deliberately do NOT model the sector-remap on ring change (the
- * engine has it, but our wells use a uniform 24 sectors so it's a no-op).
+ * One feasible shot: which weapon, when in the turn, at whom.
  */
-function missileCanHit(botShip: ShipState, targetShip: ShipState): boolean {
-  if (botShip.wellId !== targetShip.wellId) return false
+export interface FireIntent {
+  weapon: Subsystem;
+  targetId: string;
+  phase: FiringPhase;
+  damage: number;
+  /** Heat the shot adds (weapon energy, plus engine energy when compensating recoil). */
+  heat: number;
+  /** Reactor energy the weapon needs. */
+  energy: number;
+  /** Railgun only. */
+  compensateRecoil?: boolean;
+}
 
-  const stats = getMissileStats()
-  let mRing = botShip.ring
-  let mSector = botShip.sector
-  let tRing = targetShip.ring
-  let tSector = targetShip.sector
+export function weaponDamage(weapon: Subsystem): number {
+  return getSubsystemConfig(weapon.type).weaponStats?.damage ?? 0;
+}
 
-  for (let turn = 0; turn < stats.maxTurnsAlive; turn++) {
-    // Step 1: missile orbital (skipped on first turn — fired post-move).
-    if (turn > 0) {
-      mSector = (mSector + ringVelocity(botShip.wellId, mRing)) % SECTORS_PER_RING
-    }
+export function weaponEnergy(weapon: Subsystem): number {
+  return getSubsystemConfig(weapon.type).minEnergy;
+}
 
-    // Step 2: spend this turn's fuel toward target. Ring change has
-    // priority over sector adjustment (engine rule). The fuel budget is
-    // PER TURN, not over the whole flight — leftover fuel does not roll
-    // over.
-    let fuel = stats.fuelPerTurn
-    const ringDiff = tRing - mRing
-    if (ringDiff !== 0 && fuel > 0) {
-      const ringSteps = Math.min(Math.abs(ringDiff), fuel)
-      mRing += Math.sign(ringDiff) * ringSteps
-      fuel -= ringSteps
-    }
-    if (fuel > 0) {
-      const raw = (tSector - mSector + SECTORS_PER_RING) % SECTORS_PER_RING
-      const signed = raw > SECTORS_PER_RING / 2 ? raw - SECTORS_PER_RING : raw
-      const sectorSteps = Math.min(Math.abs(signed), fuel)
-      mSector =
-        ((mSector + Math.sign(signed) * sectorSteps) % SECTORS_PER_RING +
-          SECTORS_PER_RING) %
-        SECTORS_PER_RING
-    }
+/**
+ * Damage the bot could put on one ship in a single turn if every weapon
+ * bore. A shield tile absorbs four damage a turn and is refilled for free,
+ * so a volley that cannot beat the cubes the bot can see is a volley that
+ * never reaches a hull.
+ */
+export function volleyPotential(weapons: Subsystem[]): number {
+  return weapons.reduce((sum, w) => sum + weaponDamage(w), 0);
+}
 
-    if (mRing === tRing && mSector === tSector) return true
+/** A weapon the bot could fire this turn (unbroken, unused, loaded). */
+export function isWeaponReady(weapon: Subsystem): boolean {
+  if (weapon.isBroken || weapon.usedThisTurn) return false;
+  if (weapon.type === "missiles" && (weapon.ammo ?? 0) <= 0) return false;
+  return true;
+}
 
-    // Step 3: target orbital advances at its own ring's velocity (we're
-    // optimistic and assume the target doesn't burn this turn).
-    tSector = (tSector + ringVelocity(targetShip.wellId, tRing)) % SECTORS_PER_RING
+/**
+ * Planner target: any position from which one of `weapons` could hit a
+ * ship that drifts on its ring from `start`. Either facing is accepted
+ * because the bot can rotate on the firing turn.
+ */
+export function weaponRangeTarget(weapons: Subsystem[], start: Position): PlannerTarget {
+  const velocity = ringVelocity(start.wellId, start.ring);
+  const positionAt = (turn: number): Position => ({
+    ...start,
+    sector: orbitSectorAt(start, velocity, turn),
+  });
+  return {
+    positionAt,
+    isMatch: (pos, turn) => {
+      const target = positionAt(turn);
+      if (pos.wellId !== target.wellId) return false;
+      for (const facing of ["prograde", "retrograde"] as const) {
+        const attacker = { ...pos, facing };
+        if (weapons.some((w) => isInWeaponRange(w, attacker, target))) return true;
+      }
+      return false;
+    },
+    period: driftPeriod(velocity),
+    describe: () => `weapon range of ${start.wellId} R${start.ring} S${start.sector}`,
+  };
+}
+
+/**
+ * Best-case flight simulation: can a missile launched from `from` land on a
+ * target at `target` (assumed to coast) before it expires? Uses the engine's
+ * own {@link projectMissilePath}, so the launch-after-move exception (a
+ * missile launched once the ship has moved rode along and does not drift
+ * again that turn) is accounted for exactly as the engine will replay it.
+ */
+export function missileCanReach(
+  from: Position,
+  target: Position,
+  launchedAfterMove: boolean
+): boolean {
+  if (from.wellId !== target.wellId) return false;
+  const stats = getMissileStats();
+  let missile: Position & { launchedAfterMove: boolean } = { ...from, launchedAfterMove };
+  let victim = target;
+  for (let move = 0; move < stats.maxMoves; move++) {
+    const path = projectMissilePath(missile, victim);
+    const end = path[path.length - 1];
+    if (samePosition(end, victim)) return true;
+    missile = { ...end, launchedAfterMove: false };
+    victim = driftPosition(victim);
+  }
+  return false;
+}
+
+/**
+ * Last resort for a critical: a system every ship carries and that we can
+ * see is not broken already (broken fixed systems are public). Naming a
+ * tile that is already broken wastes the critical entirely.
+ */
+function fallbackCriticalTarget(target: Opponent): SubsystemId {
+  const engines = target.player.fixed.find((f) => f.type === "engines" && !f.isBroken);
+  if (engines) return engines.id;
+  const fixed = target.player.fixed.find((f) => !f.isBroken);
+  if (fixed) return fixed.id;
+  const slot = target.player.slots.find((s) => s.isBroken !== true);
+  return slot?.id ?? "engines";
+}
+
+/**
+ * What a slot's cubes say about it being a shield tile: a side slot holding
+ * one to four cubes that no weapon's cube count explains. Bigger is better
+ * to break — those are the cubes soaking our volley.
+ */
+function suspectedShieldCubes(slot: SuspectedSlot): number {
+  if (slot.suspected !== null) return 0;
+  if (slot.slot.group !== "side") return 0;
+  const cubes = slot.slot.allocatedEnergy;
+  return cubes >= 1 && cubes <= getSubsystemConfig("shields").maxEnergy ? cubes : 0;
+}
+
+/**
+ * Slot to break on a critical. Every candidate must be a tile that is still
+ * intact — breaking a broken tile does nothing — and cubes are the evidence:
+ * energy allocation is public, and a broken tile is turned face-up with its
+ * cubes returned to the reactor, so any slot carrying cubes is certainly
+ * still working.
+ *
+ * `intent` decides what "best" means:
+ *
+ * - **suppress** (the default): stop them shooting us. A weapon we have seen
+ *   and that is powered right now, then a face-down slot whose cube count
+ *   reads dangerous, then anything revealed and powered, then an idle gun,
+ *   then the engines.
+ * - **kill**: get through to the hull. A shield tile holds up to four cubes,
+ *   absorbs four damage every turn and is refilled for free on their next
+ *   turn, so against any volley the game can assemble it is the single tile
+ *   standing between us and their hull. Break it and every later shot lands
+ *   in full until they reach a station.
+ */
+export function chooseCriticalTarget(
+  target: Opponent,
+  intent: "suppress" | "kill" = "suppress"
+): SubsystemId {
+  const working = target.knownWeapons.filter((w) => !w.isBroken);
+
+  if (intent === "kill") {
+    const shield = target.player.slots
+      .filter((s) => s.type === "shields" && s.isBroken === false && s.allocatedEnergy > 0)
+      .sort((a, b) => b.allocatedEnergy - a.allocatedEnergy)[0];
+    if (shield) return shield.id;
+    const suspected = [...target.unknownSlots]
+      .map((s) => ({ slot: s, cubes: suspectedShieldCubes(s) }))
+      .filter((s) => s.cubes > 0)
+      .sort((a, b) => b.cubes - a.cubes)[0];
+    if (suspected) return suspected.slot.slot.id;
   }
 
-  return false
+  const firing = working.find((w) => w.isPowered);
+  if (firing) return firing.slotId;
+
+  const loaded = [...target.unknownSlots]
+    .filter((s) => s.slot.allocatedEnergy > 0)
+    .sort(
+      (a, b) =>
+        (b.suspected?.damage ?? 0) * (b.suspected?.confidence ?? 0) -
+          (a.suspected?.damage ?? 0) * (a.suspected?.confidence ?? 0) ||
+        b.slot.allocatedEnergy - a.slot.allocatedEnergy
+    )[0];
+  if (loaded) return loaded.slot.id;
+
+  const powered = target.player.slots.find(
+    (s) => s.type !== null && s.isBroken === false && s.allocatedEnergy > 0
+  );
+  if (powered) return powered.id;
+
+  if (working[0]) return working[0].slotId;
+  return fallbackCriticalTarget(target);
+}
+
+export interface FiringContext {
+  /** Position and facing when pre-movement shots execute. */
+  pre: FirePosition;
+  /** Position and facing when post-movement shots execute. */
+  post: FirePosition;
+  /** A burn or jump this turn already uses the engines (no recoil compensation). */
+  enginesUsedByMovement: boolean;
+  /** Reaction mass left after the movement. */
+  massAfterMovement: number;
+  /** The movement lands somewhere that must not be disturbed (a dock, the survey ring). */
+  postPositionMatters: boolean;
 }
 
 /**
- * Select best target based on parameters
+ * Every shot the bot could take at `target` this turn. The caller picks a
+ * subset that fits the energy and heat budgets.
+ */
+export function firingOptions(
+  situation: TacticalSituation,
+  target: Opponent,
+  ctx: FiringContext,
+  parameters: BotParameters
+): FireIntent[] {
+  const intents: FireIntent[] = [];
+  const { status } = situation;
+  const targetPos = target.position;
+
+  for (const weapon of status.weapons) {
+    if (!isWeaponReady(weapon)) continue;
+    const damage = weaponDamage(weapon);
+    const energy = weaponEnergy(weapon);
+    const inPre = isInWeaponRange(weapon, ctx.pre, targetPos);
+    const inPost = isInWeaponRange(weapon, ctx.post, targetPos);
+
+    if (weapon.type === "railgun") {
+      // Recoil moves the ship a ring, which would derail a burn or jump
+      // planned after the shot, so the railgun fires after moving.
+      if (!inPost) continue;
+      const recoilRing = ctx.post.ring + (ctx.post.facing === "prograde" ? 1 : -1);
+      const recoilValid = recoilRing >= 1 && recoilRing <= getMaxRing(ctx.post.wellId);
+      const canCompensate =
+        !ctx.enginesUsedByMovement &&
+        !status.engines.isBroken &&
+        !status.engines.usedThisTurn &&
+        ctx.massAfterMovement >= BURN_COSTS.soft.mass;
+      if (!recoilValid && !canCompensate) continue;
+      if (!canCompensate && ctx.postPositionMatters) continue;
+      const compensate = canCompensate;
+      intents.push({
+        weapon,
+        targetId: target.player.id,
+        phase: "post",
+        damage,
+        heat: energy + (compensate ? BURN_COSTS.soft.energy : 0),
+        energy,
+        compensateRecoil: compensate,
+      });
+      continue;
+    }
+
+    if (weapon.type === "missiles") {
+      const phase: FiringPhase | null = inPost ? "post" : inPre ? "pre" : null;
+      if (!phase) continue;
+      const launchFrom = phase === "post" ? ctx.post : ctx.pre;
+      // Every candidate contains a movement action, so a post-movement
+      // launch is a launch-after-move: the missile skips its first drift.
+      if (!missileCanReach(launchFrom, targetPos, phase === "post")) continue;
+      if (parameters.conserveAmmo && (weapon.ammo ?? 0) <= 1 && target.hull > damage) continue;
+      intents.push({ weapon, targetId: target.player.id, phase, damage, heat: energy, energy });
+      continue;
+    }
+
+    // Lasers and racks: fire wherever the target is in range, before the
+    // move when possible (nothing later in the turn can invalidate it).
+    const phase: FiringPhase | null = inPre ? "pre" : inPost ? "post" : null;
+    if (!phase) continue;
+    intents.push({ weapon, targetId: target.player.id, phase, damage, heat: energy, energy });
+  }
+
+  return intents;
+}
+
+/**
+ * Pick which opponent to shoot among those with at least one option.
+ *
+ * Under the "mission" preference the order is: a ship a Destroy card names,
+ * then the ship closest to winning the game (a hit on a player one dock from
+ * their third card costs them cargo and a turn, which is worth more than the
+ * same hit on a bystander), then whoever is weakest.
  */
 export function selectTarget(
   situation: TacticalSituation,
+  candidates: Array<{ opponent: Opponent; intents: FireIntent[] }>,
   parameters: BotParameters
-): Target | null {
-  const { targets } = situation
+): { opponent: Opponent; intents: FireIntent[] } | null {
+  const withShots = candidates.filter((c) => c.intents.length > 0);
+  if (withShots.length === 0) return null;
 
-  if (targets.length === 0) {
-    return null
-  }
+  const missionTargets = destroyTargetIds(situation.me);
+  const potential = (c: { intents: FireIntent[] }) =>
+    c.intents.reduce((sum, i) => sum + i.damage, 0);
+  // A volley that cannot beat the shield cubes on a ship never reaches its
+  // hull, so a ship we can actually hurt outranks a weaker one we cannot.
+  const canHurt = (c: (typeof withShots)[number]) => potential(c) > c.opponent.shieldAbsorption;
+  const byWeakest = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
+    Number(canHurt(b)) - Number(canHurt(a)) ||
+    a.opponent.hull - b.opponent.hull ||
+    potential(b) - potential(a);
+  const byClosest = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
+    a.opponent.ringDistance +
+    a.opponent.sectorDistance -
+    (b.opponent.ringDistance + b.opponent.sectorDistance);
+  const byDanger = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
+    b.opponent.danger.score - a.opponent.danger.score || byWeakest(a, b);
 
   switch (parameters.targetPreference) {
-    case 'closest':
-      return targets.reduce(
-        (closest, t) => (t.distance < closest.distance ? t : closest),
-        targets[0]
-      )
-
-    case 'weakest':
-      return targets.reduce(
-        (weakest, t) => (t.priority > weakest.priority ? t : weakest),
-        targets[0]
-      )
-
-    case 'threatening': {
-      const threat = situation.primaryThreat
-      if (threat) {
-        return targets.find(t => t.player.id === threat.player.id) || targets[0]
-      }
-      return targets[0]
-    }
-
-    case 'mission': {
-      // Prioritize destroy mission target
-      const goal = situation.currentGoal
-      if (goal && goal.type === 'destroy_target' && goal.targetPlayerId) {
-        const missionTarget = targets.find(t => t.player.id === goal.targetPlayerId)
-        if (missionTarget) return missionTarget
-      }
-      // Fall back to closest
-      return targets.reduce(
-        (closest, t) => (t.distance < closest.distance ? t : closest),
-        targets[0]
-      )
-    }
-
-    default:
-      return targets[0]
-  }
-}
-
-/**
- * Weapon priority for firing order.
- * Lower number = fires first.
- */
-function getWeaponPriority(type: string): number {
-  switch (type) {
-    case 'railgun': return 0 // Highest damage, fires first
-    case 'laser': return 1
-    case 'ballistic_rack': return 2
-    case 'missiles': return 3 // Lowest priority (conserve ammo)
-    default: return 4
-  }
-}
-
-/**
- * Generate weapon firing actions for the selected target.
- * Iterates ALL weapon subsystems dynamically.
- * Includes missile conservation logic.
- *
- * @param projectedEnergy - Map of subsystem index → projected energy after allocations
- */
-export function generateWeaponActions(
-  situation: TacticalSituation,
-  target: Target | null,
-  startSequence: number,
-  parameters: BotParameters,
-  projectedEnergy?: Map<number, number>,
-  /**
-   * Reaction mass projected to be available AFTER the planned movement
-   * action has consumed fuel. Used by railgun recoil-compensation logic
-   * which itself burns 1 reaction mass — without this, the bot can decide
-   * to compensate on a turn where the burn has already drained its tank.
-   * Falls back to current mass if not provided.
-   */
-  projectedReactionMass?: number,
-  /**
-   * Whether the planned movement (burn or well_transfer) will mark engines
-   * as `usedThisTurn` before weapons fire. Recoil compensation also uses
-   * engines, so when engines are already used this turn we can't
-   * compensate — the validator rejects it.
-   */
-  enginesWillBeUsedByMovement?: boolean,
-  /**
-   * Ring/facing the ship will occupy when weapons fire — i.e. AFTER the
-   * planned rotation and movement. Recoil safety depends on the post-move
-   * ring (a burn from R5 → R3 makes recoil safe even if R5 wasn't).
-   * Falls back to the current ship's position.
-   */
-  postMovementShip?: { ring: number; facing: 'prograde' | 'retrograde' }
-): FireWeaponAction[] {
-  if (!target) {
-    return []
-  }
-
-  const actions: FireWeaponAction[] = []
-  const { botPlayer, status } = situation
-  const { firingSolutions } = target
-
-  // Collect all eligible weapons with their priority
-  const eligibleWeapons: Array<{
-    sub: SubsystemStatus
-    priority: number
-  }> = []
-
-  // Track whether we have any direct (non-missile) weapon in range
-  let hasDirectWeaponInRange = false
-
-  for (const sub of status.weapons) {
-    if (sub.used || sub.broken) continue
-
-    const config = SUBSYSTEM_CONFIGS[sub.type]
-    if (!config.weaponStats) continue
-
-    // Check if weapon has enough energy (projected or current)
-    const energy = projectedEnergy?.get(sub.index) ?? sub.energy
-    if (energy < config.minEnergy) continue
-
-    // Check firing solution for this specific subsystem
-    const solution = firingSolutions.get(sub.index)
-
-    // For missiles, we check ammo not range (they're self-propelled)
-    if (sub.type === 'missiles') {
-      if (sub.ammo !== undefined && sub.ammo <= 0) continue
-      // Missile eligible - range check handled by conservation logic below
-    } else {
-      // Direct weapons need to be in range
-      if (!solution || !solution.inRange) continue
-      hasDirectWeaponInRange = true
-    }
-
-    eligibleWeapons.push({
-      sub,
-      priority: getWeaponPriority(sub.type),
-    })
-  }
-
-  // Sort by priority
-  eligibleWeapons.sort((a, b) => a.priority - b.priority)
-
-  // Engine limitation: `allocate_energy` targets subsystems by TYPE, not
-  // by index — only the first matching subsystem of a given type can be
-  // powered (see actionProcessors.ts:processAllocateEnergy). That makes
-  // the second laser in the `combat` loadout effectively dead weight: we
-  // can't power it, so we shouldn't try to fire it. Track which weapon
-  // types we've already queued and skip duplicates.
-  const firedTypes = new Set<string>()
-
-  // Generate fire actions
-  for (const { sub } of eligibleWeapons) {
-    if (firedTypes.has(sub.type)) continue
-    // Missile conservation logic
-    if (sub.type === 'missiles') {
-      const solution = firingSolutions.get(sub.index)
-      const missileInRange = solution?.inRange ?? false
-
-      // Check if this is a mission target
-      const isMissionTarget = situation.currentGoal?.type === 'destroy_target' &&
-        situation.currentGoal.targetPlayerId === target.player.id
-
-      if (parameters.conserveAmmo) {
-        // Only fire if: no direct weapon in range, OR it's a mission target with ammo >= 2
-        if (hasDirectWeaponInRange) continue
-        if (isMissionTarget && (sub.ammo ?? 0) < 2) continue
-      } else {
-        // Even without conserveAmmo, don't fire missiles if we have direct weapons
-        // unless the missile is actually in range or it's a mission target
-        if (hasDirectWeaponInRange && !missileInRange && !isMissionTarget) continue
-      }
-
-      // Feasibility gate: the engine's "in range" check for turrets is a
-      // static per-turn snapshot, but missile flight takes multiple turns
-      // and the per-turn fuel budget (3 units of ring+sector movement) is
-      // tight. Simulate the flight optimistically (target only orbits,
-      // doesn't burn) and refuse to fire when even the rosy sim says we
-      // miss — trailing targets at faster rings are the classic case
-      // where the missile can't outpace the target's per-turn drift.
-      if (!missileCanHit(botPlayer.ship, target.player.ship)) continue
-    }
-
-    // Railgun recoil check: skip if recoil would be invalid and can't compensate.
-    // Decisions use post-movement state — by the time the railgun fires,
-    // the planned burn/transfer has already moved the ship and engines may
-    // have been used. The energy budget may also have deallocated engines.
-    let compensateRecoil: boolean | undefined
-    if (sub.type === 'railgun') {
-      const ship = botPlayer.ship
-      const firingRing = postMovementShip?.ring ?? ship.ring
-      const firingFacing = postMovementShip?.facing ?? ship.facing
-      const recoilDir = firingFacing === 'prograde' ? 1 : -1
-      const recoilRing = firingRing + recoilDir
-      const maxRing = getGravityWell(ship.wellId)?.rings.length ?? 5
-      const wouldBeInvalid = recoilRing < 1 || recoilRing > maxRing
-
-      const engines = status.engines
-      const projectedEngineEnergy = projectedEnergy?.get(engines.index) ?? engines.energy
-      const massForRecoil = projectedReactionMass ?? ship.reactionMass
-      const enginesUsed = engines.used || (enginesWillBeUsedByMovement ?? false)
-      const canCompensate = !enginesUsed &&
-        projectedEngineEnergy >= BURN_COSTS.soft.energy &&
-        massForRecoil >= BURN_COSTS.soft.mass
-
-      if (wouldBeInvalid && !canCompensate) continue // Can't fire safely
-      compensateRecoil = wouldBeInvalid || canCompensate // Compensate if we can or must
-    }
-
-    actions.push({
-      type: 'fire_weapon',
-      playerId: botPlayer.id,
-      sequence: startSequence + actions.length,
-      data: {
-        weaponType: sub.type as 'laser' | 'railgun' | 'missiles' | 'ballistic_rack',
-        targetPlayerIds: [target.player.id],
-        criticalTarget: 'shields',
-        subsystemIndex: sub.index,
-        ...(compensateRecoil !== undefined ? { compensateRecoil } : {}),
-      },
-    })
-    firedTypes.add(sub.type)
-  }
-
-  return actions
-}
-
-/**
- * Determine if bot should face toward or away from target.
- * Considers mission target and railgun (spinal weapon needs correct facing).
- */
-export function shouldFaceTarget(
-  situation: TacticalSituation,
-  target: Target | null,
-  plannedMovementFacing?: 'prograde' | 'retrograde'
-): 'prograde' | 'retrograde' | null {
-  if (!target) {
-    return plannedMovementFacing ?? null
-  }
-
-  const { status } = situation
-
-  // Check if we have a railgun (spinal weapon) that could fire
-  const hasRailgun = status.weapons.some(w =>
-    w.type === 'railgun' && !w.used && !w.broken
-  )
-
-  if (hasRailgun) {
-    // Railgun is spinal - needs facing direction. Check firing solution.
-    for (const sub of status.weapons) {
-      if (sub.type !== 'railgun') continue
-      const solution = target.firingSolutions.get(sub.index)
-      if (solution?.wrongFacing) {
-        // Need to flip facing for railgun
-        return status.facing === 'prograde' ? 'retrograde' : 'prograde'
-      }
-      if (solution?.inRange) {
-        // Railgun is in range with current facing - keep it
-        return status.facing
-      }
+    case "closest":
+      return [...withShots].sort(byClosest)[0];
+    case "weakest":
+      return [...withShots].sort(byWeakest)[0];
+    case "mission": {
+      const mission = withShots
+        .filter((c) => missionTargets.has(c.opponent.player.id))
+        .sort(byWeakest);
+      if (mission[0]) return mission[0];
+      const dangerous = withShots
+        .filter((c) => c.opponent.danger.score >= INTERDICT_DANGER)
+        .sort(byDanger);
+      return dangerous[0] ?? [...withShots].sort(byWeakest)[0];
     }
   }
-
-  // If movement planner suggests a facing, use it
-  if (plannedMovementFacing && plannedMovementFacing !== status.facing) {
-    return plannedMovementFacing
-  }
-
-  // Default: keep current facing
-  return null
 }

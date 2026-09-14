@@ -1,271 +1,100 @@
 /**
- * Deployment System for Dangerous Inclinations
- *
- * During the deployment phase, players place their ships on BH Ring 4.
- * Deployment order: player order (first player deploys first)
- * Restrictions: Cannot deploy on an already-occupied sector
+ * Deployment. In turn order each player places their ship, facing prograde,
+ * on the outer ring (HOME_RING) of any planet in any empty sector. That
+ * sector becomes their Home.
  */
+import type { GameState, GravityWellId, Player, Position } from "../models/game.ts";
+import type { EventDraft } from "../models/events.ts";
+import { HOME_RING, PLANETS, isPlanet } from "../models/gravityWells.ts";
+import { SECTORS_PER_RING } from "../models/rings.ts";
+import { samePosition } from "./geometry.ts";
+import { createInitialShipState } from "./ship.ts";
 
-import type {
-  GameState,
-  Player,
-  DeployShipAction,
-  TurnLogEntry,
-  ShipLoadout,
-} from "../models/game.ts";
-import { DEFAULT_LOADOUT } from "../models/game.ts";
-import { createInitialShipState } from "../utils/subsystemHelpers.ts";
-
-/**
- * Deployment constants
- */
-export const DEPLOYMENT_CONSTANTS = {
-  WELL_ID: "blackhole",
-  RING: 4,
-  SECTORS: 24, // BH Ring 4 has 24 sectors
-} as const;
-
-/**
- * Get all sectors on BH Ring 4 that are available for deployment
- * Excludes sectors already occupied by deployed ships
- */
-export function getAvailableDeploymentSectors(gameState: GameState): number[] {
-  const occupiedSectors = new Set<number>();
-
-  for (const player of gameState.players) {
-    if (
-      player.hasDeployed &&
-      player.ship.wellId === DEPLOYMENT_CONSTANTS.WELL_ID &&
-      player.ship.ring === DEPLOYMENT_CONSTANTS.RING
-    ) {
-      occupiedSectors.add(player.ship.sector);
-    }
-  }
-
-  const availableSectors: number[] = [];
-  for (let i = 0; i < DEPLOYMENT_CONSTANTS.SECTORS; i++) {
-    if (!occupiedSectors.has(i)) {
-      availableSectors.push(i);
-    }
-  }
-
-  return availableSectors;
+export function deploymentPositions(): Position[] {
+  return PLANETS.flatMap((planet) =>
+    Array.from({ length: SECTORS_PER_RING }, (_, sector) => ({
+      wellId: planet.id,
+      ring: HOME_RING,
+      sector,
+    }))
+  );
 }
 
-/**
- * Check if a sector is available for deployment
- */
-export function isSectorAvailable(
-  gameState: GameState,
-  sector: number
-): boolean {
-  if (sector < 0 || sector >= DEPLOYMENT_CONSTANTS.SECTORS) {
-    return false;
-  }
-
-  const availableSectors = getAvailableDeploymentSectors(gameState);
-  return availableSectors.includes(sector);
+export function isDeploymentPositionFree(state: GameState, position: Position): boolean {
+  return !state.players.some((p) => p.hasDeployed && samePosition(p.ship, position));
 }
 
-/**
- * Result of a deployment action
- */
+/** Free sectors on a planet's home ring. */
+export function getAvailableDeploymentSectors(state: GameState, wellId: GravityWellId): number[] {
+  if (!isPlanet(wellId)) return [];
+  return Array.from({ length: SECTORS_PER_RING }, (_, s) => s).filter((sector) =>
+    isDeploymentPositionFree(state, { wellId, ring: HOME_RING, sector })
+  );
+}
+
 export interface DeploymentResult {
   success: boolean;
   error?: string;
-  gameState: GameState;
-  logEntry?: TurnLogEntry;
+  state: GameState;
+  events: EventDraft[];
 }
 
-/**
- * Deploy a player's ship to a specific sector
- * @param loadout - Optional loadout for the ship. If not provided, uses player's existing loadout or DEFAULT_LOADOUT
- */
 export function deployShip(
-  gameState: GameState,
+  state: GameState,
   playerId: string,
-  sector: number,
-  loadout?: ShipLoadout
+  wellId: GravityWellId,
+  sector: number
 ): DeploymentResult {
-  // Validate game phase
-  if (gameState.phase !== "deployment") {
-    return {
-      success: false,
-      error: "Cannot deploy ship: game is not in deployment phase",
-      gameState,
-    };
-  }
+  const fail = (error: string): DeploymentResult => ({ success: false, error, state, events: [] });
 
-  // Find the player
-  const playerIndex = gameState.players.findIndex((p) => p.id === playerId);
-  if (playerIndex === -1) {
-    return {
-      success: false,
-      error: `Player ${playerId} not found`,
-      gameState,
-    };
-  }
+  if (state.phase !== "deployment")
+    return fail("Cannot deploy: game is not in the deployment phase");
+  const playerIndex = state.players.findIndex((p) => p.id === playerId);
+  if (playerIndex === -1) return fail(`Player ${playerId} not found`);
+  const player = state.players[playerIndex];
+  if (player.hasDeployed) return fail(`${player.name} has already deployed`);
+  if (state.players[state.activePlayerIndex].id !== playerId)
+    return fail(`Not ${player.name}'s turn to deploy`);
+  if (!isPlanet(wellId)) return fail("Ships deploy on a planet's outer ring");
+  if (!Number.isInteger(sector) || sector < 0 || sector >= SECTORS_PER_RING)
+    return fail(`Sector ${sector} is out of range`);
 
-  const player = gameState.players[playerIndex];
+  const position: Position = { wellId, ring: HOME_RING, sector };
+  if (!isDeploymentPositionFree(state, position))
+    return fail(`Sector ${sector} of ${wellId} is occupied`);
 
-  // Check if player already deployed
-  if (player.hasDeployed) {
-    return {
-      success: false,
-      error: `Player ${player.name} has already deployed`,
-      gameState,
-    };
-  }
-
-  // Check if it's this player's turn to deploy
-  const activePlayer = gameState.players[gameState.activePlayerIndex];
-  if (activePlayer.id !== playerId) {
-    return {
-      success: false,
-      error: `Not ${player.name}'s turn to deploy`,
-      gameState,
-    };
-  }
-
-  // Validate sector
-  if (!isSectorAvailable(gameState, sector)) {
-    return {
-      success: false,
-      error: `Sector ${sector} is not available for deployment`,
-      gameState,
-    };
-  }
-
-  // Use provided loadout, player's existing loadout, or default
-  const shipLoadout = loadout ?? player.ship.loadout ?? DEFAULT_LOADOUT;
-
-  // Create ship at deployment location with the loadout
-  const deployedShip = createInitialShipState(
-    {
-      wellId: DEPLOYMENT_CONSTANTS.WELL_ID,
-      ring: DEPLOYMENT_CONSTANTS.RING,
-      sector,
-      facing: "prograde",
-    },
-    shipLoadout
-  );
-
-  // Update player
-  const updatedPlayer: Player = {
+  const deployed: Player = {
     ...player,
-    ship: deployedShip,
+    ship: createInitialShipState({ ...position, facing: "prograde" }, player.ship.loadout),
     hasDeployed: true,
+    home: position,
   };
+  const players = [...state.players];
+  players[playerIndex] = deployed;
 
-  // Update game state
-  const updatedPlayers = [...gameState.players];
-  updatedPlayers[playerIndex] = updatedPlayer;
-
-  // Advance to next player who hasn't deployed
-  let nextActiveIndex =
-    (gameState.activePlayerIndex + 1) % gameState.players.length;
-  // Find the next player who hasn't deployed yet
-  for (let i = 0; i < gameState.players.length; i++) {
-    const checkIndex =
-      (gameState.activePlayerIndex + 1 + i) % gameState.players.length;
-    // Check if this player hasn't deployed (use updated array for current player)
-    const checkPlayer =
-      checkIndex === playerIndex ? updatedPlayer : updatedPlayers[checkIndex];
-    if (!checkPlayer.hasDeployed) {
-      nextActiveIndex = checkIndex;
+  // Next player who still has to deploy.
+  let nextIndex = state.activePlayerIndex;
+  for (let i = 1; i <= players.length; i++) {
+    const idx = (state.activePlayerIndex + i) % players.length;
+    if (!players[idx].hasDeployed) {
+      nextIndex = idx;
       break;
     }
   }
 
-  // Create log entry
-  const logEntry: TurnLogEntry = {
-    turn: gameState.turn,
-    playerId,
-    playerName: player.name,
-    action: "Deploy",
-    result: `Deployed to BH Ring 4, Sector ${sector}`,
-  };
-
   return {
     success: true,
-    gameState: {
-      ...gameState,
-      players: updatedPlayers,
-      activePlayerIndex: nextActiveIndex,
-      turnLog: [...gameState.turnLog, logEntry],
-    },
-    logEntry,
+    state: { ...state, players, activePlayerIndex: nextIndex },
+    events: [{ type: "deployed", playerId, position }],
   };
 }
 
-/**
- * Process a deploy ship action
- */
-export function processDeployAction(
-  gameState: GameState,
-  action: DeployShipAction
-): DeploymentResult {
-  return deployShip(gameState, action.playerId, action.data.sector);
+export function checkAllDeployed(state: GameState): boolean {
+  return state.players.every((p) => p.hasDeployed);
 }
 
-/**
- * Check if all players have deployed
- */
-export function checkAllDeployed(gameState: GameState): boolean {
-  return gameState.players.every((player) => player.hasDeployed);
-}
-
-/**
- * Advance to the next player who needs to deploy
- * Returns the new active player index
- */
-export function getNextDeploymentPlayer(gameState: GameState): number {
-  // Find first player who hasn't deployed
-  for (let i = 0; i < gameState.players.length; i++) {
-    if (!gameState.players[i].hasDeployed) {
-      return i;
-    }
-  }
-  // All deployed - this shouldn't happen during deployment phase
-  return 0;
-}
-
-/**
- * Transition from deployment phase to active phase
- * Called when all players have deployed
- */
-export function transitionToActivePhase(gameState: GameState): GameState {
-  if (!checkAllDeployed(gameState)) {
-    return gameState; // Not ready to transition
-  }
-
-  return {
-    ...gameState,
-    phase: "active",
-    activePlayerIndex: 0, // First player starts
-    turn: 1,
-  };
-}
-
-/**
- * Get deployment status for UI display
- */
-export function getDeploymentStatus(gameState: GameState): {
-  totalPlayers: number;
-  deployedCount: number;
-  currentPlayer: Player | null;
-  availableSectors: number[];
-} {
-  const deployedCount = gameState.players.filter((p) => p.hasDeployed).length;
-  const currentPlayer =
-    gameState.phase === "deployment"
-      ? gameState.players[gameState.activePlayerIndex]
-      : null;
-
-  return {
-    totalPlayers: gameState.players.length,
-    deployedCount,
-    currentPlayer,
-    availableSectors: getAvailableDeploymentSectors(gameState),
-  };
+/** All ships placed: start the game with the first player. */
+export function transitionToActivePhase(state: GameState): GameState {
+  if (!checkAllDeployed(state)) return state;
+  return { ...state, phase: "active", activePlayerIndex: 0, turn: 1 };
 }

@@ -1,79 +1,52 @@
+/**
+ * Heat. Subsystems add heat when used (see ship.ts useSubsystem). At the end
+ * of a player's turn, heat above the ship's dissipation capacity becomes hull
+ * damage and heat resets to 0.
+ */
 import type { ShipState } from "../models/game.ts";
-import type { Subsystem } from "../models/subsystems.ts";
-import { getHeatOnUse } from "../models/subsystems.ts";
+import { DEFAULT_DISSIPATION_CAPACITY } from "../models/game.ts";
+import type { EventDraft } from "../models/events.ts";
+import { getDissipationCapacity, revealSubsystem } from "./ship.ts";
 
-/**
- * Calculate heat damage at start of turn
- * Damage = excess heat above dissipation capacity
- *
- * Heat lifecycle:
- * 1. Start of turn: evaluate heat, dissipate what we can, take damage from excess
- * 2. Heat resets to 0
- * 3. During turn: subsystem usage generates heat
- * 4. Between turns: shields and critical hits can generate heat
- * 5. Repeat at next turn start
- */
+export { addHeat } from "./ship.ts";
+
 export function calculateHeatDamage(ship: ShipState): number {
-  return Math.max(0, ship.heat.currentHeat - ship.dissipationCapacity);
+  return Math.max(0, ship.heat.currentHeat - getDissipationCapacity(ship.subsystems));
 }
 
-/**
- * Reset heat to 0 at start of turn (after damage is calculated)
- * Heat is fully cleared each turn - damage was already taken from excess
- */
 export function resetHeat(ship: ShipState): ShipState {
-  return {
-    ...ship,
-    heat: {
-      currentHeat: 0,
-    },
-  };
+  return { ...ship, heat: { currentHeat: 0 } };
 }
 
 /**
- * Add heat to a ship (from subsystem use or shield absorption)
+ * End-of-turn heat check. Applies excess heat as hull damage, reveals
+ * working radiators whenever heat went above the base dissipation (they are
+ * visibly shedding heat, whether or not damage was fully prevented), and
+ * resets heat. Emits `heat_damage` only when damage was taken.
  */
-export function addHeat(ship: ShipState, amount: number): ShipState {
-  return {
-    ...ship,
-    heat: {
-      currentHeat: ship.heat.currentHeat + amount,
-    },
-  };
-}
-
-/**
- * Generate heat from a subsystem being used
- * Returns new ship state with heat added equal to subsystem's allocated energy
- */
-export function generateHeatFromSubsystemUse(
+export function resolveEndOfTurnHeat(
   ship: ShipState,
-  subsystem: Subsystem,
-): ShipState {
-  const heatGenerated = getHeatOnUse(subsystem);
-  if (heatGenerated === 0) return ship;
+  playerId: string
+): { ship: ShipState; damage: number; events: EventDraft[] } {
+  const heat = ship.heat.currentHeat;
+  const dissipation = getDissipationCapacity(ship.subsystems);
+  const damage = Math.max(0, heat - dissipation);
+  const events: EventDraft[] = [];
+  let next = ship;
 
-  return addHeat(ship, heatGenerated);
-}
-
-/**
- * Calculate projected heat from a list of subsystem types that will be used
- * Used for real-time preview in the UI
- */
-export function calculateProjectedHeat(
-  subsystems: Subsystem[],
-  subsystemsToUse: Array<
-    "engines" | "rotation" | "scoop" | "laser" | "railgun" | "missiles" | "ballistic_rack"
-  >,
-): number {
-  let totalHeat = 0;
-
-  for (const subsystemType of subsystemsToUse) {
-    const subsystem = subsystems.find((s) => s.type === subsystemType);
-    if (subsystem) {
-      totalHeat += getHeatOnUse(subsystem);
+  // Radiators show themselves whenever they are shedding heat the base ship could not.
+  if (heat > DEFAULT_DISSIPATION_CAPACITY && dissipation > DEFAULT_DISSIPATION_CAPACITY) {
+    for (const radiator of ship.subsystems.filter((s) => s.type === "radiator" && !s.isBroken)) {
+      const r = revealSubsystem(next, playerId, radiator.id, "prevented_heat_damage");
+      next = r.ship;
+      events.push(...r.events);
     }
   }
 
-  return totalHeat;
+  if (damage > 0) {
+    next = { ...next, hitPoints: Math.max(0, next.hitPoints - damage) };
+    events.push({ type: "heat_damage", playerId, heat, dissipation, damage });
+  }
+
+  return { ship: resetHeat(next), damage, events };
 }

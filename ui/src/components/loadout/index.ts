@@ -1,4 +1,5 @@
 export { ComponentCard } from './ComponentCard'
 export { ComponentPalette } from './ComponentPalette'
 export { LoadoutSlot } from './LoadoutSlot'
-export type { SlotType, DragItem, LoadoutSlotProps, ComponentCardProps, ComponentPaletteProps } from './types'
+export { DRAG_MIME, readDragItem } from './types'
+export type { SlotType, DragItem } from './types'

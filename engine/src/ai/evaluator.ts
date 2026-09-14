@@ -1,221 +1,112 @@
-import type { PlayerAction } from '../models/game.ts'
-import type { ActionPlan, ScoredActionPlan, TacticalSituation, BotParameters } from './types.ts'
-
 /**
- * Evaluate offense score - damage potential
+ * Candidate scoring. Each candidate is scored once on four axes; the
+ * weights shift with aggressiveness so the same situation yields different
+ * plans for different bot personalities.
  */
-function evaluateOffense(actions: PlayerAction[], situation: TacticalSituation): number {
-  let score = 0
+import type {
+  ActionPlan,
+  BotParameters,
+  PlanScores,
+  ScoredActionPlan,
+  TacticalSituation,
+} from "./types.ts";
 
-  const weaponActions = actions.filter(a => a.type === 'fire_weapon')
-  score += weaponActions.length * 30
+const clamp = (v: number) => Math.max(0, Math.min(100, v));
 
-  if (situation.primaryTarget) {
-    score += 20
+/** Points of offense per unit of denial value (see ActionPlan.denialValue). */
+const DENIAL_SCALE = 12;
+/** Denial value at which a volley counts as real interference in the race. */
+const DENIAL_STEP = 1;
+
+function offense(plan: ActionPlan, situation: TacticalSituation): number {
+  // Damage that reaches the hull is what wins; damage a shield soaks still
+  // strips cubes off the target (and heats it), so it is worth something.
+  const soaked = Math.max(0, plan.expectedDamage - plan.expectedHullDamage);
+  let score = plan.expectedHullDamage * 15 + soaked * 5;
+  if (plan.targetId) {
+    if (plan.killsTarget) score += 40;
+    const missionTarget = situation.me.missions.some(
+      (m) => !m.isCompleted && m.type === "destroy_ship" && m.targetPlayerId === plan.targetId
+    );
+    if (missionTarget) score += 15;
   }
-
-  return Math.min(100, score)
+  // Denial. A hit on a player one dock from their third card costs them the
+  // cargo and the tempo, which is worth more than the same hit on someone
+  // who has nothing aboard — with no Destroy card needed to collect it.
+  score += plan.denialValue * DENIAL_SCALE;
+  return clamp(score);
 }
 
-/**
- * Evaluate defense score - safety and survival
- */
-function evaluateDefense(
-  actions: PlayerAction[],
-  situation: TacticalSituation,
-  _parameters: BotParameters
-): number {
-  let score = 50
-
-  const wellTransferAction = actions.find(a => a.type === 'well_transfer')
-  if (situation.status.healthPercent < 0.3) {
-    score += wellTransferAction ? 20 : 0
-  }
-
-  // Shields powered when under threat
-  if (situation.primaryThreat) {
-    const shieldsAllocated = actions.some(
-      a => a.type === 'allocate_energy' && a.data.subsystemType === 'shields'
-    )
-    const shieldsSub = situation.status.subsystems.find(s => s.type === 'shields')
-    score += shieldsAllocated || (shieldsSub?.powered ?? false) ? 10 : -10
-  }
-
-  const deallocateActions = actions.filter(a => a.type === 'deallocate_energy')
-  if (deallocateActions.length > 0) {
-    score += 5 // Good: cleaning up unused subsystems
-  }
-
-  return Math.min(100, Math.max(0, score))
+function defense(plan: ActionPlan, situation: TacticalSituation): number {
+  let score = 60;
+  score -= plan.heatDamage * 25;
+  const threatened = situation.threats.length > 0 || situation.incomingMissiles > 0;
+  const shieldsPowered =
+    plan.actions.some(
+      (a) =>
+        a.type === "allocate_energy" &&
+        situation.status.shields.some((s) => s.id === a.data.subsystemId)
+    ) ||
+    situation.status.shields.some(
+      (s) =>
+        s.allocatedEnergy > 0 &&
+        !plan.actions.some((a) => a.type === "deallocate_energy" && a.data.subsystemId === s.id)
+    );
+  if (threatened) score += shieldsPowered ? 15 : -15;
+  // Heading for repairs when the hull is low is defence too.
+  if (situation.currentGoal?.missionId === "repair" && plan.followsGoal) score += 20;
+  return clamp(score);
 }
 
-/**
- * Evaluate positioning score - tactical position quality
- */
-function evaluatePositioning(
-  actions: PlayerAction[],
-  situation: TacticalSituation,
-  parameters: BotParameters
-): number {
-  let score = 50
-
-  if (situation.primaryTarget) {
-    const ringDistance = Math.abs(situation.status.ring - situation.primaryTarget.player.ship.ring)
-    const { preferredRingRange } = parameters
-
-    if (ringDistance >= preferredRingRange.min && ringDistance <= preferredRingRange.max) {
-      score += 30
-    } else {
-      const burnAction = actions.find(a => a.type === 'burn')
-      score += burnAction ? 10 : -10
-    }
-  }
-
-  return Math.min(100, Math.max(0, score))
+function missionProgress(plan: ActionPlan, situation: TacticalSituation): number {
+  let score = 20;
+  if (situation.currentGoal && plan.followsGoal) score += 45;
+  if (plan.completesStep) score += 35;
+  if (plan.scans) score += 10;
+  // Taking a card off the leader is progress in the race even when no card
+  // of ours says so: three points win, and they are three points closer.
+  if (plan.denialValue >= DENIAL_STEP) score += 25;
+  return clamp(score);
 }
 
-/**
- * Evaluate resource efficiency - energy and heat management
- */
-function evaluateResources(actions: PlayerAction[], situation: TacticalSituation): number {
-  let score = 50
-
-  const allocateActions = actions.filter(a => a.type === 'allocate_energy')
-  const deallocateActions = actions.filter(a => a.type === 'deallocate_energy')
-
-  if (allocateActions.length > 0) {
-    score += 20
-  }
-
-  if (deallocateActions.length > 0) {
-    score += 10
-  }
-
-  const burnAction = actions.find(a => a.type === 'burn')
-  if (burnAction && situation.status.reactionMass < 3) {
-    score -= 15
-  }
-
-  return Math.min(100, Math.max(0, score))
+function resources(plan: ActionPlan, situation: TacticalSituation): number {
+  let score = 60;
+  score -= plan.massSpent * 5;
+  const scooping = plan.actions.some((a) => a.type === "coast" && a.data.activateScoop);
+  if (scooping) score += situation.status.reactionMass < 5 ? 25 : 10;
+  if (plan.massSpent > 0 && situation.status.reactionMass - plan.massSpent < 3) score -= 15;
+  return clamp(score);
 }
 
-/**
- * Evaluate mission progress - how well the action plan advances mission goals
- */
-function evaluateMissionProgress(
-  actions: PlayerAction[],
-  situation: TacticalSituation,
-  _parameters: BotParameters
-): number {
-  const { currentGoal } = situation
-
-  // No goal → neutral
-  if (!currentGoal) {
-    return 30
-  }
-
-  let score = 30 // Base
-
-  switch (currentGoal.type) {
-    case 'destroy_target': {
-      // Firing at mission target
-      const fireActions = actions.filter(a => a.type === 'fire_weapon')
-      const firingAtTarget = fireActions.some(a =>
-        a.data.targetPlayerIds.includes(currentGoal.targetPlayerId!)
-      )
-      if (firingAtTarget) {
-        score += 50
-      }
-
-      // Moving toward target (burn action when not in range)
-      const burnAction = actions.find(a => a.type === 'burn')
-      if (burnAction && !firingAtTarget) {
-        score += 20 // Approaching
-      }
-      break
-    }
-
-    case 'pickup_cargo':
-    case 'deliver_cargo': {
-      // Moving toward station
-      const burnAction = actions.find(a => a.type === 'burn')
-      if (burnAction) {
-        score += 30
-      }
-
-      // Coasting with scoop is good for cargo runs
-      const coastAction = actions.find(a => a.type === 'coast')
-      if (coastAction && coastAction.data.activateScoop) {
-        score += 20
-      }
-
-      // Well transfer toward target
-      const transferAction = actions.find(a => a.type === 'well_transfer')
-      if (transferAction && currentGoal.targetWellId) {
-        if (transferAction.data.destinationWellId === currentGoal.targetWellId) {
-          score += 40 // Moving to correct well
-        }
-      }
-      break
-    }
-
-    case 'combat_opportunistic':
-      // Any combat action is good
-      if (actions.some(a => a.type === 'fire_weapon')) {
-        score += 30
-      }
-      break
-  }
-
-  return Math.min(100, Math.max(0, score))
-}
-
-/**
- * Evaluate an action plan and return it with scores
- */
-export function evaluateActionPlan(
+export function evaluatePlan(
   plan: ActionPlan,
   situation: TacticalSituation,
   parameters: BotParameters
 ): ScoredActionPlan {
-  const offense = evaluateOffense(plan.actions, situation)
-  const defense = evaluateDefense(plan.actions, situation, parameters)
-  const positioning = evaluatePositioning(plan.actions, situation, parameters)
-  const resources = evaluateResources(plan.actions, situation)
-  const missionProgress = evaluateMissionProgress(plan.actions, situation, parameters)
-
-  // Weighted total score
-  // Aggressiveness shifts weight between offense and defense
-  const offenseWeight = 0.2 + parameters.aggressiveness * 0.15
-  const defenseWeight = 0.2 + (1 - parameters.aggressiveness) * 0.15
-  const positioningWeight = 0.1
-  const resourcesWeight = 0.1
-  const missionWeight = 0.25
-
+  const scores: PlanScores = {
+    offense: offense(plan, situation),
+    defense: defense(plan, situation),
+    missionProgress: missionProgress(plan, situation),
+    resources: resources(plan, situation),
+  };
+  const a = parameters.aggressiveness;
+  const weights = {
+    offense: 0.15 + 0.3 * a,
+    missionProgress: 0.5 - 0.25 * a,
+    defense: 0.2,
+    resources: 0.1,
+  };
   const totalScore =
-    offense * offenseWeight +
-    defense * defenseWeight +
-    positioning * positioningWeight +
-    resources * resourcesWeight +
-    missionProgress * missionWeight
-
-  return {
-    actions: plan.actions,
-    description: plan.description,
-    scores: { offense, defense, positioning, resources, missionProgress },
-    totalScore,
-  }
+    scores.offense * weights.offense +
+    scores.missionProgress * weights.missionProgress +
+    scores.defense * weights.defense +
+    scores.resources * weights.resources;
+  return { ...plan, scores, totalScore };
 }
 
-/**
- * Select best action plan from a list
- */
-export function selectBestCandidate(
-  plans: ActionPlan[],
-  situation: TacticalSituation,
-  parameters: BotParameters
-): ScoredActionPlan {
-  const scoredPlans = plans.map(plan => evaluateActionPlan(plan, situation, parameters))
-  scoredPlans.sort((a, b) => b.totalScore - a.totalScore)
-  return scoredPlans[0]
+/** Highest score wins; ties keep the earlier candidate (goal before engage before hold). */
+export function selectBest(plans: ScoredActionPlan[]): ScoredActionPlan {
+  let best = plans[0];
+  for (const plan of plans) if (plan.totalScore > best.totalScore) best = plan;
+  return best;
 }

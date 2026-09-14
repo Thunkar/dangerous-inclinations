@@ -31,6 +31,20 @@ export async function getPlayer(playerId: string): Promise<PlayerAuth | null> {
   return JSON.parse(data) as PlayerAuth;
 }
 
+/**
+ * Who a `/api/players/:playerId/...` request may speak for. The session and
+ * the game view are always the CALLER's (`x-player-id`); the URL id is only
+ * there to address the route, so a caller asking for someone else's status is
+ * refused rather than quietly served another player's view.
+ */
+export type StatusAccess = { ok: true; playerId: string } | { ok: false; code: 401 | 403; error: string };
+
+export function checkStatusAccess(callerId: string | undefined, targetPlayerId: string): StatusAccess {
+  if (!callerId) return { ok: false, code: 401, error: "Player ID required" };
+  if (callerId !== targetPlayerId) return { ok: false, code: 403, error: "Cannot read another player's status" };
+  return { ok: true, playerId: callerId };
+}
+
 export async function updatePlayerName(
   playerId: string,
   playerName: string,

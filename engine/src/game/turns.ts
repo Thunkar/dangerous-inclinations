@@ -1,367 +1,154 @@
-import type { GameState, TurnLogEntry, PlayerAction } from "../models/game.ts";
-import { processActions } from "./actionProcessors.ts";
-import { processMissiles } from "./missiles.ts";
-import { resetHeat } from "./heat.ts";
-import { applyHeatDamageToShip } from "./damage.ts";
-import {
-  processDestroyMissionCompletion,
-  processCargoMissionCompletion,
-  processInterceptScans,
-  checkForWinner,
-} from "./missions/missionChecks.ts";
-import { processCargoAtStation } from "./cargo.ts";
-import { updateStationPositions } from "./stations.ts";
-import { processRespawn, needsRespawn } from "./respawn.ts";
-import { GRAVITY_WELLS } from "../models/gravityWells.ts";
-
 /**
- * Result of executing a complete game turn
+ * One player's turn.
+ *
+ *  1. If the ship is destroyed: respawn at Home. The turn ends here.
+ *  2. Energy changes, then tactical actions in the chosen order.
+ *  3. The player's missiles move and resolve.
+ *  4. Docking (if the ship ended on a station).
+ *  5. Heat check: excess heat becomes hull damage, heat resets.
+ *  6. Missions are updated from everything that happened.
+ *  7. Play passes on; stations move at the end of every round.
+ *
+ * The returned state carries no log; the turn's events are returned alongside.
  */
+import type { GameState, PlayerAction } from "../models/game.ts";
+import type { GameEvent, EventDraft } from "../models/events.ts";
+import { stampEvents } from "../models/events.ts";
+import { processActions } from "./actionProcessors.ts";
+import { processOwnerMissiles } from "./missiles.ts";
+import { processDocking } from "./docking.ts";
+import { resolveEndOfTurnHeat } from "./heat.ts";
+import { processMissionEvents, checkForWinner } from "./missions/missionChecks.ts";
+import { updateStationPositions } from "./stations.ts";
+import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
+import { isDestroyed, resetSubsystemUsage } from "./ship.ts";
+
 export interface TurnResult {
   gameState: GameState;
-  logEntries: TurnLogEntry[];
+  events: GameEvent[];
   errors?: string[];
 }
 
-/**
- * Create a deep copy snapshot of game state for validation
- */
-function createGameStateSnapshot(gameState: GameState): GameState {
-  return {
-    ...gameState,
-    players: gameState.players.map((player) => ({
-      ...player,
-      ship: {
-        ...player.ship,
-        subsystems: player.ship.subsystems.map((s) => ({ ...s })),
-        reactor: { ...player.ship.reactor },
-        heat: { ...player.ship.heat },
-        transferState: player.ship.transferState
-          ? { ...player.ship.transferState }
-          : null,
-      },
-      // Deep copy mission system fields
-      missions: player.missions.map((m) => ({ ...m })),
-      cargo: player.cargo.map((c) => ({ ...c })),
-    })),
-    turnLog: [...gameState.turnLog],
-    missiles: gameState.missiles
-      ? gameState.missiles.map((m) => ({ ...m }))
-      : [], // Deep copy missiles array
-    stations: gameState.stations
-      ? gameState.stations.map((s) => ({ ...s }))
-      : [], // Deep copy stations
-  };
-}
-
-/**
- * Execute a complete game turn for the active player with snapshot-based validation
- *
- * @param gameState - Current game state
- * @param actions - Array of actions for the active player to execute
- *
- * Validation flow:
- * 1. Create a snapshot of the entire game state
- * 2. Process all actions on the snapshot (validation + execution in one step)
- * 3. If successful, use the snapshot as the new game state
- * 4. If errors occur, discard snapshot and return original state with errors
- *
- * Execution phases:
- * 1. Process actions in priority order:
- *    - Energy allocation
- *    - Energy deallocation
- *    - Heat venting
- *    - Rotation (if needed)
- *    - Movement (coast or burn)
- *    - Weapon firing (all simultaneous)
- *    - Heat damage (from previous turns)
- *    - Heat generation (from this turn)
- * 2. Move to next player
- * 3. Prepare next player's turn (resolve their transfer if arriving)
- */
-export function executeTurn(
-  gameState: GameState,
-  actions: PlayerAction[]
-): TurnResult {
-  const activePlayerIndex = gameState.activePlayerIndex;
-  let activePlayer = gameState.players[activePlayerIndex];
-  const allLogEntries: TurnLogEntry[] = [];
-
-  // Handle respawn at the start of a dead player's turn
-  let workingState = gameState;
-  if (needsRespawn(activePlayer)) {
-    workingState = processRespawn(workingState, activePlayer.id);
-    activePlayer = workingState.players[activePlayerIndex];
-    allLogEntries.push({
-      turn: workingState.turn,
-      playerId: activePlayer.id,
-      playerName: activePlayer.name,
-      action: "Respawn",
-      result: `Respawned at BH Ring 4, Sector ${activePlayer.ship.sector}`,
-    });
-  }
-
-  // Validate all actions belong to the active player
-  const wrongPlayerActions = actions.filter(
-    (a) => a.playerId !== activePlayer.id
-  );
-  if (wrongPlayerActions.length > 0) {
-    return {
-      gameState,
-      logEntries: [],
-      errors: ["All actions must belong to the active player"],
-    };
-  }
-
-  // Create a snapshot of the game state
-  const snapshot = createGameStateSnapshot(workingState);
-
-  // Process actions on the snapshot (validation + execution in one step)
-  const processResult = processActions(snapshot, actions);
-
-  // If processing failed, discard snapshot and return original state
-  if (!processResult.success) {
-    return {
-      gameState,
-      logEntries: [],
-      errors: processResult.errors || ["Failed to process actions"],
-    };
-  }
-
-  // Success - use the snapshot as the new game state
-  let updatedGameState = processResult.gameState;
-  allLogEntries.push(...processResult.logEntries);
-
-  // Process missiles owned by the active player (after their actions complete)
-  if (updatedGameState.missiles.length > 0) {
-    const playerMissiles = updatedGameState.missiles.filter(
-      (m) => m.ownerId === activePlayer.id
-    );
-    if (playerMissiles.length > 0) {
-      const missileResult = processMissiles(updatedGameState, activePlayer.id);
-      updatedGameState = missileResult.gameState;
-      allLogEntries.push(...missileResult.logEntries);
-    }
-  }
-
-  // Check for destroyed ships and process destroy mission completion
-  // (only in active phase with missions)
-  if (
-    updatedGameState.phase === "active" &&
-    updatedGameState.stations.length > 0
-  ) {
-    for (const player of updatedGameState.players) {
-      if (player.ship.hitPoints <= 0) {
-        // Only the active player (whose turn it is) can get credit for the kill
-        const beforeCompletionCount = updatedGameState.players.reduce(
-          (sum, p) => sum + p.completedMissionCount,
-          0
-        );
-        updatedGameState = processDestroyMissionCompletion(
-          updatedGameState,
-          player.id,
-          activePlayer.id
-        );
-        const afterCompletionCount = updatedGameState.players.reduce(
-          (sum, p) => sum + p.completedMissionCount,
-          0
-        );
-
-        if (afterCompletionCount > beforeCompletionCount) {
-          // Find who completed the mission
-          const completingPlayer = updatedGameState.players.find(
-            (p) =>
-              p.completedMissionCount >
-              (workingState.players.find((gp) => gp.id === p.id)
-                ?.completedMissionCount ?? 0)
-          );
-          if (completingPlayer) {
-            allLogEntries.push({
-              turn: updatedGameState.turn,
-              playerId: completingPlayer.id,
-              playerName: completingPlayer.name,
-              action: "Mission Complete",
-              result: `Completed destroy mission: ${player.name} destroyed`,
-            });
-          }
-        }
-      }
-    }
-
-    // Process cargo pickup/delivery for the active player after movement
-    const cargoResult = processCargoAtStation(
-      updatedGameState.players[activePlayerIndex],
-      updatedGameState.stations
-    );
-
-    if (
-      cargoResult.pickedUpCargo.length > 0 ||
-      cargoResult.deliveredCargo.length > 0
-    ) {
-      const updatedPlayers = [...updatedGameState.players];
-      updatedPlayers[activePlayerIndex] = cargoResult.player;
-      updatedGameState = { ...updatedGameState, players: updatedPlayers };
-
-      // Log cargo events
-      for (const msg of cargoResult.logMessages) {
-        allLogEntries.push({
-          turn: updatedGameState.turn,
-          playerId: activePlayer.id,
-          playerName: activePlayer.name,
-          action: "Cargo",
-          result: msg,
-        });
-      }
-
-      // Check for cargo mission completion using the delivered cargo list.
-      // processCargoAtStation already removed delivered cargo from inventory,
-      // so we pass the delivered cargo IDs directly rather than re-checking position.
-      if (cargoResult.deliveredCargo.length > 0) {
-        updatedGameState = processCargoMissionCompletion(
-          updatedGameState,
-          activePlayer.id,
-          cargoResult.deliveredCargo.map((c) => c.missionId)
-        );
-
-        // Log scan data delivery for intercept missions
-        for (const cargo of cargoResult.deliveredCargo) {
-          if (cargo.type === "scan_data") {
-            allLogEntries.push({
-              turn: updatedGameState.turn,
-              playerId: activePlayer.id,
-              playerName: activePlayer.name,
-              action: "Mission Complete",
-              result: "Delivered intercepted scan data to station",
-            });
-          }
-        }
-      }
-    }
-
-    // Check intercept scan conditions for the active player (after movement)
-    const interceptResult = processInterceptScans(updatedGameState);
-    if (interceptResult.scanEvents.length > 0) {
-      updatedGameState = interceptResult.gameState;
-      for (const event of interceptResult.scanEvents) {
-        const spyPlayer = updatedGameState.players.find((p) => p.id === event.spyId);
-        const targetPlayer = updatedGameState.players.find((p) => p.id === event.targetId);
-        allLogEntries.push({
-          turn: updatedGameState.turn,
-          playerId: event.spyId,
-          playerName: spyPlayer?.name ?? event.spyId,
-          action: "Intercept",
-          result: `Intercepted transmission from ${targetPlayer?.name ?? event.targetId} — scan data acquired`,
-        });
-      }
-    }
-  }
-
-  // Move to next player
-  const nextPlayerIndex =
-    (workingState.activePlayerIndex + 1) % updatedGameState.players.length;
-  const isNewRound = nextPlayerIndex === 0;
-
-  // Update station positions at the end of each round
-  if (isNewRound && updatedGameState.stations.length > 0) {
-    updatedGameState = {
-      ...updatedGameState,
-      stations: updateStationPositions(
-        updatedGameState.stations,
-        GRAVITY_WELLS
-      ),
-    };
-    allLogEntries.push({
-      turn: updatedGameState.turn,
-      playerId: "system",
-      playerName: "System",
-      action: "Station Movement",
-      result: "All stations advanced 4 sectors in their orbits",
-    });
-  }
-
-  updatedGameState = {
-    ...updatedGameState,
-    turn: isNewRound ? workingState.turn + 1 : workingState.turn,
-    activePlayerIndex: nextPlayerIndex,
-    turnLog: [...workingState.turnLog, ...allLogEntries],
-  };
-
-  // Apply heat damage to the NEXT player at the start of their turn.
-  // This happens BEFORE they see their turn, so they see the damage immediately.
-  const nextPlayer = updatedGameState.players[nextPlayerIndex];
-  if (nextPlayer.ship.hitPoints > 0) {
-    const heatResult = applyHeatDamageToShip(nextPlayer.ship);
-
-    if (heatResult.damage > 0) {
-      const updatedPlayers = [...updatedGameState.players];
-      updatedPlayers[nextPlayerIndex] = { ...nextPlayer, ship: heatResult.ship };
-      updatedGameState = { ...updatedGameState, players: updatedPlayers };
-
-      const heatDamageEntry: TurnLogEntry = {
-        turn: updatedGameState.turn,
-        playerId: nextPlayer.id,
-        playerName: nextPlayer.name,
-        action: "Heat Damage",
-        result: `Took ${heatResult.damage} hull damage from excess heat (${nextPlayer.ship.heat.currentHeat} heat - ${nextPlayer.ship.dissipationCapacity} dissipation = ${heatResult.damage} damage)`,
-      };
-      allLogEntries.push(heatDamageEntry);
-      updatedGameState = {
-        ...updatedGameState,
-        turnLog: [...updatedGameState.turnLog, heatDamageEntry],
-      };
-    }
-
-    // Reset heat for the next player (after damage is applied)
-    {
-      const updatedPlayers = [...updatedGameState.players];
-      const playerToReset = updatedPlayers[nextPlayerIndex];
-      const heatBefore = playerToReset.ship.heat.currentHeat;
-      const resetShip = resetHeat(playerToReset.ship);
-      updatedPlayers[nextPlayerIndex] = { ...playerToReset, ship: resetShip };
-      updatedGameState = { ...updatedGameState, players: updatedPlayers };
-
-      if (heatBefore > 0) {
-        allLogEntries.push({
-          turn: updatedGameState.turn,
-          playerId: nextPlayer.id,
-          playerName: nextPlayer.name,
-          action: "Heat Reset",
-          result: `Cleared ${heatBefore} heat (dissipation capacity: ${nextPlayer.ship.dissipationCapacity})`,
-        });
-      }
-    }
-  }
-
-  // Check for win/loss conditions
-  updatedGameState = checkGameStatus(updatedGameState);
-
-  return {
-    gameState: updatedGameState,
-    logEntries: allLogEntries,
-  };
-}
-
-/**
- * Check for win/loss conditions
- * In mission mode: First to complete 3 missions wins
- * In legacy mode: Last ship standing wins
- * Note: Dead players are NOT removed from the array - they stay for UI/history purposes
- */
-function checkGameStatus(gameState: GameState): GameState {
-  // Don't check if game is already over
+export function executeTurn(gameState: GameState, actions: PlayerAction[]): TurnResult {
   if (gameState.phase !== "active") {
-    return gameState;
-  }
-
-  // Check for mission-based victory (3 completed missions)
-  const missionWinner = checkForWinner(gameState);
-  if (missionWinner) {
     return {
-      ...gameState,
-      phase: "ended",
-      winnerId: missionWinner,
+      gameState,
+      events: [],
+      errors: [`Cannot take a turn: game phase is "${gameState.phase}"`],
     };
   }
 
-  return gameState;
+  const turn = gameState.turn;
+  const activeIndex = gameState.activePlayerIndex;
+  const active = gameState.players[activeIndex];
+  const events: EventDraft[] = [];
+
+  // Shallow copy: RNG helpers mutate rngState on the working object.
+  let state: GameState = { ...gameState };
+
+  if (needsRespawn(active)) {
+    const respawn = respawnPlayer(state, activeIndex);
+    state = respawn.state;
+    events.push(...respawn.events);
+    return finish(gameState, state, events, turn);
+  }
+
+  if (actions.some((a) => a.playerId !== active.id)) {
+    return { gameState, events: [], errors: ["All actions must belong to the active player"] };
+  }
+
+  const processed = processActions(state, actions);
+  if (!processed.success) {
+    return { gameState, events: [], errors: processed.errors ?? ["Failed to process actions"] };
+  }
+  state = processed.state;
+  events.push(...processed.events);
+  state = applyDestructions(state, processed.events, events);
+
+  const missiles = processOwnerMissiles(state, active.id);
+  state = missiles.state;
+  events.push(...missiles.events);
+  state = applyDestructions(state, missiles.events, events);
+
+
+  const docking = processDocking(state, activeIndex);
+  state = docking.state;
+  events.push(...docking.events);
+
+  // Heat check for the active player.
+  {
+    const player = state.players[activeIndex];
+    if (!isDestroyed(player.ship)) {
+      const heat = resolveEndOfTurnHeat(player.ship, player.id);
+      const players = [...state.players];
+      players[activeIndex] = { ...player, ship: heat.ship };
+      state = { ...state, players };
+      events.push(...heat.events);
+      if (isDestroyed(heat.ship)) {
+        const destroyed: EventDraft = {
+          type: "ship_destroyed",
+          victimId: player.id,
+          cause: "heat",
+        };
+        events.push(destroyed);
+        state = applyDestructions(state, [destroyed], events);
+      }
+    }
+  }
+
+  const missions = processMissionEvents(state, active.id, events);
+  state = missions.state;
+  events.push(...missions.events);
+
+  return finish(gameState, state, events, turn);
+}
+
+/** For every ship destroyed in `source` events: drop its cargo. */
+function applyDestructions(state: GameState, source: EventDraft[], sink: EventDraft[]): GameState {
+  let next = state;
+  for (const e of source) {
+    if (e.type !== "ship_destroyed") continue;
+    const index = next.players.findIndex((p) => p.id === e.victimId);
+    if (index === -1) continue;
+    const dropped = dropCargo(next.players[index]);
+    if (dropped.events.length > 0) {
+      const players = [...next.players];
+      players[index] = dropped.player;
+      next = { ...next, players };
+      sink.push(...dropped.events);
+    }
+  }
+  return next;
+}
+
+/** Pass play to the next player, move stations at round end, check for a winner. */
+function finish(
+  original: GameState,
+  state: GameState,
+  events: EventDraft[],
+  turn: number
+): TurnResult {
+  const nextIndex = (original.activePlayerIndex + 1) % state.players.length;
+  const newRound = nextIndex === 0;
+  // "Once per turn" means once per player-turn for everyone: a rack that
+  // intercepted during this turn is ready again when the next player acts.
+  let next: GameState = {
+    ...state,
+    players: state.players.map((p) => ({ ...p, ship: resetSubsystemUsage(p.ship) })),
+    activePlayerIndex: nextIndex,
+    turn: newRound ? turn + 1 : turn,
+  };
+
+  if (newRound) {
+    next = { ...next, stations: updateStationPositions(next.stations) };
+    events.push({ type: "stations_moved" });
+  }
+
+  const winner = checkForWinner(next);
+  if (winner) {
+    next = { ...next, phase: "ended", winnerId: winner.id };
+    events.push({ type: "game_ended", winnerId: winner.id });
+  }
+
+  return { gameState: next, events: stampEvents(events, turn) };
 }

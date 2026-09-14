@@ -1,73 +1,39 @@
-# React + TypeScript + Vite
+# Dangerous Inclinations
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A tactical space game of orbital manoeuvre, heat management and hidden objectives for 2–4 players. It is designed as a **board game**; this repository is the digital prototype used to playtest the rules with bots and with people.
 
-Currently, two official plugins are available:
+- **Rules:** [RULES.md](RULES.md)
+- **Design notes:** [docs/redesign.md](docs/redesign.md)
+- **Client/server protocol:** [docs/protocol.md](docs/protocol.md)
+- **Development guide:** [CLAUDE.md](CLAUDE.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Packages
 
-## React Compiler
+| Package | What |
+|---------|------|
+| `engine/` | Pure game rules, bot AI, headless simulator |
+| `server/` | Fastify + WebSocket + Redis game server |
+| `ui/` | React client |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Quick start
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```bash
+yarn install
+docker-compose up -d          # Redis
+yarn build:engine
+yarn dev:all                  # server on :3000, UI on :5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Simulating
 
-```js
-// eslint.config.js
-import reactX from "eslint-plugin-react-x";
-import reactDom from "eslint-plugin-react-dom";
+```bash
+yarn workspace @dangerous-inclinations/engine sim --games=200 --bots=3 --baseSeed=1
+```
 
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs["recommended-typescript"],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+Runs bot-vs-bot games on worker threads and prints game length, mission completion by type, combat volume, docking and lane usage, and how much of each loadout stayed hidden.
+
+## Tests
+
+```bash
+yarn workspace @dangerous-inclinations/engine test --run
 ```

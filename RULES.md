@@ -1,452 +1,235 @@
-# Dangerous Inclinations — Tabletop Rules
+# Dangerous Inclinations — Rules
 
-A turn-based tactical space combat game for 2–4 players. Ships orbit gravity wells in a binary star system, manage energy and heat, fire weapons, and race to complete secret missions.
-
----
-
-## Win Condition
+A game of orbital manoeuvre, heat management and hidden objectives for 2–4 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to complete three secret missions.
 
 **First player to complete 3 missions wins.**
 
-Missions are secret objectives dealt at the start of the game. During the loadout phase, each player draws 5 mission cards and keeps 3. Mission types:
+---
 
-| Mission | Objective | How to Complete |
-|---------|-----------|-----------------|
-| **Destroy Ship** | Eliminate a specific player's ship | Reduce their HP to 0 (they respawn) |
-| **Deliver Cargo** | Transport cargo between two planets | Pick up at origin station, deliver to destination station |
-| **Intercept Transmission** | Shadow a target and steal their data | Stay within ±3 sectors on the same ring with sensor array powered for 1 turn, then deliver scan data to any station |
+## Components
+
+- The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 3 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
+- Per player: a ship token, a Home marker, a ship mat with 1 forward slot and 4 side slots, a small screen for your cards and fuel, 10 energy cubes, a hull track (10) and a heat track.
+- Subsystem tiles (one set per player, so at most one of each except two lasers): railgun, sensor array, broadside laser ×2, shields, radiator, fuel compressor, ballistic rack, missiles. Tiles are double-sided: face-down shows only the slot type.
+- Mission cards, crate tokens, data chits, missile tokens, station tokens, one d10.
+
+---
+
+## The Map
+
+### Rings and drift
+
+Every turn a ship **drifts** forward by its ring's velocity. Inner rings are fast.
+
+| Well | Ring 1 | Ring 2 | Ring 3 | Ring 4 | Ring 5 |
+|------|--------|--------|--------|--------|--------|
+| Black Hole | 8 | 6 | 4 | 2 | 1 |
+| Planet | 4 | 2 | 1 | — | — |
+
+Sectors are numbered 0–23 and increase in the direction of drift (prograde).
+
+### Transfer lanes
+
+Lanes connect 4-sector arcs on Black Hole Ring 5 with 4-sector arcs on a planet's Ring 3. Lanes are two-way. A ship in a lane arc may **jump** to the matching sector of the connected arc (1st sector to 1st sector, and so on).
+
+| Lane | Black Hole Ring 5 | Planet Ring 3 |
+|------|-------------------|---------------|
+| Beta A  | sectors 0–3   | Beta 4–7 |
+| Alpha A | sectors 4–7   | Alpha 16–19 |
+| Gamma A | sectors 8–11  | Gamma 4–7 |
+| Beta B  | sectors 12–15 | Beta 16–19 |
+| Alpha B | sectors 16–19 | Alpha 4–7 |
+| Gamma B | sectors 20–23 | Gamma 16–19 |
+
+Reading Black Hole Ring 5 clockwise the lanes go Beta, Alpha, Gamma, Beta, Alpha, Gamma: from any arrival the next planet clockwise is close, the one after it is a longer drift or a dive to a faster ring.
+
+### Stations
+
+Each planet has a station on **Ring 1**. Stations drift like ships: 4 sectors at the end of every round. Ships dock by ending their turn on the station's sector.
 
 ---
 
 ## Setup
 
-### The Map
-
-The playing field consists of **gravity wells** arranged in a Venn diagram:
-
-- **1 Black Hole** at the center — 5 concentric rings
-- **3 Planets** (Alpha, Beta, Gamma) orbiting the black hole at 120° intervals — 3 rings each
-
-Every ring has **24 sectors**. Ships orbit within these sectors.
-
-### Ring Velocities
-
-Velocity = how many sectors a ship drifts per turn (automatic orbital movement).
-
-**Black Hole Rings:**
-
-| Ring | Velocity | Description |
-|------|----------|-------------|
-| 1 | 8 | Innermost — blazing fast |
-| 2 | 6 | Very fast |
-| 3 | 4 | Fast |
-| 4 | 2 | Medium — deployment ring |
-| 5 | 1 | Slow — transfer ring |
-
-**Planet Rings (each planet is identical):**
-
-| Ring | Velocity | Description |
-|------|----------|-------------|
-| 1 | 4 | Innermost — fast, station ring |
-| 2 | 2 | Medium |
-| 3 | 1 | Slow — transfer ring |
-
-### Space Stations
-
-Each planet has a space station orbiting on **Ring 1**. Stations drift at Ring 1 velocity (4 sectors/round). Stations are used for cargo pickup/delivery.
-
-### Ship Facing
-
-Ships have two orientations:
-
-- **Prograde** — facing forward along the orbit
-- **Retrograde** — facing backward against the orbit
-
-Facing determines burn direction and weapon arcs.
+1. **Missions.** Each player draws 5 mission cards from their deck and keeps 3, face-down behind their screen. Return the rest.
+2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array or missiles) and 4 side tiles (laser, shields, radiator, fuel compressor, ballistic rack or missiles). All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
+3. **Deployment.** In turn order, each player places their ship, facing prograde, on **Ring 3 of any planet** in any empty sector, and puts their Home marker there. Missions are secret, so choose your start with them in mind.
+4. Fill the hull track to 10, reaction mass to 10 (16 with a fuel compressor, kept behind your screen), heat to 0. Energy cubes stay in the reactor.
 
 ---
 
-## Game Phases
+## A Turn
 
-### 1. Loadout Phase
+If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy allocated. Face-up tiles stay face-up. Play passes.
 
-Each player:
-1. Draws **5 mission cards** from a shuffled deck
-2. Selects **3 missions** to keep (the rest are discarded)
-3. Chooses a **ship loadout** — filling 2 forward slots and 4 side slots with subsystems
-4. Missions inform loadout choices (e.g., cargo missions favor fuel compressors, combat missions favor weapons)
+Otherwise:
 
-### 2. Deployment Phase
-
-Players take turns placing their ship on **Black Hole Ring 4** at an available sector. One ship per sector.
-
-### 3. Active Phase
-
-Players take turns. On your turn you execute actions, then play passes to the next player. The game continues until someone completes their 3rd mission.
-
----
-
-## Turn Structure
-
-### Start of Turn
-
-1. **Heat Damage**: If your ship's heat exceeds its dissipation capacity, take damage equal to the excess. *(Example: 8 heat, 5 dissipation = 3 hull damage.)*
-2. **Heat Reset**: Heat clears to 0.
-3. **Respawn**: If your ship was destroyed, it respawns at Black Hole Ring 4, random sector. HP and subsystems reset; cargo is preserved.
-
-### Planning & Execution
-
-Your turn has two phases:
-
-**Phase 1 — Energy Management**
-- Deallocate energy from subsystems (returns to reactor) — unlimited
-- Allocate energy from reactor to subsystems — up to each subsystem's max
-
-Energy allocations persist across turns. You only need to adjust what changed.
-
-**Phase 2 — Tactical Actions (player-chosen order)**
-
-You choose a sequence for your actions. Actions execute in the order you set:
-
-- **Rotate** — Change facing (prograde ↔ retrograde). Requires powered maneuvering thrusters.
-- **Move** — Choose ONE: Coast, Burn, or Well Transfer.
-- **Fire Weapons** — Any number of powered weapons, each at its own sequence point (before or after movement).
-
-Weapons can fire from your pre-move OR post-move position depending on where you place them in the sequence. This is a key tactical choice.
-
-### End of Turn
-
-- Subsystem "used this turn" flags reset
-- Missile positions update (for your missiles only)
-- Mission/cargo checks run
-- Play passes to next player
-
-### End of Round
-
-When all players have taken a turn:
-- Station positions advance by their ring's velocity
+1. **Energy.** Move cubes freely between the reactor and your tiles, in the open. A tile is either off (0 cubes) or on (at least its minimum). Allocations persist between turns. Everyone can see how many cubes sit on each of your slots; they can't see what a face-down slot is.
+2. **Actions,** in any order you choose. Each tile may act once per turn (a ballistic rack may also intercept once during each other player's turn):
+   - **Rotate** — flip facing (prograde ↔ retrograde). Thrusters need 1 cube.
+   - **Move** — exactly one of: *coast*, *burn* or *jump*. If you take no move, you coast.
+   - **Fire** — any number of powered weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
+   - **Scan** — with a powered sensor array (see Hidden Information).
+3. **Missiles.** Each of your missiles in flight moves and may attack.
+4. **Docking.** If you ended on a station's sector, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull +3, missiles reloaded.
+5. **Heat check.** If your heat exceeds your dissipation, take the difference as hull damage. Reset heat to 0.
+6. **Missions.** Check your cards; completed cards are turned face-up.
+7. Pass play. When the last player has acted, move every station 4 sectors.
 
 ---
 
-## Energy & Heat
+## Energy and Heat
 
-### Reactor
+- The reactor holds **10 energy**. Allocating and removing cubes is free and unlimited.
+- **Using** a tile generates heat equal to the energy on it: firing a weapon, burning (engines), rotating (thrusters), scooping, scanning, jumping, intercepting a missile. Powered but unused tiles make no heat.
+- **Dissipation** is 5, plus 2 per working radiator. Excess heat at your heat check becomes hull damage.
+- **Shields** convert incoming damage into heat, up to the cubes on them; those cubes return to the reactor.
 
-- Total capacity: **10 energy units**
-- Allocate freely to subsystems up to each one's max
-- Deallocate freely (unlimited, instant)
-- Allocations persist across turns
-
-### Heat-on-Use
-
-**Heat is generated ONLY when a subsystem is USED** during a turn. The heat generated equals the subsystem's allocated energy.
-
-| Example | Energy Allocated | Heat Generated |
-|---------|-----------------|----------------|
-| Fire laser | 2 | 2 |
-| Execute burn | 3 (engines) | 3 |
-| Activate scoop | 3 | 3 |
-| Powered but unused shields | 4 | 0 |
-
-**Unused subsystems generate zero heat**, even if fully powered. This is the core tension: power up for capability, but using power creates heat.
-
-### Dissipation
-
-Ships have a **dissipation capacity** (base: **5**). At the start of your next turn:
-
-- If heat ≤ dissipation: no damage, heat resets
-- If heat > dissipation: take (heat − dissipation) hull damage, then heat resets
-
-Radiator subsystems add +2 dissipation each (passive, no energy needed).
-
-### Shields
-
-When your ship takes weapon damage:
-1. Shields absorb up to their allocated energy in damage
-2. Absorbed damage becomes **heat** instead of hull damage
-3. Any remaining damage hits the hull normally
-4. Shield energy is consumed and returned to reactor
-
-Shields don't generate heat on their own — they convert incoming damage to heat.
-
-### Critical Hits
-
-Every weapon hit has a **10% base chance** of being a critical hit (d10 roll of 10):
-
-1. A random **powered** subsystem on the target is broken
-2. That subsystem's allocated energy converts to heat
-3. The broken subsystem cannot be used until repaired
-
-Sensor arrays increase your critical hit chance by **+20%** each when powered (passive bonus).
+| Tile | Energy | Effect |
+|------|--------|--------|
+| Engines (fixed) | 1–3 | Burns and jumps; once per turn |
+| Thrusters (fixed) | 1 | Rotate |
+| Fuel scoop (fixed) | 3 | While coasting, recover fuel equal to your ring's velocity |
+| Railgun (forward) | 4 | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil |
+| Sensor array (forward) | 2 | Scan; criticals on 8–10 while powered |
+| Missiles (forward or side) | 2 | Launch a guided missile (4 aboard) |
+| Broadside laser (side) | 2 | 2 damage, ±2 rings, ±1 sector, fires to one side only |
+| Shields (side) | 1–4 | Absorb damage as heat |
+| Radiator (side) | — | +2 dissipation |
+| Fuel compressor (side) | — | +6 fuel capacity; jumps cost no fuel |
+| Ballistic rack (side) | 2 | 1 damage, ±1 ring or same ring, ±1 sector; intercepts missiles |
 
 ---
 
 ## Movement
 
-### Orbital Movement (Automatic)
+### Coast
+Drift only. If your scoop is powered you may activate it: gain fuel equal to your ring's velocity (heat 3). Others see the scoop run, not how much you gained.
 
-Every turn, your ship drifts forward by the ring's velocity in sectors. This is unavoidable orbital momentum.
+### Burn
+Drift, then change ring. Prograde facing burns **outward**, retrograde burns **inward**. Engines must hold at least the burn's energy. A burn changes exactly its number of rings: if there aren't enough rings left in that direction, you can't make that burn.
 
-| Ring (BH) | Drift | Ring (Planet) | Drift |
-|-----------|-------|---------------|-------|
-| 1 | 8 sectors | 1 | 4 sectors |
-| 2 | 6 sectors | 2 | 2 sectors |
-| 3 | 4 sectors | 3 | 1 sector |
-| 4 | 2 sectors | | |
-| 5 | 1 sector | | |
+| Burn | Engines | Fuel | Rings |
+|------|---------|------|-------|
+| Soft | 1 | 1 | 1 |
+| Medium | 2 | 2 | 2 |
+| Hard | 3 | 3 | 3 |
 
-### Movement Actions (pick one)
+**Phasing.** During a burn you may adjust your arrival sector for 1 fuel per sector: brake by up to (velocity − 1) sectors, or accelerate by up to 3.
 
-#### Coast
-- Drift with orbit only (no burn)
-- No cost
-- Allows fuel scoop activation (if powered)
-
-#### Burn (Ring Transfer)
-
-Spend reaction mass and engine energy to change rings. Transfer completes immediately.
-
-| Intensity | Engine Energy | Mass Cost | Ring Change |
-|-----------|--------------|-----------|-------------|
-| Soft | 1 | 1 | ±1 ring |
-| Medium | 2 | 2 | ±2 rings |
-| Hard | 3 | 3 | ±3 rings |
-
-**Direction:**
-- Prograde facing → burn moves you **outward** (higher ring)
-- Retrograde facing → burn moves you **inward** (lower ring)
-
-**Sector adjustment (phasing):** During a burn, you can fine-tune your arrival sector for extra mass cost:
-
-| Source Velocity | Adjustment Range | Cost |
-|-----------------|-----------------|------|
-| 8 | −7 to +3 | 1 mass per sector |
-| 6 | −5 to +3 | 1 mass per sector |
-| 4 | −3 to +3 | 1 mass per sector |
-| 2 | −1 to +3 | 1 mass per sector |
-| 1 | 0 to +3 | 1 mass per sector |
-
-You must always move at least 1 sector forward (minimum movement).
-
-#### Well Transfer (Gravity Well Jump)
-
-Jump between the black hole and a planet (or vice versa).
-
-**Requirements:**
-- Must be on the **outermost ring** (BH Ring 5 or Planet Ring 3)
-- Must be at a **transfer sector** (fixed positions — see transfer chart)
-- Engines powered at level 3
-- Costs **3 reaction mass**
-
-**Transfer Sectors (fixed):**
-
-| Planet | BH → Planet | Planet → BH |
-|--------|-------------|-------------|
-| Alpha | BH R5 S18 → Alpha R3 S5 | Alpha R3 S18 → BH R5 S5 |
-| Beta | BH R5 S2 → Beta R3 S5 | Beta R3 S18 → BH R5 S13 |
-| Gamma | BH R5 S10 → Gamma R3 S5 | Gamma R3 S18 → BH R5 S21 |
-
-Transfer is instant. Ship facing is preserved. Orbital movement applies normally after landing.
+### Jump
+From a lane arc, with engines at 3, pay 3 fuel (free with a fuel compressor) and move to the matching sector of the connected arc. Facing is kept. A jump is your whole move: no drift this turn.
 
 ### Rotation
-
-- Requires maneuvering thrusters powered (1 energy)
-- Can happen on the same turn as movement (before movement)
-- Instant, no turn delay
-- Generates heat = 1 (allocated energy)
-
-### Reaction Mass
-
-- Starting/max capacity: **10 units**
-- Consumed by burns and well transfers
-- Recovered by fuel scoop (coast only, generates 3 heat):
-  - Recovery = ring velocity (1–8 mass depending on ring)
-  - Cannot exceed max capacity
+Costs 1 energy on the thrusters and 1 heat. Rotate before your burn to choose its direction.
 
 ---
 
-## Weapons & Combat
+## Combat
 
-### Weapon Types
+### Hitting
 
-**Railgun** *(forward slot)*
-| Stat | Value |
-|------|-------|
-| Energy | 4 |
-| Damage | 4 |
-| Arc | Spinal (fires in facing direction) |
-| Range | Same ring, 5 sectors ahead |
-| Special | Recoil effect |
+Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A powered sensor array on the attacker makes 8–10 critical.
 
-**Broadside Laser** *(side slot)*
-| Stat | Value |
-|------|-------|
-| Energy | 2 |
-| Damage | 2 |
-| Arc | Broadside (perpendicular, side-restricted) |
-| Range | ±2 rings, ±1 sector |
-| Special | Port lasers fire inward, starboard fire outward |
+### Damage
 
-**Missiles** *(forward or side slot)*
-| Stat | Value |
-|------|-------|
-| Energy | 2 |
-| Damage | 2 |
-| Arc | Turret (360°) |
-| Range | ±2 rings, ±3 sectors |
-| Ammo | 4 missiles |
-| Special | Self-guided, 3-turn lifetime, can be intercepted by PDC |
+Shields absorb first (each cube absorbs 1 damage and becomes 1 heat). The rest is hull damage. At 0 hull the ship is destroyed.
 
-**Ballistic Rack / PDC** *(side slot)*
-| Stat | Value |
-|------|-------|
-| Energy | 2 |
-| Damage | 1 |
-| Arc | Broadside (not side-restricted) |
-| Range | ±1 ring, ±1 sector (can target same ring) |
-| Special | Intercepts incoming missiles automatically |
+### Critical hits
 
-### Hit Resolution (d10)
+When you fire, name one slot on the target: forward, side 1–4, engines, thrusters or scoop. If the shot is a critical and reaches the hull, that tile is **turned face-up and broken**: its cubes return to the reactor as heat, and it cannot be used until repaired at a station. Naming a face-down slot is a gamble; naming a face-up one is a plan.
 
-For each weapon fired, roll a d10:
+### Weapons
 
-| Roll | Result |
-|------|--------|
-| 1 | Miss |
-| 2–9 | Hit (normal damage) |
-| 10 | Critical hit |
+- **Railgun** — spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
+- **Broadside laser** — targets within 2 rings and 1 sector. Facing prograde, port tiles (side 1–2) fire outward and starboard tiles (side 3–4) fire inward; facing retrograde swaps them.
+- **Ballistic rack** — targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away. While powered it also **intercepts** missiles that reach you: roll a d10, on 2+ the missile is destroyed (the rack is used and heats up either way).
+- **Missiles** — target within 2 rings and 3 sectors (a ship sharing your sector included), any facing. Place a missile token on your sector and name the critical slot. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
 
-Sensor arrays shift the critical threshold: with one powered array, crits happen on 8–10 (30% chance).
+  *Riding the orbit:* a missile drifts with its ring like everything else. The one exception is the turn you launch it: if you launch **after** moving, the missile has already ridden along with your ship, so it does not drift again that turn — it just flies its 3 steps from where you dropped it. Launch before moving and it drifts with the ring like your ship did. (The app draws the path either way.)
 
-### Missile Behavior
-
-Missiles are autonomous projectiles that persist across turns:
-1. **Launch**: Missile appears at your ship's position
-2. **Each turn**: Missile moves toward target (up to 3 fuel per turn for ring+sector movement)
-3. **Hit detection**: d10 roll when missile reaches target
-4. **PDC intercept**: If target has a powered ballistic rack, they roll d10. On 2+, missile is destroyed.
-5. **Expiry**: Missiles self-destruct after 3 turns if they don't reach the target
+Nothing fires across gravity wells.
 
 ---
 
-## Ship Loadout
+## Hidden Information
 
-### Fixed Subsystems (always installed)
+Your tiles start face-down. **A tile is turned face-up the first time it does something:**
 
-| Subsystem | Energy | Function |
-|-----------|--------|----------|
-| Engines | 1–3 | Burns (soft/medium/hard) |
-| Maneuvering Thrusters | 1 | Rotation |
-| Fuel Scoop | 3 | Recover reaction mass while coasting |
+| Tile | Face-up when |
+|------|--------------|
+| Any weapon | it fires (or a rack intercepts) |
+| Shields | they absorb damage |
+| Sensor array | it scans, or a critical lands on an 8 or 9 |
+| Radiator | your heat goes above 5 at a heat check (it is visibly shedding) |
+| Fuel compressor | a jump is refunded |
+| Any tile | it is broken by a critical |
 
-### Loadout Slots
+Face-up tiles stay face-up, even after respawn.
 
-**2 Forward Slots** — choose from:
-| Subsystem | Energy | Type |
-|-----------|--------|------|
-| Railgun | 4 | Weapon — high damage spinal |
-| Sensor Array | 2 | Passive — +20% crit chance when powered |
+**Public:** positions, facing, hull, heat, the energy cubes on every slot, Home markers, how many crates and data chits you carry, face-up tiles, broken fixed systems, completed missions.
+**Private:** what a face-down tile is, fuel, missile ammo, missions in hand, where your cargo is going.
 
-**4 Side Slots** — choose from:
-| Subsystem | Energy | Type |
-|-----------|--------|------|
-| Broadside Laser | 2 | Weapon — side-restricted broadside |
-| Shields | 1–4 | Defense — absorbs damage as heat |
-| Radiator | 0 (passive) | +2 dissipation capacity |
-| Fuel Compressor | 0 (passive) | +6 max reaction mass, free well transfers |
-| Ballistic Rack (PDC) | 2 | Weapon + missile defense |
+Energy is the tell. Four cubes on a face-down forward slot can only be a railgun; two side slots each holding two cubes suggest lasers or a rack; a slot that never gets a cube may be a radiator or compressor. You learn about a rival from how they power up, before anything is fired.
 
-**Either Slot** (forward or side):
-| Subsystem | Energy | Type |
-|-----------|--------|------|
-| Missiles | 2 | Weapon — guided, 4 ammo |
+### Scanning
 
-### Passive Subsystems
-
-These work without energy allocation:
-- **Radiator**: +2 dissipation capacity (stacks)
-- **Fuel Compressor**: +6 max reaction mass capacity. Well transfers refund their 3 mass cost (effectively free jumps).
-- **Sensor Array**: +20% critical hit chance when powered (requires 2 energy)
+With a powered sensor array, target a ship on your ring within 3 sectors. The sensor is used (2 heat) and turned face-up. The target shows you **one face-down tile of your choice**, privately (name one you already know and you get the next face-down one; if you know them all, the scan still counts). If you hold an Intercept mission on that player, you also take their transmission (a data chit). Being scanned is visible to everyone.
 
 ---
 
 ## Missions
 
-### Mission Deck
+Four kinds of card. Each is worth one point; three points win.
 
-At game start, a deck is built containing all possible missions:
-- **Destroy** missions (one per opponent)
-- **Intercept Transmission** missions (one per opponent)
-- **Deliver Cargo** missions (every planet-pair route)
+| Card | Complete when |
+|------|---------------|
+| **Destroy [player]** | you reduce their hull to 0 |
+| **Deliver [A → B]** | you dock at A (load the crate), then dock at B |
+| **Intercept [player]** | you scan them (take the data chit), then dock at any station |
+| **Survey the Event Horizon** | you end a turn on Black Hole Ring 1 (take the data chit), then dock at any station |
 
-The deck is shuffled. Each player draws 5 cards and keeps 3.
+Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey. Draw 5, keep 3.
 
-### Destroy Ship
-
-- **Target**: A specific opponent
-- **Complete when**: Target's HP reaches 0
-- **Note**: The target respawns — this doesn't eliminate them from the game
-
-### Deliver Cargo
-
-- **Pickup**: Fly to the origin planet's station (Ring 1). Cargo auto-loads when you dock.
-- **Delivery**: Fly to the destination planet's station. Cargo auto-delivers when you dock.
-- **Note**: Cargo survives respawn. Getting destroyed doesn't lose your cargo.
-
-### Intercept Transmission
-
-Two-phase mission:
-
-**Phase 1 — Scan:**
-- Be on the **same ring** as the target, within **±3 sectors**
-- Your **sensor array must be powered** (2 energy allocated)
-- Maintain position for **1 turn**
-- When conditions are met, scan data cargo automatically appears in your inventory
-- **Tension**: Powering your sensor array is visible to all players, revealing your intent
-
-**Phase 2 — Deliver:**
-- Take the scan data cargo to **any station**
-- Delivers automatically when you dock
+When you complete a mission, turn the card face-up for everyone to see.
 
 ---
 
-## Respawn
+## Destruction and Respawn
 
-When a ship is destroyed (HP reaches 0):
-- Ship respawns at **Black Hole Ring 4**, random available sector
-- **Reset**: Full HP, all subsystems unpowered, heat cleared, reaction mass refilled
-- **Preserved**: Cargo (mission continuity)
-- Respawn happens at the start of the destroyed player's next turn
+When your hull reaches 0:
+
+- remove your ship; drop your cargo: crates go back to their pickup station (you must load them again), data chits are lost;
+- on your next turn you only respawn at Home (see A Turn). You lose that turn.
+
+Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands a point to anyone holding your Destroy card.
 
 ---
 
 ## Quick Reference
 
-### Key Numbers
-
-| Stat | Value |
-|------|-------|
-| Reactor capacity | 10 energy |
-| Base dissipation | 5 heat |
-| Starting reaction mass | 10 |
-| Max reaction mass | 10 (+6 per fuel compressor) |
-| Starting HP | 10 |
+| | |
+|---|---|
+| Reactor | 10 energy |
+| Dissipation | 5 (+2 per radiator) |
+| Hull | 10 |
+| Fuel | 10 (+6 with compressor) |
 | Sectors per ring | 24 |
-| BH rings | 5 |
-| Planet rings | 3 |
-| Missions to win | 3 |
-| Missions offered | 5 (keep 3) |
+| Burn | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy) |
+| Phasing | −(velocity−1) to +3 sectors, 1 fuel each |
+| Jump | engines 3, 3 fuel (free with compressor), no drift |
+| Hit roll | 1 miss, 2–9 hit, 10 crit (8–10 with sensors) |
+| Scan | same ring, within 3 sectors, sensor powered |
+| Docking | +3 hull, repair all, reload missiles, load/deliver cargo |
+| Survey | end a turn on Black Hole Ring 1 |
+| Win | 3 completed missions |
 
-### Turn Cheat Sheet
+### Turn cheat sheet
 
-1. **Start**: Take heat damage if over dissipation. Reset heat. Respawn if destroyed.
-2. **Energy**: Adjust power to subsystems.
-3. **Actions** (in your chosen order):
-   - Rotate (if needed)
-   - Move (coast / burn / well transfer)
-   - Fire weapons (any number, before or after move)
-4. **End**: Flags reset, missiles update, missions check.
-
----
-
-*Dangerous Inclinations — A game of orbital chess, heat management, and hidden objectives.*
+1. Destroyed? Respawn at Home, turn over.
+2. Energy: move cubes.
+3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
+4. Your missiles move.
+5. Docked? Load, deliver, repair, +3 hull, reload.
+6. Heat check: excess heat → hull damage; reset heat.
+7. Flip completed missions. Pass. (Last player: stations move.)

@@ -1,53 +1,32 @@
-import { Box, styled } from '@mui/material'
+/**
+ * A fixed system printed on every mat: engines, thrusters, fuel scoop. It
+ * cannot be changed, so it sits in its rail dimmed and unlit.
+ */
+import { Box, Tooltip } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
+import { getSubsystemConfig } from '@dangerous-inclinations/engine'
+import { SubsystemIcon } from '../common/SubsystemIcon'
+import { TABLE } from '../../theme'
 
-interface FixedSubsystemSlotProps {
-  subsystemType: SubsystemType
-  label: string
-}
-
-const SUBSYSTEM_ICONS: Partial<Record<SubsystemType, string>> = {
-  engines: '/assets/icons/thrusters.png',
-  rotation: '/assets/icons/maneuvering_thrusters.png',
-  scoop: '/assets/icons/scoop.png',
-}
-
-const SlotContainer = styled(Box)(({ theme }) => ({
-  width: 44,
-  height: 44,
-  borderRadius: '50%',
-  border: `2px solid ${theme.palette.divider}`,
-  backgroundColor: theme.palette.action.disabledBackground,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  opacity: 0.7,
-}))
-
-const IconWrapper = styled(Box)({
-  width: 36,
-  height: 36,
-  borderRadius: '50%',
-  backgroundColor: '#ff9800',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-})
-
-export function FixedSubsystemSlot({ subsystemType, label }: FixedSubsystemSlotProps) {
-  const icon = SUBSYSTEM_ICONS[subsystemType]
-
+export function FixedSubsystemSlot({ subsystemType, size = 40 }: { subsystemType: SubsystemType; size?: number }) {
+  const config = getSubsystemConfig(subsystemType)
   return (
-    <SlotContainer title={`${label} (fixed)`}>
-      <IconWrapper>
-        {icon && (
-          <img
-            src={icon}
-            alt={label}
-            style={{ width: 22, height: 22, filter: 'brightness(0) invert(1)' }}
-          />
-        )}
-      </IconWrapper>
-    </SlotContainer>
+    <Tooltip title={`${config.name} — fixed, always aboard`}>
+      <Box
+        sx={{
+          width: size,
+          height: size,
+          borderRadius: '4px',
+          border: `1px dashed ${TABLE.plateEdge}`,
+          bgcolor: 'rgba(126,165,205,0.04)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <SubsystemIcon type={subsystemType} size={size * 0.55} opacity={0.5} />
+      </Box>
+    </Tooltip>
   )
 }

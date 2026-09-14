@@ -1,178 +1,165 @@
+/**
+ * Determinism: the same seed and the same actions always produce the same
+ * game. Fingerprints use canonicalJson (keys sorted at every depth); the old
+ * `JSON.stringify(state, Object.keys(state).sort())` dropped every nested key.
+ */
 import { describe, it, expect } from "vitest";
 import { executeTurn } from "../game/turns.ts";
-import { botDecideActions } from "../ai/index.ts";
-import { dealMissionOffers } from "../game/missions/missionDeck.ts";
-import { selectMissionsFromOffers } from "../game/missions/missionDeck.ts";
-import { createInitialShipState } from "../utils/subsystemHelpers.ts";
-import { createInitialStations } from "../game/stations.ts";
-import { GRAVITY_WELLS } from "../models/gravityWells.ts";
-import { createDeterminismFields, Rng } from "../utils/rng.ts";
-import type { GameState, Player, PlayerAction } from "../models/game.ts";
+import { createGame } from "../game/setup.ts";
+import type { GameState } from "../models/game.ts";
+import {
+  canonicalJson,
+  coast,
+  eventsOf,
+  executeTurnAs,
+  fire,
+  getShip,
+  makeTwoPlayerGame,
+  playScripted,
+  scriptedGameStart,
+  withPower,
+} from "./testUtils.ts";
 
-/**
- * Build a fresh bot-vs-bot game seeded with the given seed.
- * Mirrors what the server's createGame + loadout flow does, but inline so the
- * test depends only on engine internals.
- */
-function buildSeededGame(seed: number): GameState {
-  const planets = GRAVITY_WELLS.filter((w) => w.type === "planet");
+const TURNS = 30;
 
-  const players: Player[] = [
-    {
-      id: "bot-a",
-      name: "Bot A",
-      ship: createInitialShipState({
-        wellId: "blackhole",
-        ring: 4,
-        sector: 0,
-        facing: "prograde",
-      }),
-      missionOffers: [],
-      missions: [],
-      completedMissionCount: 0,
-      cargo: [],
-      hasDeployed: true,
-      hasSubmittedLoadout: true,
-    },
-    {
-      id: "bot-b",
-      name: "Bot B",
-      ship: createInitialShipState({
-        wellId: "blackhole",
-        ring: 4,
-        sector: 12,
-        facing: "prograde",
-      }),
-      missionOffers: [],
-      missions: [],
-      completedMissionCount: 0,
-      cargo: [],
-      hasDeployed: true,
-      hasSubmittedLoadout: true,
-    },
-  ];
-
-  const determinism = createDeterminismFields(seed);
-  const rng = new Rng(determinism.rngState);
-
-  const { playerOffers } = dealMissionOffers(players, planets, rng);
-
-  // Auto-pick first 3 offers per player so missions/cargo are populated.
-  const playersWithMissions = players.map((p) => {
-    const offers = playerOffers.get(p.id) ?? [];
-    const selected = selectMissionsFromOffers(
-      offers,
-      offers.slice(0, 3).map((m) => m.id)
-    );
-    return {
-      ...p,
-      missionOffers: offers,
-      missions: selected.missions,
-      cargo: selected.cargo,
-    };
+describe("determinism: scripted games", () => {
+  it("the same seed replays to identical states and events at every turn", () => {
+    const a = playScripted(scriptedGameStart(0x1234abcd), TURNS);
+    const b = playScripted(scriptedGameStart(0x1234abcd), TURNS);
+    expect(a).toHaveLength(TURNS);
+    for (let i = 0; i < TURNS; i++) {
+      expect(canonicalJson(a[i].state)).toBe(canonicalJson(b[i].state));
+      expect(a[i].events).toEqual(b[i].events);
+      expect(a[i].actions).toEqual(b[i].actions);
+    }
   });
 
-  return {
-    turn: 1,
-    activePlayerIndex: 0,
-    players: playersWithMissions,
-    turnLog: [],
-    missiles: [],
-    phase: "active",
-    stations: createInitialStations(GRAVITY_WELLS),
-    rngSeed: determinism.rngSeed,
-    rngState: rng.state,
-    nextEntityId: determinism.nextEntityId,
-  };
-}
+  it("the dice are actually rolled: a scripted game sees several different d10 results", () => {
+    const turns = playScripted(scriptedGameStart(0x1234abcd), TURNS);
+    const rolls = turns.flatMap((t) => eventsOf(t.events, "attack_resolved").map((e) => e.roll));
+    expect(rolls.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(rolls).size).toBeGreaterThan(1);
+    expect(rolls.every((r) => r >= 1 && r <= 10)).toBe(true);
+  });
 
-/**
- * Run N turns of bot-vs-bot, returning the final state and recorded actions.
- *
- * Strict: any invalid bot turn fails the test. We rely on the playtest sim
- * having flushed bot bugs, so a regression here is what we want to catch.
- */
-function runBotGame(
-  initialState: GameState,
-  maxTurns: number
-): { finalState: GameState; allActions: PlayerAction[][] } {
-  let state = initialState;
-  const allActions: PlayerAction[][] = [];
-
-  for (let i = 0; i < maxTurns; i++) {
-    if (state.phase === "ended") break;
-    const activePlayer = state.players[state.activePlayerIndex];
-
-    let actions: PlayerAction[];
-    if (activePlayer.ship.hitPoints <= 0) {
-      actions = [
-        {
-          type: "coast",
-          playerId: activePlayer.id,
-          sequence: 1,
-          data: { activateScoop: false },
-        },
-      ];
-    } else {
-      const decision = botDecideActions(state, activePlayer.id);
-      actions = decision.actions;
-    }
-
-    const result = executeTurn(state, actions);
-    if (result.errors && result.errors.length > 0) {
-      throw new Error(
-        `Bot ${activePlayer.id} invalid turn at T${state.turn}: ${result.errors.join("; ")}\nActions: ${JSON.stringify(actions)}`
+  it("different seeds roll different dice", () => {
+    const rolls = (seed: number) =>
+      playScripted(scriptedGameStart(seed), TURNS).flatMap((t) =>
+        eventsOf(t.events, "attack_resolved").map((e) => e.roll)
       );
-    }
-    allActions.push(actions);
-    state = result.gameState;
-  }
-
-  return { finalState: state, allActions };
-}
-
-/**
- * Stable, structural fingerprint of GameState. Uses sorted-key JSON so object
- * key ordering can never make two equivalent states look different.
- */
-function fingerprint(state: GameState): string {
-  return JSON.stringify(state, Object.keys(state).sort());
-}
-
-describe("Determinism canary", () => {
-  it("two runs with the same seed produce identical final state", () => {
-    const seed = 0x1234abcd;
-
-    const a = runBotGame(buildSeededGame(seed), 80);
-    const b = runBotGame(buildSeededGame(seed), 80);
-
-    expect(a.allActions).toEqual(b.allActions);
-    expect(fingerprint(a.finalState)).toBe(fingerprint(b.finalState));
+    expect(rolls(0x0001)).not.toEqual(rolls(0x0002));
   });
 
-  it("different seeds produce different runs", () => {
-    // Sanity check: if seeds matter, two different seeds should diverge.
-    const a = runBotGame(buildSeededGame(0x0001), 40);
-    const b = runBotGame(buildSeededGame(0x0002), 40);
+  it("someone dies and respawns along the way, and the rest still replays", () => {
+    const turns = playScripted(scriptedGameStart(0x1234abcd), TURNS);
+    const types = turns.flatMap((t) => t.events.map((e) => e.type));
+    expect(types).toContain("ship_destroyed");
+    expect(types).toContain("respawned");
+  });
+});
 
-    // Either action sequences or final states must differ.
-    const sameActions =
-      JSON.stringify(a.allActions) === JSON.stringify(b.allActions);
-    const sameState = fingerprint(a.finalState) === fingerprint(b.finalState);
+describe("determinism: the RNG on the state", () => {
+  const duel = withPower(
+    makeTwoPlayerGame(
+      { ring: 3, sector: 0 },
+      { ring: 4, sector: 0 },
+      { forcedRollValue: undefined }
+    ),
+    "p1",
+    "side-0",
+    2
+  );
 
-    expect(sameActions && sameState).toBe(false);
+  it("a shot advances rngState; a coast does not", () => {
+    const shot = executeTurnAs(duel, fire(1, "side-0", "p2"));
+    expect(shot.errors).toBeUndefined();
+    expect(shot.gameState.rngState).not.toBe(duel.rngState);
+    const drift = executeTurnAs(duel, coast(1));
+    expect(drift.gameState.rngState).toBe(duel.rngState);
   });
 
-  it("RNG advances on d10 rolls; identical RNG state implies identical rolls", () => {
-    const stateA = buildSeededGame(0xabcdef);
-    const stateB = buildSeededGame(0xabcdef);
+  it("identical rng state implies identical rolls", () => {
+    const a = executeTurnAs(duel, fire(1, "side-0", "p2"));
+    const b = executeTurnAs(duel, fire(1, "side-0", "p2"));
+    expect(eventsOf(a.events, "attack_resolved")[0].roll).toBe(
+      eventsOf(b.events, "attack_resolved")[0].roll
+    );
+    expect(a.gameState.rngState).toBe(b.gameState.rngState);
+  });
 
-    expect(stateA.rngState).toBe(stateB.rngState);
+  it("forcedRollValue pins the die without touching the RNG", () => {
+    const pinned = { ...duel, forcedRollValue: 7 };
+    const result = executeTurnAs(pinned, fire(1, "side-0", "p2"));
+    expect(eventsOf(result.events, "attack_resolved")[0].roll).toBe(7);
+    expect(result.gameState.rngState).toBe(pinned.rngState);
+  });
 
-    const a = runBotGame(stateA, 10);
-    const b = runBotGame(stateB, 10);
+  it("createGame with the same seed deals the same cards and leaves the same rng state", () => {
+    const specs = [
+      { id: "a", name: "A" },
+      { id: "b", name: "B" },
+      { id: "c", name: "C" },
+    ];
+    expect(canonicalJson(createGame(specs, 77))).toBe(canonicalJson(createGame(specs, 77)));
+    expect(createGame(specs, 77).rngState).not.toBe(createGame(specs, 78).rngState);
+  });
+});
 
-    expect(a.finalState.rngState).toBe(b.finalState.rngState);
-    expect(a.finalState.nextEntityId).toBe(b.finalState.nextEntityId);
+describe("determinism: executeTurn is pure", () => {
+  it("does not mutate its input on success", () => {
+    const state = scriptedGameStart(1);
+    const before = canonicalJson(state);
+    const result = executeTurnAs(state, fire(1, "forward-0", "p2", "side-2", true));
+    expect(result.errors).toBeUndefined();
+    expect(canonicalJson(state)).toBe(before);
+    expect(getShip(state, "p2").hitPoints).toBe(10);
+    expect(getShip(result.gameState, "p2").hitPoints).toBeLessThan(10);
+  });
+
+  it("returns the very same object, rng included, when the turn is rejected", () => {
+    const state = scriptedGameStart(1);
+    const rngBefore = state.rngState;
+    const result = executeTurnAs(
+      state,
+      fire(1, "forward-0", "p2", "side-2", true),
+      fire(2, "forward-0", "p2")
+    );
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(result.gameState).toBe(state);
+    expect(result.events).toEqual([]);
+    // The first shot rolled a die before the second was rejected; the roll must not stick.
+    expect(state.rngState).toBe(rngBefore);
+    expect(getShip(state, "p2").hitPoints).toBe(10);
+  });
+
+  it("refuses to run outside the active phase", () => {
+    const state: GameState = { ...makeTwoPlayerGame(), phase: "ended" };
+    const result = executeTurn(state, [{ ...coast(1), playerId: "p1" }]);
+    expect(result.gameState).toBe(state);
+    expect(result.errors?.[0]).toMatch(/phase/i);
+  });
+});
+
+describe("determinism: canonicalJson", () => {
+  it("ignores key order at every depth", () => {
+    expect(canonicalJson({ b: { y: 1, x: [{ q: 1, p: 2 }] }, a: 1 })).toBe(
+      canonicalJson({ a: 1, b: { x: [{ p: 2, q: 1 }], y: 1 } })
+    );
+  });
+
+  it("notices a change buried deep in the state", () => {
+    const state = makeTwoPlayerGame();
+    const changed = {
+      ...state,
+      players: [
+        { ...state.players[0], ship: { ...state.players[0].ship, hitPoints: 9 } },
+        state.players[1],
+      ],
+    };
+    expect(canonicalJson(changed)).not.toBe(canonicalJson(state));
+    // The old fingerprint could not tell them apart.
+    expect(JSON.stringify(changed, Object.keys(changed).sort())).toBe(
+      JSON.stringify(state, Object.keys(state).sort())
+    );
   });
 });

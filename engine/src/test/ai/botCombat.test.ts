@@ -1,0 +1,361 @@
+/**
+ * What the bot shoots at, and with what. Every fire action it proposes must
+ * pass the engine's own range check at the moment it executes, so these
+ * tests assert both the shape of the decision and that `executeTurn`
+ * accepts it.
+ */
+import { describe, it, expect } from "vitest";
+import type { FireWeaponAction, GameState, PlayerAction, ShipLoadout } from "../../models/game.ts";
+import { executeTurn } from "../../game/turns.ts";
+import { viewFor } from "../../game/view.ts";
+import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
+import { generateCandidates } from "../../ai/planner.ts";
+import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
+import type { ActionPlan } from "../../ai/types.ts";
+import {
+  ALPHA,
+  BH,
+  destroyMission,
+  getShip,
+  makeTwoPlayerGame,
+  withMissions,
+  withPower,
+  withShip,
+  withSub,
+} from "../testUtils.ts";
+
+/** Railgun forward, two lasers on the port side, shields, missiles. */
+const GUNSHIP: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["laser", "laser", "shields", "missiles"],
+};
+
+function shotsOf(state: GameState, botId: string): FireWeaponAction[] {
+  return botDecideActions(viewFor(state, botId)).actions.filter(
+    (a): a is FireWeaponAction => a.type === "fire_weapon"
+  );
+}
+
+/**
+ * Engines broken: the bot can only coast, so every candidate shoots from the
+ * position we placed it at and the test is about targeting, not routing.
+ */
+function grounded(state: GameState, id: string): GameState {
+  return withSub(state, id, "engines", { isBroken: true });
+}
+
+describe("bot targeting", () => {
+  it("powers and fires two lasers of the same type independently", () => {
+    // Port lasers bear outward while prograde: the target is one ring out.
+    const base = makeTwoPlayerGame(
+      { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+      { wellId: BH, ring: 4, sector: 0 }
+    );
+    const state = grounded(base, "p1");
+    const decision = botDecideActions(viewFor(state, "p1"));
+    const shots = decision.actions.filter((a): a is FireWeaponAction => a.type === "fire_weapon");
+
+    const slots = shots.map((s) => s.data.subsystemId);
+    expect(slots).toContain("side-0");
+    expect(slots).toContain("side-1");
+    expect(new Set(slots).size).toBe(slots.length);
+    for (const shot of shots) expect(shot.data.targetPlayerId).toBe("p2");
+
+    // Two tiles of the same type get their own energy, addressed by slot id.
+    const powered = decision.actions.filter(
+      (a) =>
+        a.type === "allocate_energy" &&
+        (a.data.subsystemId === "side-0" || a.data.subsystemId === "side-1")
+    );
+    expect(powered).toHaveLength(2);
+
+    const result = executeTurn(state, decision.actions);
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p2").hitPoints).toBeLessThan(10);
+  });
+
+  it("does not fire at a target nothing can reach", () => {
+    // Half an orbit away: outside the railgun's arc and every broadside.
+    const state = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 3, sector: 12 }
+      ),
+      "p1"
+    );
+    expect(shotsOf(state, "p1")).toHaveLength(0);
+  });
+
+  it("never fires across gravity wells, however close the sector numbers look", () => {
+    const state = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: ALPHA, ring: 3, sector: 0 }
+      ),
+      "p1"
+    );
+    const decision = botDecideActions(viewFor(state, "p1"));
+    expect(decision.actions.filter((a) => a.type === "fire_weapon")).toHaveLength(0);
+    expect(executeTurn(state, decision.actions).errors).toBeUndefined();
+  });
+
+  it("does not fire at a destroyed ship even when it is in range", () => {
+    const base = makeTwoPlayerGame(
+      { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+      { wellId: BH, ring: 4, sector: 0 }
+    );
+    const state = withShip(grounded(base, "p1"), "p2", { hitPoints: 0 });
+    expect(shotsOf(state, "p1")).toHaveLength(0);
+  });
+
+  it("names a slot on the target for the critical hit", () => {
+    const state = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 4, sector: 0 }
+      ),
+      "p1"
+    );
+    const shots = shotsOf(state, "p1");
+    expect(shots.length).toBeGreaterThan(0);
+    const slotIds = new Set(getShip(state, "p2").subsystems.map((s) => s.id));
+    for (const shot of shots) expect(slotIds.has(shot.data.criticalTarget)).toBe(true);
+  });
+
+  it("reads the cubes on a face-down forward slot as a railgun and breaks it first", () => {
+    // Energy allocation is public; four cubes on a forward tile can only be
+    // a railgun, so that is the slot the bot names on a critical.
+    const base = makeTwoPlayerGame(
+      { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+      { wellId: BH, ring: 4, sector: 0, loadout: GUNSHIP }
+    );
+    let state = grounded(base, "p1");
+    state = withSub(state, "p2", "forward-0", { allocatedEnergy: 4, isPowered: true });
+    const shots = shotsOf(state, "p1");
+    expect(shots.length).toBeGreaterThan(0);
+    for (const shot of shots) expect(shot.data.criticalTarget).toBe("forward-0");
+  });
+
+  it("names the engines when there is not a cube anywhere on the target", () => {
+    // Nothing is powered, so no tile can be told from another and none is
+    // provably intact: the engines are always there and always needed.
+    const state = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 4, sector: 0, loadout: GUNSHIP }
+      ),
+      "p1"
+    );
+    const shots = shotsOf(state, "p1");
+    expect(shots.length).toBeGreaterThan(0);
+    for (const shot of shots) expect(shot.data.criticalTarget).toBe("engines");
+  });
+
+  it("names a revealed tile that is powered over the engines", () => {
+    // A face-up shield with cubes on it is soaking this very volley, and the
+    // cubes prove it is not broken already.
+    let state = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 4, sector: 0, loadout: GUNSHIP }
+      ),
+      "p1"
+    );
+    state = withSub(state, "p2", "side-2", { isRevealed: true });
+    state = withPower(state, "p2", "side-2", 4);
+
+    const shots = shotsOf(state, "p1");
+    expect(shots.length).toBeGreaterThan(0);
+    for (const shot of shots) expect(shot.data.criticalTarget).toBe("side-2");
+  });
+
+  it("never names a tile it can already see is broken", () => {
+    // Breaking a broken tile does nothing at all, and the break is public.
+    let state = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 4, sector: 0, loadout: GUNSHIP }
+      ),
+      "p1"
+    );
+    state = withSub(state, "p2", "forward-0", { isRevealed: true, isBroken: true });
+    state = withSub(state, "p2", "engines", { isBroken: true });
+
+    const shots = shotsOf(state, "p1");
+    expect(shots.length).toBeGreaterThan(0);
+    for (const shot of shots) {
+      expect(shot.data.criticalTarget).not.toBe("forward-0");
+      expect(shot.data.criticalTarget).not.toBe("engines");
+    }
+    expect(
+      executeTurn(state, botDecideActions(viewFor(state, "p1")).actions).errors
+    ).toBeUndefined();
+  });
+
+  it("closes on a Destroy target and grinds its hull down", () => {
+    // The prey coasts and never shoots back; the hunter has to find it,
+    // line up and keep firing across many turns.
+    let state = withMissions(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 4, sector: 12 }
+      ),
+      "p1",
+      [destroyMission("p2")]
+    );
+    let lowestHull = getShip(state, "p2").hitPoints;
+
+    for (let i = 0; i < 40 && state.phase === "active"; i++) {
+      const active = state.players[state.activePlayerIndex];
+      const actions =
+        active.id === "p1"
+          ? botDecideActions(viewFor(state, "p1")).actions
+          : ([
+              { type: "coast", playerId: "p2", sequence: 1, data: { activateScoop: false } },
+            ] as PlayerAction[]);
+      const result = executeTurn(state, actions);
+      expect(result.errors, `turn ${i} by ${active.id}`).toBeUndefined();
+      state = result.gameState;
+      lowestHull = Math.min(lowestHull, getShip(state, "p2").hitPoints);
+    }
+
+    expect(lowestHull).toBeLessThan(getShip(state, "p2").maxHitPoints);
+  });
+
+  it("hunts a Destroy target instead of a bystander when both are in range", () => {
+    let state = makeTwoPlayerGame(
+      { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+      { wellId: BH, ring: 4, sector: 0 }
+    );
+    state = {
+      ...state,
+      players: [
+        ...state.players,
+        { ...state.players[1], id: "p3", name: "p3", ship: { ...getShip(state, "p2"), sector: 1 } },
+      ],
+    };
+    state = withMissions(grounded(state, "p1"), "p1", [destroyMission("p3")]);
+    const shots = shotsOf(state, "p1");
+    expect(shots.length).toBeGreaterThan(0);
+    for (const shot of shots) expect(shot.data.targetPlayerId).toBe("p3");
+  });
+});
+
+/** The plan that shoots at `targetId`, as the bot's planner builds it. */
+function planAgainst(state: GameState, botId: string, targetId: string): ActionPlan {
+  const situation = analyzeSituation(viewFor(state, botId), DEFAULT_BOT_PARAMETERS);
+  const plan = generateCandidates(situation, DEFAULT_BOT_PARAMETERS).find(
+    (c) => c.targetId === targetId
+  );
+  if (!plan) throw new Error(`no candidate shooting at ${targetId}`);
+  return plan;
+}
+
+describe("bot lethality estimates", () => {
+  it("calls a volley lethal when nothing stands between it and the hull", () => {
+    // Two port lasers, four damage, against three hull and no shield cubes.
+    const state = withShip(
+      grounded(
+        makeTwoPlayerGame(
+          { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+          { wellId: BH, ring: 4, sector: 0 }
+        ),
+        "p1"
+      ),
+      "p2",
+      { hitPoints: 3 }
+    );
+
+    const plan = planAgainst(state, "p1", "p2");
+    expect(plan.expectedDamage).toBe(4);
+    expect(plan.expectedHullDamage).toBe(4);
+    expect(plan.killsTarget).toBe(true);
+  });
+
+  it("subtracts the shield cubes it can see before calling anything a kill", () => {
+    // Same volley, same three hull — but four face-up shield cubes soak all
+    // of it, so nobody dies this turn.
+    let state = withShip(
+      grounded(
+        makeTwoPlayerGame(
+          { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+          { wellId: BH, ring: 4, sector: 0 }
+        ),
+        "p1"
+      ),
+      "p2",
+      { hitPoints: 3 }
+    );
+    state = withSub(state, "p2", "side-2", { isRevealed: true });
+    state = withPower(state, "p2", "side-2", 4);
+
+    const plan = planAgainst(state, "p1", "p2");
+    expect(plan.expectedDamage).toBe(4);
+    expect(plan.expectedHullDamage).toBe(0);
+    expect(plan.killsTarget).toBe(false);
+  });
+
+  it("treats face-down side cubes as half a shield, not as nothing", () => {
+    let state = withShip(
+      grounded(
+        makeTwoPlayerGame(
+          { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+          { wellId: BH, ring: 4, sector: 0 }
+        ),
+        "p1"
+      ),
+      "p2",
+      { hitPoints: 3 }
+    );
+    state = withPower(state, "p2", "side-2", 2);
+
+    const plan = planAgainst(state, "p1", "p2");
+    expect(plan.expectedHullDamage).toBe(3);
+    expect(plan.killsTarget).toBe(true);
+  });
+});
+
+describe("bot does not shoot corpses", () => {
+  it("routes the rest of the volley to a second target once the first is covered", () => {
+    // p2 has one hull left: the first laser covers it. The second laser has
+    // no business adding to that when p3 is sitting in the same arc.
+    const base = makeTwoPlayerGame(
+      { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+      { wellId: BH, ring: 4, sector: 0 }
+    );
+    let state: GameState = {
+      ...base,
+      players: [
+        ...base.players,
+        { ...base.players[1], id: "p3", name: "p3", ship: { ...getShip(base, "p2"), sector: 1 } },
+      ],
+    };
+    state = withShip(grounded(state, "p1"), "p2", { hitPoints: 1 });
+
+    const shots = shotsOf(state, "p1");
+    const atP2 = shots.filter((s) => s.data.targetPlayerId === "p2");
+    const atP3 = shots.filter((s) => s.data.targetPlayerId === "p3");
+
+    expect(atP2).toHaveLength(1);
+    expect(atP3.length).toBeGreaterThan(0);
+    expect(
+      executeTurn(state, botDecideActions(viewFor(state, "p1")).actions).errors
+    ).toBeUndefined();
+  });
+
+  it("stops firing rather than overkill when there is no second target", () => {
+    const state = withShip(
+      grounded(
+        makeTwoPlayerGame(
+          { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+          { wellId: BH, ring: 4, sector: 0 }
+        ),
+        "p1"
+      ),
+      "p2",
+      { hitPoints: 1 }
+    );
+
+    expect(shotsOf(state, "p1")).toHaveLength(1);
+  });
+});

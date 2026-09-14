@@ -1,779 +1,409 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
-import type { ReactNode } from 'react'
-import type {
-  GameState,
-  PlayerAction,
-  Facing,
-  BurnIntensity,
-  TurnHistoryEntry,
-  ActionType,
-  Subsystem,
-  SubsystemType,
-  ReactorState,
-  HeatState,
-  Player,
-  MovementPlan,
-  OrbitalPosition,
-} from '@dangerous-inclinations/engine'
+/**
+ * GameContext - the game as seen from this seat.
+ *
+ * Holds a `GameView` (never a GameState) and the visible event history.
+ * Incoming turns are queued: an animator registered by the board plays each
+ * turn's events before the next view is committed, so the table shows one
+ * thing happening at a time.
+ *
+ * Two providers share the same context shape:
+ *   - GameProvider: a live game over the WebSocket (fetches the view by id).
+ *   - ReplayGameProvider: a finished recording, viewed through `viewFor`
+ *     for a chosen perspective.
+ */
 import {
-  getSubsystemConfig,
-  canSubsystemFunction,
-  calculateProjectedHeat,
-  TRANSFER_POINTS,
-} from '@dangerous-inclinations/engine'
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import type { GameEvent, GameRecording, GameView, PlayerAction, ShipLoadout } from '@dangerous-inclinations/engine'
+import { filterEventsFor, reconstructStateAtTurn, viewFor } from '@dangerous-inclinations/engine'
+import type { GameSocketMessage, SubmitTurnMessage } from '../api/types'
+import { getGame, submitLoadout as submitLoadoutAPI, deployShip as deployShipAPI } from '../api/game'
 import { useWebSocket } from './WebSocketContext'
-
-interface WeaponRangeVisibility {
-  laser: boolean
-  railgun: boolean
-  missiles: boolean
-  ballistic_rack: boolean
-}
-
-interface MovementPreview {
-  actionType: ActionType
-  burnIntensity?: BurnIntensity
-  sectorAdjustment: number
-  activateScoop: boolean
-}
-
-export type TacticalActionType =
-  | 'rotate'
-  | 'move'
-  | 'fire_laser'
-  | 'fire_railgun'
-  | 'fire_missiles'
-  | 'fire_ballistic_rack'
-  | 'well_transfer'
-
-export interface TacticalAction {
-  id: string // unique identifier for this action instance
-  type: TacticalActionType
-  sequence: number
-  targetPlayerId?: string // For weapon actions
-  destinationWellId?: string // For well transfer actions
-  criticalTarget?: SubsystemType // For weapon actions - subsystem to break on critical hit
-  compensateRecoil?: boolean // For railgun - whether engines compensate recoil
-}
-
-interface PendingState {
-  subsystems: Subsystem[]
-  reactor: ReactorState
-  heat: HeatState
-  facing: Facing
-  movement: MovementPreview
-  tacticalSequence: TacticalAction[] // Ordered list of tactical actions
-}
-
-// Animation handlers that BoardContext will register
-export interface AnimationHandlers {
-  startAnimation: (
-    beforeState: GameState,
-    afterState: GameState,
-    actions: PlayerAction[],
-    onComplete: () => void
-  ) => void
-  syncDisplayState: (state: GameState) => void
-  isAnimating: () => boolean
-}
-
-interface GameContextType {
-  /** Live game id this context is tracking. Exposed so child components
-   *  can issue per-game API calls (rewind, etc.) without re-plumbing it
-   *  through props. */
-  gameId: string
-  gameState: GameState
-  pendingState: PendingState
-  turnErrors: string[]
-  turnHistory: TurnHistoryEntry[]
-  clearTurnErrors: () => void
-  // High-level game actions
-  allocateEnergy: (subsystemIndex: number, newTotal: number) => void
-  deallocateEnergy: (subsystemIndex: number, amount: number) => void
-  setFacing: (facing: Facing) => void
-  setMovement: (movement: MovementPreview) => void
-  setTacticalSequence: (sequence: TacticalAction[]) => void
-  executeTurn: () => void
-  weaponRangeVisibility: WeaponRangeVisibility
-  toggleWeaponRange: (weaponType: 'laser' | 'railgun' | 'missiles' | 'ballistic_rack') => void
-  // Animation handler registration (for BoardContext)
-  registerAnimationHandlers: (handlers: AnimationHandlers) => void
-  // Callback to notify parent when game ends or needs restart
-  onGameStateChange: (newState: GameState) => void
-  // Movement planner state
-  movementPlan: MovementPlan | null
-  isSelectingDestination: boolean
-  selectedDestination: OrbitalPosition | null
-  setMovementPlan: (plan: MovementPlan | null) => void
-  startSelectingDestination: () => void
-  cancelSelectingDestination: () => void
-  selectDestination: (destination: OrbitalPosition) => void
-}
-
-const GameContext = createContext<GameContextType | undefined>(undefined)
+import { usePlayer } from './PlayerContext'
 
 /**
- * Raw context handle — exported so replay-mode providers can supply a stub
- * value (no live websocket, no mutations). Most consumers should keep using
- * `useGame()` instead.
+ * Plays one turn's events from `prev` to `next`, then calls `done`.
+ * May return a cancel function: the queue calls it when the table is reset
+ * (a replay seek, a change of seat) so a half-played turn stops at once.
  */
-export const GameContextRaw = GameContext
+export type Animator = (
+  prev: GameView,
+  next: GameView,
+  events: GameEvent[],
+  done: () => void,
+) => void | (() => void)
 
-export type { GameContextType, PendingState }
-
-interface GameProviderProps {
-  children: ReactNode
-  initialGameState: GameState
-  gameId: string
-  onGameStateChange: (newState: GameState) => void
+export interface GameContextValue {
+  /** Live game id, or null for a replay. */
+  gameId: string | null
+  view: GameView
+  /** Every event this seat may see, oldest first. */
+  log: GameEvent[]
+  turnErrors: string[]
+  clearTurnErrors: () => void
+  isAnimating: boolean
+  /** Replays and spectators cannot act. */
+  readOnly: boolean
+  nameOf: (playerId: string) => string
+  submitTurn: (actions: PlayerAction[]) => void
+  submitLoadout: (loadout: ShipLoadout, missionIds: string[]) => Promise<void>
+  deploy: (wellId: string, sector: number) => Promise<void>
+  registerAnimator: (animator: Animator | null) => void
 }
 
-export function GameProvider({
-  children,
-  initialGameState,
-  gameId,
-  onGameStateChange,
-}: GameProviderProps) {
-  const [gameState, setGameState] = useState<GameState>(initialGameState)
-  const [turnErrors, setTurnErrors] = useState<string[]>([])
-  const [turnHistory, setTurnHistory] = useState<TurnHistoryEntry[]>([])
-  const [weaponRangeVisibility, setWeaponRangeVisibility] = useState<WeaponRangeVisibility>({
-    laser: false,
-    railgun: false,
-    missiles: false,
-    ballistic_rack: false,
-  })
+const GameContext = createContext<GameContextValue | undefined>(undefined)
 
-  // Movement planner state
-  const [movementPlan, setMovementPlan] = useState<MovementPlan | null>(null)
-  const [isSelectingDestination, setIsSelectingDestination] = useState(false)
-  const [selectedDestination, setSelectedDestination] = useState<OrbitalPosition | null>(null)
+export function useGame(): GameContextValue {
+  const context = useContext(GameContext)
+  if (!context) throw new Error('useGame must be used within a GameProvider')
+  return context
+}
 
-  const startSelectingDestination = useCallback(() => {
-    setIsSelectingDestination(true)
-  }, [])
+// ---------------------------------------------------------------------------
+// Shared view queue
+// ---------------------------------------------------------------------------
 
-  const cancelSelectingDestination = useCallback(() => {
-    setIsSelectingDestination(false)
-    setSelectedDestination(null)
-    setMovementPlan(null)
-  }, [])
+interface QueuedUpdate {
+  view: GameView
+  events: GameEvent[]
+  animate: boolean
+  /** Replace the log with `events` instead of appending. */
+  replaceLog?: boolean
+}
 
-  const selectDestination = useCallback((destination: OrbitalPosition) => {
-    setSelectedDestination(destination)
-    setIsSelectingDestination(false)
-  }, [])
+function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
+  const [view, setView] = useState<GameView>(initialView)
+  const [log, setLog] = useState<GameEvent[]>(initialLog)
+  const [isAnimating, setIsAnimating] = useState(false)
+  const animatorRef = useRef<Animator | null>(null)
+  const cancelAnimationRef = useRef<(() => void) | null>(null)
+  const queueRef = useRef<QueuedUpdate[]>([])
+  const processingRef = useRef(false)
+  const viewRef = useRef<GameView>(initialView)
+  const latestRef = useRef<GameView>(initialView)
+  const unmountedRef = useRef(false)
+  /**
+   * Bumped by `reset`. A turn already playing captures the generation it
+   * started in; when it finishes it only commits if that is still current, so
+   * a seek while the board is animating cannot overwrite the view it jumped to.
+   */
+  const generationRef = useRef(0)
 
-  // WebSocket client for server communication
-  const { client, connect, isConnected } = useWebSocket()
-
-  // Animation handlers registered by BoardContext
-  const animationHandlersRef = useRef<AnimationHandlers | null>(null)
-  const gameStateRef = useRef<GameState>(gameState)
-  gameStateRef.current = gameState
-
-  // Turn queue for sequential animation processing
-  interface QueuedTurn {
-    gameState: GameState
-    actions: PlayerAction[]
-    playerId: string
-    turnNumber: number
-  }
-  const turnQueueRef = useRef<QueuedTurn[]>([])
-  const isProcessingTurnRef = useRef(false)
-
-  const registerAnimationHandlers = useCallback((handlers: AnimationHandlers) => {
-    animationHandlersRef.current = handlers
-    // Initialize display state when handlers are registered
-    handlers.syncDisplayState(gameStateRef.current)
-  }, [])
-
-  // Active player is guaranteed to exist in active phase
-  const activePlayer = gameState.players[gameState.activePlayerIndex]
-
-  const clearTurnErrors = useCallback(() => {
-    setTurnErrors([])
-  }, [])
-
-  // Initialize pending state from current committed state
-  const [pendingState, setPendingStateInternal] = useState<PendingState>(() => ({
-    subsystems: activePlayer.ship.subsystems.map(s => ({ ...s })),
-    reactor: { ...activePlayer.ship.reactor },
-    heat: { ...activePlayer.ship.heat },
-    facing: activePlayer.ship.facing,
-    movement: {
-      actionType: 'coast',
-      sectorAdjustment: 0,
-      activateScoop: false,
-    },
-    tacticalSequence: [],
-  }))
-
-  // Reset pending state when active player changes or turn completes
   useEffect(() => {
-    const currentActivePlayer = gameState.players[gameState.activePlayerIndex]
-    if (!currentActivePlayer) return
-
-    setPendingStateInternal({
-      subsystems: currentActivePlayer.ship.subsystems.map(s => ({ ...s })),
-      reactor: { ...currentActivePlayer.ship.reactor },
-      heat: { ...currentActivePlayer.ship.heat },
-      facing: currentActivePlayer.ship.facing,
-      movement: {
-        actionType: 'coast',
-        sectorAdjustment: 0,
-        activateScoop: false,
-      },
-      tacticalSequence: [],
-    })
-  }, [gameState.activePlayerIndex, gameState.turn])
-
-  // Helper to calculate energy to return based on deallocations
-  const calculateEnergyToReturn = useCallback(
-    (newSubsystems: Subsystem[]) => {
-      let totalDeallocated = 0
-      activePlayer.ship.subsystems.forEach((committedSub, index) => {
-        const pendingSub = newSubsystems[index]
-        const diff = committedSub.allocatedEnergy - pendingSub.allocatedEnergy
-        if (diff > 0) {
-          totalDeallocated += diff
-        }
-      })
-      return totalDeallocated
-    },
-    [activePlayer.ship.subsystems]
-  )
-
-  // Helper to calculate projected heat based on planned actions (pure function)
-  const computeProjectedHeat = (
-    subsystems: Subsystem[],
-    sequence: TacticalAction[],
-    movement: MovementPreview,
-    facing: Facing,
-    committedFacing: Facing
-  ): number => {
-    const subsystemsToUse: Array<
-      'engines' | 'rotation' | 'scoop' | 'laser' | 'railgun' | 'missiles' | 'ballistic_rack'
-    > = []
-
-    // Check if rotation is used (facing changed and rotation action in sequence)
-    const hasRotation = sequence.some(a => a.type === 'rotate')
-    if (hasRotation && facing !== committedFacing) {
-      subsystemsToUse.push('rotation')
+    unmountedRef.current = false
+    return () => {
+      unmountedRef.current = true
     }
-
-    // Check movement type
-    if (movement.actionType === 'burn') {
-      subsystemsToUse.push('engines')
-    } else if (movement.activateScoop) {
-      subsystemsToUse.push('scoop')
-    }
-
-    // Check weapon firing
-    for (const action of sequence) {
-      if (action.type === 'fire_laser') {
-        subsystemsToUse.push('laser')
-      } else if (action.type === 'fire_railgun') {
-        subsystemsToUse.push('railgun')
-      } else if (action.type === 'fire_missiles') {
-        subsystemsToUse.push('missiles')
-      } else if (action.type === 'fire_ballistic_rack') {
-        subsystemsToUse.push('ballistic_rack')
-      }
-    }
-
-    return calculateProjectedHeat(subsystems, subsystemsToUse)
-  }
-
-  // High-level game action: Allocate energy to a subsystem by index
-  const allocateEnergy = useCallback(
-    (subsystemIndex: number, newTotal: number) => {
-      if (subsystemIndex < 0 || subsystemIndex >= pendingState.subsystems.length) return
-
-      const subsystem = pendingState.subsystems[subsystemIndex]
-      const currentEnergy = subsystem.allocatedEnergy
-      const diff = newTotal - currentEnergy
-
-      // Check if newTotal exceeds absolute maximum
-      const config = getSubsystemConfig(subsystem.type)
-      if (newTotal > config.maxEnergy) {
-        return // Cannot allocate beyond absolute maximum capacity
-      }
-
-      if (diff > 0 && pendingState.reactor.availableEnergy >= diff) {
-        // Allocate energy
-        const newSubsystems = [...pendingState.subsystems]
-        const updatedSubsystem = {
-          ...newSubsystems[subsystemIndex],
-          allocatedEnergy: newTotal,
-        }
-        newSubsystems[subsystemIndex] = {
-          ...updatedSubsystem,
-          isPowered: canSubsystemFunction(updatedSubsystem),
-        }
-        setPendingStateInternal(prev => ({
-          ...prev,
-          subsystems: newSubsystems,
-          reactor: {
-            ...prev.reactor,
-            availableEnergy: prev.reactor.availableEnergy - diff,
-            energyToReturn: calculateEnergyToReturn(newSubsystems),
-          },
-          heat: {
-            currentHeat: computeProjectedHeat(
-              newSubsystems,
-              prev.tacticalSequence,
-              prev.movement,
-              prev.facing,
-              activePlayer.ship.facing
-            ),
-          },
-        }))
-      }
-    },
-    [pendingState, calculateEnergyToReturn, activePlayer.ship.facing]
-  )
-
-  // High-level game action: Deallocate energy from a subsystem by index
-  const deallocateEnergy = useCallback(
-    (subsystemIndex: number, amount: number) => {
-      if (subsystemIndex < 0 || subsystemIndex >= pendingState.subsystems.length) return
-
-      const currentPendingEnergy = pendingState.subsystems[subsystemIndex].allocatedEnergy
-      if (currentPendingEnergy === 0) return
-
-      // Deallocate the specified amount (clamped to current allocation)
-      const amountToReturn = Math.min(amount, currentPendingEnergy)
-      const newAllocatedEnergy = currentPendingEnergy - amountToReturn
-
-      const newSubsystems = [...pendingState.subsystems]
-      const updatedSubsystem = {
-        ...newSubsystems[subsystemIndex],
-        allocatedEnergy: newAllocatedEnergy,
-      }
-      newSubsystems[subsystemIndex] = {
-        ...updatedSubsystem,
-        isPowered: canSubsystemFunction(updatedSubsystem),
-      }
-
-      // Deallocation is now unlimited - no rate limits
-      setPendingStateInternal(prev => ({
-        ...prev,
-        subsystems: newSubsystems,
-        reactor: {
-          ...prev.reactor,
-          availableEnergy: prev.reactor.availableEnergy + amountToReturn,
-        },
-        heat: {
-          currentHeat: computeProjectedHeat(
-            newSubsystems,
-            prev.tacticalSequence,
-            prev.movement,
-            prev.facing,
-            activePlayer.ship.facing
-          ),
-        },
-      }))
-    },
-    [pendingState, activePlayer.ship.facing]
-  )
-
-  // High-level game action: Set facing
-  const setFacing = useCallback((facing: Facing) => {
-    setPendingStateInternal(prev => ({ ...prev, facing }))
   }, [])
 
-  // High-level game action: Set movement preview
-  const setMovement = useCallback(
-    (movement: MovementPreview) => {
-      setPendingStateInternal(prev => ({
-        ...prev,
-        movement,
-        heat: {
-          currentHeat: computeProjectedHeat(
-            prev.subsystems,
-            prev.tacticalSequence,
-            movement,
-            prev.facing,
-            activePlayer.ship.facing
-          ),
-        },
-      }))
-    },
-    [activePlayer.ship.facing]
-  )
+  const commit = useCallback((update: QueuedUpdate) => {
+    viewRef.current = update.view
+    setView(update.view)
+    setLog((prev) => (update.replaceLog ? update.events : [...prev, ...update.events]))
+  }, [])
 
-  // High-level game action: Set tactical sequence
-  const setTacticalSequence = useCallback(
-    (sequence: TacticalAction[]) => {
-      setPendingStateInternal(prev => ({
-        ...prev,
-        tacticalSequence: sequence,
-        heat: {
-          currentHeat: computeProjectedHeat(
-            prev.subsystems,
-            sequence,
-            prev.movement,
-            prev.facing,
-            activePlayer.ship.facing
-          ),
-        },
-      }))
-    },
-    [activePlayer.ship.facing]
-  )
-
-  // Helper to update game state and notify parent
-  const updateGameState = useCallback(
-    (newState: GameState) => {
-      setGameState(newState)
-      onGameStateChange(newState)
-    },
-    [onGameStateChange]
-  )
-
-  // Execute turn: compute diff between committed and pending, create actions using tactical sequence
-  // Then send to server via WebSocket
-  const executeTurn = useCallback(() => {
-    // Don't execute turns if game is over
-    if (gameState.phase === 'ended') {
+  const pump = useCallback(() => {
+    if (unmountedRef.current) return
+    const generation = generationRef.current
+    const next = queueRef.current.shift()
+    if (!next) {
+      processingRef.current = false
+      setIsAnimating(false)
       return
     }
-
-    // Don't allow turn execution while animations are playing
-    if (animationHandlersRef.current?.isAnimating()) {
-      return
+    processingRef.current = true
+    const animator = animatorRef.current
+    if (next.animate && animator && next.events.length > 0) {
+      setIsAnimating(true)
+      const cancel = animator(viewRef.current, next.view, next.events, () => {
+        if (unmountedRef.current || generationRef.current !== generation) return
+        cancelAnimationRef.current = null
+        commit(next)
+        // Let React paint the committed view before the next turn plays.
+        setTimeout(() => {
+          if (generationRef.current === generation) pump()
+        }, 60)
+      })
+      cancelAnimationRef.current = typeof cancel === 'function' ? cancel : null
+    } else {
+      commit(next)
+      pump()
     }
+  }, [commit])
 
-    // If the active player is dead, submit a coast — the engine will respawn them
-    if (activePlayer.ship.hitPoints <= 0) {
-      client?.send(
-        'game',
-        {
-          type: 'SUBMIT_TURN',
-          payload: {
-            gameId,
-            playerId: activePlayer.id,
-            actions: [{
-              playerId: activePlayer.id,
-              type: 'coast',
-              sequence: 1,
-              data: { activateScoop: false },
-            }],
-          },
-        },
-        gameId
-      )
-      setTurnErrors([])
-      return
-    }
+  const enqueue = useCallback(
+    (update: QueuedUpdate) => {
+      latestRef.current = update.view
+      queueRef.current.push(update)
+      if (!processingRef.current) pump()
+    },
+    [pump],
+  )
 
-    const actions: PlayerAction[] = []
+  const reset = useCallback((nextView: GameView, nextLog: GameEvent[]) => {
+    generationRef.current++
+    cancelAnimationRef.current?.()
+    cancelAnimationRef.current = null
+    queueRef.current = []
+    processingRef.current = false
+    latestRef.current = nextView
+    viewRef.current = nextView
+    setIsAnimating(false)
+    setView(nextView)
+    setLog(nextLog)
+  }, [])
 
-    // 1. Compute energy allocation/deallocation actions (no sequence - always first)
-    const committedSubsystems = activePlayer.ship.subsystems
-    const pendingSubsystems = pendingState.subsystems
+  const registerAnimator = useCallback((animator: Animator | null) => {
+    animatorRef.current = animator
+  }, [])
 
-    committedSubsystems.forEach((committedSub, index) => {
-      const pendingSub = pendingSubsystems[index]
-      const diff = pendingSub.allocatedEnergy - committedSub.allocatedEnergy
+  return { view, log, isAnimating, enqueue, reset, registerAnimator, latestRef }
+}
 
-      if (diff > 0) {
-        // Allocate energy
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'allocate_energy',
-          data: {
-            subsystemType: committedSub.type,
-            amount: diff,
-          },
-        })
-      } else if (diff < 0) {
-        // Deallocate energy (by the amount reduced)
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'deallocate_energy',
-          data: {
-            subsystemType: committedSub.type,
-            amount: Math.abs(diff),
-          },
-        })
-      }
-    })
+function makeNameOf(view: GameView) {
+  return (playerId: string) => view.players.find((p) => p.id === playerId)?.name ?? playerId
+}
 
-    // 2. Add tactical actions from the tactical sequence (with sequence numbers)
-    pendingState.tacticalSequence.forEach(tacticalAction => {
-      if (tacticalAction.type === 'rotate') {
-        // Only add rotate action if facing actually changed
-        if (pendingState.facing !== activePlayer.ship.facing) {
-          actions.push({
-            playerId: activePlayer.id,
-            type: 'rotate',
-            sequence: tacticalAction.sequence,
-            data: {
-              targetFacing: pendingState.facing,
-            },
-          })
-        }
-      } else if (tacticalAction.type === 'move') {
-        if (pendingState.movement.actionType === 'burn') {
-          actions.push({
-            playerId: activePlayer.id,
-            type: 'burn',
-            sequence: tacticalAction.sequence,
-            data: {
-              burnIntensity: pendingState.movement.burnIntensity || 'soft',
-              sectorAdjustment: pendingState.movement.sectorAdjustment,
-            },
-          })
-        } else {
-          actions.push({
-            playerId: activePlayer.id,
-            type: 'coast',
-            sequence: tacticalAction.sequence,
-            data: {
-              activateScoop: pendingState.movement.activateScoop,
-            },
-          })
-        }
-      } else if (tacticalAction.type === 'fire_laser' && tacticalAction.targetPlayerId) {
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'fire_weapon',
-          sequence: tacticalAction.sequence,
-          data: {
-            weaponType: 'laser',
-            targetPlayerIds: [tacticalAction.targetPlayerId],
-            criticalTarget: tacticalAction.criticalTarget || 'shields',
-          },
-        })
-      } else if (tacticalAction.type === 'fire_railgun' && tacticalAction.targetPlayerId) {
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'fire_weapon',
-          sequence: tacticalAction.sequence,
-          data: {
-            weaponType: 'railgun',
-            targetPlayerIds: [tacticalAction.targetPlayerId],
-            criticalTarget: tacticalAction.criticalTarget || 'shields',
-            compensateRecoil: tacticalAction.compensateRecoil,
-          },
-        })
-      } else if (tacticalAction.type === 'fire_missiles' && tacticalAction.targetPlayerId) {
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'fire_weapon',
-          sequence: tacticalAction.sequence,
-          data: {
-            weaponType: 'missiles',
-            targetPlayerIds: [tacticalAction.targetPlayerId],
-            criticalTarget: tacticalAction.criticalTarget || 'shields',
-          },
-        })
-      } else if (tacticalAction.type === 'fire_ballistic_rack' && tacticalAction.targetPlayerId) {
-        actions.push({
-          playerId: activePlayer.id,
-          type: 'fire_weapon',
-          sequence: tacticalAction.sequence,
-          data: {
-            weaponType: 'ballistic_rack',
-            targetPlayerIds: [tacticalAction.targetPlayerId],
-            criticalTarget: tacticalAction.criticalTarget || 'shields',
-          },
-        })
-      } else if (tacticalAction.type === 'well_transfer' && tacticalAction.destinationWellId) {
-        const transferPoint = TRANSFER_POINTS.find(
-          tp =>
-            tp.fromWellId === activePlayer.ship.wellId &&
-            tp.toWellId === tacticalAction.destinationWellId
-        )
-        if (transferPoint) {
-          actions.push({
-            playerId: activePlayer.id,
-            type: 'well_transfer',
-            sequence: tacticalAction.sequence,
-            data: {
-              destinationWellId: tacticalAction.destinationWellId,
-            },
-          })
-        }
-      }
-    })
+// ---------------------------------------------------------------------------
+// Live game
+// ---------------------------------------------------------------------------
 
-    // Send turn to server via WebSocket
-    // State update will happen when TURN_EXECUTED message arrives
-    client?.send(
+function isGameMessage(data: unknown): data is GameSocketMessage {
+  return typeof data === 'object' && data !== null && typeof (data as { type?: unknown }).type === 'string'
+}
+
+interface LiveGameProps {
+  gameId: string
+  initialView: GameView
+  initialEvents: GameEvent[]
+  children: ReactNode
+}
+
+function LiveGameProvider({ gameId, initialView, initialEvents, children }: LiveGameProps) {
+  const { client, connect } = useWebSocket()
+  const { playerId } = usePlayer()
+  const { view, log, isAnimating, enqueue, registerAnimator, latestRef } = useViewQueue(initialView, initialEvents)
+  const [turnErrors, setTurnErrors] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!client) return
+    let cancelled = false
+
+    const unsubscribe = client.onMessage(
       'game',
-      {
-        type: 'SUBMIT_TURN',
-        payload: {
-          gameId,
-          playerId: activePlayer.id,
-          actions,
-        },
+      (data) => {
+        if (!isGameMessage(data)) return
+        switch (data.type) {
+          case 'GAME_VIEW':
+            enqueue({ view: data.payload.view, events: data.payload.events, animate: false, replaceLog: true })
+            break
+          case 'TURN_EXECUTED':
+            enqueue({ view: data.payload.view, events: data.payload.events, animate: !data.payload.rewind })
+            break
+          case 'TURN_ERROR':
+            setTurnErrors(data.payload.errors ?? (data.payload.error ? [data.payload.error] : ['Turn rejected']))
+            break
+          default:
+            break
+        }
       },
-      gameId
+      gameId,
     )
 
-    // Clear turn errors optimistically
-    setTurnErrors([])
-
-    // Reset weapon range visibility
-    setWeaponRangeVisibility({
-      laser: false,
-      railgun: false,
-      missiles: false,
-      ballistic_rack: false,
+    connect('game', gameId).catch(() => {
+      if (!cancelled) setTurnErrors(['Lost connection to the game'])
     })
-  }, [activePlayer, pendingState, gameState, client, gameId])
 
-  const toggleWeaponRange = useCallback((weaponType: 'laser' | 'railgun' | 'missiles' | 'ballistic_rack') => {
-    setWeaponRangeVisibility(prev => ({
-      ...prev,
-      [weaponType]: !prev[weaponType],
-    }))
-  }, [])
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [client, connect, gameId, enqueue])
 
-  // Ensure we're connected to the game room and listen for messages
+  const submitTurn = useCallback(
+    (actions: PlayerAction[]) => {
+      const latest = latestRef.current
+      const message: SubmitTurnMessage = {
+        type: 'SUBMIT_TURN',
+        payload: { actions, turn: latest.turn, activePlayerId: latest.activePlayerId },
+      }
+      setTurnErrors([])
+      if (!client?.send('game', message, gameId)) {
+        setTurnErrors(['Not connected to the game'])
+      }
+    },
+    [client, gameId, latestRef],
+  )
+
+  const submitLoadout = useCallback(
+    async (loadout: ShipLoadout, missionIds: string[]) => {
+      const result = await submitLoadoutAPI(gameId, loadout, missionIds)
+      enqueue({ view: result.view, events: [], animate: false })
+    },
+    [gameId, enqueue],
+  )
+
+  const deploy = useCallback(
+    async (wellId: string, sector: number) => {
+      const result = await deployShipAPI(gameId, wellId, sector)
+      enqueue({ view: result.view, events: [], animate: false })
+    },
+    [gameId, enqueue],
+  )
+
+  const nameOf = useMemo(() => makeNameOf(view), [view])
+  const clearTurnErrors = useCallback(() => setTurnErrors([]), [])
+
+  const value = useMemo<GameContextValue>(
+    () => ({
+      gameId,
+      view,
+      log,
+      turnErrors,
+      clearTurnErrors,
+      isAnimating,
+      readOnly: view.me === null || view.me.id !== playerId,
+      nameOf,
+      submitTurn,
+      submitLoadout,
+      deploy,
+      registerAnimator,
+    }),
+    [
+      gameId,
+      view,
+      log,
+      turnErrors,
+      clearTurnErrors,
+      isAnimating,
+      playerId,
+      nameOf,
+      submitTurn,
+      submitLoadout,
+      deploy,
+      registerAnimator,
+    ],
+  )
+
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>
+}
+
+interface GameProviderProps {
+  gameId: string
+  children: ReactNode
+  /** Rendered while the first view loads. */
+  fallback?: ReactNode
+  /** Rendered if the view cannot be loaded. */
+  renderError?: (message: string) => ReactNode
+}
+
+/** Loads the view for `gameId` and keeps it live over the WebSocket. */
+export function GameProvider({ gameId, children, fallback = null, renderError }: GameProviderProps) {
+  const { isLoading: playerLoading } = usePlayer()
+  const [initial, setInitial] = useState<{ view: GameView; events: GameEvent[] } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
   useEffect(() => {
-    if (!client || !gameId) {
-      return
+    if (playerLoading) return
+    let cancelled = false
+    setInitial(null)
+    setError(null)
+    getGame(gameId)
+      .then((response) => {
+        if (!cancelled) setInitial({ view: response.view, events: response.events ?? [] })
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      })
+    return () => {
+      cancelled = true
     }
+  }, [gameId, playerLoading])
 
-    // Connect to game room if not already connected
-    const ensureConnection = async () => {
-      if (!isConnected('game', gameId)) {
-        try {
-          await connect('game', gameId)
-        } catch (error) {
-          console.error('[GameContext] Failed to connect to game room:', error)
-        }
-      }
-    }
-
-    ensureConnection()
-
-    // Process the next turn in the queue
-    const processNextTurn = () => {
-      if (turnQueueRef.current.length === 0) {
-        isProcessingTurnRef.current = false
-        return
-      }
-
-      isProcessingTurnRef.current = true
-      const turn = turnQueueRef.current.shift()!
-      const { gameState: newState, actions, playerId, turnNumber } = turn
-
-      const beforeState = gameStateRef.current
-
-      // Record in turn history
-      const player = newState.players.find((p: Player) => p.id === playerId)
-      setTurnHistory(prev => [
-        ...prev,
-        {
-          turn: turnNumber ?? newState.turn - 1,
-          playerId,
-          playerName: player?.name || playerId,
-          actions,
-        },
-      ])
-
-      // Start animation with before/after states + actions
-      if (animationHandlersRef.current) {
-        animationHandlersRef.current.startAnimation(beforeState, newState, actions, () => {
-          // Animation complete - commit new state and process next turn
-          updateGameState(newState)
-          // Use setTimeout to allow React to process state update before next animation
-          setTimeout(processNextTurn, 50)
-        })
-      } else {
-        // No animation handlers, just update and process next
-        updateGameState(newState)
-        processNextTurn()
-      }
-    }
-
-    const handleMessage = (message: {
-      type: string
-      payload?: {
-        gameState?: GameState
-        actions?: PlayerAction[]
-        playerId?: string
-        turnNumber?: number
-        error?: string
-        errors?: string[]
-      }
-    }) => {
-      if (message.type === 'TURN_EXECUTED' && message.payload) {
-        const { gameState: newState, actions, playerId, turnNumber } = message.payload
-
-        if (!newState || !actions || !playerId) return
-
-        // Queue the turn for sequential processing
-        turnQueueRef.current.push({
-          gameState: newState,
-          actions,
-          playerId,
-          turnNumber: turnNumber ?? newState.turn - 1,
-        })
-
-        // Start processing if not already doing so
-        if (!isProcessingTurnRef.current) {
-          processNextTurn()
-        }
-      }
-
-      if (message.type === 'TURN_ERROR' && message.payload) {
-        const { error, errors } = message.payload
-        setTurnErrors(errors || (error ? [error] : ['Unknown error']))
-      }
-    }
-
-    // Subscribe to game room messages
-    const cleanup = client.onMessage('game', handleMessage, gameId)
-    return cleanup
-    // Note: connect/isConnected are stable refs, but we only need client and gameId for re-subscription
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, gameId, updateGameState])
+  if (error) return <>{renderError ? renderError(error) : null}</>
+  if (!initial) return <>{fallback}</>
 
   return (
-    <GameContext.Provider
-      value={{
-        gameId,
-        gameState,
-        pendingState,
-        turnErrors,
-        turnHistory,
-        clearTurnErrors,
-        allocateEnergy,
-        deallocateEnergy,
-        setFacing,
-        setMovement,
-        setTacticalSequence,
-        executeTurn,
-        weaponRangeVisibility,
-        toggleWeaponRange,
-        registerAnimationHandlers,
-        onGameStateChange: updateGameState,
-        // Movement planner
-        movementPlan,
-        isSelectingDestination,
-        selectedDestination,
-        setMovementPlan,
-        startSelectingDestination,
-        cancelSelectingDestination,
-        selectDestination,
-      }}
-    >
+    <LiveGameProvider key={gameId} gameId={gameId} initialView={initial.view} initialEvents={initial.events}>
       {children}
-    </GameContext.Provider>
+    </LiveGameProvider>
   )
 }
 
-export function useGame() {
-  const context = useContext(GameContext)
-  if (!context) {
-    throw new Error('useGame must be used within a GameProvider')
-  }
-  return context
+// ---------------------------------------------------------------------------
+// Replay
+// ---------------------------------------------------------------------------
+
+interface ReplayGameProviderProps {
+  recording: GameRecording
+  /** -1 = initial state; n = after turn n. */
+  turnIndex: number
+  /** Whose seat to look from; null = spectator (public information only). */
+  perspectiveId: string | null
+  children: ReactNode
+}
+
+function replayView(recording: GameRecording, turnIndex: number, perspectiveId: string | null): GameView {
+  return viewFor(reconstructStateAtTurn(recording, turnIndex), perspectiveId)
+}
+
+function replayLog(recording: GameRecording, turnIndex: number, perspectiveId: string | null): GameEvent[] {
+  return recording.turns.slice(0, Math.max(0, turnIndex + 1)).flatMap((t) => filterEventsFor(t.events, perspectiveId))
+}
+
+export function ReplayGameProvider({ recording, turnIndex, perspectiveId, children }: ReplayGameProviderProps) {
+  const initialView = useMemo(() => replayView(recording, turnIndex, perspectiveId), [recording, turnIndex, perspectiveId])
+  const initialLog = useMemo(() => replayLog(recording, turnIndex, perspectiveId), [recording, turnIndex, perspectiveId])
+  const { view, log, isAnimating, enqueue, reset, registerAnimator } = useViewQueue(initialView, initialLog)
+  const lastRef = useRef<{ turnIndex: number; perspectiveId: string | null; recording: GameRecording }>({
+    turnIndex,
+    perspectiveId,
+    recording,
+  })
+
+  useEffect(() => {
+    const last = lastRef.current
+    lastRef.current = { turnIndex, perspectiveId, recording }
+    if (last.recording === recording && last.perspectiveId === perspectiveId && last.turnIndex === turnIndex) return
+
+    const nextView = replayView(recording, turnIndex, perspectiveId)
+    const stepForward = last.recording === recording && last.perspectiveId === perspectiveId && turnIndex === last.turnIndex + 1
+    if (stepForward) {
+      const events = filterEventsFor(recording.turns[turnIndex]?.events ?? [], perspectiveId)
+      enqueue({ view: nextView, events, animate: true })
+    } else {
+      reset(nextView, replayLog(recording, turnIndex, perspectiveId))
+    }
+  }, [recording, turnIndex, perspectiveId, enqueue, reset])
+
+  const nameOf = useMemo(() => makeNameOf(view), [view])
+  const noop = useCallback(() => {}, [])
+  const asyncNoop = useCallback(async () => {}, [])
+
+  const value = useMemo<GameContextValue>(
+    () => ({
+      gameId: null,
+      view,
+      log,
+      turnErrors: [],
+      clearTurnErrors: noop,
+      isAnimating,
+      readOnly: true,
+      nameOf,
+      submitTurn: noop,
+      submitLoadout: asyncNoop,
+      deploy: asyncNoop,
+      registerAnimator,
+    }),
+    [view, log, isAnimating, nameOf, noop, asyncNoop, registerAnimator],
+  )
+
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>
 }

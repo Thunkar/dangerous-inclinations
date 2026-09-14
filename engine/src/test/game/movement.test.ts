@@ -1,476 +1,368 @@
 import { describe, it, expect } from "vitest";
+import { burnDestinationRing, projectPosition } from "../../game/movement.ts";
+import { executeTurn } from "../../game/turns.ts";
+import { getAdjustmentRange, calculateBurnMassCost } from "../../models/rings.ts";
+import type { ShipLoadout } from "../../models/game.ts";
 import {
-  createTestGameState,
-  INITIAL_RING,
-  INITIAL_REACTION_MASS,
-} from "../fixtures/gameState.ts";
-import {
-  createAllocateEnergyAction,
-  createBurnAction,
-  createCoastAction,
-} from "../fixtures/actions.ts";
-import { executeTurnWithActions } from "../testUtils.ts";
+  ALPHA,
+  BH,
+  burn,
+  coast,
+  eventsOf,
+  eventTypes,
+  executeTurnAs,
+  getShip,
+  getSub,
+  makePlayer,
+  makeGameState,
+  makeTwoPlayerGame,
+  mustExecute,
+  rotate,
+  withPower,
+  withShip,
+  withSub,
+} from "../testUtils.ts";
 
-describe("Multi-Turn Movement", () => {
-  describe("Transfer Completion Across Turns", () => {
-    it("should complete transfer immediately on same turn", () => {
-      let gameState = createTestGameState();
+const COMPRESSOR: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["fuel_compressor", "laser", "shields", "laser"],
+};
 
-      // Turn 1: Player 1 allocates energy and burns to transfer to ring 4
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        2,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "prograde", 0, "player1"); // Soft burn: +1 ring
+function shipAt(
+  wellId: string,
+  ring: number,
+  sector: number,
+  facing: "prograde" | "retrograde" = "prograde"
+) {
+  return makeGameState([
+    makePlayer("p1", { wellId, ring, sector, facing }),
+    makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
+  ]);
+}
 
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
+describe("movement: drift", () => {
+  it.each([
+    [BH, 1, 0, 8],
+    [BH, 2, 0, 6],
+    [BH, 3, 0, 4],
+    [BH, 4, 0, 2],
+    [BH, 5, 0, 1],
+    [ALPHA, 1, 0, 4],
+    [ALPHA, 2, 22, 0],
+    [ALPHA, 3, 23, 0],
+  ])("coasting on %s ring %i from sector %i lands on %i", (wellId, ring, sector, expected) => {
+    const state = mustExecute(shipAt(wellId, ring, sector), coast(1));
+    expect(getShip(state, "p1")).toMatchObject({ wellId, ring, sector: expected });
+  });
 
-      // After turn 1, transfer completes immediately (no transferState)
-      const player1AfterBurn = gameState.players[0];
-      expect(player1AfterBurn.ship.transferState).toBeNull();
-      expect(player1AfterBurn.ship.ring).toBe(4); // Ring 3 + 1 = Ring 4
-      expect(player1AfterBurn.ship.reactionMass).toBe(
-        INITIAL_REACTION_MASS - 1
-      ); // Soft burn costs 1
+  it("a turn without a movement action coasts automatically", () => {
+    const result = executeTurnAs(makeTwoPlayerGame());
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "coasted")).toEqual([
+      expect.objectContaining({
+        playerId: "p1",
+        to: { wellId: BH, ring: 3, sector: 4 },
+        scooped: false,
+      }),
+    ]);
+  });
 
-      // After player 1's turn, it's player 2's turn (activePlayerIndex = 1)
-      expect(gameState.activePlayerIndex).toBe(1);
+  it("drift alone costs no mass and no heat", () => {
+    const state = mustExecute(makeTwoPlayerGame(), coast(1));
+    expect(getShip(state, "p1").reactionMass).toBe(10);
+    expect(getShip(state, "p1").heat.currentHeat).toBe(0);
+  });
+});
 
-      // Player started at sector 0, moved 4 sectors (Ring 3 velocity=4) during orbital movement,
-      // then transferred to Ring 4 (1:1 sector mapping keeps sector at 4)
-      expect(gameState.players[0].ship.sector).toBe(4);
-    });
+describe("movement: action sequencing", () => {
+  it.each([
+    ["two movement actions", [coast(1), burn(2, "soft")]],
+    ["duplicate sequence numbers", [rotate(1, "retrograde"), coast(1)]],
+    ["a gap in the sequence", [rotate(1, "retrograde"), coast(3)]],
+    ["a sequence not starting at 1", [coast(2)]],
+    [
+      "a tactical action without a sequence",
+      [{ type: "coast", data: { activateScoop: false } } as never],
+    ],
+  ])("rejects %s", (_label, actions) => {
+    let state = makeTwoPlayerGame();
+    state = withPower(state, "p1", "engines", 3);
+    state = withPower(state, "p1", "rotation", 1);
+    const result = executeTurnAs(state, ...actions);
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(result.gameState).toBe(state);
+  });
 
-    it("should handle retrograde burn with immediate completion", () => {
-      let gameState = createTestGameState();
-      gameState.players[0].ship.ring = INITIAL_RING;
-      gameState.players[0].ship.facing = "retrograde"; // Already facing retrograde, no rotation needed
+  it("rejects actions that belong to another player", () => {
+    const state = makeTwoPlayerGame();
+    const result = executeTurn(state, [{ ...coast(1), playerId: "p2" }]);
+    expect(result.errors?.[0]).toMatch(/active player/i);
+    expect(result.gameState).toBe(state);
+  });
+});
 
-      // Turn 1: Allocate energy and burn retrograde
-      const allocateAction = createAllocateEnergyAction("engines", 1);
-      const burnAction = createBurnAction("soft", "retrograde", 0);
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
-
-      // Transfer completes immediately (no transferState)
-      expect(gameState.players[0].ship.transferState).toBeNull();
-      expect(gameState.players[0].ship.ring).toBe(2); // Ring 3 - 1 = Ring 2
-
-      // Movement trace:
-      // Start at sector 0, move 4 sectors (Ring 3 velocity=4) → sector 4, then transfer completes to Ring 2 (1:1 mapping keeps sector at 4)
-      expect(gameState.players[0].ship.sector).toBe(4);
-    });
-
-    it("should complete transfer immediately with 1:1 sector mapping", () => {
-      let gameState = createTestGameState();
-
-      // Turn 1: Allocate energy and burn (no sector adjustment in new system)
-      const allocateAction = createAllocateEnergyAction("engines", 1);
-      const burnAction = createBurnAction("soft", "prograde", 0); // No sector adjustment
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
-
-      // Transfer completes immediately with 1:1 sector mapping
-      expect(gameState.players[0].ship.transferState).toBeNull();
-      expect(gameState.players[0].ship.ring).toBe(4); // Ring 3 + 1 = Ring 4
-
-      // Movement trace:
-      // Start at sector 0, move 4 sectors (Ring 3 velocity=4) → sector 4, then transfer completes to Ring 4 (1:1 mapping keeps sector at 4)
-      expect(gameState.players[0].ship.sector).toBe(4);
-    });
-
-    it("should allow coasting without rotation when already facing the desired direction", () => {
-      let gameState = createTestGameState();
-
-      // Ship is already prograde, coast without changing facing
-      const coastAction = createCoastAction("player1");
-
-      const result = executeTurnWithActions(gameState, coastAction);
-      gameState = result.gameState;
-
-      // Should succeed without errors
+describe("movement: burns", () => {
+  it.each([
+    ["soft", "prograde", 4, 1],
+    ["medium", "prograde", 5, 2],
+    ["soft", "retrograde", 2, 1],
+    ["medium", "retrograde", 1, 2],
+  ] as const)(
+    "a %s burn facing %s from BH ring 3 ends on ring %i for %i mass",
+    (intensity, facing, ring, mass) => {
+      const state = withPower(shipAt(BH, 3, 0, facing), "p1", "engines", 3);
+      const result = executeTurnAs(state, burn(1, intensity));
       expect(result.errors).toBeUndefined();
+      const ship = getShip(result.gameState, "p1");
+      expect(ship.ring).toBe(ring);
+      expect(ship.sector).toBe(4); // drift on ring 3 happens before the burn
+      expect(ship.reactionMass).toBe(10 - mass);
+      expect(eventsOf(result.events, "burned")[0]).toMatchObject({
+        intensity,
+        from: { wellId: BH, ring: 3, sector: 0 },
+        to: { wellId: BH, ring, sector: 4 },
+        massSpent: mass,
+        heat: 3,
+      });
+    }
+  );
 
-      // Ship should have moved orbitally
-      // Ring 3 has velocity=4, so moves 4 sectors per turn: 0 + 4 = 4
-      expect(gameState.players[0].ship.sector).toBe(4);
-      expect(gameState.players[0].ship.facing).toBe("prograde"); // Unchanged
-      expect(gameState.players[0].ship.ring).toBe(INITIAL_RING); // Unchanged
+  it.each([
+    ["prograde", 2, 5],
+    ["retrograde", 4, 1],
+  ] as const)("a hard burn facing %s from BH ring %i ends on ring %i", (facing, from, to) => {
+    const state = withPower(shipAt(BH, from, 0, facing), "p1", "engines", 3);
+    const result = executeTurnAs(state, burn(1, "hard"));
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1").ring).toBe(to);
+  });
+
+  it.each([
+    [BH, 5, "prograde", "soft"],
+    [BH, 3, "prograde", "hard"],
+    [BH, 1, "retrograde", "soft"],
+    [BH, 2, "retrograde", "medium"],
+    [ALPHA, 2, "prograde", "hard"],
+    [ALPHA, 2, "retrograde", "medium"],
+  ] as const)(
+    "a burn that would leave the rings is rejected: %s ring %i %s %s",
+    (wellId, ring, facing, intensity) => {
+      const state = withPower(shipAt(wellId, ring, 0, facing), "p1", "engines", 3);
+      const result = executeTurnAs(state, burn(1, intensity));
+      expect(result.errors?.[0]).toMatch(/leave the rings/i);
+      expect(result.gameState).toBe(state);
+    }
+  );
+
+  it("burnDestinationRing still clamps as a safety net", () => {
+    expect(burnDestinationRing({ wellId: BH, ring: 5, facing: "prograde" }, "soft")).toBe(5);
+    expect(burnDestinationRing({ wellId: ALPHA, ring: 2, facing: "prograde" }, "hard")).toBe(3);
+  });
+
+  it("burn heat equals the engines' allocated energy, not the burn cost", () => {
+    const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
+    const result = executeTurnAs(state, burn(1, "soft"));
+    expect(eventsOf(result.events, "burned")[0].heat).toBe(3);
+  });
+
+  it.each([
+    ["engines unpowered", 0, "soft", 10],
+    ["engines below the burn's energy", 1, "medium", 10],
+    ["not enough mass", 3, "hard", 2],
+  ])("rejects a burn with %s", (_label, energy, intensity, mass) => {
+    let state = makeTwoPlayerGame();
+    if (energy > 0) state = withPower(state, "p1", "engines", energy);
+    state = withShip(state, "p1", { reactionMass: mass });
+    const result = executeTurnAs(state, burn(1, intensity as never));
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(getShip(result.gameState, "p1").ring).toBe(3);
+  });
+
+  it("rejects a burn when the engines are broken", () => {
+    const state = withSub(withPower(makeTwoPlayerGame(), "p1", "engines", 3), "p1", "engines", {
+      isBroken: true,
     });
+    expect(executeTurnAs(state, burn(1, "soft")).errors?.[0]).toMatch(/broken/i);
+  });
+});
 
-    it("should allow rotation after movement", () => {
-      let gameState = createTestGameState();
+describe("movement: phasing", () => {
+  it.each([
+    [8, -7, 3],
+    [4, -3, 3],
+    [1, 0, 3],
+  ])("velocity %i allows adjustments from %i to %i", (velocity, min, max) => {
+    const range = getAdjustmentRange(velocity);
+    expect(range.min + 0).toBe(min); // + 0 folds -0 into 0
+    expect(range.max).toBe(max);
+  });
 
-      // Turn 1: Player 1 coasts, then rotates
-      // First allocate energy to rotation subsystem
-      const allocateAction = {
-        playerId: "player1",
-        type: "allocate_energy" as const,
-        data: {
-          subsystemType: "rotation" as const,
-          amount: 1,
-        },
-      };
+  it("each sector of adjustment costs one extra mass", () => {
+    expect(calculateBurnMassCost(1, 3)).toBe(4);
+    expect(calculateBurnMassCost(2, -2)).toBe(4);
+    expect(calculateBurnMassCost(3, 0)).toBe(3);
+  });
 
-      const coastAction = {
-        playerId: "player1",
-        type: "coast" as const,
-        sequence: 1,
-        data: {
-          activateScoop: false,
-        },
-      };
-
-      const rotateAction = {
-        playerId: "player1",
-        type: "rotate" as const,
-        sequence: 2, // After coast
-        data: {
-          targetFacing: "retrograde" as const,
-        },
-      };
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        coastAction,
-        rotateAction
-      );
-      gameState = result.gameState;
-
-      // Should succeed without errors
+  it.each([
+    [3, 7, 5],
+    [-3, 1, 5],
+    [-1, 3, 3],
+  ])(
+    "adjustment %i from BH ring 3 lands on sector %i costing %i mass in total (medium burn)",
+    (adjustment, sector, mass) => {
+      const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
+      const result = executeTurnAs(state, burn(1, "medium", adjustment));
       expect(result.errors).toBeUndefined();
+      expect(getShip(result.gameState, "p1").sector).toBe(sector);
+      expect(getShip(result.gameState, "p1").reactionMass).toBe(10 - mass);
+    }
+  );
 
-      // Ship should have moved orbitally FIRST (prograde direction)
-      // Ring 3 has velocity=4, so moves 4 sectors per turn: 0 + 4 = 4
-      expect(gameState.players[0].ship.sector).toBe(4);
+  it("braking is limited by the ring's velocity", () => {
+    const slow = withPower(shipAt(BH, 5, 0), "p1", "engines", 3);
+    expect(executeTurnAs(slow, burn(1, "soft", -1)).errors?.[0]).toMatch(/out of range/i);
+    const fast = withPower(shipAt(BH, 1, 0), "p1", "engines", 3);
+    expect(executeTurnAs(fast, burn(1, "soft", -8)).errors?.[0]).toMatch(/out of range/i);
+    expect(executeTurnAs(fast, burn(1, "soft", -7)).errors).toBeUndefined();
+    expect(getShip(executeTurnAs(fast, burn(1, "soft", -7)).gameState, "p1").sector).toBe(1);
+  });
 
-      // THEN rotation should have been applied
-      expect(gameState.players[0].ship.facing).toBe("retrograde");
+  it("acceleration is capped at +3", () => {
+    const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
+    expect(executeTurnAs(state, burn(1, "soft", 4)).errors?.[0]).toMatch(/out of range/i);
+  });
 
-      // Ship should still be on same ring (coasted)
-      expect(gameState.players[0].ship.ring).toBe(INITIAL_RING);
+  it("rejects phasing the ship cannot pay for", () => {
+    const state = withShip(withPower(makeTwoPlayerGame(), "p1", "engines", 3), "p1", {
+      reactionMass: 3,
     });
+    expect(executeTurnAs(state, burn(1, "soft", 3)).errors?.[0]).toMatch(/reaction mass/i);
+  });
+});
 
-    it("should allow burn, then rotate, maintaining correct facing order", () => {
-      let gameState = createTestGameState();
+describe("movement: rotation", () => {
+  it("rotating flips the facing, uses the thrusters and heats them", () => {
+    const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
+    const result = executeTurnAs(state, rotate(1, "retrograde"));
+    expect(getShip(result.gameState, "p1").facing).toBe("retrograde");
+    expect(eventsOf(result.events, "rotated")).toEqual([
+      expect.objectContaining({ playerId: "p1", facing: "retrograde" }),
+    ]);
+    // heat 1 is under dissipation, so check it through a second heat source: preset heat 5 + 1 = 6 -> 1 damage
+    const hot = withShip(state, "p1", { heat: { currentHeat: 5 } });
+    expect(getShip(executeTurnAs(hot, rotate(1, "retrograde")).gameState, "p1").hitPoints).toBe(9);
+  });
 
-      // Turn 1: Player 1 allocates energy, burns prograde, then rotates to retrograde
-      const allocateEngines = {
-        playerId: "player1",
-        type: "allocate_energy" as const,
-        data: {
-          subsystemType: "engines" as const,
-          amount: 2,
-        },
-      };
+  it.each([
+    [
+      "already facing that way",
+      (s: ReturnType<typeof makeTwoPlayerGame>) => withPower(s, "p1", "rotation", 1),
+      "prograde",
+    ],
+    ["thrusters unpowered", (s: ReturnType<typeof makeTwoPlayerGame>) => s, "retrograde"],
+    [
+      "thrusters broken",
+      (s: ReturnType<typeof makeTwoPlayerGame>) =>
+        withSub(withPower(s, "p1", "rotation", 1), "p1", "rotation", { isBroken: true }),
+      "retrograde",
+    ],
+  ] as const)("rejects rotating when %s", (_label, setup, facing) => {
+    const result = executeTurnAs(setup(makeTwoPlayerGame()), rotate(1, facing));
+    expect(result.errors?.length).toBeGreaterThan(0);
+  });
 
-      const allocateRotation = {
-        playerId: "player1",
-        type: "allocate_energy" as const,
-        data: {
-          subsystemType: "rotation" as const,
-          amount: 1,
-        },
-      };
+  it("the thrusters work once per turn", () => {
+    const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
+    const result = executeTurnAs(state, rotate(1, "retrograde"), rotate(2, "prograde"));
+    expect(result.errors?.[0]).toMatch(/already used/i);
+  });
 
-      const burnAction = {
-        playerId: "player1",
-        type: "burn" as const,
-        sequence: 1,
-        data: {
-          burnIntensity: "soft" as const,
-          sectorAdjustment: 0,
-        },
-      };
+  it("rotating before a burn changes its direction; rotating after does not", () => {
+    let state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
+    state = withPower(state, "p1", "engines", 3);
+    const before = mustExecute(state, rotate(1, "retrograde"), burn(2, "soft"));
+    expect(getShip(before, "p1")).toMatchObject({ ring: 2, facing: "retrograde" });
+    const after = mustExecute(state, burn(1, "soft"), rotate(2, "retrograde"));
+    expect(getShip(after, "p1")).toMatchObject({ ring: 4, facing: "retrograde" });
+  });
+});
 
-      const rotateAction = {
-        playerId: "player1",
-        type: "rotate" as const,
-        sequence: 2, // After burn
-        data: {
-          targetFacing: "retrograde" as const,
-        },
-      };
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateEngines,
-        allocateRotation,
-        burnAction,
-        rotateAction
-      );
-      gameState = result.gameState;
-
-      // Should succeed without errors
-      expect(result.errors).toBeUndefined();
-
-      // Ship should have burned with PROGRADE facing (sequence 1)
-      // Ring 3 + 1 = Ring 4 (prograde burn)
-      expect(gameState.players[0].ship.ring).toBe(4);
-
-      // THEN rotation should have been applied (sequence 2)
-      expect(gameState.players[0].ship.facing).toBe("retrograde");
-
-      // Note: usedThisTurn flags are reset at end of turn, so we verify rotation worked by checking facing changed
+describe("movement: fuel scoop", () => {
+  it.each([
+    [BH, 1, 2, 10],
+    [BH, 3, 5, 9],
+    [BH, 5, 5, 6],
+    [ALPHA, 1, 0, 4],
+  ])("scooping on %s ring %i from %i mass gives %i", (wellId, ring, mass, expected) => {
+    let state = withPower(shipAt(wellId, ring, 0), "p1", "scoop", 3);
+    state = withShip(state, "p1", { reactionMass: mass });
+    const result = executeTurnAs(state, coast(1, true));
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(expected);
+    expect(eventsOf(result.events, "coasted")[0]).toMatchObject({ scooped: true, heat: 3 });
+    // The exact gain is fuel information: private to the owner.
+    expect(eventsOf(result.events, "fuel_scooped")[0]).toMatchObject({
+      amount: expected - mass,
+      privateTo: ["p1"],
     });
   });
 
-  describe("Sector Adjustment (Phasing Maneuvers)", () => {
-    it("should handle positive sector adjustment (+3) with extra mass cost", () => {
-      let gameState = createTestGameState();
-      // Ring 3 has velocity=4, so can adjust -3 to +3
+  it("a fuel compressor raises the cap to 16", () => {
+    let state = withPower(makeTwoPlayerGame({ ring: 1, loadout: COMPRESSOR }), "p1", "scoop", 3);
+    expect(getShip(state, "p1").reactionMass).toBe(16);
+    state = withShip(state, "p1", { reactionMass: 12 });
+    expect(getShip(mustExecute(state, coast(1, true)), "p1").reactionMass).toBe(16);
+  });
 
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        1,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "prograde", 3, "player1"); // +3 adjustment
+  it.each([
+    ["unpowered", (s: ReturnType<typeof makeTwoPlayerGame>) => s],
+    [
+      "broken",
+      (s: ReturnType<typeof makeTwoPlayerGame>) =>
+        withSub(withPower(s, "p1", "scoop", 3), "p1", "scoop", { isBroken: true }),
+    ],
+  ])("rejects scooping with the scoop %s", (_label, setup) => {
+    const result = executeTurnAs(setup(makeTwoPlayerGame()), coast(1, true));
+    expect(result.errors?.length).toBeGreaterThan(0);
+  });
 
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
+  it("the scoop only runs while coasting, never during a burn", () => {
+    let state = withPower(makeTwoPlayerGame(), "p1", "scoop", 3);
+    state = withPower(state, "p1", "engines", 1);
+    state = withShip(state, "p1", { reactionMass: 5 });
+    const result = executeTurnAs(state, burn(1, "soft"));
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(4);
+    expect(eventTypes(result.events)).not.toContain("coasted");
+    expect(getSub(result.gameState, "p1", "scoop").usedThisTurn).toBe(false);
+  });
+});
 
-      // Soft burn base cost: 1 mass, adjustment cost: 3 mass, total: 4 mass
-      expect(gameState.players[0].ship.reactionMass).toBe(
-        INITIAL_REACTION_MASS - 4
-      );
-      expect(gameState.players[0].ship.ring).toBe(4); // Ring 3 + 1 = Ring 4
-      expect(gameState.players[0].ship.transferState).toBeNull(); // Transfer completes immediately
+describe("movement: projectPosition", () => {
+  const ship = getShip(makeTwoPlayerGame(), "p1"); // BH R3 S0 prograde
+
+  it("projects a coast as pure drift", () => {
+    expect(projectPosition(ship)).toEqual({ wellId: BH, ring: 3, sector: 4, facing: "prograde" });
+  });
+
+  it("projects a burn after drift, honouring a planned rotation", () => {
+    expect(
+      projectPosition(ship, "retrograde", {
+        kind: "burn",
+        burnIntensity: "medium",
+        sectorAdjustment: 1,
+      })
+    ).toEqual({
+      wellId: BH,
+      ring: 1,
+      sector: 5,
+      facing: "retrograde",
     });
+  });
 
-    it("should handle negative sector adjustment (-1) with extra mass cost", () => {
-      let gameState = createTestGameState();
-      // Ring 3 has velocity=4, so can adjust -3 to +3
-
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        1,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "prograde", -1, "player1"); // -1 adjustment
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
-
-      // Soft burn base cost: 1 mass, adjustment cost: 1 mass (absolute value), total: 2 mass
-      expect(gameState.players[0].ship.reactionMass).toBe(
-        INITIAL_REACTION_MASS - 2
-      );
-      expect(gameState.players[0].ship.ring).toBe(4); // Ring 3 + 1 = Ring 4
-    });
-
-    it("should handle zero sector adjustment (perfect Hohmann) with no extra cost", () => {
-      let gameState = createTestGameState();
-
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        1,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "prograde", 0, "player1"); // No adjustment
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
-
-      // Soft burn base cost: 1 mass, no adjustment cost, total: 1 mass
-      expect(gameState.players[0].ship.reactionMass).toBe(
-        INITIAL_REACTION_MASS - 1
-      );
-      expect(gameState.players[0].ship.ring).toBe(4);
-    });
-
-    it("should reject sector adjustment beyond maximum positive range", () => {
-      const gameState = createTestGameState();
-      // Ring 3 has velocity=4, so max adjustment is +3
-
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        1,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "prograde", 4, "player1"); // +4 is out of range
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-
-      // Should have validation error
-      expect(result.errors).toBeDefined();
-      expect(result.errors?.[0]).toContain("Sector adjustment 4 out of range");
-    });
-
-    it("should reject sector adjustment beyond maximum negative range", () => {
-      const gameState = createTestGameState();
-      // Ring 3 has velocity=4, so min adjustment is -3 (velocity - 1)
-
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        1,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "prograde", -4, "player1"); // -4 is out of range
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-
-      // Should have validation error
-      expect(result.errors).toBeDefined();
-      expect(result.errors?.[0]).toContain("Sector adjustment -4 out of range");
-    });
-
-    it("should reject sector adjustment when insufficient reaction mass", () => {
-      const gameState = createTestGameState();
-      gameState.players[0].ship.reactionMass = 3; // Only 3 mass available
-
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        1,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "prograde", 3, "player1"); // Needs 1 base + 3 adjustment = 4 mass
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-
-      // Should have validation error
-      expect(result.errors).toBeDefined();
-      expect(result.errors?.[0]).toContain("Need 4 reaction mass");
-    });
-
-    it("should allow maximum adjustment range for high velocity rings", () => {
-      let gameState = createTestGameState();
-      gameState.players[0].ship.ring = 1; // Ring 1 has velocity=8
-
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        1,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "prograde", -3, "player1"); // velocity 8, can adjust -7 to +3, -3 is valid
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
-
-      // Should succeed
-      expect(result.errors).toBeUndefined();
-      expect(gameState.players[0].ship.reactionMass).toBe(
-        INITIAL_REACTION_MASS - 4
-      ); // 1 base + 3 adjustment
-      expect(gameState.players[0].ship.ring).toBe(2); // Ring 1 + 1 = Ring 2
-    });
-
-    it("should limit negative adjustment for low velocity rings", () => {
-      const gameState = createTestGameState();
-      gameState.players[0].ship.ring = 5; // Ring 5 has velocity=1
-
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        1,
-        "player1"
-      );
-      // velocity 1, can only adjust 0 to +3 (no negative adjustment, must always move at least 1 sector)
-      const burnAction = createBurnAction("soft", "prograde", -1, "player1");
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-
-      // Should have validation error
-      expect(result.errors).toBeDefined();
-      expect(result.errors?.[0]).toContain("Sector adjustment -1 out of range");
-    });
-
-    it("should allow zero adjustment for velocity 1 rings", () => {
-      let gameState = createTestGameState();
-      gameState.players[0].ship.ring = 5; // Ring 5 has velocity=1
-
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        2,
-        "player1"
-      );
-      const burnAction = createBurnAction("soft", "retrograde", 0, "player1");
-
-      gameState.players[0].ship.facing = "retrograde"; // Already facing retrograde
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
-
-      // Should succeed with no adjustment
-      expect(result.errors).toBeUndefined();
-      expect(gameState.players[0].ship.reactionMass).toBe(
-        INITIAL_REACTION_MASS - 1
-      ); // Only base cost
-      expect(gameState.players[0].ship.ring).toBe(4); // Ring 5 - 1 = Ring 4
-    });
-
-    it("should calculate mass cost correctly for different burn intensities with adjustment", () => {
-      let gameState = createTestGameState();
-
-      // Medium burn (2 mass base) + 2 sector adjustment (2 mass) = 4 mass total
-      const allocateAction = createAllocateEnergyAction(
-        "engines",
-        2,
-        "player1"
-      );
-      const burnAction = createBurnAction("medium", "prograde", 2, "player1");
-
-      const result = executeTurnWithActions(
-        gameState,
-        allocateAction,
-        burnAction
-      );
-      gameState = result.gameState;
-
-      expect(gameState.players[0].ship.reactionMass).toBe(
-        INITIAL_REACTION_MASS - 4
-      );
-      expect(gameState.players[0].ship.ring).toBe(5); // Ring 3 + 2 = Ring 5
-    });
+  it("projects a jump straight to the lane's destination without drift", () => {
+    const destination = { wellId: ALPHA, ring: 3, sector: 17 };
+    expect(
+      projectPosition(ship, "prograde", { kind: "jump", jumpDestination: destination })
+    ).toEqual({ ...destination, facing: "prograde" });
   });
 });

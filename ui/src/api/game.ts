@@ -1,65 +1,35 @@
 /**
- * Game API service
- * Handles game state retrieval and turn submission
+ * Game REST endpoints (docs/protocol.md). Every response carries a GameView
+ * computed for the requesting player; the client never sees a GameState.
  */
-
 import { api } from './client'
-import type { GameState, ShipLoadout } from '@dangerous-inclinations/engine'
+import type { ShipLoadout } from '@dangerous-inclinations/engine'
+import type { ForkResponse, GameViewResponse, ViewResponse } from './types'
 
-/**
- * Get game state for an active game
- */
-export async function getGameState(gameId: string): Promise<GameState> {
-  return api.get<GameState>(`/api/games/${gameId}`)
+/** The current view plus the full filtered event history. */
+export async function getGame(gameId: string): Promise<GameViewResponse> {
+  return api.get<GameViewResponse>(`/api/games/${gameId}`)
 }
 
-/**
- * Deploy ship during deployment phase
- */
-export async function deployShip(gameId: string, sector: number): Promise<GameState> {
-  return api.post<GameState>(`/api/games/${gameId}/deploy`, { sector })
+/** Deployment: place your ship and Home marker on a planet's outer ring. */
+export async function deployShip(gameId: string, wellId: string, sector: number): Promise<ViewResponse> {
+  return api.post<ViewResponse>(`/api/games/${gameId}/deploy`, { wellId, sector })
 }
 
-/**
- * Submit ship loadout during loadout phase
- * selectedMissionIds: IDs of the 3 missions chosen from the player's 5 offers
- */
+/** Loadout phase: the ship's tiles and the three missions kept from the five offered. */
 export async function submitLoadout(
   gameId: string,
   loadout: ShipLoadout,
-  selectedMissionIds?: string[]
-): Promise<{ success: boolean; gameState: GameState }> {
-  return api.post<{ success: boolean; gameState: GameState }>(`/api/games/${gameId}/loadout`, { loadout, selectedMissionIds })
+  missionIds: string[],
+): Promise<ViewResponse> {
+  return api.post<ViewResponse>(`/api/games/${gameId}/loadout`, { loadout, missionIds })
 }
 
-/**
- * Rewind a live game to a previous turn snapshot. `turnIndex` is an index
- * into `recording.turns[]`; `-1` means "back to the post-deploy initial
- * state". The server replaces the current game state with the snapshot,
- * truncates the recording, and re-broadcasts so all connected clients
- * see the rewind.
- */
-export async function rewindGame(gameId: string, turnIndex: number): Promise<{ success: boolean; gameState: GameState }> {
-  return api.post<{ success: boolean; gameState: GameState }>(
-    `/api/games/${gameId}/rewind`,
-    { turnIndex },
-  )
-}
-
-/**
- * Fork a recording into a fresh live game. The forking player picks a
- * `turnIndex` and (optionally) which original player to step into. The
- * server creates a new game in Redis with the forked snapshot and
- * returns its gameId. The caller is expected to navigate the user
- * into the new game (e.g. via `?fork=<gameId>`).
- */
+/** Fork a finished recording into a fresh live game. */
 export async function forkRecording(args: {
   recordingId: string
   turnIndex: number
   impersonateOriginalPlayerId?: string
-}): Promise<{ success: boolean; gameId: string; gameState: GameState }> {
-  return api.post<{ success: boolean; gameId: string; gameState: GameState }>(
-    `/api/games/fork`,
-    args,
-  )
+}): Promise<ForkResponse> {
+  return api.post<ForkResponse>('/api/games/fork', args)
 }
