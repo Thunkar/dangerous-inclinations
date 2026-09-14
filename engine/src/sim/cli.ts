@@ -13,6 +13,8 @@
  *   --record      keep recordings and write them to --output/recordings/
  *   --output=DIR  write summary.json (+ recordings) here
  *   --label=STR   label stored in recordings
+ *   --rules=k=v,k=v  rule overrides (see models/rules.ts), e.g. --rules=shieldRefill=on_dock,dockHullRepair=1
+ *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --quiet       no per-game progress
  */
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -21,6 +23,8 @@ import { cpus } from "node:os";
 import { runBatch } from "./batch.ts";
 import { formatFailure } from "./runGame.ts";
 import type { AggregateStats } from "./stats.ts";
+import { parseRuleOverrides } from "../models/rules.ts";
+import type { RuleSet } from "../models/rules.ts";
 
 interface Args {
   games: number;
@@ -32,6 +36,8 @@ interface Args {
   output?: string;
   label?: string;
   quiet: boolean;
+  rules?: Partial<RuleSet>;
+  tiebreak: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -42,10 +48,13 @@ function parseArgs(argv: string[]): Args {
     workers: Math.max(1, cpus().length - 1),
     record: false,
     quiet: false,
+    tiebreak: false,
   };
   for (const raw of argv) {
     if (!raw.startsWith("--")) continue;
-    const [key, value = "true"] = raw.slice(2).split("=");
+    const eq = raw.indexOf("=");
+    const key = eq === -1 ? raw.slice(2) : raw.slice(2, eq);
+    const value = eq === -1 ? "true" : raw.slice(eq + 1);
     const num = () => {
       const n = Number(value);
       if (!Number.isFinite(n)) {
@@ -81,6 +90,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case "quiet":
         args.quiet = value !== "false";
+        break;
+      case "rules":
+        args.rules = parseRuleOverrides(value);
+        break;
+      case "tiebreak":
+        args.tiebreak = value !== "false";
         break;
       default:
         console.warn(`Unknown flag --${key}`);
@@ -121,6 +136,17 @@ function printSummary(a: AggregateStats): void {
     `Scans/game: mean ${a.scansPerGame.mean}; hidden tiles per player at end: mean ${a.hiddenTilesAtEnd.mean} of 5`
   );
   console.log(`Wins by seat: ${JSON.stringify(a.winsByPlayer)}`);
+  const b = a.behaviour;
+  const p = (x: number) => `${Math.round(x * 100)}%`;
+  console.log(
+    `Turns: coast ${p(b.coastShare)}, burn ${p(b.burnShare)}, jump ${p(b.jumpShare)}, scoop ${p(b.scoopShare)}, firing ${p(b.firingShare)}, lost ${p(b.lostTurnShare)}`
+  );
+  console.log(
+    `Shields: mean ${b.meanShieldCubes} cubes, full(4) ${p(b.shieldsFullShare)} of turns, powered ${p(b.shieldsPoweredShare)}; damage soaked ${p(b.absorbedShare)}`
+  );
+  console.log(
+    `Heat at check: mean ${b.meanHeatAtCheck}; turns taking heat damage ${p(b.heatDamageShare)}`
+  );
   const loadouts = Object.entries(a.loadoutWins)
     .sort((x, y) => y[1].games - x[1].games)
     .slice(0, 8);
@@ -131,7 +157,7 @@ function printSummary(a: AggregateStats): void {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   console.log(
-    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)...`
+    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.rules ? `, rules ${JSON.stringify(args.rules)}` : ""}${args.tiebreak ? ", tiebreak" : ""}...`
   );
   const start = Date.now();
 
@@ -143,6 +169,8 @@ async function main(): Promise<void> {
     workers: args.workers,
     record: args.record,
     label: args.label,
+    rules: args.rules,
+    tiebreak: args.tiebreak,
     onProgress: args.quiet
       ? undefined
       : (done, total, last) => {

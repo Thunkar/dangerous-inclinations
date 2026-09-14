@@ -12,6 +12,8 @@
  */
 import type { PlayerAction, ShipLoadout } from "../models/game.ts";
 import type { Mission } from "../models/missions.ts";
+import type { RuleSet } from "../models/rules.ts";
+import { resolveRules } from "../models/rules.ts";
 import type { GameView } from "../game/view.ts";
 import type {
   BotDecision,
@@ -64,9 +66,13 @@ export function botDecideActions(
  */
 export function botChooseLoadout(
   offers: Mission[],
-  context: { playerCount: number }
+  context: { playerCount: number; rules?: Partial<RuleSet> }
 ): { missionIds: string[]; loadout: ShipLoadout } {
-  const missions = selectBotMissions(offers, context.playerCount);
+  const missions = selectBotMissions(
+    offers,
+    context.playerCount,
+    resolveRules(context.rules).destroyPoints
+  );
   return { missionIds: missions.map((m) => m.id), loadout: selectBotLoadout(missions) };
 }
 

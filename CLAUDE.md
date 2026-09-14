@@ -39,8 +39,8 @@ Data flow: `UI → WebSocket → server → engine → new state → viewFor →
 ## Game summary
 
 2–4 players. Ships orbit a black hole (5 rings) and three planets (3 rings
-each); every ring has 24 sectors. Ships deploy on a planet's ring 3 (their
-Home). Transfer lanes (4-sector two-way arcs) connect black hole ring 5 with
+each); every ring has 24 sectors. Everyone deploys on black hole ring 4; that
+sector is their Home (destroyed ships respawn there and lose two turns). Transfer lanes (4-sector two-way arcs) connect black hole ring 5 with
 each planet's ring 3. Stations orbit planet ring 1 and are where cargo is
 loaded, ships are repaired and data is delivered.
 

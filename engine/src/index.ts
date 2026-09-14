@@ -5,6 +5,7 @@ export * from "./models/missions.ts";
 export * from "./models/events.ts";
 export * from "./models/weapons.ts";
 export * from "./models/rings.ts";
+export * from "./models/rules.ts";
 export * from "./models/gravityWells.ts";
 
 // Game logic

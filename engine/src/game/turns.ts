@@ -53,6 +53,15 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     return finish(gameState, state, events, turn);
   }
 
+  // A respawned ship sits out the turn after its return; submitted actions are ignored.
+  if (active.skipTurns > 0) {
+    const players = [...state.players];
+    players[activeIndex] = { ...active, skipTurns: active.skipTurns - 1 };
+    state = { ...state, players };
+    events.push({ type: "turn_skipped", playerId: active.id, remaining: active.skipTurns - 1 });
+    return finish(gameState, state, events, turn);
+  }
+
   if (actions.some((a) => a.playerId !== active.id)) {
     return { gameState, events: [], errors: ["All actions must belong to the active player"] };
   }
@@ -69,7 +78,6 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   state = missiles.state;
   events.push(...missiles.events);
   state = applyDestructions(state, missiles.events, events);
-
 
   const docking = processDocking(state, activeIndex);
   state = docking.state;

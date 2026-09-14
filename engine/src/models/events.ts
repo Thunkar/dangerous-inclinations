@@ -150,6 +150,14 @@ export type GameEvent =
       damage: number;
     })
   | (Base & {
+      type: "heat_check";
+      playerId: string;
+      heat: number;
+      dissipation: number;
+      damage: number;
+    })
+  | (Base & { type: "turn_skipped"; playerId: string; remaining: number })
+  | (Base & {
       type: "scanned";
       scannerId: string;
       targetId: string;

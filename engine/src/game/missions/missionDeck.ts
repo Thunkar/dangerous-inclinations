@@ -11,6 +11,8 @@ import type { Cargo, Mission } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER, MISSION_OFFERS_PER_PLAYER } from "../../models/missions.ts";
 import { PLANETS } from "../../models/gravityWells.ts";
 import type { Rng } from "../../utils/rng.ts";
+import type { RuleSet } from "../../models/rules.ts";
+import { DEFAULT_RULES } from "../../models/rules.ts";
 
 export const SURVEY_CARDS_PER_DECK = 2;
 
@@ -27,7 +29,8 @@ export type MissionBlueprint = {
  */
 export function buildMissionDeck(
   opponents: ReadonlyArray<Pick<Player, "id">>,
-  planetIds: readonly string[]
+  planetIds: readonly string[],
+  routes: Array<[string, string]> = allRoutes(planetIds)
 ): MissionBlueprint[] {
   const deck: MissionBlueprint[] = [];
 
@@ -41,22 +44,26 @@ export function buildMissionDeck(
       dataCargoId: "",
     });
   }
-  for (const pickup of planetIds) {
-    for (const delivery of planetIds) {
-      if (pickup === delivery) continue;
-      deck.push({
-        type: "deliver_cargo",
-        isCompleted: false,
-        pickupPlanetId: pickup,
-        deliveryPlanetId: delivery,
-        cargoId: "",
-      });
-    }
+  for (const [pickup, delivery] of routes) {
+    deck.push({
+      type: "deliver_cargo",
+      isCompleted: false,
+      pickupPlanetId: pickup,
+      deliveryPlanetId: delivery,
+      cargoId: "",
+    });
   }
   for (let i = 0; i < SURVEY_CARDS_PER_DECK; i++)
     deck.push({ type: "survey", isCompleted: false, surveyAcquired: false, dataCargoId: "" });
 
   return deck;
+}
+
+/** Every ordered pair of distinct planets. */
+export function allRoutes(planetIds: readonly string[]): Array<[string, string]> {
+  const routes: Array<[string, string]> = [];
+  for (const a of planetIds) for (const b of planetIds) if (a !== b) routes.push([a, b]);
+  return routes;
 }
 
 /** Give a shuffled card its (opaque) id and derived token ids. */
@@ -80,13 +87,18 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
 export function dealMissionOffers(
   players: ReadonlyArray<Pick<Player, "id">>,
   rng: Rng,
-  planetIds: readonly string[] = PLANETS.map((p) => p.id)
+  planetIds: readonly string[] = PLANETS.map((p) => p.id),
+  rules: RuleSet = DEFAULT_RULES
 ): Map<string, Mission[]> {
   const offers = new Map<string, Mission[]>();
   let next = 0;
   for (const player of players) {
     const opponents = players.filter((p) => p.id !== player.id);
-    const shuffled = rng.shuffle(buildMissionDeck(opponents, planetIds));
+    // Rule knob: deal only some of the six routes (a seeded subset per player).
+    const routes = rng
+      .shuffle(allRoutes(planetIds))
+      .slice(0, Math.max(0, Math.min(6, rules.deliverRoutesDealt)));
+    const shuffled = rng.shuffle(buildMissionDeck(opponents, planetIds, routes));
     const deck = shuffled.map((card) => assignMissionId(card, `m${next++}`));
     offers.set(player.id, deck.slice(0, MISSION_OFFERS_PER_PLAYER));
   }

@@ -22,7 +22,8 @@ export const LoadoutSubmissionSchema = z
 
 export const DeploySchema = z
   .object({
-    wellId: z.string().min(1),
+    /** Ignored: deployment is always on the black hole's home ring. Kept so older clients don't 400. */
+    wellId: z.string().optional(),
     sector: z.number().int().finite().min(0).max(SECTORS_PER_RING - 1),
   })
   .strict();

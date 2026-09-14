@@ -54,7 +54,7 @@ export interface GameContextValue {
   nameOf: (playerId: string) => string
   submitTurn: (actions: PlayerAction[]) => void
   submitLoadout: (loadout: ShipLoadout, missionIds: string[]) => Promise<void>
-  deploy: (wellId: string, sector: number) => Promise<void>
+  deploy: (sector: number) => Promise<void>
   registerAnimator: (animator: Animator | null) => void
 }
 
@@ -251,8 +251,8 @@ function LiveGameProvider({ gameId, initialView, initialEvents, children }: Live
   )
 
   const deploy = useCallback(
-    async (wellId: string, sector: number) => {
-      const result = await deployShipAPI(gameId, wellId, sector)
+    async (sector: number) => {
+      const result = await deployShipAPI(gameId, sector)
       enqueue({ view: result.view, events: [], animate: false })
     },
     [gameId, enqueue],

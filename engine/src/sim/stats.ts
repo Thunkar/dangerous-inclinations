@@ -33,8 +33,30 @@ export interface PerPlayerStats {
   loadout: string;
 }
 
+export interface TurnBehaviour {
+  /** Share of acting turns (not lost to respawn/recovery) that were a plain coast. */
+  coastShare: number;
+  burnShare: number;
+  jumpShare: number;
+  scoopShare: number;
+  /** Share of acting turns with at least one shot fired. */
+  firingShare: number;
+  meanShieldCubes: number;
+  /** Share of acting turns ending with 4 cubes on shields. */
+  shieldsFullShare: number;
+  shieldsPoweredShare: number;
+  meanHeatAtCheck: number;
+  /** Share of acting turns whose heat check dealt damage. */
+  heatDamageShare: number;
+  /** Share of weapon damage soaked by shields (toHeat / (toHeat + toHull)). */
+  absorbedShare: number;
+  /** Share of all player-turns lost to respawn or recovery. */
+  lostTurnShare: number;
+}
+
 export interface PerGameStats {
   seed: number;
+  behaviour: TurnBehaviour;
   playerCount: number;
   playerTurns: number;
   rounds: number;
@@ -104,8 +126,42 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
     ? final.players.find((p) => p.id === run.finalState.winnerId)
     : undefined;
 
+  let absorbed = 0;
+  let hull = 0;
+  for (const turn of run.turns) {
+    for (const e of turn.events) {
+      if (e.type === "attack_resolved") {
+        absorbed += e.toHeat;
+        hull += e.toHull;
+      }
+    }
+  }
+  const acting = run.turnStats.filter((t) => !t.lost);
+  const share = (pred: (t: (typeof acting)[number]) => boolean) =>
+    acting.length === 0 ? 0 : acting.filter(pred).length / acting.length;
+  const mean = (f: (t: (typeof acting)[number]) => number) =>
+    acting.length === 0 ? 0 : acting.reduce((s, t) => s + f(t), 0) / acting.length;
+  const behaviour: TurnBehaviour = {
+    coastShare: share((t) => t.coasted && !t.burned && !t.jumped),
+    burnShare: share((t) => t.burned),
+    jumpShare: share((t) => t.jumped),
+    scoopShare: share((t) => t.scooped),
+    firingShare: share((t) => t.shotsFired > 0),
+    meanShieldCubes: mean((t) => t.shieldCubes),
+    shieldsFullShare: share((t) => t.shieldCubes >= 4),
+    shieldsPoweredShare: share((t) => t.shieldCubes > 0),
+    meanHeatAtCheck: mean((t) => t.heatAtCheck),
+    heatDamageShare: share((t) => t.heatDamage > 0),
+    absorbedShare: absorbed + hull === 0 ? 0 : absorbed / (absorbed + hull),
+    lostTurnShare:
+      run.turnStats.length === 0
+        ? 0
+        : run.turnStats.filter((t) => t.lost).length / run.turnStats.length,
+  };
+
   return {
     seed: run.seed,
+    behaviour,
     playerCount: final.players.length,
     playerTurns: run.turnsPlayed,
     rounds: Math.ceil(run.turnsPlayed / final.players.length),
@@ -219,6 +275,8 @@ export interface AggregateStats {
   hiddenTilesAtEnd: Distribution;
   scansPerGame: Distribution;
   loadoutWins: Record<string, { games: number; wins: number }>;
+  /** Mean of each behaviour share over the games. */
+  behaviour: TurnBehaviour;
 }
 
 export function aggregateStats(games: PerGameStats[]): AggregateStats {
@@ -254,8 +312,20 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     scans.push(gameScans);
   }
 
+  const meanOf = (key: keyof TurnBehaviour) =>
+    games.length === 0
+      ? 0
+      : Math.round((games.reduce((s, g) => s + g.behaviour[key], 0) / games.length) * 1000) / 1000;
+  const behaviour = Object.fromEntries(
+    (Object.keys(games[0]?.behaviour ?? {}) as Array<keyof TurnBehaviour>).map((k) => [
+      k,
+      meanOf(k),
+    ])
+  ) as unknown as TurnBehaviour;
+
   return {
     gameCount: games.length,
+    behaviour,
     endReasons,
     rounds: distribution(games.map((g) => g.rounds)),
     playerTurns: distribution(games.map((g) => g.playerTurns)),

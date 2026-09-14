@@ -6,6 +6,7 @@ import type {
   HeatState,
 } from "./subsystems.ts";
 import type { Mission, Cargo } from "./missions.ts";
+import type { RuleSet } from "./rules.ts";
 
 /**
  * Ship loadout: one forward slot and four side slots.
@@ -114,7 +115,6 @@ export interface Missile {
   launchedAfterMove: boolean;
 }
 
-
 export interface ShipState {
   wellId: GravityWellId;
   ring: number;
@@ -126,6 +126,8 @@ export interface ShipState {
   subsystems: Subsystem[];
   reactor: ReactorState;
   heat: HeatState;
+  /** Shield cubes spent absorbing damage that only return to the reactor on docking (rule knob). */
+  spentEnergy: number;
   loadout: ShipLoadout;
 }
 
@@ -234,6 +236,8 @@ export interface Player {
   hasSubmittedLoadout: boolean;
   /** Where the ship deployed; destroyed ships return here. */
   home: Position | null;
+  /** Turns still to sit out after respawning (a destroyed ship loses the respawn turn and the next). */
+  skipTurns: number;
   /**
    * Face-down slots of other players this player has seen through scans.
    * Private knowledge; the table only sees face-up tiles.
@@ -263,6 +267,8 @@ export interface GameState {
   stations: Station[];
   phase: GamePhase;
   winnerId?: string;
+  /** Rule overrides for this game (see models/rules.ts); absent = RULES.md defaults. */
+  rules?: Partial<RuleSet>;
   // Determinism
   rngSeed: number;
   rngState: number;

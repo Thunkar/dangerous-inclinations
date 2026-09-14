@@ -220,6 +220,7 @@ describe("heat: radiators", () => {
     expect(result.ship.hitPoints).toBe(7);
     expect(result.ship.heat.currentHeat).toBe(0);
     expect(result.events).toEqual([
+      { type: "heat_check", playerId: "p1", heat: 8, dissipation: 5, damage: 3 },
       { type: "heat_damage", playerId: "p1", heat: 8, dissipation: 5, damage: 3 },
     ]);
   });

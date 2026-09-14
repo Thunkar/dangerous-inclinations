@@ -21,6 +21,8 @@ import {
   isDestroyed,
 } from "./ship.ts";
 import { completedMissions } from "./missions/missionChecks.ts";
+import type { RuleSet } from "../models/rules.ts";
+import { resolveRules } from "../models/rules.ts";
 
 export interface PublicShipView {
   wellId: string;
@@ -32,6 +34,8 @@ export interface PublicShipView {
   heat: number;
   /** Energy not routed to any tile (public: 10 minus the cubes on the mat). */
   reactorAvailable: number;
+  /** Shield cubes spent until the next dock (rule knob; 0 under default rules). */
+  spentEnergy: number;
   isDestroyed: boolean;
 }
 
@@ -64,6 +68,8 @@ export interface PlayerView {
   hasSubmittedLoadout: boolean;
   hasDeployed: boolean;
   home: Position | null;
+  /** Turns this player still has to sit out after respawning. */
+  skipTurns: number;
   ship: PublicShipView | null;
   fixed: FixedSystemView[];
   slots: SlotView[];
@@ -90,6 +96,8 @@ export interface GameView {
   stations: Station[];
   missiles: Missile[];
   winnerId?: string;
+  /** Rules in force for this game (public). */
+  rules: RuleSet;
   /** The viewer's full player record, or null for a spectator. */
   me: Player | null;
   myStats: OwnShipStats | null;
@@ -107,6 +115,7 @@ function shipView(player: Player): PublicShipView | null {
     maxHitPoints: s.maxHitPoints,
     heat: s.heat.currentHeat,
     reactorAvailable: s.reactor.availableEnergy,
+    spentEnergy: s.spentEnergy,
     isDestroyed: isDestroyed(s),
   };
 }
@@ -146,6 +155,7 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     hasSubmittedLoadout: player.hasSubmittedLoadout,
     hasDeployed: player.hasDeployed,
     home: player.home,
+    skipTurns: player.skipTurns,
     ship: shipView(player),
     fixed: player.ship.subsystems
       .filter((s) => s.slotGroup === undefined)
@@ -177,6 +187,7 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     stations: state.stations,
     missiles: state.missiles,
     winnerId: state.winnerId,
+    rules: resolveRules(state.rules),
     me,
     myStats: me
       ? {

@@ -5,10 +5,12 @@
  *
  * Setup uses exactly the engine functions the server uses (createGame,
  * submitLoadout, deployShip), and bots decide from `viewFor`, so sim results
- * describe the same game humans play.
+ * describe the same game humans play. Rule overrides (models/rules.ts) let
+ * experiments measure a change before it is adopted.
  */
 import type { GameState, PlayerAction } from "../models/game.ts";
 import type { GameEvent } from "../models/events.ts";
+import type { RuleSet } from "../models/rules.ts";
 import type { GameRecording, RecordedTurn, RecordingMetadata } from "../recording/types.ts";
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
@@ -16,6 +18,7 @@ import { createGame, submitLoadout } from "../game/setup.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
 import { viewFor } from "../game/view.ts";
+import { getDissipationCapacity, isDestroyed } from "../game/ship.ts";
 import { pickIndex, freshSeed } from "../utils/rng.ts";
 import { botChooseDeployment, botChooseLoadout, botDecideActions } from "../ai/index.ts";
 
@@ -28,6 +31,30 @@ export interface GameConfig {
   /** Keep a full recording (snapshots per turn). Default true. */
   record?: boolean;
   label?: string;
+  /** Rule overrides for this game (experiments). */
+  rules?: Partial<RuleSet>;
+  /** At the turn cap, declare the player with most completed missions (then most hull) the winner. */
+  tiebreak?: boolean;
+}
+
+/** What the active player did on one turn, for balance stats. */
+export interface TurnStat {
+  turn: number;
+  playerId: string;
+  coasted: boolean;
+  burned: boolean;
+  jumped: boolean;
+  scooped: boolean;
+  shotsFired: number;
+  /** Cubes on shields at the end of the turn (after any refunds). */
+  shieldCubes: number;
+  /** Spent shield cubes waiting for a dock (rule knob). */
+  spentCubes: number;
+  heatAtCheck: number;
+  dissipation: number;
+  heatDamage: number;
+  /** The turn was a respawn or recovery turn, or the ship is destroyed. */
+  lost: boolean;
 }
 
 export interface InvalidTurn {
@@ -50,6 +77,8 @@ export interface GameRunResult {
     actions: PlayerAction[];
     events: GameEvent[];
   }>;
+  /** One entry per player-turn. */
+  turnStats: TurnStat[];
   recording?: GameRecording;
   failure?: InvalidTurn;
 }
@@ -65,14 +94,15 @@ export function botIds(count: number): string[] {
  * Create a game with `botCount` bots, run loadout and deployment through the
  * AI, and return the state in the active phase.
  */
-export function setupBotGame(seed: number, botCount: number): GameState {
+export function setupBotGame(seed: number, botCount: number, rules?: Partial<RuleSet>): GameState {
   let state = createGame(
     botIds(botCount).map((id, i) => ({ id, name: `Bot ${i + 1}` })),
-    seed
+    seed,
+    rules
   );
 
   for (const player of state.players) {
-    const choice = botChooseLoadout(player.missionOffers, { playerCount: botCount });
+    const choice = botChooseLoadout(player.missionOffers, { playerCount: botCount, rules });
     const result = submitLoadout(state, player.id, {
       loadout: choice.loadout,
       missionIds: choice.missionIds,
@@ -86,7 +116,7 @@ export function setupBotGame(seed: number, botCount: number): GameState {
     const view = viewFor(state, active.id);
     const pick = (n: number) => pickIndex(state, Array.from({ length: n }));
     const choice = botChooseDeployment(view, pick);
-    const result = deployShip(state, active.id, choice.wellId, choice.sector);
+    const result = deployShip(state, active.id, choice.sector);
     if (!result.success) throw new Error(`Bot ${active.id} deployment rejected: ${result.error}`);
     state = transitionToActivePhase(result.state);
   }
@@ -100,9 +130,10 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
   const record = config.record ?? true;
 
-  const initialState = setupBotGame(seed, botCount);
+  const initialState = setupBotGame(seed, botCount, config.rules);
   let state = initialState;
   const turns: GameRunResult["turns"] = [];
+  const turnStats: TurnStat[] = [];
   const recorded: RecordedTurn[] = [];
   let endReason: RecordingMetadata["endReason"] = "max_turns";
   let failure: InvalidTurn | undefined;
@@ -131,6 +162,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
 
     state = result.gameState;
     turns.push({ turnNumber, playerId: active.id, actions, events: result.events });
+    turnStats.push(turnStat(turnNumber, active.id, result.events, state));
     if (record) {
       recorded.push({
         turnNumber,
@@ -144,6 +176,15 @@ export function runGame(config: GameConfig = {}): GameRunResult {
       endReason = "victory";
       break;
     }
+  }
+
+  if (endReason === "max_turns" && config.tiebreak) {
+    const ranked = [...state.players].sort(
+      (a, b) =>
+        b.completedMissionCount - a.completedMissionCount || b.ship.hitPoints - a.ship.hitPoints
+    );
+    state = { ...state, phase: "ended", winnerId: ranked[0].id };
+    endReason = "tiebreak";
   }
 
   const metadata: RecordingMetadata = {
@@ -174,8 +215,34 @@ export function runGame(config: GameConfig = {}): GameRunResult {
     turnsPlayed: turns.length,
     endReason,
     turns,
+    turnStats,
     recording,
     failure,
+  };
+}
+
+function turnStat(turn: number, playerId: string, events: GameEvent[], after: GameState): TurnStat {
+  const player = after.players.find((p) => p.id === playerId)!;
+  const shields = player.ship.subsystems.filter((s) => s.type === "shields");
+  const check = events.find((e) => e.type === "heat_check" && e.playerId === playerId);
+  const heat = check && check.type === "heat_check" ? check : null;
+  return {
+    turn,
+    playerId,
+    coasted: events.some((e) => e.type === "coasted" && e.playerId === playerId),
+    burned: events.some((e) => e.type === "burned" && e.playerId === playerId),
+    jumped: events.some((e) => e.type === "jumped" && e.playerId === playerId),
+    scooped: events.some((e) => e.type === "coasted" && e.playerId === playerId && e.scooped),
+    shotsFired: events.filter((e) => e.type === "weapon_fired" && e.attackerId === playerId).length,
+    shieldCubes: shields.reduce((sum, s) => sum + s.allocatedEnergy, 0),
+    spentCubes: player.ship.spentEnergy,
+    heatAtCheck: heat ? heat.heat : 0,
+    dissipation: heat ? heat.dissipation : getDissipationCapacity(player.ship.subsystems),
+    heatDamage: heat ? heat.damage : 0,
+    lost:
+      events.some(
+        (e) => (e.type === "respawned" || e.type === "turn_skipped") && e.playerId === playerId
+      ) || isDestroyed(player.ship),
   };
 }
 

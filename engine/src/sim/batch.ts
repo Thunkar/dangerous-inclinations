@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { GameRecording } from "../recording/types.ts";
 import { runGame, type GameRunResult, type InvalidTurn } from "./runGame.ts";
 import { freshSeed } from "../utils/rng.ts";
+import type { RuleSet } from "../models/rules.ts";
 import {
   computePerGameStats,
   aggregateStats,
@@ -24,6 +25,8 @@ export interface BatchConfig {
   /** Keep recordings (memory heavy). Default false in batches. */
   record?: boolean;
   label?: string;
+  rules?: Partial<RuleSet>;
+  tiebreak?: boolean;
   onProgress?: (done: number, total: number, last: PerGameStats) => void;
 }
 
@@ -41,6 +44,8 @@ export interface WorkerJob {
   maxTurns: number;
   record: boolean;
   label?: string;
+  rules?: Partial<RuleSet>;
+  tiebreak?: boolean;
 }
 export interface WorkerReply {
   seed: number;
@@ -65,6 +70,8 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
     maxTurns: config.maxTurns ?? 200,
     record: config.record ?? false,
     label: config.label,
+    rules: config.rules,
+    tiebreak: config.tiebreak,
   }));
 
   const replies =

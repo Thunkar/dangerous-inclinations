@@ -13,6 +13,8 @@ import { BASE_CRITICAL_CHANCE } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
+import type { RuleSet } from "../models/rules.ts";
+import { DEFAULT_RULES } from "../models/rules.ts";
 import {
   addHeat,
   breakSubsystem,
@@ -50,7 +52,8 @@ export function resolveAttack(
   criticalTarget: SubsystemId,
   roll: number,
   attacker: ShipState,
-  attackerPlayerId?: string
+  attackerPlayerId?: string,
+  rules: RuleSet = DEFAULT_RULES
 ): AttackOutcome {
   const critChance = getEffectiveCriticalChance(attacker.subsystems);
   const result = rollToResult(roll, critChance);
@@ -84,13 +87,21 @@ export function resolveAttack(
     const take = Math.min(remainingDamage, shield.allocatedEnergy);
     if (take <= 0) continue;
     const left = shield.allocatedEnergy - take;
-    ship = {
-      ...ship,
-      reactor: {
-        ...ship.reactor,
-        availableEnergy: Math.min(ship.reactor.totalCapacity, ship.reactor.availableEnergy + take),
-      },
-    };
+    if (rules.shieldRefill === "on_dock") {
+      // Spent cubes sit out until the ship docks.
+      ship = { ...ship, spentEnergy: ship.spentEnergy + take };
+    } else {
+      ship = {
+        ...ship,
+        reactor: {
+          ...ship.reactor,
+          availableEnergy: Math.min(
+            ship.reactor.totalCapacity,
+            ship.reactor.availableEnergy + take
+          ),
+        },
+      };
+    }
     ship = updateSubsystem(ship, shield.id, { allocatedEnergy: left, isPowered: left > 0 });
     ship = addHeat(ship, take);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
@@ -104,13 +115,15 @@ export function resolveAttack(
   ship = { ...ship, hitPoints: Math.max(0, ship.hitPoints - toHull) };
 
   let criticalEffect: WeaponHitResult["criticalEffect"];
-  if (result === "critical" && toHull > 0) {
+  if (result === "critical" && (toHull > 0 || rules.criticalThroughShields)) {
     const sub = findSubsystem(ship, criticalTarget);
     if (sub && !sub.isBroken) {
       const broken = breakSubsystem(ship, targetPlayerId, criticalTarget);
       ship = broken.ship;
       events.push(
-        ...broken.events.map((e) => (e.type === "subsystem_broken" ? { ...e, by: attackerPlayerId } : e))
+        ...broken.events.map((e) =>
+          e.type === "subsystem_broken" ? { ...e, by: attackerPlayerId } : e
+        )
       );
       criticalEffect = {
         subsystemId: criticalTarget,

@@ -57,14 +57,14 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return reply.send({ view: result.view });
   });
 
-  // Deployment phase: place the ship (and Home) on a planet's outer ring.
+  // Deployment phase: place the ship (and Home) on Black Hole Ring 4.
   fastify.post<GameRequest>("/api/games/:gameId/deploy", async (request, reply) => {
     const member = await requireMember(request, reply);
     if (!member) return;
     const body = DeploySchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Invalid request", details: body.error.errors });
 
-    const result = await gameService.deploy(member.gameId, member.playerId, body.data.wellId, body.data.sector);
+    const result = await gameService.deploy(member.gameId, member.playerId, body.data.sector);
     if (!result.ok) return reply.code(400).send({ error: result.error });
     return reply.send({ view: result.view });
   });

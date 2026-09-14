@@ -270,7 +270,8 @@ export function buildCandidate(
     status.shields,
     status.racks.filter((r) => !shots.some((s) => s.intent.weapon.id === r.id)),
     enemiesNear || situation.incomingMissiles > 0,
-    situation.incomingMissiles > 0
+    situation.incomingMissiles > 0,
+    situation.view.rules.shieldMaxEnergy
   );
 
   // Assemble.

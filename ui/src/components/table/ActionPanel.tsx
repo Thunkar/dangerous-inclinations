@@ -57,18 +57,23 @@ export function ActionPanel() {
   const me = plan.me
 
   const destroyed = me.ship.hitPoints <= 0
+  /** The turn after the respawn turn: the ship is back, the crew is not. */
+  const recovering = !destroyed && me.skipTurns > 0
   const waiting = !plan.isMyTurn
   const disabled = waiting || isAnimating || readOnly
+  /** A turn you hold but cannot play: respawning, or recovering from it. */
+  const sittingOut = (destroyed || recovering) && !waiting && !readOnly && view.phase !== 'ended'
 
   const winner = view.players.find((p) => p.id === view.winnerId)?.name
   const active = view.players.find((p) => p.id === view.activePlayerId)
 
   // Whatever state the table is in, your own tracks stay at the top of the
   // column: hull, heat and fuel are never something to go looking for.
-  if (view.phase === 'ended' || readOnly || waiting || destroyed) {
-    const title = view.phase === 'ended' ? 'Game over' : readOnly ? 'Watching' : destroyed ? 'Your turn' : 'The table'
+  if (view.phase === 'ended' || readOnly || waiting || destroyed || recovering) {
+    const title =
+      view.phase === 'ended' ? 'Game over' : readOnly ? 'Watching' : sittingOut ? 'Your turn' : 'The table'
     return (
-      <TurnShell title={title} accent={destroyed ? TABLE.danger : undefined}>
+      <TurnShell title={title} accent={sittingOut ? TABLE.danger : undefined}>
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pt: 0.75 }}>
           <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
             {view.phase === 'ended'
@@ -77,14 +82,18 @@ export function ActionPanel() {
                 : 'The game has ended.'
               : readOnly
                 ? `You are looking at this table from ${me.name}'s seat. Nothing here can be played.`
-                : destroyed
+                : sittingOut && destroyed
                   ? 'Your ship is lost — you return to Home this turn. Full hull, full fuel, no cubes allocated. You do nothing else.'
-                  : isAnimating
-                    ? 'Watching the turn play out…'
-                    : `Waiting for ${active?.name ?? 'the next player'} to act.`}
+                  : sittingOut
+                    ? `Your ship is recovering — this turn is lost. The crew puts the ship back together at Home; you act again ${
+                        me.skipTurns > 1 ? `in ${me.skipTurns} turns` : 'next turn'
+                      }.`
+                    : isAnimating
+                      ? 'Watching the turn play out…'
+                      : `Waiting for ${active?.name ?? 'the next player'} to act.`}
           </Typography>
         </Box>
-        {destroyed && view.phase !== 'ended' && !readOnly && (
+        {sittingOut && (
           <Box sx={{ flexShrink: 0, pt: 0.75 }}>
             <Button
               fullWidth

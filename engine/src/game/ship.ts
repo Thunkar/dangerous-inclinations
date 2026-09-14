@@ -35,6 +35,7 @@ export function createInitialShipState(
     subsystems: createSubsystemsFromLoadout(loadout),
     reactor: { totalCapacity: REACTOR_CAPACITY, availableEnergy: REACTOR_CAPACITY },
     heat: { currentHeat: 0 },
+    spentEnergy: 0,
     loadout,
     ...overrides,
   };

@@ -1,23 +1,20 @@
 /**
- * Deployment: choose a planet and a free sector on its outer ring. That
- * sector becomes Home.
+ * Deployment: everyone starts on Black Hole Ring 4. Choose a free sector;
+ * it becomes Home.
  *
- * Planet, in order:
- *
- *   1. the pickup planet of a Deliver card — a haul is a fixed route and
- *      starting on it saves the longest leg of it;
- *   2. the planet where a Destroy or Intercept target has already deployed
- *      (positions and Home markers are public) — a hunt that starts 120°
- *      away is a hunt that never happens;
- *   3. otherwise the planet with the fewest ships, to spread out.
- *
- * Ties at every level are broken by the game's seeded RNG through `pick`.
- * Sector: a free sector inside a transfer lane when one is available (a
- * jump is then possible on turn one), else any free sector; that choice
- * goes through `pick` as well. An occupied sector is never named.
+ * Preference, in order:
+ *   1. a sector that puts the ship "ahead of" the lane toward a Deliver
+ *      card's pickup planet — from ring 4 a soft burn outward lands on the
+ *      same sector of ring 5, so starting under the right arc (or a little
+ *      behind it, since ring 4 drifts 2 per turn) means an early jump;
+ *   2. otherwise the free sector farthest from the ships already placed
+ *      (spread out, don't start in someone's railgun arc);
+ * Ties are broken by the game's seeded RNG through `pick`. An occupied
+ * sector is never named.
  */
-import { HOME_RING, PLANETS, TRANSFER_LANES, arcSectors } from "../../models/gravityWells.ts";
+import { HOME_RING, HOME_WELL_ID, TRANSFER_LANES, arcSectors } from "../../models/gravityWells.ts";
 import { SECTORS_PER_RING } from "../../models/rings.ts";
+import { sectorDistance, wrapSector } from "../../game/geometry.ts";
 import type { GameView } from "../../game/view.ts";
 
 export interface DeploymentChoice {
@@ -25,76 +22,53 @@ export interface DeploymentChoice {
   sector: number;
 }
 
-export function occupiedHomeSectors(view: GameView, wellId: string): Set<number> {
+export function occupiedHomeSectors(view: GameView): Set<number> {
   const occupied = new Set<number>();
   for (const p of view.players) {
-    if (p.hasDeployed && p.ship && p.ship.wellId === wellId && p.ship.ring === HOME_RING)
+    if (p.hasDeployed && p.ship && p.ship.wellId === HOME_WELL_ID && p.ship.ring === HOME_RING) {
       occupied.add(p.ship.sector);
+    }
   }
   return occupied;
 }
 
-export function freeHomeSectors(view: GameView, wellId: string): number[] {
-  const occupied = occupiedHomeSectors(view, wellId);
+export function freeHomeSectors(view: GameView): number[] {
+  const occupied = occupiedHomeSectors(view);
   return Array.from({ length: SECTORS_PER_RING }, (_, s) => s).filter((s) => !occupied.has(s));
 }
 
-function laneSectors(wellId: string): Set<number> {
-  const sectors = new Set<number>();
-  for (const lane of TRANSFER_LANES) {
-    if (lane.planetId === wellId) for (const s of arcSectors(lane.planetArc)) sectors.add(s);
-  }
-  return sectors;
-}
-
-/** Where a player has put themselves, as far as the table can see. */
-function deployedWellOf(view: GameView, playerId: string): string | null {
-  const player = view.players.find((p) => p.id === playerId);
-  if (!player || !player.hasDeployed) return null;
-  return player.ship?.wellId ?? player.home?.wellId ?? null;
+/** Ring-5 sectors from which a jump to `planetId` is possible. */
+function laneSectorsTo(planetId: string): number[] {
+  return TRANSFER_LANES.filter((l) => l.planetId === planetId).flatMap((l) => arcSectors(l.blackHoleArc));
 }
 
 export function chooseDeployment(view: GameView, pick: (n: number) => number): DeploymentChoice {
-  const me = view.me;
-  const planets = PLANETS.map((p) => p.id);
-  const usable = (ids: Array<string | null>): string[] => [
-    ...new Set(
-      ids.filter(
-        (id): id is string => id !== null && planets.includes(id) && freeHomeSectors(view, id).length > 0
-      )
-    ),
-  ];
-  const missions = (me?.missions ?? []).filter((m) => !m.isCompleted);
+  const free = freeHomeSectors(view);
+  if (free.length === 0) return { wellId: HOME_WELL_ID, sector: 0 };
 
-  // Haul first: the pickup planet of a Deliver card.
-  let candidates = usable(
-    missions.map((m) => (m.type === "deliver_cargo" ? m.pickupPlanetId : null))
-  );
+  const missions = (view.me?.missions ?? []).filter((m) => !m.isCompleted);
+  const occupied = [...occupiedHomeSectors(view)];
 
-  // Hunt second: where the mark is, if they have already taken their seat.
-  if (candidates.length === 0) {
-    candidates = usable(
-      missions.map((m) =>
-        m.type === "destroy_ship" || m.type === "intercept_transmission"
-          ? deployedWellOf(view, m.targetPlayerId)
-          : null
-      )
-    );
+  // 1. Line up with the lane toward the first Deliver pickup: the sector two
+  // behind the arc start (ring 4 drifts 2), or anything under the arc.
+  const pickup = missions.find((m) => m.type === "deliver_cargo");
+  if (pickup && pickup.type === "deliver_cargo") {
+    const wanted = new Set<number>();
+    for (const s of laneSectorsTo(pickup.pickupPlanetId)) {
+      wanted.add(s);
+      wanted.add(wrapSector(s - 2));
+    }
+    const lined = free.filter((s) => wanted.has(s));
+    if (lined.length > 0) return { wellId: HOME_WELL_ID, sector: lined[pick(lined.length)] };
   }
 
-  // Otherwise spread out.
-  if (candidates.length === 0) {
-    const shipsAt = (id: string) =>
-      view.players.filter((p) => p.hasDeployed && p.ship && p.ship.wellId === id).length;
-    const withRoom = usable(planets);
-    const fewest = Math.min(...withRoom.map(shipsAt));
-    candidates = withRoom.filter((id) => shipsAt(id) === fewest);
+  // 2. Spread out: maximise the distance to the nearest placed ship.
+  if (occupied.length > 0) {
+    const score = (s: number) => Math.min(...occupied.map((o) => sectorDistance(s, o)));
+    const best = Math.max(...free.map(score));
+    const farthest = free.filter((s) => score(s) === best);
+    return { wellId: HOME_WELL_ID, sector: farthest[pick(farthest.length)] };
   }
-  const wellId = candidates.length === 1 ? candidates[0] : candidates[pick(candidates.length)];
 
-  const free = freeHomeSectors(view, wellId);
-  const lanes = laneSectors(wellId);
-  const preferred = free.filter((s) => lanes.has(s));
-  const pool = preferred.length > 0 ? preferred : free;
-  return { wellId, sector: pool[pick(pool.length)] };
+  return { wellId: HOME_WELL_ID, sector: free[pick(free.length)] };
 }

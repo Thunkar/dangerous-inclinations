@@ -101,6 +101,13 @@ interface PipTrackProps {
    * to be spent or scooped.
    */
   projected?: number
+  /**
+   * Where the track could still end up in the worst case — heat your powered
+   * shields would make if they absorbed their whole allocation. Segments past
+   * the ghosts are drawn hatched: heat that is not yours to spend, only heat
+   * someone else can put on you.
+   */
+  worstCase?: number
   /** Replaces the plain "value/max" readout at the end of the bar. */
   readout?: ReactNode
   /** Reserved label width, so several tracks under each other line up. */
@@ -117,12 +124,14 @@ export function PipTrack({
   size = 10,
   compact,
   projected,
+  worstCase,
   readout,
   labelWidth = 30,
 }: PipTrackProps) {
   const target = projected ?? value
   const lit = Math.max(0, Math.min(value, target))
   const ghostTo = Math.max(value, target)
+  const hatchTo = Math.max(ghostTo, worstCase ?? 0)
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
@@ -138,6 +147,7 @@ export function PipTrack({
         {Array.from({ length: max }, (_, i) => {
           const on = i < lit
           const ghost = !on && i < ghostTo
+          const hatched = !on && !ghost && i < hatchTo
           return (
             <Box
               key={i}
@@ -146,9 +156,18 @@ export function PipTrack({
                 height: size,
                 borderRadius: '1px',
                 flexShrink: 0,
+                boxSizing: 'border-box',
                 bgcolor: on || ghost ? color : 'rgba(126,165,205,0.09)',
                 opacity: ghost ? 0.38 : 1,
                 boxShadow: on ? `0 0 5px ${color}66` : 'none',
+                ...(hatched
+                  ? {
+                      bgcolor: 'transparent',
+                      border: `1px solid ${color}`,
+                      backgroundImage: `repeating-linear-gradient(135deg, ${color} 0 1px, transparent 1px 3px)`,
+                      opacity: 0.75,
+                    }
+                  : null),
                 ...(threshold !== undefined && i + 1 === threshold
                   ? { mr: '4px', borderRight: `2px solid ${TABLE.accent}` }
                   : null),

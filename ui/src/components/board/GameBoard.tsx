@@ -32,7 +32,7 @@ const MAX_ZOOM = 3.5
 const DRAG_THRESHOLD = 4
 
 interface GameBoardProps {
-  /** Deployment phase: clicking a free planet ring-3 sector places your ship and Home. */
+  /** Deployment phase: clicking a free Black Hole ring-4 sector places your ship and Home. */
   onDeploy?: (position: Position) => void
   deploymentEnabled?: boolean
 }

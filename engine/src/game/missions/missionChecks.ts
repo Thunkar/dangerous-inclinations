@@ -10,6 +10,7 @@ import type { Cargo, Mission } from "../../models/missions.ts";
 import { MISSIONS_TO_WIN, SURVEY_RING } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
+import { rulesOf } from "../setup.ts";
 
 export interface MissionCheckResult {
   state: GameState;
@@ -41,6 +42,7 @@ export function processMissionEvents(
   }
 
   let cargo = player.cargo;
+  const rules = rulesOf(state);
   let completed = 0;
 
   const missions: Mission[] = player.missions.map((mission) => {
@@ -91,7 +93,7 @@ export function processMissionEvents(
       }
     }
 
-    if (next.isCompleted) completed++;
+    if (next.isCompleted) completed += next.type === "destroy_ship" ? rules.destroyPoints : 1;
     return next;
   });
 

@@ -65,7 +65,8 @@ export function makePlayer(
     cargo: [],
     hasDeployed: true,
     hasSubmittedLoadout: true,
-    home: { wellId: ALPHA, ring: 3, sector: 0 },
+    home: { wellId: BH, ring: 4, sector: 0 },
+    skipTurns: 0,
     intel: {},
     ...overrides,
     ...(overrides.ship ? { ship: { ...ship, ...overrides.ship } } : {}),
@@ -387,7 +388,8 @@ export function scriptedGameStart(seed: number): GameState {
     { wellId: BH, ring: 3, sector: 0, facing: "prograde" },
     DEFAULT_LOADOUT,
     {
-      home: { wellId: ALPHA, ring: 3, sector: 0 },
+      home: { wellId: BH, ring: 4, sector: 0 },
+    skipTurns: 0,
     }
   );
   const p2 = makePlayer(

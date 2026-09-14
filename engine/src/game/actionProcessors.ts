@@ -29,6 +29,7 @@ import { applyOrbitalMovement, applyBurn, applyRotation } from "./movement.ts";
 import { resolveAttack } from "./damage.ts";
 import { createMissile, revealSensors } from "./missiles.ts";
 import { processScan } from "./scan.ts";
+import { rulesOf } from "./setup.ts";
 import {
   findSubsystem,
   getMaxReactionMass,
@@ -436,7 +437,8 @@ function processFireWeapon(
       action.data.criticalTarget,
       roll,
       attacker.ship,
-      attacker.id
+      attacker.id,
+      rulesOf(working)
     );
     players[targetIndex] = { ...target, ship: outcome.ship };
     events.push({

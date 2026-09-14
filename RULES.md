@@ -53,14 +53,14 @@ Each planet has a station on **Ring 1**. Stations drift like ships: 4 sectors at
 
 1. **Missions.** Each player draws 5 mission cards from their deck and keeps 3, face-down behind their screen. Return the rest.
 2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array or missiles) and 4 side tiles (laser, shields, radiator, fuel compressor, ballistic rack or missiles). All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
-3. **Deployment.** In turn order, each player places their ship, facing prograde, on **Ring 3 of any planet** in any empty sector, and puts their Home marker there. Missions are secret, so choose your start with them in mind.
+3. **Deployment.** In turn order, each player places their ship, facing prograde, on **Black Hole Ring 4** in any empty sector, and puts their Home marker there. Everyone starts together and scatters from there; missions are secret, so pick your sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring).
 4. Fill the hull track to 10, reaction mass to 10 (16 with a fuel compressor, kept behind your screen), heat to 0. Energy cubes stay in the reactor.
 
 ---
 
 ## A Turn
 
-If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy allocated. Face-up tiles stay face-up. Play passes.
+If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy allocated. Face-up tiles stay face-up. Play passes. **Your next turn is lost as well** (the ship is recovering): you take no actions, you just drift.
 
 Otherwise:
 
@@ -200,7 +200,7 @@ When you complete a mission, turn the card face-up for everyone to see.
 When your hull reaches 0:
 
 - remove your ship; drop your cargo: crates go back to their pickup station (you must load them again), data chits are lost;
-- on your next turn you only respawn at Home (see A Turn). You lose that turn.
+- on your next turn you only respawn at Home (see A Turn), and the turn after that is lost too. Two turns gone.
 
 Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands a point to anyone holding your Destroy card.
 
@@ -226,7 +226,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 
 ### Turn cheat sheet
 
-1. Destroyed? Respawn at Home, turn over.
+1. Destroyed? Respawn at Home, turn over. Recovering? Turn over.
 2. Energy: move cubes.
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.

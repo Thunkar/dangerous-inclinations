@@ -4,7 +4,8 @@
  * When a ship is destroyed it drops its cargo: crates return to their origin
  * station (they must be picked up again), data is lost. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
- * occupied) fully repaired and refuelled, and the turn ends. Face-up tiles
+ * occupied) fully repaired and refuelled, and the turn ends; the next turn is lost too
+ * (the ship is recovering). Face-up tiles
  * stay face-up.
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
@@ -12,6 +13,7 @@ import type { EventDraft } from "../models/events.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { wrapSector, samePosition } from "./geometry.ts";
 import { createInitialShipState, isDestroyed } from "./ship.ts";
+import { hullOverride } from "./setup.ts";
 
 export function needsRespawn(player: Player): boolean {
   return player.hasDeployed && isDestroyed(player.ship);
@@ -71,8 +73,15 @@ export function findRespawnPosition(state: GameState, home: Position, selfId: st
   return home;
 }
 
-export function createRespawnedShip(previous: ShipState, position: Position): ShipState {
-  const fresh = createInitialShipState({ ...position, facing: "prograde" }, previous.loadout);
+export function createRespawnedShip(
+  previous: ShipState,
+  position: Position,
+  hull: { hitPoints: number; maxHitPoints: number } = {
+    hitPoints: previous.maxHitPoints,
+    maxHitPoints: previous.maxHitPoints,
+  }
+): ShipState {
+  const fresh = createInitialShipState({ ...position, facing: "prograde" }, previous.loadout, hull);
   const revealed = new Set(previous.subsystems.filter((s) => s.isRevealed).map((s) => s.id));
   return {
     ...fresh,
@@ -88,7 +97,11 @@ export function respawnPlayer(
   if (!player.home) return { state, events: [] };
   const position = findRespawnPosition(state, player.home, player.id);
   const players = [...state.players];
-  players[playerIndex] = { ...player, ship: createRespawnedShip(player.ship, position) };
+  players[playerIndex] = {
+    ...player,
+    ship: createRespawnedShip(player.ship, position, hullOverride(state)),
+    skipTurns: 1,
+  };
   return {
     state: { ...state, players },
     events: [{ type: "respawned", playerId: player.id, position }],

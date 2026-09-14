@@ -26,7 +26,7 @@ export interface RecordingMetadata {
   label?: string;
   turnCount: number;
   winnerId?: string;
-  endReason: "victory" | "max_turns" | "invalid_turn";
+  endReason: "victory" | "max_turns" | "invalid_turn" | "tiebreak";
 }
 
 /**

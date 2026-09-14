@@ -1,0 +1,64 @@
+/**
+ * Rule knobs. The defaults are the rules in RULES.md; the simulator can
+ * override them per game to measure a change before it is adopted. A game
+ * carries its rules on the state so recordings and replays are
+ * self-describing.
+ */
+export interface RuleSet {
+  /**
+   * What happens to shield cubes that absorbed damage.
+   * - "every_turn": they return to the reactor at once (the shield is refilled
+   *   for free on the owner's next energy step);
+   * - "on_dock": they are spent — off the shield and out of the reactor — until
+   *   the ship docks.
+   */
+  shieldRefill: "every_turn" | "on_dock";
+  /** Cubes a shield tile can hold. */
+  shieldMaxEnergy: number;
+  /** A critical breaks the named tile even when shields absorbed the whole shot. */
+  criticalThroughShields: boolean;
+  /** Hull restored when docking. */
+  dockHullRepair: number;
+  /** Hull points a ship starts (and respawns) with. */
+  startingHull: number;
+  /** Points a completed Destroy card is worth. */
+  destroyPoints: number;
+  /** How many of the six Deliver routes go into each player's deck. */
+  deliverRoutesDealt: number;
+}
+
+export const DEFAULT_RULES: RuleSet = {
+  shieldRefill: "every_turn",
+  shieldMaxEnergy: 4,
+  criticalThroughShields: false,
+  dockHullRepair: 3,
+  startingHull: 10,
+  destroyPoints: 1,
+  deliverRoutesDealt: 6,
+};
+
+export function resolveRules(partial?: Partial<RuleSet> | null): RuleSet {
+  return { ...DEFAULT_RULES, ...(partial ?? {}) };
+}
+
+/** Parse "key=value,key=value" (CLI) into a partial rule set. */
+export function parseRuleOverrides(text: string): Partial<RuleSet> {
+  const out: Record<string, unknown> = {};
+  for (const pair of text.split(",")) {
+    if (!pair.trim()) continue;
+    const [key, raw] = pair.split("=").map((s) => s.trim());
+    if (!(key in DEFAULT_RULES))
+      throw new Error(`Unknown rule "${key}". Known: ${Object.keys(DEFAULT_RULES).join(", ")}`);
+    const current = DEFAULT_RULES[key as keyof RuleSet];
+    if (typeof current === "number") {
+      const n = Number(raw);
+      if (!Number.isFinite(n)) throw new Error(`Rule ${key} needs a number, got "${raw}"`);
+      out[key] = n;
+    } else if (typeof current === "boolean") {
+      out[key] = raw === "true" || raw === "1";
+    } else {
+      out[key] = raw;
+    }
+  }
+  return out as Partial<RuleSet>;
+}

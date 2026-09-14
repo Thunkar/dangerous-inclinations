@@ -21,9 +21,10 @@ import type {
   ShipLoadout,
 } from "@dangerous-inclinations/engine";
 import {
+  type RuleSet,
   DEFAULT_LOADOUT,
   MISSIONS_PER_PLAYER,
-  PLANETS,
+  HOME_WELL_ID,
   botChooseDeployment,
   botChooseLoadout,
   botDecideActions,
@@ -57,7 +58,10 @@ export interface GameTransport {
 
 /** What a bot decides, from exactly the information a human has. */
 export interface BotStrategy {
-  chooseLoadout(offers: Mission[], context: { playerCount: number }): { missionIds: string[]; loadout: ShipLoadout };
+  chooseLoadout(
+    offers: Mission[],
+    context: { playerCount: number; rules?: Partial<RuleSet> }
+  ): { missionIds: string[]; loadout: ShipLoadout };
   chooseDeployment(view: GameView, pick: (n: number) => number): { wellId: string; sector: number };
   decideActions(view: GameView): { actions: PlayerAction[] };
 }
@@ -76,7 +80,9 @@ export interface GameServiceDeps {
   log?: ServiceLogger;
 }
 
-export type Result<T = object> = ({ ok: true } & T) | { ok: false; error?: string; errors?: string[] };
+export type Result<T = object> =
+  | ({ ok: true } & T)
+  | { ok: false; error?: string; errors?: string[] };
 
 export interface LoadoutSubmission {
   loadout: ShipLoadout;
@@ -148,9 +154,15 @@ export function createGameService(deps: GameServiceDeps) {
    * treating every seat as a bot would play the whole game unattended, so
    * callers refuse instead.
    */
-  function humansAreRegistered(gameId: string, state: GameState, humans: ReadonlySet<string>): boolean {
+  function humansAreRegistered(
+    gameId: string,
+    state: GameState,
+    humans: ReadonlySet<string>
+  ): boolean {
     if (humans.size > 0 || state.players.length === 0) return true;
-    log.error(`Game ${gameId} has ${state.players.length} players but no registered human seats; refusing to run bots`);
+    log.error(
+      `Game ${gameId} has ${state.players.length} players but no registered human seats; refusing to run bots`
+    );
     return false;
   }
 
@@ -179,7 +191,10 @@ export function createGameService(deps: GameServiceDeps) {
   }
 
   function broadcastView(gameId: string, state: GameState, events: GameEvent[]): void {
-    transport.broadcastViews(gameId, (playerId) => ({ type: "GAME_VIEW", payload: viewPayload(state, playerId, events) }));
+    transport.broadcastViews(gameId, (playerId) => ({
+      type: "GAME_VIEW",
+      payload: viewPayload(state, playerId, events),
+    }));
   }
 
   /**
@@ -195,7 +210,7 @@ export function createGameService(deps: GameServiceDeps) {
     gameId: string,
     before: GameState,
     after: GameState,
-    turn: { turnNumber: number; playerId: string; actions: PlayerAction[]; events: GameEvent[] },
+    turn: { turnNumber: number; playerId: string; actions: PlayerAction[]; events: GameEvent[] }
   ): Promise<Result> {
     let turnCount: number | null = null;
     try {
@@ -226,7 +241,9 @@ export function createGameService(deps: GameServiceDeps) {
         try {
           await recordings.truncate(gameId, turnCount - 2);
         } catch (rollbackError) {
-          log.error(`Failed to roll the recording of game ${gameId} back: ${String(rollbackError)}`);
+          log.error(
+            `Failed to roll the recording of game ${gameId} back: ${String(rollbackError)}`
+          );
         }
       }
       return { ok: false, error: "Could not save the turn; the game was not advanced" };
@@ -257,7 +274,10 @@ export function createGameService(deps: GameServiceDeps) {
   }
 
   function fallbackLoadout(offers: Mission[]): LoadoutSubmission {
-    return { loadout: DEFAULT_LOADOUT, missionIds: offers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id) };
+    return {
+      loadout: DEFAULT_LOADOUT,
+      missionIds: offers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id),
+    };
   }
 
   /** Every bot that has not submitted picks missions and a loadout. */
@@ -268,10 +288,15 @@ export function createGameService(deps: GameServiceDeps) {
 
       let submission: LoadoutSubmission;
       try {
-        const choice = bots.chooseLoadout(player.missionOffers, { playerCount: state.players.length });
+        const choice = bots.chooseLoadout(player.missionOffers, {
+          playerCount: state.players.length,
+          rules: state.rules,
+        });
         submission = { loadout: choice.loadout, missionIds: choice.missionIds };
       } catch (error) {
-        log.error(`Bot ${player.id} failed to choose a loadout, using the default: ${String(error)}`);
+        log.error(
+          `Bot ${player.id} failed to choose a loadout, using the default: ${String(error)}`
+        );
         submission = fallbackLoadout(player.missionOffers);
       }
 
@@ -279,7 +304,8 @@ export function createGameService(deps: GameServiceDeps) {
       if (result.error) {
         log.error(`Bot ${player.id} loadout rejected (${result.error}), using the default`);
         result = engineSubmitLoadout(state, player.id, fallbackLoadout(player.missionOffers));
-        if (result.error) throw new Error(`Default loadout rejected for bot ${player.id}: ${result.error}`);
+        if (result.error)
+          throw new Error(`Default loadout rejected for bot ${player.id}: ${result.error}`);
       }
       state = result.state;
     }
@@ -287,15 +313,17 @@ export function createGameService(deps: GameServiceDeps) {
   }
 
   function fallbackDeployment(state: GameState): { wellId: string; sector: number } {
-    for (const planet of PLANETS) {
-      const free = getAvailableDeploymentSectors(state, planet.id);
-      if (free.length > 0) return { wellId: planet.id, sector: free[0] };
-    }
-    throw new Error("No free deployment sector on any planet");
+    const free = getAvailableDeploymentSectors(state);
+    if (free.length > 0) return { wellId: HOME_WELL_ID, sector: free[0] };
+    throw new Error("No free deployment sector on the home ring");
   }
 
   /** Deploy bots, in turn order, until a human has to deploy or the game starts. */
-  function runBotDeployments(state: GameState, humans: ReadonlySet<string>, events: GameEvent[]): GameState {
+  function runBotDeployments(
+    state: GameState,
+    humans: ReadonlySet<string>,
+    events: GameEvent[]
+  ): GameState {
     while (state.phase === "deployment") {
       const bot = activePlayer(state);
       if (humans.has(bot.id)) break;
@@ -310,12 +338,15 @@ export function createGameService(deps: GameServiceDeps) {
         choice = fallbackDeployment(state);
       }
 
-      let result = deployShip(state, bot.id, choice.wellId, choice.sector);
+      let result = deployShip(state, bot.id, choice.sector);
       if (!result.success) {
-        log.error(`Bot ${bot.id} deployment rejected (${result.error}), placing it on the first free sector`);
+        log.error(
+          `Bot ${bot.id} deployment rejected (${result.error}), placing it on the first free sector`
+        );
         const fallback = fallbackDeployment(state);
-        result = deployShip(state, bot.id, fallback.wellId, fallback.sector);
-        if (!result.success) throw new Error(`Fallback deployment rejected for bot ${bot.id}: ${result.error}`);
+        result = deployShip(state, bot.id, fallback.sector);
+        if (!result.success)
+          throw new Error(`Fallback deployment rejected for bot ${bot.id}: ${result.error}`);
       }
       events.push(...stampEvents(result.events, state.turn));
       state = transitionToActivePhase(result.state);
@@ -332,14 +363,18 @@ export function createGameService(deps: GameServiceDeps) {
       console.error("[bot] AI threw while deciding; passing an empty turn", {
         turn: state.turn,
         botId: bot.id,
-        error: error instanceof Error ? error.stack ?? error.message : String(error),
+        error: error instanceof Error ? (error.stack ?? error.message) : String(error),
       });
       return [];
     }
   }
 
   /** Execute bot turns until a human is active or the game ends. Each turn is committed on its own. */
-  async function runBotTurns(gameId: string, state: GameState, humans: ReadonlySet<string>): Promise<GameState> {
+  async function runBotTurns(
+    gameId: string,
+    state: GameState,
+    humans: ReadonlySet<string>
+  ): Promise<GameState> {
     // Backstop: without a human seat every player would be played as a bot.
     if (!humansAreRegistered(gameId, state, humans)) return state;
 
@@ -368,7 +403,9 @@ export function createGameService(deps: GameServiceDeps) {
         actions = [];
         result = executeTurn(state, actions);
         if (result.errors && result.errors.length > 0) {
-          throw new Error(`Empty turn rejected for bot ${bot.id} at T${turnNumber}: ${result.errors.join("; ")}`);
+          throw new Error(
+            `Empty turn rejected for bot ${bot.id} at T${turnNumber}: ${result.errors.join("; ")}`
+          );
         }
       }
 
@@ -397,7 +434,7 @@ export function createGameService(deps: GameServiceDeps) {
     before: GameState,
     state: GameState,
     humans: ReadonlySet<string>,
-    events: GameEvent[] = [],
+    events: GameEvent[] = []
   ): Promise<GameState> {
     if (state.phase === "loadout") state = runBotLoadouts(state, humans);
     if (state.phase === "deployment") state = runBotDeployments(state, humans, events);
@@ -421,7 +458,12 @@ export function createGameService(deps: GameServiceDeps) {
   // -------------------------------------------------------------------------
 
   /** Rewrite every reference to `oldId` so the forking human takes that seat. */
-  function renamePlayerEverywhere(state: GameState, oldId: string, newId: string, newName: string): GameState {
+  function renamePlayerEverywhere(
+    state: GameState,
+    oldId: string,
+    newId: string,
+    newName: string
+  ): GameState {
     const rename = (id: string) => (id === oldId ? newId : id);
     const renameMission = (m: Mission): Mission =>
       missionTargetsPlayer(m) && m.targetPlayerId === oldId ? { ...m, targetPlayerId: newId } : m;
@@ -438,7 +480,11 @@ export function createGameService(deps: GameServiceDeps) {
         missionOffers: p.missionOffers.map(renameMission),
         intel: renameIntel(p.intel),
       })),
-      missiles: state.missiles.map((m) => ({ ...m, ownerId: rename(m.ownerId), targetId: rename(m.targetId) })),
+      missiles: state.missiles.map((m) => ({
+        ...m,
+        ownerId: rename(m.ownerId),
+        targetId: rename(m.targetId),
+      })),
       winnerId: state.winnerId === undefined ? undefined : rename(state.winnerId),
     };
   }
@@ -451,7 +497,12 @@ export function createGameService(deps: GameServiceDeps) {
     getHumanPlayerIds,
     getBotInvalidTurnCount,
 
-    async createGame(gameId: string, players: PlayerSpec[], humanPlayerIds: Iterable<string>, seed?: number): Promise<GameState> {
+    async createGame(
+      gameId: string,
+      players: PlayerSpec[],
+      humanPlayerIds: Iterable<string>,
+      seed?: number
+    ): Promise<GameState> {
       const state = engineCreateGame(players, seed);
       await saveState(gameId, state);
       await setHumanPlayerIds(gameId, humanPlayerIds);
@@ -490,7 +541,11 @@ export function createGameService(deps: GameServiceDeps) {
      * socket handler joins the room there, so no turn can slip between the
      * snapshot and the join (it would be missing from both).
      */
-    getViewWithHistory(gameId: string, playerId: string, onSnapshot?: () => void): Promise<ViewPayload | null> {
+    getViewWithHistory(
+      gameId: string,
+      playerId: string,
+      onSnapshot?: () => void
+    ): Promise<ViewPayload | null> {
       return withGameLock(gameId, async () => {
         const state = await loadState(gameId);
         if (!state) return null;
@@ -502,30 +557,42 @@ export function createGameService(deps: GameServiceDeps) {
       });
     },
 
-    submitLoadout(gameId: string, playerId: string, submission: LoadoutSubmission): Promise<Result<{ view: GameView }>> {
+    submitLoadout(
+      gameId: string,
+      playerId: string,
+      submission: LoadoutSubmission
+    ): Promise<Result<{ view: GameView }>> {
       return withGameLock(gameId, async () => {
         const state = await loadState(gameId);
         if (!state) return { ok: false, error: "Game not found" };
         const result = engineSubmitLoadout(state, playerId, submission);
         if (result.error) return { ok: false, error: result.error };
         const humans = await getHumanPlayerIds(gameId);
-        if (!humansAreRegistered(gameId, state, humans)) return { ok: false, error: NO_HUMANS_ERROR };
+        if (!humansAreRegistered(gameId, state, humans))
+          return { ok: false, error: NO_HUMANS_ERROR };
         const next = await settleSetup(gameId, state, result.state, humans);
         return { ok: true, view: viewFor(next, playerId) };
       });
     },
 
-    deploy(gameId: string, playerId: string, wellId: string, sector: number): Promise<Result<{ view: GameView }>> {
+    deploy(gameId: string, playerId: string, sector: number): Promise<Result<{ view: GameView }>> {
       return withGameLock(gameId, async () => {
         const state = await loadState(gameId);
         if (!state) return { ok: false, error: "Game not found" };
-        const result = deployShip(state, playerId, wellId, sector);
+        const result = deployShip(state, playerId, sector);
         if (!result.success) return { ok: false, error: result.error };
         const humans = await getHumanPlayerIds(gameId);
-        if (!humansAreRegistered(gameId, state, humans)) return { ok: false, error: NO_HUMANS_ERROR };
+        if (!humansAreRegistered(gameId, state, humans))
+          return { ok: false, error: NO_HUMANS_ERROR };
         // Deployment events travel with the view; the recording only starts at the active state.
         const events = stampEvents(result.events, state.turn);
-        const next = await settleSetup(gameId, state, transitionToActivePhase(result.state), humans, events);
+        const next = await settleSetup(
+          gameId,
+          state,
+          transitionToActivePhase(result.state),
+          humans,
+          events
+        );
         return { ok: true, view: viewFor(next, playerId) };
       });
     },
@@ -538,20 +605,25 @@ export function createGameService(deps: GameServiceDeps) {
       gameId: string,
       playerId: string,
       actions: PlayerAction[],
-      expected: { turn: number; activePlayerId: string },
+      expected: { turn: number; activePlayerId: string }
     ): Promise<Result> {
       return withGameLock(gameId, async () => {
         const state = await loadState(gameId);
         if (!state) return { ok: false, error: "Game not found" };
-        if (state.phase !== "active") return { ok: false, error: `Game is not active (phase "${state.phase}")` };
+        if (state.phase !== "active")
+          return { ok: false, error: `Game is not active (phase "${state.phase}")` };
         const active = activePlayer(state);
         if (active.id !== playerId) return { ok: false, error: "Not your turn" };
         if (expected.turn !== state.turn || expected.activePlayerId !== active.id) {
-          return { ok: false, error: `Stale turn submission: the game is at turn ${state.turn}, ${active.name} to act` };
+          return {
+            ok: false,
+            error: `Stale turn submission: the game is at turn ${state.turn}, ${active.name} to act`,
+          };
         }
 
         const humans = await getHumanPlayerIds(gameId);
-        if (!humansAreRegistered(gameId, state, humans)) return { ok: false, error: NO_HUMANS_ERROR };
+        if (!humansAreRegistered(gameId, state, humans))
+          return { ok: false, error: NO_HUMANS_ERROR };
 
         const turnNumber = state.turn;
         const result = executeTurn(state, actions);
@@ -591,19 +663,32 @@ export function createGameService(deps: GameServiceDeps) {
      * recording is served by the public API, and rewinding would rewrite a
      * published game. Rewind is a live-game tool only.
      */
-    rewindGame(gameId: string, playerId: string, turnIndex: number): Promise<Result<{ view: GameView }>> {
+    rewindGame(
+      gameId: string,
+      playerId: string,
+      turnIndex: number
+    ): Promise<Result<{ view: GameView }>> {
       return withGameLock(gameId, async () => {
         const state = await loadState(gameId);
         if (!state) return { ok: false, error: "Game not found" };
         if (state.phase === "ended" && (await recordings.isFinalized(gameId))) {
-          return { ok: false, error: "This game is finished and its recording is published; fork it instead" };
+          return {
+            ok: false,
+            error: "This game is finished and its recording is published; fork it instead",
+          };
         }
         const recording = await recordings.load(gameId);
         if (!recording) return { ok: false, error: "No recording for this game" };
         if (turnIndex < -1 || turnIndex >= recording.turns.length) {
-          return { ok: false, error: `turnIndex ${turnIndex} out of range (-1..${recording.turns.length - 1})` };
+          return {
+            ok: false,
+            error: `turnIndex ${turnIndex} out of range (-1..${recording.turns.length - 1})`,
+          };
         }
-        const snapshot = turnIndex === -1 ? recording.initialState : recording.turns[turnIndex].resultingStateSnapshot;
+        const snapshot =
+          turnIndex === -1
+            ? recording.initialState
+            : recording.turns[turnIndex].resultingStateSnapshot;
         if (snapshot.phase !== "active" && snapshot.phase !== "ended") {
           return { ok: false, error: `Cannot rewind into a "${snapshot.phase}" snapshot` };
         }
@@ -613,11 +698,17 @@ export function createGameService(deps: GameServiceDeps) {
         await saveState(gameId, restored);
         transport.broadcastViews(gameId, (recipient) => ({
           type: "TURN_EXECUTED",
-          payload: { ...viewPayload(restored, recipient, []), playerId, turnNumber: restored.turn, rewind: true },
+          payload: {
+            ...viewPayload(restored, recipient, []),
+            playerId,
+            turnNumber: restored.turn,
+            rewind: true,
+          },
         }));
 
         const humans = await getHumanPlayerIds(gameId);
-        if (!humansAreRegistered(gameId, restored, humans)) return { ok: true, view: viewFor(restored, playerId) };
+        if (!humansAreRegistered(gameId, restored, humans))
+          return { ok: true, view: viewFor(restored, playerId) };
         const next = await runBotTurns(gameId, restored, humans);
         return { ok: true, view: viewFor(next, playerId) };
       });
@@ -632,23 +723,43 @@ export function createGameService(deps: GameServiceDeps) {
      * would hand the caller a seat with full sight of a game still being
      * played — including their opponents' hidden information.
      */
-    async forkGameFromRecording(recordingId: string, turnIndex: number, options: ForkOptions): Promise<Result<{ gameId: string; view: GameView }>> {
+    async forkGameFromRecording(
+      recordingId: string,
+      turnIndex: number,
+      options: ForkOptions
+    ): Promise<Result<{ gameId: string; view: GameView }>> {
       const recording = await recordings.loadArchived(recordingId);
       if (!recording) {
         return { ok: false, error: "Recording not found; only finished recordings can be forked" };
       }
       if (!recording.finalState) {
-        return { ok: false, error: "That recording is not finished; only finished recordings can be forked" };
+        return {
+          ok: false,
+          error: "That recording is not finished; only finished recordings can be forked",
+        };
       }
       if (turnIndex < -1 || turnIndex >= recording.turns.length) {
-        return { ok: false, error: `turnIndex ${turnIndex} out of range (-1..${recording.turns.length - 1})` };
+        return {
+          ok: false,
+          error: `turnIndex ${turnIndex} out of range (-1..${recording.turns.length - 1})`,
+        };
       }
       const seat = options.impersonateOriginalPlayerId;
-      if (!seat) return { ok: false, error: "impersonateOriginalPlayerId is required: choose the recorded player to take over" };
+      if (!seat)
+        return {
+          ok: false,
+          error: "impersonateOriginalPlayerId is required: choose the recorded player to take over",
+        };
 
-      const snapshot = turnIndex === -1 ? recording.initialState : recording.turns[turnIndex].resultingStateSnapshot;
+      const snapshot =
+        turnIndex === -1
+          ? recording.initialState
+          : recording.turns[turnIndex].resultingStateSnapshot;
       if (snapshot.phase !== "active" && snapshot.phase !== "ended") {
-        return { ok: false, error: `Cannot fork from a "${snapshot.phase}" snapshot; pick a turn after deployment` };
+        return {
+          ok: false,
+          error: `Cannot fork from a "${snapshot.phase}" snapshot; pick a turn after deployment`,
+        };
       }
       if (!snapshot.players.some((p) => p.id === seat)) {
         return { ok: false, error: `Player "${seat}" not found in recording` };
@@ -657,7 +768,10 @@ export function createGameService(deps: GameServiceDeps) {
       // another seat of the recording, the fork would hold two players with
       // the same id.
       if (snapshot.players.some((p) => p.id === options.humanPlayerId && p.id !== seat)) {
-        return { ok: false, error: `You already hold seat "${options.humanPlayerId}" in this recording; fork that seat instead` };
+        return {
+          ok: false,
+          error: `You already hold seat "${options.humanPlayerId}" in this recording; fork that seat instead`,
+        };
       }
       // Only a bot seat, or the caller's own seat, may be taken over: any other
       // human's seat would expose that player's missions, cargo and intel.
@@ -673,13 +787,18 @@ export function createGameService(deps: GameServiceDeps) {
         { ...snapshot, phase: "active", winnerId: undefined },
         seat,
         options.humanPlayerId,
-        options.humanPlayerName,
+        options.humanPlayerName
       );
       const gameId = `fork-${Date.now()}-${randomUUID().slice(0, 8)}`;
       const humans = [options.humanPlayerId];
       await saveState(gameId, forked);
       await setHumanPlayerIds(gameId, humans);
-      await recordings.init(gameId, forked, new Set(humans), `fork from ${recording.recordingId} @ turn ${turnIndex}`);
+      await recordings.init(
+        gameId,
+        forked,
+        new Set(humans),
+        `fork from ${recording.recordingId} @ turn ${turnIndex}`
+      );
       return { ok: true, gameId, view: viewFor(forked, options.humanPlayerId) };
     },
   };

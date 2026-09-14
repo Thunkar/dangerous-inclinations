@@ -31,11 +31,11 @@ if the old one was "more realistic".
 
 ### 2.1 Home ports (fixes 1, 2, 3)
 
-**Deployment.** In turn order, each player places their ship on the **outer ring (Ring 3) of any planet**, in any empty sector, facing prograde, and places their **Home marker** there.
+**Deployment.** In turn order, each player places their ship on **Black Hole Ring 4**, in any empty sector, facing prograde, and places their **Home marker** there. (First draft: a planet's Ring 3. The designer pointed out that a planet start pushes everyone toward Deliver cards from that planet and kills the opening scatter; the shared ring keeps both, and Home only has to be fixed and neutral, not remote.)
 
 **Respawn.** When a ship is destroyed:
 - it is removed from the board and **drops its cargo** (cargo is lost; scan/survey data too);
-- on the owner's next turn they **do nothing except** place the ship on their Home sector (nearest empty sector if occupied) with full hull, full fuel, no energy allocated, and heat 0;
+- on the owner's next turn they **do nothing except** place the ship on their Home sector (nearest empty sector if occupied) with full hull, full fuel, no energy allocated, and heat 0, and the turn after that is lost as well (designer's choice among half fuel / empty tanks / extra turn: dying costs two turns, which is more than any legitimate trip across the map);
 - subsystems are repaired; revealed tiles stay revealed (the table already saw them).
 
 Why this shape:
@@ -193,8 +193,8 @@ What this says:
   2. A destroyed ship's picked-up **crates** are left as loot on its sector for anyone to collect, so a kill near a hauler is doubly valuable.
   3. Deployment closer together (Home on planet ring 2, or all players sharing one side of the map).
   Measure with the sim: kills per game, and share of wins that include a combat card.
-- Should Home be on a planet's Ring 3 or Ring 2? Ring 3 is slow and safe; Ring 2 is a faster start.
-- Is losing a whole turn on death too harsh with two players? Alternative: respawn immediately but with 0 fuel.
+- Home is the deployment sector on Black Hole Ring 4 (decided). Ring 3 or 5 would change the opening tempo; untested.
+- Death now costs two turns (decided). Watch 2-player games for snowballing.
 - Is +3 hull per dock enough to matter, or should docking fully repair?
 - Arc width 4 versus 3 or 6.
 - Scan peeks: should a peek at an already face-up tile be refused (forcing a face-down choice)? The engine currently allows any loadout slot so a scan still works for Intercept when everything is face-up.

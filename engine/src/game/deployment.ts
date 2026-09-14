@@ -1,34 +1,32 @@
 /**
- * Deployment. In turn order each player places their ship, facing prograde,
- * on the outer ring (HOME_RING) of any planet in any empty sector. That
- * sector becomes their Home.
+ * Deployment. Everyone starts together: in turn order each player places
+ * their ship, facing prograde, on Black Hole Ring 4 in any empty sector.
+ * That sector becomes their Home marker (where a destroyed ship returns).
  */
-import type { GameState, GravityWellId, Player, Position } from "../models/game.ts";
+import type { GameState, Player, Position } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { HOME_RING, PLANETS, isPlanet } from "../models/gravityWells.ts";
+import { HOME_RING, HOME_WELL_ID } from "../models/gravityWells.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { samePosition } from "./geometry.ts";
 import { createInitialShipState } from "./ship.ts";
+import { hullOverride } from "./setup.ts";
 
 export function deploymentPositions(): Position[] {
-  return PLANETS.flatMap((planet) =>
-    Array.from({ length: SECTORS_PER_RING }, (_, sector) => ({
-      wellId: planet.id,
-      ring: HOME_RING,
-      sector,
-    }))
-  );
+  return Array.from({ length: SECTORS_PER_RING }, (_, sector) => ({
+    wellId: HOME_WELL_ID,
+    ring: HOME_RING,
+    sector,
+  }));
 }
 
 export function isDeploymentPositionFree(state: GameState, position: Position): boolean {
   return !state.players.some((p) => p.hasDeployed && samePosition(p.ship, position));
 }
 
-/** Free sectors on a planet's home ring. */
-export function getAvailableDeploymentSectors(state: GameState, wellId: GravityWellId): number[] {
-  if (!isPlanet(wellId)) return [];
+/** Free sectors on the deployment ring. */
+export function getAvailableDeploymentSectors(state: GameState): number[] {
   return Array.from({ length: SECTORS_PER_RING }, (_, s) => s).filter((sector) =>
-    isDeploymentPositionFree(state, { wellId, ring: HOME_RING, sector })
+    isDeploymentPositionFree(state, { wellId: HOME_WELL_ID, ring: HOME_RING, sector })
   );
 }
 
@@ -39,12 +37,7 @@ export interface DeploymentResult {
   events: EventDraft[];
 }
 
-export function deployShip(
-  state: GameState,
-  playerId: string,
-  wellId: GravityWellId,
-  sector: number
-): DeploymentResult {
+export function deployShip(state: GameState, playerId: string, sector: number): DeploymentResult {
   const fail = (error: string): DeploymentResult => ({ success: false, error, state, events: [] });
 
   if (state.phase !== "deployment")
@@ -55,17 +48,20 @@ export function deployShip(
   if (player.hasDeployed) return fail(`${player.name} has already deployed`);
   if (state.players[state.activePlayerIndex].id !== playerId)
     return fail(`Not ${player.name}'s turn to deploy`);
-  if (!isPlanet(wellId)) return fail("Ships deploy on a planet's outer ring");
-  if (!Number.isInteger(sector) || sector < 0 || sector >= SECTORS_PER_RING)
+  if (!Number.isInteger(sector) || sector < 0 || sector >= SECTORS_PER_RING) {
     return fail(`Sector ${sector} is out of range`);
+  }
 
-  const position: Position = { wellId, ring: HOME_RING, sector };
-  if (!isDeploymentPositionFree(state, position))
-    return fail(`Sector ${sector} of ${wellId} is occupied`);
+  const position: Position = { wellId: HOME_WELL_ID, ring: HOME_RING, sector };
+  if (!isDeploymentPositionFree(state, position)) return fail(`Sector ${sector} is occupied`);
 
   const deployed: Player = {
     ...player,
-    ship: createInitialShipState({ ...position, facing: "prograde" }, player.ship.loadout),
+    ship: createInitialShipState(
+      { ...position, facing: "prograde" },
+      player.ship.loadout,
+      hullOverride(state)
+    ),
     hasDeployed: true,
     home: position,
   };

@@ -80,6 +80,10 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return e.killerId
         ? `${name(e.victimId)} is destroyed by ${name(e.killerId)}`
         : `${name(e.victimId)} is destroyed by heat`;
+    case "heat_check":
+      return `${name(e.playerId)} runs ${e.heat} heat against ${e.dissipation} dissipation`;
+    case "turn_skipped":
+      return `${name(e.playerId)} is recovering and sits this turn out`;
     case "heat_damage":
       return `${name(e.playerId)} takes ${e.damage} heat damage (${e.heat} heat vs ${e.dissipation} dissipation)`;
     case "scanned":

@@ -8,10 +8,20 @@
  */
 import { memo } from 'react'
 import type { Facing, Position, Subsystem } from '@dangerous-inclinations/engine'
-import { SECTORS_PER_RING, getSubsystemConfig, isInWeaponRange } from '@dangerous-inclinations/engine'
-import { positionPoint, ringRadius, ringsOf, sectorWedgePath, wellColor } from '../geometry'
+import {
+  SECTORS_PER_RING,
+  getSubsystemConfig,
+  getWellName,
+  isInWeaponRange,
+} from '@dangerous-inclinations/engine'
+import { positionPoint, ringRadius, ringsOf, sectorWedgePath } from '../geometry'
 
-/** The one accent used for anything you may click. */
+/**
+ * The one accent used for anything you may click. Every deployment sector is
+ * on the same ring of the same well now, so the wedges carry no well colour —
+ * they are simply the thing on the board you are being asked to click, and the
+ * black hole's own colour is all but black.
+ */
 const DEPLOY_ACCENT = '#ffb445'
 
 // ---------------------------------------------------------------------------
@@ -110,7 +120,6 @@ export const DeploymentSectors = memo(function DeploymentSectors({
           hovered?.wellId === position.wellId &&
           hovered.ring === position.ring &&
           hovered.sector === position.sector
-        const color = wellColor(position.wellId)
         return (
           <g
             key={`${position.wellId}-${position.sector}`}
@@ -124,12 +133,12 @@ export const DeploymentSectors = memo(function DeploymentSectors({
             onMouseEnter={() => onHover(position)}
             onMouseLeave={() => onHover(null)}
           >
-            <title>{`Place your ship here — ${position.wellId} R${position.ring} S${position.sector}`}</title>
+            <title>{`Place your ship here — ${getWellName(position.wellId)} R${position.ring} S${position.sector}. This sector becomes your Home.`}</title>
             <path
-              d={sectorWedgePath(position.wellId, position.sector, radius - 15, radius + 15)}
-              fill={isHovered ? DEPLOY_ACCENT : color}
-              fillOpacity={isHovered ? 0.55 : 0.28}
-              stroke={isHovered ? DEPLOY_ACCENT : color}
+              d={sectorWedgePath(position.wellId, position.sector, radius - 16, radius + 16)}
+              fill={DEPLOY_ACCENT}
+              fillOpacity={isHovered ? 0.55 : 0.22}
+              stroke={DEPLOY_ACCENT}
               strokeWidth={isHovered ? 2 : 1}
               style={{
                 filter: isHovered ? `drop-shadow(0 0 10px ${DEPLOY_ACCENT})` : undefined,

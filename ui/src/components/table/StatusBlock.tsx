@@ -8,6 +8,13 @@
  * hull) and fuel you are about to spend or scoop. Missile ammo lives here too
  * — it is private, and nothing is ever written under a tile.
  *
+ * The heat track reads on three levels, so you can see whether powering the
+ * shields is worth it before you spend the cubes: heat you already carry
+ * (solid), heat this turn's sequence will make (ghost), and the heat your
+ * powered shields would make on top if they absorbed their whole allocation
+ * (hatched). If that worst case lands past the dissipation mark, the hull it
+ * would cost is spelled out beside the bar.
+ *
  * It renders without a plan as well (a replay seat, someone else's turn): the
  * ghosts simply disappear.
  */
@@ -30,8 +37,20 @@ export function StatusBlock({ accent }: { accent?: string }) {
 
   const heatNow = me.ship.heat.currentHeat
   const heatAfter = plan ? plan.projectedHeat : heatNow
-  const heatMax = Math.max(dissipation + 3, heatAfter, heatNow)
+  /**
+   * Worst case: every powered shield absorbs its full allocation, and every
+   * point absorbed becomes heat (RULES §Shields). Read off the cubes as they
+   * are being moved, so the cost of powering a shield shows before you commit.
+   */
+  const shieldHeat = (plan?.pendingSubsystems ?? me.ship.subsystems)
+    .filter((s) => s.type === 'shields' && s.isPowered && !s.isBroken)
+    .reduce((sum, s) => sum + s.allocatedEnergy, 0)
+  const worstHeat = heatAfter + shieldHeat
+  const heatMax = Math.max(dissipation + 3, heatAfter, heatNow, worstHeat)
   const overHeat = Math.max(0, heatAfter - dissipation)
+  const worstOverHeat = Math.max(0, worstHeat - dissipation)
+  /** Hull the shields themselves would cost, over and above the planned turn. */
+  const shieldHull = worstOverHeat - overHeat
 
   const fuelNow = me.ship.reactionMass
   const fuelAfter = plan ? plan.projectedFuel : fuelNow
@@ -94,12 +113,19 @@ export function StatusBlock({ accent }: { accent?: string }) {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, rowGap: 0.35, flexWrap: 'wrap', minWidth: 0 }}>
         <PipTrack value={me.ship.hitPoints} max={me.ship.maxHitPoints} color={TABLE.hull} label="Hull" size={9} />
         <Tooltip
-          title={`Heat now ${heatNow}, ${heatAfter} once this turn has played out. Anything above ${dissipation} at the heat check becomes hull damage.`}
+          title={
+            `Heat now ${heatNow}, ${heatAfter} once this turn has played out. Anything above ` +
+            `${dissipation} at the heat check becomes hull damage.` +
+            (shieldHeat > 0
+              ? ` Your shields would add up to ${shieldHeat} more (hatched) if they absorbed everything they can: ${worstHeat} at the check.`
+              : '')
+          }
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
             <PipTrack
               value={heatNow}
               projected={heatAfter}
+              worstCase={worstHeat}
               max={heatMax}
               threshold={dissipation}
               color={TABLE.heat}
@@ -111,6 +137,14 @@ export function StatusBlock({ accent }: { accent?: string }) {
                   {heatAfter !== heatNow && (
                     <Box component="span" sx={{ color: overHeat ? TABLE.heat : TABLE.ink }}>
                       →{heatAfter}
+                    </Box>
+                  )}
+                  {shieldHeat > 0 && (
+                    <Box
+                      component="span"
+                      sx={{ color: worstOverHeat > overHeat ? TABLE.danger : TABLE.inkSoft, fontWeight: 400 }}
+                    >
+                      +{shieldHeat}
                     </Box>
                   )}
                   <Box component="span" sx={{ color: TABLE.inkFaint, fontWeight: 400 }}>
@@ -129,6 +163,29 @@ export function StatusBlock({ accent }: { accent?: string }) {
             )}
           </Box>
         </Tooltip>
+        {shieldHull > 0 && (
+          <Tooltip
+            title={
+              `Shields absorb up to ${shieldHeat} damage and every point absorbed becomes heat. ` +
+              `Absorb it all and the heat check reads ${worstHeat} against a dissipation of ${dissipation}: ` +
+              (overHeat > 0 ? `${worstOverHeat} hull instead of ${overHeat}.` : `${worstOverHeat} hull.`)
+            }
+          >
+            <Typography
+              data-testid="shield-heat-warning"
+              sx={{
+                flexBasis: '100%',
+                fontFamily: FONT_MONO,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: TABLE.danger,
+                lineHeight: 1.2,
+              }}
+            >
+              shields would cost −{shieldHull} hull if hit
+            </Typography>
+          </Tooltip>
+        )}
       </Box>
 
       {/* Fuel and what is in the racks */}

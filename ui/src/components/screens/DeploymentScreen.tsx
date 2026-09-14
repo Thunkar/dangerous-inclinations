@@ -1,12 +1,13 @@
 /**
- * Deployment: in turn order, place your ship on the outer ring of any planet.
- * That sector becomes your Home — where you come back after you are destroyed
- * — so pick it with the cards you kept in mind.
+ * Deployment: in turn order, place your ship on Black Hole Ring 4. Everyone
+ * starts on the same ring; the sector you pick becomes your Home — where you
+ * come back after you are destroyed — so pick it with the cards you kept in
+ * mind.
  */
 import { useState } from 'react'
 import { Alert, Box, Chip, Typography } from '@mui/material'
 import type { Position } from '@dangerous-inclinations/engine'
-import { getWellName } from '@dangerous-inclinations/engine'
+import { HOME_RING, getWellName } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { GameBoard } from '../board/GameBoard'
 import { Panel, SectionLabel } from '../common/Panel'
@@ -31,7 +32,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
     setPlacing(true)
     setError(null)
     try {
-      await deploy(position.wellId, position.sector)
+      await deploy(position.sector)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -45,7 +46,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <Header
         title="Place your ship"
-        subtitle={`${deployed} of ${view.players.length} placed · outer ring of any planet`}
+        subtitle={`${deployed} of ${view.players.length} placed · Black Hole Ring ${HOME_RING}`}
         right={headerRight}
       />
       <Box sx={{ flex: 1, display: 'flex', minHeight: 0 }}>
@@ -68,7 +69,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                   {player.hasDeployed && player.home ? (
                     <Chip
                       size="small"
-                      label={`${getWellName(player.home.wellId)} S${player.home.sector}`}
+                      label={`${getWellName(player.home.wellId)} R${player.home.ring} S${player.home.sector}`}
                       sx={{ fontSize: '0.78rem', height: 20 }}
                     />
                   ) : player.id === view.activePlayerId ? (
@@ -86,7 +87,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           </Panel>
 
           <Panel title="Your missions" dense>
-            <SectionLabel>They should decide where Home goes.</SectionLabel>
+            <SectionLabel>They should decide which sector Home goes in.</SectionLabel>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.5 }}>
               {me.missions.map((mission) => (
                 <MissionCard key={mission.id} mission={mission} nameOf={nameOf} cargo={me.cargo} held />
@@ -103,7 +104,9 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
             </Alert>
           )}
           {myTurn && (
-            <Alert severity="success">Click a highlighted sector on any planet's outer ring.</Alert>
+            <Alert severity="success">
+              Place your ship on Black Hole Ring {HOME_RING} — that sector becomes your Home.
+            </Alert>
           )}
         </Box>
       </Box>

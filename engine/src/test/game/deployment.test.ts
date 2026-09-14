@@ -15,18 +15,9 @@ import {
 } from "../../game/loadout.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { DEFAULT_LOADOUT } from "../../models/game.ts";
+import { HOME_RING } from "../../models/gravityWells.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
-import {
-  ALPHA,
-  BETA,
-  BH,
-  GAMMA,
-  canonicalJson,
-  coast,
-  getPlayer,
-  getShip,
-  mustExecute,
-} from "../testUtils.ts";
+import { BH, canonicalJson, coast, getPlayer, getShip, mustExecute } from "../testUtils.ts";
 
 const SPECS = [
   { id: "p1", name: "Ada" },
@@ -315,72 +306,70 @@ describe("loadout: validation and instantiation", () => {
 });
 
 describe("deployment", () => {
-  it("offers every sector of every planet's ring 3", () => {
+  it("offers every sector of Black Hole Ring 4", () => {
     const positions = deploymentPositions();
-    expect(positions).toHaveLength(72);
-    expect(positions.every((p) => p.ring === 3 && p.wellId !== BH)).toBe(true);
-    expect(getAvailableDeploymentSectors(readyToDeploy(), ALPHA)).toHaveLength(24);
-    expect(getAvailableDeploymentSectors(readyToDeploy(), BH)).toEqual([]);
+    expect(positions).toHaveLength(24);
+    expect(positions.every((p) => p.ring === HOME_RING && p.wellId === BH)).toBe(true);
+    expect(getAvailableDeploymentSectors(readyToDeploy())).toHaveLength(24);
   });
 
   it("places the ship facing prograde and plants the Home marker there", () => {
-    const result = deployShip(readyToDeploy(), "p1", BETA, 9);
+    const result = deployShip(readyToDeploy(), "p1", 9);
     expect(result.success).toBe(true);
     const p1 = getPlayer(result.state, "p1");
     expect(p1.hasDeployed).toBe(true);
-    expect(p1.home).toEqual({ wellId: BETA, ring: 3, sector: 9 });
+    expect(p1.home).toEqual({ wellId: BH, ring: HOME_RING, sector: 9 });
     expect(p1.ship).toMatchObject({
-      wellId: BETA,
-      ring: 3,
+      wellId: BH,
+      ring: HOME_RING,
       sector: 9,
       facing: "prograde",
       hitPoints: 10,
     });
     expect(result.events).toEqual([
-      { type: "deployed", playerId: "p1", position: { wellId: BETA, ring: 3, sector: 9 } },
+      { type: "deployed", playerId: "p1", position: { wellId: BH, ring: HOME_RING, sector: 9 } },
     ]);
     expect(result.state.activePlayerIndex).toBe(1);
-    expect(getAvailableDeploymentSectors(result.state, BETA)).not.toContain(9);
+    expect(getAvailableDeploymentSectors(result.state)).not.toContain(9);
   });
 
   it("deploys in turn order", () => {
     const state = readyToDeploy();
-    expect(deployShip(state, "p2", BETA, 9)).toMatchObject({
+    expect(deployShip(state, "p2", 9)).toMatchObject({
       success: false,
       error: /turn/i,
       state,
     });
-    const afterP1 = deployShip(state, "p1", ALPHA, 0).state;
-    expect(deployShip(afterP1, "p1", ALPHA, 1).error).toMatch(/already deployed/i);
-    expect(deployShip(afterP1, "p2", GAMMA, 23).success).toBe(true);
+    const afterP1 = deployShip(state, "p1", 0).state;
+    expect(deployShip(afterP1, "p1", 1).error).toMatch(/already deployed/i);
+    expect(deployShip(afterP1, "p2", 23).success).toBe(true);
   });
 
   it.each([
-    ["the black hole", BH, 0, /planet/i],
-    ["sector 24", ALPHA, 24, /out of range/i],
-    ["sector -1", ALPHA, -1, /out of range/i],
-    ["a fractional sector", ALPHA, 1.5, /out of range/i],
-    ["an occupied sector", ALPHA, 5, /occupied/i],
-  ])("rejects deploying on %s", (_label, wellId, sector, message) => {
+    ["sector 24", 24, /out of range/i],
+    ["sector -1", -1, /out of range/i],
+    ["a fractional sector", 1.5, /out of range/i],
+    ["an occupied sector", 5, /occupied/i],
+  ])("rejects deploying on %s", (_label, sector, message) => {
     let state = readyToDeploy();
-    state = { ...deployShip(state, "p1", ALPHA, 5).state, activePlayerIndex: 1 };
-    const result = deployShip(state, "p2", wellId, sector);
+    state = { ...deployShip(state, "p1", 5).state, activePlayerIndex: 1 };
+    const result = deployShip(state, "p2", sector);
     expect(result.success).toBe(false);
     expect(result.error).toMatch(message);
     expect(result.state).toBe(state);
   });
 
   it("rejects deploying outside the deployment phase or for unknown players", () => {
-    expect(deployShip(createGame(SPECS, 1), "p1", ALPHA, 0).error).toMatch(/deployment phase/i);
-    expect(deployShip(readyToDeploy(), "p9", ALPHA, 0).error).toMatch(/not found/i);
+    expect(deployShip(createGame(SPECS, 1), "p1", 0).error).toMatch(/deployment phase/i);
+    expect(deployShip(readyToDeploy(), "p9", 0).error).toMatch(/not found/i);
   });
 
   it("becomes active once everyone has deployed, starting with the first player", () => {
     let state = readyToDeploy();
     expect(transitionToActivePhase(state)).toBe(state);
-    state = deployShip(state, "p1", ALPHA, 0).state;
+    state = deployShip(state, "p1", 0).state;
     expect(checkAllDeployed(state)).toBe(false);
-    state = deployShip(state, "p2", ALPHA, 12).state;
+    state = deployShip(state, "p2", 12).state;
     expect(checkAllDeployed(state)).toBe(true);
     const active = transitionToActivePhase(state);
     expect(active).toMatchObject({ phase: "active", activePlayerIndex: 0, turn: 1 });
@@ -393,13 +382,13 @@ describe("deployment", () => {
     expect(result.gameState).toBe(state);
   });
 
-  it("a freshly started game plays: the first turn drifts the first ship", () => {
+  it("a freshly started game plays: the first turn drifts the first ship two sectors", () => {
     let state = readyToDeploy();
-    state = deployShip(state, "p1", ALPHA, 0).state;
-    state = deployShip(state, "p2", GAMMA, 0).state;
+    state = deployShip(state, "p1", 0).state;
+    state = deployShip(state, "p2", 12).state;
     state = transitionToActivePhase(state);
     const next = mustExecute(state, coast(1));
-    expect(getShip(next, "p1")).toMatchObject({ wellId: ALPHA, ring: 3, sector: 1 });
+    expect(getShip(next, "p1")).toMatchObject({ wellId: BH, ring: HOME_RING, sector: 2 });
     expect(next.activePlayerIndex).toBe(1);
   });
 });

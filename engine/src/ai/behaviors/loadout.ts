@@ -117,12 +117,26 @@ const DENIAL_CREDIT = 3;
 /**
  * Score a trio: lower total cost and coherent cards score higher.
  */
-export function scoreMissionCombo(combo: Mission[], playerCount: number): number {
+export function scoreMissionCombo(
+  combo: Mission[],
+  playerCount: number,
+  destroyPoints: number = 1
+): number {
+  const costOf = (m: Mission) =>
+    m.type === "destroy_ship"
+      ? BASE_COST[m.type] - (Math.max(0, playerCount - 2) * 2 + DENIAL_CREDIT)
+      : BASE_COST[m.type];
   let cost = 0;
-  for (const m of combo) {
-    cost += BASE_COST[m.type];
-    // More opponents means more ships to run into and shoot at.
-    if (m.type === "destroy_ship") cost -= Math.max(0, playerCount - 2) * 2 + DENIAL_CREDIT;
+  if (destroyPoints >= 2 && combo.some((m) => m.type === "destroy_ship")) {
+    // A two-point kill plus the cheapest other card already reaches three points.
+    const destroy = combo.find((m) => m.type === "destroy_ship")!;
+    const rest = combo
+      .filter((m) => m !== destroy)
+      .map(costOf)
+      .sort((a, b) => a - b);
+    cost = costOf(destroy) + (rest[0] ?? 0);
+  } else {
+    for (const m of combo) cost += costOf(m);
   }
 
   let synergy = 0;
@@ -179,7 +193,11 @@ export function scoreMissionCombo(combo: Mission[], playerCount: number): number
  * The best trio of the offers. Ties keep the earlier combination, so the
  * choice is deterministic for a given offer order.
  */
-export function selectBotMissions(offers: Mission[], playerCount: number): Mission[] {
+export function selectBotMissions(
+  offers: Mission[],
+  playerCount: number,
+  destroyPoints: number = 1
+): Mission[] {
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
   let best: Mission[] = offers.slice(0, MISSIONS_PER_PLAYER);
   let bestScore = -Infinity;
@@ -187,7 +205,7 @@ export function selectBotMissions(offers: Mission[], playerCount: number): Missi
     for (let j = i + 1; j < offers.length - 1; j++) {
       for (let k = j + 1; k < offers.length; k++) {
         const combo = [offers[i], offers[j], offers[k]];
-        const score = scoreMissionCombo(combo, playerCount);
+        const score = scoreMissionCombo(combo, playerCount, destroyPoints);
         if (score > bestScore) {
           bestScore = score;
           best = combo;

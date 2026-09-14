@@ -31,6 +31,7 @@ import { positionOf, ringVelocity, sectorDistance } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, isDestroyed } from "./ship.ts";
 import { isInWeaponRange } from "./targeting.ts";
 import { findReadySensor } from "./scan.ts";
+import { rulesOf } from "./setup.ts";
 
 const MOVE_TYPES = new Set<PlayerAction["type"]>(["coast", "burn", "well_transfer"]);
 
@@ -112,8 +113,8 @@ export function validateAllocateEnergyAction(
     );
   }
   const total = sub.allocatedEnergy + action.data.amount;
-  if (total > config.maxEnergy)
-    errors.push(`Would exceed ${config.name} maximum (${total}/${config.maxEnergy})`);
+  const maxEnergy = sub.type === "shields" ? rulesOf(state).shieldMaxEnergy : config.maxEnergy;
+  if (total > maxEnergy) errors.push(`Would exceed ${config.name} maximum (${total}/${maxEnergy})`);
   if (sub.allocatedEnergy === 0 && total < config.minEnergy) {
     errors.push(`Must allocate at least ${config.minEnergy} energy to power ${config.name}`);
   }

@@ -48,6 +48,8 @@ export function OpponentCard({
 }: OpponentCardProps) {
   const ship = player.ship
   const destroyed = ship?.isDestroyed ?? false
+  /** Back at Home with a full hull, but sitting the next turn out. */
+  const recovering = !destroyed && player.skipTurns > 0
   const slots = [...player.slots].sort((a, b) =>
     a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1,
   )
@@ -71,7 +73,7 @@ export function OpponentCard({
           : player.isActive
             ? `0 0 14px ${color}55`
             : undefined,
-        opacity: destroyed ? 0.6 : 1,
+        opacity: destroyed ? 0.6 : recovering ? 0.8 : 1,
       }}
       title={
         <Box
@@ -99,6 +101,15 @@ export function OpponentCard({
             <Typography variant="overline" sx={{ color: TABLE.danger, lineHeight: 1, fontSize: '0.68rem' }}>
               lost
             </Typography>
+          )}
+          {recovering && (
+            <Tooltip
+              title={`Rebuilt at Home — sits out ${player.skipTurns} more turn${player.skipTurns > 1 ? 's' : ''}`}
+            >
+              <Typography variant="overline" sx={{ color: TABLE.accent, lineHeight: 1, fontSize: '0.68rem' }}>
+                recovering
+              </Typography>
+            </Tooltip>
           )}
         </Box>
       }

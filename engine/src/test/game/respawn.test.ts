@@ -1,9 +1,11 @@
+import { viewFor } from "../../game/view.ts";
 import { describe, it, expect } from "vitest";
 import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from "../../game/respawn.ts";
 import { REACTOR_CAPACITY } from "../../models/game.ts";
 import type { GameState, Player, ShipLoadout } from "../../models/game.ts";
 import type { Cargo } from "../../models/missions.ts";
 import {
+  allocate,
   BETA,
   BH,
   burn,
@@ -193,12 +195,23 @@ describe("respawn: the turn after dying", () => {
     expect(getShip(mustExecute(state), "p2").reactionMass).toBe(16);
   });
 
-  it("the player acts normally on the following turn", () => {
-    let state = mustExecute(wreck()); // p2 respawned at Beta R3 S7; p1 to act
+  it("the turn after respawning is lost: actions are ignored and the ship only drifts", () => {
+    let state = mustExecute(wreck()); // p2 respawned at Beta R3 S7 with skipTurns 1; p1 to act
+    expect(getPlayer(state, "p2").skipTurns).toBe(1);
+    expect(viewFor(state, "p1").players[1].skipTurns).toBe(1);
     state = mustExecute(state, coast(1));
-    const result = executeTurnAs(state, coast(1));
-    expect(result.errors).toBeUndefined();
-    expect(getShip(result.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 8 });
+    const skipped = executeTurnAs(state, allocate("engines", 3), burn(1, "soft"));
+    expect(skipped.errors).toBeUndefined();
+    expect(eventTypes(skipped.events)).toContain("turn_skipped");
+    expect(eventTypes(skipped.events)).not.toContain("burned");
+    expect(getShip(skipped.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 7 });
+    expect(getPlayer(skipped.gameState, "p2").skipTurns).toBe(0);
+    // Two turns later the player acts normally again.
+    state = mustExecute(skipped.gameState, coast(1));
+    const acting = executeTurnAs(state, coast(1));
+    expect(acting.errors).toBeUndefined();
+    expect(eventTypes(acting.events)).toContain("coasted");
+    expect(getShip(acting.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 8 });
   });
 
   it("no one can shoot a wreck while it waits to respawn", () => {
