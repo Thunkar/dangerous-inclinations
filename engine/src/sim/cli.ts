@@ -139,10 +139,10 @@ function printSummary(a: AggregateStats): void {
   const b = a.behaviour;
   const p = (x: number) => `${Math.round(x * 100)}%`;
   console.log(
-    `Turns: coast ${p(b.coastShare)}, burn ${p(b.burnShare)}, jump ${p(b.jumpShare)}, scoop ${p(b.scoopShare)}, firing ${p(b.firingShare)}, lost ${p(b.lostTurnShare)}`
+    `Turns: coast ${p(b.coastShare)} (idle ${p(b.idleShare)}), burn ${p(b.burnShare)}, jump ${p(b.jumpShare)}, scoop ${p(b.scoopShare)}, firing ${p(b.firingShare)}, lost ${p(b.lostTurnShare)}; energy in use ${b.meanEnergyInUse.toFixed(1)}/10`
   );
   console.log(
-    `Shields: mean ${b.meanShieldCubes} cubes, full(4) ${p(b.shieldsFullShare)} of turns, powered ${p(b.shieldsPoweredShare)}; damage soaked ${p(b.absorbedShare)}`
+    `Shields: mean ${b.meanShieldCubes} cubes, full(4) ${p(b.shieldsFullShare)} of turns (of which ${p(b.shieldsFullActingShare)} also moved/scooped/fired), powered ${p(b.shieldsPoweredShare)}; damage soaked ${p(b.absorbedShare)}`
   );
   console.log(
     `Heat at check: mean ${b.meanHeatAtCheck}; turns taking heat damage ${p(b.heatDamageShare)}`

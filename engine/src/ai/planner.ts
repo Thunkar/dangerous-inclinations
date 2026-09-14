@@ -23,7 +23,6 @@ import type {
   ScanAction,
   TacticalAction,
 } from "../models/game.ts";
-import { REACTOR_CAPACITY } from "../models/game.ts";
 import { SURVEY_RING } from "../models/missions.ts";
 import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
@@ -81,14 +80,29 @@ export function buildCandidate(
   const { me, ship, status, view } = situation;
   let movement = movementIn;
 
+  // Cubes spent absorbing damage (rule knob) are out of the reactor until the next dock.
+  const capacity = me.ship.reactor.totalCapacity - me.ship.spentEnergy;
+  const rotationEnergy = getSubsystemConfig("rotation").minEnergy;
+
   // A movement whose heat alone would gut the hull is not worth it.
   const movementHeatDamage = Math.max(0, status.heat + movement.engineEnergy - status.dissipation);
   if (movementHeatDamage > 0 && status.hull - movementHeatDamage < MIN_HULL_AFTER_OVERHEAT) {
     movement = coastChoice(false);
   }
+  // Nor is one the reactor cannot power (engines plus the turn it needs).
+  const movementRotation =
+    movement.requiredFacing !== null && movement.requiredFacing !== ship.facing
+      ? rotationEnergy
+      : 0;
+  if (movement.engineEnergy + movementRotation > capacity) {
+    movement = coastChoice(false);
+  }
 
   // Facing: the burn direction, or whatever gives the railgun a shot.
-  const canRotate = !status.rotation.isBroken && !status.rotation.usedThisTurn;
+  const canRotate =
+    !status.rotation.isBroken &&
+    !status.rotation.usedThisTurn &&
+    movement.engineEnergy + rotationEnergy <= capacity;
   let facing: Facing = movement.requiredFacing ?? ship.facing;
   if (movement.requiredFacing === null && canRotate) {
     const railgun = status.weapons.find((w) => w.type === "railgun" && isWeaponReady(w));
@@ -129,7 +143,7 @@ export function buildCandidate(
   }
   const heatBudget = status.heatBudget;
   const fits = (energy: number, heat: number, overflow = 0) =>
-    totalEnergy(targets) + energy <= REACTOR_CAPACITY && heatUsed + heat <= heatBudget + overflow;
+    totalEnergy(targets) + energy <= capacity && heatUsed + heat <= heatBudget + overflow;
 
   // Scoop the plan relies on comes before weapons; low-fuel scooping after.
   const scoopEnergy = getSubsystemConfig("scoop").minEnergy;
@@ -271,7 +285,8 @@ export function buildCandidate(
     status.racks.filter((r) => !shots.some((s) => s.intent.weapon.id === r.id)),
     enemiesNear || situation.incomingMissiles > 0,
     situation.incomingMissiles > 0,
-    situation.view.rules.shieldMaxEnergy
+    situation.view.rules.shieldMaxEnergy,
+    capacity
   );
 
   // Assemble.

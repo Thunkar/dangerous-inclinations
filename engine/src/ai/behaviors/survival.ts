@@ -34,9 +34,10 @@ export function assignDefensiveEnergy(
   racks: Subsystem[],
   wantShields: boolean,
   wantRack: boolean,
-  shieldMax: number = getSubsystemConfig("shields").maxEnergy
+  shieldMax: number = getSubsystemConfig("shields").maxEnergy,
+  capacity: number = REACTOR_CAPACITY
 ): EnergyTargets {
-  let spare = REACTOR_CAPACITY - totalEnergy(targets);
+  let spare = capacity - totalEnergy(targets);
   if (wantRack && spare >= getSubsystemConfig("ballistic_rack").minEnergy) {
     const rack = racks.find((r) => !r.isBroken && !targets.has(r.id));
     if (rack) {

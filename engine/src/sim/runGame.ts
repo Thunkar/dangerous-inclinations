@@ -50,6 +50,8 @@ export interface TurnStat {
   shieldCubes: number;
   /** Spent shield cubes waiting for a dock (rule knob). */
   spentCubes: number;
+  /** Cubes allocated to any subsystem at the end of the turn. */
+  energyInUse: number;
   heatAtCheck: number;
   dissipation: number;
   heatDamage: number;
@@ -236,6 +238,7 @@ function turnStat(turn: number, playerId: string, events: GameEvent[], after: Ga
     shotsFired: events.filter((e) => e.type === "weapon_fired" && e.attackerId === playerId).length,
     shieldCubes: shields.reduce((sum, s) => sum + s.allocatedEnergy, 0),
     spentCubes: player.ship.spentEnergy,
+    energyInUse: player.ship.subsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0),
     heatAtCheck: heat ? heat.heat : 0,
     dissipation: heat ? heat.dissipation : getDissipationCapacity(player.ship.subsystems),
     heatDamage: heat ? heat.damage : 0,

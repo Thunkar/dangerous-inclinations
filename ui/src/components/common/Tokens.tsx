@@ -160,12 +160,13 @@ export function PipTrack({
                 bgcolor: on || ghost ? color : 'rgba(126,165,205,0.09)',
                 opacity: ghost ? 0.38 : 1,
                 boxShadow: on ? `0 0 5px ${color}66` : 'none',
+                // Alpha on the colours rather than on the box, so the amber
+                // dissipation tick below keeps its own full strength.
                 ...(hatched
                   ? {
                       bgcolor: 'transparent',
-                      border: `1px solid ${color}`,
-                      backgroundImage: `repeating-linear-gradient(135deg, ${color} 0 1px, transparent 1px 3px)`,
-                      opacity: 0.75,
+                      border: `1px solid ${color}bb`,
+                      backgroundImage: `repeating-linear-gradient(135deg, ${color}aa 0 1px, transparent 1px 3px)`,
                     }
                   : null),
                 ...(threshold !== undefined && i + 1 === threshold

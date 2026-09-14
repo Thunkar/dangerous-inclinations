@@ -36,6 +36,8 @@ export interface PerPlayerStats {
 export interface TurnBehaviour {
   /** Share of acting turns (not lost to respawn/recovery) that were a plain coast. */
   coastShare: number;
+  /** Share of acting turns that coasted without scooping or firing: nothing was done. */
+  idleShare: number;
   burnShare: number;
   jumpShare: number;
   scoopShare: number;
@@ -44,6 +46,10 @@ export interface TurnBehaviour {
   meanShieldCubes: number;
   /** Share of acting turns ending with 4 cubes on shields. */
   shieldsFullShare: number;
+  /** Of the turns ending with 4 cubes on shields, the share that also burned, jumped, scooped or fired. */
+  shieldsFullActingShare: number;
+  /** Mean cubes allocated to any subsystem at the end of an acting turn (reactor holds 10). */
+  meanEnergyInUse: number;
   shieldsPoweredShare: number;
   meanHeatAtCheck: number;
   /** Share of acting turns whose heat check dealt damage. */
@@ -143,12 +149,23 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
     acting.length === 0 ? 0 : acting.reduce((s, t) => s + f(t), 0) / acting.length;
   const behaviour: TurnBehaviour = {
     coastShare: share((t) => t.coasted && !t.burned && !t.jumped),
+    idleShare: share(
+      (t) => t.coasted && !t.burned && !t.jumped && !t.scooped && t.shotsFired === 0
+    ),
     burnShare: share((t) => t.burned),
     jumpShare: share((t) => t.jumped),
     scoopShare: share((t) => t.scooped),
     firingShare: share((t) => t.shotsFired > 0),
     meanShieldCubes: mean((t) => t.shieldCubes),
     shieldsFullShare: share((t) => t.shieldCubes >= 4),
+    shieldsFullActingShare: (() => {
+      const full = acting.filter((t) => t.shieldCubes >= 4);
+      return full.length === 0
+        ? 0
+        : full.filter((t) => t.burned || t.jumped || t.scooped || t.shotsFired > 0).length /
+            full.length;
+    })(),
+    meanEnergyInUse: mean((t) => t.energyInUse),
     shieldsPoweredShare: share((t) => t.shieldCubes > 0),
     meanHeatAtCheck: mean((t) => t.heatAtCheck),
     heatDamageShare: share((t) => t.heatDamage > 0),

@@ -96,8 +96,15 @@ yarn dev:all
 yarn build          # engine must build before server/ui typecheck
 yarn workspace @dangerous-inclinations/engine test --run
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1
+yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --rules=shieldRefill=on_dock,dockHullRepair=1
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message
 ```
+
+Rule experiments: `engine/src/models/rules.ts` lists the knobs (defaults =
+RULES.md). `--rules=k=v,...` overrides them for a sim run; the summary prints
+turn behaviour (coast/burn/jump/firing shares, shield cubes, heat at check,
+damage soaked) so a proposed rule change can be measured before it is adopted.
+Bots read `view.rules` for the knobs that change what is legal or valuable.
 
 The simulator is not exported from the engine's browser barrel (it uses worker
 threads); import it by path or use `yarn sim`.

@@ -201,11 +201,12 @@ check(
 );
 check(afterLoadout.activePlayerId === HUMAN, `the human is next to deploy (got ${afterLoadout.activePlayerId})`);
 
+// Everyone deploys on Black Hole Ring 4; any sector nobody has taken yet.
 const free = new Set(Array.from({ length: 24 }, (_, i) => i));
 for (const p of afterLoadout.players) {
-  if (p.ship && p.ship.wellId === "planet-alpha") free.delete(p.ship.sector);
+  if (p.ship && p.hasDeployed) free.delete(p.ship.sector);
 }
-const deployResult = await games.deploy(GAME_ID, HUMAN, "planet-alpha", [...free][0]);
+const deployResult = await games.deploy(GAME_ID, HUMAN, [...free][0]);
 if (!deployResult.ok) fail(`human deployment rejected: ${deployResult.error}`);
 
 const afterDeploy = await games.getView(GAME_ID, HUMAN);
@@ -446,9 +447,9 @@ async function freshGame(archive: RecordingArchive | null = null) {
     missionIds: first!.me!.missionOffers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id),
   });
   const deployed = await gameGames.getView(gameId, HUMAN);
-  const used = new Set(deployed!.players.filter((p) => p.ship?.wellId === "planet-alpha").map((p) => p.ship!.sector));
+  const used = new Set(deployed!.players.filter((p) => p.hasDeployed && p.ship).map((p) => p.ship!.sector));
   const freeSector = [...Array(24).keys()].find((sector) => !used.has(sector))!;
-  await gameGames.deploy(gameId, HUMAN, "planet-alpha", freeSector);
+  await gameGames.deploy(gameId, HUMAN, freeSector);
   return { kv: gameKv, games: gameGames, recordings: gameRecordings, gameId };
 }
 

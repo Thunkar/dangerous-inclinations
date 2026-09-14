@@ -212,6 +212,12 @@ After teaching the bots denial (interdict a rival who is one delivery from winni
 
 None of these levers has been pulled; they are the designer's calls.
 
+**Measured (15 Sept 2026, 18 rows × 100 games on identical seeds, `docs/experiments-2026-09-15.md`):** Destroy worth 2 is the only single knob that changes behaviour (bots keep Destroy, gun hulls 57% → 91% of seats, kills 0.2 → 0.6 per game, games 27 → 36 rounds). Shield changes alone make hits hurt without making anyone seek them. Destroy 2 + shield cap 2 gives 1.7 kills per game with every game finishing in 31 rounds and Deliver still the top card; Destroy 2 + spent shields + dock repair 1 gives 1.1. Coasting is not the constraint the shield debate assumed: 32% of turns coast but only 3% are idle, ships hold 4 shield cubes on 58% of turns and still act on 96% of those, and the reactor averages 5.4 of 10 cubes in use. Nothing is adopted yet.
+
+## 6c. How to test a rule before adopting it
+
+`engine/src/models/rules.ts` holds the knobs that experiments have needed so far (shield refill, shield cap, criticals through shields, dock repair, starting hull, Destroy's worth, Deliver routes dealt). They default to RULES.md and are carried on the game state, so a recording says which rules it was played under. Run `yarn sim --rules=k=v,... --tiebreak` with the same `--baseSeed` as the baseline and compare: same seeds, same hands, only the rule differs. Results of the first matrix are in `docs/experiments-2026-09-15.md`.
+
 ## 7. Code plan
 
 Order matters; each step keeps the tests green. **Status (14 Sept 2026): all eight steps are done.** The engine has 608 tests; the server has a no-network smoke harness (`yarn smoke` in `server/`) that checks every message a human would receive for leaks; the simulator runs on worker threads (`yarn sim` in `engine/`). Two adversarial Codex reviews were run on the result and their confirmed findings fixed (id shuffling so crate ids don't reveal routes, private scoop amounts, per-turn rack reset, burns that would leave the rings rejected, face-down-first scans, multi-wreck recovery, tile counts per set, player bounds, and a list of server races and leaks).
