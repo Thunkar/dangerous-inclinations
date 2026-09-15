@@ -73,7 +73,7 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
  * compressor a long route wants.
  *
  * The sensor array earns the forward slot only when a card needs a scan.
- * A hand of Deliver and Survey cards never scans anything, and the crit
+ * A hand of Deliver cards alone never powers a sensor, and the crit
  * bonus is a rounding error next to the difference between a 2-damage
  * broadside and a 6-damage volley — so a hand with no Intercept takes the
  * railgun, whether or not it holds a Destroy card. The bot will be shooting
@@ -85,8 +85,10 @@ export function classifyArchetype(missions: Mission[]): BotArchetype {
   const destroy = count(active, "destroy_ship");
   const intercept = count(active, "intercept_transmission");
   const travel = count(active, "deliver_cargo", "survey");
+  const surveys = count(active, "survey");
 
-  if (intercept > 0) return destroy > 0 || travel === 0 ? "scout" : "hauler";
+  // Intercept needs a scan and Survey needs powered sensors on the ring: both rule out the railgun.
+  if (intercept > 0 || surveys > 0) return destroy > 0 || travel === 0 ? "scout" : "hauler";
   if (destroy >= 2) return "hunter";
   return "raider";
 }
@@ -109,7 +111,7 @@ const BASE_COST: Record<Mission["type"], number> = {
   destroy_ship: 17,
   deliver_cargo: 16,
   intercept_transmission: 12,
-  survey: 12,
+  survey: 16,
 };
 
 /**

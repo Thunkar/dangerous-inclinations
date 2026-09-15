@@ -6,7 +6,12 @@
  * Four kinds of card: Destroy, Deliver, Intercept and Survey.
  */
 import type { Cargo, Mission, MissionFamily } from '@dangerous-inclinations/engine'
-import { DEFAULT_RULES, MISSION_FAMILY, getWellName } from '@dangerous-inclinations/engine'
+import {
+  DEFAULT_RULES,
+  MISSION_FAMILY,
+  SURVEY_HOLD_TURNS,
+  getWellName,
+} from '@dangerous-inclinations/engine'
 import { TABLE } from '../theme'
 
 export const FAMILY_COLOR: Partial<Record<MissionFamily, string>> = {
@@ -27,7 +32,7 @@ export function missionFamilyColor(mission: Mission): string {
 export function missionProgress(mission: Mission, cargo: ReadonlyArray<Cargo>): string | null {
   switch (mission.type) {
     case 'deliver_cargo': {
-      const crate = cargo.find((c) => c.missionId === mission.id)
+      const crate = cargo.find(c => c.missionId === mission.id)
       return crate?.isPickedUp
         ? `Crate aboard — deliver at ${getWellName(mission.deliveryPlanetId)}`
         : `Load the crate at ${getWellName(mission.pickupPlanetId)}`
@@ -35,7 +40,11 @@ export function missionProgress(mission: Mission, cargo: ReadonlyArray<Cargo>): 
     case 'intercept_transmission':
       return mission.scanAcquired ? 'Transmission taken — dock anywhere' : 'Scan them first'
     case 'survey':
-      return mission.surveyAcquired ? 'Data aboard — dock anywhere' : 'End a turn on Black Hole R1'
+      if (mission.surveyAcquired)
+        return `Data aboard — deliver at ${getWellName(mission.deliveryPlanetId)}`
+      if (mission.surveyTurns > 0)
+        return `Holding Black Hole R1 (${mission.surveyTurns}/${SURVEY_HOLD_TURNS}) — one more turn, sensors on`
+      return `${SURVEY_HOLD_TURNS} turns on Black Hole R1 with sensors powered, then dock at ${getWellName(mission.deliveryPlanetId)}`
     default:
       // Destroy has nothing to track: you either put their hull to 0 or you don't.
       return null
@@ -43,7 +52,10 @@ export function missionProgress(mission: Mission, cargo: ReadonlyArray<Cargo>): 
 }
 
 /** Points the card scores when completed (Destroy is worth more than one). */
-export function missionPoints(mission: Mission, destroyPoints: number = DEFAULT_RULES.destroyPoints): number {
+export function missionPoints(
+  mission: Mission,
+  destroyPoints: number = DEFAULT_RULES.destroyPoints
+): number {
   return mission.type === 'destroy_ship' ? destroyPoints : 1
 }
 

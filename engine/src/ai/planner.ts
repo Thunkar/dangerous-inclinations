@@ -171,6 +171,15 @@ export function buildCandidate(
   };
   if (scan?.forMission) tryScan();
 
+  // A survey only counts with the sensor array powered while the ship holds the ring.
+  if (surveying) {
+    const sensor = status.sensors.find((s) => !s.isBroken);
+    const sensorEnergy = getSubsystemConfig("sensor_array").minEnergy;
+    if (sensor && !targets.has(sensor.id) && fits(sensorEnergy, 0)) {
+      targets.set(sensor.id, sensorEnergy);
+    }
+  }
+
   // Weapons: concentrate on one target, biggest hits first, spilling
   // over to the next once that one is already accounted for.
   const ctx = {

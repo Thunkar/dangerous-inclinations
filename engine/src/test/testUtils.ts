@@ -273,10 +273,12 @@ export const interceptMission = (
   scanAcquired: false,
   dataCargoId: `data-${id}`,
 });
-export const surveyMission = (id = "survey-1"): SurveyMission => ({
+export const surveyMission = (id = "survey-1", deliveryPlanetId = ALPHA): SurveyMission => ({
   id,
   type: "survey",
   isCompleted: false,
+  deliveryPlanetId,
+  surveyTurns: 0,
   surveyAcquired: false,
   dataCargoId: `data-${id}`,
 });
@@ -389,7 +391,7 @@ export function scriptedGameStart(seed: number): GameState {
     DEFAULT_LOADOUT,
     {
       home: { wellId: BH, ring: 4, sector: 0 },
-    skipTurns: 0,
+      skipTurns: 0,
     }
   );
   const p2 = makePlayer(

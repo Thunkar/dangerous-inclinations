@@ -15,7 +15,11 @@ import type { GameRecording, RecordedTurn, RecordingMetadata } from "../recordin
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
 import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
-import { applyLoadoutOverrides, type LoadoutOverrides } from "./loadoutOverrides.ts";
+import {
+  applyLoadoutOverrides,
+  type LoadoutOverrides,
+  type SeatLoadouts,
+} from "./loadoutOverrides.ts";
 import { createGame, submitLoadout } from "../game/setup.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
@@ -41,6 +45,8 @@ export interface GameConfig {
   weapons?: WeaponOverrides;
   /** Experiment-only bot hull overrides (see sim/loadoutOverrides.ts). */
   loadouts?: LoadoutOverrides;
+  /** Experiment-only: force a hull on a seat (`bot-1`…), whatever its hand asks for. */
+  seatLoadouts?: SeatLoadouts;
 }
 
 /** What the active player did on one turn, for balance stats. */
@@ -102,7 +108,12 @@ export function botIds(count: number): string[] {
  * Create a game with `botCount` bots, run loadout and deployment through the
  * AI, and return the state in the active phase.
  */
-export function setupBotGame(seed: number, botCount: number, rules?: Partial<RuleSet>): GameState {
+export function setupBotGame(
+  seed: number,
+  botCount: number,
+  rules?: Partial<RuleSet>,
+  seatLoadouts?: SeatLoadouts
+): GameState {
   let state = createGame(
     botIds(botCount).map((id, i) => ({ id, name: `Bot ${i + 1}` })),
     seed,
@@ -112,7 +123,7 @@ export function setupBotGame(seed: number, botCount: number, rules?: Partial<Rul
   for (const player of state.players) {
     const choice = botChooseLoadout(player.missionOffers, { playerCount: botCount, rules });
     const result = submitLoadout(state, player.id, {
-      loadout: choice.loadout,
+      loadout: seatLoadouts?.[player.id] ?? choice.loadout,
       missionIds: choice.missionIds,
     });
     if (result.error) throw new Error(`Bot ${player.id} loadout rejected: ${result.error}`);
@@ -140,7 +151,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;
 
-  const initialState = setupBotGame(seed, botCount, config.rules);
+  const initialState = setupBotGame(seed, botCount, config.rules, config.seatLoadouts);
   let state = initialState;
   const turns: GameRunResult["turns"] = [];
   const turnStats: TurnStat[] = [];

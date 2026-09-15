@@ -17,6 +17,7 @@
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --weapons=laser.damage=3,laser.sideRestricted=false  experiment-only weapon stat overrides
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)
+ *   --seats=bot-1=railgun/missiles,radiator,laser,shields  force a hull on a seat, whatever its hand asks for
  *   --quiet       no per-game progress
  */
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -28,7 +29,12 @@ import type { AggregateStats } from "./stats.ts";
 import { parseRuleOverrides } from "../models/rules.ts";
 import type { RuleSet } from "../models/rules.ts";
 import { parseWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
-import { parseLoadoutOverrides, type LoadoutOverrides } from "./loadoutOverrides.ts";
+import {
+  parseLoadoutOverrides,
+  parseSeatLoadouts,
+  type LoadoutOverrides,
+  type SeatLoadouts,
+} from "./loadoutOverrides.ts";
 
 interface Args {
   games: number;
@@ -44,6 +50,7 @@ interface Args {
   tiebreak: boolean;
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
+  seatLoadouts?: SeatLoadouts;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -108,6 +115,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "loadouts":
         args.loadouts = parseLoadoutOverrides(value);
+        break;
+      case "seats":
+        args.seatLoadouts = parseSeatLoadouts(value);
         break;
       default:
         console.warn(`Unknown flag --${key}`);
@@ -191,6 +201,7 @@ async function main(): Promise<void> {
     tiebreak: args.tiebreak,
     weapons: args.weapons,
     loadouts: args.loadouts,
+    seatLoadouts: args.seatLoadouts,
     onProgress: args.quiet
       ? undefined
       : (done, total, last) => {

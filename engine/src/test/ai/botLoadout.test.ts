@@ -26,9 +26,10 @@ import {
 
 /** A trio of cards that should produce each archetype. */
 const TRIOS: Record<BotArchetype, Mission[]> = {
-  hunter: [destroyMission("p2"), destroyMission("p3"), surveyMission()],
-  raider: [destroyMission("p2"), deliverMission(ALPHA, BETA), surveyMission()],
-  hauler: [interceptMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
+  hunter: [destroyMission("p2"), destroyMission("p3"), deliverMission(ALPHA, BETA)],
+  raider: [destroyMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
+  // Survey needs powered sensors on the ring, so it takes the sensor hull like Intercept.
+  hauler: [surveyMission(), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
   scout: [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
 };
 
@@ -122,10 +123,16 @@ describe("botChooseLoadout", () => {
     // A pure cargo hand never scans anything, so the slot goes to the gun it
     // will need when somebody else is one dock from winning.
     const { loadout } = botChooseLoadout(
-      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()],
+      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), deliverMission(GAMMA, ALPHA)],
       { playerCount: 3 }
     );
     expect(loadout.forwardSlots).toEqual(["railgun"]);
+    // A Survey card needs powered sensors on the ring, so it takes the sensor hull like Intercept.
+    const survey = botChooseLoadout(
+      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()],
+      { playerCount: 3 }
+    );
+    expect(survey.loadout.forwardSlots).toEqual(["sensor_array"]);
   });
 
   it("gives every combat hull the heat headroom its volley needs", () => {

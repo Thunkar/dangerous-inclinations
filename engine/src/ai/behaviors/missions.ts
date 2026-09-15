@@ -6,7 +6,7 @@
  *   destroy_ship               → hunt: get weapons on the target
  *   deliver_cargo              → dock at pickup, then at delivery
  *   intercept_transmission     → shadow (scan range), then dock anywhere
- *   survey                     → black hole ring 1, then dock anywhere
+ *   survey                     → hold black hole ring 1 two turns, sensors on, then dock at its planet
  *   an opponent about to win    → interdict: meet them where their cargo must go
  *   broken systems / low hull  → dock at the nearest station (repairs)
  *   nothing at all             → dock at the nearest station (fuel, cargo)
@@ -246,10 +246,12 @@ export function computeGoals(
       }
       case "survey": {
         if (!mission.surveyAcquired) {
+          // The data is only taken with the sensor array powered.
+          if (status.sensors.length === 0 || status.sensors.every((s) => s.isBroken)) break;
           goals.push({
             type: "survey",
             missionId: mission.id,
-            description: "Survey the event horizon",
+            description: `Survey the event horizon for ${mission.deliveryPlanetId}`,
             estimatedTurns: cheapTurnEstimate(from, {
               wellId: BLACK_HOLE_ID,
               ring: SURVEY_RING,
@@ -258,7 +260,14 @@ export function computeGoals(
             urgency: 0,
           });
         } else {
-          const goal = dockAnywhereGoal(view, from, mission, "Deliver survey data", 2);
+          const goal = dockGoal(
+            view,
+            from,
+            mission,
+            mission.deliveryPlanetId,
+            "Deliver survey data",
+            2
+          );
           if (goal) goals.push(goal);
         }
         break;

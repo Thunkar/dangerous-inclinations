@@ -7,7 +7,7 @@
 import type { GameState, Player } from "../../models/game.ts";
 import type { EventDraft } from "../../models/events.ts";
 import type { Cargo, Mission } from "../../models/missions.ts";
-import { MISSIONS_TO_WIN, SURVEY_RING } from "../../models/missions.ts";
+import { MISSIONS_TO_WIN, SURVEY_HOLD_TURNS, SURVEY_RING } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 import { rulesOf } from "../setup.ts";
@@ -62,29 +62,50 @@ export function processMissionEvents(
         break;
       case "survey": {
         let m = mission;
-        // Acquire data by ending the turn on the innermost black hole ring.
-        if (
-          !m.surveyAcquired &&
-          !isDestroyed(player.ship) &&
-          player.ship.wellId === BLACK_HOLE_ID &&
-          player.ship.ring === SURVEY_RING
-        ) {
-          m = { ...m, surveyAcquired: true };
-          const data: Cargo = {
-            id: m.dataCargoId,
-            missionId: m.id,
-            kind: "data",
-            deliveryPlanetId: "any",
-            isPickedUp: true,
-          };
-          cargo = [...cargo, data];
-          events.push({
-            type: "data_acquired",
-            playerId,
-            kind: "survey",
-            missionId: m.id,
-            privateTo: [playerId],
-          });
+        // The data is taken by ending SURVEY_HOLD_TURNS consecutive turns on the
+        // innermost black hole ring with the sensor array powered; a turn ended
+        // anywhere else, or dark, starts the count again.
+        if (!m.surveyAcquired) {
+          const onRing =
+            !isDestroyed(player.ship) &&
+            player.ship.wellId === BLACK_HOLE_ID &&
+            player.ship.ring === SURVEY_RING;
+          const sensing = player.ship.subsystems.some(
+            (s) => s.type === "sensor_array" && s.isPowered && !s.isBroken
+          );
+          if (onRing && sensing) {
+            const turns = m.surveyTurns + 1;
+            m = { ...m, surveyTurns: turns };
+            if (turns >= SURVEY_HOLD_TURNS) {
+              m = { ...m, surveyAcquired: true };
+              const data: Cargo = {
+                id: m.dataCargoId,
+                missionId: m.id,
+                kind: "data",
+                deliveryPlanetId: m.deliveryPlanetId,
+                isPickedUp: true,
+              };
+              cargo = [...cargo, data];
+              events.push({
+                type: "data_acquired",
+                playerId,
+                kind: "survey",
+                missionId: m.id,
+                privateTo: [playerId],
+              });
+            } else {
+              events.push({
+                type: "survey_hold",
+                playerId,
+                missionId: m.id,
+                turns,
+                needed: SURVEY_HOLD_TURNS,
+                privateTo: [playerId],
+              });
+            }
+          } else if (m.surveyTurns > 0) {
+            m = { ...m, surveyTurns: 0 };
+          }
         }
         if (m.surveyAcquired && deliveredCargoIds.has(m.dataCargoId))
           m = { ...m, isCompleted: true };

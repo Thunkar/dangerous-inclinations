@@ -63,6 +63,11 @@ function playUntil(
   return state;
 }
 
+const SENSOR_HULL: ShipLoadout = {
+  forwardSlots: ["sensor_array"],
+  sideSlots: ["laser", "shields", "radiator", "fuel_compressor"],
+};
+
 describe("bot missions", () => {
   it("scans an Intercept target that is on its ring and within range", () => {
     const state = withMissions(
@@ -128,10 +133,10 @@ describe("bot missions", () => {
     expect(executeTurn(state, decision.actions).errors).toBeUndefined();
   });
 
-  it("dives to black hole ring 1 for a Survey", () => {
+  it("dives to black hole ring 1 for a Survey and holds it with the sensors on", () => {
     const start = withMissions(
       makeGameState([
-        makePlayer("p1", { wellId: BH, ring: 4, sector: 0 }),
+        makePlayer("p1", { wellId: BH, ring: 4, sector: 0 }, SENSOR_HULL),
         makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 12 }),
       ]),
       "p1",
@@ -140,7 +145,7 @@ describe("bot missions", () => {
 
     const acquired = (s: GameState) =>
       (getPlayer(s, "p1").missions[0] as SurveyMission).surveyAcquired;
-    const state = playUntil(start, "p1", acquired, 40);
+    const state = playUntil(start, "p1", acquired, 60);
 
     expect(acquired(state)).toBe(true);
     expect(getPlayer(state, "p1").cargo.some((c) => c.kind === "data")).toBe(true);
@@ -190,18 +195,18 @@ describe("bot missions", () => {
     expect(goal).toContain(BETA);
   });
 
-  it("stops surveying once the data is aboard and goes to a station instead", () => {
+  it("stops surveying once the data is aboard and delivers it at the named planet", () => {
     const start = withMissions(
       makeGameState([
-        makePlayer("p1", { wellId: BLACK_HOLE_ID, ring: SURVEY_RING, sector: 0 }),
+        makePlayer("p1", { wellId: BLACK_HOLE_ID, ring: SURVEY_RING, sector: 0 }, SENSOR_HULL),
         makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 12 }),
       ]),
       "p1",
-      [surveyMission()]
+      [surveyMission("survey-1", ALPHA)]
     );
 
     const completed = (s: GameState) => getPlayer(s, "p1").completedMissionCount > 0;
-    const state = playUntil(start, "p1", completed, 80);
+    const state = playUntil(start, "p1", completed, 120);
     expect(completed(state)).toBe(true);
   });
 });

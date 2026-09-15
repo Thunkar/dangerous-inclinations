@@ -187,9 +187,9 @@ Four kinds of card. **Destroy is worth two points, every other card one; three p
 | **Destroy [player]** | 2 | you reduce their hull to 0 |
 | **Deliver [A → B]** | 1 | you dock at A (load the crate), then dock at B |
 | **Intercept [player]** | 1 | you scan them (take the data chit), then dock at any station |
-| **Survey the Event Horizon** | 1 | you end a turn on Black Hole Ring 1 (take the data chit), then dock at any station |
+| **Survey the Event Horizon [planet]** | 1 | you end **two consecutive turns** on Black Hole Ring 1 with your **sensor array powered** (take the data chit on the second), then dock at [planet]'s station. Ending a turn anywhere else, or with the sensors dark, starts the count again |
 
-Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey. Draw 5, keep 3.
+Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey (to two different planets). Draw 5, keep 3.
 
 When you complete a mission, turn the card face-up for everyone to see.
 
@@ -221,7 +221,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Hit roll | 1 miss, 2–9 hit, 10 crit (8–10 with sensors) |
 | Scan | same ring, within 3 sectors, sensor powered |
 | Docking | +3 hull, repair all, reload missiles, load/deliver cargo |
-| Survey | end a turn on Black Hole Ring 1 |
+| Survey | second consecutive turn ended on Black Hole Ring 1, sensors powered |
 | Win | 3 completed missions |
 
 ### Turn cheat sheet

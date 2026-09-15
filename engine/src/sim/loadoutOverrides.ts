@@ -10,6 +10,32 @@ import type { ShipLoadout } from "../models/game.ts";
 import type { SubsystemType } from "../models/subsystems.ts";
 
 export type LoadoutOverrides = Partial<Record<BotArchetype, ShipLoadout>>;
+/** Hull forced on a given seat (`bot-1`…), whatever archetype its hand asks for. */
+export type SeatLoadouts = Record<string, ShipLoadout>;
+
+function parseHull(entry: string, spec: string): ShipLoadout {
+  const [forward, sides] = spec.split("/");
+  const sideSlots = (sides ?? "").split(",").map((s) => s.trim()) as SubsystemType[];
+  if (!forward || sideSlots.length !== 4)
+    throw new Error(`Loadout override "${entry}" needs one forward tile and four side tiles`);
+  return {
+    forwardSlots: [forward.trim() as SubsystemType],
+    sideSlots: sideSlots as ShipLoadout["sideSlots"],
+  };
+}
+
+/** `bot-1=railgun/missiles,radiator,laser,shields;bot-2=...` */
+export function parseSeatLoadouts(text: string): SeatLoadouts {
+  const out: SeatLoadouts = {};
+  for (const entry of text.split(";")) {
+    if (!entry.trim()) continue;
+    const eq = entry.indexOf("=");
+    if (eq === -1)
+      throw new Error(`Seat loadout "${entry}" needs seat=forward/side,side,side,side`);
+    out[entry.slice(0, eq).trim()] = parseHull(entry, entry.slice(eq + 1));
+  }
+  return out;
+}
 
 export function parseLoadoutOverrides(text: string): LoadoutOverrides {
   const out: LoadoutOverrides = {};
@@ -23,14 +49,7 @@ export function parseLoadoutOverrides(text: string): LoadoutOverrides {
       throw new Error(
         `Unknown archetype "${archetype}". Known: ${Object.keys(BOT_LOADOUT_TEMPLATES).join(", ")}`
       );
-    const [forward, sides] = entry.slice(eq + 1).split("/");
-    const sideSlots = (sides ?? "").split(",").map((s) => s.trim()) as SubsystemType[];
-    if (!forward || sideSlots.length !== 4)
-      throw new Error(`Loadout override "${entry}" needs one forward tile and four side tiles`);
-    out[archetype] = {
-      forwardSlots: [forward.trim() as SubsystemType],
-      sideSlots: sideSlots as ShipLoadout["sideSlots"],
-    };
+    out[archetype] = parseHull(entry, entry.slice(eq + 1));
   }
   return out;
 }

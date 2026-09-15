@@ -30,7 +30,9 @@ export type MissionBlueprint = {
 export function buildMissionDeck(
   opponents: ReadonlyArray<Pick<Player, "id">>,
   planetIds: readonly string[],
-  routes: Array<[string, string]> = allRoutes(planetIds)
+  routes: Array<[string, string]> = allRoutes(planetIds),
+  /** Planets the Survey cards deliver to, one per card. */
+  surveyPlanets: readonly string[] = planetIds.slice(0, SURVEY_CARDS_PER_DECK)
 ): MissionBlueprint[] {
   const deck: MissionBlueprint[] = [];
 
@@ -54,7 +56,14 @@ export function buildMissionDeck(
     });
   }
   for (let i = 0; i < SURVEY_CARDS_PER_DECK; i++)
-    deck.push({ type: "survey", isCompleted: false, surveyAcquired: false, dataCargoId: "" });
+    deck.push({
+      type: "survey",
+      isCompleted: false,
+      deliveryPlanetId: surveyPlanets[i % surveyPlanets.length],
+      surveyTurns: 0,
+      surveyAcquired: false,
+      dataCargoId: "",
+    });
 
   return deck;
 }
@@ -98,7 +107,9 @@ export function dealMissionOffers(
     const routes = rng
       .shuffle(allRoutes(planetIds))
       .slice(0, Math.max(0, Math.min(6, rules.deliverRoutesDealt)));
-    const shuffled = rng.shuffle(buildMissionDeck(opponents, planetIds, routes));
+    // The two Survey cards deliver to two different planets, drawn per player.
+    const surveyPlanets = rng.shuffle([...planetIds]).slice(0, SURVEY_CARDS_PER_DECK);
+    const shuffled = rng.shuffle(buildMissionDeck(opponents, planetIds, routes, surveyPlanets));
     const deck = shuffled.map((card) => assignMissionId(card, `m${next++}`));
     offers.set(player.id, deck.slice(0, MISSION_OFFERS_PER_PLAYER));
   }

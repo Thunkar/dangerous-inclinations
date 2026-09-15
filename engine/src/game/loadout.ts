@@ -3,6 +3,8 @@
  * Ships have one forward slot and four side slots; every slot must be filled.
  */
 import type { Subsystem, SubsystemType, SlotGroup } from "../models/subsystems.ts";
+import { DEFAULT_RULES } from "../models/rules.ts";
+import type { RuleSet } from "../models/rules.ts";
 import {
   SUBSYSTEM_CONFIGS,
   FIXED_SUBSYSTEM_TYPES,
@@ -31,7 +33,10 @@ export function canInstallInSlot(type: SubsystemType, group: SlotGroup): boolean
   return slotType === group || slotType === "either";
 }
 
-export function validateLoadout(loadout: ShipLoadout): LoadoutValidation {
+export function validateLoadout(
+  loadout: ShipLoadout,
+  rules: RuleSet = DEFAULT_RULES
+): LoadoutValidation {
   const errors: string[] = [];
   if (!Array.isArray(loadout?.forwardSlots) || loadout.forwardSlots.length !== FORWARD_SLOT_COUNT) {
     return {
@@ -58,6 +63,7 @@ export function validateLoadout(loadout: ShipLoadout): LoadoutValidation {
 
   // One set of tiles per player: at most maxPerShip of each type.
   const counts = new Map<SubsystemType, number>();
+  if (!rules.tileLimits) return { valid: errors.length === 0, errors };
   for (const type of [...loadout.forwardSlots, ...loadout.sideSlots]) {
     if (type !== null) counts.set(type, (counts.get(type) ?? 0) + 1);
   }

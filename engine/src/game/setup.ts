@@ -91,7 +91,7 @@ export function submitLoadout(
   if (player.hasSubmittedLoadout)
     return { state, error: `${player.name} has already submitted a loadout` };
 
-  const validation = validateLoadout(submission.loadout);
+  const validation = validateLoadout(submission.loadout, rulesOf(state));
   if (!validation.valid) return { state, error: validation.errors.join("; ") };
 
   const picked = selectMissionsFromOffers(player.missionOffers, submission.missionIds);
