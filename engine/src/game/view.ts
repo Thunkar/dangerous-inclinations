@@ -194,7 +194,10 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     me,
     myStats: me
       ? {
-          dissipationCapacity: getDissipationCapacity(me.ship.subsystems),
+          dissipationCapacity: getDissipationCapacity(
+            me.ship.subsystems,
+            resolveRules(state.rules).baseDissipation
+          ),
           maxReactionMass: getMaxReactionMass(me.ship.subsystems),
           criticalChance: getEffectiveCriticalChance(me.ship.subsystems),
         }

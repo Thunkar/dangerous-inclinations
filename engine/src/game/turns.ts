@@ -18,6 +18,7 @@ import { processActions } from "./actionProcessors.ts";
 import { processOwnerMissiles } from "./missiles.ts";
 import { processDocking } from "./docking.ts";
 import { resolveEndOfTurnHeat } from "./heat.ts";
+import { rulesOf } from "./setup.ts";
 import { processMissionEvents, checkForWinner, rankPlayers } from "./missions/missionChecks.ts";
 import { updateStationPositions } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
@@ -87,7 +88,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   {
     const player = state.players[activeIndex];
     if (!isDestroyed(player.ship)) {
-      const heat = resolveEndOfTurnHeat(player.ship, player.id);
+      const heat = resolveEndOfTurnHeat(player.ship, player.id, rulesOf(state).baseDissipation);
       const players = [...state.players];
       players[activeIndex] = { ...player, ship: heat.ship };
       state = { ...state, players };

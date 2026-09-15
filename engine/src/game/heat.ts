@@ -10,8 +10,14 @@ import { getDissipationCapacity, revealSubsystem } from "./ship.ts";
 
 export { addHeat } from "./ship.ts";
 
-export function calculateHeatDamage(ship: ShipState): number {
-  return Math.max(0, ship.heat.currentHeat - getDissipationCapacity(ship.subsystems));
+export function calculateHeatDamage(
+  ship: ShipState,
+  baseDissipation: number = DEFAULT_DISSIPATION_CAPACITY
+): number {
+  return Math.max(
+    0,
+    ship.heat.currentHeat - getDissipationCapacity(ship.subsystems, baseDissipation)
+  );
 }
 
 export function resetHeat(ship: ShipState): ShipState {
@@ -26,16 +32,17 @@ export function resetHeat(ship: ShipState): ShipState {
  */
 export function resolveEndOfTurnHeat(
   ship: ShipState,
-  playerId: string
+  playerId: string,
+  baseDissipation: number = DEFAULT_DISSIPATION_CAPACITY
 ): { ship: ShipState; damage: number; events: EventDraft[] } {
   const heat = ship.heat.currentHeat;
-  const dissipation = getDissipationCapacity(ship.subsystems);
+  const dissipation = getDissipationCapacity(ship.subsystems, baseDissipation);
   const damage = Math.max(0, heat - dissipation);
   const events: EventDraft[] = [];
   let next = ship;
 
   // Radiators show themselves whenever they are shedding heat the base ship could not.
-  if (heat > DEFAULT_DISSIPATION_CAPACITY && dissipation > DEFAULT_DISSIPATION_CAPACITY) {
+  if (heat > baseDissipation && dissipation > baseDissipation) {
     for (const radiator of ship.subsystems.filter((s) => s.type === "radiator" && !s.isBroken)) {
       const r = revealSubsystem(next, playerId, radiator.id, "prevented_heat_damage");
       next = r.ship;

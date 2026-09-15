@@ -21,6 +21,8 @@ export interface RuleSet {
   dockHullRepair: number;
   /** Hull points a ship starts (and respawns) with. */
   startingHull: number;
+  /** Heat a bare hull sheds at the check each turn (a radiator adds 2). */
+  baseDissipation: number;
   /**
    * Points a completed Destroy card is worth. Two since 15 Sept 2026: a kill
    * needs another player's active cooperation to fail and costs the victim
@@ -44,6 +46,7 @@ export const DEFAULT_RULES: RuleSet = {
   criticalThroughShields: false,
   dockHullRepair: 3,
   startingHull: 10,
+  baseDissipation: 5,
   destroyPoints: 2,
   deliverRoutesDealt: 6,
   tileLimits: false,

@@ -79,13 +79,14 @@ export function getMaxReactionMass(
   return MAX_REACTION_MASS + count * bonus;
 }
 
-/** Heat the ship can shed each turn: base plus working radiators. */
+/** Heat the ship can shed each turn: base (a rule knob) plus working radiators. */
 export function getDissipationCapacity(
-  subsystems: ReadonlyArray<Pick<Subsystem, "type" | "isBroken">>
+  subsystems: ReadonlyArray<Pick<Subsystem, "type" | "isBroken">>,
+  base: number = DEFAULT_DISSIPATION_CAPACITY
 ): number {
   const bonus = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
   const count = subsystems.filter((s) => s.type === "radiator" && !s.isBroken).length;
-  return DEFAULT_DISSIPATION_CAPACITY + count * bonus;
+  return base + count * bonus;
 }
 
 /** Critical chance in percentage points: base plus each powered, working sensor array. */

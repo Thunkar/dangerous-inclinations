@@ -22,6 +22,7 @@ import {
 } from "./loadoutOverrides.ts";
 import { createGame, submitLoadout } from "../game/setup.ts";
 import { rankPlayers } from "../game/missions/missionChecks.ts";
+import { rulesOf } from "../game/setup.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
 import { viewFor } from "../game/view.ts";
@@ -257,7 +258,9 @@ function turnStat(turn: number, playerId: string, events: GameEvent[], after: Ga
     spentCubes: player.ship.spentEnergy,
     energyInUse: player.ship.subsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0),
     heatAtCheck: heat ? heat.heat : 0,
-    dissipation: heat ? heat.dissipation : getDissipationCapacity(player.ship.subsystems),
+    dissipation: heat
+      ? heat.dissipation
+      : getDissipationCapacity(player.ship.subsystems, rulesOf(after).baseDissipation),
     heatDamage: heat ? heat.damage : 0,
     lost:
       events.some(
