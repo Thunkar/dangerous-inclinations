@@ -18,29 +18,33 @@ export type BotArchetype = "hunter" | "raider" | "hauler" | "scout";
 /**
  * | Archetype | Forward      | Side (port 0-1, starboard 2-3)                  | For                                |
  * |-----------|--------------|-------------------------------------------------|------------------------------------|
- * | hunter    | railgun      | laser, radiator, laser, shields                  | two or more Destroy cards          |
- * | raider    | railgun      | laser, radiator, fuel_compressor, shields        | one Destroy card, or a mixed hand  |
+ * | hunter    | railgun      | missiles, radiator, laser, shields               | two or more Destroy cards          |
+ * | raider    | railgun      | missiles, radiator, fuel_compressor, shields     | one Destroy card, or a mixed hand  |
  * | hauler    | sensor_array | shields, radiator, fuel_compressor, laser        | two cargo runs                     |
  * | scout     | sensor_array | shields, radiator, fuel_compressor, missiles     | Intercept plus combat              |
  *
- * The hunter spreads its two lasers across the port and starboard sides so
- * one covers each ring direction; both are powered and fired independently
- * because every action names a slot id, not a subsystem type.
+ * These are also the presets offered to a human on the loadout screen, so
+ * the table above, the tiles below and the blurbs in the UI must agree.
  *
- * **Why every combat hull carries a radiator.** A shield tile holds four
- * cubes, absorbs four damage a turn and is refilled for free next turn, so a
- * volley that does not beat four damage in a single turn never reaches a
- * hull at all. Heat is what caps the volley: using a tile costs its energy
- * in heat, and heat over the dissipation is your own hull. At dissipation 5
- * the biggest clean volley is the railgun alone — exactly the four points a
- * shield eats. The radiator's +2 buys the laser that goes with it (6 damage,
- * 6 heat), which is the smallest volley in the game that actually hurts
- * someone. The hunter pays one point of heat damage for a third gun.
+ * **Why the guns are paired.** A shield tile holds four cubes, absorbs four
+ * damage a turn and is refilled for free next turn, so a volley of physical
+ * fire that does not beat four in a single turn never reaches the hull. The
+ * railgun alone is exactly four: it needs a second weapon on the same ring
+ * (missiles, 6 damage together) to hurt anyone. Off the ring the railgun is
+ * silent, and there the laser is the gun that matters: shields are
+ * electromagnetic and do not stop it, so laser plus missile puts two on the
+ * hull whatever the target holds. The hunter carries both pairs; the raider
+ * trades the laser for the compressor that gets it to its one target.
+ *
+ * **Why every combat hull carries a radiator.** Using a tile costs its energy
+ * in heat, and heat over the dissipation is your own hull. Railgun plus
+ * missiles is six heat against a dissipation of five; the radiator's +2
+ * makes the volley free.
  */
 export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   hunter: {
     forwardSlots: ["railgun"],
-    sideSlots: ["missiles", "radiator", "ballistic_rack", "shields"],
+    sideSlots: ["missiles", "radiator", "laser", "shields"],
   },
   raider: {
     forwardSlots: ["railgun"],

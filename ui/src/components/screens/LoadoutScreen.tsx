@@ -36,10 +36,29 @@ type Selection = { type: SubsystemType; slotType: SlotType } | null
  * carry on dragging from there.
  */
 const PRESETS: Array<{ id: BotArchetype; name: string; blurb: string }> = [
-  { id: 'hauler', name: 'Hauler', blurb: 'Sensors, radiator and compressor — long routes, cool running.' },
-  { id: 'scout', name: 'Scout', blurb: 'Sensors and a missile rack — shadow them, then shoot.' },
-  { id: 'raider', name: 'Raider', blurb: 'Railgun and a compressor — one kill, and the fuel to reach it.' },
-  { id: 'hunter', name: 'Hunter', blurb: 'Railgun and two lasers — built to take a ship apart.' },
+  {
+    id: 'hauler',
+    name: 'Hauler',
+    blurb:
+      'Sensors, shields, radiator, compressor and a laser — long routes, cool running, a sting for raiders.',
+  },
+  {
+    id: 'scout',
+    name: 'Scout',
+    blurb: 'Sensors, shields, radiator, compressor and missiles — shadow them, then shoot.',
+  },
+  {
+    id: 'raider',
+    name: 'Raider',
+    blurb:
+      'Railgun, missiles, radiator, compressor and shields — one kill, and the fuel to reach it.',
+  },
+  {
+    id: 'hunter',
+    name: 'Hunter',
+    blurb:
+      'Railgun, missiles, radiator, laser and shields — a volley for every ring, built to take a ship apart.',
+  },
 ]
 
 const STARTING_PRESET: BotArchetype = 'hauler'
@@ -76,13 +95,13 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
   const hasSensor = loadout.forwardSlots.includes('sensor_array')
 
   const setForward = useCallback((type: SubsystemType | null) => {
-    setLoadout((prev) => ({ ...prev, forwardSlots: [type] }))
+    setLoadout(prev => ({ ...prev, forwardSlots: [type] }))
     setSelected(null)
     setError(null)
   }, [])
 
   const setSide = useCallback((index: number, type: SubsystemType | null) => {
-    setLoadout((prev) => {
+    setLoadout(prev => {
       const sides = [...prev.sideSlots] as ShipLoadout['sideSlots']
       sides[index] = type
       return { ...prev, sideSlots: sides }
@@ -100,7 +119,9 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
 
   /** An Intercept needs a scan, and a scan needs a powered sensor array. */
   const needsSensor = (type: string) => type === 'intercept_transmission'
-  const keptNeedingSensor = kept.filter((id) => needsSensor(offers.find((m) => m.id === id)?.type ?? ''))
+  const keptNeedingSensor = kept.filter(id =>
+    needsSensor(offers.find(m => m.id === id)?.type ?? '')
+  )
   const sensorWarning = !hasSensor && keptNeedingSensor.length > 0
 
   const clickSlot = (group: 'forward' | 'side', index: number) => {
@@ -111,12 +132,17 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
   }
 
   const toggleMission = (id: string) => {
-    setKept((prev) =>
-      prev.includes(id) ? prev.filter((m) => m !== id) : prev.length < MISSIONS_PER_PLAYER ? [...prev, id] : prev,
+    setKept(prev =>
+      prev.includes(id)
+        ? prev.filter(m => m !== id)
+        : prev.length < MISSIONS_PER_PLAYER
+          ? [...prev, id]
+          : prev
     )
   }
 
-  const canSubmit = validation.valid && kept.length === MISSIONS_PER_PLAYER && !submitting && !submitted
+  const canSubmit =
+    validation.valid && kept.length === MISSIONS_PER_PLAYER && !submitting && !submitted
 
   const submit = async () => {
     setSubmitting(true)
@@ -141,7 +167,7 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
       group="side"
       label={`S${index + 1}`}
       component={loadout.sideSlots[index]}
-      onDrop={(type) => setSide(index, type)}
+      onDrop={type => setSide(index, type)}
       onClick={() => clickSlot('side', index)}
       isHighlighted={fits('side')}
     />
@@ -210,11 +236,12 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
         {/* Palette */}
         <Panel title="Your set of tiles" sx={{ width: 320, flexShrink: 0, overflowY: 'auto' }}>
           <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 1 }}>
-            One of each, except two lasers. Engines, thrusters and the fuel scoop are printed on every mat.
+            One of each, except two lasers. Engines, thrusters and the fuel scoop are printed on
+            every mat.
           </Typography>
           <SectionLabel>Presets</SectionLabel>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 0.5, mb: 1.5 }}>
-            {PRESETS.map((preset) => {
+            {PRESETS.map(preset => {
               const active = matches(loadout, preset.id)
               return (
                 <Tooltip key={preset.id} title={preset.blurb}>
@@ -258,7 +285,7 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
 
           <ComponentPalette
             onComponentSelect={(type, slotType) =>
-              setSelected((prev) => (prev?.type === type ? null : { type, slotType }))
+              setSelected(prev => (prev?.type === type ? null : { type, slotType }))
             }
             onDragStart={setDragging}
             onDragEnd={() => setDragging(null)}
@@ -274,7 +301,7 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
           sx={{ flex: 1, minWidth: 280, overflowY: 'auto' }}
         >
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {offers.map((mission) => (
+            {offers.map(mission => (
               <Box key={mission.id} sx={{ position: 'relative' }}>
                 <MissionCard
                   mission={mission}
@@ -308,8 +335,8 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
             {error && <Alert severity="error">{error}</Alert>}
             {sensorWarning && (
               <Alert severity="warning" sx={{ py: 0 }}>
-                An Intercept is completed by scanning: fit the sensor array in the forward slot, or keep a
-                different card.
+                An Intercept is completed by scanning: fit the sensor array in the forward slot, or
+                keep a different card.
               </Alert>
             )}
             {kept.length < MISSIONS_PER_PLAYER && offers.length > 0 && (
@@ -318,7 +345,9 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
               </Typography>
             )}
             {submitted ? (
-              <Alert severity="success">Mat submitted. Waiting for the others to finish fitting out.</Alert>
+              <Alert severity="success">
+                Mat submitted. Waiting for the others to finish fitting out.
+              </Alert>
             ) : (
               <Button variant="contained" size="large" disabled={!canSubmit} onClick={submit}>
                 {submitting ? <CircularProgress size={22} color="inherit" /> : 'Ready'}
