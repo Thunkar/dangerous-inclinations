@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DEFAULT_RULES } from "../../models/rules.ts";
 import { DEFAULT_DISSIPATION_CAPACITY } from "../../models/game.ts";
 import { calculateHeatDamage, resolveEndOfTurnHeat } from "../../game/heat.ts";
 import { getDissipationCapacity } from "../../game/ship.ts";
@@ -126,11 +127,14 @@ describe("heat: end-of-turn resolution", () => {
   });
 
   it("only the active player's heat is resolved; a target keeps shield heat until its own turn ends", () => {
-    let state = makeTwoPlayerGame({ ring: 3, sector: 0, loadout: RACK_SHIP }, { ring: 4, sector: 0 });
+    let state = makeTwoPlayerGame(
+      { ring: 3, sector: 0, loadout: RACK_SHIP },
+      { ring: 4, sector: 0 }
+    );
     state = withPower(state, "p1", "side-0", 2);
     state = withPower(state, "p2", "side-2", 2);
     const afterP1 = mustExecute(state, fire(1, "side-0", "p2"));
-    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(1);
+    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(DEFAULT_RULES.shieldHeatPerPoint);
     const afterP2 = mustExecute(afterP1, coast(1));
     expect(getShip(afterP2, "p2").heat.currentHeat).toBe(0);
     expect(getShip(afterP2, "p2").hitPoints).toBe(10);

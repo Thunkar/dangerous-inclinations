@@ -15,7 +15,11 @@ export interface RuleSet {
   shieldRefill: "every_turn" | "on_dock";
   /** Cubes a shield tile can hold. */
   shieldMaxEnergy: number;
-  /** Heat the defender takes per point of damage a shield absorbs (1 = the cube's own energy). */
+  /**
+   * Heat the defender takes per point of damage a shield absorbs. Two since
+   * 15 Sept 2026: shields were free walls, now soaking a volley is a decision
+   * about how much heat to eat (docs/edge-cases-2026-09-15.md §7).
+   */
   shieldHeatPerPoint: number;
   /** A critical breaks the named tile even when shields absorbed the whole shot. */
   criticalThroughShields: boolean;
@@ -45,7 +49,7 @@ export interface RuleSet {
 export const DEFAULT_RULES: RuleSet = {
   shieldRefill: "every_turn",
   shieldMaxEnergy: 4,
-  shieldHeatPerPoint: 1,
+  shieldHeatPerPoint: 2,
   criticalThroughShields: false,
   dockHullRepair: 3,
   startingHull: 10,

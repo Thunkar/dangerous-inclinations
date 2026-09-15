@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DEFAULT_RULES } from "../../models/rules.ts";
 import { resolveAttack, rollToResult } from "../../game/damage.ts";
 import { getEffectiveCriticalChance } from "../../game/ship.ts";
 import { REACTOR_CAPACITY } from "../../models/game.ts";
@@ -115,7 +116,8 @@ describe("damage: resolveAttack", () => {
     expect(outcome.hitResult.damageToHull).toBe(toHull);
     expect(outcome.hitResult.damageToHeat).toBe(toHeat);
     expect(outcome.ship.hitPoints).toBe(10 - toHull);
-    expect(outcome.ship.heat.currentHeat).toBe(toHeat);
+    // Every absorbed point is shieldHeatPerPoint heat on the defender.
+    expect(outcome.ship.heat.currentHeat).toBe(toHeat * DEFAULT_RULES.shieldHeatPerPoint);
     const shield = outcome.ship.subsystems.find((s) => s.id === "side-2")!;
     expect(shield.allocatedEnergy).toBe(shieldLeft);
     expect(shield.isPowered).toBe(shieldLeft > 0);
@@ -330,7 +332,7 @@ describe("damage: through executeTurn", () => {
       toHeat: 1,
     });
     expect(getShip(result.gameState, "p2").hitPoints).toBe(10);
-    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(1);
+    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(DEFAULT_RULES.shieldHeatPerPoint);
     expect(totalEnergy(getShip(result.gameState, "p2"))).toBe(REACTOR_CAPACITY);
     expect(getShip(result.gameState, "p2").reactor.availableEnergy).toBe(REACTOR_CAPACITY);
   });

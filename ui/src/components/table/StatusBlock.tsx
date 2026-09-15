@@ -60,7 +60,8 @@ export function StatusBlock({ accent }: { accent?: string }) {
         !plan?.steps.some(step => step.kind === 'fire' && step.subsystemId === s.id)
     )
     .reduce((sum, s) => sum + s.allocatedEnergy, 0)
-  const shieldHeat = shieldsOnly + rackHeat
+  const heatPerPoint = view.rules.shieldHeatPerPoint
+  const shieldHeat = shieldsOnly * heatPerPoint + rackHeat
   const worstHeat = heatAfter + shieldHeat
   const heatMax = Math.max(dissipation + 3, heatAfter, heatNow, worstHeat)
   const overHeat = Math.max(0, heatAfter - dissipation)
@@ -219,7 +220,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         {shieldHull > 0 && (
           <Tooltip
             title={
-              `Shields absorb up to ${shieldsOnly} damage and every point absorbed becomes heat` +
+              `Shields absorb up to ${shieldsOnly} damage and every point absorbed becomes ${heatPerPoint} heat` +
               (rackHeat > 0
                 ? `; a powered rack heats by ${rackHeat} when it intercepts a missile`
                 : '') +

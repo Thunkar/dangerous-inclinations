@@ -83,7 +83,7 @@ Otherwise:
 - The reactor holds **10 energy**. Allocating and removing cubes is free and unlimited.
 - **Using** a tile generates heat equal to the energy on it: firing a weapon, burning (engines), rotating (thrusters), scooping, scanning, jumping, intercepting a missile. Powered but unused tiles make no heat.
 - **Dissipation** is 5, plus 2 per working radiator. Excess heat at your heat check becomes hull damage.
-- **Shields** convert incoming damage into heat, up to the cubes on them; those cubes return to the reactor. Shields are electromagnetic: they stop railgun slugs, rack rounds and missiles, **not lasers**.
+- **Shields** convert incoming damage into heat, up to the cubes on them; those cubes return to the reactor. **Every point absorbed is 2 heat**, so a big wall is a big heat bill. Shields are electromagnetic: they stop railgun slugs, rack rounds and missiles, **not lasers**.
 
 | Tile                       | Energy | Effect                                                                 |
 | -------------------------- | ------ | ---------------------------------------------------------------------- |
@@ -137,7 +137,7 @@ Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A 
 
 ### Damage
 
-Shields absorb first (each cube absorbs 1 damage and becomes 1 heat); the rest is hull damage. **Laser damage skips the shields** and goes straight to the hull. At 0 hull the ship is destroyed.
+Shields absorb first (each cube absorbs 1 damage and gives its owner **2 heat**); the rest is hull damage. **Laser damage skips the shields** and goes straight to the hull. At 0 hull the ship is destroyed.
 
 ### Critical hits
 
