@@ -132,10 +132,10 @@ describe("docking: ending the turn on a station", () => {
   });
 
   it.each([
-    [5, 8, 3],
+    [5, 10, 5],
     [9, 10, 1],
     [10, 10, 0],
-  ])("restores up to 3 hull: %i -> %i", (before, after, restored) => {
+  ])("restores the hull to full: %i -> %i", (before, after, restored) => {
     const result = executeTurnAs(
       withShip(approaching(ALPHA), "p1", { hitPoints: before }),
       coast(1)
@@ -177,7 +177,7 @@ describe("docking: ending the turn on a station", () => {
     expect(eventTypes(result.events).indexOf("docked")).toBeLessThan(
       eventTypes(result.events).indexOf("heat_damage")
     );
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(5); // +3 then -3
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(7); // to full, then -3 heat
   });
 });
 
