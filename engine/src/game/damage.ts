@@ -53,7 +53,9 @@ export function resolveAttack(
   roll: number,
   attacker: ShipState,
   attackerPlayerId?: string,
-  rules: RuleSet = DEFAULT_RULES
+  rules: RuleSet = DEFAULT_RULES,
+  /** Laser fire: shields are electromagnetic and do not stop it. */
+  ignoresShields = false
 ): AttackOutcome {
   const critChance = getEffectiveCriticalChance(attacker.subsystems);
   const result = rollToResult(roll, critChance);
@@ -77,12 +79,14 @@ export function resolveAttack(
   const events: EventDraft[] = [];
   let ship = target;
 
-  // Shields absorb first, tile by tile in slot order.
+  // Shields absorb first, tile by tile in slot order — except laser damage,
+  // which goes straight to the hull.
   let remainingDamage = damage;
   let absorbed = 0;
-  for (const shield of ship.subsystems.filter(
-    (s) => s.type === "shields" && s.isPowered && !s.isBroken
-  )) {
+  const shields = ignoresShields
+    ? []
+    : ship.subsystems.filter((s) => s.type === "shields" && s.isPowered && !s.isBroken);
+  for (const shield of shields) {
     if (remainingDamage <= 0) break;
     const take = Math.min(remainingDamage, shield.allocatedEnergy);
     if (take <= 0) continue;

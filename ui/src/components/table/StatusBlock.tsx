@@ -42,9 +42,25 @@ export function StatusBlock({ accent }: { accent?: string }) {
    * point absorbed becomes heat (RULES §Shields). Read off the cubes as they
    * are being moved, so the cost of powering a shield shows before you commit.
    */
-  const shieldHeat = (plan?.pendingSubsystems ?? me.ship.subsystems)
-    .filter((s) => s.type === 'shields' && s.isPowered && !s.isBroken)
+  const pending = plan?.pendingSubsystems ?? me.ship.subsystems
+  const shieldsOnly = pending
+    .filter(s => s.type === 'shields' && s.isPowered && !s.isBroken)
     .reduce((sum, s) => sum + s.allocatedEnergy, 0)
+  /**
+   * A powered rack fires on its own at any missile that reaches you, and
+   * heats up either way (RULES §Weapons → Ballistic rack). Counted unless the
+   * plan already fires it this turn, in which case its heat is in `heatAfter`.
+   */
+  const rackHeat = pending
+    .filter(
+      s =>
+        s.type === 'ballistic_rack' &&
+        s.isPowered &&
+        !s.isBroken &&
+        !plan?.steps.some(step => step.kind === 'fire' && step.subsystemId === s.id)
+    )
+    .reduce((sum, s) => sum + s.allocatedEnergy, 0)
+  const shieldHeat = shieldsOnly + rackHeat
   const worstHeat = heatAfter + shieldHeat
   const heatMax = Math.max(dissipation + 3, heatAfter, heatNow, worstHeat)
   const overHeat = Math.max(0, heatAfter - dissipation)
@@ -55,12 +71,12 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const fuelNow = me.ship.reactionMass
   const fuelAfter = plan ? plan.projectedFuel : fuelNow
 
-  const missiles = me.ship.subsystems.filter((s) => s.type === 'missiles')
+  const missiles = me.ship.subsystems.filter(s => s.type === 'missiles')
   const ammo = missiles.reduce((sum, s) => sum + (s.ammo ?? 0), 0)
   const maxAmmo = getMissileStats().maxAmmo * missiles.length
 
-  const crates = me.cargo.filter((c) => c.isPickedUp && c.kind === 'crate').length
-  const data = me.cargo.filter((c) => c.isPickedUp && c.kind === 'data').length
+  const crates = me.cargo.filter(c => c.isPickedUp && c.kind === 'crate').length
+  const data = me.cargo.filter(c => c.isPickedUp && c.kind === 'data').length
 
   return (
     <Box
@@ -80,7 +96,16 @@ export function StatusBlock({ accent }: { accent?: string }) {
       }}
     >
       {/* Where you are and which way you point, with the hold beside it. */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, rowGap: 0.2, flexWrap: 'wrap', minWidth: 0 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.75,
+          rowGap: 0.2,
+          flexWrap: 'wrap',
+          minWidth: 0,
+        }}
+      >
         <Tooltip title="Prograde burns move you outward, retrograde inward">
           <Typography
             sx={{
@@ -96,7 +121,13 @@ export function StatusBlock({ accent }: { accent?: string }) {
           </Typography>
         </Tooltip>
         <Typography
-          sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.2, minWidth: 0 }}
+          sx={{
+            fontFamily: FONT_MONO,
+            fontSize: '0.78rem',
+            color: TABLE.inkSoft,
+            lineHeight: 1.2,
+            minWidth: 0,
+          }}
           noWrap
         >
           {getWellName(me.ship.wellId)} R{me.ship.ring} S{me.ship.sector}
@@ -109,15 +140,29 @@ export function StatusBlock({ accent }: { accent?: string }) {
         </Tooltip>
       </Box>
 
-      {/* Hull and heat */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, rowGap: 0.35, flexWrap: 'wrap', minWidth: 0 }}>
-        <PipTrack value={me.ship.hitPoints} max={me.ship.maxHitPoints} color={TABLE.hull} label="Hull" size={9} />
+      {/* Hull and heat, each on its own row: the heat track grows with the plan and must never wrap. */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 0.35,
+          minWidth: 0,
+        }}
+      >
+        <PipTrack
+          value={me.ship.hitPoints}
+          max={me.ship.maxHitPoints}
+          color={TABLE.hull}
+          label="Hull"
+          size={9}
+        />
         <Tooltip
           title={
             `Heat now ${heatNow}, ${heatAfter} once this turn has played out. Anything above ` +
             `${dissipation} at the heat check becomes hull damage.` +
             (shieldHeat > 0
-              ? ` Your shields would add up to ${shieldHeat} more (hatched) if they absorbed everything they can: ${worstHeat} at the check.`
+              ? ` Shields absorbing everything they can${rackHeat > 0 ? ' and the rack intercepting a missile' : ''} would add up to ${shieldHeat} more (hatched): ${worstHeat} at the check.`
               : '')
           }
         >
@@ -142,7 +187,10 @@ export function StatusBlock({ accent }: { accent?: string }) {
                   {shieldHeat > 0 && (
                     <Box
                       component="span"
-                      sx={{ color: worstOverHeat > overHeat ? TABLE.danger : TABLE.inkSoft, fontWeight: 400 }}
+                      sx={{
+                        color: worstOverHeat > overHeat ? TABLE.danger : TABLE.inkSoft,
+                        fontWeight: 400,
+                      }}
                     >
                       +{shieldHeat}
                     </Box>
@@ -155,7 +203,12 @@ export function StatusBlock({ accent }: { accent?: string }) {
             />
             {overHeat > 0 && (
               <Typography
-                sx={{ fontFamily: FONT_MONO, fontSize: '0.75rem', fontWeight: 700, color: TABLE.danger }}
+                sx={{
+                  fontFamily: FONT_MONO,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: TABLE.danger,
+                }}
                 noWrap
               >
                 −{overHeat} hull
@@ -166,9 +219,14 @@ export function StatusBlock({ accent }: { accent?: string }) {
         {shieldHull > 0 && (
           <Tooltip
             title={
-              `Shields absorb up to ${shieldHeat} damage and every point absorbed becomes heat. ` +
-              `Absorb it all and the heat check reads ${worstHeat} against a dissipation of ${dissipation}: ` +
-              (overHeat > 0 ? `${worstOverHeat} hull instead of ${overHeat}.` : `${worstOverHeat} hull.`)
+              `Shields absorb up to ${shieldsOnly} damage and every point absorbed becomes heat` +
+              (rackHeat > 0
+                ? `; a powered rack heats by ${rackHeat} when it intercepts a missile`
+                : '') +
+              `. All of it and the heat check reads ${worstHeat} against a dissipation of ${dissipation}: ` +
+              (overHeat > 0
+                ? `${worstOverHeat} hull instead of ${overHeat}.`
+                : `${worstOverHeat} hull.`)
             }
           >
             <Typography
@@ -182,14 +240,24 @@ export function StatusBlock({ accent }: { accent?: string }) {
                 lineHeight: 1.2,
               }}
             >
-              shields would cost −{shieldHull} hull if hit
+              {rackHeat > 0 ? 'shields or point defence' : 'shields'} would cost −{shieldHull} hull
+              if hit
             </Typography>
           </Tooltip>
         )}
       </Box>
 
       {/* Fuel and what is in the racks */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, rowGap: 0.35, flexWrap: 'wrap', minWidth: 0 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          rowGap: 0.35,
+          flexWrap: 'wrap',
+          minWidth: 0,
+        }}
+      >
         <Tooltip title={`Fuel now ${fuelNow}, ${fuelAfter} once this turn has played out`}>
           <Box sx={{ display: 'flex', minWidth: 0 }}>
             <PipTrack
@@ -203,7 +271,10 @@ export function StatusBlock({ accent }: { accent?: string }) {
                 <>
                   {fuelNow}
                   {fuelAfter !== fuelNow && (
-                    <Box component="span" sx={{ color: fuelAfter < fuelNow ? TABLE.inkSoft : TABLE.hull }}>
+                    <Box
+                      component="span"
+                      sx={{ color: fuelAfter < fuelNow ? TABLE.inkSoft : TABLE.hull }}
+                    >
                       →{fuelAfter}
                     </Box>
                   )}

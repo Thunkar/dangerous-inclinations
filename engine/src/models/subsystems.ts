@@ -75,6 +75,7 @@ export interface WeaponStats {
   hasRecoil?: boolean; // Railgun: pushes the ship one ring unless compensated
   sideRestricted?: boolean; // Broadside weapons on a side only fire toward that side
   canTargetSameRing?: boolean; // Broadside weapons that also cover the same ring
+  ignoresShields?: boolean; // Laser: shields are electromagnetic and deflect only physical projectiles
   maxAmmo?: number; // Ammunition-based weapons
   fuelPerTurn?: number; // Guided projectiles: steps per move
   maxMoves?: number; // Guided projectiles: moves before expiry
@@ -190,6 +191,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       sectorRange: 1,
       arc: "broadside",
       sideRestricted: true,
+      ignoresShields: true,
     },
   },
   shields: {

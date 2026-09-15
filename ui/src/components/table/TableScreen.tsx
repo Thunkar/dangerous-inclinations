@@ -38,20 +38,27 @@ const LEFT_WIDTH = 252
 /** Your own column: the ship mat sets the floor at 252 + the plate's padding. */
 const RIGHT_WIDTH = 348
 
-export function TableScreen({ headerRight, footer }: { headerRight?: React.ReactNode; footer?: React.ReactNode }) {
+export function TableScreen({
+  headerRight,
+  footer,
+}: {
+  headerRight?: React.ReactNode
+  footer?: React.ReactNode
+}) {
   const { view, isAnimating, readOnly } = useGame()
   const { pulses, skip } = useAnimation()
   const plan = usePlanOptional()
 
-  const meIndex = view.players.findIndex((p) => p.isMe)
+  const meIndex = view.players.findIndex(p => p.isMe)
   const myColor = getPlayerColor(meIndex)
-  const opponents = view.players.filter((p) => !p.isMe)
+  const opponents = view.players.filter(p => !p.isMe)
   const seated = view.me !== null && plan !== null
   /** Read-only tables have no turn to build, so the right column goes away. */
   const playing = seated && !readOnly
 
-  const picking = plan?.picking ? plan.picking.kind : null
-  const activeStep = plan?.picking ? plan.steps.find((s) => s.id === plan.picking?.stepId) : undefined
+  const matPick = plan?.picking && plan.picking.kind !== 'destination' ? plan.picking : null
+  const picking = matPick ? matPick.kind : null
+  const activeStep = matPick ? plan?.steps.find(s => s.id === matPick.stepId) : undefined
   const selectedSlotId =
     activeStep?.kind === 'fire'
       ? activeStep.criticalTarget
@@ -59,10 +66,20 @@ export function TableScreen({ headerRight, footer }: { headerRight?: React.React
         ? activeStep.peekSlot
         : null
   const targetedId =
-    activeStep && (activeStep.kind === 'fire' || activeStep.kind === 'scan') ? activeStep.targetId : null
+    activeStep && (activeStep.kind === 'fire' || activeStep.kind === 'scan')
+      ? activeStep.targetId
+      : null
 
   return (
-    <Box sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box
+      sx={{
+        height: '100%',
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
       <Box
         sx={{
           display: 'flex',
@@ -93,11 +110,16 @@ export function TableScreen({ headerRight, footer }: { headerRight?: React.React
         <Chip
           size="small"
           label={`Turn ${view.turn}`}
-          sx={{ bgcolor: 'transparent', border: `1px solid ${TABLE.plateEdge}`, color: TABLE.inkSoft, flexShrink: 0 }}
+          sx={{
+            bgcolor: 'transparent',
+            border: `1px solid ${TABLE.plateEdge}`,
+            color: TABLE.inkSoft,
+            flexShrink: 0,
+          }}
         />
         <Chip
           size="small"
-          label={`${view.players.find((p) => p.id === view.activePlayerId)?.name ?? '—'} to act`}
+          label={`${view.players.find(p => p.id === view.activePlayerId)?.name ?? '—'} to act`}
           sx={{
             bgcolor: 'transparent',
             border: `1px solid ${getPlayerColor(view.activePlayerIndex)}`,
@@ -118,13 +140,22 @@ export function TableScreen({ headerRight, footer }: { headerRight?: React.React
               size="small"
               icon={<VisibilityIcon sx={{ fontSize: 15 }} />}
               label={view.me ? `Watching · ${view.me.name}'s seat` : 'Watching'}
-              sx={{ bgcolor: 'transparent', border: `1px solid ${TABLE.plateEdge}`, color: TABLE.inkSoft, flexShrink: 0 }}
+              sx={{
+                bgcolor: 'transparent',
+                border: `1px solid ${TABLE.plateEdge}`,
+                color: TABLE.inkSoft,
+                flexShrink: 0,
+              }}
             />
           </Tooltip>
         )}
         {/* The replay bar brings its own chrome: the reminder gives way to it. */}
         {!readOnly && (
-          <Typography variant="caption" sx={{ color: TABLE.inkFaint, flexShrink: 1, minWidth: 0 }} noWrap>
+          <Typography
+            variant="caption"
+            sx={{ color: TABLE.inkFaint, flexShrink: 1, minWidth: 0 }}
+            noWrap
+          >
             first to {MISSIONS_TO_WIN} points wins · Destroy is worth 2
           </Typography>
         )}
@@ -135,7 +166,12 @@ export function TableScreen({ headerRight, footer }: { headerRight?: React.React
               icon={<FastForwardIcon sx={{ fontSize: 15 }} />}
               label="skip"
               onClick={skip}
-              sx={{ bgcolor: 'transparent', border: `1px solid ${TABLE.accent}`, color: TABLE.accent, flexShrink: 0 }}
+              sx={{
+                bgcolor: 'transparent',
+                border: `1px solid ${TABLE.accent}`,
+                color: TABLE.accent,
+                flexShrink: 0,
+              }}
             />
           </Tooltip>
         )}
@@ -176,11 +212,11 @@ export function TableScreen({ headerRight, footer }: { headerRight?: React.React
           >
             {/* Watching from a seat: your own tracks have no turn column to sit in. */}
             {seated && !playing && <StatusBlock accent={myColor} />}
-            {opponents.map((player) => (
+            {opponents.map(player => (
               <OpponentCard
                 key={player.id}
                 player={player}
-                color={getPlayerColor(view.players.findIndex((p) => p.id === player.id))}
+                color={getPlayerColor(view.players.findIndex(p => p.id === player.id))}
                 picking={picking}
                 onPickSlot={plan?.pickSlot}
                 onPickPlayer={plan?.pickTarget}
@@ -202,7 +238,9 @@ export function TableScreen({ headerRight, footer }: { headerRight?: React.React
 
         {/* Your turn */}
         {playing && (
-          <Box sx={{ width: RIGHT_WIDTH, flexShrink: 0, display: 'flex', minHeight: 0, minWidth: 0 }}>
+          <Box
+            sx={{ width: RIGHT_WIDTH, flexShrink: 0, display: 'flex', minHeight: 0, minWidth: 0 }}
+          >
             <ActionPanel />
           </Box>
         )}

@@ -89,6 +89,11 @@ export interface TransferArc {
 export interface TransferLane {
   id: string;
   planetId: GravityWellId;
+  /**
+   * Lanes are one-way: an outbound lane is jumped from its black hole arc to
+   * its planet arc, an inbound lane from its planet arc back to the black hole.
+   */
+  direction: "outbound" | "inbound";
   blackHoleArc: TransferArc;
   planetArc: TransferArc;
 }

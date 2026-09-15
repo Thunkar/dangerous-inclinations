@@ -17,13 +17,25 @@ import { useGame } from '../../context/GameContext'
 import { useAnimation } from '../../context/AnimationContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
-import { BOARD_BOUNDS, BOARD_VIEWBOX } from './geometry'
+import {
+  BOARD_BOUNDS,
+  BOARD_VIEWBOX,
+  headingAtPoint,
+  interpolatePositions,
+  type Point,
+} from './geometry'
 import { WellsLayer } from './layers/WellsLayer'
 import { LanesLayer } from './layers/LanesLayer'
 import { MarkersLayer, type HomeMarker } from './layers/MarkersLayer'
 import { ShipsLayer, type ShipToken } from './layers/ShipsLayer'
 import { MissilesLayer, type MissilePreview } from './layers/MissilesLayer'
-import { DeploymentSectors, PlannedPath, RangeOverlay } from './layers/OverlaysLayer'
+import {
+  DeploymentSectors,
+  PlannedPath,
+  RangeOverlay,
+  RouteOverlay,
+  SectorPicker,
+} from './layers/OverlaysLayer'
 import { EffectsLayer } from './layers/EffectsLayer'
 
 const MIN_ZOOM = 0.55
@@ -46,13 +58,19 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [hoveredDeployment, setHoveredDeployment] = useState<Position | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
-  const dragRef = useRef<{ x: number; y: number; panX: number; panY: number; moved: boolean } | null>(null)
+  const dragRef = useRef<{
+    x: number
+    y: number
+    panX: number
+    panY: number
+    moved: boolean
+  } | null>(null)
   /** Set when a press turned into a pan, so the release does not also click. */
   const pannedRef = useRef(false)
 
   const colorOf = useCallback(
-    (playerId: string) => getPlayerColor(view.players.findIndex((p) => p.id === playerId)),
-    [view.players],
+    (playerId: string) => getPlayerColor(view.players.findIndex(p => p.id === playerId)),
+    [view.players]
   )
 
   const ships = useMemo<ShipToken[]>(() => {
@@ -65,13 +83,30 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
       const position: Position = live
         ? live.position
         : { wellId: publicShip!.wellId, ring: publicShip!.ring, sector: publicShip!.sector }
+      const facing = live?.facing ?? publicShip!.facing
+      // Mid-slide: draw the token along the ring between its old and new sector.
+      let point: Point | undefined
+      let heading: number | undefined
+      if (live?.motion) {
+        const raw = Math.min(1, Math.max(0, (now - live.motion.start) / live.motion.duration))
+        if (raw < 1) {
+          const t = raw < 0.5 ? 2 * raw * raw : 1 - (-2 * raw + 2) ** 2 / 2
+          point = interpolatePositions(live.motion.from, position, t)
+          heading =
+            live.motion.from.wellId === position.wellId
+              ? headingAtPoint(position.wellId, point, facing)
+              : undefined
+        }
+      }
       return [
         {
           playerId: player.id,
           name: player.name,
           color: getPlayerColor(index),
           position,
-          facing: live?.facing ?? publicShip!.facing,
+          point,
+          heading,
+          facing,
           isActive: player.isActive,
           isMe: player.isMe,
           hitPoints: publicShip?.hitPoints ?? 0,
@@ -80,24 +115,31 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
         },
       ]
     })
-  }, [view.players, overlay])
+  }, [view.players, overlay, now])
 
   const homes = useMemo<HomeMarker[]>(
     () =>
       view.players.flatMap((player, index) =>
         player.home
-          ? [{ playerId: player.id, name: player.name, color: getPlayerColor(index), position: player.home }]
-          : [],
+          ? [
+              {
+                playerId: player.id,
+                name: player.name,
+                color: getPlayerColor(index),
+                position: player.home,
+              },
+            ]
+          : []
       ),
-    [view.players],
+    [view.players]
   )
 
   const positionOf = useCallback(
     (playerId: string): Position | null => {
-      const token = ships.find((s) => s.playerId === playerId)
+      const token = ships.find(s => s.playerId === playerId)
       return token ? token.position : null
     },
-    [ships],
+    [ships]
   )
 
   const stations = overlay?.stations ?? view.stations
@@ -107,15 +149,17 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
 
   const plannedPoints = useMemo<Position[]>(() => {
     if (!plan || !plan.isMyTurn || overlay) return []
-    const points = [...plan.stepStart.map((s) => s.position), plan.finalPosition.position]
+    const points = [...plan.stepStart.map(s => s.position), plan.finalPosition.position]
     return points.filter((p, i) => i === 0 || !samePosition(p, points[i - 1]))
   }, [plan, overlay])
 
   const focusWeapon = useMemo(() => {
     if (!plan || !plan.isMyTurn || overlay || !plan.focusWeaponId) return null
-    const weapon = plan.pendingSubsystems.find((s) => s.id === plan.focusWeaponId)
+    const weapon = plan.pendingSubsystems.find(s => s.id === plan.focusWeaponId)
     if (!weapon) return null
-    const stepIndex = plan.steps.findIndex((s) => s.kind === 'fire' && s.subsystemId === plan.focusWeaponId)
+    const stepIndex = plan.steps.findIndex(
+      s => s.kind === 'fire' && s.subsystemId === plan.focusWeaponId
+    )
     const at = stepIndex >= 0 ? plan.stepStart[stepIndex] : plan.finalPosition
     return { weapon, from: at.position, facing: at.facing }
   }, [plan, overlay])
@@ -137,12 +181,12 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
    */
   const missilePreviews = useMemo<MissilePreview[]>(() => {
     if (!plan || !plan.isMyTurn || overlay) return []
-    const moveIndex = plan.steps.findIndex((s) => s.kind === 'move')
+    const moveIndex = plan.steps.findIndex(s => s.kind === 'move')
     return plan.steps.flatMap((step, index) => {
       if (step.kind !== 'fire' || !step.targetId) return []
-      const weapon = plan.pendingSubsystems.find((s) => s.id === step.subsystemId)
+      const weapon = plan.pendingSubsystems.find(s => s.id === step.subsystemId)
       if (!weapon || weapon.type !== 'missiles') return []
-      const target = plan.targets.find((t) => t.id === step.targetId)
+      const target = plan.targets.find(t => t.id === step.targetId)
       if (!target) return []
       return [
         {
@@ -159,22 +203,22 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
 
   const activeLaneIds = useMemo(() => {
     if (!plan || !plan.isMyTurn) return []
-    return getJumpOptions(plan.moveFrom.position).map((o) => o.lane.id)
+    return getJumpOptions(plan.moveFrom.position).map(o => o.lane.id)
   }, [plan])
 
   const freeDeploymentSectors = useMemo<Position[]>(() => {
     if (!deploymentEnabled) return []
-    const taken = view.players.flatMap((p) =>
-      p.ship ? [{ wellId: p.ship.wellId, ring: p.ship.ring, sector: p.ship.sector }] : [],
+    const taken = view.players.flatMap(p =>
+      p.ship ? [{ wellId: p.ship.wellId, ring: p.ship.ring, sector: p.ship.sector }] : []
     )
-    return deploymentPositions().filter((position) => !taken.some((t) => samePosition(t, position)))
+    return deploymentPositions().filter(position => !taken.some(t => samePosition(t, position)))
   }, [deploymentEnabled, view.players])
 
   // --- pan / zoom ----------------------------------------------------------
 
   const onWheel = useCallback((event: ReactWheelEvent<SVGSVGElement>) => {
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12
-    setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * factor)))
+    setZoom(z => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * factor)))
   }, [])
 
   /** Board units per screen pixel, so a drag moves the map under the cursor. */
@@ -203,12 +247,12 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
          * pan once it has travelled far enough, and a pan swallows the click
          * that would otherwise follow it.
          */
-        onPointerDown={(e) => {
+        onPointerDown={e => {
           if (e.button !== 0) return
           pannedRef.current = false
           dragRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y, moved: false }
         }}
-        onPointerMove={(e) => {
+        onPointerMove={e => {
           const drag = dragRef.current
           if (!drag) return
           const dx = e.clientX - drag.x
@@ -225,7 +269,7 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
         onPointerLeave={() => {
           dragRef.current = null
         }}
-        onClickCapture={(e) => {
+        onClickCapture={e => {
           if (!pannedRef.current) return
           pannedRef.current = false
           e.stopPropagation()
@@ -254,9 +298,16 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
           <WellsLayer />
           <LanesLayer highlightIds={activeLaneIds} />
           {focusWeapon && (
-            <RangeOverlay weapon={focusWeapon.weapon} from={focusWeapon.from} facing={focusWeapon.facing} />
+            <RangeOverlay
+              weapon={focusWeapon.weapon}
+              from={focusWeapon.from}
+              facing={focusWeapon.facing}
+            />
           )}
           <MarkersLayer stations={stations} homes={homes} />
+          {plan?.route && !overlay && (
+            <RouteOverlay route={plan.route} color={colorOf(plan.me.id)} />
+          )}
           {plannedPoints.length > 1 && plan && (
             <PlannedPath points={plannedPoints} color={colorOf(plan.me.id)} />
           )}
@@ -268,6 +319,9 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
             previews={missilePreviews}
           />
           <ShipsLayer ships={ships} onSelect={plan?.pickTarget} selectableIds={selectableIds} />
+          {plan?.isMyTurn && plan.picking?.kind === 'destination' && !overlay && (
+            <SectorPicker onPick={plan.setRouteDestination} />
+          )}
           {deploymentEnabled && onDeploy && (
             <DeploymentSectors
               positions={freeDeploymentSectors}
@@ -280,11 +334,20 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
         </g>
       </Box>
 
-      <Box sx={{ position: 'absolute', right: 8, top: 8, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-        <BoardButton title="Zoom in" onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z * 1.2))}>
+      <Box
+        sx={{
+          position: 'absolute',
+          right: 8,
+          top: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.5,
+        }}
+      >
+        <BoardButton title="Zoom in" onClick={() => setZoom(z => Math.min(MAX_ZOOM, z * 1.2))}>
           <AddIcon fontSize="small" />
         </BoardButton>
-        <BoardButton title="Zoom out" onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z / 1.2))}>
+        <BoardButton title="Zoom out" onClick={() => setZoom(z => Math.max(MIN_ZOOM, z / 1.2))}>
           <RemoveIcon fontSize="small" />
         </BoardButton>
         <BoardButton title="Recentre the board" onClick={resetView}>

@@ -37,6 +37,12 @@ const TWO_RADIATORS: ShipLoadout = {
   sideSlots: ["radiator", "radiator", "shields", "laser"],
 };
 
+/** A rack at side-0: the one-damage round shields can still absorb (lasers cannot). */
+const RACK_SHIP: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["ballistic_rack", "laser", "shields", "shields"],
+};
+
 describe("heat: subsystems heat up by their allocated energy when used", () => {
   it.each([
     ["engines (burn)", "engines", 3, burn(1, "soft"), "burned"],
@@ -66,7 +72,8 @@ describe("heat: subsystems heat up by their allocated energy when used", () => {
   });
 
   it("jumping heats the engines", () => {
-    let state = makeTwoPlayerGame({ ring: 5, sector: 5 });
+    // BH R5 S17 is on Alpha's outbound lane.
+    let state = makeTwoPlayerGame({ ring: 5, sector: 17 });
     state = withPower(state, "p1", "engines", 3);
     const result = executeTurnAs(state, jump(1, "planet-alpha"));
     expect(eventsOf(result.events, "jumped")[0].heat).toBe(3);
@@ -119,11 +126,11 @@ describe("heat: end-of-turn resolution", () => {
   });
 
   it("only the active player's heat is resolved; a target keeps shield heat until its own turn ends", () => {
-    let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 });
+    let state = makeTwoPlayerGame({ ring: 3, sector: 0, loadout: RACK_SHIP }, { ring: 4, sector: 0 });
     state = withPower(state, "p1", "side-0", 2);
     state = withPower(state, "p2", "side-2", 2);
     const afterP1 = mustExecute(state, fire(1, "side-0", "p2"));
-    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(2);
+    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(1);
     const afterP2 = mustExecute(afterP1, coast(1));
     expect(getShip(afterP2, "p2").heat.currentHeat).toBe(0);
     expect(getShip(afterP2, "p2").hitPoints).toBe(10);

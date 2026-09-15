@@ -193,14 +193,14 @@ export function assessDanger(
 // ---------------------------------------------------------------------------
 
 /**
- * The lane arcs a ship has to land on to enter `planetId` from the black
- * hole. Fixed geometry: two four-sector arcs on the planet's outer ring, the
- * only doors into the well.
+ * The lane arc a ship has to land on to enter `planetId` from the black
+ * hole. Fixed geometry: the four-sector arc of the planet's outbound lane
+ * on its outer ring, the only door into the well.
  */
 export function laneArrivalTarget(planetId: string): PlannerTarget {
   const sectors = new Set<number>();
   for (const lane of TRANSFER_LANES) {
-    if (lane.planetId !== planetId) continue;
+    if (lane.planetId !== planetId || lane.direction !== "outbound") continue;
     for (const sector of arcSectors(lane.planetArc)) sectors.add(sector);
   }
   const first = [...sectors].sort((a, b) => a - b)[0] ?? 0;

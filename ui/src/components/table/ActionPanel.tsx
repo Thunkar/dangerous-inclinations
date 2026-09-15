@@ -30,8 +30,9 @@ import RotateRightIcon from '@mui/icons-material/RotateRight'
 import SendIcon from '@mui/icons-material/Send'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import SensorsIcon from '@mui/icons-material/Sensors'
+import RouteIcon from '@mui/icons-material/Route'
 import type { ReactNode } from 'react'
-import type { BurnIntensity } from '@dangerous-inclinations/engine'
+import type { BurnIntensity, Facing, MovementStep, Position } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
@@ -64,14 +65,20 @@ export function ActionPanel() {
   /** A turn you hold but cannot play: respawning, or recovering from it. */
   const sittingOut = (destroyed || recovering) && !waiting && !readOnly && view.phase !== 'ended'
 
-  const winner = view.players.find((p) => p.id === view.winnerId)?.name
-  const active = view.players.find((p) => p.id === view.activePlayerId)
+  const winner = view.players.find(p => p.id === view.winnerId)?.name
+  const active = view.players.find(p => p.id === view.activePlayerId)
 
   // Whatever state the table is in, your own tracks stay at the top of the
   // column: hull, heat and fuel are never something to go looking for.
   if (view.phase === 'ended' || readOnly || waiting || destroyed || recovering) {
     const title =
-      view.phase === 'ended' ? 'Game over' : readOnly ? 'Watching' : sittingOut ? 'Your turn' : 'The table'
+      view.phase === 'ended'
+        ? 'Game over'
+        : readOnly
+          ? 'Watching'
+          : sittingOut
+            ? 'Your turn'
+            : 'The table'
     return (
       <TurnShell title={title} accent={sittingOut ? TABLE.danger : undefined}>
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pt: 0.75 }}>
@@ -119,7 +126,12 @@ export function ActionPanel() {
       accent={TABLE.accent}
       action={
         <Tooltip title="Clear the plan and start again">
-          <Button size="small" startIcon={<RestartAltIcon />} onClick={plan.reset} sx={{ minWidth: 0 }}>
+          <Button
+            size="small"
+            startIcon={<RestartAltIcon />}
+            onClick={plan.reset}
+            sx={{ minWidth: 0 }}
+          >
             reset
           </Button>
         </Tooltip>
@@ -185,7 +197,7 @@ export function ActionPanel() {
           <Tooltip
             title={
               <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                {plan.issues.map((issue) => (
+                {plan.issues.map(issue => (
                   <li key={issue}>
                     <Typography variant="caption">{issue}</Typography>
                   </li>
@@ -193,7 +205,11 @@ export function ActionPanel() {
               </Box>
             }
           >
-            <Typography variant="caption" sx={{ color: TABLE.heat, lineHeight: 1.3, cursor: 'help' }} noWrap>
+            <Typography
+              variant="caption"
+              sx={{ color: TABLE.heat, lineHeight: 1.3, cursor: 'help' }}
+              noWrap
+            >
               {plan.issues[0]}
               {plan.issues.length > 1 ? ` · +${plan.issues.length - 1} more` : ''}
             </Typography>
@@ -230,8 +246,16 @@ function TurnShell({
   children: ReactNode
 }) {
   return (
-    <Panel title={title} accent={accent} dense action={action} sx={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 0.5 }}>
+    <Panel
+      title={title}
+      accent={accent}
+      dense
+      action={action}
+      sx={{ flex: 1, minWidth: 0, minHeight: 0 }}
+    >
+      <Box
+        sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 0.5 }}
+      >
         <StatusBlock accent={accent ?? TABLE.accent} />
         {children}
       </Box>
@@ -270,7 +294,7 @@ function Segment({
   onClick: () => void
 }) {
   return (
-    <Tooltip title={title}>
+    <Tooltip title={title} placement="top">
       <Box component="span" sx={{ flex: 1, display: 'flex', minWidth: 0 }}>
         <ToggleButton
           value={label}
@@ -305,8 +329,8 @@ function SegmentedRow({ children, testId }: { children: ReactNode; testId?: stri
 
 function OrientationControls({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
-  const rotating = plan.steps.some((s) => s.kind === 'rotate')
-  const thrusters = plan.pendingSubsystems.find((s) => s.id === 'rotation')
+  const rotating = plan.steps.some(s => s.kind === 'rotate')
+  const thrusters = plan.pendingSubsystems.find(s => s.id === 'rotation')
   const facing = plan.me.ship.facing
 
   return (
@@ -336,8 +360,8 @@ function MoveControls({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
   const move = plan.moveStep.move
   const compressor = hasWorkingCompressor({ ...plan.me.ship, subsystems: plan.pendingSubsystems })
-  const scoop = plan.pendingSubsystems.find((s) => s.id === 'scoop')
-  const engines = plan.pendingSubsystems.find((s) => s.id === 'engines')
+  const scoop = plan.pendingSubsystems.find(s => s.id === 'scoop')
+  const engines = plan.pendingSubsystems.find(s => s.id === 'engines')
   const burnDirection = plan.moveFrom.facing === 'prograde' ? 'outward' : 'inward'
 
   /** Why an intensity is out — the engine refuses a burn that leaves the rings. */
@@ -381,7 +405,10 @@ function MoveControls({ disabled }: { disabled: boolean }) {
           disabled={disabled || plan.jumpOptions.length === 0}
           onClick={() =>
             plan.jumpOptions[0] &&
-            plan.setMove({ kind: 'jump', destinationWellId: plan.jumpOptions[0].destination.wellId })
+            plan.setMove({
+              kind: 'jump',
+              destinationWellId: plan.jumpOptions[0].destination.wellId,
+            })
           }
         />
       </SegmentedRow>
@@ -395,7 +422,9 @@ function MoveControls({ disabled }: { disabled: boolean }) {
           <Box component="span" sx={{ display: 'flex' }}>
             <Chip
               size="small"
-              label={move.scoop ? `scooping +${plan.scoopGain} fuel` : `scoop +${plan.scoopGain} fuel`}
+              label={
+                move.scoop ? `scooping +${plan.scoopGain} fuel` : `scoop +${plan.scoopGain} fuel`
+              }
               color={move.scoop ? 'primary' : 'default'}
               variant={move.scoop ? 'filled' : 'outlined'}
               onClick={() => plan.setMove({ kind: 'coast', scoop: !move.scoop })}
@@ -408,7 +437,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
       {move.kind === 'burn' && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
           <SegmentedRow testId="burn-intensities">
-            {INTENSITIES.map((intensity) => (
+            {INTENSITIES.map(intensity => (
               <Segment
                 key={intensity}
                 label={intensity[0].toUpperCase() + intensity.slice(1)}
@@ -454,24 +483,155 @@ function MoveControls({ disabled }: { disabled: boolean }) {
       {move.kind === 'jump' && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-            {plan.jumpOptions.map((option) => (
+            {plan.jumpOptions.map(option => (
               <Chip
                 key={option.lane.id}
                 size="small"
                 label={`${getWellName(option.destination.wellId)} R${option.destination.ring} S${option.destination.sector}`}
                 color={move.destinationWellId === option.destination.wellId ? 'primary' : 'default'}
-                variant={move.destinationWellId === option.destination.wellId ? 'filled' : 'outlined'}
-                onClick={() => plan.setMove({ kind: 'jump', destinationWellId: option.destination.wellId })}
+                variant={
+                  move.destinationWellId === option.destination.wellId ? 'filled' : 'outlined'
+                }
+                onClick={() =>
+                  plan.setMove({ kind: 'jump', destinationWellId: option.destination.wellId })
+                }
                 disabled={disabled}
               />
             ))}
           </Box>
           <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
             Engines at {WELL_TRANSFER_COSTS.energy},{' '}
-            {compressor ? 'free (compressor)' : `${WELL_TRANSFER_COSTS.mass} fuel`}. A jump is your whole
-            move: no drift.
+            {compressor ? 'free (compressor)' : `${WELL_TRANSFER_COSTS.mass} fuel`}. A jump is your
+            whole move: no drift.
           </Typography>
         </Box>
+      )}
+
+      <RouteBlock disabled={disabled} />
+    </Box>
+  )
+}
+
+/** Facing a burn needs: prograde burns outward, retrograde inward. Coasts and jumps keep the facing. */
+function facingFor(step: MovementStep, before: Facing): Facing {
+  if (step.actionType === 'burn_prograde') return 'prograde'
+  if (step.actionType === 'burn_retrograde') return 'retrograde'
+  return before
+}
+
+/** One step of a planned route, in the words of the move row. */
+function describeStep(step: MovementStep, facingBefore: Facing): string {
+  if (step.actionType === 'coast') return `coast${step.massCost < 0 ? ' + scoop' : ''}`
+  if (step.actionType === 'well_transfer') return `jump → ${getWellName(step.to.wellId)}`
+  const needed = facingFor(step, facingBefore)
+  const turn = needed !== facingBefore ? ' (rotate first)' : ''
+  const phase = step.sectorAdjustment
+    ? ` ${step.sectorAdjustment > 0 ? '+' : ''}${step.sectorAdjustment}`
+    : ''
+  return `${step.burnIntensity ?? 'soft'} burn ${needed === 'prograde' ? 'out' : 'in'}${phase}${turn}`
+}
+
+/** Every step described, with the facing carried from one to the next. */
+function describeRoute(steps: MovementStep[], facing: Facing): string[] {
+  const out: string[] = []
+  let current = facing
+  for (const step of steps) {
+    out.push(describeStep(step, current))
+    current = facingFor(step, current)
+  }
+  return out
+}
+
+const placeLabel = (p: Position) => `${getWellName(p.wellId)} R${p.ring} S${p.sector}`
+
+/**
+ * Route planner. Pick a sector on the board; the engine's planner lays out
+ * the turns to get there (fastest, most economical, or in between) and one
+ * click turns its first step into this turn's move. The destination is kept
+ * from turn to turn until you arrive or clear it.
+ */
+function RouteBlock({ disabled }: { disabled: boolean }) {
+  const plan = usePlan()
+  const picking = plan.picking?.kind === 'destination'
+  const dest = plan.routeDestination
+  const route = plan.route
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0, mt: 0.25 }}>
+      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
+        <Tooltip title="Pick a sector on the board. The planner lays out the turns to get there and you can take its first step.">
+          <Box component="span" sx={{ display: 'flex', minWidth: 0 }}>
+            <Chip
+              size="small"
+              icon={<RouteIcon sx={{ fontSize: 15 }} />}
+              label={
+                picking
+                  ? 'click a sector on the board…'
+                  : dest
+                    ? `route → ${placeLabel(dest)}`
+                    : 'plot a route…'
+              }
+              color={picking ? 'primary' : 'default'}
+              variant={picking || dest ? 'filled' : 'outlined'}
+              onClick={() => plan.setPicking(picking ? null : { kind: 'destination' })}
+              disabled={disabled}
+              sx={{ fontSize: '0.78rem', maxWidth: '100%' }}
+            />
+          </Box>
+        </Tooltip>
+        {dest && (
+          <Chip
+            size="small"
+            label="clear"
+            variant="outlined"
+            onClick={() => plan.setRouteDestination(null)}
+          />
+        )}
+      </Box>
+      {dest && plan.routes.length === 0 && (
+        <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
+          No route there within 20 turns on the fuel aboard.
+        </Typography>
+      )}
+      {route && (
+        <>
+          {plan.routes.length > 1 && (
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+              {plan.routes.map((alt, i) => (
+                <Chip
+                  key={i}
+                  size="small"
+                  label={`${(alt.label ?? 'route').replace(/^[^\p{L}]+/u, '')} · ${alt.totalTurns} turns · ${alt.totalMassCost} fuel`}
+                  color={i === plan.routeIndex ? 'primary' : 'default'}
+                  variant={i === plan.routeIndex ? 'filled' : 'outlined'}
+                  onClick={() => plan.selectRoute(i)}
+                  sx={{ fontSize: '0.76rem' }}
+                />
+              ))}
+            </Box>
+          )}
+          <Typography
+            sx={{
+              fontFamily: FONT_MONO,
+              fontSize: '0.74rem',
+              color: TABLE.inkSoft,
+              lineHeight: 1.45,
+            }}
+          >
+            {describeRoute(route.steps, plan.me.ship.facing)
+              .map((text, i) => `T${i + 1} ${text}`)
+              .join(' · ')}
+          </Typography>
+          <Box sx={{ display: 'flex' }}>
+            <Chip
+              size="small"
+              color="primary"
+              label={`use first step: ${describeStep(route.steps[0], plan.me.ship.facing)}`}
+              onClick={plan.applyRouteStep}
+              disabled={disabled}
+              sx={{ fontSize: '0.78rem', maxWidth: '100%' }}
+            />
+          </Box>
+        </>
       )}
     </Box>
   )
@@ -479,8 +639,8 @@ function MoveControls({ disabled }: { disabled: boolean }) {
 
 function WeaponControls({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
-  const weapons = plan.pendingSubsystems.filter((s) => getSubsystemConfig(s.type).weaponStats)
-  const sensor = plan.pendingSubsystems.find((s) => s.type === 'sensor_array')
+  const weapons = plan.pendingSubsystems.filter(s => getSubsystemConfig(s.type).weaponStats)
+  const sensor = plan.pendingSubsystems.find(s => s.type === 'sensor_array')
 
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
@@ -489,15 +649,15 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
           No weapons aboard.
         </Typography>
       )}
-      {weapons.map((weapon) => {
+      {weapons.map(weapon => {
         const config = getSubsystemConfig(weapon.type)
-        const queued = plan.steps.some((s) => s.kind === 'fire' && s.subsystemId === weapon.id)
+        const queued = plan.steps.some(s => s.kind === 'fire' && s.subsystemId === weapon.id)
         const stats = config.weaponStats!
         const noAmmo = weapon.type === 'missiles' && (weapon.ammo ?? 0) <= 0
         return (
           <Tooltip
             key={weapon.id}
-            title={`${config.name} · ${stats.damage} damage · ${config.minEnergy} energy${
+            title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · ${config.minEnergy} energy${
               weapon.isPowered ? '' : ' (not powered — put cubes on it above)'
             }${weapon.isBroken ? ' — broken' : ''}${noAmmo ? ' — no ammo' : ''}`}
           >

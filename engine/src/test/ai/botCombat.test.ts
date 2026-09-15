@@ -29,6 +29,11 @@ const GUNSHIP: ShipLoadout = {
   forwardSlots: ["railgun"],
   sideSlots: ["laser", "laser", "shields", "missiles"],
 };
+/** Every gun aboard fires something shields can stop: rack and missiles. */
+const SLUGGER: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["ballistic_rack", "radiator", "shields", "missiles"],
+};
 
 function shotsOf(state: GameState, botId: string): FireWeaponAction[] {
   return botDecideActions(viewFor(state, botId)).actions.filter(
@@ -273,8 +278,30 @@ describe("bot lethality estimates", () => {
   });
 
   it("subtracts the shield cubes it can see before calling anything a kill", () => {
-    // Same volley, same three hull — but four face-up shield cubes soak all
-    // of it, so nobody dies this turn.
+    // Rack and missile, three damage, against three hull — but four face-up
+    // shield cubes soak all of it, so the bot does not even take the shot.
+    let state = withShip(
+      grounded(
+        makeTwoPlayerGame(
+          { wellId: BH, ring: 3, sector: 0, loadout: SLUGGER },
+          { wellId: BH, ring: 4, sector: 0 }
+        ),
+        "p1"
+      ),
+      "p2",
+      { hitPoints: 3 }
+    );
+    state = withSub(state, "p2", "side-2", { isRevealed: true });
+    state = withPower(state, "p2", "side-2", 4);
+
+    const situation = analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS);
+    const candidates = generateCandidates(situation, DEFAULT_BOT_PARAMETERS);
+    expect(candidates.some((c) => c.targetId === "p2")).toBe(false);
+  });
+
+  it("counts laser damage against the hull whatever the shields hold", () => {
+    // Two port lasers, four damage, three hull, four face-up shield cubes:
+    // shields are electromagnetic and do not stop a laser, so this is a kill.
     let state = withShip(
       grounded(
         makeTwoPlayerGame(
@@ -290,16 +317,17 @@ describe("bot lethality estimates", () => {
     state = withPower(state, "p2", "side-2", 4);
 
     const plan = planAgainst(state, "p1", "p2");
-    expect(plan.expectedDamage).toBe(4);
-    expect(plan.expectedHullDamage).toBe(0);
-    expect(plan.killsTarget).toBe(false);
+    expect(plan.expectedHullDamage).toBeGreaterThanOrEqual(3);
+    expect(plan.killsTarget).toBe(true);
   });
 
   it("treats face-down side cubes as half a shield, not as nothing", () => {
+    // Rack and missile (three shielded damage) against two face-down cubes,
+    // read as one cube of shield: two reach the hull of three, no kill.
     let state = withShip(
       grounded(
         makeTwoPlayerGame(
-          { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+          { wellId: BH, ring: 3, sector: 0, loadout: SLUGGER },
           { wellId: BH, ring: 4, sector: 0 }
         ),
         "p1"
@@ -310,8 +338,8 @@ describe("bot lethality estimates", () => {
     state = withPower(state, "p2", "side-2", 2);
 
     const plan = planAgainst(state, "p1", "p2");
-    expect(plan.expectedHullDamage).toBe(3);
-    expect(plan.killsTarget).toBe(true);
+    expect(plan.expectedHullDamage).toBe(2);
+    expect(plan.killsTarget).toBe(false);
   });
 });
 

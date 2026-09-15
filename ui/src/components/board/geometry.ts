@@ -101,13 +101,24 @@ export function positionPoint(position: Position): Point {
   return polar(
     wellCenter(position.wellId),
     ringRadius(position.wellId, position.ring),
-    sectorAngle(position.wellId, position.sector),
+    sectorAngle(position.wellId, position.sector)
   )
 }
 
 /** Heading (radians) a token points in when facing prograde/retrograde. */
 export function facingAngle(position: Position, facing: 'prograde' | 'retrograde'): number {
   const tangent = sectorAngle(position.wellId, position.sector) + Math.PI / 2
+  return facing === 'prograde' ? tangent : tangent + Math.PI
+}
+
+/** Heading at any point of a well's rings (for a token sliding between sectors). */
+export function headingAtPoint(
+  wellId: GravityWellId,
+  point: Point,
+  facing: 'prograde' | 'retrograde'
+): number {
+  const center = wellCenter(wellId)
+  const tangent = Math.atan2(point.y - center.y, point.x - center.x) + Math.PI / 2
   return facing === 'prograde' ? tangent : tangent + Math.PI
 }
 
@@ -119,7 +130,7 @@ function arcPath(
   wellId: GravityWellId,
   radius: number,
   fromSectorEdge: number,
-  toSectorEdge: number,
+  toSectorEdge: number
 ): string {
   const center = wellCenter(wellId)
   const a0 = sectorEdgeAngle(wellId, fromSectorEdge)
@@ -136,7 +147,7 @@ export function sectorWedgePath(
   wellId: GravityWellId,
   sector: number,
   innerRadius: number,
-  outerRadius: number,
+  outerRadius: number
 ): string {
   const center = wellCenter(wellId)
   const a0 = sectorEdgeAngle(wellId, sector)
@@ -157,7 +168,11 @@ export function sectorWedgePath(
 /** Mid-point of a transfer arc, used to anchor the lane connector. */
 export function arcMidPoint(arc: TransferArc, radiusOffset = 0): Point {
   const radius = ringRadius(arc.wellId, arc.ring) + radiusOffset
-  return polar(wellCenter(arc.wellId), radius, sectorAngle(arc.wellId, arc.startSector + arc.length / 2 - 0.5))
+  return polar(
+    wellCenter(arc.wellId),
+    radius,
+    sectorAngle(arc.wellId, arc.startSector + arc.length / 2 - 0.5)
+  )
 }
 
 export function arcPathFor(arc: TransferArc, radiusOffset = 0): string {
@@ -165,7 +180,7 @@ export function arcPathFor(arc: TransferArc, radiusOffset = 0): string {
     arc.wellId,
     ringRadius(arc.wellId, arc.ring) + radiusOffset,
     arc.startSector,
-    arc.startSector + arc.length,
+    arc.startSector + arc.length
   )
 }
 

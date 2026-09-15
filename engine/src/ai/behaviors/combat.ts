@@ -36,6 +36,8 @@ export interface FirePosition extends Position {
  * One feasible shot: which weapon, when in the turn, at whom.
  */
 export interface FireIntent {
+  /** False for lasers: shields do not absorb the damage. */
+  shielded: boolean;
   weapon: Subsystem;
   targetId: string;
   phase: FiringPhase;
@@ -58,12 +60,42 @@ export function weaponEnergy(weapon: Subsystem): number {
 
 /**
  * Damage the bot could put on one ship in a single turn if every weapon
- * bore. A shield tile absorbs four damage a turn and is refilled for free,
- * so a volley that cannot beat the cubes the bot can see is a volley that
- * never reaches a hull.
+ * bore, before shields.
  */
 export function volleyPotential(weapons: Subsystem[]): number {
   return weapons.reduce((sum, w) => sum + weaponDamage(w), 0);
+}
+
+/** Whether shields can soak this weapon's damage (lasers go straight through). */
+export function shieldsStop(weapon: Subsystem): boolean {
+  return getSubsystemConfig(weapon.type).weaponStats?.ignoresShields !== true;
+}
+
+/**
+ * Hull damage a volley puts through `shieldAbsorption` visible cubes: laser
+ * damage skips the shields, everything else has to beat them first. A
+ * shield tile is refilled for free, so shielded damage short of the cubes
+ * never reaches a hull.
+ */
+export function hullThrough(
+  shots: Array<{ damage: number; shielded: boolean }>,
+  shieldAbsorption: number
+): number {
+  let shielded = 0;
+  let direct = 0;
+  for (const s of shots) {
+    if (s.shielded) shielded += s.damage;
+    else direct += s.damage;
+  }
+  return direct + Math.max(0, shielded - shieldAbsorption);
+}
+
+/** {@link hullThrough} for weapons the bot could fire this turn. */
+export function hullPotential(weapons: Subsystem[], shieldAbsorption: number): number {
+  return hullThrough(
+    weapons.map((w) => ({ damage: weaponDamage(w), shielded: shieldsStop(w) })),
+    shieldAbsorption
+  );
 }
 
 /** A weapon the bot could fire this turn (unbroken, unused, loaded). */
@@ -242,6 +274,7 @@ export function firingOptions(
     if (!isWeaponReady(weapon)) continue;
     const damage = weaponDamage(weapon);
     const energy = weaponEnergy(weapon);
+    const shielded = shieldsStop(weapon);
     const inPre = isInWeaponRange(weapon, ctx.pre, targetPos);
     const inPost = isInWeaponRange(weapon, ctx.post, targetPos);
 
@@ -264,6 +297,7 @@ export function firingOptions(
         targetId: target.player.id,
         phase: "post",
         damage,
+        shielded,
         heat: energy + (compensate ? BURN_COSTS.soft.energy : 0),
         energy,
         compensateRecoil: compensate,
@@ -279,7 +313,15 @@ export function firingOptions(
       // launch is a launch-after-move: the missile skips its first drift.
       if (!missileCanReach(launchFrom, targetPos, phase === "post")) continue;
       if (parameters.conserveAmmo && (weapon.ammo ?? 0) <= 1 && target.hull > damage) continue;
-      intents.push({ weapon, targetId: target.player.id, phase, damage, heat: energy, energy });
+      intents.push({
+        weapon,
+        targetId: target.player.id,
+        phase,
+        damage,
+        shielded,
+        heat: energy,
+        energy,
+      });
       continue;
     }
 
@@ -287,7 +329,15 @@ export function firingOptions(
     // move when possible (nothing later in the turn can invalidate it).
     const phase: FiringPhase | null = inPre ? "pre" : inPost ? "post" : null;
     if (!phase) continue;
-    intents.push({ weapon, targetId: target.player.id, phase, damage, heat: energy, energy });
+    intents.push({
+      weapon,
+      targetId: target.player.id,
+      phase,
+      damage,
+      shielded,
+      heat: energy,
+      energy,
+    });
   }
 
   return intents;
@@ -313,8 +363,10 @@ export function selectTarget(
   const potential = (c: { intents: FireIntent[] }) =>
     c.intents.reduce((sum, i) => sum + i.damage, 0);
   // A volley that cannot beat the shield cubes on a ship never reaches its
-  // hull, so a ship we can actually hurt outranks a weaker one we cannot.
-  const canHurt = (c: (typeof withShots)[number]) => potential(c) > c.opponent.shieldAbsorption;
+  // hull (laser damage excepted), so a ship we can actually hurt outranks a
+  // weaker one we cannot.
+  const canHurt = (c: (typeof withShots)[number]) =>
+    hullThrough(c.intents, c.opponent.shieldAbsorption) > 0;
   const byWeakest = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
     Number(canHurt(b)) - Number(canHurt(a)) ||
     a.opponent.hull - b.opponent.hull ||

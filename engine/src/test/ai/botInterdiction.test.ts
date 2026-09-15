@@ -50,6 +50,11 @@ const TRADER: ShipLoadout = {
   forwardSlots: ["sensor_array"],
   sideSlots: ["shields", "radiator", "fuel_compressor", "laser"],
 };
+/** The trader with a rack instead of the laser: one shielded point of damage. */
+const PLINKER: ShipLoadout = {
+  forwardSlots: ["sensor_array"],
+  sideSlots: ["shields", "radiator", "fuel_compressor", "ballistic_rack"],
+};
 
 function crate(pickupPlanetId: string, deliveryPlanetId: string): Cargo {
   return {
@@ -236,7 +241,8 @@ describe("interdiction goals", () => {
 
   it("does not divert when its guns cannot beat the shield cubes on the target", () => {
     // A shield tile absorbs damage up to its cubes and is refilled for free
-    // next turn, so a single 2-damage broadside can never reach that hull.
+    // next turn, so a lone one-damage rack can never reach that hull. A laser
+    // skips the shields, so the same trader with a laser does divert.
     // Same board, same rival, same score: only the bot's hull differs.
     const board = (loadout: ShipLoadout) => {
       let state = aboutToWin(
@@ -251,12 +257,13 @@ describe("interdiction goals", () => {
       return withPower(state, "p2", "side-2", 4);
     };
 
-    const disarmed = board(TRADER);
+    const disarmed = board(PLINKER);
     expect(opponent(disarmed, "p1", "p2").danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER);
     expect(opponent(disarmed, "p1", "p2").shieldAbsorption).toBe(4);
     expect(situationOf(disarmed, "p1").currentGoal?.type).not.toBe("interdict");
 
     expect(situationOf(board(RAIDER), "p1").currentGoal?.type).toBe("interdict");
+    expect(situationOf(board(TRADER), "p1").currentGoal?.type).toBe("interdict");
   });
 
   it("aims the interception at where the cargo has to go, not at the pickup", () => {

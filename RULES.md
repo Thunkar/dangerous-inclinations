@@ -30,18 +30,18 @@ Sectors are numbered 0–23 and increase in the direction of drift (prograde).
 
 ### Transfer lanes
 
-Lanes connect 4-sector arcs on Black Hole Ring 5 with 4-sector arcs on a planet's Ring 3. Lanes are two-way. A ship in a lane arc may **jump** to the matching sector of the connected arc (1st sector to 1st sector, and so on).
+Lanes are **one-way**. Each connects a 4-sector arc on Black Hole Ring 5 with a 4-sector arc on a planet's Ring 3 and is travelled in one direction only: every planet has an **outbound** lane (black hole → planet) and an **inbound** lane (planet → black hole). A ship in a lane's departure arc may **jump** to the matching sector of its arrival arc (1st sector to 1st sector, and so on). The arrival arc is a place you land, never a place you leave from.
 
-| Lane | Black Hole Ring 5 | Planet Ring 3 |
-|------|-------------------|---------------|
-| Beta A  | sectors 0–3   | Beta 4–7 |
-| Alpha A | sectors 4–7   | Alpha 16–19 |
-| Gamma A | sectors 8–11  | Gamma 4–7 |
-| Beta B  | sectors 12–15 | Beta 16–19 |
-| Alpha B | sectors 16–19 | Alpha 4–7 |
-| Gamma B | sectors 20–23 | Gamma 16–19 |
+| Lane | Direction | Black Hole Ring 5 | Planet Ring 3 |
+|------|-----------|-------------------|---------------|
+| Beta A  | out, to Beta   | sectors 0–3   | Beta 4–7 |
+| Alpha A | in, from Alpha | sectors 4–7   | Alpha 16–19 |
+| Gamma A | out, to Gamma  | sectors 8–11  | Gamma 4–7 |
+| Beta B  | in, from Beta  | sectors 12–15 | Beta 16–19 |
+| Alpha B | out, to Alpha  | sectors 16–19 | Alpha 4–7 |
+| Gamma B | in, from Gamma | sectors 20–23 | Gamma 16–19 |
 
-Reading Black Hole Ring 5 clockwise the lanes go Beta, Alpha, Gamma, Beta, Alpha, Gamma: from any arrival the next planet clockwise is close, the one after it is a longer drift or a dive to a faster ring.
+Reading Black Hole Ring 5 clockwise: out to Beta, in from Alpha, out to Gamma, in from Beta, out to Alpha, in from Gamma. Every arrival arc is followed by the departure arc for the next planet, so Alpha → Gamma → Beta → Alpha is the cheap circuit; the other way round costs a longer drift or a dive to a faster ring.
 
 ### Stations
 
@@ -83,7 +83,7 @@ Otherwise:
 - The reactor holds **10 energy**. Allocating and removing cubes is free and unlimited.
 - **Using** a tile generates heat equal to the energy on it: firing a weapon, burning (engines), rotating (thrusters), scooping, scanning, jumping, intercepting a missile. Powered but unused tiles make no heat.
 - **Dissipation** is 5, plus 2 per working radiator. Excess heat at your heat check becomes hull damage.
-- **Shields** convert incoming damage into heat, up to the cubes on them; those cubes return to the reactor.
+- **Shields** convert incoming damage into heat, up to the cubes on them; those cubes return to the reactor. Shields are electromagnetic: they stop railgun slugs, rack rounds and missiles, **not lasers**.
 
 | Tile | Energy | Effect |
 |------|--------|--------|
@@ -93,7 +93,7 @@ Otherwise:
 | Railgun (forward) | 4 | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil |
 | Sensor array (forward) | 2 | Scan; criticals on 8–10 while powered |
 | Missiles (forward or side) | 2 | Launch a guided missile (4 aboard) |
-| Broadside laser (side) | 2 | 2 damage, ±2 rings, ±1 sector, fires to one side only |
+| Broadside laser (side) | 2 | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
 | Shields (side) | 1–4 | Absorb damage as heat |
 | Radiator (side) | — | +2 dissipation |
 | Fuel compressor (side) | — | +6 fuel capacity; jumps cost no fuel |
@@ -118,7 +118,7 @@ Drift, then change ring. Prograde facing burns **outward**, retrograde burns **i
 **Phasing.** During a burn you may adjust your arrival sector for 1 fuel per sector: brake by up to (velocity − 1) sectors, or accelerate by up to 3.
 
 ### Jump
-From a lane arc, with engines at 3, pay 3 fuel (free with a fuel compressor) and move to the matching sector of the connected arc. Facing is kept. A jump is your whole move: no drift this turn.
+From a lane's departure arc (the black hole arc of an outbound lane, the planet arc of an inbound one), with engines at 3, pay 3 fuel (free with a fuel compressor) and move to the matching sector of the arrival arc. Facing is kept. A jump is your whole move: no drift this turn.
 
 ### Rotation
 Costs 1 energy on the thrusters and 1 heat. Rotate before your burn to choose its direction.
@@ -133,7 +133,7 @@ Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A 
 
 ### Damage
 
-Shields absorb first (each cube absorbs 1 damage and becomes 1 heat). The rest is hull damage. At 0 hull the ship is destroyed.
+Shields absorb first (each cube absorbs 1 damage and becomes 1 heat); the rest is hull damage. **Laser damage skips the shields** and goes straight to the hull. At 0 hull the ship is destroyed.
 
 ### Critical hits
 
@@ -142,7 +142,7 @@ When you fire, name one slot on the target: forward, side 1–4, engines, thrust
 ### Weapons
 
 - **Railgun** — spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
-- **Broadside laser** — targets within 2 rings and 1 sector. Facing prograde, port tiles (side 1–2) fire outward and starboard tiles (side 3–4) fire inward; facing retrograde swaps them.
+- **Broadside laser** — targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port tiles (side 1–2) fire outward and starboard tiles (side 3–4) fire inward; facing retrograde swaps them.
 - **Ballistic rack** — targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away. While powered it also **intercepts** missiles that reach you: roll a d10, on 2+ the missile is destroyed (the rack is used and heats up either way).
 - **Missiles** — target within 2 rings and 3 sectors (a ship sharing your sector included), any facing. Place a missile token on your sector and name the critical slot. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
 

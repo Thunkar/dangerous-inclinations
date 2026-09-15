@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { ShipLoadout } from "../../models/game.ts";
 import { DEFAULT_RULES, parseRuleOverrides, resolveRules } from "../../models/rules.ts";
 import { createGame, submitLoadout } from "../../game/setup.ts";
 import { deployShip, transitionToActivePhase } from "../../game/deployment.ts";
@@ -25,6 +26,12 @@ const SPECS = [
   { id: "p1", name: "A" },
   { id: "p2", name: "B" },
 ];
+
+/** A rack at side-0: the one-damage round shields can still absorb (lasers cannot). */
+const RACK_SHIP: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["ballistic_rack", "laser", "shields", "shields"],
+};
 
 describe("rule knobs", () => {
   it("defaults are RULES.md and overrides merge", () => {
@@ -61,9 +68,9 @@ describe("rule knobs", () => {
   });
 
   it("shieldRefill on_dock keeps absorbed cubes out of the reactor until docking", () => {
-    // p1 (port laser fires outward) at R3 S0, p2 one ring out with 2 shield cubes.
+    // p1's rack (1 damage) at R3 S0, p2 one ring out with 2 shield cubes.
     let state = makeTwoPlayerGame(
-      { ring: 3, sector: 0 },
+      { ring: 3, sector: 0, loadout: RACK_SHIP },
       { ring: 4, sector: 0 },
       { rules: { shieldRefill: "on_dock" } }
     );
@@ -72,14 +79,14 @@ describe("rule knobs", () => {
     const result = executeTurnAs(state, fire(1, "side-0", "p2", "engines"), coast(2));
     expect(result.errors).toBeUndefined();
     const p2 = getShip(result.gameState, "p2");
-    expect(getSub(result.gameState, "p2", "side-2").allocatedEnergy).toBe(0);
-    expect(p2.spentEnergy).toBe(2);
+    expect(getSub(result.gameState, "p2", "side-2").allocatedEnergy).toBe(1);
+    expect(p2.spentEnergy).toBe(1);
     expect(p2.reactor.availableEnergy).toBe(8); // not refunded
     // Default rules refund immediately.
-    let base = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 });
+    let base = makeTwoPlayerGame({ ring: 3, sector: 0, loadout: RACK_SHIP }, { ring: 4, sector: 0 });
     base = withPower(withPower(base, "p1", "side-0", 2), "p2", "side-2", 2);
     const baseline = executeTurnAs(base, fire(1, "side-0", "p2", "engines"), coast(2));
-    expect(getShip(baseline.gameState, "p2").reactor.availableEnergy).toBe(10);
+    expect(getShip(baseline.gameState, "p2").reactor.availableEnergy).toBe(9);
     expect(getShip(baseline.gameState, "p2").spentEnergy).toBe(0);
   });
 
@@ -91,7 +98,7 @@ describe("rule knobs", () => {
 
   it("criticalThroughShields breaks the named tile even when shields soak the shot", () => {
     let state = makeTwoPlayerGame(
-      { ring: 3, sector: 0 },
+      { ring: 3, sector: 0, loadout: RACK_SHIP },
       { ring: 4, sector: 0 },
       { forcedRollValue: 10, rules: { criticalThroughShields: true } }
     );

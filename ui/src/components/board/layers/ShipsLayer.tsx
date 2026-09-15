@@ -5,13 +5,17 @@
  */
 import { memo } from 'react'
 import type { Facing, Position } from '@dangerous-inclinations/engine'
-import { facingAngle, positionPoint } from '../geometry'
+import { facingAngle, positionPoint, type Point } from '../geometry'
 
 export interface ShipToken {
   playerId: string
   name: string
   color: string
   position: Position
+  /** Where to draw it right now, when sliding between sectors. */
+  point?: Point
+  /** Heading in radians while sliding; defaults to the facing at `position`. */
+  heading?: number
   facing: Facing
   isActive: boolean
   isMe: boolean
@@ -27,12 +31,16 @@ interface ShipsLayerProps {
   selectableIds?: ReadonlyArray<string>
 }
 
-export const ShipsLayer = memo(function ShipsLayer({ ships, onSelect, selectableIds = [] }: ShipsLayerProps) {
+export const ShipsLayer = memo(function ShipsLayer({
+  ships,
+  onSelect,
+  selectableIds = [],
+}: ShipsLayerProps) {
   return (
     <g className="ships">
-      {ships.map((ship) => {
-        const p = positionPoint(ship.position)
-        const angle = (facingAngle(ship.position, ship.facing) * 180) / Math.PI
+      {ships.map(ship => {
+        const p = ship.point ?? positionPoint(ship.position)
+        const angle = ((ship.heading ?? facingAngle(ship.position, ship.facing)) * 180) / Math.PI
         const selectable = selectableIds.includes(ship.playerId)
         return (
           <g
@@ -42,12 +50,33 @@ export const ShipsLayer = memo(function ShipsLayer({ ships, onSelect, selectable
           >
             <title>{`${ship.name} — hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}`}</title>
             {selectable && (
-              <circle cx={p.x} cy={p.y} r={22} fill="none" stroke="#ffb445" strokeWidth={2} strokeDasharray="4 3">
-                <animate attributeName="opacity" values="0.4;1;0.4" dur="1.4s" repeatCount="indefinite" />
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={22}
+                fill="none"
+                stroke="#ffb445"
+                strokeWidth={2}
+                strokeDasharray="4 3"
+              >
+                <animate
+                  attributeName="opacity"
+                  values="0.4;1;0.4"
+                  dur="1.4s"
+                  repeatCount="indefinite"
+                />
               </circle>
             )}
             {ship.isActive && (
-              <circle cx={p.x} cy={p.y} r={17} fill="none" stroke={ship.color} strokeWidth={2} opacity={0.75} />
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={17}
+                fill="none"
+                stroke={ship.color}
+                strokeWidth={2}
+                opacity={0.75}
+              />
             )}
             <g transform={`translate(${p.x} ${p.y}) rotate(${angle})`}>
               <path

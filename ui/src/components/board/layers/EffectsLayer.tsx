@@ -24,7 +24,7 @@ export const EffectsLayer = memo(function EffectsLayer({
 }) {
   return (
     <g className="effects" pointerEvents="none">
-      {effects.map((effect) => {
+      {effects.map(effect => {
         const progress = Math.min(1, Math.max(0, (now - effect.start) / effect.duration))
         if (effect.kind === 'beam') {
           const fade = progress < 0.25 ? progress / 0.25 : 1 - (progress - 0.25) / 0.75
@@ -63,9 +63,14 @@ export const EffectsLayer = memo(function EffectsLayer({
             />
           )
         }
+        if (effect.kind !== 'float') return null
         const rise = -38 * progress
-        const opacity = progress < 0.1 ? progress / 0.1 : progress > 0.7 ? 1 - (progress - 0.7) / 0.3 : 1
-        const scale = progress < 0.18 ? 0.6 + (progress / 0.18) * 0.55 : 1.15 - Math.min(1, (progress - 0.18) / 0.2) * 0.15
+        const opacity =
+          progress < 0.1 ? progress / 0.1 : progress > 0.7 ? 1 - (progress - 0.7) / 0.3 : 1
+        const scale =
+          progress < 0.18
+            ? 0.6 + (progress / 0.18) * 0.55
+            : 1.15 - Math.min(1, (progress - 0.18) / 0.2) * 0.15
         return (
           <g
             key={effect.id}

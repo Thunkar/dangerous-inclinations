@@ -38,8 +38,9 @@ import {
   firingOptions,
   isWeaponReady,
   selectTarget,
-  weaponDamage,
   weaponRangeTarget,
+  hullThrough,
+  hullPotential,
 } from "./behaviors/combat.ts";
 import type { FireIntent } from "./behaviors/combat.ts";
 import { scanOption } from "./behaviors/scanning.ts";
@@ -191,11 +192,7 @@ export function buildCandidate(
       opponent,
       intents: firingOptions(situation, opponent, ctx, parameters),
     }))
-    .filter(
-      (o) =>
-        o.intents.length > 0 &&
-        o.intents.reduce((sum, i) => sum + i.damage, 0) > o.opponent.shieldAbsorption
-    );
+    .filter((o) => o.intents.length > 0 && hullThrough(o.intents, o.opponent.shieldAbsorption) > 0);
   // Ships we are trying to kill rather than merely defang: a Destroy card
   // names them, or they are one dock from winning. Criticals aim at their
   // shields, and missiles are spent on them rather than held.
@@ -205,12 +202,17 @@ export function buildCandidate(
   const chosen = selectTarget(situation, options, parameters);
   const target: Opponent | null = chosen?.opponent ?? null;
 
-  // Damage that has to land before a ship dies: its hull plus the shield
-  // cubes the bot can see (each cube soaks one point of the volley, then
-  // is spent). Nothing is gained by firing past that, and the engine
-  // skips shots at a ship that died earlier in the turn anyway, so the
-  // later weapons are offered to the next target in range instead.
-  const lethalDamage = (o: Opponent) => o.hull + o.shieldAbsorption;
+  // Hull damage already queued on a ship: shielded damage has to beat the
+  // shield cubes the bot can see first, laser damage does not. Nothing is
+  // gained by firing past the hull, and the engine skips shots at a ship
+  // that died earlier in the turn anyway, so the later weapons are offered
+  // to the next target in range instead.
+  const queued = new Map<string, Array<{ damage: number; shielded: boolean }>>();
+  const hullOn = (o: Opponent, extra?: { damage: number; shielded: boolean }) =>
+    hullThrough(
+      [...(queued.get(o.player.id) ?? []), ...(extra ? [extra] : [])],
+      o.shieldAbsorption
+    );
   const byDamage = (a: FireIntent, b: FireIntent) => b.damage - a.damage;
   const queue: Array<{ opponent: Opponent; intent: FireIntent }> = [];
   for (const option of chosen ? [chosen, ...options.filter((o) => o !== chosen)] : []) {
@@ -221,13 +223,11 @@ export function buildCandidate(
 
   const shots: Array<{ opponent: Opponent; intent: FireIntent }> = [];
   const fired = new Set<string>();
-  const dealtTo = new Map<string, number>();
   for (const { opponent, intent } of queue) {
     if (fired.has(intent.weapon.id)) continue;
-    const already = dealtTo.get(opponent.player.id) ?? 0;
-    if (already >= lethalDamage(opponent)) continue;
+    if (hullOn(opponent) >= opponent.hull) continue;
     const energy = intent.energy + (intent.compensateRecoil ? BURN_COSTS.soft.energy : 0);
-    const decisive = already + intent.damage >= lethalDamage(opponent);
+    const decisive = hullOn(opponent, intent) >= opponent.hull;
     // Heat over the dissipation is hull damage at the end of the turn. It is
     // worth paying for a shot that finishes a ship — and for any shot at a
     // player about to win, whatever else the bot was doing this turn, because
@@ -251,7 +251,7 @@ export function buildCandidate(
     targets.set(intent.weapon.id, intent.energy);
     heatUsed += intent.heat;
     fired.add(intent.weapon.id);
-    dealtTo.set(opponent.player.id, already + intent.damage);
+    queued.set(opponent.player.id, [...(queued.get(opponent.player.id) ?? []), intent]);
     shots.push({ opponent, intent });
   }
 
@@ -259,9 +259,9 @@ export function buildCandidate(
   let expectedHullDamage = 0;
   let denialValue = 0;
   for (const option of options) {
-    const raw = dealtTo.get(option.opponent.player.id) ?? 0;
+    const raw = (queued.get(option.opponent.player.id) ?? []).reduce((s, q) => s + q.damage, 0);
     expectedDamage += raw;
-    const hull = Math.max(0, raw - option.opponent.shieldAbsorption);
+    const hull = hullOn(option.opponent);
     expectedHullDamage += hull;
     if (hull <= 0) continue;
     // Denial: the same damage is worth more against a player whose next dock
@@ -373,9 +373,7 @@ export function buildCandidate(
   for (const s of inPhase("post")) tactical.push(fire(s));
 
   const actions: PlayerAction[] = [...deallocations, ...allocations, ...tactical];
-  const killsTarget =
-    target !== null &&
-    Math.max(0, (dealtTo.get(target.player.id) ?? 0) - target.shieldAbsorption) >= target.hull;
+  const killsTarget = target !== null && hullOn(target) >= target.hull;
   const scansForMission = scanChosen !== null && (scanChosen as ScanIntent).forMission;
 
   return {
@@ -421,7 +419,6 @@ export function generateCandidates(
     // outright. Trading a turn of a cargo run for two points of hull on a
     // bystander who will repair at their next station is not a trade.
     const missionTargets = destroyTargetIds(situation.me);
-    const volley = readyWeapons.reduce((sum, w) => sum + weaponDamage(w), 0);
     const prey = situation.opponents
       .filter(
         (o) =>
@@ -429,7 +426,7 @@ export function generateCandidates(
           o.ringDistance <= 3 &&
           (missionTargets.has(o.player.id) ||
             o.danger.score >= INTERDICT_DANGER ||
-            volley >= o.hull + o.shieldAbsorption)
+            hullPotential(readyWeapons, o.shieldAbsorption) >= o.hull)
       )
       .sort(
         (a, b) =>

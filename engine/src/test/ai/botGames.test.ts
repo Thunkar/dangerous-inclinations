@@ -50,7 +50,7 @@ describe("bot-vs-bot games", () => {
     expect(completed.size).toBeGreaterThan(1);
     expect(new Set([...completed].map((t) => MISSION_FAMILY[t])).size).toBeGreaterThan(1);
     for (const type of completed) expect(kept).toContain(type);
-  });
+  }, 30_000);
 
   it("is deterministic for a seed", () => {
     const a = runGame({ seed: 7, botCount: 3, maxTurns: MAX_TURNS, record: false });

@@ -16,6 +16,7 @@
  *   --rules=k=v,k=v  rule overrides (see models/rules.ts), e.g. --rules=shieldRefill=on_dock,dockHullRepair=1
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --weapons=laser.damage=3,laser.sideRestricted=false  experiment-only weapon stat overrides
+ *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)
  *   --quiet       no per-game progress
  */
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -27,6 +28,7 @@ import type { AggregateStats } from "./stats.ts";
 import { parseRuleOverrides } from "../models/rules.ts";
 import type { RuleSet } from "../models/rules.ts";
 import { parseWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
+import { parseLoadoutOverrides, type LoadoutOverrides } from "./loadoutOverrides.ts";
 
 interface Args {
   games: number;
@@ -41,6 +43,7 @@ interface Args {
   rules?: Partial<RuleSet>;
   tiebreak: boolean;
   weapons?: WeaponOverrides;
+  loadouts?: LoadoutOverrides;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -102,6 +105,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "weapons":
         args.weapons = parseWeaponOverrides(value);
+        break;
+      case "loadouts":
+        args.loadouts = parseLoadoutOverrides(value);
         break;
       default:
         console.warn(`Unknown flag --${key}`);
@@ -184,6 +190,7 @@ async function main(): Promise<void> {
     rules: args.rules,
     tiebreak: args.tiebreak,
     weapons: args.weapons,
+    loadouts: args.loadouts,
     onProgress: args.quiet
       ? undefined
       : (done, total, last) => {

@@ -2,11 +2,13 @@
  * Transfer lanes. Each lane is two 4-sector arcs — one on Black Hole Ring 5,
  * one on a planet's Ring 3 — drawn in the planet's colour and lettered A or B
  * at both ends, so you can read which arc comes out where without a line
- * cutting across the map. The arc you could jump from right now is lit.
+ * cutting across the map. Lanes are one-way: the departure arc is solid with a
+ * filled letter, the arrival arc dashed with a hollow one. The arc you could
+ * jump from right now is lit.
  */
 import { memo } from 'react'
 import type { TransferLane } from '@dangerous-inclinations/engine'
-import { TRANSFER_LANES, getWellName } from '@dangerous-inclinations/engine'
+import { TRANSFER_LANES, getWellName, laneDepartureArc } from '@dangerous-inclinations/engine'
 import { FONT_MONO } from '../../../theme'
 import { arcMidPoint, arcPathFor, wellColor } from '../geometry'
 
@@ -18,19 +20,24 @@ function laneLetter(laneId: string): string {
 function laneTitle(lane: TransferLane): string {
   const bh = lane.blackHoleArc
   const pl = lane.planetArc
-  return (
-    `${getWellName(lane.planetId)} lane ${laneLetter(lane.id)} — ` +
-    `Black Hole R${bh.ring} S${bh.startSector}–${bh.startSector + bh.length - 1} ` +
-    `↔ ${getWellName(lane.planetId)} R${pl.ring} S${pl.startSector}–${pl.startSector + pl.length - 1}`
-  )
+  const span = (arc: typeof bh) =>
+    `R${arc.ring} S${arc.startSector}–${arc.startSector + arc.length - 1}`
+  const planet = getWellName(lane.planetId)
+  return lane.direction === 'outbound'
+    ? `${planet} lane ${laneLetter(lane.id)} — one way: jump from Black Hole ${span(bh)} to ${planet} ${span(pl)}`
+    : `${planet} lane ${laneLetter(lane.id)} — one way: jump from ${planet} ${span(pl)} to Black Hole ${span(bh)}`
 }
 
 const LABEL_OFFSET = 15
 
-export const LanesLayer = memo(function LanesLayer({ highlightIds = [] }: { highlightIds?: string[] }) {
+export const LanesLayer = memo(function LanesLayer({
+  highlightIds = [],
+}: {
+  highlightIds?: string[]
+}) {
   return (
     <g className="lanes">
-      {TRANSFER_LANES.map((lane) => {
+      {TRANSFER_LANES.map(lane => {
         const color = wellColor(lane.planetId)
         const active = highlightIds.includes(lane.id)
         const letter = laneLetter(lane.id)
@@ -39,27 +46,29 @@ export const LanesLayer = memo(function LanesLayer({ highlightIds = [] }: { high
         return (
           <g key={lane.id}>
             <title>{title}</title>
-            {[lane.blackHoleArc, lane.planetArc].map((arc) => {
+            {[lane.blackHoleArc, lane.planetArc].map(arc => {
               const mid = arcMidPoint(arc, LABEL_OFFSET)
+              const departure = arc === laneDepartureArc(lane)
               return (
                 <g key={`${arc.wellId}-${arc.startSector}`}>
                   <path
                     d={arcPathFor(arc)}
                     fill="none"
                     stroke={color}
-                    strokeWidth={active ? 10 : 7}
+                    strokeWidth={active ? 10 : departure ? 7 : 5}
                     strokeLinecap="butt"
-                    opacity={active ? 1 : 0.55}
+                    strokeDasharray={departure ? undefined : '6 5'}
+                    opacity={active ? 1 : departure ? 0.6 : 0.4}
                     style={active ? { filter: `drop-shadow(0 0 8px ${color})` } : undefined}
                   />
                   <circle
                     cx={mid.x}
                     cy={mid.y}
                     r={8.5}
-                    fill="#080b11"
+                    fill={departure ? color : '#080b11'}
                     stroke={color}
                     strokeWidth={active ? 2 : 1.2}
-                    opacity={active ? 1 : 0.8}
+                    opacity={active ? 1 : 0.85}
                   />
                   <text
                     x={mid.x}
@@ -69,7 +78,7 @@ export const LanesLayer = memo(function LanesLayer({ highlightIds = [] }: { high
                     fontSize={10}
                     fontFamily={FONT_MONO}
                     fontWeight={700}
-                    fill={color}
+                    fill={departure ? '#080b11' : color}
                   >
                     {letter}
                   </text>

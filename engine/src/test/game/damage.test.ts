@@ -23,6 +23,10 @@ const TWO_SHIELDS: ShipLoadout = {
   forwardSlots: ["railgun"],
   sideSlots: ["laser", "laser", "shields", "shields"],
 };
+const RACK_FIRST: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["ballistic_rack", "laser", "shields", "shields"],
+};
 
 /** p1 at R3 S0 with a powered port laser; p2 one ring out where the laser reaches. */
 function laserDuel(targetLoadout?: ShipLoadout, attackerLoadout?: ShipLoadout) {
@@ -315,11 +319,47 @@ describe("damage: through executeTurn", () => {
     expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(false);
   });
 
-  it("target shields keep total energy constant after absorbing", () => {
-    const state = withPower(laserDuel(), "p2", "side-2", 1);
+  it("shields absorb a rack round and keep total energy constant", () => {
+    // The rack sits at side-0 of RACK_FIRST, one ring below its target.
+    const state = withPower(laserDuel(undefined, RACK_FIRST), "p2", "side-2", 1);
     const result = executeTurnAs(state, fire(1, "side-0", "p2"));
-    expect(getShip(result.gameState, "p2").hitPoints).toBe(9);
+    expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
+      weaponType: "ballistic_rack",
+      damage: 1,
+      toHull: 0,
+      toHeat: 1,
+    });
+    expect(getShip(result.gameState, "p2").hitPoints).toBe(10);
+    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(1);
     expect(totalEnergy(getShip(result.gameState, "p2"))).toBe(REACTOR_CAPACITY);
     expect(getShip(result.gameState, "p2").reactor.availableEnergy).toBe(REACTOR_CAPACITY);
+  });
+
+  it("laser damage skips the shields: hull takes it all, the cubes stay, no heat", () => {
+    const state = withPower(laserDuel(), "p2", "side-2", 4);
+    const result = executeTurnAs(state, fire(1, "side-0", "p2"));
+    expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
+      weaponType: "laser",
+      damage: 2,
+      toHull: 2,
+      toHeat: 0,
+      targetHullAfter: 8,
+    });
+    expect(getShip(result.gameState, "p2").hitPoints).toBe(8);
+    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(0);
+    expect(getSub(result.gameState, "p2", "side-2")).toMatchObject({
+      allocatedEnergy: 4,
+      isRevealed: false,
+    });
+  });
+
+  it("a laser critical breaks the named tile through full shields", () => {
+    const state = withPower(laserDuel(), "p2", "side-2", 4);
+    const result = executeTurnAs(
+      { ...state, forcedRollValue: 10 },
+      fire(1, "side-0", "p2", "engines")
+    );
+    expect(getSub(result.gameState, "p2", "engines").isBroken).toBe(true);
+    expect(getShip(result.gameState, "p2").hitPoints).toBe(8);
   });
 });

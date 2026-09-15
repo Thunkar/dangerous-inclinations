@@ -37,9 +37,11 @@ export function freeHomeSectors(view: GameView): number[] {
   return Array.from({ length: SECTORS_PER_RING }, (_, s) => s).filter((s) => !occupied.has(s));
 }
 
-/** Ring-5 sectors from which a jump to `planetId` is possible. */
+/** Ring-5 sectors from which a jump to `planetId` is possible: its outbound lane. */
 function laneSectorsTo(planetId: string): number[] {
-  return TRANSFER_LANES.filter((l) => l.planetId === planetId).flatMap((l) => arcSectors(l.blackHoleArc));
+  return TRANSFER_LANES.filter(
+    (l) => l.planetId === planetId && l.direction === "outbound"
+  ).flatMap((l) => arcSectors(l.blackHoleArc));
 }
 
 export function chooseDeployment(view: GameView, pick: (n: number) => number): DeploymentChoice {

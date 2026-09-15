@@ -43,7 +43,7 @@ import {
   planInterception,
   stationPositionFor,
 } from "./danger.ts";
-import { volleyPotential, weaponRangeTarget } from "./combat.ts";
+import { hullPotential, volleyPotential, weaponRangeTarget } from "./combat.ts";
 
 export { cheapTurnEstimate } from "./danger.ts";
 
@@ -152,13 +152,13 @@ export function interdictionTarget(
   status: BotStatus,
   myDanger: OpponentDanger
 ): Opponent | null {
-  const potential = volleyPotential(usableWeapons(status));
-  if (potential <= 0) return null;
+  const weapons = usableWeapons(status);
+  if (volleyPotential(weapons) <= 0) return null;
   let best: Opponent | null = null;
   for (const opponent of opponents) {
     if (opponent.danger.score < INTERDICT_DANGER) continue;
     if (myDanger.turnsToWin <= opponent.danger.turnsToWin) continue;
-    if (potential <= opponent.shieldAbsorption) continue;
+    if (hullPotential(weapons, opponent.shieldAbsorption) <= 0) continue;
     const meet = opponent.danger.deliveryPosition ?? opponent.position;
     const nearby =
       opponent.sameWell && opponent.ringDistance + opponent.sectorDistance <= INTERDICT_CHASE_RANGE;

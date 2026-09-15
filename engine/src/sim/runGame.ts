@@ -15,6 +15,7 @@ import type { GameRecording, RecordedTurn, RecordingMetadata } from "../recordin
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
 import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
+import { applyLoadoutOverrides, type LoadoutOverrides } from "./loadoutOverrides.ts";
 import { createGame, submitLoadout } from "../game/setup.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
@@ -38,6 +39,8 @@ export interface GameConfig {
   tiebreak?: boolean;
   /** Experiment-only weapon stat overrides (see sim/weaponOverrides.ts). */
   weapons?: WeaponOverrides;
+  /** Experiment-only bot hull overrides (see sim/loadoutOverrides.ts). */
+  loadouts?: LoadoutOverrides;
 }
 
 /** What the active player did on one turn, for balance stats. */
@@ -134,6 +137,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
   applyWeaponOverrides(config.weapons);
+  applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;
 
   const initialState = setupBotGame(seed, botCount, config.rules);

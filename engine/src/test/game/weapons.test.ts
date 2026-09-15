@@ -219,9 +219,10 @@ describe("weapons: firing", () => {
   });
 
   it("after a jump the shot is measured from the destination", () => {
+    // BH R5 S17 jumps along Alpha's outbound lane to Alpha R3 S5.
     let state = makeGameState([
-      makePlayer("p1", { wellId: BH, ring: 5, sector: 5 }, STARBOARD_LASER),
-      makePlayer("p2", { wellId: ALPHA, ring: 2, sector: 17 }),
+      makePlayer("p1", { wellId: BH, ring: 5, sector: 17 }, STARBOARD_LASER),
+      makePlayer("p2", { wellId: ALPHA, ring: 2, sector: 5 }),
     ]);
     state = withPower(state, "p1", "engines", 3);
     state = withPower(state, "p1", "side-2", 2);

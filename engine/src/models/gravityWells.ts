@@ -76,49 +76,67 @@ function arc(wellId: GravityWellId, ring: number, startSector: number): Transfer
 }
 
 /**
- * Transfer lanes. The whole of black hole ring 5 is lanes: reading clockwise
- * the order is Beta, Alpha, Gamma, Beta, Alpha, Gamma, so the next planet
- * clockwise from any arrival is always the cheap one. Each planet's ring 3
- * has two arcs (4–7 and 16–19).
+ * Transfer lanes, one-way. The whole of black hole ring 5 is lanes; reading
+ * clockwise: out to Beta (0–3), in from Alpha (4–7), out to Gamma (8–11), in
+ * from Beta (12–15), out to Alpha (16–19), in from Gamma (20–23). Every
+ * arrival arc is followed clockwise by the departure arc for the next planet,
+ * so Alpha → Gamma → Beta → Alpha is the cheap circuit. Each planet's ring 3
+ * has two arcs (4–7 and 16–19): one you arrive on, one you leave from.
  */
 export const TRANSFER_LANES: TransferLane[] = [
   {
     id: "beta-a",
     planetId: "planet-beta",
+    direction: "outbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 0),
     planetArc: arc("planet-beta", 3, 4),
   },
   {
     id: "alpha-a",
     planetId: "planet-alpha",
+    direction: "inbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 4),
     planetArc: arc("planet-alpha", 3, 16),
   },
   {
     id: "gamma-a",
     planetId: "planet-gamma",
+    direction: "outbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 8),
     planetArc: arc("planet-gamma", 3, 4),
   },
   {
     id: "beta-b",
     planetId: "planet-beta",
+    direction: "inbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 12),
     planetArc: arc("planet-beta", 3, 16),
   },
   {
     id: "alpha-b",
     planetId: "planet-alpha",
+    direction: "outbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 16),
     planetArc: arc("planet-alpha", 3, 4),
   },
   {
     id: "gamma-b",
     planetId: "planet-gamma",
+    direction: "inbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 20),
     planetArc: arc("planet-gamma", 3, 16),
   },
 ];
+
+/** The arc a lane is jumped from. */
+export function laneDepartureArc(lane: TransferLane): TransferArc {
+  return lane.direction === "outbound" ? lane.blackHoleArc : lane.planetArc;
+}
+
+/** The arc a lane lands on. */
+export function laneArrivalArc(lane: TransferLane): TransferArc {
+  return lane.direction === "outbound" ? lane.planetArc : lane.blackHoleArc;
+}
 
 export function getGravityWell(wellId: GravityWellId): GravityWell | undefined {
   return GRAVITY_WELLS.find((w) => w.id === wellId);
@@ -158,37 +176,23 @@ export interface JumpOption {
 }
 
 /**
- * Jumps available from a position: at most one per lane whose arc contains
- * the position. Arrival keeps the offset inside the arc.
+ * Jumps available from a position: at most one per lane whose departure arc
+ * contains the position. Arrival keeps the offset inside the arc.
  */
 export function getJumpOptions(position: Position): JumpOption[] {
   const options: JumpOption[] = [];
   for (const lane of TRANSFER_LANES) {
-    const fromBH = arcOffset(lane.blackHoleArc, position);
-    if (fromBH >= 0) {
-      const to = lane.planetArc;
-      options.push({
-        lane,
-        destination: {
-          wellId: to.wellId,
-          ring: to.ring,
-          sector: (to.startSector + fromBH) % SECTORS_PER_RING,
-        },
-      });
-      continue;
-    }
-    const fromPlanet = arcOffset(lane.planetArc, position);
-    if (fromPlanet >= 0) {
-      const to = lane.blackHoleArc;
-      options.push({
-        lane,
-        destination: {
-          wellId: to.wellId,
-          ring: to.ring,
-          sector: (to.startSector + fromPlanet) % SECTORS_PER_RING,
-        },
-      });
-    }
+    const offset = arcOffset(laneDepartureArc(lane), position);
+    if (offset < 0) continue;
+    const to = laneArrivalArc(lane);
+    options.push({
+      lane,
+      destination: {
+        wellId: to.wellId,
+        ring: to.ring,
+        sector: (to.startSector + offset) % SECTORS_PER_RING,
+      },
+    });
   }
   return options;
 }
@@ -201,7 +205,7 @@ export function findJump(
 }
 
 /**
- * Flat per-sector view of the lanes: one entry per (sector, direction).
+ * Flat per-sector view of the lanes: one entry per departure sector.
  * Convenient for path planners that think in individual transfer points.
  */
 export interface TransferPoint {
@@ -215,28 +219,15 @@ export interface TransferPoint {
 }
 
 export const TRANSFER_POINTS: TransferPoint[] = TRANSFER_LANES.flatMap((lane) => {
-  const points: TransferPoint[] = [];
-  for (let i = 0; i < TRANSFER_ARC_LENGTH; i++) {
-    const bh = (lane.blackHoleArc.startSector + i) % SECTORS_PER_RING;
-    const pl = (lane.planetArc.startSector + i) % SECTORS_PER_RING;
-    points.push({
-      laneId: lane.id,
-      fromWellId: lane.blackHoleArc.wellId,
-      toWellId: lane.planetArc.wellId,
-      fromRing: lane.blackHoleArc.ring,
-      toRing: lane.planetArc.ring,
-      fromSector: bh,
-      toSector: pl,
-    });
-    points.push({
-      laneId: lane.id,
-      fromWellId: lane.planetArc.wellId,
-      toWellId: lane.blackHoleArc.wellId,
-      fromRing: lane.planetArc.ring,
-      toRing: lane.blackHoleArc.ring,
-      fromSector: pl,
-      toSector: bh,
-    });
-  }
-  return points;
+  const from = laneDepartureArc(lane);
+  const to = laneArrivalArc(lane);
+  return Array.from({ length: TRANSFER_ARC_LENGTH }, (_, i) => ({
+    laneId: lane.id,
+    fromWellId: from.wellId,
+    toWellId: to.wellId,
+    fromRing: from.ring,
+    toRing: to.ring,
+    fromSector: (from.startSector + i) % SECTORS_PER_RING,
+    toSector: (to.startSector + i) % SECTORS_PER_RING,
+  }));
 });

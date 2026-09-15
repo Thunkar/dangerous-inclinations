@@ -47,11 +47,33 @@ export type TableEffect =
       start: number
       duration: number
     }
-  | { id: string; kind: 'float'; at: Point; text: string; tone: FloatTone; start: number; duration: number }
-  | { id: string; kind: 'burst'; at: Point; color: string; radius: number; start: number; duration: number }
+  | {
+      id: string
+      kind: 'float'
+      at: Point
+      text: string
+      tone: FloatTone
+      start: number
+      duration: number
+    }
+  | {
+      id: string
+      kind: 'burst'
+      at: Point
+      color: string
+      radius: number
+      start: number
+      duration: number
+    }
+  /** Nothing drawn: keeps the clock ticking while a ship token slides to its new sector. */
+  | { id: string; kind: 'tween'; start: number; duration: number }
 
 /** An effect before its timestamp is stamped on it (distributes over the union). */
-type EffectDraft = TableEffect extends infer T ? (T extends TableEffect ? Omit<T, 'start'> : never) : never
+type EffectDraft = TableEffect extends infer T
+  ? T extends TableEffect
+    ? Omit<T, 'start'>
+    : never
+  : never
 
 export interface DieRoll {
   id: string
@@ -65,8 +87,14 @@ export interface DieRoll {
 }
 
 /** What the board draws while a turn plays out. */
+export interface ShipMotion {
+  from: Position
+  start: number
+  duration: number
+}
+
 export interface BoardOverlay {
-  ships: Record<string, { position: Position; facing: Facing; alive: boolean }>
+  ships: Record<string, { position: Position; facing: Facing; alive: boolean; motion?: ShipMotion }>
   missiles: Missile[]
   stations: Station[]
 }
@@ -131,15 +159,15 @@ function snapshotOf(view: GameView): BoardOverlay {
  * the band we print for the table to read.
  */
 function critThresholdFor(view: GameView, attackerId: string): number {
-  const attacker = view.players.find((p) => p.id === attackerId)
+  const attacker = view.players.find(p => p.id === attackerId)
   if (!attacker) return 10
   const minEnergy = getSubsystemConfig('sensor_array').minEnergy
   const visiblySensing = attacker.slots.some(
-    (slot) =>
+    slot =>
       slot.type === 'sensor_array' &&
       (attacker.isMe ? slot.knownVia === 'own' : slot.knownVia === 'revealed') &&
       slot.isBroken !== true &&
-      slot.allocatedEnergy >= minEnergy,
+      slot.allocatedEnergy >= minEnergy
   )
   return visiblySensing ? 8 : 10
 }
@@ -162,8 +190,8 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
     const tick = () => {
       const t = performance.now()
       setNow(t)
-      setEffects((prev) => {
-        const alive = prev.filter((e) => t - e.start < e.duration)
+      setEffects(prev => {
+        const alive = prev.filter(e => t - e.start < e.duration)
         return alive.length === prev.length ? prev : alive
       })
       frame = requestAnimationFrame(tick)
@@ -173,7 +201,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
   }, [effects.length])
 
   const pushEffect = useCallback((effect: EffectDraft) => {
-    setEffects((prev) => [...prev, { ...effect, start: performance.now() } as TableEffect])
+    setEffects(prev => [...prev, { ...effect, start: performance.now() } as TableEffect])
   }, [])
 
   const animate = useCallback(
@@ -185,18 +213,34 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
       const pointOf = (playerId: string): Point => {
         const ship = snap.ships[playerId]
         if (ship) return positionPoint(ship.position)
-        const fromNext = next.players.find((p) => p.id === playerId)?.ship
-        if (fromNext) return positionPoint({ wellId: fromNext.wellId, ring: fromNext.ring, sector: fromNext.sector })
+        const fromNext = next.players.find(p => p.id === playerId)?.ship
+        if (fromNext)
+          return positionPoint({
+            wellId: fromNext.wellId,
+            ring: fromNext.ring,
+            sector: fromNext.sector,
+          })
         return { x: 0, y: 0 }
       }
 
-      const moveShip = (playerId: string, to: Position, facing?: Facing) => {
+      /** Move a token; it slides from where it was over `duration` ms. */
+      const moveShip = (
+        playerId: string,
+        to: Position,
+        facing?: Facing,
+        duration: number = BEAT.move
+      ) => {
         const current = snap.ships[playerId]
         snap.ships[playerId] = {
           position: to,
           facing: facing ?? current?.facing ?? 'prograde',
           alive: true,
+          motion:
+            current && current.alive
+              ? { from: current.position, start: performance.now(), duration }
+              : undefined,
         }
+        if (current && current.alive) pushEffect({ id: nextId('tween'), kind: 'tween', duration })
       }
 
       // Ships that have already taken their move this turn: a missile launched
@@ -221,7 +265,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             movedThisTurn.add(event.playerId)
             return BEAT.move
           case 'jumped':
-            moveShip(event.playerId, event.to)
+            moveShip(event.playerId, event.to, undefined, BEAT.jump)
             movedThisTurn.add(event.playerId)
             pushEffect({
               id: nextId('burst'),
@@ -233,7 +277,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             })
             return BEAT.jump
           case 'recoil':
-            if (event.to) moveShip(event.playerId, event.to)
+            if (event.to) moveShip(event.playerId, event.to, undefined, BEAT.small)
             return event.to ? BEAT.small : 0
           case 'respawned':
           case 'deployed': {
@@ -264,7 +308,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           case 'attack_resolved': {
             const at = pointOf(event.targetId)
             const threshold = critThresholdFor(next, event.attackerId)
-            setDice((d) => [
+            setDice(d => [
               ...d,
               {
                 id: nextId('die'),
@@ -277,10 +321,24 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               },
             ])
             if (event.result === 'miss') {
-              pushEffect({ id: nextId('f'), kind: 'float', at, text: 'MISS', tone: 'miss', duration: 1200 })
+              pushEffect({
+                id: nextId('f'),
+                kind: 'float',
+                at,
+                text: 'MISS',
+                tone: 'miss',
+                duration: 1200,
+              })
             } else {
               if (event.result === 'critical') {
-                pushEffect({ id: nextId('f'), kind: 'float', at, text: 'CRIT!', tone: 'crit', duration: 1400 })
+                pushEffect({
+                  id: nextId('f'),
+                  kind: 'float',
+                  at,
+                  text: 'CRIT!',
+                  tone: 'crit',
+                  duration: 1400,
+                })
                 pushEffect({
                   id: nextId('burst'),
                   kind: 'burst',
@@ -332,17 +390,23 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.small
           }
           case 'missile_moved': {
-            snap.missiles = snap.missiles.map((m) =>
+            snap.missiles = snap.missiles.map(m =>
               m.id === event.missileId
-                ? { ...m, wellId: event.to.wellId, ring: event.to.ring, sector: event.to.sector, launchedAfterMove: false }
-                : m,
+                ? {
+                    ...m,
+                    wellId: event.to.wellId,
+                    ring: event.to.ring,
+                    sector: event.to.sector,
+                    launchedAfterMove: false,
+                  }
+                : m
             )
             return BEAT.missile
           }
           case 'missile_intercepted': {
             const at = pointOf(event.targetId)
             const hit = event.roll >= 2
-            setDice((d) => [
+            setDice(d => [
               ...d,
               {
                 id: nextId('die'),
@@ -360,19 +424,30 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               weapon: 'pdc',
               from: at,
               to: positionPoint(
-                snap.missiles.find((m) => m.id === event.missileId) ?? { wellId: 'blackhole', ring: 1, sector: 0 },
+                snap.missiles.find(m => m.id === event.missileId) ?? {
+                  wellId: 'blackhole',
+                  ring: 1,
+                  sector: 0,
+                }
               ),
               color: BEAM_COLORS.pdc,
               duration: 400,
             })
             if (hit) {
-              snap.missiles = snap.missiles.filter((m) => m.id !== event.missileId)
-              pushEffect({ id: nextId('f'), kind: 'float', at, text: 'INTERCEPTED', tone: 'good', duration: 1200 })
+              snap.missiles = snap.missiles.filter(m => m.id !== event.missileId)
+              pushEffect({
+                id: nextId('f'),
+                kind: 'float',
+                at,
+                text: 'INTERCEPTED',
+                tone: 'good',
+                duration: 1200,
+              })
             }
             return BEAT.intercept
           }
           case 'missile_expired':
-            snap.missiles = snap.missiles.filter((m) => m.id !== event.missileId)
+            snap.missiles = snap.missiles.filter(m => m.id !== event.missileId)
             return BEAT.small
           case 'heat_damage': {
             const at = pointOf(event.playerId)
@@ -387,10 +462,13 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.small
           }
           case 'subsystem_broken': {
-            setPulses((p) => ({ ...p, [`${event.playerId}:${event.subsystemId}`]: performance.now() }))
+            setPulses(p => ({
+              ...p,
+              [`${event.playerId}:${event.subsystemId}`]: performance.now(),
+            }))
             // A critical that breaks a tile is worth naming: everyone at the
             // table saw whose shot did it.
-            const attacker = event.by ? next.players.find((p) => p.id === event.by)?.name : undefined
+            const attacker = event.by ? next.players.find(p => p.id === event.by)?.name : undefined
             pushEffect({
               id: nextId('f'),
               kind: 'float',
@@ -402,7 +480,10 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.small
           }
           case 'subsystem_revealed':
-            setPulses((p) => ({ ...p, [`${event.playerId}:${event.subsystemId}`]: performance.now() }))
+            setPulses(p => ({
+              ...p,
+              [`${event.playerId}:${event.subsystemId}`]: performance.now(),
+            }))
             return 0
           case 'scanned': {
             pushEffect({
@@ -427,15 +508,43 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           case 'ship_destroyed': {
             const at = pointOf(event.victimId)
             if (snap.ships[event.victimId]) snap.ships[event.victimId].alive = false
-            snap.missiles = snap.missiles.filter((m) => m.targetId !== event.victimId)
-            pushEffect({ id: nextId('burst'), kind: 'burst', at, color: '#ff5a72', radius: 46, duration: 900 })
-            pushEffect({ id: nextId('f'), kind: 'float', at, text: 'DESTROYED', tone: 'damage', duration: 1400 })
+            snap.missiles = snap.missiles.filter(m => m.targetId !== event.victimId)
+            pushEffect({
+              id: nextId('burst'),
+              kind: 'burst',
+              at,
+              color: '#ff5a72',
+              radius: 46,
+              duration: 900,
+            })
+            pushEffect({
+              id: nextId('f'),
+              kind: 'float',
+              at,
+              text: 'DESTROYED',
+              tone: 'damage',
+              duration: 1400,
+            })
             return BEAT.destroy
           }
           case 'docked': {
             const at = pointOf(event.playerId)
-            pushEffect({ id: nextId('burst'), kind: 'burst', at, color: '#46d191', radius: 28, duration: 700 })
-            pushEffect({ id: nextId('f'), kind: 'float', at, text: 'DOCKED', tone: 'good', duration: 1200 })
+            pushEffect({
+              id: nextId('burst'),
+              kind: 'burst',
+              at,
+              color: '#46d191',
+              radius: 28,
+              duration: 700,
+            })
+            pushEffect({
+              id: nextId('f'),
+              kind: 'float',
+              at,
+              text: 'DOCKED',
+              tone: 'good',
+              duration: 1200,
+            })
             return BEAT.resolve
           }
           case 'cargo_picked_up':
@@ -443,7 +552,14 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.small
           case 'mission_completed': {
             const at = pointOf(event.playerId)
-            pushEffect({ id: nextId('f'), kind: 'float', at, text: 'MISSION', tone: 'good', duration: 1400 })
+            pushEffect({
+              id: nextId('f'),
+              kind: 'float',
+              at,
+              text: 'MISSION',
+              tone: 'good',
+              duration: 1400,
+            })
             return BEAT.resolve
           }
           case 'action_skipped': {
@@ -513,7 +629,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         setDice([])
       }
     },
-    [pushEffect],
+    [pushEffect]
   )
 
   useEffect(() => {
@@ -525,14 +641,14 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
     () => () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     },
-    [],
+    []
   )
 
   const skip = useCallback(() => skipRef.current?.(), [])
 
   const value = useMemo<AnimationContextValue>(
     () => ({ overlay, effects, dice, pulses, now, skip }),
-    [overlay, effects, dice, pulses, now, skip],
+    [overlay, effects, dice, pulses, now, skip]
   )
 
   return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>

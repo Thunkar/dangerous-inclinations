@@ -161,6 +161,8 @@ export const theme = createTheme({
       },
     },
     MuiTooltip: {
+      // A tooltip must never sit between the pointer and the control below it.
+      defaultProps: { disableInteractive: true, enterDelay: 350, enterNextDelay: 200 },
       styleOverrides: {
         tooltip: {
           backgroundColor: '#070a0f',

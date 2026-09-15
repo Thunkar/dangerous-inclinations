@@ -438,7 +438,8 @@ function processFireWeapon(
       roll,
       attacker.ship,
       attacker.id,
-      rulesOf(working)
+      rulesOf(working),
+      config.weaponStats!.ignoresShields === true
     );
     players[targetIndex] = { ...target, ship: outcome.ship };
     events.push({
