@@ -381,6 +381,63 @@ Reading:
 Recommendation: **cap 2.** Same pacing as cap 3, flatter field, and shields become a decision with a
 visible price on the table (two cubes soak a missile; stack them and bring radiators).
 
+
+## 9. Adopted: cap 2, two heat per point; presets tested; rule set pruned
+
+Adopted 15 Sept 2026 (night): **shield cap 2, two heat per absorbed point.** With the day's other
+decisions (Destroy worth 2, lasers ignore shields, one-way lanes, the new Survey, finish the round,
+repeats allowed) these are the rules in RULES.md. Every knob that was decided is now a constant; the
+rule set keeps three live knobs (shield cap, shield heat per point, Destroy's worth).
+
+Preset candidates, forced on seat 1 under cap 2 (baseline 37%):
+
+| run | seat-1 hull | wins | real victories | others (each) | kills/g | deaths/g | dealt/g | taken/g | fin | rounds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| C2_hunter | railgun/missiles,radiator,laser,shields | 32% | 27% | 34% | 1.3 | 0.48 | 27.12 | 12.98 | 90% | 51 |
+| P_hunter_comp | railgun/missiles,fuel_compressor,laser,shields | 28% | 23% | 36% | 0.77 | 0.72 | 17.84 | 14.86 | 91% | 51 |
+| P_hunter_comp_rad | railgun/missiles,fuel_compressor,laser,radiator | 30% | 25% | 35% | 1.2 | 1.24 | 36.62 | 35.54 | 92% | 45 |
+| C2_scout | sensor_array/shields,radiator,fuel_compressor,missiles | 27% | 22% | 36% | 0.08 | 0.62 | 2.66 | 13.18 | 87% | 45 |
+| P_scout_A | sensor_array/shields,radiator,laser,missiles | 33% | 33% | 33% | 0.46 | 0.48 | 11.46 | 10.12 | 96% | 44 |
+| P_scout_B | sensor_array/shields,laser,fuel_compressor,missiles | 27% | 25% | 36% | 0.31 | 0.83 | 8.04 | 14.98 | 91% | 45 |
+| P_scout_D | sensor_array/shields,laser,laser,fuel_compressor | 38% | 38% | 31% | 0.57 | 0.54 | 12.92 | 10.56 | 98% | 39 |
+| C2_raider | railgun/missiles,radiator,fuel_compressor,shields | 37% | 35% | 32% | 0.89 | 0.53 | 18.58 | 11.8 | 96% | 45 |
+| P_raider_laser | railgun/laser,radiator,fuel_compressor,shields | 39% | 34% | 30% | 1.11 | 0.68 | 20.18 | 14.74 | 93% | 45 |
+| C2_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 41% | 40% | 29% | 0.51 | 0.46 | 12.38 | 11.2 | 97% | 46 |
+
+- **Scout** becomes sensor, shields, laser, laser, compressor (38% against 22%). A sensor hull wants
+  guns that land through shields, and two lasers cover both ring directions.
+- **Hunter** stays railgun, missiles, radiator, laser, shields: swapping the radiator for the
+  compressor (23%) or dropping shields for both (25%) measured worse than the current 27%.
+- **Raider** stays: a laser in place of the missiles is a wash (34% against 35%), and missiles keep
+  it distinct from the Hauler.
+
+Natural play under the final rules (bots choose hands and hulls; `F_own` is this morning's rules
+for comparison):
+
+| run | rules | fin | rounds | kills/g | hull dmg/g | heat dmg turns | coast | firing | shields on | soaked | Destroy done | Deliver done |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| F_own | defaults | 72% | 56 | 0.8 | 25.1 | 1% | 45% | 10% | 68% | 63% | 31 | 309 |
+| N_own3 | defaults | 100% | 39 | 2 | 40.1 | 1% | 41% | 16% | 59% | 36% | 82 | 247 |
+| N_own2 | defaults | 99% | 39 | 0.7 | 16.2 | 1% | 39% | 10% | 37% | 41% | 39 | 307 |
+| N_own4 | defaults | 94% | 39 | 4.2 | 73.7 | 2% | 41% | 22% | 72% | 34% | 122 | 222 |
+
+Seats: 3 players 33 / 46 / 21, 2 players 57 / 43, 4 players 33 / 22 / 25 / 20. Hulls chosen at 3
+players: Raider 230 of 300 seats (32% win rate), Scout 46 (41%), Hauler 24 (29%).
+
+Reading:
+- **Pacing is fixed.** From 72% of games decided before the cap and 56 rounds this morning to 100%
+  and 39 rounds at three players; 99% / 39 at two, 94% / 39 at four. Destroy completions 31 → 82.
+- **Four players is bloody**: 4.2 kills a game, 74 hull damage, 122 Destroy completions per 100
+  games. Every player dies about once per game. Worth a look at the table before deciding whether
+  that is a feature.
+- **Seat 3 at three players** wins 21% here and 22% in the earlier cap-2 run, against 36% under cap
+  3. Two runs at 100 games is suggestive, not proof; the seat-1 deployment and first-mover edge is
+  the likeliest cause, and cap 2 makes early aggression pay, which favours whoever acts first. A
+  200-seed run on seats alone would settle it.
+- **The bots over-pick the Raider** (77% of seats) because their hull rule sends every hand without
+  Intercept or Survey to the railgun; the new Scout out-performs it (41% against 32%). Teaching the
+  classifier to prefer the laser hulls is a bot-quality item, not a rules item.
+
 ## Reproduce
 
 ```
