@@ -4,7 +4,7 @@
  * is restored and missiles are reloaded.
  */
 import type { GameState } from "../models/game.ts";
-import { rulesOf } from "./setup.ts";
+import { DOCK_HULL_REPAIR } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo } from "../models/missions.ts";
 import { positionOf } from "./geometry.ts";
@@ -61,24 +61,11 @@ export function processDocking(state: GameState, playerIndex: number): DockingRe
   // Repairs.
   const repaired = repairAllSubsystems(player.ship);
   const reloaded = reloadMissiles(repaired.ship);
-  const rules = rulesOf(state);
   const hullRestored = Math.min(
-    rules.dockHullRepair,
+    DOCK_HULL_REPAIR,
     reloaded.ship.maxHitPoints - reloaded.ship.hitPoints
   );
-  // Spent shield cubes (rule knob) come back to the reactor at the dock.
-  const ship = {
-    ...reloaded.ship,
-    hitPoints: reloaded.ship.hitPoints + hullRestored,
-    spentEnergy: 0,
-    reactor: {
-      ...reloaded.ship.reactor,
-      availableEnergy: Math.min(
-        reloaded.ship.reactor.totalCapacity,
-        reloaded.ship.reactor.availableEnergy + reloaded.ship.spentEnergy
-      ),
-    },
-  };
+  const ship = { ...reloaded.ship, hitPoints: reloaded.ship.hitPoints + hullRestored };
 
   events.push({
     type: "docked",

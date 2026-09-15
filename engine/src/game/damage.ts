@@ -91,21 +91,14 @@ export function resolveAttack(
     const take = Math.min(remainingDamage, shield.allocatedEnergy);
     if (take <= 0) continue;
     const left = shield.allocatedEnergy - take;
-    if (rules.shieldRefill === "on_dock") {
-      // Spent cubes sit out until the ship docks.
-      ship = { ...ship, spentEnergy: ship.spentEnergy + take };
-    } else {
-      ship = {
-        ...ship,
-        reactor: {
-          ...ship.reactor,
-          availableEnergy: Math.min(
-            ship.reactor.totalCapacity,
-            ship.reactor.availableEnergy + take
-          ),
-        },
-      };
-    }
+    // The cubes that absorbed go back to the reactor: the shield refills for free.
+    ship = {
+      ...ship,
+      reactor: {
+        ...ship.reactor,
+        availableEnergy: Math.min(ship.reactor.totalCapacity, ship.reactor.availableEnergy + take),
+      },
+    };
     ship = updateSubsystem(ship, shield.id, { allocatedEnergy: left, isPowered: left > 0 });
     ship = addHeat(ship, take * rules.shieldHeatPerPoint);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
@@ -119,7 +112,7 @@ export function resolveAttack(
   ship = { ...ship, hitPoints: Math.max(0, ship.hitPoints - toHull) };
 
   let criticalEffect: WeaponHitResult["criticalEffect"];
-  if (result === "critical" && (toHull > 0 || rules.criticalThroughShields)) {
+  if (result === "critical" && toHull > 0) {
     const sub = findSubsystem(ship, criticalTarget);
     if (sub && !sub.isBroken) {
       const broken = breakSubsystem(ship, targetPlayerId, criticalTarget);

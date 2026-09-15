@@ -131,8 +131,6 @@ export interface ShipState {
   subsystems: Subsystem[];
   reactor: ReactorState;
   heat: HeatState;
-  /** Shield cubes spent absorbing damage that only return to the reactor on docking (rule knob). */
-  spentEnergy: number;
   loadout: ShipLoadout;
 }
 

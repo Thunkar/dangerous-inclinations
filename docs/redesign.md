@@ -222,7 +222,7 @@ None of these levers has been pulled; they are the designer's calls.
 
 ## 6c. How to test a rule before adopting it
 
-`engine/src/models/rules.ts` holds the knobs that experiments have needed so far (shield refill, shield cap, criticals through shields, dock repair, starting hull, Destroy's worth, Deliver routes dealt). They default to RULES.md and are carried on the game state, so a recording says which rules it was played under. Run `yarn sim --rules=k=v,... --tiebreak` with the same `--baseSeed` as the baseline and compare: same seeds, same hands, only the rule differs. Results of the first matrix are in `docs/experiments-2026-09-15.md`.
+`engine/src/models/rules.ts` holds the knobs that are still live questions (shield cap, shield heat per absorbed point, Destroy's worth); everything decided on 15 Sept 2026 is a constant. Knobs default to RULES.md and are carried on the game state, so a recording says which rules it was played under. Run `yarn sim --rules=k=v,... --tiebreak` with the same `--baseSeed` as the baseline and compare: same seeds, same hands, only the rule differs. `--weapons`, `--loadouts` and `--seats` do the same for weapon stats and hulls. Results: `docs/experiments-2026-09-15.md`, `docs/weapons-2026-09-15.md`, `docs/edge-cases-2026-09-15.md`.
 
 ## 7. Code plan
 

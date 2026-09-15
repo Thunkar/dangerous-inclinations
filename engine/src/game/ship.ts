@@ -35,7 +35,6 @@ export function createInitialShipState(
     subsystems: createSubsystemsFromLoadout(loadout),
     reactor: { totalCapacity: REACTOR_CAPACITY, availableEnergy: REACTOR_CAPACITY },
     heat: { currentHeat: 0 },
-    spentEnergy: 0,
     loadout,
     ...overrides,
   };
@@ -79,14 +78,13 @@ export function getMaxReactionMass(
   return MAX_REACTION_MASS + count * bonus;
 }
 
-/** Heat the ship can shed each turn: base (a rule knob) plus working radiators. */
+/** Heat the ship can shed each turn: base plus working radiators. */
 export function getDissipationCapacity(
-  subsystems: ReadonlyArray<Pick<Subsystem, "type" | "isBroken">>,
-  base: number = DEFAULT_DISSIPATION_CAPACITY
+  subsystems: ReadonlyArray<Pick<Subsystem, "type" | "isBroken">>
 ): number {
   const bonus = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
   const count = subsystems.filter((s) => s.type === "radiator" && !s.isBroken).length;
-  return base + count * bonus;
+  return DEFAULT_DISSIPATION_CAPACITY + count * bonus;
 }
 
 /** Critical chance in percentage points: base plus each powered, working sensor array. */

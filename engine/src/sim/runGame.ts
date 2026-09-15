@@ -22,7 +22,6 @@ import {
 } from "./loadoutOverrides.ts";
 import { createGame, submitLoadout } from "../game/setup.ts";
 import { rankPlayers } from "../game/missions/missionChecks.ts";
-import { rulesOf } from "../game/setup.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
 import { viewFor } from "../game/view.ts";
@@ -62,8 +61,6 @@ export interface TurnStat {
   shotsFired: number;
   /** Cubes on shields at the end of the turn (after any refunds). */
   shieldCubes: number;
-  /** Spent shield cubes waiting for a dock (rule knob). */
-  spentCubes: number;
   /** Cubes allocated to any subsystem at the end of the turn. */
   energyInUse: number;
   heatAtCheck: number;
@@ -255,12 +252,9 @@ function turnStat(turn: number, playerId: string, events: GameEvent[], after: Ga
     scooped: events.some((e) => e.type === "coasted" && e.playerId === playerId && e.scooped),
     shotsFired: events.filter((e) => e.type === "weapon_fired" && e.attackerId === playerId).length,
     shieldCubes: shields.reduce((sum, s) => sum + s.allocatedEnergy, 0),
-    spentCubes: player.ship.spentEnergy,
     energyInUse: player.ship.subsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0),
     heatAtCheck: heat ? heat.heat : 0,
-    dissipation: heat
-      ? heat.dissipation
-      : getDissipationCapacity(player.ship.subsystems, rulesOf(after).baseDissipation),
+    dissipation: heat ? heat.dissipation : getDissipationCapacity(player.ship.subsystems),
     heatDamage: heat ? heat.damage : 0,
     lost:
       events.some(

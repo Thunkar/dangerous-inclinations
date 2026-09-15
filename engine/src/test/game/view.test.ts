@@ -120,7 +120,6 @@ describe("view: what an opponent's mat shows", () => {
       maxHitPoints: 10,
       heat: 3,
       reactorAvailable: 6,
-      spentEnergy: 0,
       isDestroyed: false,
     });
     for (const secret of [

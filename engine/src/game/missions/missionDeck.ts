@@ -11,8 +11,6 @@ import type { Cargo, Mission } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER, MISSION_OFFERS_PER_PLAYER } from "../../models/missions.ts";
 import { PLANETS } from "../../models/gravityWells.ts";
 import type { Rng } from "../../utils/rng.ts";
-import type { RuleSet } from "../../models/rules.ts";
-import { DEFAULT_RULES } from "../../models/rules.ts";
 
 export const SURVEY_CARDS_PER_DECK = 2;
 
@@ -96,17 +94,13 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
 export function dealMissionOffers(
   players: ReadonlyArray<Pick<Player, "id">>,
   rng: Rng,
-  planetIds: readonly string[] = PLANETS.map((p) => p.id),
-  rules: RuleSet = DEFAULT_RULES
+  planetIds: readonly string[] = PLANETS.map((p) => p.id)
 ): Map<string, Mission[]> {
   const offers = new Map<string, Mission[]>();
   let next = 0;
   for (const player of players) {
     const opponents = players.filter((p) => p.id !== player.id);
-    // Rule knob: deal only some of the six routes (a seeded subset per player).
-    const routes = rng
-      .shuffle(allRoutes(planetIds))
-      .slice(0, Math.max(0, Math.min(6, rules.deliverRoutesDealt)));
+    const routes = rng.shuffle(allRoutes(planetIds));
     // The two Survey cards deliver to two different planets, drawn per player.
     const surveyPlanets = rng.shuffle([...planetIds]).slice(0, SURVEY_CARDS_PER_DECK);
     const shuffled = rng.shuffle(buildMissionDeck(opponents, planetIds, routes, surveyPlanets));

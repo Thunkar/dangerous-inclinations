@@ -13,7 +13,7 @@
  *   --record      keep recordings and write them to --output/recordings/
  *   --output=DIR  write summary.json (+ recordings) here
  *   --label=STR   label stored in recordings
- *   --rules=k=v,k=v  rule overrides (see models/rules.ts), e.g. --rules=shieldRefill=on_dock,dockHullRepair=1
+ *   --rules=k=v,k=v  rule overrides (see models/rules.ts), e.g. --rules=shieldMaxEnergy=3,destroyPoints=1
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --weapons=laser.damage=3,laser.sideRestricted=false  experiment-only weapon stat overrides
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)

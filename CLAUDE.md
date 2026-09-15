@@ -98,7 +98,7 @@ yarn dev:all
 yarn build          # engine must build before server/ui typecheck
 yarn workspace @dangerous-inclinations/engine test --run
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1
-yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --rules=shieldRefill=on_dock,dockHullRepair=1
+yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --rules=shieldMaxEnergy=3,destroyPoints=1
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message
 ```
 

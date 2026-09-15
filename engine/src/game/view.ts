@@ -35,7 +35,6 @@ export interface PublicShipView {
   /** Energy not routed to any tile (public: 10 minus the cubes on the mat). */
   reactorAvailable: number;
   /** Shield cubes spent until the next dock (rule knob; 0 under default rules). */
-  spentEnergy: number;
   isDestroyed: boolean;
 }
 
@@ -117,7 +116,6 @@ function shipView(player: Player): PublicShipView | null {
     maxHitPoints: s.maxHitPoints,
     heat: s.heat.currentHeat,
     reactorAvailable: s.reactor.availableEnergy,
-    spentEnergy: s.spentEnergy,
     isDestroyed: isDestroyed(s),
   };
 }
@@ -194,10 +192,7 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     me,
     myStats: me
       ? {
-          dissipationCapacity: getDissipationCapacity(
-            me.ship.subsystems,
-            resolveRules(state.rules).baseDissipation
-          ),
+          dissipationCapacity: getDissipationCapacity(me.ship.subsystems),
           maxReactionMass: getMaxReactionMass(me.ship.subsystems),
           criticalChance: getEffectiveCriticalChance(me.ship.subsystems),
         }

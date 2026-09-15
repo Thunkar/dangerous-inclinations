@@ -45,7 +45,7 @@ const PRESETS: Array<{ id: BotArchetype; name: string; blurb: string }> = [
   {
     id: 'scout',
     name: 'Scout',
-    blurb: 'Sensors, shields, radiator, compressor and missiles — shadow them, then shoot.',
+    blurb: 'Sensors, shields, two lasers and a compressor — shadow them, then cut.',
   },
   {
     id: 'raider',

@@ -96,8 +96,6 @@ export interface SubsystemConfig {
   maxEnergy: number;
   generatesHeatOnUse: boolean;
   slotType: SlotType;
-  /** How many of this tile a player's set contains (default 1). */
-  maxPerShip?: number;
   isPassive?: boolean;
   passiveEffect?: PassiveEffect;
   weaponStats?: WeaponStats;
@@ -184,7 +182,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     maxEnergy: 2,
     generatesHeatOnUse: true,
     slotType: "side",
-    maxPerShip: 2,
     weaponStats: {
       damage: 2,
       ringRange: 2,
@@ -261,11 +258,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
 
 export function getSubsystemConfig(type: SubsystemType): SubsystemConfig {
   return SUBSYSTEM_CONFIGS[type];
-}
-
-/** Tiles of this type in one player's set. */
-export function getMaxPerShip(type: SubsystemType): number {
-  return SUBSYSTEM_CONFIGS[type].maxPerShip ?? 1;
 }
 
 export function isWeaponType(type: SubsystemType): type is WeaponType {

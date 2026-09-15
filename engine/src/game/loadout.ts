@@ -3,15 +3,12 @@
  * Ships have one forward slot and four side slots; every slot must be filled.
  */
 import type { Subsystem, SubsystemType, SlotGroup } from "../models/subsystems.ts";
-import { DEFAULT_RULES } from "../models/rules.ts";
-import type { RuleSet } from "../models/rules.ts";
 import {
   SUBSYSTEM_CONFIGS,
   FIXED_SUBSYSTEM_TYPES,
   FORWARD_SLOT_COUNT,
   SIDE_SLOT_COUNT,
   getSubsystemConfig,
-  getMaxPerShip,
   getMissileStats,
   slotSubsystemId,
 } from "../models/subsystems.ts";
@@ -33,10 +30,7 @@ export function canInstallInSlot(type: SubsystemType, group: SlotGroup): boolean
   return slotType === group || slotType === "either";
 }
 
-export function validateLoadout(
-  loadout: ShipLoadout,
-  rules: RuleSet = DEFAULT_RULES
-): LoadoutValidation {
+export function validateLoadout(loadout: ShipLoadout): LoadoutValidation {
   const errors: string[] = [];
   if (!Array.isArray(loadout?.forwardSlots) || loadout.forwardSlots.length !== FORWARD_SLOT_COUNT) {
     return {
@@ -60,18 +54,7 @@ export function validateLoadout(
   };
   check(loadout.forwardSlots, "forward", "Forward");
   check(loadout.sideSlots, "side", "Side");
-
-  // Repeats are allowed unless the tileLimits knob is on (at most maxPerShip of each type).
-  const counts = new Map<SubsystemType, number>();
-  if (!rules.tileLimits) return { valid: errors.length === 0, errors };
-  for (const type of [...loadout.forwardSlots, ...loadout.sideSlots]) {
-    if (type !== null) counts.set(type, (counts.get(type) ?? 0) + 1);
-  }
-  for (const [type, n] of counts) {
-    const max = getMaxPerShip(type);
-    if (n > max)
-      errors.push(`${getSubsystemConfig(type).name}: only ${max} per ship (loadout has ${n})`);
-  }
+  // Repeats are allowed: any tile may fill any slot it fits.
   return { valid: errors.length === 0, errors };
 }
 

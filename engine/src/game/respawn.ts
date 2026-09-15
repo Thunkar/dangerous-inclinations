@@ -13,7 +13,6 @@ import type { EventDraft } from "../models/events.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { wrapSector, samePosition } from "./geometry.ts";
 import { createInitialShipState, isDestroyed } from "./ship.ts";
-import { hullOverride } from "./setup.ts";
 
 export function needsRespawn(player: Player): boolean {
   return player.hasDeployed && isDestroyed(player.ship);
@@ -99,7 +98,7 @@ export function respawnPlayer(
   const players = [...state.players];
   players[playerIndex] = {
     ...player,
-    ship: createRespawnedShip(player.ship, position, hullOverride(state)),
+    ship: createRespawnedShip(player.ship, position),
     skipTurns: 1,
   };
   return {

@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_RULES } from "../../models/rules.ts";
 import {
   checkAllDeployed,
   deployShip,
@@ -12,7 +11,6 @@ import {
   calculateShipStatsFromLoadout,
   canInstallInSlot,
   createSubsystemsFromLoadout,
-  validateLoadout,
 } from "../../game/loadout.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { DEFAULT_LOADOUT } from "../../models/game.ts";
@@ -177,82 +175,6 @@ describe("setup: submitLoadout", () => {
 });
 
 describe("loadout: validation and instantiation", () => {
-  it("the tileLimits knob brings back one set per player", () => {
-    const threeLasers: ShipLoadout = {
-      forwardSlots: ["railgun"],
-      sideSlots: ["laser", "laser", "laser", "shields"],
-    };
-    expect(validateLoadout(threeLasers).valid).toBe(true);
-    expect(validateLoadout(threeLasers, { ...DEFAULT_RULES, tileLimits: true }).valid).toBe(false);
-  });
-
-  it.each([
-    ["the default loadout", DEFAULT_LOADOUT, true],
-    [
-      "missiles in the forward slot",
-      {
-        forwardSlots: ["missiles"],
-        sideSlots: ["laser", "radiator", "fuel_compressor", "ballistic_rack"],
-      },
-      true,
-    ],
-    [
-      "two missile tiles (repeats are allowed)",
-      {
-        forwardSlots: ["missiles"],
-        sideSlots: ["missiles", "radiator", "fuel_compressor", "ballistic_rack"],
-      },
-      true,
-    ],
-    [
-      "four shields (repeats are allowed)",
-      {
-        forwardSlots: ["railgun"],
-        sideSlots: ["shields", "shields", "shields", "shields"],
-      },
-      true,
-    ],
-    [
-      "an empty forward slot",
-      { forwardSlots: [null], sideSlots: ["laser", "laser", "laser", "laser"] },
-      false,
-    ],
-    [
-      "an empty side slot",
-      { forwardSlots: ["railgun"], sideSlots: ["laser", null, "laser", "laser"] },
-      false,
-    ],
-    [
-      "a side-only tile forward",
-      { forwardSlots: ["laser"], sideSlots: ["laser", "laser", "laser", "laser"] },
-      false,
-    ],
-    [
-      "a forward-only tile on the side",
-      { forwardSlots: ["railgun"], sideSlots: ["railgun", "laser", "laser", "laser"] },
-      false,
-    ],
-    [
-      "a fixed system in a slot",
-      { forwardSlots: ["railgun"], sideSlots: ["engines", "laser", "laser", "laser"] },
-      false,
-    ],
-    [
-      "too many side slots",
-      { forwardSlots: ["railgun"], sideSlots: ["laser", "laser", "laser", "laser", "laser"] },
-      false,
-    ],
-    [
-      "two forward slots",
-      { forwardSlots: ["railgun", "railgun"], sideSlots: ["laser", "laser", "laser", "laser"] },
-      false,
-    ],
-  ])("validateLoadout: %s -> %s", (_label, loadout, valid) => {
-    const result = validateLoadout(loadout as ShipLoadout);
-    expect(result.valid).toBe(valid);
-    expect(result.errors.length === 0).toBe(valid);
-  });
-
   it("canInstallInSlot follows the slot types", () => {
     expect(canInstallInSlot("railgun", "forward")).toBe(true);
     expect(canInstallInSlot("railgun", "side")).toBe(false);

@@ -21,7 +21,7 @@ export type BotArchetype = "hunter" | "raider" | "hauler" | "scout";
  * | hunter    | railgun      | missiles, radiator, laser, shields               | two or more Destroy cards          |
  * | raider    | railgun      | missiles, radiator, fuel_compressor, shields     | one Destroy card, or a mixed hand  |
  * | hauler    | sensor_array | shields, radiator, fuel_compressor, laser        | two cargo runs                     |
- * | scout     | sensor_array | shields, radiator, fuel_compressor, missiles     | Intercept plus combat              |
+ * | scout     | sensor_array | shields, laser, laser, fuel_compressor           | Intercept plus combat              |
  *
  * These are also the presets offered to a human on the loadout screen, so
  * the table above, the tiles below and the blurbs in the UI must agree.
@@ -56,7 +56,7 @@ export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   },
   scout: {
     forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "radiator", "fuel_compressor", "missiles"],
+    sideSlots: ["shields", "laser", "laser", "fuel_compressor"],
   },
 };
 

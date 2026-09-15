@@ -57,7 +57,7 @@ export function createGame(
   const determinism = createDeterminismFields(seed);
   const rng = new Rng(determinism.rngState);
   const players = specs.map(createPlayer);
-  const offers = dealMissionOffers(players, rng, undefined, resolveRules(rules));
+  const offers = dealMissionOffers(players, rng);
 
   return {
     turn: 0,
@@ -91,7 +91,7 @@ export function submitLoadout(
   if (player.hasSubmittedLoadout)
     return { state, error: `${player.name} has already submitted a loadout` };
 
-  const validation = validateLoadout(submission.loadout, rulesOf(state));
+  const validation = validateLoadout(submission.loadout);
   if (!validation.valid) return { state, error: validation.errors.join("; ") };
 
   const picked = selectMissionsFromOffers(player.missionOffers, submission.missionIds);
@@ -107,8 +107,7 @@ export function submitLoadout(
         sector: player.ship.sector,
         facing: "prograde",
       },
-      submission.loadout,
-      hullOverride(state)
+      submission.loadout
     ),
     missions: picked.missions,
     cargo: picked.cargo,
@@ -121,12 +120,6 @@ export function submitLoadout(
       ? { ...next, phase: "deployment", activePlayerIndex: 0 }
       : next,
   };
-}
-
-/** Hull override from the game's rule knobs (default: RULES.md starting hull). */
-export function hullOverride(state: GameState): { hitPoints: number; maxHitPoints: number } {
-  const hull = resolveRules(state.rules).startingHull;
-  return { hitPoints: hull, maxHitPoints: hull };
 }
 
 /** The rules in force for a game (defaults plus the state's overrides). */

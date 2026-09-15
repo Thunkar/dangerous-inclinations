@@ -128,10 +128,10 @@ export function slotAsSubsystem(slot: SlotView, type: SubsystemType = slot.type!
   };
 }
 
-export function analyzeStatus(me: Player, baseDissipation?: number): BotStatus {
+export function analyzeStatus(me: Player): BotStatus {
   const ship = me.ship;
   const find = (id: string) => ship.subsystems.find((s) => s.id === id)!;
-  const dissipation = getDissipationCapacity(ship.subsystems, baseDissipation);
+  const dissipation = getDissipationCapacity(ship.subsystems);
   return {
     hull: ship.hitPoints,
     maxHull: ship.maxHitPoints,
@@ -213,7 +213,7 @@ function analyzeOpponent(player: PlayerView, myPosition: Position, stations: Sta
 export function analyzeSituation(view: GameView, parameters: BotParameters): TacticalSituation {
   const me = view.me;
   if (!me) throw new Error("Cannot analyze a spectator view");
-  const status = analyzeStatus(me, view.rules.baseDissipation);
+  const status = analyzeStatus(me);
 
   const opponents = view.players
     .filter((p) => !p.isMe && p.hasDeployed && p.ship && !p.ship.isDestroyed)

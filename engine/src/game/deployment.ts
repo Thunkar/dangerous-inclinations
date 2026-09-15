@@ -9,7 +9,6 @@ import { HOME_RING, HOME_WELL_ID } from "../models/gravityWells.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { samePosition } from "./geometry.ts";
 import { createInitialShipState } from "./ship.ts";
-import { hullOverride } from "./setup.ts";
 
 export function deploymentPositions(): Position[] {
   return Array.from({ length: SECTORS_PER_RING }, (_, sector) => ({
@@ -57,11 +56,7 @@ export function deployShip(state: GameState, playerId: string, sector: number): 
 
   const deployed: Player = {
     ...player,
-    ship: createInitialShipState(
-      { ...position, facing: "prograde" },
-      player.ship.loadout,
-      hullOverride(state)
-    ),
+    ship: createInitialShipState({ ...position, facing: "prograde" }, player.ship.loadout),
     hasDeployed: true,
     home: position,
   };

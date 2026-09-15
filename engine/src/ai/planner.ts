@@ -81,8 +81,7 @@ export function buildCandidate(
   const { me, ship, status, view } = situation;
   let movement = movementIn;
 
-  // Cubes spent absorbing damage (rule knob) are out of the reactor until the next dock.
-  const capacity = me.ship.reactor.totalCapacity - me.ship.spentEnergy;
+  const capacity = me.ship.reactor.totalCapacity;
   const rotationEnergy = getSubsystemConfig("rotation").minEnergy;
 
   // A movement whose heat alone would gut the hull is not worth it.
