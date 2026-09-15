@@ -84,6 +84,112 @@ With nobody shooting (`turtle2_mirror`) the first seat wins 66% of games; with n
 wins 40% and seat 3 about 28%. The game ends the moment the third point lands, so in a same-round
 race the earlier seat wins. Finishing the round is still the one-sentence fix, still untested.
 
+
+## 4. Repeats allowed: the wacky sweep
+
+Decision (designer, 15 Sept evening): the rules do not limit copies of a tile; any tile may fill any
+slot it fits. The one-set-per-player line is gone from RULES.md. So every row below is a legal hull.
+Seat 1 is forced to the hull, the other two seats play their own hands; the seat-1 baseline with its
+own hand is 40% of wins, 26% as real victories before the cap. "Real victories" excludes games won on
+the cap tiebreak, which a table without a cap never sees.
+
+| run | seat-1 hull | wins | real victories | others (each) | kills/g | deaths/g | dealt/g | taken/g | fin | rounds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| W_bunker4 | sensor_array/shields,shields,shields,shields | 58% | 19% | 21% | 0.0 | 0.0 | 0.0 | 3.22 | 55% | 64 |
+| W_shields2_lasers2 | sensor_array/shields,shields,laser,laser | 58% | 57% | 21% | 1.25 | 0.02 | 21.72 | 1.88 | 93% | 45 |
+| W_laserboat | railgun/laser,laser,laser,laser | 22% | 20% | 39% | 1.37 | 2.16 | 23.27 | 33.3 | 93% | 45 |
+| W_rail_lasers2_rads2 | railgun/laser,laser,radiator,radiator | 26% | 23% | 37% | 0.76 | 2.33 | 16.02 | 35.62 | 90% | 48 |
+| W_rail_missiles2 | railgun/missiles,missiles,radiator,shields | 28% | 19% | 36% | 0.5 | 0.21 | 14.23 | 7.04 | 74% | 57 |
+| W_rail_missiles3 | railgun/missiles,missiles,missiles,radiator | 26% | 19% | 37% | 1.2 | 1.87 | 28.22 | 36.32 | 91% | 47 |
+| W_miss_lasers | missiles/missiles,missiles,laser,shields | 39% | 28% | 30% | 0.89 | 0.2 | 16.17 | 5.43 | 82% | 63 |
+| W_scalpel4 | sensor_array/laser,laser,laser,laser | 31% | 29% | 34% | 1.11 | 1.86 | 18.46 | 26.08 | 98% | 39 |
+| W_scalpel3 | sensor_array/laser,laser,laser,shields | 58% | 58% | 21% | 0.87 | 0.23 | 16.28 | 4.98 | 93% | 45 |
+| W_scalpel2_comp | sensor_array/laser,laser,shields,fuel_compressor | 50% | 47% | 25% | 0.49 | 0.23 | 11.52 | 5.92 | 88% | 49 |
+| W_pdc_wall | railgun/ballistic_rack,ballistic_rack,shields,radiator | 30% | 19% | 35% | 0.16 | 0.29 | 6.63 | 7.4 | 71% | 57 |
+| W_tanker | railgun/fuel_compressor,fuel_compressor,fuel_compressor,fuel_compressor | 22% | 16% | 39% | 0.07 | 1.77 | 2.14 | 31.24 | 86% | 45 |
+| W_fast_hauler | sensor_array/fuel_compressor,fuel_compressor,shields,laser | 48% | 47% | 26% | 0.49 | 0.27 | 13.56 | 5.82 | 95% | 45 |
+| W_hotrod | railgun/radiator,radiator,radiator,radiator | 17% | 9% | 42% | 0.06 | 1.9 | 3.69 | 30.32 | 82% | 44 |
+| W_sensor_rads | sensor_array/radiator,radiator,radiator,radiator | 19% | 9% | 41% | 0.0 | 1.41 | 0.0 | 38.14 | 86% | 39 |
+| W_hauler_cap3 | sensor_array/shields,radiator,fuel_compressor,laser | 42% | 39% | 29% | 0.41 | 0.35 | 13.4 | 8.93 | 97% | 45 |
+| W_hauler_rail5 | sensor_array/shields,radiator,fuel_compressor,laser | 47% | 44% | 27% | 0.42 | 0.39 | 13.82 | 9.37 | 95% | 45 |
+| W_hauler_laserboat_opp | sensor_array/shields,radiator,fuel_compressor,laser | 41% | 40% | 30% | 0.34 | 0.68 | 12.58 | 14.99 | 98% | 45 |
+
+`hauler_cap3`, `hauler_rail5` and `hauler_laserboat_opp` replay the Hauler hull of §2 with a shield cap
+of 3, a 5-damage railgun, and opponents who all carry two lasers, respectively.
+
+Reading:
+- **One family is overpowered, and it is not the wacky one.** Sensor array + shields + one or two
+  lasers wins outright far above baseline: shields×2 + lasers×2 **57%**, lasers×3 + shields **58%**,
+  the Hauler preset **63%**, lasers×2 + shields + compressor 47%, compressor×2 + shields + laser 47%.
+  Every railgun hull sits between 9% and 23% of real victories. The cause is the same in every row:
+  a laser lands on a shielded ship and nothing physical does, so "shields + laser" beats "shields +
+  railgun" whatever else is aboard. With two lasers on opposite sides the ship also covers both ring
+  directions, and it dies twice a game less often than anything carrying a railgun.
+- **The stalls are not wins.** Four shields wins 58% of games but only 19% before the cap: it cannot
+  be killed and cannot kill, so half its games run to the cap and it takes the hull tiebreak. On a
+  table that is a long, dull game, not a strong hull. Same for the 2×shield + 2×radiator turtle of §2.
+- **Glass is glass.** Four lasers with no shields (22%), four radiators (17%, 19%), four compressors
+  (22%), three missile launchers (26%): all die about twice a game. Nothing that drops the shield
+  tile is a problem.
+- **Missiles everywhere is fine.** Two or three launchers with a radiator and shields are ordinary
+  (19% to 28% real victories); five launchers is a self-destruct (§2).
+- **Point defence walls do nothing.** Two racks: 19%.
+- **The lever that works is the shield cap.** Same Hauler hull: 63% → 39% at shield cap 3, 44% with
+  a 5-damage railgun, 40% when every opponent also flies two lasers. Cap 3 works because railgun +
+  missile (6) then puts 3 on the hull through a full shield instead of 2, and 3 cubes is also one
+  cube less the laser hull can pour into its own shields. It is the one knob you declined this morning;
+  the laser change has moved the ground under it, so it is worth a second look. §5 measures it under
+  the final-round rule.
+
+
+## 5. Finishing the round (adopted) and shield cap 3 (measured, not adopted)
+
+Rule adopted 15 Sept evening: reaching 3 points triggers the final round; when the round ends,
+highest score wins, then hull, then fuel, then the earlier seat. Same 100 seeds, everything else as
+above. `_cap3` rows add `shieldMaxEnergy=3`.
+
+| seat wins | seat 1 | seat 2 | seat 3 | seat 4 |
+|---|---|---|---|---|
+| 3 players, instant win (`S_after`) | 40 | 32 | 28 | |
+| 3 players, round finished (`F_own`) | 37 | 34 | 29 | |
+| 4 players, instant win (`H_rack_4`) | 27 | 21 | 30 | 22 |
+| 4 players, round finished (`F_own_4`) | 30 | 17 | 32 | 21 |
+
+- **The rule does what it says and no more.** Same-round races are gone, and seat 1 loses about
+  three points of win share for it. The remaining first-seat edge (37% at three players) is therefore
+  not turn order inside the round. The likeliest source is deployment order: seat 1 places first and
+  takes the sector its hand wants, and seat 1 also drifts, docks and jumps first every round, a
+  quarter-turn ahead of everyone chasing the same stations. At four players the pattern is noise-level.
+
+| run | seat-1 hull | wins | real victories | others (each) | kills/g | deaths/g | dealt/g | taken/g | fin | rounds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| F_own | (own hand) | 37% | 26% | 32% | 0.2 | 0.23 | 8.03 | 7.57 | 72% | 56 |
+| F_own_cap3 | (own hand) | 37% | 34% | 32% | 0.43 | 0.4 | 13.6 | 9.92 | 93% | 50 |
+| F_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 64% | 63% | 18% | 0.51 | 0.16 | 14.24 | 4.97 | 94% | 45 |
+| F_hauler_cap3 | sensor_array/shields,radiator,fuel_compressor,laser | 41% | 39% | 30% | 0.41 | 0.35 | 13.4 | 9.0 | 97% | 45 |
+| F_shields2_lasers2 | sensor_array/shields,shields,laser,laser | 58% | 57% | 21% | 1.25 | 0.02 | 21.72 | 1.91 | 93% | 45 |
+| F_shields2_lasers2_cap3 | sensor_array/shields,shields,laser,laser | 54% | 54% | 23% | 1.12 | 0.05 | 20.42 | 2.05 | 96% | 45 |
+| F_scalpel3 | sensor_array/laser,laser,laser,shields | 58% | 58% | 21% | 0.87 | 0.23 | 16.28 | 5.06 | 93% | 45 |
+| F_scalpel3_cap3 | sensor_array/laser,laser,laser,shields | 43% | 42% | 29% | 0.69 | 0.47 | 16.2 | 8.81 | 95% | 43 |
+
+- **Shield cap 3 unsticks the game on its own.** With everyone on their own hands, games decided
+  before the cap go from 72% to 93%, median length from 56 to 50 rounds, kills from 0.8 to 1.3 a game
+  and Destroy completions from 31 to 66. The 3-way Destroy standoffs of §1 mostly dissolve because a
+  railgun-plus-missile volley (6) now puts 3 on a shielded hull instead of 2.
+- **It blunts the single-shield laser hulls** (Hauler 63% → 39%, three lasers + shields 58% → 42%),
+  bringing them to the seat-1 baseline.
+- **It does not touch the double-shield double-laser hull** (57% → 54%): two shield tiles at cap 3
+  still hold 6 cubes, exactly a railgun-plus-missile volley, so physical hulls still cannot hurt it
+  while its two lasers land on everything. It kills 1.1 ships a game and dies once in twenty games.
+  This is the one hull the sweep leaves standing. What would reach it, in order of simplicity:
+  (a) **shields do not stack**: only one shield tile may absorb a given shot; (b) **shield cap 2**;
+  (c) a table where opponents carry lasers (its 57% drops when they do, §4). None tested; (a) is one
+  sentence and leaves a second shield tile useful only as a spare when the first is broken.
+
+Recommendation: adopt shield cap 3 (it fixes pacing and most of the dominance at once), then decide
+between (a) and (b) for stacked shields. Both are one line in RULES.md and one number or clause in
+`damage.ts`; I can run the matrix on either in an hour.
+
 ## Reproduce
 
 ```
