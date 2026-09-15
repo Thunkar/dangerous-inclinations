@@ -2,7 +2,8 @@
  * The table, in three columns.
  *
  *   left   — the rivals' mats stacked one above the other, your own cards
- *            under them, and the turn log filling whatever is left
+ *            under them, and the turn log and table talk sharing whatever is
+ *            left
  *   middle — the board, the full height of the window
  *   right  — your turn: status first, then the reactor, the move, the guns,
  *            the sequence, and the button that ends it
@@ -31,6 +32,7 @@ import { EventLog } from './EventLog'
 import { MyMissions } from './MyMissions'
 import { RulesButton } from './RulesDialog'
 import { StatusBlock } from './StatusBlock'
+import { TableTalk } from './TableTalk'
 import { DiceTray } from './DiceTray'
 
 /** The rivals' column: narrow enough that the board keeps the middle. */
@@ -210,10 +212,11 @@ export function TableScreen({
           }}
         >
           {/*
-            The mats keep their own height and the log takes what is left.
-            Only when the window is too short for every mat at once (four
-            players on a laptop, with the replay bar below) does this stack
-            start to scroll, and the log keeps a readable minimum either way.
+            The mats keep their own height; the log and the chat split what
+            is left. Only when the window is too short for every mat at once
+            (four players on a laptop, with the replay bar below) does this
+            stack start to scroll, and both pads keep a readable minimum
+            either way.
           */}
           <Box
             sx={{
@@ -244,6 +247,7 @@ export function TableScreen({
             {view.me && <MyMissions me={view.me} />}
           </Box>
           <EventLog />
+          <TableTalk />
         </Box>
 
         {/* The board, the full height of the table */}

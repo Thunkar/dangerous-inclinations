@@ -1,0 +1,114 @@
+import { describe, it, expect } from "vitest";
+import { executeTurn } from "../../game/turns.ts";
+import { viewFor } from "../../game/view.ts";
+import {
+  buildTurn,
+  describeViewForAgent,
+  seatOptions,
+  AGENT_INTENT_GUIDE,
+} from "../../agent/index.ts";
+import { botDecideActions } from "../../ai/index.ts";
+import { ALPHA, BH, makeTwoPlayerGame, withPower, getShip } from "../testUtils.ts";
+
+describe("agent seat tooling", () => {
+  const start = () =>
+    makeTwoPlayerGame({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 4, sector: 0 });
+
+  it("lists the legal burns, the jump and the weapons in range from the view", () => {
+    const o = seatOptions(viewFor(start(), "p1"));
+    expect(o.velocity).toBe(4);
+    expect(o.burns.map((b) => `${b.intensity}-${b.facing}`)).toEqual(
+      expect.arrayContaining([
+        "soft-prograde",
+        "medium-prograde",
+        "soft-retrograde",
+        "medium-retrograde",
+      ])
+    );
+    // From ring 3 a hard burn inward would leave the rings: not offered.
+    expect(o.burns.some((b) => b.intensity === "hard" && b.facing === "retrograde")).toBe(false);
+    expect(o.jump).toBeNull();
+    const laser = o.weapons.find((w) => w.weapon === "side-0");
+    expect(laser?.targetsNow).toEqual(["p2"]); // port laser fires outward: p2 is one ring out
+  });
+
+  it.each([
+    ["a coast", { move: { kind: "coast" as const } }],
+    ["a scooping coast", { move: { kind: "coast" as const, scoop: true } }],
+    [
+      "a soft burn outward with the engines powered for it",
+      { move: { kind: "burn" as const, intensity: "soft" as const } },
+    ],
+    [
+      "a rotation and an inward medium burn",
+      {
+        move: {
+          kind: "burn" as const,
+          intensity: "medium" as const,
+          facing: "retrograde" as const,
+        },
+      },
+    ],
+    [
+      "a laser shot at the ship one ring out",
+      { fire: [{ weapon: "side-0" as const, target: "p2" }] },
+    ],
+    [
+      "a shot before a burn",
+      {
+        fire: [{ weapon: "side-0" as const, target: "p2", when: "before" as const }],
+        move: { kind: "burn" as const, intensity: "soft" as const },
+      },
+    ],
+  ])("builds a legal turn for %s", (_label, intent) => {
+    const state = start();
+    const built = buildTurn(viewFor(state, "p1"), intent);
+    const result = executeTurn(state, built.actions);
+    expect(result.errors).toBeUndefined();
+  });
+
+  it("raises the cubes an action needs and reports it", () => {
+    const built = buildTurn(viewFor(start(), "p1"), { move: { kind: "burn", intensity: "hard" } });
+    expect(built.notes.some((n) => n.includes("engines set to 3"))).toBe(true);
+    expect(
+      built.actions.some((a) => a.type === "allocate_energy" && a.data.subsystemId === "engines")
+    ).toBe(true);
+  });
+
+  it("keeps cubes already on tiles unless told otherwise", () => {
+    const state = withPower(start(), "p1", "side-2", 2);
+    const built = buildTurn(viewFor(state, "p1"), { move: { kind: "coast" } });
+    expect(built.actions.some((a) => a.type === "deallocate_energy")).toBe(false);
+    const off = buildTurn(viewFor(state, "p1"), { unpower: ["side-2"] });
+    expect(off.actions).toContainEqual(
+      expect.objectContaining({
+        type: "deallocate_energy",
+        data: { subsystemId: "side-2", amount: 2 },
+      })
+    );
+  });
+
+  it("the bot's decision is always a legal fallback from the same view", () => {
+    const state = start();
+    const result = executeTurn(state, botDecideActions(viewFor(state, "p1")).actions);
+    expect(result.errors).toBeUndefined();
+  });
+
+  it("the digest carries the seat's ship, cards, opponents and legal options", () => {
+    const text = describeViewForAgent(viewFor(start(), "p1"), [], { includeRules: false });
+    expect(text).toContain("YOUR SHIP: Black Hole R3 S0");
+    expect(text).toContain("OPPONENTS:");
+    expect(text).toContain("LEGAL THIS TURN:");
+    expect(text).toContain("side-0 (laser");
+    expect(text).not.toContain(getShip(start(), "p2").reactionMass.toString() + "/16"); // no opponent fuel leaks
+    expect(AGENT_INTENT_GUIDE).toContain('"move"');
+  });
+
+  it("jump options appear only on a departure arc", () => {
+    const onLane = makeTwoPlayerGame(
+      { wellId: BH, ring: 5, sector: 17 },
+      { wellId: ALPHA, ring: 3, sector: 0 }
+    );
+    expect(seatOptions(viewFor(onLane, "p1")).jump?.destinationWellId).toBe(ALPHA);
+  });
+});

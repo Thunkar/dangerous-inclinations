@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { SECTORS_PER_RING, SUBSYSTEM_CONFIGS, type PlayerAction, type SubsystemType } from "@dangerous-inclinations/engine";
+import {
+  SECTORS_PER_RING,
+  SUBSYSTEM_CONFIGS,
+  type PlayerAction,
+  type SubsystemType,
+} from "@dangerous-inclinations/engine";
 
 const subsystemTypes = Object.keys(SUBSYSTEM_CONFIGS) as [SubsystemType, ...SubsystemType[]];
 const Slot = z.enum(subsystemTypes).nullable();
@@ -24,7 +29,12 @@ export const DeploySchema = z
   .object({
     /** Ignored: deployment is always on the black hole's home ring. Kept so older clients don't 400. */
     wellId: z.string().optional(),
-    sector: z.number().int().finite().min(0).max(SECTORS_PER_RING - 1),
+    sector: z
+      .number()
+      .int()
+      .finite()
+      .min(0)
+      .max(SECTORS_PER_RING - 1),
   })
   .strict();
 
@@ -172,3 +182,18 @@ void _actionsAreEngineActions;
 
 export type LoadoutSubmissionInput = z.infer<typeof LoadoutSubmissionSchema>;
 export type DeployInput = z.infer<typeof DeploySchema>;
+
+/** Table talk: a line of chat, or a player's reasoning (`think`). */
+export const ChatSchema = z
+  .object({
+    text: z.string().trim().min(1).max(2000),
+    kind: z.enum(["say", "think"]).default("say"),
+  })
+  .strict();
+
+/** Dry run of a turn's actions against the live state. */
+export const PreviewSchema = z
+  .object({
+    actions: z.array(PlayerActionSchema),
+  })
+  .strict();

@@ -14,6 +14,7 @@ import { Panel, SectionLabel } from '../common/Panel'
 import { MissionCard } from '../common/MissionCard'
 import { getPlayerColor } from '../../utils/playerColors'
 import { TABLE } from '../../theme'
+import { TableTalk } from '../table/TableTalk'
 import { Centered, Header } from './ScreenChrome'
 
 export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNode }) {
@@ -136,6 +137,9 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
               Place your ship on Black Hole Ring {HOME_RING} — that sector becomes your Home.
             </Alert>
           )}
+
+          {/* The table is already talking while the ships go down. */}
+          <TableTalk sx={{ flex: '1 0 auto', minHeight: 220 }} />
         </Box>
       </Box>
     </Box>

@@ -122,11 +122,42 @@ export interface TurnExecutedPayload {
   rewind?: true
 }
 
+/**
+ * Table talk. One channel per game, two lanes: `say` is heard by everyone at
+ * the table (humans and agents alike); `think` is a player's reasoning, shown
+ * to humans in the UI but not fed to other agents.
+ */
+export interface ChatMessage {
+  id: string
+  gameId: string
+  playerId: string
+  name: string
+  kind: ChatKind
+  text: string
+  /** Game turn when it was said. */
+  turn: number
+  /** ISO timestamp. */
+  at: string
+}
+
+export type ChatKind = 'say' | 'think'
+
+/** `GET /api/games/:gameId/chat` — oldest first. */
+export interface ChatHistoryResponse {
+  messages: ChatMessage[]
+}
+
+/** `POST /api/games/:gameId/chat` — the line as the table will see it. */
+export interface ChatPostResponse {
+  message: ChatMessage
+}
+
 export type GameSocketMessage =
   | { type: 'CONNECTED'; room: 'game'; roomId: string }
   | { type: 'GAME_VIEW'; payload: GameViewResponse }
   | { type: 'TURN_EXECUTED'; payload: TurnExecutedPayload }
   | { type: 'TURN_ERROR'; payload: { error?: string; errors?: string[] } }
+  | { type: 'CHAT'; payload: ChatMessage }
 
 export type LobbySocketMessage =
   | { type: 'CONNECTED'; room: 'lobby'; roomId: string }
@@ -149,7 +180,10 @@ export type GlobalSocketMessage =
       }
     }
   | { type: 'LOBBY_DELETED'; payload: { lobbyId: string } }
-  | { type: 'LOBBY_UPDATED'; payload: { lobbyId: string; currentPlayers: number; gameStarted: boolean } }
+  | {
+      type: 'LOBBY_UPDATED'
+      payload: { lobbyId: string; currentPlayers: number; gameStarted: boolean }
+    }
 
 export interface SubmitTurnMessage {
   type: 'SUBMIT_TURN'

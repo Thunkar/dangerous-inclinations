@@ -1,0 +1,177 @@
+/**
+ * What a seat can legally do right now, computed from its own view with the
+ * same pure functions the UI uses for previews. Agents read this instead of
+ * guessing, so an illegal move is never their only option.
+ */
+import type { BurnIntensity, Facing, PlayerAction, Position } from "../models/game.ts";
+import type { SubsystemId } from "../models/subsystems.ts";
+import { getSubsystemConfig } from "../models/subsystems.ts";
+import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange } from "../models/rings.ts";
+
+const BURN_INTENSITIES: BurnIntensity[] = ["soft", "medium", "hard"];
+import { getJumpOptions, getMaxRing } from "../models/gravityWells.ts";
+import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
+import type { GameView } from "../game/view.ts";
+import { ringVelocity, sectorDistance } from "../game/geometry.ts";
+import { isInWeaponRange } from "../game/targeting.ts";
+import { projectPosition, type MovementPreview } from "../game/movement.ts";
+import { hasWorkingCompressor } from "../game/ship.ts";
+
+export interface BurnOption {
+  intensity: BurnIntensity;
+  /** Facing the burn needs (prograde burns outward, retrograde inward). */
+  facing: Facing;
+  toRing: number;
+  engineEnergy: number;
+  fuel: number;
+  /** Phasing allowed on arrival (fuel per sector). */
+  adjustment: { min: number; max: number };
+  /** Whether the ship must rotate first (one thruster cube, one heat). */
+  needsRotation: boolean;
+}
+
+export interface WeaponOption {
+  weapon: SubsystemId;
+  type: string;
+  damage: number;
+  energy: number;
+  /** Opponents in range from where the ship is now (before any move). */
+  targetsNow: string[];
+  /** Opponents in range after a plain coast. */
+  targetsAfterCoast: string[];
+  ready: boolean;
+  reason?: string;
+}
+
+export interface SeatOptions {
+  position: Position & { facing: Facing };
+  velocity: number;
+  reactorFree: number;
+  fuel: number;
+  heatBudget: number;
+  burns: BurnOption[];
+  jump: { destinationWellId: string; destination: Position; energy: number; fuel: number } | null;
+  scoopGain: number;
+  weapons: WeaponOption[];
+  scanTargets: string[];
+  /** Minimum cubes each of the ship's tiles needs to work. */
+  tileMinimums: Array<{
+    id: SubsystemId;
+    type: string;
+    min: number;
+    max: number;
+    now: number;
+    broken: boolean;
+  }>;
+}
+
+/** Everything the active seat may legally do this turn. */
+export function seatOptions(view: GameView): SeatOptions {
+  const me = view.me;
+  if (!me) throw new Error("A spectator has no options");
+  const ship = me.ship;
+  const here = { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing: ship.facing };
+  const velocity = ringVelocity(ship.wellId, ship.ring);
+  const compressor = hasWorkingCompressor(ship);
+
+  const burns: BurnOption[] = [];
+  for (const facing of ["prograde", "retrograde"] as Facing[]) {
+    for (const intensity of BURN_INTENSITIES) {
+      const cost = BURN_COSTS[intensity];
+      const toRing = ship.ring + (facing === "prograde" ? 1 : -1) * cost.rings;
+      if (toRing < 1 || toRing > getMaxRing(ship.wellId)) continue;
+      burns.push({
+        intensity,
+        facing,
+        toRing,
+        engineEnergy: cost.energy,
+        fuel: cost.mass,
+        adjustment: getAdjustmentRange(velocity),
+        needsRotation: facing !== ship.facing,
+      });
+    }
+  }
+
+  const jumpOption = getJumpOptions(here)[0];
+  const jump = jumpOption
+    ? {
+        destinationWellId: jumpOption.destination.wellId,
+        destination: jumpOption.destination,
+        energy: WELL_TRANSFER_COSTS.energy,
+        fuel: compressor ? 0 : WELL_TRANSFER_COSTS.mass,
+      }
+    : null;
+
+  const opponents = view.players.filter((p) => !p.isMe && p.ship && !p.ship.isDestroyed);
+  const afterCoast = projectPosition(ship, ship.facing, { kind: "coast" } as MovementPreview);
+  const weapons: WeaponOption[] = ship.subsystems
+    .filter((s) => getSubsystemConfig(s.type).weaponStats)
+    .map((weapon) => {
+      const config = getSubsystemConfig(weapon.type);
+      const stats = config.weaponStats!;
+      const noAmmo = weapon.type === "missiles" && (weapon.ammo ?? 0) <= 0;
+      const inRange = (from: Position & { facing: Facing }) =>
+        opponents
+          .filter((o) => {
+            const s = o.ship!;
+            return isInWeaponRange(weapon, from, {
+              wellId: s.wellId,
+              ring: s.ring,
+              sector: s.sector,
+            });
+          })
+          .map((o) => o.id);
+      return {
+        weapon: weapon.id,
+        type: weapon.type,
+        damage: stats.damage,
+        energy: config.minEnergy,
+        targetsNow: inRange(here),
+        targetsAfterCoast: inRange(afterCoast),
+        ready: !weapon.isBroken && !noAmmo,
+        reason: weapon.isBroken ? "broken" : noAmmo ? "no ammo" : undefined,
+      };
+    });
+
+  const sensor = ship.subsystems.find((s) => s.type === "sensor_array" && !s.isBroken);
+  const scanTargets = sensor
+    ? opponents
+        .filter((o) => {
+          const s = o.ship!;
+          return (
+            s.wellId === ship.wellId &&
+            s.ring === ship.ring &&
+            sectorDistance(s.sector, ship.sector) <= SCAN_SECTOR_RANGE
+          );
+        })
+        .map((o) => o.id)
+    : [];
+
+  const dissipation = view.myStats?.dissipationCapacity ?? 5;
+  return {
+    position: here,
+    velocity,
+    reactorFree: ship.reactor.availableEnergy,
+    fuel: ship.reactionMass,
+    heatBudget: Math.max(0, dissipation - ship.heat.currentHeat),
+    burns,
+    jump,
+    scoopGain: velocity,
+    weapons,
+    scanTargets,
+    tileMinimums: ship.subsystems.map((s) => {
+      const c = getSubsystemConfig(s.type);
+      return {
+        id: s.id,
+        type: s.type,
+        min: c.minEnergy,
+        max: c.maxEnergy,
+        now: s.allocatedEnergy,
+        broken: s.isBroken,
+      };
+    }),
+  };
+}
+
+/** The engine's own bot decides: always a legal turn from the same view. */
+export type FallbackActions = PlayerAction[];

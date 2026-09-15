@@ -30,4 +30,5 @@ export { reconstructStateAtTurn, replayRecording } from "./recording/replay.ts";
 
 // AI Bot
 export * from "./ai/index.ts";
+export * from "./agent/index.ts";
 export * from "./ai/types.ts";

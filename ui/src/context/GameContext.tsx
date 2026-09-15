@@ -23,8 +23,14 @@ import {
 } from 'react'
 import type { GameEvent, GameRecording, GameView, PlayerAction, ShipLoadout } from '@dangerous-inclinations/engine'
 import { filterEventsFor, reconstructStateAtTurn, viewFor } from '@dangerous-inclinations/engine'
-import type { GameSocketMessage, SubmitTurnMessage } from '../api/types'
-import { getGame, submitLoadout as submitLoadoutAPI, deployShip as deployShipAPI } from '../api/game'
+import type { ChatKind, ChatMessage, GameSocketMessage, SubmitTurnMessage } from '../api/types'
+import {
+  getGame,
+  getChat,
+  postChat,
+  submitLoadout as submitLoadoutAPI,
+  deployShip as deployShipAPI,
+} from '../api/game'
 import { useWebSocket } from './WebSocketContext'
 import { usePlayer } from './PlayerContext'
 
@@ -48,6 +54,10 @@ export interface GameContextValue {
   log: GameEvent[]
   turnErrors: string[]
   clearTurnErrors: () => void
+  /** Table talk, oldest first: what was said at this table, and the reasoning shown with it. */
+  chat: ChatMessage[]
+  /** Post a line to the table; empty text does nothing. */
+  sendChat: (text: string, kind?: ChatKind) => Promise<void>
   isAnimating: boolean
   /** Replays and spectators cannot act. */
   readOnly: boolean
@@ -172,6 +182,61 @@ function makeNameOf(view: GameView) {
 }
 
 // ---------------------------------------------------------------------------
+// Table talk
+// ---------------------------------------------------------------------------
+
+/**
+ * Chat for one live game: the history fetched on arrival, every `CHAT`
+ * broadcast after it, and the line this seat has just posted. The same message
+ * can reach us twice (the POST answer and the broadcast), so the id is the
+ * identity and the order a line first arrived in is the order it is shown in.
+ */
+function useChat(gameId: string) {
+  const [chat, setChat] = useState<ChatMessage[]>([])
+
+  const merge = useCallback((incoming: ChatMessage[]) => {
+    setChat((prev) => {
+      const seen = new Set(prev.map((m) => m.id))
+      const added = incoming.filter((m) => !seen.has(m.id))
+      return added.length === 0 ? prev : [...prev, ...added]
+    })
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    setChat([])
+    getChat(gameId)
+      .then((response) => {
+        if (cancelled) return
+        // History first, then whatever arrived over the socket while it loaded.
+        setChat((live) => {
+          const history = response.messages ?? []
+          const seen = new Set(history.map((m) => m.id))
+          return [...history, ...live.filter((m) => !seen.has(m.id))]
+        })
+      })
+      .catch(() => {
+        // Nothing said at this table yet, or the history is gone: start empty.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [gameId])
+
+  const sendChat = useCallback(
+    async (text: string, kind: ChatKind = 'say') => {
+      const trimmed = text.trim()
+      if (!trimmed) return
+      const { message } = await postChat(gameId, trimmed, kind)
+      merge([message])
+    },
+    [gameId, merge],
+  )
+
+  return { chat, merge, sendChat }
+}
+
+// ---------------------------------------------------------------------------
 // Live game
 // ---------------------------------------------------------------------------
 
@@ -191,6 +256,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, children }: Live
   const { playerId } = usePlayer()
   const { view, log, isAnimating, enqueue, registerAnimator, latestRef } = useViewQueue(initialView, initialEvents)
   const [turnErrors, setTurnErrors] = useState<string[]>([])
+  const { chat, merge: mergeChat, sendChat } = useChat(gameId)
 
   useEffect(() => {
     if (!client) return
@@ -210,6 +276,9 @@ function LiveGameProvider({ gameId, initialView, initialEvents, children }: Live
           case 'TURN_ERROR':
             setTurnErrors(data.payload.errors ?? (data.payload.error ? [data.payload.error] : ['Turn rejected']))
             break
+          case 'CHAT':
+            mergeChat([data.payload])
+            break
           default:
             break
         }
@@ -225,7 +294,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, children }: Live
       cancelled = true
       unsubscribe()
     }
-  }, [client, connect, gameId, enqueue])
+  }, [client, connect, gameId, enqueue, mergeChat])
 
   const submitTurn = useCallback(
     (actions: PlayerAction[]) => {
@@ -268,6 +337,8 @@ function LiveGameProvider({ gameId, initialView, initialEvents, children }: Live
       log,
       turnErrors,
       clearTurnErrors,
+      chat,
+      sendChat,
       isAnimating,
       readOnly: view.me === null || view.me.id !== playerId,
       nameOf,
@@ -282,6 +353,8 @@ function LiveGameProvider({ gameId, initialView, initialEvents, children }: Live
       log,
       turnErrors,
       clearTurnErrors,
+      chat,
+      sendChat,
       isAnimating,
       playerId,
       nameOf,
@@ -350,6 +423,9 @@ interface ReplayGameProviderProps {
   children: ReactNode
 }
 
+/** A recording keeps no table talk: a replay's chat is always empty. */
+const NO_CHAT: ChatMessage[] = []
+
 function replayView(recording: GameRecording, turnIndex: number, perspectiveId: string | null): GameView {
   return viewFor(reconstructStateAtTurn(recording, turnIndex), perspectiveId)
 }
@@ -394,6 +470,8 @@ export function ReplayGameProvider({ recording, turnIndex, perspectiveId, childr
       log,
       turnErrors: [],
       clearTurnErrors: noop,
+      chat: NO_CHAT,
+      sendChat: asyncNoop,
       isAnimating,
       readOnly: true,
       nameOf,

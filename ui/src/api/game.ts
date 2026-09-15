@@ -4,7 +4,14 @@
  */
 import { api } from './client'
 import type { ShipLoadout } from '@dangerous-inclinations/engine'
-import type { ForkResponse, GameViewResponse, ViewResponse } from './types'
+import type {
+  ChatHistoryResponse,
+  ChatKind,
+  ChatPostResponse,
+  ForkResponse,
+  GameViewResponse,
+  ViewResponse,
+} from './types'
 
 /** The current view plus the full filtered event history. */
 export async function getGame(gameId: string): Promise<GameViewResponse> {
@@ -20,9 +27,23 @@ export async function deployShip(gameId: string, sector: number): Promise<ViewRe
 export async function submitLoadout(
   gameId: string,
   loadout: ShipLoadout,
-  missionIds: string[],
+  missionIds: string[]
 ): Promise<ViewResponse> {
   return api.post<ViewResponse>(`/api/games/${gameId}/loadout`, { loadout, missionIds })
+}
+
+/** Table talk so far, oldest first. */
+export async function getChat(gameId: string): Promise<ChatHistoryResponse> {
+  return api.get<ChatHistoryResponse>(`/api/games/${gameId}/chat`)
+}
+
+/** Say something at the table (or think out loud); the server tells every seat. */
+export async function postChat(
+  gameId: string,
+  text: string,
+  kind: ChatKind = 'say'
+): Promise<ChatPostResponse> {
+  return api.post<ChatPostResponse>(`/api/games/${gameId}/chat`, { text, kind })
 }
 
 /** Fork a finished recording into a fresh live game. */

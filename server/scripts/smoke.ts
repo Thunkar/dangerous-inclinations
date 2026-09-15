@@ -220,6 +220,30 @@ check(afterDeploy.phase === "active", `the game is active once everyone deployed
 check(afterDeploy.players.every((p) => p.hasDeployed), "every player deployed");
 console.log(`smoke: deployment done, turn ${afterDeploy.turn}, ${afterDeploy.activePlayerId} to act`);
 
+// --- Preview and table talk ---------------------------------------------------
+{
+  const dry = await games.previewTurn(GAME_ID, HUMAN, []);
+  check(dry.ok === true && Array.isArray(dry.events), "a preview of an empty (coast) turn is legal and returns the events it would produce");
+  const before = await games.getView(GAME_ID, HUMAN);
+  check(before!.turn === afterDeploy.turn, "a preview commits nothing");
+  const bad = await games.previewTurn(GAME_ID, HUMAN, [
+    { type: "burn", playerId: HUMAN, sequence: 1, data: { burnIntensity: "hard", sectorAdjustment: 0 } },
+  ]);
+  check(bad.ok === false && (bad.errors?.length ?? 0) > 0, "a preview of an unpowered burn reports the engine's errors");
+  const notMine = await games.previewTurn(GAME_ID, BOT_A, []);
+  check(notMine.ok === false, "a preview by the wrong seat is refused");
+  const said = await games.postChat(GAME_ID, HUMAN, "say", "good luck, all");
+  const thought = await games.postChat(GAME_ID, HUMAN, "think", "going for the Alpha crate first");
+  check(said.ok && thought.ok, "players can say and think at the table");
+  const chat = await games.listChat(GAME_ID);
+  check(
+    chat.length === 2 && chat[0].kind === "say" && chat[1].kind === "think" && chat[1].turn === afterDeploy.turn,
+    "table talk is stored in order with its kind and turn",
+  );
+  const stranger = await games.postChat(GAME_ID, "nobody", "say", "hi");
+  check(!stranger.ok, "only seated players talk at the table");
+}
+
 // --- Stale submission --------------------------------------------------------
 const stale = await games.submitTurn(GAME_ID, HUMAN, [], { turn: 999, activePlayerId: HUMAN });
 check(!stale.ok, "a stale SUBMIT_TURN is rejected");

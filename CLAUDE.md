@@ -101,7 +101,14 @@ yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSee
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --rules=shieldMaxEnergy=3,destroyPoints=1
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message
 yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural play + extreme hulls, flags outliers
+yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal (docs/arena.md)
 ```
+
+Arena: `docs/arena.md`. Agents play through `yarn seat` (server): digest of
+the view with legal moves, dry-run preview, intent → actions builder
+(`engine/src/agent/`), chat with `say` and `think` lanes, and a Codex driver.
+An agent can never stall: illegal intents are refused before submission and
+the engine's bot plays the turn as a fallback.
 
 Balance regression: `yarn balance` (engine) plays natural games at 2/3/4
 players and forces the presets plus sixteen extreme hulls on one seat, then

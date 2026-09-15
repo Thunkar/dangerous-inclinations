@@ -20,6 +20,9 @@ trust boundary against accidental leaks, not authentication.
 | GET | `/api/games/:gameId` | — | `{ view: GameView, events: GameEvent[] }` (full filtered history) |
 | POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[] }` | `{ view }` or `400 { error }` |
 | POST | `/api/games/:gameId/deploy` | `{ wellId: string, sector: number }` | `{ view }` or `400 { error }` |
+| POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` | `{ ok, errors?, events? }` — dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn |
+| GET | `/api/games/:gameId/chat` | — | `{ messages: ChatMessage[] }` — table talk, oldest first |
+| POST | `/api/games/:gameId/chat` | `{ text, kind?: "say" \| "think" }` | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning, shown to humans, not fed to other agents |
 | POST | `/api/games/:gameId/rewind` | `{ turnIndex: number }` | `{ view }` (dev tool; live games only, refused once a game is finalized) |
 | POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` | `{ gameId, view }` (archived recordings only; the seat must be your own original seat or a bot's) |
 | GET | `/api/health` | — | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }` |

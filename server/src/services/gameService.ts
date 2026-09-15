@@ -45,7 +45,7 @@ import type { Kv } from "./kv.ts";
 import { createKeyedLock } from "./lock.ts";
 import type { RecordingService } from "./recordingService.ts";
 import { log as defaultLog, type ServiceLogger } from "./logger.ts";
-import type { ServerGameMessage, ViewPayload } from "../protocol.ts";
+import type { ChatMessage, PreviewPayload, ServerGameMessage, ViewPayload } from "../protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Dependencies
@@ -107,6 +107,7 @@ export function getBotInvalidTurnCount(): number {
 
 const gameKey = (gameId: string) => `game:${gameId}`;
 const humansKey = (gameId: string) => `game-humans:${gameId}`;
+const chatKey = (gameId: string) => `game-chat:${gameId}`;
 
 export type GameService = ReturnType<typeof createGameService>;
 
@@ -497,6 +498,57 @@ export function createGameService(deps: GameServiceDeps) {
     getHumanPlayerIds,
     getBotInvalidTurnCount,
 
+    /**
+     * Dry run: what the engine would say to these actions right now, without
+     * committing anything. Agents use it to never submit an illegal turn.
+     */
+    async previewTurn(
+      gameId: string,
+      playerId: string,
+      actions: PlayerAction[]
+    ): Promise<PreviewPayload> {
+      const state = await loadState(gameId);
+      if (!state) return { ok: false, error: "Game not found" };
+      if (state.phase !== "active")
+        return { ok: false, error: `Game is not active (phase "${state.phase}")` };
+      if (activePlayer(state).id !== playerId) return { ok: false, error: "Not your turn" };
+      const result = executeTurn(state, actions);
+      if (result.errors && result.errors.length > 0) return { ok: false, errors: result.errors };
+      return { ok: true, events: filterEventsFor(result.events, playerId) };
+    },
+
+    /** Table talk: append a line and tell every seat at the table. */
+    async postChat(
+      gameId: string,
+      playerId: string,
+      kind: ChatMessage["kind"],
+      text: string
+    ): Promise<Result<{ message: ChatMessage }>> {
+      const state = await loadState(gameId);
+      if (!state) return { ok: false, error: "Game not found" };
+      const player = state.players.find((p) => p.id === playerId);
+      if (!player) return { ok: false, error: "Not a player in this game" };
+      const message: ChatMessage = {
+        id: randomUUID(),
+        gameId,
+        playerId,
+        name: player.name,
+        kind,
+        text,
+        turn: state.turn,
+        at: new Date().toISOString(),
+      };
+      await kv.rpush(chatKey(gameId), JSON.stringify(message));
+      transport.broadcastViews(gameId, () => ({ type: "CHAT", payload: message }));
+      return { ok: true, message };
+    },
+
+    /** Every line said at this table so far, oldest first. */
+    async listChat(gameId: string): Promise<ChatMessage[]> {
+      const raw = await kv.lrange(chatKey(gameId));
+      return raw.map((line) => JSON.parse(line) as ChatMessage);
+    },
+
     async createGame(
       gameId: string,
       players: PlayerSpec[],
@@ -522,7 +574,7 @@ export function createGameService(deps: GameServiceDeps) {
      */
     deleteGame(gameId: string): Promise<void> {
       return withGameLock(gameId, async () => {
-        await kv.del(gameKey(gameId), humansKey(gameId));
+        await kv.del(gameKey(gameId), humansKey(gameId), chatKey(gameId));
         await recordings.discard(gameId);
       });
     },

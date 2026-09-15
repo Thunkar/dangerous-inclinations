@@ -21,6 +21,7 @@ import {
 } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
+import { TableTalk } from '../table/TableTalk'
 import { MissionCard } from '../common/MissionCard'
 import { ShipDisplay, FixedSubsystemSlot } from '../ship'
 import { ComponentPalette, LoadoutSlot } from '../loadout'
@@ -355,6 +356,9 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
             )}
           </Box>
         </Panel>
+
+        {/* The table can talk while everyone fits out. */}
+        <TableTalk sx={{ flex: '0 0 258px', width: 258, minHeight: 0 }} />
       </Box>
     </Box>
   )
