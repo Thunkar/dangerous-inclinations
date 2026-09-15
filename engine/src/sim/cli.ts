@@ -15,6 +15,7 @@
  *   --label=STR   label stored in recordings
  *   --rules=k=v,k=v  rule overrides (see models/rules.ts), e.g. --rules=shieldRefill=on_dock,dockHullRepair=1
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
+ *   --weapons=laser.damage=3,laser.sideRestricted=false  experiment-only weapon stat overrides
  *   --quiet       no per-game progress
  */
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -25,6 +26,7 @@ import { formatFailure } from "./runGame.ts";
 import type { AggregateStats } from "./stats.ts";
 import { parseRuleOverrides } from "../models/rules.ts";
 import type { RuleSet } from "../models/rules.ts";
+import { parseWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 
 interface Args {
   games: number;
@@ -38,6 +40,7 @@ interface Args {
   quiet: boolean;
   rules?: Partial<RuleSet>;
   tiebreak: boolean;
+  weapons?: WeaponOverrides;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -97,6 +100,9 @@ function parseArgs(argv: string[]): Args {
       case "tiebreak":
         args.tiebreak = value !== "false";
         break;
+      case "weapons":
+        args.weapons = parseWeaponOverrides(value);
+        break;
       default:
         console.warn(`Unknown flag --${key}`);
     }
@@ -142,7 +148,13 @@ function printSummary(a: AggregateStats): void {
     `Turns: coast ${p(b.coastShare)} (idle ${p(b.idleShare)}), burn ${p(b.burnShare)}, jump ${p(b.jumpShare)}, scoop ${p(b.scoopShare)}, firing ${p(b.firingShare)}, lost ${p(b.lostTurnShare)}; energy in use ${b.meanEnergyInUse.toFixed(1)}/10`
   );
   console.log(
-    `Shields: mean ${b.meanShieldCubes} cubes, full(4) ${p(b.shieldsFullShare)} of turns (of which ${p(b.shieldsFullActingShare)} also moved/scooped/fired), powered ${p(b.shieldsPoweredShare)}; damage soaked ${p(b.absorbedShare)}`
+    `Shields: mean ${b.meanShieldCubes} cubes, full(4) ${p(b.shieldsFullShare)} of turns (of which ${p(b.shieldsFullActingShare)} also moved/scooped/fired), powered ${p(b.shieldsPoweredShare)}; damage soaked ${p(b.absorbedShare)}`,
+    `Weapons (seats carrying · shots/game · hits/game · hull dmg/game): ${Object.entries(a.weapons)
+      .map(
+        ([t, w]) =>
+          `${t} ${p(w.seatShare)} · ${w.shotsPerGame} · ${w.hitsPerGame} · ${w.hullDamagePerGame}`
+      )
+      .join(" | ")}`
   );
   console.log(
     `Heat at check: mean ${b.meanHeatAtCheck}; turns taking heat damage ${p(b.heatDamageShare)}`
@@ -157,7 +169,7 @@ function printSummary(a: AggregateStats): void {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   console.log(
-    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.rules ? `, rules ${JSON.stringify(args.rules)}` : ""}${args.tiebreak ? ", tiebreak" : ""}...`
+    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.rules ? `, rules ${JSON.stringify(args.rules)}` : ""}${args.tiebreak ? ", tiebreak" : ""}${args.weapons ? `, weapons ${JSON.stringify(args.weapons)}` : ""}...`
   );
   const start = Date.now();
 
@@ -171,6 +183,7 @@ async function main(): Promise<void> {
     label: args.label,
     rules: args.rules,
     tiebreak: args.tiebreak,
+    weapons: args.weapons,
     onProgress: args.quiet
       ? undefined
       : (done, total, last) => {

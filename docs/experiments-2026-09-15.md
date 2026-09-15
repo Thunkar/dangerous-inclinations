@@ -20,6 +20,10 @@ shields; **sh4 acting** = of those, the share that also burned, jumped, scooped 
 end of a turn (reactor holds 10); **heat@chk** = mean heat at the end-of-turn check (dissipation 5,
 7 with a radiator); **lost turns** = player-turns spent respawning or recovering.
 
+**Decision (morning of 15 Sept 2026): Destroy is worth 2 points; nothing else changes.** Shield
+cap, spent shields, dock repair and the deck stay as in RULES.md. The rows below were run with
+Destroy worth 1 as the baseline; `destroy2` is now the default rule set.
+
 ## Your questions first
 
 **1. "Is coasting that common?"** No, and the premise that shields at 4 leave nothing but a coast

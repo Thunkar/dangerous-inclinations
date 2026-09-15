@@ -51,13 +51,15 @@ export const ShipsLayer = memo(function ShipsLayer({ ships, onSelect, selectable
             )}
             <g transform={`translate(${p.x} ${p.y}) rotate(${angle})`}>
               <path
-                d="M 13 0 L -8 8 L -4 0 L -8 -8 Z"
+                d="M 15 0 L -9 8 L -9 -8 Z"
                 fill={ship.color}
                 stroke="#05070b"
-                strokeWidth={2}
-                strokeLinejoin="round"
+                strokeWidth={1.5}
+                strokeLinejoin="miter"
               />
-              {ship.isMe && <circle cx={-1} cy={0} r={2.6} fill="#e7eef6" />}
+              {/* Engine glow at the stern: reads as "this end is the back". */}
+              <rect x={-10.5} y={-4} width={2} height={8} fill="#e7eef6" opacity={0.8} />
+              {ship.isMe && <circle cx={-1} cy={0} r={2.4} fill="#05070b" />}
             </g>
           </g>
         )

@@ -17,6 +17,8 @@ export interface PerPlayerStats {
   deaths: number;
   heatDamageTaken: number;
   shotsFired: Record<string, number>;
+  hitsByWeapon: Record<string, number>;
+  hullDamageByWeapon: Record<string, number>;
   hits: number;
   misses: number;
   criticals: number;
@@ -91,6 +93,8 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
       deaths: 0,
       heatDamageTaken: 0,
       shotsFired: {},
+      hitsByWeapon: {},
+      hullDamageByWeapon: {},
       hits: 0,
       misses: 0,
       criticals: 0,
@@ -223,9 +227,13 @@ function creditEvent(
       const t = per[e.targetId];
       if (a) {
         if (e.result === "miss") a.misses++;
-        else a.hits++;
+        else {
+          a.hits++;
+          a.hitsByWeapon[e.weaponType] = (a.hitsByWeapon[e.weaponType] ?? 0) + 1;
+        }
         if (e.result === "critical") a.criticals++;
         a.damageDealt += e.toHull;
+        a.hullDamageByWeapon[e.weaponType] = (a.hullDamageByWeapon[e.weaponType] ?? 0) + e.toHull;
       }
       if (t) t.damageTaken += e.toHull;
       addDamage(e.toHull);
@@ -294,6 +302,15 @@ export interface AggregateStats {
   loadoutWins: Record<string, { games: number; wins: number }>;
   /** Mean of each behaviour share over the games. */
   behaviour: TurnBehaviour;
+  /** Per weapon type: seats that carried it, and shots/hits/hull damage per game (all seats). */
+  weapons: Record<string, WeaponAggregate>;
+}
+
+export interface WeaponAggregate {
+  seatShare: number;
+  shotsPerGame: number;
+  hitsPerGame: number;
+  hullDamagePerGame: number;
 }
 
 export function aggregateStats(games: PerGameStats[]): AggregateStats {
@@ -306,6 +323,9 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
   const firstJump: number[] = [];
   const hidden: number[] = [];
   const scans: number[] = [];
+  const weaponTotals: Record<string, { seats: number; shots: number; hits: number; hull: number }> =
+    {};
+  let seats = 0;
 
   for (const g of games) {
     endReasons[g.endReason] = (endReasons[g.endReason] ?? 0) + 1;
@@ -325,6 +345,14 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
       const lw = (loadoutWins[p.loadout] ??= { games: 0, wins: 0 });
       lw.games++;
       if (g.winnerId === p.playerId) lw.wins++;
+      seats++;
+      for (const type of ["railgun", "laser", "missiles", "ballistic_rack"]) {
+        const w = (weaponTotals[type] ??= { seats: 0, shots: 0, hits: 0, hull: 0 });
+        if (p.loadout.split(",").includes(type)) w.seats++;
+        w.shots += p.shotsFired[type] ?? 0;
+        w.hits += p.hitsByWeapon[type] ?? 0;
+        w.hull += p.hullDamageByWeapon[type] ?? 0;
+      }
     }
     scans.push(gameScans);
   }
@@ -357,6 +385,18 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     hiddenTilesAtEnd: distribution(hidden),
     scansPerGame: distribution(scans),
     loadoutWins,
+    weapons: Object.fromEntries(
+      Object.entries(weaponTotals).map(([type, w]) => [
+        type,
+        {
+          seatShare: seats === 0 ? 0 : Math.round((1000 * w.seats) / seats) / 1000,
+          shotsPerGame: games.length === 0 ? 0 : Math.round((100 * w.shots) / games.length) / 100,
+          hitsPerGame: games.length === 0 ? 0 : Math.round((100 * w.hits) / games.length) / 100,
+          hullDamagePerGame:
+            games.length === 0 ? 0 : Math.round((100 * w.hull) / games.length) / 100,
+        },
+      ])
+    ),
   };
 }
 

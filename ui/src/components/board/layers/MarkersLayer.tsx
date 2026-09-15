@@ -24,15 +24,25 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
       {homes.map((home) => {
         const p = positionPoint(home.position)
         return (
-          <g key={`home-${home.playerId}`} opacity={0.85}>
+          <g key={`home-${home.playerId}`} opacity={0.8}>
             <title>{`${home.name}'s Home — ${getWellName(home.position.wellId)} R${home.position.ring} S${home.position.sector}`}</title>
-            <path
-              d={`M ${p.x} ${p.y - 13} L ${p.x + 10} ${p.y - 3} L ${p.x + 10} ${p.y + 11} L ${p.x - 10} ${p.y + 11} L ${p.x - 10} ${p.y - 3} Z`}
-              fill="none"
-              stroke={home.color}
-              strokeWidth={1.6}
-              strokeDasharray="3 2"
-            />
+            {/* Landing-pad brackets at the four corners: a berth, not a hull outline
+                (a ship parked on its Home sits inside them). */}
+            {[
+              [-1, -1],
+              [1, -1],
+              [1, 1],
+              [-1, 1],
+            ].map(([sx, sy]) => (
+              <path
+                key={`${sx}${sy}`}
+                d={`M ${p.x + sx * 13} ${p.y + sy * 7} L ${p.x + sx * 13} ${p.y + sy * 13} L ${p.x + sx * 7} ${p.y + sy * 13}`}
+                fill="none"
+                stroke={home.color}
+                strokeWidth={1.6}
+                strokeLinecap="square"
+              />
+            ))}
           </g>
         )
       })}

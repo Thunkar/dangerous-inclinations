@@ -125,7 +125,7 @@ export function TableScreen({ headerRight, footer }: { headerRight?: React.React
         {/* The replay bar brings its own chrome: the reminder gives way to it. */}
         {!readOnly && (
           <Typography variant="caption" sx={{ color: TABLE.inkFaint, flexShrink: 1, minWidth: 0 }} noWrap>
-            first to {MISSIONS_TO_WIN} missions wins
+            first to {MISSIONS_TO_WIN} points wins · Destroy is worth 2
           </Typography>
         )}
         {isAnimating && (

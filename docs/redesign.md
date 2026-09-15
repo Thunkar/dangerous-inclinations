@@ -189,7 +189,7 @@ What this says:
 ## 6. Open questions for playtesting
 
 - **Combat is under-rewarded.** In the first bot simulations after the redesign almost no fights happen: games are decided by Deliver cards, with Survey and Intercept next. With the four-card deck the bots never keep a Destroy card at all (0 of 81 offered over 90 hands at 3 players): their cost model rates a hunt at ~22 turns against 12–16 for the other cards, and forcing them to keep it produced zero kills, so their pessimism is accurate. Bot games therefore contain no combat. Candidates, in order of simplicity (to be decided by the designer, not shipped by default):
-  1. Destroy is worth **two** points (it needs another player's active cooperation to fail, and costs the victim a turn and cargo, so the payoff should match the difficulty).
+  1. Destroy is worth **two** points (it needs another player's active cooperation to fail, and costs the victim a turn and cargo, so the payoff should match the difficulty). **Adopted 15 Sept 2026** after the experiment matrix; the other levers were not.
   2. A destroyed ship's picked-up **crates** are left as loot on its sector for anyone to collect, so a kill near a hauler is doubly valuable.
   3. Deployment closer together (Home on planet ring 2, or all players sharing one side of the map).
   Measure with the sim: kills per game, and share of wins that include a combat card.

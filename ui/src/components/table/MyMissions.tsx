@@ -16,7 +16,7 @@ export function MyMissions({ me }: { me: Player }) {
 
   return (
     <Panel
-      title={`Missions ${me.completedMissionCount}/${MISSIONS_TO_WIN}`}
+      title={`Points ${me.completedMissionCount}/${MISSIONS_TO_WIN}`}
       dense
       sx={{ flexShrink: 0, minWidth: 0 }}
     >

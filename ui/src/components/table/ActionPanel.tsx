@@ -509,6 +509,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
                 variant={queued ? 'filled' : 'outlined'}
                 onClick={() => plan.addFire(weapon.id)}
                 onMouseEnter={() => plan.setFocusWeapon(weapon.id)}
+                onMouseLeave={() => plan.setFocusWeapon(null)}
                 disabled={disabled || queued || weapon.isBroken || noAmmo}
                 sx={{ fontSize: '0.8rem' }}
               />

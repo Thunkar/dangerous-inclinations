@@ -1,8 +1,8 @@
 # Dangerous Inclinations — Rules
 
-A game of orbital manoeuvre, heat management and hidden objectives for 2–4 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to complete three secret missions.
+A game of orbital manoeuvre, heat management and hidden objectives for 2–4 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
 
-**First player to complete 3 missions wins.**
+**First player to reach 3 points wins.** A Destroy card is worth 2 points, every other card 1.
 
 ---
 
@@ -180,14 +180,14 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 ## Missions
 
-Four kinds of card. Each is worth one point; three points win.
+Four kinds of card. **Destroy is worth two points, every other card one; three points win** — so a kill plus any one other card wins.
 
-| Card | Complete when |
-|------|---------------|
-| **Destroy [player]** | you reduce their hull to 0 |
-| **Deliver [A → B]** | you dock at A (load the crate), then dock at B |
-| **Intercept [player]** | you scan them (take the data chit), then dock at any station |
-| **Survey the Event Horizon** | you end a turn on Black Hole Ring 1 (take the data chit), then dock at any station |
+| Card | Points | Complete when |
+|------|--------|---------------|
+| **Destroy [player]** | 2 | you reduce their hull to 0 |
+| **Deliver [A → B]** | 1 | you dock at A (load the crate), then dock at B |
+| **Intercept [player]** | 1 | you scan them (take the data chit), then dock at any station |
+| **Survey the Event Horizon** | 1 | you end a turn on Black Hole Ring 1 (take the data chit), then dock at any station |
 
 Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey. Draw 5, keep 3.
 
@@ -202,7 +202,7 @@ When your hull reaches 0:
 - remove your ship; drop your cargo: crates go back to their pickup station (you must load them again), data chits are lost;
 - on your next turn you only respawn at Home (see A Turn), and the turn after that is lost too. Two turns gone.
 
-Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands a point to anyone holding your Destroy card.
+Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card.
 
 ---
 

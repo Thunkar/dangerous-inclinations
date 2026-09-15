@@ -114,7 +114,7 @@ export function OpponentCard({
         </Box>
       }
       action={
-        <Tooltip title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} missions complete`}>
+        <Tooltip title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} points (Destroy is worth 2)`}>
           <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
             {Array.from({ length: MISSIONS_TO_WIN }, (_, i) => (
               <Box

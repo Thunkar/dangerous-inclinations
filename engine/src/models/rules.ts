@@ -21,7 +21,12 @@ export interface RuleSet {
   dockHullRepair: number;
   /** Hull points a ship starts (and respawns) with. */
   startingHull: number;
-  /** Points a completed Destroy card is worth. */
+  /**
+   * Points a completed Destroy card is worth. Two since 15 Sept 2026: a kill
+   * needs another player's active cooperation to fail and costs the victim
+   * two turns and their cargo, and at one point nobody kept the card
+   * (docs/experiments-2026-09-15.md).
+   */
   destroyPoints: number;
   /** How many of the six Deliver routes go into each player's deck. */
   deliverRoutesDealt: number;
@@ -33,7 +38,7 @@ export const DEFAULT_RULES: RuleSet = {
   criticalThroughShields: false,
   dockHullRepair: 3,
   startingHull: 10,
-  destroyPoints: 1,
+  destroyPoints: 2,
   deliverRoutesDealt: 6,
 };
 

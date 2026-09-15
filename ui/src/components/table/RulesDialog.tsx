@@ -79,7 +79,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['Docking', `+${DOCK_HULL_REPAIR} hull, repair all, reload missiles, load/deliver cargo`],
     ['Survey', 'end a turn on Black Hole Ring 1, then dock anywhere'],
     ['Missions', 'Destroy · Deliver · Intercept · Survey'],
-    ['Win', `${MISSIONS_TO_WIN} completed missions`],
+    ['Win', `${MISSIONS_TO_WIN} points — Destroy is worth 2, every other card 1`],
   ]
 
   return (

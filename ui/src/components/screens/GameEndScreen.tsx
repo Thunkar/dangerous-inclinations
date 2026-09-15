@@ -32,7 +32,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
         {winner
-          ? `${winner.completedMissionCount} of ${MISSIONS_TO_WIN} missions completed.`
+          ? `${winner.completedMissionCount} of ${MISSIONS_TO_WIN} points.`
           : 'No winner was declared.'}
       </Typography>
 
@@ -53,7 +53,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
               }
             >
               <SectionLabel>
-                {player.completedMissionCount} / {MISSIONS_TO_WIN} missions · hull{' '}
+                {player.completedMissionCount} / {MISSIONS_TO_WIN} points · hull{' '}
                 {player.ship?.hitPoints ?? 0}/{player.ship?.maxHitPoints ?? 10}
               </SectionLabel>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>

@@ -6,7 +6,7 @@
  * Four kinds of card: Destroy, Deliver, Intercept and Survey.
  */
 import type { Cargo, Mission, MissionFamily } from '@dangerous-inclinations/engine'
-import { MISSION_FAMILY, getWellName } from '@dangerous-inclinations/engine'
+import { DEFAULT_RULES, MISSION_FAMILY, getWellName } from '@dangerous-inclinations/engine'
 import { TABLE } from '../theme'
 
 export const FAMILY_COLOR: Partial<Record<MissionFamily, string>> = {
@@ -40,6 +40,11 @@ export function missionProgress(mission: Mission, cargo: ReadonlyArray<Cargo>): 
       // Destroy has nothing to track: you either put their hull to 0 or you don't.
       return null
   }
+}
+
+/** Points the card scores when completed (Destroy is worth more than one). */
+export function missionPoints(mission: Mission, destroyPoints: number = DEFAULT_RULES.destroyPoints): number {
+  return mission.type === 'destroy_ship' ? destroyPoints : 1
 }
 
 /** Short label for the card's family band. */

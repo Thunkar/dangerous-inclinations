@@ -14,6 +14,7 @@ import type { RuleSet } from "../models/rules.ts";
 import type { GameRecording, RecordedTurn, RecordingMetadata } from "../recording/types.ts";
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
+import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 import { createGame, submitLoadout } from "../game/setup.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
@@ -35,6 +36,8 @@ export interface GameConfig {
   rules?: Partial<RuleSet>;
   /** At the turn cap, declare the player with most completed missions (then most hull) the winner. */
   tiebreak?: boolean;
+  /** Experiment-only weapon stat overrides (see sim/weaponOverrides.ts). */
+  weapons?: WeaponOverrides;
 }
 
 /** What the active player did on one turn, for balance stats. */
@@ -130,6 +133,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const seed = config.seed ?? freshSeed();
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
+  applyWeaponOverrides(config.weapons);
   const record = config.record ?? true;
 
   const initialState = setupBotGame(seed, botCount, config.rules);

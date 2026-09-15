@@ -7,7 +7,7 @@ import { Box, Typography } from '@mui/material'
 import type { Cargo, Mission } from '@dangerous-inclinations/engine'
 import { describeMission } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
-import { missionFamilyColor, missionFamilyLabel, missionProgress } from '../../utils/missions'
+import { missionFamilyColor, missionFamilyLabel, missionPoints, missionProgress } from '../../utils/missions'
 
 interface MissionCardProps {
   mission: Mission
@@ -34,6 +34,7 @@ export function MissionCard({
   compact,
 }: MissionCardProps) {
   const accent = missionFamilyColor(mission)
+  const points = missionPoints(mission)
   const done = mission.isCompleted || faceUpToTable
   const progress = cargo ? missionProgress(mission, cargo) : null
 
@@ -65,6 +66,7 @@ export function MissionCard({
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
         <Typography variant="overline" sx={{ color: accent, lineHeight: 1.5, fontSize: '0.75rem' }}>
           {missionFamilyLabel(mission)}
+          {points > 1 && <Box component="span" sx={{ color: TABLE.ink, ml: 0.75 }}>{points} pts</Box>}
         </Typography>
         {done ? (
           <Typography variant="overline" sx={{ color: TABLE.success, lineHeight: 1.5, fontSize: '0.75rem' }}>

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DEFAULT_RULES } from "../../models/rules.ts";
 import {
   buildMissionDeck,
   cratesForMissions,
@@ -183,7 +184,7 @@ function docking(
 }
 
 describe("missions: combat", () => {
-  it("destroy completes when the target dies by your hand this turn, and is announced publicly", () => {
+  it("destroy completes when the target dies by your hand this turn, is worth two points, and is announced publicly", () => {
     const state = withMissions(withShip(gunline(), "p2", { hitPoints: 4 }), "p1", [
       destroyMission("p2"),
     ]);
@@ -191,11 +192,13 @@ describe("missions: combat", () => {
     const [completed] = eventsOf(result.events, "mission_completed");
     expect(completed).toMatchObject({
       playerId: "p1",
-      completedCount: 1,
+      completedCount: DEFAULT_RULES.destroyPoints,
       mission: { id: "destroy-p2", isCompleted: true },
     });
     expect(completed).not.toHaveProperty("privateTo");
-    expect(getPlayer(result.gameState, "p1")).toMatchObject({ completedMissionCount: 1 });
+    expect(getPlayer(result.gameState, "p1")).toMatchObject({
+      completedMissionCount: DEFAULT_RULES.destroyPoints,
+    });
     expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);
   });
 
@@ -260,7 +263,9 @@ describe("missions: combat", () => {
       "destroy-a",
       "destroy-b",
     ]);
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(2);
+    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(
+      2 * DEFAULT_RULES.destroyPoints
+    );
   });
 });
 
@@ -405,12 +410,11 @@ describe("missions: winning", () => {
     expect(after.gameState).toBe(result.gameState);
   });
 
-  it("two completed missions do not end the game", () => {
-    const done = [{ ...destroyMission("p2", "t"), isCompleted: true }];
+  it("two points do not end the game: a Destroy alone is not a win", () => {
     let state = withShip(gunline(), "p2", { hitPoints: 4 });
     state = withPlayer(state, "p1", {
-      missions: [...done, destroyMission("p2")],
-      completedMissionCount: 1,
+      missions: [destroyMission("p2")],
+      completedMissionCount: 0,
     });
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
     expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(2);

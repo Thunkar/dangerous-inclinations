@@ -6,6 +6,7 @@
  */
 import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
+import { DEFAULT_RULES } from "../../models/rules.ts";
 import {
   MISSIONS_PER_PLAYER,
   MISSION_FAMILY,
@@ -120,7 +121,7 @@ const DENIAL_CREDIT = 3;
 export function scoreMissionCombo(
   combo: Mission[],
   playerCount: number,
-  destroyPoints: number = 1
+  destroyPoints: number = DEFAULT_RULES.destroyPoints
 ): number {
   const costOf = (m: Mission) =>
     m.type === "destroy_ship"
@@ -196,7 +197,7 @@ export function scoreMissionCombo(
 export function selectBotMissions(
   offers: Mission[],
   playerCount: number,
-  destroyPoints: number = 1
+  destroyPoints: number = DEFAULT_RULES.destroyPoints
 ): Mission[] {
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
   let best: Mission[] = offers.slice(0, MISSIONS_PER_PLAYER);
