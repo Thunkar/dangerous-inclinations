@@ -23,15 +23,37 @@ full RULES.md attached from the second attempt on, until the turn is legal. Code
 repository with read-only access, so it can open RULES.md itself. The human reads the retries as
 "(legal on attempt N)" in the thought and, every fifth failed attempt, a line of table talk.
 
-## A session
+## Starting fresh
 
 ```bash
-# once
+docker compose up -d          # Redis
+yarn dev:all                  # API server on :3000 and the UI on :5173 (or dev:server + dev in two terminals)
+```
+
+Open http://localhost:5173, give yourself a name, create a lobby (or join one). Each seat that an
+agent will play joins from a terminal.
+
+## Finding ids
+
+You should not need to type an id. `cd server && yarn seat` opens the menu: it asks for the server
+(default http://localhost:3000), which identity you are (or makes a new one), then lists the lobbies
+with their players, whether they have started and the game id of those that have. Pick a lobby to
+join it and start it, or wait for the host to start it; the game id is remembered for that identity
+and every later `yarn seat <command> --as <name>` uses it.
+
+If you want the ids anyway: `yarn seat lobbies` prints every lobby with its lobby id and, once
+started, its game id; the browser's address bar carries `?game=<gameId>` while you are at a table;
+and `GET /api/lobbies/<lobbyId>` returns `gameId`.
+
+## A session, command by command
+
+```bash
+# once, per agent identity (also done by the menu)
 cd server
 yarn seat register --as Codex
 yarn seat register --as Claude
 
-# per game (a person creates the lobby in the browser, or:)
+# per game, without the menu (a person creates the lobby in the browser, or:)
 yarn seat lobby --as Claude --name "Arena" --max 3          # prints the lobby id
 yarn seat join --as Codex --lobby <lobbyId>
 # the human joins from the browser; then

@@ -1,6 +1,8 @@
 /**
  * A seat at the table for an agent (or a person at a terminal).
  *
+ *   yarn seat                                     interactive menu: pick a server, an identity, a lobby or game
+ *   yarn seat lobbies                             list lobbies with their players and game ids
  *   yarn seat register --as Codex                 create a player identity and remember it
  *   yarn seat lobby --as Codex --name "Arena" --bots 1 --max 3   create a lobby (+ bots), print its id
  *   yarn seat join --as Codex --lobby <id>        join a lobby
@@ -26,6 +28,8 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, appendFileSync } fr
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createInterface } from "node:readline/promises";
+import { stdin, stdout } from "node:process";
 import type {
   GameEvent,
   GameView,
@@ -49,7 +53,7 @@ import type { ChatMessage, PreviewPayload, ServerGameMessage } from "../src/prot
 // ---------------------------------------------------------------------------
 
 const args = process.argv.slice(2);
-const command = args.find((a) => !a.startsWith("--")) ?? "help";
+const command = args.find((a) => !a.startsWith("--")) ?? "menu";
 const positional = args.filter((a) => !a.startsWith("--")).slice(1);
 function flag(name: string): string | undefined {
   const i = args.findIndex((a) => a === `--${name}` || a.startsWith(`--${name}=`));
@@ -86,12 +90,12 @@ function saveSeats(seats: Record<string, Seat>): void {
   mkdirSync(CONFIG_DIR, { recursive: true });
   writeFileSync(SEATS_FILE, JSON.stringify(seats, null, 2) + "\n");
 }
-const seatName = flag("as");
+let seatName = flag("as");
 const seats = loadSeats();
 const seat: Seat | undefined = seatName ? seats[seatName] : undefined;
-const SERVER = flag("server") ?? seat?.server ?? process.env.DI_SERVER ?? "http://localhost:3000";
-const PLAYER = flag("player") ?? seat?.playerId ?? process.env.DI_PLAYER;
-const GAME = flag("game") ?? seat?.lastGame ?? process.env.DI_GAME;
+let SERVER = flag("server") ?? seat?.server ?? process.env.DI_SERVER ?? "http://localhost:3000";
+let PLAYER = flag("player") ?? seat?.playerId ?? process.env.DI_PLAYER;
+let GAME = flag("game") ?? seat?.lastGame ?? process.env.DI_GAME;
 function remember(patch: Partial<Seat>): void {
   if (!seatName) return;
   seats[seatName] = {
@@ -556,11 +560,211 @@ async function agentLoop(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Lobbies and the interactive menu
+// ---------------------------------------------------------------------------
+
+interface LobbySummary {
+  lobbyId: string;
+  lobbyName: string;
+  maxPlayers: number;
+  currentPlayers: number;
+  gameStarted: boolean;
+  createdAt: string;
+}
+interface LobbyDetail {
+  lobbyId: string;
+  lobbyName: string;
+  maxPlayers: number;
+  players: Array<{ playerId: string; playerName: string; isBot: boolean }>;
+  gameId?: string;
+}
+
+const listLobbies = () => http<LobbySummary[]>("GET", "/api/lobbies", undefined, undefined);
+const lobbyDetail = (id: string) =>
+  http<LobbyDetail>("GET", `/api/lobbies/${id}`, undefined, undefined);
+
+async function printLobbies(): Promise<LobbyDetail[]> {
+  const list = await listLobbies();
+  if (list.length === 0) {
+    console.log("No lobbies on this server.");
+    return [];
+  }
+  const details = await Promise.all(list.map((l) => lobbyDetail(l.lobbyId)));
+  details.forEach((d, i) => {
+    const who =
+      d.players.map((p) => `${p.playerName}${p.isBot ? " (bot)" : ""}`).join(", ") || "empty";
+    const state = d.gameId
+      ? `STARTED  game ${d.gameId}`
+      : `open ${d.players.length}/${d.maxPlayers}`;
+    console.log(
+      `${String(i + 1).padStart(2)}) ${d.lobbyName}  [${state}]  lobby ${d.lobbyId}\n      ${who}`
+    );
+  });
+  return details;
+}
+
+/** Interactive: server, identity, then a lobby or a game, remembered for the next commands. */
+async function menu(): Promise<void> {
+  const rl = createInterface({ input: stdin, output: stdout });
+  const ask = async (q: string, fallback = ""): Promise<string> => {
+    const a = (await rl.question(fallback ? `${q} [${fallback}]: ` : `${q}: `)).trim();
+    return a || fallback;
+  };
+  const pick = async (q: string, n: number): Promise<number | null> => {
+    const a = await ask(q);
+    const i = Number(a);
+    return Number.isInteger(i) && i >= 1 && i <= n ? i - 1 : null;
+  };
+  try {
+    SERVER = await ask("Server", SERVER);
+    try {
+      await http("GET", "/api/health", undefined, undefined);
+    } catch (e) {
+      console.log(`Cannot reach ${SERVER}: ${(e as Error).message}`);
+      return;
+    }
+
+    // Identity.
+    const names = Object.keys(seats);
+    console.log("\nWho are you?");
+    names.forEach((n, i) =>
+      console.log(`${String(i + 1).padStart(2)}) ${n}  (${seats[n].playerId})`)
+    );
+    console.log(`${String(names.length + 1).padStart(2)}) a new identity`);
+    const who = await pick("Choose", names.length + 1);
+    if (who === null) return;
+    if (who === names.length) {
+      const name = await ask("Name for the new identity");
+      if (!name) return;
+      const { playerId } = await http<{ playerId: string }>(
+        "POST",
+        "/api/players",
+        { playerName: name },
+        undefined
+      );
+      seats[name] = { playerId, server: SERVER };
+      seatName = name;
+    } else seatName = names[who];
+    PLAYER = seats[seatName].playerId;
+    seats[seatName].server = SERVER;
+    saveSeats(seats);
+    console.log(`\nSeated as ${seatName}.`);
+
+    // Lobby or game.
+    for (;;) {
+      console.log("\nLobbies on this server:");
+      const details = await printLobbies();
+      const n = details.length;
+      console.log(`${String(n + 1).padStart(2)}) create a lobby`);
+      console.log(`${String(n + 2).padStart(2)}) enter a game id`);
+      console.log(`${String(n + 3).padStart(2)}) refresh`);
+      const choice = await pick("Choose", n + 3);
+      if (choice === null) return;
+      if (choice === n + 2) continue;
+      if (choice === n + 1) {
+        GAME = await ask("Game id");
+        break;
+      }
+      let lobby: LobbyDetail;
+      if (choice === n) {
+        const name = await ask("Lobby name", "Arena");
+        const max = Number(await ask("Seats", "3"));
+        const bots = Number(await ask("Bots to add", "0"));
+        const created = await http<{ lobbyId: string }>("POST", "/api/lobbies", {
+          lobbyName: name,
+          maxPlayers: max,
+        });
+        for (let i = 0; i < bots; i++)
+          await http("POST", `/api/lobbies/${created.lobbyId}/bot`, {});
+        lobby = await lobbyDetail(created.lobbyId);
+      } else lobby = details[choice];
+      remember({ lastLobby: lobby.lobbyId, server: SERVER });
+      if (lobby.gameId) {
+        GAME = lobby.gameId;
+        break;
+      }
+      if (!lobby.players.some((p) => p.playerId === PLAYER)) {
+        await http("POST", "/api/lobbies/join", { lobbyId: lobby.lobbyId });
+        console.log(`Joined ${lobby.lobbyName}.`);
+      }
+      // Wait for the host (or us) to start it.
+      for (;;) {
+        const d = await lobbyDetail(lobby.lobbyId);
+        console.log(
+          `\n${d.lobbyName}: ${d.players.map((p) => `${p.playerName}${p.isBot ? " (bot)" : ""}`).join(", ")} (${d.players.length}/${d.maxPlayers})${d.gameId ? ` — STARTED, game ${d.gameId}` : ""}`
+        );
+        if (d.gameId) {
+          GAME = d.gameId;
+          break;
+        }
+        console.log(
+          " 1) start the game now\n 2) add a bot\n 3) wait for someone else to start it\n 4) back"
+        );
+        const w = await pick("Choose", 4);
+        if (w === 0) {
+          const { gameId } = await http<{ gameId: string }>(
+            "POST",
+            `/api/lobbies/${lobby.lobbyId}/start`
+          );
+          GAME = gameId;
+          break;
+        }
+        if (w === 1) await http("POST", `/api/lobbies/${lobby.lobbyId}/bot`, {});
+        if (w === 2) {
+          process.stdout.write("waiting");
+          for (;;) {
+            const again = await lobbyDetail(lobby.lobbyId);
+            if (again.gameId) {
+              GAME = again.gameId;
+              console.log(` started: game ${GAME}`);
+              break;
+            }
+            process.stdout.write(".");
+            await new Promise((r) => setTimeout(r, 3000));
+          }
+          break;
+        }
+        if (w === 3 || w === null) {
+          GAME = undefined;
+          break;
+        }
+      }
+      if (GAME) break;
+    }
+    if (!GAME) return;
+    remember({ lastGame: GAME, server: SERVER });
+    console.log(`\nGame ${GAME} is remembered for ${seatName}. From here:`);
+    console.log(
+      `  yarn seat view --as ${seatName}            what this seat sees, with the legal moves`
+    );
+    console.log(`  yarn seat wait --as ${seatName}            block until it is your turn`);
+    console.log(`  yarn seat try --as ${seatName} --intent '{"move":{"kind":"coast"}}'`);
+    console.log(`  yarn seat act --as ${seatName} --intent '{...}' --think "..." --say "..."`);
+    console.log(`  yarn seat agent --as ${seatName} --driver codex   let Codex play this seat`);
+    console.log(`  yarn seat chat --as ${seatName}`);
+    const go = await ask("Start the Codex driver for this seat now? (y/N)", "N");
+    if (go.toLowerCase().startsWith("y")) {
+      rl.close();
+      await agentLoop();
+      return;
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
   switch (command) {
+    case "menu":
+      await menu();
+      return;
+    case "lobbies":
+      await printLobbies();
+      return;
     case "help":
       console.log(
         readFileSync(new URL(import.meta.url))
