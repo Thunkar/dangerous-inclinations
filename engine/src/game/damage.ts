@@ -107,7 +107,7 @@ export function resolveAttack(
       };
     }
     ship = updateSubsystem(ship, shield.id, { allocatedEnergy: left, isPowered: left > 0 });
-    ship = addHeat(ship, take);
+    ship = addHeat(ship, take * rules.shieldHeatPerPoint);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
     ship = r.ship;
     events.push(...r.events);

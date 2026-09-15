@@ -190,6 +190,66 @@ Recommendation: adopt shield cap 3 (it fixes pacing and most of the dominance at
 between (a) and (b) for stacked shields. Both are one line in RULES.md and one number or clause in
 `damage.ts`; I can run the matrix on either in an hour.
 
+
+## 6. Pricing shields with heat: base dissipation × shield cap
+
+Designer's proposal (15 Sept, late): keep stacked shields legal but make "shielding up" cost the other
+systems, by lowering the base dissipation (5 today; a radiator adds 2) together with shield cap 3.
+Shields turn damage into heat, so a lower dissipation should turn every absorbed point into a
+tighter turn or a point of hull. Everyone on their own hands, final-round rule on:
+
+| run | rules | fin | rounds | kills/g | hull dmg/g | heat dmg turns | coast | firing | shields on | soaked | Destroy done | Deliver done |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| F_own | defaults | 72% | 56 | 0.8 | 25.1 | 1% | 45% | 10% | 68% | 63% | 31 | 309 |
+| F_own_cap3 | shieldMaxEnergy=3 | 93% | 50 | 1.3 | 34.3 | 1% | 43% | 15% | 63% | 53% | 66 | 278 |
+| D_4c4 | baseDissipation=4 | 66% | 64 | 0.5 | 17.6 | 2% | 46% | 9% | 69% | 70% | 15 | 328 |
+| D_3c4 | baseDissipation=3 | 64% | 63 | 0.4 | 15.7 | 2% | 47% | 10% | 71% | 75% | 15 | 336 |
+| D_4c3 | baseDissipation=4,shieldMaxEnergy=3 | 86% | 56 | 1.1 | 32.7 | 2% | 43% | 13% | 63% | 57% | 42 | 320 |
+| D_3c3 | baseDissipation=3,shieldMaxEnergy=3 | 85% | 61 | 1.1 | 30.9 | 2% | 45% | 14% | 65% | 60% | 41 | 330 |
+| D_2c3 | baseDissipation=2,shieldMaxEnergy=3 | 69% | 75 | 0.7 | 16.9 | 3% | 48% | 10% | 71% | 69% | 23 | 313 |
+
+Reading:
+- **Lower dissipation alone goes the wrong way.** At 4 or 3 the bots fire less (9–10% of turns),
+  kill less (0.5, 0.4 a game), keep shields up more (69–71% of turns) and soak more of what is fired
+  (70–75%). Games run 63–64 rounds and a third reach the cap. The heat budget is shared by burns,
+  guns and scoop as well as shields, so a tighter budget makes the attacker hold fire before it makes
+  the defender pay: heat damage stays at 2% of turns because the bots simply do less.
+- **Cap 3 is doing all the work.** Cap 3 at dissipation 5 is the best row on every column that
+  matters (93% finish, 50 rounds, 1.3 kills, 66 Destroy). Adding dissipation 4 or 3 to it gives back
+  a third of that (86% / 85% finish, 56 / 61 rounds, 42 / 41 Destroy). Dissipation 2 is a slog (75
+  rounds).
+- The forced-hull rows below say whether the tighter budget at least reaches the double-shield laser
+  hull that cap 3 alone does not.
+
+The dominant hulls, forced on seat 1, at dissipation 5 / 4 / 3 with cap 3 (`F_*_cap3` = dissipation 5):
+
+| run | seat-1 hull | wins | real victories | others (each) | kills/g | deaths/g | dealt/g | taken/g | fin | rounds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| F_hauler_cap3 | sensor_array/shields,radiator,fuel_compressor,laser | 41% | 39% | 30% | 0.41 | 0.35 | 13.4 | 9.0 | 97% | 45 |
+| D_4c3_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 54% | 53% | 23% | 0.59 | 0.21 | 16.08 | 6.95 | 95% | 45 |
+| D_3c3_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 51% | 50% | 24% | 0.49 | 0.27 | 14.62 | 6.33 | 93% | 46 |
+| F_shields2_lasers2_cap3 | sensor_array/shields,shields,laser,laser | 54% | 54% | 23% | 1.12 | 0.05 | 20.42 | 2.05 | 96% | 45 |
+| D_4c3_sh2la2 | sensor_array/shields,shields,laser,laser | 56% | 56% | 22% | 0.93 | 0.05 | 19.16 | 2.0 | 96% | 47 |
+| D_3c3_sh2la2 | sensor_array/shields,shields,laser,laser | 51% | 50% | 24% | 0.85 | 0.02 | 15.74 | 1.41 | 93% | 51 |
+| F_scalpel3_cap3 | sensor_array/laser,laser,laser,shields | 43% | 42% | 29% | 0.69 | 0.47 | 16.2 | 8.81 | 95% | 43 |
+| D_4c3_scalpel3 | sensor_array/laser,laser,laser,shields | 47% | 45% | 27% | 0.83 | 0.45 | 15.84 | 8.26 | 93% | 45 |
+| D_3c3_scalpel3 | sensor_array/laser,laser,laser,shields | 37% | 35% | 32% | 0.52 | 0.39 | 11.56 | 6.22 | 94% | 51 |
+| E_turtle2 | sensor_array/shields,shields,radiator,radiator | 61% | 20% | 20% | 0.0 | 0.0 | 0.0 | 3.2 | 53% | 87 |
+| D_4c3_turtle | sensor_array/shields,shields,radiator,radiator | 56% | 24% | 22% | 0.0 | 0.0 | 0.0 | 3.44 | 67% | 57 |
+| D_3c3_turtle | sensor_array/shields,shields,radiator,radiator | 56% | 21% | 22% | 0.0 | 0.0 | 0.0 | 1.92 | 63% | 59 |
+
+- **Lower dissipation helps the laser hulls.** Hauler 39% → 53% → 50%, three lasers 42% → 45% → 35%,
+  double shields + double lasers 54% → 56% → 50%. A laser costs 2 heat; a railgun-plus-missile volley
+  costs 6. Shrink the budget and it is the railgun hull that stops shooting first, while the laser
+  hull keeps landing 2 through anything. The heat that shields hand the defender only bites when the
+  defender also wants to act that turn, and the laser hull's turn is cheap.
+- **The turtle is unmoved** (20% → 24% → 21% real victories, still 0 damage dealt, still a third of
+  games at the cap). It absorbs 3 hull a game; dissipation is irrelevant to a ship nobody shoots at.
+
+**Conclusion on the proposal:** base dissipation is the wrong knob for pricing shields, because it is
+shared by every system, and the cheap-heat weapon is the one you want to tax. Cap 3 at dissipation 5
+stays the best combination measured. §7 tests a knob that only shields feel.
+
 ## Reproduce
 
 ```

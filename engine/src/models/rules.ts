@@ -15,6 +15,8 @@ export interface RuleSet {
   shieldRefill: "every_turn" | "on_dock";
   /** Cubes a shield tile can hold. */
   shieldMaxEnergy: number;
+  /** Heat the defender takes per point of damage a shield absorbs (1 = the cube's own energy). */
+  shieldHeatPerPoint: number;
   /** A critical breaks the named tile even when shields absorbed the whole shot. */
   criticalThroughShields: boolean;
   /** Hull restored when docking. */
@@ -43,6 +45,7 @@ export interface RuleSet {
 export const DEFAULT_RULES: RuleSet = {
   shieldRefill: "every_turn",
   shieldMaxEnergy: 4,
+  shieldHeatPerPoint: 1,
   criticalThroughShields: false,
   dockHullRepair: 3,
   startingHull: 10,
