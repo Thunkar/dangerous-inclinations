@@ -39,10 +39,10 @@ describe("energy: allocation", () => {
   });
 
   it("stacks allocations across turns up to the maximum", () => {
-    let state = withPower(makeTwoPlayerGame(), "p1", "side-2", 2);
+    let state = withPower(makeTwoPlayerGame(), "p1", "side-2", 1);
     state = { ...state, activePlayerIndex: 0 };
-    state = mustExecute(state, allocate("side-2", 2));
-    expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(4);
+    state = mustExecute(state, allocate("side-2", 1));
+    expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(2);
   });
 
   it("deallocation returns energy and unpowers the tile at zero", () => {
@@ -77,9 +77,9 @@ describe("energy: allocation", () => {
   it("allocated energy persists across turns and is conserved", () => {
     let state = mustExecute(makeTwoPlayerGame(), allocate("engines", 3), allocate("side-2", 1));
     state = mustExecute(state, coast(1)); // p2
-    state = mustExecute(state, allocate("side-2", 2)); // p1 again
+    state = mustExecute(state, allocate("side-2", 1)); // p1 again
     expect(getSub(state, "p1", "engines").allocatedEnergy).toBe(3);
-    expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(3);
+    expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(2);
     expect(totalEnergy(getShip(state, "p1"))).toBe(REACTOR_CAPACITY);
   });
 });

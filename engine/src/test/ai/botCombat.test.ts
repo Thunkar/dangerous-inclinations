@@ -34,6 +34,11 @@ const SLUGGER: ShipLoadout = {
   forwardSlots: ["railgun"],
   sideSlots: ["ballistic_rack", "radiator", "shields", "missiles"],
 };
+/** Off its ring the only gun that bears is the one-damage rack. */
+const PLINKER: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["ballistic_rack", "radiator", "shields", "fuel_compressor"],
+};
 
 function shotsOf(state: GameState, botId: string): FireWeaponAction[] {
   return botDecideActions(viewFor(state, botId)).actions.filter(
@@ -278,12 +283,11 @@ describe("bot lethality estimates", () => {
   });
 
   it("subtracts the shield cubes it can see before calling anything a kill", () => {
-    // Rack and missile, three damage, against three hull — but four face-up
-    // shield cubes soak all of it, so the bot does not even take the shot.
+    // One rack round against two face-up shield cubes: the bot does not even take the shot.
     let state = withShip(
       grounded(
         makeTwoPlayerGame(
-          { wellId: BH, ring: 3, sector: 0, loadout: SLUGGER },
+          { wellId: BH, ring: 3, sector: 0, loadout: PLINKER },
           { wellId: BH, ring: 4, sector: 0 }
         ),
         "p1"
@@ -292,7 +296,7 @@ describe("bot lethality estimates", () => {
       { hitPoints: 3 }
     );
     state = withSub(state, "p2", "side-2", { isRevealed: true });
-    state = withPower(state, "p2", "side-2", 4);
+    state = withPower(state, "p2", "side-2", 2);
 
     const situation = analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS);
     const candidates = generateCandidates(situation, DEFAULT_BOT_PARAMETERS);

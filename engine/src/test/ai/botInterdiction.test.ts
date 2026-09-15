@@ -254,12 +254,12 @@ describe("interdiction goals", () => {
         [crate(BETA, ALPHA)]
       );
       state = withSub(state, "p2", "side-2", { isRevealed: true });
-      return withPower(state, "p2", "side-2", 4);
+      return withPower(state, "p2", "side-2", 2);
     };
 
     const disarmed = board(PLINKER);
     expect(opponent(disarmed, "p1", "p2").danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER);
-    expect(opponent(disarmed, "p1", "p2").shieldAbsorption).toBe(4);
+    expect(opponent(disarmed, "p1", "p2").shieldAbsorption).toBe(2);
     expect(situationOf(disarmed, "p1").currentGoal?.type).not.toBe("interdict");
 
     expect(situationOf(board(RAIDER), "p1").currentGoal?.type).toBe("interdict");

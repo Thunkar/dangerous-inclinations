@@ -13,7 +13,7 @@ export interface RuleSet {
    *   the ship docks.
    */
   shieldRefill: "every_turn" | "on_dock";
-  /** Cubes a shield tile can hold. */
+  /** Cubes a shield tile can hold. Two since 15 Sept 2026 (docs/edge-cases-2026-09-15.md §8). */
   shieldMaxEnergy: number;
   /**
    * Heat the defender takes per point of damage a shield absorbs. Two since
@@ -48,7 +48,7 @@ export interface RuleSet {
 
 export const DEFAULT_RULES: RuleSet = {
   shieldRefill: "every_turn",
-  shieldMaxEnergy: 4,
+  shieldMaxEnergy: 2,
   shieldHeatPerPoint: 2,
   criticalThroughShields: false,
   dockHullRepair: 3,

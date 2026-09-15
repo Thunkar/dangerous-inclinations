@@ -94,7 +94,7 @@ Otherwise:
 | Sensor array (forward)     | 2      | Scan; criticals on 8–10 while powered                                  |
 | Missiles (forward or side) | 2      | Launch a guided missile (4 aboard)                                     |
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
-| Shields (side)             | 1–4    | Absorb damage as heat                                                  |
+| Shields (side)             | 1–2    | Absorb damage as heat (2 heat per point)                               |
 | Radiator (side)            | —      | +2 dissipation                                                         |
 | Fuel compressor (side)     | —      | +6 fuel capacity; jumps cost no fuel                                   |
 | Ballistic rack (side)      | 2      | 1 damage, ±1 ring or same ring, ±1 sector; intercepts missiles         |

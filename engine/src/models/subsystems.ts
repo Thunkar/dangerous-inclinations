@@ -198,7 +198,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     id: "shields",
     name: "Shields",
     minEnergy: 1,
-    maxEnergy: 4,
+    maxEnergy: 2,
     generatesHeatOnUse: false,
     slotType: "side",
   },
