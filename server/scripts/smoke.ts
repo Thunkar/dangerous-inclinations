@@ -32,7 +32,8 @@ import type { ServerGameMessage } from "../src/protocol.ts";
 const HUMAN = "human-ada";
 const BOT_A = "bot-alpha";
 const BOT_B = "bot-beta";
-// The human sits second so bots both deploy before and after it.
+// The human sits second so bots place both before and after it (placing runs in
+// reverse turn order: the last seat first).
 const SPECS = [
   { id: BOT_A, name: "Bot Alpha" },
   { id: HUMAN, name: "Ada" },
@@ -196,8 +197,12 @@ console.log(`smoke: loadouts done, phase ${afterLoadout.phase}`);
 
 // --- Deployment --------------------------------------------------------------
 check(
-  afterLoadout.players.find((p) => p.id === BOT_A)?.hasDeployed === true,
-  "the bot before the human deployed on its own",
+  afterLoadout.players.find((p) => p.id === BOT_B)?.hasDeployed === true,
+  "the last seat placed first, on its own",
+);
+check(
+  afterLoadout.players.find((p) => p.id === BOT_A)?.hasDeployed !== true,
+  "the first seat places last",
 );
 check(afterLoadout.activePlayerId === HUMAN, `the human is next to deploy (got ${afterLoadout.activePlayerId})`);
 

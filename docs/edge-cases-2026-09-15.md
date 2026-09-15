@@ -535,6 +535,17 @@ dull hull, not a strong one. Watch items: seat 3 at three players wins 21% for t
 (seat 1 deploys and moves first); four players see 3.2 kills a game; the Hunter is the weakest
 preset (27%) because it fights everything without the fuel to choose its fights.
 
+
+## 13. Deployment in reverse turn order (adopted) — and a correction on seats
+
+The 21% seat-3 figure in §9 and §12 was an artefact: those runs reused the same 100 seeds, so the
+same hands were dealt every time. On 200 fresh seeds (7000+) with seat 1 placing first the split is
+**28 / 39 / 34** at three players and **26 / 30 / 20 / 24** at four: no strong seat effect, and if
+anything seat 1 is behind. Reversing the placing order (last seat first, first seat last) on the same
+200 seeds gives **32 / 36 / 32** at three players (range 10 → 4 points) and 30 / 28 / 22 / 19 at four
+(range unchanged, seat 4 now lowest). Adopted for the flatter three-player table; the four-player
+split should be re-read once the bots' deployment heuristic is revisited.
+
 ## Reproduce
 
 ```

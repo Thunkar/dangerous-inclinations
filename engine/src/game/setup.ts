@@ -117,7 +117,9 @@ export function submitLoadout(
   const next: GameState = { ...state, players };
   return {
     state: players.every((p) => p.hasSubmittedLoadout)
-      ? { ...next, phase: "deployment", activePlayerIndex: 0 }
+      ? // The last seat places first and the first seat last: whoever acts first
+        // each round gets the last pick of a Home sector.
+        { ...next, phase: "deployment", activePlayerIndex: players.length - 1 }
       : next,
   };
 }

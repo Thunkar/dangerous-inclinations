@@ -1,5 +1,5 @@
 /**
- * Deployment: in turn order, place your ship on Black Hole Ring 4. Everyone
+ * Deployment: in reverse turn order (last seat first), place your ship on Black Hole Ring 4. Everyone
  * starts on the same ring; the sector you pick becomes your Home — where you
  * come back after you are destroyed — so pick it with the cards you kept in
  * mind.
@@ -23,7 +23,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
 
   const me = view.me
   const myTurn = view.activePlayerId === me?.id && !me?.hasDeployed
-  const active = view.players.find((p) => p.id === view.activePlayerId)
+  const active = view.players.find(p => p.id === view.activePlayerId)
 
   if (!me) return <Centered>Watching the table — no ship to place.</Centered>
 
@@ -40,7 +40,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
     }
   }
 
-  const deployed = view.players.filter((p) => p.hasDeployed).length
+  const deployed = view.players.filter(p => p.hasDeployed).length
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -53,15 +53,37 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
         <Box sx={{ flex: 1, position: 'relative', minWidth: 0 }}>
           <GameBoard onDeploy={onDeploy} deploymentEnabled={myTurn && !placing} />
         </Box>
-        <Box sx={{ width: 330, flexShrink: 0, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5, overflow: 'auto' }}>
-          <Panel title="Turn order" dense>
+        <Box
+          sx={{
+            width: 330,
+            flexShrink: 0,
+            p: 1.5,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
+            overflow: 'auto',
+          }}
+        >
+          <Panel title="Turn order · last seat places first" dense>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
               {view.players.map((player, index) => (
                 <Box key={player.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box
-                    sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: getPlayerColor(index), flexShrink: 0 }}
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      bgcolor: getPlayerColor(index),
+                      flexShrink: 0,
+                    }}
                   />
-                  <Typography sx={{ fontWeight: player.isMe ? 800 : 500, color: TABLE.ink, fontSize: '0.88rem' }}>
+                  <Typography
+                    sx={{
+                      fontWeight: player.isMe ? 800 : 500,
+                      color: TABLE.ink,
+                      fontSize: '0.88rem',
+                    }}
+                  >
                     {player.name}
                     {player.isMe ? ' (you)' : ''}
                   </Typography>
@@ -89,8 +111,14 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           <Panel title="Your missions" dense>
             <SectionLabel>They should decide which sector Home goes in.</SectionLabel>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.5 }}>
-              {me.missions.map((mission) => (
-                <MissionCard key={mission.id} mission={mission} nameOf={nameOf} cargo={me.cargo} held />
+              {me.missions.map(mission => (
+                <MissionCard
+                  key={mission.id}
+                  mission={mission}
+                  nameOf={nameOf}
+                  cargo={me.cargo}
+                  held
+                />
               ))}
             </Box>
           </Panel>

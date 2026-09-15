@@ -119,10 +119,10 @@ describe("setup: submitLoadout", () => {
     expect(getPlayer(state, "p2").hasSubmittedLoadout).toBe(false);
   });
 
-  it("moves to deployment once everyone has submitted", () => {
+  it("moves to deployment once everyone has submitted, last seat placing first", () => {
     const state = readyToDeploy();
     expect(state.phase).toBe("deployment");
-    expect(state.activePlayerIndex).toBe(0);
+    expect(state.activePlayerIndex).toBe(1);
   });
 
   it.each([
@@ -246,9 +246,9 @@ describe("deployment", () => {
   });
 
   it("places the ship facing prograde and plants the Home marker there", () => {
-    const result = deployShip(readyToDeploy(), "p1", 9);
+    const result = deployShip(readyToDeploy(), "p2", 9);
     expect(result.success).toBe(true);
-    const p1 = getPlayer(result.state, "p1");
+    const p1 = getPlayer(result.state, "p2");
     expect(p1.hasDeployed).toBe(true);
     expect(p1.home).toEqual({ wellId: BH, ring: HOME_RING, sector: 9 });
     expect(p1.ship).toMatchObject({
@@ -259,22 +259,22 @@ describe("deployment", () => {
       hitPoints: 10,
     });
     expect(result.events).toEqual([
-      { type: "deployed", playerId: "p1", position: { wellId: BH, ring: HOME_RING, sector: 9 } },
+      { type: "deployed", playerId: "p2", position: { wellId: BH, ring: HOME_RING, sector: 9 } },
     ]);
-    expect(result.state.activePlayerIndex).toBe(1);
+    expect(result.state.activePlayerIndex).toBe(0);
     expect(getAvailableDeploymentSectors(result.state)).not.toContain(9);
   });
 
-  it("deploys in turn order", () => {
+  it("deploys in reverse turn order: the last seat first, the first seat last", () => {
     const state = readyToDeploy();
-    expect(deployShip(state, "p2", 9)).toMatchObject({
+    expect(deployShip(state, "p1", 9)).toMatchObject({
       success: false,
       error: /turn/i,
       state,
     });
-    const afterP1 = deployShip(state, "p1", 0).state;
-    expect(deployShip(afterP1, "p1", 1).error).toMatch(/already deployed/i);
-    expect(deployShip(afterP1, "p2", 23).success).toBe(true);
+    const afterP2 = deployShip(state, "p2", 0).state;
+    expect(deployShip(afterP2, "p2", 1).error).toMatch(/already deployed/i);
+    expect(deployShip(afterP2, "p1", 23).success).toBe(true);
   });
 
   it.each([
@@ -284,8 +284,8 @@ describe("deployment", () => {
     ["an occupied sector", 5, /occupied/i],
   ])("rejects deploying on %s", (_label, sector, message) => {
     let state = readyToDeploy();
-    state = { ...deployShip(state, "p1", 5).state, activePlayerIndex: 1 };
-    const result = deployShip(state, "p2", sector);
+    state = deployShip(state, "p2", 5).state; // p1 places next
+    const result = deployShip(state, "p1", sector);
     expect(result.success).toBe(false);
     expect(result.error).toMatch(message);
     expect(result.state).toBe(state);
@@ -299,9 +299,9 @@ describe("deployment", () => {
   it("becomes active once everyone has deployed, starting with the first player", () => {
     let state = readyToDeploy();
     expect(transitionToActivePhase(state)).toBe(state);
-    state = deployShip(state, "p1", 0).state;
+    state = deployShip(state, "p2", 0).state;
     expect(checkAllDeployed(state)).toBe(false);
-    state = deployShip(state, "p2", 12).state;
+    state = deployShip(state, "p1", 12).state;
     expect(checkAllDeployed(state)).toBe(true);
     const active = transitionToActivePhase(state);
     expect(active).toMatchObject({ phase: "active", activePlayerIndex: 0, turn: 1 });
@@ -316,8 +316,8 @@ describe("deployment", () => {
 
   it("a freshly started game plays: the first turn drifts the first ship two sectors", () => {
     let state = readyToDeploy();
+    state = deployShip(state, "p2", 12).state; // last seat places first
     state = deployShip(state, "p1", 0).state;
-    state = deployShip(state, "p2", 12).state;
     state = transitionToActivePhase(state);
     const next = mustExecute(state, coast(1));
     expect(getShip(next, "p1")).toMatchObject({ wellId: BH, ring: HOME_RING, sector: 2 });

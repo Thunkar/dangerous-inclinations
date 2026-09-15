@@ -1,7 +1,9 @@
 /**
- * Deployment. Everyone starts together: in turn order each player places
- * their ship, facing prograde, on Black Hole Ring 4 in any empty sector.
- * That sector becomes their Home marker (where a destroyed ship returns).
+ * Deployment. Everyone starts together: in reverse turn order (the last seat
+ * first, the first seat last) each player places their ship, facing prograde,
+ * on Black Hole Ring 4 in any empty sector. That sector becomes their Home
+ * marker (where a destroyed ship returns). The seat that acts first every
+ * round gets the last pick of a sector.
  */
 import type { GameState, Player, Position } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
@@ -63,10 +65,11 @@ export function deployShip(state: GameState, playerId: string, sector: number): 
   const players = [...state.players];
   players[playerIndex] = deployed;
 
-  // Next player who still has to deploy.
+  // Next player who still has to deploy, walking backwards through the seats:
+  // deployment runs in reverse turn order (the last seat places first).
   let nextIndex = state.activePlayerIndex;
   for (let i = 1; i <= players.length; i++) {
-    const idx = (state.activePlayerIndex + i) % players.length;
+    const idx = (state.activePlayerIndex - i + players.length) % players.length;
     if (!players[idx].hasDeployed) {
       nextIndex = idx;
       break;
