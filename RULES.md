@@ -10,7 +10,7 @@ A game of orbital manoeuvre, heat management and hidden objectives for 2–4 pla
 
 - The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 3 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
 - Per player: a ship token, a Home marker, a ship mat with 1 forward slot and 4 side slots, a small screen for your cards and fuel, 10 energy cubes, a hull track (10) and a heat track.
-- Subsystem tiles (one set per player, so at most one of each except two lasers): railgun, sensor array, broadside laser ×2, shields, radiator, fuel compressor, ballistic rack, missiles. Tiles are double-sided: face-down shows only the slot type.
+- Subsystem tiles: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles. Take as many copies of a tile as you have slots it fits: two shields, four lasers, anything goes. Tiles are double-sided: face-down shows only the slot type.
 - Mission cards, crate tokens, data chits, missile tokens, station tokens, one d10.
 
 ---
@@ -52,7 +52,7 @@ Each planet has a station on **Ring 1**. Stations drift like ships: 4 sectors at
 ## Setup
 
 1. **Missions.** Each player draws 5 mission cards from their deck and keeps 3, face-down behind their screen. Return the rest.
-2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array or missiles) and 4 side tiles (laser, shields, radiator, fuel compressor, ballistic rack or missiles). All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
+2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array or missiles) and 4 side tiles (laser, shields, radiator, fuel compressor, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
 3. **Deployment.** In turn order, each player places their ship, facing prograde, on **Black Hole Ring 4** in any empty sector, and puts their Home marker there. Everyone starts together and scatters from there; missions are secret, so pick your sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring).
 4. Fill the hull track to 10, reaction mass to 10 (16 with a fuel compressor, kept behind your screen), heat to 0. Energy cubes stay in the reactor.
 

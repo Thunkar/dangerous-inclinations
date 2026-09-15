@@ -61,7 +61,7 @@ export function validateLoadout(
   check(loadout.forwardSlots, "forward", "Forward");
   check(loadout.sideSlots, "side", "Side");
 
-  // One set of tiles per player: at most maxPerShip of each type.
+  // Repeats are allowed unless the tileLimits knob is on (at most maxPerShip of each type).
   const counts = new Map<SubsystemType, number>();
   if (!rules.tileLimits) return { valid: errors.length === 0, errors };
   for (const type of [...loadout.forwardSlots, ...loadout.sideSlots]) {

@@ -30,7 +30,11 @@ export interface RuleSet {
   destroyPoints: number;
   /** How many of the six Deliver routes go into each player's deck. */
   deliverRoutesDealt: number;
-  /** One set of tiles per player (at most maxPerShip of each). Off only to simulate what the set forbids. */
+  /**
+   * Limit each tile type to maxPerShip copies per ship. Off by default: any
+   * tile may fill any slot it fits, repeats included (designer's call, 15 Sept
+   * 2026). On, for experiments that want the old one-set-per-player rule.
+   */
   tileLimits: boolean;
 }
 
@@ -42,7 +46,7 @@ export const DEFAULT_RULES: RuleSet = {
   startingHull: 10,
   destroyPoints: 2,
   deliverRoutesDealt: 6,
-  tileLimits: true,
+  tileLimits: false,
 };
 
 export function resolveRules(partial?: Partial<RuleSet> | null): RuleSet {

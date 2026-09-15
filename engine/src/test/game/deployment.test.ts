@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DEFAULT_RULES } from "../../models/rules.ts";
 import {
   checkAllDeployed,
   deployShip,
@@ -176,6 +177,15 @@ describe("setup: submitLoadout", () => {
 });
 
 describe("loadout: validation and instantiation", () => {
+  it("the tileLimits knob brings back one set per player", () => {
+    const threeLasers = {
+      forwardSlots: ["railgun"],
+      sideSlots: ["laser", "laser", "laser", "shields"],
+    } as const;
+    expect(validateLoadout(threeLasers).valid).toBe(true);
+    expect(validateLoadout(threeLasers, { ...DEFAULT_RULES, tileLimits: true }).valid).toBe(false);
+  });
+
   it.each([
     ["the default loadout", DEFAULT_LOADOUT, true],
     [
@@ -187,20 +197,20 @@ describe("loadout: validation and instantiation", () => {
       true,
     ],
     [
-      "two missile tiles (one set per player)",
+      "two missile tiles (repeats are allowed)",
       {
         forwardSlots: ["missiles"],
         sideSlots: ["missiles", "radiator", "fuel_compressor", "ballistic_rack"],
       },
-      false,
+      true,
     ],
     [
-      "three lasers (the set has two)",
+      "four shields (repeats are allowed)",
       {
         forwardSlots: ["railgun"],
-        sideSlots: ["laser", "laser", "laser", "shields"],
+        sideSlots: ["shields", "shields", "shields", "shields"],
       },
-      false,
+      true,
     ],
     [
       "an empty forward slot",
