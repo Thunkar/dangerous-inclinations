@@ -23,7 +23,7 @@ import {
 } from 'react'
 import type { GameEvent, GameRecording, GameView, PlayerAction, ShipLoadout } from '@dangerous-inclinations/engine'
 import { filterEventsFor, reconstructStateAtTurn, viewFor } from '@dangerous-inclinations/engine'
-import type { ChatKind, ChatMessage, GameSocketMessage, SubmitTurnMessage } from '../api/types'
+import type { ChatKind, ChatMessage, GameSocketMessage, SubmitTurnMessage, Seat } from '../api/types'
 import {
   getGame,
   getChat,
@@ -61,6 +61,8 @@ export interface GameContextValue {
   isAnimating: boolean
   /** Replays and spectators cannot act. */
   readOnly: boolean
+  /** Who plays each seat, from the lobby: a person, a bot, or an agent and its model. Empty in a replay. */
+  seats: Seat[]
   nameOf: (playerId: string) => string
   submitTurn: (actions: PlayerAction[]) => void
   submitLoadout: (loadout: ShipLoadout, missionIds: string[]) => Promise<void>
@@ -249,9 +251,10 @@ interface LiveGameProps {
   initialView: GameView
   initialEvents: GameEvent[]
   children: ReactNode
+  seats: Seat[]
 }
 
-function LiveGameProvider({ gameId, initialView, initialEvents, children }: LiveGameProps) {
+function LiveGameProvider({ gameId, initialView, initialEvents, seats, children }: LiveGameProps) {
   const { client, connect } = useWebSocket()
   const { playerId } = usePlayer()
   const { view, log, isAnimating, enqueue, registerAnimator, latestRef } = useViewQueue(initialView, initialEvents)
@@ -341,6 +344,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, children }: Live
       sendChat,
       isAnimating,
       readOnly: view.me === null || view.me.id !== playerId,
+      seats,
       nameOf,
       submitTurn,
       submitLoadout,
@@ -357,6 +361,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, children }: Live
       sendChat,
       isAnimating,
       playerId,
+      seats,
       nameOf,
       submitTurn,
       submitLoadout,
@@ -380,7 +385,7 @@ interface GameProviderProps {
 /** Loads the view for `gameId` and keeps it live over the WebSocket. */
 export function GameProvider({ gameId, children, fallback = null, renderError }: GameProviderProps) {
   const { isLoading: playerLoading } = usePlayer()
-  const [initial, setInitial] = useState<{ view: GameView; events: GameEvent[] } | null>(null)
+  const [initial, setInitial] = useState<{ view: GameView; events: GameEvent[]; seats: Seat[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -390,7 +395,7 @@ export function GameProvider({ gameId, children, fallback = null, renderError }:
     setError(null)
     getGame(gameId)
       .then((response) => {
-        if (!cancelled) setInitial({ view: response.view, events: response.events ?? [] })
+        if (!cancelled) setInitial({ view: response.view, events: response.events ?? [], seats: response.seats ?? [] })
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
@@ -404,7 +409,13 @@ export function GameProvider({ gameId, children, fallback = null, renderError }:
   if (!initial) return <>{fallback}</>
 
   return (
-    <LiveGameProvider key={gameId} gameId={gameId} initialView={initial.view} initialEvents={initial.events}>
+    <LiveGameProvider
+      key={gameId}
+      gameId={gameId}
+      initialView={initial.view}
+      initialEvents={initial.events}
+      seats={initial.seats}
+    >
       {children}
     </LiveGameProvider>
   )
@@ -425,6 +436,8 @@ interface ReplayGameProviderProps {
 
 /** A recording keeps no table talk: a replay's chat is always empty. */
 const NO_CHAT: ChatMessage[] = []
+/** A recording keeps no lobby either: who played each seat is not shown in a replay. */
+const NO_SEATS: Seat[] = []
 
 function replayView(recording: GameRecording, turnIndex: number, perspectiveId: string | null): GameView {
   return viewFor(reconstructStateAtTurn(recording, turnIndex), perspectiveId)
@@ -474,6 +487,7 @@ export function ReplayGameProvider({ recording, turnIndex, perspectiveId, childr
       sendChat: asyncNoop,
       isAnimating,
       readOnly: true,
+      seats: NO_SEATS,
       nameOf,
       submitTurn: noop,
       submitLoadout: asyncNoop,

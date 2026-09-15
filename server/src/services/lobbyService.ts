@@ -12,6 +12,7 @@ import { createKeyedLock } from "./lock.ts";
 import { broadcastToRoom } from "../websocket/rooms.ts";
 import type { CreateLobbyInput } from "../schemas/lobby.ts";
 import { getPlayer } from "./playerService.ts";
+import type { AgentInfo, PlayerAuth } from "../schemas/player.ts";
 import { gameService } from "./live.ts";
 import { log } from "./logger.ts";
 
@@ -21,8 +22,11 @@ const LOBBY_LIST_KEY = "lobbies";
 export interface LobbyPlayer {
   playerId: string;
   playerName: string;
+  /** The server's own AI. */
   isBot: boolean;
   isReady: boolean;
+  /** An outside agent (Claude, Codex) playing this seat; absent for people and bots. */
+  agent?: AgentInfo;
 }
 
 export interface Lobby {
@@ -48,6 +52,17 @@ const lobbyKey = (lobbyId: string) => `${LOBBY_KEY_PREFIX}${lobbyId}`;
  * `leaveLobby`, which already holds the lock.
  */
 const withLobbyLock = createKeyedLock();
+
+/** A person's or an agent's seat, as the lobby shows it to everyone. */
+function seatFor(playerId: string, player: PlayerAuth): LobbyPlayer {
+  return {
+    playerId,
+    playerName: player.playerName,
+    isBot: false,
+    isReady: false,
+    ...(player.agent ? { agent: player.agent } : {}),
+  };
+}
 
 async function saveLobby(lobby: Lobby): Promise<void> {
   await getRedis().set(lobbyKey(lobby.lobbyId), JSON.stringify(lobby));
@@ -76,7 +91,7 @@ export async function createLobby(input: CreateLobbyInput, hostPlayerId: string)
     // Belt and braces: the schema bounds this too, but a lobby that can never
     // start a game is worse than a clamped one.
     maxPlayers: Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, Math.trunc(input.maxPlayers))),
-    players: [{ playerId: hostPlayerId, playerName: hostPlayer.playerName, isBot: false, isReady: false }],
+    players: [seatFor(hostPlayerId, hostPlayer)],
     hostPlayerId,
     createdAt: Date.now(),
   };
@@ -143,7 +158,7 @@ export function joinLobby(
     const player = await getPlayer(playerId);
     if (!player) return { success: false, error: "Player not found" };
 
-    const newPlayer: LobbyPlayer = { playerId, playerName: player.playerName, isBot: false, isReady: false };
+    const newPlayer = seatFor(playerId, player);
     lobby.players.push(newPlayer);
     await saveLobby(lobby);
 

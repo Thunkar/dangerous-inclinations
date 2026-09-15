@@ -20,6 +20,7 @@ import { createRecordingService, type RecordingArchive } from "../src/services/r
 import { createGameService, type GameTransport } from "../src/services/gameService.ts";
 import { checkStatusAccess } from "../src/services/playerService.ts";
 import { SubmitTurnSchema } from "../src/schemas/game.ts";
+import { CreatePlayerSchema } from "../src/schemas/player.ts";
 import {
   broadcastViews as roomBroadcastViews,
   getConnectedPlayers,
@@ -344,6 +345,16 @@ const otherStatus = checkStatusAccess(HUMAN, BOT_A);
 check(!otherStatus.ok && otherStatus.code === 403, "asking for another player's status is a 403");
 const anonStatus = checkStatusAccess(undefined, HUMAN);
 check(!anonStatus.ok && anonStatus.code === 401, "a status request without x-player-id is a 401");
+
+// --- Agent seats (who plays a seat is public, and only known drivers count) ---
+const agentSeat = CreatePlayerSchema.safeParse({ playerName: "Codex", agent: { driver: "codex", model: "gpt-6-astra" } });
+check(agentSeat.success && agentSeat.data.agent?.driver === "codex", "a player may be created as a Codex agent with its model");
+check(CreatePlayerSchema.safeParse({ playerName: "Ada" }).success, "a person needs no agent field");
+check(
+  !CreatePlayerSchema.safeParse({ playerName: "X", agent: { driver: "skynet", model: "t-800" } }).success,
+  "an unknown agent driver is rejected",
+);
+check(!CreatePlayerSchema.safeParse({ playerName: "X", agent: { driver: "claude" } }).success, "an agent without a model is rejected");
 
 // --- Forking (finished recordings only, and only a seat you may take) --------
 const liveFork = await games.forkGameFromRecording(GAME_ID, -1, {

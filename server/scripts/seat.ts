@@ -1,13 +1,14 @@
 /**
  * A seat at the table for an agent (or a person at a terminal).
  *
- *   yarn seat                                     interactive menu: pick a server, an identity, a lobby or game
- *   yarn seat lobbies                             list lobbies with their players and game ids
- *   yarn seat register --as Codex                 create a player identity and remember it
- *   yarn seat lobby --as Codex --name "Arena" --bots 1 --max 3   create a lobby (+ bots), print its id
- *   yarn seat join --as Codex --lobby <id>        join a lobby
- *   yarn seat start --as Codex --lobby <id>       start the game, remember its id
- *   yarn seat view --as Codex [--game <id>] [--rules] [--json] [--turns 2]
+ *   yarn seat                                     menu: server → who sits down → lobby → start / bots / wait → driver
+ *   yarn seat lobbies                             every lobby on the server: seats, ids, game id
+ *   yarn seat register --name Codex --agent codex [--model gpt-6-astra]   create a player on the server, print its id
+ *   yarn seat lobby --player <id> --name "Arena" --bots 1 --max 3        create a lobby (+ bots), print its id
+ *   yarn seat join --player <id> --lobby <id>     join a lobby (a new player is at no table yet, so it goes by id)
+ *   yarn seat start --as Codex                    start the seat's lobby (host only), print the game id
+ *   yarn seat leave --as Codex                    leave the lobby
+ *   yarn seat view --as Codex [--rules] [--json] [--turns 2]
  *   yarn seat options --as Codex                  legal moves, as JSON
  *   yarn seat try --as Codex --intent '{...}'     build + dry-run a turn: errors or the events it would cause
  *   yarn seat act --as Codex --intent '{...}'    build, dry-run, submit (an illegal turn is refused, nothing is sent)
@@ -16,16 +17,22 @@
  *   yarn seat rules                               the full RULES.md
  *   yarn seat say --as Codex "text" / think "text" / chat
  *   yarn seat wait --as Codex [--timeout 600]     hold a socket open until it is your turn, then print the view
- *   yarn seat agent --as Codex --driver codex [--model gpt-6-astra] [--turns N] [--quiet-think]
+ *   yarn seat agent --as Codex [--driver codex|claude] [--model m] [--turns N] [--quiet-think]
  *
- * Identities live in ~/.config/dangerous-inclinations/seats.json. Turns go over
- * the game WebSocket like a browser's; everything else is REST. There is no
- * autopilot: an illegal intent is refused before it is sent and the agent gets
- * the engine's reasons, the legal options and the full rules back, and tries
- * again until its turn is legal.
+ * Nothing is kept on this machine: players, lobbies and games live on the
+ * server. A seat is named with `--as <name>`, which finds a player of that
+ * name at one of the server's lobbies (`--lobby <id>` or `--game <id>` narrow
+ * it when the name sits at several tables), or with `--player <id>` (or
+ * DI_PLAYER). The game is the one the seat's lobby started. A player is a
+ * person, or an agent: `{driver: "claude" | "codex", model}` stored with the
+ * player and shown to everyone, and `yarn seat agent` plays the seat with
+ * that driver. Turns go over the game WebSocket like a browser's; everything
+ * else is REST. There is no autopilot: an illegal intent is refused before it
+ * is sent and the agent gets the engine's reasons, the legal options and the
+ * full rules back, and tries again until its turn is legal.
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
@@ -49,7 +56,7 @@ import {
 import type { ChatMessage, PreviewPayload, ServerGameMessage } from "../src/protocol.ts";
 
 // ---------------------------------------------------------------------------
-// Arguments and identities
+// Arguments and the seat
 // ---------------------------------------------------------------------------
 
 const args = process.argv.slice(2);
@@ -65,8 +72,7 @@ function flag(name: string): string | undefined {
 }
 const has = (name: string) => flag(name) !== undefined;
 
-const CONFIG_DIR = join(homedir(), ".config", "dangerous-inclinations");
-/** The repository root: RULES.md lives there and Codex runs there so it can read it. */
+/** The repository root: RULES.md lives there and the drivers run there so the model can read it. */
 const REPO_ROOT = join(new URL(".", import.meta.url).pathname, "..", "..");
 const fullRules = (): string => {
   try {
@@ -75,45 +81,47 @@ const fullRules = (): string => {
     return "(RULES.md not found)";
   }
 };
-const SEATS_FILE = join(CONFIG_DIR, "seats.json");
-interface Seat {
-  playerId: string;
-  server: string;
-  lastGame?: string;
-  lastLobby?: string;
+/** Transcripts of what a driver was asked and answered. Output only; no state lives here. */
+const LOG_DIR = join(homedir(), ".config", "dangerous-inclinations", "logs");
+
+/** Which program plays a seat, and with which model. Stored on the server with the player. */
+interface AgentInfo {
+  driver: "claude" | "codex";
+  model: string;
 }
-function loadSeats(): Record<string, Seat> {
-  if (!existsSync(SEATS_FILE)) return {};
-  return JSON.parse(readFileSync(SEATS_FILE, "utf8")) as Record<string, Seat>;
-}
-function saveSeats(seats: Record<string, Seat>): void {
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(SEATS_FILE, JSON.stringify(seats, null, 2) + "\n");
-}
-let seatName = flag("as");
-const seats = loadSeats();
-const seat: Seat | undefined = seatName ? seats[seatName] : undefined;
-let SERVER = flag("server") ?? seat?.server ?? process.env.DI_SERVER ?? "http://localhost:3000";
-let PLAYER = flag("player") ?? seat?.playerId ?? process.env.DI_PLAYER;
-let GAME = flag("game") ?? seat?.lastGame ?? process.env.DI_GAME;
-function remember(patch: Partial<Seat>): void {
-  if (!seatName) return;
-  seats[seatName] = {
-    ...(seats[seatName] ?? { playerId: PLAYER ?? "", server: SERVER }),
-    ...patch,
-  };
-  saveSeats(seats);
-}
+const DRIVERS: ReadonlyArray<AgentInfo["driver"]> = ["claude", "codex"];
+const DEFAULT_MODEL: Record<AgentInfo["driver"], string> = {
+  claude: "claude-fable-5-1",
+  codex: "gpt-6-astra",
+};
+const DRIVER_NAME: Record<AgentInfo["driver"], string> = { claude: "Claude", codex: "Codex" };
+const agentLabel = (a?: AgentInfo): string | null => (a ? `${DRIVER_NAME[a.driver]} · ${a.model}` : null);
+const isDriver = (s: string | undefined): s is AgentInfo["driver"] =>
+  s !== undefined && (DRIVERS as readonly string[]).includes(s);
+
+let SERVER = flag("server") ?? process.env.DI_SERVER ?? "http://localhost:3000";
+let PLAYER: string | undefined = flag("player") ?? process.env.DI_PLAYER;
+let GAME: string | undefined = flag("game") ?? process.env.DI_GAME;
+let LOBBY: string | undefined = flag("lobby");
+let seatName: string | undefined = flag("as");
+/** The seat's agent record, once the seat is resolved against the server. */
+let AGENT: AgentInfo | undefined;
+
 const log = (s: string) => console.error(`[seat${seatName ? ` ${seatName}` : ""}] ${s}`);
 function die(message: string): never {
   console.error(message);
   process.exit(1);
 }
 function needPlayer(): string {
-  return PLAYER ?? die("No player: use --as <name> (after `register`) or --player <id>");
+  return (
+    PLAYER ??
+    die(
+      "No seat: --as <name> (a player at one of the server's lobbies) or --player <id>. `yarn seat` creates one."
+    )
+  );
 }
 function needGame(): string {
-  return GAME ?? die("No game: use --game <id> (the id is remembered after `start` or `join`)");
+  return GAME ?? die("No game: this seat's lobby has not started yet (or pass --game <id>)");
 }
 
 // ---------------------------------------------------------------------------
@@ -319,63 +327,88 @@ async function submitDeploy(sector: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// The Codex driver
+// The drivers: a model answers one prompt with one JSON object
 // ---------------------------------------------------------------------------
 
-function askCodex(
-  prompt: string,
-  model: string,
-  timeoutMs: number
-): Record<string, unknown> | null {
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  const promptFile = join(CONFIG_DIR, `prompt-${process.pid}.txt`);
-  const outFile = join(CONFIG_DIR, `answer-${process.pid}.txt`);
-  writeFileSync(promptFile, prompt);
-  const run = spawnSync(
-    "codex",
-    [
-      "exec",
-      "-m",
-      model,
-      "--sandbox",
-      "read-only",
-      "--skip-git-repo-check",
-      "--ephemeral",
-      "-o",
-      outFile,
-      "-",
-    ],
-    {
-      input: prompt,
-      encoding: "utf8",
-      timeout: timeoutMs,
-      maxBuffer: 16 * 1024 * 1024,
-      cwd: REPO_ROOT,
-    }
-  );
+type Driver = AgentInfo;
+
+/**
+ * Ask the model once. Codex runs `codex exec` and Claude runs `claude -p`,
+ * both in the repository with read-only tools so the model can open RULES.md
+ * itself. The answer is the outermost JSON object in the reply, or null.
+ */
+function askModel(prompt: string, drv: Driver, timeoutMs: number): Record<string, unknown> | null {
+  const outFile = join(tmpdir(), `di-seat-answer-${process.pid}.txt`);
+  if (existsSync(outFile)) writeFileSync(outFile, "");
+  const argv =
+    drv.driver === "codex"
+      ? [
+          "exec",
+          "-m",
+          drv.model,
+          "--sandbox",
+          "read-only",
+          "--skip-git-repo-check",
+          "--ephemeral",
+          "-o",
+          outFile,
+          "-",
+        ]
+      : [
+          "-p",
+          "--model",
+          drv.model,
+          "--output-format",
+          "json",
+          "--tools",
+          "Read,Grep,Glob",
+          "--allowedTools",
+          "Read,Grep,Glob",
+          "--no-session-persistence",
+        ];
+  // A nested Claude Code session refuses to start unless it is told it is not nested.
+  const env = { ...process.env };
+  delete env.CLAUDECODE;
+  const run = spawnSync(drv.driver, argv, {
+    input: prompt,
+    encoding: "utf8",
+    timeout: timeoutMs,
+    maxBuffer: 16 * 1024 * 1024,
+    cwd: REPO_ROOT,
+    env,
+  });
   if (run.error) {
-    log(`codex failed to run: ${run.error.message}`);
+    log(`${drv.driver} failed to run: ${run.error.message}`);
     return null;
   }
-  const text = existsSync(outFile) ? readFileSync(outFile, "utf8") : run.stdout;
-  // The answer is one JSON object, possibly inside a code fence; take the outermost braces.
+  let text = drv.driver === "codex" && existsSync(outFile) ? readFileSync(outFile, "utf8") : run.stdout;
+  if (drv.driver === "claude") {
+    // `--output-format json` wraps the reply: {"type":"result","result":"<the model's text>",...}
+    try {
+      const wrapped = JSON.parse(text) as { result?: string; is_error?: boolean };
+      if (typeof wrapped.result === "string") text = wrapped.result;
+    } catch {
+      /* not wrapped: use the raw text */
+    }
+  }
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) {
-    log(`codex gave no JSON (exit ${run.status}); stderr tail: ${run.stderr.slice(-400)}`);
+    log(`${drv.driver} gave no JSON (exit ${run.status}); stderr tail: ${run.stderr.slice(-400)}`);
+    transcript(`RAW ${drv.driver} reply without JSON (exit ${run.status})\n${text.slice(0, 2000)}\n${run.stderr.slice(-1000)}`);
     return null;
   }
   try {
     return JSON.parse(match[0]) as Record<string, unknown>;
   } catch (e) {
-    log(`codex JSON did not parse: ${(e as Error).message}`);
+    log(`${drv.driver} JSON did not parse: ${(e as Error).message}`);
     return null;
   }
 }
 
 function transcript(line: string): void {
-  mkdirSync(join(CONFIG_DIR, "logs"), { recursive: true });
+  mkdirSync(LOG_DIR, { recursive: true });
   appendFileSync(
-    join(CONFIG_DIR, "logs", `${GAME ?? "game"}-${seatName ?? PLAYER}.log`),
+    join(LOG_DIR, `${GAME ?? "game"}-${seatName ?? PLAYER}.log`),
     `${new Date().toISOString()} ${line}\n`
   );
 }
@@ -405,7 +438,7 @@ Reply with ONE JSON object: {"think": "<your reasoning in 1-3 sentences; a human
 async function driveTurn(
   table: Table,
   payload: ViewPayload,
-  model: string,
+  drv: Driver,
   quietThink: boolean
 ): Promise<ViewPayload> {
   const view = payload.view;
@@ -413,7 +446,7 @@ async function driveTurn(
   for (let attempt = 1; ; attempt++) {
     const prompt = await turnPrompt(payload, errors, attempt);
     transcript(`PROMPT T${view.turn} attempt ${attempt}\n${prompt}`);
-    const answer = askCodex(prompt, model, 240_000);
+    const answer = askModel(prompt, drv, 240_000);
     transcript(`ANSWER T${view.turn} attempt ${attempt}\n${JSON.stringify(answer)}`);
     if (!answer) {
       errors = ["the model gave no usable answer (answer with one JSON object and nothing else)"];
@@ -456,7 +489,7 @@ async function driveTurn(
 }
 async function driveLoadout(
   payload: ViewPayload,
-  model: string,
+  drv: Driver,
   quietThink: boolean
 ): Promise<void> {
   const view = payload.view;
@@ -467,7 +500,7 @@ async function driveLoadout(
         ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again; every tile must fit its slot (forward: railgun, sensor_array or missiles; side: laser, shields, radiator, fuel_compressor, ballistic_rack or missiles) and you keep exactly 3 of the 5 offers by their ids.`
         : ""
     }`;
-    const answer = askCodex(prompt, model, 240_000);
+    const answer = askModel(prompt, drv, 240_000);
     transcript(`LOADOUT ANSWER attempt ${attempt}\n${JSON.stringify(answer)}`);
     if (!answer) {
       error = "no usable answer (one JSON object, nothing else)";
@@ -498,7 +531,7 @@ async function driveLoadout(
 }
 async function driveDeploy(
   payload: ViewPayload,
-  model: string,
+  drv: Driver,
   quietThink: boolean
 ): Promise<void> {
   const view = payload.view;
@@ -507,7 +540,7 @@ async function driveDeploy(
     const prompt = `${AGENT_RULES_DIGEST}\n\n${deployPrompt(view)}${
       error ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Pick a free sector 0-23.` : ""
     }`;
-    const answer = askCodex(prompt, model, 180_000);
+    const answer = askModel(prompt, drv, 180_000);
     transcript(`DEPLOY ANSWER attempt ${attempt}\n${JSON.stringify(answer)}`);
     if (!answer || typeof answer.sector !== "number") {
       error = "the answer needs a numeric sector";
@@ -525,15 +558,25 @@ async function driveDeploy(
     return;
   }
 }
+/** Which driver plays this seat: the flag, else the agent record stored with the player. */
+function chooseDriver(): Driver {
+  const name = flag("driver") ?? AGENT?.driver;
+  if (!isDriver(name))
+    die(
+      name
+        ? `Unknown driver ${name}: claude or codex.`
+        : `${seatName ?? PLAYER} is not an agent seat. Pass --driver claude|codex, or play it with view/try/act.`
+    );
+  const model = flag("model") ?? (AGENT?.driver === name ? AGENT.model : DEFAULT_MODEL[name]);
+  return { driver: name, model };
+}
+
 async function agentLoop(): Promise<void> {
-  const driver = flag("driver") ?? "codex";
-  if (driver !== "codex")
-    die(`Unknown driver ${driver}. Only "codex" is built in; a person plays with view/try/act.`);
-  const model = flag("model") ?? "gpt-6-astra";
+  const drv = chooseDriver();
   const maxTurns = Number(flag("turns") ?? Infinity);
   const quietThink = has("quiet-think");
   const table = await Table.open();
-  log(`seated at game ${needGame()} as ${needPlayer()}; driver ${driver} (${model})`);
+  log(`seated at game ${needGame()} as ${needPlayer()}; driver ${agentLabel(drv)}`);
   let played = 0;
   try {
     while (played < maxTurns) {
@@ -544,14 +587,14 @@ async function agentLoop(): Promise<void> {
         break;
       }
       if (view.phase === "loadout") {
-        await driveLoadout(payload, model, quietThink);
+        await driveLoadout(payload, drv, quietThink);
         continue;
       }
       if (view.phase === "deployment") {
-        await driveDeploy(payload, model, quietThink);
+        await driveDeploy(payload, drv, quietThink);
         continue;
       }
-      await driveTurn(table, payload, model, quietThink);
+      await driveTurn(table, payload, drv, quietThink);
       played++;
     }
   } finally {
@@ -560,7 +603,7 @@ async function agentLoop(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Lobbies and the interactive menu
+// Lobbies, the seat on the server, and the interactive menu
 // ---------------------------------------------------------------------------
 
 interface LobbySummary {
@@ -571,39 +614,128 @@ interface LobbySummary {
   gameStarted: boolean;
   createdAt: string;
 }
+interface SeatInfo {
+  playerId: string;
+  playerName: string;
+  isBot: boolean;
+  agent?: AgentInfo;
+}
 interface LobbyDetail {
   lobbyId: string;
   lobbyName: string;
   maxPlayers: number;
-  players: Array<{ playerId: string; playerName: string; isBot: boolean }>;
+  hostPlayerId: string;
+  players: SeatInfo[];
   gameId?: string;
+}
+interface PlayerRecord {
+  playerId: string;
+  playerName: string;
+  agent?: AgentInfo;
 }
 
 const listLobbies = () => http<LobbySummary[]>("GET", "/api/lobbies", undefined, undefined);
 const lobbyDetail = (id: string) =>
   http<LobbyDetail>("GET", `/api/lobbies/${id}`, undefined, undefined);
+const allLobbies = async (): Promise<LobbyDetail[]> =>
+  Promise.all((await listLobbies()).map((l) => lobbyDetail(l.lobbyId)));
+
+/** "Codex (Codex · gpt-6-astra)", "Bot 1 (bot)", "thunkar". */
+function seatLabel(p: SeatInfo, lobby?: LobbyDetail): string {
+  const kind = p.isBot ? "bot" : agentLabel(p.agent);
+  const host = lobby && lobby.hostPlayerId === p.playerId ? ", host" : "";
+  return `${p.playerName}${kind || host ? ` (${[kind, host.replace(", ", "")].filter(Boolean).join(", ")})` : ""}`;
+}
+
+/**
+ * Fill in PLAYER, LOBBY, GAME, seatName and AGENT from the server. With
+ * `--player` the player's own status says where it sits; with `--as <name>`
+ * the seat is the non-bot player of that name at one of the lobbies.
+ */
+async function resolveSeat(opts: { narrow: boolean }): Promise<void> {
+  if (PLAYER) {
+    const status = await http<{ player: PlayerRecord; lobby: LobbyDetail | null }>(
+      "GET",
+      `/api/players/${PLAYER}/status`
+    ).catch((e: Error) =>
+      die(
+        `Player ${PLAYER} is unknown to ${SERVER} (${e.message}). Was Redis reset? \`yarn seat\` creates a new seat.`
+      )
+    );
+    seatName ??= status.player.playerName;
+    AGENT = status.player.agent;
+    if (status.lobby) {
+      LOBBY ??= status.lobby.lobbyId;
+      GAME ??= status.lobby.gameId;
+    }
+    return;
+  }
+  if (!seatName) return;
+  const wanted = seatName.toLowerCase();
+  const matches = (await allLobbies())
+    .flatMap((lobby) =>
+      lobby.players
+        .filter((p) => !p.isBot && p.playerName.toLowerCase() === wanted)
+        .map((seat) => ({ lobby, seat }))
+    )
+    .filter(
+      (m) =>
+        !opts.narrow ||
+        ((!LOBBY || m.lobby.lobbyId === LOBBY) && (!GAME || m.lobby.gameId === GAME))
+    );
+  if (matches.length === 0)
+    die(
+      `No seat named ${seatName} at any lobby on ${SERVER}. \`yarn seat\` creates a player and joins a lobby; --player <id> names a seat directly.`
+    );
+  if (matches.length > 1)
+    die(
+      `${matches.length} seats are named ${seatName}:\n${matches
+        .map((m) => `  ${seatLabel(m.seat)}  player ${m.seat.playerId}  at ${m.lobby.lobbyName} (lobby ${m.lobby.lobbyId})`)
+        .join("\n")}\nNarrow it with --lobby <id> or --game <id>, or use --player <id>.`
+    );
+  const [m] = matches;
+  PLAYER = m.seat.playerId;
+  seatName = m.seat.playerName;
+  AGENT = m.seat.agent;
+  LOBBY ??= m.lobby.lobbyId;
+  GAME ??= m.lobby.gameId;
+}
 
 async function printLobbies(): Promise<LobbyDetail[]> {
-  const list = await listLobbies();
-  if (list.length === 0) {
+  const details = await allLobbies();
+  if (details.length === 0) {
     console.log("No lobbies on this server.");
     return [];
   }
-  const details = await Promise.all(list.map((l) => lobbyDetail(l.lobbyId)));
   details.forEach((d, i) => {
-    const who =
-      d.players.map((p) => `${p.playerName}${p.isBot ? " (bot)" : ""}`).join(", ") || "empty";
-    const state = d.gameId
-      ? `STARTED  game ${d.gameId}`
-      : `open ${d.players.length}/${d.maxPlayers}`;
-    console.log(
-      `${String(i + 1).padStart(2)}) ${d.lobbyName}  [${state}]  lobby ${d.lobbyId}\n      ${who}`
-    );
+    const state = d.gameId ? `STARTED  game ${d.gameId}` : `open ${d.players.length}/${d.maxPlayers}`;
+    console.log(`${String(i + 1).padStart(2)}) ${d.lobbyName}  [${state}]  lobby ${d.lobbyId}`);
+    for (const p of d.players)
+      console.log(`      ${seatLabel(p, d)}${p.isBot ? "" : `  player ${p.playerId}`}`);
   });
   return details;
 }
 
-/** Interactive: server, identity, then a lobby or a game, remembered for the next commands. */
+function printFollowUps(lobby: LobbyDetail): void {
+  const who = agentLabel(AGENT);
+  console.log(
+    `\nSeated as ${seatName}${who ? ` (${who})` : ""} at ${lobby.lobbyName}${GAME ? `, game ${GAME}` : ""}.`
+  );
+  console.log(`Player ${PLAYER}. The seat is found on the server by name; nothing is stored here.`);
+  const as = `--as ${JSON.stringify(seatName)}`;
+  console.log(`  yarn seat view ${as}            what this seat sees, with the legal moves`);
+  console.log(`  yarn seat wait ${as}            block until it is your turn`);
+  console.log(`  yarn seat try ${as} --intent '{"move":{"kind":"coast"}}'`);
+  console.log(`  yarn seat act ${as} --intent '{...}' --think "..." --say "..."`);
+  console.log(`  yarn seat chat ${as}`);
+  if (AGENT) console.log(`  yarn seat agent ${as}           ${who} plays this seat`);
+  else console.log(`  yarn seat agent ${as} --driver claude|codex   let a model play this seat`);
+  console.log(
+    `If the name sits at several tables add --lobby ${lobby.lobbyId}, or use --player ${PLAYER}.`
+  );
+}
+
+/** Interactive: server → who sits down → a lobby → start, bots or wait → the driver. */
 async function menu(): Promise<void> {
   const rl = createInterface({ input: stdin, output: stdout });
   const ask = async (q: string, fallback = ""): Promise<string> => {
@@ -615,6 +747,16 @@ async function menu(): Promise<void> {
     const i = Number(a);
     return Number.isInteger(i) && i >= 1 && i <= n ? i - 1 : null;
   };
+  const item = (i: number, text: string) => console.log(`${String(i).padStart(2)}) ${text}`);
+  const attempt = async (what: string, run: () => Promise<unknown>): Promise<boolean> => {
+    try {
+      await run();
+      return true;
+    } catch (e) {
+      console.log(`Could not ${what}: ${(e as Error).message}`);
+      return false;
+    }
+  };
   try {
     SERVER = await ask("Server", SERVER);
     try {
@@ -624,48 +766,55 @@ async function menu(): Promise<void> {
       return;
     }
 
-    // Identity.
-    const names = Object.keys(seats);
-    console.log("\nWho are you?");
-    names.forEach((n, i) =>
-      console.log(`${String(i + 1).padStart(2)}) ${n}  (${seats[n].playerId})`)
+    // 1. Who sits down: a new player (agent or person), or back to a seat already at a table.
+    const seated = (await allLobbies()).flatMap((lobby) =>
+      lobby.players.filter((p) => !p.isBot).map((seat) => ({ lobby, seat }))
     );
-    console.log(`${String(names.length + 1).padStart(2)}) a new identity`);
-    const who = await pick("Choose", names.length + 1);
+    console.log("\nWho sits down?");
+    item(1, `a new Claude agent (${DEFAULT_MODEL.claude})`);
+    item(2, `a new Codex agent (${DEFAULT_MODEL.codex})`);
+    item(3, "a new person at this terminal");
+    seated.forEach((s, i) =>
+      item(
+        i + 4,
+        `back as ${seatLabel(s.seat)} at ${s.lobby.lobbyName}${s.lobby.gameId ? " (started)" : ""}`
+      )
+    );
+    const who = await pick("Choose", 3 + seated.length);
     if (who === null) return;
-    if (who === names.length) {
-      const name = await ask("Name for the new identity");
-      if (!name) return;
-      const { playerId } = await http<{ playerId: string }>(
+    let lobby: LobbyDetail | null = null;
+    if (who < 3) {
+      const driver = who === 0 ? "claude" : who === 1 ? "codex" : null;
+      const name = await ask("Name", driver ? DRIVER_NAME[driver] : userInfo().username);
+      const agent = driver ? { driver, model: await ask("Model", DEFAULT_MODEL[driver]) } : undefined;
+      const created = await http<PlayerRecord>(
         "POST",
         "/api/players",
-        { playerName: name },
+        { playerName: name, ...(agent ? { agent } : {}) },
         undefined
       );
-      seats[name] = { playerId, server: SERVER };
-      seatName = name;
-    } else seatName = names[who];
-    PLAYER = seats[seatName].playerId;
-    seats[seatName].server = SERVER;
-    saveSeats(seats);
-    console.log(`\nSeated as ${seatName}.`);
+      PLAYER = created.playerId;
+      seatName = created.playerName;
+      AGENT = created.agent;
+      console.log(`Created ${seatLabel({ ...created, isBot: false })}: player ${PLAYER}.`);
+    } else {
+      const s = seated[who - 3];
+      PLAYER = s.seat.playerId;
+      seatName = s.seat.playerName;
+      AGENT = s.seat.agent;
+      lobby = s.lobby;
+    }
 
-    // Lobby or game.
-    for (;;) {
+    // 2. A lobby: join one that is open, or create one.
+    while (!lobby) {
       console.log("\nLobbies on this server:");
       const details = await printLobbies();
       const n = details.length;
-      console.log(`${String(n + 1).padStart(2)}) create a lobby`);
-      console.log(`${String(n + 2).padStart(2)}) enter a game id`);
-      console.log(`${String(n + 3).padStart(2)}) refresh`);
-      const choice = await pick("Choose", n + 3);
+      item(n + 1, "create a lobby");
+      item(n + 2, "refresh");
+      const choice = await pick("Choose", n + 2);
       if (choice === null) return;
-      if (choice === n + 2) continue;
-      if (choice === n + 1) {
-        GAME = await ask("Game id");
-        break;
-      }
-      let lobby: LobbyDetail;
+      if (choice === n + 1) continue;
       if (choice === n) {
         const name = await ask("Lobby name", "Arena");
         const max = Number(await ask("Seats", "3"));
@@ -674,79 +823,76 @@ async function menu(): Promise<void> {
           lobbyName: name,
           maxPlayers: max,
         });
-        for (let i = 0; i < bots; i++)
-          await http("POST", `/api/lobbies/${created.lobbyId}/bot`, {});
+        for (let i = 0; i < bots; i++) await http("POST", `/api/lobbies/${created.lobbyId}/bot`, {});
         lobby = await lobbyDetail(created.lobbyId);
-      } else lobby = details[choice];
-      remember({ lastLobby: lobby.lobbyId, server: SERVER });
-      if (lobby.gameId) {
-        GAME = lobby.gameId;
-        break;
+        console.log(`Created ${lobby.lobbyName}; you are the host.`);
+        continue;
       }
-      if (!lobby.players.some((p) => p.playerId === PLAYER)) {
-        await http("POST", "/api/lobbies/join", { lobbyId: lobby.lobbyId });
+      const chosen = details[choice];
+      if (chosen.gameId) {
+        console.log("That table has already started; pick an open lobby or create one.");
+        continue;
+      }
+      if (await attempt("join", () => http("POST", "/api/lobbies/join", { lobbyId: chosen.lobbyId }))) {
+        lobby = await lobbyDetail(chosen.lobbyId);
         console.log(`Joined ${lobby.lobbyName}.`);
       }
-      // Wait for the host (or us) to start it.
-      for (;;) {
-        const d = await lobbyDetail(lobby.lobbyId);
-        console.log(
-          `\n${d.lobbyName}: ${d.players.map((p) => `${p.playerName}${p.isBot ? " (bot)" : ""}`).join(", ")} (${d.players.length}/${d.maxPlayers})${d.gameId ? ` — STARTED, game ${d.gameId}` : ""}`
-        );
-        if (d.gameId) {
-          GAME = d.gameId;
-          break;
-        }
-        console.log(
-          " 1) start the game now\n 2) add a bot\n 3) wait for someone else to start it\n 4) back"
-        );
-        const w = await pick("Choose", 4);
-        if (w === 0) {
-          const { gameId } = await http<{ gameId: string }>(
-            "POST",
-            `/api/lobbies/${lobby.lobbyId}/start`
-          );
-          GAME = gameId;
-          break;
-        }
-        if (w === 1) await http("POST", `/api/lobbies/${lobby.lobbyId}/bot`, {});
-        if (w === 2) {
-          process.stdout.write("waiting");
-          for (;;) {
-            const again = await lobbyDetail(lobby.lobbyId);
-            if (again.gameId) {
-              GAME = again.gameId;
-              console.log(` started: game ${GAME}`);
-              break;
-            }
-            process.stdout.write(".");
-            await new Promise((r) => setTimeout(r, 3000));
-          }
-          break;
-        }
-        if (w === 3 || w === null) {
-          GAME = undefined;
-          break;
-        }
-      }
-      if (GAME) break;
     }
-    if (!GAME) return;
-    remember({ lastGame: GAME, server: SERVER });
-    console.log(`\nGame ${GAME} is remembered for ${seatName}. From here:`);
-    console.log(
-      `  yarn seat view --as ${seatName}            what this seat sees, with the legal moves`
-    );
-    console.log(`  yarn seat wait --as ${seatName}            block until it is your turn`);
-    console.log(`  yarn seat try --as ${seatName} --intent '{"move":{"kind":"coast"}}'`);
-    console.log(`  yarn seat act --as ${seatName} --intent '{...}' --think "..." --say "..."`);
-    console.log(`  yarn seat agent --as ${seatName} --driver codex   let Codex play this seat`);
-    console.log(`  yarn seat chat --as ${seatName}`);
-    const go = await ask("Start the Codex driver for this seat now? (y/N)", "N");
+    LOBBY = lobby.lobbyId;
+
+    // 3. At the table: start it, seat bots, or wait for the host.
+    for (;;) {
+      const d = await lobbyDetail(LOBBY);
+      lobby = d;
+      console.log(`\n${d.lobbyName} (${d.players.length}/${d.maxPlayers})${d.gameId ? ` — STARTED, game ${d.gameId}` : ""}`);
+      for (const p of d.players) console.log(`  ${seatLabel(p, d)}${p.playerId === PLAYER ? "  ← you" : ""}`);
+      if (d.gameId) {
+        GAME = d.gameId;
+        break;
+      }
+      const host = d.hostPlayerId === PLAYER;
+      const options = host
+        ? ["start the game now", "add a bot", "wait for someone else to start it", "leave the lobby"]
+        : ["wait for the host to start it", "leave the lobby"];
+      options.forEach((o, i) => item(i + 1, o));
+      const w = await pick("Choose", options.length);
+      if (w === null) continue;
+      const chosen = options[w];
+      if (chosen === "start the game now") {
+        await attempt("start (2-4 seats, host only)", async () => {
+          const { gameId } = await http<{ gameId: string }>("POST", `/api/lobbies/${LOBBY}/start`);
+          GAME = gameId;
+        });
+        if (GAME) break;
+      } else if (chosen === "add a bot") {
+        await attempt("add a bot", () => http("POST", `/api/lobbies/${LOBBY}/bot`, {}));
+      } else if (chosen === "leave the lobby") {
+        await attempt("leave", () => http("POST", `/api/lobbies/${LOBBY}/leave`));
+        console.log(`Left ${d.lobbyName}. Player ${PLAYER} still exists on the server.`);
+        return;
+      } else {
+        process.stdout.write("waiting for the game to start");
+        for (;;) {
+          const again = await lobbyDetail(LOBBY);
+          if (again.gameId) {
+            GAME = again.gameId;
+            console.log(` started: game ${GAME}`);
+            break;
+          }
+          process.stdout.write(".");
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+        break;
+      }
+    }
+
+    // 4. Play.
+    printFollowUps(lobby);
+    if (!AGENT) return;
+    const go = await ask(`Start the ${agentLabel(AGENT)} driver for this seat now? (y/N)`, "N");
     if (go.toLowerCase().startsWith("y")) {
       rl.close();
       await agentLoop();
-      return;
     }
   } finally {
     rl.close();
@@ -757,7 +903,12 @@ async function menu(): Promise<void> {
 // Commands
 // ---------------------------------------------------------------------------
 
+/** Commands that need no seat: they only read the server or create a player. */
+const SEATLESS = new Set(["menu", "lobbies", "help", "rules", "guide", "register"]);
+
 async function main(): Promise<void> {
+  // `join` may name a seat that is not at the target lobby yet.
+  if (!SEATLESS.has(command)) await resolveSeat({ narrow: command !== "join" });
   switch (command) {
     case "menu":
       await menu();
@@ -775,18 +926,18 @@ async function main(): Promise<void> {
       );
       return;
     case "register": {
-      const name = flag("name") ?? seatName ?? die("--as <name> or --name <name>");
-      const { playerId } = await http<{ playerId: string }>(
+      const name = flag("name") ?? seatName ?? die("register --name <name> [--agent claude|codex] [--model m]");
+      const driver = flag("agent");
+      if (driver !== undefined && !isDriver(driver)) die(`--agent must be claude or codex, not ${driver}`);
+      const agent = isDriver(driver) ? { driver, model: flag("model") ?? DEFAULT_MODEL[driver] } : undefined;
+      const created = await http<PlayerRecord>(
         "POST",
         "/api/players",
-        { playerName: name },
+        { playerName: name, ...(agent ? { agent } : {}) },
         undefined
       );
-      if (seatName) {
-        seats[seatName] = { playerId, server: SERVER };
-        saveSeats(seats);
-      }
-      console.log(playerId);
+      log(`created ${seatLabel({ ...created, isBot: false })} on ${SERVER}`);
+      console.log(created.playerId);
       return;
     }
     case "lobby": {
@@ -797,29 +948,28 @@ async function main(): Promise<void> {
       });
       for (let i = 0; i < Number(flag("bots") ?? 0); i++)
         await http("POST", `/api/lobbies/${lobby.lobbyId}/bot`, {});
-      remember({ lastLobby: lobby.lobbyId });
       console.log(lobby.lobbyId);
       return;
     }
     case "join": {
       needPlayer();
-      const lobbyId = flag("lobby") ?? seat?.lastLobby ?? die("--lobby <id>");
+      const lobbyId = flag("lobby") ?? die("--lobby <id>");
       await http("POST", "/api/lobbies/join", { lobbyId });
-      remember({ lastLobby: lobbyId });
       console.log(`joined ${lobbyId}`);
       return;
     }
     case "start": {
       needPlayer();
-      const lobbyId = flag("lobby") ?? seat?.lastLobby ?? die("--lobby <id>");
+      const lobbyId = LOBBY ?? die("this seat is not at a lobby (or pass --lobby <id>)");
       const { gameId } = await http<{ gameId: string }>("POST", `/api/lobbies/${lobbyId}/start`);
-      remember({ lastGame: gameId });
       console.log(gameId);
       return;
     }
-    case "use": {
-      remember({ lastGame: flag("game") ?? positional[0] ?? die("use <gameId>") });
-      console.log("ok");
+    case "leave": {
+      needPlayer();
+      const lobbyId = LOBBY ?? die("this seat is not at a lobby");
+      await http("POST", `/api/lobbies/${lobbyId}/leave`);
+      console.log(`left ${lobbyId}`);
       return;
     }
     case "view": {

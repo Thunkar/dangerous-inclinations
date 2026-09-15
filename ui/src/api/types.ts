@@ -8,14 +8,25 @@ import type { GameEvent, GameView, PlayerAction } from '@dangerous-inclinations/
 // Players
 // ---------------------------------------------------------------------------
 
+/**
+ * An outside program playing a seat (a bot is the server's own AI). Public,
+ * like a name: everyone at the table sees who is a person, a bot or an agent.
+ */
+export interface AgentInfo {
+  driver: 'claude' | 'codex'
+  model: string
+}
+
 export interface Player {
   playerId: string
   playerName: string
+  agent?: AgentInfo
   createdAt: number
 }
 
 export interface CreatePlayerRequest {
   playerName: string
+  agent?: AgentInfo
 }
 
 export interface CreatePlayerResponse {
@@ -32,6 +43,8 @@ export interface LobbyPlayer {
   playerName: string
   isBot: boolean
   isReady: boolean
+  /** Set when an agent (Claude, Codex) plays this seat. */
+  agent?: AgentInfo
 }
 
 export interface ServerLobby {
@@ -93,10 +106,20 @@ export interface PlayerStatusResponse {
 // Games
 // ---------------------------------------------------------------------------
 
+/** Who plays a seat, as the lobby shows it: a person, a bot, or an agent and its model. */
+export interface Seat {
+  playerId: string
+  playerName: string
+  isBot: boolean
+  agent?: AgentInfo
+}
+
 /** `GET /api/games/:gameId` and every phase-change message carry a view plus the visible history. */
 export interface GameViewResponse {
   view: GameView
   events: GameEvent[]
+  /** Only on the REST fetch: the seats of the lobby this game came from. */
+  seats?: Seat[]
 }
 
 export interface ViewResponse {

@@ -7,13 +7,15 @@ import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
 import PersonIcon from '@mui/icons-material/Person'
 import SmartToyIcon from '@mui/icons-material/SmartToy'
+import PsychologyIcon from '@mui/icons-material/Psychology'
 import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import { useLobby } from '../../context/LobbyContext'
 import { usePlayer } from '../../context/PlayerContext'
 import { Panel } from '../common/Panel'
 import { getPlayerColor } from '../../utils/playerColors'
-import { TABLE } from '../../theme'
+import { agentLabel } from '../../utils/agents'
+import { FONT_MONO, TABLE } from '../../theme'
 
 export function LobbyScreen() {
   const { lobbyState, addBotToLobby, removeBotFromLobby, startGame, canStart, leaveLobbyAction, error } =
@@ -77,6 +79,8 @@ export function LobbyScreen() {
               {seat ? (
                 seat.isBot ? (
                   <SmartToyIcon sx={{ fontSize: 17, color: TABLE.inkSoft }} />
+                ) : seat.agent ? (
+                  <PsychologyIcon sx={{ fontSize: 17, color: TABLE.inkSoft }} />
                 ) : (
                   <PersonIcon sx={{ fontSize: 17, color: TABLE.inkSoft }} />
                 )
@@ -86,6 +90,13 @@ export function LobbyScreen() {
                 {seat?.playerId === playerId ? ' (you)' : ''}
                 {seat?.playerId === lobbyState.hostPlayerId ? ' · host' : ''}
               </Typography>
+              {seat?.agent && (
+                <Typography
+                  sx={{ fontFamily: FONT_MONO, fontSize: '0.72rem', color: TABLE.inkSoft, whiteSpace: 'nowrap' }}
+                >
+                  {agentLabel(seat.agent)}
+                </Typography>
+              )}
               <Box sx={{ flex: 1 }} />
               {isHost && seat?.isBot && (
                 <Tooltip title="Remove this bot">

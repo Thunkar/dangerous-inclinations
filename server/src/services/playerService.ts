@@ -1,12 +1,13 @@
 import { randomUUID } from "crypto";
 import { getRedis } from "./redis.ts";
-import type { PlayerAuth } from "../schemas/player.ts";
+import type { AgentInfo, PlayerAuth } from "../schemas/player.ts";
 
 const PLAYER_KEY_PREFIX = "player:";
 
 export async function createPlayer(
   playerName: string,
   playerId?: string,
+  agent?: AgentInfo,
 ): Promise<PlayerAuth> {
   const redis = getRedis();
   const id = playerId || randomUUID();
@@ -14,6 +15,7 @@ export async function createPlayer(
   const player: PlayerAuth = {
     playerId: id,
     playerName,
+    ...(agent ? { agent } : {}),
     createdAt: Date.now(),
   };
 

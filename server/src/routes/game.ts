@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { gameService } from "../services/live.ts";
 import { getPlayer } from "../services/playerService.ts";
+import { findLobbyByGameId } from "../services/lobbyService.ts";
 import {
   ChatSchema,
   DeploySchema,
@@ -44,13 +45,21 @@ async function requireMember(
 }
 
 export async function gameRoutes(fastify: FastifyInstance) {
-  // The caller's view and the full (filtered) event history.
+  // The caller's view, the full (filtered) event history, and who plays each
+  // seat (public, from the lobby: a person, a bot, or an agent and its model).
   fastify.get<GameRequest>("/api/games/:gameId", async (request, reply) => {
     const member = await requireMember(request, reply);
     if (!member) return;
     const payload = await gameService.getViewWithHistory(member.gameId, member.playerId);
     if (!payload) return reply.code(404).send({ error: "Game not found" });
-    return reply.send(payload);
+    const lobby = await findLobbyByGameId(member.gameId);
+    const seats = (lobby?.players ?? []).map(({ playerId, playerName, isBot, agent }) => ({
+      playerId,
+      playerName,
+      isBot,
+      ...(agent ? { agent } : {}),
+    }));
+    return reply.send({ ...payload, seats });
   });
 
   // Dry run of a turn: validation and the events it would produce, nothing committed.

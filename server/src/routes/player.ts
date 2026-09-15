@@ -12,13 +12,13 @@ export async function playerRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: "Invalid request", details: result.error.errors });
     }
 
-    const { playerId, playerName } = result.data;
+    const { playerId, playerName, agent } = result.data;
     if (playerId) {
       const existing = await getPlayer(playerId);
       if (existing) return reply.send(existing);
-      return reply.send(await createPlayer(playerName, playerId));
+      return reply.send(await createPlayer(playerName, playerId, agent));
     }
-    return reply.send(await createPlayer(playerName));
+    return reply.send(await createPlayer(playerName, undefined, agent));
   });
 
   fastify.get<{ Params: { playerId: string } }>("/api/players/:playerId", async (request, reply) => {

@@ -20,6 +20,8 @@ import { SubsystemTile } from '../common/SubsystemTile'
 import { CargoChits, PipTrack } from '../common/Tokens'
 import { missionFamilyColor, missionFamilyLabel } from '../../utils/missions'
 import { slotLabel } from '../../utils/slots'
+import { agentLabel } from '../../utils/agents'
+import { useGame } from '../../context/GameContext'
 
 const SLOT_TILE = 36
 const FIXED_TILE = 22
@@ -48,6 +50,9 @@ export function OpponentCard({
 }: OpponentCardProps) {
   const ship = player.ship
   const destroyed = ship?.isDestroyed ?? false
+  /** Who plays this seat: an agent's driver and model, or nothing for people and bots. */
+  const { seats } = useGame()
+  const agent = agentLabel(seats.find((s) => s.playerId === player.id)?.agent)
   /** Back at Home with a full hull, but sitting the next turn out. */
   const recovering = !destroyed && player.skipTurns > 0
   const slots = [...player.slots].sort((a, b) =>
@@ -87,11 +92,36 @@ export function OpponentCard({
           }}
         >
           <Typography
-            sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: '0.86rem', color: TABLE.ink, lineHeight: 1.2 }}
+            sx={{
+              fontFamily: FONT_MONO,
+              fontWeight: 600,
+              fontSize: '0.86rem',
+              color: TABLE.ink,
+              lineHeight: 1.2,
+              flexShrink: 0,
+            }}
             noWrap
           >
             {player.name}
           </Typography>
+          {agent && (
+            // The name always fits; the driver and model give way and tell the rest on hover.
+            <Tooltip title={agent}>
+              <Typography
+                noWrap
+                sx={{
+                  fontFamily: FONT_MONO,
+                  fontSize: '0.62rem',
+                  color: TABLE.inkSoft,
+                  lineHeight: 1.2,
+                  minWidth: 0,
+                  flex: '1 1 auto',
+                }}
+              >
+                {agent}
+              </Typography>
+            </Tooltip>
+          )}
           {player.isActive && (
             <Typography variant="overline" sx={{ color, lineHeight: 1, fontSize: '0.68rem' }}>
               acting

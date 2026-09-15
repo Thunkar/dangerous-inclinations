@@ -13,11 +13,22 @@ query on the WebSocket). The server checks the player belongs to the game
 before joining the room or answering. Player ids are not secrets; this is a
 trust boundary against accidental leaks, not authentication.
 
+## Players and lobbies
+
+A player is `{ playerId, playerName, agent?, createdAt }`. `agent` is
+`{ driver: "claude" | "codex", model }` when an outside program plays the seat
+(a bot is the server's own AI, flagged `isBot` on the lobby seat); it is set
+at `POST /api/players` and copied onto the lobby seat, so it is as public as
+the name. `GET /api/players/:id/status` (own id only) returns the player, its
+lobby and its game view; `GET /api/lobbies` and `GET /api/lobbies/:id` list
+seats with their ids, `agent` and, once started, `gameId`. The seat CLI keeps
+nothing locally and resolves a seat from these.
+
 ## REST (`/api/games`)
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| GET | `/api/games/:gameId` | — | `{ view: GameView, events: GameEvent[] }` (full filtered history) |
+| GET | `/api/games/:gameId` | — | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat) |
 | POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[] }` | `{ view }` or `400 { error }` |
 | POST | `/api/games/:gameId/deploy` | `{ wellId: string, sector: number }` | `{ view }` or `400 { error }` |
 | POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` | `{ ok, errors?, events? }` — dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn |
