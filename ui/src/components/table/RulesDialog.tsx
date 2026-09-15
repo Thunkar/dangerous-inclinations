@@ -15,7 +15,6 @@ import {
   BLACKHOLE_RINGS,
   BURN_COSTS,
   DEFAULT_DISSIPATION_CAPACITY,
-  DOCK_HULL_REPAIR,
   MAX_REACTION_MASS,
   MAX_SECTOR_ADJUSTMENT,
   MISSIONS_TO_WIN,
@@ -80,7 +79,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     ['Hit roll', '1 miss, 2–9 hit, 10 crit (8–10 with sensors)'],
     ['Scan', `same ring, within ${SCAN_SECTOR_RANGE} sectors, sensor powered`],
-    ['Docking', `+${DOCK_HULL_REPAIR} hull, repair all, reload missiles, load/deliver cargo`],
+    ['Docking', 'full hull, repair all, reload missiles, load/deliver cargo'],
     [
       'Survey',
       'two consecutive turns on Black Hole Ring 1 with sensors powered, then dock at the named planet',

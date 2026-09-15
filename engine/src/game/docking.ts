@@ -4,7 +4,6 @@
  * is restored and missiles are reloaded.
  */
 import type { GameState } from "../models/game.ts";
-import { DOCK_HULL_REPAIR } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo } from "../models/missions.ts";
 import { positionOf } from "./geometry.ts";
@@ -61,10 +60,9 @@ export function processDocking(state: GameState, playerIndex: number): DockingRe
   // Repairs.
   const repaired = repairAllSubsystems(player.ship);
   const reloaded = reloadMissiles(repaired.ship);
-  const hullRestored = Math.min(
-    DOCK_HULL_REPAIR,
-    reloaded.ship.maxHitPoints - reloaded.ship.hitPoints
-  );
+  // A dock puts the ship back to full hull (decided 15 Sept 2026: simpler than +3, and it
+  // flattens the hulls that won by grinding opponents down between docks).
+  const hullRestored = reloaded.ship.maxHitPoints - reloaded.ship.hitPoints;
   const ship = { ...reloaded.ship, hitPoints: reloaded.ship.hitPoints + hullRestored };
 
   events.push({

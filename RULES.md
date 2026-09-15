@@ -71,7 +71,7 @@ Otherwise:
    - **Fire** — any number of powered weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan** — with a powered sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
-4. **Docking.** If you ended on a station's sector, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull +3, missiles reloaded.
+4. **Docking.** If you ended on a station's sector, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull is restored to full, missiles reloaded.
 5. **Heat check.** If your heat exceeds your dissipation, take the difference as hull damage. Reset heat to 0.
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors.
@@ -224,7 +224,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Jump             | engines 3, 3 fuel (free with compressor), no drift                  |
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                        |
 | Scan             | same ring, within 3 sectors, sensor powered                         |
-| Docking          | +3 hull, repair all, reload missiles, load/deliver cargo            |
+| Docking          | full hull, repair all, reload missiles, load/deliver cargo          |
 | Survey           | second consecutive turn ended on Black Hole Ring 1, sensors powered |
 | Win              | 3 points end the round; highest score, then hull, then fuel         |
 
@@ -234,6 +234,6 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 2. Energy: move cubes.
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.
-5. Docked? Load, deliver, repair, +3 hull, reload.
+5. Docked? Load, deliver, repair, full hull, reload.
 6. Heat check: excess heat → hull damage; reset heat.
 7. Flip completed missions. Pass. (Last player: stations move.)

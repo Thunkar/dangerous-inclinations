@@ -44,9 +44,6 @@ export const STARTING_REACTION_MASS = 10;
 export const DEFAULT_DISSIPATION_CAPACITY = 5;
 export const STARTING_HIT_POINTS = 10;
 
-/** Hull restored when a ship ends its turn docked at a station. */
-export const DOCK_HULL_REPAIR = 3;
-
 export type Facing = "prograde" | "retrograde";
 export type BurnIntensity = "soft" | "medium" | "hard";
 

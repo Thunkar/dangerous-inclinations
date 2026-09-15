@@ -14,7 +14,8 @@
     "build": "tsc",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "sim": "node --experimental-transform-types --no-warnings src/sim/cli.ts"
+    "sim": "node --experimental-transform-types --no-warnings src/sim/cli.ts",
+    "balance": "node --experimental-transform-types --no-warnings src/sim/balance.ts"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

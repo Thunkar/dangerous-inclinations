@@ -100,7 +100,16 @@ yarn workspace @dangerous-inclinations/engine test --run
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --rules=shieldMaxEnergy=3,destroyPoints=1
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message
+yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural play + extreme hulls, flags outliers
 ```
+
+Balance regression: `yarn balance` (engine) plays natural games at 2/3/4
+players and forces the presets plus sixteen extreme hulls on one seat, then
+prints one table and exits 1 on an `outlier` (a hull that wins outright 12+
+points more often than seat 1 does with its own hand), a `stall` (20%+ of games
+at the cap) or a `slow` natural row. Run it after any rule change; `--quick`
+for 40 games a row, `--rules=k=v` to try a change first, `--output=dir` to
+keep the table.
 
 Rule experiments: `engine/src/models/rules.ts` lists the knobs (defaults =
 RULES.md). `--rules=k=v,...` overrides them for a sim run; the summary prints
