@@ -8,19 +8,19 @@
  *   yarn seat view --as Codex [--game <id>] [--rules] [--json] [--turns 2]
  *   yarn seat options --as Codex                  legal moves, as JSON
  *   yarn seat try --as Codex --intent '{...}'     build + dry-run a turn: errors or the events it would cause
- *   yarn seat act --as Codex --intent '{...}' [--fallback]   build, dry-run, submit; --fallback lets the bot play if illegal
- *   yarn seat bot-turn --as Codex                 the engine's bot plays this turn
- *   yarn seat loadout --as Codex --forward railgun --sides missiles,radiator,laser,shields --missions m1,m2,m3 | --auto
- *   yarn seat deploy --as Codex --sector 6 | --auto
+ *   yarn seat act --as Codex --intent '{...}'    build, dry-run, submit (an illegal turn is refused, nothing is sent)
+ *   yarn seat loadout --as Codex --forward railgun --sides missiles,radiator,laser,shields --missions m1,m2,m3
+ *   yarn seat deploy --as Codex --sector 6
+ *   yarn seat rules                               the full RULES.md
  *   yarn seat say --as Codex "text" / think "text" / chat
  *   yarn seat wait --as Codex [--timeout 600]     hold a socket open until it is your turn, then print the view
  *   yarn seat agent --as Codex --driver codex [--model gpt-6-astra] [--turns N] [--quiet-think]
  *
  * Identities live in ~/.config/dangerous-inclinations/seats.json. Turns go over
- * the game WebSocket like a browser's; everything else is REST. An agent can
- * never stall the game: `act --fallback` and the driver hand the turn to the
- * engine's own bot when an intent is illegal twice or the model does not
- * answer in time.
+ * the game WebSocket like a browser's; everything else is REST. There is no
+ * autopilot: an illegal intent is refused before it is sent and the agent gets
+ * the engine's reasons, the legal options and the full rules back, and tries
+ * again until its turn is legal.
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -36,9 +36,6 @@ import {
   AGENT_INTENT_GUIDE,
   AGENT_RULES_DIGEST,
   buildTurn,
-  botChooseDeployment,
-  botChooseLoadout,
-  botDecideActions,
   describeEvent,
   describeMission,
   describeViewForAgent,
@@ -65,6 +62,15 @@ function flag(name: string): string | undefined {
 const has = (name: string) => flag(name) !== undefined;
 
 const CONFIG_DIR = join(homedir(), ".config", "dangerous-inclinations");
+/** The repository root: RULES.md lives there and Codex runs there so it can read it. */
+const REPO_ROOT = join(new URL(".", import.meta.url).pathname, "..", "..");
+const fullRules = (): string => {
+  try {
+    return readFileSync(join(REPO_ROOT, "RULES.md"), "utf8");
+  } catch {
+    return "(RULES.md not found)";
+  }
+};
 const SEATS_FILE = join(CONFIG_DIR, "seats.json");
 interface Seat {
   playerId: string;
@@ -335,7 +341,13 @@ function askCodex(
       outFile,
       "-",
     ],
-    { input: prompt, encoding: "utf8", timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 }
+    {
+      input: prompt,
+      encoding: "utf8",
+      timeout: timeoutMs,
+      maxBuffer: 16 * 1024 * 1024,
+      cwd: REPO_ROOT,
+    }
   );
   if (run.error) {
     log(`codex failed to run: ${run.error.message}`);
@@ -364,22 +376,28 @@ function transcript(line: string): void {
   );
 }
 
-async function turnPrompt(payload: ViewPayload, errors?: string[]): Promise<string> {
+async function turnPrompt(payload: ViewPayload, errors?: string[], attempt = 1): Promise<string> {
   const chat = (await chatLines(12)).filter((m) => m.kind === "say");
   const talk = chat.length
     ? `\nTABLE TALK (recent, public):\n${chat.map((m) => `  T${m.turn} ${m.name}: ${m.text}`).join("\n")}\n`
     : "";
-  return `You are playing a seat in Dangerous Inclinations, a hidden-information tabletop space game. Play to win. Be concrete and legal. You cannot run commands or tools here: answer from the text below; the table validates your intent for you and will come back to you once if it is illegal.
+  const help =
+    attempt >= 2
+      ? `\nTHE FULL RULES:\n${fullRules()}\n\nLEGAL OPTIONS AS DATA:\n${JSON.stringify(seatOptions(payload.view))}\n`
+      : "";
+  const rejected = errors
+    ? `\nYOUR PREVIOUS INTENT (attempt ${attempt - 1}) WAS REJECTED BY THE ENGINE:\n${errors.map((e) => `  - ${e}`).join("\n")}\nRead LEGAL THIS TURN carefully and answer with an intent the engine will accept. A plain coast ({"move":{"kind":"coast"}}) is always legal.\n`
+    : "";
+  return `You are playing a seat in Dangerous Inclinations, a hidden-information tabletop space game. Play to win. Be concrete and legal. The working directory is the game's repository: RULES.md there is the complete rulebook, read it whenever the brief below is not enough. Do not run the game yourself; the table validates your intent and comes back to you if it is illegal.
 
 ${AGENT_RULES_DIGEST}
 
 ${digest(payload, { rules: false, turns: 2 })}
 ${talk}
 ${AGENT_INTENT_GUIDE}
-${errors ? `\nYOUR PREVIOUS INTENT WAS REJECTED BY THE ENGINE:\n${errors.map((e) => `  - ${e}`).join("\n")}\nFix it (use LEGAL THIS TURN above) or reply with a plain coast.\n` : ""}
+${help}${rejected}
 Reply with ONE JSON object: {"think": "<your reasoning in 1-3 sentences; a human observer reads this>", "say": "<optional table talk heard by everyone, or empty>", "intent": {...}}`;
 }
-
 async function driveTurn(
   table: Table,
   payload: ViewPayload,
@@ -387,111 +405,122 @@ async function driveTurn(
   quietThink: boolean
 ): Promise<ViewPayload> {
   const view = payload.view;
-  let actions: PlayerAction[] | null = null;
-  let think = "";
-  let say = "";
   let errors: string[] | undefined;
-  for (let attempt = 1; attempt <= 2 && !actions; attempt++) {
-    const prompt = await turnPrompt(payload, errors);
+  for (let attempt = 1; ; attempt++) {
+    const prompt = await turnPrompt(payload, errors, attempt);
     transcript(`PROMPT T${view.turn} attempt ${attempt}\n${prompt}`);
     const answer = askCodex(prompt, model, 240_000);
     transcript(`ANSWER T${view.turn} attempt ${attempt}\n${JSON.stringify(answer)}`);
     if (!answer) {
-      errors = ["the model gave no usable answer"];
+      errors = ["the model gave no usable answer (answer with one JSON object and nothing else)"];
+      log(`attempt ${attempt}: no usable answer`);
       continue;
     }
-    think = String(answer.think ?? "");
-    say = String(answer.say ?? "");
+    const think = String(answer.think ?? "");
+    const say = String(answer.say ?? "");
+    let actions: PlayerAction[];
     try {
       const built = buildTurn(view, (answer.intent ?? {}) as TurnIntent);
       for (const n of built.notes) log(`builder: ${n}`);
       const dry = await preview(built.actions);
-      if (dry.ok) actions = built.actions;
-      else {
+      if (!dry.ok) {
         errors = dry.errors ?? [dry.error ?? "rejected"];
         log(`attempt ${attempt} rejected: ${errors.join("; ")}`);
+        if (attempt % 5 === 0) await post("say", `(still working out a legal turn: ${errors[0]})`);
+        continue;
       }
+      actions = built.actions;
     } catch (e) {
       errors = [(e as Error).message];
       log(`attempt ${attempt} failed to build: ${errors[0]}`);
+      continue;
     }
+    if (think && !quietThink)
+      await post("think", attempt > 1 ? `${think} (legal on attempt ${attempt})` : think);
+    if (say) await post("say", say);
+    const result = await table.submit(actions, view);
+    if (!result.ok) {
+      errors = result.errors;
+      log(`submission rejected: ${errors.join("; ")}`);
+      continue;
+    }
+    log(
+      `T${view.turn} played on attempt ${attempt}: ${result.payload.events.filter((e) => e.turn === view.turn).length} events`
+    );
+    return result.payload;
   }
-  if (!actions) {
-    actions = botDecideActions(view).actions;
-    think = `${think ? think + " " : ""}(The autopilot took this turn: my intent was illegal twice.)`;
-    log("falling back to the engine's bot for this turn");
-  }
-  if (think && !quietThink) await post("think", think);
-  if (say) await post("say", say);
-  const result = await table.submit(actions, view);
-  if (!result.ok) {
-    log(`submission rejected (${result.errors.join("; ")}); the bot takes it`);
-    const again = await table.submit(botDecideActions(view).actions, view);
-    if (!again.ok) throw new Error(`even the bot's turn was rejected: ${again.errors.join("; ")}`);
-    return again.payload;
-  }
-  log(
-    `T${view.turn} played: ${result.payload.events.filter((e) => e.turn === view.turn).length} events`
-  );
-  return result.payload;
 }
-
 async function driveLoadout(
   payload: ViewPayload,
   model: string,
   quietThink: boolean
 ): Promise<void> {
   const view = payload.view;
-  const me = view.me!;
-  const answer = askCodex(`${AGENT_RULES_DIGEST}\n\n${loadoutPrompt(view)}`, model, 240_000);
-  transcript(`LOADOUT ANSWER\n${JSON.stringify(answer)}`);
-  const auto = botChooseLoadout(me.missionOffers, {
-    playerCount: view.players.length,
-    rules: view.rules,
-  });
-  let loadout: ShipLoadout = auto.loadout;
-  let missionIds: string[] = auto.missionIds;
-  let think = "(autopilot loadout)";
-  if (answer) {
-    think = String(answer.think ?? think);
+  let error: string | undefined;
+  for (let attempt = 1; ; attempt++) {
+    const prompt = `${AGENT_RULES_DIGEST}\n\nTHE FULL RULES:\n${fullRules()}\n\n${loadoutPrompt(view)}${
+      error
+        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again; every tile must fit its slot (forward: railgun, sensor_array or missiles; side: laser, shields, radiator, fuel_compressor, ballistic_rack or missiles) and you keep exactly 3 of the 5 offers by their ids.`
+        : ""
+    }`;
+    const answer = askCodex(prompt, model, 240_000);
+    transcript(`LOADOUT ANSWER attempt ${attempt}\n${JSON.stringify(answer)}`);
+    if (!answer) {
+      error = "no usable answer (one JSON object, nothing else)";
+      continue;
+    }
     const l = answer.loadout as { forward?: string; sides?: string[] } | undefined;
-    if (l?.forward && l.sides?.length === 4)
-      loadout = { forwardSlots: [l.forward], sideSlots: l.sides } as ShipLoadout;
-    if (Array.isArray(answer.missionIds) && answer.missionIds.length === 3)
-      missionIds = answer.missionIds as string[];
+    const missionIds = Array.isArray(answer.missionIds) ? (answer.missionIds as string[]) : [];
+    if (!l?.forward || l.sides?.length !== 4 || missionIds.length !== 3) {
+      error = "the answer needs loadout.forward, exactly 4 loadout.sides and exactly 3 missionIds";
+      log(`loadout attempt ${attempt}: ${error}`);
+      continue;
+    }
+    try {
+      await submitLoadout(
+        { forwardSlots: [l.forward], sideSlots: l.sides } as ShipLoadout,
+        missionIds
+      );
+    } catch (e) {
+      error = (e as Error).message;
+      log(`loadout attempt ${attempt} rejected: ${error}`);
+      continue;
+    }
+    if (answer.think && !quietThink) await post("think", String(answer.think));
+    if (answer.say) await post("say", String(answer.say));
+    log(`loadout accepted on attempt ${attempt}`);
+    return;
   }
-  try {
-    await submitLoadout(loadout, missionIds);
-  } catch (e) {
-    log(`loadout rejected (${(e as Error).message}); the bot's choice goes in`);
-    await submitLoadout(auto.loadout, auto.missionIds);
-    think += " (The autopilot fixed an illegal loadout.)";
-  }
-  if (!quietThink) await post("think", think);
-  if (answer?.say) await post("say", String(answer.say));
 }
-
 async function driveDeploy(
   payload: ViewPayload,
   model: string,
   quietThink: boolean
 ): Promise<void> {
   const view = payload.view;
-  const answer = askCodex(`${AGENT_RULES_DIGEST}\n\n${deployPrompt(view)}`, model, 180_000);
-  transcript(`DEPLOY ANSWER\n${JSON.stringify(answer)}`);
-  const auto = botChooseDeployment(view, (n) => Math.floor(Math.random() * n)).sector;
-  let sector = typeof answer?.sector === "number" ? Math.round(answer.sector) : auto;
-  try {
-    await submitDeploy(sector);
-  } catch (e) {
-    log(`deploy at ${sector} rejected (${(e as Error).message}); trying the bot's pick`);
-    sector = auto;
-    await submitDeploy(sector);
+  let error: string | undefined;
+  for (let attempt = 1; ; attempt++) {
+    const prompt = `${AGENT_RULES_DIGEST}\n\n${deployPrompt(view)}${
+      error ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Pick a free sector 0-23.` : ""
+    }`;
+    const answer = askCodex(prompt, model, 180_000);
+    transcript(`DEPLOY ANSWER attempt ${attempt}\n${JSON.stringify(answer)}`);
+    if (!answer || typeof answer.sector !== "number") {
+      error = "the answer needs a numeric sector";
+      continue;
+    }
+    try {
+      await submitDeploy(Math.round(answer.sector));
+    } catch (e) {
+      error = (e as Error).message;
+      log(`deploy attempt ${attempt} rejected: ${error}`);
+      continue;
+    }
+    if (answer.think && !quietThink) await post("think", String(answer.think));
+    if (answer.say) await post("say", String(answer.say));
+    return;
   }
-  if (answer?.think && !quietThink) await post("think", String(answer.think));
-  if (answer?.say) await post("say", String(answer.say));
 }
-
 async function agentLoop(): Promise<void> {
   const driver = flag("driver") ?? "codex";
   if (driver !== "codex")
@@ -618,8 +647,10 @@ async function main(): Promise<void> {
       process.exitCode = dry.ok ? 0 : 2;
       return;
     }
-    case "act":
-    case "bot-turn": {
+    case "rules":
+      console.log(fullRules());
+      return;
+    case "act": {
       const table = await Table.open();
       try {
         const payload = await table
@@ -629,8 +660,7 @@ async function main(): Promise<void> {
         if (view.phase !== "active" || view.activePlayerId !== PLAYER)
           die(`Not your turn (phase ${view.phase}, ${nameOf(view)(view.activePlayerId)} to act)`);
         let actions: PlayerAction[];
-        if (command === "bot-turn") actions = botDecideActions(view).actions;
-        else {
+        {
           const intent = parseIntent();
           const built = intent
             ? buildTurn(view, intent)
@@ -639,10 +669,7 @@ async function main(): Promise<void> {
           const dry = await preview(built.actions);
           if (!dry.ok) {
             const errors = dry.errors ?? [dry.error ?? "rejected"];
-            if (!has("fallback"))
-              die(`ILLEGAL, nothing submitted:\n${errors.map((e) => `  - ${e}`).join("\n")}`);
-            log(`illegal (${errors.join("; ")}); the bot plays this turn`);
-            built.actions = botDecideActions(view).actions;
+            die(`ILLEGAL, nothing submitted:\n${errors.map((e) => `  - ${e}`).join("\n")}`);
           }
           actions = built.actions;
         }
@@ -659,16 +686,7 @@ async function main(): Promise<void> {
     }
     case "loadout": {
       const { view } = await getView();
-      const me = view.me ?? die("not seated");
-      if (has("auto")) {
-        const c = botChooseLoadout(me.missionOffers, {
-          playerCount: view.players.length,
-          rules: view.rules,
-        });
-        await submitLoadout(c.loadout, c.missionIds);
-        console.log(`auto: ${JSON.stringify(c.loadout)} missions ${c.missionIds.join(",")}`);
-        return;
-      }
+      if (!view.me) die("not seated");
       if (!flag("forward") && !flag("missions")) {
         console.log(loadoutPrompt(view));
         return;
@@ -682,10 +700,7 @@ async function main(): Promise<void> {
       return;
     }
     case "deploy": {
-      const { view } = await getView();
-      const sector = has("auto")
-        ? botChooseDeployment(view, (n) => Math.floor(Math.random() * n)).sector
-        : Number(flag("sector") ?? die("--sector <n> or --auto"));
+      const sector = Number(flag("sector") ?? die("--sector <n>"));
       await submitDeploy(sector);
       console.log(`deployed at Black Hole R4 S${sector}`);
       return;

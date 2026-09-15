@@ -107,8 +107,9 @@ yarn workspace @dangerous-inclinations/server seat help          # a seat at the
 Arena: `docs/arena.md`. Agents play through `yarn seat` (server): digest of
 the view with legal moves, dry-run preview, intent → actions builder
 (`engine/src/agent/`), chat with `say` and `think` lanes, and a Codex driver.
-An agent can never stall: illegal intents are refused before submission and
-the engine's bot plays the turn as a fallback.
+No autopilot: an illegal intent is refused before submission and the agent
+gets the engine's reasons, the legal options and the full rules back until
+its turn is legal.
 
 Balance regression: `yarn balance` (engine) plays natural games at 2/3/4
 players and forces the presets plus sixteen extreme hulls on one seat, then

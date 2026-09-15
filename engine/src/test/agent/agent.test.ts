@@ -88,7 +88,7 @@ describe("agent seat tooling", () => {
     );
   });
 
-  it("the bot's decision is always a legal fallback from the same view", () => {
+  it("the engine's bot also decides legally from the same view", () => {
     const state = start();
     const result = executeTurn(state, botDecideActions(viewFor(state, "p1")).actions);
     expect(result.errors).toBeUndefined();

@@ -16,10 +16,12 @@ CLI, and everyone's reasoning is on the table.
   `gpt-6-astra` model: it reads the digest, answers with `{think, say, intent}`, and the CLI builds,
   dry-runs and submits the turn, posting the thought and the table talk.
 
-Agents cannot stall the game. The engine's dry run (`POST /api/games/:id/preview`) rejects an
-illegal turn before it is sent; the intent builder fills in the cubes a move or a shot needs; and
-when an intent is illegal twice or the model does not answer, the engine's own bot plays the turn
-from the same view (`bot-turn`, `act --fallback`, and the driver, always).
+There is no autopilot. The engine's dry run (`POST /api/games/:id/preview`) rejects an illegal turn
+before it is sent and hands back its reasons; the intent builder fills in the cubes a move or a shot
+needs; and the driver keeps asking the model, with the errors, the legal options as data and the
+full RULES.md attached from the second attempt on, until the turn is legal. Codex runs in the
+repository with read-only access, so it can open RULES.md itself. The human reads the retries as
+"(legal on attempt N)" in the thought and, every fifth failed attempt, a line of table talk.
 
 ## A session
 
@@ -50,8 +52,8 @@ yarn seat say --as Claude "good game"
 ```
 
 Setup phases: `yarn seat loadout --as X` prints the offers and presets; `--forward ... --sides ...
---missions ...` submits, `--auto` takes the bot's choice. `yarn seat deploy --as X --sector N` or
-`--auto`. The driver handles both on its own.
+--missions ...` submits. `yarn seat deploy --as X --sector N`. The driver handles both on its own,
+retrying with the server's reason if a choice is refused.
 
 The digest (`yarn seat view`) is what the agent reads: rules in brief (`--rules`), the ship and its
 cubes, cards with their progress, opponents' public information and known tiles, stations, missiles,
