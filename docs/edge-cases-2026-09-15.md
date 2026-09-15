@@ -438,6 +438,103 @@ Reading:
   Intercept or Survey to the railgun; the new Scout out-performs it (41% against 32%). Teaching the
   classifier to prefer the laser hulls is a bot-quality item, not a rules item.
 
+
+## 10. Docking repairs to full (adopted)
+
+Designer's request: simplify "+3 hull per dock" to full repair, or half if full proves too much.
+Same seeds, current rules otherwise (`N_*` rows are +3, `K5` half, `K10` full):
+
+| run | rules | fin | rounds | kills/g | hull dmg/g | heat dmg turns | Destroy done | Deliver done 
+|---|---|---|---|---|---|---|---|---
+| N_own3 | defaults | 100% | 39 | 2 | 40.1 | 1% | 82 | 247 
+| K5_own3 | dockHullRepair=5 | 100% | 39 | 1.8 | 36.9 | 1% | 76 | 249 
+| K10_own3 | dockHullRepair=10 | 100% | 39 | 1.8 | 36.9 | 1% | 76 | 249 
+| N_own4 | defaults | 94% | 39 | 4.2 | 73.7 | 2% | 122 | 222 
+| K5_own4 | dockHullRepair=5 | 95% | 39 | 3.4 | 66.7 | 2% | 113 | 230 
+| K10_own4 | dockHullRepair=10 | 97% | 39 | 3.2 | 66.4 | 2% | 108 | 228
+
+| run | seat-1 hull | wins | real victories | others (each) | kills/g | deaths/g | dealt/g | taken/g | fin | rounds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| C2_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 41% | 40% | 29% | 0.51 | 0.46 | 12.38 | 11.2 | 97% | 46 |
+| K5_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 33% | 31% | 33% | 0.35 | 0.61 | 10.58 | 12.88 | 98% | 43 |
+| K10_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 32% | 31% | 34% | 0.38 | 0.62 | 10.52 | 12.82 | 97% | 43 |
+| C2_sh2la2 | sensor_array/shields,shields,laser,laser | 47% | 46% | 27% | 1.11 | 0.53 | 18.74 | 4.31 | 96% | 45 |
+| K5_sh2la2 | sensor_array/shields,shields,laser,laser | 33% | 31% | 33% | 0.89 | 0.65 | 17.18 | 6.18 | 97% | 39 |
+| K10_sh2la2 | sensor_array/shields,shields,laser,laser | 35% | 33% | 32% | 0.91 | 0.66 | 16.64 | 6.2 | 97% | 39 |
+| C2_turtle | sensor_array/shields,shields,radiator,radiator | 48% | 18% | 26% | 0.0 | 0.07 | 0.0 | 7.86 | 68% | 59 |
+| K10_turtle | sensor_array/shields,shields,radiator,radiator | 38% | 18% | 31% | 0.0 | 0.09 | 0.0 | 11.98 | 78% | 51 |
+| C2_missiles3 | missiles/missiles,missiles,radiator,shields | 47% | 41% | 27% | 2.37 | 0.37 | 35.14 | 12.14 | 93% | 45 |
+| K10_missiles3 | missiles/missiles,missiles,radiator,shields | 40% | 33% | 30% | 2.31 | 0.44 | 32.46 | 16.08 | 92% | 43 |
+
+- **Full repair costs nothing in pacing** (100% / 39 rounds at three players either way) and takes
+  the edge off four players: 4.2 → 3.2 kills a game.
+- **It flattens the two hulls that were still ahead.** The Hauler falls from 40% to 31% of outright
+  wins and shields×2 + lasers×2 from 46% to 33%, both to the seat-1 baseline. Those hulls won by
+  grinding opponents down between docks; a docked opponent now comes back whole.
+- **Half repair is indistinguishable from full** at three players (ships rarely dock below 5 hull),
+  so the simpler rule wins. Adopted: *a dock restores the hull to full*; the knob is gone.
+
+## 11. Regression suite
+
+`yarn balance` (in `engine/`) now plays the matrix behind §4, §8 and §9 in one command: natural games
+at 2, 3 and 4 players, then the four presets and sixteen extreme hulls forced on seat 1 against
+normal opponents. It prints one table and flags `outlier` (a hull that wins outright 12+ points more
+often than seat 1 does with its own hand), `stall` (20%+ of games at the cap), `slow` (a natural row
+under 90% finished or over 50 rounds) and `glass` (dies 1.5+ times a game, informational), and exits
+1 on any outlier, stall or slow row. `--quick` runs 40 games a row; `--rules=k=v` tries a change
+first; `--output=dir` keeps the table. Run it after every rule change.
+
+
+## 12. State of the game, end of 15 September 2026 (`yarn balance`)
+
+Rules in force: Destroy worth 2; lasers ignore shields; shields hold 2 cubes and every absorbed point
+is 2 heat; docking restores full hull; one-way lanes; Survey names a planet and needs two turns on
+Ring 1 with sensors on; 3 points end the round, standings decide; any tile in any slot it fits.
+
+100 games per row, seeds 5000+, turn cap 400, rules as in RULES.md.
+
+## Natural play (bots choose hands and hulls)
+
+| players | decided before cap | rounds (median) | kills / game | wins by seat | flags |
+|---|---|---|---|---|---|
+| 3 | 100% | 39 | 1.8 | 38% / 41% / 21% |  |
+| 2 | 99% | 39 | 0.7 | 58% / 42% |  |
+| 4 | 97% | 39 | 3.2 | 28% / 21% / 33% / 18% |  |
+
+## Hulls forced on seat 1 against normal opponents (3 players; seat 1 wins outright 38% with its own hand)
+
+| hull | wins | outright | others (each) | kills/g | deaths/g | dealt/g | taken/g | decided before cap | rounds | flags |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Hauler (preset) | 32% | 31% | 34% | 0.38 | 0.62 | 10.52 | 12.82 | 97% | 43 |  |
+| Raider (preset) | 36% | 33% | 32% | 0.73 | 0.48 | 15.38 | 11.74 | 96% | 40 |  |
+| Scout (preset) | 34% | 34% | 33% | 0.47 | 0.71 | 11.2 | 12.84 | 99% | 39 |  |
+| Hunter (preset) | 34% | 27% | 33% | 1.16 | 0.56 | 26.94 | 20.16 | 91% | 50 |  |
+| shields×2 + lasers×2 | 35% | 33% | 32% | 0.91 | 0.66 | 16.64 | 6.2 | 97% | 39 |  |
+| lasers×3 + shields | 28% | 28% | 36% | 0.59 | 0.89 | 12.84 | 13.6 | 98% | 39 |  |
+| lasers×4 | 21% | 21% | 40% | 1.08 | 1.61 | 17.68 | 23.82 | 99% | 39 | glass |
+| shields×2 + radiators×2 | 38% | 18% | 31% | 0 | 0.09 | 0 | 11.98 | 78% | 51 | stall |
+| shields×4 | 28% | 14% | 36% | 0 | 0.18 | 0 | 5.02 | 86% | 50 |  |
+| railgun + lasers×4 | 23% | 21% | 39% | 1.5 | 1.79 | 28.12 | 34 | 96% | 43 | glass |
+| railgun + lasers×2 + radiators×2 | 25% | 20% | 38% | 1.62 | 1.98 | 29.18 | 36.88 | 94% | 40 | glass |
+| railgun + missiles×2 + radiator + shields | 40% | 35% | 30% | 1.77 | 0.5 | 30.32 | 12.05 | 92% | 45 |  |
+| missiles×3 + radiator + shields | 40% | 33% | 30% | 2.31 | 0.44 | 32.46 | 16.08 | 92% | 43 |  |
+| missiles×5 | 17% | 13% | 42% | 1.67 | 1.57 | 35.1 | 35.82 | 92% | 45 | glass |
+| railgun + missiles + lasers×2 + radiator | 21% | 15% | 40% | 1.31 | 1.42 | 37.53 | 45.1 | 89% | 45 |  |
+| railgun + racks×2 + shields + radiator | 22% | 19% | 39% | 0.56 | 0.65 | 13.42 | 14.33 | 96% | 44 |  |
+| railgun + compressors×4 | 23% | 20% | 39% | 0.31 | 1.47 | 15.16 | 36.2 | 95% | 44 |  |
+| sensor + compressors×2 + shields + laser | 33% | 33% | 34% | 0.21 | 0.62 | 8.52 | 12.92 | 99% | 39 |  |
+| railgun + radiators×4 | 15% | 12% | 43% | 0.49 | 1.64 | 16.76 | 37.54 | 95% | 39 | glass |
+| railgun + missiles + shields×2 + radiator | 30% | 28% | 35% | 0.57 | 0.34 | 14.64 | 5.46 | 96% | 40 |  |
+
+**Flags:** shields×2 + radiators×2: stall.
+
+Reading: **no hull is an outlier.** Every forced hull wins outright between 12% and 35% against a
+38% baseline; the presets sit at 27–34%. The one flag is the turtle (two shields, two radiators),
+which cannot kill or be killed and drags 22% of its games to the cap while winning 18% outright: a
+dull hull, not a strong one. Watch items: seat 3 at three players wins 21% for the third run in a row
+(seat 1 deploys and moves first); four players see 3.2 kills a game; the Hunter is the weakest
+preset (27%) because it fights everything without the fuel to choose its fights.
+
 ## Reproduce
 
 ```
