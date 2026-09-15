@@ -250,6 +250,54 @@ The dominant hulls, forced on seat 1, at dissipation 5 / 4 / 3 with cap 3 (`F_*_
 shared by every system, and the cheap-heat weapon is the one you want to tax. Cap 3 at dissipation 5
 stays the best combination measured. §7 tests a knob that only shields feel.
 
+
+## 7. A knob only shields feel: two heat per absorbed point (measured, not adopted)
+
+`shieldHeatPerPoint=2`: every point of damage a shield absorbs puts **two** heat on the defender
+instead of one. Nothing else changes. Everyone on their own hands, final-round rule on:
+
+| run | rules | fin | rounds | kills/g | hull dmg/g | heat dmg turns | coast | firing | shields on | soaked | Destroy done | Deliver done |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| F_own | defaults | 72% | 56 | 0.8 | 25.1 | 1% | 45% | 10% | 68% | 63% | 31 | 309 |
+| F_own_cap3 | shieldMaxEnergy=3 | 93% | 50 | 1.3 | 34.3 | 1% | 43% | 15% | 63% | 53% | 66 | 278 |
+| X_c4h2 | shieldHeatPerPoint=2 | 87% | 51 | 1.5 | 26.6 | 5% | 46% | 11% | 65% | 62% | 53 | 289 |
+| X_c3h2 | shieldMaxEnergy=3,shieldHeatPerPoint=2 | 95% | 45 | 1.7 | 37.3 | 2% | 45% | 14% | 62% | 53% | 72 | 269 |
+
+The dominant hulls forced on seat 1, cap 3 alone against cap 3 + two heat per point:
+
+| run | seat-1 hull | wins | real victories | others (each) | kills/g | deaths/g | dealt/g | taken/g | fin | rounds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| F_hauler_cap3 | sensor_array/shields,radiator,fuel_compressor,laser | 41% | 39% | 30% | 0.41 | 0.35 | 13.4 | 9.0 | 97% | 45 |
+| X_c3h2_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 43% | 41% | 29% | 0.43 | 0.41 | 13.48 | 8.67 | 93% | 45 |
+| F_shields2_lasers2_cap3 | sensor_array/shields,shields,laser,laser | 54% | 54% | 23% | 1.12 | 0.05 | 20.42 | 2.05 | 96% | 45 |
+| X_c3h2_sh2la2 | sensor_array/shields,shields,laser,laser | 53% | 53% | 23% | 1.04 | 0.13 | 19.1 | 2.2 | 96% | 45 |
+| F_scalpel3_cap3 | sensor_array/laser,laser,laser,shields | 43% | 42% | 29% | 0.69 | 0.47 | 16.2 | 8.81 | 95% | 43 |
+| X_c3h2_scalpel3 | sensor_array/laser,laser,laser,shields | 37% | 35% | 32% | 0.64 | 0.72 | 14.04 | 8.19 | 97% | 39 |
+| E_turtle2 | sensor_array/shields,shields,radiator,radiator | 61% | 20% | 20% | 0.0 | 0.0 | 0.0 | 3.2 | 53% | 87 |
+| X_c3h2_turtle | sensor_array/shields,shields,radiator,radiator | 49% | 20% | 26% | 0.0 | 0.01 | 0.0 | 3.12 | 69% | 58 |
+
+Reading:
+- **This is the shield price you asked for.** It taxes only ships that get hit while shielded: heat
+  damage rises from 1% to 5% of turns at cap 4, and a ship that soaks a six-point volley on two
+  shield tiles reads 12 heat at its check, 7 hull without radiators. Absorbing becomes a choice about
+  how much to risk, not a free wall.
+- **Pacing is the best of any row measured today** when combined with cap 3: 95% of games decided
+  before the cap, 45 rounds, 1.7 kills and 72 Destroy completions per 100 games (cap 3 alone: 93%,
+  50, 1.3, 66). Even at cap 4 it does most of the work (87%, 51 rounds, 1.5 kills).
+- **It does not dent the double-shield double-laser hull** (54% → 53%), for the same reason
+  nothing else has: that ship takes 2 hull a game, so a price on absorption rarely comes due. Its edge
+  is that its lasers land while the railgun hulls around it cannot reach a 6-cube wall. The only
+  counters measured are opponents who also carry lasers (its cousin the Hauler falls to 40% against
+  two-laser opponents, §4) or a physical volley that beats 6: railgun + missile + rack is 7.
+- The three-laser hull drops to 35%, below baseline; the Hauler sits at 41%, at baseline.
+
+**Recommendation:** adopt **shield cap 3 and two heat per absorbed point** together, as one line in
+RULES.md ("a shield holds up to 3 cubes; every point it absorbs is 2 heat"). It prices shields
+specifically, keeps repeats legal, and gives the best pacing measured. Then watch the double-shield
+laser hull at the table: if it dominates there too, the answers are a laser on every hull (the bots'
+raider preset should carry one) or a heavier physical volley, not another shield rule. If adopted, I
+will update the heat indicator (hatched shield heat ×2), the bots' shield allocation and RULES.md.
+
 ## Reproduce
 
 ```
