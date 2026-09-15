@@ -298,6 +298,89 @@ laser hull at the table: if it dominates there too, the answers are a laser on e
 raider preset should carry one) or a heavier physical volley, not another shield rule. If adopted, I
 will update the heat indicator (hatched shield heat ×2), the bots' shield allocation and RULES.md.
 
+
+## 8. Shield cap 2 with two heat per point: the loadout table
+
+Own hands, cap 2, heat 2: **95% decided before the cap, 45 rounds, 1.9 kills a game, 73 Destroy
+completions** (cap 3: 95% / 45 / 1.7 / 72; cap 4: 87% / 51 / 1.5 / 53). Seat wins 37 / 41 / 22.
+
+Every hull forced on seat 1 (baseline seat-1 wins 37%):
+
+| run | seat-1 hull | wins | real victories | others (each) | kills/g | deaths/g | dealt/g | taken/g | fin | rounds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| C2_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 41% | 40% | 29% | 0.51 | 0.46 | 12.38 | 11.2 | 97% | 46 |
+| C2_raider | railgun/missiles,radiator,fuel_compressor,shields | 37% | 35% | 32% | 0.89 | 0.53 | 18.58 | 11.8 | 96% | 45 |
+| C2_scout | sensor_array/shields,radiator,fuel_compressor,missiles | 27% | 22% | 36% | 0.08 | 0.62 | 2.66 | 13.18 | 87% | 45 |
+| C2_hunter | railgun/missiles,radiator,laser,shields | 32% | 27% | 34% | 1.3 | 0.48 | 27.12 | 12.98 | 90% | 51 |
+| C2_sh2la2 | sensor_array/shields,shields,laser,laser | 47% | 46% | 27% | 1.11 | 0.53 | 18.74 | 4.31 | 96% | 45 |
+| C2_scalpel3 | sensor_array/laser,laser,laser,shields | 39% | 38% | 31% | 0.72 | 0.7 | 14.06 | 11.02 | 96% | 39 |
+| C2_scalpel4 | sensor_array/laser,laser,laser,laser | 20% | 19% | 40% | 1.09 | 1.7 | 17.88 | 24.52 | 97% | 39 |
+| C2_turtle | sensor_array/shields,shields,radiator,radiator | 48% | 18% | 26% | 0.0 | 0.07 | 0.0 | 7.86 | 68% | 59 |
+| C2_turtle_laser | sensor_array/shields,shields,radiator,laser | 34% | 32% | 33% | 0.56 | 0.35 | 14.74 | 6.0 | 91% | 51 |
+| C2_bunker | sensor_array/shields,shields,shields,shields | 42% | 17% | 29% | 0.0 | 0.09 | 0.0 | 2.15 | 74% | 57 |
+| C2_laserboat | railgun/laser,laser,laser,laser | 19% | 15% | 41% | 1.46 | 1.96 | 26.48 | 34.4 | 93% | 45 |
+| C2_rail_la2_rad2 | railgun/laser,laser,radiator,radiator | 24% | 19% | 38% | 1.52 | 2.09 | 26.8 | 34.78 | 93% | 45 |
+| C2_rail_miss2 | railgun/missiles,missiles,radiator,shields | 41% | 37% | 30% | 1.52 | 0.46 | 27.7 | 10.09 | 93% | 45 |
+| C2_missiles3 | missiles/missiles,missiles,radiator,shields | 47% | 41% | 27% | 2.37 | 0.37 | 35.14 | 12.14 | 93% | 45 |
+| C2_glass | railgun/missiles,laser,laser,radiator | 19% | 15% | 41% | 1.42 | 1.48 | 34.67 | 33.28 | 93% | 45 |
+| C2_pdc | railgun/ballistic_rack,ballistic_rack,shields,radiator | 28% | 24% | 36% | 0.81 | 0.59 | 18.93 | 14.98 | 90% | 55 |
+| C2_fast_hauler | sensor_array/fuel_compressor,fuel_compressor,shields,laser | 35% | 34% | 32% | 0.34 | 0.6 | 11.5 | 12.58 | 95% | 45 |
+| C2_rail_sh2_rad | railgun/missiles,shields,shields,radiator | 35% | 29% | 33% | 1.0 | 0.31 | 19.8 | 5.03 | 88% | 45 |
+
+The same presets and outliers under cap 3 for comparison:
+
+| run | seat-1 hull | wins | real victories | others (each) | kills/g | deaths/g | dealt/g | taken/g | fin | rounds |
+|---|---|---|---|---|---|---|---|---|---|---|
+| X_c3h2_hauler | sensor_array/shields,radiator,fuel_compressor,laser | 43% | 41% | 29% | 0.43 | 0.41 | 13.48 | 8.67 | 93% | 45 |
+| X_c3h2_raider | railgun/missiles,radiator,fuel_compressor,shields | 33% | 27% | 33% | 0.87 | 0.48 | 22.87 | 11.9 | 88% | 51 |
+| X_c3h2_scout | sensor_array/shields,radiator,fuel_compressor,missiles | 25% | 22% | 38% | 0.09 | 0.58 | 2.65 | 11.78 | 91% | 50 |
+| X_c3h2_hunter | railgun/missiles,radiator,laser,shields | 39% | 32% | 30% | 0.98 | 0.43 | 27.0 | 8.88 | 90% | 52 |
+| X_c3h2_sh2la2 | sensor_array/shields,shields,laser,laser | 53% | 53% | 23% | 1.04 | 0.13 | 19.1 | 2.2 | 96% | 45 |
+| X_c3h2_scalpel3 | sensor_array/laser,laser,laser,shields | 37% | 35% | 32% | 0.64 | 0.72 | 14.04 | 8.19 | 97% | 39 |
+| X_c3h2_turtle | sensor_array/shields,shields,radiator,radiator | 49% | 20% | 26% | 0.0 | 0.01 | 0.0 | 3.12 | 69% | 58 |
+
+Hull by hull (win = games won outright, cap 2):
+
+| hull | tiles | win | what it is | strengths | weaknesses |
+|---|---|---|---|---|---|
+| **Hauler** (preset) | sensor / shields, radiator, compressor, laser | 40% | long-haul trader with a sting | free jumps, cool running, a gun that lands through any shield, sensor for Intercept, Survey and 8+ crits | one 2-damage gun; one 2-cube shield; dies 0.46 a game now (0.16 under cap 4) |
+| **Raider** (preset) | railgun / missiles, radiator, compressor, shields | 35% | hit-and-run hunter with the fuel to reach its target | railgun + missile (6) puts 4 through a 2-cube shield; 0.9 kills a game; free jumps | no sensor, so no Intercept or Survey; railgun needs its ring and its facing; helpless against a laser hull that stays off its ring |
+| **Scout** (preset) | sensor / shields, radiator, compressor, missiles | 22% | sensor hull with missiles instead of a laser | scans and surveys; guided fire from 2 rings away | its only gun is absorbed whole by a 2-cube shield: 2.7 hull dealt a game. Dead weight; the Hauler does its job better |
+| **Hunter** (preset) | railgun / missiles, radiator, laser, shields | 27% | a gun for every ring | highest damage of the presets (27 a game), 1.3 kills | no compressor: slow to reach anyone; fights everything and gets shot back (13 taken, dies 0.48); longest games |
+| shields×2 + lasers×2 | sensor / shields, shields, laser, laser | 46% | the double wall with both broadsides | 4 cubes soak a whole railgun shot; 2 + 2 unshieldable damage covering both ring directions | soaking 4 is 8 heat, 3 hull on a bare hull; no radiator, no compressor; shields + lasers is 8 of 10 cubes, leaving 2 for engines. Still the best hull, but now mortal (0.53 deaths against 0.05 under cap 3) |
+| lasers×3 + shields | sensor / laser, laser, laser, shields | 38% | the scalpel | three unshieldable shots, sensor crits | 6 cubes of guns, thin shield, 11 taken a game |
+| lasers×4 | sensor / laser ×4 | 19% | all scalpel, no armour | 8 damage a turn if everything bears | dies 1.7 times a game |
+| shields×2 + radiators×2 | sensor / shields, shields, radiator, radiator | 18% | the turtle | soaks 4 for 8 heat and sheds 9: the one hull that walls a railgun cleanly | deals nothing, wins nothing outright; a third of its games stall to the cap |
+| shields×2 + radiator + laser | sensor / shields, shields, radiator, laser | 32% | turtle with a sting | soaks 4 at 8 heat against 7 dissipation (1 hull), one laser | one gun, no compressor |
+| shields×4 | sensor / shields ×4 | 17% | the bunker | 8 cubes | 8 absorbed is 16 heat: suicide if anyone bothers; deals nothing |
+| railgun + lasers×4 | railgun / laser ×4 | 15% | laser boat | 12 damage on paper | no shield, no radiator: dies twice a game |
+| railgun + lasers×2 + radiators×2 | railgun / laser, laser, radiator, radiator | 19% | hot gunboat | can fire everything every turn | no shield: dies twice a game |
+| railgun + missiles×2 + radiator + shields | railgun / missiles, missiles, radiator, shields | 37% | brawler | 8-damage volley, 1.5 kills a game | 8 heat for the full volley, 7 dissipation; 8 missiles then dry |
+| missiles×3 + radiator + shields | missiles / missiles, missiles, radiator, shields | 41% | missile boat | 6 guided damage from 2 rings and 3 sectors away, 2.4 kills a game, the top killer at cap 2 | 12 missiles then nothing; racks intercept; 6 heat a volley |
+| railgun + missiles + lasers×2 + radiator | railgun / missiles, laser, laser, radiator | 15% | glass cannon | 35 hull dealt a game | 33 taken, dies 1.5 times |
+| railgun + racks×2 + shields + radiator | railgun / rack, rack, shields, radiator | 24% | point-defence wall | two intercept rolls against missiles | racks do 1; nothing reaches a laser hull |
+| sensor + compressors×2 + shields + laser | sensor / compressor, compressor, shields, laser | 34% | fast hauler | 22 fuel, free jumps everywhere | one gun, one shield, no radiator |
+| railgun + missiles + shields×2 + radiator | railgun / missiles, shields, shields, radiator | 29% | armoured raider | soaks 4, 6-damage volley | no compressor; 8 heat when the wall is hit |
+
+Reading:
+- **Cap 2 spreads the field.** The best hull wins 46% outright against 53% under cap 3 and 57% under
+  cap 4, and the presets sit at 40 / 35 / 27 / 22 around a 37% baseline. Nothing is unkillable any
+  more: the double-shield laser hull dies ten times as often as under cap 3.
+- **Doubling shields becomes a build, not a default.** One shield soaks one missile or half a railgun
+  shot; two soak a railgun shot but hand you 8 heat, which only radiators make survivable. The turtle
+  (two shields, two radiators) is the specialised wall you wanted: legal, real, and 18% because it
+  cannot shoot.
+- **Missiles come back.** Under cap 4 a 2-cube shield swallowed every missile; at cap 2 a volley of
+  three lands 4, and the missile boat is the top killer (2.4 a game) without dominating (41%).
+- **Two presets need work.** The Scout is dead weight (22%): a sensor hull wants a laser, not
+  missiles, and that is the Hauler. The Hunter (27%) fights everything and lacks the fuel to pick its
+  fights; giving it the compressor instead of the radiator (railgun / missiles, compressor, laser,
+  shields) is the obvious candidate to test.
+- **Pacing is identical to cap 3** and seat 3's 22% wants a second look with more seeds.
+
+Recommendation: **cap 2.** Same pacing as cap 3, flatter field, and shields become a decision with a
+visible price on the table (two cubes soak a missile; stack them and bring radiators).
+
 ## Reproduce
 
 ```
