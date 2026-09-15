@@ -223,7 +223,14 @@ export type GameEvent =
       reason: "target_destroyed";
     })
   | (Base & { type: "deployed"; playerId: string; position: Position })
-  | (Base & { type: "game_ended"; winnerId: string });
+  /** Someone reached the points needed; the round is played out (turnsLeft more seats act). */
+  | (Base & { type: "final_round"; playerId: string; points: number; turnsLeft: number })
+  | (Base & {
+      type: "game_ended";
+      winnerId: string;
+      /** What separated first from second in the standings. */
+      decidedBy: "points" | "hull" | "fuel" | "seat";
+    });
 
 export type GameEventType = GameEvent["type"];
 

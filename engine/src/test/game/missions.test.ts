@@ -452,7 +452,7 @@ describe("missions: daring", () => {
 });
 
 describe("missions: winning", () => {
-  it("the third completed mission ends the game", () => {
+  it("the third point starts the final round; the game ends when the round does", () => {
     const done = [
       { ...surveyMission("s"), surveyAcquired: true, isCompleted: true },
       { ...destroyMission("p2", "t"), isCompleted: true },
@@ -462,12 +462,14 @@ describe("missions: winning", () => {
       missions: [...done, destroyMission("p2")],
       completedMissionCount: 2,
     });
+    // p1 (first seat) reaches 3: not over yet, p2 still gets this round's turn.
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
-    expect(result.gameState.phase).toBe("ended");
-    expect(result.gameState.winnerId).toBe("p1");
-    expect(eventsOf(result.events, "game_ended")).toEqual([
-      expect.objectContaining({ winnerId: "p1" }),
+    expect(result.gameState.phase).toBe("active");
+    expect(result.gameState.finalRound).toBe(true);
+    expect(eventsOf(result.events, "final_round")).toEqual([
+      expect.objectContaining({ playerId: "p1", points: 4, turnsLeft: 1 }),
     ]);
+    expect(eventsOf(result.events, "game_ended")).toEqual([]);
     expect(checkForWinner(result.gameState)?.id).toBe("p1");
     expect(completedMissions(getPlayer(result.gameState, "p1")).map((m) => m.id)).toEqual([
       "s",
@@ -475,9 +477,42 @@ describe("missions: winning", () => {
       "destroy-p2",
     ]);
 
-    const after = executeTurnAs(result.gameState, coast(1));
+    // p2's turn (a respawn turn, since it was just destroyed) closes the round.
+    const closed = executeTurnAs(result.gameState, coast(1));
+    expect(closed.gameState.phase).toBe("ended");
+    expect(closed.gameState.winnerId).toBe("p1");
+    expect(eventsOf(closed.events, "game_ended")).toEqual([
+      expect.objectContaining({ winnerId: "p1", decidedBy: "points" }),
+    ]);
+
+    const after = executeTurnAs(closed.gameState, coast(1));
     expect(after.errors?.[0]).toMatch(/phase/i);
-    expect(after.gameState).toBe(result.gameState);
+    expect(after.gameState).toBe(closed.gameState);
+  });
+
+  it("the last seat reaching the points ends the game at once, and a tie on points goes to hull", () => {
+    // p2 (last seat) is at 2 points with less hull; p1 is at 3 already, waiting for the round to end.
+    let state = withShip(gunline(), "p2", { hitPoints: 4 });
+    state = withPlayer(state, "p1", {
+      missions: [
+        { ...destroyMission("p2", "t"), isCompleted: true },
+        { ...surveyMission("s"), isCompleted: true, surveyAcquired: true },
+      ],
+      completedMissionCount: 3,
+    });
+    state = { ...state, finalRound: true, activePlayerIndex: 1 };
+    // p2 coasts: round over, p1 wins on points.
+    const closed = executeTurnAs(state, coast(1));
+    expect(closed.gameState.phase).toBe("ended");
+    expect(closed.gameState.winnerId).toBe("p1");
+
+    // Same board, but both at 3 points: hull decides (p1 has 10, p2 has 4).
+    let tied = withPlayer(state, "p2", { completedMissionCount: 3 });
+    const decided = executeTurnAs(tied, coast(1));
+    expect(decided.gameState.winnerId).toBe("p1");
+    expect(eventsOf(decided.events, "game_ended")).toEqual([
+      expect.objectContaining({ winnerId: "p1", decidedBy: "hull" }),
+    ]);
   });
 
   it("two points do not end the game: a Destroy alone is not a win", () => {

@@ -117,6 +117,22 @@ export function TableScreen({
             flexShrink: 0,
           }}
         />
+        {view.finalRound && view.phase === 'active' && (
+          <Tooltip title="Someone has reached 3 points. The round is played out so every seat gets the same number of turns; then highest score wins, hull breaks ties.">
+            <Chip
+              size="small"
+              label="FINAL ROUND"
+              sx={{
+                bgcolor: TABLE.accent,
+                color: '#1a1206',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                flexShrink: 0,
+                boxShadow: `0 0 12px ${TABLE.accentGlow}`,
+              }}
+            />
+          </Tooltip>
+        )}
         <Chip
           size="small"
           label={`${view.players.find(p => p.id === view.activePlayerId)?.name ?? '—'} to act`}
@@ -156,7 +172,7 @@ export function TableScreen({
             sx={{ color: TABLE.inkFaint, flexShrink: 1, minWidth: 0 }}
             noWrap
           >
-            first to {MISSIONS_TO_WIN} points wins · Destroy is worth 2
+            {MISSIONS_TO_WIN} points end the round · highest score wins · Destroy is worth 2
           </Typography>
         )}
         {isAnimating && (

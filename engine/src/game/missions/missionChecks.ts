@@ -144,8 +144,37 @@ export function processMissionEvents(
   return { state: { ...state, players }, events };
 }
 
+/** The first seat, in turn order, that has reached the points needed to trigger the final round. */
 export function checkForWinner(state: GameState): Player | undefined {
   return state.players.find((p) => p.completedMissionCount >= MISSIONS_TO_WIN);
+}
+
+export type Decider = "points" | "hull" | "fuel" | "seat";
+
+/**
+ * Standings: most points, then most hull, then most fuel, then the earlier
+ * seat. Used when the final round has been played out and at the simulator's
+ * turn cap. Also says what separated first from second.
+ */
+export function rankPlayers(state: GameState): { ranked: Player[]; decidedBy: Decider } {
+  const ranked = [...state.players].sort(
+    (a, b) =>
+      b.completedMissionCount - a.completedMissionCount ||
+      b.ship.hitPoints - a.ship.hitPoints ||
+      b.ship.reactionMass - a.ship.reactionMass ||
+      state.players.indexOf(a) - state.players.indexOf(b)
+  );
+  const [first, second] = ranked;
+  const decidedBy: Decider = !second
+    ? "points"
+    : first.completedMissionCount !== second.completedMissionCount
+      ? "points"
+      : first.ship.hitPoints !== second.ship.hitPoints
+        ? "hull"
+        : first.ship.reactionMass !== second.ship.reactionMass
+          ? "fuel"
+          : "seat";
+  return { ranked, decidedBy };
 }
 
 /** Face-up cards: the missions a player has completed. Public information. */

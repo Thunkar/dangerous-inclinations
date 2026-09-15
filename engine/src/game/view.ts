@@ -96,6 +96,8 @@ export interface GameView {
   stations: Station[];
   missiles: Missile[];
   winnerId?: string;
+  /** Someone has reached the points needed; the game ends when this round does. */
+  finalRound: boolean;
   /** Rules in force for this game (public). */
   rules: RuleSet;
   /** The viewer's full player record, or null for a spectator. */
@@ -187,6 +189,7 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     stations: state.stations,
     missiles: state.missiles,
     winnerId: state.winnerId,
+    finalRound: state.finalRound === true,
     rules: resolveRules(state.rules),
     me,
     myStats: me

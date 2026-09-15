@@ -46,9 +46,10 @@ loaded, ships are repaired and data is delivered.
 
 Loadout tiles (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
-Scanning peeks at one tile privately. Completed missions are face-up. First to
-3 points wins; four card types: destroy (worth 2), deliver, intercept, survey
-(worth 1 each).
+Scanning peeks at one tile privately. Completed missions are face-up. Reaching
+3 points triggers the final round: the round is played out, then highest score
+wins (hull, then fuel, break ties). Four card types: destroy (worth 2),
+deliver, intercept, survey (worth 1 each).
 New mission types are proposed to the designer, never added unasked.
 
 Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate,

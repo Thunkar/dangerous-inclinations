@@ -119,7 +119,13 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return "Stations advance in their orbits";
     case "deployed":
       return `${name(e.playerId)} deploys at ${pos(e.position)}`;
+    case "final_round":
+      return e.turnsLeft === 0
+        ? `${name(e.playerId)} reaches ${e.points} points as the round ends`
+        : `${name(e.playerId)} reaches ${e.points} points — the round is played out (${e.turnsLeft} more to act)`;
     case "game_ended":
-      return `${name(e.winnerId)} wins`;
+      return e.decidedBy === "points"
+        ? `${name(e.winnerId)} wins`
+        : `${name(e.winnerId)} wins on ${e.decidedBy === "seat" ? "turn order" : e.decidedBy}`;
   }
 }

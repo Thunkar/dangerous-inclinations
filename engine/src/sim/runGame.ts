@@ -21,6 +21,7 @@ import {
   type SeatLoadouts,
 } from "./loadoutOverrides.ts";
 import { createGame, submitLoadout } from "../game/setup.ts";
+import { rankPlayers } from "../game/missions/missionChecks.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
 import { viewFor } from "../game/view.ts";
@@ -200,10 +201,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   }
 
   if (endReason === "max_turns" && config.tiebreak) {
-    const ranked = [...state.players].sort(
-      (a, b) =>
-        b.completedMissionCount - a.completedMissionCount || b.ship.hitPoints - a.ship.hitPoints
-    );
+    const { ranked } = rankPlayers(state);
     state = { ...state, phase: "ended", winnerId: ranked[0].id };
     endReason = "tiebreak";
   }

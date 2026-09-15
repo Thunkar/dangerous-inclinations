@@ -86,7 +86,10 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
       'two consecutive turns on Black Hole Ring 1 with sensors powered, then dock at the named planet',
     ],
     ['Missions', 'Destroy · Deliver · Intercept · Survey'],
-    ['Win', `${MISSIONS_TO_WIN} points — Destroy is worth 2, every other card 1`],
+    [
+      'Win',
+      `${MISSIONS_TO_WIN} points trigger the final round; when it ends, highest score wins (hull, then fuel, break ties). Destroy is worth 2, every other card 1`,
+    ],
   ]
 
   return (

@@ -178,10 +178,10 @@ describe("setup: submitLoadout", () => {
 
 describe("loadout: validation and instantiation", () => {
   it("the tileLimits knob brings back one set per player", () => {
-    const threeLasers = {
+    const threeLasers: ShipLoadout = {
       forwardSlots: ["railgun"],
       sideSlots: ["laser", "laser", "laser", "shields"],
-    } as const;
+    };
     expect(validateLoadout(threeLasers).valid).toBe(true);
     expect(validateLoadout(threeLasers, { ...DEFAULT_RULES, tileLimits: true }).valid).toBe(false);
   });

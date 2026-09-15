@@ -2,7 +2,7 @@
 
 A game of orbital manoeuvre, heat management and hidden objectives for 2–4 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
 
-**First player to reach 3 points wins.** A Destroy card is worth 2 points, every other card 1.
+**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. A Destroy card is worth 2 points, every other card 1.
 
 ---
 
@@ -21,10 +21,10 @@ A game of orbital manoeuvre, heat management and hidden objectives for 2–4 pla
 
 Every turn a ship **drifts** forward by its ring's velocity. Inner rings are fast.
 
-| Well | Ring 1 | Ring 2 | Ring 3 | Ring 4 | Ring 5 |
-|------|--------|--------|--------|--------|--------|
-| Black Hole | 8 | 6 | 4 | 2 | 1 |
-| Planet | 4 | 2 | 1 | — | — |
+| Well       | Ring 1 | Ring 2 | Ring 3 | Ring 4 | Ring 5 |
+| ---------- | ------ | ------ | ------ | ------ | ------ |
+| Black Hole | 8      | 6      | 4      | 2      | 1      |
+| Planet     | 4      | 2      | 1      | —      | —      |
 
 Sectors are numbered 0–23 and increase in the direction of drift (prograde).
 
@@ -32,14 +32,14 @@ Sectors are numbered 0–23 and increase in the direction of drift (prograde).
 
 Lanes are **one-way**. Each connects a 4-sector arc on Black Hole Ring 5 with a 4-sector arc on a planet's Ring 3 and is travelled in one direction only: every planet has an **outbound** lane (black hole → planet) and an **inbound** lane (planet → black hole). A ship in a lane's departure arc may **jump** to the matching sector of its arrival arc (1st sector to 1st sector, and so on). The arrival arc is a place you land, never a place you leave from.
 
-| Lane | Direction | Black Hole Ring 5 | Planet Ring 3 |
-|------|-----------|-------------------|---------------|
-| Beta A  | out, to Beta   | sectors 0–3   | Beta 4–7 |
-| Alpha A | in, from Alpha | sectors 4–7   | Alpha 16–19 |
-| Gamma A | out, to Gamma  | sectors 8–11  | Gamma 4–7 |
-| Beta B  | in, from Beta  | sectors 12–15 | Beta 16–19 |
-| Alpha B | out, to Alpha  | sectors 16–19 | Alpha 4–7 |
-| Gamma B | in, from Gamma | sectors 20–23 | Gamma 16–19 |
+| Lane    | Direction      | Black Hole Ring 5 | Planet Ring 3 |
+| ------- | -------------- | ----------------- | ------------- |
+| Beta A  | out, to Beta   | sectors 0–3       | Beta 4–7      |
+| Alpha A | in, from Alpha | sectors 4–7       | Alpha 16–19   |
+| Gamma A | out, to Gamma  | sectors 8–11      | Gamma 4–7     |
+| Beta B  | in, from Beta  | sectors 12–15     | Beta 16–19    |
+| Alpha B | out, to Alpha  | sectors 16–19     | Alpha 4–7     |
+| Gamma B | in, from Gamma | sectors 20–23     | Gamma 16–19   |
 
 Reading Black Hole Ring 5 clockwise: out to Beta, in from Alpha, out to Gamma, in from Beta, out to Alpha, in from Gamma. Every arrival arc is followed by the departure arc for the next planet, so Alpha → Gamma → Beta → Alpha is the cheap circuit; the other way round costs a longer drift or a dive to a faster ring.
 
@@ -67,7 +67,7 @@ Otherwise:
 1. **Energy.** Move cubes freely between the reactor and your tiles, in the open. A tile is either off (0 cubes) or on (at least its minimum). Allocations persist between turns. Everyone can see how many cubes sit on each of your slots; they can't see what a face-down slot is.
 2. **Actions,** in any order you choose. Each tile may act once per turn (a ballistic rack may also intercept once during each other player's turn):
    - **Rotate** — flip facing (prograde ↔ retrograde). Thrusters need 1 cube.
-   - **Move** — exactly one of: *coast*, *burn* or *jump*. If you take no move, you coast.
+   - **Move** — exactly one of: _coast_, _burn_ or _jump_. If you take no move, you coast.
    - **Fire** — any number of powered weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan** — with a powered sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
@@ -85,42 +85,46 @@ Otherwise:
 - **Dissipation** is 5, plus 2 per working radiator. Excess heat at your heat check becomes hull damage.
 - **Shields** convert incoming damage into heat, up to the cubes on them; those cubes return to the reactor. Shields are electromagnetic: they stop railgun slugs, rack rounds and missiles, **not lasers**.
 
-| Tile | Energy | Effect |
-|------|--------|--------|
-| Engines (fixed) | 1–3 | Burns and jumps; once per turn |
-| Thrusters (fixed) | 1 | Rotate |
-| Fuel scoop (fixed) | 3 | While coasting, recover fuel equal to your ring's velocity |
-| Railgun (forward) | 4 | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil |
-| Sensor array (forward) | 2 | Scan; criticals on 8–10 while powered |
-| Missiles (forward or side) | 2 | Launch a guided missile (4 aboard) |
-| Broadside laser (side) | 2 | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
-| Shields (side) | 1–4 | Absorb damage as heat |
-| Radiator (side) | — | +2 dissipation |
-| Fuel compressor (side) | — | +6 fuel capacity; jumps cost no fuel |
-| Ballistic rack (side) | 2 | 1 damage, ±1 ring or same ring, ±1 sector; intercepts missiles |
+| Tile                       | Energy | Effect                                                                 |
+| -------------------------- | ------ | ---------------------------------------------------------------------- |
+| Engines (fixed)            | 1–3    | Burns and jumps; once per turn                                         |
+| Thrusters (fixed)          | 1      | Rotate                                                                 |
+| Fuel scoop (fixed)         | 3      | While coasting, recover fuel equal to your ring's velocity             |
+| Railgun (forward)          | 4      | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil                 |
+| Sensor array (forward)     | 2      | Scan; criticals on 8–10 while powered                                  |
+| Missiles (forward or side) | 2      | Launch a guided missile (4 aboard)                                     |
+| Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
+| Shields (side)             | 1–4    | Absorb damage as heat                                                  |
+| Radiator (side)            | —      | +2 dissipation                                                         |
+| Fuel compressor (side)     | —      | +6 fuel capacity; jumps cost no fuel                                   |
+| Ballistic rack (side)      | 2      | 1 damage, ±1 ring or same ring, ±1 sector; intercepts missiles         |
 
 ---
 
 ## Movement
 
 ### Coast
+
 Drift only. If your scoop is powered you may activate it: gain fuel equal to your ring's velocity (heat 3). Others see the scoop run, not how much you gained.
 
 ### Burn
+
 Drift, then change ring. Prograde facing burns **outward**, retrograde burns **inward**. Engines must hold at least the burn's energy. A burn changes exactly its number of rings: if there aren't enough rings left in that direction, you can't make that burn.
 
-| Burn | Engines | Fuel | Rings |
-|------|---------|------|-------|
-| Soft | 1 | 1 | 1 |
-| Medium | 2 | 2 | 2 |
-| Hard | 3 | 3 | 3 |
+| Burn   | Engines | Fuel | Rings |
+| ------ | ------- | ---- | ----- |
+| Soft   | 1       | 1    | 1     |
+| Medium | 2       | 2    | 2     |
+| Hard   | 3       | 3    | 3     |
 
 **Phasing.** During a burn you may adjust your arrival sector for 1 fuel per sector: brake by up to (velocity − 1) sectors, or accelerate by up to 3.
 
 ### Jump
+
 From a lane's departure arc (the black hole arc of an outbound lane, the planet arc of an inbound one), with engines at 3, pay 3 fuel (free with a fuel compressor) and move to the matching sector of the arrival arc. Facing is kept. A jump is your whole move: no drift this turn.
 
 ### Rotation
+
 Costs 1 energy on the thrusters and 1 heat. Rotate before your burn to choose its direction.
 
 ---
@@ -146,7 +150,7 @@ When you fire, name one slot on the target: forward, side 1–4, engines, thrust
 - **Ballistic rack** — targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away. While powered it also **intercepts** missiles that reach you: roll a d10, on 2+ the missile is destroyed (the rack is used and heats up either way).
 - **Missiles** — target within 2 rings and 3 sectors (a ship sharing your sector included), any facing. Place a missile token on your sector and name the critical slot. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
 
-  *Riding the orbit:* a missile drifts with its ring like everything else. The one exception is the turn you launch it: if you launch **after** moving, the missile has already ridden along with your ship, so it does not drift again that turn — it just flies its 3 steps from where you dropped it. Launch before moving and it drifts with the ring like your ship did. (The app draws the path either way.)
+  _Riding the orbit:_ a missile drifts with its ring like everything else. The one exception is the turn you launch it: if you launch **after** moving, the missile has already ridden along with your ship, so it does not drift again that turn — it just flies its 3 steps from where you dropped it. Launch before moving and it drifts with the ring like your ship did. (The app draws the path either way.)
 
 Nothing fires across gravity wells.
 
@@ -156,14 +160,14 @@ Nothing fires across gravity wells.
 
 Your tiles start face-down. **A tile is turned face-up the first time it does something:**
 
-| Tile | Face-up when |
-|------|--------------|
-| Any weapon | it fires (or a rack intercepts) |
-| Shields | they absorb damage |
-| Sensor array | it scans, or a critical lands on an 8 or 9 |
-| Radiator | your heat goes above 5 at a heat check (it is visibly shedding) |
-| Fuel compressor | a jump is refunded |
-| Any tile | it is broken by a critical |
+| Tile            | Face-up when                                                    |
+| --------------- | --------------------------------------------------------------- |
+| Any weapon      | it fires (or a rack intercepts)                                 |
+| Shields         | they absorb damage                                              |
+| Sensor array    | it scans, or a critical lands on an 8 or 9                      |
+| Radiator        | your heat goes above 5 at a heat check (it is visibly shedding) |
+| Fuel compressor | a jump is refunded                                              |
+| Any tile        | it is broken by a critical                                      |
 
 Face-up tiles stay face-up, even after respawn.
 
@@ -180,14 +184,14 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 ## Missions
 
-Four kinds of card. **Destroy is worth two points, every other card one; three points win** — so a kill plus any one other card wins.
+Four kinds of card. **Destroy is worth two points, every other card one; three points trigger the final round** — so a kill plus any one other card gets you there. The round is played out; highest score wins, hull breaks ties.
 
-| Card | Points | Complete when |
-|------|--------|---------------|
-| **Destroy [player]** | 2 | you reduce their hull to 0 |
-| **Deliver [A → B]** | 1 | you dock at A (load the crate), then dock at B |
-| **Intercept [player]** | 1 | you scan them (take the data chit), then dock at any station |
-| **Survey the Event Horizon [planet]** | 1 | you end **two consecutive turns** on Black Hole Ring 1 with your **sensor array powered** (take the data chit on the second), then dock at [planet]'s station. Ending a turn anywhere else, or with the sensors dark, starts the count again |
+| Card                                  | Points | Complete when                                                                                                                                                                                                                                |
+| ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Destroy [player]**                  | 2      | you reduce their hull to 0                                                                                                                                                                                                                   |
+| **Deliver [A → B]**                   | 1      | you dock at A (load the crate), then dock at B                                                                                                                                                                                               |
+| **Intercept [player]**                | 1      | you scan them (take the data chit), then dock at any station                                                                                                                                                                                 |
+| **Survey the Event Horizon [planet]** | 1      | you end **two consecutive turns** on Black Hole Ring 1 with your **sensor array powered** (take the data chit on the second), then dock at [planet]'s station. Ending a turn anywhere else, or with the sensors dark, starts the count again |
 
 Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey (to two different planets). Draw 5, keep 3.
 
@@ -208,21 +212,21 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 
 ## Quick Reference
 
-| | |
-|---|---|
-| Reactor | 10 energy |
-| Dissipation | 5 (+2 per radiator) |
-| Hull | 10 |
-| Fuel | 10 (+6 with compressor) |
-| Sectors per ring | 24 |
-| Burn | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy) |
-| Phasing | −(velocity−1) to +3 sectors, 1 fuel each |
-| Jump | engines 3, 3 fuel (free with compressor), no drift |
-| Hit roll | 1 miss, 2–9 hit, 10 crit (8–10 with sensors) |
-| Scan | same ring, within 3 sectors, sensor powered |
-| Docking | +3 hull, repair all, reload missiles, load/deliver cargo |
-| Survey | second consecutive turn ended on Black Hole Ring 1, sensors powered |
-| Win | 3 completed missions |
+|                  |                                                                     |
+| ---------------- | ------------------------------------------------------------------- |
+| Reactor          | 10 energy                                                           |
+| Dissipation      | 5 (+2 per radiator)                                                 |
+| Hull             | 10                                                                  |
+| Fuel             | 10 (+6 with compressor)                                             |
+| Sectors per ring | 24                                                                  |
+| Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)             |
+| Phasing          | −(velocity−1) to +3 sectors, 1 fuel each                            |
+| Jump             | engines 3, 3 fuel (free with compressor), no drift                  |
+| Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                        |
+| Scan             | same ring, within 3 sectors, sensor powered                         |
+| Docking          | +3 hull, repair all, reload missiles, load/deliver cargo            |
+| Survey           | second consecutive turn ended on Black Hole Ring 1, sensors powered |
+| Win              | 3 points end the round; highest score, then hull, then fuel         |
 
 ### Turn cheat sheet
 

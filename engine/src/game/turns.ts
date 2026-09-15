@@ -18,7 +18,7 @@ import { processActions } from "./actionProcessors.ts";
 import { processOwnerMissiles } from "./missiles.ts";
 import { processDocking } from "./docking.ts";
 import { resolveEndOfTurnHeat } from "./heat.ts";
-import { processMissionEvents, checkForWinner } from "./missions/missionChecks.ts";
+import { processMissionEvents, checkForWinner, rankPlayers } from "./missions/missionChecks.ts";
 import { updateStationPositions } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
 import { isDestroyed, resetSubsystemUsage } from "./ship.ts";
@@ -152,10 +152,23 @@ function finish(
     events.push({ type: "stations_moved" });
   }
 
-  const winner = checkForWinner(next);
-  if (winner) {
-    next = { ...next, phase: "ended", winnerId: winner.id };
-    events.push({ type: "game_ended", winnerId: winner.id });
+  // Reaching the points needed does not end the game on the spot: the round
+  // is played out so every seat has had the same number of turns, then the
+  // standings decide (RULES §Winning).
+  const reached = checkForWinner(next);
+  if (reached && !state.finalRound) {
+    next = { ...next, finalRound: true };
+    events.push({
+      type: "final_round",
+      playerId: reached.id,
+      points: reached.completedMissionCount,
+      turnsLeft: newRound ? 0 : state.players.length - nextIndex,
+    });
+  }
+  if (next.finalRound && newRound) {
+    const { ranked, decidedBy } = rankPlayers(next);
+    next = { ...next, phase: "ended", winnerId: ranked[0].id };
+    events.push({ type: "game_ended", winnerId: ranked[0].id, decidedBy });
   }
 
   return { gameState: next, events: stampEvents(events, turn) };
