@@ -342,10 +342,14 @@ export const scan = (
   sequence,
   data: { targetPlayerId, peekSlot },
 });
-export const jump = (sequence: number, destinationWellId: string): Draft<WellTransferAction> => ({
+export const jump = (
+  sequence: number,
+  destinationWellId: string,
+  sectorAdjustment = 0
+): Draft<WellTransferAction> => ({
   type: "well_transfer",
   sequence,
-  data: { destinationWellId },
+  data: { destinationWellId, sectorAdjustment },
 });
 
 /** Execute a turn for the active player, stamping their id onto every action. */

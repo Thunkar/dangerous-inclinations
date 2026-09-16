@@ -6,6 +6,7 @@
  */
 import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
+import { missionsMissingSubsystems } from "../../game/loadout.ts";
 import { DEFAULT_RULES } from "../../models/rules.ts";
 import {
   MISSIONS_PER_PLAYER,
@@ -199,22 +200,36 @@ export function scoreMissionCombo(
 /**
  * The best trio of the offers. Ties keep the earlier combination, so the
  * choice is deterministic for a given offer order.
+ *
+ * @param hull a mat already decided for this seat (the simulator forces one on
+ *   a seat to measure it). Trios that mat could never complete are skipped —
+ *   the engine refuses them anyway. A deal that offers no flyable trio at all
+ *   returns the best unconstrained one, and the caller fits the hull to it.
  */
 export function selectBotMissions(
   offers: Mission[],
   playerCount: number,
-  destroyPoints: number = DEFAULT_RULES.destroyPoints
+  destroyPoints: number = DEFAULT_RULES.destroyPoints,
+  hull?: ShipLoadout
 ): Mission[] {
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
+  const flyable = (combo: Mission[]) =>
+    hull === undefined || missionsMissingSubsystems(combo, hull).length === 0;
+
   let best: Mission[] = offers.slice(0, MISSIONS_PER_PLAYER);
   let bestScore = -Infinity;
+  let bestFits = false;
   for (let i = 0; i < offers.length - 2; i++) {
     for (let j = i + 1; j < offers.length - 1; j++) {
       for (let k = j + 1; k < offers.length; k++) {
         const combo = [offers[i], offers[j], offers[k]];
+        const fits = flyable(combo);
+        // A trio the mat can fly always beats one it cannot, whatever it scores.
+        if (bestFits && !fits) continue;
         const score = scoreMissionCombo(combo, playerCount, destroyPoints);
-        if (score > bestScore) {
+        if (score > bestScore || (fits && !bestFits)) {
           bestScore = score;
+          bestFits = fits;
           best = combo;
         }
       }

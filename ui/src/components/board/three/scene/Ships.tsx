@@ -47,15 +47,30 @@ import { sampleImpact } from './effects/impacts'
 import { countRender } from './effects/renders'
 import { NO_RAYCAST } from './effects/resources'
 
-/** Hull dimensions in board units: about one Black Hole ring-4 sector across. */
-const LENGTH = 64
-const WIDTH = 42
-const HEIGHT = 15
+/**
+ * Hull dimensions in board units.
+ *
+ * A token is the one thing on the board that does not scale with the board, so
+ * these are the numbers that decide whether a ring looks crowded. The hull was
+ * 64 long and 42 wide, which overhung both of the things it has to sit between:
+ * the 74 units of clear board between one ring and the next, and the 47 units of
+ * arc a black hole ring-1 sector is. Ring 1 has since come out to meet ring 5
+ * (`geometry.ts`), which makes the arc 65 and the gap 56.5 — so the hull is cut
+ * to 40, which is 0.71 of the gap it stands in and 0.61 of the sector it names,
+ * with its proportions kept exactly so it still reads as a dart with a nose.
+ *
+ * It is not smaller on screen: the board now opens on the black hole rather than
+ * on all four wells, which is worth rather more than the 1.6x this gives up.
+ */
+const LENGTH = 40
+const WIDTH = 26
+const HEIGHT = 10
 /** How far the hull floats over the surface its rings are drawn on. */
-const HOVER = 9
+const HOVER = 6
 
-const ACTIVE_RING = [30, 34] as const
-const SELECT_RING = [39, 44] as const
+/** Marks on the surface under a hull, sized so neither crosses a neighbouring ring. */
+const ACTIVE_RING = [18, 21] as const
+const SELECT_RING = [24, 27] as const
 
 const FLAT: [number, number, number] = [-Math.PI / 2, 0, 0]
 
@@ -64,15 +79,25 @@ const BANK = 0.42
 /** How long it wobbles after it has arrived. */
 const SETTLE_MS = 320
 
-/** A jump: charge on the departure arc, cross, arrive. Fractions of the beat. */
-const JUMP_CHARGE = 0.16
-const JUMP_ARRIVE = 0.86
-/** How high the crossing arcs over the gap, in board units. */
-const JUMP_LIFT = 200
-const JUMP_PITCH = 0.34
-const JUMP_ROLL = 0.5
+/**
+ * A jump: charge on the departure arc, cross, arrive. Fractions of the beat.
+ *
+ * The crossing is a straight line and it is flat. A transfer lane joins two
+ * arcs that lie in the same plane — black hole ring 5 and a planet's ring 3 are
+ * both the rim of their own well, at the height of the table — so there is
+ * nothing to fly over, and the hull used to hop over a 200-unit parabola and
+ * pitch up and back down along it for no reason anyone at the table could name.
+ * What is left is the part that meant something: a hard shove off the departure
+ * arc, a streak of exhaust the length of the lane, a flash at both ends, and a
+ * hull that lays into the turn the way it does coming round a ring. The window
+ * is tighter than it was, because a straight line reads as fast only if it is.
+ */
+const JUMP_CHARGE = 0.18
+const JUMP_ARRIVE = 0.74
+/** How far the hull lays over as it crosses. */
+const JUMP_ROLL = 0.34
 /** The warp flash left on the arc at each end. */
-const FLASH_SIZE = 52
+const FLASH_SIZE = 34
 
 /** A hull that has just appeared — a respawn, a deployment — materialises. */
 const BORN_MS = 340
@@ -380,23 +405,22 @@ function ShipMesh({
     const moving = !!motion && !!move && raw < 1
 
     let lean = 0
-    let pitch = 0
     let thrust = 0
     let streak = 0
 
     if (moving && motion && move) {
       if (move.jump) {
-        // A lane, not a chord: the hull leaves its arc, crosses high and comes
-        // down on the other one. Facing follows the crossing, not the ring.
+        // Straight down the lane, in the plane both arcs lie in: the two ends
+        // are the rims of their own wells and are the same height, so the track
+        // is a line and nothing lifts it off the table. Facing follows the
+        // crossing, not the ring.
         const crossing = smoother(
           MathUtils.clamp((raw - JUMP_CHARGE) / (JUMP_ARRIVE - JUMP_CHARGE), 0, 1)
         )
         interpolateWorld(motion.from, ship.position, crossing, LAYER.token, scratch)
-        scratch.y += JUMP_LIFT * Math.sin(Math.PI * crossing)
         node.position.copy(scratch)
         heading.rotation.y = yawFromHeading(move.heading)
         const speed = Math.sin(Math.PI * crossing) ** 0.6
-        pitch = JUMP_PITCH * Math.cos(Math.PI * crossing)
         lean = JUMP_ROLL * Math.sin(Math.PI * crossing)
         thrust = (raw < JUMP_CHARGE ? raw / JUMP_CHARGE : Math.max(0.4, speed)) * move.thrust
         streak = speed
@@ -446,7 +470,9 @@ function ShipMesh({
     } else if (roll.position.lengthSq() > 0) {
       roll.position.set(0, 0, 0)
     }
-    roll.rotation.set(lean, 0, pitch)
+    // Roll only: nothing on this board ever pitches, because nothing on it ever
+    // changes height.
+    roll.rotation.set(lean, 0, 0)
 
     const age = now - born.current
     if (age < BORN_MS) roll.scale.setScalar(0.2 + 0.8 * smoother(age / BORN_MS))
@@ -479,8 +505,9 @@ function ShipMesh({
     }
 
     if (moving && move?.jump) {
-      setFlash(departure.current, move.departure, raw / 0.45)
-      setFlash(arrival.current, move.arrival, (raw - 0.6) / 0.4)
+      // One flash burns down as the hull leaves, the other lights as it lands.
+      setFlash(departure.current, move.departure, raw / (JUMP_CHARGE + 0.22))
+      setFlash(arrival.current, move.arrival, (raw - (JUMP_ARRIVE - 0.1)) / 0.34)
     } else {
       if (departure.current) departure.current.visible = false
       if (arrival.current) arrival.current.visible = false

@@ -7,6 +7,8 @@
  * Completed missions are face-up: everyone can see them.
  */
 
+import type { SubsystemType } from "./subsystems.ts";
+
 export const MISSIONS_TO_WIN = 3;
 export const MISSIONS_PER_PLAYER = 3;
 export const MISSION_OFFERS_PER_PLAYER = 5;
@@ -28,6 +30,29 @@ export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
   intercept_transmission: "trade",
   survey: "daring",
 };
+
+/**
+ * Tiles a card cannot be completed without.
+ *
+ * An Intercept opens with a scan and a Survey is held with the sensors lit on
+ * the ring, so either card is dead weight on a mat with no sensor array: a
+ * loadout is fixed for the game and a station repairs tiles, it never fits
+ * one. This is the single table the rule lives in — the referee refuses a
+ * submission that breaks it (`missionsMissingSubsystems`, game/loadout.ts) and
+ * the loadout screen reads the same list while you choose.
+ */
+export const MISSION_REQUIRED_SUBSYSTEMS: Readonly<Record<MissionType, readonly SubsystemType[]>> =
+  {
+    destroy_ship: [],
+    deliver_cargo: [],
+    intercept_transmission: ["sensor_array"],
+    survey: ["sensor_array"],
+  };
+
+/** What a card needs aboard to be completable at all; empty for cards any hull can fly. */
+export function missionRequiredSubsystems(type: MissionType): readonly SubsystemType[] {
+  return MISSION_REQUIRED_SUBSYSTEMS[type];
+}
 
 interface BaseMission {
   id: string;

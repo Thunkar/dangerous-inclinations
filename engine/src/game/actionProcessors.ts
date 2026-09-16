@@ -21,8 +21,8 @@ import type {
 import { isTacticalAction } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import { getSubsystemConfig, isWeaponType } from "../models/subsystems.ts";
-import { BURN_COSTS, WELL_TRANSFER_COSTS } from "../models/rings.ts";
-import { findJump, getMaxRing } from "../models/gravityWells.ts";
+import { BURN_COSTS, calculateJumpMassCost } from "../models/rings.ts";
+import { findJump, getMaxRing, phasedJumpDestination } from "../models/gravityWells.ts";
 import { rollD10 } from "../utils/rng.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
 import { applyOrbitalMovement, applyBurn, applyRotation } from "./movement.ts";
@@ -30,6 +30,7 @@ import { resolveAttack } from "./damage.ts";
 import { createMissile, revealSensors } from "./missiles.ts";
 import { processScan } from "./scan.ts";
 import { rulesOf } from "./setup.ts";
+import { isMooredAt } from "./stations.ts";
 import {
   findSubsystem,
   getMaxReactionMass,
@@ -268,8 +269,14 @@ function processCoast(state: GameState, action: CoastAction): Step {
   const events: EventDraft[] = [];
   let massScooped = 0;
   let heat = 0;
+  // A ship docked at a station is moored: it holds its berth and rides the
+  // station at the end of the round instead of drifting now (RULES §Moored).
+  const moored = isMooredAt(
+    state.stations,
+    positionOf(state.players.find((p) => p.id === action.playerId)!.ship)
+  );
   const next = withPlayer(state, action.playerId, (p) => {
-    let ship = applyOrbitalMovement(p.ship);
+    let ship = applyOrbitalMovement(p.ship, moored);
     if (action.data.activateScoop) {
       const used = useSubsystem(ship, p.id, "scoop");
       ship = used.ship;
@@ -294,6 +301,7 @@ function processCoast(state: GameState, action: CoastAction): Step {
     to,
     scooped: action.data.activateScoop,
     heat,
+    ...(moored ? { moored: true } : {}),
   });
   if (action.data.activateScoop) {
     // Fuel is behind the screen: the exact gain is the owner's business.
@@ -339,12 +347,17 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
   const player = state.players.find((p) => p.id === action.playerId)!;
   const from = positionOf(player.ship);
   const jump = findJump(from, action.data.destinationWellId)!;
+  const sectorAdjustment = action.data.sectorAdjustment ?? 0;
+  // Validated above: the phased landing is inside the arrival arc.
+  const destination = phasedJumpDestination(jump, sectorAdjustment)!;
   let heat = 0;
   const refunded = hasWorkingCompressor(player.ship);
+  // A compressor refunds the jump's own fuel; the phasing is paid either way.
+  const massSpent = calculateJumpMassCost(sectorAdjustment, refunded);
 
   const next = withPlayer(state, action.playerId, (p) => {
-    let ship = { ...p.ship, ...jump.destination };
-    if (!refunded) ship = { ...ship, reactionMass: ship.reactionMass - WELL_TRANSFER_COSTS.mass };
+    let ship = { ...p.ship, ...destination };
+    if (massSpent > 0) ship = { ...ship, reactionMass: ship.reactionMass - massSpent };
     const used = useSubsystem(ship, p.id, "engines");
     ship = used.ship;
     heat = used.heat;
@@ -364,7 +377,9 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
     type: "jumped",
     playerId: action.playerId,
     from,
-    to: jump.destination,
+    to: destination,
+    sectorAdjustment,
+    massSpent,
     refunded,
     heat,
   });

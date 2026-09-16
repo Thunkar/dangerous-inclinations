@@ -24,8 +24,9 @@ import {
   WELL_TRANSFER_COSTS,
   getAdjustmentRange,
   calculateBurnMassCost,
+  calculateJumpMassCost,
 } from "../models/rings.ts";
-import { findJump, getMaxRing } from "../models/gravityWells.ts";
+import { findJump, getJumpAdjustmentRange, getMaxRing } from "../models/gravityWells.ts";
 import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity, sectorDistance } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, isDestroyed } from "./ship.ts";
@@ -304,10 +305,29 @@ export function validateWellTransferAction(state: GameState, action: WellTransfe
   const player = requirePlayer(state, action.playerId);
   const jump = findJump(positionOf(player.ship), action.data.destinationWellId);
   if (!jump) return ["No transfer lane from this position to that destination"];
+  const adjustment = action.data.sectorAdjustment ?? 0;
   const errors = validateEnginesReady(player, WELL_TRANSFER_COSTS.energy, "a jump");
-  if (!hasWorkingCompressor(player.ship) && player.ship.reactionMass < WELL_TRANSFER_COSTS.mass) {
+
+  // Phasing a jump is bounded by the arrival arc, not by the ring's velocity:
+  // a jump has no drift to brake against (RULES §Jump).
+  if (!Number.isInteger(adjustment)) {
+    errors.push("Sector adjustment must be an integer");
+  } else {
+    const { min, max } = getJumpAdjustmentRange(jump);
+    if (adjustment < min || adjustment > max) {
+      errors.push(
+        `Sector adjustment ${adjustment} would land outside the arrival arc (${min} to ${max} from here)`
+      );
+    }
+  }
+  const compressor = hasWorkingCompressor(player.ship);
+  const mass = calculateJumpMassCost(adjustment, compressor);
+  if (player.ship.reactionMass < mass) {
+    const breakdown = compressor
+      ? `${Math.abs(adjustment)} phasing, the compressor refunding the jump`
+      : `${WELL_TRANSFER_COSTS.mass} jump + ${Math.abs(adjustment)} phasing`;
     errors.push(
-      `Not enough reaction mass for a jump (need ${WELL_TRANSFER_COSTS.mass}, have ${player.ship.reactionMass})`
+      `Not enough reaction mass for a jump (need ${mass}: ${breakdown}, have ${player.ship.reactionMass})`
     );
   }
   return errors;

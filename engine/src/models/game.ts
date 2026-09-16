@@ -185,7 +185,14 @@ export interface ScanAction extends BaseAction {
 
 export interface WellTransferAction extends BaseAction {
   type: "well_transfer";
-  data: { destinationWellId: GravityWellId };
+  data: {
+    destinationWellId: GravityWellId;
+    /**
+     * Phasing, as on a burn: sectors to shift the arrival for 1 fuel each,
+     * bounded by the arrival arc. Absent = land on the matching sector.
+     */
+    sectorAdjustment?: number;
+  };
 }
 
 /** Deployment phase: place your ship and Home marker on a planet's outer ring. */

@@ -11,12 +11,28 @@ import {
   calculateShipStatsFromLoadout,
   canInstallInSlot,
   createSubsystemsFromLoadout,
+  missionsMissingSubsystems,
 } from "../../game/loadout.ts";
+import { describeMission } from "../../game/describe.ts";
+import { getSubsystemConfig } from "../../models/subsystems.ts";
+import type { Mission } from "../../models/missions.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { DEFAULT_LOADOUT } from "../../models/game.ts";
 import { HOME_RING } from "../../models/gravityWells.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
-import { BH, canonicalJson, coast, getPlayer, getShip, mustExecute } from "../testUtils.ts";
+import {
+  BH,
+  canonicalJson,
+  coast,
+  deliverMission,
+  destroyMission,
+  getPlayer,
+  getShip,
+  interceptMission,
+  mustExecute,
+  surveyMission,
+  withPlayer,
+} from "../testUtils.ts";
 
 const SPECS = [
   { id: "p1", name: "Ada" },
@@ -28,15 +44,24 @@ const pickFirst3 = (state: GameState, playerId: string) =>
     .missionOffers.slice(0, 3)
     .map((m) => m.id);
 
+/**
+ * A mat that can fly any hand: the sensor array is what Intercept and Survey
+ * need, and nothing else on a card asks for a particular tile.
+ */
+const ANY_HAND: ShipLoadout = {
+  forwardSlots: ["sensor_array"],
+  sideSlots: ["laser", "laser", "shields", "missiles"],
+};
+
 /** createGame + both loadouts submitted: the game sits in the deployment phase. */
 function readyToDeploy(seed = 11): GameState {
   let state = createGame(SPECS, seed);
   state = submitLoadout(state, "p1", {
-    loadout: DEFAULT_LOADOUT,
+    loadout: ANY_HAND,
     missionIds: pickFirst3(state, "p1"),
   }).state;
   state = submitLoadout(state, "p2", {
-    loadout: DEFAULT_LOADOUT,
+    loadout: ANY_HAND,
     missionIds: pickFirst3(state, "p2"),
   }).state;
   return state;
@@ -163,14 +188,81 @@ describe("setup: submitLoadout", () => {
     });
     expect(foreign.error).toMatch(/not found in your offers/i);
     const once = submitLoadout(start, "p1", {
-      loadout: DEFAULT_LOADOUT,
+      loadout: ANY_HAND,
       missionIds: pickFirst3(start, "p1"),
     }).state;
     const twice = submitLoadout(once, "p1", {
-      loadout: DEFAULT_LOADOUT,
+      loadout: ANY_HAND,
       missionIds: pickFirst3(start, "p1"),
     });
     expect(twice.error).toMatch(/already submitted/i);
+  });
+});
+
+describe("setup: a kept card the mat can never fly", () => {
+  /** Neither of these carries a sensor array; the second carries no tile a card asks for either. */
+  const RAILGUN_HULL: ShipLoadout = {
+    forwardSlots: ["railgun"],
+    sideSlots: ["laser", "laser", "shields", "missiles"],
+  };
+
+  const CARDS: Array<[string, Mission, boolean]> = [
+    ["a Destroy", destroyMission("p2"), false],
+    ["a Deliver", deliverMission("planet-alpha", "planet-beta"), false],
+    ["an Intercept", interceptMission("p2"), true],
+    ["a Survey", surveyMission(), true],
+  ];
+
+  it.each(CARDS)("%s knows whether it needs the sensor array", (_label, mission, needsSensor) => {
+    expect(missionsMissingSubsystems([mission], RAILGUN_HULL)).toEqual(
+      needsSensor ? [{ mission, missing: ["sensor_array"] }] : []
+    );
+    expect(missionsMissingSubsystems([mission], ANY_HAND)).toEqual([]);
+  });
+
+  /** A hand of three, offered to p1, so the picks are exactly what we want to test. */
+  const offered = (missions: Mission[]) =>
+    withPlayer(createGame(SPECS, 5), "p1", { missionOffers: missions });
+
+  it.each([
+    ["an Intercept", interceptMission("p2")],
+    ["a Survey", surveyMission()],
+  ])("refuses %s kept on a hull with no sensor array, naming the card and the tile", (_l, card) => {
+    const hand = [card, deliverMission("planet-alpha", "planet-beta"), destroyMission("p2")];
+    const state = offered(hand);
+    const result = submitLoadout(state, "p1", {
+      loadout: RAILGUN_HULL,
+      missionIds: hand.map((m) => m.id),
+    });
+    expect(result.state).toBe(state);
+    expect(result.error).toContain(describeMission(card, () => "Bo"));
+    expect(result.error).toContain(getSubsystemConfig("sensor_array").name);
+  });
+
+  it("accepts the same hand once the sensor array is aboard", () => {
+    const hand = [interceptMission("p2"), surveyMission(), destroyMission("p2")];
+    const state = offered(hand);
+    const result = submitLoadout(state, "p1", {
+      loadout: ANY_HAND,
+      missionIds: hand.map((m) => m.id),
+    });
+    expect(result.error).toBeUndefined();
+    expect(getPlayer(result.state, "p1").missions.map((m) => m.id)).toEqual(hand.map((m) => m.id));
+  });
+
+  it("lets a sensor card be left in the offers: only kept cards are checked", () => {
+    const keep = [
+      deliverMission("planet-alpha", "planet-beta"),
+      deliverMission("planet-beta", "planet-gamma"),
+      destroyMission("p2"),
+    ];
+    const state = offered([...keep, surveyMission(), interceptMission("p2")]);
+    const result = submitLoadout(state, "p1", {
+      loadout: RAILGUN_HULL,
+      missionIds: keep.map((m) => m.id),
+    });
+    expect(result.error).toBeUndefined();
+    expect(getPlayer(result.state, "p1").hasSubmittedLoadout).toBe(true);
   });
 });
 

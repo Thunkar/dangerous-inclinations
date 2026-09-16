@@ -13,7 +13,8 @@ import type { GameView } from "../game/view.ts";
 import { energyActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, type MovementPreview } from "../game/movement.ts";
-import { getJumpOptions } from "../models/gravityWells.ts";
+import { isMooredAt } from "../game/stations.ts";
+import { getJumpOptions, phasedJumpDestination } from "../models/gravityWells.ts";
 
 export interface FireIntent {
   weapon: SubsystemId;
@@ -38,7 +39,7 @@ export interface TurnIntent {
   move?:
     | { kind: "coast"; scoop?: boolean }
     | { kind: "burn"; intensity: BurnIntensity; adjustment?: number; facing?: Facing }
-    | { kind: "jump"; destinationWellId: string };
+    | { kind: "jump"; destinationWellId: string; adjustment?: number };
   fire?: FireIntent[];
   scan?: { target: string; slot?: SubsystemId };
 }
@@ -119,16 +120,20 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
 
   // Where the ship stands before and after the move, for choosing when a shot fires.
   const pre = { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing };
+  const jumpOption =
+    move.kind === "jump"
+      ? getJumpOptions(pre).find((o) => o.destination.wellId === move.destinationWellId)
+      : undefined;
   const preview: MovementPreview =
     move.kind === "coast"
-      ? { kind: "coast" }
+      ? { kind: "coast", moored: isMooredAt(view.stations, pre) }
       : move.kind === "burn"
         ? { kind: "burn", burnIntensity: move.intensity, sectorAdjustment: move.adjustment ?? 0 }
         : {
             kind: "jump",
-            jumpDestination: getJumpOptions(pre).find(
-              (o) => o.destination.wellId === move.destinationWellId
-            )?.destination,
+            jumpDestination: jumpOption
+              ? phasedJumpDestination(jumpOption, move.adjustment ?? 0)
+              : undefined,
           };
   const post = projectPosition(ship, facing, preview);
   const targetPosition = (id: string) => {
@@ -189,7 +194,10 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       type: "well_transfer",
       playerId: me.id,
       sequence: seq(),
-      data: { destinationWellId: move.destinationWellId as GravityWellId },
+      data: {
+        destinationWellId: move.destinationWellId as GravityWellId,
+        sectorAdjustment: move.adjustment ?? 0,
+      },
     });
   for (const f of shots.filter((s) => s.when !== "before")) actions.push(fireAction(f));
   if (intent.scan) {

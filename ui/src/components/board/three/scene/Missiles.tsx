@@ -155,7 +155,7 @@ function MissileInFlight({
 
   return (
     <group>
-      {driftTrack && <SurfaceLine points={driftTrack} color={color} width={2.2} opacity={0.55} />}
+      {driftTrack && <SurfaceLine points={driftTrack} color={color} width={2.2} opacity={0.8} />}
       {flightTrack && (
         <SurfaceLine
           points={flightTrack}
@@ -170,7 +170,7 @@ function MissileInFlight({
       {impact && <SurfaceDot position={impact} color={color} radius={3.5} opacity={0.85} />}
 
       {/* The dark disc the SVG board sets its dart on, so it reads over a ring. */}
-      <SurfaceDot position={shadow} color={TABLE.felt} radius={6.5} opacity={0.6} />
+      <SurfaceDot position={shadow} color={TABLE.felt} radius={6.5} opacity={0.6} edge={false} />
 
       <group position={anchor} rotation={[0, yaw, 0]}>
         <Dart color={color} phase={phaseOf(missile.id)} />

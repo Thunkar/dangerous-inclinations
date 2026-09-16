@@ -4,18 +4,27 @@
  * {@link ./successors.ts:getSuccessors}; used by the reverse BFS.
  *
  * Rotation is free within a turn, so burn predecessors come in both
- * facings (the ship rotates before burning). Jumps land exactly on the
- * lane's destination sector with no drift and work from either facing.
+ * facings (the ship rotates before burning). Jumps land on the arrival arc
+ * with no drift and work from either facing: with phasing, every departure
+ * sector of a lane reaches every sector of its arrival arc.
  */
 import type { BurnIntensity } from "../../models/game.ts";
-import { BURN_COSTS, getAdjustmentRange, WELL_TRANSFER_COSTS } from "../../models/rings.ts";
-import { getMaxRing, getRingConfig, TRANSFER_POINTS } from "../../models/gravityWells.ts";
+import { BURN_COSTS, calculateJumpMassCost, getAdjustmentRange } from "../../models/rings.ts";
+import {
+  arcOffset,
+  arcSectors,
+  getMaxRing,
+  getRingConfig,
+  laneArrivalArc,
+  laneDepartureArc,
+  TRANSFER_LANES,
+} from "../../models/gravityWells.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import type { OrientedPosition, PredecessorInfo } from "./types.ts";
 
 export interface PredecessorOptions {
   allowWellTransfers: boolean;
-  /** Jumps cost no mass. */
+  /** A compressor refunds a jump's own mass (never its phasing). */
   hasFuelCompressor?: boolean;
 }
 
@@ -127,29 +136,39 @@ function getBurnPredecessorsForDirection(
 }
 
 /**
- * Jump: the ship lands exactly on the lane's destination sector (no drift),
- * so the predecessor is the lane's source sector in the other well.
+ * Jump: the ship lands on the lane's arrival arc (no drift). Phasing shifts
+ * the landing inside that arc for 1 fuel a sector, so any of the lane's four
+ * departure sectors can reach the target, the matching one for free.
  */
 function getWellTransferPredecessors(
   target: OrientedPosition,
   availableMass: number,
   hasFuelCompressor: boolean
 ): PredecessorInfo[] {
-  const jumpMass = hasFuelCompressor ? 0 : WELL_TRANSFER_COSTS.mass;
-  if (jumpMass > availableMass) return [];
-
   const predecessors: PredecessorInfo[] = [];
-  for (const tp of TRANSFER_POINTS) {
-    if (tp.toWellId !== target.wellId || tp.toRing !== target.ring || tp.toSector !== target.sector)
-      continue;
-    for (const facing of ["prograde", "retrograde"] as const) {
-      predecessors.push({
-        position: { wellId: tp.fromWellId, ring: tp.fromRing, sector: tp.fromSector, facing },
-        actionType: "well_transfer",
-        sectorAdjustment: 0,
-        massCost: jumpMass,
-        requiresRotation: false,
-      });
+  for (const lane of TRANSFER_LANES) {
+    const landing = arcOffset(laneArrivalArc(lane), target);
+    if (landing < 0) continue;
+    const departure = laneDepartureArc(lane);
+    const sectors = arcSectors(departure);
+    for (let offset = 0; offset < sectors.length; offset++) {
+      const adjustment = landing - offset;
+      const massCost = calculateJumpMassCost(adjustment, hasFuelCompressor);
+      if (massCost > availableMass) continue;
+      for (const facing of ["prograde", "retrograde"] as const) {
+        predecessors.push({
+          position: {
+            wellId: departure.wellId,
+            ring: departure.ring,
+            sector: sectors[offset],
+            facing,
+          },
+          actionType: "well_transfer",
+          sectorAdjustment: adjustment,
+          massCost,
+          requiresRotation: false,
+        });
+      }
     }
   }
   return predecessors;

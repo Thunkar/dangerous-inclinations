@@ -205,6 +205,33 @@ export function findJump(
 }
 
 /**
+ * How far a jump may be phased, in sectors. A jump lands on the arrival arc
+ * and may be shifted inside it for 1 fuel a sector, never out of it: from the
+ * arc's first sector you may only go forward, from its last only back. Every
+ * departure sector therefore reaches all {@link TRANSFER_ARC_LENGTH} sectors
+ * of the arc.
+ */
+export function getJumpAdjustmentRange(option: JumpOption): { min: number; max: number } {
+  const arc = laneArrivalArc(option.lane);
+  const offset = arcOffset(arc, option.destination);
+  return { min: -offset, max: arc.length - 1 - offset };
+}
+
+/**
+ * Where a phased jump lands, or undefined when the shift would leave the
+ * arrival arc.
+ */
+export function phasedJumpDestination(
+  option: JumpOption,
+  sectorAdjustment: number
+): Position | undefined {
+  const arc = laneArrivalArc(option.lane);
+  const offset = arcOffset(arc, option.destination) + sectorAdjustment;
+  const sector = arcSectors(arc)[offset];
+  return sector === undefined ? undefined : { wellId: arc.wellId, ring: arc.ring, sector };
+}
+
+/**
  * Flat per-sector view of the lanes: one entry per departure sector.
  * Convenient for path planners that think in individual transfer points.
  */

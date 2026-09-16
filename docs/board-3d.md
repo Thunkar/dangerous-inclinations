@@ -227,7 +227,7 @@ colours from `WELL_VISUALS`, monospace for every number.
 | Event | Today | 3D |
 | --- | --- | --- |
 | coast / burn | token slides along the ring | hull follows the arc at ring elevation, banks slightly, engine glow flares on burns |
-| jump | slide plus amber burst | hull streaks along the lane ribbon with a warp flash at both arcs |
+| jump | slide plus amber burst | hull streaks in a straight line between the two arcs, flat, with a warp flash at both ends |
 | weapon_fired | beam line with a head | emissive beam (railgun: thick bright bolt; laser: thin continuous line; ballistic/missile: dashed tracer) with bloom |
 | attack_resolved | MISS / CRIT / -n floats, burst | same floats as billboards; hit spark particles on the hull; crit adds a white flash |
 | missile_intercepted | PDC beam, INTERCEPTED | cyan tracer, small detonation puff |
@@ -337,23 +337,92 @@ rendered 46 times and the ships tree 70, every one on an event boundary.
 
 **Legibility.** Sector numbers roughly doubled from the first pass, then came
 back about a tenth once the art landed, because at their largest they read as
-the subject of the picture rather than as labels on a map (`LABEL_MAX` 23,
-`LABEL_FILL` 0.78 in `world.ts`; ten of the fourteen rings sit on the first,
-the innermost ring of each well on the second). Black hole ring 1 holds around
-7 pixels of ink at 1440x900, against 4 on the flat board in the same pane. 9
-pixels is not reachable at this framing: filling 90% of the shorter axis puts
-one ring-1 sector on 18.2 pixels of arc, and a two-digit number at 9 pixels
-needs 14.4 of them, so neighbours touch. Inner-ring labels fade up as the
-camera approaches and are never removed.
+the subject of the picture rather than as labels on a map. Black hole ring 1
+holds around 7.8 pixels of ink at 1440x900, against about 4 on the flat board
+in the same pane. 9 pixels is not reachable: a ring-1 sector is too short an
+arc for two digits at that height without neighbours touching. Inner-ring
+labels fade up as the camera approaches and are never removed.
+
+**Opening the board out, and why it did nothing.** The wells were nearly
+touching — the black hole's plate ended at 391 units, a planet's at 246, and
+planets orbited at 645, leaving 8 units of clear space — so the board was grown
+1.42x (bounds 1656x1507 -> 2364x2140), which put 132 units between plates.
+
+On screen that changed nothing at all, and could not have. Both renderers fit
+whatever board they are handed: the camera solves its framing from the artwork,
+the viewBox is cut to it. Multiplying every board unit by the same factor is the
+identity. What it did do was shrink the tokens, which deliberately keep their
+board-unit size, and shrink each well, because the wells were pushed apart
+inside a picture that still had to fit. The black hole came out the same size it
+had been, to the pixel.
+
+**Spending proportion instead, and framing.** Only two things can change what is
+on the screen: the proportion between the board and what stands on it, and how
+much of the board you are shown.
+
+*Framing.* Neither board opens on the whole board any more. Four wells across a
+triangle 2364 units wide leave each of them a fifth of the pane; the game is
+played in the black hole's well, where everyone deploys and every Home is. Both
+renderers now open on that well plus half as much again (`HOME_VIEW_RADIUS` in
+`geometry.ts` — the flat board solves a zoom from it, the rig frames a
+silhouette from it) and the planets fall off the edges. Recentre is what fits
+the whole board, in one click, in both. At 1440x900 this alone is worth 1.48x on
+every length in that well.
+
+*Ring layout.* Ring 1's circumference is what caps the type on the entire board,
+because 24 numbers have to fit round it, and everything inside it is the room the
+body has. Ring 1 came out to meet ring 5, which did not move: the black hole's
+rings went 180…476 to 250…476 and a planet's 172…300 to 192…300. Ring-1 arc per
+sector 47 -> 65, its numbers up to the same cap every other ring prints at, and
+the black hole from 0.416 of ring 1 to 0.500 — 75 units of radius to 125, against
+a ring 5 in the same place. Paid for out of radial gap: 74 units between two
+rings to 56.5, which also cost the ring captions a fifth of their size and the
+funnel a third of its depth.
+
+*Tokens.* The hull was 64 long against that 74-unit gap and a 47-unit sector, so
+it overhung both and sat across the number it was standing on. It is 40 now —
+0.71 of the gap, 0.61 of the sector — and lands within a sixth of the pixels it
+used to, because the framing gave back more than the hull gave up.
+
+**The black hole's ceiling, corrected.** `bodies.ts` proves that nothing the
+black hole draws climbs past the far side of ring 1's numbers as they land on
+screen. The test had its sign inverted — it had height *buying* ceiling instead
+of spending it — which cost nothing while the hole was a marble in a wide pit and
+cashed itself in the moment the hole grew: the disc's far limb went through ring
+1's 22 and 1. With the sign right, the ceiling is `ink·sin P` against a reach of
+`1.1·r + lift·cos P` (the lensed arc, not the silhouette, is the outermost bright
+thing). Two things were bought back against it: the Table camera's shallowest
+pitch, 55° -> 62°, worth about a percent of black hole per degree; and settling
+the horizon 0.72 of a radius into the floor of its own pit instead of resting it
+on top, which is invisible — the plate is opaque and the cut is black on dark —
+and worth a sixth.
+
+Since a camera and a viewBox both fit whatever the board is, a printed size
+left alone simply lands smaller on screen. So every printed size is written as
+the number it was tuned at times `PRINT_SCALE` (`geometry.ts`, shared by both
+renderers): type and lane ribbons keep their apparent size, tokens keep their
+board-unit size on purpose and come out smaller against a roomier board, and
+opening the board out again carries the printing with it. The funnel's depth
+limit follows ring spacing rather than the board, so it deepened from 170 to
+197 units rim to floor.
+
+**Trajectories bow off their ring.** A leg travelling along a ring used to be
+sampled at that ring's own radius, so the track was the ring: dashes vanished
+into it on the flat board and fought it for pixels in three dimensions. A track
+now leaves its ring by a share of the gap to the next one, runs beside it, and
+eases back down at both ends, so every mark that means a sector still sits on
+the sector it names. Outward, because the inside of a ring carries its ticks
+and numbers. The bow is a share of the gap and scales with how far the track
+rides, so it survived the board being resized underneath it with no edit.
 
 **Framing** went from 0.69 x 0.73 of the viewport to 0.90 on the binding axis,
-centred, at every pane the table produces.
+centred, at every pane the table produces, and held there through the rescale.
 
 **The funnel** is terraced: each ring sits on a flat terrace so its ribbon,
-ticks and 24 numbers lie in one plane, with ramps between. Depth is set at
-the occlusion limit -- from 55 degrees a ramp of length L hides the terrace
-below it once its drop exceeds about 1.27 L, which at L = 40 is 50.8 against
-a RING_DROP of 50. Deepening it further costs a ring's near side.
+ticks and 24 numbers lie in one plane, with ramps between. Depth is set at the
+occlusion limit -- from 55 degrees a ramp of length L hides the terrace below it
+once its drop exceeds about 1.27 L -- which is solved rather than tuned, so it
+followed the board when the rings moved apart.
 
 **Live.** The 3D board was driven through a real three-seat game on the
 server: clicking a deployment wedge placed a ship, the server accepted it and
@@ -362,6 +431,44 @@ the table played on, with no console errors in either renderer.
 **Not photographed, because the bots never do it:** a point-defence intercept
 and a ballistic rack. 120 seeds x 80 turns at 3 and 4 seats produced neither.
 The same cyan tracer is exercised by a scan.
+
+**Opening the rings out, and paying for it.** The rings were too close together
+and the lines and numbers on them too heavy — a dial rather than a map. Ring 1
+cannot move inward (24 numbers cap the type on it, and the body sits inside it),
+so the gap had to be taken outward, which grows the well; and since both boards
+open on that well, growing it shrinks everything in it. The bill was settled by
+tightening the opening framing by exactly as much as the well grew: the margin
+around the plate went from 38% of it to 16%, which is the same 691 board units
+framed as before, on a plate that went from 502 to 596. The black hole rings are
+250…570 (gaps 80, from 56.5) and a planet's 192…332 (gaps 70, from 54).
+
+Measured at 1440x900 in the view the board opens in, with the same pane both
+times: the ring gap 35.4 -> 49.6 px in three dimensions and 33.0 -> 46.8 px flat;
+the ring line 2.49 -> 1.49 px and 0.99 -> 0.70 px; a ring-1 digit 12.2 -> 10.1 px
+and 7.9 -> 6.8 px; the gap measured in ring-line widths 14.2 -> 33.2 and 33.2 ->
+66.4. The black hole's body is 136.1 px before and 136.1 px after, to the tenth
+of a pixel, and ring 1's on-screen radius and arc per sector are unchanged the
+same way: nothing inside ring 1 moved, and everything outside it opened. A
+two-digit sector number now has 2.21 times its own width of arc to sit in rather
+than 1.82 (3.50 rather than 3.03 on the flat board).
+
+Two things fell out of it. The funnel's depth is solved from the ramp between two
+terraces, so wider rings would have deepened the black hole's pit from 121 units
+to 223 — and depth is not free, because a camera above the table is further from
+the floor of a pit than from its rim, so 100 units of extra fall took 4.6% off
+the black hole's on-screen diameter. Depth is now the lesser of the occlusion
+limit and half of ring 1, which is one body radius and the fall the well already
+had. And `PRINT_SCALE` was measured against the board's overall height, which is
+a size nobody ever sees: pushing the planets apart to keep the wells from
+touching would have swollen every letter on the board. It is measured against
+the framing now.
+
+**Recentre means the opening view.** The Table preset lost its button for being
+the same control twice, so Recentre is the only way back to the three-quarter
+view: in both renderers it now restores the framing, pitch and zoom the board
+opened in — and drops Top or Follow if one is selected — rather than fitting the
+whole board. The whole board is still one or two clicks of zoom-out away, and
+`frameAll` is still there for it; no control calls it.
 
 ## 7. Risks
 

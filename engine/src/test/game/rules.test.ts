@@ -3,13 +3,16 @@ import type { ShipLoadout } from "../../models/game.ts";
 import { DEFAULT_RULES, parseRuleOverrides, resolveRules } from "../../models/rules.ts";
 import { createGame } from "../../game/setup.ts";
 import {
+  ALPHA,
   BH,
   allocate,
   coast,
   executeTurnAs,
   fire,
+  mustExecute,
   getPlayer,
   getShip,
+  jump,
   makeTwoPlayerGame,
   withPlayer,
   withPower,
@@ -21,6 +24,12 @@ const SPECS = [
   { id: "p1", name: "A" },
   { id: "p2", name: "B" },
 ];
+
+/** A ship whose side-0 is a fuel compressor, for the jump-fuel knob. */
+const COMPRESSOR_SHIP: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["fuel_compressor", "laser", "shields", "shields"],
+};
 
 /** A rack at side-0: the one-damage round shields can still absorb (lasers cannot). */
 const RACK_SHIP: ShipLoadout = {
@@ -38,6 +47,21 @@ describe("rule knobs", () => {
     });
     expect(() => parseRuleOverrides("bogus=1")).toThrow(/Unknown rule/);
     expect(() => parseRuleOverrides("destroyPoints=two")).toThrow(/number/);
+  });
+
+  it("a compressor refunds a jump but never its phasing", () => {
+    const state = withPower(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 5, sector: 17, loadout: COMPRESSOR_SHIP },
+        { wellId: BH, ring: 4, sector: 12 }
+      ),
+      "p1",
+      "engines",
+      3
+    );
+    // A compressor tank holds 16: the jump is free, the two sectors are not.
+    expect(getShip(mustExecute(state, jump(1, ALPHA, 2)), "p1").reactionMass).toBe(14);
+    expect(getShip(mustExecute(state, jump(1, ALPHA)), "p1").reactionMass).toBe(16);
   });
 
   it("a game carries its rules", () => {

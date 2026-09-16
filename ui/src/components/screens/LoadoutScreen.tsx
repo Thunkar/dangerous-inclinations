@@ -6,6 +6,12 @@
  * All tiles go down face-down — the table learns what you carry only when
  * something fires, absorbs or breaks. Missions are dealt before deployment, so
  * the cards you keep should decide where you put your Home.
+ *
+ * Hand and hull are one choice: an Intercept opens with a scan and a Survey is
+ * held with the sensors lit, so neither card can be kept without a sensor
+ * array on the mat (`MISSION_REQUIRED_SUBSYSTEMS`). The engine refuses a
+ * submission that breaks that; this screen says so on the card the moment
+ * either half changes, so nobody meets the refusal.
  */
 import { useCallback, useMemo, useState } from 'react'
 import { Alert, Box, Button, CircularProgress, Tooltip, Typography } from '@mui/material'
@@ -17,12 +23,17 @@ import {
   STARTING_REACTION_MASS,
   calculateShipStatsFromLoadout,
   canInstallInSlot,
+  describeMission,
+  getSubsystemConfig,
+  hasSubsystemInLoadout,
+  missionRequiredSubsystems,
+  missionsMissingSubsystems,
   validateLoadout,
 } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { TableTalk } from '../table/TableTalk'
-import { MissionCard } from '../common/MissionCard'
+import { MissionCard, type MissionRequirement } from '../common/MissionCard'
 import { ShipDisplay, FixedSubsystemSlot } from '../ship'
 import { ComponentPalette, LoadoutSlot } from '../loadout'
 import type { SlotType } from '../loadout'
@@ -64,6 +75,12 @@ const PRESETS: Array<{ id: BotArchetype; name: string; blurb: string }> = [
 
 const STARTING_PRESET: BotArchetype = 'hauler'
 
+/** "a, b and c" — for the one line that says why Ready is dark. */
+function listed(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? ''
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
+
 function presetLoadout(id: BotArchetype): ShipLoadout {
   const template = BOT_LOADOUT_TEMPLATES[id]
   return {
@@ -93,7 +110,6 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
 
   const validation = useMemo(() => validateLoadout(loadout), [loadout])
   const stats = useMemo(() => calculateShipStatsFromLoadout(loadout), [loadout])
-  const hasSensor = loadout.forwardSlots.includes('sensor_array')
 
   const setForward = useCallback((type: SubsystemType | null) => {
     setLoadout(prev => ({ ...prev, forwardSlots: [type] }))
@@ -118,12 +134,23 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
   const offers = me.missionOffers
   const submitted = me.hasSubmittedLoadout
 
-  /** An Intercept needs a scan, and a scan needs a powered sensor array. */
-  const needsSensor = (type: string) => type === 'intercept_transmission'
-  const keptNeedingSensor = kept.filter(id =>
-    needsSensor(offers.find(m => m.id === id)?.type ?? '')
-  )
-  const sensorWarning = !hasSensor && keptNeedingSensor.length > 0
+  // What each offered card asks of the mat, re-read on every change to either
+  // half — drop the sensor array and the cards you kept say so at once.
+  const requirementsFor = (mission: (typeof offers)[number]): MissionRequirement[] =>
+    missionRequiredSubsystems(mission.type).map(type => ({
+      type,
+      met: hasSubsystemInLoadout(loadout, type),
+    }))
+
+  const keptMissions = offers.filter(m => kept.includes(m.id))
+  const gaps = missionsMissingSubsystems(keptMissions, loadout)
+  const missingTiles = [...new Set(gaps.flatMap(g => g.missing))]
+  const gapWarning =
+    gaps.length === 0
+      ? null
+      : `${listed(gaps.map(g => describeMission(g.mission, nameOf)))} cannot be completed by this mat. Fit ${listed(
+          missingTiles.map(t => `a ${getSubsystemConfig(t).name}`)
+        )}, or keep a different card.`
 
   const clickSlot = (group: 'forward' | 'side', index: number) => {
     if (!selected) return
@@ -143,7 +170,24 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
   }
 
   const canSubmit =
-    validation.valid && kept.length === MISSIONS_PER_PLAYER && !submitting && !submitted
+    validation.valid &&
+    kept.length === MISSIONS_PER_PLAYER &&
+    gaps.length === 0 &&
+    !submitting &&
+    !submitted
+
+  /** Why Ready is dark, in one line, in the order the player can fix them. */
+  const blockedReason = !validation.valid
+    ? 'Every bay on the mat must hold a tile.'
+    : kept.length < MISSIONS_PER_PLAYER
+      ? offers.length === 0
+        ? null
+        : `Choose ${MISSIONS_PER_PLAYER - kept.length} more card${
+            MISSIONS_PER_PLAYER - kept.length === 1 ? '' : 's'
+          }.`
+      : gaps.length > 0
+        ? 'Ready stays locked until every card you keep can be completed by this mat.'
+        : null
 
   const submit = async () => {
     setSubmitting(true)
@@ -303,27 +347,14 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
         >
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {offers.map(mission => (
-              <Box key={mission.id} sx={{ position: 'relative' }}>
-                <MissionCard
-                  mission={mission}
-                  nameOf={nameOf}
-                  selected={kept.includes(mission.id)}
-                  onClick={() => toggleMission(mission.id)}
-                />
-                {needsSensor(mission.type) && !hasSensor && (
-                  <Typography
-                    sx={{
-                      fontFamily: FONT_MONO,
-                      fontSize: '0.75rem',
-                      color: TABLE.heat,
-                      mt: 0.25,
-                      letterSpacing: '0.06em',
-                    }}
-                  >
-                    needs a sensor array
-                  </Typography>
-                )}
-              </Box>
+              <MissionCard
+                key={mission.id}
+                mission={mission}
+                nameOf={nameOf}
+                selected={kept.includes(mission.id)}
+                onClick={() => toggleMission(mission.id)}
+                requires={requirementsFor(mission)}
+              />
             ))}
           </Box>
           {offers.length === 0 && (
@@ -334,25 +365,39 @@ export function LoadoutScreen({ headerRight }: { headerRight?: React.ReactNode }
 
           <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {error && <Alert severity="error">{error}</Alert>}
-            {sensorWarning && (
+            {gapWarning && (
               <Alert severity="warning" sx={{ py: 0 }}>
-                An Intercept is completed by scanning: fit the sensor array in the forward slot, or
-                keep a different card.
+                {gapWarning}
               </Alert>
-            )}
-            {kept.length < MISSIONS_PER_PLAYER && offers.length > 0 && (
-              <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-                Choose {MISSIONS_PER_PLAYER - kept.length} more.
-              </Typography>
             )}
             {submitted ? (
               <Alert severity="success">
                 Mat submitted. Waiting for the others to finish fitting out.
               </Alert>
             ) : (
-              <Button variant="contained" size="large" disabled={!canSubmit} onClick={submit}>
-                {submitting ? <CircularProgress size={22} color="inherit" /> : 'Ready'}
-              </Button>
+              <>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  disabled={!canSubmit}
+                  onClick={submit}
+                >
+                  {submitting ? <CircularProgress size={22} color="inherit" /> : 'Ready'}
+                </Button>
+                {blockedReason && (
+                  <Typography
+                    sx={{
+                      fontFamily: FONT_MONO,
+                      fontSize: '0.78rem',
+                      lineHeight: 1.4,
+                      color: gaps.length > 0 ? TABLE.heat : TABLE.inkSoft,
+                    }}
+                  >
+                    {blockedReason}
+                  </Typography>
+                )}
+              </>
             )}
           </Box>
         </Panel>

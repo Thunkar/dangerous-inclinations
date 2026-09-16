@@ -6,6 +6,8 @@
  *   1. Ship & energy — cubes on the tiles, and what is left in the reactor
  *   2. Orientation  — which way the nose points
  *   3. Move         — coast, burn or jump; exactly one per turn
+ *      Route planner — its own plate under the move row: a navigation aid
+ *                      that proposes a move, never one that commits it
  *   4. Weapons & scan
  *   5. The sequence you have built, in the order it will happen
  *   6. End turn
@@ -30,22 +32,24 @@ import RotateRightIcon from '@mui/icons-material/RotateRight'
 import SendIcon from '@mui/icons-material/Send'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import SensorsIcon from '@mui/icons-material/Sensors'
-import RouteIcon from '@mui/icons-material/Route'
 import type { ReactNode } from 'react'
-import type { BurnIntensity, Facing, MovementStep, Position } from '@dangerous-inclinations/engine'
+import type { BurnIntensity } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
+  calculateJumpMassCost,
   getSubsystemConfig,
   getWellName,
   hasWorkingCompressor,
+  phasedJumpDestination,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { FONT_MONO, TABLE } from '../../theme'
 import { slotLabel } from '../../utils/slots'
+import { RoutePlanner } from './RoutePlanner'
 import { SequenceList } from './SequenceList'
 import { ShipEnergyMat } from './ShipEnergyMat'
 import { StatusBlock } from './StatusBlock'
@@ -169,6 +173,8 @@ export function ActionPanel() {
         <Step n={3} label="Move — one per turn">
           <MoveControls disabled={disabled} />
         </Step>
+        {/* Not a fourth move: an instrument that proposes one. Its own plate. */}
+        <RoutePlanner disabled={disabled} />
 
         <Divider />
         <Step n={4} label="Weapons & scan">
@@ -356,6 +362,46 @@ function OrientationControls({ disabled }: { disabled: boolean }) {
   )
 }
 
+/**
+ * Phasing: the sectors a burn or a jump shifts its arrival by, 1 fuel each.
+ * The same control for both, because it is the same rule.
+ */
+function PhaseSlider({
+  value,
+  range,
+  disabled,
+  onChange,
+}: {
+  value: number
+  range: { min: number; max: number }
+  disabled: boolean
+  onChange: (value: number) => void
+}) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+      <Typography
+        variant="caption"
+        sx={{ fontFamily: FONT_MONO, color: TABLE.inkFaint, flexShrink: 0 }}
+      >
+        phase {value > 0 ? '+' : ''}
+        {value}
+      </Typography>
+      <Slider
+        size="small"
+        value={value}
+        min={range.min}
+        max={range.max}
+        step={1}
+        marks
+        valueLabelDisplay="auto"
+        disabled={disabled || range.min === range.max}
+        onChange={(_, next) => onChange(Array.isArray(next) ? next[0] : next)}
+        sx={{ mx: 0.5, flex: 1, minWidth: 0 }}
+      />
+    </Box>
+  )
+}
+
 function MoveControls({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
   const move = plan.moveStep.move
@@ -363,6 +409,10 @@ function MoveControls({ disabled }: { disabled: boolean }) {
   const scoop = plan.pendingSubsystems.find(s => s.id === 'scoop')
   const engines = plan.pendingSubsystems.find(s => s.id === 'engines')
   const burnDirection = plan.moveFrom.facing === 'prograde' ? 'outward' : 'inward'
+  const jumpFuel =
+    move.kind === 'jump'
+      ? calculateJumpMassCost(move.adjustment, compressor)
+      : 0
 
   /** Why an intensity is out — the engine refuses a burn that leaves the rings. */
   const burnReason = (intensity: BurnIntensity) => {
@@ -382,7 +432,11 @@ function MoveControls({ disabled }: { disabled: boolean }) {
       <SegmentedRow testId="move-modes">
         <Segment
           label="Coast"
-          title="Ride the ring: you drift its velocity in sectors, and nothing heats up."
+          title={
+            plan.moored
+              ? 'Moored: you hold this berth and ride the station when it advances. Burn to cast off.'
+              : 'Ride the ring: you drift its velocity in sectors, and nothing heats up.'
+          }
           selected={move.kind === 'coast'}
           disabled={disabled}
           onClick={() => plan.setMove({ kind: 'coast', scoop: false })}
@@ -408,10 +462,18 @@ function MoveControls({ disabled }: { disabled: boolean }) {
             plan.setMove({
               kind: 'jump',
               destinationWellId: plan.jumpOptions[0].destination.wellId,
+              adjustment: 0,
             })
           }
         />
       </SegmentedRow>
+
+      {move.kind === 'coast' && plan.moored && (
+        <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
+          Moored: no drift of your own — the station carries you 4 sectors at the end of the round.
+          Burn to cast off.
+        </Typography>
+      )}
 
       {move.kind === 'coast' && (
         <Tooltip
@@ -454,184 +516,54 @@ function MoveControls({ disabled }: { disabled: boolean }) {
             {BURN_COSTS[move.intensity].energy} energy ·{' '}
             {calculateBurnMassCost(BURN_COSTS[move.intensity].mass, move.adjustment)} fuel
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-            <Typography
-              variant="caption"
-              sx={{ fontFamily: FONT_MONO, color: TABLE.inkFaint, flexShrink: 0 }}
-            >
-              phase {move.adjustment > 0 ? '+' : ''}
-              {move.adjustment}
-            </Typography>
-            <Slider
-              size="small"
-              value={move.adjustment}
-              min={plan.adjustmentRange.min}
-              max={plan.adjustmentRange.max}
-              step={1}
-              marks
-              valueLabelDisplay="auto"
-              disabled={disabled}
-              onChange={(_, value) =>
-                plan.setMove({ ...move, adjustment: Array.isArray(value) ? value[0] : value })
-              }
-              sx={{ mx: 0.5, flex: 1, minWidth: 0 }}
-            />
-          </Box>
+          <PhaseSlider
+            value={move.adjustment}
+            range={plan.adjustmentRange}
+            disabled={disabled}
+            onChange={adjustment => plan.setMove({ ...move, adjustment })}
+          />
         </Box>
       )}
 
       {move.kind === 'jump' && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-            {plan.jumpOptions.map(option => (
-              <Chip
-                key={option.lane.id}
-                size="small"
-                label={`${getWellName(option.destination.wellId)} R${option.destination.ring} S${option.destination.sector}`}
-                color={move.destinationWellId === option.destination.wellId ? 'primary' : 'default'}
-                variant={
-                  move.destinationWellId === option.destination.wellId ? 'filled' : 'outlined'
-                }
-                onClick={() =>
-                  plan.setMove({ kind: 'jump', destinationWellId: option.destination.wellId })
-                }
-                disabled={disabled}
-              />
-            ))}
+            {plan.jumpOptions.map(option => {
+              const selected = move.destinationWellId === option.destination.wellId
+              const landing =
+                (selected && phasedJumpDestination(option, move.adjustment)) || option.destination
+              return (
+                <Chip
+                  key={option.lane.id}
+                  size="small"
+                  label={`${getWellName(landing.wellId)} R${landing.ring} S${landing.sector}`}
+                  color={selected ? 'primary' : 'default'}
+                  variant={selected ? 'filled' : 'outlined'}
+                  onClick={() =>
+                    plan.setMove({
+                      kind: 'jump',
+                      destinationWellId: option.destination.wellId,
+                      adjustment: 0,
+                    })
+                  }
+                  disabled={disabled}
+                />
+              )
+            })}
           </Box>
+          <PhaseSlider
+            value={move.adjustment}
+            range={plan.jumpAdjustmentRange}
+            disabled={disabled}
+            onChange={adjustment => plan.setMove({ ...move, adjustment })}
+          />
           <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
-            Engines at {WELL_TRANSFER_COSTS.energy},{' '}
-            {compressor ? 'free (compressor)' : `${WELL_TRANSFER_COSTS.mass} fuel`}. A jump is your
-            whole move: no drift.
+            Engines at {WELL_TRANSFER_COSTS.energy}, {jumpFuel === 0 ? 'no' : jumpFuel} fuel
+            {compressor ? ' (the compressor refunds the jump, not the phasing)' : ''}. A jump is
+            your whole move: no drift. Phasing shifts where you land for 1 fuel a sector, never
+            outside the arrival arc.
           </Typography>
         </Box>
-      )}
-
-      <RouteBlock disabled={disabled} />
-    </Box>
-  )
-}
-
-/** Facing a burn needs: prograde burns outward, retrograde inward. Coasts and jumps keep the facing. */
-function facingFor(step: MovementStep, before: Facing): Facing {
-  if (step.actionType === 'burn_prograde') return 'prograde'
-  if (step.actionType === 'burn_retrograde') return 'retrograde'
-  return before
-}
-
-/** One step of a planned route, in the words of the move row. */
-function describeStep(step: MovementStep, facingBefore: Facing): string {
-  if (step.actionType === 'coast') return `coast${step.massCost < 0 ? ' + scoop' : ''}`
-  if (step.actionType === 'well_transfer') return `jump → ${getWellName(step.to.wellId)}`
-  const needed = facingFor(step, facingBefore)
-  const turn = needed !== facingBefore ? ' (rotate first)' : ''
-  const phase = step.sectorAdjustment
-    ? ` ${step.sectorAdjustment > 0 ? '+' : ''}${step.sectorAdjustment}`
-    : ''
-  return `${step.burnIntensity ?? 'soft'} burn ${needed === 'prograde' ? 'out' : 'in'}${phase}${turn}`
-}
-
-/** Every step described, with the facing carried from one to the next. */
-function describeRoute(steps: MovementStep[], facing: Facing): string[] {
-  const out: string[] = []
-  let current = facing
-  for (const step of steps) {
-    out.push(describeStep(step, current))
-    current = facingFor(step, current)
-  }
-  return out
-}
-
-const placeLabel = (p: Position) => `${getWellName(p.wellId)} R${p.ring} S${p.sector}`
-
-/**
- * Route planner. Pick a sector on the board; the engine's planner lays out
- * the turns to get there (fastest, most economical, or in between) and one
- * click turns its first step into this turn's move. The destination is kept
- * from turn to turn until you arrive or clear it.
- */
-function RouteBlock({ disabled }: { disabled: boolean }) {
-  const plan = usePlan()
-  const picking = plan.picking?.kind === 'destination'
-  const dest = plan.routeDestination
-  const route = plan.route
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0, mt: 0.25 }}>
-      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
-        <Tooltip title="Pick a sector on the board. The planner lays out the turns to get there and you can take its first step.">
-          <Box component="span" sx={{ display: 'flex', minWidth: 0 }}>
-            <Chip
-              size="small"
-              icon={<RouteIcon sx={{ fontSize: 15 }} />}
-              label={
-                picking
-                  ? 'click a sector on the board…'
-                  : dest
-                    ? `route → ${placeLabel(dest)}`
-                    : 'plot a route…'
-              }
-              color={picking ? 'primary' : 'default'}
-              variant={picking || dest ? 'filled' : 'outlined'}
-              onClick={() => plan.setPicking(picking ? null : { kind: 'destination' })}
-              disabled={disabled}
-              sx={{ fontSize: '0.78rem', maxWidth: '100%' }}
-            />
-          </Box>
-        </Tooltip>
-        {dest && (
-          <Chip
-            size="small"
-            label="clear"
-            variant="outlined"
-            onClick={() => plan.setRouteDestination(null)}
-          />
-        )}
-      </Box>
-      {dest && plan.routes.length === 0 && (
-        <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-          No route there within 20 turns on the fuel aboard.
-        </Typography>
-      )}
-      {route && (
-        <>
-          {plan.routes.length > 1 && (
-            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-              {plan.routes.map((alt, i) => (
-                <Chip
-                  key={i}
-                  size="small"
-                  label={`${(alt.label ?? 'route').replace(/^[^\p{L}]+/u, '')} · ${alt.totalTurns} turns · ${alt.totalMassCost} fuel`}
-                  color={i === plan.routeIndex ? 'primary' : 'default'}
-                  variant={i === plan.routeIndex ? 'filled' : 'outlined'}
-                  onClick={() => plan.selectRoute(i)}
-                  sx={{ fontSize: '0.76rem' }}
-                />
-              ))}
-            </Box>
-          )}
-          <Typography
-            sx={{
-              fontFamily: FONT_MONO,
-              fontSize: '0.74rem',
-              color: TABLE.inkSoft,
-              lineHeight: 1.45,
-            }}
-          >
-            {describeRoute(route.steps, plan.me.ship.facing)
-              .map((text, i) => `T${i + 1} ${text}`)
-              .join(' · ')}
-          </Typography>
-          <Box sx={{ display: 'flex' }}>
-            <Chip
-              size="small"
-              color="primary"
-              label={`use first step: ${describeStep(route.steps[0], plan.me.ship.facing)}`}
-              onClick={plan.applyRouteStep}
-              disabled={disabled}
-              sx={{ fontSize: '0.78rem', maxWidth: '100%' }}
-            />
-          </Box>
-        </>
       )}
     </Box>
   )

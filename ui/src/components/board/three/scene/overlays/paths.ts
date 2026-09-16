@@ -1,13 +1,12 @@
 /**
  * Where a drawn line goes on a board that is not flat.
  *
- * On paper a path is a polyline between sector centres; here the same path has
- * to sit on the funnel, or a route across the black hole's inner rings would
- * hang in the air above the pit. Two shapes cover everything either overlay
- * draws: an arc, which follows the ring a token rides (prograde, the way
- * `geometry.ts` interpolates), and a chord, the straight line the SVG board
- * draws for a missile's flight steps and for a jump between wells — straight
- * seen from above, but sampled so its elevation follows the surface under it.
+ * The shape of a track — which way it curves, and how far it bows off the ring
+ * it rides so it is not drawn on top of it — belongs to `trajectory.ts`, which
+ * both boards share. This module only lifts that flat polyline into the world:
+ * a sample inside one well sits on the surface beneath it, so a route across the
+ * black hole's inner rings hugs the funnel instead of hanging over the pit, and
+ * a leg between two wells simply runs from the height of one end to the other.
  *
  * Nothing here decides where a path goes: the positions come from the model,
  * which asked the engine.
@@ -15,10 +14,9 @@
 import { Vector3 } from 'three'
 import type { Position } from '@dangerous-inclinations/engine'
 import { positionPoint, wellCenter } from '../../../geometry'
-import { LAYER, arcSamples, elevationAt, positionWorld, surfaceElevation } from '../../world'
+import { LAYER, elevationAt, surfaceElevation } from '../../world'
+import { trackPoints, type TrackPoint } from '../../../trajectory'
 
-/** Samples per ring arc. Enough that a quarter of a ring still reads as a curve. */
-const ARC_SAMPLES = 9
 /** Samples per chord: enough that a leg crossing a terrace ramp still hugs it. */
 const CHORD_SAMPLES = 9
 
@@ -28,10 +26,23 @@ const CHORD_SAMPLES = 9
  */
 export const NO_RAYCAST = () => {}
 
+/** Height of one flat sample: on the surface inside a well, end to end between two. */
+function heightOf(sample: TrackPoint, layer: number): number {
+  const surface = sample.sameWell
+    ? surfaceElevation(sample.wellId, sample.radius)
+    : elevationAt(sample.from) + (elevationAt(sample.to) - elevationAt(sample.from)) * sample.t
+  return surface + layer
+}
+
+function lift(samples: readonly TrackPoint[], layer: number): Vector3[] {
+  return samples.map(sample => new Vector3(sample.x, heightOf(sample, layer), sample.y))
+}
+
 /**
  * The straight line between two positions, seen from above, lifted onto the
  * surface it crosses. Between wells there is no surface to follow, so the
- * elevation simply runs from one end to the other.
+ * elevation simply runs from one end to the other. Used on its own for a jump,
+ * which is neither an arc nor a track along any ring.
  */
 export function chordSamples(
   from: Position,
@@ -57,33 +68,12 @@ export function chordSamples(
   })
 }
 
-/** Joins samples of each leg end to end, dropping the repeated joint. */
-function walk(
-  positions: readonly Position[],
-  layer: number,
-  leg: (from: Position, to: Position) => Vector3[]
-): Vector3[] {
-  if (positions.length === 0) return []
-  const points = [positionWorld(positions[0], layer)]
-  for (let i = 1; i < positions.length; i++) {
-    const from = positions[i - 1]
-    const to = positions[i]
-    if (from.wellId === to.wellId && from.ring === to.ring && from.sector === to.sector) continue
-    points.push(...leg(from, to).slice(1))
-  }
-  return points
-}
-
 /** A run of positions as the arcs a token actually travels; straight between wells. */
 export function arcPoints(positions: readonly Position[], layer = LAYER.path): Vector3[] {
-  return walk(positions, layer, (from, to) =>
-    from.wellId === to.wellId
-      ? arcSamples(from, to, ARC_SAMPLES, layer)
-      : chordSamples(from, to, 2, layer)
-  )
+  return lift(trackPoints(positions, 'arc'), layer)
 }
 
 /** A run of positions as the chords the SVG board draws between them. */
 export function chordPoints(positions: readonly Position[], layer = LAYER.path): Vector3[] {
-  return walk(positions, layer, (from, to) => chordSamples(from, to, CHORD_SAMPLES, layer))
+  return lift(trackPoints(positions, 'chord'), layer)
 }

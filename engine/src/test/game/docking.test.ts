@@ -3,6 +3,7 @@ import {
   createInitialStations,
   getStationAt,
   getStationForPlanet,
+  isMooredAt,
   stationPosition,
   updateStationPositions,
 } from "../../game/stations.ts";
@@ -238,5 +239,117 @@ describe("docking: cargo", () => {
     });
     const next = mustExecute(state, coast(1));
     expect(getPlayer(next, "p1").cargo).toEqual(state.players[0].cargo);
+  });
+});
+
+/** p1 sitting on `planet`'s station (moored); p2 far away on the black hole. */
+function mooredAt(planet: string, loadout?: ShipLoadout): GameState {
+  const stations = createInitialStations();
+  const sector = getStationForPlanet(stations, planet)!.sector;
+  return makeGameState([
+    makePlayer("p1", { wellId: planet, ring: 1, sector }, loadout),
+    makePlayer("p2", { wellId: "blackhole", ring: 5, sector: 12 }),
+  ]);
+}
+
+/** Play every seat's turn once, so the round ends and the stations advance. */
+function playRound(state: GameState): GameState {
+  let next = state;
+  for (let i = 0; i < state.players.length; i++) next = mustExecute(next, coast(1));
+  return next;
+}
+
+describe("docking: moored ships ride their station", () => {
+  it("a coast holds the berth instead of drifting, and the ship docks again", () => {
+    const state = mooredAt(ALPHA);
+    expect(isMooredAt(state.stations, getShip(state, "p1"))).toBe(true);
+    const result = executeTurnAs(state, coast(1));
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1")).toMatchObject({ wellId: ALPHA, ring: 1, sector: 0 });
+    expect(eventsOf(result.events, "coasted")[0]).toMatchObject({
+      moored: true,
+      to: { sector: 0 },
+    });
+    expect(eventTypes(result.events)).toContain("docked");
+  });
+
+  it("the station carries its moored ships when it advances at the end of the round", () => {
+    const after = playRound(mooredAt(ALPHA));
+    expect(getStationForPlanet(after.stations, ALPHA)!.sector).toBe(4);
+    expect(getShip(after, "p1")).toMatchObject({ ring: 1, sector: 4 });
+    expect(isMooredAt(after.stations, getShip(after, "p1"))).toBe(true);
+  });
+
+  it("names the ships that rode along", () => {
+    const state = mooredAt(ALPHA);
+    const first = executeTurnAs(state, coast(1));
+    const second = executeTurnAs(first.gameState, coast(1));
+    expect(eventsOf(second.events, "stations_moved")).toEqual([
+      expect.objectContaining({ riders: ["p1"] }),
+    ]);
+    // Nobody is moored the round after p1 has cast off.
+    const away = withShip(second.gameState, "p1", { ring: 2, sector: 9 });
+    const third = executeTurnAs(away, coast(1));
+    const fourth = executeTurnAs(third.gameState, coast(1));
+    expect(eventsOf(fourth.events, "stations_moved")[0].riders).toEqual([]);
+  });
+
+  it("moves a moored ship 4 sectors a round, exactly as drifting on ring 1 does", () => {
+    // p1 moored on the station, p2 free on the same ring: both advance 4.
+    const state = makeGameState([
+      makePlayer("p1", { wellId: ALPHA, ring: 1, sector: 0 }),
+      makePlayer("p2", { wellId: ALPHA, ring: 1, sector: 2 }),
+    ]);
+    const after = playRound(state);
+    expect(getShip(after, "p1").sector).toBe(4);
+    expect(getShip(after, "p2").sector).toBe(6);
+  });
+
+  it("two ships on one station sector both ride it", () => {
+    const state = makeGameState([
+      makePlayer("p1", { wellId: ALPHA, ring: 1, sector: 0 }),
+      makePlayer("p2", { wellId: ALPHA, ring: 1, sector: 0 }),
+    ]);
+    const after = playRound(state);
+    expect(getShip(after, "p1").sector).toBe(4);
+    expect(getShip(after, "p2").sector).toBe(4);
+  });
+
+  it("a burn casts off: the ship drifts with the station's orbit, then changes ring", () => {
+    const state = withPower(mooredAt(ALPHA), "p1", "engines", 1);
+    const result = executeTurnAs(state, burn(1, "soft"));
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1")).toMatchObject({ ring: 2, sector: 4 });
+    expect(eventTypes(result.events)).not.toContain("docked");
+    // And it stays cast off: the station moves without it.
+    const after = executeTurnAs(result.gameState, coast(1));
+    expect(eventsOf(after.events, "stations_moved")[0].riders).toEqual([]);
+  });
+
+  it("the scoop still runs while moored, so an empty tank is never stranded", () => {
+    let state = withShip(mooredAt(ALPHA), "p1", { reactionMass: 0 });
+    state = withPower(state, "p1", "scoop", 3);
+    const result = executeTurnAs(state, coast(1, true));
+    expect(result.errors).toBeUndefined();
+    // Ring 1 of a planet drifts 4, so the scoop pays for a burn out next turn.
+    expect(getShip(result.gameState, "p1")).toMatchObject({ reactionMass: 4, sector: 0 });
+  });
+
+  it("a destroyed ship on a station's sector is off the board and rides nothing", () => {
+    const state = withShip(mooredAt(ALPHA), "p1", { hitPoints: 0 });
+    // p2 acts last, so the round ends with p1 still wrecked on the station.
+    const result = executeTurnAs({ ...state, activePlayerIndex: 1 }, coast(1));
+    expect(eventsOf(result.events, "stations_moved")[0].riders).toEqual([]);
+    expect(getShip(result.gameState, "p1").sector).toBe(0);
+    expect(getStationForPlanet(result.gameState.stations, ALPHA)!.sector).toBe(4);
+  });
+
+  it("a ship destroyed at a station respawns at Home and drifts normally again", () => {
+    const state = withShip(mooredAt(ALPHA), "p1", { hitPoints: 0 });
+    const respawned = executeTurnAs(state, coast(1));
+    expect(getShip(respawned.gameState, "p1")).toMatchObject({ wellId: "blackhole", ring: 4 });
+    expect(isMooredAt(respawned.gameState.stations, getShip(respawned.gameState, "p1"))).toBe(
+      false
+    );
   });
 });

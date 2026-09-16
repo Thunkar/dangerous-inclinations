@@ -47,7 +47,15 @@ export type GameEvent =
       amount: number;
     })
   | (Base & { type: "rotated"; playerId: string; facing: Facing })
-  | (Base & { type: "coasted"; playerId: string; to: Position; scooped: boolean; heat: number })
+  | (Base & {
+      type: "coasted";
+      playerId: string;
+      to: Position;
+      scooped: boolean;
+      heat: number;
+      /** Docked at a station: the ship holds its berth instead of drifting. */
+      moored?: boolean;
+    })
   | (Base & { type: "fuel_scooped"; playerId: string; amount: number })
   | (Base & {
       type: "burned";
@@ -63,6 +71,10 @@ export type GameEvent =
       playerId: string;
       from: Position;
       to: Position;
+      /** Sectors the arrival was phased by inside the arrival arc (1 fuel each). */
+      sectorAdjustment: number;
+      /** Fuel spent, phasing included; 0 when a compressor refunded the jump. */
+      massSpent: number;
       refunded: boolean;
       heat: number;
     })
@@ -214,7 +226,11 @@ export type GameEvent =
       mission: Mission;
       completedCount: number;
     })
-  | (Base & { type: "stations_moved" })
+  | (Base & {
+      type: "stations_moved";
+      /** Docked ships that rode their station round with it. */
+      riders: string[];
+    })
   | (Base & {
       type: "action_skipped";
       playerId: string;

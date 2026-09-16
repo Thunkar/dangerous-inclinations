@@ -47,7 +47,9 @@ describe("movement: drift", () => {
     [BH, 3, 0, 4],
     [BH, 4, 0, 2],
     [BH, 5, 0, 1],
-    [ALPHA, 1, 0, 4],
+    // Not sector 0: that is where the stations start, and a moored ship holds
+    // its berth instead of drifting (see docking.test.ts).
+    [ALPHA, 1, 2, 6],
     [ALPHA, 2, 22, 0],
     [ALPHA, 3, 23, 0],
   ])("coasting on %s ring %i from sector %i lands on %i", (wellId, ring, sector, expected) => {

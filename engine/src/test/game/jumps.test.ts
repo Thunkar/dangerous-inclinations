@@ -5,7 +5,11 @@ import {
   TRANSFER_ARC_LENGTH,
   arcSectors,
   findJump,
+  getJumpAdjustmentRange,
   getJumpOptions,
+  laneArrivalArc,
+  laneDepartureArc,
+  phasedJumpDestination,
 } from "../../models/gravityWells.ts";
 import { SECTORS_PER_RING } from "../../models/rings.ts";
 import type { ShipLoadout } from "../../models/game.ts";
@@ -283,5 +287,120 @@ describe("jumps: executing a well transfer", () => {
     const state = makeTwoPlayerGame({ wellId: BETA, ring: 3, sector: 17 });
     const result = executeTurnAs(withPower(state, "p1", "engines", 3), jump(1, BH));
     expect(getShip(result.gameState, "p1").sector).toBe(13);
+  });
+});
+
+describe("jumps: phasing inside the arrival arc", () => {
+  it("every departure sector of a lane reaches every sector of its arrival arc", () => {
+    for (const lane of TRANSFER_LANES) {
+      const departure = laneDepartureArc(lane);
+      const arrival = arcSectors(laneArrivalArc(lane));
+      for (const sector of arcSectors(departure)) {
+        const [option] = getJumpOptions({
+          wellId: departure.wellId,
+          ring: departure.ring,
+          sector,
+        });
+        const { min, max } = getJumpAdjustmentRange(option);
+        const reachable: number[] = [];
+        for (let adj = min; adj <= max; adj++) {
+          reachable.push(phasedJumpDestination(option, adj)!.sector);
+        }
+        expect(reachable.sort((a, b) => a - b)).toEqual([...arrival].sort((a, b) => a - b));
+        expect(phasedJumpDestination(option, min - 1)).toBeUndefined();
+        expect(phasedJumpDestination(option, max + 1)).toBeUndefined();
+      }
+    }
+  });
+
+  it.each([
+    [16, -1, undefined],
+    [16, 0, 4],
+    [16, 3, 7],
+    [17, -1, 4],
+    [17, 2, 7],
+    [17, 3, undefined],
+    [19, -3, 4],
+    [19, 0, 7],
+    [19, 1, undefined],
+  ])("from BH R5 S%i, phasing %i lands on Alpha R3 S%s", (sector, adjustment, landing) => {
+    const [option] = getJumpOptions({ wellId: BH, ring: 5, sector });
+    expect(phasedJumpDestination(option, adjustment)?.sector).toBe(landing);
+  });
+
+  it.each([
+    [-1, 4, 4],
+    [0, 5, 3],
+    [1, 6, 4],
+    [2, 7, 5],
+  ])("a jump phased by %i lands on Alpha R3 S%i and costs %i fuel", (adjustment, landing, fuel) => {
+    const result = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA, adjustment));
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1")).toMatchObject({
+      wellId: ALPHA,
+      ring: 3,
+      sector: landing,
+      reactionMass: 10 - fuel,
+    });
+    expect(eventsOf(result.events, "jumped")).toEqual([
+      expect.objectContaining({
+        to: { wellId: ALPHA, ring: 3, sector: landing },
+        sectorAdjustment: adjustment,
+        massSpent: fuel,
+        // Phasing is fuel, never heat: the engines already burned their cubes.
+        heat: 3,
+      }),
+    ]);
+  });
+
+  it.each([
+    ["past the end of the arc", 17, 3],
+    ["before the start of the arc", 17, -2],
+    ["far outside it", 16, 9],
+  ])("rejects a jump phased %s", (_label, sector, adjustment) => {
+    const state = readyToJump(BH, 5, sector);
+    const result = executeTurnAs(state, jump(1, ALPHA, adjustment));
+    expect(result.errors?.[0]).toMatch(/arrival arc/i);
+    expect(result.gameState).toBe(state);
+  });
+
+  it("rejects phasing the ship cannot pay for", () => {
+    const state = withShip(readyToJump(BH, 5, 17), "p1", { reactionMass: 4 });
+    expect(executeTurnAs(state, jump(1, ALPHA, 2)).errors?.[0]).toMatch(/reaction mass/i);
+    expect(executeTurnAs(state, jump(1, ALPHA, 1)).errors).toBeUndefined();
+  });
+
+  it("rejects a fractional adjustment", () => {
+    const result = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA, 0.5));
+    expect(result.errors?.[0]).toMatch(/integer/i);
+  });
+
+  it("a compressor pays for the jump but not for the phasing", () => {
+    const state = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
+      reactionMass: 2,
+    });
+    const result = executeTurnAs(state, jump(1, ALPHA, 2));
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1")).toMatchObject({ sector: 7, reactionMass: 0 });
+    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({ massSpent: 2, refunded: true });
+  });
+
+  it("a compressor with a dry tank can still jump, but cannot phase", () => {
+    const dry = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
+      reactionMass: 0,
+    });
+    expect(executeTurnAs(dry, jump(1, ALPHA)).errors).toBeUndefined();
+    expect(executeTurnAs(dry, jump(1, ALPHA, 1)).errors?.[0]).toMatch(/reaction mass/i);
+  });
+
+  it("phasing an inbound jump works the same way, and still skips the drift", () => {
+    // Beta R3 S17 is offset 1 of the inbound arc 16-19 -> BH 12-15, so S13 unphased.
+    const result = executeTurnAs(readyToJump(BETA, 3, 17), jump(1, BH, -1));
+    expect(getShip(result.gameState, "p1")).toMatchObject({
+      wellId: BH,
+      ring: 5,
+      sector: 12,
+      reactionMass: 6,
+    });
   });
 });

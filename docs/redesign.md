@@ -61,6 +61,14 @@ The whole of BH Ring 5 is lanes. Reading clockwise the order is Beta, Alpha, Gam
 
 Everything about lanes lives in one data table (`models/gravityWells.ts`), so arc width and placement are tunable by the simulator.
 
+**Phasing a jump (16 Sept 2026).** A jump landed on the matching sector of the arrival arc and that was that, while a burn could be phased for 1 fuel a sector. Jumps are now phased the same way, bounded by the arc: from a landing at offset *k* the reachable offsets are 0..3, i.e. an adjustment of −*k*..(3−*k*), at 1 fuel a sector. Three decisions behind that one sentence:
+
+- **The arc is the only bound.** A burn's `getAdjustmentRange` is *not* applied on top. Its lower bound exists to keep at least one sector of forward drift (`MIN_FORWARD_MOVEMENT`), and a jump has no drift to brake against; worse, both lane rings have velocity 1, so that bound would read "0 to +3" and forbid phasing backwards altogether. One bound, and it is the one a player can see drawn on the board: the four sectors of the arrival arc. The rule reads "any departure sector can reach any sector of the arrival arc", which is easier to remember than either bound.
+- **The compressor pays for the jump, not for the phasing.** The first draft put the phasing on the compressor's tab so that "jumps cost no fuel" stayed true with no second sentence. The simulator killed that: over 40 bot games, all 464 jumps were made by ships carrying a compressor (four seats in five take one), 52% of them phased, and the adjustments spiked at the maximum free shift (+3 in 127 of 240). Free for four seats in five is a perk, not a decision, and the designer asked for phasing "just like when changing rings", where it always costs. So the compressor refunds the jump's own 3 fuel and phasing costs 1 fuel a sector for everyone; the manual's compressor line reads "a jump's own fuel is refunded". Measured both ways before the designer decided (100 games, 3 bots): paying drops phased jumps from 51% to 17%, breaks up the spike at the maximum free shift (+3 fell from 319 of 604 phased jumps to 60 of 222, leaving +1/+2/+3 near-even), and makes the choice track the tank — 0% of jumps phased on an empty tank against 33–47% on six or seven fuel. It costs about six rounds of median game length against the free version, and still finishes two rounds faster than before phasing existed.
+- **No extra heat.** A jump's heat is the cubes on the engines, as for a burn; phasing a burn adds none, so phasing a jump adds none. Nothing new to track.
+
+What it changes at the table: the lanes stop being six fixed doors and become six four-sector windows. A hauler can pay 1–3 fuel to land on the sector that lines its next burn up with the station, and an interceptor can no longer be certain which of four sectors a rival will appear in. Because the phasing is paid even by a compressor, the shift is a real trade against the tank rather than a free three sectors on every transit.
+
 ### 2.3 Docking (fixes 5, 6)
 
 You are **docked** if you end your turn on a station's sector. While docked:
@@ -70,6 +78,13 @@ You are **docked** if you end your turn on a station's sector. While docked:
 - **reload missiles** to full.
 
 Stations become the map's hubs: haulers go there for cargo, everyone goes there to fix crits, and hunters know where to wait. Repair only at stations also means a crit on a ship far from port matters for several turns, which is what makes sensor arrays worth carrying.
+
+**Moored (16 Sept 2026).** A station advanced at the end of the round while the ship docked to it drifted on its own turn. Both move 4 sectors on a planet's ring 1, so they ended every turn together — but for the part of the round between a ship's turn and the round's end, the ship sat 4 sectors ahead of its own station, and staying docked was something a player re-achieved every turn rather than something they *were*. A docked ship is now moored: it does not drift on its own, and it moves with the station when stations advance.
+
+- **Docked is read off the board, not stored.** A ship is moored when it stands on a station's sector — the same test that already decides docking (`getStationAt`). On the table the ship token sits on the station token and that is the whole rule; in the code there is no `dockedAt` field that a burn, a recoil, a destruction or a respawn could leave stale.
+- **A coast holds the berth; a burn casts off.** "Does not drift on its own" is exactly a coast that goes nowhere. A burn is unchanged — it drifts and then changes ring, because a ship that lets go of a station lets go with the station's velocity — so a soft prograde burn (1 cube, 1 fuel) always gets a ship under way in one turn, and docking has just repaired its engines. With a dry tank the scoop still runs while moored, which recovers 4 fuel on ring 1: an empty ship is held at the best place on the map to be held, instead of being pushed off it.
+- **Speed is unchanged; timing is not.** A moored ship advances 0 on its turn and 4 with the station; a free ring-1 ship advances 4 on its turn and 0 at the round's end. Both are 4 a round, and both end every turn on the same sector they would have before. What changes is where a ship stands during *other* players' turns — on its station, not 4 sectors past it — so a station is now a place a hunter can lie in wait for a whole round, and a departing ship leaves from where the station is now rather than from where it was.
+- **Edge cases.** Two ships can share a station sector and both ride it. A destroyed ship is off the board and rides nothing; it respawns at Home (black hole ring 4), where there are no stations, so it is never moored on the way back.
 
 ### 2.4 Hidden loadouts (fixes 7)
 

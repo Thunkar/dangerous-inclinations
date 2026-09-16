@@ -9,9 +9,14 @@ import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
+  calculateJumpMassCost,
   getAdjustmentRange,
 } from "../../models/rings.ts";
-import { findJump } from "../../models/gravityWells.ts";
+import {
+  findJump,
+  getJumpAdjustmentRange,
+  phasedJumpDestination,
+} from "../../models/gravityWells.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import type { MovementPreview } from "../../game/movement.ts";
 import type { MovementPlan } from "../movementPlanner/index.ts";
@@ -64,12 +69,18 @@ export function burnIsValid(
 export function jumpIsValid(
   ship: ShipState,
   status: BotStatus,
-  destinationWellId: string
+  destinationWellId: string,
+  adjustment = 0
 ): boolean {
   if (status.engines.isBroken || status.engines.usedThisTurn) return false;
-  if (!findJump({ wellId: ship.wellId, ring: ship.ring, sector: ship.sector }, destinationWellId))
-    return false;
-  return status.hasCompressor || ship.reactionMass >= WELL_TRANSFER_COSTS.mass;
+  const jump = findJump(
+    { wellId: ship.wellId, ring: ship.ring, sector: ship.sector },
+    destinationWellId
+  );
+  if (!jump) return false;
+  const { min, max } = getJumpAdjustmentRange(jump);
+  if (adjustment < min || adjustment > max) return false;
+  return ship.reactionMass >= calculateJumpMassCost(adjustment, status.hasCompressor);
 }
 
 /**
@@ -108,18 +119,20 @@ export function movementFromPlan(
   }
 
   const destination = first.destinationWellId!;
-  if (!jumpIsValid(ship, status, destination)) return null;
+  const adjustment = first.sectorAdjustment;
+  if (!jumpIsValid(ship, status, destination, adjustment)) return null;
   const jump = findJump(
     { wellId: ship.wellId, ring: ship.ring, sector: ship.sector },
     destination
   )!;
   return {
     kind: "jump",
-    preview: { kind: "jump", jumpDestination: jump.destination },
+    preview: { kind: "jump", jumpDestination: phasedJumpDestination(jump, adjustment) },
     requiredFacing: null,
     engineEnergy: WELL_TRANSFER_COSTS.energy,
-    massCost: status.hasCompressor ? 0 : WELL_TRANSFER_COSTS.mass,
+    massCost: calculateJumpMassCost(adjustment, status.hasCompressor),
     wantsScoop: false,
+    sectorAdjustment: adjustment,
     destinationWellId: destination,
   };
 }

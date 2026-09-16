@@ -10,7 +10,7 @@ import { memo } from 'react'
 import type { TransferLane } from '@dangerous-inclinations/engine'
 import { TRANSFER_LANES, getWellName, laneDepartureArc } from '@dangerous-inclinations/engine'
 import { FONT_MONO } from '../../../../theme'
-import { arcMidPoint, arcPathFor, wellColor } from '../../geometry'
+import { PRINT_SCALE, arcMidPoint, arcPathFor, wellColor } from '../../geometry'
 
 /** "beta-a" → "A". The two lanes to a planet are told apart by their letter. */
 function laneLetter(laneId: string): string {
@@ -28,7 +28,7 @@ function laneTitle(lane: TransferLane): string {
     : `${planet} lane ${laneLetter(lane.id)} — one way: jump from ${planet} ${span(pl)} to Black Hole ${span(bh)}`
 }
 
-const LABEL_OFFSET = 15
+const LABEL_OFFSET = 15 * PRINT_SCALE
 
 export const LanesLayer = memo(function LanesLayer({
   highlightIds = [],
@@ -55,19 +55,21 @@ export const LanesLayer = memo(function LanesLayer({
                     d={arcPathFor(arc)}
                     fill="none"
                     stroke={color}
-                    strokeWidth={active ? 10 : departure ? 7 : 5}
+                    strokeWidth={(active ? 10 : departure ? 7 : 5) * PRINT_SCALE}
                     strokeLinecap="butt"
-                    strokeDasharray={departure ? undefined : '6 5'}
+                    strokeDasharray={
+                      departure ? undefined : `${6 * PRINT_SCALE} ${5 * PRINT_SCALE}`
+                    }
                     opacity={active ? 1 : departure ? 0.6 : 0.4}
                     style={active ? { filter: `drop-shadow(0 0 8px ${color})` } : undefined}
                   />
                   <circle
                     cx={mid.x}
                     cy={mid.y}
-                    r={8.5}
+                    r={8.5 * PRINT_SCALE}
                     fill={departure ? color : '#080b11'}
                     stroke={color}
-                    strokeWidth={active ? 2 : 1.2}
+                    strokeWidth={(active ? 2 : 1.2) * PRINT_SCALE}
                     opacity={active ? 1 : 0.85}
                   />
                   <text
@@ -75,7 +77,7 @@ export const LanesLayer = memo(function LanesLayer({
                     y={mid.y}
                     textAnchor="middle"
                     dominantBaseline="central"
-                    fontSize={10}
+                    fontSize={10 * PRINT_SCALE}
                     fontFamily={FONT_MONO}
                     fontWeight={700}
                     fill={departure ? '#080b11' : color}

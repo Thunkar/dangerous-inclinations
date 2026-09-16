@@ -28,6 +28,7 @@ import { cachedSurface, sectorTicksGeometry } from '../surfaces'
 import {
   GLYPH_HEIGHT,
   LAYER,
+  PRINT_SCALE,
   SECTOR_TICK_LENGTH,
   ZERO_TICK_LENGTH,
   ringElevation,
@@ -35,13 +36,27 @@ import {
   surfaceElevation,
 } from '../world'
 
-/** Ticks: faint and short, sector 0 twice as long and amber, as on paper. */
-const TICK_WIDTH = 1.6
-const ZERO_TICK_WIDTH = 3.2
+/**
+ * Ticks: faint and short, sector 0 twice as long and amber, as on paper. Like
+ * every other printed mark they are written at the weight they were tuned to
+ * and carried across the wider board, so they land on screen unchanged.
+ */
+const TICK_WIDTH = 1.6 * PRINT_SCALE
+const ZERO_TICK_WIDTH = 3.2 * PRINT_SCALE
 
-/** The R{n} · v{v} caption, printed outside its ring as on the paper board. */
-const CAPTION_SIZE = 15
-const CAPTION_OFFSET = 12
+/**
+ * The R{n} · v{v} caption, printed outside its ring as on the paper board.
+ *
+ * It is the one piece of type that has to live in the gap between two rings, and
+ * it was cut a fifth and set closer to its own ring when that gap closed to 56.5
+ * units, because it was running into the "0" and "23" of the next ring out. The
+ * gap is 80 units now and the sector numbers above it are smaller, so it stands
+ * in 27 units of daylight rather than five. It keeps the smaller size all the
+ * same: ring numbers are an annotation, sector numbers are the board, and the
+ * room the rings just gained is not for spending on either.
+ */
+const CAPTION_SIZE = 12 * PRINT_SCALE
+const CAPTION_OFFSET = 8 * PRINT_SCALE
 
 /**
  * On-screen heights, in pixels, between which a number fades up to full ink.
@@ -95,6 +110,20 @@ function SectorNumbers({
     const distance = Math.max(1, camera.position.distanceTo(anchor))
     const pixels = (band.size * GLYPH_HEIGHT * halfFrame) / distance
     const opacity = MathUtils.clamp((pixels - FADE_FROM) / (FADE_TO - FADE_FROM), FADE_FLOOR, 1)
+    if (import.meta.env.DEV) {
+      // Dev only: what the headless legibility checks read. The cap height of a
+      // digit of this ring, in screen pixels, before the board's own tilt
+      // foreshortens it — the same number the fade above is decided on.
+      const host = window as unknown as {
+        __boardLabels?: Record<string, { size: number; pixels: number; opacity: number }>
+      }
+      host.__boardLabels ??= {}
+      host.__boardLabels[`${well.id}:${ring}`] = {
+        size: +band.size.toFixed(2),
+        pixels: +pixels.toFixed(2),
+        opacity: +opacity.toFixed(2),
+      }
+    }
     if (Math.abs(opacity - applied.current) < 0.01) return
     applied.current = opacity
     group.current?.traverse(child => {

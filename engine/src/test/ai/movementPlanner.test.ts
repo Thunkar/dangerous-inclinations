@@ -959,6 +959,64 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
     expect(plan).toBeNull();
   });
 
+  it.each([
+    [4, -1],
+    [5, 0],
+    [6, 1],
+    [7, 2],
+  ])(
+    "reaches Alpha R3 S%i from the one lane sector with a jump phased by %i",
+    (sector, adjustment) => {
+      // BH R5 S17 is the second sector of the alpha-b departure arc; with
+      // phasing its jump reaches all four sectors of the arrival arc.
+      const plan = planMovement(
+        { wellId: "blackhole", ring: 5, sector: 17, facing: "prograde" },
+        { wellId: "planet-alpha", ring: 3, sector },
+        // availableMass must not exceed maxFuelCapacity (10 by default), or
+        // the planner's scoop-recovery floor clamps every step's cost.
+        { availableMass: 10, maxTurns: 4 }
+      );
+      expect(plan).not.toBeNull();
+      expect(plan!.steps).toHaveLength(1);
+      expect(plan!.steps[0]).toMatchObject({
+        actionType: "well_transfer",
+        sectorAdjustment: adjustment,
+        massCost: 3 + Math.abs(adjustment),
+      });
+    }
+  );
+
+  it("does not phase a jump it does not need to, and will not phase out of the arc", () => {
+    const unphased = planMovement(
+      { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
+      { wellId: "planet-alpha", ring: 3, sector: 4 },
+      { availableMass: 10, maxTurns: 4 }
+    );
+    expect(unphased!.steps[0].sectorAdjustment).toBe(0);
+    // Sector 8 is off the arrival arc: no single jump gets there.
+    const offArc = planMovement(
+      { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
+      { wellId: "planet-alpha", ring: 3, sector: 8 },
+      { availableMass: 10, maxTurns: 1 }
+    );
+    expect(offArc).toBeNull();
+  });
+
+  it("will not phase a jump it cannot pay for", () => {
+    const rich = planMovement(
+      { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
+      { wellId: "planet-alpha", ring: 3, sector: 7 },
+      { availableMass: 6, maxTurns: 1 }
+    );
+    expect(rich!.steps[0].massCost).toBe(6);
+    const poor = planMovement(
+      { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
+      { wellId: "planet-alpha", ring: 3, sector: 7 },
+      { availableMass: 5, maxTurns: 1 }
+    );
+    expect(poor).toBeNull();
+  });
+
   it("handles cross-well dynamic targets", () => {
     // BH R5 S18 is the BH→alpha transfer point, so the well_transfer
     // is available on turn 1. After landing on alpha R3 S5 the bot still

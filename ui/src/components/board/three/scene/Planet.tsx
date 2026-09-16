@@ -21,6 +21,7 @@ import { useFrame } from '@react-three/fiber'
 import type { GravityWellId } from '@dangerous-inclinations/engine'
 import { wellCenter, wellVisual } from '../../geometry'
 import { sceneTime } from '../clock'
+import { PLANET_AIR } from '../bodies'
 import { BODY_KEY_DIRECTION, SCENE_LIGHT, bodyRamp, inkColor } from '../palette'
 import { ATMOSPHERE_FRAGMENT, ATMOSPHERE_VERTEX } from '../shaders/atmosphere'
 import { withOctaves } from '../shaders/noise'
@@ -67,9 +68,6 @@ const TILT: Record<string, readonly [number, number]> = {
 }
 
 const KEY = new Vector3(...BODY_KEY_DIRECTION).normalize()
-
-/** How far past the limb the air reaches, in body radii. */
-const AIR_OUTER = 1.34
 
 export function Planet({
   wellId,
@@ -127,7 +125,7 @@ export function Planet({
       },
       uKeyDirection: { value: KEY },
       uBodyRadius: { value: visual.bodyRadius },
-      uOuter: { value: AIR_OUTER },
+      uOuter: { value: PLANET_AIR },
       uPower: { value: 3.4 },
       uIntensity: { value: 1.05 },
     }),
@@ -188,7 +186,7 @@ export function Planet({
       </group>
 
       <mesh>
-        <sphereGeometry args={[visual.bodyRadius * AIR_OUTER, 40, 24]} />
+        <sphereGeometry args={[visual.bodyRadius * PLANET_AIR, 40, 24]} />
         <shaderMaterial
           uniforms={airUniforms}
           vertexShader={ATMOSPHERE_VERTEX}

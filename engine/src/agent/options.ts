@@ -6,15 +6,22 @@
 import type { BurnIntensity, Facing, PlayerAction, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
-import { BURN_COSTS, WELL_TRANSFER_COSTS, getAdjustmentRange } from "../models/rings.ts";
+import {
+  BURN_COSTS,
+  SECTOR_ADJUSTMENT_COST_PER_SECTOR,
+  WELL_TRANSFER_COSTS,
+  calculateJumpMassCost,
+  getAdjustmentRange,
+} from "../models/rings.ts";
 
 const BURN_INTENSITIES: BurnIntensity[] = ["soft", "medium", "hard"];
-import { getJumpOptions, getMaxRing } from "../models/gravityWells.ts";
+import { getJumpAdjustmentRange, getJumpOptions, getMaxRing } from "../models/gravityWells.ts";
 import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import type { GameView } from "../game/view.ts";
 import { ringVelocity, sectorDistance } from "../game/geometry.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, type MovementPreview } from "../game/movement.ts";
+import { isMooredAt } from "../game/stations.ts";
 import { hasWorkingCompressor } from "../game/ship.ts";
 
 export interface BurnOption {
@@ -50,7 +57,19 @@ export interface SeatOptions {
   fuel: number;
   heatBudget: number;
   burns: BurnOption[];
-  jump: { destinationWellId: string; destination: Position; energy: number; fuel: number } | null;
+  jump: {
+    destinationWellId: string;
+    destination: Position;
+    energy: number;
+    /** Fuel for an unphased jump (0 with a working compressor). */
+    fuel: number;
+    /** Fuel each sector of phasing costs; a compressor does not pay for it. */
+    phasingFuel: number;
+    /** Sectors the landing may be shifted by, bounded by the arrival arc. */
+    adjustment: { min: number; max: number };
+  } | null;
+  /** Docked at a station: a coast holds the berth, only a burn casts off. */
+  moored: boolean;
   scoopGain: number;
   weapons: WeaponOption[];
   scanTargets: string[];
@@ -98,12 +117,18 @@ export function seatOptions(view: GameView): SeatOptions {
         destinationWellId: jumpOption.destination.wellId,
         destination: jumpOption.destination,
         energy: WELL_TRANSFER_COSTS.energy,
-        fuel: compressor ? 0 : WELL_TRANSFER_COSTS.mass,
+        fuel: calculateJumpMassCost(0, compressor),
+        phasingFuel: SECTOR_ADJUSTMENT_COST_PER_SECTOR,
+        adjustment: getJumpAdjustmentRange(jumpOption),
       }
     : null;
+  const moored = isMooredAt(view.stations, here);
 
   const opponents = view.players.filter((p) => !p.isMe && p.ship && !p.ship.isDestroyed);
-  const afterCoast = projectPosition(ship, ship.facing, { kind: "coast" } as MovementPreview);
+  const afterCoast = projectPosition(ship, ship.facing, {
+    kind: "coast",
+    moored,
+  } as MovementPreview);
   const weapons: WeaponOption[] = ship.subsystems
     .filter((s) => getSubsystemConfig(s.type).weaponStats)
     .map((weapon) => {
@@ -156,6 +181,7 @@ export function seatOptions(view: GameView): SeatOptions {
     heatBudget: Math.max(0, dissipation - ship.heat.currentHeat),
     burns,
     jump,
+    moored,
     scoopGain: velocity,
     weapons,
     scanTargets,

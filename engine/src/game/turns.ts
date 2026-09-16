@@ -7,7 +7,8 @@
  *  4. Docking (if the ship ended on a station).
  *  5. Heat check: excess heat becomes hull damage, heat resets.
  *  6. Missions are updated from everything that happened.
- *  7. Play passes on; stations move at the end of every round.
+ *  7. Play passes on; at the end of every round stations move, carrying the
+ *     ships moored to them.
  *
  * The returned state carries no log; the turn's events are returned alongside.
  */
@@ -19,7 +20,7 @@ import { processOwnerMissiles } from "./missiles.ts";
 import { processDocking } from "./docking.ts";
 import { resolveEndOfTurnHeat } from "./heat.ts";
 import { processMissionEvents, checkForWinner, rankPlayers } from "./missions/missionChecks.ts";
-import { updateStationPositions } from "./stations.ts";
+import { advanceStations } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
 import { isDestroyed, resetSubsystemUsage } from "./ship.ts";
 
@@ -148,8 +149,10 @@ function finish(
   };
 
   if (newRound) {
-    next = { ...next, stations: updateStationPositions(next.stations) };
-    events.push({ type: "stations_moved" });
+    // Stations advance and take their moored ships with them.
+    const advanced = advanceStations(next);
+    next = advanced.state;
+    events.push(...advanced.events);
   }
 
   // Reaching the points needed does not end the game on the spot: the round

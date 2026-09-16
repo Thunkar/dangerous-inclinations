@@ -23,11 +23,11 @@ export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel).
 - Burn: drift, then change ring. Prograde facing burns OUTWARD, retrograde INWARD. soft 1 ring / 1 fuel / 1 cube on engines; medium 2/2/2; hard 3/3/3. Phasing: adjust arrival sector, 1 fuel per sector, from -(velocity-1) to +3.
-- Jump: only from a lane's departure arc, engines at 3, 3 fuel (free with compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way.
+- Jump: only from a lane's departure arc, engines at 3, 3 fuel (free with compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way. Phasing: shift the landing 1 fuel a sector, never out of the arrival arc — so any departure sector reaches any of the arc's 4 sectors. A compressor pays for the jump, not for the phasing.
 - Heat: using a tile costs its cubes in heat. Dissipation 5 (+2 per radiator). Excess at your heat check = hull damage. Shields: absorb up to their cubes (max 2) but EVERY absorbed point is 2 heat to you. Lasers ignore shields.
 - Weapons: railgun 4 dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser 2 dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack 1 dmg, +-1 ring/+-1 sector or same ring 1 sector; intercepts missiles. Missiles 2 dmg, +-2 rings/+-3 sectors, guided, 4 aboard.
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit that reaches the hull breaks the named slot.
-- Docking (end your turn on a station's sector, planet ring 1): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round.
+- Docking (end your turn on a station's sector, planet ring 1): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
 - Survey: two consecutive turns on BH ring ${SURVEY_RING} with the sensor array powered, then dock at the named planet. Intercept: scan the target (same ring, within 3 sectors), then dock anywhere.
 - Destroyed: respawn at Home next turn, lose the turn after too, drop cargo.`;
 
@@ -145,7 +145,9 @@ export function describeViewForAgent(
     const o = seatOptions(view);
     out.push("", "LEGAL THIS TURN:");
     out.push(
-      `  Drift: coast moves you ${o.velocity} sectors forward${o.scoopGain ? ` (scoop would gain ${o.scoopGain} fuel for 3 cubes)` : ""}.`
+      o.moored
+        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off${o.scoopGain ? ` (scoop would still gain ${o.scoopGain} fuel for 3 cubes)` : ""}.`
+        : `  Drift: coast moves you ${o.velocity} sectors forward${o.scoopGain ? ` (scoop would gain ${o.scoopGain} fuel for 3 cubes)` : ""}.`
     );
     out.push(
       `  Burns: ${
@@ -158,7 +160,11 @@ export function describeViewForAgent(
       }.`
     );
     out.push(
-      `  Jump: ${o.jump ? `to ${pos(o.jump.destination)} (engines 3, ${o.jump.fuel} fuel)` : "no lane departs from this sector"}.`
+      `  Jump: ${
+        o.jump
+          ? `to ${pos(o.jump.destination)} (engines 3, ${o.jump.fuel} fuel; phase ${o.jump.adjustment.min}..${o.jump.adjustment.max > 0 ? "+" : ""}${o.jump.adjustment.max} sectors inside the arrival arc, ${o.jump.phasingFuel} fuel each)`
+          : "no lane departs from this sector"
+      }.`
     );
     for (const w of o.weapons)
       out.push(
@@ -189,7 +195,7 @@ export const AGENT_INTENT_GUIDE = `INTENT FORMAT (JSON). Everything optional; om
   "unpower": ["forward-0"],                    // tiles to switch off
   "rotate": false,                             // flip facing (1 cube on the thrusters, 1 heat)
   "move": { "kind": "coast", "scoop": false }  // or { "kind": "burn", "intensity": "soft|medium|hard", "adjustment": 0, "facing": "prograde|retrograde" }
-                                               // or { "kind": "jump", "destinationWellId": "planet-alpha" }
+                                               // or { "kind": "jump", "destinationWellId": "planet-alpha", "adjustment": 0 }
   "fire": [ { "weapon": "forward-0", "target": "<playerId>", "critical": "engines", "compensateRecoil": false, "when": "after" } ],
   "scan": { "target": "<playerId>", "slot": "side-1" }
 }

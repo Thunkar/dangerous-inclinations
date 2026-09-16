@@ -33,16 +33,20 @@ import {
   SCAN_SECTOR_RANGE,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
+  calculateJumpMassCost,
   canSubsystemFunction,
   getAdjustmentRange,
+  getJumpAdjustmentRange,
   getJumpOptions,
   getMaxReactionMass,
   getMaxRing,
   getSubsystemConfig,
   hasWorkingCompressor,
   isInWeaponRange,
+  isMooredAt,
   isWeaponType,
   opponentPositions,
+  phasedJumpDestination,
   projectPosition,
   ringVelocity,
   sectorDistance,
@@ -54,7 +58,7 @@ import { useGame } from './GameContext'
 export type MoveChoice =
   | { kind: 'coast'; scoop: boolean }
   | { kind: 'burn'; intensity: BurnIntensity; adjustment: number }
-  | { kind: 'jump'; destinationWellId: string }
+  | { kind: 'jump'; destinationWellId: string; adjustment: number }
 
 export type PlanStep =
   | { id: string; kind: 'rotate' }
@@ -108,6 +112,10 @@ interface PlanContextValue {
   moveFrom: StepContext
   jumpOptions: JumpOption[]
   adjustmentRange: { min: number; max: number }
+  /** Phasing a jump may use: bounded by the arrival arc, not by the ring. */
+  jumpAdjustmentRange: { min: number; max: number }
+  /** Docked at a station: a coast holds the berth, only a burn casts off. */
+  moored: boolean
   /** Burn intensities that stay inside the well from where the move starts. */
   availableBurns: Record<BurnIntensity, boolean>
   scoopGain: number
@@ -262,7 +270,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
             const jump = getJumpOptions(position).find(
               o => o.destination.wellId === move.destinationWellId
             )
-            if (jump) position = jump.destination
+            const landing = jump && phasedJumpDestination(jump, move.adjustment)
+            if (landing) position = landing
           } else {
             const p =
               move.kind === 'burn'
@@ -271,7 +280,10 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
                     burnIntensity: move.intensity,
                     sectorAdjustment: move.adjustment,
                   })
-                : projectPosition(shipHere, facing, { kind: 'coast' })
+                : projectPosition(shipHere, facing, {
+                    kind: 'coast',
+                    moored: isMooredAt(view.stations, position),
+                  })
             position = { wellId: p.wellId, ring: p.ring, sector: p.sector }
           }
           break
@@ -293,7 +305,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       }
     }
     return { stepStart: starts, finalPosition: { position, facing } }
-  }, [steps, me.ship, pendingSubsystems])
+  }, [steps, me.ship, pendingSubsystems, view.stations])
 
   const moveFrom = useMemo(() => {
     const index = steps.findIndex(s => s.kind === 'move')
@@ -301,6 +313,18 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   }, [steps, stepStart, me.ship])
 
   const jumpOptions = useMemo(() => getJumpOptions(moveFrom.position), [moveFrom])
+  const moored = useMemo(
+    () => isMooredAt(view.stations, moveFrom.position),
+    [view.stations, moveFrom]
+  )
+  const jumpAdjustmentRange = useMemo(() => {
+    const move = moveStep.move
+    const option =
+      (move.kind === 'jump'
+        ? jumpOptions.find(o => o.destination.wellId === move.destinationWellId)
+        : undefined) ?? jumpOptions[0]
+    return option ? getJumpAdjustmentRange(option) : { min: 0, max: 0 }
+  }, [jumpOptions, moveStep])
   const adjustmentRange = useMemo(
     () => getAdjustmentRange(ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)),
     [moveFrom]
@@ -430,11 +454,18 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
               o => o.destination.wellId === move.destinationWellId
             )
             if (!option) problems.push('No transfer lane from here to that destination')
+            else {
+              const range = getJumpAdjustmentRange(option)
+              if (move.adjustment < range.min || move.adjustment > range.max)
+                problems.push(
+                  `Phasing a jump stays inside the arrival arc (${range.min} to +${range.max} from here)`
+                )
+            }
             if (!engines || engines.isBroken) problems.push('Engines are broken: no jump')
             else if (engines.allocatedEnergy < WELL_TRANSFER_COSTS.energy)
               problems.push(`A jump needs ${WELL_TRANSFER_COSTS.energy} energy on the engines`)
             else heat += engines.allocatedEnergy
-            if (!compressor) spend(WELL_TRANSFER_COSTS.mass, 'a jump')
+            spend(calculateJumpMassCost(move.adjustment, compressor), 'a jump')
           } else if (move.scoop) {
             const scoop = pendingSubsystems.find(s => s.id === 'scoop')
             if (!scoop || scoop.isBroken) problems.push('Fuel scoop is broken')
@@ -562,7 +593,10 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
               playerId: me.id,
               type: 'well_transfer',
               sequence: ++sequence,
-              data: { destinationWellId: step.move.destinationWellId },
+              data: {
+                destinationWellId: step.move.destinationWellId,
+                sectorAdjustment: step.move.adjustment,
+              },
             })
           }
           break
@@ -689,7 +723,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       step.actionType === 'coast'
         ? { kind: 'coast', scoop: step.massCost < 0 }
         : step.actionType === 'well_transfer'
-          ? { kind: 'jump', destinationWellId: step.to.wellId }
+          ? { kind: 'jump', destinationWellId: step.to.wellId, adjustment: step.sectorAdjustment }
           : {
               kind: 'burn',
               intensity: step.burnIntensity ?? 'soft',
@@ -871,6 +905,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       moveFrom,
       jumpOptions,
       adjustmentRange,
+      jumpAdjustmentRange,
+      moored,
       availableBurns,
       scoopGain,
       projectedHeat,
@@ -921,6 +957,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       moveFrom,
       jumpOptions,
       adjustmentRange,
+      jumpAdjustmentRange,
+      moored,
       availableBurns,
       scoopGain,
       projectedHeat,

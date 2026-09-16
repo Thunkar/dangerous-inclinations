@@ -33,6 +33,20 @@ export function getAdjustmentRange(velocity: number): { min: number; max: number
   return { min: -(velocity - MIN_FORWARD_MOVEMENT), max: MAX_SECTOR_ADJUSTMENT };
 }
 
+/** Phasing costs 1 fuel a sector, on a burn or on a jump. */
+export function phasingMassCost(sectorAdjustment: number): number {
+  return Math.abs(sectorAdjustment) * SECTOR_ADJUSTMENT_COST_PER_SECTOR;
+}
+
 export function calculateBurnMassCost(baseMassCost: number, sectorAdjustment: number): number {
-  return baseMassCost + Math.abs(sectorAdjustment) * SECTOR_ADJUSTMENT_COST_PER_SECTOR;
+  return baseMassCost + phasingMassCost(sectorAdjustment);
+}
+
+/**
+ * Fuel a jump costs: the lane's own cost, which a working fuel compressor
+ * refunds, plus the phasing, which it never does (RULES §Jump: "a compressor
+ * pays for the jump, not for the phasing").
+ */
+export function calculateJumpMassCost(sectorAdjustment: number, hasCompressor: boolean): number {
+  return (hasCompressor ? 0 : WELL_TRANSFER_COSTS.mass) + phasingMassCost(sectorAdjustment);
 }

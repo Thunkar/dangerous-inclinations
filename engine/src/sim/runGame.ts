@@ -120,9 +120,16 @@ export function setupBotGame(
   );
 
   for (const player of state.players) {
-    const choice = botChooseLoadout(player.missionOffers, { playerCount: botCount, rules });
+    // A forced hull is offered to the bot, not stapled on: the bot keeps cards
+    // that hull can fly, and a deal with no flyable trio (three of the five
+    // offers needing a sensor array) leaves the seat its own mat for that game.
+    const choice = botChooseLoadout(player.missionOffers, {
+      playerCount: botCount,
+      rules,
+      hull: seatLoadouts?.[player.id],
+    });
     const result = submitLoadout(state, player.id, {
-      loadout: seatLoadouts?.[player.id] ?? choice.loadout,
+      loadout: choice.loadout,
       missionIds: choice.missionIds,
     });
     if (result.error) throw new Error(`Bot ${player.id} loadout rejected: ${result.error}`);

@@ -28,7 +28,7 @@ import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
-import { getStationAt } from "../game/stations.ts";
+import { getStationAt, isMooredAt } from "../game/stations.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
 import { INTERDICT_DANGER } from "./types.ts";
@@ -80,6 +80,9 @@ export function buildCandidate(
 ): ActionPlan {
   const { me, ship, status, view } = situation;
   let movement = movementIn;
+  // Moored at a station: a coast holds the berth instead of drifting, and the
+  // station carries the ship at the end of the round (RULES §Moored).
+  const moored = isMooredAt(view.stations, status.position);
 
   const capacity = me.ship.reactor.totalCapacity;
   const rotationEnergy = getSubsystemConfig("rotation").minEnergy;
@@ -103,12 +106,14 @@ export function buildCandidate(
     !status.rotation.isBroken &&
     !status.rotation.usedThisTurn &&
     movement.engineEnergy + rotationEnergy <= capacity;
+  const preview =
+    movement.kind === "coast" && moored ? { ...movement.preview, moored: true } : movement.preview;
   let facing: Facing = movement.requiredFacing ?? ship.facing;
   if (movement.requiredFacing === null && canRotate) {
     const railgun = status.weapons.find((w) => w.type === "railgun" && isWeaponReady(w));
     if (railgun) {
       const shotsWith = (f: Facing) => {
-        const post = projectPosition(ship, f, movement.preview);
+        const post = projectPosition(ship, f, preview);
         return situation.opponents.filter(
           (o) => o.sameWell && isInWeaponRange(railgun, post, o.position)
         ).length;
@@ -120,15 +125,26 @@ export function buildCandidate(
   const rotate = facing !== ship.facing;
 
   const pre = { ...status.position, facing };
-  const post = projectPosition(ship, facing, movement.preview);
-  const landsOnStation = getStationAt(view.stations, post) !== undefined;
+  const post = projectPosition(ship, facing, preview);
+  const endsOnStation = getStationAt(view.stations, post) !== undefined;
+  /**
+   * "Arrives at a station" — deliberately not "is at one". Since RULES §Moored
+   * a docked ship stays docked, so a coast keeps ending on the station; if
+   * that counted as completing a mission step (`completesStep` below, +35 on
+   * missionProgress) a moored bot would rate sitting still as progress every
+   * turn and loiter in port. Measured: median game length went 33 -> 44
+   * rounds with the flag left as `endsOnStation`. Reaching a station is
+   * progress; holding a berth already docked at last turn is not.
+   */
+  const landsOnStation = endsOnStation && !moored;
   const surveying =
     post.wellId === BLACK_HOLE_ID &&
     post.ring === SURVEY_RING &&
     me.missions.some((m) => m.type === "survey" && !m.isCompleted && !m.surveyAcquired);
   // Docking and the survey are both resolved from where the ship ends its
-  // turn, so an uncompensated railgun recoil must not move it.
-  const postPositionMatters = landsOnStation || surveying;
+  // turn, so an uncompensated railgun recoil must not move it — and a moored
+  // ship pushed off its berth loses the berth.
+  const postPositionMatters = endsOnStation || surveying;
 
   // Budgets.
   const targets: EnergyTargets = new Map();
@@ -371,7 +387,10 @@ export function buildCandidate(
         type: "well_transfer",
         playerId: me.id,
         sequence: sequence++,
-        data: { destinationWellId: movement.destinationWellId! },
+        data: {
+          destinationWellId: movement.destinationWellId!,
+          sectorAdjustment: movement.sectorAdjustment ?? 0,
+        },
       });
       break;
   }

@@ -44,13 +44,24 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "rotated":
       return `${name(e.playerId)} rotates to ${e.facing}`;
     case "coasted":
-      return `${name(e.playerId)} coasts to ${pos(e.to)}${e.scooped ? ", scoop running" : ""}${heat(e.heat)}`;
+      return e.moored
+        ? `${name(e.playerId)} holds its berth at ${pos(e.to)}${e.scooped ? ", scoop running" : ""}${heat(e.heat)}`
+        : `${name(e.playerId)} coasts to ${pos(e.to)}${e.scooped ? ", scoop running" : ""}${heat(e.heat)}`;
     case "fuel_scooped":
       return `${name(e.playerId)} scoops ${e.amount} fuel`;
     case "burned":
       return `${name(e.playerId)} makes a ${e.intensity} burn to ${pos(e.to)} (-${e.massSpent} fuel)${heat(e.heat)}`;
-    case "jumped":
-      return `${name(e.playerId)} jumps to ${pos(e.to)}${e.refunded ? " (compressor refunds the fuel)" : ""}${heat(e.heat)}`;
+    case "jumped": {
+      const phased = e.sectorAdjustment
+        ? `, phased ${e.sectorAdjustment > 0 ? "+" : ""}${e.sectorAdjustment} in the arc`
+        : "";
+      const fuel = !e.refunded
+        ? ` (-${e.massSpent} fuel)`
+        : e.massSpent > 0
+          ? ` (-${e.massSpent} fuel for the phasing; the compressor refunds the jump)`
+          : " (compressor refunds the fuel)";
+      return `${name(e.playerId)} jumps to ${pos(e.to)}${phased}${fuel}${heat(e.heat)}`;
+    }
     case "weapon_fired":
       return `${name(e.attackerId)} fires ${sub(e.weaponType)} at ${name(e.targetId)}${heat(e.heat)}`;
     case "attack_resolved": {
@@ -116,7 +127,9 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "action_skipped":
       return `${name(e.playerId)}'s ${e.action === "scan" ? "scan" : "shot"} at ${name(e.targetId)} is not taken: the ship is already gone`;
     case "stations_moved":
-      return "Stations advance in their orbits";
+      return e.riders.length > 0
+        ? `Stations advance in their orbits, carrying ${e.riders.map(name).join(", ")}`
+        : "Stations advance in their orbits";
     case "deployed":
       return `${name(e.playerId)} deploys at ${pos(e.position)}`;
     case "final_round":

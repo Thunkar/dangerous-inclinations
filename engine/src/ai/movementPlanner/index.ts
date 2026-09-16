@@ -128,7 +128,8 @@ export function planShipToTarget(
  *
  * `targetFacing` is the facing the ship must have for the step (the burn
  * direction); it is undefined for coasts and jumps, which work from either
- * facing.
+ * facing. `sectorAdjustment` is the phasing: the arrival shift of a burn or
+ * of a jump inside its arrival arc.
  */
 export function getFirstAction(plan: MovementPlan): {
   actionType: "coast" | "burn" | "well_transfer";
@@ -154,7 +155,7 @@ export function getFirstAction(plan: MovementPlan): {
   if (step.actionType === "well_transfer") {
     return {
       actionType: "well_transfer",
-      sectorAdjustment: 0,
+      sectorAdjustment: step.sectorAdjustment,
       destinationWellId: step.to.wellId,
       massCost: step.massCost,
     };

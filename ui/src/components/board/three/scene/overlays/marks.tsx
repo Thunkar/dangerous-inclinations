@@ -88,9 +88,31 @@ export function BoardTooltip({
 }
 
 /**
+ * The dark edge carried under a track and under the marks at its ends.
+ *
+ * A coloured line over a lit ring, an amber wedge or the rim of the accretion
+ * disc is the same brightness as what it crosses, and reads as part of it. A
+ * slightly wider run of the table's own felt underneath separates the two. The
+ * line's width is in pixels, so the edge is too: it is ink, not board, and it
+ * must not change when the board is rescaled.
+ */
+const EDGE_WIDTH = 2.4
+const EDGE_OPACITY = 0.8
+/** The same edge around a dot or a ring, as a share of the mark's own size. */
+const EDGE_SHARE = 0.5
+
+/**
+ * Tracks are drawn after the wedge fields (`renderOrder` 0–3 in `WedgeField`),
+ * so a planned path always reads over a shaded range rather than under it.
+ */
+const TRACK_ORDER = 4
+
+/**
  * A line laid on the board. `dash` and `gap` are board units, as the SVG
  * board's dash arrays are; `speed` drifts the pattern along the line, which is
- * how a planned path reads as a direction rather than as a fence.
+ * how a planned path reads as a direction rather than as a fence. `edge` lays
+ * the same line in felt underneath, a little wider, which is what lets it read
+ * over a ring or a wedge.
  */
 export function SurfaceLine({
   points,
@@ -100,7 +122,8 @@ export function SurfaceLine({
   dash,
   gap,
   speed = 0,
-  renderOrder = 0,
+  renderOrder = TRACK_ORDER,
+  edge = true,
 }: {
   points: readonly Vector3[]
   color: string
@@ -110,33 +133,54 @@ export function SurfaceLine({
   gap?: number
   speed?: number
   renderOrder?: number
+  edge?: boolean
 }) {
   const line = useRef<ComponentRef<typeof Line>>(null)
+  const under = useRef<ComponentRef<typeof Line>>(null)
 
   useFrame(() => {
     if (speed === 0) return
+    const offset = -sceneTime.value * speed
     const material = line.current?.material
-    if (material) material.dashOffset = -sceneTime.value * speed
+    if (material) material.dashOffset = offset
+    const edgeMaterial = under.current?.material
+    if (edgeMaterial) edgeMaterial.dashOffset = offset
   })
 
   if (points.length < 2) return null
 
+  const shared = {
+    points: points as Vector3[],
+    transparent: true,
+    dashed: dash !== undefined,
+    dashSize: dash ?? 1,
+    gapSize: gap ?? 1,
+    depthWrite: false,
+    toneMapped: false,
+    raycast: NO_RAYCAST,
+  }
+
   return (
-    <Line
-      ref={line}
-      points={points as Vector3[]}
-      color={color}
-      lineWidth={width}
-      transparent
-      opacity={opacity}
-      dashed={dash !== undefined}
-      dashSize={dash ?? 1}
-      gapSize={gap ?? 1}
-      depthWrite={false}
-      toneMapped={false}
-      renderOrder={renderOrder}
-      raycast={NO_RAYCAST}
-    />
+    <>
+      {edge && (
+        <Line
+          ref={under}
+          {...shared}
+          color={TABLE.felt}
+          lineWidth={width + EDGE_WIDTH}
+          opacity={EDGE_OPACITY}
+          renderOrder={renderOrder}
+        />
+      )}
+      <Line
+        ref={line}
+        {...shared}
+        color={color}
+        lineWidth={width}
+        opacity={opacity}
+        renderOrder={renderOrder + 1}
+      />
+    </>
   )
 }
 
@@ -146,23 +190,39 @@ export function SurfaceDot({
   color,
   radius,
   opacity = 1,
+  edge = true,
 }: {
   position: Vector3
   color: string
   radius: number
   opacity?: number
+  edge?: boolean
 }) {
   return (
-    <mesh position={position} rotation={FLAT} raycast={NO_RAYCAST}>
-      <circleGeometry args={[radius, 20]} />
-      <meshBasicMaterial
-        color={color}
-        transparent
-        opacity={opacity}
-        depthWrite={false}
-        toneMapped={false}
-      />
-    </mesh>
+    <group position={position} rotation={FLAT}>
+      {edge && (
+        <mesh raycast={NO_RAYCAST} renderOrder={TRACK_ORDER}>
+          <circleGeometry args={[radius * (1 + EDGE_SHARE), 20]} />
+          <meshBasicMaterial
+            color={TABLE.felt}
+            transparent
+            opacity={EDGE_OPACITY}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      )}
+      <mesh raycast={NO_RAYCAST} renderOrder={TRACK_ORDER + 1}>
+        <circleGeometry args={[radius, 20]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={opacity}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
   )
 }
 
@@ -177,6 +237,7 @@ export function SurfaceRing({
   thickness,
   opacity = 1,
   corners = 24,
+  edge = true,
 }: {
   position: Vector3
   color: string
@@ -184,18 +245,34 @@ export function SurfaceRing({
   thickness: number
   opacity?: number
   corners?: number
+  edge?: boolean
 }) {
+  const bleed = thickness * EDGE_SHARE
   return (
-    <mesh position={position} rotation={FLAT} raycast={NO_RAYCAST}>
-      <ringGeometry args={[radius, radius + thickness, corners]} />
-      <meshBasicMaterial
-        color={color}
-        transparent
-        opacity={opacity}
-        depthWrite={false}
-        toneMapped={false}
-      />
-    </mesh>
+    <group position={position} rotation={FLAT}>
+      {edge && (
+        <mesh raycast={NO_RAYCAST} renderOrder={TRACK_ORDER}>
+          <ringGeometry args={[radius - bleed, radius + thickness + bleed, corners]} />
+          <meshBasicMaterial
+            color={TABLE.felt}
+            transparent
+            opacity={EDGE_OPACITY}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      )}
+      <mesh raycast={NO_RAYCAST} renderOrder={TRACK_ORDER + 1}>
+        <ringGeometry args={[radius, radius + thickness, corners]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={opacity}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
   )
 }
 

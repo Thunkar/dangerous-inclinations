@@ -11,17 +11,22 @@
  * Engine rules encoded here (see game/movement.ts and actionProcessors.ts):
  *   - coast / burn: orbital drift first, then the ring change + phasing;
  *   - jump: the lane's destination sector IS the turn's movement — there is
- *     no drift after landing, and facing does not matter.
+ *     no drift after landing, and facing does not matter; phasing shifts the
+ *     landing inside the arrival arc for 1 fuel a sector.
  */
 
 import type { BurnIntensity } from "../../models/game.ts";
 import {
   BURN_COSTS,
   calculateBurnMassCost,
+  calculateJumpMassCost,
   getAdjustmentRange,
-  WELL_TRANSFER_COSTS,
 } from "../../models/rings.ts";
-import { TRANSFER_POINTS } from "../../models/gravityWells.ts";
+import {
+  getJumpAdjustmentRange,
+  getJumpOptions,
+  phasedJumpDestination,
+} from "../../models/gravityWells.ts";
 import { driftPosition, ringVelocity, wrapSector } from "../../game/geometry.ts";
 import { burnDestinationRing } from "../../game/movement.ts";
 import type { OrientedPosition, MovementActionType } from "./types.ts";
@@ -42,7 +47,7 @@ export interface SuccessorOptions {
   allowWellTransfers: boolean;
   /** Coast steps recover mass equal to the ring velocity. */
   hasFuelScoop?: boolean;
-  /** Jumps cost no mass. */
+  /** A compressor refunds a jump's own mass (never its phasing). */
   hasFuelCompressor?: boolean;
 }
 
@@ -105,28 +110,26 @@ export function getSuccessors(
     massCost: options.hasFuelScoop ? -velocity : 0,
   });
 
-  // Jumps: only from lane sectors, land exactly on the lane's destination.
-  const jumpMass = options.hasFuelCompressor ? 0 : WELL_TRANSFER_COSTS.mass;
-  if (options.allowWellTransfers && jumpMass <= availableMass) {
-    for (const tp of TRANSFER_POINTS) {
-      if (
-        tp.fromWellId !== position.wellId ||
-        tp.fromRing !== position.ring ||
-        tp.fromSector !== position.sector
-      ) {
-        continue;
+  // Jumps: only from a lane's departure arc. The landing may be phased to any
+  // sector of the arrival arc for 1 fuel each; 0 (the matching sector) first,
+  // so an unphased jump wins ties.
+  if (options.allowWellTransfers) {
+    for (const option of getJumpOptions(position)) {
+      const range = getJumpAdjustmentRange(option);
+      const adjustments = [0];
+      for (let adj = range.min; adj <= range.max; adj++) if (adj !== 0) adjustments.push(adj);
+      for (const adj of adjustments) {
+        const massCost = calculateJumpMassCost(adj, options.hasFuelCompressor === true);
+        if (massCost > availableMass) continue;
+        const destination = phasedJumpDestination(option, adj);
+        if (!destination) continue;
+        results.push({
+          position: { ...destination, facing: position.facing },
+          actionType: "well_transfer",
+          sectorAdjustment: adj,
+          massCost,
+        });
       }
-      results.push({
-        position: {
-          wellId: tp.toWellId,
-          ring: tp.toRing,
-          sector: tp.toSector,
-          facing: position.facing,
-        },
-        actionType: "well_transfer",
-        sectorAdjustment: 0,
-        massCost: jumpMass,
-      });
     }
   }
 

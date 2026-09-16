@@ -13,7 +13,17 @@
  * Add STUB_AI=1 while engine/src/ai is mid-rewrite (see engine-source-loader.mjs).
  */
 import type { GameRecording } from "@dangerous-inclinations/engine";
-import { DEFAULT_LOADOUT, MISSIONS_PER_PLAYER } from "@dangerous-inclinations/engine";
+import { MISSIONS_PER_PLAYER, type ShipLoadout } from "@dangerous-inclinations/engine";
+
+/**
+ * A mat that can fly any hand the deal produces: the sensor array is the one
+ * tile a card asks for (Intercept and Survey), so the smoke run never has to
+ * care which three cards it kept.
+ */
+const SMOKE_LOADOUT: ShipLoadout = {
+  forwardSlots: ["sensor_array"],
+  sideSlots: ["laser", "laser", "shields", "missiles"],
+};
 import type { WebSocket } from "@fastify/websocket";
 import { memoryKv } from "../src/services/kv.ts";
 import { createRecordingService, type RecordingArchive } from "../src/services/recordingService.ts";
@@ -181,7 +191,7 @@ const offers = loadoutView.me.missionOffers;
 check(offers.length === 5, `the human is offered 5 missions (got ${offers.length})`);
 
 const loadoutResult = await games.submitLoadout(GAME_ID, HUMAN, {
-  loadout: DEFAULT_LOADOUT,
+  loadout: SMOKE_LOADOUT,
   missionIds: offers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id),
 });
 if (!loadoutResult.ok) fail(`human loadout rejected: ${loadoutResult.error}`);
@@ -483,7 +493,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
   await gameGames.createGame(gameId, SPECS, [HUMAN], SEED);
   const first = await gameGames.getView(gameId, HUMAN);
   await gameGames.submitLoadout(gameId, HUMAN, {
-    loadout: DEFAULT_LOADOUT,
+    loadout: SMOKE_LOADOUT,
     missionIds: first!.me!.missionOffers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id),
   });
   const deployed = await gameGames.getView(gameId, HUMAN);

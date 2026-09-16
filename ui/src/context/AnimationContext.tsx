@@ -618,9 +618,21 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             })
             return BEAT.small
           }
-          case 'stations_moved':
+          case 'stations_moved': {
             snap.stations = next.stations
-            return BEAT.small
+            // Moored ships ride their station round (RULES §Moored): slide them
+            // along with it rather than letting them snap at the end.
+            for (const riderId of event.riders) {
+              const rider = next.players.find(p => p.id === riderId)?.ship
+              if (rider)
+                moveShip(
+                  riderId,
+                  { wellId: rider.wellId, ring: rider.ring, sector: rider.sector },
+                  'coast'
+                )
+            }
+            return event.riders.length > 0 ? BEAT.move : BEAT.small
+          }
           default:
             // Unknown event types are ignored, never thrown on: an engine that
             // adds an event must not break a client that has not learned it yet.

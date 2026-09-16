@@ -14,6 +14,8 @@ import {
 } from "../models/subsystems.ts";
 import type { ShipLoadout, LoadoutValidation } from "../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY, STARTING_REACTION_MASS } from "../models/game.ts";
+import type { MissionType } from "../models/missions.ts";
+import { missionRequiredSubsystems } from "../models/missions.ts";
 
 const byGroup = (predicate: (slotType: string) => boolean): SubsystemType[] =>
   (Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]).filter((t) =>
@@ -112,4 +114,31 @@ export function countSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemTyp
 export function hasSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): boolean {
   if (getSubsystemConfig(type).slotType === "fixed") return true;
   return countSubsystemInLoadout(loadout, type) > 0;
+}
+
+/** A kept card and the tiles its hull is missing for it. */
+export interface MissionLoadoutGap<M> {
+  mission: M;
+  missing: SubsystemType[];
+}
+
+/**
+ * Cards in `missions` that this mat could never complete, each with the tiles
+ * it lacks (MISSION_REQUIRED_SUBSYSTEMS). Empty means the hand and the hull
+ * agree. The referee calls this before accepting a loadout and the loadout
+ * screen calls it on every change, so a player sees the clash while choosing
+ * rather than being refused at the end.
+ */
+export function missionsMissingSubsystems<M extends { type: MissionType }>(
+  missions: ReadonlyArray<M>,
+  loadout: ShipLoadout
+): Array<MissionLoadoutGap<M>> {
+  const gaps: Array<MissionLoadoutGap<M>> = [];
+  for (const mission of missions) {
+    const missing = missionRequiredSubsystems(mission.type).filter(
+      (type) => !hasSubsystemInLoadout(loadout, type)
+    );
+    if (missing.length > 0) gaps.push({ mission, missing });
+  }
+  return gaps;
 }

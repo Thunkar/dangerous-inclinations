@@ -47,11 +47,13 @@ Reading Black Hole Ring 5 clockwise: out to Beta, in from Alpha, out to Gamma, i
 
 Each planet has a station on **Ring 1**. Stations drift like ships: 4 sectors at the end of every round. Ships dock by ending their turn on the station's sector.
 
+**Moored.** A docked ship rides its station: it does not drift on its own, and it moves with the station when stations advance. Burn to cast off.
+
 ---
 
 ## Setup
 
-1. **Missions.** Each player draws 5 mission cards from their deck and keeps 3, face-down behind their screen. Return the rest.
+1. **Missions.** Each player draws 5 mission cards from their deck and keeps 3, face-down behind their screen. Return the rest. Cards and mat are chosen together: keep nothing your loadout could never complete (see Missions).
 2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array or missiles) and 4 side tiles (laser, shields, radiator, fuel compressor, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 4** in any empty sector, and puts their Home marker there. Everyone starts together and scatters from there; missions are secret, so pick your sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring).
 4. Fill the hull track to 10, reaction mass to 10 (16 with a fuel compressor, kept behind your screen), heat to 0. Energy cubes stay in the reactor.
@@ -71,10 +73,10 @@ Otherwise:
    - **Fire** — any number of powered weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan** — with a powered sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
-4. **Docking.** If you ended on a station's sector, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull is restored to full, missiles reloaded.
+4. **Docking.** If you ended on a station's sector, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull is restored to full, missiles reloaded. You stay docked until you burn away: a docked ship is moored and rides its station.
 5. **Heat check.** If your heat exceeds your dissipation, take the difference as hull damage. Reset heat to 0.
 6. **Missions.** Check your cards; completed cards are turned face-up.
-7. Pass play. When the last player has acted, move every station 4 sectors.
+7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
 
 ---
 
@@ -96,7 +98,7 @@ Otherwise:
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
 | Shields (side)             | 1–2    | Absorb damage as heat (2 heat per point)                               |
 | Radiator (side)            | —      | +2 dissipation                                                         |
-| Fuel compressor (side)     | —      | +6 fuel capacity; jumps cost no fuel                                   |
+| Fuel compressor (side)     | —      | +6 fuel capacity; a jump's own fuel is refunded                        |
 | Ballistic rack (side)      | 2      | 1 damage, ±1 ring or same ring, ±1 sector; intercepts missiles         |
 
 ---
@@ -105,7 +107,7 @@ Otherwise:
 
 ### Coast
 
-Drift only. If your scoop is powered you may activate it: gain fuel equal to your ring's velocity (heat 3). Others see the scoop run, not how much you gained.
+Drift only — or, moored at a station, hold your berth (see Stations). If your scoop is powered you may activate it: gain fuel equal to your ring's velocity (heat 3). Others see the scoop run, not how much you gained.
 
 ### Burn
 
@@ -122,6 +124,8 @@ Drift, then change ring. Prograde facing burns **outward**, retrograde burns **i
 ### Jump
 
 From a lane's departure arc (the black hole arc of an outbound lane, the planet arc of an inbound one), with engines at 3, pay 3 fuel (free with a fuel compressor) and move to the matching sector of the arrival arc. Facing is kept. A jump is your whole move: no drift this turn.
+
+**Phasing a jump.** As in a burn, you may shift where you arrive for 1 fuel per sector, never outside the arrival arc — so any departure sector can reach any of the arc's four sectors, the matching one for free. A compressor pays for the jump, not for the phasing.
 
 ### Rotation
 
@@ -195,6 +199,8 @@ Four kinds of card. **Destroy is worth two points, every other card one; three p
 
 Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey (to two different planets). Draw 5, keep 3.
 
+**Keep only cards your mat can fly.** Intercept opens with a scan and Survey is held with your sensors lit, so you may keep either card only if your loadout carries a **sensor array**. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
+
 When you complete a mission, turn the card face-up for everyone to see.
 
 ---
@@ -212,21 +218,22 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 
 ## Quick Reference
 
-|                  |                                                                     |
-| ---------------- | ------------------------------------------------------------------- |
-| Reactor          | 10 energy                                                           |
-| Dissipation      | 5 (+2 per radiator)                                                 |
-| Hull             | 10                                                                  |
-| Fuel             | 10 (+6 with compressor)                                             |
-| Sectors per ring | 24                                                                  |
-| Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)             |
-| Phasing          | −(velocity−1) to +3 sectors, 1 fuel each                            |
-| Jump             | engines 3, 3 fuel (free with compressor), no drift                  |
-| Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                        |
-| Scan             | same ring, within 3 sectors, sensor powered                         |
-| Docking          | full hull, repair all, reload missiles, load/deliver cargo          |
-| Survey           | second consecutive turn ended on Black Hole Ring 1, sensors powered |
-| Win              | 3 points end the round; highest score, then hull, then fuel         |
+|                  |                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| Reactor          | 10 energy                                                                                        |
+| Dissipation      | 5 (+2 per radiator)                                                                              |
+| Hull             | 10                                                                                               |
+| Fuel             | 10 (+6 with compressor)                                                                          |
+| Sectors per ring | 24                                                                                               |
+| Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)                                          |
+| Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid |
+| Jump             | engines 3, 3 fuel (refunded by a compressor), no drift                                           |
+| Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                     |
+| Scan             | same ring, within 3 sectors, sensor powered                                                      |
+| Docking          | full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away  |
+| Survey           | second consecutive turn ended on Black Hole Ring 1, sensors powered                              |
+| Keeping cards    | draw 5, keep 3; an Intercept or a Survey may only be kept with a sensor array on the mat         |
+| Win              | 3 points end the round; highest score, then hull, then fuel                                      |
 
 ### Turn cheat sheet
 
@@ -234,6 +241,6 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 2. Energy: move cubes.
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.
-5. Docked? Load, deliver, repair, full hull, reload.
+5. Docked? Load, deliver, repair, full hull, reload. Moored until you burn away.
 6. Heat check: excess heat → hull damage; reset heat.
-7. Flip completed missions. Pass. (Last player: stations move.)
+7. Flip completed missions. Pass. (Last player: stations move, with whoever is moored.)

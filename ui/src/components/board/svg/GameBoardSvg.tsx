@@ -20,7 +20,7 @@ import type { Position } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../theme'
 import type { BoardModel } from '../model'
 import { useBoardClock } from '../useBoardClock'
-import { BOARD_BOUNDS, BOARD_VIEWBOX } from '../geometry'
+import { BOARD_BOUNDS, BOARD_VIEWBOX, HOME_VIEW_RADIUS } from '../geometry'
 import { WellsLayer } from './layers/WellsLayer'
 import { LanesLayer } from './layers/LanesLayer'
 import { MarkersLayer } from './layers/MarkersLayer'
@@ -40,9 +40,31 @@ const MAX_ZOOM = 3.5
 /** Pointer travel (px) before a press counts as a pan rather than a click. */
 const DRAG_THRESHOLD = 4
 
+/**
+ * Where the board opens, and it is not on the whole board.
+ *
+ * The viewBox is cut to the artwork, so at zoom 1 the four wells share the pane
+ * between them and each gets a fifth of its height — which is how a black hole
+ * with 24 numbers printed round its innermost ring ends up illegible on a
+ * 1440-pixel screen. The game is played in the black hole's well, so that is
+ * what the board opens on (`HOME_VIEW_RADIUS`), with the planets falling off
+ * the edges until you pan to them. Zoom 1 and no pan is still the whole board,
+ * and it is one click of the zoom-out button away.
+ *
+ * The zoom is solved from the viewBox rather than picked, so it frames the same
+ * number of board units whatever shape the pane is and whatever the board is
+ * next redrawn at. The pan puts the black hole in the middle of the pane: the
+ * artwork is not centred on it, because Alpha sits straight above.
+ */
+const HOME_ZOOM = BOARD_BOUNDS.height / (2 * HOME_VIEW_RADIUS)
+const HOME_PAN = {
+  x: BOARD_BOUNDS.x + BOARD_BOUNDS.width / 2,
+  y: BOARD_BOUNDS.y + BOARD_BOUNDS.height / 2,
+}
+
 export function GameBoardSvg({ model }: { model: BoardModel }) {
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(HOME_ZOOM)
+  const [pan, setPan] = useState(HOME_PAN)
   const [hoveredDeployment, setHoveredDeployment] = useState<Position | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
   const dragRef = useRef<{
@@ -76,9 +98,17 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
     return Math.max(BOARD_BOUNDS.width / rect.width, BOARD_BOUNDS.height / rect.height)
   }, [])
 
+  /**
+   * The recentre button: back to the view the board opened in.
+   *
+   * It used to go to the whole board, which is zoom 1 and no pan. That is one
+   * click of the zoom-out button away and it is not what the word means: the 3D
+   * board's Recentre restores its opening view, the two buttons look the same
+   * and carry the same label, so they do the same thing.
+   */
   const resetView = useCallback(() => {
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
+    setZoom(HOME_ZOOM)
+    setPan(HOME_PAN)
   }, [])
 
   return (
@@ -147,7 +177,7 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
           <LanesLayer highlightIds={model.activeLaneIds} />
           <RangeOverlay cells={model.rangeCells} />
           <MarkersLayer stations={model.stations} homes={model.homes} />
-          {model.route && <RouteOverlay route={model.route} color={planColor} />}
+          {model.route && <RouteOverlay route={model.route} />}
           {model.plannedPoints.length > 1 && (
             <PlannedPath points={model.plannedPoints} color={planColor} />
           )}

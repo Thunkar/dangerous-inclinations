@@ -8,7 +8,7 @@
 import { createContext, useContext, type RefObject } from 'react'
 import type { GravityWellId } from '@dangerous-inclinations/engine'
 
-/** Table: three-quarter view of the whole board. Top: the 2D board, lit. Follow: your well. */
+/** Table: three-quarter view of the black hole. Top: the 2D board, lit. Follow: your well. */
 export type CameraPreset = 'table' | 'top' | 'follow'
 
 export const CAMERA_PRESETS: readonly CameraPreset[] = ['table', 'top', 'follow']
@@ -21,13 +21,14 @@ export interface CameraRigApi {
   flyTo: (wellId: GravityWellId) => void
   /** Dolly in (factor > 1) or out (factor < 1). */
   zoomBy: (factor: number) => void
-  /** Re-apply the current preset. */
+  /** Put the camera back in the view the board opened in — the recentre button. */
   reset: () => void
 }
 
 /** What the rig inside the canvas registers so the API above can reach it. */
 export interface CameraRigHandle {
   framePreset: (preset: CameraPreset, transition: boolean) => void
+  frameAll: (transition: boolean) => void
   frameWell: (wellId: GravityWellId, transition: boolean) => void
   zoomBy: (factor: number) => void
 }

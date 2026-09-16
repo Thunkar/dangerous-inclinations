@@ -8,7 +8,13 @@ import { BURN_COSTS, calculateBurnMassCost } from "../models/rings.ts";
 import { getMaxRing } from "../models/gravityWells.ts";
 import { driftPosition, wrapSector } from "./geometry.ts";
 
-export function applyOrbitalMovement(ship: ShipState): ShipState {
+/**
+ * One turn of drift. A moored ship (docked at a station) rides its station
+ * instead: it holds its berth here and moves with the station at the end of
+ * the round (RULES §Moored).
+ */
+export function applyOrbitalMovement(ship: ShipState, moored = false): ShipState {
+  if (moored) return ship;
   const drifted = driftPosition(ship);
   return { ...ship, sector: drifted.sector };
 }
@@ -52,8 +58,10 @@ export interface MovementPreview {
   kind: "coast" | "burn" | "jump";
   burnIntensity?: BurnIntensity;
   sectorAdjustment?: number;
-  /** For jumps: where the lane lands. */
+  /** For jumps: where the lane lands (phasing already applied). */
   jumpDestination?: Position;
+  /** For coasts: the ship is moored at a station, so it does not drift. */
+  moored?: boolean;
 }
 
 /**
@@ -69,7 +77,10 @@ export function projectPosition(
   if (movement.kind === "jump" && movement.jumpDestination) {
     return { ...movement.jumpDestination, facing };
   }
-  projected = applyOrbitalMovement(projected);
+  projected = applyOrbitalMovement(
+    projected,
+    movement.kind === "coast" && movement.moored === true
+  );
   if (movement.kind === "burn" && movement.burnIntensity) {
     projected = applyBurn(projected, movement.burnIntensity, movement.sectorAdjustment ?? 0).ship;
   }

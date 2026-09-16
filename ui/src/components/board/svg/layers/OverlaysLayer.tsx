@@ -6,20 +6,20 @@
  * Every range answer comes from the engine, tested sector by sector — the
  * sweep lives in the board model now, so both boards shade the same wedges
  * and no renderer re-implements a rule.
+ *
+ * The shape of a track is shared too: `trajectory.ts` bows a path off the ring
+ * it rides so the dashes are not drawn on the ring's own ink, and both boards
+ * ask it for the same polyline. It names no renderer and imports no `three`;
+ * it only happens to sit beside the 3D overlays that first needed it. `Track`,
+ * the polyline drawn twice so it carries a dark edge, lives here and the
+ * missile layer borrows it, for the same reason: one ink for every plan.
  */
 import { memo, useState } from 'react'
 import type { MovementPlan, Position } from '@dangerous-inclinations/engine'
 import { SECTORS_PER_RING, getWellName } from '@dangerous-inclinations/engine'
-import { FONT_MONO } from '../../../../theme'
-import {
-  allWells,
-  interpolatePositions,
-  positionPoint,
-  ringRadius,
-  ringsOf,
-  sectorWedgePath,
-  type Point,
-} from '../../geometry'
+import { FONT_MONO, TABLE } from '../../../../theme'
+import { allWells, positionPoint, ringRadius, ringsOf, sectorWedgePath } from '../../geometry'
+import { trackAttr, trackPoints } from '../../trajectory'
 
 /**
  * The one accent used for anything you may click. Every deployment sector is
@@ -30,6 +30,53 @@ import {
 const DEPLOY_ACCENT = '#ffb445'
 /** Route planner colour: a cool cyan, so it never reads as a lane or a weapon. */
 const ROUTE_ACCENT = '#5fd3ff'
+
+/**
+ * Every track on the board is drawn twice: once in the table's felt, a little
+ * wider, and then in its own colour. The felt is what separates a dashed path
+ * from the ring, the lane or the shaded wedge it crosses, and it is measured
+ * against the line's own width so it stays in proportion at any board scale.
+ * The edge is only ever wider, never longer: a rounded cap on a two-unit dot
+ * would swallow the dot it is supposed to set off.
+ */
+const EDGE_SCALE = 1.9
+const EDGE_OPACITY = 0.8
+
+/** A track and the felt edge under it: the same polyline, drawn twice. */
+export function Track({
+  points,
+  color,
+  width,
+  dash,
+  opacity = 1,
+}: {
+  points: string
+  color: string
+  width: number
+  dash?: string
+  opacity?: number
+}) {
+  return (
+    <>
+      <polyline
+        points={points}
+        fill="none"
+        stroke={TABLE.felt}
+        strokeWidth={width * EDGE_SCALE}
+        strokeDasharray={dash}
+        opacity={EDGE_OPACITY}
+      />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth={width}
+        strokeDasharray={dash}
+        opacity={opacity}
+      />
+    </>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Route planner: pick a destination sector, draw the turns to get there
@@ -77,36 +124,34 @@ export const SectorPicker = memo(function SectorPicker({
   )
 })
 
-/** Points along one step: around the ring when staying in the well, straight across when jumping. */
-function stepPoints(from: Position, to: Position): Point[] {
-  if (from.wellId !== to.wellId) return [positionPoint(from), positionPoint(to)]
-  const samples = 10
-  return Array.from({ length: samples + 1 }, (_, i) => interpolatePositions(from, to, i / samples))
-}
-
-/** The turns of a planned route: dotted path, a numbered pip per turn, a diamond on the destination. */
-export const RouteOverlay = memo(function RouteOverlay({
-  route,
-  color,
-}: {
-  route: MovementPlan
-  color: string
-}) {
+/**
+ * The turns of a planned route: dotted path, a numbered pip per turn, a diamond
+ * on the destination.
+ *
+ * All of it in the route accent, never the player's colour. A route is a
+ * proposal the planner found, several turns long; the planned path beside it is
+ * the move you are actually committing this turn, and that one is yours. Drawing
+ * both in your colour made two different things look like one — and this board
+ * already printed the route's destination diamond in the accent, so the legs
+ * were the half that was out of step. The 3D board has always drawn it this way.
+ */
+export const RouteOverlay = memo(function RouteOverlay({ route }: { route: MovementPlan }) {
   const dest = positionPoint(route.destination)
   return (
     <g className="route" pointerEvents="none">
       {route.steps.map((step, i) => {
-        const pts = stepPoints(step.from, step.to)
-        const end = pts[pts.length - 1]
         const jump = step.actionType === 'well_transfer'
+        // A jump is neither an arc nor a ride along any ring: it is the straight
+        // line between two wells, and it is the one leg that is never bowed.
+        const pts = trackPoints([step.from, step.to], jump ? 'chord' : 'arc')
+        const end = positionPoint(step.to)
         return (
           <g key={i}>
-            <polyline
-              points={pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}
-              fill="none"
-              stroke={color}
-              strokeWidth={1.8}
-              strokeDasharray={jump ? '3 6' : '2 4'}
+            <Track
+              points={trackAttr(pts)}
+              color={ROUTE_ACCENT}
+              width={1.8}
+              dash={jump ? '3 6' : '2 4'}
               opacity={0.75}
             />
             <circle
@@ -114,7 +159,7 @@ export const RouteOverlay = memo(function RouteOverlay({
               cy={end.y}
               r={7}
               fill="#080b11"
-              stroke={color}
+              stroke={ROUTE_ACCENT}
               strokeWidth={1.2}
               opacity={0.9}
             />
@@ -126,7 +171,7 @@ export const RouteOverlay = memo(function RouteOverlay({
               fontSize={8.5}
               fontFamily={FONT_MONO}
               fontWeight={700}
-              fill={color}
+              fill={ROUTE_ACCENT}
             >
               {i + 1}
             </text>
@@ -184,17 +229,21 @@ export const PlannedPath = memo(function PlannedPath({
   color: string
 }) {
   if (points.length < 2) return null
-  const screen = points.map(positionPoint)
-  const end = screen[screen.length - 1]
+  // The arcs the ship actually rides, bowed clear of the rings they ride — the
+  // same polyline the 3D board draws, from the same helper.
+  const track = trackPoints(points, 'arc')
+  const end = positionPoint(points[points.length - 1])
   return (
     <g className="planned-path" pointerEvents="none">
-      <polyline
-        points={screen.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}
+      <Track points={trackAttr(track)} color={color} width={2.5} dash="7 5" opacity={0.9} />
+      <circle
+        cx={end.x}
+        cy={end.y}
+        r={9}
         fill="none"
-        stroke={color}
-        strokeWidth={2.5}
-        strokeDasharray="7 5"
-        opacity={0.9}
+        stroke={TABLE.felt}
+        strokeWidth={5}
+        opacity={EDGE_OPACITY}
       />
       <circle
         cx={end.x}
@@ -205,6 +254,7 @@ export const PlannedPath = memo(function PlannedPath({
         strokeWidth={2.5}
         opacity={0.95}
       />
+      <circle cx={end.x} cy={end.y} r={4.5} fill={TABLE.felt} opacity={EDGE_OPACITY} />
       <circle cx={end.x} cy={end.y} r={3} fill={color} />
     </g>
   )

@@ -15,6 +15,7 @@ import type { Mission } from "../models/missions.ts";
 import type { RuleSet } from "../models/rules.ts";
 import { resolveRules } from "../models/rules.ts";
 import type { GameView } from "../game/view.ts";
+import { missionsMissingSubsystems } from "../game/loadout.ts";
 import type {
   BotDecision,
   BotDecisionLog,
@@ -66,14 +67,26 @@ export function botDecideActions(
  */
 export function botChooseLoadout(
   offers: Mission[],
-  context: { playerCount: number; rules?: Partial<RuleSet> }
+  context: { playerCount: number; rules?: Partial<RuleSet>; hull?: ShipLoadout }
 ): { missionIds: string[]; loadout: ShipLoadout } {
   const missions = selectBotMissions(
     offers,
     context.playerCount,
-    resolveRules(context.rules).destroyPoints
+    resolveRules(context.rules).destroyPoints,
+    context.hull
   );
-  return { missionIds: missions.map((m) => m.id), loadout: selectBotLoadout(missions) };
+  // A hand and a mat are one choice: a kept Intercept or Survey needs the
+  // sensor array. `hull` is a mat the simulator is measuring on this seat; it
+  // is kept only if the trio the bot ended up with can actually fly it, so a
+  // bot never hands the engine a submission it must refuse.
+  const imposed =
+    context.hull && missionsMissingSubsystems(missions, context.hull).length === 0
+      ? context.hull
+      : undefined;
+  return {
+    missionIds: missions.map((m) => m.id),
+    loadout: imposed ?? selectBotLoadout(missions),
+  };
 }
 
 /**
@@ -147,8 +160,10 @@ function summarizeAction(action: PlayerAction): string {
       return `Fire ${action.data.subsystemId} at ${action.data.targetPlayerId}${action.data.compensateRecoil ? " (compensate recoil)" : ""}`;
     case "scan":
       return `Scan ${action.data.targetPlayerId} (${action.data.peekSlot})`;
-    case "well_transfer":
-      return `Jump to ${action.data.destinationWellId}`;
+    case "well_transfer": {
+      const phase = action.data.sectorAdjustment ?? 0;
+      return `Jump to ${action.data.destinationWellId}${phase ? ` (${phase > 0 ? "+" : ""}${phase})` : ""}`;
+    }
     case "deploy_ship":
       return `Deploy at ${action.data.wellId} S${action.data.sector}`;
   }

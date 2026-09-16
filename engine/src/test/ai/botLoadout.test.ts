@@ -5,9 +5,10 @@
 import { describe, it, expect } from "vitest";
 import type { Mission } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
-import { validateLoadout } from "../../game/loadout.ts";
+import { missionsMissingSubsystems, validateLoadout } from "../../game/loadout.ts";
 import { createGame, submitLoadout } from "../../game/setup.ts";
 import { botChooseLoadout } from "../../ai/index.ts";
+import type { ShipLoadout } from "../../models/game.ts";
 import type { BotArchetype } from "../../ai/behaviors/loadout.ts";
 import {
   BOT_LOADOUT_TEMPLATES,
@@ -191,5 +192,58 @@ describe("botChooseLoadout", () => {
     }
     expect(state.phase).toBe("deployment");
     for (const player of state.players) expect(player.missions).toHaveLength(MISSIONS_PER_PLAYER);
+  });
+
+  // The simulator forces a hull on a seat to measure it. The bot then picks
+  // cards that hull can fly; a deal with no flyable trio leaves it its own mat.
+  describe("a hull imposed on the seat", () => {
+    const RAILGUN: ShipLoadout = {
+      forwardSlots: ["railgun"],
+      sideSlots: ["missiles", "radiator", "fuel_compressor", "shields"],
+    };
+
+    it("keeps the hull and drops the cards it cannot fly when a flyable trio exists", () => {
+      const offers = [
+        interceptMission("p2"),
+        surveyMission(),
+        deliverMission(ALPHA, BETA),
+        deliverMission(BETA, GAMMA),
+        destroyMission("p2"),
+      ];
+      const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
+      expect(choice.loadout).toEqual(RAILGUN);
+      const kept = offers.filter((m) => choice.missionIds.includes(m.id));
+      expect(missionsMissingSubsystems(kept, choice.loadout)).toEqual([]);
+    });
+
+    it("gives the hull up when three of the five offers need the sensor array", () => {
+      const offers = [
+        interceptMission("p2"),
+        interceptMission("p3", "intercept-p3"),
+        surveyMission(),
+        deliverMission(ALPHA, BETA),
+        destroyMission("p2"),
+      ];
+      const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
+      expect(choice.loadout).not.toEqual(RAILGUN);
+      const kept = offers.filter((m) => choice.missionIds.includes(m.id));
+      expect(missionsMissingSubsystems(kept, choice.loadout)).toEqual([]);
+    });
+  });
+
+  // A bot picks its cards first and then a hull that fits them, so it should
+  // never hand the referee a hand its mat cannot fly — at any table size.
+  it.each([2, 3, 4])("never keeps a card its hull cannot complete (%i players)", (playerCount) => {
+    for (let seed = 0; seed < 40; seed++) {
+      const state = createGame(
+        Array.from({ length: playerCount }, (_, i) => ({ id: `bot-${i}`, name: `Bot ${i}` })),
+        seed
+      );
+      for (const player of state.players) {
+        const choice = botChooseLoadout(player.missionOffers, { playerCount });
+        const kept = player.missionOffers.filter((m) => choice.missionIds.includes(m.id));
+        expect(missionsMissingSubsystems(kept, choice.loadout), `seed ${seed}`).toEqual([]);
+      }
+    }
   });
 });

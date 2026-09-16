@@ -42,6 +42,9 @@ const PRESET_LABEL: Record<CameraPreset, string> = {
   follow: 'Follow your ship',
 }
 
+/** The presets that get a button. 'table' is Recentre's job; see the column below. */
+const BUTTON_PRESETS: readonly CameraPreset[] = ['top', 'follow']
+
 const PRESET_ICON: Record<CameraPreset, React.ReactNode> = {
   table: <ViewInArIcon fontSize="small" />,
   top: <VerticalAlignTopIcon fontSize="small" />,
@@ -166,7 +169,13 @@ function Board({
           <CenterFocusStrongIcon fontSize="small" />
         </BoardButton>
         <Box sx={{ height: 6 }} />
-        {CAMERA_PRESETS.map(preset => (
+        {/*
+          The three-quarter view has no button of its own: it is where the board
+          starts and where Recentre puts it back, so a preset for it would be the
+          same control twice. Only the two viewpoints that are somewhere else get
+          one.
+        */}
+        {BUTTON_PRESETS.map(preset => (
           <BoardButton
             key={preset}
             title={PRESET_LABEL[preset]}

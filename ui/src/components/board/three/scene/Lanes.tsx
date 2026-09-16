@@ -15,17 +15,17 @@ import { BOARD_FONT } from '../fonts'
 import type { TransferArc, TransferLane } from '@dangerous-inclinations/engine'
 import { TRANSFER_LANES, laneDepartureArc } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../theme'
-import { arcMidPoint, wellColor } from '../../geometry'
+import { PRINT_SCALE, arcMidPoint, wellColor } from '../../geometry'
 import { sceneTime } from '../clock'
 import { RIBBON_FRAGMENT, RIBBON_VERTEX } from '../shaders/ribbon'
 import { arcRibbonGeometry, cachedSurface } from '../surfaces'
 import { LAYER, ringElevation } from '../world'
 
 /** Offset of the A/B badge from its arc, as on the SVG board. */
-const BADGE_OFFSET = 15
+const BADGE_OFFSET = 15 * PRINT_SCALE
 /** How far the badge floats above the surface so it clears the ribbon. */
-const BADGE_HEIGHT = 12
-const BADGE_RADIUS = 8.5
+const BADGE_HEIGHT = 12 * PRINT_SCALE
+const BADGE_RADIUS = 8.5 * PRINT_SCALE
 
 /** "beta-a" → "A": the two lanes to a planet are told apart by their letter. */
 function laneLetter(laneId: string): string {
@@ -43,7 +43,7 @@ function LaneArc({
   departure: boolean
   active: boolean
 }) {
-  const width = active ? 10 : departure ? 7 : 5
+  const width = (active ? 10 : departure ? 7 : 5) * PRINT_SCALE
   const uniforms = useMemo(
     () => ({
       uColor: { value: new Color(color) },
@@ -112,7 +112,7 @@ function LaneBadge({
         />
       </mesh>
       <mesh position={[0, 0, 0.1]}>
-        <ringGeometry args={[BADGE_RADIUS, BADGE_RADIUS + (active ? 2 : 1.2), 24]} />
+        <ringGeometry args={[BADGE_RADIUS, BADGE_RADIUS + (active ? 2 : 1.2) * PRINT_SCALE, 24]} />
         <meshBasicMaterial
           color={color}
           transparent
@@ -123,7 +123,7 @@ function LaneBadge({
       <Text
         font={BOARD_FONT}
         position={[0, 0, 0.4]}
-        fontSize={10}
+        fontSize={10 * PRINT_SCALE}
         color={departure ? TABLE.felt : color}
         anchorX="center"
         anchorY="middle"
