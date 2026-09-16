@@ -93,13 +93,15 @@ recordings API only lists and serves finalized recordings.
 
 ### Ship appearance
 
-Loadout submission optionally includes a version-1 `ShipAppearance`: `paint` and
-`secondaryPaint` (six-digit hex), `livery` (`panels`, `bands`, `split`), `finish`
-(`matte`, `metal`), and `armorRelief`, `spineHeight`, `wear` (finite 0–1). The strict
-shared schema rejects extra fields, including custom player identification colors.
+Loadout submission optionally includes a `ShipAppearance`: `paint` and
+`secondaryPaint` (six-digit hex), `finish` (`matte`, `metal`), and `armorRelief`,
+`spineHeight` (finite 0–1). The strict shared schema rejects extra fields,
+including custom player identification colors and the retired `livery` and `wear`
+dials. There is no versioning and nothing is migrated: an appearance the schema
+refuses renders as the reference corvette.
 It is validated and saved atomically with loadout and mission choices, then locked
 for the match. Appearance is public through `PlayerView.appearance` after submission;
 slot identities remain filtered independently. Seat order still determines player
-color. Older clients/saves/recordings without appearance use the reference corvette.
+color. Clients, saves and recordings with no appearance use the reference corvette.
 Appearance lives on `Player`, survives respawn and recording/fork, and never changes
 gameplay rules or consumes gameplay RNG.

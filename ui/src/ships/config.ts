@@ -76,15 +76,22 @@ export function setModule(
   return { ...config, loadout }
 }
 
+/**
+ * Every mount shares one local frame: +Y is outboard, +X is forward and +Z is
+ * dorsal. Starboard is the port mount *reflected* across the centreline, so the
+ * two flanks are mirror images of each other rather than the same part rolled
+ * upside down; the reflection is the negative Z scale.
+ */
 export function mountTransform(
   config: WorkshopConfig,
   id: MountId
-): { position: Vec3; rotation: Vec3; normal: Vec3 } {
+): { position: Vec3; rotation: Vec3; scale: Vec3; normal: Vec3 } {
   if (id === 'forward-0') {
     return {
       position: [3.05 * config.length, 0, 0],
       // The shoe's long axis spans the bow, so the rails sit side by side.
-      rotation: [Math.PI / 2, 0, -Math.PI / 2],
+      rotation: [-Math.PI / 2, 0, -Math.PI / 2],
+      scale: [1, 1, 1],
       normal: [1, 0, 0],
     }
   }
@@ -93,6 +100,7 @@ export function mountTransform(
   return {
     position: [(index % 2 === 0 ? 1.58 : -0.64) * config.length, 0, side * 1.08 * config.beam],
     rotation: [(side * Math.PI) / 2, 0, 0],
+    scale: [1, 1, -side],
     normal: [0, 0, side],
   }
 }

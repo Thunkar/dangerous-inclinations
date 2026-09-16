@@ -55,6 +55,11 @@ export type GameEvent =
       heat: number;
       /** Docked at a station: the ship holds its berth instead of drifting. */
       moored?: boolean;
+      /**
+       * Nobody was flying: a recovering ship carried along by its orbit on a
+       * turn it could not act in (RULES §A Turn). It never scoops or heats.
+       */
+      recovering?: boolean;
     })
   | (Base & { type: "fuel_scooped"; playerId: string; amount: number })
   | (Base & {

@@ -1,7 +1,7 @@
 import { resolveShipAppearance, type ShipAppearance } from '@dangerous-inclinations/engine'
 
 /** Lightweight hull-only schematic for mats. Module knowledge stays on the tiles. */
-export function KestrelMark({
+export function ShipMark({
   appearance,
   accent = '#ddaa78',
 }: {
@@ -15,7 +15,7 @@ export function KestrelMark({
       width="100%"
       height="100%"
       role="img"
-      aria-label="Kestrel corvette hull"
+      aria-label="Modular corvette hull"
     >
       <g stroke="#182024" strokeWidth="2" strokeLinejoin="round">
         <path fill="#647776" d="M9 15h23v15H9l-5-3V18zM3 30h31v17H3zM9 47h23v15H9l-5-3V50z" />
@@ -28,10 +28,6 @@ export function KestrelMark({
           fill={accent}
           d="M69 19h61v5H69zM69 55h61v5H69zM140 24l9 5v5l-9-5zM140 49l9-5v5l-9 5z"
         />
-        {a.livery === 'bands' && (
-          <path fill={a.secondaryPaint} d="M80 26h5v27h-5zM107 26h5v27h-5z" />
-        )}
-        {a.livery === 'split' && <path fill={a.secondaryPaint} d="M67 25h60v9H67z" />}
         <path stroke="#b0e9eb" d="M7 20v5M5 35v8M7 52v5" />
       </g>
     </svg>

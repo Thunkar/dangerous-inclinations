@@ -140,7 +140,12 @@ function Scene(props: ViewerProps) {
         MOUNTS.map(mount => {
           const transform = mountTransform(config, mount.id)
           return (
-            <group key={mount.id} position={transform.position} rotation={transform.rotation}>
+            <group
+              key={mount.id}
+              position={transform.position}
+              rotation={transform.rotation}
+              scale={transform.scale}
+            >
               <Html position={[0, 0.32 + exploded * 2.2, 0.99]} center zIndexRange={[20, 0]}>
                 <button
                   className={`mount-tag ${selected === mount.id ? 'active' : ''}`}

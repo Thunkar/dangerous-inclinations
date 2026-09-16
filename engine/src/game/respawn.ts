@@ -4,9 +4,9 @@
  * When a ship is destroyed it drops its cargo: crates return to their origin
  * station (they must be picked up again), data is lost. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
- * occupied) fully repaired and refuelled, and the turn ends; the next turn is lost too
- * (the ship is recovering). Face-up tiles
- * stay face-up.
+ * occupied) fully repaired and refuelled, and the turn ends; the next turn is
+ * lost too (the ship is recovering: it takes no action, it only drifts with
+ * its ring — see `executeTurn`). Face-up tiles stay face-up.
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";

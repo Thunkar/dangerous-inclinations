@@ -5,10 +5,9 @@ import {
   MISSIONS_PER_PLAYER,
   calculateShipStatsFromLoadout,
   describeMission,
-  getSubsystemConfig,
-  hasSubsystemInLoadout,
-  missionRequiredSubsystems,
-  missionsMissingSubsystems,
+  describeMissionRequirement,
+  missionRequirementStatus,
+  missionsMissingRequirements,
   resolveShipAppearance,
   validateLoadout,
   type Player,
@@ -75,7 +74,8 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   const draftKey = `di.ship-draft.v1:${gameId}:${me.id}`
   const [draft, setDraft] = useState(() => readDraft(draftKey, me))
   const [selected, setSelected] = useState<MountId>('forward-0')
-  const [tab, setTab] = useState('systems')
+  // Missions first: you pick the cards, then fit the ship that can fly them.
+  const [tab, setTab] = useState('missions')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [storageError, setStorageError] = useState(false)
@@ -89,13 +89,13 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   const seat = view.players.findIndex(p => p.id === me.id)
   const accent = getPlayerColor(seat)
   const config = useMemo(
-    () => editorConfig(loadout, appearance, accent, `K—${String(seat + 1).padStart(2, '0')}`),
+    () => editorConfig(loadout, appearance, accent, `CV—${String(seat + 1).padStart(2, '0')}`),
     [loadout, appearance, accent, seat]
   )
   const validation = validateLoadout(loadout)
   const stats = calculateShipStatsFromLoadout(loadout)
   const filled = [...loadout.forwardSlots, ...loadout.sideSlots].filter(Boolean).length
-  const gaps = missionsMissingSubsystems(
+  const gaps = missionsMissingRequirements(
     offers.filter(m => missionIds.includes(m.id)),
     loadout
   )
@@ -104,7 +104,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
     : missionIds.length !== MISSIONS_PER_PLAYER
       ? `Choose ${MISSIONS_PER_PLAYER - missionIds.length} more mission${MISSIONS_PER_PLAYER - missionIds.length === 1 ? '' : 's'}.`
       : gaps.length
-        ? `Fit ${[...new Set(gaps.flatMap(g => g.missing))].map(t => getSubsystemConfig(t).name).join(' and ')}, or choose different missions.`
+        ? `Fit ${[...new Set(gaps.flatMap(g => g.missing.map(r => `a ${r.label}`)))].join(' and ')}, or choose different missions.`
         : null
 
   useEffect(() => {
@@ -144,7 +144,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
     }
   }
   const missions = (
-    <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+    <>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
         <Typography variant="h6">Choose your missions</Typography>
         <Typography variant="overline" color="primary">
@@ -164,10 +164,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
             mission={m}
             nameOf={nameOf}
             selected={missionIds.includes(m.id)}
-            requires={missionRequiredSubsystems(m.type).map(type => ({
-              type,
-              met: hasSubsystemInLoadout(loadout, type),
-            }))}
+            requires={missionRequirementStatus(m.type, loadout)}
             onClick={
               disabled
                 ? undefined
@@ -191,12 +188,12 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
           {gaps
             .map(
               g =>
-                `${describeMission(g.mission, nameOf)} needs ${g.missing.map(t => getSubsystemConfig(t).name).join(' and ')}.`
+                `${describeMission(g.mission, nameOf)} needs ${g.missing.map(describeMissionRequirement).join(' and ')}.`
             )
             .join(' ')}
         </Alert>
       )}
-    </Box>
+    </>
   )
 
   return (
@@ -210,8 +207,8 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
       }}
     >
       <Header
-        title="Kestrel / Shipyard"
-        subtitle="Fit your systems. Choose your missions. Make it yours."
+        title="Shipyard"
+        subtitle="Choose your missions. Fit your systems. Make it yours."
         right={
           <>
             <Button onClick={() => setTalk(true)}>Table talk</Button>
@@ -231,28 +228,23 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
           minHeight: 0,
         }}
       >
+        {/* The stage owns the whole left column; missions live in the aside. */}
         <Box
-          sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: { md: 'auto' } }}
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: 0,
+            minHeight: { xs: 390, md: 0 },
+          }}
         >
-          <Box sx={{ flex: '1 0 420px', minHeight: 420 }}>
-            <ShipStage
-              config={config}
-              selected={selected}
-              onSelect={id => {
-                setSelected(id)
-                setTab('systems')
-              }}
-            />
-          </Box>
-          <Box
-            sx={{
-              display: { xs: 'none', md: 'block' },
-              borderTop: `1px solid ${TABLE.line}`,
-              bgcolor: TABLE.plateSunk,
+          <ShipStage
+            config={config}
+            selected={selected}
+            onSelect={id => {
+              setSelected(id)
+              setTab('systems')
             }}
-          >
-            {missions}
-          </Box>
+          />
         </Box>
         <Box
           component="aside"
@@ -280,6 +272,12 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
             sx={{ borderTop: `1px solid ${TABLE.line}`, borderBottom: `1px solid ${TABLE.line}` }}
           >
             <Tab
+              label="Missions"
+              value="missions"
+              id="ship-tab-missions"
+              aria-controls="ship-panel-missions"
+            />
+            <Tab
               label="Systems"
               value="systems"
               id="ship-tab-systems"
@@ -291,24 +289,19 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
               id="ship-tab-appearance"
               aria-controls="ship-panel-appearance"
             />
-            <Tab
-              label="Missions"
-              value="missions"
-              id="ship-tab-missions"
-              aria-controls="ship-panel-missions"
-            />
           </Tabs>
           <Box
             role="tabpanel"
             id={`ship-panel-${tab}`}
             aria-labelledby={`ship-tab-${tab}`}
             sx={{
-              p: tab === 'missions' ? 0 : 2.5,
+              p: 2.5,
               overflowY: { md: 'auto' },
               flex: 1,
               minHeight: 0,
             }}
           >
+            {tab === 'missions' && missions}
             {tab === 'systems' && (
               <SystemControls
                 config={config}
@@ -322,11 +315,9 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
               <AppearanceControls
                 value={appearance}
                 onChange={appearance => patch({ appearance })}
-                accent={accent}
                 disabled={disabled}
               />
             )}
-            {tab === 'missions' && missions}
           </Box>
           <Box
             sx={{

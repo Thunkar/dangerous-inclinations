@@ -23,7 +23,8 @@ export const LoadoutSubmissionSchema = z
     appearance: ShipAppearanceSchema.optional(),
     // The engine checks the count against MISSIONS_PER_PLAYER, that the ids
     // were actually offered, and that the mat can complete every card kept
-    // (Intercept and Survey need a sensor array); this only bounds the payload.
+    // (Intercept and Survey need a sensor array, Destroy a weapon); this
+    // only bounds the payload.
     missionIds: z.array(z.string().min(1)).min(1).max(16),
   })
   .strict();

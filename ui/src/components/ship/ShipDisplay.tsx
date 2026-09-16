@@ -8,7 +8,7 @@
  * tiles and their energy cells).
  */
 import { Box } from '@mui/material'
-import { KestrelMark } from '../../ships/KestrelMark'
+import { ShipMark } from '../../ships/ShipMark'
 import { SlotRegion } from './SlotRegion'
 import { DEFAULT_SHIP_METRICS } from './types'
 import type { ShipDisplayProps, ShipMetrics } from './types'
@@ -56,7 +56,7 @@ export function ShipDisplay({
           />
         ) : (
           <Box sx={{ width: hullWidth, opacity: faded ? 0.3 : 1 }}>
-            <KestrelMark appearance={appearance} accent={identityColor} />
+            <ShipMark appearance={appearance} accent={identityColor} />
           </Box>
         )}
       </Box>

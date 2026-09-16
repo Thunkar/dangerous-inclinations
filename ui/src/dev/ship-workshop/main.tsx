@@ -128,7 +128,7 @@ function Workshop() {
       const data = await new GLTFExporter().parseAsync(viewer.current.model, { binary: true })
       download(
         new Blob([data as ArrayBuffer], { type: 'model/gltf-binary' }),
-        'kestrel-concept.glb'
+        'corvette-concept.glb'
       )
       setMessage('GLB exported with the current assembly and finish.')
     } catch (error) {
@@ -171,7 +171,7 @@ function Workshop() {
         <div className="brand">
           <span>DANGEROUS INCLINATIONS</span>
           <strong>
-            KESTREL <i>/</i> SHIPYARD
+            MODULAR CORVETTE <i>/</i> SHIPYARD
           </strong>
         </div>
         <span className="prototype-badge">
@@ -184,7 +184,7 @@ function Workshop() {
             onClick={() => {
               download(
                 new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' }),
-                'kestrel-design.json'
+                'corvette-design.json'
               )
               setMessage('Design saved as JSON. Use Open design to continue later.')
             }}
@@ -631,7 +631,7 @@ function Workshop() {
                   if (!viewer.current) return
                   const a = document.createElement('a')
                   a.href = viewer.current.capture()
-                  a.download = 'kestrel-study.png'
+                  a.download = 'corvette-study.png'
                   a.click()
                   setMessage('3D viewport saved as PNG.')
                 }}

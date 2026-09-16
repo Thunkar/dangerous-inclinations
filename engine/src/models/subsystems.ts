@@ -264,6 +264,15 @@ export function isWeaponType(type: SubsystemType): type is WeaponType {
   return SUBSYSTEM_CONFIGS[type].weaponStats !== undefined;
 }
 
+/**
+ * Every tile that can shoot, derived from the configs so a new weapon joins
+ * the list by existing. This is what "a weapon" means wherever the rules ask
+ * for one (a kept Destroy card, `MISSION_REQUIREMENTS`).
+ */
+export const WEAPON_SUBSYSTEM_TYPES: readonly WeaponType[] = (
+  Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]
+).filter(isWeaponType);
+
 export function canSubsystemFunction(subsystem: Subsystem): boolean {
   if (subsystem.isBroken) return false;
   return subsystem.allocatedEnergy >= SUBSYSTEM_CONFIGS[subsystem.type].minEnergy;

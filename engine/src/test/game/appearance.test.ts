@@ -23,9 +23,7 @@ const appearance: ShipAppearance = {
   ...DEFAULT_SHIP_APPEARANCE,
   paint: "#344149",
   secondaryPaint: "#b6a27b",
-  livery: "bands",
   spineHeight: 0.9,
-  wear: 0.4,
 };
 const fresh = () =>
   createGame(
@@ -39,15 +37,16 @@ const choice = (state: ReturnType<typeof fresh>) =>
   botChooseLoadout(state.players[0].missionOffers, { playerCount: 2 });
 
 describe("match appearance", () => {
-  it("validates bounds and refuses identity colors and arbitrary assets", () => {
+  it("validates bounds and refuses identity colors, arbitrary assets and retired dials", () => {
     expect(ShipAppearanceSchema.safeParse(appearance).success).toBe(true);
     for (const bad of [
       { ...appearance, armorRelief: 3 },
       { ...appearance, spineHeight: NaN },
       { ...appearance, paint: "url(x)" },
       { ...appearance, accent: "#ffffff" },
-      { ...appearance, version: 9 },
       { ...appearance, asset: "https://example.test/ship.glb" },
+      { ...appearance, livery: "bands", wear: 0.4 },
+      { paint: appearance.paint },
     ])
       expect(ShipAppearanceSchema.safeParse(bad).success).toBe(false);
   });
@@ -84,17 +83,17 @@ describe("match appearance", () => {
     const draft = withPlayer(state, "p1", { hasSubmittedLoadout: false });
     expect(viewFor(draft, "p2").players[0].appearance).toEqual(DEFAULT_SHIP_APPEARANCE);
   });
-  it("preserves cosmetics through respawn and supplies defaults for old state", () => {
+  it("preserves cosmetics through respawn and gives an unpainted player the reference ship", () => {
     let state = withPlayer(makeTwoPlayerGame(), "p2", {
       appearance,
       home: { wellId: "blackhole", ring: 4, sector: 4 },
     });
     state = withShip(state, "p2", { hitPoints: 0 });
     expect(respawnPlayer(state, 1).state.players[1].appearance).toEqual(appearance);
-    const legacy = fresh();
-    expect(viewFor(legacy, null).players[0].appearance).toEqual(DEFAULT_SHIP_APPEARANCE);
-    expect(legacy.players[0].appearance).toBeUndefined();
-    expect(resolveShipAppearance({ version: 100 })).toEqual(DEFAULT_SHIP_APPEARANCE);
+    const unpainted = fresh();
+    expect(viewFor(unpainted, null).players[0].appearance).toEqual(DEFAULT_SHIP_APPEARANCE);
+    expect(unpainted.players[0].appearance).toBeUndefined();
+    expect(resolveShipAppearance(undefined)).toEqual(DEFAULT_SHIP_APPEARANCE);
   });
   it("retains the exact cosmetic snapshot in recorded and re-executed turns", () => {
     const initialState = withPlayer(scriptedGameStart(42), "p1", { appearance });

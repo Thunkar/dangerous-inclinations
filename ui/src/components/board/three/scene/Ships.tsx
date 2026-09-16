@@ -1,5 +1,5 @@
 /**
- * Kestrel miniatures, built from the observer's filtered visual specification.
+ * Corvette miniatures, built from the observer's filtered visual specification.
  * Movement, banking, exhaust, impacts, and target rings retain the board's
  * existing animation clock and interaction model. +X points toward the bow.
  */

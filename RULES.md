@@ -199,7 +199,7 @@ Four kinds of card. **Destroy is worth two points, every other card one; three p
 
 Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey (to two different planets). Draw 5, keep 3.
 
-**Keep only cards your mat can fly.** Intercept opens with a scan and Survey is held with your sensors lit, so you may keep either card only if your loadout carries a **sensor array**. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
+**Keep only cards your mat can fly.** Intercept opens with a scan and Survey is held with your sensors lit, so either card needs a **sensor array**, and Destroy needs a **weapon** — railgun, broadside laser, ballistic rack or missiles — since a ship that cooks itself on its own heat credits nobody. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
 
 When you complete a mission, turn the card face-up for everyone to see.
 
@@ -232,12 +232,12 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
 | Docking          | full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away  |
 | Survey           | second consecutive turn ended on Black Hole Ring 1, sensors powered                              |
-| Keeping cards    | draw 5, keep 3; an Intercept or a Survey may only be kept with a sensor array on the mat         |
+| Keeping cards    | draw 5, keep 3; Intercept and Survey need a sensor array, Destroy needs a weapon                 |
 | Win              | 3 points end the round; highest score, then hull, then fuel                                      |
 
 ### Turn cheat sheet
 
-1. Destroyed? Respawn at Home, turn over. Recovering? Turn over.
+1. Destroyed? Respawn at Home, turn over. Recovering? You only drift, turn over.
 2. Energy: move cubes.
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.

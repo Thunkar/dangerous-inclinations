@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import type { Mission } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
-import { missionsMissingSubsystems, validateLoadout } from "../../game/loadout.ts";
+import { missionsMissingRequirements, validateLoadout } from "../../game/loadout.ts";
 import { createGame, submitLoadout } from "../../game/setup.ts";
 import { botChooseLoadout } from "../../ai/index.ts";
 import type { ShipLoadout } from "../../models/game.ts";
@@ -43,6 +43,18 @@ describe("botChooseLoadout", () => {
       expect(template.sideSlots).toHaveLength(4);
     }
   });
+
+  // Every card has a tile it cannot start without: the sensor hulls carry the
+  // array for Intercept and Survey, and all four carry a gun, which is what a
+  // kept Destroy card needs (RULES §Missions).
+  it.each(Object.keys(BOT_LOADOUT_TEMPLATES) as BotArchetype[])(
+    "the %s template can fly a Destroy card",
+    (archetype) => {
+      expect(
+        missionsMissingRequirements([destroyMission("p2")], BOT_LOADOUT_TEMPLATES[archetype])
+      ).toEqual([]);
+    }
+  );
 
   it("gives each archetype its own hull", () => {
     for (const [archetype, missions] of Object.entries(TRIOS) as Array<[BotArchetype, Mission[]]>) {
@@ -213,7 +225,7 @@ describe("botChooseLoadout", () => {
       const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
       expect(choice.loadout).toEqual(RAILGUN);
       const kept = offers.filter((m) => choice.missionIds.includes(m.id));
-      expect(missionsMissingSubsystems(kept, choice.loadout)).toEqual([]);
+      expect(missionsMissingRequirements(kept, choice.loadout)).toEqual([]);
     });
 
     it("gives the hull up when three of the five offers need the sensor array", () => {
@@ -227,7 +239,7 @@ describe("botChooseLoadout", () => {
       const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
       expect(choice.loadout).not.toEqual(RAILGUN);
       const kept = offers.filter((m) => choice.missionIds.includes(m.id));
-      expect(missionsMissingSubsystems(kept, choice.loadout)).toEqual([]);
+      expect(missionsMissingRequirements(kept, choice.loadout)).toEqual([]);
     });
   });
 
@@ -242,7 +254,7 @@ describe("botChooseLoadout", () => {
       for (const player of state.players) {
         const choice = botChooseLoadout(player.missionOffers, { playerCount });
         const kept = player.missionOffers.filter((m) => choice.missionIds.includes(m.id));
-        expect(missionsMissingSubsystems(kept, choice.loadout), `seed ${seed}`).toEqual([]);
+        expect(missionsMissingRequirements(kept, choice.loadout), `seed ${seed}`).toEqual([]);
       }
     }
   });

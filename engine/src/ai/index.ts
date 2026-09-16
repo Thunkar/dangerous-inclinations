@@ -15,7 +15,7 @@ import type { Mission } from "../models/missions.ts";
 import type { RuleSet } from "../models/rules.ts";
 import { resolveRules } from "../models/rules.ts";
 import type { GameView } from "../game/view.ts";
-import { missionsMissingSubsystems } from "../game/loadout.ts";
+import { missionsMissingRequirements } from "../game/loadout.ts";
 import type {
   BotDecision,
   BotDecisionLog,
@@ -76,11 +76,12 @@ export function botChooseLoadout(
     context.hull
   );
   // A hand and a mat are one choice: a kept Intercept or Survey needs the
-  // sensor array. `hull` is a mat the simulator is measuring on this seat; it
+  // sensor array and a kept Destroy needs a gun. `hull` is a mat the
+  // simulator is measuring on this seat; it
   // is kept only if the trio the bot ended up with can actually fly it, so a
   // bot never hands the engine a submission it must refuse.
   const imposed =
-    context.hull && missionsMissingSubsystems(missions, context.hull).length === 0
+    context.hull && missionsMissingRequirements(missions, context.hull).length === 0
       ? context.hull
       : undefined;
   return {

@@ -1,7 +1,8 @@
 /**
  * One player's turn.
  *
- *  1. If the ship is destroyed: respawn at Home. The turn ends here.
+ *  1. If the ship is destroyed: respawn at Home. The turn ends here. A ship
+ *     recovering from that respawn drifts with its ring and nothing else.
  *  2. Energy changes, then tactical actions in the chosen order.
  *  3. The player's missiles move and resolve.
  *  4. Docking (if the ship ended on a station).
@@ -22,6 +23,8 @@ import { resolveEndOfTurnHeat } from "./heat.ts";
 import { processMissionEvents, checkForWinner, rankPlayers } from "./missions/missionChecks.ts";
 import { advanceStations } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
+import { applyOrbitalMovement } from "./movement.ts";
+import { positionOf } from "./geometry.ts";
 import { isDestroyed, resetSubsystemUsage } from "./ship.ts";
 
 export interface TurnResult {
@@ -54,12 +57,28 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     return finish(gameState, state, events, turn);
   }
 
-  // A respawned ship sits out the turn after its return; submitted actions are ignored.
+  // A respawned ship sits out the turn after its return: submitted actions are
+  // ignored, but the ship is still in orbit, so it drifts with its ring like
+  // anything else on it (RULES §A Turn: "you take no actions, you just
+  // drift"). It cannot be moored — Home is on the black hole's home ring and
+  // stations orbit planet ring 1 — so there is no berth to hold and nothing
+  // for `advanceStations` to carry. The lost turn is still spent.
   if (active.skipTurns > 0) {
+    const ship = applyOrbitalMovement(active.ship);
     const players = [...state.players];
-    players[activeIndex] = { ...active, skipTurns: active.skipTurns - 1 };
+    players[activeIndex] = { ...active, ship, skipTurns: active.skipTurns - 1 };
     state = { ...state, players };
     events.push({ type: "turn_skipped", playerId: active.id, remaining: active.skipTurns - 1 });
+    // The board moves the token on a `coasted` like any other drift; the flag
+    // says the helm was empty, so the log does not claim the player coasted.
+    events.push({
+      type: "coasted",
+      playerId: active.id,
+      to: positionOf(ship),
+      scooped: false,
+      heat: 0,
+      recovering: true,
+    });
     return finish(gameState, state, events, turn);
   }
 

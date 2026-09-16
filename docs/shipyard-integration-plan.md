@@ -6,7 +6,7 @@ validated cosmetics, the production loadout screen, board integration, and share
 UI styling have been implemented. Physical printing and additional engine-layout
 customization remain later work.
 
-The Kestrel workshop becomes the basis of the production loadout editor, its ship
+The ship workshop becomes the basis of the production loadout editor, its ship
 becomes the 3D board miniature, and its visual language becomes the application's
 shared design system. Keep the standalone workshop as a development playground
 using the same model and editor components.
@@ -62,16 +62,14 @@ workshop before carrying them into production.
 Offer a small set of useful controls in an **Appearance** tab. Default every
 control to today's corvette; include a clear reset action.
 
-| Control         | First production version                                               |
-| --------------- | ---------------------------------------------------------------------- |
-| Hull paint      | Curated industrial swatches and a custom color picker.                 |
-| Secondary paint | Smaller armor panels and trim, independently colored.                  |
-| Livery          | A few panel/stripe patterns that preserve dedicated identity markings. |
-| Surface finish  | Matte paint or exposed metal; subtle, bounded roughness changes.       |
-| Armor relief    | A short slider changing panel depth within a tested envelope.          |
-| Dorsal profile  | Low, standard, or raised spine, preserving mount clearances.           |
-| Wear            | A restrained clean-to-weathered setting; no effect on damage state.    |
-| Identification  | Read-only seat-color swatch, applied to protected hull markings.       |
+| Control         | First production version                                                |
+| --------------- | ----------------------------------------------------------------------- |
+| Hull paint      | One labelled row: curated industrial swatches plus a custom-color chip. |
+| Secondary paint | The same row again for trim and smaller armor panels.                   |
+| Surface finish  | Matte paint or exposed metal; subtle, bounded roughness changes.        |
+| Armor relief    | Flush plating to deep slab armor; deck markings ride on the plate.      |
+| Dorsal profile  | Flush deck plating to a raised spine, preserving mount clearances.      |
+| Identification  | Seat color, applied to protected hull markings; not a player choice.    |
 
 Keep hull length and engine size at the accepted baseline in the first release.
 The workshop retains its wider length, beam, armor, and engine controls. Additional
@@ -139,7 +137,9 @@ stores the full workshop config in `userData`; production metadata must contain
 only permitted visual data. Unknown identity must not affect mesh names,
 silhouettes, shadows, tooltips, thumbnails, exports, or cached render variants.
 
-Keep the current axes (`+X` forward, `+Y` up, `-Z` port) and mount IDs. Expose stable
+Keep the current axes (`+X` forward, `+Y` up, `-Z` port) and mount IDs. A mount's
+own frame is `+Y` outboard, `+X` forward, `+Z` dorsal, and starboard mirrors port
+across the centreline rather than rotating onto it. Expose stable
 anchors for mount selection, engine nozzles, exhaust, and a hull impact envelope.
 The existing movement, banking, recoil, arrival, and impact effects should use
 these anchors when the board's old dart mesh is replaced.
@@ -187,8 +187,10 @@ change loadout without resetting cosmetics. Changing a system immediately update
 stats and mission compatibility without silently removing chosen missions.
 
 Preserve `validateLoadout`, `canInstallInSlot`, calculated stats, the required
-mission count, and `missionsMissingSubsystems`. Intercept and Survey currently
-require sensors; those constraints must be as clear here as in today's screen.
+mission count, and `missionsMissingRequirements`. A card carries clauses of
+`{ label, anyOf }` and any one tile in a clause satisfies it: Intercept and
+Survey need sensors, Destroy needs a weapon. Those constraints must be as clear
+here as in today's screen.
 Preserve errors, pending submission, submitted/waiting state, reconnect handling,
 spectator behavior, and table talk.
 

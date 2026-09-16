@@ -6,7 +6,7 @@
  */
 import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
-import { missionsMissingSubsystems } from "../../game/loadout.ts";
+import { missionsMissingRequirements } from "../../game/loadout.ts";
 import { DEFAULT_RULES } from "../../models/rules.ts";
 import {
   MISSIONS_PER_PLAYER,
@@ -80,6 +80,10 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
  * railgun, whether or not it holds a Destroy card. The bot will be shooting
  * at whoever is one dock from winning in any case (see `behaviors/danger.ts`);
  * the raider is simply the hauler with a gun in the nose.
+ *
+ * Every template carries at least one weapon, which is what a kept Destroy
+ * card needs (RULES §Missions): the two sensor hulls buy theirs with a side
+ * slot. A template without a gun could never keep the card.
  */
 export function classifyArchetype(missions: Mission[]): BotArchetype {
   const active = missions.filter((m) => !m.isCompleted);
@@ -214,7 +218,7 @@ export function selectBotMissions(
 ): Mission[] {
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
   const flyable = (combo: Mission[]) =>
-    hull === undefined || missionsMissingSubsystems(combo, hull).length === 0;
+    hull === undefined || missionsMissingRequirements(combo, hull).length === 0;
 
   let best: Mission[] = offers.slice(0, MISSIONS_PER_PLAYER);
   let bestScore = -Infinity;

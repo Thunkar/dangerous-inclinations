@@ -12,9 +12,8 @@ import { resolveRules } from "../models/rules.ts";
 import { createInitialShipState } from "./ship.ts";
 import { createInitialStations } from "./stations.ts";
 import { dealMissionOffers, selectMissionsFromOffers } from "./missions/missionDeck.ts";
-import { missionsMissingSubsystems, validateLoadout } from "./loadout.ts";
-import { describeMission } from "./describe.ts";
-import { getSubsystemConfig } from "../models/subsystems.ts";
+import { missionsMissingRequirements, validateLoadout } from "./loadout.ts";
+import { describeMission, describeMissionRequirement } from "./describe.ts";
 
 export interface PlayerSpec {
   id: string;
@@ -107,9 +106,9 @@ export function submitLoadout(
   const picked = selectMissionsFromOffers(player.missionOffers, submission.missionIds);
   if (picked.error) return { state, error: picked.error };
 
-  // A card you can never complete is not a card. Intercept and Survey both
-  // need the sensor array, and a mat is fixed for the game.
-  const gaps = missionsMissingSubsystems(picked.missions, submission.loadout);
+  // A card you can never complete is not a card: Intercept and Survey need the
+  // sensor array, Destroy needs a gun, and a mat is fixed for the game.
+  const gaps = missionsMissingRequirements(picked.missions, submission.loadout);
   if (gaps.length > 0) {
     const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
     return {
@@ -117,9 +116,9 @@ export function submitLoadout(
       error: gaps
         .map(
           ({ mission, missing }) =>
-            `${describeMission(mission, nameOf)} cannot be completed without a ${missing
-              .map((type) => getSubsystemConfig(type).name)
-              .join(" and a ")}`
+            `${describeMission(mission, nameOf)} cannot be completed without ${missing
+              .map(describeMissionRequirement)
+              .join(" and ")}`
         )
         .join("; "),
     };

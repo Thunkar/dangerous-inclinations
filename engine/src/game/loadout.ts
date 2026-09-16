@@ -14,8 +14,8 @@ import {
 } from "../models/subsystems.ts";
 import type { ShipLoadout, LoadoutValidation } from "../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY, STARTING_REACTION_MASS } from "../models/game.ts";
-import type { MissionType } from "../models/missions.ts";
-import { missionRequiredSubsystems } from "../models/missions.ts";
+import type { MissionRequirement, MissionType } from "../models/missions.ts";
+import { missionRequirements } from "../models/missions.ts";
 
 const byGroup = (predicate: (slotType: string) => boolean): SubsystemType[] =>
   (Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]).filter((t) =>
@@ -116,27 +116,54 @@ export function hasSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType)
   return countSubsystemInLoadout(loadout, type) > 0;
 }
 
-/** A kept card and the tiles its hull is missing for it. */
+/** Tiles from a requirement that this mat actually carries; any one satisfies it. */
+export function fittedForRequirement(
+  loadout: ShipLoadout,
+  requirement: MissionRequirement
+): SubsystemType[] {
+  return requirement.anyOf.filter((type) => hasSubsystemInLoadout(loadout, type));
+}
+
+/** A requirement of one card, checked against the mat being fitted. */
+export interface MissionRequirementStatus {
+  requirement: MissionRequirement;
+  /** The tiles aboard that satisfy it, in requirement order. Empty when unmet. */
+  fitted: SubsystemType[];
+  met: boolean;
+}
+
+/** Every requirement of a card against a mat, met or not (for the loadout screen). */
+export function missionRequirementStatus(
+  type: MissionType,
+  loadout: ShipLoadout
+): MissionRequirementStatus[] {
+  return missionRequirements(type).map((requirement) => {
+    const fitted = fittedForRequirement(loadout, requirement);
+    return { requirement, fitted, met: fitted.length > 0 };
+  });
+}
+
+/** A kept card and the requirements its hull does not meet. */
 export interface MissionLoadoutGap<M> {
   mission: M;
-  missing: SubsystemType[];
+  missing: MissionRequirement[];
 }
 
 /**
- * Cards in `missions` that this mat could never complete, each with the tiles
- * it lacks (MISSION_REQUIRED_SUBSYSTEMS). Empty means the hand and the hull
- * agree. The referee calls this before accepting a loadout and the loadout
- * screen calls it on every change, so a player sees the clash while choosing
- * rather than being refused at the end.
+ * Cards in `missions` that this mat could never complete, each with the
+ * requirements it fails (MISSION_REQUIREMENTS). Empty means the hand and the
+ * hull agree. The referee calls this before accepting a loadout and the
+ * loadout screen calls it on every change, so a player sees the clash while
+ * choosing rather than being refused at the end.
  */
-export function missionsMissingSubsystems<M extends { type: MissionType }>(
+export function missionsMissingRequirements<M extends { type: MissionType }>(
   missions: ReadonlyArray<M>,
   loadout: ShipLoadout
 ): Array<MissionLoadoutGap<M>> {
   const gaps: Array<MissionLoadoutGap<M>> = [];
   for (const mission of missions) {
-    const missing = missionRequiredSubsystems(mission.type).filter(
-      (type) => !hasSubsystemInLoadout(loadout, type)
+    const missing = missionRequirements(mission.type).filter(
+      (requirement) => fittedForRequirement(loadout, requirement).length === 0
     );
     if (missing.length > 0) gaps.push({ mission, missing });
   }

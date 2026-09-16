@@ -2,7 +2,7 @@
  * Human-readable text for events (turn log, replay, sim diagnostics).
  */
 import type { GameEvent } from "../models/events.ts";
-import type { Mission } from "../models/missions.ts";
+import type { Mission, MissionRequirement } from "../models/missions.ts";
 import type { Position } from "../models/game.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { getWellName } from "../models/gravityWells.ts";
@@ -30,6 +30,18 @@ export function describeMission(m: Mission, name: NameResolver): string {
   }
 }
 
+/**
+ * A requirement in a player's words: "a sensor array", or "a weapon (railgun,
+ * broadside laser, missiles or ballistic rack)" when several tiles count —
+ * the label alone is what a player needs, the names say what satisfies it.
+ */
+export function describeMissionRequirement(requirement: MissionRequirement): string {
+  const names = requirement.anyOf.map((t) => getSubsystemConfig(t).name);
+  const options =
+    names.length > 1 ? ` (${names.slice(0, -1).join(", ")} or ${names[names.length - 1]})` : "";
+  return `a ${requirement.label}${options}`;
+}
+
 export function describeEvent(e: GameEvent, name: NameResolver): string {
   const sub = (t: Parameters<typeof getSubsystemConfig>[0]) => getSubsystemConfig(t).name;
   switch (e.type) {
@@ -44,6 +56,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "rotated":
       return `${name(e.playerId)} rotates to ${e.facing}`;
     case "coasted":
+      if (e.recovering) return `${name(e.playerId)} drifts to ${pos(e.to)}, nobody at the helm`;
       return e.moored
         ? `${name(e.playerId)} holds its berth at ${pos(e.to)}${e.scooped ? ", scoop running" : ""}${heat(e.heat)}`
         : `${name(e.playerId)} coasts to ${pos(e.to)}${e.scooped ? ", scoop running" : ""}${heat(e.heat)}`;

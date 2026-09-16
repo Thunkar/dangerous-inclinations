@@ -166,103 +166,132 @@ export function SystemControls({
   )
 }
 
-const PAINTS = [
-  '#aab4b2',
-  '#dad7c8',
-  '#4c5b56',
-  '#344149',
-  '#926b51',
-  '#6a737a',
-  '#37434e',
-  '#b6a27b',
-]
+/** Industrial swatches, light to dark. Both defaults are on the row. */
+const PAINTS = ['#aab4b2', '#dad7c8', '#b6a27b', '#926b51', '#647776', '#4c5b56', '#344149']
+
+const CHIP = {
+  minWidth: 28,
+  width: 28,
+  height: 28,
+  p: 0,
+  borderRadius: '50%',
+  border: '3px solid #1b2225',
+}
+
+/**
+ * One colour, chosen once: the swatches and the custom picker are the same
+ * control, and the row is labelled instead of the section above it.
+ */
+function PaintRow({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string
+  value: string
+  onChange: (color: string) => void
+  disabled: boolean
+}) {
+  const custom = !PAINTS.includes(value.toLowerCase())
+  const ring = (selected: boolean) => (selected ? `2px solid ${TABLE.accent}` : '1px solid #53605b')
+  return (
+    <Box sx={{ mt: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <Typography variant="body2">{label}</Typography>
+        <Typography variant="caption" sx={{ fontFamily: FONT_MONO, color: TABLE.inkSoft }}>
+          {value.toUpperCase()}
+        </Typography>
+      </Box>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.1, mt: 1 }}>
+        {PAINTS.map(paint => (
+          <Button
+            key={paint}
+            disabled={disabled}
+            aria-label={`${label}: ${paint}`}
+            aria-pressed={value.toLowerCase() === paint}
+            onClick={() => onChange(paint)}
+            sx={{
+              ...CHIP,
+              bgcolor: paint,
+              outline: ring(value.toLowerCase() === paint),
+              '&:hover': { bgcolor: paint, outline: `2px solid ${TABLE.accent}` },
+            }}
+          />
+        ))}
+        <Box
+          component="label"
+          title={`${label}: any colour`}
+          sx={{
+            ...CHIP,
+            position: 'relative',
+            overflow: 'hidden',
+            cursor: disabled ? 'default' : 'pointer',
+            outline: ring(custom),
+            background: custom
+              ? value
+              : 'conic-gradient(#c0563f, #c9a13f, #7fae5c, #4f9bb0, #6e6fb4, #b1588f, #c0563f)',
+          }}
+        >
+          <input
+            type="color"
+            aria-label={`${label}: any colour`}
+            disabled={disabled}
+            value={value}
+            onChange={event => onChange(event.target.value)}
+            style={{
+              position: 'absolute',
+              inset: -6,
+              width: 60,
+              height: 60,
+              opacity: 0,
+              padding: 0,
+              border: 0,
+              cursor: 'inherit',
+            }}
+          />
+        </Box>
+      </Box>
+    </Box>
+  )
+}
+
 export function AppearanceControls({
   value,
   onChange,
-  accent,
   disabled,
 }: {
   value: ShipAppearance
   onChange: (a: ShipAppearance) => void
-  accent: string
   disabled: boolean
 }) {
   const patch = (p: Partial<ShipAppearance>) => onChange({ ...value, ...p })
   return (
     <Box component="fieldset" disabled={disabled} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
       <Typography variant="overline" color="text.secondary">
-        01 / Hull finish
+        01 / Paint
       </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.3, my: 2 }}>
-        {PAINTS.map(paint => (
-          <Button
-            key={paint}
-            disabled={disabled}
-            aria-label={`Hull paint ${paint}`}
-            aria-pressed={value.paint === paint}
-            onClick={() => patch({ paint })}
-            sx={{
-              bgcolor: paint,
-              minWidth: 30,
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              border: '3px solid #1b2225',
-              outline: value.paint === paint ? `1px solid ${TABLE.accent}` : '1px solid #53605b',
-              '&:hover': { bgcolor: paint, outline: `2px solid ${TABLE.accent}` },
-            }}
-          />
-        ))}
-      </Box>
-      {(['paint', 'secondaryPaint'] as const).map(key => (
-        <Box
-          component="label"
-          key={key}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            my: 2,
-            fontSize: 14,
-          }}
-        >
-          {key === 'paint' ? 'Hull paint' : 'Secondary paint'}
-          <input
-            type="color"
-            aria-label={key === 'paint' ? 'Custom hull paint' : 'Secondary paint'}
-            value={value[key]}
-            onChange={e => patch({ [key]: e.target.value })}
-            style={{
-              height: 32,
-              width: 50,
-              padding: 2,
-              border: '1px solid #59665e',
-              background: 'transparent',
-            }}
-          />
-        </Box>
-      ))}
-      <Typography variant="caption" color="text.secondary">
-        Livery
+      <PaintRow
+        label="Hull"
+        value={value.paint}
+        disabled={disabled}
+        onChange={paint => patch({ paint })}
+      />
+      <PaintRow
+        label="Trim and panels"
+        value={value.secondaryPaint}
+        disabled={disabled}
+        onChange={secondaryPaint => patch({ secondaryPaint })}
+      />
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
+        02 / Finish
       </Typography>
-      <ToggleButtonGroup
-        fullWidth
-        exclusive
-        value={value.livery}
-        onChange={(_, livery) => livery && patch({ livery })}
-        sx={{ mt: 1, mb: 2 }}
-      >
-        {(['panels', 'bands', 'split'] as const).map(v => (
-          <ToggleButton key={v} value={v} disabled={disabled}>
-            {v}
-          </ToggleButton>
-        ))}
-      </ToggleButtonGroup>
       <ToggleButtonGroup
         fullWidth
         exclusive
         value={value.finish}
         onChange={(_, finish) => finish && patch({ finish })}
+        sx={{ mt: 1 }}
       >
         <ToggleButton value="matte" disabled={disabled}>
           Matte paint
@@ -272,13 +301,12 @@ export function AppearanceControls({
         </ToggleButton>
       </ToggleButtonGroup>
       <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-        02 / Hull details
+        03 / Hull profile
       </Typography>
       {(
         [
           ['armorRelief', 'Armor relief'],
           ['spineHeight', 'Dorsal profile'],
-          ['wear', 'Weathering'],
         ] as const
       ).map(([key, label]) => (
         <Box key={key} sx={{ mt: 2 }}>
@@ -299,37 +327,12 @@ export function AppearanceControls({
           />
         </Box>
       ))}
-      <Box
-        sx={{
-          mt: 2,
-          p: 1.5,
-          bgcolor: TABLE.plateSunk,
-          border: `1px solid ${TABLE.plateEdge}`,
-          borderRadius: 1,
-        }}
-      >
-        <Typography variant="overline" color="text.secondary">
-          Player identification · fixed
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.75 }}>
-          <Box
-            sx={{
-              width: 24,
-              height: 24,
-              bgcolor: accent,
-              border: '2px solid #e0e3db',
-              borderRadius: 0.5,
-            }}
-          />
-          <Typography variant="body2">Your seat color stays on the hull markings.</Typography>
-        </Box>
-      </Box>
       <Button
         fullWidth
         disabled={disabled}
         variant="outlined"
         onClick={() => onChange({ ...DEFAULT_SHIP_APPEARANCE })}
-        sx={{ mt: 2 }}
+        sx={{ mt: 3 }}
       >
         Reset appearance
       </Button>

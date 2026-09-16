@@ -8,6 +8,7 @@
  */
 
 import type { SubsystemType } from "./subsystems.ts";
+import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
 
 export const MISSIONS_TO_WIN = 3;
 export const MISSIONS_PER_PLAYER = 3;
@@ -32,26 +33,45 @@ export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
 };
 
 /**
- * Tiles a card cannot be completed without.
+ * One thing a card cannot be completed without.
+ *
+ * `anyOf` lists the tiles that satisfy it and **one of them is enough**, so a
+ * card that needs several different tiles carries several requirements and a
+ * card that accepts any of a family carries one. `label` is the bare noun to
+ * call it by at the table — "weapon" is what a player needs to hear, not four
+ * tile names — and the names behind it are `anyOf` (see
+ * `describeMissionRequirement`, game/describe.ts).
+ */
+export interface MissionRequirement {
+  label: string;
+  anyOf: readonly SubsystemType[];
+}
+
+const SENSOR_ARRAY: MissionRequirement = { label: "sensor array", anyOf: ["sensor_array"] };
+const WEAPON: MissionRequirement = { label: "weapon", anyOf: WEAPON_SUBSYSTEM_TYPES };
+
+/**
+ * What each card needs aboard to be completable at all.
  *
  * An Intercept opens with a scan and a Survey is held with the sensors lit on
- * the ring, so either card is dead weight on a mat with no sensor array: a
- * loadout is fixed for the game and a station repairs tiles, it never fits
- * one. This is the single table the rule lives in — the referee refuses a
- * submission that breaks it (`missionsMissingSubsystems`, game/loadout.ts) and
- * the loadout screen reads the same list while you choose.
+ * the ring, so either card is dead weight on a mat with no sensor array. A
+ * Destroy is completed by reducing a hull to 0 yourself, and only a weapon or
+ * a missile credits a kill — heat kills nobody's target — so it needs any one
+ * gun. A loadout is fixed for the game and a station repairs tiles, it never
+ * fits one. This is the single table the rule lives in — the referee refuses
+ * a submission that breaks it (`missionsMissingRequirements`, game/loadout.ts)
+ * and the loadout screen reads the same list while you choose.
  */
-export const MISSION_REQUIRED_SUBSYSTEMS: Readonly<Record<MissionType, readonly SubsystemType[]>> =
-  {
-    destroy_ship: [],
-    deliver_cargo: [],
-    intercept_transmission: ["sensor_array"],
-    survey: ["sensor_array"],
-  };
+export const MISSION_REQUIREMENTS: Readonly<Record<MissionType, readonly MissionRequirement[]>> = {
+  destroy_ship: [WEAPON],
+  deliver_cargo: [],
+  intercept_transmission: [SENSOR_ARRAY],
+  survey: [SENSOR_ARRAY],
+};
 
-/** What a card needs aboard to be completable at all; empty for cards any hull can fly. */
-export function missionRequiredSubsystems(type: MissionType): readonly SubsystemType[] {
-  return MISSION_REQUIRED_SUBSYSTEMS[type];
+/** What a card needs aboard; empty for cards any hull can fly. */
+export function missionRequirements(type: MissionType): readonly MissionRequirement[] {
+  return MISSION_REQUIREMENTS[type];
 }
 
 interface BaseMission {

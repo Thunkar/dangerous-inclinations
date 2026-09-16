@@ -11,11 +11,14 @@ import {
   calculateShipStatsFromLoadout,
   canInstallInSlot,
   createSubsystemsFromLoadout,
-  missionsMissingSubsystems,
+  missionRequirementStatus,
+  missionsMissingRequirements,
 } from "../../game/loadout.ts";
-import { describeMission } from "../../game/describe.ts";
-import { getSubsystemConfig } from "../../models/subsystems.ts";
-import type { Mission } from "../../models/missions.ts";
+import { describeMission, describeMissionRequirement } from "../../game/describe.ts";
+import type { SubsystemType } from "../../models/subsystems.ts";
+import { WEAPON_SUBSYSTEM_TYPES } from "../../models/subsystems.ts";
+import type { Mission, MissionRequirement } from "../../models/missions.ts";
+import { MISSION_REQUIREMENTS } from "../../models/missions.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { DEFAULT_LOADOUT } from "../../models/game.ts";
 import { HOME_RING } from "../../models/gravityWells.ts";
@@ -200,24 +203,58 @@ describe("setup: submitLoadout", () => {
 });
 
 describe("setup: a kept card the mat can never fly", () => {
-  /** Neither of these carries a sensor array; the second carries no tile a card asks for either. */
-  const RAILGUN_HULL: ShipLoadout = {
+  /** Guns and no sensors: fine for a Destroy, dead weight for an Intercept. */
+  const GUNSHIP: ShipLoadout = {
     forwardSlots: ["railgun"],
     sideSlots: ["laser", "laser", "shields", "missiles"],
   };
+  /** Sensors and nothing that shoots: the mirror image. */
+  const UNARMED: ShipLoadout = {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["shields", "shields", "radiator", "fuel_compressor"],
+  };
 
-  const CARDS: Array<[string, Mission, boolean]> = [
-    ["a Destroy", destroyMission("p2"), false],
-    ["a Deliver", deliverMission("planet-alpha", "planet-beta"), false],
-    ["an Intercept", interceptMission("p2"), true],
-    ["a Survey", surveyMission(), true],
+  const SENSOR_ARRAY = MISSION_REQUIREMENTS.intercept_transmission[0];
+  const WEAPON = MISSION_REQUIREMENTS.destroy_ship[0];
+
+  /** card, what GUNSHIP is missing for it, what UNARMED is missing for it. */
+  const CARDS: Array<[string, Mission, MissionRequirement[], MissionRequirement[]]> = [
+    ["a Destroy", destroyMission("p2"), [], [WEAPON]],
+    ["a Deliver", deliverMission("planet-alpha", "planet-beta"), [], []],
+    ["an Intercept", interceptMission("p2"), [SENSOR_ARRAY], []],
+    ["a Survey", surveyMission(), [SENSOR_ARRAY], []],
   ];
 
-  it.each(CARDS)("%s knows whether it needs the sensor array", (_label, mission, needsSensor) => {
-    expect(missionsMissingSubsystems([mission], RAILGUN_HULL)).toEqual(
-      needsSensor ? [{ mission, missing: ["sensor_array"] }] : []
-    );
-    expect(missionsMissingSubsystems([mission], ANY_HAND)).toEqual([]);
+  it.each(CARDS)("%s knows what each mat lacks for it", (_label, mission, onGunship, onUnarmed) => {
+    const gaps = (missing: MissionRequirement[]) =>
+      missing.length > 0 ? [{ mission, missing }] : [];
+    expect(missionsMissingRequirements([mission], GUNSHIP)).toEqual(gaps(onGunship));
+    expect(missionsMissingRequirements([mission], UNARMED)).toEqual(gaps(onUnarmed));
+    // ANY_HAND carries both a gun and the array, so it can fly every card.
+    expect(missionsMissingRequirements([mission], ANY_HAND)).toEqual([]);
+  });
+
+  /** A mat whose only weapon is `type`; everything else aboard is passive. */
+  const armedWith = (type: SubsystemType): ShipLoadout =>
+    canInstallInSlot(type, "forward")
+      ? { forwardSlots: [type], sideSlots: ["shields", "shields", "radiator", "fuel_compressor"] }
+      : {
+          forwardSlots: ["sensor_array"],
+          sideSlots: [type, "shields", "radiator", "fuel_compressor"],
+        };
+
+  it.each(WEAPON_SUBSYSTEM_TYPES)("a Destroy card flies on a mat whose only gun is %s", (type) => {
+    expect(missionsMissingRequirements([destroyMission("p2")], armedWith(type))).toEqual([]);
+  });
+
+  it("reports which of a requirement's tiles are aboard, for the loadout screen", () => {
+    expect(missionRequirementStatus("destroy_ship", GUNSHIP)).toEqual([
+      { requirement: WEAPON, fitted: ["railgun", "laser", "missiles"], met: true },
+    ]);
+    expect(missionRequirementStatus("destroy_ship", UNARMED)).toEqual([
+      { requirement: WEAPON, fitted: [], met: false },
+    ]);
+    expect(missionRequirementStatus("deliver_cargo", UNARMED)).toEqual([]);
   });
 
   /** A hand of three, offered to p1, so the picks are exactly what we want to test. */
@@ -225,21 +262,29 @@ describe("setup: a kept card the mat can never fly", () => {
     withPlayer(createGame(SPECS, 5), "p1", { missionOffers: missions });
 
   it.each([
-    ["an Intercept", interceptMission("p2")],
-    ["a Survey", surveyMission()],
-  ])("refuses %s kept on a hull with no sensor array, naming the card and the tile", (_l, card) => {
-    const hand = [card, deliverMission("planet-alpha", "planet-beta"), destroyMission("p2")];
-    const state = offered(hand);
-    const result = submitLoadout(state, "p1", {
-      loadout: RAILGUN_HULL,
-      missionIds: hand.map((m) => m.id),
-    });
-    expect(result.state).toBe(state);
-    expect(result.error).toContain(describeMission(card, () => "Bo"));
-    expect(result.error).toContain(getSubsystemConfig("sensor_array").name);
-  });
+    ["an Intercept on a hull with no sensor array", interceptMission("p2"), GUNSHIP, SENSOR_ARRAY],
+    ["a Survey on a hull with no sensor array", surveyMission(), GUNSHIP, SENSOR_ARRAY],
+    ["a Destroy on a hull with no weapon", destroyMission("p2"), UNARMED, WEAPON],
+  ] as Array<[string, Mission, ShipLoadout, MissionRequirement]>)(
+    "refuses %s, naming the card and what it needs",
+    (_label, card, loadout, requirement) => {
+      const hand = [
+        card,
+        deliverMission("planet-alpha", "planet-beta"),
+        deliverMission("planet-beta", "planet-gamma"),
+      ];
+      const state = offered(hand);
+      const result = submitLoadout(state, "p1", {
+        loadout,
+        missionIds: hand.map((m) => m.id),
+      });
+      expect(result.state).toBe(state);
+      expect(result.error).toContain(describeMission(card, () => "Bo"));
+      expect(result.error).toContain(describeMissionRequirement(requirement));
+    }
+  );
 
-  it("accepts the same hand once the sensor array is aboard", () => {
+  it("accepts a hand needing both once the array and a gun are aboard", () => {
     const hand = [interceptMission("p2"), surveyMission(), destroyMission("p2")];
     const state = offered(hand);
     const result = submitLoadout(state, "p1", {
@@ -250,15 +295,15 @@ describe("setup: a kept card the mat can never fly", () => {
     expect(getPlayer(result.state, "p1").missions.map((m) => m.id)).toEqual(hand.map((m) => m.id));
   });
 
-  it("lets a sensor card be left in the offers: only kept cards are checked", () => {
+  it("lets an unflyable card be left in the offers: only kept cards are checked", () => {
     const keep = [
       deliverMission("planet-alpha", "planet-beta"),
       deliverMission("planet-beta", "planet-gamma"),
-      destroyMission("p2"),
+      surveyMission("survey-keep"),
     ];
-    const state = offered([...keep, surveyMission(), interceptMission("p2")]);
+    const state = offered([...keep, destroyMission("p2"), interceptMission("p2")]);
     const result = submitLoadout(state, "p1", {
-      loadout: RAILGUN_HULL,
+      loadout: UNARMED,
       missionIds: keep.map((m) => m.id),
     });
     expect(result.error).toBeUndefined();

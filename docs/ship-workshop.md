@@ -1,6 +1,6 @@
-# Kestrel ship workshop
+# Ship workshop
 
-The standalone authoring workshop for the modular Kestrel ship miniature. Open
+The standalone authoring workshop for the modular corvette miniature. Open
 `/dev-ship.html` on the UI development server; no game, login, or backend is needed.
 
 ```sh
@@ -65,8 +65,11 @@ without the editor controls or HTML mount labels.
 - `+X` is forward, `+Y` is dorsal, `-Z` is port.
 - Forward mount: `forward-0`. Port forward/aft: `side-0`, `side-1`.
   Starboard forward/aft: `side-2`, `side-3`, matching the existing ship mat.
-- Local `+Y` is outward from every attachment point. All subsystem models share
-  a paired magnetic shoe and a directional key.
+- Local `+Y` is outward from every attachment point, `+X` is forward and `+Z`
+  is dorsal. A starboard mount is the port mount _reflected_ across the
+  centreline, not rotated onto it, so the two flanks are mirror images and no
+  fitting reads upside down. All subsystem models share a paired magnetic shoe
+  and a directional key.
 - Side shoes run fore–aft; the forward shoe runs across the bow, with the two
   railgun rails side by side. The nose mount sits back inside an armored collar.
 - Side modules include longitudinal pressure tanks, a four-cell missile silo
@@ -99,9 +102,14 @@ the board's established behavior. Production render metadata contains no full
 workshop configuration or hidden loadout.
 
 The production editor separates appearance from loadout. Body/secondary paint,
-livery, finish, armor relief, dorsal profile, and wear are cosmetic. Player color
-is fixed by seat and remains on backed hull markings. Length, drive dimensions,
-and physical-interface controls stay in this authoring workshop.
+finish, armor relief, and dorsal profile are cosmetic. Armor relief
+runs the deck, keel and chine plating from flush panels to deep slabs with wide
+shadow channels, and the deck markings ride on the plate. Dorsal profile runs the
+spine from flush deck plating to a raised fin carrying the equipment cabinets.
+A weathering dial and alternate liveries were tried and cut: neither read on the
+hull, so the paint carries the ship. Player color is fixed by seat and
+remains on backed hull markings. Length, drive dimensions, and physical-interface
+controls stay in this authoring workshop.
 
 ## Physical-model boundary
 

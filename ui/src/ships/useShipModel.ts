@@ -15,7 +15,6 @@ export function useShipModel(config: WorkshopConfig, concealed = false) {
           ...config.appearance,
           paint: '#aab4b2',
           secondaryPaint: '#647776',
-          wear: 0,
           finish: 'matte',
         }
       : undefined,

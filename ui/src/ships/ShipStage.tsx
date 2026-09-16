@@ -84,7 +84,7 @@ export function ShipStage({
       </Box>
       <Box sx={{ position: 'absolute', top: 24, left: 24, pointerEvents: 'none' }}>
         <Typography variant="overline" sx={{ color: TABLE.accent }}>
-          Modular corvette / {config.identity ?? 'Kestrel'}
+          Modular corvette
         </Typography>
         <Typography variant="h4" sx={{ mt: 0.5, fontWeight: 450 }}>
           Built for the burn.

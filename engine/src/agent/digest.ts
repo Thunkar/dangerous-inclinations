@@ -29,7 +29,7 @@ export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit that reaches the hull breaks the named slot.
 - Docking (end your turn on a station's sector, planet ring 1): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
 - Survey: two consecutive turns on BH ring ${SURVEY_RING} with the sensor array powered, then dock at the named planet. Intercept: scan the target (same ring, within 3 sectors), then dock anywhere.
-- Destroyed: respawn at Home next turn, lose the turn after too, drop cargo.`;
+- Destroyed: respawn at Home next turn, lose the turn after too (you still drift with your ring while recovering), drop cargo.`;
 
 function missionLine(m: Mission, name: (id: string) => string): string {
   const head = describeMission(m, name);

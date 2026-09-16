@@ -4,8 +4,8 @@
  * everyone — that is the scoreboard.
  */
 import { Box, Typography } from '@mui/material'
-import type { Cargo, Mission, SubsystemType } from '@dangerous-inclinations/engine'
-import { describeMission, getSubsystemConfig } from '@dangerous-inclinations/engine'
+import type { Cargo, Mission, MissionRequirementStatus } from '@dangerous-inclinations/engine'
+import { describeMission } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import {
   missionFamilyColor,
@@ -14,12 +14,6 @@ import {
   missionProgress,
 } from '../../utils/missions'
 import { SubsystemIcon } from './SubsystemIcon'
-
-/** A tile the card cannot be completed without, and whether the mat carries it. */
-export interface MissionRequirement {
-  type: SubsystemType
-  met: boolean
-}
 
 interface MissionCardProps {
   mission: Mission
@@ -37,7 +31,7 @@ interface MissionCardProps {
    * Tiles this card needs aboard, checked against the mat being fitted. Only
    * the loadout screen passes them: everywhere else the ship is already built.
    */
-  requires?: ReadonlyArray<MissionRequirement>
+  requires?: ReadonlyArray<MissionRequirementStatus>
 }
 
 export function MissionCard({
@@ -143,7 +137,7 @@ export function MissionCard({
       {requires && requires.length > 0 && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mt: 0.5 }}>
           {requires.map(r => (
-            <RequirementChip key={r.type} type={r.type} met={r.met} />
+            <RequirementChip key={r.requirement.label} status={r} />
           ))}
         </Box>
       )}
@@ -152,12 +146,16 @@ export function MissionCard({
 }
 
 /**
- * "Needs a sensor array" on a card whose mat has none, the same line in the
- * quiet voice once the tile is fitted. It is the only warm-red thing on the
- * loadout screen, so an unflyable card is impossible to miss.
+ * "Needs a weapon" on a card whose mat has none, the same line in the quiet
+ * voice once a tile that counts is fitted. It is the only warm-red thing on
+ * the loadout screen, so an unflyable card is impossible to miss. The icons
+ * are what would satisfy it — every tile that counts while it is unmet, the
+ * ones actually aboard once it is — so "a weapon" never leaves a player
+ * guessing which tiles are weapons.
  */
-function RequirementChip({ type, met }: MissionRequirement) {
-  const name = getSubsystemConfig(type).name
+function RequirementChip({ status }: { status: MissionRequirementStatus }) {
+  const { requirement, fitted, met } = status
+  const icons = [...new Set(met ? fitted : requirement.anyOf)]
   return (
     <Box
       sx={{
@@ -171,7 +169,9 @@ function RequirementChip({ type, met }: MissionRequirement) {
         bgcolor: met ? 'transparent' : 'rgba(255,122,69,0.12)',
       }}
     >
-      <SubsystemIcon type={type} size={12} opacity={met ? 0.55 : 0.95} />
+      {icons.map(type => (
+        <SubsystemIcon key={type} type={type} size={12} opacity={met ? 0.55 : 0.95} />
+      ))}
       <Typography
         sx={{
           fontFamily: FONT_MONO,
@@ -182,7 +182,7 @@ function RequirementChip({ type, met }: MissionRequirement) {
           color: met ? TABLE.inkFaint : TABLE.heat,
         }}
       >
-        {met ? `${name} fitted` : `needs ${name}`}
+        {met ? `${requirement.label} fitted` : `needs a ${requirement.label}`}
       </Typography>
     </Box>
   )

@@ -11,7 +11,7 @@
  * scan will look at. A scan wants a face-down tile — but once you know them
  * all, any slot will do (the engine takes whichever it can and tells you).
  */
-import { KestrelMark } from '../../ships/KestrelMark'
+import { ShipMark } from '../../ships/ShipMark'
 import { Box, Tooltip, Typography } from '@mui/material'
 import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
 import { MISSIONS_TO_WIN, getWellName } from '@dangerous-inclinations/engine'
@@ -98,7 +98,7 @@ export function OpponentCard({
           }}
         >
           <Box sx={{ width: 42, height: 20, flexShrink: 0, alignSelf: 'center' }}>
-            <KestrelMark appearance={player.appearance} accent={color} />
+            <ShipMark appearance={player.appearance} accent={color} />
           </Box>
           <Typography
             sx={{

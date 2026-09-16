@@ -1,5 +1,5 @@
 /**
- * Shared Kestrel display model. +X is the bow, +Y is dorsal, port is -Z.
+ * The shared modular corvette display model. +X is the bow, +Y is dorsal, port is -Z.
  * All mount-local modules point along +Y and share one keyed magnetic shoe.
  * Named groups are deliberately a clean seam for eventual authored glTF parts.
  * These intersecting display meshes are NOT manufacturing solids.
@@ -77,13 +77,28 @@ function armoredSection(sections: [number, number, number][]): BufferGeometry {
   return geometry
 }
 
+/** Swap two corners of every triangle, so a mirrored part still faces outward. */
+function reverseWinding(geometry: BufferGeometry) {
+  for (const attribute of Object.values(geometry.attributes)) {
+    const { array, itemSize } = attribute
+    for (let triangle = 0; triangle < array.length; triangle += itemSize * 3) {
+      for (let item = 0; item < itemSize; item++) {
+        const a = triangle + item
+        const b = triangle + itemSize * 2 + item
+        ;[array[a], array[b]] = [array[b], array[a]]
+      }
+    }
+    attribute.needsUpdate = true
+  }
+}
+
 export function createShip(
   config: WorkshopConfig,
   concealed = false,
   options: { slots?: VisibleSlots; detail?: 'hero' | 'board' } = {}
 ): ShipModel {
   const root = new Group()
-  root.name = 'KESTREL_modular_ship'
+  root.name = 'modular_corvette'
   root.userData = { units: 'concept units' }
   const geometries = new Set<BufferGeometry>()
   const materials = new Set<Material>()
@@ -220,19 +235,32 @@ export function createShip(
     ]),
     dark
   )
-  // Separate armor tiles leave deep shadow lines and a readable stepped profile.
-  for (const [x, l] of [
-    [-2.12, 0.93],
-    [-0.98, 1.25],
-    [0.43, 1.43],
-    [1.68, 0.91],
-  ] as [number, number][]) {
-    const relief = 0.14 + (config.appearance?.armorRelief ?? 0.5) * 0.08
-    plate(body, [l, relief, 1.64], [x, 0.8 + relief / 2, 0], hull)
-    plate(body, [l, 0.14, 1.6], [x, -0.83, 0], hull)
+  // Armor relief: flush inset plating at one end of the dial, deep slab armor
+  // with wide shadow channels at the other. Everything painted on the deck —
+  // markings and spine — rides on top of the plate, so the armor is free to
+  // grow; the bow tile grows least, to keep the citadel clear.
+  const relief = config.appearance?.armorRelief ?? 0.5
+  const deck = 0.05 + relief * 0.33
+  const keel = 0.05 + relief * 0.3
+  const chine = 0.07 + relief * 0.19
+  const channel = 0.02 + relief * 0.15
+  const deckTop = 0.8 + deck
+  for (const [x, l, share] of [
+    [-2.12, 0.93, 1],
+    [-0.98, 1.25, 1],
+    [0.43, 1.43, 1],
+    [1.68, 0.91, 0.42],
+  ] as [number, number, number][]) {
+    const step = deck * share
+    plate(body, [l - channel, step, 1.64 - channel * 2], [x, 0.8 + step / 2, 0], hull)
+    plate(body, [l - channel, keel, 1.6 - channel * 2], [x, -0.79 - keel / 2, 0], hull)
     for (const side of [-1, 1]) {
-      plate(body, [l, 0.15, 0.5], [x, 0.61, side * 0.98], pale, [side * 0.68, 0, 0])
-      plate(body, [l, 0.13, 0.42], [x, -0.62, side * 0.98], hull, [-side * 0.65, 0, 0])
+      plate(body, [l - channel, chine, 0.5], [x, 0.61, side * 0.98], pale, [side * 0.68, 0, 0])
+      plate(body, [l - channel, chine * 0.85, 0.42], [x, -0.62, side * 0.98], hull, [
+        -side * 0.65,
+        0,
+        0,
+      ])
     }
   }
   // Command citadel: a recessed slit, armored eyebrow, and forward cheek plates.
@@ -276,25 +304,44 @@ export function createShip(
     }
     box(body, [0.17, 0.08, 0.14], [2.11, 0.78, side * 0.88], side < 0 ? red : cyan)
   }
-  // Dorsal spine, equipment cabinets, and restrained stencil markings.
-  plate(body, [2.7, 0.16, 0.32], [-0.65, 1.03, 0], dark)
-  for (let i = 0; i < 8; i++) box(body, [0.09, 0.1, 0.36], [-1.8 + i * 0.32, 1.12, 0], steel)
-  const spineHeight = 0.18 + (config.appearance?.spineHeight ?? 0.5) * 0.2
-  plate(body, [0.7, spineHeight, 0.7], [-1.76, 1 + spineHeight / 2, 0], pale)
-  box(body, [0.13, 0.3, 0.71], [-1.76, 1.15, 0], accent)
+  // Dorsal profile: the spine runs from flush deck plating to a raised fin, and
+  // carries the equipment cabinets with it. It stays inboard of the seat
+  // markings, and the flanks are clear of it at every height.
+  plate(body, [2.7, 0.16, 0.32], [-0.65, deckTop + 0.03, 0], dark)
+  const spine = 0.07 + (config.appearance?.spineHeight ?? 0.5) * 0.62
+  add(
+    body,
+    armoredSection([
+      [-2.62, spine * 0.2, 0.1],
+      [-2.32, spine * 0.5, 0.29],
+      [0.52, spine * 0.5, 0.29],
+      [0.98, spine * 0.22, 0.13],
+    ]),
+    pale,
+    [0, deckTop + spine / 2, 0]
+  )
+  const crest = new Group()
+  crest.name = 'dorsal_spine'
+  crest.position.y = deckTop + spine
+  body.add(crest)
+  for (let i = 0; i < 8; i++) box(crest, [0.09, 0.1, 0.36], [-1.8 + i * 0.32, 0.03, 0], steel)
+  plate(crest, [0.7, 0.2, 0.62], [-1.76, 0.1, 0], pale)
+  box(crest, [0.13, 0.3, 0.71], [-1.76, 0.16, 0], accent)
   for (const side of [-1, 1]) {
+    // Cable runs climb the spine cheeks, so a raised fin still reads as built.
+    if (spine > 0.25)
+      plate(body, [2.1, 0.06, spine * 0.62], [-1.1, deckTop + spine / 2, side * 0.3], dark, [
+        (side * Math.PI) / 2,
+        0,
+        0,
+      ])
     for (let i = 0; i < 6; i++)
-      box(body, [0.055, 0.035, 0.38], [-0.93 + i * 0.13, 1.0, side * 0.5], rubber)
-  }
-  if (config.appearance?.livery === 'bands') {
-    for (const x of [-1.04, 0.4]) plate(body, [0.2, 0.025, 1.58], [x, 1.01, 0], pale)
-  } else if (config.appearance?.livery === 'split') {
-    for (const x of [-1.6, -0.35, 1.12]) plate(body, [0.74, 0.025, 0.55], [x, 1.01, -0.43], pale)
+      box(body, [0.055, 0.035, 0.38], [-0.93 + i * 0.13, deckTop, side * 0.5], rubber)
   }
   // Neutral backing keeps seat markings distinct from arbitrary hull paint.
   for (const side of [-1, 1]) {
-    plate(body, [1.3, 0.026, 0.31], [-0.62, 1.02, side * 0.59], dark)
-    plate(body, [1.16, 0.028, 0.19], [-0.62, 1.04, side * 0.59], accent)
+    plate(body, [1.3, 0.026, 0.31], [-0.62, deckTop + 0.02, side * 0.59], dark)
+    plate(body, [1.16, 0.028, 0.19], [-0.62, deckTop + 0.04, side * 0.59], accent)
   }
   // Fixed scoop on the ventral bow.
   plate(body, [1.2, 0.26, 0.92], [2.58, -0.69, 0], steel)
@@ -319,7 +366,13 @@ export function createShip(
     ink.map = texture
     ink.transparent = true
     ink.depthWrite = false
-    add(body, new PlaneGeometry(0.85, 0.24), ink, [0.56, 0.992, -0.47], [-Math.PI / 2, 0, 0])
+    add(
+      body,
+      new PlaneGeometry(0.85, 0.24),
+      ink,
+      [0.56, deckTop + 0.012, -0.47],
+      [-Math.PI / 2, 0, 0]
+    )
   }
 
   // The afterbody is lofted in world space so it joins both the independently
@@ -824,6 +877,8 @@ export function createShip(
     const cradle = new Group()
     cradle.name = forward ? 'armored_bow_collar' : 'armored_equipment_bay'
     frame.add(cradle)
+    // Mount-local +Z is dorsal on every mount, so the secondary-painted
+    // shoulder is the upper one on the bow and on both flanks alike.
     if (forward) {
       // A tapered upper/lower collar flows out of the existing bow armor.
       // Its open end protects the breech without bridging across the rails.
@@ -836,7 +891,7 @@ export function createShip(
             [0.32, 0.98, 0.1],
             [0.73, 0.77, 0.075],
           ]),
-          z < 0 ? pale : hull,
+          z > 0 ? pale : hull,
           [0, 0, z],
           [0, 0, Math.PI / 2]
         )
@@ -869,7 +924,7 @@ export function createShip(
             [0.66, 0.32, 0.135],
             [0.97, 0.18, 0.075],
           ]),
-          z < 0 ? pale : hull,
+          z > 0 ? pale : hull,
           [0, 0.08, z]
         )
         plate(cradle, [0.14, 0.025, 0.2], [-0.58, 0.415, z], accent)
@@ -882,12 +937,14 @@ export function createShip(
 
   const mounts: ShipModel['mounts'] = new Map()
   for (const mount of MOUNTS) {
-    const { position, rotation } = mountTransform(config, mount.id)
+    const { position, rotation, scale } = mountTransform(config, mount.id)
     const frame = new Group()
     frame.name = `mount_${mount.id}`
     frame.userData.mountId = mount.id
     frame.position.set(...position)
     frame.rotation.set(...rotation)
+    // Mirrored, not rotated: three flips the winding for a negative determinant.
+    frame.scale.set(...scale)
     root.add(frame)
     plate(frame, [1.95, 0.13, 1.44], [0, -0.06, 0], dark)
     shoe(frame, 0, steel, true)
@@ -920,8 +977,6 @@ export function createShip(
       for (const m of [hull, pale]) {
         m.roughness = next.appearance?.finish === 'metal' ? 0.34 : 0.62
         m.metalness = next.appearance?.finish === 'metal' ? 0.8 : 0.35
-        m.color.lerp(new Color('#665e52'), (next.appearance?.wear ?? 0) * 0.22)
-        m.roughness += (next.appearance?.wear ?? 0) * 0.15
       }
     }
     for (const [id, mount] of mounts) {
@@ -1004,6 +1059,9 @@ export function createShip(
         geometry = old.toNonIndexed()
         old.dispose()
       }
+      // Baking a mirrored mount into world space reverses its triangles; the
+      // renderer's own flip is gone once the mesh becomes part of a batch.
+      if (object.matrixWorld.determinant() < 0) reverseWinding(geometry)
       const mat = object.material as Material
       if (!mat.map) geometry.deleteAttribute('uv')
       const bucket = batches.get(mat) ?? []

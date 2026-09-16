@@ -4,6 +4,7 @@ import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from "../
 import { REACTOR_CAPACITY } from "../../models/game.ts";
 import type { GameState, Player, ShipLoadout } from "../../models/game.ts";
 import type { Cargo } from "../../models/missions.ts";
+import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import {
   allocate,
   BETA,
@@ -24,6 +25,7 @@ import {
   mustExecute,
   surveyMission,
   withPlayer,
+  withMissile,
   withPower,
   withShip,
   withSub,
@@ -204,14 +206,16 @@ describe("respawn: the turn after dying", () => {
     expect(skipped.errors).toBeUndefined();
     expect(eventTypes(skipped.events)).toContain("turn_skipped");
     expect(eventTypes(skipped.events)).not.toContain("burned");
-    expect(getShip(skipped.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 7 });
+    // Beta ring 3 drifts 1 a turn: the helm is empty, the orbit is not.
+    expect(getShip(skipped.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 8 });
+    expect(getShip(skipped.gameState, "p2").reactionMass).toBe(10);
     expect(getPlayer(skipped.gameState, "p2").skipTurns).toBe(0);
     // Two turns later the player acts normally again.
     state = mustExecute(skipped.gameState, coast(1));
     const acting = executeTurnAs(state, coast(1));
     expect(acting.errors).toBeUndefined();
     expect(eventTypes(acting.events)).toContain("coasted");
-    expect(getShip(acting.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 8 });
+    expect(getShip(acting.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 9 });
   });
 
   it("no one can shoot a wreck while it waits to respawn", () => {
@@ -219,6 +223,95 @@ describe("respawn: the turn after dying", () => {
       hitPoints: 0,
     });
     expect(executeTurnAs(state, fire(1, "side-3", "p2")).errors?.[0]).toMatch(/not on the board/i);
+  });
+});
+
+/**
+ * Losing your turns means you cannot act, not that physics stops for you
+ * (RULES §A Turn). A recovering ship rides its orbit like everything else on
+ * its ring, which is what the board animates and what a missile has to chase.
+ */
+describe("respawn: a recovering ship drifts", () => {
+  /** p2 recovering at `position`, p2 to act; p1 parked out of the way. */
+  function recovering(position: { wellId: string; ring: number; sector: number }): GameState {
+    const state = makeGameState(
+      [makePlayer("p1", { wellId: BH, ring: 5, sector: 0 }), makePlayer("p2", position)],
+      { activePlayerIndex: 1 }
+    );
+    return withPlayer(state, "p2", { skipTurns: 1 });
+  }
+
+  it.each([
+    [BH, 4],
+    [BH, 1],
+    [BH, 5],
+    [BETA, 3],
+  ])("carries the ship its ring's velocity on %s ring %i", (wellId, ring) => {
+    const start = 5;
+    const state = recovering({ wellId, ring, sector: start });
+    const result = executeTurnAs(state, allocate("engines", 3), burn(1, "soft"));
+    expect(result.errors).toBeUndefined();
+    const to = { wellId, ring, sector: wrapSector(start + ringVelocity(wellId, ring)) };
+    expect(getShip(result.gameState, "p2")).toMatchObject(to);
+    expect(eventsOf(result.events, "coasted")).toEqual([
+      expect.objectContaining({ playerId: "p2", to, recovering: true, scooped: false, heat: 0 }),
+    ]);
+  });
+
+  it("still spends the lost turn, and stops drifting on its own once it is over", () => {
+    const state = recovering({ wellId: BH, ring: 4, sector: 5 });
+    const skipped = executeTurnAs(state);
+    expect(eventsOf(skipped.events, "turn_skipped")).toEqual([
+      expect.objectContaining({ playerId: "p2", remaining: 0 }),
+    ]);
+    expect(getPlayer(skipped.gameState, "p2").skipTurns).toBe(0);
+    // Back in command: the ship holds still only if its pilot says so — a burn
+    // is executed now, where the recovering turn ignored one.
+    const back = mustExecute(skipped.gameState, coast(1));
+    const acting = executeTurnAs(back, allocate("engines", 1), burn(1, "soft"));
+    expect(eventTypes(acting.events)).toContain("burned");
+  });
+
+  it("two lost turns drift twice", () => {
+    let state = withPlayer(recovering({ wellId: BH, ring: 4, sector: 0 }), "p2", { skipTurns: 2 });
+    state = mustExecute(state); // p2 recovering
+    state = mustExecute(state, coast(1)); // p1
+    state = mustExecute(state); // p2 recovering again
+    expect(getShip(state, "p2").sector).toBe(2 * ringVelocity(BH, 4));
+    expect(getPlayer(state, "p2").skipTurns).toBe(0);
+  });
+
+  it("drifts into an occupied sector: ships may share one, only placement avoids it", () => {
+    const velocity = ringVelocity(BH, 4);
+    let state = recovering({ wellId: BH, ring: 4, sector: 5 });
+    state = withShip(state, "p1", { wellId: BH, ring: 4, sector: wrapSector(5 + velocity) });
+    const result = executeTurnAs(state);
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p2").sector).toBe(wrapSector(5 + velocity));
+    expect(getShip(result.gameState, "p1").sector).toBe(wrapSector(5 + velocity));
+  });
+
+  it("rides no station: it is on the black hole, so the stations leave without it", () => {
+    const state = recovering({ wellId: BH, ring: 4, sector: 5 });
+    const result = executeTurnAs(state); // p2 is last in order: the round ends here
+    expect(eventsOf(result.events, "stations_moved")).toEqual([
+      expect.objectContaining({ riders: [] }),
+    ]);
+    expect(getShip(result.gameState, "p2").sector).toBe(wrapSector(5 + ringVelocity(BH, 4)));
+  });
+
+  it("a missile in flight chases where the drift takes it", () => {
+    // Ring 4 drifts 2 and ring 5 drifts 1: the missile has to spend its steps
+    // on where the wreck is going, not on where it was left.
+    let state = recovering({ wellId: BH, ring: 4, sector: 10 });
+    state = withMissile(state, { ownerId: "p1", targetId: "p2", ring: 5, sector: 12 });
+    const drifted = mustExecute(state); // p2 recovering: 10 -> 12
+    expect(getShip(drifted, "p2").sector).toBe(12);
+    const hunt = executeTurnAs(drifted, coast(1)); // p1's turn: the missile flies
+    expect(eventsOf(hunt.events, "attack_resolved")).toEqual([
+      expect.objectContaining({ attackerId: "p1", targetId: "p2", weaponType: "missiles" }),
+    ]);
+    expect(getShip(hunt.gameState, "p2").hitPoints).toBeLessThan(getShip(drifted, "p2").hitPoints);
   });
 });
 
