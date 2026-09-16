@@ -2,16 +2,10 @@
  * Loose tokens on the board: station discs and the players' Home markers.
  */
 import { memo } from 'react'
-import type { Position, Station } from '@dangerous-inclinations/engine'
+import type { Station } from '@dangerous-inclinations/engine'
 import { getWellName } from '@dangerous-inclinations/engine'
-import { positionPoint, wellColor } from '../geometry'
-
-export interface HomeMarker {
-  playerId: string
-  name: string
-  color: string
-  position: Position
-}
+import type { HomeMarker } from '../../model'
+import { positionPoint, wellColor } from '../../geometry'
 
 interface MarkersLayerProps {
   stations: ReadonlyArray<Station>

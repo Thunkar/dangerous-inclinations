@@ -26,6 +26,7 @@ import { getPlayerColor } from '../../utils/playerColors'
 import { useAnimation } from '../../context/AnimationContext'
 import { FONT_MONO, TABLE } from '../../theme'
 import { GameBoard } from '../board/GameBoard'
+import { BoardModeToggle } from '../board/BoardModeToggle'
 import { OpponentCard } from './OpponentCard'
 import { ActionPanel } from './ActionPanel'
 import { EventLog } from './EventLog'
@@ -194,6 +195,7 @@ export function TableScreen({
           </Tooltip>
         )}
         <Box sx={{ flex: 1 }} />
+        <BoardModeToggle />
         <RulesButton />
         {headerRight}
       </Box>

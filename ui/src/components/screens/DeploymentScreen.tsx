@@ -10,6 +10,7 @@ import type { Position } from '@dangerous-inclinations/engine'
 import { HOME_RING, getWellName } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { GameBoard } from '../board/GameBoard'
+import { BoardModeToggle } from '../board/BoardModeToggle'
 import { Panel, SectionLabel } from '../common/Panel'
 import { MissionCard } from '../common/MissionCard'
 import { getPlayerColor } from '../../utils/playerColors'
@@ -48,7 +49,12 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
       <Header
         title="Place your ship"
         subtitle={`${deployed} of ${view.players.length} placed · Black Hole Ring ${HOME_RING}`}
-        right={headerRight}
+        right={
+          <>
+            <BoardModeToggle />
+            {headerRight}
+          </>
+        }
       />
       <Box sx={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <Box sx={{ flex: 1, position: 'relative', minWidth: 0 }}>

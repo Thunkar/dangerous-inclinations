@@ -72,7 +72,10 @@ engine/src/ai/          botDecideActions(view), botChooseLoadout, botChooseDeplo
 engine/src/sim/         runGame, runBatch (workers), stats (from events), cli
 engine/src/test/        vitest; helpers in testUtils.ts
 server/src/             services/gameService.ts, websocket/roomHandler.ts, routes/
-ui/src/                 context/, components/board/, components/table/
+ui/src/                 context/ (game, animation, plan, boardMode), components/table/
+ui/src/components/board/  model.ts (useBoardModel: all either renderer draws),
+                        geometry.ts (board coordinates), GameBoard.tsx (the 2D/3D switch),
+                        svg/ (the flat board), three/ (the WebGL board)
 ```
 
 ## Conventions
@@ -128,8 +131,29 @@ turn behaviour (coast/burn/jump/firing shares, shield cubes, heat at check,
 damage soaked) so a proposed rule change can be measured before it is adopted.
 Bots read `view.rules` for the knobs that change what is legal or valuable.
 
-The simulator is not exported from the engine's browser barrel (it uses worker
-threads); import it by path or use `yarn sim`.
+The batch runner and the sim CLI are not exported from the engine's browser
+barrel (they use worker threads); use `yarn sim`. A single headless game
+(`runGame`, `setupBotGame`) is pure and is exported, because the UI's
+`?showcase=1` page builds its canned game with it in the browser.
+
+## The board has two renderers
+
+`GameBoard.tsx` derives one `BoardModel` (`components/board/model.ts`) from the
+view, the turn being animated and the plan being built, then hands it to either
+the SVG board (`board/svg/`) or the WebGL board (`board/three/`, a lazy chunk).
+Neither renderer computes anything rule-shaped: ranges, missile paths and
+positions are all in the model, asked of the engine once, so the two boards
+cannot drift. `docs/board-3d.md` is the design.
+
+Which one draws is `BoardModeContext` — remembered per player, forced to the
+flat board without WebGL 2, and overridable per session with `?board=2d|3d`.
+Time is not in the model: a sliding token carries its `motion` and an effect
+its `start`/`duration`, and each renderer reads its own clock (`useBoardClock`
+for the flat board, `useFrame` for the 3D one). Nothing in the 3D scene may
+re-render per frame.
+
+`?showcase=1` plays a bot game generated in the browser with no server —
+`&seed=`, `&turns=`, `&seat=` — which is how board work is checked.
 
 ## Adding a rule
 

@@ -2,45 +2,52 @@
  * Ship tokens. A ship is a wedge pointing the way it faces, in its player's
  * colour; the active player's token wears a ring. Hull and heat are printed
  * on the mats, not here — the board stays readable.
+ *
+ * A token carrying a `motion` is mid-slide: this layer eases it along the
+ * ring between the sector it left and the one it is heading for, against the
+ * board's own clock. The model never resolves that — the 3D board slides the
+ * same tokens against `performance.now()` in its frame loop.
  */
 import { memo } from 'react'
-import type { Facing, Position } from '@dangerous-inclinations/engine'
-import { facingAngle, positionPoint, type Point } from '../geometry'
-
-export interface ShipToken {
-  playerId: string
-  name: string
-  color: string
-  position: Position
-  /** Where to draw it right now, when sliding between sectors. */
-  point?: Point
-  /** Heading in radians while sliding; defaults to the facing at `position`. */
-  heading?: number
-  facing: Facing
-  isActive: boolean
-  isMe: boolean
-  hitPoints: number
-  maxHitPoints: number
-  heat: number
-}
+import type { ShipToken } from '../../model'
+import { facingAngle, headingAtPoint, interpolatePositions, positionPoint } from '../../geometry'
 
 interface ShipsLayerProps {
   ships: ReadonlyArray<ShipToken>
+  /** Board clock, in `performance.now()` milliseconds. */
+  now: number
   onSelect?: (playerId: string) => void
   /** Ships that can be targeted right now. */
   selectableIds?: ReadonlyArray<string>
 }
 
+/** Where a sliding token sits right now, and which way it points. Ease-in-out quad. */
+function slide(ship: ShipToken, now: number) {
+  if (!ship.motion) return null
+  const raw = Math.min(1, Math.max(0, (now - ship.motion.start) / ship.motion.duration))
+  if (raw >= 1) return null
+  const t = raw < 0.5 ? 2 * raw * raw : 1 - (-2 * raw + 2) ** 2 / 2
+  const point = interpolatePositions(ship.motion.from, ship.position, t)
+  const heading =
+    ship.motion.from.wellId === ship.position.wellId
+      ? headingAtPoint(ship.position.wellId, point, ship.facing)
+      : undefined
+  return { point, heading }
+}
+
 export const ShipsLayer = memo(function ShipsLayer({
   ships,
+  now,
   onSelect,
   selectableIds = [],
 }: ShipsLayerProps) {
   return (
     <g className="ships">
       {ships.map(ship => {
-        const p = ship.point ?? positionPoint(ship.position)
-        const angle = ((ship.heading ?? facingAngle(ship.position, ship.facing)) * 180) / Math.PI
+        const sliding = slide(ship, now)
+        const p = sliding?.point ?? positionPoint(ship.position)
+        const angle =
+          ((sliding?.heading ?? facingAngle(ship.position, ship.facing)) * 180) / Math.PI
         const selectable = selectableIds.includes(ship.playerId)
         return (
           <g

@@ -9,8 +9,8 @@
 import { memo } from 'react'
 import type { TransferLane } from '@dangerous-inclinations/engine'
 import { TRANSFER_LANES, getWellName, laneDepartureArc } from '@dangerous-inclinations/engine'
-import { FONT_MONO } from '../../../theme'
-import { arcMidPoint, arcPathFor, wellColor } from '../geometry'
+import { FONT_MONO } from '../../../../theme'
+import { arcMidPoint, arcPathFor, wellColor } from '../../geometry'
 
 /** "beta-a" → "A". The two lanes to a planet are told apart by their letter. */
 function laneLetter(laneId: string): string {

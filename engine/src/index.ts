@@ -28,6 +28,17 @@ export {
 export * from "./recording/types.ts";
 export { reconstructStateAtTurn, replayRecording } from "./recording/replay.ts";
 
+// Headless bot game. The batch runner and the CLI stay out of this barrel
+// (they use worker threads); `runGame` itself is pure and runs in a browser,
+// which is what the UI's showcase page builds its canned game with.
+export { runGame, setupBotGame, botIds, formatFailure } from "./sim/runGame.ts";
+export type {
+  GameConfig,
+  GameRunResult,
+  InvalidTurn,
+  TurnStat,
+} from "./sim/runGame.ts";
+
 // AI Bot
 export * from "./ai/index.ts";
 export * from "./agent/index.ts";

@@ -4,8 +4,8 @@
  * flight steps toward the target (dashed, rings closed first).
  *
  * A missile launched after its ship had already moved rode along with the
- * ship, so it has no drift segment this turn — `projectMissilePath` returns a
- * path that starts where it sits, and we draw exactly that.
+ * ship, so it has no drift segment this turn — the model asks the engine for
+ * the path, and this layer draws exactly what comes back.
  *
  * A launch you have queued but not yet sent is drawn the same way, from the
  * position it would be fired at, so you can see where it lands before you
@@ -13,31 +13,21 @@
  */
 import { memo } from 'react'
 import type { Missile, Position } from '@dangerous-inclinations/engine'
-import { projectMissilePath, samePosition } from '@dangerous-inclinations/engine'
-import { interpolatePositions, positionPoint } from '../geometry'
+import { samePosition } from '@dangerous-inclinations/engine'
+import type { MissilePreview } from '../../model'
+import { interpolatePositions, positionPoint } from '../../geometry'
 
 const MISSILE_TOOLTIP =
   'Rides its orbit, then flies up to 3 steps toward the target (rings first). ' +
   'Launched after moving? It already rode along — no drift this turn. 3 flights max.'
 
-/** A launch sitting in the plan, not yet submitted. */
-export interface MissilePreview {
-  id: string
-  from: Position
-  target: Position
-  /** Launched after the ship's move: it rode along, so it does not drift again. */
-  launchedAfterMove: boolean
-  color: string
-  label: string
-}
-
 interface MissilesLayerProps {
   missiles: ReadonlyArray<Missile>
-  /** Current position of a player's ship, for the missile's aim point. */
-  positionOf: (playerId: string) => Position | null
   colorOf: (playerId: string) => string
   nameOf: (playerId: string) => string
   previews?: ReadonlyArray<MissilePreview>
+  /** Projected path per missile id and per preview id, from the model. */
+  paths: Record<string, Position[]>
 }
 
 function arcPoints(from: Position, to: Position): string {
@@ -59,18 +49,15 @@ function pointsOf(path: ReadonlyArray<Position>): string {
 
 export const MissilesLayer = memo(function MissilesLayer({
   missiles,
-  positionOf,
   colorOf,
   nameOf,
   previews = [],
+  paths,
 }: MissilesLayerProps) {
   return (
     <g className="missiles">
       {previews.map((preview) => {
-        const path = projectMissilePath(
-          { ...preview.from, launchedAfterMove: preview.launchedAfterMove },
-          preview.target,
-        )
+        const path = paths[preview.id] ?? []
         const start = positionPoint(preview.from)
         const drift = path[0]
         const end = path.length > 0 ? positionPoint(path[path.length - 1]) : start
@@ -103,9 +90,8 @@ export const MissilesLayer = memo(function MissilesLayer({
 
       {missiles.map((missile) => {
         const at: Position = { wellId: missile.wellId, ring: missile.ring, sector: missile.sector }
-        const target = positionOf(missile.targetId)
         const color = colorOf(missile.ownerId)
-        const path = target ? projectMissilePath(missile, target) : []
+        const path = paths[missile.id] ?? []
         const drift = path[0]
         const flight = path.slice(1)
         const here = positionPoint(at)

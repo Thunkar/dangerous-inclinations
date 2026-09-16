@@ -8,7 +8,7 @@
  */
 import { memo } from 'react'
 import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
-import { FONT_MONO } from '../../../theme'
+import { FONT_MONO } from '../../../../theme'
 import {
   allWells,
   polar,
@@ -17,7 +17,7 @@ import {
   sectorEdgeAngle,
   wellCenter,
   wellVisual,
-} from '../geometry'
+} from '../../geometry'
 
 const RING_STROKE = 'rgba(126,165,205,0.20)'
 const TICK_STROKE = 'rgba(126,165,205,0.26)'

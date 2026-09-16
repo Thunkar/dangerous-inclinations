@@ -26,9 +26,8 @@ import type {
   Station,
   WeaponType,
 } from '@dangerous-inclinations/engine'
-import { getSubsystemConfig } from '@dangerous-inclinations/engine'
+import { HOME_RING, getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
-import { positionPoint, type Point } from '../components/board/geometry'
 
 // ---------------------------------------------------------------------------
 // Effects
@@ -41,8 +40,8 @@ export type TableEffect =
       id: string
       kind: 'beam'
       weapon: WeaponType | 'pdc'
-      from: Point
-      to: Point
+      from: Position
+      to: Position
       color: string
       start: number
       duration: number
@@ -50,7 +49,16 @@ export type TableEffect =
   | {
       id: string
       kind: 'float'
-      at: Point
+      at: Position
+      /**
+       * Who the mark is about. Every float and burst the animator pushes has a
+       * subject — the ship being hit, docking, breaking or coming back — and a
+       * sector is not enough to find them: two ships can share one, and a shot
+       * can push its target out of the sector its own numbers were anchored to.
+       */
+      playerId: string
+      /** Board-unit nudge off the anchor, so two floats on one ship do not stack. */
+      offset?: { x: number; y: number }
       text: string
       tone: FloatTone
       start: number
@@ -59,7 +67,9 @@ export type TableEffect =
   | {
       id: string
       kind: 'burst'
-      at: Point
+      at: Position
+      /** Who the mark is about; see the float above. */
+      playerId: string
       color: string
       radius: number
       start: number
@@ -89,6 +99,12 @@ export interface DieRoll {
 /** What the board draws while a turn plays out. */
 export interface ShipMotion {
   from: Position
+  /**
+   * What set the ship moving. A jump can be read off the wells, but a burn
+   * and a coast end up in the same sector by different means: the 3D board
+   * flares an engine for one and not the other.
+   */
+  kind: 'coast' | 'burn' | 'jump' | 'recoil'
   start: number
   duration: number
 }
@@ -107,7 +123,6 @@ interface AnimationContextValue {
   dice: DieRoll[]
   /** Mat ids that should flash (broken tiles, reveals). */
   pulses: Record<string, number>
-  now: number
   /** Skip the rest of the current animation. */
   skip: () => void
 }
@@ -178,30 +193,30 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
   const [effects, setEffects] = useState<TableEffect[]>([])
   const [dice, setDice] = useState<DieRoll[]>([])
   const [pulses, setPulses] = useState<Record<string, number>>({})
-  const [now, setNow] = useState(() => performance.now())
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const skipRef = useRef<(() => void) | null>(null)
+  /** One expiry timer per effect: the board's clock is no longer this context's business. */
+  const expiryRef = useRef(new Set<ReturnType<typeof setTimeout>>())
 
-  // Clock: only runs while something is on screen.
-  useEffect(() => {
-    if (effects.length === 0) return
-    let frame = 0
-    const tick = () => {
-      const t = performance.now()
-      setNow(t)
-      setEffects(prev => {
-        const alive = prev.filter(e => t - e.start < e.duration)
-        return alive.length === prev.length ? prev : alive
-      })
-      frame = requestAnimationFrame(tick)
-    }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [effects.length])
+  const clearExpiries = useCallback(() => {
+    for (const timer of expiryRef.current) clearTimeout(timer)
+    expiryRef.current.clear()
+  }, [])
 
+  /**
+   * An effect knows how long it lives when it is pushed, so it takes itself
+   * off the table on a timer. Nothing here ticks per frame: the renderer that
+   * draws the effect runs its own clock (`useBoardClock`).
+   */
   const pushEffect = useCallback((effect: EffectDraft) => {
-    setEffects(prev => [...prev, { ...effect, start: performance.now() } as TableEffect])
+    const started = { ...effect, start: performance.now() } as TableEffect
+    setEffects(prev => [...prev, started])
+    const timer = setTimeout(() => {
+      expiryRef.current.delete(timer)
+      setEffects(prev => prev.filter(e => e !== started))
+    }, effect.duration)
+    expiryRef.current.add(timer)
   }, [])
 
   const animate = useCallback(
@@ -210,37 +225,48 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
       setDice([])
       setOverlay({ ...snap })
 
-      const pointOf = (playerId: string): Point => {
+      /**
+       * Where to hang an effect for a player: the board as it stands mid-turn
+       * first, then where the ship ends up. A player with a ship in neither is
+       * only possible for an event about somebody who was never on the table,
+       * which the engine does not emit — their Home (or the ring everyone
+       * deploys on) keeps the effect on the board rather than nowhere.
+       */
+      const positionOf = (playerId: string): Position => {
         const ship = snap.ships[playerId]
-        if (ship) return positionPoint(ship.position)
-        const fromNext = next.players.find(p => p.id === playerId)?.ship
+        if (ship) return ship.position
+        const player = next.players.find(p => p.id === playerId)
+        const fromNext = player?.ship
         if (fromNext)
-          return positionPoint({
-            wellId: fromNext.wellId,
-            ring: fromNext.ring,
-            sector: fromNext.sector,
-          })
-        return { x: 0, y: 0 }
+          return { wellId: fromNext.wellId, ring: fromNext.ring, sector: fromNext.sector }
+        return player?.home ?? { wellId: 'blackhole', ring: HOME_RING, sector: 0 }
       }
 
-      /** Move a token; it slides from where it was over `duration` ms. */
+      /**
+       * Move a token; it slides from where it was over `duration` ms. `kind`
+       * is null for a placement: a respawn or a deployment puts a ship on the
+       * board rather than moving it across, and a token that was not already
+       * alive there has nothing to slide from.
+       */
       const moveShip = (
         playerId: string,
         to: Position,
+        kind: ShipMotion['kind'] | null,
         facing?: Facing,
         duration: number = BEAT.move
       ) => {
         const current = snap.ships[playerId]
+        const motion: ShipMotion | undefined =
+          kind !== null && current && current.alive
+            ? { from: current.position, kind, start: performance.now(), duration }
+            : undefined
         snap.ships[playerId] = {
           position: to,
           facing: facing ?? current?.facing ?? 'prograde',
           alive: true,
-          motion:
-            current && current.alive
-              ? { from: current.position, start: performance.now(), duration }
-              : undefined,
+          motion,
         }
-        if (current && current.alive) pushEffect({ id: nextId('tween'), kind: 'tween', duration })
+        if (motion) pushEffect({ id: nextId('tween'), kind: 'tween', duration })
       }
 
       // Ships that have already taken their move this turn: a missile launched
@@ -257,36 +283,38 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             if (snap.ships[event.playerId]) snap.ships[event.playerId].facing = event.facing
             return BEAT.small
           case 'coasted':
-            moveShip(event.playerId, event.to)
+            moveShip(event.playerId, event.to, 'coast')
             movedThisTurn.add(event.playerId)
             return BEAT.move
           case 'burned':
-            moveShip(event.playerId, event.to)
+            moveShip(event.playerId, event.to, 'burn')
             movedThisTurn.add(event.playerId)
             return BEAT.move
           case 'jumped':
-            moveShip(event.playerId, event.to, undefined, BEAT.jump)
+            moveShip(event.playerId, event.to, 'jump', undefined, BEAT.jump)
             movedThisTurn.add(event.playerId)
             pushEffect({
               id: nextId('burst'),
               kind: 'burst',
-              at: positionPoint(event.to),
+              at: event.to,
+              playerId: event.playerId,
               color: '#ffb445',
               radius: 30,
               duration: 600,
             })
             return BEAT.jump
           case 'recoil':
-            if (event.to) moveShip(event.playerId, event.to, undefined, BEAT.small)
+            if (event.to) moveShip(event.playerId, event.to, 'recoil', undefined, BEAT.small)
             return event.to ? BEAT.small : 0
           case 'respawned':
           case 'deployed': {
             const position = event.position
-            moveShip(event.playerId, position)
+            moveShip(event.playerId, position, null)
             pushEffect({
               id: nextId('burst'),
               kind: 'burst',
-              at: positionPoint(position),
+              at: position,
+              playerId: event.playerId,
               color: '#46d191',
               radius: 26,
               duration: 600,
@@ -298,15 +326,15 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               id: nextId('beam'),
               kind: 'beam',
               weapon: event.weaponType,
-              from: pointOf(event.attackerId),
-              to: pointOf(event.targetId),
+              from: positionOf(event.attackerId),
+              to: positionOf(event.targetId),
               color: BEAM_COLORS[event.weaponType],
               duration: 520,
             })
             return BEAT.fire
           }
           case 'attack_resolved': {
-            const at = pointOf(event.targetId)
+            const at = positionOf(event.targetId)
             const threshold = critThresholdFor(next, event.attackerId)
             setDice(d => [
               ...d,
@@ -325,6 +353,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                 id: nextId('f'),
                 kind: 'float',
                 at,
+                playerId: event.targetId,
                 text: 'MISS',
                 tone: 'miss',
                 duration: 1200,
@@ -335,6 +364,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                   id: nextId('f'),
                   kind: 'float',
                   at,
+                  playerId: event.targetId,
                   text: 'CRIT!',
                   tone: 'crit',
                   duration: 1400,
@@ -343,6 +373,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                   id: nextId('burst'),
                   kind: 'burst',
                   at,
+                  playerId: event.targetId,
                   color: '#ffb445',
                   radius: 34,
                   duration: 700,
@@ -352,7 +383,9 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                 pushEffect({
                   id: nextId('f'),
                   kind: 'float',
-                  at: { x: at.x, y: at.y + 14 },
+                  at,
+                  playerId: event.targetId,
+                  offset: { x: 0, y: 14 },
                   text: `-${event.toHull}`,
                   tone: 'damage',
                   duration: 1200,
@@ -362,7 +395,9 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                 pushEffect({
                   id: nextId('f'),
                   kind: 'float',
-                  at: { x: at.x + 26, y: at.y },
+                  at,
+                  playerId: event.targetId,
+                  offset: { x: 26, y: 0 },
                   text: `${event.toHeat} shielded`,
                   tone: 'shield',
                   duration: 1200,
@@ -404,7 +439,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.missile
           }
           case 'missile_intercepted': {
-            const at = pointOf(event.targetId)
+            const at = positionOf(event.targetId)
             const hit = event.roll >= 2
             setDice(d => [
               ...d,
@@ -423,13 +458,12 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               kind: 'beam',
               weapon: 'pdc',
               from: at,
-              to: positionPoint(
-                snap.missiles.find(m => m.id === event.missileId) ?? {
-                  wellId: 'blackhole',
-                  ring: 1,
-                  sector: 0,
-                }
-              ),
+              to: (() => {
+                const missile = snap.missiles.find(m => m.id === event.missileId)
+                return missile
+                  ? { wellId: missile.wellId, ring: missile.ring, sector: missile.sector }
+                  : { wellId: 'blackhole' as const, ring: 1, sector: 0 }
+              })(),
               color: BEAM_COLORS.pdc,
               duration: 400,
             })
@@ -439,6 +473,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                 id: nextId('f'),
                 kind: 'float',
                 at,
+                playerId: event.targetId,
                 text: 'INTERCEPTED',
                 tone: 'good',
                 duration: 1200,
@@ -450,11 +485,12 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             snap.missiles = snap.missiles.filter(m => m.id !== event.missileId)
             return BEAT.small
           case 'heat_damage': {
-            const at = pointOf(event.playerId)
+            const at = positionOf(event.playerId)
             pushEffect({
               id: nextId('f'),
               kind: 'float',
               at,
+              playerId: event.playerId,
               text: `${event.damage} heat`,
               tone: 'heat',
               duration: 1200,
@@ -472,7 +508,8 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             pushEffect({
               id: nextId('f'),
               kind: 'float',
-              at: pointOf(event.playerId),
+              at: positionOf(event.playerId),
+              playerId: event.playerId,
               text: attacker ? `BROKEN by ${attacker}` : 'BROKEN',
               tone: 'crit',
               duration: 1400,
@@ -490,15 +527,16 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               id: nextId('beam'),
               kind: 'beam',
               weapon: 'pdc',
-              from: pointOf(event.scannerId),
-              to: pointOf(event.targetId),
+              from: positionOf(event.scannerId),
+              to: positionOf(event.targetId),
               color: '#49c3ff',
               duration: 700,
             })
             pushEffect({
               id: nextId('f'),
               kind: 'float',
-              at: pointOf(event.targetId),
+              at: positionOf(event.targetId),
+              playerId: event.targetId,
               text: 'SCANNED',
               tone: 'good',
               duration: 1200,
@@ -506,13 +544,14 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.resolve
           }
           case 'ship_destroyed': {
-            const at = pointOf(event.victimId)
+            const at = positionOf(event.victimId)
             if (snap.ships[event.victimId]) snap.ships[event.victimId].alive = false
             snap.missiles = snap.missiles.filter(m => m.targetId !== event.victimId)
             pushEffect({
               id: nextId('burst'),
               kind: 'burst',
               at,
+              playerId: event.victimId,
               color: '#ff5a72',
               radius: 46,
               duration: 900,
@@ -521,6 +560,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               id: nextId('f'),
               kind: 'float',
               at,
+              playerId: event.victimId,
               text: 'DESTROYED',
               tone: 'damage',
               duration: 1400,
@@ -528,11 +568,12 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.destroy
           }
           case 'docked': {
-            const at = pointOf(event.playerId)
+            const at = positionOf(event.playerId)
             pushEffect({
               id: nextId('burst'),
               kind: 'burst',
               at,
+              playerId: event.playerId,
               color: '#46d191',
               radius: 28,
               duration: 700,
@@ -541,6 +582,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               id: nextId('f'),
               kind: 'float',
               at,
+              playerId: event.playerId,
               text: 'DOCKED',
               tone: 'good',
               duration: 1200,
@@ -551,11 +593,12 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           case 'cargo_delivered':
             return BEAT.small
           case 'mission_completed': {
-            const at = pointOf(event.playerId)
+            const at = positionOf(event.playerId)
             pushEffect({
               id: nextId('f'),
               kind: 'float',
               at,
+              playerId: event.playerId,
               text: 'MISSION',
               tone: 'good',
               duration: 1400,
@@ -567,7 +610,8 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             pushEffect({
               id: nextId('f'),
               kind: 'float',
-              at: pointOf(event.playerId),
+              at: positionOf(event.playerId),
+              playerId: event.playerId,
               text: event.action === 'scan' ? 'NO SCAN' : 'NO SHOT',
               tone: 'miss',
               duration: 1100,
@@ -624,12 +668,13 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         skipRef.current = null
         if (timerRef.current) clearTimeout(timerRef.current)
         timerRef.current = null
+        clearExpiries()
         setOverlay(null)
         setEffects([])
         setDice([])
       }
     },
-    [pushEffect]
+    [pushEffect, clearExpiries]
   )
 
   useEffect(() => {
@@ -640,15 +685,16 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
   useEffect(
     () => () => {
       if (timerRef.current) clearTimeout(timerRef.current)
+      clearExpiries()
     },
-    []
+    [clearExpiries]
   )
 
   const skip = useCallback(() => skipRef.current?.(), [])
 
   const value = useMemo<AnimationContextValue>(
-    () => ({ overlay, effects, dice, pulses, now, skip }),
-    [overlay, effects, dice, pulses, now, skip]
+    () => ({ overlay, effects, dice, pulses, skip }),
+    [overlay, effects, dice, pulses, skip]
   )
 
   return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>
@@ -659,7 +705,6 @@ const EMPTY: AnimationContextValue = {
   effects: [],
   dice: [],
   pulses: {},
-  now: 0,
   skip: () => {},
 }
 

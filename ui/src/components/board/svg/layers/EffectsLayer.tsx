@@ -1,10 +1,16 @@
 /**
  * Transient effects: weapon beams, bursts and floating numbers. Everything is
  * pushed by AnimationContext from the turn's events and fades on its own.
+ *
+ * An effect is anchored to a sector, not to a place on this board: the flat
+ * board turns that into a point here, the 3D board puts it at the sector's
+ * ring elevation. A float may carry a small nudge in board units so two of
+ * them on one ship do not sit on top of each other.
  */
 import { memo } from 'react'
-import type { TableEffect } from '../../../context/AnimationContext'
-import { FONT_MONO } from '../../../theme'
+import type { TableEffect } from '../../../../context/AnimationContext'
+import { FONT_MONO } from '../../../../theme'
+import { positionPoint } from '../../geometry'
 
 const TONE_COLORS = {
   damage: '#ff5a72',
@@ -29,14 +35,16 @@ export const EffectsLayer = memo(function EffectsLayer({
         if (effect.kind === 'beam') {
           const fade = progress < 0.25 ? progress / 0.25 : 1 - (progress - 0.25) / 0.75
           const head = Math.min(1, progress / 0.3)
-          const x = effect.from.x + (effect.to.x - effect.from.x) * head
-          const y = effect.from.y + (effect.to.y - effect.from.y) * head
+          const from = positionPoint(effect.from)
+          const to = positionPoint(effect.to)
+          const x = from.x + (to.x - from.x) * head
+          const y = from.y + (to.y - from.y) * head
           const dashed = effect.weapon === 'missiles' || effect.weapon === 'ballistic_rack'
           return (
             <g key={effect.id} opacity={Math.max(0, fade)}>
               <line
-                x1={effect.from.x}
-                y1={effect.from.y}
+                x1={from.x}
+                y1={from.y}
                 x2={x}
                 y2={y}
                 stroke={effect.color}
@@ -50,11 +58,12 @@ export const EffectsLayer = memo(function EffectsLayer({
         }
         if (effect.kind === 'burst') {
           const r = effect.radius * (0.3 + progress * 0.9)
+          const at = positionPoint(effect.at)
           return (
             <circle
               key={effect.id}
-              cx={effect.at.x}
-              cy={effect.at.y}
+              cx={at.x}
+              cy={at.y}
               r={r}
               fill="none"
               stroke={effect.color}
@@ -64,6 +73,11 @@ export const EffectsLayer = memo(function EffectsLayer({
           )
         }
         if (effect.kind !== 'float') return null
+        const anchor = positionPoint(effect.at)
+        const at = {
+          x: anchor.x + (effect.offset?.x ?? 0),
+          y: anchor.y + (effect.offset?.y ?? 0),
+        }
         const rise = -38 * progress
         const opacity =
           progress < 0.1 ? progress / 0.1 : progress > 0.7 ? 1 - (progress - 0.7) / 0.3 : 1
@@ -75,7 +89,7 @@ export const EffectsLayer = memo(function EffectsLayer({
           <g
             key={effect.id}
             opacity={Math.max(0, opacity)}
-            transform={`translate(${effect.at.x} ${effect.at.y + rise}) scale(${scale})`}
+            transform={`translate(${at.x} ${at.y + rise}) scale(${scale})`}
           >
             <text
               textAnchor="middle"

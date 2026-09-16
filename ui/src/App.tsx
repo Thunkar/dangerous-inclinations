@@ -5,6 +5,7 @@
  *   ?recordings=1   the list of finished games
  *   ?replay=<id>    replay one of them
  *   ?game=<id>      drop straight into a live game (forks land here)
+ *   ?showcase=1     a canned bot game on the board, no server needed (dev)
  *   (none)          lobby browser → lobby → game
  */
 import { useCallback, useEffect, useState } from 'react'
@@ -12,6 +13,7 @@ import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { Box, Button, CircularProgress, Paper, TextField, Typography } from '@mui/material'
 import { theme, TABLE } from './theme'
+import { BoardModeProvider } from './context/BoardModeContext'
 import { PlayerProvider, usePlayer } from './context/PlayerContext'
 import { WebSocketProvider } from './context/WebSocketContext'
 import { LobbyProvider, useLobby } from './context/LobbyContext'
@@ -22,6 +24,7 @@ import { LoadoutScreen } from './components/screens/LoadoutScreen'
 import { DeploymentScreen } from './components/screens/DeploymentScreen'
 import { GameEndScreen } from './components/screens/GameEndScreen'
 import { ReplayScreen } from './components/screens/ReplayScreen'
+import { ShowcaseScreen } from './dev/ShowcaseScreen'
 import { RecordingsBrowser } from './components/screens/RecordingsBrowser'
 import { TableRoot } from './components/table/TableRoot'
 import { AbandonGameButton } from './components/AbandonGameButton'
@@ -35,9 +38,11 @@ type Route =
   | { kind: 'recordings' }
   | { kind: 'replay'; id: string }
   | { kind: 'game'; gameId: string }
+  | { kind: 'showcase' }
 
 function parseRoute(search: string): Route {
   const params = new URLSearchParams(search)
+  if (params.get('showcase') === '1') return { kind: 'showcase' }
   const replay = params.get('replay')
   if (replay) return { kind: 'replay', id: replay }
   if (params.get('recordings') === '1') return { kind: 'recordings' }
@@ -60,6 +65,7 @@ function useRoute(): { route: Route; goTo: (next: Route) => void } {
     if (next.kind === 'replay') params.set('replay', next.id)
     if (next.kind === 'recordings') params.set('recordings', '1')
     if (next.kind === 'game') params.set('game', next.gameId)
+    if (next.kind === 'showcase') params.set('showcase', '1')
     const search = params.toString()
     window.history.pushState(null, '', search ? `?${search}` : window.location.pathname)
     setRoute(next)
@@ -229,6 +235,10 @@ function AuthenticatedApp({ onOpenRecordings }: { onOpenRecordings: () => void }
 function RootRouter() {
   const { route, goTo } = useRoute()
 
+  // The showcase builds its own game: it sits outside the player and socket
+  // providers so it works with no server at all.
+  if (route.kind === 'showcase') return <ShowcaseScreen />
+
   if (route.kind === 'replay') {
     return <ReplayScreen recordingId={route.id} onExit={() => goTo({ kind: 'recordings' })} />
   }
@@ -262,7 +272,11 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <RootRouter />
+      {/* Which renderer draws the board is a preference of the whole app: a
+          replay, the showcase and a live table all read it. */}
+      <BoardModeProvider>
+        <RootRouter />
+      </BoardModeProvider>
     </ThemeProvider>
   )
 }

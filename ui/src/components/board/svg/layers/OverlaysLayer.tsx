@@ -3,18 +3,14 @@
  * the path the turn you are building will take, and the sectors you may
  * deploy into.
  *
- * Every range answer comes from the engine (`isInWeaponRange`), tested sector
- * by sector — the UI never re-implements a rule.
+ * Every range answer comes from the engine, tested sector by sector — the
+ * sweep lives in the board model now, so both boards shade the same wedges
+ * and no renderer re-implements a rule.
  */
 import { memo, useState } from 'react'
-import type { Facing, MovementPlan, Position, Subsystem } from '@dangerous-inclinations/engine'
-import {
-  SECTORS_PER_RING,
-  getSubsystemConfig,
-  getWellName,
-  isInWeaponRange,
-} from '@dangerous-inclinations/engine'
-import { FONT_MONO } from '../../../theme'
+import type { MovementPlan, Position } from '@dangerous-inclinations/engine'
+import { SECTORS_PER_RING, getWellName } from '@dangerous-inclinations/engine'
+import { FONT_MONO } from '../../../../theme'
 import {
   allWells,
   interpolatePositions,
@@ -23,7 +19,7 @@ import {
   ringsOf,
   sectorWedgePath,
   type Point,
-} from '../geometry'
+} from '../../geometry'
 
 /**
  * The one accent used for anything you may click. Every deployment sector is
@@ -152,37 +148,18 @@ export const RouteOverlay = memo(function RouteOverlay({
 // Weapon range
 // ---------------------------------------------------------------------------
 
-interface RangeOverlayProps {
-  weapon: Subsystem
-  from: Position
-  facing: Facing
-}
-
-export const RangeOverlay = memo(function RangeOverlay({
-  weapon,
-  from,
-  facing,
-}: RangeOverlayProps) {
-  if (!getSubsystemConfig(weapon.type).weaponStats) return null
-  const attacker = { wellId: from.wellId, ring: from.ring, sector: from.sector, facing }
-  const cells: Array<{ ring: number; sector: number }> = []
-  for (const ring of ringsOf(from.wellId)) {
-    for (let sector = 0; sector < SECTORS_PER_RING; sector++) {
-      if (isInWeaponRange(weapon, attacker, { wellId: from.wellId, ring: ring.ring, sector })) {
-        cells.push({ ring: ring.ring, sector })
-      }
-    }
-  }
+/** The sectors the focus weapon reaches — asked of the engine in the model. */
+export const RangeOverlay = memo(function RangeOverlay({ cells }: { cells: Position[] }) {
   if (cells.length === 0) return null
 
   return (
     <g className="range-overlay" pointerEvents="none">
-      {cells.map(({ ring, sector }) => {
-        const radius = ringRadius(from.wellId, ring)
+      {cells.map(({ wellId, ring, sector }) => {
+        const radius = ringRadius(wellId, ring)
         return (
           <path
             key={`${ring}-${sector}`}
-            d={sectorWedgePath(from.wellId, sector, radius - 13, radius + 13)}
+            d={sectorWedgePath(wellId, sector, radius - 13, radius + 13)}
             fill="#ffb445"
             opacity={0.14}
             stroke="#ffb445"
