@@ -1,27 +1,9 @@
 /**
- * Ships: a procedural low-poly hull in the player's colour, pointing the way
- * it faces.
- *
- * The 2D board draws a wedge and trusts the flat view to make its nose
- * obvious; in three dimensions the nose has to survive any camera angle, so
- * the hull is a dart with a lit bow and a glowing stern nozzle. Every other
- * mark is the one the paper board uses: the active player's ring on the
- * surface below, a pulsing amber dashed ring when the ship can be targeted, a
- * dot on your own hull.
- *
- * Sliding tokens are interpolated in `useFrame` off `performance.now()` with
- * the same ease as the SVG board — React never sees a frame — and the slide is
- * given the character the flat board cannot show: a hull banks into the ring
- * it is coming round, its engine flares while it is under way and it settles
- * when it arrives. A move between two wells is not a slide at all but a jump
- * down a lane, so it leaves the departure arc on an arc of its own with a
- * flash at both ends.
- *
- * A hull that is being shot at flinches. Nothing tells it so: a float or a
- * burst anchored on its sector is the mark the flat board uses for a hit, and
- * `effects/impacts.ts` is where this scene reads the same cue back.
+ * Kestrel miniatures, built from the observer's filtered visual specification.
+ * Movement, banking, exhaust, impacts, and target rings retain the board's
+ * existing animation clock and interaction model. +X points toward the bow.
  */
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   AdditiveBlending,
   Color,
@@ -35,6 +17,9 @@ import {
 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
+import { createShip } from '../../../../ships/model'
+import { boardConfig, type ShipVisual } from '../../../../ships/visual'
+import { MOUNTS } from '../../../../ships/config'
 import { TABLE } from '../../../../theme'
 import type { ShipToken } from '../../model'
 import { headingAtPoint, positionPoint } from '../../geometry'
@@ -47,21 +32,7 @@ import { sampleImpact } from './effects/impacts'
 import { countRender } from './effects/renders'
 import { NO_RAYCAST } from './effects/resources'
 
-/**
- * Hull dimensions in board units.
- *
- * A token is the one thing on the board that does not scale with the board, so
- * these are the numbers that decide whether a ring looks crowded. The hull was
- * 64 long and 42 wide, which overhung both of the things it has to sit between:
- * the 74 units of clear board between one ring and the next, and the 47 units of
- * arc a black hole ring-1 sector is. Ring 1 has since come out to meet ring 5
- * (`geometry.ts`), which makes the arc 65 and the gap 56.5 — so the hull is cut
- * to 40, which is 0.71 of the gap it stands in and 0.61 of the sector it names,
- * with its proportions kept exactly so it still reads as a dart with a nose.
- *
- * It is not smaller on screen: the board now opens on the black hole rather than
- * on all four wells, which is worth rather more than the 1.6x this gives up.
- */
+/** Stable board envelope, independent of loadout and cosmetic choices. */
 const LENGTH = 40
 const WIDTH = 26
 const HEIGHT = 10
@@ -131,63 +102,51 @@ interface HullParts {
   nozzle: MeshStandardMaterial | null
   plume: Mesh | null
   shell: Mesh | null
+  exhaustX?: number
 }
 
 function Hull({
   color,
   isMe,
-  parts,
+  partsRef,
+  visual,
 }: {
   color: string
   isMe: boolean
-  parts: { current: HullParts }
+  visual?: ShipVisual
+  partsRef: { current: HullParts }
 }) {
-  const tint = useMemo(() => new Color(color), [color])
+  // JSON captures only the filtered visual spec, not positions or per-frame motion.
+  const key = JSON.stringify({ visual, color })
+  const model = useMemo(() => {
+    const { visual: spec, color: accent } = JSON.parse(key) as {
+      visual?: ShipVisual
+      color: string
+    }
+    return createShip(boardConfig(spec, accent), false, {
+      detail: 'board',
+      slots:
+        spec?.slots ??
+        (Object.fromEntries(
+          MOUNTS.map(m => [m.id, { type: null, unknown: true, broken: false }])
+        ) as NonNullable<ShipVisual>['slots']),
+    })
+  }, [key])
+  useEffect(() => () => model.dispose(), [model])
+  useLayoutEffect(() => {
+    const current = partsRef.current
+    current.nozzle = model.engineGlow
+    current.exhaustX = Math.min(...model.nozzles.map(n => n.x)) * 4
+    return () => {
+      current.nozzle = null
+    }
+  }, [model, partsRef])
   return (
     <group position={[0, HOVER, 0]}>
-      {/* Fuselage: a three-sided dart, spine up, flat underside, nose at +X. */}
-      <mesh rotation={[0, 0, -Math.PI / 2]} scale={[HEIGHT, LENGTH, WIDTH]}>
-        <coneGeometry args={[0.5, 1, 3, 1, false, Math.PI]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={tint}
-          emissiveIntensity={0.22}
-          roughness={0.45}
-          metalness={0.3}
-          flatShading
-        />
-      </mesh>
-
-      {/* Side pods. */}
-      {[-1, 1].map(side => (
-        <mesh
-          key={side}
-          position={[-LENGTH * 0.1, -HEIGHT * 0.05, side * WIDTH * 0.38]}
-          scale={[LENGTH * 0.34, HEIGHT * 0.42, WIDTH * 0.16]}
-        >
-          <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial color={color} roughness={0.5} metalness={0.35} flatShading />
-        </mesh>
-      ))}
-
-      {/* Stern nozzle, glowing: this end is the back. It flares under thrust. */}
-      <mesh position={[-LENGTH * 0.4, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[HEIGHT * 0.3, HEIGHT * 0.42, LENGTH * 0.12, 12]} />
-        <meshStandardMaterial
-          ref={node => {
-            parts.current.nozzle = node
-          }}
-          color="#ffd9a8"
-          emissive={new Color(TABLE.accent)}
-          emissiveIntensity={IDLE_GLOW}
-          toneMapped={false}
-        />
-      </mesh>
-
-      {/* Exhaust: a stub while coasting, a streak the length of a lane on a jump. */}
+      <primitive object={model.root} scale={4} dispose={null} />
       <mesh
         ref={node => {
-          parts.current.plume = node
+          partsRef.current.plume = node
         }}
         rotation={[0, 0, Math.PI / 2]}
         visible={false}
@@ -195,7 +154,7 @@ function Hull({
       >
         <coneGeometry args={[0.5, 1, 8, 1, true]} />
         <meshBasicMaterial
-          color={TABLE.accent}
+          color="#98e8ff"
           transparent
           opacity={0}
           blending={AdditiveBlending}
@@ -204,29 +163,14 @@ function Hull({
           toneMapped={false}
         />
       </mesh>
-
-      {/* Bow light: the nose is unmistakable from any angle. */}
-      <mesh position={[LENGTH * 0.52, HEIGHT * 0.08, 0]}>
-        <sphereGeometry args={[HEIGHT * 0.22, 12, 8]} />
-        <meshStandardMaterial
-          color="#eaf6ff"
-          emissive={new Color(TABLE.energy)}
-          emissiveIntensity={2.6}
-          toneMapped={false}
-        />
-      </mesh>
-
-      {/* Impact shell: the hull lit up in the colour of whatever just hit it. */}
       <mesh
         ref={node => {
-          parts.current.shell = node
+          partsRef.current.shell = node
         }}
-        rotation={[0, 0, -Math.PI / 2]}
-        scale={[HEIGHT * 1.5, LENGTH * 1.04, WIDTH * 1.22]}
         visible={false}
         raycast={NO_RAYCAST}
       >
-        <coneGeometry args={[0.5, 1, 3, 1, false, Math.PI]} />
+        <boxGeometry args={[LENGTH * 1.04, HEIGHT * 1.15, WIDTH * 0.8]} />
         <meshBasicMaterial
           transparent
           opacity={0}
@@ -236,11 +180,10 @@ function Hull({
           toneMapped={false}
         />
       </mesh>
-
       {isMe && (
-        <mesh position={[-LENGTH * 0.02, HEIGHT * 0.62, 0]}>
-          <sphereGeometry args={[HEIGHT * 0.2, 10, 8]} />
-          <meshBasicMaterial color={TABLE.felt} toneMapped={false} />
+        <mesh position={[0, HEIGHT * 0.65, 0]}>
+          <sphereGeometry args={[HEIGHT * 0.16, 10, 8]} />
+          <meshBasicMaterial color={TABLE.ink} toneMapped={false} />
         </mesh>
       )}
     </group>
@@ -354,7 +297,7 @@ function ShipMesh({
   const settle = useRef({ moving: false, at: 0, powered: false })
   // A token only mounts when its ship arrives on the board: the first frames
   // of its life are the hull coming into being over its Home.
-  const born = useRef(performance.now())
+  const born = useRef(0)
   const [hovered, setHovered] = useState(false)
   const scratch = useMemo(() => new Vector3(), [])
 
@@ -400,6 +343,7 @@ function ShipMesh({
     if (!node || !heading || !roll) return
 
     const now = performance.now()
+    if (born.current === 0) born.current = now
     const motion = ship.motion
     const raw = motion ? MathUtils.clamp((now - motion.start) / motion.duration, 0, 1) : 1
     const moving = !!motion && !!move && raw < 1
@@ -479,15 +423,16 @@ function ShipMesh({
     else if (roll.scale.x !== 1) roll.scale.setScalar(1)
 
     const nozzle = parts.current.nozzle
-    if (nozzle) nozzle.emissiveIntensity = IDLE_GLOW + THRUST_GLOW * thrust
+    if (nozzle)
+      nozzle.emissiveIntensity = ship.visual?.driveBroken ? 0 : IDLE_GLOW + THRUST_GLOW * thrust
     const plume = parts.current.plume
     if (plume) {
-      plume.visible = thrust > 0.02
+      plume.visible = thrust > 0.02 && !ship.visual?.driveBroken
       if (plume.visible) {
         const length = LENGTH * (0.3 + 0.7 * thrust + 5.5 * streak)
         const width = WIDTH * 0.4 * (0.7 + 0.5 * thrust)
         plume.scale.set(width, length, width)
-        plume.position.x = -LENGTH * 0.42 - length * 0.5
+        plume.position.x = (parts.current.exhaustX ?? -LENGTH * 0.49) - length * 0.5
         const material = plume.material as MeshBasicMaterial
         material.opacity = 0.14 + 0.45 * thrust
       }
@@ -555,7 +500,7 @@ function ShipMesh({
           }}
         >
           <group ref={bank}>
-            <Hull color={ship.color} isMe={ship.isMe} parts={parts} />
+            <Hull color={ship.color} isMe={ship.isMe} partsRef={parts} visual={ship.visual} />
           </group>
         </group>
 

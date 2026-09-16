@@ -23,14 +23,14 @@ export function Panel({ children, title, action, accent, dense, sx }: PanelProps
       elevation={0}
       sx={{
         position: 'relative',
-        background: `linear-gradient(180deg, ${TABLE.plateHi} 0%, ${TABLE.plate} 100%)`,
+        background: TABLE.plate,
         border: `1px solid ${TABLE.plateEdge}`,
         borderRadius: 1.5,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
-        boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset, 0 10px 26px rgba(0,0,0,0.5)',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset, 0 4px 14px rgba(0,0,0,0.16)',
         ...(sx as object),
       }}
     >
@@ -40,7 +40,6 @@ export function Panel({ children, title, action, accent, dense, sx }: PanelProps
             height: 2,
             flexShrink: 0,
             bgcolor: accent,
-            boxShadow: `0 0 10px ${accent}`,
           }}
         />
       )}
@@ -68,7 +67,9 @@ export function Panel({ children, title, action, accent, dense, sx }: PanelProps
           {action}
         </Box>
       )}
-      <Box sx={{ px: dense ? 1 : 1.5, py: dense ? 0.75 : 1.25, minHeight: 0, flex: 1 }}>{children}</Box>
+      <Box sx={{ px: dense ? 1 : 1.5, py: dense ? 0.75 : 1.25, minHeight: 0, flex: 1 }}>
+        {children}
+      </Box>
     </Paper>
   )
 }

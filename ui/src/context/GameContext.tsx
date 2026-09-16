@@ -21,7 +21,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { GameEvent, GameRecording, GameView, PlayerAction, ShipLoadout } from '@dangerous-inclinations/engine'
+import type { GameEvent, GameRecording, GameView, PlayerAction, ShipLoadout, ShipAppearance } from '@dangerous-inclinations/engine'
 import { filterEventsFor, reconstructStateAtTurn, viewFor } from '@dangerous-inclinations/engine'
 import type { ChatKind, ChatMessage, GameSocketMessage, SubmitTurnMessage, Seat } from '../api/types'
 import {
@@ -65,12 +65,12 @@ export interface GameContextValue {
   seats: Seat[]
   nameOf: (playerId: string) => string
   submitTurn: (actions: PlayerAction[]) => void
-  submitLoadout: (loadout: ShipLoadout, missionIds: string[]) => Promise<void>
+  submitLoadout: (loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance) => Promise<void>
   deploy: (sector: number) => Promise<void>
   registerAnimator: (animator: Animator | null) => void
 }
 
-const GameContext = createContext<GameContextValue | undefined>(undefined)
+export const GameContext = createContext<GameContextValue | undefined>(undefined)
 
 export function useGame(): GameContextValue {
   const context = useContext(GameContext)
@@ -315,8 +315,8 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
   )
 
   const submitLoadout = useCallback(
-    async (loadout: ShipLoadout, missionIds: string[]) => {
-      const result = await submitLoadoutAPI(gameId, loadout, missionIds)
+    async (loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance) => {
+      const result = await submitLoadoutAPI(gameId, loadout, missionIds, appearance)
       enqueue({ view: result.view, events: [], animate: false })
     },
     [gameId, enqueue],

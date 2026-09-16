@@ -10,24 +10,11 @@ body {
   height: 100%;
 }
 
-/*
- * The table: a deep graphite/navy surface with a cold overhead wash and a
- * faint instrument grid. CSS only, no images.
- */
+/* Matte shipyard surfaces; controls and semantic colors come from theme.ts. */
 body {
-  color: #e7eef6;
-  background-color: #080b11;
-  background-image:
-    radial-gradient(ellipse at 50% 12%, rgba(64, 104, 150, 0.18) 0%, rgba(20, 30, 44, 0.08) 45%, rgba(0, 0, 0, 0) 72%),
-    linear-gradient(0deg, rgba(126, 165, 205, 0.045) 1px, rgba(0, 0, 0, 0) 1px),
-    linear-gradient(90deg, rgba(126, 165, 205, 0.045) 1px, rgba(0, 0, 0, 0) 1px),
-    linear-gradient(180deg, #0d141d 0%, #080b11 55%, #05070b 100%);
-  background-size:
-    auto,
-    32px 32px,
-    32px 32px,
-    auto;
-  background-attachment: fixed;
+  color: #e0e3db;
+  background: #151a1d;
+  color-scheme: dark;
 }
 
 #root {
@@ -38,14 +25,14 @@ body {
 /* Thin, unobtrusive scrollbars inside the plates */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(126, 165, 205, 0.28) transparent;
+  scrollbar-color: rgba(132, 150, 142, 0.28) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(126, 165, 205, 0.28);
+  background: rgba(132, 150, 142, 0.28);
   border-radius: 8px;
 }
 *::-webkit-scrollbar-track {

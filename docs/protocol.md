@@ -29,7 +29,7 @@ nothing locally and resolves a seat from these.
 | Method | Path | Body | Response |
 |--------|------|------|----------|
 | GET | `/api/games/:gameId` | — | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat) |
-| POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[] }` | `{ view }` or `400 { error }` |
+| POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance }` | `{ view }` or `400 { error }` |
 | POST | `/api/games/:gameId/deploy` | `{ wellId: string, sector: number }` | `{ view }` or `400 { error }` |
 | POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` | `{ ok, errors?, events? }` — dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn |
 | GET | `/api/games/:gameId/chat` | — | `{ messages: ChatMessage[] }` — table talk, oldest first |
@@ -90,3 +90,16 @@ Per-recipient sending: `sendToPlayer(room, roomId, playerId, message)` and
 
 Live recordings hold full states and stay private until the game ends. The
 recordings API only lists and serves finalized recordings.
+
+### Ship appearance
+
+Loadout submission optionally includes a version-1 `ShipAppearance`: `paint` and
+`secondaryPaint` (six-digit hex), `livery` (`panels`, `bands`, `split`), `finish`
+(`matte`, `metal`), and `armorRelief`, `spineHeight`, `wear` (finite 0–1). The strict
+shared schema rejects extra fields, including custom player identification colors.
+It is validated and saved atomically with loadout and mission choices, then locked
+for the match. Appearance is public through `PlayerView.appearance` after submission;
+slot identities remain filtered independently. Seat order still determines player
+color. Older clients/saves/recordings without appearance use the reference corvette.
+Appearance lives on `Player`, survives respawn and recording/fork, and never changes
+gameplay rules or consumes gameplay RNG.

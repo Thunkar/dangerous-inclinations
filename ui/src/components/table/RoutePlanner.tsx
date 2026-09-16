@@ -42,7 +42,7 @@ import { FONT_MONO, TABLE } from '../../theme'
 /** The board draws routes and their destination in the energy blue; so do we. */
 const ROUTE = TABLE.energy
 const ROUTE_FAINT = 'rgba(73,195,255,0.30)'
-const AMBER_TINT = 'rgba(255,180,69,0.12)'
+const AMBER_TINT = 'rgba(221,170,120,0.12)'
 const HOVER_TINT = 'rgba(126,165,205,0.07)'
 
 /** Turns of a route shown before the list folds into "+n more". */

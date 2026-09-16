@@ -13,7 +13,7 @@
  * Add STUB_AI=1 while engine/src/ai is mid-rewrite (see engine-source-loader.mjs).
  */
 import type { GameRecording } from "@dangerous-inclinations/engine";
-import { MISSIONS_PER_PLAYER, type ShipLoadout } from "@dangerous-inclinations/engine";
+import { DEFAULT_SHIP_APPEARANCE, MISSIONS_PER_PLAYER, type ShipLoadout } from "@dangerous-inclinations/engine";
 
 /**
  * A mat that can fly any hand the deal produces: the sensor array is the one
@@ -29,7 +29,7 @@ import { memoryKv } from "../src/services/kv.ts";
 import { createRecordingService, type RecordingArchive } from "../src/services/recordingService.ts";
 import { createGameService, type GameTransport } from "../src/services/gameService.ts";
 import { checkStatusAccess } from "../src/services/playerService.ts";
-import { SubmitTurnSchema } from "../src/schemas/game.ts";
+import { LoadoutSubmissionSchema, SubmitTurnSchema } from "../src/schemas/game.ts";
 import { CreatePlayerSchema } from "../src/schemas/player.ts";
 import {
   broadcastViews as roomBroadcastViews,
@@ -190,14 +190,44 @@ check(loadoutView.phase === "loadout", "game starts in the loadout phase");
 const offers = loadoutView.me.missionOffers;
 check(offers.length === 5, `the human is offered 5 missions (got ${offers.length})`);
 
+const cosmetic = { ...DEFAULT_SHIP_APPEARANCE, paint: "#344149", secondaryPaint: "#b6a27b" };
+check(
+  LoadoutSubmissionSchema.safeParse({
+    loadout: SMOKE_LOADOUT,
+    missionIds: ["x"],
+    appearance: cosmetic,
+  }).success,
+  "appearance passes the wire schema"
+);
+check(
+  !LoadoutSubmissionSchema.safeParse({
+    loadout: SMOKE_LOADOUT,
+    missionIds: ["x"],
+    appearance: { ...cosmetic, accent: "#ffffff" },
+  }).success,
+  "the wire schema rejects a custom identity accent"
+);
+check(
+  LoadoutSubmissionSchema.safeParse({ loadout: SMOKE_LOADOUT, missionIds: ["x"] }).success,
+  "older submissions without appearance still work"
+);
 const loadoutResult = await games.submitLoadout(GAME_ID, HUMAN, {
   loadout: SMOKE_LOADOUT,
+  appearance: cosmetic,
   missionIds: offers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id),
 });
 if (!loadoutResult.ok) fail(`human loadout rejected: ${loadoutResult.error}`);
 
 const afterLoadout = await games.getView(GAME_ID, HUMAN);
 if (!afterLoadout) fail("no view after the loadout phase");
+check(
+  afterLoadout.me?.appearance?.paint === cosmetic.paint,
+  "appearance persists through the service"
+);
+check(
+  afterLoadout.players.find((p) => p.id === HUMAN)?.appearance?.paint === cosmetic.paint,
+  "public views include submitted paint"
+);
 check(afterLoadout.me?.missions.length === MISSIONS_PER_PLAYER, "the human keeps its own 3 missions in its view");
 check(afterLoadout.phase === "deployment", `bots submit their loadouts too (phase ${afterLoadout.phase})`);
 check(
@@ -416,6 +446,14 @@ if (recording) {
     humanPlayerName: "Ada",
   });
   check(ownSeat.ok, `a player may fork its own seat (${ownSeat.ok ? "" : ownSeat.error})`);
+
+  if (ownSeat.ok) {
+    const forkView = await forkGames.getView(ownSeat.gameId, HUMAN);
+    check(
+      forkView?.me?.appearance?.paint === cosmetic.paint,
+      "forking a recording preserves appearance"
+    );
+  }
 
   const stolenSeat = await forkGames.forkGameFromRecording("smoke-archived", -1, {
     impersonateOriginalPlayerId: HUMAN,

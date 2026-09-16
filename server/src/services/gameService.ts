@@ -1,3 +1,4 @@
+import type { ShipAppearance } from "@dangerous-inclinations/engine";
 /**
  * Live game orchestration: setup (loadout, deployment), turns, bots, and the
  * rewind/fork dev tools. All rules come from the engine; this module owns
@@ -85,6 +86,7 @@ export type Result<T = object> =
   | { ok: false; error?: string; errors?: string[] };
 
 export interface LoadoutSubmission {
+  appearance?: ShipAppearance;
   loadout: ShipLoadout;
   missionIds: string[];
 }

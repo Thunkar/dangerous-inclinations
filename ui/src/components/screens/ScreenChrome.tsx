@@ -21,14 +21,15 @@ export function Header({
         display: 'flex',
         alignItems: 'center',
         gap: 1.5,
-        px: 2,
-        py: 1,
+        px: { xs: 2, md: 3 },
+        flexWrap: 'wrap',
+        py: 1.5,
         flexShrink: 0,
         borderBottom: `1px solid ${TABLE.line}`,
-        background: `linear-gradient(180deg, ${TABLE.feltLight} 0%, rgba(0,0,0,0) 100%)`,
+        background: TABLE.feltLight,
       }}
     >
-      <Typography variant="h6" sx={{ color: TABLE.ink, letterSpacing: '0.1em' }}>
+      <Typography variant="h6" sx={{ color: TABLE.ink, letterSpacing: '-0.02em' }}>
         {title}
       </Typography>
       {subtitle && (

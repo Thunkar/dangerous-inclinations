@@ -11,6 +11,7 @@
  * scan will look at. A scan wants a face-down tile — but once you know them
  * all, any slot will do (the engine takes whichever it can and tells you).
  */
+import { KestrelMark } from '../../ships/KestrelMark'
 import { Box, Tooltip, Typography } from '@mui/material'
 import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
 import { MISSIONS_TO_WIN, getWellName } from '@dangerous-inclinations/engine'
@@ -52,17 +53,18 @@ export function OpponentCard({
   const destroyed = ship?.isDestroyed ?? false
   /** Who plays this seat: an agent's driver and model, or nothing for people and bots. */
   const { seats } = useGame()
-  const agent = agentLabel(seats.find((s) => s.playerId === player.id)?.agent)
+  const agent = agentLabel(seats.find(s => s.playerId === player.id)?.agent)
   /** Back at Home with a full hull, but sitting the next turn out. */
   const recovering = !destroyed && player.skipTurns > 0
   const slots = [...player.slots].sort((a, b) =>
-    a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1,
+    a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1
   )
 
   const clickable = picking !== null && !!onPickSlot
   const peekOnly = picking === 'peek'
-  const allSlotsKnown = slots.every((slot) => slot.type !== null)
-  const peekable = (slot: (typeof slots)[number]) => !peekOnly || slot.type === null || allSlotsKnown
+  const allSlotsKnown = slots.every(slot => slot.type !== null)
+  const peekable = (slot: (typeof slots)[number]) =>
+    !peekOnly || slot.type === null || allSlotsKnown
 
   return (
     <Panel
@@ -71,7 +73,11 @@ export function OpponentCard({
       sx={{
         flexShrink: 0,
         minWidth: 0,
-        outline: isTargeted ? `1px solid ${TABLE.accent}` : player.isActive ? `1px solid ${color}` : 'none',
+        outline: isTargeted
+          ? `1px solid ${TABLE.accent}`
+          : player.isActive
+            ? `1px solid ${color}`
+            : 'none',
         outlineOffset: -1,
         boxShadow: isTargeted
           ? `0 0 16px ${TABLE.accentGlow}`
@@ -91,6 +97,9 @@ export function OpponentCard({
             cursor: onPickPlayer ? 'pointer' : 'default',
           }}
         >
+          <Box sx={{ width: 42, height: 20, flexShrink: 0, alignSelf: 'center' }}>
+            <KestrelMark appearance={player.appearance} accent={color} />
+          </Box>
           <Typography
             sx={{
               fontFamily: FONT_MONO,
@@ -128,7 +137,10 @@ export function OpponentCard({
             </Typography>
           )}
           {destroyed && (
-            <Typography variant="overline" sx={{ color: TABLE.danger, lineHeight: 1, fontSize: '0.68rem' }}>
+            <Typography
+              variant="overline"
+              sx={{ color: TABLE.danger, lineHeight: 1, fontSize: '0.68rem' }}
+            >
               lost
             </Typography>
           )}
@@ -136,7 +148,10 @@ export function OpponentCard({
             <Tooltip
               title={`Rebuilt at Home — sits out ${player.skipTurns} more turn${player.skipTurns > 1 ? 's' : ''}`}
             >
-              <Typography variant="overline" sx={{ color: TABLE.accent, lineHeight: 1, fontSize: '0.68rem' }}>
+              <Typography
+                variant="overline"
+                sx={{ color: TABLE.accent, lineHeight: 1, fontSize: '0.68rem' }}
+              >
                 recovering
               </Typography>
             </Tooltip>
@@ -144,7 +159,9 @@ export function OpponentCard({
         </Box>
       }
       action={
-        <Tooltip title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} points (Destroy is worth 2)`}>
+        <Tooltip
+          title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} points (Destroy is worth 2)`}
+        >
           <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
             {Array.from({ length: MISSIONS_TO_WIN }, (_, i) => (
               <Box
@@ -155,7 +172,8 @@ export function OpponentCard({
                   borderRadius: '1px',
                   bgcolor: i < player.completedMissionCount ? TABLE.accent : 'transparent',
                   border: `1px solid ${i < player.completedMissionCount ? TABLE.accent : TABLE.plateEdge}`,
-                  boxShadow: i < player.completedMissionCount ? `0 0 7px ${TABLE.accentGlow}` : 'none',
+                  boxShadow:
+                    i < player.completedMissionCount ? `0 0 7px ${TABLE.accentGlow}` : 'none',
                 }}
               />
             ))}
@@ -188,11 +206,20 @@ export function OpponentCard({
             }
           >
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, minWidth: 0 }}>
-              <Typography variant="overline" sx={{ color: TABLE.inkFaint, lineHeight: 1, flexShrink: 0 }}>
+              <Typography
+                variant="overline"
+                sx={{ color: TABLE.inkFaint, lineHeight: 1, flexShrink: 0 }}
+              >
                 Home
               </Typography>
               <Typography
-                sx={{ fontFamily: FONT_MONO, fontSize: '0.8rem', fontWeight: 700, color: TABLE.ink, lineHeight: 1 }}
+                sx={{
+                  fontFamily: FONT_MONO,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  color: TABLE.ink,
+                  lineHeight: 1,
+                }}
                 noWrap
               >
                 {player.home ? getWellName(player.home.wellId) : '—'}
@@ -202,14 +229,18 @@ export function OpponentCard({
           <Box sx={{ flex: 1, minWidth: 0 }} />
           <Tooltip title="Cargo aboard: crates and data are public tokens (their destinations are not)">
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-              <CargoChits crates={player.cargoAboard.crates} data={player.cargoAboard.data} size={8} />
+              <CargoChits
+                crates={player.cargoAboard.crates}
+                data={player.cargoAboard.data}
+                size={8}
+              />
             </Box>
           </Tooltip>
         </Box>
 
         {/* The five slots, on one row */}
         <Box sx={{ display: 'flex', gap: '5px', alignItems: 'flex-start', minWidth: 0 }}>
-          {slots.map((slot) => (
+          {slots.map(slot => (
             <SubsystemTile
               key={slot.id}
               id={slot.id}
@@ -233,8 +264,11 @@ export function OpponentCard({
 
         {/* The fixed systems, as small badges */}
         <Box sx={{ display: 'flex', gap: '5px', alignItems: 'flex-start', minWidth: 0 }}>
-          {player.fixed.map((fixed) => (
-            <Tooltip key={fixed.id} title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' — broken' : ''}`}>
+          {player.fixed.map(fixed => (
+            <Tooltip
+              key={fixed.id}
+              title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' — broken' : ''}`}
+            >
               <Box>
                 <SubsystemTile
                   id={fixed.id}
@@ -261,7 +295,7 @@ export function OpponentCard({
         {/* Completed missions, face-up for everyone */}
         {player.completedMissions.length > 0 && (
           <Box sx={{ display: 'flex', gap: '4px', flexWrap: 'wrap', minWidth: 0 }}>
-            {player.completedMissions.map((mission) => (
+            {player.completedMissions.map(mission => (
               <Tooltip key={mission.id} title={missionFamilyLabel(mission)}>
                 <Typography
                   sx={{

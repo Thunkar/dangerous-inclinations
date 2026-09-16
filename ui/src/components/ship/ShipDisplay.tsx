@@ -8,7 +8,7 @@
  * tiles and their energy cells).
  */
 import { Box } from '@mui/material'
-import { TABLE } from '../../theme'
+import { KestrelMark } from '../../ships/KestrelMark'
 import { SlotRegion } from './SlotRegion'
 import { DEFAULT_SHIP_METRICS } from './types'
 import type { ShipDisplayProps, ShipMetrics } from './types'
@@ -16,7 +16,9 @@ import type { ShipDisplayProps, ShipMetrics } from './types'
 export function ShipDisplay({
   slots,
   fixed,
-  shipImageSrc = '/assets/ship.svg',
+  shipImageSrc,
+  appearance,
+  identityColor,
   metrics,
   faded,
   activeRails,
@@ -33,26 +35,30 @@ export function ShipDisplay({
           position: 'absolute',
           inset: `${inset}px`,
           borderRadius: '6px',
-          background: 'radial-gradient(ellipse at 50% 30%, rgba(73,195,255,0.07) 0%, rgba(0,0,0,0) 70%)',
+          background: 'radial-gradient(ellipse, #71817e15, transparent 70%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           pointerEvents: 'none',
         }}
       >
-        <Box
-          component="img"
-          src={shipImageSrc}
-          alt="Ship"
-          sx={{
-            width: hullWidth,
-            maxHeight: '100%',
-            objectFit: 'contain',
-            opacity: faded ? 0.3 : 0.75,
-            filter: `drop-shadow(0 0 8px ${TABLE.energy}44)`,
-            transition: 'opacity 200ms ease',
-          }}
-        />
+        {shipImageSrc ? (
+          <Box
+            component="img"
+            src={shipImageSrc}
+            alt="Ship"
+            sx={{
+              width: hullWidth,
+              maxHeight: '100%',
+              objectFit: 'contain',
+              opacity: faded ? 0.3 : 0.85,
+            }}
+          />
+        ) : (
+          <Box sx={{ width: hullWidth, opacity: faded ? 0.3 : 1 }}>
+            <KestrelMark appearance={appearance} accent={identityColor} />
+          </Box>
+        )}
       </Box>
 
       <SlotRegion position="aft" metrics={m}>

@@ -1,3 +1,4 @@
+import { resolveShipAppearance, type ShipAppearance } from "../models/appearance.ts";
 /**
  * What one player is allowed to know.
  *
@@ -60,6 +61,7 @@ export interface FixedSystemView {
 }
 
 export interface PlayerView {
+  appearance?: ShipAppearance;
   id: string;
   name: string;
   isMe: boolean;
@@ -153,6 +155,7 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     isMe,
     isActive: state.players[state.activePlayerIndex]?.id === player.id,
     hasSubmittedLoadout: player.hasSubmittedLoadout,
+    appearance: resolveShipAppearance(player.hasSubmittedLoadout ? player.appearance : undefined),
     hasDeployed: player.hasDeployed,
     home: player.home,
     skipTurns: player.skipTurns,

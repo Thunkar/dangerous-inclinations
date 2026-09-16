@@ -24,6 +24,8 @@ import { SectionLabel } from '../common/Panel'
 import { SubsystemTile } from '../common/SubsystemTile'
 import { EnergyCubes } from '../common/Tokens'
 import { ShipDisplay } from '../ship'
+import { useGame } from '../../context/GameContext'
+import { getPlayerColor } from '../../utils/playerColors'
 import { usePlan } from '../../context/PlanContext'
 import { useAnimation } from '../../context/AnimationContext'
 import { slotLabel } from '../../utils/slots'
@@ -36,12 +38,13 @@ const SLOT_IDS: SubsystemId[] = ['forward-0', 'side-0', 'side-1', 'side-2', 'sid
 
 export function ShipEnergyMat({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
+  const { view } = useGame()
   const { pulses } = useAnimation()
   const me = plan.me
   const free = plan.availableEnergy
 
   const subsystem = (id: SubsystemId): Subsystem | undefined =>
-    plan.pendingSubsystems.find((s) => s.id === id)
+    plan.pendingSubsystems.find(s => s.id === id)
 
   const tile = (id: SubsystemId) => {
     const sub = subsystem(id)
@@ -50,9 +53,13 @@ export function ShipEnergyMat({ disabled }: { disabled: boolean }) {
     const passive = config.maxEnergy === 0
     const live = !disabled && !sub.isBroken && !passive
 
-
     return (
-      <Box key={id} data-tile={id} data-energy={sub.allocatedEnergy} data-capacity={config.maxEnergy}>
+      <Box
+        key={id}
+        data-tile={id}
+        data-energy={sub.allocatedEnergy}
+        data-capacity={config.maxEnergy}
+      >
         <SubsystemTile
           id={sub.id}
           type={sub.type}
@@ -69,7 +76,7 @@ export function ShipEnergyMat({ disabled }: { disabled: boolean }) {
           onClick={live ? () => plan.power(sub.id, 1) : undefined}
           onContextMenu={
             live
-              ? (event) => {
+              ? event => {
                   event.preventDefault()
                   plan.power(sub.id, -1)
                 }
@@ -77,7 +84,8 @@ export function ShipEnergyMat({ disabled }: { disabled: boolean }) {
           }
           onSetEnergy={
             live
-              ? (n) => plan.setEnergyTo(sub.id, n < config.minEnergy ? 0 : Math.min(n, config.maxEnergy))
+              ? n =>
+                  plan.setEnergyTo(sub.id, n < config.minEnergy ? 0 : Math.min(n, config.maxEnergy))
               : undefined
           }
         />
@@ -88,6 +96,8 @@ export function ShipEnergyMat({ disabled }: { disabled: boolean }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
       <ShipDisplay
+        appearance={me.appearance}
+        identityColor={getPlayerColor(view.players.findIndex(p => p.id === me.id))}
         metrics={MAT_METRICS}
         slots={{ forward: [tile('forward-0')], side: SLOT_IDS.slice(1).map(tile) }}
         fixed={{ aft: [tile('engines'), tile('rotation')], forward: [tile('scoop')] }}

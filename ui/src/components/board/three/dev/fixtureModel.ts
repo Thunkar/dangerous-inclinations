@@ -9,8 +9,16 @@
  * rule.
  */
 import type { Position, Station } from '@dangerous-inclinations/engine'
-import { createInitialStations } from '@dangerous-inclinations/engine'
+import {
+  createInitialStations,
+  createGame,
+  createSubsystemsFromLoadout,
+  BOT_LOADOUT_TEMPLATES,
+  DEFAULT_SHIP_APPEARANCE,
+  viewFor,
+} from '@dangerous-inclinations/engine'
 import type { BoardModel, HomeMarker, ShipToken } from '../../model'
+import { visualForPlayer } from '../../../../ships/visual'
 import { getPlayerColor } from '../../../../utils/playerColors'
 
 interface FixtureSeat {
@@ -54,11 +62,33 @@ function nameOf(playerId: string): string {
 }
 
 export function createFixtureModel(now = performance.now()): BoardModel {
+  const state = createGame(
+    SEATS.map(s => ({ id: s.playerId, name: s.name })),
+    42
+  )
+  const templates = [
+    BOT_LOADOUT_TEMPLATES.hauler,
+    BOT_LOADOUT_TEMPLATES.hunter,
+    BOT_LOADOUT_TEMPLATES.raider,
+  ]
+  state.players.forEach((player, index) => {
+    player.hasSubmittedLoadout = true
+    player.ship.loadout = templates[index]
+    player.ship.subsystems = createSubsystemsFromLoadout(templates[index])
+    player.appearance = {
+      ...DEFAULT_SHIP_APPEARANCE,
+      paint: ['#aab4b2', '#344149', '#926b51'][index],
+    }
+  })
+  state.players[1].ship.subsystems.find(s => s.id === 'forward-0')!.isRevealed = true
+  state.players[0].intel.p3 = ['side-2']
+  const views = viewFor(state, 'p1').players
   const ships: ShipToken[] = [
     {
       playerId: 'p1',
       name: 'Aurora',
       color: colorOf('p1'),
+      visual: visualForPlayer(views[0], 0),
       position: SEATS[0].position,
       facing: 'prograde',
       isActive: false,
@@ -71,6 +101,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
       playerId: 'p2',
       name: 'Kestrel',
       color: colorOf('p2'),
+      visual: visualForPlayer(views[1], 1),
       position: SEATS[1].position,
       facing: 'prograde',
       // Caught between sectors: the slide started before the page did. A burn,
@@ -91,6 +122,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
       playerId: 'p3',
       name: 'Vagrant',
       color: colorOf('p3'),
+      visual: visualForPlayer(views[2], 2),
       position: SEATS[2].position,
       facing: 'retrograde',
       isActive: false,

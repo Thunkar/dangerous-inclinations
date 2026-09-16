@@ -15,17 +15,17 @@
  * the same restraint as the rest of the table.
  */
 import { Color, LinearSRGBColorSpace } from 'three'
-import { TABLE } from '../../../theme'
+import { TABLE } from '../../../design/tokens'
 
 /** The hue behind `TABLE.plateEdge` (0.20 alpha) and `TABLE.line` (0.12 alpha). */
-export const EDGE_HUE = '#7ea5cd'
+export const EDGE_HUE = '#84968e'
 
 export const BOARD_INK = {
   /**
    * Plate under a well: the theme's sunken instrument plate, one step lighter
    * so the key light can model the slope of the funnel.
    */
-  plate: '#0e1724',
+  plate: '#1b2426',
   plateEdge: EDGE_HUE,
   ring: EDGE_HUE,
   ringOpacity: 0.22,

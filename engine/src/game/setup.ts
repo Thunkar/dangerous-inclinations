@@ -1,3 +1,4 @@
+import { ShipAppearanceSchema, type ShipAppearance } from "../models/appearance.ts";
 /**
  * Game creation and the loadout phase. Shared by the server and the simulator
  * so both build games exactly the same way.
@@ -76,6 +77,7 @@ export function createGame(
 }
 
 export interface LoadoutSubmission {
+  appearance?: ShipAppearance;
   loadout: ShipLoadout;
   missionIds: string[];
 }
@@ -92,6 +94,12 @@ export function submitLoadout(
   const player = state.players[index];
   if (player.hasSubmittedLoadout)
     return { state, error: `${player.name} has already submitted a loadout` };
+
+  const appearance =
+    submission.appearance === undefined
+      ? undefined
+      : ShipAppearanceSchema.safeParse(submission.appearance);
+  if (appearance && !appearance.success) return { state, error: "Invalid ship appearance" };
 
   const validation = validateLoadout(submission.loadout);
   if (!validation.valid) return { state, error: validation.errors.join("; ") };
@@ -120,6 +128,7 @@ export function submitLoadout(
   const players = [...state.players];
   players[index] = {
     ...player,
+    ...(appearance?.success ? { appearance: appearance.data } : {}),
     ship: createInitialShipState(
       {
         wellId: player.ship.wellId,

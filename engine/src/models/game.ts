@@ -1,3 +1,4 @@
+import type { ShipAppearance } from "./appearance.ts";
 import type {
   Subsystem,
   SubsystemId,
@@ -231,6 +232,8 @@ export function isTacticalAction(action: PlayerAction): action is TacticalAction
 }
 
 export interface Player {
+  /** Optional for compatibility with historical recordings. */
+  appearance?: ShipAppearance;
   id: string;
   name: string;
   ship: ShipState;

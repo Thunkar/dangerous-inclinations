@@ -7,7 +7,12 @@ import { Box, Typography } from '@mui/material'
 import type { Cargo, Mission, SubsystemType } from '@dangerous-inclinations/engine'
 import { describeMission, getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
-import { missionFamilyColor, missionFamilyLabel, missionPoints, missionProgress } from '../../utils/missions'
+import {
+  missionFamilyColor,
+  missionFamilyLabel,
+  missionPoints,
+  missionProgress,
+} from '../../utils/missions'
 import { SubsystemIcon } from './SubsystemIcon'
 
 /** A tile the card cannot be completed without, and whether the mat carries it. */
@@ -55,6 +60,19 @@ export function MissionCard({
   return (
     <Box
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-pressed={onClick ? Boolean(selected) : undefined}
+      onKeyDown={
+        onClick
+          ? event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onClick()
+              }
+            }
+          : undefined
+      }
       sx={{
         position: 'relative',
         minWidth: compact ? 132 : 176,
@@ -63,7 +81,7 @@ export function MissionCard({
         borderRadius: 1,
         cursor: onClick ? 'pointer' : 'default',
         background: done
-          ? `linear-gradient(180deg, rgba(255,180,69,0.10) 0%, ${TABLE.plate} 100%)`
+          ? `linear-gradient(180deg, rgba(221,170,120,0.10) 0%, ${TABLE.plate} 100%)`
           : `linear-gradient(180deg, ${TABLE.plateHi} 0%, ${TABLE.plateSunk} 100%)`,
         border: `1px solid ${unmet && selected ? TABLE.heat : selected ? TABLE.accent : TABLE.plateEdge}`,
         borderLeft: `3px solid ${accent}`,
@@ -79,17 +97,29 @@ export function MissionCard({
         '&:hover': onClick ? { borderColor: TABLE.accent } : undefined,
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
+      <Box
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}
+      >
         <Typography variant="overline" sx={{ color: accent, lineHeight: 1.5, fontSize: '0.75rem' }}>
           {missionFamilyLabel(mission)}
-          {points > 1 && <Box component="span" sx={{ color: TABLE.ink, ml: 0.75 }}>{points} pts</Box>}
+          {points > 1 && (
+            <Box component="span" sx={{ color: TABLE.ink, ml: 0.75 }}>
+              {points} pts
+            </Box>
+          )}
         </Typography>
         {done ? (
-          <Typography variant="overline" sx={{ color: TABLE.success, lineHeight: 1.5, fontSize: '0.75rem' }}>
+          <Typography
+            variant="overline"
+            sx={{ color: TABLE.success, lineHeight: 1.5, fontSize: '0.75rem' }}
+          >
             ✓ face up
           </Typography>
         ) : held ? (
-          <Typography variant="overline" sx={{ color: TABLE.inkFaint, lineHeight: 1.5, fontSize: '0.75rem' }}>
+          <Typography
+            variant="overline"
+            sx={{ color: TABLE.inkFaint, lineHeight: 1.5, fontSize: '0.75rem' }}
+          >
             in hand
           </Typography>
         ) : null}

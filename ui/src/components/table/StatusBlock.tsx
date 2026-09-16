@@ -92,7 +92,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         borderRadius: 1,
         border: `1px solid ${TABLE.line}`,
         borderLeft: `2px solid ${accent ?? TABLE.plateEdge}`,
-        background: `linear-gradient(180deg, rgba(126,165,205,0.05) 0%, rgba(0,0,0,0) 100%)`,
+        background: `linear-gradient(180deg, rgba(132,150,142,0.05) 0%, rgba(0,0,0,0) 100%)`,
         minWidth: 0,
       }}
     >

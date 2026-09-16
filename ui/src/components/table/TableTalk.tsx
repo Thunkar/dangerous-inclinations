@@ -40,7 +40,7 @@ function Line({ message, color }: { message: ChatMessage; color: string }) {
         mt: 0.6,
         pl: 0.75,
         borderLeft: `2px ${think ? 'dashed' : 'solid'} ${think ? TABLE.line : color}`,
-        bgcolor: think ? 'rgba(126,165,205,0.045)' : 'transparent',
+        bgcolor: think ? 'rgba(132,150,142,0.045)' : 'transparent',
         borderRadius: '0 3px 3px 0',
       }}
     >
@@ -256,7 +256,7 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
                     letterSpacing: '0.1em',
                     color: thinkOutLoud ? TABLE.accent : TABLE.inkFaint,
                     border: `1px solid ${thinkOutLoud ? TABLE.accent : TABLE.plateEdge}`,
-                    bgcolor: thinkOutLoud ? 'rgba(255,180,69,0.12)' : 'transparent',
+                    bgcolor: thinkOutLoud ? 'rgba(221,170,120,0.12)' : 'transparent',
                   }}
                 >
                   think out loud

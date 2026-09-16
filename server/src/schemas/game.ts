@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   SECTORS_PER_RING,
+  ShipAppearanceSchema,
   SUBSYSTEM_CONFIGS,
   type PlayerAction,
   type SubsystemType,
@@ -19,6 +20,7 @@ export const ShipLoadoutSchema = z
 export const LoadoutSubmissionSchema = z
   .object({
     loadout: ShipLoadoutSchema,
+    appearance: ShipAppearanceSchema.optional(),
     // The engine checks the count against MISSIONS_PER_PLAYER, that the ids
     // were actually offered, and that the mat can complete every card kept
     // (Intercept and Survey need a sensor array); this only bounds the payload.

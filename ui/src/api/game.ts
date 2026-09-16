@@ -3,7 +3,7 @@
  * computed for the requesting player; the client never sees a GameState.
  */
 import { api } from './client'
-import type { ShipLoadout } from '@dangerous-inclinations/engine'
+import type { ShipLoadout, ShipAppearance } from '@dangerous-inclinations/engine'
 import type {
   ChatHistoryResponse,
   ChatKind,
@@ -27,9 +27,10 @@ export async function deployShip(gameId: string, sector: number): Promise<ViewRe
 export async function submitLoadout(
   gameId: string,
   loadout: ShipLoadout,
-  missionIds: string[]
+  missionIds: string[],
+  appearance?: ShipAppearance
 ): Promise<ViewResponse> {
-  return api.post<ViewResponse>(`/api/games/${gameId}/loadout`, { loadout, missionIds })
+  return api.post<ViewResponse>(`/api/games/${gameId}/loadout`, { loadout, missionIds, appearance })
 }
 
 /** Table talk so far, oldest first. */

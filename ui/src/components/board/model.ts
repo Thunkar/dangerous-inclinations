@@ -33,9 +33,11 @@ import { useAnimation } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
+import { visualForPlayer, type ShipVisual } from '../../ships/visual'
 import { ringsOf } from './geometry'
 
 export interface ShipToken {
+  visual?: ShipVisual
   playerId: string
   name: string
   color: string
@@ -157,6 +159,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           playerId: player.id,
           name: player.name,
           color: getPlayerColor(index),
+          visual: visualForPlayer(player, index),
           position,
           facing: live?.facing ?? publicShip!.facing,
           motion: live?.motion,

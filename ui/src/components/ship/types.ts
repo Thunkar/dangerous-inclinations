@@ -1,3 +1,4 @@
+import type { ShipAppearance } from '@dangerous-inclinations/engine'
 import type { ReactNode } from 'react'
 
 export type SlotRegionPosition = 'aft' | 'port' | 'forward' | 'starboard'
@@ -28,6 +29,8 @@ export interface ShipMetrics {
 export const DEFAULT_SHIP_METRICS: ShipMetrics = { width: 372, height: 300, band: 66 }
 
 export interface ShipDisplayProps {
+  appearance?: ShipAppearance
+  identityColor?: string
   slots: ShipSlotContent
   fixed?: FixedSlotContent
   shipImageSrc?: string

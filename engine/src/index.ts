@@ -1,4 +1,5 @@
 // Models
+export * from "./models/appearance.ts";
 export * from "./models/game.ts";
 export * from "./models/subsystems.ts";
 export * from "./models/missions.ts";
