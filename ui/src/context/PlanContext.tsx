@@ -38,7 +38,7 @@ import {
   getAdjustmentRange,
   getJumpAdjustmentRange,
   getJumpOptions,
-  getMaxReactionMass,
+  MAX_REACTION_MASS,
   getMaxRing,
   getSubsystemConfig,
   hasWorkingCompressor,
@@ -404,7 +404,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     let heat = me.ship.heat.currentHeat
     let spent = 0
     let fuel = me.ship.reactionMass
-    const maxFuel = getMaxReactionMass(pendingSubsystems)
+    const maxFuel = MAX_REACTION_MASS
     const problems: string[] = []
     let engineUses = 0
     let reportedShortFuel = false

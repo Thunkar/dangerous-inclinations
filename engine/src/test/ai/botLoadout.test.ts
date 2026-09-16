@@ -25,13 +25,26 @@ import {
   surveyMission,
 } from "../testUtils.ts";
 
-/** A trio of cards that should produce each archetype. */
-const TRIOS: Record<BotArchetype, Mission[]> = {
-  hunter: [destroyMission("p2"), destroyMission("p3"), deliverMission(ALPHA, BETA)],
-  raider: [destroyMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
-  // Survey needs powered sensors on the ring, so it takes the sensor hull like Intercept.
-  hauler: [surveyMission(), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
-  scout: [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
+/**
+ * A trio of cards that should produce each mat a bot can reach. A hunter
+ * always holds a Destroy and a hauler never does, so `hunter-tanky` and
+ * `hauler-aggressive` are human-only: the balance suite forces those.
+ */
+const TRIOS: Partial<Record<BotArchetype, Mission[]>> = {
+  // Survey needs powered sensors on the ring, so it takes the eyes like Intercept.
+  "interceptor-tanky": [surveyMission(), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
+  "interceptor-aggressive": [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
+  "hunter-aggressive": [
+    destroyMission("p2"),
+    destroyMission("p3"),
+    deliverMission(ALPHA, BETA),
+  ],
+  // Nothing to scan and nobody to kill: the forward slot goes to the legs.
+  "hauler-tanky": [
+    deliverMission(ALPHA, BETA),
+    deliverMission(BETA, GAMMA),
+    deliverMission(GAMMA, ALPHA),
+  ],
 };
 
 describe("botChooseLoadout", () => {
@@ -93,19 +106,14 @@ describe("botChooseLoadout", () => {
     expect(b).toEqual(a);
   });
 
-  it("chains cargo routes that share a planet when it can", () => {
-    const chained = deliverMission(ALPHA, BETA);
-    const onward = deliverMission(BETA, GAMMA);
-    const offers: Mission[] = [
-      chained,
-      onward,
-      destroyMission("p2"),
-      destroyMission("p3"),
-      surveyMission(),
-    ];
-    const choice = botChooseLoadout(offers, { playerCount: 2 });
-    expect(choice.missionIds).toContain(chained.id);
-    expect(choice.missionIds).toContain(onward.id);
+  it("scores a chained cargo pair above two routes that only share a planet", () => {
+    // Alpha→Beta then Beta→Gamma is one trip; Alpha→Beta and Alpha→Gamma is
+    // two departures from the same station. Scored, not selected: which trio
+    // actually wins depends on what else is on offer and what it costs.
+    const third = surveyMission();
+    const chained = [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), third];
+    const forked = [deliverMission(ALPHA, BETA), deliverMission(ALPHA, GAMMA), third];
+    expect(scoreMissionCombo(chained, 2)).toBeGreaterThan(scoreMissionCombo(forked, 2));
   });
 
   it("takes the sensor array forward whenever it holds an Intercept", () => {
@@ -131,15 +139,21 @@ describe("botChooseLoadout", () => {
     expect(loadout.forwardSlots).toEqual(["railgun"]);
   });
 
-  it("takes a gun rather than a sensor for a hand that never needs to scan", () => {
+  it("spends the forward slot on legs, a gun or eyes according to the hand", () => {
     // The sensor array earns the forward slot only when a card needs a scan.
-    // A pure cargo hand never scans anything, so the slot goes to the gun it
-    // will need when somebody else is one dock from winning.
+    // A pure cargo hand never scans anything and has nobody it must kill, so
+    // the slot goes to the legs that make the route cheap.
     const { loadout } = botChooseLoadout(
       [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), deliverMission(GAMMA, ALPHA)],
       { playerCount: 3 }
     );
-    expect(loadout.forwardSlots).toEqual(["railgun"]);
+    expect(loadout.forwardSlots).toEqual(["fuel_compressor"]);
+    // A Destroy card has to get through shields, which is the railgun's job.
+    const kill = botChooseLoadout(
+      [destroyMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
+      { playerCount: 3 }
+    );
+    expect(kill.loadout.forwardSlots).toEqual(["railgun"]);
     // A Survey card needs powered sensors on the ring, so it takes the sensor hull like Intercept.
     const survey = botChooseLoadout(
       [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()],
@@ -149,18 +163,21 @@ describe("botChooseLoadout", () => {
   });
 
   it("gives every combat hull the heat headroom its volley needs", () => {
-    // A shield tile eats four damage a turn and is refilled for free, so a
-    // volley has to beat four to reach a hull — and heat over the
-    // dissipation is the bot's own hull. Every railgun hull carries a
-    // radiator and a second gun that can bear on the railgun's own ring.
-    for (const archetype of ["hunter", "raider"] as const) {
-      const template = BOT_LOADOUT_TEMPLATES[archetype];
-      expect(template.forwardSlots, archetype).toEqual(["railgun"]);
-      expect(template.sideSlots, archetype).toContain("radiator");
-      // Lasers cannot fire along the railgun's own ring; these can.
+    // A shield tile eats two damage a turn and is refilled for free, so a
+    // volley has to beat the cubes to reach a hull — and heat over the
+    // dissipation is the bot's own hull. Every hull that shoots carries a
+    // radiator, and the railgun hull carries a second gun that can bear on
+    // its own ring, which a laser never can.
+    for (const [name, template] of Object.entries(BOT_LOADOUT_TEMPLATES)) {
+      expect(template.sideSlots, name).toContain("radiator");
+    }
+    // Only the railgun mats can pair a gun along their own ring; a laser cannot.
+    for (const name of ["hunter-tanky", "hunter-aggressive"] as const) {
+      const hunter = BOT_LOADOUT_TEMPLATES[name];
+      expect(hunter.forwardSlots, name).toEqual(["railgun"]);
       expect(
-        template.sideSlots.some((t) => t === "missiles" || t === "ballistic_rack"),
-        archetype
+        hunter.sideSlots.some((t) => t === "missiles" || t === "ballistic_rack"),
+        name
       ).toBe(true);
     }
   });
@@ -211,7 +228,7 @@ describe("botChooseLoadout", () => {
   describe("a hull imposed on the seat", () => {
     const RAILGUN: ShipLoadout = {
       forwardSlots: ["railgun"],
-      sideSlots: ["missiles", "radiator", "fuel_compressor", "shields"],
+      sideSlots: ["missiles", "radiator", "shields", "shields"],
     };
 
     it("keeps the hull and drops the cards it cannot fly when a flyable trio exists", () => {
@@ -228,7 +245,7 @@ describe("botChooseLoadout", () => {
       expect(missionsMissingRequirements(kept, choice.loadout)).toEqual([]);
     });
 
-    it("gives the hull up when three of the five offers need the sensor array", () => {
+    it("gives the hull up when too few offers suit the hull to make a trio", () => {
       const offers = [
         interceptMission("p2"),
         interceptMission("p3", "intercept-p3"),

@@ -34,7 +34,7 @@ import {
 /** Sensor array forward: the hull the bot picks for Intercept work. */
 const SCOUT: ShipLoadout = {
   forwardSlots: ["sensor_array"],
-  sideSlots: ["shields", "radiator", "fuel_compressor", "laser"],
+  sideSlots: ["shields", "radiator", "radiator", "laser"],
 };
 
 const coastAs = (playerId: string): PlayerAction[] => [
@@ -65,7 +65,7 @@ function playUntil(
 
 const SENSOR_HULL: ShipLoadout = {
   forwardSlots: ["sensor_array"],
-  sideSlots: ["laser", "shields", "radiator", "fuel_compressor"],
+  sideSlots: ["laser", "shields", "radiator", "radiator"],
 };
 
 describe("bot missions", () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_RULES } from "../../models/rules.ts";
+import { SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY } from "../../models/game.ts";
 import { calculateHeatDamage, resolveEndOfTurnHeat } from "../../game/heat.ts";
 import { getDissipationCapacity } from "../../game/ship.ts";
@@ -134,7 +134,8 @@ describe("heat: end-of-turn resolution", () => {
     state = withPower(state, "p1", "side-0", 2);
     state = withPower(state, "p2", "side-2", 2);
     const afterP1 = mustExecute(state, fire(1, "side-0", "p2"));
-    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(DEFAULT_RULES.shieldHeatPerPoint);
+    // Two cubes soak the rack's two rounds, at two heat apiece.
+    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(2 * SHIELD_HEAT_PER_POINT);
     const afterP2 = mustExecute(afterP1, coast(1));
     expect(getShip(afterP2, "p2").heat.currentHeat).toBe(0);
     expect(getShip(afterP2, "p2").hitPoints).toBe(10);

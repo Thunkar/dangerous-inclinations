@@ -22,7 +22,6 @@ import type {
   ShipLoadout,
 } from "@dangerous-inclinations/engine";
 import {
-  type RuleSet,
   DEFAULT_LOADOUT,
   MISSIONS_PER_PLAYER,
   HOME_WELL_ID,
@@ -61,7 +60,7 @@ export interface GameTransport {
 export interface BotStrategy {
   chooseLoadout(
     offers: Mission[],
-    context: { playerCount: number; rules?: Partial<RuleSet> }
+    context: { playerCount: number }
   ): { missionIds: string[]; loadout: ShipLoadout };
   chooseDeployment(view: GameView, pick: (n: number) => number): { wellId: string; sector: number };
   decideActions(view: GameView): { actions: PlayerAction[] };
@@ -293,7 +292,6 @@ export function createGameService(deps: GameServiceDeps) {
       try {
         const choice = bots.chooseLoadout(player.missionOffers, {
           playerCount: state.players.length,
-          rules: state.rules,
         });
         submission = { loadout: choice.loadout, missionIds: choice.missionIds };
       } catch (error) {

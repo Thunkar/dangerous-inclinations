@@ -6,11 +6,10 @@
  */
 import type { GameState, Player } from "../../models/game.ts";
 import type { EventDraft } from "../../models/events.ts";
-import type { Cargo, Mission } from "../../models/missions.ts";
-import { MISSIONS_TO_WIN, SURVEY_HOLD_TURNS, SURVEY_RING } from "../../models/missions.ts";
+import type { Mission } from "../../models/missions.ts";
+import { DESTROY_POINTS, MISSIONS_TO_WIN, SURVEY_RING } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
-import { rulesOf } from "../setup.ts";
 
 export interface MissionCheckResult {
   state: GameState;
@@ -42,7 +41,6 @@ export function processMissionEvents(
   }
 
   let cargo = player.cargo;
-  const rules = rulesOf(state);
   let completed = 0;
 
   const missions: Mission[] = player.missions.map((mission) => {
@@ -62,9 +60,8 @@ export function processMissionEvents(
         break;
       case "survey": {
         let m = mission;
-        // The data is taken by ending SURVEY_HOLD_TURNS consecutive turns on the
-        // innermost black hole ring with the sensor array powered; a turn ended
-        // anywhere else, or dark, starts the count again.
+        // The data is taken by ending a turn on the innermost black hole ring
+        // with the sensor array powered. The dive is the mission.
         if (!m.surveyAcquired) {
           const onRing =
             !isDestroyed(player.ship) &&
@@ -74,37 +71,24 @@ export function processMissionEvents(
             (s) => s.type === "sensor_array" && s.isPowered && !s.isBroken
           );
           if (onRing && sensing) {
-            const turns = m.surveyTurns + 1;
-            m = { ...m, surveyTurns: turns };
-            if (turns >= SURVEY_HOLD_TURNS) {
-              m = { ...m, surveyAcquired: true };
-              const data: Cargo = {
+            m = { ...m, surveyAcquired: true };
+            cargo = [
+              ...cargo,
+              {
                 id: m.dataCargoId,
                 missionId: m.id,
                 kind: "data",
                 deliveryPlanetId: m.deliveryPlanetId,
                 isPickedUp: true,
-              };
-              cargo = [...cargo, data];
-              events.push({
-                type: "data_acquired",
-                playerId,
-                kind: "survey",
-                missionId: m.id,
-                privateTo: [playerId],
-              });
-            } else {
-              events.push({
-                type: "survey_hold",
-                playerId,
-                missionId: m.id,
-                turns,
-                needed: SURVEY_HOLD_TURNS,
-                privateTo: [playerId],
-              });
-            }
-          } else if (m.surveyTurns > 0) {
-            m = { ...m, surveyTurns: 0 };
+              },
+            ];
+            events.push({
+              type: "data_acquired",
+              playerId,
+              kind: "survey",
+              missionId: m.id,
+              privateTo: [playerId],
+            });
           }
         }
         if (m.surveyAcquired && deliveredCargoIds.has(m.dataCargoId))
@@ -114,7 +98,7 @@ export function processMissionEvents(
       }
     }
 
-    if (next.isCompleted) completed += next.type === "destroy_ship" ? rules.destroyPoints : 1;
+    if (next.isCompleted) completed += next.type === "destroy_ship" ? DESTROY_POINTS : 1;
     return next;
   });
 

@@ -309,7 +309,7 @@ export function buildCandidate(
     status.racks.filter((r) => !shots.some((s) => s.intent.weapon.id === r.id)),
     enemiesNear || situation.incomingMissiles > 0,
     situation.incomingMissiles > 0,
-    situation.view.rules.shieldMaxEnergy,
+    getSubsystemConfig("shields").maxEnergy,
     capacity
   );
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_RULES } from "../../models/rules.ts";
+import { SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
 import { resolveAttack, rollToResult } from "../../game/damage.ts";
 import { getEffectiveCriticalChance } from "../../game/ship.ts";
 import { REACTOR_CAPACITY } from "../../models/game.ts";
@@ -117,7 +117,7 @@ describe("damage: resolveAttack", () => {
     expect(outcome.hitResult.damageToHeat).toBe(toHeat);
     expect(outcome.ship.hitPoints).toBe(10 - toHull);
     // Every absorbed point is shieldHeatPerPoint heat on the defender.
-    expect(outcome.ship.heat.currentHeat).toBe(toHeat * DEFAULT_RULES.shieldHeatPerPoint);
+    expect(outcome.ship.heat.currentHeat).toBe(toHeat * SHIELD_HEAT_PER_POINT);
     const shield = outcome.ship.subsystems.find((s) => s.id === "side-2")!;
     expect(shield.allocatedEnergy).toBe(shieldLeft);
     expect(shield.isPowered).toBe(shieldLeft > 0);
@@ -323,16 +323,18 @@ describe("damage: through executeTurn", () => {
 
   it("shields absorb a rack round and keep total energy constant", () => {
     // The rack sits at side-0 of RACK_FIRST, one ring below its target.
-    const state = withPower(laserDuel(undefined, RACK_FIRST), "p2", "side-2", 1);
+    const state = withPower(laserDuel(undefined, RACK_FIRST), "p2", "side-2", 2);
     const result = executeTurnAs(state, fire(1, "side-0", "p2"));
     expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
       weaponType: "ballistic_rack",
-      damage: 1,
+      damage: 2,
       toHull: 0,
-      toHeat: 1,
+      toHeat: 2,
     });
     expect(getShip(result.gameState, "p2").hitPoints).toBe(10);
-    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(DEFAULT_RULES.shieldHeatPerPoint);
+    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(
+      2 * SHIELD_HEAT_PER_POINT
+    );
     expect(totalEnergy(getShip(result.gameState, "p2"))).toBe(REACTOR_CAPACITY);
     expect(getShip(result.gameState, "p2").reactor.availableEnergy).toBe(REACTOR_CAPACITY);
   });

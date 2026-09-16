@@ -43,17 +43,17 @@ import {
 /** Railgun plus a turret that bears on the railgun's own ring: 6 damage a turn. */
 const RAIDER: ShipLoadout = {
   forwardSlots: ["railgun"],
-  sideSlots: ["missiles", "radiator", "fuel_compressor", "shields"],
+  sideSlots: ["missiles", "radiator", "shields", "shields"],
 };
 /** No gun worth the name: one broadside, 2 damage. */
 const TRADER: ShipLoadout = {
   forwardSlots: ["sensor_array"],
-  sideSlots: ["shields", "radiator", "fuel_compressor", "laser"],
+  sideSlots: ["shields", "radiator", "radiator", "laser"],
 };
-/** The trader with a rack instead of the laser: one shielded point of damage. */
+/** The trader with a rack instead of the laser: shields can stop this one. */
 const PLINKER: ShipLoadout = {
   forwardSlots: ["sensor_array"],
-  sideSlots: ["shields", "radiator", "fuel_compressor", "ballistic_rack"],
+  sideSlots: ["shields", "radiator", "radiator", "ballistic_rack"],
 };
 
 function crate(pickupPlanetId: string, deliveryPlanetId: string): Cargo {

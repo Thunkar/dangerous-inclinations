@@ -349,7 +349,7 @@ function Workshop() {
               <>
                 <SectionTitle number="01">Mission profile</SectionTitle>
                 <div className="presets">
-                  {(['hunter', 'raider', 'hauler', 'scout'] as BotArchetype[]).map(id => (
+                  {(Object.keys(BOT_LOADOUT_TEMPLATES) as BotArchetype[]).map(id => (
                     <button
                       key={id}
                       className={

@@ -31,7 +31,7 @@ export interface WorkshopConfig {
 
 export const DEFAULT_CONFIG: WorkshopConfig = {
   version: 1,
-  loadout: structuredClone(BOT_LOADOUT_TEMPLATES.hunter),
+  loadout: structuredClone(BOT_LOADOUT_TEMPLATES['hunter-aggressive']),
   length: 1,
   beam: 1,
   armor: 1,

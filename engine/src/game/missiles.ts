@@ -25,7 +25,6 @@ import {
 } from "./geometry.ts";
 import { resolveAttack } from "./damage.ts";
 import { isDestroyed, revealSubsystem, useSubsystem } from "./ship.ts";
-import { rulesOf } from "./setup.ts";
 
 const MISSILE = getMissileStats();
 
@@ -174,8 +173,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       missile.criticalTarget,
       roll,
       owner.ship,
-      ownerId,
-      rulesOf(state)
+      ownerId
     );
     players[targetIndex] = { ...target, ship: outcome.ship };
     events.push({

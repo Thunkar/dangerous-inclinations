@@ -13,9 +13,9 @@
  *   --record      keep recordings and write them to --output/recordings/
  *   --output=DIR  write summary.json (+ recordings) here
  *   --label=STR   label stored in recordings
- *   --rules=k=v,k=v  rule overrides (see models/rules.ts), e.g. --rules=shieldMaxEnergy=3,destroyPoints=1
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --weapons=laser.damage=3,laser.sideRestricted=false  experiment-only weapon stat overrides
+ *   --tiles=ballistic_rack.damage=3,fuel_compressor.slotType=side  experiment-only tile overrides (any field of any tile)
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)
  *   --seats=bot-1=railgun/missiles,radiator,laser,shields  force a hull on a seat, whatever its hand asks for
  *   --quiet       no per-game progress
@@ -26,9 +26,8 @@ import { cpus } from "node:os";
 import { runBatch } from "./batch.ts";
 import { formatFailure } from "./runGame.ts";
 import type { AggregateStats } from "./stats.ts";
-import { parseRuleOverrides } from "../models/rules.ts";
-import type { RuleSet } from "../models/rules.ts";
 import { parseWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
+import { parseTileOverrides, type TileOverrides } from "./tileOverrides.ts";
 import {
   parseLoadoutOverrides,
   parseSeatLoadouts,
@@ -46,8 +45,8 @@ interface Args {
   output?: string;
   label?: string;
   quiet: boolean;
-  rules?: Partial<RuleSet>;
   tiebreak: boolean;
+  tiles?: TileOverrides;
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
@@ -104,11 +103,11 @@ function parseArgs(argv: string[]): Args {
       case "quiet":
         args.quiet = value !== "false";
         break;
-      case "rules":
-        args.rules = parseRuleOverrides(value);
-        break;
       case "tiebreak":
         args.tiebreak = value !== "false";
+        break;
+      case "tiles":
+        args.tiles = parseTileOverrides(value);
         break;
       case "weapons":
         args.weapons = parseWeaponOverrides(value);
@@ -185,7 +184,7 @@ function printSummary(a: AggregateStats): void {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   console.log(
-    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.rules ? `, rules ${JSON.stringify(args.rules)}` : ""}${args.tiebreak ? ", tiebreak" : ""}${args.weapons ? `, weapons ${JSON.stringify(args.weapons)}` : ""}...`
+    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.tiebreak ? ", tiebreak" : ""}${args.weapons ? `, weapons ${JSON.stringify(args.weapons)}` : ""}...`
   );
   const start = Date.now();
 
@@ -197,8 +196,8 @@ async function main(): Promise<void> {
     workers: args.workers,
     record: args.record,
     label: args.label,
-    rules: args.rules,
     tiebreak: args.tiebreak,
+    tiles: args.tiles,
     weapons: args.weapons,
     loadouts: args.loadouts,
     seatLoadouts: args.seatLoadouts,

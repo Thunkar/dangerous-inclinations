@@ -34,10 +34,10 @@ const SLUGGER: ShipLoadout = {
   forwardSlots: ["railgun"],
   sideSlots: ["ballistic_rack", "radiator", "shields", "missiles"],
 };
-/** Off its ring the only gun that bears is the one-damage rack. */
+/** Off its ring the only gun that bears is the rack, which shields can stop. */
 const PLINKER: ShipLoadout = {
   forwardSlots: ["railgun"],
-  sideSlots: ["ballistic_rack", "radiator", "shields", "fuel_compressor"],
+  sideSlots: ["ballistic_rack", "radiator", "shields", "shields"],
 };
 
 function shotsOf(state: GameState, botId: string): FireWeaponAction[] {
@@ -326,8 +326,9 @@ describe("bot lethality estimates", () => {
   });
 
   it("treats face-down side cubes as half a shield, not as nothing", () => {
-    // Rack and missile (three shielded damage) against two face-down cubes,
-    // read as one cube of shield: two reach the hull of three, no kill.
+    // Rack and missile (four shielded damage) against two face-down cubes,
+    // read as one cube of shield: three reach the hull of four, no kill.
+    // Read as nothing it would be four and a kill; read as two cubes, only two.
     let state = withShip(
       grounded(
         makeTwoPlayerGame(
@@ -337,12 +338,12 @@ describe("bot lethality estimates", () => {
         "p1"
       ),
       "p2",
-      { hitPoints: 3 }
+      { hitPoints: 4 }
     );
     state = withPower(state, "p2", "side-2", 2);
 
     const plan = planAgainst(state, "p1", "p2");
-    expect(plan.expectedHullDamage).toBe(2);
+    expect(plan.expectedHullDamage).toBe(3);
     expect(plan.killsTarget).toBe(false);
   });
 });

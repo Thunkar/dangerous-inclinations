@@ -18,7 +18,7 @@ import type {
   ScanAction,
   Player,
 } from "../models/game.ts";
-import { isTacticalAction } from "../models/game.ts";
+import { isTacticalAction, MAX_REACTION_MASS } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import { getSubsystemConfig, isWeaponType } from "../models/subsystems.ts";
 import { BURN_COSTS, calculateJumpMassCost } from "../models/rings.ts";
@@ -29,11 +29,9 @@ import { applyOrbitalMovement, applyBurn, applyRotation } from "./movement.ts";
 import { resolveAttack } from "./damage.ts";
 import { createMissile, revealSensors } from "./missiles.ts";
 import { processScan } from "./scan.ts";
-import { rulesOf } from "./setup.ts";
 import { isMooredAt } from "./stations.ts";
 import {
   findSubsystem,
-  getMaxReactionMass,
   hasWorkingCompressor,
   isDestroyed,
   revealSubsystem,
@@ -282,13 +280,9 @@ function processCoast(state: GameState, action: CoastAction): Step {
       ship = used.ship;
       heat = used.heat;
       events.push(...used.events);
-      // Headroom can be negative if a compressor was broken while the tank was above base capacity.
-      massScooped = Math.max(
-        0,
-        Math.min(
-          ringVelocity(ship.wellId, ship.ring),
-          getMaxReactionMass(ship.subsystems) - ship.reactionMass
-        )
+      massScooped = Math.min(
+        ringVelocity(ship.wellId, ship.ring),
+        MAX_REACTION_MASS - ship.reactionMass
       );
       ship = { ...ship, reactionMass: ship.reactionMass + massScooped };
     }
@@ -453,7 +447,6 @@ function processFireWeapon(
       roll,
       attacker.ship,
       attacker.id,
-      rulesOf(working),
       config.weaponStats!.ignoresShields === true
     );
     players[targetIndex] = { ...target, ship: outcome.ship };

@@ -56,7 +56,8 @@ export { positionKey, DEFAULT_PLANNER_OPTIONS } from "./types.ts";
 // ============================================================================
 
 import type { ShipState, BurnIntensity, Facing, Station } from "../../models/game.ts";
-import { getMaxReactionMass, hasWorkingCompressor } from "../../game/ship.ts";
+import { hasWorkingCompressor } from "../../game/ship.ts";
+import { MAX_REACTION_MASS } from "../../models/game.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import { planMovement } from "./planner.ts";
 import { planMovementToTarget } from "./forward.ts";
@@ -83,7 +84,7 @@ export function shipPlannerOptions(ship: ShipState, maxTurns: number): PlannerOp
     availableMass: ship.reactionMass,
     allowWellTransfers: true,
     hasFuelScoop: scoop !== undefined && !scoop.isBroken,
-    maxFuelCapacity: getMaxReactionMass(ship.subsystems),
+    maxFuelCapacity: MAX_REACTION_MASS,
     hasFuelCompressor: hasWorkingCompressor(ship),
   };
 }

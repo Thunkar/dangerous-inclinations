@@ -34,8 +34,8 @@ import {
 } from "../testUtils.ts";
 
 const COMPRESSOR: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["fuel_compressor", "laser", "shields", "laser"],
+  forwardSlots: ["fuel_compressor"],
+  sideSlots: ["missiles", "laser", "shields", "laser"],
 };
 
 function readyToJump(
@@ -259,20 +259,20 @@ describe("jumps: executing a well transfer", () => {
     expect(eventsOf(result.events, "jumped")[0].refunded).toBe(true);
     expect(eventsOf(result.events, "subsystem_revealed")).toEqual([
       expect.objectContaining({
-        subsystemId: "side-0",
+        subsystemId: "forward-0",
         subsystemType: "fuel_compressor",
         reason: "refunded_jump",
       }),
     ]);
-    expect(getSub(result.gameState, "p1", "side-0").isRevealed).toBe(true);
+    expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(true);
   });
 
   it("a broken compressor refunds nothing", () => {
-    const state = withSub(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", "side-0", {
+    const state = withSub(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", "forward-0", {
       isBroken: true,
     });
     const result = executeTurnAs(state, jump(1, ALPHA));
-    expect(getShip(result.gameState, "p1").reactionMass).toBe(16 - 3);
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(10 - 3);
     expect(eventsOf(result.events, "jumped")[0].refunded).toBe(false);
   });
 

@@ -19,7 +19,11 @@
  * ghosts simply disappear.
  */
 import { Box, Tooltip, Typography } from '@mui/material'
-import { getMissileStats, getWellName } from '@dangerous-inclinations/engine'
+import {
+  SHIELD_HEAT_PER_POINT,
+  getMissileStats,
+  getWellName,
+} from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { CargoChits, PipTrack } from '../common/Tokens'
 import { useGame } from '../../context/GameContext'
@@ -60,8 +64,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         !plan?.steps.some(step => step.kind === 'fire' && step.subsystemId === s.id)
     )
     .reduce((sum, s) => sum + s.allocatedEnergy, 0)
-  const heatPerPoint = view.rules.shieldHeatPerPoint
-  const shieldHeat = shieldsOnly * heatPerPoint + rackHeat
+  const shieldHeat = shieldsOnly * SHIELD_HEAT_PER_POINT + rackHeat
   const worstHeat = heatAfter + shieldHeat
   const heatMax = Math.max(dissipation + 3, heatAfter, heatNow, worstHeat)
   const overHeat = Math.max(0, heatAfter - dissipation)
@@ -220,7 +223,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         {shieldHull > 0 && (
           <Tooltip
             title={
-              `Shields absorb up to ${shieldsOnly} damage and every point absorbed becomes ${heatPerPoint} heat` +
+              `Shields absorb up to ${shieldsOnly} damage and every point absorbed becomes ${SHIELD_HEAT_PER_POINT} heat` +
               (rackHeat > 0
                 ? `; a powered rack heats by ${rackHeat} when it intercepts a missile`
                 : '') +

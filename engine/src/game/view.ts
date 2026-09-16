@@ -13,17 +13,15 @@ import { resolveShipAppearance, type ShipAppearance } from "../models/appearance
  * destinations, mission offers, what a scan showed you.
  */
 import type { GameState, Missile, Player, Position, Station, GamePhase } from "../models/game.ts";
+import { MAX_REACTION_MASS } from "../models/game.ts";
 import type { Mission } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import {
   getDissipationCapacity,
   getEffectiveCriticalChance,
-  getMaxReactionMass,
   isDestroyed,
 } from "./ship.ts";
 import { completedMissions } from "./missions/missionChecks.ts";
-import type { RuleSet } from "../models/rules.ts";
-import { resolveRules } from "../models/rules.ts";
 
 export interface PublicShipView {
   wellId: string;
@@ -100,7 +98,6 @@ export interface GameView {
   /** Someone has reached the points needed; the game ends when this round does. */
   finalRound: boolean;
   /** Rules in force for this game (public). */
-  rules: RuleSet;
   /** The viewer's full player record, or null for a spectator. */
   me: Player | null;
   myStats: OwnShipStats | null;
@@ -191,12 +188,11 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     missiles: state.missiles,
     winnerId: state.winnerId,
     finalRound: state.finalRound === true,
-    rules: resolveRules(state.rules),
     me,
     myStats: me
       ? {
           dissipationCapacity: getDissipationCapacity(me.ship.subsystems),
-          maxReactionMass: getMaxReactionMass(me.ship.subsystems),
+          maxReactionMass: MAX_REACTION_MASS,
           criticalChance: getEffectiveCriticalChance(me.ship.subsystems),
         }
       : null,

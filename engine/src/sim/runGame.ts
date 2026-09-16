@@ -10,11 +10,11 @@
  */
 import type { GameState, PlayerAction } from "../models/game.ts";
 import type { GameEvent } from "../models/events.ts";
-import type { RuleSet } from "../models/rules.ts";
 import type { GameRecording, RecordedTurn, RecordingMetadata } from "../recording/types.ts";
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
 import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
+import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
 import {
   applyLoadoutOverrides,
   type LoadoutOverrides,
@@ -38,10 +38,10 @@ export interface GameConfig {
   /** Keep a full recording (snapshots per turn). Default true. */
   record?: boolean;
   label?: string;
-  /** Rule overrides for this game (experiments). */
-  rules?: Partial<RuleSet>;
   /** At the turn cap, declare the player with most completed missions (then most hull) the winner. */
   tiebreak?: boolean;
+  /** Experiment-only tile overrides: any field of any tile (see sim/tileOverrides.ts). */
+  tiles?: TileOverrides;
   /** Experiment-only weapon stat overrides (see sim/weaponOverrides.ts). */
   weapons?: WeaponOverrides;
   /** Experiment-only bot hull overrides (see sim/loadoutOverrides.ts). */
@@ -110,22 +110,19 @@ export function botIds(count: number): string[] {
 export function setupBotGame(
   seed: number,
   botCount: number,
-  rules?: Partial<RuleSet>,
   seatLoadouts?: SeatLoadouts
 ): GameState {
   let state = createGame(
     botIds(botCount).map((id, i) => ({ id, name: `Bot ${i + 1}` })),
-    seed,
-    rules
+    seed
   );
 
   for (const player of state.players) {
     // A forced hull is offered to the bot, not stapled on: the bot keeps cards
-    // that hull can fly, and a deal with no flyable trio (three of the five
+    // that hull can fly, and a deal with no flyable trio (four of the six
     // offers needing a sensor array) leaves the seat its own mat for that game.
     const choice = botChooseLoadout(player.missionOffers, {
       playerCount: botCount,
-      rules,
       hull: seatLoadouts?.[player.id],
     });
     const result = submitLoadout(state, player.id, {
@@ -153,11 +150,12 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const seed = config.seed ?? freshSeed();
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
+  applyTileOverrides(config.tiles);
   applyWeaponOverrides(config.weapons);
   applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;
 
-  const initialState = setupBotGame(seed, botCount, config.rules, config.seatLoadouts);
+  const initialState = setupBotGame(seed, botCount, config.seatLoadouts);
   let state = initialState;
   const turns: GameRunResult["turns"] = [];
   const turnStats: TurnStat[] = [];

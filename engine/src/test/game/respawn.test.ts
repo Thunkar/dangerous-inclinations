@@ -32,8 +32,8 @@ import {
 } from "../testUtils.ts";
 
 const COMPRESSOR: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["fuel_compressor", "laser", "shields", "laser"],
+  forwardSlots: ["fuel_compressor"],
+  sideSlots: ["missiles", "laser", "shields", "laser"],
 };
 
 const crate: Cargo = {
@@ -191,10 +191,10 @@ describe("respawn: the turn after dying", () => {
     expect(p2.cargo).toEqual([{ ...crate, isPickedUp: false }]);
   });
 
-  it("a respawned ship refuels to its loadout's capacity", () => {
+  it("a respawned ship refuels to a full tank", () => {
     let state = makeTwoPlayerGame({}, { loadout: COMPRESSOR }, { activePlayerIndex: 1 });
     state = withShip(state, "p2", { hitPoints: 0, reactionMass: 0 });
-    expect(getShip(mustExecute(state), "p2").reactionMass).toBe(16);
+    expect(getShip(mustExecute(state), "p2").reactionMass).toBe(10);
   });
 
   it("the turn after respawning is lost: actions are ignored and the ship only drifts", () => {

@@ -7,7 +7,6 @@
  *
  *   yarn balance                      # 100 games per row (~30 min on 6 cores)
  *   yarn balance --quick              # 40 games per row
- *   yarn balance --rules=shieldMaxEnergy=3
  *   yarn balance --only=natural,turtle,shields2_lasers2
  *   yarn balance --output=/tmp/balance   # writes balance.md and balance.json
  *
@@ -23,8 +22,6 @@ import { cpus } from "node:os";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ShipLoadout } from "../models/game.ts";
-import type { RuleSet } from "../models/rules.ts";
-import { parseRuleOverrides } from "../models/rules.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
 import type { PerGameStats } from "./stats.ts";
 
@@ -41,24 +38,34 @@ const hull = (forward: string, sides: string): ShipLoadout => ({
 /** Presets first, then the shapes a sneaky player might try. */
 const HULLS: Array<{ id: string; label: string; loadout: ShipLoadout }> = [
   {
-    id: "hauler",
-    label: "Hauler (preset)",
-    loadout: hull("sensor_array", "shields,radiator,fuel_compressor,laser"),
+    id: "interceptor_tanky",
+    label: "Interceptor · tanky (preset)",
+    loadout: hull("sensor_array", "shields,shields,radiator,laser"),
   },
   {
-    id: "raider",
-    label: "Raider (preset)",
-    loadout: hull("railgun", "missiles,radiator,fuel_compressor,shields"),
+    id: "interceptor_aggressive",
+    label: "Interceptor · aggressive (preset)",
+    loadout: hull("sensor_array", "shields,laser,laser,radiator"),
   },
   {
-    id: "scout",
-    label: "Scout (preset)",
-    loadout: hull("sensor_array", "shields,laser,laser,fuel_compressor"),
+    id: "hunter_tanky",
+    label: "Hunter · tanky (preset, bots never pick it)",
+    loadout: hull("railgun", "missiles,radiator,shields,shields"),
   },
   {
-    id: "hunter",
-    label: "Hunter (preset)",
-    loadout: hull("railgun", "missiles,radiator,laser,shields"),
+    id: "hunter_aggressive",
+    label: "Hunter · aggressive (preset)",
+    loadout: hull("railgun", "missiles,radiator,ballistic_rack,shields"),
+  },
+  {
+    id: "hauler_tanky",
+    label: "Hauler · tanky (preset)",
+    loadout: hull("fuel_compressor", "shields,shields,radiator,laser"),
+  },
+  {
+    id: "hauler_aggressive",
+    label: "Hauler · aggressive (preset, bots never pick it)",
+    loadout: hull("fuel_compressor", "missiles,radiator,shields,laser"),
   },
   {
     id: "shields2_lasers2",
@@ -117,14 +124,29 @@ const HULLS: Array<{ id: string; label: string; loadout: ShipLoadout }> = [
     loadout: hull("railgun", "ballistic_rack,ballistic_rack,shields,radiator"),
   },
   {
-    id: "tanker",
-    label: "railgun + compressors×4",
-    loadout: hull("railgun", "fuel_compressor,fuel_compressor,fuel_compressor,fuel_compressor"),
+    id: "rack4",
+    label: "railgun + racks×4",
+    loadout: hull("railgun", "ballistic_rack,ballistic_rack,ballistic_rack,ballistic_rack"),
   },
   {
-    id: "fast_hauler",
-    label: "sensor + compressors×2 + shields + laser",
-    loadout: hull("sensor_array", "fuel_compressor,fuel_compressor,shields,laser"),
+    id: "legs_lasers",
+    label: "compressor + lasers×2 + shields + radiator",
+    loadout: hull("fuel_compressor", "laser,laser,shields,radiator"),
+  },
+  {
+    id: "legs_turtle",
+    label: "compressor + shields×2 + radiators×2",
+    loadout: hull("fuel_compressor", "shields,shields,radiator,radiator"),
+  },
+  {
+    id: "legs_guns",
+    label: "compressor + missiles×2 + radiator + shields",
+    loadout: hull("fuel_compressor", "missiles,missiles,radiator,shields"),
+  },
+  {
+    id: "legs_rack",
+    label: "compressor + racks×2 + shields + radiator",
+    loadout: hull("fuel_compressor", "ballistic_rack,ballistic_rack,shields,radiator"),
   },
   {
     id: "hotrod",
@@ -142,7 +164,6 @@ interface Args {
   games: number;
   baseSeed: number;
   workers: number;
-  rules?: Partial<RuleSet>;
   only?: Set<string>;
   output?: string;
   noFail: boolean;
@@ -172,9 +193,6 @@ function parseArgs(argv: string[]): Args {
         break;
       case "workers":
         args.workers = Number(value);
-        break;
-      case "rules":
-        args.rules = parseRuleOverrides(value);
         break;
       case "only":
         args.only = new Set(value.split(",").map((s) => s.trim()));
@@ -295,7 +313,6 @@ async function main() {
     baseSeed: args.baseSeed,
     workers: args.workers,
     tiebreak: true,
-    rules: args.rules,
   };
   const started = Date.now();
   const log = (s: string) =>
@@ -322,7 +339,7 @@ async function main() {
   lines.push(`# Balance suite — ${new Date().toISOString().slice(0, 10)}`);
   lines.push("");
   lines.push(
-    `${args.games} games per row, seeds ${args.baseSeed}+, turn cap 400${args.rules ? `, rules ${JSON.stringify(args.rules)}` : ", rules as in RULES.md"}.`
+    `${args.games} games per row, seeds ${args.baseSeed}+, turn cap 400, rules as in RULES.md.`
   );
   if (natural.length) {
     lines.push("");

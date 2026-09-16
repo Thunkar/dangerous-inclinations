@@ -129,7 +129,7 @@ Four mission types. One card is one point; first to three wins.
 | **Intercept [player]** | you scan them, then dock at any station |
 | **Survey the Event Horizon** | you end a turn on Black Hole Ring 1, then dock at any station |
 
-Deck: one Destroy and one Intercept per opponent; all six Deliver routes; two Survey. Two players see 10 cards, three 12, four 14. Draw 5, keep 3.
+Deck: one Destroy and one Intercept per opponent; all six Deliver routes; two Survey. Two players see 10 cards, three 12, four 14. Draw 6, keep 3.
 
 Survey is the one card added in this redesign (a dive into the 8-sector ring and back out, then a delivery). Three other candidates were tried and rejected by the designer: Ambush (4+ hull damage in one turn: a watered-down Destroy), Salvage with wreck tokens (impossible in a game where nobody dies), Breach (break a tile with a critical: anyone holding Destroy on the same player completes it for free), and Grand Tour (dock at all three stations) was cut as well. Rule for the future: new mission cards are proposed to the designer, not shipped.
 
@@ -237,7 +237,7 @@ None of these levers has been pulled; they are the designer's calls.
 
 ## 6c. How to test a rule before adopting it
 
-`engine/src/models/rules.ts` holds the knobs that are still live questions (shield cap, shield heat per absorbed point, Destroy's worth); everything decided on 15 Sept 2026 is a constant. Knobs default to RULES.md and are carried on the game state, so a recording says which rules it was played under. Run `yarn sim --rules=k=v,... --tiebreak` with the same `--baseSeed` as the baseline and compare: same seeds, same hands, only the rule differs. `--weapons`, `--loadouts` and `--seats` do the same for weapon stats and hulls. Results: `docs/experiments-2026-09-15.md`, `docs/weapons-2026-09-15.md`, `docs/edge-cases-2026-09-15.md`.
+The rules are constants in `engine/src/models/`; there are no knobs on the game state (the last of them were retired on 16 Sept 2026, once every question they held open had been answered). To measure a change before adopting it, use the simulator's experiment-only overrides with the same `--baseSeed` as the baseline so that only the rule differs: `--tiles=` (any field of any tile), `--weapons=` (firing stats), `--loadouts=` (the bots' hull templates) and `--seats=` (a hull forced on one seat). Results: `docs/experiments-2026-09-15.md`, `docs/weapons-2026-09-15.md`, `docs/edge-cases-2026-09-15.md`.
 
 ## 7. Code plan
 

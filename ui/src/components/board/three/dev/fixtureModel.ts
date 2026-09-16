@@ -67,9 +67,9 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     42
   )
   const templates = [
-    BOT_LOADOUT_TEMPLATES.hauler,
-    BOT_LOADOUT_TEMPLATES.hunter,
-    BOT_LOADOUT_TEMPLATES.raider,
+    BOT_LOADOUT_TEMPLATES['hauler-tanky'],
+    BOT_LOADOUT_TEMPLATES['hunter-aggressive'],
+    BOT_LOADOUT_TEMPLATES['interceptor-aggressive'],
   ]
   state.players.forEach((player, index) => {
     player.hasSubmittedLoadout = true

@@ -84,7 +84,6 @@ export interface WeaponStats {
 /** Passive bonuses that need no energy. */
 export interface PassiveEffect {
   dissipationBonus?: number;
-  reactionMassBonus?: number;
   criticalChanceBonus?: number; // percentage points, only while powered
   refuelOnWellTransfer?: boolean;
 }
@@ -215,9 +214,9 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     minEnergy: 0,
     maxEnergy: 0,
     generatesHeatOnUse: false,
-    slotType: "side",
+    slotType: "forward",
     isPassive: true,
-    passiveEffect: { reactionMassBonus: 6, refuelOnWellTransfer: true },
+    passiveEffect: { refuelOnWellTransfer: true },
   },
 
   missiles: {
@@ -246,7 +245,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     generatesHeatOnUse: true,
     slotType: "side",
     weaponStats: {
-      damage: 1,
+      damage: 2,
       ringRange: 1,
       sectorRange: 1,
       arc: "broadside",

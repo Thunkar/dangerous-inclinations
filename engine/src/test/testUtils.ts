@@ -273,12 +273,11 @@ export const interceptMission = (
   scanAcquired: false,
   dataCargoId: `data-${id}`,
 });
-export const surveyMission = (id = "survey-1", deliveryPlanetId = ALPHA): SurveyMission => ({
+export const surveyMission = (id = "survey-1", deliveryPlanetId = "any"): SurveyMission => ({
   id,
   type: "survey",
   isCompleted: false,
   deliveryPlanetId,
-  surveyTurns: 0,
   surveyAcquired: false,
   dataCargoId: `data-${id}`,
 });

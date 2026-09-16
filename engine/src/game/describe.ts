@@ -26,7 +26,7 @@ export function describeMission(m: Mission, name: NameResolver): string {
     case "intercept_transmission":
       return `Intercept ${name(m.targetPlayerId)}`;
     case "survey":
-      return `Survey the Event Horizon → ${getWellName(m.deliveryPlanetId)}`;
+      return "Survey the Event Horizon";
   }
 }
 
@@ -47,8 +47,6 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
   switch (e.type) {
     case "respawned":
       return `${name(e.playerId)} returns to port at ${pos(e.position)}`;
-    case "survey_hold":
-      return `${name(e.playerId)} holds orbit at the event horizon, sensors on (${e.turns}/${e.needed})`;
     case "energy_allocated":
       return `${name(e.playerId)} routes ${e.amount} energy to ${e.subsystemId}`;
     case "energy_deallocated":

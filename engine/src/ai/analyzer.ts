@@ -12,7 +12,8 @@ import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
 import { getSubsystemConfig, isWeaponType } from "../models/subsystems.ts";
 import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import { positionOf, sectorDistance } from "../game/geometry.ts";
-import { getDissipationCapacity, getMaxReactionMass, hasWorkingCompressor } from "../game/ship.ts";
+import { getDissipationCapacity, hasWorkingCompressor } from "../game/ship.ts";
+import { MAX_REACTION_MASS } from "../models/game.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import type {
   BotParameters,
@@ -140,7 +141,7 @@ export function analyzeStatus(me: Player): BotStatus {
     heatBudget: Math.max(0, dissipation - ship.heat.currentHeat),
     availableEnergy: ship.reactor.availableEnergy,
     reactionMass: ship.reactionMass,
-    maxReactionMass: getMaxReactionMass(ship.subsystems),
+    maxReactionMass: MAX_REACTION_MASS,
     position: positionOf(ship),
     facing: ship.facing,
     engines: find("engines"),

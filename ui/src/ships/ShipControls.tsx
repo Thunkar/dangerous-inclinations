@@ -1,6 +1,9 @@
 import { Box, Button, Slider, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { Fragment } from 'react'
 import {
   BOT_LOADOUT_TEMPLATES,
+  BOT_ROLES,
+  HULL_VARIANTS,
   DEFAULT_SHIP_APPEARANCE,
   INSTALLABLE_SUBSYSTEMS,
   canInstallInSlot,
@@ -40,22 +43,45 @@ export function SystemControls({
       <Typography variant="overline" color="text.secondary">
         01 / Mission profile
       </Typography>
-      <Box
-        sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.5, mt: 1, mb: 2.5 }}
-      >
-        {(['hunter', 'raider', 'hauler', 'scout'] as const).map(id => (
-          <Button
-            key={id}
-            disabled={disabled}
-            variant="outlined"
-            aria-pressed={
-              JSON.stringify(config.loadout) === JSON.stringify(BOT_LOADOUT_TEMPLATES[id])
-            }
-            onClick={() => onChange(structuredClone(BOT_LOADOUT_TEMPLATES[id]))}
-            sx={{ minWidth: 0, px: 0.5, textTransform: 'capitalize' }}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: 0.5, mt: 1, mb: 2.5 }}>
+        <Box />
+        {HULL_VARIANTS.map(v => (
+          <Typography
+            key={v}
+            variant="caption"
+            color="text.secondary"
+            sx={{ textAlign: 'center', textTransform: 'capitalize' }}
           >
-            {id}
-          </Button>
+            {v}
+          </Typography>
+        ))}
+        {BOT_ROLES.map(role => (
+          <Fragment key={role}>
+            <Typography
+              variant="caption"
+              sx={{ alignSelf: 'center', pr: 1, textTransform: 'capitalize' }}
+            >
+              {role}
+            </Typography>
+            {HULL_VARIANTS.map(variant => {
+              const id = `${role}-${variant}` as const
+              return (
+                <Button
+                  key={id}
+                  disabled={disabled}
+                  variant="outlined"
+                  aria-label={`${role}, ${variant}`}
+                  aria-pressed={
+                    JSON.stringify(config.loadout) === JSON.stringify(BOT_LOADOUT_TEMPLATES[id])
+                  }
+                  onClick={() => onChange(structuredClone(BOT_LOADOUT_TEMPLATES[id]))}
+                  sx={{ minWidth: 0, px: 0.5, textTransform: 'capitalize' }}
+                >
+                  {variant}
+                </Button>
+              )
+            })}
+          </Fragment>
         ))}
       </Box>
       <Typography variant="overline" color="text.secondary">

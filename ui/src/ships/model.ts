@@ -19,7 +19,6 @@ import {
   Path,
   PlaneGeometry,
   Shape,
-  SphereGeometry,
   SRGBColorSpace,
   TorusGeometry,
   Vector2,
@@ -797,25 +796,31 @@ export function createShip(
         }
         break
       }
-      case 'fuel_compressor':
-        for (const z of [-0.28, 0.28]) {
-          // Local X is the ship's fore–aft axis on every side hardpoint.
-          const tank = new Group()
-          tank.name = `longitudinal_tank_${z < 0 ? 0 : 1}`
-          p.add(tank)
-          cylinder(tank, 0.23, 0.23, 0.94, [0, 0.45, z], pale, [0, 0, Math.PI / 2])
-          for (const x of [-0.47, 0.47])
-            add(tank, new SphereGeometry(0.23, 12, 8), pale, [x, 0.45, z])
-          cylinder(tank, 0.233, 0.233, 0.12, [0, 0.45, z], accent, [0, 0, Math.PI / 2])
-          for (const x of [-0.34, 0.34]) {
-            plate(p, [0.16, 0.19, 0.5], [x, 0.28, z], dark)
-            ring(p, 0.234, 0.045, [x, 0.45, z], steel, [0, Math.PI / 2, 0])
-          }
-          pipe(p, [0.62, 0.45, z], [0.76, 0.45, z], 0.065, copper)
+      case 'fuel_compressor': {
+        // The compressor sits on the bow hardpoint, whose frame sends local +Y
+        // down the nose and local X across it. It holds no fuel of its own any
+        // more — it buys a jump, it is not a tank — so the mass is a pump block
+        // mated flat to the bow rather than cylinders reaching past it. The
+        // drums stand dorsal-ventral (axis along local Z) to keep it shallow.
+        plate(p, [1.04, 0.16, 0.76], [0, 0.08, 0], dark)
+        for (const x of [-0.31, 0.31]) {
+          const drum = new Group()
+          drum.name = `compressor_drum_${x < 0 ? 0 : 1}`
+          p.add(drum)
+          cylinder(drum, 0.25, 0.25, 0.6, [x, 0.36, 0], pale, [Math.PI / 2, 0, 0])
+          // Flanged end caps, and one accent band around the barrel.
+          for (const z of [-0.3, 0.3])
+            cylinder(drum, 0.28, 0.28, 0.07, [x, 0.36, z], steel, [Math.PI / 2, 0, 0])
+          ring(drum, 0.255, 0.035, [x, 0.36, 0], accent, [0, 0, 0])
         }
-        pipe(p, [0.76, 0.45, -0.28], [0.76, 0.45, 0.28], 0.065, copper)
-        plate(p, [0.22, 0.21, 0.38], [0.74, 0.3, 0], dark)
+        // Manifold across the pair, with the feed running back into the hull.
+        pipe(p, [-0.31, 0.63, 0], [0.31, 0.63, 0], 0.06, copper)
+        pipe(p, [0, 0.63, 0], [0, 0.63, -0.34], 0.06, copper)
+        plate(p, [0.3, 0.18, 0.2], [0, 0.56, -0.4], dark)
+        // Intake trunking low on the mating face, between the drums.
+        plate(p, [0.34, 0.26, 0.42], [0, 0.22, 0], hull)
         break
+      }
       case 'ballistic_rack': {
         cylinder(p, 0.47, 0.57, 0.18, [0, 0.3, 0], dark, [0, 0, 0], 16)
         ring(p, 0.44, 0.06, [0, 0.4, 0], steel)

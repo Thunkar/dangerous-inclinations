@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import type { GameRecording } from "../recording/types.ts";
 import { runGame, type GameRunResult, type InvalidTurn } from "./runGame.ts";
 import { freshSeed } from "../utils/rng.ts";
-import type { RuleSet } from "../models/rules.ts";
 import type { WeaponOverrides } from "./weaponOverrides.ts";
+import type { TileOverrides } from "./tileOverrides.ts";
 import type { LoadoutOverrides, SeatLoadouts } from "./loadoutOverrides.ts";
 import {
   computePerGameStats,
@@ -27,8 +27,8 @@ export interface BatchConfig {
   /** Keep recordings (memory heavy). Default false in batches. */
   record?: boolean;
   label?: string;
-  rules?: Partial<RuleSet>;
   tiebreak?: boolean;
+  tiles?: TileOverrides;
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
@@ -49,8 +49,8 @@ export interface WorkerJob {
   maxTurns: number;
   record: boolean;
   label?: string;
-  rules?: Partial<RuleSet>;
   tiebreak?: boolean;
+  tiles?: TileOverrides;
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
@@ -78,8 +78,8 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
     maxTurns: config.maxTurns ?? 200,
     record: config.record ?? false,
     label: config.label,
-    rules: config.rules,
     tiebreak: config.tiebreak,
+    tiles: config.tiles,
     weapons: config.weapons,
     loadouts: config.loadouts,
     seatLoadouts: config.seatLoadouts,

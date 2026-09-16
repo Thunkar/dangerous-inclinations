@@ -851,7 +851,7 @@ function makeShip(
 ): ShipState {
   const loadout = {
     forwardSlots: ["sensor_array"] as never,
-    sideSlots: ["shields", "radiator", "fuel_compressor", "laser"] as never,
+    sideSlots: ["shields", "radiator", "radiator", "laser"] as never,
   };
   const stats = calculateShipStatsFromLoadout(loadout);
   return {

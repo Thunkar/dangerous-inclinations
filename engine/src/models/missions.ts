@@ -12,12 +12,16 @@ import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
 
 export const MISSIONS_TO_WIN = 3;
 export const MISSIONS_PER_PLAYER = 3;
-export const MISSION_OFFERS_PER_PLAYER = 5;
+export const MISSION_OFFERS_PER_PLAYER = 6;
 
 /** Black hole ring a ship must end its turn on to complete a Survey. */
 export const SURVEY_RING = 1;
-/** Consecutive own turns a ship must end on SURVEY_RING with sensors powered to take the data. */
-export const SURVEY_HOLD_TURNS = 2;
+/**
+ * Points a completed Destroy card is worth. Two since 15 Sept 2026: a kill
+ * needs another player's active cooperation to fail and costs the victim two
+ * turns and their cargo.
+ */
+export const DESTROY_POINTS = 2;
 /** Scan range for the scan action (same ring, ±sectors). */
 export const SCAN_SECTOR_RANGE = 3;
 
@@ -103,15 +107,15 @@ export interface InterceptTransmissionMission extends BaseMission {
 }
 
 /**
- * Hold SURVEY_RING for SURVEY_HOLD_TURNS consecutive turns with the sensor
- * array powered (the data is taken on the last), then dock at the named planet.
+ * End a turn on SURVEY_RING with the sensor array powered to take the data,
+ * then file it at any station. The dive is the mission; the filing is not a
+ * second errand, and there is no hold — a second turn on the ring measured at
+ * nothing, because a ship parked there is already coasting.
  */
 export interface SurveyMission extends BaseMission {
   type: "survey";
-  /** Station the data must be delivered to. */
+  /** Always "any": survey data is filed wherever the ship next docks. */
   deliveryPlanetId: string;
-  /** Consecutive turns ended on the ring, sensing. Resets when a turn ends elsewhere or dark. */
-  surveyTurns: number;
   surveyAcquired: boolean;
   dataCargoId: string;
 }

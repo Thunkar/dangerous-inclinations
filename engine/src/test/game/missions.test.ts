@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import type { ShipLoadout } from "../../models/game.ts";
-import { DEFAULT_RULES } from "../../models/rules.ts";
 import {
   buildMissionDeck,
   cratesForMissions,
@@ -9,7 +8,7 @@ import {
 } from "../../game/missions/missionDeck.ts";
 import { checkForWinner, completedMissions } from "../../game/missions/missionChecks.ts";
 import { SURVEY_CARDS_PER_DECK } from "../../game/missions/missionDeck.ts";
-import { MISSION_OFFERS_PER_PLAYER } from "../../models/missions.ts";
+import { DESTROY_POINTS, MISSION_OFFERS_PER_PLAYER } from "../../models/missions.ts";
 import type { Mission } from "../../models/missions.ts";
 import type { GameState } from "../../models/game.ts";
 import { PLANETS } from "../../models/gravityWells.ts";
@@ -39,8 +38,6 @@ import {
   withPlayer,
   withPower,
   withShip,
-  burn,
-  getShip,
 } from "../testUtils.ts";
 
 const PLANET_IDS = PLANETS.map((p) => p.id);
@@ -195,12 +192,12 @@ describe("missions: combat", () => {
     const [completed] = eventsOf(result.events, "mission_completed");
     expect(completed).toMatchObject({
       playerId: "p1",
-      completedCount: DEFAULT_RULES.destroyPoints,
+      completedCount: DESTROY_POINTS,
       mission: { id: "destroy-p2", isCompleted: true },
     });
     expect(completed).not.toHaveProperty("privateTo");
     expect(getPlayer(result.gameState, "p1")).toMatchObject({
-      completedMissionCount: DEFAULT_RULES.destroyPoints,
+      completedMissionCount: DESTROY_POINTS,
     });
     expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);
   });
@@ -267,7 +264,7 @@ describe("missions: combat", () => {
       "destroy-b",
     ]);
     expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(
-      2 * DEFAULT_RULES.destroyPoints
+      2 * DESTROY_POINTS
     );
   });
 });
@@ -320,42 +317,25 @@ describe("missions: trade", () => {
 
 const SENSOR_HULL: ShipLoadout = {
   forwardSlots: ["sensor_array"],
-  sideSlots: ["laser", "shields", "radiator", "fuel_compressor"],
+  sideSlots: ["laser", "shields", "radiator", "radiator"],
 };
 
-/** p1 on black hole ring 1 with its sensor array powered, holding a Survey for Beta. */
+/** p1 on black hole ring 1 with its sensor array powered, holding a Survey. */
 function surveying(
   position: { wellId?: string; ring: number; sector: number } = { ring: 1, sector: 0 }
 ) {
   const state = withMissions(
     makeTwoPlayerGame({ ...position, loadout: SENSOR_HULL }, { wellId: BH, ring: 4, sector: 12 }),
     "p1",
-    [surveyMission("survey-1", BETA)]
+    [surveyMission("survey-1")]
   );
   return withPower(state, "p1", "forward-0", 2);
 }
 
 describe("missions: daring", () => {
-  it("survey data is taken on the second consecutive turn on ring 1 with sensors powered (privately)", () => {
-    const first = executeTurnAs(surveying(), coast(1));
-    expect(eventTypes(first.events)).not.toContain("data_acquired");
-    expect(eventsOf(first.events, "survey_hold")).toEqual([
-      expect.objectContaining({
-        playerId: "p1",
-        missionId: "survey-1",
-        turns: 1,
-        needed: 2,
-        privateTo: ["p1"],
-      }),
-    ]);
-    expect(getPlayer(first.gameState, "p1").missions[0]).toMatchObject({
-      surveyTurns: 1,
-      surveyAcquired: false,
-    });
-
-    const between = executeTurnAs(first.gameState, coast(1));
-    const second = executeTurnAs(between.gameState, coast(1));
-    expect(eventsOf(second.events, "data_acquired")).toEqual([
+  it("survey data is taken on any turn ended on ring 1 with sensors powered (privately)", () => {
+    const result = executeTurnAs(surveying(), coast(1));
+    expect(eventsOf(result.events, "data_acquired")).toEqual([
       expect.objectContaining({
         playerId: "p1",
         kind: "survey",
@@ -363,41 +343,11 @@ describe("missions: daring", () => {
         privateTo: ["p1"],
       }),
     ]);
-    const player = getPlayer(second.gameState, "p1");
-    expect(player.missions[0]).toMatchObject({
-      surveyTurns: 2,
-      surveyAcquired: true,
-      isCompleted: false,
-    });
+    const player = getPlayer(result.gameState, "p1");
+    expect(player.missions[0]).toMatchObject({ surveyAcquired: true });
     expect(player.cargo).toEqual([
-      {
-        id: "data-survey-1",
-        missionId: "survey-1",
-        kind: "data",
-        deliveryPlanetId: BETA,
-        isPickedUp: true,
-      },
+      expect.objectContaining({ missionId: "survey-1", kind: "data", deliveryPlanetId: "any" }),
     ]);
-  });
-
-  it("a dark sensor array takes nothing, however long the ship sits on the ring", () => {
-    const state = withPower(surveying(), "p1", "forward-0", 0);
-    const first = executeTurnAs(state, coast(1));
-    const second = executeTurnAs(executeTurnAs(first.gameState, coast(1)).gameState, coast(1));
-    expect(eventTypes([...first.events, ...second.events])).not.toContain("survey_hold");
-    expect(eventTypes(second.events)).not.toContain("data_acquired");
-    expect(getPlayer(second.gameState, "p1").missions[0]).toMatchObject({ surveyTurns: 0 });
-  });
-
-  it("leaving the ring between the two turns starts the count again", () => {
-    const first = executeTurnAs(surveying(), coast(1));
-    const between = executeTurnAs(first.gameState, coast(1));
-    const away = executeTurnAs(withPower(between.gameState, "p1", "engines", 1), burn(1, "soft"));
-    expect(getShip(away.gameState, "p1").ring).toBe(2);
-    expect(getPlayer(away.gameState, "p1").missions[0]).toMatchObject({
-      surveyTurns: 0,
-      surveyAcquired: false,
-    });
   });
 
   it.each([
@@ -409,14 +359,10 @@ describe("missions: daring", () => {
     expect(eventTypes(result.events)).not.toContain("data_acquired");
   });
 
-  it("survey cards in a deck name two different planets", () => {
+  it("survey cards file their data at any station", () => {
     const state = makeTwoPlayerGame();
     const surveys = state.players[0].missionOffers.filter((m) => m.type === "survey");
-    // Offers are five of the twelve cards; when both Survey cards are drawn they differ.
-    if (surveys.length === 2) {
-      expect(surveys[0].deliveryPlanetId).not.toBe(surveys[1].deliveryPlanetId);
-    }
-    for (const m of surveys) expect([ALPHA, BETA, GAMMA]).toContain(m.deliveryPlanetId);
+    for (const m of surveys) expect(m.deliveryPlanetId).toBe("any");
   });
 
   it("a ship that burns up on ring 1 acquires nothing", () => {

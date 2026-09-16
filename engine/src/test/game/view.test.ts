@@ -26,8 +26,8 @@ const SENSOR: ShipLoadout = {
   sideSlots: ["radiator", "laser", "shields", "missiles"],
 };
 const COMPRESSOR: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["fuel_compressor", "laser", "shields", "laser"],
+  forwardSlots: ["fuel_compressor"],
+  sideSlots: ["missiles", "laser", "shields", "laser"],
 };
 
 /** p2 has fired its side-0 laser (face-up); p1 has scanned p2's side-2. */
@@ -213,7 +213,7 @@ describe("view: the viewer's own side", () => {
     });
     expect(viewFor(state, "p2").myStats).toEqual({
       dissipationCapacity: 5,
-      maxReactionMass: 16,
+      maxReactionMass: 10,
       criticalChance: 10,
     });
   });

@@ -7,7 +7,6 @@ import type {
   HeatState,
 } from "./subsystems.ts";
 import type { Mission, Cargo } from "./missions.ts";
-import type { RuleSet } from "./rules.ts";
 
 /**
  * Ship loadout: one forward slot and four side slots.
@@ -44,6 +43,11 @@ export const MAX_REACTION_MASS = 10;
 export const STARTING_REACTION_MASS = 10;
 export const DEFAULT_DISSIPATION_CAPACITY = 5;
 export const STARTING_HIT_POINTS = 10;
+/**
+ * Heat the defender takes per point of damage a shield absorbs. Two since
+ * 15 Sept 2026: soaking a volley is a decision about how much heat to eat.
+ */
+export const SHIELD_HEAT_PER_POINT = 2;
 
 export type Facing = "prograde" | "retrograde";
 export type BurnIntensity = "soft" | "medium" | "hard";
@@ -282,8 +286,6 @@ export interface GameState {
    * seat gets the same number of turns, then the standings decide.
    */
   finalRound?: boolean;
-  /** Rule overrides for this game (see models/rules.ts); absent = RULES.md defaults. */
-  rules?: Partial<RuleSet>;
   // Determinism
   rngSeed: number;
   rngState: number;

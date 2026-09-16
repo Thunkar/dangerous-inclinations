@@ -101,7 +101,7 @@ yarn dev:all
 yarn build          # engine must build before server/ui typecheck
 yarn workspace @dangerous-inclinations/engine test --run
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1
-yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --rules=shieldMaxEnergy=3,destroyPoints=1
+yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --tiles=ballistic_rack.damage=3
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message
 yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural play + extreme hulls, flags outliers
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal (docs/arena.md)
@@ -122,14 +122,17 @@ players and forces the presets plus sixteen extreme hulls on one seat, then
 prints one table and exits 1 on an `outlier` (a hull that wins outright 12+
 points more often than seat 1 does with its own hand), a `stall` (20%+ of games
 at the cap) or a `slow` natural row. Run it after any rule change; `--quick`
-for 40 games a row, `--rules=k=v` to try a change first, `--output=dir` to
-keep the table.
+for 40 games a row, `--output=dir` to keep the table.
 
-Rule experiments: `engine/src/models/rules.ts` lists the knobs (defaults =
-RULES.md). `--rules=k=v,...` overrides them for a sim run; the summary prints
+Rule experiments: the rules are constants in `engine/src/models/`, not knobs on
+the state — a game is played under RULES.md and nothing else. A proposed change
+is measured before it is adopted with the simulator's experiment-only override
+channels, which mutate the configuration of the process running the batch:
+`--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
+any tile), `--weapons=laser.damage=3` (firing stats), `--loadouts=` (the bots'
+hull templates) and `--seats=` (a hull forced on one seat). The summary prints
 turn behaviour (coast/burn/jump/firing shares, shield cubes, heat at check,
-damage soaked) so a proposed rule change can be measured before it is adopted.
-Bots read `view.rules` for the knobs that change what is legal or valuable.
+damage soaked). A change that survives its experiment moves into the models.
 
 The batch runner and the sim CLI are not exported from the engine's browser
 barrel (they use worker threads); use `yarn sim`. A single headless game

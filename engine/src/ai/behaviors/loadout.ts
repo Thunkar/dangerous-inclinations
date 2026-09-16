@@ -1,5 +1,5 @@
 /**
- * Loadout phase: pick 3 of the 5 offered missions by synergy, then a hull
+ * Loadout phase: pick 3 of the offered missions by synergy, then a hull
  * that fits them. Positions are unknown at this point (deployment comes
  * after loadout), so the choice is made from the cards alone and is
  * deterministic.
@@ -7,57 +7,82 @@
 import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
-import { DEFAULT_RULES } from "../../models/rules.ts";
 import {
+  DESTROY_POINTS,
   MISSIONS_PER_PLAYER,
   MISSION_FAMILY,
   missionTargetsPlayer,
 } from "../../models/missions.ts";
 
-export type BotArchetype = "hunter" | "raider" | "hauler" | "scout";
+/**
+ * A hull is two decisions. **The role** is the forward tile, and the cards
+ * choose it: a gun, eyes, or legs. **The variant** is how the four side slots
+ * are spent, and that is taste — the same role played safe or played hard.
+ *
+ * | Role        | Forward    | Closes off                              |
+ * |-------------|------------|-----------------------------------------|
+ * | interceptor | sensor     | pays 3 fuel a jump                      |
+ * | hunter      | railgun    | pays 3 fuel a jump                      |
+ * | hauler      | compressor | cannot scan: no Intercept, no Survey    |
+ *
+ * | Variant    | Spends its side slots on                                  |
+ * |------------|-----------------------------------------------------------|
+ * | tanky      | a second shield tile, and the one gun it needs for Destroy |
+ * | aggressive | a second gun, and the radiator that volley needs           |
+ */
+export type BotRole = "interceptor" | "hunter" | "hauler";
+export type HullVariant = "tanky" | "aggressive";
+export type BotArchetype = `${BotRole}-${HullVariant}`;
+
+export const BOT_ROLES: readonly BotRole[] = ["interceptor", "hunter", "hauler"];
+export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
 
 /**
- * | Archetype | Forward      | Side (port 0-1, starboard 2-3)                  | For                                |
- * |-----------|--------------|-------------------------------------------------|------------------------------------|
- * | hunter    | railgun      | missiles, radiator, laser, shields               | two or more Destroy cards          |
- * | raider    | railgun      | missiles, radiator, fuel_compressor, shields     | one Destroy card, or a mixed hand  |
- * | hauler    | sensor_array | shields, radiator, fuel_compressor, laser        | two cargo runs                     |
- * | scout     | sensor_array | shields, laser, laser, fuel_compressor           | Intercept plus combat              |
+ * The six mats, which are also the presets offered to a human on the loadout
+ * screen, so the table above, the tiles below and the UI must agree.
  *
- * These are also the presets offered to a human on the loadout screen, so
- * the table above, the tiles below and the blurbs in the UI must agree.
+ * **Every mat carries a weapon**, which is what a kept Destroy card needs
+ * (RULES §Missions): the two roles that spend their forward slot on eyes or
+ * legs buy theirs with a side slot.
  *
- * **Why the guns are paired.** A shield tile holds four cubes, absorbs four
- * damage a turn and is refilled for free next turn, so a volley of physical
- * fire that does not beat four in a single turn never reaches the hull. The
- * railgun alone is exactly four: it needs a second weapon on the same ring
- * (missiles, 6 damage together) to hurt anyone. Off the ring the railgun is
- * silent, and there the laser is the gun that matters: shields are
- * electromagnetic and do not stop it, so laser plus missile puts two on the
- * hull whatever the target holds. The hunter carries both pairs; the raider
- * trades the laser for the compressor that gets it to its one target.
+ * **Why the guns are paired.** A shield tile holds two cubes, absorbs two
+ * damage a turn and is refilled for free next turn, so a lone 2-damage shot
+ * never reaches a hull. The railgun's four is exactly two shield tiles: it
+ * wants a partner on its own ring, and the ballistic rack is the only
+ * broadside that fires there — which is why the aggressive hunter carries
+ * both (4 + 2 = 6). Off the ring the laser is the gun that matters, since
+ * shields are electromagnetic and do not stop it.
  *
- * **Why every combat hull carries a radiator.** Using a tile costs its energy
+ * **Why the aggressive mats carry a radiator.** Using a tile costs its energy
  * in heat, and heat over the dissipation is your own hull. Railgun plus
- * missiles is six heat against a dissipation of five; the radiator's +2
- * makes the volley free.
+ * missiles is six against a dissipation of five; the radiator's +2 makes the
+ * volley free. The full three-gun hunter volley is eight, one over even then:
+ * firing everything is a decision, not a default.
  */
 export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
-  hunter: {
-    forwardSlots: ["railgun"],
-    sideSlots: ["missiles", "radiator", "laser", "shields"],
-  },
-  raider: {
-    forwardSlots: ["railgun"],
-    sideSlots: ["missiles", "radiator", "fuel_compressor", "shields"],
-  },
-  hauler: {
+  "interceptor-tanky": {
     forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "radiator", "fuel_compressor", "laser"],
+    sideSlots: ["shields", "shields", "radiator", "laser"],
   },
-  scout: {
+  "interceptor-aggressive": {
     forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "laser", "laser", "fuel_compressor"],
+    sideSlots: ["shields", "laser", "laser", "radiator"],
+  },
+  "hunter-tanky": {
+    forwardSlots: ["railgun"],
+    sideSlots: ["missiles", "radiator", "shields", "shields"],
+  },
+  "hunter-aggressive": {
+    forwardSlots: ["railgun"],
+    sideSlots: ["missiles", "radiator", "ballistic_rack", "shields"],
+  },
+  "hauler-tanky": {
+    forwardSlots: ["fuel_compressor"],
+    sideSlots: ["shields", "shields", "radiator", "laser"],
+  },
+  "hauler-aggressive": {
+    forwardSlots: ["fuel_compressor"],
+    sideSlots: ["missiles", "radiator", "shields", "laser"],
   },
 };
 
@@ -66,36 +91,36 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
 }
 
 /**
- * Archetype for a set of missions. The forward slot holds either the railgun
- * or the sensor array, and that is the whole decision: Intercept cannot even
- * start without a scan, so any Intercept card rules out the railgun hulls.
- * Between the two sensor hulls, the scout keeps a second gun for the Destroy
- * card it is carrying and the hauler trades it for the radiator and the
- * compressor a long route wants.
- *
- * The sensor array earns the forward slot only when a card needs a scan.
- * A hand of Deliver cards alone never powers a sensor, and the crit
- * bonus is a rounding error next to the difference between a 2-damage
- * broadside and a 6-damage volley — so a hand with no Intercept takes the
- * railgun, whether or not it holds a Destroy card. The bot will be shooting
- * at whoever is one dock from winning in any case (see `behaviors/danger.ts`);
- * the raider is simply the hauler with a gun in the nose.
- *
- * Every template carries at least one weapon, which is what a kept Destroy
- * card needs (RULES §Missions): the two sensor hulls buy theirs with a side
- * slot. A template without a gun could never keep the card.
+ * The role is the forward tile, and the cards decide it. Intercept cannot
+ * start without a scan and Survey needs powered sensors on the ring, so
+ * either card takes the eyes and rules out the other two. With nothing to
+ * scan the choice is the gun or the legs: a Destroy card has to catch someone
+ * and get through their shields, which is what the railgun's four damage is
+ * for, while a hand of cargo runs would rather not pay three fuel a jump.
  */
-export function classifyArchetype(missions: Mission[]): BotArchetype {
+export function classifyRole(missions: Mission[]): BotRole {
   const active = missions.filter((m) => !m.isCompleted);
-  const destroy = count(active, "destroy_ship");
-  const intercept = count(active, "intercept_transmission");
-  const travel = count(active, "deliver_cargo", "survey");
-  const surveys = count(active, "survey");
+  if (count(active, "intercept_transmission", "survey") > 0) return "interceptor";
+  if (count(active, "destroy_ship") > 0) return "hunter";
+  return "hauler";
+}
 
-  // Intercept needs a scan and Survey needs powered sensors on the ring: both rule out the railgun.
-  if (intercept > 0 || surveys > 0) return destroy > 0 || travel === 0 ? "scout" : "hauler";
-  if (destroy >= 2) return "hunter";
-  return "raider";
+/**
+ * The variant is taste, and a bot has none — so it reads the hand instead: a
+ * Destroy card is the one card that cannot be scored by flying carefully, and
+ * a bot holding one takes the second gun over the second shield.
+ *
+ * This ties two of the six mats to the role that implies them (a hunter always
+ * holds a Destroy, a hauler never does), so bots fly four of the six. The
+ * other two are measured by forcing them in the balance suite.
+ */
+export function classifyVariant(missions: Mission[]): HullVariant {
+  const active = missions.filter((m) => !m.isCompleted);
+  return count(active, "destroy_ship") > 0 ? "aggressive" : "tanky";
+}
+
+export function classifyArchetype(missions: Mission[]): BotArchetype {
+  return `${classifyRole(missions)}-${classifyVariant(missions)}`;
 }
 
 export function selectBotLoadout(missions: Mission[]): ShipLoadout {
@@ -115,8 +140,13 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
 const BASE_COST: Record<Mission["type"], number> = {
   destroy_ship: 17,
   deliver_cargo: 16,
-  intercept_transmission: 12,
-  survey: 16,
+  // The fastest card on the table: measured at a median of round 3 to score,
+  // and the likeliest to be finished at all once kept. It was priced above
+  // Deliver's own leg, which left it dealt and discarded.
+  intercept_transmission: 11,
+  // A dive to the innermost ring, one turn held, then the data is filed at
+  // whatever station the route reaches anyway: a short card since 16 Sept 2026.
+  survey: 13,
 };
 
 /**
@@ -129,17 +159,13 @@ const DENIAL_CREDIT = 3;
 /**
  * Score a trio: lower total cost and coherent cards score higher.
  */
-export function scoreMissionCombo(
-  combo: Mission[],
-  playerCount: number,
-  destroyPoints: number = DEFAULT_RULES.destroyPoints
-): number {
+export function scoreMissionCombo(combo: Mission[], playerCount: number): number {
   const costOf = (m: Mission) =>
     m.type === "destroy_ship"
       ? BASE_COST[m.type] - (Math.max(0, playerCount - 2) * 2 + DENIAL_CREDIT)
       : BASE_COST[m.type];
   let cost = 0;
-  if (destroyPoints >= 2 && combo.some((m) => m.type === "destroy_ship")) {
+  if (DESTROY_POINTS >= 2 && combo.some((m) => m.type === "destroy_ship")) {
     // A two-point kill plus the cheapest other card already reaches three points.
     const destroy = combo.find((m) => m.type === "destroy_ship")!;
     const rest = combo
@@ -167,11 +193,13 @@ export function scoreMissionCombo(
   if (destroyTargets.size >= 2) synergy -= 4;
   // Intercepting the ship you are hunting.
   synergy += intercepts.filter((m) => destroyTargets.has(m.targetPlayerId)).length * 6;
-  // Intercept and Destroy fight over the one forward slot, and the loser is
-  // always Destroy: an Intercept cannot start without the sensor array, and
-  // no combination of side tiles beats the four damage a shield absorbs
-  // every turn. A hand holding both is a hand with a dead card in it.
-  if (intercepts.length > 0 && destroys.length > 0) synergy -= 8;
+  // Intercept and Destroy used to fight over the one forward slot: the array
+  // was compulsory for the scan and no side tile could beat a shield, so the
+  // Destroy was dead. Two changes on 16 Sept 2026 ended that — a shield tile
+  // holds two cubes, not four, and the rack does two damage — so the
+  // interceptor-aggressive mat flies both cards off its side slots. What is
+  // left of the conflict is the railgun the hand cannot have.
+  if (intercepts.length > 0 && destroys.length > 0) synergy -= 2;
 
   // Cargo routes sharing planets; a chained route is one trip.
   for (let i = 0; i < deliveries.length; i++) {
@@ -213,7 +241,6 @@ export function scoreMissionCombo(
 export function selectBotMissions(
   offers: Mission[],
   playerCount: number,
-  destroyPoints: number = DEFAULT_RULES.destroyPoints,
   hull?: ShipLoadout
 ): Mission[] {
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
@@ -230,7 +257,7 @@ export function selectBotMissions(
         const fits = flyable(combo);
         // A trio the mat can fly always beats one it cannot, whatever it scores.
         if (bestFits && !fits) continue;
-        const score = scoreMissionCombo(combo, playerCount, destroyPoints);
+        const score = scoreMissionCombo(combo, playerCount);
         if (score > bestScore || (fits && !bestFits)) {
           bestScore = score;
           bestFits = fits;

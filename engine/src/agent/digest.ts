@@ -7,7 +7,7 @@
  */
 import type { GameEvent } from "../models/events.ts";
 import type { Mission } from "../models/missions.ts";
-import { MISSIONS_TO_WIN, SURVEY_HOLD_TURNS, SURVEY_RING } from "../models/missions.ts";
+import { MISSIONS_TO_WIN, SURVEY_RING } from "../models/missions.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { getWellName } from "../models/gravityWells.ts";
 import type { GameView, PlayerView } from "../game/view.ts";
@@ -28,7 +28,7 @@ export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - Weapons: railgun 4 dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser 2 dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack 1 dmg, +-1 ring/+-1 sector or same ring 1 sector; intercepts missiles. Missiles 2 dmg, +-2 rings/+-3 sectors, guided, 4 aboard.
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit that reaches the hull breaks the named slot.
 - Docking (end your turn on a station's sector, planet ring 1): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
-- Survey: two consecutive turns on BH ring ${SURVEY_RING} with the sensor array powered, then dock at the named planet. Intercept: scan the target (same ring, within 3 sectors), then dock anywhere.
+- Survey: end a turn on BH ring ${SURVEY_RING} with the sensor array powered, then dock anywhere. Intercept: scan the target (same ring, within 3 sectors), then dock anywhere.
 - Destroyed: respawn at Home next turn, lose the turn after too (you still drift with your ring while recovering), drop cargo.`;
 
 function missionLine(m: Mission, name: (id: string) => string): string {
@@ -42,8 +42,8 @@ function missionLine(m: Mission, name: (id: string) => string): string {
     case "survey":
       return `${head} — ${
         m.surveyAcquired
-          ? `data aboard: dock at ${getWellName(m.deliveryPlanetId as never)}`
-          : `hold BH R${SURVEY_RING} with sensors powered (${m.surveyTurns}/${SURVEY_HOLD_TURNS} turns so far)`
+          ? "data aboard: dock at any station"
+          : `end a turn on BH R${SURVEY_RING} with sensors powered`
       }`;
     case "destroy_ship":
       return `${head} — worth 2 points`;

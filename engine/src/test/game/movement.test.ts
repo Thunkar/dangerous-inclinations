@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { burnDestinationRing, projectPosition } from "../../game/movement.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { getAdjustmentRange, calculateBurnMassCost } from "../../models/rings.ts";
-import type { ShipLoadout } from "../../models/game.ts";
 import {
   ALPHA,
   BH,
@@ -22,11 +21,6 @@ import {
   withShip,
   withSub,
 } from "../testUtils.ts";
-
-const COMPRESSOR: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["fuel_compressor", "laser", "shields", "laser"],
-};
 
 function shipAt(
   wellId: string,
@@ -309,11 +303,12 @@ describe("movement: fuel scoop", () => {
     });
   });
 
-  it("a fuel compressor raises the cap to 16", () => {
-    let state = withPower(makeTwoPlayerGame({ ring: 1, loadout: COMPRESSOR }), "p1", "scoop", 3);
-    expect(getShip(state, "p1").reactionMass).toBe(16);
-    state = withShip(state, "p1", { reactionMass: 12 });
-    expect(getShip(mustExecute(state, coast(1, true)), "p1").reactionMass).toBe(16);
+  it("the scoop takes the headroom, never more: the tank holds 10 on every mat", () => {
+    let state = withPower(makeTwoPlayerGame({ ring: 1 }), "p1", "scoop", 3);
+    expect(getShip(state, "p1").reactionMass).toBe(10);
+    // Black hole ring 1 offers eight; only the four that fit are taken.
+    state = withShip(state, "p1", { reactionMass: 6 });
+    expect(getShip(mustExecute(state, coast(1, true)), "p1").reactionMass).toBe(10);
   });
 
   it.each([

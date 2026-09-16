@@ -251,7 +251,7 @@ export function computeGoals(
           goals.push({
             type: "survey",
             missionId: mission.id,
-            description: `Survey the event horizon for ${mission.deliveryPlanetId}`,
+            description: "Survey the event horizon",
             estimatedTurns: cheapTurnEstimate(from, {
               wellId: BLACK_HOLE_ID,
               ring: SURVEY_RING,
@@ -260,14 +260,8 @@ export function computeGoals(
             urgency: 0,
           });
         } else {
-          const goal = dockGoal(
-            view,
-            from,
-            mission,
-            mission.deliveryPlanetId,
-            "Deliver survey data",
-            2
-          );
+          // Survey data is filed at any station, as scan data is.
+          const goal = dockAnywhereGoal(view, from, mission, "Deliver survey data", 2);
           if (goal) goals.push(goal);
         }
         break;

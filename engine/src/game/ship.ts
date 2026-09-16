@@ -9,7 +9,6 @@ import {
   BASE_CRITICAL_CHANCE,
   DEFAULT_DISSIPATION_CAPACITY,
   DEFAULT_LOADOUT,
-  MAX_REACTION_MASS,
   REACTOR_CAPACITY,
   STARTING_HIT_POINTS,
 } from "../models/game.ts";
@@ -67,15 +66,6 @@ export function updateSubsystem(
       s.id === id ? { ...s, ...(typeof patch === "function" ? patch(s) : patch) } : s
     ),
   };
-}
-
-/** Effective fuel capacity: base plus compressors (broken compressors don't count). */
-export function getMaxReactionMass(
-  subsystems: ReadonlyArray<Pick<Subsystem, "type" | "isBroken">>
-): number {
-  const bonus = SUBSYSTEM_CONFIGS.fuel_compressor.passiveEffect?.reactionMassBonus ?? 0;
-  const count = subsystems.filter((s) => s.type === "fuel_compressor" && !s.isBroken).length;
-  return MAX_REACTION_MASS + count * bonus;
 }
 
 /** Heat the ship can shed each turn: base plus working radiators. */

@@ -217,14 +217,6 @@ export type GameEvent =
       data: number;
     })
   | (Base & { type: "data_acquired"; playerId: string; kind: "scan" | "survey"; missionId: string })
-  /** A turn ended on the survey ring, sensors on, with more turns still needed. */
-  | (Base & {
-      type: "survey_hold";
-      playerId: string;
-      missionId: string;
-      turns: number;
-      needed: number;
-    })
   | (Base & {
       type: "mission_completed";
       playerId: string;

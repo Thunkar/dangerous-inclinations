@@ -7,8 +7,6 @@ import type { GameState, Player, ShipLoadout } from "../models/game.ts";
 import { DEFAULT_LOADOUT, MAX_PLAYERS, MIN_PLAYERS } from "../models/game.ts";
 import { HOME_RING, HOME_WELL_ID } from "../models/gravityWells.ts";
 import { Rng, createDeterminismFields } from "../utils/rng.ts";
-import type { RuleSet } from "../models/rules.ts";
-import { resolveRules } from "../models/rules.ts";
 import { createInitialShipState } from "./ship.ts";
 import { createInitialStations } from "./stations.ts";
 import { dealMissionOffers, selectMissionsFromOffers } from "./missions/missionDeck.ts";
@@ -45,11 +43,7 @@ export function createPlayer(spec: PlayerSpec): Player {
  * Create a game in the loadout phase with mission offers dealt.
  * @param seed omit for a fresh random seed (captured on the state)
  */
-export function createGame(
-  specs: PlayerSpec[],
-  seed?: number,
-  rules?: Partial<RuleSet>
-): GameState {
+export function createGame(specs: PlayerSpec[], seed?: number): GameState {
   if (specs.length < MIN_PLAYERS || specs.length > MAX_PLAYERS) {
     throw new Error(`A game needs ${MIN_PLAYERS} to ${MAX_PLAYERS} players (got ${specs.length})`);
   }
@@ -68,7 +62,6 @@ export function createGame(
     missiles: [],
     stations: createInitialStations(),
     phase: "loadout",
-    ...(rules ? { rules } : {}),
     rngSeed: determinism.rngSeed,
     rngState: rng.state,
     nextEntityId: determinism.nextEntityId,
@@ -152,7 +145,3 @@ export function submitLoadout(
   };
 }
 
-/** The rules in force for a game (defaults plus the state's overrides). */
-export function rulesOf(state: GameState): RuleSet {
-  return resolveRules(state.rules);
-}

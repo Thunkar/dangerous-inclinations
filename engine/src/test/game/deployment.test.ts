@@ -10,6 +10,7 @@ import { createGame, createPlayer, submitLoadout } from "../../game/setup.ts";
 import {
   calculateShipStatsFromLoadout,
   canInstallInSlot,
+  FORWARD_SLOT_SUBSYSTEMS,
   createSubsystemsFromLoadout,
   missionRequirementStatus,
   missionsMissingRequirements,
@@ -18,7 +19,7 @@ import { describeMission, describeMissionRequirement } from "../../game/describe
 import type { SubsystemType } from "../../models/subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "../../models/subsystems.ts";
 import type { Mission, MissionRequirement } from "../../models/missions.ts";
-import { MISSION_REQUIREMENTS } from "../../models/missions.ts";
+import { MISSION_OFFERS_PER_PLAYER, MISSION_REQUIREMENTS } from "../../models/missions.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { DEFAULT_LOADOUT } from "../../models/game.ts";
 import { HOME_RING } from "../../models/gravityWells.ts";
@@ -71,7 +72,7 @@ function readyToDeploy(seed = 11): GameState {
 }
 
 describe("setup: createGame", () => {
-  it("starts in the loadout phase with five offers dealt to each player", () => {
+  it("starts in the loadout phase with the offers dealt to each player", () => {
     const state = createGame(SPECS, 99);
     expect(state).toMatchObject({
       phase: "loadout",
@@ -82,7 +83,7 @@ describe("setup: createGame", () => {
     });
     expect(state.stations).toHaveLength(3);
     for (const p of state.players) {
-      expect(p.missionOffers).toHaveLength(5);
+      expect(p.missionOffers).toHaveLength(MISSION_OFFERS_PER_PLAYER);
       expect(p).toMatchObject({
         missions: [],
         cargo: [],
@@ -211,7 +212,7 @@ describe("setup: a kept card the mat can never fly", () => {
   /** Sensors and nothing that shoots: the mirror image. */
   const UNARMED: ShipLoadout = {
     forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "shields", "radiator", "fuel_compressor"],
+    sideSlots: ["shields", "shields", "radiator", "radiator"],
   };
 
   const SENSOR_ARRAY = MISSION_REQUIREMENTS.intercept_transmission[0];
@@ -237,10 +238,10 @@ describe("setup: a kept card the mat can never fly", () => {
   /** A mat whose only weapon is `type`; everything else aboard is passive. */
   const armedWith = (type: SubsystemType): ShipLoadout =>
     canInstallInSlot(type, "forward")
-      ? { forwardSlots: [type], sideSlots: ["shields", "shields", "radiator", "fuel_compressor"] }
+      ? { forwardSlots: [type], sideSlots: ["shields", "shields", "radiator", "radiator"] }
       : {
           forwardSlots: ["sensor_array"],
-          sideSlots: [type, "shields", "radiator", "fuel_compressor"],
+          sideSlots: [type, "shields", "radiator", "radiator"],
         };
 
   it.each(WEAPON_SUBSYSTEM_TYPES)("a Destroy card flies on a mat whose only gun is %s", (type) => {
@@ -319,6 +320,15 @@ describe("loadout: validation and instantiation", () => {
     expect(canInstallInSlot("missiles", "forward")).toBe(true);
     expect(canInstallInSlot("missiles", "side")).toBe(true);
     expect(canInstallInSlot("engines", "side")).toBe(false);
+    // The forward slot is the ship's identity: a gun, eyes, or legs.
+    expect(canInstallInSlot("fuel_compressor", "forward")).toBe(true);
+    expect(canInstallInSlot("fuel_compressor", "side")).toBe(false);
+  });
+
+  it("offers exactly three tiles for the forward slot: a gun, eyes, and legs", () => {
+    expect(new Set(FORWARD_SLOT_SUBSYSTEMS)).toEqual(
+      new Set(["railgun", "sensor_array", "fuel_compressor"])
+    );
   });
 
   it("creates fixed systems face-up and slot tiles face-down with stable ids", () => {
@@ -365,11 +375,12 @@ describe("loadout: validation and instantiation", () => {
     });
     const passive: ShipLoadout = {
       forwardSlots: ["railgun"],
-      sideSlots: ["radiator", "radiator", "fuel_compressor", "laser"],
+      sideSlots: ["radiator", "radiator", "shields", "laser"],
     };
+    // Radiators are the only passive a mat can stack: the tank is 10 on every ship.
     expect(calculateShipStatsFromLoadout(passive)).toEqual({
       dissipationCapacity: 9,
-      reactionMass: 16,
+      reactionMass: 10,
     });
   });
 });

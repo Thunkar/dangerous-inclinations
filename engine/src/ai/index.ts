@@ -12,8 +12,6 @@
  */
 import type { PlayerAction, ShipLoadout } from "../models/game.ts";
 import type { Mission } from "../models/missions.ts";
-import type { RuleSet } from "../models/rules.ts";
-import { resolveRules } from "../models/rules.ts";
 import type { GameView } from "../game/view.ts";
 import { missionsMissingRequirements } from "../game/loadout.ts";
 import type {
@@ -67,14 +65,9 @@ export function botDecideActions(
  */
 export function botChooseLoadout(
   offers: Mission[],
-  context: { playerCount: number; rules?: Partial<RuleSet>; hull?: ShipLoadout }
+  context: { playerCount: number; hull?: ShipLoadout }
 ): { missionIds: string[]; loadout: ShipLoadout } {
-  const missions = selectBotMissions(
-    offers,
-    context.playerCount,
-    resolveRules(context.rules).destroyPoints,
-    context.hull
-  );
+  const missions = selectBotMissions(offers, context.playerCount, context.hull);
   // A hand and a mat are one choice: a kept Intercept or Survey needs the
   // sensor array and a kept Destroy needs a gun. `hull` is a mat the
   // simulator is measuring on this seat; it
@@ -273,9 +266,13 @@ export {
   selectBotLoadout,
   selectBotMissions,
   classifyArchetype,
+  classifyRole,
+  classifyVariant,
   BOT_LOADOUT_TEMPLATES,
+  BOT_ROLES,
+  HULL_VARIANTS,
 } from "./behaviors/loadout.ts";
-export type { BotArchetype } from "./behaviors/loadout.ts";
+export type { BotArchetype, BotRole, HullVariant } from "./behaviors/loadout.ts";
 export { analyzeSituation, shieldAbsorption, suspectedWeapon } from "./analyzer.ts";
 export { chooseDeployment } from "./behaviors/deployment.ts";
 export type { DeploymentChoice } from "./behaviors/deployment.ts";

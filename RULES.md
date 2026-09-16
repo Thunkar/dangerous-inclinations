@@ -54,9 +54,9 @@ Each planet has a station on **Ring 1**. Stations drift like ships: 4 sectors at
 ## Setup
 
 1. **Missions.** Each player draws 5 mission cards from their deck and keeps 3, face-down behind their screen. Return the rest. Cards and mat are chosen together: keep nothing your loadout could never complete (see Missions).
-2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array or missiles) and 4 side tiles (laser, shields, radiator, fuel compressor, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
+2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array, fuel compressor or missiles) and 4 side tiles (laser, shields, radiator, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 4** in any empty sector, and puts their Home marker there. Everyone starts together and scatters from there; missions are secret, so pick your sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring).
-4. Fill the hull track to 10, reaction mass to 10 (16 with a fuel compressor, kept behind your screen), heat to 0. Energy cubes stay in the reactor.
+4. Fill the hull track to 10, reaction mass to 10 (kept behind your screen), heat to 0. Energy cubes stay in the reactor.
 
 ---
 
@@ -94,12 +94,12 @@ Otherwise:
 | Fuel scoop (fixed)         | 3      | While coasting, recover fuel equal to your ring's velocity             |
 | Railgun (forward)          | 4      | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil                 |
 | Sensor array (forward)     | 2      | Scan; criticals on 8–10 while powered                                  |
+| Fuel compressor (forward)  | —      | A jump's own fuel is refunded                                          |
 | Missiles (forward or side) | 2      | Launch a guided missile (4 aboard)                                     |
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
 | Shields (side)             | 1–2    | Absorb damage as heat (2 heat per point)                               |
 | Radiator (side)            | —      | +2 dissipation                                                         |
-| Fuel compressor (side)     | —      | +6 fuel capacity; a jump's own fuel is refunded                        |
-| Ballistic rack (side)      | 2      | 1 damage, ±1 ring or same ring, ±1 sector; intercepts missiles         |
+| Ballistic rack (side)      | 2      | 2 damage, ±1 ring or same ring, ±1 sector; intercepts missiles         |
 
 ---
 
@@ -151,7 +151,7 @@ When you fire, name one slot on the target: forward, side 1–4, engines, thrust
 
 - **Railgun** — spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
 - **Broadside laser** — targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port tiles (side 1–2) fire outward and starboard tiles (side 3–4) fire inward; facing retrograde swaps them.
-- **Ballistic rack** — targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away. While powered it also **intercepts** missiles that reach you: roll a d10, on 2+ the missile is destroyed (the rack is used and heats up either way).
+- **Ballistic rack** — 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away — the only broadside that can join a railgun shot on your own ring. While powered it also **intercepts** missiles that reach you: roll a d10, on 2+ the missile is destroyed (the rack is used and heats up either way).
 - **Missiles** — target within 2 rings and 3 sectors (a ship sharing your sector included), any facing. Place a missile token on your sector and name the critical slot. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
 
   _Riding the orbit:_ a missile drifts with its ring like everything else. The one exception is the turn you launch it: if you launch **after** moving, the missile has already ridden along with your ship, so it does not drift again that turn — it just flies its 3 steps from where you dropped it. Launch before moving and it drifts with the ring like your ship did. (The app draws the path either way.)
@@ -195,11 +195,11 @@ Four kinds of card. **Destroy is worth two points, every other card one; three p
 | **Destroy [player]**                  | 2      | you reduce their hull to 0                                                                                                                                                                                                                   |
 | **Deliver [A → B]**                   | 1      | you dock at A (load the crate), then dock at B                                                                                                                                                                                               |
 | **Intercept [player]**                | 1      | you scan them (take the data chit), then dock at any station                                                                                                                                                                                 |
-| **Survey the Event Horizon [planet]** | 1      | you end **two consecutive turns** on Black Hole Ring 1 with your **sensor array powered** (take the data chit on the second), then dock at [planet]'s station. Ending a turn anywhere else, or with the sensors dark, starts the count again |
+| **Survey the Event Horizon**          | 1      | you end a turn on Black Hole Ring 1 with your **sensor array powered** — take the data chit — then dock at **any** station to file it |
 
-Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey (to two different planets). Draw 5, keep 3.
+Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey. Draw 6, keep 3.
 
-**Keep only cards your mat can fly.** Intercept opens with a scan and Survey is held with your sensors lit, so either card needs a **sensor array**, and Destroy needs a **weapon** — railgun, broadside laser, ballistic rack or missiles — since a ship that cooks itself on its own heat credits nobody. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
+**Keep only cards your mat can fly.** Intercept opens with a scan and Survey is taken with your sensors lit, so either card needs a **sensor array**, and Destroy needs a **weapon** — railgun, broadside laser, ballistic rack or missiles — since a ship that cooks itself on its own heat credits nobody. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
 
 When you complete a mission, turn the card face-up for everyone to see.
 
@@ -223,7 +223,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Reactor          | 10 energy                                                                                        |
 | Dissipation      | 5 (+2 per radiator)                                                                              |
 | Hull             | 10                                                                                               |
-| Fuel             | 10 (+6 with compressor)                                                                          |
+| Fuel             | 10                                                                                               |
 | Sectors per ring | 24                                                                                               |
 | Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)                                          |
 | Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid |
@@ -231,8 +231,8 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                     |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
 | Docking          | full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away  |
-| Survey           | second consecutive turn ended on Black Hole Ring 1, sensors powered                              |
-| Keeping cards    | draw 5, keep 3; Intercept and Survey need a sensor array, Destroy needs a weapon                 |
+| Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |
+| Keeping cards    | draw 6, keep 3; Intercept and Survey need a sensor array, Destroy needs a weapon                 |
 | Win              | 3 points end the round; highest score, then hull, then fuel                                      |
 
 ### Turn cheat sheet

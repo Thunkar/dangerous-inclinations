@@ -97,14 +97,11 @@ export function calculateShipStatsFromLoadout(loadout: ShipLoadout): {
   reactionMass: number;
 } {
   let dissipationCapacity = DEFAULT_DISSIPATION_CAPACITY;
-  let reactionMass = STARTING_REACTION_MASS;
   for (const type of [...loadout.forwardSlots, ...loadout.sideSlots]) {
     if (type === null) continue;
-    const effect = getSubsystemConfig(type).passiveEffect;
-    dissipationCapacity += effect?.dissipationBonus ?? 0;
-    reactionMass += effect?.reactionMassBonus ?? 0;
+    dissipationCapacity += getSubsystemConfig(type).passiveEffect?.dissipationBonus ?? 0;
   }
-  return { dissipationCapacity, reactionMass };
+  return { dissipationCapacity, reactionMass: STARTING_REACTION_MASS };
 }
 
 export function countSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): number {

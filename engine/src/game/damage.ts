@@ -9,12 +9,10 @@
  * reaches the hull breaks the slot the attacker named.
  */
 import type { ShipState } from "../models/game.ts";
-import { BASE_CRITICAL_CHANCE } from "../models/game.ts";
+import { BASE_CRITICAL_CHANCE, SHIELD_HEAT_PER_POINT } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
-import type { RuleSet } from "../models/rules.ts";
-import { DEFAULT_RULES } from "../models/rules.ts";
 import {
   addHeat,
   breakSubsystem,
@@ -53,7 +51,6 @@ export function resolveAttack(
   roll: number,
   attacker: ShipState,
   attackerPlayerId?: string,
-  rules: RuleSet = DEFAULT_RULES,
   /** Laser fire: shields are electromagnetic and do not stop it. */
   ignoresShields = false
 ): AttackOutcome {
@@ -100,7 +97,7 @@ export function resolveAttack(
       },
     };
     ship = updateSubsystem(ship, shield.id, { allocatedEnergy: left, isPowered: left > 0 });
-    ship = addHeat(ship, take * rules.shieldHeatPerPoint);
+    ship = addHeat(ship, take * SHIELD_HEAT_PER_POINT);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
     ship = r.ship;
     events.push(...r.events);

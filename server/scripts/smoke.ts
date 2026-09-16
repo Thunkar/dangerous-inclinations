@@ -13,7 +13,12 @@
  * Add STUB_AI=1 while engine/src/ai is mid-rewrite (see engine-source-loader.mjs).
  */
 import type { GameRecording } from "@dangerous-inclinations/engine";
-import { DEFAULT_SHIP_APPEARANCE, MISSIONS_PER_PLAYER, type ShipLoadout } from "@dangerous-inclinations/engine";
+import {
+  DEFAULT_SHIP_APPEARANCE,
+  MISSIONS_PER_PLAYER,
+  MISSION_OFFERS_PER_PLAYER,
+  type ShipLoadout,
+} from "@dangerous-inclinations/engine";
 
 /**
  * A mat that can fly any hand the deal produces: the sensor array is the one
@@ -188,7 +193,10 @@ const loadoutView = await games.getView(GAME_ID, HUMAN);
 if (!loadoutView?.me) fail("no view for the human after createGame");
 check(loadoutView.phase === "loadout", "game starts in the loadout phase");
 const offers = loadoutView.me.missionOffers;
-check(offers.length === 5, `the human is offered 5 missions (got ${offers.length})`);
+check(
+  offers.length === MISSION_OFFERS_PER_PLAYER,
+  `the human is offered ${MISSION_OFFERS_PER_PLAYER} missions (got ${offers.length})`
+);
 
 const cosmetic = { ...DEFAULT_SHIP_APPEARANCE, paint: "#344149", secondaryPaint: "#b6a27b" };
 check(
