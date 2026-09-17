@@ -26,6 +26,7 @@ import {
 } from 'three'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import { MOUNTS, mountTransform, type MountId, type Vec3, type WorkshopConfig } from './config'
+import { HULL_INK } from './palette'
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { visibleSlots, type VisibleSlots } from './visual'
@@ -120,14 +121,14 @@ export function createShip(
     config.appearance?.secondaryPaint ??
       new Color(config.paint).lerp(new Color('#ffffff'), 0.2).getStyle()
   )
-  const dark = material('#242e33', 0.65)
-  const steel = material('#647776', 0.75)
-  const rubber = material('#11191d', 0.1)
+  const dark = material(HULL_INK.dark, 0.65)
+  const steel = material(HULL_INK.steel, 0.75)
+  const rubber = material(HULL_INK.rubber, 0.1)
   const accent = material(config.accent)
-  const copper = material('#b78759', 0.72)
-  const cyan = material('#76dcf3', 0.3, 1.4)
-  const engineGlow = material('#98e8ff', 0.2, 3.2)
-  const red = material('#d95b4a', 0.1, 1)
+  const copper = material(HULL_INK.copper, 0.72)
+  const cyan = material(HULL_INK.cyan, 0.3, 1.4)
+  const engineGlow = material(HULL_INK.glow, 0.2, 3.2)
+  const red = material(HULL_INK.warn, 0.1, 1)
 
   const add = (
     parent: Group,

@@ -12,6 +12,8 @@ import type { Position, Station } from '@dangerous-inclinations/engine'
 import {
   createInitialStations,
   createGame,
+  getStationForPlanet,
+  stationPosition,
   createSubsystemsFromLoadout,
   BOT_LOADOUT_TEMPLATES,
   DEFAULT_SHIP_APPEARANCE,
@@ -28,6 +30,11 @@ interface FixtureSeat {
   home: Position
 }
 
+/** Where Alpha's station starts, so a seat can be parked in its berth. */
+const ALPHA_BERTH: Position = stationPosition(
+  getStationForPlanet(createInitialStations(), 'planet-alpha')!
+)
+
 const SEATS: FixtureSeat[] = [
   {
     playerId: 'p1',
@@ -42,9 +49,12 @@ const SEATS: FixtureSeat[] = [
     home: { wellId: 'blackhole', ring: 4, sector: 13 },
   },
   {
+    // Moored at Alpha's station, which is the one arrangement the board has to
+    // get right that no other fixture shows: a hull parked under the station's
+    // deck rather than beside it.
     playerId: 'p3',
     name: 'Vagrant',
-    position: { wellId: 'planet-alpha', ring: 3, sector: 6 },
+    position: ALPHA_BERTH,
     home: { wellId: 'blackhole', ring: 4, sector: 20 },
   },
 ]

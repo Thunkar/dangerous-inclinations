@@ -7,6 +7,7 @@ import {
   type SubsystemType,
 } from '@dangerous-inclinations/engine'
 
+import { HULL_INK } from './palette'
 import { MOUNTS, type MountId } from './mounts'
 export { MOUNTS, type MountId } from './mounts'
 export type Vec3 = [number, number, number]
@@ -37,8 +38,8 @@ export const DEFAULT_CONFIG: WorkshopConfig = {
   armor: 1,
   engineSize: 1,
   engines: 3,
-  paint: '#aab4b2',
-  accent: '#d3683d',
+  paint: HULL_INK.paint,
+  accent: HULL_INK.accent,
   finish: 'paint',
   hullMillimeters: 60,
   magnetMillimeters: 3,

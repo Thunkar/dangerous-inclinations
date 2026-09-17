@@ -178,9 +178,17 @@ colours from `WELL_VISUALS`, monospace for every number.
   cratered rock, ocean world) in the planet's colour, slow rotation, an
   atmosphere rim glow, and a name label below as today.
 - Rings and labels as for the black hole, shallower dimple.
-- Station: a small orbital structure (hub, ring, two spokes) in the
-  planet's colour on ring 1, rotating slowly, with a docking-light pulse.
-  It moves with `stations_moved` like any token.
+- Station (`scene/Station.tsx`): a depot built from the corvette's own
+  material vocabulary — plated structure, steel truss, copper plumbing, cyan
+  for anything live, out of `ships/palette.ts` — so it reads as coming off the
+  same drawings as the ships. Storeys clear each other so the silhouette reads:
+  a docking deck, radiator wings, a turning habitat ring of eight lit cans, a
+  core, a mast and a beacon. The planet's colour is spent on the deck's face,
+  which is the surface the table camera looks down on and the only thing that
+  has to carry at that range; the deck is deliberately wider than the ring so
+  the ring cannot cover it. The deck's underside clears a moored hull, so a
+  docked ship parks under the station rather than inside it. It moves with
+  `stations_moved` like any token.
 
 ### 4.4 Lanes
 - Each lane is the same pair of 4‑sector arcs, drawn as glowing ribbons in
@@ -509,7 +517,7 @@ ui/src/components/board/
     scene/
       Environment.tsx      sky, lights, composer, the adaptive quality ladder
       Wells.tsx BlackHole.tsx Planet.tsx RingLabels.tsx
-      Lanes.tsx Markers.tsx Ships.tsx
+      Lanes.tsx Markers.tsx Station.tsx Ships.tsx
       Missiles.tsx Overlays.tsx  overlays/{marks,paths,wedges,fixture}
       Effects.tsx          effects/{Beam,Burst,Float,glsl,impacts,resources,renders}
     shaders/               accretion, horizon, atmosphere, planetSurface,

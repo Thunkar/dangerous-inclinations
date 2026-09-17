@@ -321,6 +321,7 @@ export function CameraRig({
   const framing = useRef<'home' | 'all'>('home')
   const size = useThree(state => state.size)
   const camera = useThree(state => state.camera)
+  const scene = useThree(state => state.scene)
 
   const framePreset = useCallback((next: CameraPreset, transition: boolean) => {
     const rigControls = controls.current
@@ -436,7 +437,36 @@ export function CameraRig({
    */
   useEffect(() => {
     if (!import.meta.env.DEV) return
-    const host = window as unknown as { __boardFrame?: () => unknown }
+    const host = window as unknown as {
+      __boardFrame?: () => unknown
+      __boardLookAt?: (name: string, distance?: number, pitch?: number) => unknown
+    }
+    /**
+     * Frame a named object in the scene, for close-up screenshots of a model
+     * while it is being worked on. `__boardFrame` measures where the board
+     * landed; this puts the camera somewhere worth measuring from. The dolly
+     * clamp still applies, so a small object frames as small as the board lets
+     * it.
+     */
+    host.__boardLookAt = (name, distance = MIN_DISTANCE, pitch = 0.5) => {
+      const target = scene.getObjectByName(name)
+      if (!target) return `no object named ${name}`
+      const at = target.getWorldPosition(new Vector3())
+      const flat = distance * Math.cos(pitch)
+      // The board's dolly floor is set for playing on; a close-up of one model
+      // is exactly the case it is wrong for, so this hook lifts it.
+      if (controls.current) controls.current.minDistance = Math.min(MIN_DISTANCE, distance)
+      controls.current?.setLookAt(
+        at.x + flat,
+        at.y + distance * Math.sin(pitch),
+        at.z + flat,
+        at.x,
+        at.y,
+        at.z,
+        false
+      )
+      return { name, at: at.toArray().map(Math.round), distance }
+    }
     /** Screen half-width and half-height of a circle drawn flat on the board. */
     const circleOnScreen = (radius: number, elevation: number) => {
       let minX = Infinity
@@ -487,10 +517,7 @@ export function CameraRig({
         // What the legibility checks measure: how much of the pane the black
         // hole's own well and its body actually occupy.
         ring5: ringsPx[4],
-        body: circleOnScreen(
-          wellVisual('blackhole').bodyRadius,
-          surfaceElevation('blackhole', 0)
-        ),
+        body: circleOnScreen(wellVisual('blackhole').bodyRadius, surfaceElevation('blackhole', 0)),
         ringsPx,
         /** Screen pixels per board unit, across the screen where nothing is foreshortened. */
         scale: +(
@@ -509,8 +536,9 @@ export function CameraRig({
     }
     return () => {
       delete host.__boardFrame
+      delete host.__boardLookAt
     }
-  }, [camera, size])
+  }, [camera, scene, size])
 
   return (
     <CameraControls
