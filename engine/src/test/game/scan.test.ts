@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import {
   ALPHA,
+  GAMMA,
   coast,
   eventsOf,
   eventTypes,
@@ -183,7 +184,8 @@ describe("scan: rejections", () => {
 
 describe("scan: intercept missions", () => {
   it("acquires the transmission for an intercept mission on the target", () => {
-    const state = withPlayer(scanner(), "p1", { missions: [interceptMission("p2")] });
+    const card = interceptMission("p2", "intercept-p2", GAMMA);
+    const state = withPlayer(scanner(), "p1", { missions: [card] });
     const result = executeTurnAs(state, scan(1, "p2"));
     const mission = getPlayer(result.gameState, "p1").missions[0];
     expect(mission).toMatchObject({
@@ -196,7 +198,8 @@ describe("scan: intercept missions", () => {
         id: "data-intercept-p2",
         missionId: "intercept-p2",
         kind: "data",
-        deliveryPlanetId: "any",
+        // The chit is filed where the card says, not at the nearest station.
+        deliveryPlanetId: GAMMA,
         isPickedUp: true,
       },
     ]);

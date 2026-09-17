@@ -290,17 +290,18 @@ describe("movement: fuel scoop", () => {
     [BH, 5, 5, 6],
     [ALPHA, 1, 0, 4],
   ])("scooping on %s ring %i from %i mass gives %i", (wellId, ring, mass, expected) => {
-    let state = withPower(shipAt(wellId, ring, 0), "p1", "scoop", 3);
+    // Sector 6: planet ring 1 also carries a station, and the scoop cannot be
+    // run in port (RULES §Stations) — every station starts on sector 0.
+    let state = withPower(shipAt(wellId, ring, 6), "p1", "scoop", 3);
     state = withShip(state, "p1", { reactionMass: mass });
     const result = executeTurnAs(state, coast(1, true));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1").reactionMass).toBe(expected);
     expect(eventsOf(result.events, "coasted")[0]).toMatchObject({ scooped: true, heat: 3 });
-    // The exact gain is fuel information: private to the owner.
-    expect(eventsOf(result.events, "fuel_scooped")[0]).toMatchObject({
-      amount: expected - mass,
-      privateTo: ["p1"],
-    });
+    // Fuel is public, so the gain is too: the cubes go on the mat in the open.
+    const scooped = eventsOf(result.events, "fuel_scooped")[0];
+    expect(scooped).toMatchObject({ amount: expected - mass });
+    expect(scooped).not.toHaveProperty("privateTo");
   });
 
   it("the scoop takes the headroom, never more: the tank holds 10 on every mat", () => {

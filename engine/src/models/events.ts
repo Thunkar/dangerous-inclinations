@@ -29,7 +29,7 @@ export type RevealReason =
   | "scanned"
   | "critical_bonus"
   | "prevented_heat_damage"
-  | "refunded_jump"
+  | "compressed_jump"
   | "broken";
 
 export type GameEvent =
@@ -78,9 +78,10 @@ export type GameEvent =
       to: Position;
       /** Sectors the arrival was phased by inside the arrival arc (1 fuel each). */
       sectorAdjustment: number;
-      /** Fuel spent, phasing included; 0 when a compressor refunded the jump. */
+      /** Fuel spent, phasing included; a compressor cuts the lane's share. */
       massSpent: number;
-      refunded: boolean;
+      /** A working fuel compressor was aboard, so the lane cost less. */
+      compressed: boolean;
       heat: number;
     })
   | (Base & {
@@ -211,12 +212,25 @@ export type GameEvent =
       planetId: string;
     })
   | (Base & {
+      /** A load of garbage goes over the side into the black hole. */
+      type: "cargo_dumped";
+      playerId: string;
+      cargoId: string;
+      at: Position;
+    })
+  | (Base & {
       type: "cargo_dropped";
       playerId: string;
       crates: number;
       data: number;
     })
-  | (Base & { type: "data_acquired"; playerId: string; kind: "scan" | "survey"; missionId: string })
+  | (Base & {
+      type: "data_acquired";
+      playerId: string;
+      /** Which card took a chit: a scan, or one of the daring cards. */
+      kind: "scan" | "survey" | "board" | "grand_tour";
+      missionId: string;
+    })
   | (Base & {
       type: "mission_completed";
       playerId: string;

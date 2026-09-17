@@ -175,7 +175,8 @@ export function TableScreen({
             sx={{ color: TABLE.inkFaint, flexShrink: 1, minWidth: 0 }}
             noWrap
           >
-            {MISSIONS_TO_WIN} points end the round · highest score wins · Destroy is worth 2
+            {MISSIONS_TO_WIN} points end the round · highest score wins · Destroy, Deliver and
+            Intercept score 2
           </Typography>
         )}
         {isAnimating && (

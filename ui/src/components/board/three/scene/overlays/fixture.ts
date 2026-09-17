@@ -6,7 +6,7 @@
  * missiles, ranges, routes and deployment sectors cannot be looked at when
  * nobody is playing. Everything that could be asked of the engine is: the
  * missile paths come from `projectMissilePath`, the shaded sectors from
- * `isInWeaponRange`, the jump from `getJumpOptions`, the deployment ring from
+ * `canEngage`, the jump from `getJumpOptions`, the deployment ring from
  * `deploymentPositions`. Only the seats and the shape of the turn are invented,
  * and this file is test data, never a renderer.
  */
@@ -22,7 +22,7 @@ import {
   createInitialStations,
   deploymentPositions,
   getJumpOptions,
-  isInWeaponRange,
+  canEngage,
   projectMissilePath,
 } from '@dangerous-inclinations/engine'
 import { getPlayerColor } from '../../../../../utils/playerColors'
@@ -97,7 +97,7 @@ function rangeCellsFrom(from: Position): Position[] {
   for (const ring of ringsOf(from.wellId)) {
     for (let sector = 0; sector < SECTORS_PER_RING; sector++) {
       const cell: Position = { wellId: from.wellId, ring: ring.ring, sector }
-      if (isInWeaponRange(FOCUS_WEAPON, attacker, cell)) cells.push(cell)
+      if (canEngage(FOCUS_WEAPON, attacker, cell)) cells.push(cell)
     }
   }
   return cells
@@ -260,7 +260,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     missilePreviews,
     plannedPoints,
     route,
-    focusWeapon: { weapon: FOCUS_WEAPON, from: me.position, facing: 'prograde' },
+    focusWeapon: { weapon: FOCUS_WEAPON, from: me.position, facing: 'prograde', afterMoving: false },
     rangeCells: rangeCellsFrom(me.position),
     missilePaths,
     selectableIds: [target.playerId],
@@ -272,6 +272,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
       : null,
     animating: false,
     effects: [],
+    ping: null,
     myColor: colorOf(me.playerId),
     colorOf,
     nameOf,

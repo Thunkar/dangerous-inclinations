@@ -2,7 +2,8 @@
  * Destruction and respawn.
  *
  * When a ship is destroyed it drops its cargo: crates return to their origin
- * station (they must be picked up again), data is lost. On the owner's next
+ * station (they must be picked up again), data is lost, and a load of garbage
+ * is simply gone — collect another at any station, which is the same thing. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
  * occupied) fully repaired and refuelled, and the turn ends; the next turn is
  * lost too (the ship is recovering: it takes no action, it only drifts with
@@ -10,6 +11,7 @@
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
+import { isDaringMission } from "../models/missions.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { wrapSector, samePosition } from "./geometry.ts";
 import { createInitialShipState, isDestroyed } from "./ship.ts";
@@ -35,8 +37,10 @@ export function dropCargo(player: Player): { player: Player; events: EventDraft[
       lostData.has(m.id)
     )
       return { ...m, scanAcquired: false };
-    if (m.type === "survey" && !m.isCompleted && m.surveyAcquired && lostData.has(m.id))
-      return { ...m, surveyAcquired: false };
+    // A daring chit goes down with the ship: the dive, the boarding or the
+    // tour has to be made again.
+    if (isDaringMission(m) && !m.isCompleted && m.acquired && lostData.has(m.id))
+      return { ...m, acquired: false };
     return m;
   });
 

@@ -21,7 +21,7 @@ import { processOwnerMissiles } from "./missiles.ts";
 import { processDocking } from "./docking.ts";
 import { resolveEndOfTurnHeat } from "./heat.ts";
 import { processMissionEvents, checkForWinner, rankPlayers } from "./missions/missionChecks.ts";
-import { advanceStations } from "./stations.ts";
+import { advanceStations, isMooredAt } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
 import { applyOrbitalMovement } from "./movement.ts";
 import { positionOf } from "./geometry.ts";
@@ -99,7 +99,10 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   events.push(...missiles.events);
   state = applyDestructions(state, missiles.events, events);
 
-  const docking = processDocking(state, activeIndex);
+  // Making port, or holding a berth held since last turn? Only an arrival is
+  // staked courtesy fuel (RULES §Stations).
+  const wasMoored = isMooredAt(gameState.stations, positionOf(active.ship));
+  const docking = processDocking(state, activeIndex, !wasMoored);
   state = docking.state;
   events.push(...docking.events);
 

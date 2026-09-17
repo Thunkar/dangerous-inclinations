@@ -42,9 +42,9 @@ export function applyBurn(
   return {
     ship: {
       ...ship,
+      reactionMass: ship.reactionMass - massSpent,
       ring: burnDestinationRing(ship, intensity),
       sector: wrapSector(ship.sector + sectorAdjustment),
-      reactionMass: ship.reactionMass - massSpent,
     },
     massSpent,
   };

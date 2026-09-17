@@ -8,8 +8,9 @@ import { resolveShipAppearance, type ShipAppearance } from "../models/appearance
  *
  * Public: positions, facing, hull, heat, energy on every slot (cubes sit on
  * the tiles in the open, even face-down ones), home markers, crates carried,
- * face-up tiles, broken fixed systems, completed missions, missiles, stations.
- * Private: face-down tile identities, fuel, ammo, missions in hand, cargo
+ * face-up tiles, broken fixed systems, completed missions, missiles, stations,
+ * and the fuel aboard.
+ * Private: face-down tile identities, ammo, missions in hand, cargo
  * destinations, mission offers, what a scan showed you.
  */
 import type { GameState, Missile, Player, Position, Station, GamePhase } from "../models/game.ts";
@@ -33,7 +34,8 @@ export interface PublicShipView {
   heat: number;
   /** Energy not routed to any tile (public: 10 minus the cubes on the mat). */
   reactorAvailable: number;
-  /** Shield cubes spent until the next dock (rule knob; 0 under default rules). */
+  /** Fuel aboard: cubes on the mat, in the open like the hull and the heat. */
+  fuel: number;
   isDestroyed: boolean;
 }
 
@@ -115,6 +117,7 @@ function shipView(player: Player): PublicShipView | null {
     maxHitPoints: s.maxHitPoints,
     heat: s.heat.currentHeat,
     reactorAvailable: s.reactor.availableEnergy,
+    fuel: s.reactionMass,
     isDestroyed: isDestroyed(s),
   };
 }

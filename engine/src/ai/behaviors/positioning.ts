@@ -15,6 +15,7 @@ import {
 import {
   findJump,
   getJumpAdjustmentRange,
+  getMaxRing,
   phasedJumpDestination,
 } from "../../models/gravityWells.ts";
 import { ringVelocity } from "../../game/geometry.ts";
@@ -49,6 +50,36 @@ export function coastChoice(wantsScoop: boolean): MovementChoice {
     massCost: 0,
     wantsScoop,
   };
+}
+
+/**
+ * The cheapest way off a station berth: a soft burn, outward if there is a
+ * ring above and inward otherwise, rotating if the nose is the wrong way
+ * round.
+ *
+ * A berth cannot be refuelled — the scoop needs a well to skim (RULES
+ * §Stations) — so a ship that lets its tank run down in port is marooned
+ * there. This is the move it has to make while it can still pay for it.
+ */
+export function castOffChoice(ship: ShipState, status: BotStatus): MovementChoice | null {
+  if (!burnIsValid(ship, status, "soft", 0)) return null;
+  for (const facing of ["prograde", "retrograde"] as const) {
+    const ring = ship.ring + (facing === "prograde" ? 1 : -1);
+    if (ring < 1 || ring > getMaxRing(ship.wellId)) continue;
+    if (facing !== ship.facing && (status.rotation.isBroken || status.rotation.usedThisTurn))
+      continue;
+    return {
+      kind: "burn",
+      preview: { kind: "burn", burnIntensity: "soft", sectorAdjustment: 0 },
+      requiredFacing: facing,
+      engineEnergy: BURN_COSTS.soft.energy,
+      massCost: BURN_COSTS.soft.mass,
+      wantsScoop: false,
+      burnIntensity: "soft",
+      sectorAdjustment: 0,
+    };
+  }
+  return null;
 }
 
 /**

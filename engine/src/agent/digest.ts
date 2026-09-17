@@ -6,7 +6,7 @@
  * same pure helpers the UI uses.
  */
 import type { GameEvent } from "../models/events.ts";
-import type { Mission } from "../models/missions.ts";
+import type { DaringMissionType, Mission } from "../models/missions.ts";
 import { MISSIONS_TO_WIN, SURVEY_RING } from "../models/missions.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { getWellName } from "../models/gravityWells.ts";
@@ -21,15 +21,23 @@ const pos = (p: { wellId: string; ring: number; sector: number }) =>
 export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - Win: the round in which someone reaches ${MISSIONS_TO_WIN} points is played out; then highest score, then hull, then fuel. Destroy = 2 points, other cards 1.
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
-- Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel).
+- Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
+- Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.
 - Burn: drift, then change ring. Prograde facing burns OUTWARD, retrograde INWARD. soft 1 ring / 1 fuel / 1 cube on engines; medium 2/2/2; hard 3/3/3. Phasing: adjust arrival sector, 1 fuel per sector, from -(velocity-1) to +3.
 - Jump: only from a lane's departure arc, engines at 3, 3 fuel (free with compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way. Phasing: shift the landing 1 fuel a sector, never out of the arrival arc — so any departure sector reaches any of the arc's 4 sectors. A compressor pays for the jump, not for the phasing.
 - Heat: using a tile costs its cubes in heat. Dissipation 5 (+2 per radiator). Excess at your heat check = hull damage. Shields: absorb up to their cubes (max 2) but EVERY absorbed point is 2 heat to you. Lasers ignore shields.
 - Weapons: railgun 4 dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser 2 dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack 1 dmg, +-1 ring/+-1 sector or same ring 1 sector; intercepts missiles. Missiles 2 dmg, +-2 rings/+-3 sectors, guided, 4 aboard.
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit that reaches the hull breaks the named slot.
 - Docking (end your turn on a station's sector, planet ring 1): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
-- Survey: end a turn on BH ring ${SURVEY_RING} with the sensor array powered, then dock anywhere. Intercept: scan the target (same ring, within 3 sectors), then dock anywhere.
+- Daring cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}, Board = end a turn in another ship's exact sector: take the chit, then dock anywhere to file it. Garbage Disposal = load at any station (fills your hold, so no delivery crate at the same time), then end a turn on BH ring ${SURVEY_RING} to drop it — no chit, no filing.
+- Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
 - Destroyed: respawn at Home next turn, lose the turn after too (you still drift with your ring while recovering), drop cargo.`;
+
+/** What each daring card still asks of you. */
+const DARING_HOW: Record<DaringMissionType, string> = {
+  survey: `end a turn on BH R${SURVEY_RING}`,
+  board: "end a turn in another ship's exact sector",
+};
 
 function missionLine(m: Mission, name: (id: string) => string): string {
   const head = describeMission(m, name);
@@ -38,13 +46,16 @@ function missionLine(m: Mission, name: (id: string) => string): string {
     case "deliver_cargo":
       return `${head} — load the crate at ${getWellName(m.pickupPlanetId as never)}'s station, deliver at ${getWellName(m.deliveryPlanetId as never)}'s`;
     case "intercept_transmission":
-      return `${head} — ${m.scanAcquired ? "data aboard: dock at any station" : "scan them first (same ring, within 3 sectors, sensors powered)"}`;
-    case "survey":
       return `${head} — ${
-        m.surveyAcquired
-          ? "data aboard: dock at any station"
-          : `end a turn on BH R${SURVEY_RING} with sensors powered`
+        m.scanAcquired
+          ? `data aboard: file it at ${getWellName(m.deliveryPlanetId as never)}'s station`
+          : `scan them first (same ring, within 3 sectors, sensors powered), then file at ${getWellName(m.deliveryPlanetId as never)}'s station`
       }`;
+    case "survey":
+    case "board":
+      return `${head} — ${m.acquired ? "chit aboard: dock at any station" : DARING_HOW[m.type]}`;
+    case "garbage_disposal":
+      return `${head} — collect a load at ANY station (it fills your hold), then end a turn on BH R${SURVEY_RING} to drop it`;
     case "destroy_ship":
       return `${head} — worth 2 points`;
   }
@@ -122,7 +133,7 @@ export function describeViewForAgent(
       continue;
     }
     out.push(
-      `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.completedMissionCount} pts, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Tiles: ${tileLine(p)}. Completed: ${
+      `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.completedMissionCount} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Tiles: ${tileLine(p)}. Completed: ${
         p.completedMissions.map((m) => describeMission(m, name)).join("; ") || "none"
       }.${p.skipTurns ? " Recovering." : ""}`
     );
@@ -146,7 +157,7 @@ export function describeViewForAgent(
     out.push("", "LEGAL THIS TURN:");
     out.push(
       o.moored
-        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off${o.scoopGain ? ` (scoop would still gain ${o.scoopGain} fuel for 3 cubes)` : ""}.`
+        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off. You docked on arrival — holding the berth repairs nothing more${o.scoopGain ? `, though the scoop would still gain ${o.scoopGain} fuel for 3 cubes` : ""}.`
         : `  Drift: coast moves you ${o.velocity} sectors forward${o.scoopGain ? ` (scoop would gain ${o.scoopGain} fuel for 3 cubes)` : ""}.`
     );
     out.push(

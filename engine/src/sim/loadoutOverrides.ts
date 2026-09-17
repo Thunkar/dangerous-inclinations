@@ -8,10 +8,33 @@ import { BOT_LOADOUT_TEMPLATES } from "../ai/behaviors/loadout.ts";
 import type { BotArchetype } from "../ai/behaviors/loadout.ts";
 import type { ShipLoadout } from "../models/game.ts";
 import type { SubsystemType } from "../models/subsystems.ts";
+import { MISSIONS_PER_PLAYER } from "../models/missions.ts";
 
 export type LoadoutOverrides = Partial<Record<BotArchetype, ShipLoadout>>;
 /** Hull forced on a given seat (`bot-1`…), whatever archetype its hand asks for. */
 export type SeatLoadouts = Record<string, ShipLoadout>;
+
+/** Seat id to the number of two-point cards its hand must hold. */
+export type SeatHands = Record<string, number>;
+
+/**
+ * `--hands=bot-1=1,bot-2=3`: how many primaries each named seat keeps, the
+ * rest of its hand being daring cards. Experiment only — it deals a seat a
+ * plan rather than letting it choose one, which is the only way to measure a
+ * plan the bots price as second best.
+ */
+export function parseSeatHands(text: string): SeatHands {
+  const out: SeatHands = {};
+  for (const entry of text.split(",")) {
+    const [seat, count] = entry.split("=");
+    const n = Number(count);
+    if (!seat || !Number.isInteger(n) || n < 0 || n > MISSIONS_PER_PLAYER) {
+      throw new Error(`--hands: expected seat=<0..${MISSIONS_PER_PLAYER}>, got "${entry}"`);
+    }
+    out[seat.trim()] = n;
+  }
+  return out;
+}
 
 function parseHull(entry: string, spec: string): ShipLoadout {
   const [forward, sides] = spec.split("/");

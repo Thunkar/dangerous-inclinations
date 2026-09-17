@@ -38,7 +38,7 @@ Data flow: `UI → WebSocket → server → engine → new state → viewFor →
 
 ## Game summary
 
-2–4 players. Ships orbit a black hole (5 rings) and three planets (3 rings
+2–6 players. Ships orbit a black hole (5 rings) and three planets (3 rings
 each); every ring has 24 sectors. Everyone deploys on black hole ring 4; that
 sector is their Home (destroyed ships respawn there and lose two turns). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
 from black hole ring 5 to its ring 3 and an inbound lane back. Stations orbit planet ring 1 and are where cargo is
@@ -47,13 +47,18 @@ loaded, ships are repaired and data is delivered.
 Loadout tiles (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
 Scanning peeks at one tile privately. Completed missions are face-up. Reaching
-3 points triggers the final round: the round is played out, then highest score
-wins (hull, then fuel, break ties). Four card types: destroy (worth 2),
-deliver, intercept, survey (worth 1 each).
+4 points triggers the final round: the round is played out, then highest score
+wins (hull, then fuel, break ties). Six card types in two kinds: primaries
+worth 2 (destroy, deliver, intercept) and daring cards worth 1 (survey, board,
+garbage disposal). One physical deck for the table: rival cards count seats
+("the 2nd to your left") so no card can name its own holder and none leaks who
+is hunting whom; setup removes offsets the table is too small for. Deal 5, keep
+3, so a hand is two primaries or one plus both daring cards.
 New mission types are proposed to the designer, never added unasked.
 
 Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate,
-one move: coast/burn/jump, fire, scan) → own missiles move → docking → heat
+one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
+arrival only) → heat
 check (excess over dissipation = hull damage, reset) → missions → pass.
 Stations advance at round end.
 
@@ -104,6 +109,7 @@ yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSee
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --tiles=ballistic_rack.damage=3
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message
 yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural play + extreme hulls, flags outliers
+yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal (docs/arena.md)
 ```
 
@@ -116,6 +122,14 @@ and finds a seat on the server by name (`--as`) or id (`--player`). No
 autopilot: an illegal intent is refused before submission and the agent gets
 the engine's reasons, the legal options and the full rules back until its
 turn is legal.
+
+Benchmark: `yarn bench` (engine) writes `docs/benchmark.md` — one page describing
+how the rules as they stand play at 3/4/5/6 seats: length in rounds and in table
+time, kills, the hulls bots chose and their win rates, and every card's pick rate
+and payoff. It stamps the rules it ran under at the top, so two versions of the
+page can be diffed to see what a rule change actually did. Keep the games and
+seeds fixed between runs or the comparison is worthless. It is a description and
+never fails; the gate is below.
 
 Balance regression: `yarn balance` (engine) plays natural games at 2/3/4
 players and forces the presets plus sixteen extreme hulls on one seat, then
@@ -130,7 +144,9 @@ is measured before it is adopted with the simulator's experiment-only override
 channels, which mutate the configuration of the process running the batch:
 `--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
 any tile), `--weapons=laser.damage=3` (firing stats), `--loadouts=` (the bots'
-hull templates) and `--seats=` (a hull forced on one seat). The summary prints
+hull templates), `--seats=` (a hull forced on one seat) and `--hands=bot-1=1`
+(how many two-point cards a seat keeps — the bots price one road to four points
+and take it every time, so a plan they never choose is only measurable dealt). The summary prints
 turn behaviour (coast/burn/jump/firing shares, shield cubes, heat at check,
 damage soaked). A change that survives its experiment moves into the models.
 

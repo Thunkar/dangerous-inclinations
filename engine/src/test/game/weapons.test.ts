@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { calculateFiringSolutions, isInWeaponRange } from "../../game/targeting.ts";
 import { getSideFiringDirection, getSubsystemSide } from "../../game/ship.ts";
+import { missileCanReach } from "../../game/missiles.ts";
 import type { Facing, ShipLoadout } from "../../models/game.ts";
 import {
   ALPHA,
@@ -139,16 +140,31 @@ describe("weapons: ballistic rack range", () => {
 describe("weapons: missile range (turret)", () => {
   const launcher = getSub(makeTwoPlayerGame(), "p1", "side-3");
 
+  // A missile is self-guided: anything in the well can be launched at, however
+  // far, and whether it catches up is the missile's problem (missileCanReach).
   it.each([
-    ["two rings out, 3 sectors", at(5, 3), true],
-    ["two rings in, same sector", at(1, 0), true],
-    ["same ring, 3 sectors behind", at(3, 21), true],
-    ["a ship sharing the launcher's sector", at(3, 0), true],
-    ["same ring, 4 sectors", at(3, 4), false],
-    ["three rings", at(3 - 2, 0), true],
-  ])("missiles at R3 S0: %s -> %s", (_label, target, expected) => {
-    expect(isInWeaponRange(launcher, attackerAt(3, 0), target)).toBe(expected);
-    expect(isInWeaponRange(launcher, attackerAt(3, 0, "retrograde"), target)).toBe(expected);
+    ["two rings out, 3 sectors", at(5, 3)],
+    ["two rings in, same sector", at(1, 0)],
+    ["a ship sharing the launcher's sector", at(3, 0)],
+    ["same ring, 4 sectors", at(3, 4)],
+    ["the far side of the ring", at(3, 12)],
+    ["four rings out and half the ring away", at(5, 14)],
+  ])("missiles at R3 S0 may be launched at %s", (_label, target) => {
+    expect(isInWeaponRange(launcher, attackerAt(3, 0), target)).toBe(true);
+    expect(isInWeaponRange(launcher, attackerAt(3, 0, "retrograde"), target)).toBe(true);
+  });
+
+  // The flight is the range: three moves of three steps, with the missile
+  // drifting before each move and the target after it. From R3 S0 that reaches
+  // most of the way round the ring but not the far side.
+  it.each([
+    ["two sectors away", at(3, 2), true],
+    ["eleven sectors ahead", at(3, 11), true],
+    ["the far side of the ring", at(3, 16), false],
+    ["two rings in, three sectors", at(1, 3), true],
+    ["two rings in, half the ring away", at(1, 15), false],
+  ])("a missile launched at R3 S0 at a target %s: reaches %s", (_label, target, expected) => {
+    expect(missileCanReach(at(3, 0), target, false)).toBe(expected);
   });
 
   it("no weapon fires across gravity wells", () => {
@@ -165,7 +181,8 @@ describe("weapons: missile range (turret)", () => {
     ]);
     expect(solutions).toEqual([
       { targetId: "a", inRange: true, ringDistance: 2, sectorDistance: 2 },
-      { targetId: "b", inRange: false, ringDistance: 0, sectorDistance: 12 },
+      // In range to launch at, though no missile would ever catch it.
+      { targetId: "b", inRange: true, ringDistance: 0, sectorDistance: 12 },
     ]);
   });
 });

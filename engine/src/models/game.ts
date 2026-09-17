@@ -33,7 +33,14 @@ export const DEFAULT_LOADOUT: ShipLoadout = {
 };
 
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 4;
+/**
+ * Six seats. The board holds them comfortably — everyone deploys on the black
+ * hole's home ring, which is 24 sectors wide — but the table changes shape as
+ * seats are added: each opponent puts another Destroy and another Intercept in
+ * every deck, so a six-player game is a fight and a three-player game is a
+ * trade route. Two seats is still legal and still thin.
+ */
+export const MAX_PLAYERS = 6;
 
 /** Base critical hit chance in percentage points (10 = d10 roll of 10). */
 export const BASE_CRITICAL_CHANCE = 10;
@@ -127,6 +134,12 @@ export interface ShipState {
   ring: number;
   sector: number;
   facing: Facing;
+  /**
+   * Fuel aboard. Public (RULES §Hidden information): the cubes sit on the mat
+   * where anyone can count them. A tank was private and a spent pile public
+   * for a day, which fooled nobody — every ship starts with the same ten and
+   * every burn is announced, so the arithmetic was there for the doing.
+   */
   reactionMass: number;
   hitPoints: number;
   maxHitPoints: number;

@@ -1,6 +1,12 @@
 /**
  * A rival's mat, seen from across the table and kept narrow: name and colour,
- * hull and heat, home port, the hold, the score, and the five slots.
+ * hull and heat, home port, the hold, the fuel they have burned, the score,
+ * and the five slots.
+ *
+ * The crosshair by the name pings them: rings expand off their hull on the
+ * board and, on the 3D board, the camera swings to their well. It asks the
+ * table a question and changes nothing in the game — three wells and 120
+ * sectors are a lot of board to search by eye.
  *
  * The slots are the interesting part. A face-down tile shows only which slot
  * it is — but the energy cubes on it are public, so four cubes on a face-down
@@ -12,9 +18,10 @@
  * all, any slot will do (the engine takes whichever it can and tells you).
  */
 import { ShipMark } from '../../ships/ShipMark'
-import { Box, Tooltip, Typography } from '@mui/material'
+import { Box, IconButton, Tooltip, Typography } from '@mui/material'
+import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
-import { MISSIONS_TO_WIN, getWellName } from '@dangerous-inclinations/engine'
+import { CARGO_HOLD_CRATES, MISSIONS_TO_WIN } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { Panel } from '../common/Panel'
 import { SubsystemTile } from '../common/SubsystemTile'
@@ -23,6 +30,7 @@ import { missionFamilyColor, missionFamilyLabel } from '../../utils/missions'
 import { slotLabel } from '../../utils/slots'
 import { agentLabel } from '../../utils/agents'
 import { useGame } from '../../context/GameContext'
+import { useAnimation } from '../../context/AnimationContext'
 
 const SLOT_TILE = 36
 const FIXED_TILE = 22
@@ -51,6 +59,7 @@ export function OpponentCard({
 }: OpponentCardProps) {
   const ship = player.ship
   const destroyed = ship?.isDestroyed ?? false
+  const { ping } = useAnimation()
   /** Who plays this seat: an agent's driver and model, or nothing for people and bots. */
   const { seats } = useGame()
   const agent = agentLabel(seats.find(s => s.playerId === player.id)?.agent)
@@ -131,6 +140,26 @@ export function OpponentCard({
               </Typography>
             </Tooltip>
           )}
+          <Tooltip
+            title={destroyed ? 'Nothing on the board to find' : `Find ${player.name} on the board`}
+          >
+            <Box component="span" sx={{ display: 'flex', flexShrink: 0 }}>
+              <IconButton
+                size="small"
+                aria-label={`Ping ${player.name}`}
+                disabled={destroyed || !ship}
+                onClick={event => {
+                  // The card's own click aims this turn's step at the player;
+                  // the crosshair only looks.
+                  event.stopPropagation()
+                  ping(player.id)
+                }}
+                sx={{ p: 0.25, color: TABLE.inkFaint, '&:hover': { color } }}
+              >
+                <GpsFixedIcon sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Box>
+          </Tooltip>
           {player.isActive && (
             <Typography variant="overline" sx={{ color, lineHeight: 1, fontSize: '0.68rem' }}>
               acting
@@ -160,7 +189,7 @@ export function OpponentCard({
       }
       action={
         <Tooltip
-          title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} points (Destroy is worth 2)`}
+          title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} points (Destroy, Deliver and Intercept score 2; Survey 1)`}
         >
           <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
             {Array.from({ length: MISSIONS_TO_WIN }, (_, i) => (
@@ -189,45 +218,41 @@ export function OpponentCard({
           label="Hull"
           size={8}
         />
-        <PipTrack
-          value={ship?.heat ?? 0}
-          max={Math.max(8, ship?.heat ?? 0)}
-          color={TABLE.heat}
-          label="Heat"
-          size={8}
-        />
-
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-          <Tooltip
-            title={
-              player.home
-                ? `Home: ${getWellName(player.home.wellId)} R${player.home.ring} S${player.home.sector}`
-                : 'Not deployed'
-            }
-          >
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, minWidth: 0 }}>
-              <Typography
-                variant="overline"
-                sx={{ color: TABLE.inkFaint, lineHeight: 1, flexShrink: 0 }}
-              >
-                Home
-              </Typography>
-              <Typography
-                sx={{
-                  fontFamily: FONT_MONO,
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  color: TABLE.ink,
-                  lineHeight: 1,
-                }}
-                noWrap
-              >
-                {player.home ? getWellName(player.home.wellId) : '—'}
-              </Typography>
-            </Box>
+          <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+            <PipTrack
+              value={ship?.heat ?? 0}
+              max={Math.max(8, ship?.heat ?? 0)}
+              color={TABLE.heat}
+              label="Heat"
+              size={8}
+            />
+          </Box>
+          {/* Fuel is public: the cubes sit on the mat (RULES §Hidden information). */}
+          <Tooltip title={`Fuel aboard: ${ship?.fuel ?? 0}. Everyone can count it.`}>
+            <Typography
+              sx={{
+                fontFamily: FONT_MONO,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: TABLE.fuel,
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+            >
+              {ship?.fuel ?? 0}
+              <Box component="span" sx={{ color: TABLE.inkFaint, fontWeight: 400 }}>
+                {' '}
+                fuel
+              </Box>
+            </Typography>
           </Tooltip>
-          <Box sx={{ flex: 1, minWidth: 0 }} />
-          <Tooltip title="Cargo aboard: crates and data are public tokens (their destinations are not)">
+        </Box>
+
+        {/* Home is on the board with a marker of its own and never moves, so
+            printing it on the card was a line that told nobody anything. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+          <Tooltip title={`Cargo aboard: crates and data are public tokens (their destinations are not). A hold takes ${CARGO_HOLD_CRATES} crate; data rides free.`}>
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <CargoChits
                 crates={player.cargoAboard.crates}

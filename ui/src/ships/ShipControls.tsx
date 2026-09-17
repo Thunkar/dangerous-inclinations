@@ -1,5 +1,5 @@
 import { Box, Button, Slider, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
-import { Fragment } from 'react'
+
 import {
   BOT_LOADOUT_TEMPLATES,
   BOT_ROLES,
@@ -8,6 +8,8 @@ import {
   INSTALLABLE_SUBSYSTEMS,
   canInstallInSlot,
   getSubsystemConfig,
+  type BotRole,
+  type HullVariant,
   type ShipAppearance,
   type ShipLoadout,
 } from '@dangerous-inclinations/engine'
@@ -21,6 +23,77 @@ import {
   type MountId,
   type WorkshopConfig,
 } from './config'
+
+const DEFAULT_ROLE: BotRole = 'hauler'
+const DEFAULT_VARIANT: HullVariant = 'tanky'
+
+/** What each choice buys, in the words the mat itself would use. */
+const ROLE_NOTE: Record<BotRole, string> = {
+  interceptor: 'Sensor array — scans, and the Intercept and Survey cards that need one',
+  hunter: 'Railgun — the long shot down your own ring, for a Destroy card',
+  hauler: 'Fuel compressor — jumps cost nothing, but you can never scan',
+}
+const VARIANT_NOTE: Record<HullVariant, string> = {
+  tanky: 'A second shield tile, and the one gun a Destroy card needs',
+  aggressive: 'A second gun, and the radiator that volley needs',
+}
+
+const templateFor = (role: BotRole, variant: HullVariant): ShipLoadout =>
+  structuredClone(BOT_LOADOUT_TEMPLATES[`${role}-${variant}`])
+
+/** Which profile this mat is, or null once it has been edited into its own. */
+function archetypeOf(loadout: ShipLoadout): { role: BotRole; variant: HullVariant } | null {
+  const same = (a: ShipLoadout, b: ShipLoadout) => JSON.stringify(a) === JSON.stringify(b)
+  for (const role of BOT_ROLES) {
+    for (const variant of HULL_VARIANTS) {
+      if (same(loadout, BOT_LOADOUT_TEMPLATES[`${role}-${variant}`])) return { role, variant }
+    }
+  }
+  return null
+}
+
+function ArchetypeChoice<T extends string>({
+  label,
+  options,
+  value,
+  describe,
+  onChange,
+  disabled,
+}: {
+  label: string
+  options: readonly T[]
+  value: T | null
+  describe: (option: T) => string
+  onChange: (option: T) => void
+  disabled: boolean
+}) {
+  return (
+    <Box sx={{ mt: 1, mb: 1.5 }}>
+      <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 0.5 }}>
+        {label}
+      </Typography>
+      <ToggleButtonGroup
+        exclusive
+        fullWidth
+        size="small"
+        value={value}
+        disabled={disabled}
+        onChange={(_e, next: T | null) => next && onChange(next)}
+      >
+        {options.map(option => (
+          <ToggleButton
+            key={option}
+            value={option}
+            title={describe(option)}
+            sx={{ textTransform: 'capitalize', fontFamily: FONT_MONO, fontSize: '0.78rem' }}
+          >
+            {option}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+    </Box>
+  )
+}
 
 export function SystemControls({
   config,
@@ -36,6 +109,7 @@ export function SystemControls({
   disabled: boolean
 }) {
   const mount = MOUNTS.find(m => m.id === selected)!
+  const archetype = archetypeOf(config.loadout)
   const current = moduleAt(config, selected)
   const detail = current ? getSubsystemConfig(current) : null
   return (
@@ -43,47 +117,35 @@ export function SystemControls({
       <Typography variant="overline" color="text.secondary">
         01 / Mission profile
       </Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: 0.5, mt: 1, mb: 2.5 }}>
-        <Box />
-        {HULL_VARIANTS.map(v => (
-          <Typography
-            key={v}
-            variant="caption"
-            color="text.secondary"
-            sx={{ textAlign: 'center', textTransform: 'capitalize' }}
-          >
-            {v}
-          </Typography>
-        ))}
-        {BOT_ROLES.map(role => (
-          <Fragment key={role}>
-            <Typography
-              variant="caption"
-              sx={{ alignSelf: 'center', pr: 1, textTransform: 'capitalize' }}
-            >
-              {role}
-            </Typography>
-            {HULL_VARIANTS.map(variant => {
-              const id = `${role}-${variant}` as const
-              return (
-                <Button
-                  key={id}
-                  disabled={disabled}
-                  variant="outlined"
-                  aria-label={`${role}, ${variant}`}
-                  aria-pressed={
-                    JSON.stringify(config.loadout) === JSON.stringify(BOT_LOADOUT_TEMPLATES[id])
-                  }
-                  onClick={() => onChange(structuredClone(BOT_LOADOUT_TEMPLATES[id]))}
-                  sx={{ minWidth: 0, px: 0.5, textTransform: 'capitalize' }}
-                >
-                  {variant}
-                </Button>
-              )
-            })}
-          </Fragment>
-        ))}
-      </Box>
+      {/*
+        Two decisions, not six mats. What the forward slot is for is the plan
+        you came with — a gun, eyes or legs, one for each two-point card — and
+        how the four side slots are spent is taste. As a matrix the six cells
+        all read "tanky" or "aggressive" and said nothing; as two rows each
+        button names its own choice.
+      */}
+      <ArchetypeChoice
+        label="Primary · what the nose is for"
+        options={BOT_ROLES}
+        value={archetype?.role ?? null}
+        describe={role => ROLE_NOTE[role]}
+        onChange={role => onChange(templateFor(role, archetype?.variant ?? DEFAULT_VARIANT))}
+        disabled={disabled}
+      />
+      <ArchetypeChoice
+        label="Secondary · how the sides are spent"
+        options={HULL_VARIANTS}
+        value={archetype?.variant ?? null}
+        describe={variant => VARIANT_NOTE[variant]}
+        onChange={variant => onChange(templateFor(archetype?.role ?? DEFAULT_ROLE, variant))}
+        disabled={disabled}
+      />
+      {archetype === null && (
+        <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 2.5 }}>
+          Mat of your own — pick a profile to start from, or leave it.
+        </Typography>
+      )}
+
       <Typography variant="overline" color="text.secondary">
         02 / Attachment points
       </Typography>

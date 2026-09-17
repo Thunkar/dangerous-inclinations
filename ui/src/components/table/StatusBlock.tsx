@@ -262,7 +262,9 @@ export function StatusBlock({ accent }: { accent?: string }) {
           minWidth: 0,
         }}
       >
-        <Tooltip title={`Fuel now ${fuelNow}, ${fuelAfter} once this turn has played out`}>
+        <Tooltip
+          title={`Fuel now ${fuelNow}, ${fuelAfter} once this turn has played out. Fuel is public: everyone can count the cubes on your mat.`}
+        >
           <Box sx={{ display: 'flex', minWidth: 0 }}>
             <PipTrack
               value={fuelNow}

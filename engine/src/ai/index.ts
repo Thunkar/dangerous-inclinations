@@ -65,9 +65,21 @@ export function botDecideActions(
  */
 export function botChooseLoadout(
   offers: Mission[],
-  context: { playerCount: number; hull?: ShipLoadout }
+  context: {
+    playerCount: number;
+    hull?: ShipLoadout;
+    primaries?: number;
+    /** Chooses among the flyable hands; wire it to the game's seeded RNG. */
+    pick?: (n: number) => number;
+  }
 ): { missionIds: string[]; loadout: ShipLoadout } {
-  const missions = selectBotMissions(offers, context.playerCount, context.hull);
+  const missions = selectBotMissions(
+    offers,
+    context.playerCount,
+    context.hull,
+    context.primaries,
+    context.pick
+  );
   // A hand and a mat are one choice: a kept Intercept or Survey needs the
   // sensor array and a kept Destroy needs a gun. `hull` is a mat the
   // simulator is measuring on this seat; it

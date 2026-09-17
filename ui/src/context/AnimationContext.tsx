@@ -28,6 +28,7 @@ import type {
 } from '@dangerous-inclinations/engine'
 import { HOME_RING, getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
+import { getPlayerColor } from '../utils/playerColors'
 
 // ---------------------------------------------------------------------------
 // Effects
@@ -125,6 +126,21 @@ interface AnimationContextValue {
   pulses: Record<string, number>
   /** Skip the rest of the current animation. */
   skip: () => void
+  /**
+   * Find a ship: rings expand off it and its name floats up. Nothing about
+   * the game changes — a ping is one player asking their own table where
+   * somebody is, and only they see it.
+   */
+  ping: (playerId: string) => void
+  /** The ping in progress, for renderers that answer it (the 3D camera flies there). */
+  pinged: Ping | null
+}
+
+/** A ping: who was asked for, where they were, and which ping this is. */
+export interface Ping {
+  id: string
+  playerId: string
+  position: Position
 }
 
 const AnimationContext = createContext<AnimationContextValue | null>(null)
@@ -136,6 +152,13 @@ const BEAM_COLORS: Record<WeaponType | 'pdc', string> = {
   ballistic_rack: '#49c3ff',
   pdc: '#49c3ff',
 }
+
+/**
+ * A ping: rings that expand off the hull, one after another, the way a
+ * locator sweeps. Three is enough to catch an eye that is looking elsewhere
+ * on the board; the whole thing is over in a second and a half.
+ */
+const PING = { rings: 3, stagger: 260, life: 900, radius: 52 } as const
 
 /** How long each event holds the table, in ms. */
 const BEAT = {
@@ -188,7 +211,7 @@ function critThresholdFor(view: GameView, attackerId: string): number {
 }
 
 export function AnimationProvider({ children }: { children: ReactNode }) {
-  const { registerAnimator } = useGame()
+  const { registerAnimator, view } = useGame()
   const [overlay, setOverlay] = useState<BoardOverlay | null>(null)
   const [effects, setEffects] = useState<TableEffect[]>([])
   const [dice, setDice] = useState<DieRoll[]>([])
@@ -218,6 +241,69 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
     }, effect.duration)
     expiryRef.current.add(timer)
   }, [])
+
+  /**
+   * Pings are kept apart from the turn's own effects. A turn's animation
+   * clears the table when it ends, and a ping is not part of any turn — it is
+   * one player asking where somebody is, and it should not vanish because a
+   * bot two seats over finished moving.
+   */
+  const [pingEffects, setPingEffects] = useState<TableEffect[]>([])
+  const [pinged, setPinged] = useState<Ping | null>(null)
+  const pingTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>())
+
+  const pushPing = useCallback((effect: EffectDraft) => {
+    const started = { ...effect, start: performance.now() } as TableEffect
+    setPingEffects(prev => [...prev, started])
+    const timer = setTimeout(() => {
+      pingTimersRef.current.delete(timer)
+      setPingEffects(prev => prev.filter(e => e !== started))
+    }, effect.duration)
+    pingTimersRef.current.add(timer)
+  }, [])
+
+  const ping = useCallback(
+    (playerId: string) => {
+      const index = view.players.findIndex(p => p.id === playerId)
+      const player = view.players[index]
+      const ship = player?.ship
+      if (!ship || ship.isDestroyed) return
+      const position: Position = { wellId: ship.wellId, ring: ship.ring, sector: ship.sector }
+      const color = getPlayerColor(index)
+      setPinged({ id: nextId('ping'), playerId, position })
+      pushPing({
+        id: nextId('f'),
+        kind: 'float',
+        at: position,
+        playerId,
+        text: player.name,
+        tone: 'good',
+        duration: PING.life + PING.stagger * PING.rings,
+      })
+      for (let i = 0; i < PING.rings; i++) {
+        const fire = () =>
+          pushPing({
+            id: nextId('ping-ring'),
+            kind: 'burst',
+            at: position,
+            playerId,
+            color,
+            radius: PING.radius,
+            duration: PING.life,
+          })
+        if (i === 0) {
+          fire()
+          continue
+        }
+        const timer = setTimeout(() => {
+          pingTimersRef.current.delete(timer)
+          fire()
+        }, i * PING.stagger)
+        pingTimersRef.current.add(timer)
+      }
+    },
+    [view.players, pushPing]
+  )
 
   const animate = useCallback(
     (prev: GameView, next: GameView, events: GameEvent[], done: () => void) => {
@@ -698,15 +784,22 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
     () => () => {
       if (timerRef.current) clearTimeout(timerRef.current)
       clearExpiries()
+      for (const timer of pingTimersRef.current) clearTimeout(timer)
+      pingTimersRef.current.clear()
     },
     [clearExpiries]
   )
 
   const skip = useCallback(() => skipRef.current?.(), [])
 
+  const onTable = useMemo(
+    () => (pingEffects.length === 0 ? effects : [...effects, ...pingEffects]),
+    [effects, pingEffects]
+  )
+
   const value = useMemo<AnimationContextValue>(
-    () => ({ overlay, effects, dice, pulses, skip }),
-    [overlay, effects, dice, pulses, skip]
+    () => ({ overlay, effects: onTable, dice, pulses, skip, ping, pinged }),
+    [overlay, onTable, dice, pulses, skip, ping, pinged]
   )
 
   return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>
@@ -718,6 +811,8 @@ const EMPTY: AnimationContextValue = {
   dice: [],
   pulses: {},
   skip: () => {},
+  ping: () => {},
+  pinged: null,
 }
 
 export function useAnimation(): AnimationContextValue {

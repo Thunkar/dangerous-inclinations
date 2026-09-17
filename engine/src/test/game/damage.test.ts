@@ -31,7 +31,7 @@ const RACK_FIRST: ShipLoadout = {
 
 /** p1 at R3 S0 with a powered port laser; p2 one ring out where the laser reaches. */
 function laserDuel(targetLoadout?: ShipLoadout, attackerLoadout?: ShipLoadout) {
-  let state = makeTwoPlayerGame(
+  const state = makeTwoPlayerGame(
     { ring: 3, sector: 0, loadout: attackerLoadout },
     { ring: 4, sector: 0, loadout: targetLoadout }
   );

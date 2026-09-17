@@ -1,7 +1,10 @@
 /**
  * Missiles.
  *
- * Launch: the missile appears at the firing ship's position.
+ * Launch: the missile appears at the firing ship's position. Any ship in the
+ * same well can be fired at, however far away — a guided missile has no firing
+ * box, and {@link missileCanReach} is how a bot or a preview asks whether this
+ * one will actually catch up.
  * At the end of the owner's turn each of their missiles drifts with its ring
  * (unless it was launched after the ship had already moved this turn: it rode
  * along, so it starts from where it was dropped), then moves up to
@@ -84,6 +87,34 @@ export function projectMissilePath(
   return path;
 }
 
+/**
+ * Best case: can a missile launched from `from` land on a target at `target`
+ * before it expires, if that target simply coasts?
+ *
+ * Replays the flight with {@link projectMissilePath}, so the launch-after-move
+ * exception (a missile launched once the ship has moved rode along and does
+ * not drift again that turn) is counted exactly as the engine will replay it.
+ * The target is assumed to coast: it is a best case, not a promise, which is
+ * all a launcher can know — the target moves after the missile is away.
+ */
+export function missileCanReach(
+  from: Position,
+  target: Position,
+  launchedAfterMove: boolean
+): boolean {
+  if (from.wellId !== target.wellId) return false;
+  let missile: Position & { launchedAfterMove: boolean } = { ...from, launchedAfterMove };
+  let victim = target;
+  for (let move = 0; move < MISSILE.maxMoves; move++) {
+    const path = projectMissilePath(missile, victim);
+    const end = path[path.length - 1];
+    if (samePosition(end, victim)) return true;
+    missile = { ...end, launchedAfterMove: false };
+    victim = driftPosition(victim);
+  }
+  return false;
+}
+
 export interface MissileProcessResult {
   state: GameState;
   events: EventDraft[];
@@ -98,7 +129,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
   const ownerIndex = state.players.findIndex((p) => p.id === ownerId);
   if (ownerIndex === -1) return { state, events };
 
-  let players = [...state.players];
+  const players = [...state.players];
   const survivors: Missile[] = [];
 
   for (const missile of state.missiles) {

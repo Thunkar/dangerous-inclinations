@@ -85,15 +85,30 @@ describe("bot targeting", () => {
   });
 
   it("does not fire at a target nothing can reach", () => {
-    // Half an orbit away: outside the railgun's arc and every broadside.
+    // The far side of the ring: outside the railgun's arc and every broadside,
+    // and far enough that a missile expires before it closes.
     const state = grounded(
       makeTwoPlayerGame(
         { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
-        { wellId: BH, ring: 3, sector: 12 }
+        { wellId: BH, ring: 3, sector: 16 }
       ),
       "p1"
     );
     expect(shotsOf(state, "p1")).toHaveLength(0);
+  });
+
+  it("launches at a target far outside every gun's arc, as long as the missile can close", () => {
+    // Half an orbit away: no gun bears, but a missile is self-guided and its
+    // three moves are enough to catch a coasting ship this far ahead.
+    const state = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 3, sector: 11 }
+      ),
+      "p1"
+    );
+    const shots = shotsOf(state, "p1");
+    expect(shots.map((a) => a.data.subsystemId)).toEqual(["side-3"]);
   });
 
   it("never fires across gravity wells, however close the sector numbers look", () => {

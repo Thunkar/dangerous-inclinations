@@ -19,6 +19,7 @@ import {
   applyLoadoutOverrides,
   type LoadoutOverrides,
   type SeatLoadouts,
+  type SeatHands,
 } from "./loadoutOverrides.ts";
 import { createGame, submitLoadout } from "../game/setup.ts";
 import { rankPlayers } from "../game/missions/missionChecks.ts";
@@ -48,6 +49,13 @@ export interface GameConfig {
   loadouts?: LoadoutOverrides;
   /** Experiment-only: force a hull on a seat (`bot-1`…), whatever its hand asks for. */
   seatLoadouts?: SeatLoadouts;
+  /**
+   * Experiment-only: force the shape of a seat's hand — how many of its cards
+   * are two-point primaries. The bots pick the cheapest road to four points
+   * and that road is the same shape every time, so a plan they never choose is
+   * only measurable by dealing it to them.
+   */
+  seatHands?: SeatHands;
 }
 
 /** What the active player did on one turn, for balance stats. */
@@ -110,7 +118,8 @@ export function botIds(count: number): string[] {
 export function setupBotGame(
   seed: number,
   botCount: number,
-  seatLoadouts?: SeatLoadouts
+  seatLoadouts?: SeatLoadouts,
+  seatHands?: SeatHands
 ): GameState {
   let state = createGame(
     botIds(botCount).map((id, i) => ({ id, name: `Bot ${i + 1}` })),
@@ -124,6 +133,9 @@ export function setupBotGame(
     const choice = botChooseLoadout(player.missionOffers, {
       playerCount: botCount,
       hull: seatLoadouts?.[player.id],
+      primaries: seatHands?.[player.id],
+      // Seeded: the spread of hands across a batch replays exactly.
+      pick: (n) => pickIndex(state, Array.from({ length: n })),
     });
     const result = submitLoadout(state, player.id, {
       loadout: choice.loadout,
@@ -155,7 +167,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;
 
-  const initialState = setupBotGame(seed, botCount, config.seatLoadouts);
+  const initialState = setupBotGame(seed, botCount, config.seatLoadouts, config.seatHands);
   let state = initialState;
   const turns: GameRunResult["turns"] = [];
   const turnStats: TurnStat[] = [];

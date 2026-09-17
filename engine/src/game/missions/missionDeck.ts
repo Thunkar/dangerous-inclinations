@@ -1,68 +1,141 @@
 /**
- * Mission deck. Each player draws MISSION_OFFERS_PER_PLAYER cards from their
- * own shuffled deck of every mission they could hold, then keeps
- * MISSIONS_PER_PLAYER of them during loadout.
+ * The mission deck: one pile, shuffled once, dealt round the table.
  *
- * Deck per player: one Destroy and one Intercept per opponent; every Deliver
- * route between two different planets; two Survey.
+ * It is a physical deck, so it is built the way a physical deck has to be.
+ * There is no per-player deck and no card that knows who is holding it —
+ * every card reads the same in every hand, which is the only way a face-down
+ * card can leak nothing.
+ *
+ * **Naming a rival without naming a seat.** A Destroy card that said "destroy
+ * Ada" could be drawn by Ada, and putting it back would tell her that nobody
+ * holds it. So the cards count instead: *the player to your left*, *the second
+ * to your left*, and so on. An offset is never zero, so the card can never
+ * name its own holder, and since every copy reads identically it says nothing
+ * about who is hunting whom until it is completed face-up.
+ *
+ * **Setup removes what will not fit.** Offsets run to {@link MAX_PLAYERS} - 1,
+ * so a smaller table takes out the cards that would wrap onto the holder:
+ * with N players, remove every card whose offset is N or more.
+ *
+ * The mix is two copies of everything — each offset of each rival card, each
+ * cargo route, each daring card — which keeps the same share of the deck
+ * pointed at people as the old per-player decks had (31% at three seats, 53%
+ * at six) while leaving enough cards to deal five to six players.
  */
 import type { Player } from "../../models/game.ts";
-import type { Cargo, Mission } from "../../models/missions.ts";
-import { MISSIONS_PER_PLAYER, MISSION_OFFERS_PER_PLAYER } from "../../models/missions.ts";
-import { PLANETS } from "../../models/gravityWells.ts";
+import type { Cargo, DaringMission, Mission } from "../../models/missions.ts";
+import {
+  DARING_MISSION_TYPES,
+  MISSIONS_PER_PLAYER,
+  MISSION_OFFERS_PER_PLAYER,
+} from "../../models/missions.ts";
+import { MAX_PLAYERS } from "../../models/game.ts";
+import { BLACK_HOLE_ID, PLANETS } from "../../models/gravityWells.ts";
 import type { Rng } from "../../utils/rng.ts";
 
-export const SURVEY_CARDS_PER_DECK = 2;
+/** Copies of each distinct card in the printed deck. */
+export const COPIES_PER_CARD = 2;
 
-/** A card before it gets an id (distributive over the mission union). */
-export type MissionBlueprint = {
-  [K in Mission["type"]]: Omit<Extract<Mission, { type: K }>, "id">;
-}[Mission["type"]];
+/** Survey, Board, Garbage Disposal. */
+export const DARING_CARDS_PER_DECK = (DARING_MISSION_TYPES.length + 1) * COPIES_PER_CARD;
 
 /**
- * Every card a player could hold, in a fixed order. Ids are assigned AFTER
- * shuffling (see dealMissionOffers) so that an id says nothing about the
- * card: cargo and data chits are named after their mission id and are public
- * tokens, and a predictable id would let opponents read a crate's route.
+ * A card as it is printed: a rival card counts seats rather than naming one,
+ * and the deal turns that count into the player sitting there.
+ */
+export type DeckCard =
+  | { type: "destroy_ship"; targetOffset: number }
+  | { type: "intercept_transmission"; targetOffset: number; deliveryPlanetId: string }
+  | { type: "deliver_cargo"; pickupPlanetId: string; deliveryPlanetId: string }
+  | { type: "survey" | "board"; deliveryPlanetId: string }
+  | { type: "garbage_disposal" };
+
+/** A card before it gets an id (distributive over the mission union). */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+export type MissionBlueprint = DistributiveOmit<Mission, "id">;
+
+/**
+ * The printed deck, in a fixed order, minus the cards a table this size
+ * cannot use.
+ *
+ * @param playerCount seats at the table; rival cards that would wrap onto
+ *   their own holder are left in the box.
  */
 export function buildMissionDeck(
-  opponents: ReadonlyArray<Pick<Player, "id">>,
-  planetIds: readonly string[],
-  routes: Array<[string, string]> = allRoutes(planetIds)
-): MissionBlueprint[] {
-  const deck: MissionBlueprint[] = [];
+  playerCount: number,
+  planetIds: readonly string[] = PLANETS.map((p) => p.id)
+): DeckCard[] {
+  const deck: DeckCard[] = [];
+  const offsets = Array.from({ length: MAX_PLAYERS - 1 }, (_, i) => i + 1).filter(
+    (offset) => offset < playerCount
+  );
 
-  for (const target of opponents) {
-    deck.push({ type: "destroy_ship", isCompleted: false, targetPlayerId: target.id });
-    deck.push({
-      type: "intercept_transmission",
-      isCompleted: false,
-      targetPlayerId: target.id,
-      scanAcquired: false,
-      dataCargoId: "",
-    });
+  for (let copy = 0; copy < COPIES_PER_CARD; copy++) {
+    for (const targetOffset of offsets) {
+      deck.push({ type: "destroy_ship", targetOffset });
+      deck.push({
+        type: "intercept_transmission",
+        targetOffset,
+        // The station is printed on the card, so a copy of the same offset is
+        // still a different errand.
+        deliveryPlanetId: planetIds[(targetOffset + copy) % planetIds.length],
+      });
+    }
+    for (const [pickupPlanetId, deliveryPlanetId] of allRoutes(planetIds)) {
+      deck.push({ type: "deliver_cargo", pickupPlanetId, deliveryPlanetId });
+    }
+    deck.push({ type: "garbage_disposal" });
+    for (const type of DARING_MISSION_TYPES) {
+      // A chit is filed at whatever station the ship next docks at.
+      deck.push({ type, deliveryPlanetId: "any" });
+    }
   }
-  for (const [pickup, delivery] of routes) {
-    deck.push({
-      type: "deliver_cargo",
-      isCompleted: false,
-      pickupPlanetId: pickup,
-      deliveryPlanetId: delivery,
-      cargoId: "",
-    });
-  }
-  for (let i = 0; i < SURVEY_CARDS_PER_DECK; i++)
-    deck.push({
-      type: "survey",
-      isCompleted: false,
-      // Survey data is filed at any station, as a scan's is: the trip that
-      // earns it is the dive, not the errand afterwards.
-      deliveryPlanetId: "any",
-      surveyAcquired: false,
-      dataCargoId: "",
-    });
-
   return deck;
+}
+
+/**
+ * Turn a printed card into one player's mission: the seat count becomes the
+ * player sitting there, counting left from the holder in turn order.
+ */
+export function cardForPlayer(
+  card: DeckCard,
+  holderIndex: number,
+  players: ReadonlyArray<Pick<Player, "id">>
+): MissionBlueprint {
+  const rival = (offset: number) => players[(holderIndex + offset) % players.length].id;
+  switch (card.type) {
+    case "destroy_ship":
+      return { type: card.type, isCompleted: false, targetPlayerId: rival(card.targetOffset) };
+    case "intercept_transmission":
+      return {
+        type: card.type,
+        isCompleted: false,
+        targetPlayerId: rival(card.targetOffset),
+        deliveryPlanetId: card.deliveryPlanetId,
+        scanAcquired: false,
+        dataCargoId: "",
+      };
+    case "deliver_cargo":
+      return {
+        type: card.type,
+        isCompleted: false,
+        pickupPlanetId: card.pickupPlanetId,
+        deliveryPlanetId: card.deliveryPlanetId,
+        cargoId: "",
+      };
+    case "garbage_disposal":
+      return { type: card.type, isCompleted: false, cargoId: "" };
+    default: {
+      const daring: Omit<DaringMission, "id"> = {
+        type: card.type,
+        isCompleted: false,
+        deliveryPlanetId: card.deliveryPlanetId,
+        acquired: false,
+        dataCargoId: "",
+      };
+      return daring;
+    }
+  }
 }
 
 /** Every ordered pair of distinct planets. */
@@ -80,29 +153,42 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
     case "intercept_transmission":
       return { ...card, id, dataCargoId: `data-${id}` };
     case "survey":
+    case "board":
       return { ...card, id, dataCargoId: `data-${id}` };
+    case "garbage_disposal":
+      return { ...card, id, cargoId: `load-${id}` };
     case "destroy_ship":
       return { ...card, id };
   }
 }
 
 /**
- * Deal offers to every player, advancing `rng`. Deterministic for a seed.
- * Ids are sequential over the shuffled decks, so they carry no information.
+ * Shuffle the deck and deal round the table, advancing `rng`. Deterministic
+ * for a seed.
+ *
+ * One pile, dealt a card at a time the way a dealer would: the same card can
+ * only reach one hand, so a route somebody else is flying is a route you were
+ * not offered. Ids are handed out as the cards land, so an id says nothing
+ * about what the card is — crates and chits are named after their mission and
+ * sit on the table for everyone to see.
  */
 export function dealMissionOffers(
   players: ReadonlyArray<Pick<Player, "id">>,
   rng: Rng,
   planetIds: readonly string[] = PLANETS.map((p) => p.id)
 ): Map<string, Mission[]> {
-  const offers = new Map<string, Mission[]>();
+  const deck = rng.shuffle(buildMissionDeck(players.length, planetIds));
+  const offers = new Map<string, Mission[]>(players.map((p) => [p.id, []]));
   let next = 0;
-  for (const player of players) {
-    const opponents = players.filter((p) => p.id !== player.id);
-    const routes = rng.shuffle(allRoutes(planetIds));
-    const shuffled = rng.shuffle(buildMissionDeck(opponents, planetIds, routes));
-    const deck = shuffled.map((card) => assignMissionId(card, `m${next++}`));
-    offers.set(player.id, deck.slice(0, MISSION_OFFERS_PER_PLAYER));
+  let onTop = 0;
+  for (let round = 0; round < MISSION_OFFERS_PER_PLAYER; round++) {
+    players.forEach((player, seat) => {
+      const card = deck[onTop++];
+      if (!card) return;
+      offers
+        .get(player.id)!
+        .push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
+    });
   }
   return offers;
 }
@@ -134,20 +220,41 @@ export function selectMissionsFromOffers(
   return { missions, cargo: cratesForMissions(missions) };
 }
 
-/** Crates for every Deliver mission in the list, not yet picked up. */
+/**
+ * The crates a hand starts with, none of them loaded yet: one per Deliver
+ * route, and one load of garbage per disposal card.
+ *
+ * A load of garbage is collected at *any* station and goes over the side on
+ * the black hole's innermost ring, so it is the one crate whose pickup is
+ * "any" and whose destination is a place with no station at all — which is
+ * exactly why docking never takes it off your hands.
+ */
 export function cratesForMissions(missions: Mission[]): Cargo[] {
-  return missions.flatMap((m) =>
-    m.type === "deliver_cargo"
-      ? [
-          {
-            id: m.cargoId,
-            missionId: m.id,
-            kind: "crate" as const,
-            pickupPlanetId: m.pickupPlanetId,
-            deliveryPlanetId: m.deliveryPlanetId,
-            isPickedUp: false,
-          },
-        ]
-      : []
-  );
+  return missions.flatMap((m) => {
+    if (m.type === "deliver_cargo") {
+      return [
+        {
+          id: m.cargoId,
+          missionId: m.id,
+          kind: "crate" as const,
+          pickupPlanetId: m.pickupPlanetId,
+          deliveryPlanetId: m.deliveryPlanetId,
+          isPickedUp: false,
+        },
+      ];
+    }
+    if (m.type === "garbage_disposal") {
+      return [
+        {
+          id: m.cargoId,
+          missionId: m.id,
+          kind: "crate" as const,
+          pickupPlanetId: "any",
+          deliveryPlanetId: BLACK_HOLE_ID,
+          isPickedUp: false,
+        },
+      ];
+    }
+    return [];
+  });
 }

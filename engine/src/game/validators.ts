@@ -323,7 +323,7 @@ export function validateWellTransferAction(state: GameState, action: WellTransfe
   const mass = calculateJumpMassCost(adjustment, compressor);
   if (player.ship.reactionMass < mass) {
     const breakdown = compressor
-      ? `${Math.abs(adjustment)} phasing, the compressor refunding the jump`
+      ? `${Math.abs(adjustment)} phasing, the compressor paying for the lane`
       : `${WELL_TRANSFER_COSTS.mass} jump + ${Math.abs(adjustment)} phasing`;
     errors.push(
       `Not enough reaction mass for a jump (need ${mass}: ${breakdown}, have ${player.ship.reactionMass})`

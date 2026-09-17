@@ -19,6 +19,7 @@ import ViewInArIcon from '@mui/icons-material/ViewInAr'
 import VerticalAlignTopIcon from '@mui/icons-material/VerticalAlignTop'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
 import { Canvas } from '@react-three/fiber'
+import type { GravityWellId } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../theme'
 import type { BoardModel } from '../model'
 import { CameraRig, CameraRigProvider } from './CameraRig'
@@ -105,6 +106,20 @@ function Board({
 }) {
   const rig = useCameraRig()
   const followWellId = model.ships.find(ship => ship.isMe)?.position.wellId
+
+  /**
+   * A ping asks "where are they?", and on this board the honest answer is to
+   * point the camera at them: the rings the flat board draws are no help if
+   * the ship is in a well that is off screen or behind the black hole. Keyed
+   * on the ping's id, so asking twice answers twice.
+   */
+  const pingId = model.ping?.id
+  const pingWellId = model.ping?.position.wellId
+  useEffect(() => {
+    if (pingId && pingWellId) rig.flyTo(pingWellId as GravityWellId)
+    // The ping's id is what makes this a new answer; the rig never changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pingId])
 
   // Dev only: the harness and the headless screenshot runs drive the camera
   // through this, because the rig lives inside the canvas.

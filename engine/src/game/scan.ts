@@ -91,7 +91,7 @@ export function processScan(state: GameState, action: ScanAction): ScanResult {
         id: mission.dataCargoId,
         missionId: mission.id,
         kind: "data",
-        deliveryPlanetId: "any",
+        deliveryPlanetId: mission.deliveryPlanetId,
         isPickedUp: true,
       };
       cargo = [...cargo, data];

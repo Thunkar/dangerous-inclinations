@@ -6,14 +6,17 @@
  * Broadside (laser, rack): within ±ringRange rings and ±sectorRange sectors.
  *   Side-restricted broadsides only fire toward the ring direction their side
  *   faces; same-ring shots need `canTargetSameRing`.
- * Turret (missiles): within ±ringRange rings and ±sectorRange sectors, any facing
- *   (including a ship sharing the launcher's sector).
+ * Turret (missiles): any ship in the launcher's well, any facing, any
+ *   distance — a guided projectile has no firing box, its flight is its
+ *   range (see `missileCanReach`, game/missiles.ts, for whether it will
+ *   actually catch up).
  * Nothing fires across gravity wells.
  */
 import type { Position, ShipState } from "../models/game.ts";
 import type { Subsystem, WeaponStats } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { forwardDistance, sectorDistance } from "./geometry.ts";
+import { missileCanReach } from "./missiles.ts";
 import { getSideFiringDirection, getSubsystemSide, isRingDirectionValid } from "./ship.ts";
 
 export interface FiringSolution {
@@ -42,6 +45,9 @@ function checkRange(
 ): boolean {
   const ringDist = Math.abs(target.ring - attacker.ring);
   const sectorDist = sectorDistance(attacker.sector, target.sector);
+  // A boxed weapon always carries its box; a turret has none (fails closed).
+  const ringRange = stats.ringRange ?? 0;
+  const sectorRange = stats.sectorRange ?? 0;
 
   switch (stats.arc) {
     case "spinal": {
@@ -50,12 +56,12 @@ function checkRange(
         attacker.facing === "prograde"
           ? forwardDistance(attacker.sector, target.sector)
           : forwardDistance(target.sector, attacker.sector);
-      return ahead > 0 && ahead <= stats.sectorRange;
+      return ahead > 0 && ahead <= sectorRange;
     }
     case "broadside": {
-      if (sectorDist > stats.sectorRange) return false;
+      if (sectorDist > sectorRange) return false;
       if (ringDist === 0) return stats.canTargetSameRing === true && sectorDist > 0;
-      if (ringDist > stats.ringRange) return false;
+      if (ringDist > ringRange) return false;
       if (stats.sideRestricted) {
         const side = getSubsystemSide(weapon);
         if (side) {
@@ -66,8 +72,37 @@ function checkRange(
       return true;
     }
     case "turret":
-      return ringDist <= stats.ringRange && sectorDist <= stats.sectorRange;
+      // Self-guided: the well is the only limit. Whether the projectile can
+      // still catch a drifting target is the projectile's problem, not the
+      // launcher's — a missile that never closes is simply wasted.
+      return true;
   }
+}
+
+/**
+ * Whether the shot is worth taking, not merely legal.
+ *
+ * {@link isInWeaponRange} answers the rules question — the referee lets a
+ * missile go at anyone in the well — and a launch at a ship no missile could
+ * catch is a legal way to waste one. This answers the other question: would
+ * anything actually arrive? Boxed weapons hit the moment they are in range;
+ * a guided one has to run its target down, so it is asked
+ * {@link missileCanReach}. Bots plan with this, and so does the board's range
+ * preview; the engine still validates with the range rule alone.
+ *
+ * @param afterMoving the shot is taken once the ship has moved this turn, so a
+ *   missile rides along and skips its first drift.
+ */
+export function canEngage(
+  weapon: Subsystem,
+  attacker: Pick<ShipState, "wellId" | "ring" | "sector" | "facing">,
+  target: Position,
+  afterMoving = false
+): boolean {
+  if (!isInWeaponRange(weapon, attacker, target)) return false;
+  const stats = getSubsystemConfig(weapon.type).weaponStats;
+  if (stats?.arc !== "turret") return true;
+  return missileCanReach(attacker, target, afterMoving);
 }
 
 export function calculateFiringSolutions(

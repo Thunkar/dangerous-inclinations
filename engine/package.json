@@ -15,7 +15,8 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "sim": "node --experimental-transform-types --no-warnings src/sim/cli.ts",
-    "balance": "node --experimental-transform-types --no-warnings src/sim/balance.ts"
+    "balance": "node --experimental-transform-types --no-warnings src/sim/balance.ts",
+    "bench": "node --experimental-transform-types --no-warnings src/sim/benchmark.ts"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

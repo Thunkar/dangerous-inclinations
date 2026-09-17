@@ -12,6 +12,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { Cargo } from "../../models/missions.ts";
+import { MISSIONS_TO_WIN } from "../../models/missions.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import { STATION_RING } from "../../models/gravityWells.ts";
 import { viewFor } from "../../game/view.ts";
@@ -77,9 +78,11 @@ function dataChit(): Cargo {
   };
 }
 
-/** Two cards face-up and a crate in the hold: one dock from the win. */
+/** Every card but one face-up and a crate in the hold: one dock from the win. */
+const ONE_FROM_WINNING = MISSIONS_TO_WIN - 1;
+
 function aboutToWin(state: GameState, playerId: string, cargo: Cargo[] = [crate(ALPHA, BETA)]) {
-  return withPlayer(state, playerId, { completedMissionCount: 2, cargo });
+  return withPlayer(state, playerId, { completedMissionCount: ONE_FROM_WINNING, cargo });
 }
 
 function situationOf(state: GameState, viewerId: string) {
@@ -93,14 +96,14 @@ function opponent(state: GameState, viewerId: string, id: string): Opponent {
 }
 
 describe("danger: reading the scoreboard and the hold", () => {
-  it("scores a player two cards down with a crate aboard as the one to stop", () => {
+  it("scores a player one card from the win with a crate aboard as the one to stop", () => {
     const state = aboutToWin(
       makeTwoPlayerGame({ loadout: RAIDER }, { wellId: ALPHA, ring: STATION_RING, sector: 4 }),
       "p2"
     );
     const danger = opponent(state, "p1", "p2").danger;
 
-    expect(danger.completedMissions).toBe(2);
+    expect(danger.completedMissions).toBe(ONE_FROM_WINNING);
     expect(danger.crates).toBe(1);
     expect(danger.oneDeliveryFromWinning).toBe(true);
     expect(danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER);
@@ -161,12 +164,12 @@ describe("danger: reading the scoreboard and the hold", () => {
   it("names a station for a carrier and nothing at all for an empty hold", () => {
     const stations = makeGameState([]).stations;
     const carrying = assessDanger(
-      { cargoAboard: { crates: 1, data: 0 }, completedMissionCount: 2 },
+      { cargoAboard: { crates: 1, data: 0 }, completedMissionCount: ONE_FROM_WINNING },
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
       stations
     );
     const empty = assessDanger(
-      { cargoAboard: { crates: 0, data: 0 }, completedMissionCount: 2 },
+      { cargoAboard: { crates: 0, data: 0 }, completedMissionCount: ONE_FROM_WINNING },
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
       stations
     );
@@ -208,7 +211,10 @@ describe("interdiction goals", () => {
       ring: STATION_RING,
       sector: getShip(state, "p1").sector + 1,
     });
-    state = withPlayer(state, "p3", { completedMissionCount: 1, cargo: [dataChit()] });
+    // p3 has a chit aboard and a station under it, but nothing face-up: every
+    // card is worth two now, so a rival one card short is a rival about to
+    // win however close the other one happens to be sitting.
+    state = withPlayer(state, "p3", { completedMissionCount: 0, cargo: [dataChit()] });
     state = aboutToWin(state, "p2", [crate(BETA, ALPHA)]);
     const situation = situationOf(state, "p1");
 
@@ -224,7 +230,7 @@ describe("interdiction goals", () => {
     // to fight would hand the game to the third player.
     let state = aboutToWin(threeWay(), "p2", [crate(BETA, ALPHA)]);
     state = withPlayer(state, "p1", {
-      completedMissionCount: 2,
+      completedMissionCount: ONE_FROM_WINNING,
       cargo: [crate(BETA, ALPHA)],
       missions: [deliverMission(BETA, ALPHA)],
     });
@@ -358,7 +364,7 @@ describe("denial valuation", () => {
       dataChit(),
     ]);
     const empty = withPlayer(withShip(duel(), "p2", { hitPoints: 2 }), "p2", {
-      completedMissionCount: 2,
+      completedMissionCount: ONE_FROM_WINNING,
       cargo: [],
     });
 
@@ -369,9 +375,14 @@ describe("denial valuation", () => {
     expect(withCargo.denialValue).toBeGreaterThan(without.denialValue);
   });
 
-  it("scores nothing for denial when there is nobody worth denying", () => {
-    const plan = planAgainst(duel(), "p2");
-    expect(plan.expectedHullDamage).toBeGreaterThan(0);
-    expect(plan.denialValue).toBeLessThan(1);
+  it("counts a hit on anyone, and counts it far higher on the player about to win", () => {
+    // What a shot takes off a ship does not depend on the scoreboard — their
+    // hull, and on a kill their hold and their next two turns. The scoreboard
+    // decides how urgent that is, not whether it is worth anything.
+    const nobody = planAgainst(duel(), "p2");
+    const leader = planAgainst(aboutToWin(duel(), "p2"), "p2");
+    expect(nobody.expectedHullDamage).toBeGreaterThan(0);
+    expect(nobody.denialValue).toBeGreaterThan(0);
+    expect(leader.denialValue).toBeGreaterThan(nobody.denialValue * 1.5);
   });
 });

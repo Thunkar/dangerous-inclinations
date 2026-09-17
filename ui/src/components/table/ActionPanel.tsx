@@ -407,6 +407,10 @@ function MoveControls({ disabled }: { disabled: boolean }) {
   const move = plan.moveStep.move
   const compressor = hasWorkingCompressor({ ...plan.me.ship, subsystems: plan.pendingSubsystems })
   const scoop = plan.pendingSubsystems.find(s => s.id === 'scoop')
+  /** Cubes on the scoop: a coast runs it unless told not to. */
+  const scoopReady = Boolean(
+    scoop && !scoop.isBroken && scoop.allocatedEnergy >= getSubsystemConfig('scoop').minEnergy
+  )
   const engines = plan.pendingSubsystems.find(s => s.id === 'engines')
   const burnDirection = plan.moveFrom.facing === 'prograde' ? 'outward' : 'inward'
   const jumpFuel =
@@ -439,7 +443,9 @@ function MoveControls({ disabled }: { disabled: boolean }) {
           }
           selected={move.kind === 'coast'}
           disabled={disabled}
-          onClick={() => plan.setMove({ kind: 'coast', scoop: false })}
+          // A powered scoop runs on a coast unless you say otherwise: the
+          // cubes on the tile are the decision.
+          onClick={() => plan.setMove({ kind: 'coast', scoop: scoopReady })}
         />
         <Segment
           label="Burn"
@@ -471,7 +477,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
       {move.kind === 'coast' && plan.moored && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
           Moored: no drift of your own — the station carries you 4 sectors at the end of the round.
-          Burn to cast off.
+          You docked on arrival; holding the berth repairs nothing more. Burn to cast off.
         </Typography>
       )}
 
@@ -479,7 +485,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
         <Tooltip
           title={`Recover fuel equal to this ring's velocity (${plan.scoopGain}). Needs ${
             getSubsystemConfig('scoop').minEnergy
-          } cubes on the scoop.`}
+          } cubes on the scoop — a berth is as good a place to skim from as any.`}
         >
           <Box component="span" sx={{ display: 'flex' }}>
             <Chip

@@ -7,12 +7,7 @@
 import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
-import {
-  DESTROY_POINTS,
-  MISSIONS_PER_PLAYER,
-  MISSION_FAMILY,
-  missionTargetsPlayer,
-} from "../../models/missions.ts";
+import { MISSIONS_PER_PLAYER, MISSION_FAMILY } from "../../models/missions.ts";
 
 /**
  * A hull is two decisions. **The role** is the forward tile, and the cards
@@ -23,7 +18,7 @@ import {
  * |-------------|------------|-----------------------------------------|
  * | interceptor | sensor     | pays 3 fuel a jump                      |
  * | hunter      | railgun    | pays 3 fuel a jump                      |
- * | hauler      | compressor | cannot scan: no Intercept, no Survey    |
+ * | hauler      | compressor | cannot scan: no Intercept               |
  *
  * | Variant    | Spends its side slots on                                  |
  * |------------|-----------------------------------------------------------|
@@ -100,7 +95,9 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
  */
 export function classifyRole(missions: Mission[]): BotRole {
   const active = missions.filter((m) => !m.isCompleted);
-  if (count(active, "intercept_transmission", "survey") > 0) return "interceptor";
+  // Only Intercept asks for the eyes now: a Survey is a dive any mat can make,
+  // so holding one says nothing about which forward tile to bolt on.
+  if (count(active, "intercept_transmission") > 0) return "interceptor";
   if (count(active, "destroy_ship") > 0) return "hunter";
   return "hauler";
 }
@@ -137,134 +134,79 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  * `behaviors/danger.ts`). Priced as an ambush it sits between the Deliver
  * run and the short cards, which is where the sim says it belongs.
  */
-const BASE_COST: Record<Mission["type"], number> = {
-  destroy_ship: 17,
-  deliver_cargo: 16,
-  // The fastest card on the table: measured at a median of round 3 to score,
-  // and the likeliest to be finished at all once kept. It was priced above
-  // Deliver's own leg, which left it dealt and discarded.
-  intercept_transmission: 11,
-  // A dive to the innermost ring, one turn held, then the data is filed at
-  // whatever station the route reaches anyway: a short card since 16 Sept 2026.
-  survey: 13,
-};
-
-/**
- * Credit for a Destroy card beyond the point it scores. The bot will be
- * shooting at whoever is about to win in any case; holding their card turns
- * that turn of denial into a point of its own.
- */
-const DENIAL_CREDIT = 3;
-
-/**
- * Score a trio: lower total cost and coherent cards score higher.
- */
-export function scoreMissionCombo(combo: Mission[], playerCount: number): number {
-  const costOf = (m: Mission) =>
-    m.type === "destroy_ship"
-      ? BASE_COST[m.type] - (Math.max(0, playerCount - 2) * 2 + DENIAL_CREDIT)
-      : BASE_COST[m.type];
-  let cost = 0;
-  if (DESTROY_POINTS >= 2 && combo.some((m) => m.type === "destroy_ship")) {
-    // A two-point kill plus the cheapest other card already reaches three points.
-    const destroy = combo.find((m) => m.type === "destroy_ship")!;
-    const rest = combo
-      .filter((m) => m !== destroy)
-      .map(costOf)
-      .sort((a, b) => a - b);
-    cost = costOf(destroy) + (rest[0] ?? 0);
-  } else {
-    for (const m of combo) cost += costOf(m);
-  }
-
-  let synergy = 0;
-  const targeted = combo.filter(missionTargetsPlayer);
-  const destroys = targeted.filter((m) => m.type === "destroy_ship");
-  const intercepts = targeted.filter((m) => m.type === "intercept_transmission");
-  const deliveries = combo.filter((m) => m.type === "deliver_cargo");
-  const docks = combo.filter(
-    (m) => m.type === "deliver_cargo" || m.type === "intercept_transmission"
-  );
-  const surveys = combo.filter((m) => m.type === "survey");
-
-  // Same hunt serves two Destroy cards; split hunts cost extra.
-  const destroyTargets = new Set(destroys.map((m) => m.targetPlayerId));
-  synergy += (destroys.length - destroyTargets.size) * 10;
-  if (destroyTargets.size >= 2) synergy -= 4;
-  // Intercepting the ship you are hunting.
-  synergy += intercepts.filter((m) => destroyTargets.has(m.targetPlayerId)).length * 6;
-  // Intercept and Destroy used to fight over the one forward slot: the array
-  // was compulsory for the scan and no side tile could beat a shield, so the
-  // Destroy was dead. Two changes on 16 Sept 2026 ended that — a shield tile
-  // holds two cubes, not four, and the rack does two damage — so the
-  // interceptor-aggressive mat flies both cards off its side slots. What is
-  // left of the conflict is the railgun the hand cannot have.
-  if (intercepts.length > 0 && destroys.length > 0) synergy -= 2;
-
-  // Cargo routes sharing planets; a chained route is one trip.
-  for (let i = 0; i < deliveries.length; i++) {
-    for (let j = i + 1; j < deliveries.length; j++) {
-      const a = deliveries[i];
-      const b = deliveries[j];
-      if (a.deliveryPlanetId === b.pickupPlanetId || b.deliveryPlanetId === a.pickupPlanetId)
-        synergy += 8;
-      else {
-        const planets = new Set([
-          a.pickupPlanetId,
-          a.deliveryPlanetId,
-          b.pickupPlanetId,
-          b.deliveryPlanetId,
-        ]);
-        synergy += (4 - planets.size) * 5;
-      }
-    }
-  }
-  // Data is delivered at whatever station the route visits anyway.
-  if (surveys.length > 0 && docks.length > 0) synergy += 4;
-  if (intercepts.length > 0 && deliveries.length > 0) synergy += 3;
-
-  const families = new Set(combo.map((m) => MISSION_FAMILY[m.type]));
-  if (families.size === 1) synergy += 4;
-
-  return -cost + synergy;
+/** Whether any hand of `primaries` two-point cards can be dealt from `offers`. */
+function hasShape(offers: Mission[], primaries: number): boolean {
+  const primary = offers.filter((m) => MISSION_FAMILY[m.type] !== "daring").length;
+  const daring = offers.length - primary;
+  return primaries <= primary && MISSIONS_PER_PLAYER - primaries <= daring;
 }
 
 /**
- * The best trio of the offers. Ties keep the earlier combination, so the
- * choice is deterministic for a given offer order.
+ * A hand from the offers, chosen at random among the hands this seat could
+ * actually fly.
  *
- * @param hull a mat already decided for this seat (the simulator forces one on
- *   a seat to measure it). Trios that mat could never complete are skipped —
- *   the engine refuses them anyway. A deal that offers no flyable trio at all
- *   returns the best unconstrained one, and the caller fits the hull to it.
+ * Deliberately not "the best hand". The bot used to score every combination
+ * against a table of hand-tuned costs, which meant every seat at every table
+ * reached for the same shape — 79% of them took three two-point cards and not
+ * one ever tried a hand led by daring cards, so the benchmark measured one
+ * plan and guessed about the rest. Forcing a shape (`--hands=`) measured them
+ * head to head: within seven points of each other, with the shape the bots
+ * never picked beating one they did. The scorer was not describing the game,
+ * it was deciding it.
+ *
+ * So the bots spread instead, and the win rate by hand shape in the benchmark
+ * is a measurement rather than a restatement of what the scorer believed.
+ *
+ * @param pick chooses among the hands on offer; wire it to the game's seeded
+ *   RNG so a seed replays exactly. Without one the first hand is taken, which
+ *   keeps the function pure for tests.
+ * @param hull a mat already decided for this seat (the simulator forces one to
+ *   measure it). Hands that mat could never complete are skipped — the engine
+ *   refuses them anyway. A deal with no flyable hand falls back to the first.
+ * @param primaries experiment only: keep a hand with exactly this many
+ *   two-point cards. Ignored when no such hand can be dealt from these offers.
  */
 export function selectBotMissions(
   offers: Mission[],
   playerCount: number,
-  hull?: ShipLoadout
+  hull?: ShipLoadout,
+  primaries?: number,
+  pick?: (n: number) => number
 ): Mission[] {
+  void playerCount;
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
-  const flyable = (combo: Mission[]) =>
-    hull === undefined || missionsMissingRequirements(combo, hull).length === 0;
+  const hands = validHands(offers, hull, primaries);
+  if (hands.length === 0) return offers.slice(0, MISSIONS_PER_PLAYER);
+  return hands[pick ? pick(hands.length) : 0];
+}
 
-  let best: Mission[] = offers.slice(0, MISSIONS_PER_PLAYER);
-  let bestScore = -Infinity;
-  let bestFits = false;
-  for (let i = 0; i < offers.length - 2; i++) {
-    for (let j = i + 1; j < offers.length - 1; j++) {
-      for (let k = j + 1; k < offers.length; k++) {
-        const combo = [offers[i], offers[j], offers[k]];
-        const fits = flyable(combo);
-        // A trio the mat can fly always beats one it cannot, whatever it scores.
-        if (bestFits && !fits) continue;
-        const score = scoreMissionCombo(combo, playerCount);
-        if (score > bestScore || (fits && !bestFits)) {
-          bestScore = score;
-          bestFits = fits;
-          best = combo;
-        }
+/**
+ * Every hand of MISSIONS_PER_PLAYER the mat can fly, in a fixed order.
+ *
+ * "Can fly" is the engine's own rule and the only filter there is: a kept
+ * Intercept needs a sensor array, a kept Destroy a gun, and a hand that breaks
+ * that is refused at submission. With no mat decided yet every hand is
+ * flyable, because the caller fits one to whatever is kept.
+ */
+export function validHands(
+  offers: Mission[],
+  hull?: ShipLoadout,
+  primaries?: number
+): Mission[][] {
+  const shaped = primaries !== undefined && hasShape(offers, primaries);
+  const hands: Mission[][] = [];
+  const walk = (from: number, hand: Mission[]) => {
+    if (hand.length === MISSIONS_PER_PLAYER) {
+      if (shaped && hand.filter((m) => MISSION_FAMILY[m.type] !== "daring").length !== primaries) {
+        return;
       }
+      if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) return;
+      hands.push([...hand]);
+      return;
     }
-  }
-  return best;
+    if (offers.length - from < MISSIONS_PER_PLAYER - hand.length) return;
+    for (let i = from; i < offers.length; i++) walk(i + 1, [...hand, offers[i]]);
+  };
+  walk(0, []);
+  return hands;
 }

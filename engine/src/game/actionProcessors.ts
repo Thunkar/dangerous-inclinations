@@ -298,13 +298,7 @@ function processCoast(state: GameState, action: CoastAction): Step {
     ...(moored ? { moored: true } : {}),
   });
   if (action.data.activateScoop) {
-    // Fuel is behind the screen: the exact gain is the owner's business.
-    events.push({
-      type: "fuel_scooped",
-      playerId: action.playerId,
-      amount: massScooped,
-      privateTo: [action.playerId],
-    });
+    events.push({ type: "fuel_scooped", playerId: action.playerId, amount: massScooped });
   }
   return { state: next, events };
 }
@@ -345,22 +339,22 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
   // Validated above: the phased landing is inside the arrival arc.
   const destination = phasedJumpDestination(jump, sectorAdjustment)!;
   let heat = 0;
-  const refunded = hasWorkingCompressor(player.ship);
-  // A compressor refunds the jump's own fuel; the phasing is paid either way.
-  const massSpent = calculateJumpMassCost(sectorAdjustment, refunded);
+  const compressed = hasWorkingCompressor(player.ship);
+  // A compressor cuts the lane's own fuel to COMPRESSED_TRANSFER_MASS; the
+  // phasing is paid either way.
+  const massSpent = calculateJumpMassCost(sectorAdjustment, compressed);
 
   const next = withPlayer(state, action.playerId, (p) => {
-    let ship = { ...p.ship, ...destination };
-    if (massSpent > 0) ship = { ...ship, reactionMass: ship.reactionMass - massSpent };
+    let ship = { ...p.ship, ...destination, reactionMass: p.ship.reactionMass - massSpent };
     const used = useSubsystem(ship, p.id, "engines");
     ship = used.ship;
     heat = used.heat;
     events.push(...used.events);
-    if (refunded) {
+    if (compressed) {
       for (const compressor of ship.subsystems.filter(
         (s) => s.type === "fuel_compressor" && !s.isBroken
       )) {
-        const r = revealSubsystem(ship, p.id, compressor.id, "refunded_jump");
+        const r = revealSubsystem(ship, p.id, compressor.id, "compressed_jump");
         ship = r.ship;
         events.push(...r.events);
       }
@@ -374,7 +368,7 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
     to: destination,
     sectorAdjustment,
     massSpent,
-    refunded,
+    compressed,
     heat,
   });
   return { state: next, events };

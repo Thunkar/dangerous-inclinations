@@ -70,6 +70,7 @@ export interface SeatOptions {
   } | null;
   /** Docked at a station: a coast holds the berth, only a burn casts off. */
   moored: boolean;
+  /** Fuel a scoop would gain this turn. */
   scoopGain: number;
   weapons: WeaponOption[];
   scanTargets: string[];

@@ -188,7 +188,7 @@ describe("jumps: executing a well transfer", () => {
       expect.objectContaining({
         from: { wellId: BH, ring: 5, sector: 17 },
         to: { wellId: ALPHA, ring: 3, sector: 5 },
-        refunded: false,
+        compressed: false,
         heat: 3,
       }),
     ]);
@@ -249,31 +249,34 @@ describe("jumps: executing a well transfer", () => {
     expect(result.gameState).toBe(state);
   });
 
-  it("a working fuel compressor refunds the mass and is revealed", () => {
+  it("a working fuel compressor pays for the lane and is revealed", () => {
     const state = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
       reactionMass: 0,
     });
     const result = executeTurnAs(state, jump(1, ALPHA));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1").reactionMass).toBe(0);
-    expect(eventsOf(result.events, "jumped")[0].refunded).toBe(true);
+    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
+      massSpent: 0,
+      compressed: true,
+    });
     expect(eventsOf(result.events, "subsystem_revealed")).toEqual([
       expect.objectContaining({
         subsystemId: "forward-0",
         subsystemType: "fuel_compressor",
-        reason: "refunded_jump",
+        reason: "compressed_jump",
       }),
     ]);
     expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(true);
   });
 
-  it("a broken compressor refunds nothing", () => {
+  it("a broken compressor pays for nothing", () => {
     const state = withSub(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", "forward-0", {
       isBroken: true,
     });
     const result = executeTurnAs(state, jump(1, ALPHA));
     expect(getShip(result.gameState, "p1").reactionMass).toBe(10 - 3);
-    expect(eventsOf(result.events, "jumped")[0].refunded).toBe(false);
+    expect(eventsOf(result.events, "jumped")[0].compressed).toBe(false);
   });
 
   it("the lane is read from where the ship is when the jump executes", () => {
@@ -375,14 +378,18 @@ describe("jumps: phasing inside the arrival arc", () => {
     expect(result.errors?.[0]).toMatch(/integer/i);
   });
 
-  it("a compressor pays for the jump but not for the phasing", () => {
+  it("a compressor pays for the lane but never for the phasing", () => {
+    const phasing = 2;
     const state = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
-      reactionMass: 2,
+      reactionMass: phasing,
     });
-    const result = executeTurnAs(state, jump(1, ALPHA, 2));
+    const result = executeTurnAs(state, jump(1, ALPHA, phasing));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1")).toMatchObject({ sector: 7, reactionMass: 0 });
-    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({ massSpent: 2, refunded: true });
+    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
+      massSpent: phasing,
+      compressed: true,
+    });
   });
 
   it("a compressor with a dry tank can still jump, but cannot phase", () => {

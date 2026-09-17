@@ -4,6 +4,7 @@
  */
 import type { GameEvent } from "../models/events.ts";
 import type { MissionType } from "../models/missions.ts";
+import { MISSION_FAMILY } from "../models/missions.ts";
 import type { GameRunResult } from "./runGame.ts";
 
 export interface PerPlayerStats {
@@ -33,6 +34,13 @@ export interface PerPlayerStats {
   /** Loadout tiles still face-down when the game ended. */
   hiddenTilesAtEnd: number;
   loadout: string;
+  /**
+   * The shape of the hand this seat kept, as "2P+1D": primaries (two points
+   * each) and daring cards (one). With three cards and four points to win, the
+   * shape is the plan — two primaries, or one and both daring cards — so this
+   * is what says whether a rule change moved the plans or only the numbers.
+   */
+  handShape: string;
 }
 
 export interface TurnBehaviour {
@@ -75,7 +83,17 @@ export interface PerGameStats {
   destructions: number;
   missionCompletions: number;
   completionsByType: Partial<Record<MissionType, number>>;
+  /** Cards dealt as offers, by type: the denominator of a pick rate. */
+  offeredByType: Partial<Record<MissionType, number>>;
+  /** Cards kept out of those offers, by type. */
+  keptByType: Partial<Record<MissionType, number>>;
   perPlayer: Record<string, PerPlayerStats>;
+}
+
+/** "2P+1D": the primaries and daring cards a seat kept. */
+export function handShapeOf(missions: ReadonlyArray<{ type: MissionType }>): string {
+  const daring = missions.filter((m) => MISSION_FAMILY[m.type] === "daring").length;
+  return `${missions.length - daring}P+${daring}D`;
 }
 
 export function computePerGameStats(run: GameRunResult): PerGameStats {
@@ -109,12 +127,22 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
       hiddenTilesAtEnd: p.ship.subsystems.filter((s) => s.slotGroup !== undefined && !s.isRevealed)
         .length,
       loadout: [...p.ship.loadout.forwardSlots, ...p.ship.loadout.sideSlots].join(","),
+      handShape: handShapeOf(p.missions),
     };
     for (const m of p.missions) {
       if (m.isCompleted)
         perPlayer[p.id].completedByType[m.type] =
           (perPlayer[p.id].completedByType[m.type] ?? 0) + 1;
     }
+  }
+
+  // What the deal put in front of every seat, and what they kept of it. Both
+  // read off the final state: a player keeps their offers all game.
+  const offeredByType: Partial<Record<MissionType, number>> = {};
+  const keptByType: Partial<Record<MissionType, number>> = {};
+  for (const p of final.players) {
+    for (const m of p.missionOffers) offeredByType[m.type] = (offeredByType[m.type] ?? 0) + 1;
+    for (const m of p.missions) keptByType[m.type] = (keptByType[m.type] ?? 0) + 1;
   }
 
   let totalDamage = 0;
@@ -195,6 +223,8 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
     destructions,
     missionCompletions: final.players.reduce((s, p) => s + p.completedMissionCount, 0),
     completionsByType,
+    offeredByType,
+    keptByType,
     perPlayer,
   };
 }
@@ -292,6 +322,8 @@ export interface AggregateStats {
   destructions: Distribution;
   missionCompletions: Distribution;
   completionsByType: Partial<Record<MissionType, number>>;
+  offeredByType: Partial<Record<MissionType, number>>;
+  keptByType: Partial<Record<MissionType, number>>;
   winnerMissionTypes: Partial<Record<MissionType, number>>;
   winsByPlayer: Record<string, number>;
   /** Per player id across games. */
@@ -317,6 +349,8 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
   const endReasons: Record<string, number> = {};
   const winsByPlayer: Record<string, number> = {};
   const completionsByType: Partial<Record<MissionType, number>> = {};
+  const offeredByType: Partial<Record<MissionType, number>> = {};
+  const keptByType: Partial<Record<MissionType, number>> = {};
   const winnerMissionTypes: Partial<Record<MissionType, number>> = {};
   const loadoutWins: Record<string, { games: number; wins: number }> = {};
   const firstDock: number[] = [];
@@ -333,6 +367,12 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     for (const [type, n] of Object.entries(g.completionsByType)) {
       completionsByType[type as MissionType] =
         (completionsByType[type as MissionType] ?? 0) + (n ?? 0);
+    }
+    for (const [type, n] of Object.entries(g.offeredByType)) {
+      offeredByType[type as MissionType] = (offeredByType[type as MissionType] ?? 0) + (n ?? 0);
+    }
+    for (const [type, n] of Object.entries(g.keptByType)) {
+      keptByType[type as MissionType] = (keptByType[type as MissionType] ?? 0) + (n ?? 0);
     }
     for (const type of g.winnerMissionTypes)
       winnerMissionTypes[type] = (winnerMissionTypes[type] ?? 0) + 1;
@@ -378,6 +418,8 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     destructions: distribution(games.map((g) => g.destructions)),
     missionCompletions: distribution(games.map((g) => g.missionCompletions)),
     completionsByType,
+    offeredByType,
+    keptByType,
     winnerMissionTypes,
     winsByPlayer,
     firstDockRound: distribution(firstDock),

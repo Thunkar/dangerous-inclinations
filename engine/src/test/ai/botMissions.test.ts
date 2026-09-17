@@ -6,7 +6,7 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, PlayerAction, ShipLoadout } from "../../models/game.ts";
 import { STARTING_HIT_POINTS } from "../../models/game.ts";
-import type { SurveyMission } from "../../models/missions.ts";
+import type { DaringMission } from "../../models/missions.ts";
 import { SURVEY_RING } from "../../models/missions.ts";
 import { BLACK_HOLE_ID, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -28,6 +28,7 @@ import {
   makeTwoPlayerGame,
   surveyMission,
   withMissions,
+  withPower,
   withShip,
 } from "../testUtils.ts";
 
@@ -133,7 +134,7 @@ describe("bot missions", () => {
     expect(executeTurn(state, decision.actions).errors).toBeUndefined();
   });
 
-  it("dives to black hole ring 1 for a Survey and holds it with the sensors on", () => {
+  it("dives to black hole ring 1 for a Survey", () => {
     const start = withMissions(
       makeGameState([
         makePlayer("p1", { wellId: BH, ring: 4, sector: 0 }, SENSOR_HULL),
@@ -143,8 +144,7 @@ describe("bot missions", () => {
       [surveyMission()]
     );
 
-    const acquired = (s: GameState) =>
-      (getPlayer(s, "p1").missions[0] as SurveyMission).surveyAcquired;
+    const acquired = (s: GameState) => (getPlayer(s, "p1").missions[0] as DaringMission).acquired;
     const state = playUntil(start, "p1", acquired, 60);
 
     expect(acquired(state)).toBe(true);
@@ -208,6 +208,40 @@ describe("bot missions", () => {
     const completed = (s: GameState) => getPlayer(s, "p1").completedMissionCount > 0;
     const state = playUntil(start, "p1", completed, 120);
     expect(completed(state)).toBe(true);
+  });
+});
+
+describe("bot fuel in port", () => {
+  /** p1 moored at ALPHA's station with `fuel` aboard, a delivery due at BETA. */
+  const inPort = (fuel: number): GameState => {
+    const station = getStationForPlanet(makeTwoPlayerGame().stations, ALPHA)!;
+    const state = makeGameState([
+      makePlayer("p1", { wellId: ALPHA, ring: STATION_RING, sector: station.sector }),
+      makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
+    ]);
+    return withShip(withMissions(state, "p1", [deliverMission(GAMMA, BETA)]), "p1", {
+      reactionMass: fuel,
+    });
+  };
+
+  it("fills the tank in port rather than leave on an empty one", () => {
+    // A berth is as good a place to skim from as any, and a dry ship that cast
+    // off would only have to come back (RULES §Stations).
+    const state = withPower(inPort(0), "p1", "scoop", 3);
+    const decision = botDecideActions(viewFor(state, "p1"));
+    expect(decision.actions.some((a) => a.type === "coast" && a.data.activateScoop)).toBe(true);
+    const result = executeTurn(state, decision.actions);
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1").reactionMass).toBeGreaterThan(0);
+  });
+
+  it("does not hold a berth it has already docked at once the tank is full", () => {
+    // Docking resolved on arrival, so the berth has nothing left to give: with
+    // fuel aboard and an errand elsewhere, the bot leaves.
+    const state = inPort(10);
+    const result = executeTurn(state, botDecideActions(viewFor(state, "p1")).actions);
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1").ring).not.toBe(STATION_RING);
   });
 });
 

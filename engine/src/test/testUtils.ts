@@ -28,11 +28,13 @@ import { DEFAULT_LOADOUT } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
 import type { GameEvent, GameEventType } from "../models/events.ts";
 import type {
+  DaringMission,
+  DaringMissionType,
   DeliverCargoMission,
   DestroyShipMission,
+  GarbageDisposalMission,
   InterceptTransmissionMission,
   Mission,
-  SurveyMission,
 } from "../models/missions.ts";
 import { createInitialShipState, updateSubsystem } from "../game/ship.ts";
 import { createInitialStations, getStationForPlanet } from "../game/stations.ts";
@@ -264,22 +266,38 @@ export const deliverMission = (
 });
 export const interceptMission = (
   targetPlayerId: string,
-  id = `intercept-${targetPlayerId}`
+  id = `intercept-${targetPlayerId}`,
+  deliveryPlanetId: string = ALPHA
 ): InterceptTransmissionMission => ({
   id,
   type: "intercept_transmission",
   isCompleted: false,
   targetPlayerId,
+  deliveryPlanetId,
   scanAcquired: false,
   dataCargoId: `data-${id}`,
 });
-export const surveyMission = (id = "survey-1", deliveryPlanetId = "any"): SurveyMission => ({
+/** Any of the three daring cards; `survey` unless another is asked for. */
+export const daringMission = (
+  type: DaringMissionType = "survey",
+  id = `${type}-1`,
+  deliveryPlanetId = "any"
+): DaringMission => ({
   id,
-  type: "survey",
+  type,
   isCompleted: false,
   deliveryPlanetId,
-  surveyAcquired: false,
+  acquired: false,
   dataCargoId: `data-${id}`,
+});
+export const surveyMission = (id = "survey-1", deliveryPlanetId = "any"): DaringMission =>
+  daringMission("survey", id, deliveryPlanetId);
+
+export const garbageMission = (id = "garbage-1"): GarbageDisposalMission => ({
+  id,
+  type: "garbage_disposal",
+  isCompleted: false,
+  cargoId: `load-${id}`,
 });
 
 // ---------------------------------------------------------------------------

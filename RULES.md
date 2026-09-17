@@ -1,17 +1,17 @@
 # Dangerous Inclinations — Rules
 
-A game of orbital manoeuvre, heat management and hidden objectives for 2–4 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
+A game of orbital manoeuvre, heat management and hidden objectives for 2–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to four points from secret missions.
 
-**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. A Destroy card is worth 2 points, every other card 1.
+**The game ends at the end of the round in which a player reaches 4 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the three daring cards are worth 1 — so two primaries win, and so does one primary with both daring cards you kept.
 
 ---
 
 ## Components
 
 - The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 3 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
-- Per player: a ship token, a Home marker, a ship mat with 1 forward slot and 4 side slots, a small screen for your cards and fuel, 10 energy cubes, a hull track (10) and a heat track.
+- Per player: a ship token, a Home marker, a ship mat with 1 forward slot and 4 side slots, a small screen for your cards, 10 energy cubes, a hull track (10) and a heat track.
 - Subsystem tiles: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles. Take as many copies of a tile as you have slots it fits: two shields, four lasers, anything goes. Tiles are double-sided: face-down shows only the slot type.
-- Mission cards, crate tokens, data chits, missile tokens, station tokens, one d10.
+- One deck of mission cards, crate tokens, data chits, missile tokens, station tokens, one d10.
 
 ---
 
@@ -49,6 +49,8 @@ Each planet has a station on **Ring 1**. Stations drift like ships: 4 sectors at
 
 **Moored.** A docked ship rides its station: it does not drift on its own, and it moves with the station when stations advance. Burn to cast off.
 
+**A dock is a visit, not a state.** Everything docking gives you — cargo, repairs, full hull, missiles — happens the turn you **arrive**. Holding the berth afterwards is worth the ride the station gives you and whatever your scoop skims, and nothing else. Come back for more and it is a trip.
+
 ---
 
 ## Setup
@@ -73,7 +75,7 @@ Otherwise:
    - **Fire** — any number of powered weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan** — with a powered sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
-4. **Docking.** If you ended on a station's sector, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull is restored to full, missiles reloaded. You stay docked until you burn away: a docked ship is moored and rides its station.
+4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull is restored to full, missiles reloaded. You stay moored until you burn away, riding the station — but the dock itself only happens on arrival.
 5. **Heat check.** If your heat exceeds your dissipation, take the difference as hull damage. Reset heat to 0.
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
@@ -95,7 +97,7 @@ Otherwise:
 | Railgun (forward)          | 4      | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil                 |
 | Sensor array (forward)     | 2      | Scan; criticals on 8–10 while powered                                  |
 | Fuel compressor (forward)  | —      | A jump's own fuel is refunded                                          |
-| Missiles (forward or side) | 2      | Launch a guided missile (4 aboard)                                     |
+| Missiles (forward or side) | 2      | Launch a guided missile at anyone in your well (4 aboard)              |
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
 | Shields (side)             | 1–2    | Absorb damage as heat (2 heat per point)                               |
 | Radiator (side)            | —      | +2 dissipation                                                         |
@@ -107,7 +109,7 @@ Otherwise:
 
 ### Coast
 
-Drift only — or, moored at a station, hold your berth (see Stations). If your scoop is powered you may activate it: gain fuel equal to your ring's velocity (heat 3). Others see the scoop run, not how much you gained.
+Drift only — or, moored at a station, hold your berth (see Stations). If your scoop is powered you may activate it: gain fuel equal to your ring's velocity (heat 3); a berth is as good a place to skim from as any.
 
 ### Burn
 
@@ -152,7 +154,7 @@ When you fire, name one slot on the target: forward, side 1–4, engines, thrust
 - **Railgun** — spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
 - **Broadside laser** — targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port tiles (side 1–2) fire outward and starboard tiles (side 3–4) fire inward; facing retrograde swaps them.
 - **Ballistic rack** — 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away — the only broadside that can join a railgun shot on your own ring. While powered it also **intercepts** missiles that reach you: roll a d10, on 2+ the missile is destroyed (the rack is used and heats up either way).
-- **Missiles** — target within 2 rings and 3 sectors (a ship sharing your sector included), any facing. Place a missile token on your sector and name the critical slot. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
+- **Missiles** — target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. Place a missile token on your sector and name the critical slot. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
 
   _Riding the orbit:_ a missile drifts with its ring like everything else. The one exception is the turn you launch it: if you launch **after** moving, the missile has already ridden along with your ship, so it does not drift again that turn — it just flies its 3 steps from where you dropped it. Launch before moving and it drifts with the ring like your ship did. (The app draws the path either way.)
 
@@ -175,8 +177,8 @@ Your tiles start face-down. **A tile is turned face-up the first time it does so
 
 Face-up tiles stay face-up, even after respawn.
 
-**Public:** positions, facing, hull, heat, the energy cubes on every slot, Home markers, how many crates and data chits you carry, face-up tiles, broken fixed systems, completed missions.
-**Private:** what a face-down tile is, fuel, missile ammo, missions in hand, where your cargo is going.
+**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and data chits you carry, face-up tiles, broken fixed systems, completed missions.
+**Private:** what a face-down tile is, missile ammo, missions in hand, where your cargo is going.
 
 Energy is the tell. Four cubes on a face-down forward slot can only be a railgun; two side slots each holding two cubes suggest lasers or a rack; a slot that never gets a cube may be a radiator or compressor. You learn about a rival from how they power up, before anything is fired.
 
@@ -188,18 +190,32 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 ## Missions
 
-Four kinds of card. **Destroy is worth two points, every other card one; three points trigger the final round** — so a kill plus any one other card gets you there. The round is played out; highest score wins, hull breaks ties.
+**Four points trigger the final round.** Cards come in two kinds.
+
+**Primaries score two.** Destroy, Deliver, Intercept — the kill, the cargo run, the stolen transmission, one for each way of playing. Each is a named errand: a victim, a route, a station to file at. Two of them win the game.
+
+**Daring cards score one.** Survey, Board, Garbage Disposal. Each is a thing you do rather than an errand someone gives you: no tile aboard can do it for you and nobody can block it. Survey and Board pay a chit — take it the moment you do the thing, then file it at **any** station. Garbage Disposal pays nothing to carry: the load goes over the side and the card is done.
+
+A hand is three cards, so four points is two primaries, or one primary and both daring cards. Three daring cards come to three, which is why every hand needs at least one primary. The round is played out; highest score wins, hull breaks ties.
 
 | Card                                  | Points | Complete when                                                                                                                                                                                                                                |
 | ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Destroy [player]**                  | 2      | you reduce their hull to 0                                                                                                                                                                                                                   |
-| **Deliver [A → B]**                   | 1      | you dock at A (load the crate), then dock at B                                                                                                                                                                                               |
-| **Intercept [player]**                | 1      | you scan them (take the data chit), then dock at any station                                                                                                                                                                                 |
-| **Survey the Event Horizon**          | 1      | you end a turn on Black Hole Ring 1 with your **sensor array powered** — take the data chit — then dock at **any** station to file it |
+| **Destroy [Nth to your left]**        | 2      | you reduce their hull to 0                                                                                                                                                                                                                   |
+| **Deliver [A → B]**                   | 2      | you dock at A (load the crate), then dock at B                                                                                                                                                                                               |
+| **Intercept [Nth to your left] → file at [planet]** | 2 | you scan them (take the data chit), then dock at **that planet's** station                                                                                                                                                     |
+| **Survey the Event Horizon**          | 1      | you end a turn on Black Hole Ring 1 — take the chit — then dock at **any** station to file it                                         |
+| **Board a Ship**                      | 1      | you end a turn in the **same sector** as another ship — take the chit — then dock at **any** station to file it                       |
+| **Garbage Disposal**                  | 1      | you dock at **any** station to load it (it fills your hold), then end a turn on Black Hole Ring 1 to drop it into the hole            |
 
-Each player's deck holds one Destroy and one Intercept per opponent, all six Deliver routes and two Survey. Draw 6, keep 3.
+**The deck.** One deck for the table, two copies of every card: each Destroy and Intercept offset (below), all six Deliver routes, and each daring card. **Setup:** take out every Destroy and Intercept whose number is the player count or higher — at three players that leaves offsets 1 and 2 — then shuffle and deal **5** to each player. Keep **3**, discard the other two face-down. More seats leave more of the deck pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
 
-**Keep only cards your mat can fly.** Intercept opens with a scan and Survey is taken with your sensors lit, so either card needs a **sensor array**, and Destroy needs a **weapon** — railgun, broadside laser, ballistic rack or missiles — since a ship that cooks itself on its own heat credits nobody. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
+**Cards count seats, they do not name them.** A Destroy card reads *the 2nd player to your left* — counting left around the table in turn order — so the same card is a different target in every hand, no card can ever name the player holding it, and holding one tells the table nothing. The count only becomes a name when you complete the card and turn it face-up.
+
+**Your hold takes one crate.** A load of garbage is a crate like any other, so a disposal run and a cargo route cannot be flown at the same time — which is why the card suits a ship with nothing else in its hold. Destroyed with a load aboard, it is lost: collect another at any station.
+
+ A crate fills it, so a second Deliver waits until the first is delivered — two routes that load at the same station are two trips, and the only pair that is one trip is a chain, where you drop at the station you collect the next one from. Data chits are numbers, not freight: a scan's transmission and a survey's readings ride free alongside whatever is in the hold, however many you carry.
+
+**Keep only cards your mat can fly.** Intercept opens with a scan, so it needs a **sensor array**, and Destroy needs a **weapon** — railgun, broadside laser, ballistic rack or missiles — since a ship that cooks itself on its own heat credits nobody. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
 
 When you complete a mission, turn the card face-up for everyone to see.
 
@@ -230,10 +246,11 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Jump             | engines 3, 3 fuel (refunded by a compressor), no drift                                           |
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                     |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
-| Docking          | full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away  |
+| Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |
-| Keeping cards    | draw 6, keep 3; Intercept and Survey need a sensor array, Destroy needs a weapon                 |
-| Win              | 3 points end the round; highest score, then hull, then fuel                                      |
+| Keeping cards    | one deck: deal 5, keep 3, discard 2; Intercept needs a sensor array, Destroy needs a weapon        |
+| Hold             | one crate; data chits ride free                                                                  |
+| Win              | 4 points end the round (primaries 2, daring 1); highest score, then hull, then fuel               |
 
 ### Turn cheat sheet
 
@@ -241,6 +258,6 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 2. Energy: move cubes.
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.
-5. Docked? Load, deliver, repair, full hull, reload. Moored until you burn away.
+5. Just arrived at a station? Load, deliver, repair, full hull, reload. Moored until you burn away.
 6. Heat check: excess heat → hull damage; reset heat.
 7. Flip completed missions. Pass. (Last player: stations move, with whoever is moored.)

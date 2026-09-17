@@ -830,8 +830,6 @@ describe("Movement Planner", () => {
 
       // Turns should be non-decreasing as fuel decreases (reserve increases)
       for (let i = 1; i < plans.length; i++) {
-        if (plans[i].turns < plans[i - 1].turns) {
-        }
         expect(plans[i].turns).toBeGreaterThanOrEqual(plans[i - 1].turns);
       }
     });

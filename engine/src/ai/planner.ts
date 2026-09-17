@@ -28,7 +28,7 @@ import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
-import { getStationAt, isMooredAt } from "../game/stations.ts";
+import { getStationAt } from "../game/stations.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
 import { INTERDICT_DANGER } from "./types.ts";
@@ -47,7 +47,7 @@ import { scanOption } from "./behaviors/scanning.ts";
 import type { ScanIntent } from "./behaviors/scanning.ts";
 import { assignDefensiveEnergy, energyActions, totalEnergy } from "./behaviors/survival.ts";
 import type { EnergyTargets } from "./behaviors/survival.ts";
-import { coastChoice, movementFromPlan } from "./behaviors/positioning.ts";
+import { castOffChoice, coastChoice, movementFromPlan } from "./behaviors/positioning.ts";
 import type { MovementChoice } from "./behaviors/positioning.ts";
 import { planShipToTarget } from "./movementPlanner/index.ts";
 
@@ -65,6 +65,24 @@ const ENGAGE_PLAN_TURNS = 6;
 const KILL_DENIAL = 6;
 /** Extra denial per token the victim was carrying when the volley lands. */
 const CARGO_DENIAL = 4;
+/**
+ * How much a hit on a *loaded* ship is worth denying, whatever the scoreboard
+ * says about them.
+ *
+ * A crate or a chit aboard is a card halfway done, and a kill sends it back to
+ * the dock along with two of their turns — that loss is the same whether they
+ * are winning or last. Denial used to be multiplied by a danger score that
+ * stays near zero until a player is two points up, and measured 17 Sept 2026
+ * the table saw a card coming 18% of the time and never once below two points:
+ * 69% of everything scored was scored by somebody nobody thought worth
+ * shooting at.
+ *
+ * Only the hold lifts the weight. A flat floor under every shot was tried
+ * first and it made bots fire at anyone in reach — every card's completion
+ * rate fell, Board's by a sixth — because a ship with nothing aboard has
+ * nothing to drop.
+ */
+const LOADED_DENIAL = 0.5;
 
 const flip = (f: Facing): Facing => (f === "prograde" ? "retrograde" : "prograde");
 
@@ -80,9 +98,9 @@ export function buildCandidate(
 ): ActionPlan {
   const { me, ship, status, view } = situation;
   let movement = movementIn;
-  // Moored at a station: a coast holds the berth instead of drifting, and the
-  // station carries the ship at the end of the round (RULES §Moored).
-  const moored = isMooredAt(view.stations, status.position);
+  // Moored at a station: a coast holds the berth instead of drifting and the
+  // station carries the ship at the end of the round (RULES §Stations).
+  const moored = status.moored;
 
   const capacity = me.ship.reactor.totalCapacity;
   const rotationEnergy = getSubsystemConfig("rotation").minEnergy;
@@ -140,7 +158,7 @@ export function buildCandidate(
   const surveying =
     post.wellId === BLACK_HOLE_ID &&
     post.ring === SURVEY_RING &&
-    me.missions.some((m) => m.type === "survey" && !m.isCompleted && !m.surveyAcquired);
+    me.missions.some((m) => m.type === "survey" && !m.isCompleted && !m.acquired);
   // Docking and the survey are both resolved from where the ship ends its
   // turn, so an uncompensated railgun recoil must not move it — and a moored
   // ship pushed off its berth loses the berth.
@@ -288,13 +306,14 @@ export function buildCandidate(
     const hull = hullOn(option.opponent);
     expectedHullDamage += hull;
     if (hull <= 0) continue;
-    // Denial: the same damage is worth more against a player whose next dock
-    // wins the game. A kill also empties their hold and skips their turn.
+    // What the hit costs them — hull, and on a kill their hold and their next
+    // turn — weighted by how close they are to winning, or by the fact that
+    // they are carrying something, whichever says more.
     const { danger } = option.opponent;
     const kills = hull >= option.opponent.hull;
-    denialValue +=
-      danger.score *
-      (hull + (kills ? KILL_DENIAL + (danger.crates + danger.data) * CARGO_DENIAL : 0));
+    const loss = hull + (kills ? KILL_DENIAL + (danger.crates + danger.data) * CARGO_DENIAL : 0);
+    const loaded = danger.crates + danger.data > 0;
+    denialValue += loss * Math.max(danger.score, loaded ? LOADED_DENIAL : 0);
   }
 
   // Opportunistic scan and low-fuel scoop with what is left.
@@ -415,6 +434,9 @@ export function buildCandidate(
     heatDamage: Math.max(0, status.heat + heatUsed - status.dissipation),
     massSpent:
       movement.massCost + (shots.some((s) => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0),
+    // Only a burn takes a ship off a berth; a coast holds it and a compensated
+    // recoil spends fuel without moving.
+    castsOff: moored && movement.kind !== "coast",
     completesStep: landsOnStation || surveying || scansForMission || killsTarget,
     denialValue,
   };
@@ -431,7 +453,16 @@ export function generateCandidates(
   const { ship, status, currentGoal } = situation;
   const candidates: ActionPlan[] = [];
 
-  const goalMovement = currentGoal?.plan ? movementFromPlan(ship, status, currentGoal.plan) : null;
+  const planned = currentGoal?.plan ? movementFromPlan(ship, status, currentGoal.plan) : null;
+  /**
+   * A coast while moored holds the berth — the ship does not drift, it sits
+   * where it is — so it cannot be a step toward a goal that is somewhere
+   * else. The route planner offers one anyway when the real route is
+   * unaffordable (it falls back to coarser targets, and with a tank too low
+   * to burn, everything coarse is a coast), and a bot that accepted it scored
+   * holding port as progress and stayed until the game timed out.
+   */
+  const goalMovement = planned && status.moored && planned.kind === "coast" ? null : planned;
   if (goalMovement && currentGoal) {
     candidates.push(
       buildCandidate(situation, parameters, goalMovement, `Goal: ${currentGoal.description}`, true)
@@ -488,6 +519,17 @@ export function generateCandidates(
       goalMovement?.kind === "coast"
     )
   );
+
+  // A berth is worth the ride and the fuel the scoop skims, and nothing else
+  // — the dock itself resolved on arrival. Casting off is always on the table
+  // so that a bot whose goal it cannot yet afford has something to choose
+  // besides "hold position", which it used to choose for the rest of the game.
+  if (status.moored) {
+    const castOff = castOffChoice(ship, status);
+    if (castOff) {
+      candidates.push(buildCandidate(situation, parameters, castOff, "Cast off", false));
+    }
+  }
 
   const seen = new Set<string>();
   return candidates.filter((c) => {

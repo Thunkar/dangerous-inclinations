@@ -27,7 +27,7 @@
  */
 import type { Position, ShipState, Station } from "../../models/game.ts";
 import type { Subsystem } from "../../models/subsystems.ts";
-import { MISSIONS_TO_WIN } from "../../models/missions.ts";
+import { MISSIONS_TO_WIN, MISSION_POINTS } from "../../models/missions.ts";
 import {
   BLACK_HOLE_OUTER_RING,
   PLANETS,
@@ -93,6 +93,12 @@ export function stationPositionFor(stations: Station[], planetId: string): Posit
 
 /** Turns a player typically needs for one card, start to finish (sim median). */
 export const TYPICAL_MISSION_TURNS = 12;
+/**
+ * Points a card in progress is assumed to be worth. Every card but Survey
+ * scores two, so counting cards by points rather than one-a-piece is what
+ * keeps "how close are they?" honest.
+ */
+const POINTS_PER_CARD = Math.max(...Object.values(MISSION_POINTS));
 /** Turns of a delivery run left after a pickup, for a player not carrying yet. */
 export const PICKUP_TO_DELIVERY_TURNS = 8;
 /** A turns-to-win of this many turns or more reads as no danger at all. */
@@ -132,7 +138,7 @@ export function predictedDeliveryPlanets(
  *
  * Two halves, weighted equally:
  *
- * - **progress**: cards already face-up, out of the three that win.
+ * - **progress**: points already face-up, out of the points that win.
  * - **imminence**: how soon the cards still missing can land, counting the
  *   one in progress at its real distance and every later one at
  *   {@link TYPICAL_MISSION_TURNS}.
@@ -165,12 +171,13 @@ export function assessDanger(
     ? cheapTurnEstimate(position, deliveryPosition)
     : Infinity;
 
-  // The card in progress, then one typical card for each point still missing
-  // after it. A player with an empty hold still has to reach a station before
+  // The card in progress, then one typical card for every further card they
+  // still need. A player with an empty hold has to reach a station before
   // anything can start, so their next card costs the trip plus the run.
   const legTurns = carrying ? turnsToDelivery : turnsToStation + PICKUP_TO_DELIVERY_TURNS;
-  const remaining = Math.max(0, MISSIONS_TO_WIN - completed - 1);
-  const turnsToWin = legTurns + remaining * TYPICAL_MISSION_TURNS;
+  const pointsLeft = Math.max(0, MISSIONS_TO_WIN - completed - POINTS_PER_CARD);
+  const cardsLeft = Math.ceil(pointsLeft / POINTS_PER_CARD);
+  const turnsToWin = legTurns + cardsLeft * TYPICAL_MISSION_TURNS;
 
   const progress = completed / MISSIONS_TO_WIN;
   const imminence = clamp01(1 - turnsToWin / DANGER_HORIZON);
@@ -184,7 +191,8 @@ export function assessDanger(
     deliveryPosition,
     turnsToDelivery,
     turnsToWin,
-    oneDeliveryFromWinning: completed >= MISSIONS_TO_WIN - 1 && carrying,
+    // One dock from the win: what is in the hold finishes the game.
+    oneDeliveryFromWinning: completed + POINTS_PER_CARD >= MISSIONS_TO_WIN && carrying,
   };
 }
 

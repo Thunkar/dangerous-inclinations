@@ -160,6 +160,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     deployment: null,
     animating: false,
     effects: [],
+    ping: null,
     myColor: colorOf('p1'),
     colorOf,
     nameOf,

@@ -24,9 +24,13 @@ export function describeMission(m: Mission, name: NameResolver): string {
     case "deliver_cargo":
       return `Deliver ${getWellName(m.pickupPlanetId)} → ${getWellName(m.deliveryPlanetId)}`;
     case "intercept_transmission":
-      return `Intercept ${name(m.targetPlayerId)}`;
+      return `Intercept ${name(m.targetPlayerId)} → file at ${getWellName(m.deliveryPlanetId)}`;
     case "survey":
       return "Survey the Event Horizon";
+    case "board":
+      return "Board a ship";
+    case "garbage_disposal":
+      return "Garbage Disposal: dump a load into the black hole";
   }
 }
 
@@ -66,11 +70,11 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       const phased = e.sectorAdjustment
         ? `, phased ${e.sectorAdjustment > 0 ? "+" : ""}${e.sectorAdjustment} in the arc`
         : "";
-      const fuel = !e.refunded
+      const fuel = !e.compressed
         ? ` (-${e.massSpent} fuel)`
         : e.massSpent > 0
-          ? ` (-${e.massSpent} fuel for the phasing; the compressor refunds the jump)`
-          : " (compressor refunds the fuel)";
+          ? ` (-${e.massSpent} fuel for the phasing; the compressor pays for the lane)`
+          : " (the compressor pays for the lane)";
       return `${name(e.playerId)} jumps to ${pos(e.to)}${phased}${fuel}${heat(e.heat)}`;
     }
     case "weapon_fired":
@@ -125,6 +129,8 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.playerId)} loads a crate at ${getWellName(e.planetId)}`;
     case "cargo_delivered":
       return `${name(e.playerId)} delivers ${e.kind} at ${getWellName(e.planetId)}`;
+    case "cargo_dumped":
+      return `${name(e.playerId)} drops the load into the black hole at ${pos(e.at)}`;
     case "cargo_dropped": {
       const parts: string[] = [];
       if (e.crates) parts.push(`${e.crates} crate(s)`);

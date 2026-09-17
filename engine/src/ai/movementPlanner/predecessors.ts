@@ -24,7 +24,7 @@ import type { OrientedPosition, PredecessorInfo } from "./types.ts";
 
 export interface PredecessorOptions {
   allowWellTransfers: boolean;
-  /** A compressor refunds a jump's own mass (never its phasing). */
+  /** A compressor discounts a jump's own mass (never its phasing). */
   hasFuelCompressor?: boolean;
 }
 

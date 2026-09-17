@@ -72,9 +72,10 @@ function missionProgress(plan: ActionPlan, situation: TacticalSituation): number
 function resources(plan: ActionPlan, situation: TacticalSituation): number {
   let score = 60;
   score -= plan.massSpent * 5;
+  const fuel = situation.status.reactionMass;
   const scooping = plan.actions.some((a) => a.type === "coast" && a.data.activateScoop);
-  if (scooping) score += situation.status.reactionMass < 5 ? 25 : 10;
-  if (plan.massSpent > 0 && situation.status.reactionMass - plan.massSpent < 3) score -= 15;
+  if (scooping) score += fuel < 5 ? 25 : 10;
+  if (plan.massSpent > 0 && fuel - plan.massSpent < 3) score -= 15;
   return clamp(score);
 }
 

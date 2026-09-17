@@ -104,6 +104,13 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
   const config = weapon ? getSubsystemConfig(weapon.type) : null
   const inRange = plan.targetsInRange(step)
   const picking = plan.picking?.kind === 'crit' && plan.picking.stepId === step.id
+  /**
+   * Legal to launch at, but the missile expires before it closes. The rules
+   * allow the shot — a missile is self-guided and nobody stops you throwing
+   * one away — so the target stays in the list, marked.
+   */
+  const outOfReach = new Set(plan.targetsOutOfReach(step).map((t) => t.id))
+  const wasted = step.targetId !== null && outOfReach.has(step.targetId)
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 0.5 }}>
@@ -121,9 +128,17 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
         {inRange.map((target) => (
           <MenuItem key={target.id} value={target.id} sx={{ fontSize: '0.82rem' }}>
             {nameOf(target.id)}
+            {outOfReach.has(target.id) ? ' — too far to catch' : ''}
           </MenuItem>
         ))}
       </Select>
+
+      {wasted && (
+        <Typography sx={{ fontSize: '0.74rem', color: TABLE.danger, lineHeight: 1.3 }}>
+          This one runs out of fuel before it catches them — three moves of three steps, and they
+          keep drifting.
+        </Typography>
+      )}
 
       <Tooltip title="Name the slot a critical hit would break — click it on their mat">
         <Chip

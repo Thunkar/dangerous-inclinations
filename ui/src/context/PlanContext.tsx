@@ -42,6 +42,7 @@ import {
   getMaxRing,
   getSubsystemConfig,
   hasWorkingCompressor,
+  canEngage,
   isInWeaponRange,
   isMooredAt,
   isWeaponType,
@@ -131,6 +132,13 @@ interface PlanContextValue {
   focusWeaponId: SubsystemId | null
   targets: Target[]
   targetsInRange: (step: PlanStep) => Target[]
+  /**
+   * Targets this step may legally fire at but would not connect with: a
+   * missile is launched at anyone in the well and only its own flight decides
+   * whether it catches them, so a launch at a ship half an orbit ahead is a
+   * legal way to throw one away.
+   */
+  targetsOutOfReach: (step: PlanStep) => Target[]
   allocate: (subsystemId: SubsystemId, delta: number) => void
   setEnergyTo: (subsystemId: SubsystemId, value: number) => void
   /**
@@ -189,8 +197,49 @@ function committedEnergy(player: Player): Record<SubsystemId, number> {
   return Object.fromEntries(player.ship.subsystems.map(s => [s.id, s.allocatedEnergy]))
 }
 
-function defaultSteps(): PlanStep[] {
-  return [{ id: stepId(), kind: 'move', move: { kind: 'coast', scoop: false } }]
+/**
+ * A turn opens on a coast, and on a scoop if the scoop is already holding its
+ * cubes: leaving them on the tile is the decision, and a coast past a well
+ * with a live scoop and nobody touching it was only ever an oversight. The
+ * chip still turns it off.
+ */
+function defaultSteps(scooping = false): PlanStep[] {
+  return [{ id: stepId(), kind: 'move', move: { kind: 'coast', scoop: scooping } }]
+}
+
+/**
+ * One click on a tile: up powers it on to its minimum (then a cube at a
+ * time), down takes a cube off and switches it off below the minimum. Returns
+ * the tile's new energy, or null when the click can do nothing.
+ */
+function poweredTo(
+  player: Player,
+  energy: Record<SubsystemId, number>,
+  subsystemId: SubsystemId,
+  direction: 1 | -1
+): number | null {
+  const sub = player.ship.subsystems.find(s => s.id === subsystemId)
+  if (!sub || sub.isBroken) return null
+  const config = getSubsystemConfig(sub.type)
+  if (config.maxEnergy === 0) return null
+  const current = energy[subsystemId] ?? sub.allocatedEnergy
+  const total = player.ship.subsystems.reduce((sum, s) => sum + (energy[s.id] ?? s.allocatedEnergy), 0)
+  const free = player.ship.reactor.totalCapacity - total
+  if (direction > 0) {
+    // Powering on costs the whole minimum at once, or nothing.
+    if (current === 0) return free < config.minEnergy ? null : config.minEnergy
+    if (current >= config.maxEnergy || free < 1) return null
+    return current + 1
+  }
+  if (current === 0) return null
+  return current <= config.minEnergy ? 0 : current - 1
+}
+
+/** Whether a coast this turn would scoop without anyone asking. */
+function scoopRuns(player: Player): boolean {
+  const scoop = player.ship.subsystems.find(s => s.id === 'scoop')
+  if (!scoop || scoop.isBroken) return false
+  return scoop.allocatedEnergy >= getSubsystemConfig('scoop').minEnergy
 }
 
 export function PlanProvider({ children }: { children: ReactNode }) {
@@ -203,7 +252,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode }) {
   const { view, readOnly } = useGame()
   const [energy, setEnergy] = useState<Record<SubsystemId, number>>(() => committedEnergy(me))
-  const [steps, setSteps] = useState<PlanStep[]>(defaultSteps)
+  const [steps, setSteps] = useState<PlanStep[]>(() => defaultSteps(scoopRuns(me)))
   const [picking, setPicking] = useState<Picking>(null)
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
   const [routeDestination, setRouteDestinationState] = useState<Position | null>(null)
@@ -213,7 +262,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   const reset = useCallback(() => {
     setEnergy(committedEnergy(me))
-    setSteps(defaultSteps())
+    setSteps(defaultSteps(scoopRuns(me)))
     setPicking(null)
     setFocusWeaponId(null)
   }, [me])
@@ -338,6 +387,35 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   }, [moveFrom])
 
   const scoopGain = ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
+
+  /** Where the shot is fired from, and whether the ship has already moved. */
+  const firingFrom = useCallback(
+    (step: PlanStep) => {
+      const index = steps.findIndex(s => s.id === step.id)
+      const at = index >= 0 ? stepStart[index] : { position: me.ship, facing: me.ship.facing }
+      const moveIndex = steps.findIndex(s => s.kind === 'move')
+      return {
+        attacker: { ...at.position, facing: at.facing },
+        afterMoving: index >= 0 && moveIndex >= 0 && index > moveIndex,
+      }
+    },
+    [steps, stepStart, me.ship]
+  )
+
+  const targetsOutOfReach = useCallback(
+    (step: PlanStep): Target[] => {
+      if (step.kind !== 'fire') return []
+      const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
+      if (!weapon) return []
+      const { attacker, afterMoving } = firingFrom(step)
+      return targets.filter(
+        t =>
+          isInWeaponRange(weapon, attacker, t.position) &&
+          !canEngage(weapon, attacker, t.position, afterMoving)
+      )
+    },
+    [firingFrom, pendingSubsystems, targets]
+  )
 
   const targetsInRange = useCallback(
     (step: PlanStep): Target[] => {
@@ -655,10 +733,22 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           next = target < config.minEnergy ? 0 : target
         }
         if (next === current) return prev
+        if (subsystemId === 'scoop') {
+          // The cubes are the decision: putting them on the scoop while
+          // coasting means you want it run, taking them off means you don't.
+          const runs = next >= config.minEnergy && !isMooredAt(view.stations, me.ship)
+          setSteps(steps =>
+            steps.map(step =>
+              step.kind === 'move' && step.move.kind === 'coast'
+                ? { ...step, move: { kind: 'coast', scoop: runs } }
+                : step
+            )
+          )
+        }
         return { ...prev, [subsystemId]: next }
       })
     },
-    [me]
+    [me, view.stations]
   )
 
   const setEnergyTo = useCallback(
@@ -676,36 +766,23 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
    */
   const power = useCallback(
     (subsystemId: SubsystemId, direction: 1 | -1) => {
-      setEnergy(prev => {
-        const sub = me.ship.subsystems.find(s => s.id === subsystemId)
-        if (!sub || sub.isBroken) return prev
-        const config = getSubsystemConfig(sub.type)
-        if (config.maxEnergy === 0) return prev
-        const current = prev[subsystemId] ?? sub.allocatedEnergy
-        const total = me.ship.subsystems.reduce(
-          (sum, s) => sum + (prev[s.id] ?? s.allocatedEnergy),
-          0
+      const next = poweredTo(me, energy, subsystemId, direction)
+      if (next === null) return
+      setEnergy(prev => ({ ...prev, [subsystemId]: next }))
+      if (subsystemId === 'scoop') {
+        // The cubes are the decision: putting them on the scoop while coasting
+        // means you want it run, taking them off means you do not.
+        const runs = next >= getSubsystemConfig('scoop').minEnergy
+        setSteps(steps =>
+          steps.map(step =>
+            step.kind === 'move' && step.move.kind === 'coast'
+              ? { ...step, move: { kind: 'coast', scoop: runs } }
+              : step
+          )
         )
-        const free = me.ship.reactor.totalCapacity - total
-        let next = current
-        if (direction > 0) {
-          if (current === 0) {
-            // Powering on costs the whole minimum at once, or nothing.
-            if (free < config.minEnergy) return prev
-            next = config.minEnergy
-          } else {
-            if (current >= config.maxEnergy || free < 1) return prev
-            next = current + 1
-          }
-        } else {
-          if (current === 0) return prev
-          next = current <= config.minEnergy ? 0 : current - 1
-        }
-        if (next === current) return prev
-        return { ...prev, [subsystemId]: next }
-      })
+      }
     },
-    [me]
+    [me, energy]
   )
 
   const setRouteDestination = useCallback((position: Position | null) => {
@@ -921,6 +998,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         null,
       targets,
       targetsInRange,
+      targetsOutOfReach,
       allocate,
       setEnergyTo,
       power,
@@ -970,6 +1048,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       focusWeaponId,
       targets,
       targetsInRange,
+      targetsOutOfReach,
       allocate,
       setEnergyTo,
       power,

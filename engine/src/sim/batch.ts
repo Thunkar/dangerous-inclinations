@@ -8,7 +8,7 @@ import { runGame, type GameRunResult, type InvalidTurn } from "./runGame.ts";
 import { freshSeed } from "../utils/rng.ts";
 import type { WeaponOverrides } from "./weaponOverrides.ts";
 import type { TileOverrides } from "./tileOverrides.ts";
-import type { LoadoutOverrides, SeatLoadouts } from "./loadoutOverrides.ts";
+import type { LoadoutOverrides, SeatHands, SeatLoadouts } from "./loadoutOverrides.ts";
 import {
   computePerGameStats,
   aggregateStats,
@@ -32,6 +32,7 @@ export interface BatchConfig {
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
+  seatHands?: SeatHands;
   onProgress?: (done: number, total: number, last: PerGameStats) => void;
 }
 
@@ -54,6 +55,7 @@ export interface WorkerJob {
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
+  seatHands?: SeatHands;
 }
 export interface WorkerReply {
   seed: number;
@@ -83,6 +85,7 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
     weapons: config.weapons,
     loadouts: config.loadouts,
     seatLoadouts: config.seatLoadouts,
+    seatHands: config.seatHands,
   }));
 
   const replies =

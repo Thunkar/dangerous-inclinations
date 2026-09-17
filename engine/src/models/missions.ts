@@ -10,22 +10,73 @@
 import type { SubsystemType } from "./subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
 
-export const MISSIONS_TO_WIN = 3;
+/**
+ * Four points win; a hand is three cards drawn from five offers.
+ *
+ * The three numbers are one decision. A primary card scores two and a daring
+ * card one, so a hand of three reaches four points two ways — two primaries,
+ * or one primary and both daring cards — and three daring cards come to three,
+ * which is to say every hand needs at least one primary and no hand is only
+ * filler. Three cards out of five is also a real choice at the table rather
+ * than a formality: two of the five are left on the dock.
+ */
+export const MISSIONS_TO_WIN = 4;
 export const MISSIONS_PER_PLAYER = 3;
-export const MISSION_OFFERS_PER_PLAYER = 6;
+export const MISSION_OFFERS_PER_PLAYER = 5;
 
 /** Black hole ring a ship must end its turn on to complete a Survey. */
 export const SURVEY_RING = 1;
+
 /**
- * Points a completed Destroy card is worth. Two since 15 Sept 2026: a kill
- * needs another player's active cooperation to fail and costs the victim two
- * turns and their cargo.
+ * What a completed card scores.
+ *
+ * One card at two points for each way of playing: Destroy for the hunter,
+ * Deliver for the hauler, Intercept for the interceptor. Two of your own kind
+ * is a win, so a hand states an intention instead of collecting whatever was
+ * cheapest. Survey is the odd one at a point — a dive nobody has to cooperate
+ * with, which is exactly why it is not a plan of its own.
  */
-export const DESTROY_POINTS = 2;
+export const MISSION_POINTS: Readonly<Record<MissionType, number>> = {
+  destroy_ship: 2,
+  deliver_cargo: 2,
+  intercept_transmission: 2,
+  survey: 1,
+  board: 1,
+  garbage_disposal: 1,
+};
+
+export function missionPoints(type: MissionType): number {
+  return MISSION_POINTS[type];
+}
+
+/**
+ * Crates a hold takes. One: a crate is the size of the hold, so a second
+ * route waits until the first is delivered, and two cards that load at the
+ * same station are two trips rather than one.
+ *
+ * Data chits ride free — a scan's transmission and a survey's readings are
+ * numbers, not freight — so an Intercept or a Survey can always be carried
+ * alongside whatever is in the hold.
+ */
+export const CARGO_HOLD_CRATES = 1;
 /** Scan range for the scan action (same ring, ±sectors). */
 export const SCAN_SECTOR_RANGE = 3;
 
-export type MissionType = "destroy_ship" | "deliver_cargo" | "intercept_transmission" | "survey";
+export type MissionType =
+  | "destroy_ship"
+  | "deliver_cargo"
+  | "intercept_transmission"
+  | "survey"
+  | "board"
+  | "garbage_disposal";
+
+/**
+ * The one-point cards that pay a chit: do the thing, take the chit, file it at
+ * any station. Garbage Disposal is daring too, but it carries a load instead
+ * of a chit and finishes the moment the load is gone.
+ */
+export type DaringMissionType = "survey" | "board";
+export const DARING_MISSION_TYPES: readonly DaringMissionType[] = ["survey", "board"];
 
 export type MissionFamily = "combat" | "trade" | "daring";
 
@@ -34,6 +85,8 @@ export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
   deliver_cargo: "trade",
   intercept_transmission: "trade",
   survey: "daring",
+  board: "daring",
+  garbage_disposal: "daring",
 };
 
 /**
@@ -70,7 +123,15 @@ export const MISSION_REQUIREMENTS: Readonly<Record<MissionType, readonly Mission
   destroy_ship: [WEAPON],
   deliver_cargo: [],
   intercept_transmission: [SENSOR_ARRAY],
-  survey: [SENSOR_ARRAY],
+  // The daring cards ask for nothing aboard: they are flown, not fitted, which
+  // is what lets any hand carry one as its third.
+  board: [],
+  garbage_disposal: [],
+  // Nothing. A Survey is flown, not instrumented: the dive to the innermost
+  // ring is the reading. It asked for a sensor array until 17 Sept 2026, which
+  // made the one card any hand could use as filler a card only the sensor mats
+  // could keep — and left half the table with no filler at all.
+  survey: [],
 };
 
 /** What a card needs aboard; empty for cards any hull can fly. */
@@ -98,33 +159,69 @@ export interface DeliverCargoMission extends BaseMission {
   cargoId: string;
 }
 
-/** Scan the target, then dock at any station with the data. */
+/**
+ * Scan the target, then file what you took at the station the card names.
+ *
+ * The station is the card's, fixed when it is dealt. Filing anywhere made this
+ * the cheapest two points on the table — a scan and then whatever dock the
+ * route passed anyway — and it took over half of all winning cards (measured
+ * 17 Sept 2026). Every two-point card is a named errand now.
+ */
 export interface InterceptTransmissionMission extends BaseMission {
   type: "intercept_transmission";
   targetPlayerId: string;
+  /** Planet whose station the transmission is filed at. */
+  deliveryPlanetId: string;
   scanAcquired: boolean;
   dataCargoId: string;
 }
 
 /**
- * End a turn on SURVEY_RING with the sensor array powered to take the data,
- * then file it at any station. The dive is the mission; the filing is not a
- * second errand, and there is no hold — a second turn on the ring measured at
- * nothing, because a ship parked there is already coasting.
+ * A daring card: do the thing, take the chit, file it at any station.
+ *
+ * Three of them, and the shape is deliberately one shape — the rule at the
+ * table is a single sentence with the trigger swapped:
+ *
+ * | Card   | The thing                                    |
+ * |--------|----------------------------------------------|
+ * | survey | end a turn on the black hole's innermost ring |
+ * | board  | end a turn in another ship's sector           |
+ *
+ * Neither asks for a tile and neither can be blocked, which is why each is
+ * worth a point rather than two: a hand of three daring cards cannot win.
  */
-export interface SurveyMission extends BaseMission {
-  type: "survey";
-  /** Always "any": survey data is filed wherever the ship next docks. */
+export interface DaringMission extends BaseMission {
+  type: DaringMissionType;
+  /** Always "any": a chit is filed wherever the ship next docks. */
   deliveryPlanetId: string;
-  surveyAcquired: boolean;
+  /** The thing has been done and the chit is aboard. */
+  acquired: boolean;
   dataCargoId: string;
+}
+
+/**
+ * Garbage Disposal: load at any station, then drop it into the black hole.
+ *
+ * Survey run backwards — the same two legs, the same dive, the other way
+ * round — and the only daring card that uses the hold. A load fills it, so a
+ * cargo route and a disposal run cannot be flown at once: this is the card a
+ * hunter or an interceptor has room for and a hauler has to queue.
+ *
+ * There is no chit and nothing to file: the load goes over the side on the
+ * innermost ring and the card is done. Destroyed with it aboard, the load is
+ * lost — collect another at any station.
+ */
+export interface GarbageDisposalMission extends BaseMission {
+  type: "garbage_disposal";
+  cargoId: string;
 }
 
 export type Mission =
   | DestroyShipMission
   | DeliverCargoMission
   | InterceptTransmissionMission
-  | SurveyMission;
+  | DaringMission
+  | GarbageDisposalMission;
 
 export type CargoKind = "crate" | "data";
 
@@ -139,6 +236,7 @@ export interface Cargo {
   kind: CargoKind;
   /** Mission this item belongs to. */
   missionId: string;
+  /** Planet whose station it is collected at, or "any" for a load of garbage. */
   pickupPlanetId?: string;
   /** Planet id, or "any". */
   deliveryPlanetId: string;
@@ -160,6 +258,11 @@ export function isDeliverCargoMission(m: Mission): m is DeliverCargoMission {
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
   return m.type === "intercept_transmission";
 }
-export function isSurveyMission(m: Mission): m is SurveyMission {
-  return m.type === "survey";
+/** The daring cards that pay a chit (not Garbage Disposal, which pays a load). */
+export function isDaringMission(m: Mission): m is DaringMission {
+  return m.type === "survey" || m.type === "board";
+}
+
+export function isGarbageDisposalMission(m: Mission): m is GarbageDisposalMission {
+  return m.type === "garbage_disposal";
 }

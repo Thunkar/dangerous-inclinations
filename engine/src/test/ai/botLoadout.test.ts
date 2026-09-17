@@ -1,6 +1,6 @@
 /**
- * Loadout phase. `botChooseLoadout` keeps exactly three of the offered
- * cards and returns a hull the engine will accept, deterministically.
+ * Loadout phase. `botChooseLoadout` keeps exactly a hand of the offered cards
+ * and returns a hull the engine will accept, deterministically.
  */
 import { describe, it, expect } from "vitest";
 import type { Mission } from "../../models/missions.ts";
@@ -13,7 +13,7 @@ import type { BotArchetype } from "../../ai/behaviors/loadout.ts";
 import {
   BOT_LOADOUT_TEMPLATES,
   classifyArchetype,
-  scoreMissionCombo,
+  validHands,
 } from "../../ai/behaviors/loadout.ts";
 import {
   ALPHA,
@@ -26,19 +26,19 @@ import {
 } from "../testUtils.ts";
 
 /**
- * A trio of cards that should produce each mat a bot can reach. A hunter
- * always holds a Destroy and a hauler never does, so `hunter-tanky` and
- * `hauler-aggressive` are human-only: the balance suite forces those.
+ * A hand that should produce each mat a bot can reach. A hunter always holds a
+ * Destroy and a hauler never does, so `hunter-tanky` and `hauler-aggressive`
+ * are human-only: the balance suite forces those.
  */
-const TRIOS: Partial<Record<BotArchetype, Mission[]>> = {
-  // Survey needs powered sensors on the ring, so it takes the eyes like Intercept.
-  "interceptor-tanky": [surveyMission(), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
-  "interceptor-aggressive": [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
-  "hunter-aggressive": [
-    destroyMission("p2"),
-    destroyMission("p3"),
+const HANDS: Partial<Record<BotArchetype, Mission[]>> = {
+  // Only an Intercept asks for the eyes: the scan is the card's first step.
+  "interceptor-tanky": [
+    interceptMission("p2"),
     deliverMission(ALPHA, BETA),
+    deliverMission(BETA, GAMMA),
   ],
+  "interceptor-aggressive": [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
+  "hunter-aggressive": [destroyMission("p2"), destroyMission("p3"), deliverMission(ALPHA, BETA)],
   // Nothing to scan and nobody to kill: the forward slot goes to the legs.
   "hauler-tanky": [
     deliverMission(ALPHA, BETA),
@@ -70,7 +70,7 @@ describe("botChooseLoadout", () => {
   );
 
   it("gives each archetype its own hull", () => {
-    for (const [archetype, missions] of Object.entries(TRIOS) as Array<[BotArchetype, Mission[]]>) {
+    for (const [archetype, missions] of Object.entries(HANDS) as Array<[BotArchetype, Mission[]]>) {
       expect(classifyArchetype(missions), archetype).toBe(archetype);
       const choice = botChooseLoadout(missions, { playerCount: 4 });
       expect(choice.missionIds).toHaveLength(MISSIONS_PER_PLAYER);
@@ -79,7 +79,7 @@ describe("botChooseLoadout", () => {
     }
   });
 
-  it("keeps exactly three of five offers, and only offered ones", () => {
+  it("keeps exactly a hand of the offers, and only offered ones", () => {
     const offers: Mission[] = [
       destroyMission("p2"),
       interceptMission("p3"),
@@ -93,6 +93,51 @@ describe("botChooseLoadout", () => {
     for (const id of choice.missionIds) expect(offers.some((m) => m.id === id)).toBe(true);
   });
 
+  it("keeps any hand it can fly, and spreads across them", () => {
+    // The bot no longer scores hands: every hand the mat could fly is valid,
+    // and which one it takes is the seeded pick. Measuring which plan wins is
+    // the benchmark's job, not the chooser's.
+    const offers: Mission[] = [
+      destroyMission("p2"),
+      interceptMission("p3"),
+      deliverMission(ALPHA, BETA),
+      surveyMission(),
+      deliverMission(BETA, GAMMA),
+    ];
+    const hands = validHands(offers);
+    // Five offers, three kept: every combination is on the table.
+    expect(hands).toHaveLength(10);
+
+    const seen = new Set(
+      hands.map((_, i) =>
+        botChooseLoadout(offers, { playerCount: 3, pick: () => i })
+          .missionIds.slice()
+          .sort()
+          .join(",")
+      )
+    );
+    expect(seen.size).toBe(hands.length);
+  });
+
+  it("never offers a hand the forced mat cannot fly", () => {
+    const railgun: ShipLoadout = {
+      forwardSlots: ["railgun"],
+      sideSlots: ["missiles", "radiator", "shields", "shields"],
+    };
+    const offers: Mission[] = [
+      interceptMission("p2"),
+      interceptMission("p3", "intercept-p3"),
+      deliverMission(ALPHA, BETA),
+      deliverMission(BETA, GAMMA),
+      surveyMission(),
+    ];
+    const hands = validHands(offers, railgun);
+    expect(hands.length).toBeGreaterThan(0);
+    for (const hand of hands) {
+      expect(missionsMissingRequirements(hand, railgun)).toEqual([]);
+    }
+  });
+
   it("is deterministic", () => {
     const offers: Mission[] = [
       destroyMission("p2"),
@@ -104,16 +149,6 @@ describe("botChooseLoadout", () => {
     const a = botChooseLoadout(offers, { playerCount: 4 });
     const b = botChooseLoadout(offers, { playerCount: 4 });
     expect(b).toEqual(a);
-  });
-
-  it("scores a chained cargo pair above two routes that only share a planet", () => {
-    // Alpha→Beta then Beta→Gamma is one trip; Alpha→Beta and Alpha→Gamma is
-    // two departures from the same station. Scored, not selected: which trio
-    // actually wins depends on what else is on offer and what it costs.
-    const third = surveyMission();
-    const chained = [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), third];
-    const forked = [deliverMission(ALPHA, BETA), deliverMission(ALPHA, GAMMA), third];
-    expect(scoreMissionCombo(chained, 2)).toBeGreaterThan(scoreMissionCombo(forked, 2));
   });
 
   it("takes the sensor array forward whenever it holds an Intercept", () => {
@@ -154,12 +189,13 @@ describe("botChooseLoadout", () => {
       { playerCount: 3 }
     );
     expect(kill.loadout.forwardSlots).toEqual(["railgun"]);
-    // A Survey card needs powered sensors on the ring, so it takes the sensor hull like Intercept.
+    // A Survey is a dive any mat can make, so it asks for nothing forward: a
+    // cargo hand carrying one still spends the slot on the legs.
     const survey = botChooseLoadout(
       [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()],
       { playerCount: 3 }
     );
-    expect(survey.loadout.forwardSlots).toEqual(["sensor_array"]);
+    expect(survey.loadout.forwardSlots).toEqual(["fuel_compressor"]);
   });
 
   it("gives every combat hull the heat headroom its volley needs", () => {
@@ -182,28 +218,6 @@ describe("botChooseLoadout", () => {
     }
   });
 
-  it("scores two cards on the same ship above two cards on different ships", () => {
-    // Hunting p2 while scanning p2 is one approach, not two.
-    const together = scoreMissionCombo(
-      [destroyMission("p2"), interceptMission("p2"), surveyMission()],
-      4
-    );
-    const apart = scoreMissionCombo(
-      [destroyMission("p2"), interceptMission("p3"), surveyMission()],
-      4
-    );
-    expect(together).toBeGreaterThan(apart);
-
-    const oneHunt = scoreMissionCombo(
-      [destroyMission("p2"), destroyMission("p2", "destroy-again"), surveyMission()],
-      4
-    );
-    const twoHunts = scoreMissionCombo(
-      [destroyMission("p2"), destroyMission("p3"), surveyMission()],
-      4
-    );
-    expect(oneHunt).toBeGreaterThan(twoHunts);
-  });
 
   it("produces submissions the engine accepts for a real deal", () => {
     let state = createGame(
@@ -224,19 +238,21 @@ describe("botChooseLoadout", () => {
   });
 
   // The simulator forces a hull on a seat to measure it. The bot then picks
-  // cards that hull can fly; a deal with no flyable trio leaves it its own mat.
+  // cards that hull can fly; a deal with no flyable hand leaves it its own mat.
   describe("a hull imposed on the seat", () => {
     const RAILGUN: ShipLoadout = {
       forwardSlots: ["railgun"],
       sideSlots: ["missiles", "radiator", "shields", "shields"],
     };
 
-    it("keeps the hull and drops the cards it cannot fly when a flyable trio exists", () => {
+    it("keeps the hull and drops the cards it cannot fly when a flyable hand exists", () => {
+      // The railgun mat has no sensor array: Intercept and Survey are dead
+      // weight on it, and the four that are left are exactly a hand.
       const offers = [
         interceptMission("p2"),
-        surveyMission(),
         deliverMission(ALPHA, BETA),
         deliverMission(BETA, GAMMA),
+        deliverMission(GAMMA, ALPHA),
         destroyMission("p2"),
       ];
       const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
@@ -245,11 +261,14 @@ describe("botChooseLoadout", () => {
       expect(missionsMissingRequirements(kept, choice.loadout)).toEqual([]);
     });
 
-    it("gives the hull up when too few offers suit the hull to make a trio", () => {
+    it("gives the hull up when too few offers suit the hull to make a hand", () => {
+      // The railgun mat has no sensor array, so three of these five are dead
+      // weight on it and no full hand is flyable. (A Survey would be: it asks
+      // for nothing, which is the point of it.)
       const offers = [
         interceptMission("p2"),
         interceptMission("p3", "intercept-p3"),
-        surveyMission(),
+        interceptMission("p4", "intercept-p4"),
         deliverMission(ALPHA, BETA),
         destroyMission("p2"),
       ];

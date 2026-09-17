@@ -9,6 +9,7 @@ import {
 } from "../../game/stations.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import type { Cargo } from "../../models/missions.ts";
+import { CARGO_HOLD_CRATES } from "../../models/missions.ts";
 import {
   ALPHA,
   BETA,
@@ -16,6 +17,7 @@ import {
   approachSector,
   burn,
   coast,
+  deliverMission,
   eventsOf,
   eventTypes,
   executeTurnAs,
@@ -25,6 +27,7 @@ import {
   makeGameState,
   makePlayer,
   mustExecute,
+  withMissions,
   withPlayer,
   withPower,
   withShip,
@@ -260,7 +263,7 @@ function playRound(state: GameState): GameState {
 }
 
 describe("docking: moored ships ride their station", () => {
-  it("a coast holds the berth instead of drifting, and the ship docks again", () => {
+  it("a coast holds the berth instead of drifting, and docks nothing a second time", () => {
     const state = mooredAt(ALPHA);
     expect(isMooredAt(state.stations, getShip(state, "p1"))).toBe(true);
     const result = executeTurnAs(state, coast(1));
@@ -270,7 +273,8 @@ describe("docking: moored ships ride their station", () => {
       moored: true,
       to: { sector: 0 },
     });
-    expect(eventTypes(result.events)).toContain("docked");
+    // The berth was already held when the turn began: a dock is a visit, not a state.
+    expect(eventTypes(result.events)).not.toContain("docked");
   });
 
   it("the station carries its moored ships when it advances at the end of the round", () => {
@@ -326,13 +330,142 @@ describe("docking: moored ships ride their station", () => {
     expect(eventsOf(after.events, "stations_moved")[0].riders).toEqual([]);
   });
 
-  it("the scoop still runs while moored, so an empty tank is never stranded", () => {
+  it("runs the scoop in port: a berth is a place to skim from, not to be repaired in", () => {
     let state = withShip(mooredAt(ALPHA), "p1", { reactionMass: 0 });
     state = withPower(state, "p1", "scoop", 3);
     const result = executeTurnAs(state, coast(1, true));
     expect(result.errors).toBeUndefined();
-    // Ring 1 of a planet drifts 4, so the scoop pays for a burn out next turn.
-    expect(getShip(result.gameState, "p1")).toMatchObject({ reactionMass: 4, sector: 0 });
+    // Planet ring 1 drifts 4, so a dry ship is never moored for good.
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(4);
+  });
+
+  it("docks on arrival, and holding the berth afterwards docks nothing", () => {
+    const damaged = withShip(approaching(ALPHA), "p1", { hitPoints: 4 });
+    const arrival = executeTurnAs(damaged, coast(1));
+    expect(eventsOf(arrival.events, "docked")[0].hullRestored).toBe(6);
+    expect(getShip(arrival.gameState, "p1").hitPoints).toBe(10);
+
+    // Hurt again while moored: the berth does not put it back together.
+    const hurt = withShip(arrival.gameState, "p1", { hitPoints: 4 });
+    const holding = executeTurnAs(mustExecute(hurt, coast(1)), coast(1));
+    expect(eventTypes(holding.events)).not.toContain("docked");
+    expect(getShip(holding.gameState, "p1").hitPoints).toBe(4);
+  });
+
+  it("loads one crate and leaves the second on the dock: the hold takes one", () => {
+    const state = withMissions(approaching(ALPHA), "p1", [
+      deliverMission(ALPHA, BETA),
+      deliverMission(ALPHA, GAMMA),
+    ]);
+    const result = executeTurnAs(state, coast(1));
+    expect(eventsOf(result.events, "cargo_picked_up")).toHaveLength(CARGO_HOLD_CRATES);
+    const aboard = getPlayer(result.gameState, "p1").cargo.filter((c) => c.isPickedUp);
+    expect(aboard).toHaveLength(CARGO_HOLD_CRATES);
+    // The other crate is still waiting at its station, not lost.
+    expect(getPlayer(result.gameState, "p1").cargo).toHaveLength(2);
+  });
+
+  it("delivers before it loads, so a chained route is still one visit", () => {
+    // Arriving at BETA carrying BETA's crate and with BETA's next crate waiting:
+    // the hold empties and fills in the same dock.
+    const state = withMissions(approaching(BETA), "p1", [
+      deliverMission(ALPHA, BETA),
+      deliverMission(BETA, GAMMA),
+    ]);
+    const loaded = withPlayer(state, "p1", {
+      cargo: state.players[0].cargo.map((c) =>
+        c.pickupPlanetId === ALPHA ? { ...c, isPickedUp: true } : c
+      ),
+    });
+    const result = executeTurnAs(loaded, coast(1));
+    expect(eventTypes(result.events)).toContain("cargo_delivered");
+    const [pickedUp] = eventsOf(result.events, "cargo_picked_up");
+    const outbound = getPlayer(result.gameState, "p1").cargo.find((c) => c.id === pickedUp.cargoId);
+    expect(outbound).toMatchObject({ pickupPlanetId: BETA, deliveryPlanetId: GAMMA });
+    expect(eventsOf(result.events, "cargo_picked_up")).toHaveLength(1);
+  });
+
+  it("carries a data chit alongside a full hold: numbers are not freight", () => {
+    const state = withMissions(approaching(ALPHA), "p1", [deliverMission(ALPHA, BETA)]);
+    const withData = withPlayer(state, "p1", {
+      cargo: [
+        ...state.players[0].cargo,
+        {
+          id: "data-1",
+          missionId: "survey-1",
+          kind: "data",
+          deliveryPlanetId: "any",
+          isPickedUp: true,
+        },
+      ],
+    });
+    const result = executeTurnAs(withData, coast(1));
+    // The chit is filed here and the crate still loads.
+    expect(eventsOf(result.events, "cargo_delivered").map((e) => e.kind)).toEqual(["data"]);
+    expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.kind)).toEqual(["crate"]);
+  });
+
+  it("loads one crate and leaves the second on the dock", () => {
+    // Two routes out of the same station: the hold takes one crate, so the
+    // second is two trips away, not a second chit in the same hold.
+    const state = withMissions(approaching(ALPHA), "p1", [
+      deliverMission(ALPHA, BETA),
+      deliverMission(ALPHA, GAMMA),
+    ]);
+    const result = executeTurnAs(state, coast(1));
+    expect(eventsOf(result.events, "cargo_picked_up")).toHaveLength(1);
+    const cargo = getPlayer(result.gameState, "p1").cargo;
+    expect(cargo.filter((c) => c.isPickedUp)).toHaveLength(1);
+    expect(cargo.filter((c) => !c.isPickedUp)).toHaveLength(1);
+  });
+
+  it("a chained route is one trip: the crate dropped here frees the hold for the next", () => {
+    // Alpha→Beta with the crate aboard, arriving at Beta, where Beta→Gamma's
+    // crate is waiting. Unload, then load.
+    const outbound = deliverMission(ALPHA, BETA);
+    const onward = deliverMission(BETA, GAMMA);
+    let state = withMissions(approaching(BETA), "p1", [outbound, onward]);
+    state = withPlayer(state, "p1", {
+      cargo: getPlayer(state, "p1").cargo.map((c) =>
+        c.missionId === outbound.id ? { ...c, isPickedUp: true } : c
+      ),
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual([
+      outbound.cargoId,
+    ]);
+    expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.cargoId)).toEqual([
+      onward.cargoId,
+    ]);
+  });
+
+  it("data rides free: a chit aboard never keeps a crate off the ship", () => {
+    const mission = deliverMission(ALPHA, BETA);
+    let state = withMissions(approaching(ALPHA), "p1", [mission]);
+    state = withPlayer(state, "p1", {
+      cargo: [
+        ...getPlayer(state, "p1").cargo,
+        {
+          id: "data-1",
+          missionId: "survey-1",
+          kind: "data",
+          deliveryPlanetId: "any",
+          isPickedUp: true,
+        },
+      ],
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.cargoId)).toEqual([
+      mission.cargoId,
+    ]);
+  });
+
+  it("a crate is loaded on arrival, not by sitting in the berth", () => {
+    const state = withMissions(approaching(ALPHA), "p1", [deliverMission(ALPHA, BETA)]);
+    const arrival = executeTurnAs(state, coast(1));
+    expect(eventTypes(arrival.events)).toContain("cargo_picked_up");
+    const holding = executeTurnAs(mustExecute(arrival.gameState, coast(1)), coast(1));
+    expect(eventTypes(holding.events)).not.toContain("cargo_picked_up");
   });
 
   it("a destroyed ship on a station's sector is off the board and rides nothing", () => {

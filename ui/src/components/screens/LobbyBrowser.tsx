@@ -24,6 +24,7 @@ import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary'
 import type { GlobalSocketMessage, LobbyListItem } from '../../api/types'
+import { MAX_PLAYERS, MIN_PLAYERS } from '@dangerous-inclinations/engine'
 import { createLobby, joinLobby, listLobbies } from '../../api/lobby'
 import { usePlayer } from '../../context/PlayerContext'
 import { useWebSocket } from '../../context/WebSocketContext'
@@ -38,6 +39,12 @@ interface LobbyBrowserProps {
 function isGlobalMessage(data: unknown): data is GlobalSocketMessage {
   return typeof data === 'object' && data !== null && typeof (data as { type?: unknown }).type === 'string'
 }
+
+/** Table sizes on offer: whatever the rules allow (RULES §Setup). */
+const SEAT_COUNTS = Array.from(
+  { length: MAX_PLAYERS - MIN_PLAYERS + 1 },
+  (_, i) => MIN_PLAYERS + i
+)
 
 export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserProps) {
   const { playerName, setPlayerName } = usePlayer()
@@ -220,7 +227,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
             fullWidth
           />
           <Select value={newMax} onChange={(e) => setNewMax(Number(e.target.value))} fullWidth size="small">
-            {[2, 3, 4].map((n) => (
+            {SEAT_COUNTS.map((n) => (
               <MenuItem key={n} value={n}>
                 {n} players
               </MenuItem>

@@ -6,12 +6,11 @@
  */
 import type { Facing, Player, Position } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
-import { getMissileStats, getSubsystemConfig } from "../../models/subsystems.ts";
+import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { getMaxRing } from "../../models/gravityWells.ts";
-import { driftPosition, ringVelocity, samePosition } from "../../game/geometry.ts";
-import { projectMissilePath } from "../../game/missiles.ts";
-import { isInWeaponRange } from "../../game/targeting.ts";
+import { ringVelocity } from "../../game/geometry.ts";
+import { canEngage } from "../../game/targeting.ts";
 import type { BotParameters, Opponent, SuspectedSlot, TacticalSituation } from "../types.ts";
 import { INTERDICT_DANGER } from "../types.ts";
 import type { PlannerTarget } from "../movementPlanner/index.ts";
@@ -109,6 +108,12 @@ export function isWeaponReady(weapon: Subsystem): boolean {
  * Planner target: any position from which one of `weapons` could hit a
  * ship that drifts on its ring from `start`. Either facing is accepted
  * because the bot can rotate on the firing turn.
+ *
+ * "Could hit", not "may fire at": a missile may legally be launched at
+ * anything in the well, so a launcher that asked the range rule alone would
+ * count every sector as a firing position and never close (measured: bots
+ * stopped moving and 58% of games ran to the turn cap). {@link canEngage}
+ * asks whether the missile would actually run the target down.
  */
 export function weaponRangeTarget(weapons: Subsystem[], start: Position): PlannerTarget {
   const velocity = ringVelocity(start.wellId, start.ring);
@@ -123,39 +128,15 @@ export function weaponRangeTarget(weapons: Subsystem[], start: Position): Planne
       if (pos.wellId !== target.wellId) return false;
       for (const facing of ["prograde", "retrograde"] as const) {
         const attacker = { ...pos, facing };
-        if (weapons.some((w) => isInWeaponRange(w, attacker, target))) return true;
+        // The bot moves to this position and fires from it: a missile launched
+        // there rode along with the ship.
+        if (weapons.some((w) => canEngage(w, attacker, target, true))) return true;
       }
       return false;
     },
     period: driftPeriod(velocity),
     describe: () => `weapon range of ${start.wellId} R${start.ring} S${start.sector}`,
   };
-}
-
-/**
- * Best-case flight simulation: can a missile launched from `from` land on a
- * target at `target` (assumed to coast) before it expires? Uses the engine's
- * own {@link projectMissilePath}, so the launch-after-move exception (a
- * missile launched once the ship has moved rode along and does not drift
- * again that turn) is accounted for exactly as the engine will replay it.
- */
-export function missileCanReach(
-  from: Position,
-  target: Position,
-  launchedAfterMove: boolean
-): boolean {
-  if (from.wellId !== target.wellId) return false;
-  const stats = getMissileStats();
-  let missile: Position & { launchedAfterMove: boolean } = { ...from, launchedAfterMove };
-  let victim = target;
-  for (let move = 0; move < stats.maxMoves; move++) {
-    const path = projectMissilePath(missile, victim);
-    const end = path[path.length - 1];
-    if (samePosition(end, victim)) return true;
-    missile = { ...end, launchedAfterMove: false };
-    victim = driftPosition(victim);
-  }
-  return false;
 }
 
 /**
@@ -275,8 +256,8 @@ export function firingOptions(
     const damage = weaponDamage(weapon);
     const energy = weaponEnergy(weapon);
     const shielded = shieldsStop(weapon);
-    const inPre = isInWeaponRange(weapon, ctx.pre, targetPos);
-    const inPost = isInWeaponRange(weapon, ctx.post, targetPos);
+    const inPre = canEngage(weapon, ctx.pre, targetPos, false);
+    const inPost = canEngage(weapon, ctx.post, targetPos, true);
 
     if (weapon.type === "railgun") {
       // Recoil moves the ship a ring, which would derail a burn or jump
@@ -308,10 +289,6 @@ export function firingOptions(
     if (weapon.type === "missiles") {
       const phase: FiringPhase | null = inPost ? "post" : inPre ? "pre" : null;
       if (!phase) continue;
-      const launchFrom = phase === "post" ? ctx.post : ctx.pre;
-      // Every candidate contains a movement action, so a post-movement
-      // launch is a launch-after-move: the missile skips its first drift.
-      if (!missileCanReach(launchFrom, targetPos, phase === "post")) continue;
       if (parameters.conserveAmmo && (weapon.ammo ?? 0) <= 1 && target.hull > damage) continue;
       intents.push({
         weapon,

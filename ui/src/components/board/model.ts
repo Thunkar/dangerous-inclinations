@@ -23,12 +23,12 @@ import {
   SECTORS_PER_RING,
   deploymentPositions,
   getJumpOptions,
+  canEngage,
   getSubsystemConfig,
-  isInWeaponRange,
   projectMissilePath,
   samePosition,
 } from '@dangerous-inclinations/engine'
-import type { ShipMotion, TableEffect } from '../../context/AnimationContext'
+import type { Ping, ShipMotion, TableEffect } from '../../context/AnimationContext'
 import { useAnimation } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
@@ -75,6 +75,8 @@ export interface FocusWeapon {
   weapon: Subsystem
   from: Position
   facing: Facing
+  /** The shot comes after this turn's move: a missile rides along and skips a drift. */
+  afterMoving: boolean
 }
 
 export interface BoardModelOptions {
@@ -116,6 +118,13 @@ export interface BoardModel {
   animating: boolean
   /** Transient effects pushed by the animator; each carries `start` and `duration`. */
   effects: TableEffect[]
+  /**
+   * A ship the player asked to be shown. The rings are already in `effects`;
+   * this is here for the renderers that can do more — the 3D board swings its
+   * camera to the well. Its `id` changes on every ping, so asking for the same
+   * ship twice answers twice.
+   */
+  ping: Ping | null
   /** This seat's colour, or null for a spectator. */
   myColor: string | null
   colorOf: (playerId: string) => string
@@ -126,7 +135,7 @@ export interface BoardModel {
 
 export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions): BoardModel {
   const { view, nameOf } = useGame()
-  const { overlay, effects } = useAnimation()
+  const { overlay, effects, pinged } = useAnimation()
   const plan = usePlanOptional()
 
   const colorOf = useCallback(
@@ -217,23 +226,34 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       s => s.kind === 'fire' && s.subsystemId === plan.focusWeaponId
     )
     const at = stepIndex >= 0 ? plan.stepStart[stepIndex] : plan.finalPosition
-    return { weapon, from: at.position, facing: at.facing }
+    const moveIndex = plan.steps.findIndex(s => s.kind === 'move')
+    return {
+      weapon,
+      from: at.position,
+      facing: at.facing,
+      afterMoving: stepIndex < 0 || (moveIndex >= 0 && stepIndex > moveIndex),
+    }
   }, [plan, overlay])
 
   /**
    * The range is the engine's answer, sector by sector — the UI never
    * re-implements a rule, and both boards shade exactly the same wedges.
+   *
+   * `canEngage`, not the bare range rule: a missile may legally be launched at
+   * anyone in the well, so the rule alone would shade every sector of it and
+   * say nothing. What the player needs to see is where a missile would
+   * actually run a coasting ship down before it expires.
    */
   const rangeCells = useMemo<Position[]>(() => {
     if (!focusWeapon) return []
-    const { weapon, from, facing } = focusWeapon
+    const { weapon, from, facing, afterMoving } = focusWeapon
     if (!getSubsystemConfig(weapon.type).weaponStats) return []
     const attacker = { wellId: from.wellId, ring: from.ring, sector: from.sector, facing }
     const cells: Position[] = []
     for (const ring of ringsOf(from.wellId)) {
       for (let sector = 0; sector < SECTORS_PER_RING; sector++) {
         const cell: Position = { wellId: from.wellId, ring: ring.ring, sector }
-        if (isInWeaponRange(weapon, attacker, cell)) cells.push(cell)
+        if (canEngage(weapon, attacker, cell, afterMoving)) cells.push(cell)
       }
     }
     return cells
@@ -344,6 +364,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       deployment,
       animating: overlay !== null,
       effects,
+      ping: pinged,
       myColor,
       colorOf,
       nameOf,
@@ -367,6 +388,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       deployment,
       overlay,
       effects,
+      pinged,
       myColor,
       colorOf,
       nameOf,

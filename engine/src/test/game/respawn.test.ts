@@ -89,7 +89,7 @@ describe("respawn: destruction drops cargo", () => {
         { ...data, missionId: intercept.id },
         { ...crate, id: "crate-2", isPickedUp: false },
       ],
-      missions: [intercept, { ...surveyMission(), surveyAcquired: true }],
+      missions: [intercept, { ...surveyMission(), acquired: true }],
     });
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
     expect(eventsOf(result.events, "cargo_dropped")).toEqual([
@@ -102,7 +102,7 @@ describe("respawn: destruction drops cargo", () => {
     ]);
     expect(
       p2.missions.map((m) =>
-        "scanAcquired" in m ? m.scanAcquired : "surveyAcquired" in m ? m.surveyAcquired : null
+        "scanAcquired" in m ? m.scanAcquired : "acquired" in m ? m.acquired : null
       )
     ).toEqual([false, true]);
   });

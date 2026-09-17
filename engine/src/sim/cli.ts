@@ -18,6 +18,7 @@
  *   --tiles=ballistic_rack.damage=3,fuel_compressor.slotType=side  experiment-only tile overrides (any field of any tile)
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)
  *   --seats=bot-1=railgun/missiles,radiator,laser,shields  force a hull on a seat, whatever its hand asks for
+ *   --hands=bot-1=1       force the shape of a seat's hand: how many two-point cards it keeps
  *   --quiet       no per-game progress
  */
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -30,8 +31,10 @@ import { parseWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts
 import { parseTileOverrides, type TileOverrides } from "./tileOverrides.ts";
 import {
   parseLoadoutOverrides,
+  parseSeatHands,
   parseSeatLoadouts,
   type LoadoutOverrides,
+  type SeatHands,
   type SeatLoadouts,
 } from "./loadoutOverrides.ts";
 
@@ -50,6 +53,7 @@ interface Args {
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
+  seatHands?: SeatHands;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -117,6 +121,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "seats":
         args.seatLoadouts = parseSeatLoadouts(value);
+        break;
+      case "hands":
+        args.seatHands = parseSeatHands(value);
         break;
       default:
         console.warn(`Unknown flag --${key}`);
@@ -201,6 +208,7 @@ async function main(): Promise<void> {
     weapons: args.weapons,
     loadouts: args.loadouts,
     seatLoadouts: args.seatLoadouts,
+    seatHands: args.seatHands,
     onProgress: args.quiet
       ? undefined
       : (done, total, last) => {

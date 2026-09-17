@@ -8,13 +8,17 @@
  * - fuel held as a share of capacity at the start of the turn
  * - turns spent scooping, and how much of the scoop was thrown away because
  *   the tank was already full (the tank tile's whole value)
- * - jumps taken and the fuel a compressor refunded (the compressor's value)
+ * - jumps taken and the fuel a compressor saved (the compressor's value)
  * - turns where the ship ended with no fuel for even a soft burn
  */
 import { runGame } from "./runGame.ts";
 import { applyLoadoutOverrides, parseLoadoutOverrides } from "./loadoutOverrides.ts";
 import { ringVelocity } from "../game/geometry.ts";
 import { MAX_REACTION_MASS } from "../models/game.ts";
+import { WELL_TRANSFER_COSTS } from "../models/rings.ts";
+
+/** Fuel a compressor saves on one lane. */
+const SAVED = WELL_TRANSFER_COSTS.mass;
 import type { GameState } from "../models/game.ts";
 
 const games = Number(process.argv[2] ?? 120);
@@ -29,7 +33,7 @@ let scoopGain = 0;
 let scoopPotential = 0;
 let cappedScoops = 0;
 let jumps = 0;
-let jumpRefunded = 0;
+let jumpCompressed = 0;
 let dryTurns = 0;
 let atCapTurns = 0;
 const fuelShare: number[] = [];
@@ -63,7 +67,7 @@ for (let g = 0; g < games; g++) {
       }
       if (e.type === "jumped" && e.playerId === turn.playerId) {
         jumps++;
-        if (e.refunded) jumpRefunded++;
+        if (e.compressed) jumpCompressed++;
       }
     }
   }
@@ -80,7 +84,7 @@ console.log(
 );
 console.log(`scoops capped by a full tank: ${pct(cappedScoops, scoopTurns)}`);
 console.log(
-  `jumps: ${jumps} (${(jumps / games).toFixed(2)}/game), of which refunded by a compressor ${pct(jumpRefunded, jumps)} — ${jumpRefunded * 3} fuel, ${((jumpRefunded * 3) / games).toFixed(1)}/game`
+  `jumps: ${jumps} (${(jumps / games).toFixed(2)}/game), of which compressed ${pct(jumpCompressed, jumps)} — ${jumpCompressed * SAVED} fuel saved, ${((jumpCompressed * SAVED) / games).toFixed(1)}/game`
 );
 console.log(
   `capacities seen (turns): ${[...capacities.entries()].sort((a, b) => a[0] - b[0]).map(([c, n]) => `${c}: ${pct(n, acting)}`).join(", ")}`

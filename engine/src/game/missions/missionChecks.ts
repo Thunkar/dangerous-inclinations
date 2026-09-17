@@ -6,10 +6,39 @@
  */
 import type { GameState, Player } from "../../models/game.ts";
 import type { EventDraft } from "../../models/events.ts";
-import type { Mission } from "../../models/missions.ts";
-import { DESTROY_POINTS, MISSIONS_TO_WIN, SURVEY_RING } from "../../models/missions.ts";
+import type { DaringMission, Mission } from "../../models/missions.ts";
+import { MISSIONS_TO_WIN, SURVEY_RING, missionPoints } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
+
+/**
+ * Whether a daring card's thing has been done, read off the board at the end
+ * of the turn — and, for the grand tour, the wells ticked off so far.
+ *
+ * A wreck does nothing daring: a destroyed ship is off the board until it is
+ * rebuilt at Home.
+ */
+function daringDone(mission: DaringMission, player: Player, state: GameState): boolean {
+  const ship = player.ship;
+  if (isDestroyed(ship)) return false;
+  switch (mission.type) {
+    case "survey":
+      // The dive: the innermost ring of the black hole, held to the end of a turn.
+      return ship.wellId === BLACK_HOLE_ID && ship.ring === SURVEY_RING;
+    case "board": {
+      // Matched orbits with somebody: the same well, ring and sector.
+      return state.players.some(
+        (p) =>
+          p.id !== player.id &&
+          p.hasDeployed &&
+          !isDestroyed(p.ship) &&
+          p.ship.wellId === ship.wellId &&
+          p.ship.ring === ship.ring &&
+          p.ship.sector === ship.sector
+      );
+    }
+  }
+}
 
 export interface MissionCheckResult {
   state: GameState;
@@ -58,20 +87,33 @@ export function processMissionEvents(
         if (mission.scanAcquired && deliveredCargoIds.has(mission.dataCargoId))
           next = { ...mission, isCompleted: true };
         break;
-      case "survey": {
+      case "garbage_disposal": {
+        // The load goes over the side on the innermost ring: no chit, no
+        // filing, the card is done the moment the hold is empty again.
+        const load = cargo.find((c) => c.id === mission.cargoId);
+        const overTheSide =
+          load?.isPickedUp === true &&
+          !isDestroyed(player.ship) &&
+          player.ship.wellId === BLACK_HOLE_ID &&
+          player.ship.ring === SURVEY_RING;
+        if (overTheSide) {
+          cargo = cargo.filter((c) => c.id !== mission.cargoId);
+          next = { ...mission, isCompleted: true };
+          events.push({
+            type: "cargo_dumped",
+            playerId,
+            cargoId: mission.cargoId,
+            at: { wellId: player.ship.wellId, ring: player.ship.ring, sector: player.ship.sector },
+          });
+        }
+        break;
+      }
+      case "survey":
+      case "board": {
         let m = mission;
-        // The data is taken by ending a turn on the innermost black hole ring
-        // with the sensor array powered. The dive is the mission.
-        if (!m.surveyAcquired) {
-          const onRing =
-            !isDestroyed(player.ship) &&
-            player.ship.wellId === BLACK_HOLE_ID &&
-            player.ship.ring === SURVEY_RING;
-          const sensing = player.ship.subsystems.some(
-            (s) => s.type === "sensor_array" && s.isPowered && !s.isBroken
-          );
-          if (onRing && sensing) {
-            m = { ...m, surveyAcquired: true };
+        if (!m.acquired) {
+          if (daringDone(m, player, state)) {
+            m = { ...m, acquired: true };
             cargo = [
               ...cargo,
               {
@@ -85,20 +127,19 @@ export function processMissionEvents(
             events.push({
               type: "data_acquired",
               playerId,
-              kind: "survey",
+              kind: m.type,
               missionId: m.id,
               privateTo: [playerId],
             });
           }
         }
-        if (m.surveyAcquired && deliveredCargoIds.has(m.dataCargoId))
-          m = { ...m, isCompleted: true };
+        if (m.acquired && deliveredCargoIds.has(m.dataCargoId)) m = { ...m, isCompleted: true };
         next = m;
         break;
       }
     }
 
-    if (next.isCompleted) completed += next.type === "destroy_ship" ? DESTROY_POINTS : 1;
+    if (next.isCompleted) completed += missionPoints(next.type);
     return next;
   });
 

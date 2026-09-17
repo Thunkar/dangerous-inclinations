@@ -19,6 +19,7 @@ import { describeMission, describeMissionRequirement } from "../../game/describe
 import type { SubsystemType } from "../../models/subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "../../models/subsystems.ts";
 import type { Mission, MissionRequirement } from "../../models/missions.ts";
+import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
 import { MISSION_OFFERS_PER_PLAYER, MISSION_REQUIREMENTS } from "../../models/missions.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { DEFAULT_LOADOUT } from "../../models/game.ts";
@@ -43,10 +44,26 @@ const SPECS = [
   { id: "p2", name: "Bo" },
 ];
 
-const pickFirst3 = (state: GameState, playerId: string) =>
+/** A legal hand: the first MISSIONS_PER_PLAYER cards offered. */
+const pickHand = (state: GameState, playerId: string) =>
   getPlayer(state, playerId)
-    .missionOffers.slice(0, 3)
+    .missionOffers.slice(0, MISSIONS_PER_PLAYER)
     .map((m) => m.id);
+
+/** Filler that any mat can fly, to pad a hand out to its full size. */
+const padHand = (cards: Mission[]): Mission[] => {
+  const routes: Array<[string, string]> = [
+    ["planet-alpha", "planet-beta"],
+    ["planet-beta", "planet-gamma"],
+    ["planet-gamma", "planet-alpha"],
+    ["planet-alpha", "planet-gamma"],
+  ];
+  const padded = [...cards];
+  for (let i = 0; padded.length < MISSIONS_PER_PLAYER; i++) {
+    padded.push(deliverMission(routes[i][0], routes[i][1]));
+  }
+  return padded;
+};
 
 /**
  * A mat that can fly any hand: the sensor array is what Intercept and Survey
@@ -62,11 +79,11 @@ function readyToDeploy(seed = 11): GameState {
   let state = createGame(SPECS, seed);
   state = submitLoadout(state, "p1", {
     loadout: ANY_HAND,
-    missionIds: pickFirst3(state, "p1"),
+    missionIds: pickHand(state, "p1"),
   }).state;
   state = submitLoadout(state, "p2", {
     loadout: ANY_HAND,
-    missionIds: pickFirst3(state, "p2"),
+    missionIds: pickHand(state, "p2"),
   }).state;
   return state;
 }
@@ -135,7 +152,7 @@ describe("setup: submitLoadout", () => {
 
   it("records the loadout and mission picks, issuing crates for deliver missions", () => {
     const start = createGame(SPECS, 3);
-    const ids = pickFirst3(start, "p1");
+    const ids = pickHand(start, "p1");
     const { state, error } = submitLoadout(start, "p1", { loadout: custom, missionIds: ids });
     expect(error).toBeUndefined();
     const p1 = getPlayer(state, "p1");
@@ -160,19 +177,33 @@ describe("setup: submitLoadout", () => {
       (s: GameState) => ({ ...s, phase: "active" as const }),
       "p1",
       DEFAULT_LOADOUT,
-      3,
+      MISSIONS_PER_PLAYER,
       /phase/i,
     ],
-    ["an unknown player", (s: GameState) => s, "p9", DEFAULT_LOADOUT, 3, /not found/i],
+    [
+      "an unknown player",
+      (s: GameState) => s,
+      "p9",
+      DEFAULT_LOADOUT,
+      MISSIONS_PER_PLAYER,
+      /not found/i,
+    ],
     [
       "an invalid loadout",
       (s: GameState) => s,
       "p1",
       { forwardSlots: ["laser"], sideSlots: ["laser", "laser", "laser", "laser"] } as ShipLoadout,
-      3,
+      MISSIONS_PER_PLAYER,
       /forward slot/i,
     ],
-    ["too few missions", (s: GameState) => s, "p1", DEFAULT_LOADOUT, 2, /exactly 3/i],
+    [
+      "too few missions",
+      (s: GameState) => s,
+      "p1",
+      DEFAULT_LOADOUT,
+      MISSIONS_PER_PLAYER - 1,
+      /exactly/i,
+    ],
   ])(
     "rejects %s and returns the state unchanged",
     (_label, prep, playerId, loadout, picks, message) => {
@@ -188,16 +219,16 @@ describe("setup: submitLoadout", () => {
     const start = createGame(SPECS, 3);
     const foreign = submitLoadout(start, "p1", {
       loadout: DEFAULT_LOADOUT,
-      missionIds: pickFirst3(start, "p2"),
+      missionIds: pickHand(start, "p2"),
     });
     expect(foreign.error).toMatch(/not found in your offers/i);
     const once = submitLoadout(start, "p1", {
       loadout: ANY_HAND,
-      missionIds: pickFirst3(start, "p1"),
+      missionIds: pickHand(start, "p1"),
     }).state;
     const twice = submitLoadout(once, "p1", {
       loadout: ANY_HAND,
-      missionIds: pickFirst3(start, "p1"),
+      missionIds: pickHand(start, "p1"),
     });
     expect(twice.error).toMatch(/already submitted/i);
   });
@@ -223,7 +254,9 @@ describe("setup: a kept card the mat can never fly", () => {
     ["a Destroy", destroyMission("p2"), [], [WEAPON]],
     ["a Deliver", deliverMission("planet-alpha", "planet-beta"), [], []],
     ["an Intercept", interceptMission("p2"), [SENSOR_ARRAY], []],
-    ["a Survey", surveyMission(), [SENSOR_ARRAY], []],
+    // A Survey is a dive, not a reading taken with an instrument: no mat lacks
+    // anything for it.
+    ["a Survey", surveyMission(), [], []],
   ];
 
   it.each(CARDS)("%s knows what each mat lacks for it", (_label, mission, onGunship, onUnarmed) => {
@@ -264,16 +297,11 @@ describe("setup: a kept card the mat can never fly", () => {
 
   it.each([
     ["an Intercept on a hull with no sensor array", interceptMission("p2"), GUNSHIP, SENSOR_ARRAY],
-    ["a Survey on a hull with no sensor array", surveyMission(), GUNSHIP, SENSOR_ARRAY],
     ["a Destroy on a hull with no weapon", destroyMission("p2"), UNARMED, WEAPON],
   ] as Array<[string, Mission, ShipLoadout, MissionRequirement]>)(
     "refuses %s, naming the card and what it needs",
     (_label, card, loadout, requirement) => {
-      const hand = [
-        card,
-        deliverMission("planet-alpha", "planet-beta"),
-        deliverMission("planet-beta", "planet-gamma"),
-      ];
+      const hand = padHand([card]);
       const state = offered(hand);
       const result = submitLoadout(state, "p1", {
         loadout,
@@ -286,7 +314,7 @@ describe("setup: a kept card the mat can never fly", () => {
   );
 
   it("accepts a hand needing both once the array and a gun are aboard", () => {
-    const hand = [interceptMission("p2"), surveyMission(), destroyMission("p2")];
+    const hand = padHand([interceptMission("p2"), surveyMission(), destroyMission("p2")]);
     const state = offered(hand);
     const result = submitLoadout(state, "p1", {
       loadout: ANY_HAND,
@@ -297,11 +325,7 @@ describe("setup: a kept card the mat can never fly", () => {
   });
 
   it("lets an unflyable card be left in the offers: only kept cards are checked", () => {
-    const keep = [
-      deliverMission("planet-alpha", "planet-beta"),
-      deliverMission("planet-beta", "planet-gamma"),
-      surveyMission("survey-keep"),
-    ];
+    const keep = padHand([surveyMission("survey-keep")]);
     const state = offered([...keep, destroyMission("p2"), interceptMission("p2")]);
     const result = submitLoadout(state, "p1", {
       loadout: UNARMED,

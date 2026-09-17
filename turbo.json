@@ -3,22 +3,47 @@
   "ui": "stream",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json", "package.json"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "src/**",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json", "package.json", "vitest.config.ts"],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "src/**",
+        "tsconfig.json",
+        "package.json",
+        "vitest.config.ts"
+      ],
       "outputs": []
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "sim": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "bench": {
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false
     }
   }

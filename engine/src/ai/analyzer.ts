@@ -14,7 +14,8 @@ import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import { positionOf, sectorDistance } from "../game/geometry.ts";
 import { getDissipationCapacity, hasWorkingCompressor } from "../game/ship.ts";
 import { MAX_REACTION_MASS } from "../models/game.ts";
-import { isInWeaponRange } from "../game/targeting.ts";
+import { canEngage } from "../game/targeting.ts";
+import { isMooredAt } from "../game/stations.ts";
 import type {
   BotParameters,
   BotStatus,
@@ -129,7 +130,7 @@ export function slotAsSubsystem(slot: SlotView, type: SubsystemType = slot.type!
   };
 }
 
-export function analyzeStatus(me: Player): BotStatus {
+export function analyzeStatus(me: Player, stations: Station[] = []): BotStatus {
   const ship = me.ship;
   const find = (id: string) => ship.subsystems.find((s) => s.id === id)!;
   const dissipation = getDissipationCapacity(ship.subsystems);
@@ -144,6 +145,7 @@ export function analyzeStatus(me: Player): BotStatus {
     maxReactionMass: MAX_REACTION_MASS,
     position: positionOf(ship),
     facing: ship.facing,
+    moored: isMooredAt(stations, positionOf(ship)),
     engines: find("engines"),
     rotation: find("rotation"),
     scoop: find("scoop"),
@@ -171,9 +173,12 @@ function analyzeOpponent(player: PlayerView, myPosition: Position, stations: Sta
     if (slot.type === null) {
       // Face-down: the cubes are the only evidence.
       const suspected = sameWell ? suspectedWeapon(slot) : null;
+      // canEngage, not the bare range rule: a missile may be launched at
+      // anyone in the well, so a launcher only threatens me from somewhere its
+      // missile could actually run me down.
       const inRange =
         suspected !== null &&
-        isInWeaponRange(slotAsSubsystem(slot, suspected.type), attacker, myPosition);
+        canEngage(slotAsSubsystem(slot, suspected.type), attacker, myPosition);
       unknownSlots.push({ slot, suspected, inRange });
       if (inRange && suspected) threatInRange += suspected.damage * suspected.confidence;
       continue;
@@ -183,7 +188,7 @@ function analyzeOpponent(player: PlayerView, myPosition: Position, stations: Sta
     const weapon = slotAsSubsystem(slot);
     const isPowered = isSlotPowered(slot, slot.type);
     const inRange =
-      !weapon.isBroken && isPowered && sameWell && isInWeaponRange(weapon, attacker, myPosition);
+      !weapon.isBroken && isPowered && sameWell && canEngage(weapon, attacker, myPosition);
     knownWeapons.push({
       slotId: slot.id,
       type: slot.type,
@@ -214,7 +219,7 @@ function analyzeOpponent(player: PlayerView, myPosition: Position, stations: Sta
 export function analyzeSituation(view: GameView, parameters: BotParameters): TacticalSituation {
   const me = view.me;
   if (!me) throw new Error("Cannot analyze a spectator view");
-  const status = analyzeStatus(me);
+  const status = analyzeStatus(me, view.stations);
 
   const opponents = view.players
     .filter((p) => !p.isMe && p.hasDeployed && p.ship && !p.ship.isDestroyed)

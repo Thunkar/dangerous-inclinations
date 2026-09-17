@@ -3,12 +3,16 @@ import { opponentPositions, viewFor } from "../../game/view.ts";
 import { canSeeEvent, filterEventsFor } from "../../models/events.ts";
 import type { GameEvent } from "../../models/events.ts";
 import type { ShipLoadout } from "../../models/game.ts";
+import { STARTING_REACTION_MASS } from "../../models/game.ts";
 import {
   destroyMission,
   ALPHA,
   BH,
   allocate,
+  burn,
+  coast,
   deallocate,
+  mustExecute,
   eventTypes,
   executeTurnAs,
   makeTwoPlayerGame,
@@ -103,7 +107,7 @@ describe("view: what an opponent's mat shows", () => {
     ).toBe(true);
   });
 
-  it("exposes position, facing, hull, heat and the free reactor pool but not fuel, ammo, cards or intel", () => {
+  it("exposes position, facing, hull, heat, fuel and the free reactor pool, but not ammo, cards or intel", () => {
     const state = withPower(
       withShip(knownGame(), "p2", { heat: { currentHeat: 3 }, hitPoints: 7 }),
       "p2",
@@ -120,20 +124,32 @@ describe("view: what an opponent's mat shows", () => {
       maxHitPoints: 10,
       heat: 3,
       reactorAvailable: 6,
+      fuel: STARTING_REACTION_MASS,
       isDestroyed: false,
     });
-    for (const secret of [
-      "missions",
-      "missionOffers",
-      "cargo",
-      "intel",
-      "reactor",
-      "reactionMass",
-      "subsystems",
-    ]) {
+    for (const secret of ["missions", "missionOffers", "cargo", "intel", "reactor", "subsystems"]) {
       expect(opponent).not.toHaveProperty(secret);
     }
-    expect(JSON.stringify(opponent)).not.toMatch(/ammo|reactionMass/);
+    expect(JSON.stringify(opponent)).not.toMatch(/ammo/);
+  });
+
+  it("fuel is public: a rival's tank is on the table like their hull", () => {
+    const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
+    const after = mustExecute(state, burn(1, "medium", 2));
+    // A medium burn is 2 fuel, phased 2 sectors for 2 more.
+    expect(viewFor(after, "p2").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS - 4);
+    expect(viewFor(after, "p1").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS - 4);
+  });
+
+  it("a rebuilt ship shows a full tank again", () => {
+    let state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
+    state = mustExecute(state, burn(1, "soft"));
+    expect(viewFor(state, "p2").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS - 1);
+    state = withShip(state, "p1", { hitPoints: 0 });
+    // p2 acts, then p1's turn begins with the respawn.
+    state = mustExecute(state, coast(1));
+    state = mustExecute(state, coast(1));
+    expect(viewFor(state, "p2").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS);
   });
 
   it.each([

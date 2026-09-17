@@ -126,7 +126,9 @@ export type BotGoalType =
   | "interdict" // no card needed: stop the player who is about to win
   | "shadow" // intercept: get within scan range of the target
   | "dock" // deliver, deliver data, repair: end a turn on a station
-  | "survey"; // end a turn on black hole ring SURVEY_RING
+  | "survey" // end a turn on black hole ring SURVEY_RING
+  | "board" // end a turn in another ship's exact sector
+  | "tour"; // grand tour: be in the planet well this goal names
 
 /**
  * A goal derived from a mission (or from the need to repair). The bot
@@ -163,6 +165,8 @@ export interface BotStatus {
   maxReactionMass: number;
   position: Position;
   facing: Facing;
+  /** Docked at a station: a coast holds the berth, and the scoop cannot run. */
+  moored: boolean;
   engines: Subsystem;
   rotation: Subsystem;
   scoop: Subsystem;
@@ -212,6 +216,8 @@ export interface ActionPlan {
   heatDamage: number;
   /** Reaction mass spent. */
   massSpent: number;
+  /** The plan leaves a station berth (only a burn can). */
+  castsOff: boolean;
   /** Whether the plan finishes a mission step (dock, survey, scan, kill). */
   completesStep: boolean;
   /**

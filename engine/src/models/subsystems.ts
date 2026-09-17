@@ -14,7 +14,7 @@
  *
  * Hidden information:
  * - Loadout tiles start face-down (`isRevealed: false`). A tile flips face-up
- *   the first time it does something visible (fires, absorbs, scans, refunds,
+ *   the first time it does something visible (fires, absorbs, scans, discounts,
  *   prevents heat damage) or when it is broken by a critical hit.
  * - Fixed systems are always revealed.
  * - Energy on a tile is public even while the tile is face-down: everyone can
@@ -69,8 +69,8 @@ export const ALL_SUBSYSTEM_IDS: readonly SubsystemId[] = [...FIXED_SUBSYSTEM_TYP
 
 export interface WeaponStats {
   damage: number;
-  ringRange: number; // How many rings away can be targeted (±ringRange)
-  sectorRange: number; // ±sectors covered (spinal: sectors ahead)
+  ringRange?: number; // How many rings away can be targeted (±ringRange); a turret has no box
+  sectorRange?: number; // ±sectors covered (spinal: sectors ahead); a turret has no box
   arc: "spinal" | "broadside" | "turret";
   hasRecoil?: boolean; // Railgun: pushes the ship one ring unless compensated
   sideRestricted?: boolean; // Broadside weapons on a side only fire toward that side
@@ -228,8 +228,8 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     slotType: "either",
     weaponStats: {
       damage: 2,
-      ringRange: 2,
-      sectorRange: 3,
+      // No ringRange or sectorRange: a guided missile is launched at anyone in
+      // the well and its own flight (fuelPerTurn x maxMoves) is its range.
       arc: "turret",
       maxAmmo: 4,
       fuelPerTurn: 3,

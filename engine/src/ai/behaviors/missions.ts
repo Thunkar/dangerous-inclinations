@@ -5,11 +5,12 @@
  *
  *   destroy_ship               → hunt: get weapons on the target
  *   deliver_cargo              → dock at pickup, then at delivery
- *   intercept_transmission     → shadow (scan range), then dock anywhere
- *   survey                     → hold black hole ring 1 two turns, sensors on, then dock at its planet
+ *   intercept_transmission     → shadow (scan range), then dock at the card's station
+ *   survey / board             → do the thing, then dock anywhere to file the chit
+ *   garbage_disposal           → load at any station, then dive to black hole ring 1
  *   an opponent about to win    → interdict: meet them where their cargo must go
  *   broken systems / low hull  → dock at the nearest station (repairs)
- *   nothing at all             → dock at the nearest station (fuel, cargo)
+ *   nothing at all             → dock at the nearest station (repairs, cargo)
  *
  * Interdiction is the one goal that is not about the bot's own hand. A race
  * for three cards is also a race to stop whoever is ahead: a player two
@@ -214,6 +215,11 @@ export function computeGoals(
       case "deliver_cargo": {
         const crate = me.cargo.find((c) => c.missionId === mission.id);
         const inHand = crate?.isPickedUp ?? false;
+        // The hold takes one crate (RULES §Missions): while another route's
+        // crate is aboard there is nothing to fetch, and the trip to its
+        // station would be a trip to watch it stay on the dock.
+        const holdFull = me.cargo.some((c) => c.kind === "crate" && c.isPickedUp);
+        if (!inHand && holdFull) break;
         const planetId = inHand ? mission.deliveryPlanetId : mission.pickupPlanetId;
         const goal = dockGoal(
           view,
@@ -239,15 +245,53 @@ export function computeGoals(
             urgency: 0,
           });
         } else {
-          const goal = dockAnywhereGoal(view, from, mission, "Deliver scan data", 2);
+          // The card names the station the transmission is filed at.
+          const goal = dockGoal(
+            view,
+            from,
+            mission,
+            mission.deliveryPlanetId,
+            `File the transmission at ${mission.deliveryPlanetId}`,
+            2
+          );
           if (goal) goals.push(goal);
         }
         break;
       }
-      case "survey": {
-        if (!mission.surveyAcquired) {
-          // The data is only taken with the sensor array powered.
-          if (status.sensors.length === 0 || status.sensors.every((s) => s.isBroken)) break;
+      case "garbage_disposal": {
+        // Load at any station, then take it down the well. The hold is the
+        // whole cost: a crate of somebody's freight and a load of garbage
+        // cannot ride together.
+        const load = me.cargo.find((c) => c.missionId === mission.id);
+        if (load?.isPickedUp) {
+          goals.push({
+            type: "survey",
+            missionId: mission.id,
+            description: "Dump the load into the black hole",
+            estimatedTurns: cheapTurnEstimate(from, {
+              wellId: BLACK_HOLE_ID,
+              ring: SURVEY_RING,
+              sector: from.sector,
+            }),
+            urgency: 1,
+          });
+          break;
+        }
+        // Nothing to dump yet, and no room to collect one while a crate is aboard.
+        if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
+        const goal = dockAnywhereGoal(view, from, mission, "Collect a load of garbage", 0);
+        if (goal) goals.push(goal);
+        break;
+      }
+      case "survey":
+      case "board": {
+        if (mission.acquired) {
+          // A chit is filed at whatever station comes next.
+          const goal = dockAnywhereGoal(view, from, mission, "File the chit", 2);
+          if (goal) goals.push(goal);
+          break;
+        }
+        if (mission.type === "survey") {
           goals.push({
             type: "survey",
             missionId: mission.id,
@@ -259,11 +303,22 @@ export function computeGoals(
             }),
             urgency: 0,
           });
-        } else {
-          // Survey data is filed at any station, as scan data is.
-          const goal = dockAnywhereGoal(view, from, mission, "Deliver survey data", 2);
-          if (goal) goals.push(goal);
+          break;
         }
+        // Board: whoever is easiest to match orbits with. Their ship moves, so
+        // the plan is made against a drifting target like any other chase.
+        const prey = [...opponents].sort(
+          (a, b) => cheapTurnEstimate(from, a.position) - cheapTurnEstimate(from, b.position)
+        )[0];
+        if (!prey) break;
+        goals.push({
+          type: "board",
+          missionId: mission.id,
+          description: `Board ${prey.player.name}`,
+          targetPlayerId: prey.player.id,
+          estimatedTurns: cheapTurnEstimate(from, prey.position) + 1,
+          urgency: 0,
+        });
         break;
       }
     }
@@ -294,13 +349,16 @@ export function computeGoals(
     }
   }
 
+  // A station the ship is already moored at is not a destination: docking
+  // resolved the moment it arrived, and it keeps resolving every turn it
+  // holds the berth. Sending it "there" would be a goal satisfied by sitting
+  // still, which is how a bot with no affordable errand left used to hold a
+  // berth for the rest of the game.
+  const elsewhere = PLANETS.map((p) => p.id).filter((id) => !(status.moored && id === from.wellId));
+
   // Repair: docking fixes every broken tile, restores hull and reloads.
   if (status.brokenSubsystems.length > 0 || status.hull <= parameters.repairHullThreshold) {
-    const nearest = nearestPlanet(
-      view,
-      from,
-      PLANETS.map((p) => p.id)
-    );
+    const nearest = nearestPlanet(view, from, elsewhere);
     if (nearest) {
       goals.push({
         type: "dock",
@@ -316,14 +374,12 @@ export function computeGoals(
     }
   }
 
-  // Never stand still: with nothing else to chase, a station is worth a
-  // trip for the fuel, the repairs and whatever cargo turns up there.
+  // Never stand still: with nothing else to chase, a station is worth a trip
+  // for the repairs and whatever cargo turns up there — and it has to be a
+  // trip, since a dock resolves on arrival and the berth underneath the ship
+  // has already given everything it has (RULES §Stations).
   if (goals.length === 0) {
-    const nearest = nearestPlanet(
-      view,
-      from,
-      PLANETS.map((p) => p.id)
-    );
+    const nearest = nearestPlanet(view, from, elsewhere);
     if (nearest) {
       goals.push({
         type: "dock",
@@ -378,6 +434,18 @@ export function attachPlanToGoal(
     case "survey":
       return planned(
         planShipToTarget(ship, anySectorOnRing(BLACK_HOLE_ID, SURVEY_RING), PLAN_TURNS)
+      );
+    case "board": {
+      // The same sector, not near it: a boarding is matched orbits. Their ship
+      // drifts while we close, so it is planned as a moving target.
+      const prey = opponents.find((o) => o.player.id === goal.targetPlayerId);
+      if (!prey) return goal;
+      return planned(planShipToTarget(ship, nearDriftingShip(prey.position, 0), PLAN_TURNS));
+    }
+    case "tour":
+      // Into the well is enough; the lanes arrive on its outer ring.
+      return planned(
+        planShipToTarget(ship, anySectorOnRing(goal.planetId!, PLANET_OUTER_RING), PLAN_TURNS)
       );
     case "shadow": {
       const target = opponents.find((o) => o.player.id === goal.targetPlayerId);

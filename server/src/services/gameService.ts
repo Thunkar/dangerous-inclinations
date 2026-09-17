@@ -60,7 +60,7 @@ export interface GameTransport {
 export interface BotStrategy {
   chooseLoadout(
     offers: Mission[],
-    context: { playerCount: number }
+    context: { playerCount: number; pick?: (n: number) => number }
   ): { missionIds: string[]; loadout: ShipLoadout };
   chooseDeployment(view: GameView, pick: (n: number) => number): { wellId: string; sector: number };
   decideActions(view: GameView): { actions: PlayerAction[] };
@@ -292,6 +292,9 @@ export function createGameService(deps: GameServiceDeps) {
       try {
         const choice = bots.chooseLoadout(player.missionOffers, {
           playerCount: state.players.length,
+          // The bots spread across the hands they could fly; seeded off the
+          // game's own RNG so a recording replays the same table.
+          pick: (n) => pickIndex(state, Array.from({ length: n })),
         });
         submission = { loadout: choice.loadout, missionIds: choice.missionIds };
       } catch (error) {

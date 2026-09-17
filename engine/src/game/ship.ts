@@ -86,7 +86,7 @@ export function getEffectiveCriticalChance(subsystems: ReadonlyArray<Subsystem>)
   return BASE_CRITICAL_CHANCE + count * bonus;
 }
 
-/** True if a working passive system refunds jump fuel (fuel compressor). */
+/** True if a working passive system discounts jump fuel (fuel compressor). */
 export function hasWorkingCompressor(ship: ShipState): boolean {
   return ship.subsystems.some(
     (s) => !s.isBroken && getSubsystemConfig(s.type).passiveEffect?.refuelOnWellTransfer === true
