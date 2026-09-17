@@ -51,6 +51,11 @@ const TRADER: ShipLoadout = {
   forwardSlots: ["sensor_array"],
   sideSlots: ["shields", "radiator", "radiator", "laser"],
 };
+/** Four shield cubes: two points of absorption, enough to eat a rack round whole. */
+const WALLED: ShipLoadout = {
+  forwardSlots: ["sensor_array"],
+  sideSlots: ["radiator", "radiator", "shields", "shields"],
+};
 /** The trader with a rack instead of the laser: shields can stop this one. */
 const PLINKER: ShipLoadout = {
   forwardSlots: ["sensor_array"],
@@ -246,21 +251,24 @@ describe("interdiction goals", () => {
   });
 
   it("does not divert when its guns cannot beat the shield cubes on the target", () => {
-    // A shield tile absorbs damage up to its cubes and is refilled for free
-    // next turn, so a lone one-damage rack can never reach that hull. A laser
-    // skips the shields, so the same trader with a laser does divert.
-    // Same board, same rival, same score: only the bot's hull differs.
+    // A shield tile buys one point of absorption for every two cubes on it, so
+    // the wall below — two tiles, four cubes — stops a two-damage rack whole
+    // and the bot has no business chasing. A laser skips the shields, so the
+    // same trader with a laser does divert. Same board, same rival, same
+    // score: only the bot's hull differs.
     const board = (loadout: ShipLoadout) => {
       let state = aboutToWin(
         makeGameState([
           makePlayer("p1", { wellId: ALPHA, ring: STATION_RING, sector: 6 }, loadout),
-          makePlayer("p2", { wellId: ALPHA, ring: STATION_RING, sector: 8 }),
+          makePlayer("p2", { wellId: ALPHA, ring: STATION_RING, sector: 8 }, WALLED),
         ]),
         "p2",
         [crate(BETA, ALPHA)]
       );
-      state = withSub(state, "p2", "side-2", { isRevealed: true });
-      return withPower(state, "p2", "side-2", 2);
+      for (const id of ["side-2", "side-3"] as const) {
+        state = withPower(withSub(state, "p2", id, { isRevealed: true }), "p2", id, 2);
+      }
+      return state;
     };
 
     const disarmed = board(PLINKER);

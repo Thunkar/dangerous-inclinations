@@ -20,6 +20,7 @@
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import {
+  SHIELD_ENERGY_PER_POINT,
   SHIELD_HEAT_PER_POINT,
   getMissileStats,
   getWellName,
@@ -42,14 +43,16 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const heatNow = me.ship.heat.currentHeat
   const heatAfter = plan ? plan.projectedHeat : heatNow
   /**
-   * Worst case: every powered shield absorbs its full allocation, and every
-   * point absorbed becomes heat (RULES §Shields). Read off the cubes as they
-   * are being moved, so the cost of powering a shield shows before you commit.
+   * Worst case: every powered shield spends its cubes, and every point
+   * absorbed becomes heat (RULES §Shields). A tile buys one point per
+   * SHIELD_ENERGY_PER_POINT cubes, so the cubes are not the damage. Read off
+   * the cubes as they are being moved, so the cost of powering a shield shows
+   * before you commit.
    */
   const pending = plan?.pendingSubsystems ?? me.ship.subsystems
   const shieldsOnly = pending
     .filter(s => s.type === 'shields' && s.isPowered && !s.isBroken)
-    .reduce((sum, s) => sum + s.allocatedEnergy, 0)
+    .reduce((sum, s) => sum + Math.floor(s.allocatedEnergy / SHIELD_ENERGY_PER_POINT), 0)
   /**
    * A powered rack fires on its own at any missile that reaches you, and
    * heats up either way (RULES §Weapons → Ballistic rack). Counted unless the

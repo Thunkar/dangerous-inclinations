@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
+import { SHIELD_ENERGY_PER_POINT } from "../../models/subsystems.ts";
 import { resolveAttack, rollToResult } from "../../game/damage.ts";
 import { getEffectiveCriticalChance } from "../../game/ship.ts";
 import { REACTOR_CAPACITY } from "../../models/game.ts";
@@ -106,9 +107,12 @@ describe("damage: resolveAttack", () => {
   });
 
   it.each([
-    ["shield 2 vs damage 4: partial", 2, 4, 2, 2, 0],
-    ["shield 4 vs damage 2: full", 4, 2, 0, 2, 2],
-    ["shield 3 vs damage 3: exact", 3, 3, 0, 3, 0],
+    ["shield 2 vs damage 4: one point bought, three land", 2, 4, 3, 1, 0],
+    ["shield 4 vs damage 2: the whole shot bought, four cubes gone", 4, 2, 0, 2, 0],
+    ["shield 4 vs damage 4: a full tile stops half a railgun", 4, 4, 2, 2, 0],
+    ["shield 4 vs damage 1: a point costs its two cubes, the rest stay", 4, 1, 0, 1, 2],
+    ["shield 3 vs damage 3: the odd cube buys nothing", 3, 3, 2, 1, 1],
+    ["shield 1 vs damage 2: one cube is not enough to stop anything", 1, 2, 2, 0, 1],
   ])("%s", (_label, shieldEnergy, damage, toHull, toHeat, shieldLeft) => {
     const state = withPower(base, "p2", "side-2", shieldEnergy);
     const target = getShip(state, "p2");
@@ -121,7 +125,9 @@ describe("damage: resolveAttack", () => {
     const shield = outcome.ship.subsystems.find((s) => s.id === "side-2")!;
     expect(shield.allocatedEnergy).toBe(shieldLeft);
     expect(shield.isPowered).toBe(shieldLeft > 0);
-    expect(outcome.ship.reactor.availableEnergy).toBe(target.reactor.availableEnergy + toHeat);
+    expect(outcome.ship.reactor.availableEnergy).toBe(
+      target.reactor.availableEnergy + toHeat * SHIELD_ENERGY_PER_POINT
+    );
     expect(totalEnergy(outcome.ship)).toBe(REACTOR_CAPACITY);
   });
 
@@ -142,11 +148,12 @@ describe("damage: resolveAttack", () => {
 
   it("two shield tiles absorb one after the other", () => {
     let state = makeTwoPlayerGame({}, { loadout: TWO_SHIELDS });
-    state = withPower(state, "p2", "side-2", 1);
+    state = withPower(state, "p2", "side-2", 2);
     state = withPower(state, "p2", "side-3", 2);
     const outcome = resolveAttack(getShip(state, "p2"), "p2", 4, "engines", 5, attacker);
-    expect(outcome.hitResult.damageToHeat).toBe(3);
-    expect(outcome.hitResult.damageToHull).toBe(1);
+    // Two cubes a point: four cubes across two tiles stop two of the four.
+    expect(outcome.hitResult.damageToHeat).toBe(2);
+    expect(outcome.hitResult.damageToHull).toBe(2);
     expect(outcome.ship.subsystems.find((s) => s.id === "side-2")!.allocatedEnergy).toBe(0);
     expect(outcome.ship.subsystems.find((s) => s.id === "side-3")!.allocatedEnergy).toBe(0);
     expect(
@@ -221,6 +228,17 @@ describe("damage: resolveAttack", () => {
     const unknown = resolveAttack(getShip(base, "p2"), "p2", 2, "side-7", 10, attacker);
     expect(unknown.hitResult.criticalEffect).toBeUndefined();
     expect(unknown.ship.hitPoints).toBe(8);
+  });
+
+  it("refuses a shot that names the fuel scoop, whatever the roll", () => {
+    // The scoop is the only way back to a station, and a station is the only
+    // place a break is repaired: naming it could end a player's game outright.
+    const state = { ...laserDuel(), forcedRollValue: 10 };
+    expect(executeTurnAs(state, fire(1, "side-0", "p2", "scoop")).errors?.[0]).toMatch(/scoop/i);
+    const legal = executeTurnAs(state, fire(1, "side-0", "p2", "engines"));
+    expect(legal.errors).toBeUndefined();
+    expect(getSub(legal.gameState, "p2", "engines").isBroken).toBe(true);
+    expect(getSub(legal.gameState, "p2", "scoop").isBroken).toBe(false);
   });
 
   it("flags sensor-assisted criticals (8 or 9 with a powered sensor) but not natural 10s", () => {
@@ -321,20 +339,19 @@ describe("damage: through executeTurn", () => {
     expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(false);
   });
 
-  it("shields absorb a rack round and keep total energy constant", () => {
-    // The rack sits at side-0 of RACK_FIRST, one ring below its target.
+  it("shields buy half a rack round and keep total energy constant", () => {
+    // The rack sits at side-0 of RACK_FIRST, one ring below its target. Two
+    // cubes stop one of its two damage; the other reaches the hull.
     const state = withPower(laserDuel(undefined, RACK_FIRST), "p2", "side-2", 2);
     const result = executeTurnAs(state, fire(1, "side-0", "p2"));
     expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
       weaponType: "ballistic_rack",
       damage: 2,
-      toHull: 0,
-      toHeat: 2,
+      toHull: 1,
+      toHeat: 1,
     });
-    expect(getShip(result.gameState, "p2").hitPoints).toBe(10);
-    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(
-      2 * SHIELD_HEAT_PER_POINT
-    );
+    expect(getShip(result.gameState, "p2").hitPoints).toBe(9);
+    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(SHIELD_HEAT_PER_POINT);
     expect(totalEnergy(getShip(result.gameState, "p2"))).toBe(REACTOR_CAPACITY);
     expect(getShip(result.gameState, "p2").reactor.availableEnergy).toBe(REACTOR_CAPACITY);
   });

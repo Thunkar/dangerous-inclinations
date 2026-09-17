@@ -40,6 +40,7 @@ import {
   getJumpOptions,
   MAX_REACTION_MASS,
   getMaxRing,
+  energyStepOf,
   getSubsystemConfig,
   hasWorkingCompressor,
   canEngage,
@@ -225,14 +226,15 @@ function poweredTo(
   const current = energy[subsystemId] ?? sub.allocatedEnergy
   const total = player.ship.subsystems.reduce((sum, s) => sum + (energy[s.id] ?? s.allocatedEnergy), 0)
   const free = player.ship.reactor.totalCapacity - total
+  const step = energyStepOf(sub.type)
   if (direction > 0) {
     // Powering on costs the whole minimum at once, or nothing.
     if (current === 0) return free < config.minEnergy ? null : config.minEnergy
-    if (current >= config.maxEnergy || free < 1) return null
-    return current + 1
+    if (current >= config.maxEnergy || free < step) return null
+    return current + step
   }
   if (current === 0) return null
-  return current <= config.minEnergy ? 0 : current - 1
+  return current <= config.minEnergy ? 0 : current - step
 }
 
 /** Whether a coast this turn would scoop without anyone asking. */
@@ -721,15 +723,19 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           0
         )
         const free = me.ship.reactor.totalCapacity - total
+        // A tile that takes its energy in steps moves a whole step at a time,
+        // so a shield reads 0, 2 or 4 and never the odd cube that buys nothing.
+        const step = energyStepOf(sub.type)
         let next = current
         if (delta > 0) {
           // From off, a tile powers up straight to its minimum.
-          const target = current === 0 ? Math.max(config.minEnergy, delta) : current + delta
+          const bump = Math.max(delta, step)
+          const target = current === 0 ? Math.max(config.minEnergy, bump) : current + bump
           next = Math.min(config.maxEnergy, target)
-          if (next - current > free) next = current + free
+          if (next - current > free) next = current + Math.floor(free / step) * step
           if (next < config.minEnergy) return prev
         } else if (delta < 0) {
-          const target = current + delta
+          const target = current - Math.max(-delta, step)
           next = target < config.minEnergy ? 0 : target
         }
         if (next === current) return prev

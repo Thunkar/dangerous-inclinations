@@ -9,7 +9,7 @@
  */
 import type { Player, Position, Station } from "../models/game.ts";
 import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
-import { getSubsystemConfig, isWeaponType } from "../models/subsystems.ts";
+import { getSubsystemConfig, isWeaponType, SHIELD_ENERGY_PER_POINT } from "../models/subsystems.ts";
 import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import { positionOf, sectorDistance } from "../game/geometry.ts";
 import { getDissipationCapacity, hasWorkingCompressor } from "../game/ship.ts";
@@ -97,12 +97,13 @@ export function shieldAbsorption(slots: ReadonlyArray<SlotView>): number {
   let absorbed = 0;
   for (const slot of slots) {
     if (slot.type === "shields") {
-      if (slot.isBroken !== true) absorbed += Math.min(slot.allocatedEnergy, maxCubes);
+      if (slot.isBroken !== true)
+        absorbed += Math.floor(Math.min(slot.allocatedEnergy, maxCubes) / SHIELD_ENERGY_PER_POINT);
       continue;
     }
     if (slot.type !== null || slot.group !== "side") continue;
     if (slot.allocatedEnergy < 1 || slot.allocatedEnergy > maxCubes) continue;
-    absorbed += slot.allocatedEnergy * SUSPECTED_SHIELD_WEIGHT;
+    absorbed += (slot.allocatedEnergy / SHIELD_ENERGY_PER_POINT) * SUSPECTED_SHIELD_WEIGHT;
   }
   return absorbed;
 }

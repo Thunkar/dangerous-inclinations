@@ -134,11 +134,11 @@ describe("heat: end-of-turn resolution", () => {
     state = withPower(state, "p1", "side-0", 2);
     state = withPower(state, "p2", "side-2", 2);
     const afterP1 = mustExecute(state, fire(1, "side-0", "p2"));
-    // Two cubes soak the rack's two rounds, at two heat apiece.
-    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(2 * SHIELD_HEAT_PER_POINT);
+    // Two cubes buy one of the rack's two rounds, at two heat.
+    expect(getShip(afterP1, "p2").heat.currentHeat).toBe(SHIELD_HEAT_PER_POINT);
     const afterP2 = mustExecute(afterP1, coast(1));
     expect(getShip(afterP2, "p2").heat.currentHeat).toBe(0);
-    expect(getShip(afterP2, "p2").hitPoints).toBe(10);
+    expect(getShip(afterP2, "p2").hitPoints).toBe(9);
   });
 
   it("heat death destroys the ship with cause heat and no killer, dropping cargo", () => {

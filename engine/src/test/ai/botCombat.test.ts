@@ -298,7 +298,8 @@ describe("bot lethality estimates", () => {
   });
 
   it("subtracts the shield cubes it can see before calling anything a kill", () => {
-    // One rack round against two face-up shield cubes: the bot does not even take the shot.
+    // One rack round, two damage, against two hull: lethal in the open. Two
+    // face-up shield cubes buy one point of it, so one lands and p2 lives.
     let state = withShip(
       grounded(
         makeTwoPlayerGame(
@@ -308,14 +309,15 @@ describe("bot lethality estimates", () => {
         "p1"
       ),
       "p2",
-      { hitPoints: 3 }
+      { hitPoints: 2 }
     );
     state = withSub(state, "p2", "side-2", { isRevealed: true });
     state = withPower(state, "p2", "side-2", 2);
 
-    const situation = analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS);
-    const candidates = generateCandidates(situation, DEFAULT_BOT_PARAMETERS);
-    expect(candidates.some((c) => c.targetId === "p2")).toBe(false);
+    const plan = planAgainst(state, "p1", "p2");
+    expect(plan.expectedDamage).toBe(2);
+    expect(plan.expectedHullDamage).toBe(1);
+    expect(plan.killsTarget).toBe(false);
   });
 
   it("counts laser damage against the hull whatever the shields hold", () => {
@@ -341,9 +343,10 @@ describe("bot lethality estimates", () => {
   });
 
   it("treats face-down side cubes as half a shield, not as nothing", () => {
-    // Rack and missile (four shielded damage) against two face-down cubes,
-    // read as one cube of shield: three reach the hull of four, no kill.
-    // Read as nothing it would be four and a kill; read as two cubes, only two.
+    // Rack and missile (four shielded damage) against two face-down cubes.
+    // Two cubes stop one point, and a slot that only might be a shield is
+    // priced at half that: 3.5 of the four reach a hull of four, so no kill.
+    // Read as nothing it would be four and a kill.
     let state = withShip(
       grounded(
         makeTwoPlayerGame(
@@ -358,7 +361,7 @@ describe("bot lethality estimates", () => {
     state = withPower(state, "p2", "side-2", 2);
 
     const plan = planAgainst(state, "p1", "p2");
-    expect(plan.expectedHullDamage).toBe(3);
+    expect(plan.expectedHullDamage).toBe(3.5);
     expect(plan.killsTarget).toBe(false);
   });
 });

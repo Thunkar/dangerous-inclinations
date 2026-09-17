@@ -12,7 +12,7 @@
 import type { AllocateEnergyAction, DeallocateEnergyAction, Player } from "../../models/game.ts";
 import { REACTOR_CAPACITY } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
-import { getSubsystemConfig } from "../../models/subsystems.ts";
+import { energyStepOf, getSubsystemConfig } from "../../models/subsystems.ts";
 
 /** Desired allocation per subsystem id. Missing ids are drained. */
 export type EnergyTargets = Map<SubsystemId, number>;
@@ -48,9 +48,13 @@ export function assignDefensiveEnergy(
   }
   if (wantShields) {
     const config = getSubsystemConfig("shields");
+    // Shields buy absorption in whole points, so spare cubes go on in whole
+    // steps: an odd cube on a tile stops nothing and the engine refuses it.
+    const step = energyStepOf("shields");
     for (const shield of shields) {
       if (shield.isBroken || spare < config.minEnergy) continue;
-      const amount = Math.min(shieldMax, spare);
+      const amount = Math.floor(Math.min(shieldMax, spare) / step) * step;
+      if (amount < config.minEnergy) continue;
       targets.set(shield.id, amount);
       spare -= amount;
     }

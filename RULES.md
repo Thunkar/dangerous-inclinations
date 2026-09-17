@@ -87,7 +87,8 @@ Otherwise:
 - The reactor holds **10 energy**. Allocating and removing cubes is free and unlimited.
 - **Using** a tile generates heat equal to the energy on it: firing a weapon, burning (engines), rotating (thrusters), scooping, scanning, jumping, intercepting a missile. Powered but unused tiles make no heat.
 - **Dissipation** is 5, plus 2 per working radiator. Excess heat at your heat check becomes hull damage.
-- **Shields** convert incoming damage into heat, up to the cubes on them; those cubes return to the reactor. **Every point absorbed is 2 heat**, so a big wall is a big heat bill. Shields are electromagnetic: they stop railgun slugs, rack rounds and missiles, **not lasers**.
+- **Shields** convert incoming damage into heat. **Two cubes buy one point**, so a tile takes 2 cubes or 4 and never an odd one, and every point absorbed is **2 heat**. The cubes spent return to the reactor and the tile goes dark until you re-power it, so a tile is worth its points **between your turns, not per shot**: a volley strips the wall and then walks through the hole. Shields are electromagnetic: they stop railgun slugs, rack rounds and missiles, **not lasers**.
+- Two tiles at four cubes stop 4 damage — and are 8 of your 10 energy and 8 heat, against a dissipation of 5. A full wall, a full burn and a scoop do not fit in the same turn: which of them you can afford is the decision.
 
 | Tile                       | Energy | Effect                                                                 |
 | -------------------------- | ------ | ---------------------------------------------------------------------- |
@@ -99,7 +100,7 @@ Otherwise:
 | Fuel compressor (forward)  | —      | A jump's own fuel is refunded                                          |
 | Missiles (forward or side) | 2      | Launch a guided missile at anyone in your well (4 aboard)              |
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
-| Shields (side)             | 1–2    | Absorb damage as heat (2 heat per point)                               |
+| Shields (side)             | 2 or 4 | Every 2 cubes absorb 1 damage, as 2 heat                                |
 | Radiator (side)            | —      | +2 dissipation                                                         |
 | Ballistic rack (side)      | 2      | 2 damage, ±1 ring or same ring, ±1 sector; intercepts missiles         |
 
@@ -143,11 +144,11 @@ Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A 
 
 ### Damage
 
-Shields absorb first (each cube absorbs 1 damage and gives its owner **2 heat**); the rest is hull damage. **Laser damage skips the shields** and goes straight to the hull. At 0 hull the ship is destroyed.
+Shields absorb first (every 2 cubes absorb 1 damage and give its owner **2 heat**); the rest is hull damage. **Laser damage skips the shields** and goes straight to the hull. At 0 hull the ship is destroyed.
 
 ### Critical hits
 
-When you fire, name one slot on the target: forward, side 1–4, engines, thrusters or scoop. If the shot is a critical and reaches the hull, that tile is **turned face-up and broken**: its cubes return to the reactor as heat, and it cannot be used until repaired at a station. Naming a face-down slot is a gamble; naming a face-up one is a plan.
+When you fire, name one slot on the target: forward, side 1–4, engines or thrusters. **Not the fuel scoop** — it is the one tile a critical cannot name, because a dry ship with no scoop has no move that reaches a station to repair it. If the shot is a critical and reaches the hull, that tile is **turned face-up and broken**: its cubes return to the reactor as heat, and it cannot be used until repaired at a station. Naming a face-down slot is a gamble; naming a face-up one is a plan.
 
 ### Weapons
 
@@ -245,6 +246,8 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid |
 | Jump             | engines 3, 3 fuel (refunded by a compressor), no drift                                           |
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                     |
+| Shields          | 2 or 4 cubes; 2 cubes a point absorbed, 2 heat a point; lasers ignore them                        |
+| Critical         | names any slot but the fuel scoop                                                                |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |

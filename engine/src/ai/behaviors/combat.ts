@@ -6,7 +6,7 @@
  */
 import type { Facing, Player, Position } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
-import { getSubsystemConfig } from "../../models/subsystems.ts";
+import { getSubsystemConfig, isCriticalTarget } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { getMaxRing } from "../../models/gravityWells.ts";
 import { ringVelocity } from "../../game/geometry.ts";
@@ -147,7 +147,7 @@ export function weaponRangeTarget(weapons: Subsystem[], start: Position): Planne
 function fallbackCriticalTarget(target: Opponent): SubsystemId {
   const engines = target.player.fixed.find((f) => f.type === "engines" && !f.isBroken);
   if (engines) return engines.id;
-  const fixed = target.player.fixed.find((f) => !f.isBroken);
+  const fixed = target.player.fixed.find((f) => !f.isBroken && isCriticalTarget(f.id));
   if (fixed) return fixed.id;
   const slot = target.player.slots.find((s) => s.isBroken !== true);
   return slot?.id ?? "engines";

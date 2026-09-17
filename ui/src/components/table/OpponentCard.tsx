@@ -21,7 +21,11 @@ import { ShipMark } from '../../ships/ShipMark'
 import { Box, IconButton, Tooltip, Typography } from '@mui/material'
 import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
-import { CARGO_HOLD_CRATES, MISSIONS_TO_WIN } from '@dangerous-inclinations/engine'
+import {
+  CARGO_HOLD_CRATES,
+  MISSIONS_TO_WIN,
+  isCriticalTarget,
+} from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { Panel } from '../common/Panel'
 import { SubsystemTile } from '../common/SubsystemTile'
@@ -252,7 +256,9 @@ export function OpponentCard({
         {/* Home is on the board with a marker of its own and never moves, so
             printing it on the card was a line that told nobody anything. */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-          <Tooltip title={`Cargo aboard: crates and data are public tokens (their destinations are not). A hold takes ${CARGO_HOLD_CRATES} crate; data rides free.`}>
+          <Tooltip
+            title={`Cargo aboard: crates and data are public tokens (their destinations are not). A hold takes ${CARGO_HOLD_CRATES} crate; data rides free.`}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <CargoChits
                 crates={player.cargoAboard.crates}
@@ -289,32 +295,37 @@ export function OpponentCard({
 
         {/* The fixed systems, as small badges */}
         <Box sx={{ display: 'flex', gap: '5px', alignItems: 'flex-start', minWidth: 0 }}>
-          {player.fixed.map(fixed => (
-            <Tooltip
-              key={fixed.id}
-              title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' — broken' : ''}`}
-            >
-              <Box>
-                <SubsystemTile
-                  id={fixed.id}
-                  type={fixed.type}
-                  knownVia="revealed"
-                  isBroken={fixed.isBroken}
-                  allocatedEnergy={fixed.allocatedEnergy}
-                  size={FIXED_TILE}
-                  cubeSize={5}
-                  pulse={Boolean(pulses[`${player.id}:${fixed.id}`])}
-                  onClick={
-                    picking === 'crit' && onPickSlot !== undefined
-                      ? () => onPickSlot(player.id, fixed.id)
-                      : undefined
-                  }
-                  selected={selectedSlotId === fixed.id}
-                  highlighted={picking === 'crit'}
-                />
-              </Box>
-            </Tooltip>
-          ))}
+          {player.fixed.map(fixed => {
+            const targetable = isCriticalTarget(fixed.id)
+            return (
+              <Tooltip
+                key={fixed.id}
+                title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' — broken' : ''}${
+                  targetable ? '' : ' — a critical cannot name it'
+                }`}
+              >
+                <Box>
+                  <SubsystemTile
+                    id={fixed.id}
+                    type={fixed.type}
+                    knownVia="revealed"
+                    isBroken={fixed.isBroken}
+                    allocatedEnergy={fixed.allocatedEnergy}
+                    size={FIXED_TILE}
+                    cubeSize={5}
+                    pulse={Boolean(pulses[`${player.id}:${fixed.id}`])}
+                    onClick={
+                      picking === 'crit' && targetable && onPickSlot !== undefined
+                        ? () => onPickSlot(player.id, fixed.id)
+                        : undefined
+                    }
+                    selected={selectedSlotId === fixed.id}
+                    highlighted={picking === 'crit' && targetable}
+                  />
+                </Box>
+              </Tooltip>
+            )
+          })}
         </Box>
 
         {/* Completed missions, face-up for everyone */}

@@ -408,13 +408,13 @@ describe("missiles: on the target's sector", () => {
     expect(getShip(oneResult.state, "p2").hitPoints).toBe(8);
   });
 
-  it("shields absorb missile damage like any other", () => {
+  it("shields absorb missile damage like any other: two cubes stop one point", () => {
     const state = withPower(onTarget(), "p2", "side-2", 2);
     const result = processOwnerMissiles(state, "p1");
-    expect(getShip(result.state, "p2").hitPoints).toBe(10);
+    expect(getShip(result.state, "p2").hitPoints).toBe(9);
     expect(eventsOf(result.events as never, "attack_resolved")[0]).toMatchObject({
-      toHull: 0,
-      toHeat: 2,
+      toHull: 1,
+      toHeat: 1,
     });
   });
 });

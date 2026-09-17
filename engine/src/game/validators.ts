@@ -18,7 +18,12 @@ import type {
   WellTransferAction,
 } from "../models/game.ts";
 import { isTacticalAction } from "../models/game.ts";
-import { getSubsystemConfig, isWeaponType } from "../models/subsystems.ts";
+import {
+  energyStepOf,
+  getSubsystemConfig,
+  isCriticalTarget,
+  isWeaponType,
+} from "../models/subsystems.ts";
 import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
@@ -118,6 +123,12 @@ export function validateAllocateEnergyAction(
   if (sub.allocatedEnergy === 0 && total < config.minEnergy) {
     errors.push(`Must allocate at least ${config.minEnergy} energy to power ${config.name}`);
   }
+  const step = energyStepOf(sub.type);
+  if (total % step !== 0) {
+    errors.push(
+      `${config.name} takes energy ${step} cubes at a time (${total} would be left on it)`
+    );
+  }
   return errors;
 }
 
@@ -142,6 +153,10 @@ export function validateDeallocateEnergyAction(
     return [
       `Cannot leave ${config.name} partially powered (${remaining}); deallocate all or stay at ${config.minEnergy}+`,
     ];
+  }
+  const step = energyStepOf(sub.type);
+  if (remaining % step !== 0) {
+    return [`${config.name} takes energy ${step} cubes at a time (${remaining} would be left on it)`];
   }
   return [];
 }
@@ -256,10 +271,13 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
     if (!isInWeaponRange(weapon, player.ship, positionOf(target.ship))) {
       errors.push(`${target.name} is out of range for ${config.name}`);
     }
-    if (!findSubsystem(target.ship, action.data.criticalTarget)) {
+    const named = findSubsystem(target.ship, action.data.criticalTarget);
+    if (!named) {
       errors.push(
         `Critical target ${action.data.criticalTarget} is not a slot on ${target.name}'s ship`
       );
+    } else if (!isCriticalTarget(named.id)) {
+      errors.push(`${getSubsystemConfig(named.type).name} cannot be named by a critical`);
     }
   }
 

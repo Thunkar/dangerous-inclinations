@@ -67,6 +67,36 @@ export const SLOT_IDS: readonly SubsystemId[] = [
 /** Every subsystem id a ship can have (fixed systems + slots). */
 export const ALL_SUBSYSTEM_IDS: readonly SubsystemId[] = [...FIXED_SUBSYSTEM_TYPES, ...SLOT_IDS];
 
+/**
+ * Slots no critical may name, and since a critical is the only thing that
+ * breaks a tile, slots that cannot break at all.
+ *
+ * The fuel scoop is the way home. Broken tiles are only repaired at a station,
+ * a dry ship cannot burn or jump, and a coast moves it along the ring it is
+ * already on — so a critical on the scoop of a ship with an empty tank, away
+ * from a planet's station ring, takes that player out of the game with no move
+ * that leads back. Every other tile a critical can break costs a capability;
+ * this one costs the rest of the evening.
+ */
+export const CRITICAL_PROOF_IDS: readonly SubsystemId[] = ["scoop"];
+
+export function isCriticalTarget(id: SubsystemId): boolean {
+  return !CRITICAL_PROOF_IDS.includes(id);
+}
+
+/**
+ * Energy a shield spends per point of damage it absorbs — the same two as the
+ * heat (SHIELD_HEAT_PER_POINT), so a point costs two cubes and two heat.
+ *
+ * At one cube a point a shield tile soaked its cubes every round for free,
+ * which made every 2-damage weapon — missiles, the rack, and the railgun
+ * against two tiles — permanently unable to reach a hull: 66% of the shots a
+ * bot declined to take at a Destroy target were declined because they would
+ * have been absorbed whole. The cubes are not destroyed: they return to the
+ * reactor and the tile goes dark until it is re-powered.
+ */
+export const SHIELD_ENERGY_PER_POINT = 2;
+
 export interface WeaponStats {
   damage: number;
   ringRange?: number; // How many rings away can be targeted (±ringRange); a turret has no box
@@ -93,6 +123,12 @@ export interface SubsystemConfig {
   name: string;
   minEnergy: number; // Minimum energy to function (0 for passive)
   maxEnergy: number;
+  /**
+   * Cubes this tile takes at a time; an allocation must be a multiple of it.
+   * Omitted means one, which is every tile but the shields — they buy
+   * absorption in whole points at SHIELD_ENERGY_PER_POINT cubes each.
+   */
+  energyStep?: number;
   generatesHeatOnUse: boolean;
   slotType: SlotType;
   isPassive?: boolean;
@@ -193,8 +229,17 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   shields: {
     id: "shields",
     name: "Shields",
-    minEnergy: 1,
-    maxEnergy: 2,
+    /**
+     * Two cubes or four, never one or three: a tile buys absorption in whole
+     * points at SHIELD_ENERGY_PER_POINT cubes each, so an odd cube would sit
+     * on a promise the rules do not keep. Four is most of a reactor for a
+     * single tile — two tiles at full wall are eight of ten cubes and eight
+     * heat if the wall is used — which is what makes the wall a decision each
+     * turn rather than a setting.
+     */
+    minEnergy: SHIELD_ENERGY_PER_POINT,
+    maxEnergy: 2 * SHIELD_ENERGY_PER_POINT,
+    energyStep: SHIELD_ENERGY_PER_POINT,
     generatesHeatOnUse: false,
     slotType: "side",
   },
@@ -254,6 +299,11 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     },
   },
 };
+
+/** Cubes a tile takes at a time: allocations must be a multiple of this. */
+export function energyStepOf(type: SubsystemType): number {
+  return SUBSYSTEM_CONFIGS[type].energyStep ?? 1;
+}
 
 export function getSubsystemConfig(type: SubsystemType): SubsystemConfig {
   return SUBSYSTEM_CONFIGS[type];

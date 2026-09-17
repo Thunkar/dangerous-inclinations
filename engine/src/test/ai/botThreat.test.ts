@@ -130,15 +130,15 @@ describe("threat assessment", () => {
 });
 
 describe("shieldAbsorption", () => {
-  it("counts every cube on a shield tile the bot can see", () => {
+  it("prices a shield tile it can see at one point per two cubes", () => {
     let state = withSub(facingOff(), "p2", "side-1", { isRevealed: true });
     state = withPower(state, "p2", "side-1", 2);
-    expect(opponentOf(state, "p1").shieldAbsorption).toBe(2);
+    expect(opponentOf(state, "p1").shieldAbsorption).toBe(1);
   });
 
   it("counts a face-down side slot that has never fired as half a shield", () => {
     const state = withPower(facingOff(), "p2", "side-1", 2);
-    expect(opponentOf(state, "p1").shieldAbsorption).toBe(1);
+    expect(opponentOf(state, "p1").shieldAbsorption).toBe(0.5);
   });
 
   it("ignores empty slots and forward slots", () => {

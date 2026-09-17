@@ -4,12 +4,13 @@
  * 1 = miss, 2-9 = hit, 10 = critical. Each powered sensor array on the attacker
  * lowers the critical threshold by two (8-10 with one array).
  *
- * Shields absorb damage up to their allocated energy; absorbed damage becomes
- * heat and the shield energy returns to the reactor. A critical that still
+ * Shields absorb one point of damage per SHIELD_ENERGY_PER_POINT cubes on the
+ * tile; absorbed damage becomes heat and the spent cubes return to the reactor. A critical that still
  * reaches the hull breaks the slot the attacker named.
  */
 import type { ShipState } from "../models/game.ts";
 import { BASE_CRITICAL_CHANCE, SHIELD_HEAT_PER_POINT } from "../models/game.ts";
+import { SHIELD_ENERGY_PER_POINT } from "../models/subsystems.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
@@ -85,15 +86,16 @@ export function resolveAttack(
     : ship.subsystems.filter((s) => s.type === "shields" && s.isPowered && !s.isBroken);
   for (const shield of shields) {
     if (remainingDamage <= 0) break;
-    const take = Math.min(remainingDamage, shield.allocatedEnergy);
+    const take = Math.min(remainingDamage, Math.floor(shield.allocatedEnergy / SHIELD_ENERGY_PER_POINT));
     if (take <= 0) continue;
-    const left = shield.allocatedEnergy - take;
+    const spent = take * SHIELD_ENERGY_PER_POINT;
+    const left = shield.allocatedEnergy - spent;
     // The cubes that absorbed go back to the reactor: the shield refills for free.
     ship = {
       ...ship,
       reactor: {
         ...ship.reactor,
-        availableEnergy: Math.min(ship.reactor.totalCapacity, ship.reactor.availableEnergy + take),
+        availableEnergy: Math.min(ship.reactor.totalCapacity, ship.reactor.availableEnergy + spent),
       },
     };
     ship = updateSubsystem(ship, shield.id, { allocatedEnergy: left, isPowered: left > 0 });

@@ -75,12 +75,28 @@ describe("energy: allocation", () => {
   });
 
   it("allocated energy persists across turns and is conserved", () => {
-    let state = mustExecute(makeTwoPlayerGame(), allocate("engines", 3), allocate("side-2", 1));
+    let state = mustExecute(makeTwoPlayerGame(), allocate("engines", 2), allocate("side-2", 2));
     state = mustExecute(state, coast(1)); // p2
-    state = mustExecute(state, allocate("side-2", 1)); // p1 again
+    state = mustExecute(state, allocate("engines", 1)); // p1 again
     expect(getSub(state, "p1", "engines").allocatedEnergy).toBe(3);
     expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(2);
     expect(totalEnergy(getShip(state, "p1"))).toBe(REACTOR_CAPACITY);
+  });
+
+  it("a shield takes its cubes in pairs: 2 or 4, never 1 or 3", () => {
+    // Two cubes buy one point (RULES §Energy and Heat), so an odd cube would
+    // sit on a promise the rules do not keep.
+    const state = makeTwoPlayerGame();
+    expect(executeTurnAs(state, allocate("side-2", 1)).errors?.[0]).toMatch(/at least 2/i);
+    expect(executeTurnAs(state, allocate("side-2", 3)).errors?.[0]).toMatch(/2 cubes at a time/i);
+    expect(getSub(mustExecute(state, allocate("side-2", 2)), "p1", "side-2").allocatedEnergy).toBe(
+      2
+    );
+    // Built directly: mustExecute would hand the turn to p2 and the next
+    // allocation would be theirs.
+    const two = withPower(makeTwoPlayerGame(), "p1", "side-2", 2);
+    expect(executeTurnAs(two, allocate("side-2", 1)).errors?.[0]).toMatch(/2 cubes at a time/i);
+    expect(getSub(mustExecute(two, allocate("side-2", 2)), "p1", "side-2").allocatedEnergy).toBe(4);
   });
 });
 
@@ -151,11 +167,24 @@ describe("energy: rejected deallocations", () => {
   });
 
   it("allows partial deallocation while the remainder still meets the minimum", () => {
+    // The engines take 1-3, so they are the tile with room to come down a cube.
     const state = mustExecute(
-      withPower(makeTwoPlayerGame(), "p1", "side-2", 4),
-      deallocate("side-2", 3)
+      withPower(makeTwoPlayerGame(), "p1", "engines", 3),
+      deallocate("engines", 1)
     );
-    expect(getSub(state, "p1", "side-2").allocatedEnergy).toBe(1);
-    expect(getSub(state, "p1", "side-2").isPowered).toBe(true);
+    expect(getSub(state, "p1", "engines").allocatedEnergy).toBe(2);
+    expect(getSub(state, "p1", "engines").isPowered).toBe(true);
+  });
+
+  it("refuses to leave a shield on an odd cube, coming down as well as going up", () => {
+    const two = withPower(makeTwoPlayerGame(), "p1", "side-2", 2);
+    expect(executeTurnAs(two, deallocate("side-2", 1)).errors?.[0]).toMatch(/partially powered/i);
+    expect(executeTurnAs(two, deallocate("side-2", 2)).errors).toBeUndefined();
+
+    const four = withPower(makeTwoPlayerGame(), "p1", "side-2", 4);
+    expect(executeTurnAs(four, deallocate("side-2", 1)).errors?.[0]).toMatch(/2 cubes at a time/i);
+    expect(getSub(mustExecute(four, deallocate("side-2", 2)), "p1", "side-2").allocatedEnergy).toBe(
+      2
+    );
   });
 });
