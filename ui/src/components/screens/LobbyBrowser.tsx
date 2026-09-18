@@ -56,7 +56,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
 
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newMax, setNewMax] = useState(4)
+  const [newMax, setNewMax] = useState<number>(SEAT_COUNTS[Math.floor(SEAT_COUNTS.length / 2)])
   const [newPassword, setNewPassword] = useState('')
 
   const [joinTarget, setJoinTarget] = useState<LobbyListItem | null>(null)
@@ -129,7 +129,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
         Dangerous Inclinations
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft, mb: 1 }}>
-        Orbital manoeuvre, heat management and hidden objectives for 2–4 players.
+        Orbital manoeuvre, heat management and hidden objectives for {MIN_PLAYERS}–{MAX_PLAYERS} players.
       </Typography>
 
       <Panel

@@ -12,6 +12,7 @@ import {
   addBot as addBotAPI,
   removeBot as removeBotAPI,
 } from '../api/lobby'
+import { MIN_PLAYERS } from '@dangerous-inclinations/engine'
 import { getPlayerStatus } from '../api/player'
 import { usePlayer } from './PlayerContext'
 import { useWebSocket } from './WebSocketContext'
@@ -197,7 +198,8 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
 
   const canStart = useCallback(() => {
     if (!lobbyState) return { canStart: false, reason: 'No lobby' }
-    if (lobbyState.players.length < 2) return { canStart: false, reason: 'Need at least 2 players' }
+    if (lobbyState.players.length < MIN_PLAYERS)
+      return { canStart: false, reason: `Need at least ${MIN_PLAYERS} players` }
     if (lobbyState.gameId) return { canStart: false, reason: 'Game already started' }
     if (playerId && lobbyState.hostPlayerId !== playerId) {
       return { canStart: false, reason: 'Waiting for the host to start' }
