@@ -37,7 +37,7 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
 export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - Win: the round in which someone reaches ${MISSIONS_TO_WIN} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is 3 cards, so ${MISSIONS_TO_WIN} points is two primaries, or one primary and both secondary cards.
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
-- Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
+- Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
 - Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.
 - Burn: drift, then change ring. Prograde facing burns OUTWARD, retrograde INWARD. soft 1 ring / 1 fuel / 1 cube on engines; medium 2/2/2; hard 3/3/3. Phasing: adjust arrival sector, 1 fuel per sector, from -(velocity-1) to +3.
 - Jump: only from a lane's departure arc, engines at 3, 3 fuel (free with compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way. Phasing: shift the landing 1 fuel a sector, never out of the arrival arc — so any departure sector reaches any of the arc's 4 sectors. A compressor pays for the jump, not for the phasing.
@@ -48,7 +48,7 @@ export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - THE FIRST ROUND REACHES NOBODY: no weapon fires and nobody scans. Everyone deploys on the same ring, so the opening round is for getting off the line.
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat. Cubes on every slot are public even while the tile is face-down, so name a loaded slot. (A tile that just absorbed has spent its cubes, so breaking it dumps little — but it is gone until they dock.)
 - Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name — that means no move but a plain coast, no scoop, no shot, no scan and no shields powered. It is the only way back for a ship whose engines or thrusters were shot out, because every station needs a jump to reach.
-- Docking (end your turn on a station's sector, planet ring 1): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
+- Docking (end your turn on a station's sector, planet ring 2): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
 - Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}, Board = end a turn in another ship's exact sector: take the chit, then dock anywhere to file it. Garbage Disposal = load at any station (fills your hold, so no delivery crate at the same time), then end a turn on BH ring ${SURVEY_RING} to drop it — no chit, no filing.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
 - Destroyed: respawn at Home next turn, lose the turn after too (you still drift with your ring while recovering), drop cargo.`;
@@ -163,7 +163,7 @@ export function describeViewForAgent(
   }
   out.push(
     "",
-    `STATIONS (planet ring 1, drift 4/round): ${view.stations.map((s) => `${getWellName(s.planetId as never)} S${s.sector}`).join(", ")}.`
+    `STATIONS (planet ring 2, drift 4/round): ${view.stations.map((s) => `${getWellName(s.planetId as never)} S${s.sector}`).join(", ")}.`
   );
   if (view.missiles.length)
     out.push(

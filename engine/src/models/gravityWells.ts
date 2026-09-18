@@ -20,13 +20,25 @@ export const BLACKHOLE_RINGS: RingConfig[] = [
 ];
 
 /**
- * Planets: 3 rings each. Ring 1 holds the station; ring 3 holds the lanes
- * and is where players deploy their Home.
+ * Planets: 4 rings each. Ring 2 holds the station; ring 4 holds the lanes.
+ *
+ * Ring 1 is the reason there are four. With the station on the innermost ring
+ * every ring a ship could sit on was slower than it, so a ship that arrived
+ * behind the station could never gain: the fastest route to a dock was to burn
+ * back and forth between the outer two rings until the phase came round, which
+ * is a wait dressed up as a manoeuvre. A ring inside the station turns that
+ * into a slingshot — dive, let the faster orbit carry you round, burn out onto
+ * the station on the turn you choose.
+ *
+ * The velocities are the black hole's own sequence (8/6/4/2/1) minus its
+ * innermost ring, so a planet reads like a smaller version of the same thing
+ * rather than a second set of numbers to learn.
  */
 export const PLANET_RINGS: RingConfig[] = [
-  { ring: 1, velocity: 4, sectors: SECTORS_PER_RING },
-  { ring: 2, velocity: 2, sectors: SECTORS_PER_RING },
-  { ring: 3, velocity: 1, sectors: SECTORS_PER_RING },
+  { ring: 1, velocity: 6, sectors: SECTORS_PER_RING },
+  { ring: 2, velocity: 4, sectors: SECTORS_PER_RING },
+  { ring: 3, velocity: 2, sectors: SECTORS_PER_RING },
+  { ring: 4, velocity: 1, sectors: SECTORS_PER_RING },
 ];
 
 export const BLACK_HOLE_ID: GravityWellId = "blackhole";
@@ -63,11 +75,11 @@ export const PLANETS: GravityWell[] = GRAVITY_WELLS.filter((w) => w.type === "pl
 /** Everyone deploys together on this ring of the black hole; your sector becomes your Home. */
 export const HOME_WELL_ID: GravityWellId = "blackhole";
 export const HOME_RING = 4;
-/** Ring stations orbit on (planets only). */
-export const STATION_RING = 1;
+/** Ring stations orbit on (planets only). Ring 1 is faster, and is the way in. */
+export const STATION_RING = 2;
 /** Black hole ring where a survey is taken. */
 export const BLACK_HOLE_OUTER_RING = 5;
-export const PLANET_OUTER_RING = 3;
+export const PLANET_OUTER_RING = 4;
 
 export const TRANSFER_ARC_LENGTH = 4;
 
@@ -89,42 +101,42 @@ export const TRANSFER_LANES: TransferLane[] = [
     planetId: "planet-beta",
     direction: "outbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 0),
-    planetArc: arc("planet-beta", 3, 4),
+    planetArc: arc("planet-beta", PLANET_OUTER_RING, 4),
   },
   {
     id: "alpha-a",
     planetId: "planet-alpha",
     direction: "inbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 4),
-    planetArc: arc("planet-alpha", 3, 16),
+    planetArc: arc("planet-alpha", PLANET_OUTER_RING, 16),
   },
   {
     id: "gamma-a",
     planetId: "planet-gamma",
     direction: "outbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 8),
-    planetArc: arc("planet-gamma", 3, 4),
+    planetArc: arc("planet-gamma", PLANET_OUTER_RING, 4),
   },
   {
     id: "beta-b",
     planetId: "planet-beta",
     direction: "inbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 12),
-    planetArc: arc("planet-beta", 3, 16),
+    planetArc: arc("planet-beta", PLANET_OUTER_RING, 16),
   },
   {
     id: "alpha-b",
     planetId: "planet-alpha",
     direction: "outbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 16),
-    planetArc: arc("planet-alpha", 3, 4),
+    planetArc: arc("planet-alpha", PLANET_OUTER_RING, 4),
   },
   {
     id: "gamma-b",
     planetId: "planet-gamma",
     direction: "inbound",
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 20),
-    planetArc: arc("planet-gamma", 3, 16),
+    planetArc: arc("planet-gamma", PLANET_OUTER_RING, 16),
   },
 ];
 

@@ -58,7 +58,12 @@ export interface Point {
  * what opened, so the gap is bought from the outside in.
  */
 const BLACKHOLE_RING_RADII = [250, 330, 410, 490, 570]
-const PLANET_RING_RADII = [192, 262, 332]
+/**
+ * Four rings now, and the new one is the innermost: adding it inside keeps the
+ * outermost ring at 332, so the plates keep their size and the planets keep
+ * their spacing. The body gives up the room instead.
+ */
+const PLANET_RING_RADII = [122, 192, 262, 332]
 
 /** How far past the outermost ring the plate a well is printed on reaches. */
 export const PLATE_MARGIN = 26

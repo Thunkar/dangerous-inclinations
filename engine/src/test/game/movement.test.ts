@@ -44,9 +44,10 @@ describe("movement: drift", () => {
     [BH, 5, 0, 1],
     // Not sector 0: that is where the stations start, and a moored ship holds
     // its berth instead of drifting (see docking.test.ts).
-    [ALPHA, 1, 2, 6],
-    [ALPHA, 2, 22, 0],
-    [ALPHA, 3, 23, 0],
+    [ALPHA, 1, 2, 8],
+    [ALPHA, 2, 22, 2],
+    [ALPHA, 3, 22, 0],
+    [ALPHA, 4, 23, 0],
   ])("coasting on %s ring %i from sector %i lands on %i", (wellId, ring, sector, expected) => {
     const state = mustExecute(shipAt(wellId, ring, sector), coast(1));
     expect(getShip(state, "p1")).toMatchObject({ wellId, ring, sector: expected });
@@ -139,7 +140,7 @@ describe("movement: burns", () => {
     [BH, 3, "prograde", "hard"],
     [BH, 1, "retrograde", "soft"],
     [BH, 2, "retrograde", "medium"],
-    [ALPHA, 2, "prograde", "hard"],
+    [ALPHA, 3, "prograde", "hard"],
     [ALPHA, 2, "retrograde", "medium"],
   ] as const)(
     "a burn that would leave the rings is rejected: %s ring %i %s %s",
@@ -153,7 +154,7 @@ describe("movement: burns", () => {
 
   it("burnDestinationRing still clamps as a safety net", () => {
     expect(burnDestinationRing({ wellId: BH, ring: 5, facing: "prograde" }, "soft")).toBe(5);
-    expect(burnDestinationRing({ wellId: ALPHA, ring: 2, facing: "prograde" }, "hard")).toBe(3);
+    expect(burnDestinationRing({ wellId: ALPHA, ring: 3, facing: "prograde" }, "hard")).toBe(4);
   });
 
   it("burn heat equals the engines' allocated energy, not the burn cost", () => {
@@ -291,9 +292,9 @@ describe("movement: fuel scoop", () => {
     [BH, 1, 2, 10],
     [BH, 3, 5, 9],
     [BH, 5, 5, 6],
-    [ALPHA, 1, 0, 4],
+    [ALPHA, 1, 0, 6],
   ])("scooping on %s ring %i from %i mass gives %i", (wellId, ring, mass, expected) => {
-    // Sector 6: planet ring 1 also carries a station, and the scoop cannot be
+    // Sector 6: a planet ring can carry a station, and the scoop cannot be
     // run in port (RULES §Stations) — every station starts on sector 0.
     let state = withPower(shipAt(wellId, ring, 6), "p1", "scoop", 3);
     state = withShip(state, "p1", { reactionMass: mass });

@@ -77,9 +77,10 @@ describe("geometry: rings and drift", () => {
     [BH, 3, 4],
     [BH, 4, 2],
     [BH, 5, 1],
-    [ALPHA, 1, 4],
-    [ALPHA, 2, 2],
-    [ALPHA, 3, 1],
+    [ALPHA, 1, 6],
+    [ALPHA, 2, 4],
+    [ALPHA, 3, 2],
+    [ALPHA, 4, 1],
   ])("%s ring %i drifts %i sectors per turn", (wellId, ring, velocity) => {
     expect(ringVelocity(wellId, ring)).toBe(velocity);
     expect(driftPosition({ wellId, ring, sector: 0 })).toEqual({ wellId, ring, sector: velocity });
@@ -88,7 +89,7 @@ describe("geometry: rings and drift", () => {
   it("falls back to velocity 1 for unknown wells and rings", () => {
     expect(ringVelocity("nowhere", 1)).toBe(1);
     expect(ringVelocity(BH, 9)).toBe(1);
-    expect(ringVelocity(ALPHA, 4)).toBe(1);
+    expect(ringVelocity(ALPHA, 5)).toBe(1);
   });
 
   it("drift wraps around the ring and keeps well and ring", () => {
@@ -97,16 +98,16 @@ describe("geometry: rings and drift", () => {
       ring: 1,
       sector: 4,
     });
-    expect(driftPosition({ wellId: ALPHA, ring: 3, sector: 23 })).toEqual({
+    expect(driftPosition({ wellId: ALPHA, ring: 4, sector: 23 })).toEqual({
       wellId: ALPHA,
-      ring: 3,
+      ring: 4,
       sector: 0,
     });
   });
 
-  it("the black hole has 5 rings and planets have 3", () => {
+  it("the black hole has 5 rings and planets have 4", () => {
     expect(getMaxRing(BH)).toBe(5);
-    expect(getMaxRing(ALPHA)).toBe(3);
+    expect(getMaxRing(ALPHA)).toBe(4);
   });
 
   it("positionOf strips everything but the position", () => {

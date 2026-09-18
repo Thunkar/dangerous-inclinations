@@ -8,7 +8,7 @@ A game of orbital manoeuvre, heat management and hidden objectives for 2–6 pla
 
 ## Components
 
-- The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 3 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
+- The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 4 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
 - Per player: a ship token, a Home marker, a ship mat with 1 forward slot and 4 side slots, a small screen for your cards, 10 energy cubes, a hull track (10) and a heat track (10).
 - Subsystem tiles: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles. Take as many copies of a tile as you have slots it fits: two shields, four lasers, anything goes. Tiles are double-sided: face-down shows only the slot type.
 - One deck of mission cards, crate tokens, data chits, missile tokens, station tokens, one d10.
@@ -24,15 +24,18 @@ Every turn a ship **drifts** forward by its ring's velocity. Inner rings are fas
 | Well       | Ring 1 | Ring 2 | Ring 3 | Ring 4 | Ring 5 |
 | ---------- | ------ | ------ | ------ | ------ | ------ |
 | Black Hole | 8      | 6      | 4      | 2      | 1      |
-| Planet     | 4      | 2      | 1      | —      | —      |
+| Planet     | 6      | 4      | 2      | 1      | —      |
+
+A planet is the black hole's own sequence without its innermost ring, so there
+is only one set of numbers to learn.
 
 Sectors are numbered 0–23 and increase in the direction of drift (prograde).
 
 ### Transfer lanes
 
-Lanes are **one-way**. Each connects a 4-sector arc on Black Hole Ring 5 with a 4-sector arc on a planet's Ring 3 and is travelled in one direction only: every planet has an **outbound** lane (black hole → planet) and an **inbound** lane (planet → black hole). A ship in a lane's departure arc may **jump** to the matching sector of its arrival arc (1st sector to 1st sector, and so on). The arrival arc is a place you land, never a place you leave from.
+Lanes are **one-way**. Each connects a 4-sector arc on Black Hole Ring 5 with a 4-sector arc on a planet's Ring 4 and is travelled in one direction only: every planet has an **outbound** lane (black hole → planet) and an **inbound** lane (planet → black hole). A ship in a lane's departure arc may **jump** to the matching sector of its arrival arc (1st sector to 1st sector, and so on). The arrival arc is a place you land, never a place you leave from.
 
-| Lane    | Direction      | Black Hole Ring 5 | Planet Ring 3 |
+| Lane    | Direction      | Black Hole Ring 5 | Planet Ring 4 |
 | ------- | -------------- | ----------------- | ------------- |
 | Beta A  | out, to Beta   | sectors 0–3       | Beta 4–7      |
 | Alpha A | in, from Alpha | sectors 4–7       | Alpha 16–19   |
@@ -45,7 +48,9 @@ Reading Black Hole Ring 5 clockwise: out to Beta, in from Alpha, out to Gamma, i
 
 ### Stations
 
-Each planet has a station on **Ring 1**. Stations drift like ships: 4 sectors at the end of every round. Ships dock by ending their turn on the station's sector.
+Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at the end of every round. Ships dock by ending their turn on the station's sector.
+
+**Ring 1 is how you catch one.** A ship on the station's own ring drifts exactly as fast as the station, so the gap between them never closes by waiting — and every ring outside it is slower still. Ring 1 runs at 6: drop into it, let it carry you round faster than the station, and burn back out onto the sector the station will be in. Docking is a manoeuvre you fly, not a queue you join.
 
 **Moored.** A docked ship rides its station: it does not drift on its own, and it moves with the station when stations advance. Burn to cast off.
 
@@ -252,6 +257,8 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Hull             | 10                                                                                               |
 | Fuel             | 10                                                                                               |
 | Sectors per ring | 24                                                                                               |
+| Drift            | black hole 8/6/4/2/1 · planet 6/4/2/1, innermost first                                           |
+| Station ring     | planet Ring 2; Ring 1 is faster, so it is how you catch one                                       |
 | Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)                                          |
 | Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid |
 | Jump             | engines 3, 3 fuel (refunded by a compressor), no drift                                           |

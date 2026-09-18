@@ -19,7 +19,7 @@ import {
 } from "../../models/missions.ts";
 import type { Mission } from "../../models/missions.ts";
 import type { GameState } from "../../models/game.ts";
-import { PLANETS } from "../../models/gravityWells.ts";
+import { PLANETS, STATION_RING } from "../../models/gravityWells.ts";
 import { Rng } from "../../utils/rng.ts";
 import {
   ALPHA,
@@ -260,7 +260,7 @@ function docking(
     makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
   ]);
   let state = makeGameState([
-    makePlayer("p1", { wellId: planet, ring: 1, sector: approachSector(base, planet) }),
+    makePlayer("p1", { wellId: planet, ring: STATION_RING, sector: approachSector(base, planet) }),
     base.players[1],
   ]);
   state = withMissions(state, "p1", missions);
@@ -422,7 +422,7 @@ const SENSOR_HULL: ShipLoadout = {
 
 /** p1 on black hole ring 1 with its sensor array powered, holding a Survey. */
 function surveying(
-  position: { wellId?: string; ring: number; sector: number } = { ring: 1, sector: 0 }
+  position: { wellId?: string; ring: number; sector: number } = { ring: SURVEY_RING, sector: 0 }
 ) {
   const state = withMissions(
     makeTwoPlayerGame({ ...position, loadout: SENSOR_HULL }, { wellId: BH, ring: 4, sector: 12 }),
@@ -452,7 +452,7 @@ describe("missions: secondary", () => {
 
   it.each([
     ["ring 2 of the black hole", { wellId: BH, ring: 2, sector: 0 }],
-    ["ring 1 of a planet", { wellId: ALPHA, ring: 1, sector: 5 }],
+    ["the innermost ring of a planet", { wellId: ALPHA, ring: 1, sector: 5 }],
   ])("survey is not held on %s", (_label, position) => {
     const result = executeTurnAs(surveying(position), coast(1));
     expect(eventTypes(result.events)).not.toContain("survey_hold");

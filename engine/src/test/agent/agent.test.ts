@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { PLANET_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { viewFor } from "../../game/view.ts";
 import {
@@ -107,7 +108,7 @@ describe("agent seat tooling", () => {
   it("jump options appear only on a departure arc, with the phasing the arc allows", () => {
     const onLane = makeTwoPlayerGame(
       { wellId: BH, ring: 5, sector: 17 },
-      { wellId: ALPHA, ring: 3, sector: 0 }
+      { wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 0 }
     );
     const jump = seatOptions(viewFor(onLane, "p1")).jump;
     expect(jump?.destinationWellId).toBe(ALPHA);
@@ -118,14 +119,14 @@ describe("agent seat tooling", () => {
   it("builds a phased jump the engine accepts, and refuses to invent one out of the arc", () => {
     const onLane = makeTwoPlayerGame(
       { wellId: BH, ring: 5, sector: 17 },
-      { wellId: ALPHA, ring: 3, sector: 0 }
+      { wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 0 }
     );
     const built = buildTurn(viewFor(onLane, "p1"), {
       move: { kind: "jump", destinationWellId: ALPHA, adjustment: 2 },
     });
     const result = executeTurn(onLane, built.actions);
     expect(result.errors).toBeUndefined();
-    expect(getShip(result.gameState, "p1")).toMatchObject({ wellId: ALPHA, ring: 3, sector: 7 });
+    expect(getShip(result.gameState, "p1")).toMatchObject({ wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 7 });
 
     const tooFar = buildTurn(viewFor(onLane, "p1"), {
       move: { kind: "jump", destinationWellId: ALPHA, adjustment: 3 },
@@ -135,13 +136,13 @@ describe("agent seat tooling", () => {
 
   it("tells a moored seat that a coast holds the berth", () => {
     const docked = makeTwoPlayerGame(
-      { wellId: ALPHA, ring: 1, sector: 0 }, // the station starts here
+      { wellId: ALPHA, ring: STATION_RING, sector: 0 }, // the station starts here
       { wellId: BH, ring: 4, sector: 0 }
     );
     expect(seatOptions(viewFor(docked, "p1")).moored).toBe(true);
     expect(describeViewForAgent(viewFor(docked, "p1"))).toContain("Moored at a station");
     const built = buildTurn(viewFor(docked, "p1"), { move: { kind: "coast" } });
     const result = executeTurn(docked, built.actions);
-    expect(getShip(result.gameState, "p1")).toMatchObject({ ring: 1, sector: 0 });
+    expect(getShip(result.gameState, "p1")).toMatchObject({ ring: STATION_RING, sector: 0 });
   });
 });

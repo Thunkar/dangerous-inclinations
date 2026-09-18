@@ -1,5 +1,6 @@
 import { viewFor } from "../../game/view.ts";
 import { describe, it, expect } from "vitest";
+import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
 import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from "../../game/respawn.ts";
 import { REACTOR_CAPACITY } from "../../models/game.ts";
 import type { GameState, Player, ShipLoadout } from "../../models/game.ts";
@@ -64,7 +65,7 @@ function wreck(): GameState {
   state = withSub(state, "p2", "side-0", { isRevealed: true });
   state = withSub(state, "p2", "engines", { isBroken: true });
   state = withPlayer(state, "p2", {
-    home: { wellId: BETA, ring: 3, sector: 7 },
+    home: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 },
     completedMissionCount: 1,
     intel: { p1: ["side-1"] },
   });
@@ -147,13 +148,13 @@ describe("respawn: the turn after dying", () => {
     expect(eventTypes(result.events)).toEqual(["respawned", "stations_moved"]);
     expect(eventsOf(result.events, "respawned")[0]).toMatchObject({
       playerId: "p2",
-      position: { wellId: BETA, ring: 3, sector: 7 },
+      position: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 },
     });
 
     const ship = getShip(result.gameState, "p2");
     expect(ship).toMatchObject({
       wellId: BETA,
-      ring: 3,
+      ring: PLANET_OUTER_RING,
       sector: 7,
       facing: "prograde",
       hitPoints: 10,
@@ -185,7 +186,7 @@ describe("respawn: the turn after dying", () => {
     expect(p2).toMatchObject({
       completedMissionCount: 1,
       intel: { p1: ["side-1"] },
-      home: { wellId: BETA, ring: 3, sector: 7 },
+      home: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 },
     });
     expect(p2.missions).toHaveLength(1);
     expect(p2.cargo).toEqual([{ ...crate, isPickedUp: false }]);
@@ -207,7 +208,7 @@ describe("respawn: the turn after dying", () => {
     expect(eventTypes(skipped.events)).toContain("turn_skipped");
     expect(eventTypes(skipped.events)).not.toContain("burned");
     // Beta ring 3 drifts 1 a turn: the helm is empty, the orbit is not.
-    expect(getShip(skipped.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 8 });
+    expect(getShip(skipped.gameState, "p2")).toMatchObject({ wellId: BETA, ring: PLANET_OUTER_RING, sector: 8 });
     expect(getShip(skipped.gameState, "p2").reactionMass).toBe(10);
     expect(getPlayer(skipped.gameState, "p2").skipTurns).toBe(0);
     // Two turns later the player acts normally again.
@@ -215,7 +216,7 @@ describe("respawn: the turn after dying", () => {
     const acting = executeTurnAs(state, coast(1));
     expect(acting.errors).toBeUndefined();
     expect(eventTypes(acting.events)).toContain("coasted");
-    expect(getShip(acting.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 9 });
+    expect(getShip(acting.gameState, "p2")).toMatchObject({ wellId: BETA, ring: PLANET_OUTER_RING, sector: 9 });
   });
 
   it("no one can shoot a wreck while it waits to respawn", () => {
@@ -316,7 +317,7 @@ describe("respawn: a recovering ship drifts", () => {
 });
 
 describe("respawn: choosing the sector", () => {
-  const home = { wellId: BETA, ring: 3, sector: 7 };
+  const home = { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 };
 
   it("uses Home when it is free", () => {
     expect(findRespawnPosition(makeTwoPlayerGame(), home, "p2")).toEqual(home);
@@ -326,7 +327,7 @@ describe("respawn: choosing the sector", () => {
     const blockers = (sectors: number[]) =>
       makeGameState([
         makePlayer("p2"),
-        ...sectors.map((sector, i) => makePlayer(`b${i}`, { wellId: BETA, ring: 3, sector })),
+        ...sectors.map((sector, i) => makePlayer(`b${i}`, { wellId: BETA, ring: PLANET_OUTER_RING, sector })),
       ]);
     expect(findRespawnPosition(blockers([7]), home, "p2")).toEqual({ ...home, sector: 8 });
     expect(findRespawnPosition(blockers([7, 8]), home, "p2")).toEqual({ ...home, sector: 6 });
@@ -335,9 +336,9 @@ describe("respawn: choosing the sector", () => {
 
   it("ignores wrecks, undeployed ships and itself", () => {
     let state = makeGameState([
-      makePlayer("p2", { wellId: BETA, ring: 3, sector: 7 }),
-      makePlayer("wreck", { wellId: BETA, ring: 3, sector: 7 }),
-      makePlayer("ghost", { wellId: BETA, ring: 3, sector: 7 }),
+      makePlayer("p2", { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
+      makePlayer("wreck", { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
+      makePlayer("ghost", { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
     ]);
     state = withShip(state, "wreck", { hitPoints: 0 });
     state = withPlayer(state, "ghost", { hasDeployed: false });
@@ -346,9 +347,9 @@ describe("respawn: choosing the sector", () => {
 
   it("through executeTurn: a wreck whose Home is occupied comes back next door", () => {
     let state = wreck();
-    state = withShip(state, "p1", { wellId: BETA, ring: 3, sector: 7 });
+    state = withShip(state, "p1", { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 });
     const result = executeTurnAs(state);
-    expect(getShip(result.gameState, "p2")).toMatchObject({ wellId: BETA, ring: 3, sector: 8 });
+    expect(getShip(result.gameState, "p2")).toMatchObject({ wellId: BETA, ring: PLANET_OUTER_RING, sector: 8 });
     expect(getShip(result.gameState, "p1").sector).toBe(7);
   });
 

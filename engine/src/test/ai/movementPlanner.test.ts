@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { PLANET_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import {
   planMovement,
   planMovementAlternatives,
@@ -204,11 +205,11 @@ describe("Movement Planner", () => {
       expect(plan!.totalTurns).toBe(2); // 2 coasts at velocity 4
     });
 
-    it("should find fast route from BH R4S4 to Beta R3S1 (cross-well)", () => {
-      // Real scenario: ship at BH R4S4 needs to reach Beta R3S1
-      // Transfer to Beta is at BH R5 S2 -> Beta R3 S5
-      // After transfer + orbital movement (velocity=1): lands at Beta R3 S6
-      // Then needs to reach Beta R3 S1
+    it("should find fast route from BH R4S4 to Beta's lane ringS1 (cross-well)", () => {
+      // Real scenario: ship at BH R4S4 needs to reach Beta's lane ringS1
+      // Transfer to Beta is at BH R5 S2 -> Beta's lane ring S5
+      // After transfer + orbital movement (velocity=1): lands at Beta's lane ring S6
+      // Then needs to reach Beta's lane ring S1
       const origin: OrientedPosition = {
         wellId: "blackhole",
         ring: 4,
@@ -217,7 +218,7 @@ describe("Movement Planner", () => {
       };
       const destination: OrbitalPosition = {
         wellId: "planet-beta",
-        ring: 3,
+        ring: PLANET_OUTER_RING,
         sector: 1,
       };
 
@@ -391,7 +392,7 @@ describe("Movement Planner", () => {
       };
       const destination: OrbitalPosition = {
         wellId: "planet-alpha",
-        ring: 3,
+        ring: PLANET_OUTER_RING,
         sector: 6, // After transfer (toSector=5) + velocity 1 = sector 6
       };
 
@@ -476,7 +477,7 @@ describe("Movement Planner", () => {
       // Destination is also away from the landing sector
       const destination: OrbitalPosition = {
         wellId: "planet-alpha",
-        ring: 1,
+        ring: STATION_RING,
         sector: 8,
       };
 
@@ -525,11 +526,11 @@ describe("Movement Planner", () => {
       };
       const destination: OrbitalPosition = {
         wellId: "planet-alpha",
-        ring: 1,
+        ring: STATION_RING,
         sector: 0,
       };
 
-      // Can't reach planet ring 1 from BH in 2 turns with no mass
+      // Can't reach the station ring from BH in 2 turns with no mass
       expect(isReachable(origin, destination, 2, 0, false)).toBe(false);
     });
   });
@@ -688,7 +689,7 @@ describe("Movement Planner", () => {
       };
       const destination: OrbitalPosition = {
         wellId: "planet-beta",
-        ring: 3,
+        ring: PLANET_OUTER_RING,
         sector: 1,
       };
 
@@ -727,7 +728,7 @@ describe("Movement Planner", () => {
       };
       const destination: OrbitalPosition = {
         wellId: "planet-beta",
-        ring: 3,
+        ring: PLANET_OUTER_RING,
         sector: 1,
       };
 
@@ -805,7 +806,7 @@ describe("Movement Planner", () => {
       };
       const destination: OrbitalPosition = {
         wellId: "planet-beta",
-        ring: 3,
+        ring: PLANET_OUTER_RING,
         sector: 1,
       };
 
@@ -862,34 +863,34 @@ function makeShip(
 
 describe("movementPlanner: orbitingTarget", () => {
   it("positionAt(0) returns the origin (no advances yet)", () => {
-    const target = orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 4 }, 4);
-    expect(target.positionAt(0)).toEqual({ wellId: "planet-alpha", ring: 1, sector: 4 });
+    const target = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 4);
+    expect(target.positionAt(0)).toEqual({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 });
   });
 
   it("positionAt(1) returns the same position — round-end happens AFTER turn 1", () => {
     // The bot's first action's match check fires before the round ends, so
     // the station hasn't moved yet at turn 1.
-    const target = orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 4 }, 4);
+    const target = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 4);
     expect(target.positionAt(1).sector).toBe(4);
   });
 
   it("positionAt advances by sectorsPerRound starting from turn 2", () => {
-    const target = orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 0 }, 4);
+    const target = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 0 }, 4);
     expect(target.positionAt(2).sector).toBe(4);
     expect(target.positionAt(3).sector).toBe(8);
     expect(target.positionAt(7).sector).toBe(0); // (0 + 4*6) % 24 = 0
   });
 
   it("wraps cleanly across the ring boundary", () => {
-    const target = orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 20 }, 4, 24);
+    const target = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 20 }, 4, 24);
     expect(target.positionAt(2).sector).toBe(0); // 20 + 4 = 24 → 0
     expect(target.positionAt(3).sector).toBe(4);
   });
 
   it("isMatch checks spatial equality at the right turn", () => {
-    const target = orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 0 }, 4);
-    expect(target.isMatch!({ wellId: "planet-alpha", ring: 1, sector: 4 }, 2)).toBe(true);
-    expect(target.isMatch!({ wellId: "planet-alpha", ring: 1, sector: 4 }, 3)).toBe(false);
+    const target = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 0 }, 4);
+    expect(target.isMatch!({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 2)).toBe(true);
+    expect(target.isMatch!({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 3)).toBe(false);
   });
 });
 
@@ -911,15 +912,15 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
   it("reaches a static target identically to the legacy reverse BFS", () => {
     const origin: OrientedPosition = {
       wellId: "planet-alpha",
-      ring: 1,
+      ring: STATION_RING,
       sector: 8,
       facing: "prograde",
     };
-    const target = staticTarget({ wellId: "planet-alpha", ring: 1, sector: 12 });
+    const target = staticTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 12 });
     const fwd = planMovementToTarget(origin, target, { availableMass: 16 });
     const rev = planMovement(
       origin,
-      { wellId: "planet-alpha", ring: 1, sector: 12 },
+      { wellId: "planet-alpha", ring: STATION_RING, sector: 12 },
       { availableMass: 16 }
     );
     expect(fwd).not.toBeNull();
@@ -933,26 +934,26 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
     // planner must find a ring detour that times the meet correctly. This
     // is the exact bug that motivated the redesign.
     const plan = planMovementToTarget(
-      { wellId: "planet-alpha", ring: 1, sector: 8, facing: "retrograde" },
-      orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 16 }, 4),
+      { wellId: "planet-alpha", ring: STATION_RING, sector: 8, facing: "retrograde" },
+      orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 16 }, 4),
       { availableMass: 16 }
     );
     expect(plan).not.toBeNull();
     expect(plan!.totalTurns).toBeGreaterThanOrEqual(2);
     expect(plan!.totalTurns).toBeLessThanOrEqual(5);
     const last = plan!.steps[plan!.steps.length - 1];
-    const expected = orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 16 }, 4).positionAt(
+    const expected = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 16 }, 4).positionAt(
       plan!.totalTurns
     );
     expect(last.to.sector).toBe(expected.sector);
-    expect(last.to.ring).toBe(1);
+    expect(last.to.ring).toBe(STATION_RING);
   });
 
   it("returns null when the bot cannot intercept within the turn budget", () => {
     const plan = planMovementToTarget(
-      { wellId: "planet-alpha", ring: 1, sector: 8, facing: "retrograde" },
-      orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 16 }, 4),
-      { availableMass: 16, maxTurns: 1 } // can't reach R1S? in 1 turn that matches station S16
+      { wellId: "planet-alpha", ring: STATION_RING, sector: 8, facing: "retrograde" },
+      orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 16 }, 4),
+      { availableMass: 16, maxTurns: 1 } // cannot match the station's sector in one turn
     );
     expect(plan).toBeNull();
   });
@@ -963,13 +964,13 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
     [6, 1],
     [7, 2],
   ])(
-    "reaches Alpha R3 S%i from the one lane sector with a jump phased by %i",
+    "reaches Alpha's lane ring S%i from the one lane sector with a jump phased by %i",
     (sector, adjustment) => {
       // BH R5 S17 is the second sector of the alpha-b departure arc; with
       // phasing its jump reaches all four sectors of the arrival arc.
       const plan = planMovement(
         { wellId: "blackhole", ring: 5, sector: 17, facing: "prograde" },
-        { wellId: "planet-alpha", ring: 3, sector },
+        { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector },
         // availableMass must not exceed maxFuelCapacity (10 by default), or
         // the planner's scoop-recovery floor clamps every step's cost.
         { availableMass: 10, maxTurns: 4 }
@@ -987,14 +988,14 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
   it("does not phase a jump it does not need to, and will not phase out of the arc", () => {
     const unphased = planMovement(
       { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
-      { wellId: "planet-alpha", ring: 3, sector: 4 },
+      { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector: 4 },
       { availableMass: 10, maxTurns: 4 }
     );
     expect(unphased!.steps[0].sectorAdjustment).toBe(0);
     // Sector 8 is off the arrival arc: no single jump gets there.
     const offArc = planMovement(
       { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
-      { wellId: "planet-alpha", ring: 3, sector: 8 },
+      { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector: 8 },
       { availableMass: 10, maxTurns: 1 }
     );
     expect(offArc).toBeNull();
@@ -1003,13 +1004,13 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
   it("will not phase a jump it cannot pay for", () => {
     const rich = planMovement(
       { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
-      { wellId: "planet-alpha", ring: 3, sector: 7 },
+      { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector: 7 },
       { availableMass: 6, maxTurns: 1 }
     );
     expect(rich!.steps[0].massCost).toBe(6);
     const poor = planMovement(
       { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
-      { wellId: "planet-alpha", ring: 3, sector: 7 },
+      { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector: 7 },
       { availableMass: 5, maxTurns: 1 }
     );
     expect(poor).toBeNull();
@@ -1021,7 +1022,7 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
     // has to navigate down to R1 — easily within budget.
     const plan = planMovementToTarget(
       { wellId: "blackhole", ring: 5, sector: 18, facing: "prograde" },
-      orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 0 }, 4),
+      orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 0 }, 4),
       { availableMass: 16 }
     );
     expect(plan).not.toBeNull();
@@ -1033,8 +1034,8 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
     // The planner should still find a *real* meet at layer ≥ 1, not a
     // 0-turn match that would give the bot nothing to do.
     const plan = planMovementToTarget(
-      { wellId: "planet-alpha", ring: 1, sector: 4, facing: "prograde" },
-      orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 4 }, 4),
+      { wellId: "planet-alpha", ring: STATION_RING, sector: 4, facing: "prograde" },
+      orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 4),
       { availableMass: 16 }
     );
     expect(plan).not.toBeNull();
@@ -1044,14 +1045,14 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
 
 describe("movementPlanner: planStationMeetUp (convenience)", () => {
   it("produces a plan whose final position matches the station at arrival", () => {
-    const ship = makeShip("planet-alpha", 1, 8, "retrograde");
+    const ship = makeShip("planet-alpha", STATION_RING, 8, "retrograde");
     const meet = planStationMeetUp(ship, {
       planetId: "planet-alpha",
-      ring: 1,
+      ring: STATION_RING,
       sector: 16,
     });
     expect(meet).not.toBeNull();
-    const expected = orbitingTarget({ wellId: "planet-alpha", ring: 1, sector: 16 }, 4).positionAt(
+    const expected = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 16 }, 4).positionAt(
       meet!.totalTurns
     );
     expect(meet!.meetPosition).toEqual(expected);
@@ -1060,26 +1061,26 @@ describe("movementPlanner: planStationMeetUp (convenience)", () => {
   it("returns null when the station is out of reach within the turn budget", () => {
     // Another planet's station needs a climb to the lane ring, a jump, a
     // crossing of black hole ring 5 and a descent: never three turns.
-    const ship = makeShip("planet-alpha", 1, 0, "prograde");
-    const meet = planStationMeetUp(ship, { planetId: "planet-beta", ring: 1, sector: 0 }, 3);
+    const ship = makeShip("planet-alpha", STATION_RING, 0, "prograde");
+    const meet = planStationMeetUp(ship, { planetId: "planet-beta", ring: STATION_RING, sector: 0 }, 3);
     expect(meet).toBeNull();
   });
 
   it("chooses a plan that actually intercepts the station (regression: trailing bug)", () => {
-    // This is the bug that drove the redesign — at R1 the bot's orbital
-    // velocity matches the station's, so coasting trails it forever. The
-    // station-meet planner must prove it lands on the station, not adjacent.
-    const ship = makeShip("planet-alpha", 1, 8, "retrograde");
+    // This is the bug that drove the redesign — on the station's own ring the
+    // bot's orbital velocity matches the station's, so coasting trails it
+    // forever. The planner must prove it lands on the station, not adjacent.
+    const ship = makeShip("planet-alpha", STATION_RING, 8, "retrograde");
     const meet = planStationMeetUp(ship, {
       planetId: "planet-alpha",
-      ring: 1,
+      ring: STATION_RING,
       sector: 16,
     });
     expect(meet).not.toBeNull();
     const last = meet!.plan.steps[meet!.plan.steps.length - 1];
     const expectedSector = (16 + 4 * Math.max(0, meet!.totalTurns - 1)) % 24;
     expect(last.to.sector).toBe(expectedSector);
-    expect(last.to.ring).toBe(1);
+    expect(last.to.ring).toBe(STATION_RING);
   });
 });
 

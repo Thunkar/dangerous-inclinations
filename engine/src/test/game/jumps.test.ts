@@ -10,6 +10,8 @@ import {
   laneArrivalArc,
   laneDepartureArc,
   phasedJumpDestination,
+  PLANET_OUTER_RING,
+  STATION_RING,
 } from "../../models/gravityWells.ts";
 import { SECTORS_PER_RING } from "../../models/rings.ts";
 import type { ShipLoadout } from "../../models/game.ts";
@@ -105,10 +107,10 @@ describe("jumps: lane geometry", () => {
     [16, ALPHA, 4],
     [19, ALPHA, 7],
   ])(
-    "BH R5 S%i jumps to %s R3 S%i, keeping the offset inside the arc",
+    "BH R5 S%i jumps to %s's lane ring S%i, keeping the offset inside the arc",
     (sector, planet, landing) => {
       const [option] = getJumpOptions({ wellId: BH, ring: 5, sector });
-      expect(option.destination).toEqual({ wellId: planet, ring: 3, sector: landing });
+      expect(option.destination).toEqual({ wellId: planet, ring: PLANET_OUTER_RING, sector: landing });
     }
   );
 
@@ -118,19 +120,19 @@ describe("jumps: lane geometry", () => {
     [BETA, 16, 12],
     [BETA, 19, 15],
     [GAMMA, 17, 21],
-  ])("%s R3 S%i jumps back to BH R5 S%i along the inbound lane", (planet, sector, landing) => {
-    const [option] = getJumpOptions({ wellId: planet, ring: 3, sector });
+  ])("%s lane ring S%i jumps back to BH R5 S%i along the inbound lane", (planet, sector, landing) => {
+    const [option] = getJumpOptions({ wellId: planet, ring: PLANET_OUTER_RING, sector });
     expect(option.destination).toEqual({ wellId: BH, ring: 5, sector: landing });
   });
 
   it.each([
-    [ALPHA, 3, 0],
-    [ALPHA, 3, 8],
-    [ALPHA, 2, 5],
+    [ALPHA, PLANET_OUTER_RING, 0],
+    [ALPHA, PLANET_OUTER_RING, 8],
+    [ALPHA, STATION_RING, 5],
     [BH, 4, 0],
     // Arrival arcs: you land here, you never leave from here.
-    [ALPHA, 3, 4],
-    [BETA, 3, 6],
+    [ALPHA, PLANET_OUTER_RING, 4],
+    [BETA, PLANET_OUTER_RING, 6],
     [BH, 5, 5],
     [BH, 5, 12],
     [BH, 5, 23],
@@ -146,7 +148,7 @@ describe("jumps: lane geometry", () => {
     }
     for (const planet of [ALPHA, BETA, GAMMA]) {
       for (let sector = 0; sector < SECTORS_PER_RING; sector++) {
-        for (const option of getJumpOptions({ wellId: planet, ring: 3, sector })) {
+        for (const option of getJumpOptions({ wellId: planet, ring: PLANET_OUTER_RING, sector })) {
           expect(getJumpOptions(option.destination)).toEqual([]);
         }
       }
@@ -155,7 +157,7 @@ describe("jumps: lane geometry", () => {
 
   it("the cheap circuit is Alpha → Gamma → Beta → Alpha: each arrival arc precedes the next departure", () => {
     const landingFrom = (planet: string) =>
-      getJumpOptions({ wellId: planet, ring: 3, sector: 19 })[0].destination;
+      getJumpOptions({ wellId: planet, ring: PLANET_OUTER_RING, sector: 19 })[0].destination;
     const nextOutbound = (bhSector: number) =>
       getJumpOptions({ wellId: BH, ring: 5, sector: (bhSector + 1) % SECTORS_PER_RING })[0].lane
         .planetId;
@@ -167,8 +169,8 @@ describe("jumps: lane geometry", () => {
   it("findJump only matches the lane's destination well", () => {
     expect(findJump({ wellId: BH, ring: 5, sector: 17 }, ALPHA)?.lane.id).toBe("alpha-b");
     expect(findJump({ wellId: BH, ring: 5, sector: 17 }, BETA)).toBeUndefined();
-    expect(findJump({ wellId: ALPHA, ring: 3, sector: 17 }, BETA)).toBeUndefined();
-    expect(findJump({ wellId: ALPHA, ring: 3, sector: 17 }, BH)?.lane.id).toBe("alpha-a");
+    expect(findJump({ wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 17 }, BETA)).toBeUndefined();
+    expect(findJump({ wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 17 }, BH)?.lane.id).toBe("alpha-a");
   });
 });
 
@@ -179,7 +181,7 @@ describe("jumps: executing a well transfer", () => {
     const ship = getShip(result.gameState, "p1");
     expect(ship).toMatchObject({
       wellId: ALPHA,
-      ring: 3,
+      ring: PLANET_OUTER_RING,
       sector: 5,
       facing: "prograde",
       reactionMass: 7,
@@ -187,7 +189,7 @@ describe("jumps: executing a well transfer", () => {
     expect(eventsOf(result.events, "jumped")).toEqual([
       expect.objectContaining({
         from: { wellId: BH, ring: 5, sector: 17 },
-        to: { wellId: ALPHA, ring: 3, sector: 5 },
+        to: { wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 5 },
         compressed: false,
         heat: 3,
       }),
@@ -196,7 +198,7 @@ describe("jumps: executing a well transfer", () => {
   });
 
   it("works from a planet back to the black hole, with any facing", () => {
-    const result = executeTurnAs(readyToJump(BETA, 3, 18, "retrograde"), jump(1, BH));
+    const result = executeTurnAs(readyToJump(BETA, PLANET_OUTER_RING, 18, "retrograde"), jump(1, BH));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1")).toMatchObject({
       wellId: BH,
@@ -280,14 +282,14 @@ describe("jumps: executing a well transfer", () => {
   });
 
   it("the lane is read from where the ship is when the jump executes", () => {
-    // p1 on Alpha R3 S15 (no lane) cannot jump even though S16 next door starts the inbound arc.
-    const result = executeTurnAs(readyToJump(ALPHA, 3, 15), jump(1, BH));
+    // p1 on Alpha's lane ring S15 (no lane) cannot jump even though S16 next door starts the inbound arc.
+    const result = executeTurnAs(readyToJump(ALPHA, PLANET_OUTER_RING, 15), jump(1, BH));
     expect(result.errors?.[0]).toMatch(/no transfer lane/i);
   });
 
   it("jumping is a movement: the ship does not drift afterwards even on a fast ring", () => {
-    // Beta R3 S17 is on Beta's inbound lane (16–19 → BH 12–15).
-    const state = makeTwoPlayerGame({ wellId: BETA, ring: 3, sector: 17 });
+    // Beta's lane ring S17 is on Beta's inbound lane (16–19 → BH 12–15).
+    const state = makeTwoPlayerGame({ wellId: BETA, ring: PLANET_OUTER_RING, sector: 17 });
     const result = executeTurnAs(withPower(state, "p1", "engines", 3), jump(1, BH));
     expect(getShip(result.gameState, "p1").sector).toBe(13);
   });
@@ -326,7 +328,7 @@ describe("jumps: phasing inside the arrival arc", () => {
     [19, -3, 4],
     [19, 0, 7],
     [19, 1, undefined],
-  ])("from BH R5 S%i, phasing %i lands on Alpha R3 S%s", (sector, adjustment, landing) => {
+  ])("from BH R5 S%i, phasing %i lands on Alpha's lane ring S%s", (sector, adjustment, landing) => {
     const [option] = getJumpOptions({ wellId: BH, ring: 5, sector });
     expect(phasedJumpDestination(option, adjustment)?.sector).toBe(landing);
   });
@@ -336,18 +338,18 @@ describe("jumps: phasing inside the arrival arc", () => {
     [0, 5, 3],
     [1, 6, 4],
     [2, 7, 5],
-  ])("a jump phased by %i lands on Alpha R3 S%i and costs %i fuel", (adjustment, landing, fuel) => {
+  ])("a jump phased by %i lands on Alpha's lane ring S%i and costs %i fuel", (adjustment, landing, fuel) => {
     const result = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA, adjustment));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1")).toMatchObject({
       wellId: ALPHA,
-      ring: 3,
+      ring: PLANET_OUTER_RING,
       sector: landing,
       reactionMass: 10 - fuel,
     });
     expect(eventsOf(result.events, "jumped")).toEqual([
       expect.objectContaining({
-        to: { wellId: ALPHA, ring: 3, sector: landing },
+        to: { wellId: ALPHA, ring: PLANET_OUTER_RING, sector: landing },
         sectorAdjustment: adjustment,
         massSpent: fuel,
         // Phasing is fuel, never heat: the engines already burned their cubes.
@@ -401,8 +403,8 @@ describe("jumps: phasing inside the arrival arc", () => {
   });
 
   it("phasing an inbound jump works the same way, and still skips the drift", () => {
-    // Beta R3 S17 is offset 1 of the inbound arc 16-19 -> BH 12-15, so S13 unphased.
-    const result = executeTurnAs(readyToJump(BETA, 3, 17), jump(1, BH, -1));
+    // Beta's lane ring S17 is offset 1 of the inbound arc 16-19 -> BH 12-15, so S13 unphased.
+    const result = executeTurnAs(readyToJump(BETA, PLANET_OUTER_RING, 17), jump(1, BH, -1));
     expect(getShip(result.gameState, "p1")).toMatchObject({
       wellId: BH,
       ring: 5,

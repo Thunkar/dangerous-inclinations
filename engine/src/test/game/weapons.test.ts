@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
 import { calculateFiringSolutions, isInWeaponRange } from "../../game/targeting.ts";
 import { getSideFiringDirection, getSubsystemSide } from "../../game/ship.ts";
 import { missileCanReach } from "../../game/missiles.ts";
@@ -484,10 +485,10 @@ describe("weapons: railgun recoil", () => {
   });
 
   it.each([
-    ["prograde on a planet's outer ring 3", "prograde", 3, false],
-    ["prograde on a planet's ring 2", "prograde", 2, true],
-    ["retrograde on a planet's ring 1", "retrograde", 1, false],
-    ["retrograde on a planet's ring 2", "retrograde", 2, true],
+    ["prograde on a planet's outer ring", "prograde", PLANET_OUTER_RING, false],
+    ["prograde one ring inside it", "prograde", PLANET_OUTER_RING - 1, true],
+    ["retrograde on a planet's innermost ring", "retrograde", 1, false],
+    ["retrograde one ring outside it", "retrograde", 2, true],
   ] as const)(
     "the well's own ring count decides: firing %s is allowed = %s",
     (_label, facing, ring, allowed) => {
@@ -504,8 +505,9 @@ describe("weapons: railgun recoil", () => {
       expect(result.errors?.join(" ") ?? "accepted").toMatch(
         allowed ? /accepted/ : /off the rings/i
       );
+      // The recoil pushes one ring in the facing direction, or nowhere.
       expect(getShip(result.gameState, "p1").ring).toBe(
-        allowed ? (facing === "prograde" ? 3 : 1) : ring
+        allowed ? ring + (facing === "prograde" ? 1 : -1) : ring
       );
     }
   );

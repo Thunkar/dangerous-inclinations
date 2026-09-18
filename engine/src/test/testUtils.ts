@@ -39,6 +39,7 @@ import type {
 } from "../models/missions.ts";
 import { createInitialShipState, updateSubsystem } from "../game/ship.ts";
 import { createInitialStations, getStationForPlanet } from "../game/stations.ts";
+import { PLANET_OUTER_RING, STATION_RING } from "../models/gravityWells.ts";
 import { executeTurn, type TurnResult } from "../game/turns.ts";
 import { ringVelocity, wrapSector } from "../game/geometry.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
@@ -206,14 +207,14 @@ export function approachSector(state: GameState, planetId: string): number {
   return wrapSector(station.sector - ringVelocity(planetId, station.ring));
 }
 
-/** p1 on `planet` ring 1, one coast short of the station; p2 parked far away. */
+/** p1 on the station's ring, one coast short of it; p2 parked far away. */
 export function approachingStation(planetId: string, loadout?: ShipLoadout): GameState {
   const stations = createInitialStations();
   const sector = wrapSector(
-    getStationForPlanet(stations, planetId)!.sector - ringVelocity(planetId, 1)
+    getStationForPlanet(stations, planetId)!.sector - ringVelocity(planetId, STATION_RING)
   );
   return makeGameState([
-    makePlayer("p1", { wellId: planetId, ring: 1, sector }, loadout),
+    makePlayer("p1", { wellId: planetId, ring: STATION_RING, sector }, loadout),
     makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
   ]);
 }
@@ -428,7 +429,7 @@ export function scriptedGameStart(seed: number): GameState {
     { wellId: BH, ring: 3, sector: 2, facing: "retrograde" },
     DEFAULT_LOADOUT,
     {
-      home: { wellId: BETA, ring: 3, sector: 0 },
+      home: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 0 },
     }
   );
   let state = makeGameState([p1, p2], {

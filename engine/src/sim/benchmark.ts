@@ -21,6 +21,11 @@ import { cpus } from "node:os";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
+  BLACKHOLE_RINGS,
+  PLANET_RINGS,
+  STATION_RING,
+} from "../models/gravityWells.ts";
+import {
   MISSIONS_PER_PLAYER,
   MISSIONS_TO_WIN,
   MISSION_OFFERS_PER_PLAYER,
@@ -272,6 +277,11 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push(`| Hold | ${CARGO_HOLD_CRATES} crate (data rides free) |`);
   out.push(`| Cards offered / kept | ${MISSION_OFFERS_PER_PLAYER} / ${MISSIONS_PER_PLAYER} |`);
   out.push(`| Seats allowed | ${MIN_PLAYERS}–${MAX_PLAYERS} |`);
+  // The map is a rule: a page run under a different one is not comparable.
+  out.push(
+    `| Drift | black hole ${BLACKHOLE_RINGS.map((r) => r.velocity).join("/")}, ` +
+      `planet ${PLANET_RINGS.map((r) => r.velocity).join("/")} (station on planet ring ${STATION_RING}) |`
+  );
   out.push(`| Starting hull | ${STARTING_HIT_POINTS} |`);
   out.push(
     `| Heat track | ${MAX_HEAT}; above it is hull damage, then shed ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator) and carry the rest |`
