@@ -157,6 +157,8 @@ A wall that holds is no protection against being named. **The cubes on every slo
 
 ### Weapons
 
+**Point blank.** A ship in **your own sector** is in range of every weapon you carry, whatever its arc — there is no ahead, behind or side at zero range. Ending a turn on top of someone (a Board card does exactly that) puts you in reach of everything they have, and them in reach of everything of yours.
+
 - **Railgun** — spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
 - **Broadside laser** — targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port tiles (side 1–2) fire outward and starboard tiles (side 3–4) fire inward; facing retrograde swaps them.
 - **Ballistic rack** — 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away — the only broadside that can join a railgun shot on your own ring. While powered it also **intercepts** missiles that reach you: roll a d10, on 2+ the missile is destroyed (the rack is used and heats up either way).
@@ -256,6 +258,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Critical         | names any slot but the fuel scoop; breaks it through shields, and dumps its cubes as heat         |
 | Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                             |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
+| Point blank      | a ship in your own sector is in range of every weapon                                            |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |
 | Keeping cards    | one deck: deal 5, keep 3, discard 2; Intercept needs a sensor array, Destroy needs a weapon        |

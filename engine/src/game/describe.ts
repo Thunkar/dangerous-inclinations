@@ -111,9 +111,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
         ? `${name(e.victimId)} is destroyed by ${name(e.killerId)}`
         : `${name(e.victimId)} is destroyed by heat`;
     case "heat_check":
-      return `${name(e.playerId)} runs ${e.heat} heat${
-        e.standing > 0 ? ` (${e.standing} from shields)` : ""
-      }, dissipates ${e.dissipation}${e.carried > 0 ? `, carries ${e.carried}` : ""}`;
+      return `${name(e.playerId)} runs ${e.heat} heat, dissipates ${e.dissipation}, carries ${e.carried}`;
     case "turn_skipped":
       return `${name(e.playerId)} is recovering and sits this turn out`;
     case "heat_damage":

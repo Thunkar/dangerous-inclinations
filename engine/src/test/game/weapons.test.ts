@@ -66,6 +66,23 @@ describe("weapons: sides", () => {
   });
 });
 
+describe("weapons: point blank", () => {
+  const game = makeTwoPlayerGame();
+  const here = at(3, 0);
+  it.each([
+    ["railgun (spinal, wants a target ahead)", "forward-0", makeTwoPlayerGame()],
+    ["laser (broadside, wants a side to fire toward)", "side-0", makeTwoPlayerGame()],
+    ["rack (broadside, same ring but one sector off)", "side-0", makeTwoPlayerGame({ loadout: RACKS })],
+  ])("%s reaches a ship in its own sector", (_label, slot, state) => {
+    expect(isInWeaponRange(getSub(state, "p1", slot), attackerAt(3, 0), here)).toBe(true);
+  });
+
+  it("holds from either facing: there is no ahead or behind at zero range", () => {
+    const railgun = getSub(game, "p1", "forward-0");
+    expect(isInWeaponRange(railgun, { ...attackerAt(3, 0), facing: "retrograde" }, here)).toBe(true);
+  });
+});
+
 describe("weapons: railgun range (spinal)", () => {
   const railgun = getSub(makeTwoPlayerGame(), "p1", "forward-0");
 
@@ -74,7 +91,7 @@ describe("weapons: railgun range (spinal)", () => {
     ["5 ahead", at(3, 5), true],
     ["6 ahead", at(3, 6), false],
     ["1 behind", at(3, 23), false],
-    ["same sector", at(3, 0), false],
+    ["same sector (point blank)", at(3, 0), true],
     ["ahead but one ring out", at(4, 2), false],
   ])("prograde at R3 S0: %s -> %s", (_label, target, expected) => {
     expect(isInWeaponRange(railgun, attackerAt(3, 0), target)).toBe(expected);
@@ -126,7 +143,7 @@ describe("weapons: ballistic rack range", () => {
   it.each([
     ["same ring, +1", at(3, 1), true],
     ["same ring, -1 (wrap)", at(3, 23), true],
-    ["same ring, same sector", at(3, 0), false],
+    ["same ring, same sector (point blank)", at(3, 0), true],
     ["same ring, +2", at(3, 2), false],
     ["one ring out, +1", at(4, 1), true],
     ["one ring in, -1", at(2, 23), true],

@@ -2,6 +2,8 @@
  * Weapon ranges. Targets are positions (public information), so the same code
  * serves the engine, the bots and the UI's range previews.
  *
+ * Point blank: a target in the attacker's own ring and sector is in range of
+ *   every weapon, whatever its arc.
  * Spinal (railgun): same ring, 1..sectorRange sectors ahead in facing direction.
  * Broadside (laser, rack): within ±ringRange rings and ±sectorRange sectors.
  *   Side-restricted broadsides only fire toward the ring direction their side
@@ -48,6 +50,15 @@ function checkRange(
   // A boxed weapon always carries its box; a turret has none (fails closed).
   const ringRange = stats.ringRange ?? 0;
   const sectorRange = stats.sectorRange ?? 0;
+
+  /**
+   * Point blank. Two ships sharing a sector are on top of each other, and every
+   * firing box excluded that: the railgun wants a target *ahead*, a broadside
+   * wants a side to fire toward, and neither means anything at zero range. Only
+   * a missile could reach a ship you were sitting on, which is not a rule
+   * anyone would write down — and a Board card puts you there on purpose.
+   */
+  if (ringDist === 0 && sectorDist === 0) return true;
 
   switch (stats.arc) {
     case "spinal": {
