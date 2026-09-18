@@ -113,6 +113,7 @@ yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak ch
 yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural play + extreme hulls, flags outliers
 yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
+node scripts/shot.mjs '/?showcase=1&seed=7&board=2d' shot.png   # photograph the running UI (needs `yarn dev`)
 ```
 
 Arena (`yarn seat help`, and the header of `server/scripts/seat.ts`): agents
@@ -157,6 +158,11 @@ The batch runner and the sim CLI are not exported from the engine's browser
 barrel (they use worker threads); use `yarn sim`. A single headless game
 (`runGame`, `setupBotGame`) is pure and is exported, because the UI's
 `?showcase=1` page builds its canned game with it in the browser.
+
+Seeing a change: `scripts/shot.mjs` drives the running app with Playwright and
+writes a PNG, reporting page errors and the text of the status block and turn
+log. `?showcase=1` needs no server; `?game=<id>` with `localStorage.playerId`
+set renders a real seat, which is the only way to see the turn column.
 
 ## The board has two renderers
 

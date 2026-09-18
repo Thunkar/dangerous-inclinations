@@ -22,6 +22,7 @@ import { Box, IconButton, Tooltip, Typography } from '@mui/material'
 import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
 import {
+  MAX_HEAT,
   CARGO_HOLD_CRATES,
   MISSIONS_TO_WIN,
   isCriticalTarget,
@@ -224,10 +225,11 @@ export function OpponentCard({
         />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
           <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+            {/* Against the redline, not a guess: heat carries, and 10 is where it costs hull. */}
             <PipTrack
               value={ship?.heat ?? 0}
-              max={Math.max(8, ship?.heat ?? 0)}
-              color={TABLE.heat}
+              max={Math.max(MAX_HEAT, ship?.heat ?? 0)}
+              color={ship && ship.heat >= MAX_HEAT ? TABLE.danger : TABLE.heat}
               label="Heat"
               size={8}
             />
