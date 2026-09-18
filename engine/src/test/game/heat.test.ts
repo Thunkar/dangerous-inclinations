@@ -202,7 +202,7 @@ describe("heat: a cold ship repairs one tile", () => {
   });
 
   it("does nothing if the turn made any heat at all", () => {
-    let state = withPower(stranded(), "p1", "scoop", 3);
+    const state = withPower(stranded(), "p1", "scoop", 3);
     const result = executeTurnAs(state, coast(1, true), repair("engines"));
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "subsystem_repaired")).toEqual([]);
