@@ -4,7 +4,7 @@
  * guessing, so an illegal move is never their only option.
  */
 import type { BurnIntensity, Facing, PlayerAction, Position } from "../models/game.ts";
-import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, weaponsAreLive } from "../models/game.ts";
+import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, isOpeningRound } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import {
@@ -160,13 +160,15 @@ export function seatOptions(view: GameView): SeatOptions {
     kind: "coast",
     moored,
   } as MovementPreview);
+  // The opening round reaches nobody: no shot and no scan (RULES §Firing).
+  const opening = isOpeningRound(view.turn);
   const weapons: WeaponOption[] = ship.subsystems
     .filter((s) => getSubsystemConfig(s.type).weaponStats)
     .map((weapon) => {
       const config = getSubsystemConfig(weapon.type);
       const stats = config.weaponStats!;
       const noAmmo = weapon.type === "missiles" && (weapon.ammo ?? 0) <= 0;
-      const cold = !weaponsAreLive(view.turn);
+      const cold = opening;
       const inRange = (from: Position & { facing: Facing }) =>
         opponents
           .filter((o) => {
@@ -197,18 +199,19 @@ export function seatOptions(view: GameView): SeatOptions {
     });
 
   const sensor = ship.subsystems.find((s) => s.type === "sensor_array" && !s.isBroken);
-  const scanTargets = sensor
-    ? opponents
-        .filter((o) => {
-          const s = o.ship!;
-          return (
-            s.wellId === ship.wellId &&
-            s.ring === ship.ring &&
-            sectorDistance(s.sector, ship.sector) <= SCAN_SECTOR_RANGE
-          );
-        })
-        .map((o) => o.id)
-    : [];
+  const scanTargets =
+    sensor && !opening
+      ? opponents
+          .filter((o) => {
+            const s = o.ship!;
+            return (
+              s.wellId === ship.wellId &&
+              s.ring === ship.ring &&
+              sectorDistance(s.sector, ship.sector) <= SCAN_SECTOR_RANGE
+            );
+          })
+          .map((o) => o.id)
+      : [];
 
   const dissipation = view.myStats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY;
   const standingHeat = view.myStats?.standingHeat ?? 0;

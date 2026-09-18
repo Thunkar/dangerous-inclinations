@@ -78,16 +78,21 @@ export const MAX_HEAT = 10;
 export const SHIELD_HEAT_PER_POINT = 2;
 
 /**
- * Rounds at the start of the game in which no weapon fires.
+ * Rounds at the start of the game in which nothing reaches another ship.
  *
  * Everyone deploys on the same ring, in a sector they picked while the board
  * was still empty, so before anyone has moved the table is a firing line: the
  * first seat opens on a neighbour who never had a turn, and point blank (RULES
  * §Firing) means the neighbour two sectors away is in range of everything.
- * Holding fire for one round costs the aggressor nothing it cannot get back
- * and gives every seat one turn to choose where it is standing.
+ *
+ * A scan is the same problem without the damage. The sensor's range is a ring
+ * and three sectors, which on the deployment ring is most of the table, and
+ * the tile it turns up stays turned up: the first seat would read the mats of
+ * the seats that had not moved yet, and they could not read back. Holding both
+ * for one round costs nothing that cannot be got back and gives every seat one
+ * turn to choose where it is standing.
  */
-export const CEASEFIRE_ROUNDS = 1;
+export const OPENING_ROUNDS = 1;
 
 /**
  * The round a game starts play on. Deployment hands the board over at this
@@ -96,9 +101,9 @@ export const CEASEFIRE_ROUNDS = 1;
  */
 export const FIRST_TURN = 1;
 
-/** Whether weapons are live yet, given `state.turn`. */
-export function weaponsAreLive(turn: number): boolean {
-  return turn >= FIRST_TURN + CEASEFIRE_ROUNDS;
+/** Whether `state.turn` is still inside the opening round: no firing, no scanning. */
+export function isOpeningRound(turn: number): boolean {
+  return turn < FIRST_TURN + OPENING_ROUNDS;
 }
 
 export type Facing = "prograde" | "retrograde";

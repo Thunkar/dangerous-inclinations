@@ -80,6 +80,8 @@ Otherwise:
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
 
+**The first round reaches nobody: no weapon fires and nobody scans.** Everyone deploys on the same ring, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting — or reading the mat of — whoever you were placed next to. Everything else is allowed. From the second round on, both are live.
+
 ---
 
 ## Energy and Heat
@@ -156,8 +158,6 @@ When you fire, name one slot on the target: forward, side 1–4, engines or thru
 A wall that holds is no protection against being named. **The cubes on every slot are public**, even face-down, so a fat slot is a target you can see: four cubes on a side slot is four heat dumped onto its owner the moment a 10 comes up. A broken tile is repaired at a station, or one at a time by running cold (see Energy and Heat) — which is how a ship whose engines were shot out still gets home. Naming a face-down slot is a gamble; naming a face-up one is a plan. A tile that has just absorbed has already spent its cubes, so breaking it dumps little or nothing — but it is gone until they dock.
 
 ### Weapons
-
-**No weapon fires in the first round.** Everyone deploys on the same ring, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting whoever you were placed next to. From the second round on, weapons are live.
 
 **Point blank.** A ship in **your own sector** is in range of every weapon you carry, whatever its arc — there is no ahead, behind or side at zero range. Ending a turn on top of someone (a Board card does exactly that) puts you in reach of everything they have, and them in reach of everything of yours.
 
@@ -260,7 +260,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Critical         | names any slot but the fuel scoop; breaks it through shields, and dumps its cubes as heat         |
 | Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                             |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
-| First round      | no weapon fires                                                                                  |
+| First round      | no weapon fires and nobody scans                                                                 |
 | Point blank      | a ship in your own sector is in range of every weapon                                            |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |

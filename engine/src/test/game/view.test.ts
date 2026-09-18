@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CEASEFIRE_ROUNDS, FIRST_TURN } from "../../models/game.ts";
+import { OPENING_ROUNDS, FIRST_TURN } from "../../models/game.ts";
 import { MAX_HEAT } from "../../models/game.ts";
 import { opponentPositions, viewFor } from "../../game/view.ts";
 import { canSeeEvent, filterEventsFor } from "../../models/events.ts";
@@ -275,7 +275,7 @@ describe("view: the viewer's own side", () => {
     const state = withMissile(knownGame(), { ring: 3, sector: 5 });
     const view = viewFor(state, "p2");
     expect(view).toMatchObject({
-      turn: FIRST_TURN + CEASEFIRE_ROUNDS,
+      turn: FIRST_TURN + OPENING_ROUNDS,
       phase: "active",
       activePlayerIndex: 0,
       activePlayerId: "p1",

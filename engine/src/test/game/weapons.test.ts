@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { calculateFiringSolutions, isInWeaponRange } from "../../game/targeting.ts";
 import { getSideFiringDirection, getSubsystemSide } from "../../game/ship.ts";
 import { missileCanReach } from "../../game/missiles.ts";
+import { getSubsystemConfig } from "../../models/subsystems.ts";
 import type { Facing, ShipLoadout } from "../../models/game.ts";
 import { FIRST_TURN } from "../../models/game.ts";
 import {
@@ -20,6 +21,7 @@ import {
   makePlayer,
   makeTwoPlayerGame,
   mustExecute,
+  scan,
   withPlayer,
   withPower,
   withShip,
@@ -84,28 +86,42 @@ describe("weapons: point blank", () => {
   });
 });
 
-describe("weapons: the opening round", () => {
+describe("weapons: the opening round reaches nobody", () => {
   /**
    * Everyone deploys on the same ring, so before anyone has moved the table is
-   * a firing line. The rule is about the round, not about the ship: a seat that
-   * has already taken its turn is no more allowed to shoot than the one that
-   * has not.
+   * a firing line and every mat is within sensor range. The rule is about the
+   * round, not about the ship: a seat that has already taken its turn is no
+   * more allowed to shoot than the one that has not.
    */
+  const SENSING: ShipLoadout = {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["laser", "shields", "radiator", "missiles"],
+  };
   const sameSector = (turn: number) => {
     const game = makeTwoPlayerGame({}, { ring: 3, sector: 0 }, { turn });
     return withPower(game, "p1", "forward-0", 4);
   };
+  const sensing = (turn: number) => {
+    const game = makeTwoPlayerGame({ loadout: SENSING }, { ring: 3, sector: 1 }, { turn });
+    return withPower(game, "p1", "forward-0", getSubsystemConfig("sensor_array").minEnergy);
+  };
 
-  it("refuses a shot in the first round", () => {
-    const result = executeTurnAs(sameSector(FIRST_TURN), fire(1, "forward-0", "p2"));
+  it.each([
+    ["a shot", FIRST_TURN, "weapon_fired", sameSector, () => fire(1, "forward-0", "p2")],
+    ["a scan", FIRST_TURN, "scanned", sensing, () => scan(1, "p2", "side-0")],
+  ])("refuses %s in the first round", (_what, turn, event, build, action) => {
+    const result = executeTurnAs(build(turn), action());
     expect(result.errors?.length).toBeGreaterThan(0);
-    expect(eventTypes(result.events)).not.toContain("weapon_fired");
+    expect(eventTypes(result.events)).not.toContain(event);
   });
 
-  it("allows the same shot in the second", () => {
-    const result = executeTurnAs(sameSector(FIRST_TURN + 1), fire(1, "forward-0", "p2"));
+  it.each([
+    ["the shot", "weapon_fired", sameSector, () => fire(1, "forward-0", "p2")],
+    ["the scan", "scanned", sensing, () => scan(1, "p2", "side-0")],
+  ])("allows %s in the second", (_what, event, build, action) => {
+    const result = executeTurnAs(build(FIRST_TURN + 1), action());
     expect(result.errors ?? []).toEqual([]);
-    expect(eventTypes(result.events)).toContain("weapon_fired");
+    expect(eventTypes(result.events)).toContain(event);
   });
 });
 

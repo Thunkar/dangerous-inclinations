@@ -5,6 +5,7 @@
  * face-down tiles to the bot.
  */
 import type { Position } from "../../models/game.ts";
+import { isOpeningRound } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { SCAN_SECTOR_RANGE } from "../../models/missions.ts";
@@ -56,6 +57,9 @@ export function scanOption(
   post: Position,
   parameters: BotParameters
 ): ScanIntent | null {
+  // Nothing reaches another ship in the opening round (RULES §Firing), a scan
+  // included: the engine would refuse it.
+  if (isOpeningRound(situation.view.turn)) return null;
   const sensor = situation.status.sensors.find((s) => !s.isBroken && !s.usedThisTurn);
   if (!sensor) return null;
   const energy = getSubsystemConfig("sensor_array").minEnergy;

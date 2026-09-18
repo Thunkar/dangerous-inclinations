@@ -5,7 +5,7 @@
  * rejects a bot's fire action for range.
  */
 import type { Facing, Player, Position } from "../../models/game.ts";
-import { weaponsAreLive } from "../../models/game.ts";
+import { isOpeningRound } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
 import { getSubsystemConfig, isCriticalTarget } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
@@ -257,9 +257,9 @@ export function firingOptions(
   const { status } = situation;
   const targetPos = target.position;
 
-  // No weapon fires in the opening round (RULES §Firing), so there is nothing
-  // to plan: the engine would refuse every one of these.
-  if (!weaponsAreLive(situation.view.turn)) return intents;
+  // Nothing reaches another ship in the opening round (RULES §Firing), so
+  // there is nothing to plan: the engine would refuse every one of these.
+  if (isOpeningRound(situation.view.turn)) return intents;
 
   for (const weapon of status.weapons) {
     if (!isWeaponReady(weapon)) continue;

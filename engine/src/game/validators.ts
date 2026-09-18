@@ -18,7 +18,7 @@ import type {
   ScanAction,
   WellTransferAction,
 } from "../models/game.ts";
-import { CEASEFIRE_ROUNDS, isTacticalAction, weaponsAreLive } from "../models/game.ts";
+import { isOpeningRound, isTacticalAction } from "../models/game.ts";
 import {
   energyStepOf,
   getSubsystemConfig,
@@ -250,11 +250,7 @@ function validateTarget(
 }
 
 export function validateFireWeaponAction(state: GameState, action: FireWeaponAction): string[] {
-  if (!weaponsAreLive(state.turn)) {
-    return [
-      `No weapon fires in the first ${CEASEFIRE_ROUNDS === 1 ? "round" : `${CEASEFIRE_ROUNDS} rounds`}`,
-    ];
-  }
+  if (isOpeningRound(state.turn)) return ["No weapon fires in the first round"];
   const player = requirePlayer(state, action.playerId);
   const weapon = findSubsystem(player.ship, action.data.subsystemId);
   if (!weapon) return [`Weapon ${action.data.subsystemId} not found`];
@@ -323,6 +319,7 @@ export function validateRepairAction(state: GameState, action: RepairAction): st
 }
 
 export function validateScanAction(state: GameState, action: ScanAction): string[] {
+  if (isOpeningRound(state.turn)) return ["Nobody scans in the first round"];
   const player = requirePlayer(state, action.playerId);
   if (!player.ship.subsystems.some((s) => s.type === "sensor_array"))
     return ["No sensor array installed"];

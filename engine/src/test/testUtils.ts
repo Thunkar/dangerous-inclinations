@@ -25,7 +25,7 @@ import type {
   WellTransferAction,
   RepairAction,
 } from "../models/game.ts";
-import { CEASEFIRE_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
+import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
 import type { GameEvent, GameEventType } from "../models/events.ts";
 import type {
@@ -84,7 +84,7 @@ export function makeGameState(players: Player[], overrides: Partial<GameState> =
   return {
     // The first round weapons are live in, because that is the ordinary case:
     // a test about the opening round's ceasefire passes `turn: FIRST_TURN`.
-    turn: FIRST_TURN + CEASEFIRE_ROUNDS,
+    turn: FIRST_TURN + OPENING_ROUNDS,
     activePlayerIndex: 0,
     players,
     missiles: [],
