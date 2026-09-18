@@ -4,7 +4,7 @@
  * guessing, so an illegal move is never their only option.
  */
 import type { BurnIntensity, Facing, PlayerAction, Position } from "../models/game.ts";
-import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT } from "../models/game.ts";
+import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, weaponsAreLive } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import {
@@ -166,6 +166,7 @@ export function seatOptions(view: GameView): SeatOptions {
       const config = getSubsystemConfig(weapon.type);
       const stats = config.weaponStats!;
       const noAmmo = weapon.type === "missiles" && (weapon.ammo ?? 0) <= 0;
+      const cold = !weaponsAreLive(view.turn);
       const inRange = (from: Position & { facing: Facing }) =>
         opponents
           .filter((o) => {
@@ -182,10 +183,16 @@ export function seatOptions(view: GameView): SeatOptions {
         type: weapon.type,
         damage: stats.damage,
         energy: config.minEnergy,
-        targetsNow: inRange(here),
-        targetsAfterCoast: inRange(afterCoast),
-        ready: !weapon.isBroken && !noAmmo,
-        reason: weapon.isBroken ? "broken" : noAmmo ? "no ammo" : undefined,
+        targetsNow: cold ? [] : inRange(here),
+        targetsAfterCoast: cold ? [] : inRange(afterCoast),
+        ready: !weapon.isBroken && !noAmmo && !cold,
+        reason: weapon.isBroken
+          ? "broken"
+          : noAmmo
+            ? "no ammo"
+            : cold
+              ? "no weapon fires in the first round"
+              : undefined,
       };
     });
 

@@ -25,12 +25,12 @@ import type {
   WellTransferAction,
   RepairAction,
 } from "../models/game.ts";
-import { DEFAULT_LOADOUT } from "../models/game.ts";
+import { CEASEFIRE_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
 import type { GameEvent, GameEventType } from "../models/events.ts";
 import type {
-  DaringMission,
-  DaringMissionType,
+  SecondaryMission,
+  SecondaryMissionType,
   DeliverCargoMission,
   DestroyShipMission,
   GarbageDisposalMission,
@@ -82,7 +82,9 @@ export function testDeterminismDefaults(seed = 0xdeadbeef) {
 
 export function makeGameState(players: Player[], overrides: Partial<GameState> = {}): GameState {
   return {
-    turn: 1,
+    // The first round weapons are live in, because that is the ordinary case:
+    // a test about the opening round's ceasefire passes `turn: FIRST_TURN`.
+    turn: FIRST_TURN + CEASEFIRE_ROUNDS,
     activePlayerIndex: 0,
     players,
     missiles: [],
@@ -278,12 +280,12 @@ export const interceptMission = (
   scanAcquired: false,
   dataCargoId: `data-${id}`,
 });
-/** Any of the three daring cards; `survey` unless another is asked for. */
-export const daringMission = (
-  type: DaringMissionType = "survey",
+/** Any of the three secondary cards; `survey` unless another is asked for. */
+export const secondaryMission = (
+  type: SecondaryMissionType = "survey",
   id = `${type}-1`,
   deliveryPlanetId = "any"
-): DaringMission => ({
+): SecondaryMission => ({
   id,
   type,
   isCompleted: false,
@@ -291,8 +293,8 @@ export const daringMission = (
   acquired: false,
   dataCargoId: `data-${id}`,
 });
-export const surveyMission = (id = "survey-1", deliveryPlanetId = "any"): DaringMission =>
-  daringMission("survey", id, deliveryPlanetId);
+export const surveyMission = (id = "survey-1", deliveryPlanetId = "any"): SecondaryMission =>
+  secondaryMission("survey", id, deliveryPlanetId);
 
 export const garbageMission = (id = "garbage-1"): GarbageDisposalMission => ({
   id,

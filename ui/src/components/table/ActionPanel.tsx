@@ -43,6 +43,7 @@ import {
   getWellName,
   hasWorkingCompressor,
   phasedJumpDestination,
+  weaponsAreLive,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
@@ -642,14 +643,21 @@ function MoveControls({ disabled }: { disabled: boolean }) {
 
 function WeaponControls({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
+  const { view } = useGame()
   const weapons = plan.pendingSubsystems.filter(s => getSubsystemConfig(s.type).weaponStats)
   const sensor = plan.pendingSubsystems.find(s => s.type === 'sensor_array')
+  const cold = !weaponsAreLive(view.turn)
 
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
       {weapons.length === 0 && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
           No weapons aboard.
+        </Typography>
+      )}
+      {cold && weapons.length > 0 && (
+        <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
+          No weapon fires in the first round.
         </Typography>
       )}
       {weapons.map(weapon => {
@@ -662,7 +670,9 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
             key={weapon.id}
             title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · ${config.minEnergy} energy${
               weapon.isPowered ? '' : ' (not powered — put cubes on it above)'
-            }${weapon.isBroken ? ' — broken' : ''}${noAmmo ? ' — no ammo' : ''}`}
+            }${weapon.isBroken ? ' — broken' : ''}${noAmmo ? ' — no ammo' : ''}${
+              cold ? ' — no weapon fires in the first round' : ''
+            }`}
           >
             <Box component="span" sx={{ display: 'flex' }}>
               <Chip
@@ -673,7 +683,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
                 onClick={() => plan.addFire(weapon.id)}
                 onMouseEnter={() => plan.setFocusWeapon(weapon.id)}
                 onMouseLeave={() => plan.setFocusWeapon(null)}
-                disabled={disabled || queued || weapon.isBroken || noAmmo}
+                disabled={disabled || queued || weapon.isBroken || noAmmo || cold}
                 sx={{ fontSize: '0.8rem' }}
               />
             </Box>

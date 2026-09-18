@@ -3,6 +3,7 @@ import { calculateFiringSolutions, isInWeaponRange } from "../../game/targeting.
 import { getSideFiringDirection, getSubsystemSide } from "../../game/ship.ts";
 import { missileCanReach } from "../../game/missiles.ts";
 import type { Facing, ShipLoadout } from "../../models/game.ts";
+import { FIRST_TURN } from "../../models/game.ts";
 import {
   ALPHA,
   BH,
@@ -80,6 +81,31 @@ describe("weapons: point blank", () => {
   it("holds from either facing: there is no ahead or behind at zero range", () => {
     const railgun = getSub(game, "p1", "forward-0");
     expect(isInWeaponRange(railgun, { ...attackerAt(3, 0), facing: "retrograde" }, here)).toBe(true);
+  });
+});
+
+describe("weapons: the opening round", () => {
+  /**
+   * Everyone deploys on the same ring, so before anyone has moved the table is
+   * a firing line. The rule is about the round, not about the ship: a seat that
+   * has already taken its turn is no more allowed to shoot than the one that
+   * has not.
+   */
+  const sameSector = (turn: number) => {
+    const game = makeTwoPlayerGame({}, { ring: 3, sector: 0 }, { turn });
+    return withPower(game, "p1", "forward-0", 4);
+  };
+
+  it("refuses a shot in the first round", () => {
+    const result = executeTurnAs(sameSector(FIRST_TURN), fire(1, "forward-0", "p2"));
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(eventTypes(result.events)).not.toContain("weapon_fired");
+  });
+
+  it("allows the same shot in the second", () => {
+    const result = executeTurnAs(sameSector(FIRST_TURN + 1), fire(1, "forward-0", "p2"));
+    expect(result.errors ?? []).toEqual([]);
+    expect(eventTypes(result.events)).toContain("weapon_fired");
   });
 });
 

@@ -165,7 +165,7 @@ describe("respawn: the turn after dying", () => {
       ship.subsystems.every((s) => s.allocatedEnergy === 0 && !s.isPowered && !s.isBroken)
     ).toBe(true);
     expect(result.gameState.activePlayerIndex).toBe(0);
-    expect(result.gameState.turn).toBe(2);
+    expect(result.gameState.turn).toBe(state.turn + 1);
   });
 
   it("face-up tiles stay face-up; the rest stay face-down", () => {

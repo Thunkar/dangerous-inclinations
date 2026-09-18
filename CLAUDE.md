@@ -62,7 +62,8 @@ Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate
 one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
 arrival only) → heat
 check (excess over dissipation = hull damage, reset) → missions → pass.
-Stations advance at round end.
+Stations advance at round end. No weapon fires in the first round: everyone
+deploys on one ring, so the opening round is for getting off the line.
 
 ## Key files
 

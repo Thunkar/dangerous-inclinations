@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { CEASEFIRE_ROUNDS, FIRST_TURN } from "../../models/game.ts";
 import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game/missiles.ts";
 import { processActions } from "../../game/actionProcessors.ts";
 import { getMissileStats } from "../../models/subsystems.ts";
@@ -165,7 +166,7 @@ describe("missiles: launch", () => {
       ownerId: "p1",
       targetId: "p2",
       criticalTarget: "side-1",
-      turnFired: 1,
+      turnFired: FIRST_TURN + CEASEFIRE_ROUNDS,
       movesMade: 1,
     });
   });

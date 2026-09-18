@@ -18,7 +18,7 @@ import type {
   ScanAction,
   WellTransferAction,
 } from "../models/game.ts";
-import { isTacticalAction } from "../models/game.ts";
+import { CEASEFIRE_ROUNDS, isTacticalAction, weaponsAreLive } from "../models/game.ts";
 import {
   energyStepOf,
   getSubsystemConfig,
@@ -250,6 +250,11 @@ function validateTarget(
 }
 
 export function validateFireWeaponAction(state: GameState, action: FireWeaponAction): string[] {
+  if (!weaponsAreLive(state.turn)) {
+    return [
+      `No weapon fires in the first ${CEASEFIRE_ROUNDS === 1 ? "round" : `${CEASEFIRE_ROUNDS} rounds`}`,
+    ];
+  }
   const player = requirePlayer(state, action.playerId);
   const weapon = findSubsystem(player.ship, action.data.subsystemId);
   if (!weapon) return [`Weapon ${action.data.subsystemId} not found`];

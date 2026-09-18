@@ -77,6 +77,30 @@ export const MAX_HEAT = 10;
  */
 export const SHIELD_HEAT_PER_POINT = 2;
 
+/**
+ * Rounds at the start of the game in which no weapon fires.
+ *
+ * Everyone deploys on the same ring, in a sector they picked while the board
+ * was still empty, so before anyone has moved the table is a firing line: the
+ * first seat opens on a neighbour who never had a turn, and point blank (RULES
+ * §Firing) means the neighbour two sectors away is in range of everything.
+ * Holding fire for one round costs the aggressor nothing it cannot get back
+ * and gives every seat one turn to choose where it is standing.
+ */
+export const CEASEFIRE_ROUNDS = 1;
+
+/**
+ * The round a game starts play on. Deployment hands the board over at this
+ * number (`game/deployment.ts`), so it is the first round anyone acts in —
+ * not zero, which is the value a game carries while it is still being set up.
+ */
+export const FIRST_TURN = 1;
+
+/** Whether weapons are live yet, given `state.turn`. */
+export function weaponsAreLive(turn: number): boolean {
+  return turn >= FIRST_TURN + CEASEFIRE_ROUNDS;
+}
+
 export type Facing = "prograde" | "retrograde";
 export type BurnIntensity = "soft" | "medium" | "hard";
 

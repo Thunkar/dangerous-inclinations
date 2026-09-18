@@ -6,6 +6,7 @@
  * round gets the last pick of a sector.
  */
 import type { GameState, Player, Position } from "../models/game.ts";
+import { FIRST_TURN } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import { HOME_RING, HOME_WELL_ID } from "../models/gravityWells.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
@@ -90,5 +91,5 @@ export function checkAllDeployed(state: GameState): boolean {
 /** All ships placed: start the game with the first player. */
 export function transitionToActivePhase(state: GameState): GameState {
   if (!checkAllDeployed(state)) return state;
-  return { ...state, phase: "active", activePlayerIndex: 0, turn: 1 };
+  return { ...state, phase: "active", activePlayerIndex: 0, turn: FIRST_TURN };
 }
