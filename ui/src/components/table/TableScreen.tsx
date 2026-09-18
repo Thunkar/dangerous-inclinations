@@ -35,6 +35,7 @@ import { RulesButton } from './RulesDialog'
 import { StatusBlock } from './StatusBlock'
 import { TableTalk } from './TableTalk'
 import { DiceTray } from './DiceTray'
+import { TurnTransport } from './TurnTransport'
 
 /** The rivals' column: narrow enough that the board keeps the middle. */
 const LEFT_WIDTH = 252
@@ -284,6 +285,7 @@ export function TableScreen({
         )}
       </Box>
 
+      <TurnTransport />
       {footer}
     </Box>
   )

@@ -39,6 +39,8 @@ function Preview() {
             submitTurn: () => {},
             deploy: async () => {},
             registerAnimator: () => {},
+            history: [],
+            replayTurn: () => {},
             submitLoadout: async (loadout, missionIds, appearance) => {
               const result = submitLoadout(state, 'shipwright', { loadout, missionIds, appearance })
               if (result.error) throw new Error(result.error)

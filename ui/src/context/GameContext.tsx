@@ -46,6 +46,30 @@ export type Animator = (
   done: () => void,
 ) => void | (() => void)
 
+/**
+ * One player-turn, kept so it can be played again.
+ *
+ * A turn at this table is a minute of somebody else's plan resolving on a
+ * board you were not watching, and the log tells you what happened without
+ * showing you where. So the last {@link TURN_HISTORY} of them are held as the
+ * pair of views they ran between plus their events, which is exactly what the
+ * animator needs — a replay is the same animation over the same inputs, and
+ * it commits nothing.
+ */
+export interface TurnRecord {
+  id: number
+  /** The round it belongs to (`view.turn`), for the tick's label. */
+  turn: number
+  /** Whose turn it was. */
+  actorId: string
+  from: GameView
+  to: GameView
+  events: GameEvent[]
+}
+
+/** How many player-turns the transport keeps. */
+export const TURN_HISTORY = 10
+
 export interface GameContextValue {
   /** Live game id, or null for a replay. */
   gameId: string | null
@@ -68,6 +92,10 @@ export interface GameContextValue {
   submitLoadout: (loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance) => Promise<void>
   deploy: (sector: number) => Promise<void>
   registerAnimator: (animator: Animator | null) => void
+  /** The last {@link TURN_HISTORY} player-turns, oldest first. */
+  history: TurnRecord[]
+  /** Play a recorded turn again over the live board. Commits nothing. */
+  replayTurn: (id: number) => void
 }
 
 export const GameContext = createContext<GameContextValue | undefined>(undefined)
@@ -88,12 +116,22 @@ interface QueuedUpdate {
   animate: boolean
   /** Replace the log with `events` instead of appending. */
   replaceLog?: boolean
+  /**
+   * A replay of a turn already played: animate from this view instead of the
+   * live one and commit nothing at the end. It rides the same queue as a real
+   * turn because there is only one animator and one board — a replay that ran
+   * beside an arriving turn would have the two of them writing the same
+   * overlay.
+   */
+  replayFrom?: GameView
 }
 
 function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
   const [view, setView] = useState<GameView>(initialView)
   const [log, setLog] = useState<GameEvent[]>(initialLog)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [history, setHistory] = useState<TurnRecord[]>([])
+  const historySeqRef = useRef(0)
   const animatorRef = useRef<Animator | null>(null)
   const cancelAnimationRef = useRef<(() => void) | null>(null)
   const queueRef = useRef<QueuedUpdate[]>([])
@@ -116,9 +154,22 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
   }, [])
 
   const commit = useCallback((update: QueuedUpdate) => {
+    const from = viewRef.current
     viewRef.current = update.view
     setView(update.view)
     setLog((prev) => (update.replaceLog ? update.events : [...prev, ...update.events]))
+    // `replaceLog` is a resync of the whole game, not a turn that was played,
+    // and a turn with nothing in it is not one either.
+    if (update.replaceLog || update.events.length === 0) return
+    const record: TurnRecord = {
+      id: ++historySeqRef.current,
+      turn: from.turn,
+      actorId: from.activePlayerId,
+      from,
+      to: update.view,
+      events: update.events,
+    }
+    setHistory((prev) => [...prev, record].slice(-TURN_HISTORY))
   }, [])
 
   const pump = useCallback(() => {
@@ -134,10 +185,10 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
     const animator = animatorRef.current
     if (next.animate && animator && next.events.length > 0) {
       setIsAnimating(true)
-      const cancel = animator(viewRef.current, next.view, next.events, () => {
+      const cancel = animator(next.replayFrom ?? viewRef.current, next.view, next.events, () => {
         if (unmountedRef.current || generationRef.current !== generation) return
         cancelAnimationRef.current = null
-        commit(next)
+        if (!next.replayFrom) commit(next)
         // Let React paint the committed view before the next turn plays.
         setTimeout(() => {
           if (generationRef.current === generation) pump()
@@ -145,14 +196,14 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
       })
       cancelAnimationRef.current = typeof cancel === 'function' ? cancel : null
     } else {
-      commit(next)
+      if (!next.replayFrom) commit(next)
       pump()
     }
   }, [commit])
 
   const enqueue = useCallback(
     (update: QueuedUpdate) => {
-      latestRef.current = update.view
+      if (!update.replayFrom) latestRef.current = update.view
       queueRef.current.push(update)
       if (!processingRef.current) pump()
     },
@@ -170,13 +221,14 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
     setIsAnimating(false)
     setView(nextView)
     setLog(nextLog)
+    setHistory([])
   }, [])
 
   const registerAnimator = useCallback((animator: Animator | null) => {
     animatorRef.current = animator
   }, [])
 
-  return { view, log, isAnimating, enqueue, reset, registerAnimator, latestRef }
+  return { view, log, isAnimating, enqueue, reset, registerAnimator, latestRef, history }
 }
 
 function makeNameOf(view: GameView) {
@@ -257,7 +309,10 @@ interface LiveGameProps {
 function LiveGameProvider({ gameId, initialView, initialEvents, seats, children }: LiveGameProps) {
   const { client, connect } = useWebSocket()
   const { playerId } = usePlayer()
-  const { view, log, isAnimating, enqueue, registerAnimator, latestRef } = useViewQueue(initialView, initialEvents)
+  const { view, log, isAnimating, enqueue, registerAnimator, latestRef, history } = useViewQueue(
+    initialView,
+    initialEvents,
+  )
   const [turnErrors, setTurnErrors] = useState<string[]>([])
   const { chat, merge: mergeChat, sendChat } = useChat(gameId)
 
@@ -333,6 +388,15 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
   const nameOf = useMemo(() => makeNameOf(view), [view])
   const clearTurnErrors = useCallback(() => setTurnErrors([]), [])
 
+  const replayTurn = useCallback(
+    (id: number) => {
+      const record = history.find((r) => r.id === id)
+      if (!record) return
+      enqueue({ view: record.to, events: record.events, animate: true, replayFrom: record.from })
+    },
+    [enqueue, history],
+  )
+
   const value = useMemo<GameContextValue>(
     () => ({
       gameId,
@@ -350,6 +414,8 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
       submitLoadout,
       deploy,
       registerAnimator,
+      history,
+      replayTurn,
     }),
     [
       gameId,
@@ -367,6 +433,8 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
       submitLoadout,
       deploy,
       registerAnimator,
+      history,
+      replayTurn,
     ],
   )
 
@@ -438,6 +506,7 @@ interface ReplayGameProviderProps {
 const NO_CHAT: ChatMessage[] = []
 /** A recording keeps no lobby either: who played each seat is not shown in a replay. */
 const NO_SEATS: Seat[] = []
+const NO_HISTORY: TurnRecord[] = []
 
 function replayView(recording: GameRecording, turnIndex: number, perspectiveId: string | null): GameView {
   return viewFor(reconstructStateAtTurn(recording, turnIndex), perspectiveId)
@@ -493,6 +562,10 @@ export function ReplayGameProvider({ recording, turnIndex, perspectiveId, childr
       submitLoadout: asyncNoop,
       deploy: asyncNoop,
       registerAnimator,
+      // A recording has a transport of its own (`RecordingTable`), which seeks
+      // the whole game rather than replaying the last ten turns of it.
+      history: NO_HISTORY,
+      replayTurn: noop,
     }),
     [view, log, isAnimating, nameOf, noop, asyncNoop, registerAnimator],
   )

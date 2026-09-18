@@ -134,6 +134,9 @@ interface AnimationContextValue {
   ping: (playerId: string) => void
   /** The ping in progress, for renderers that answer it (the 3D camera flies there). */
   pinged: Ping | null
+  /** Divides every beat and every mark's life: 1x is the pace turns are written at. */
+  speed: PlaybackSpeed
+  setSpeed: (speed: PlaybackSpeed) => void
 }
 
 /** A ping: who was asked for, where they were, and which ping this is. */
@@ -160,20 +163,46 @@ const BEAM_COLORS: Record<WeaponType | 'pdc', string> = {
  */
 const PING = { rings: 3, stagger: 260, life: 900, radius: 52 } as const
 
-/** How long each event holds the table, in ms. */
+/**
+ * How long each event holds the table, in ms, at 1x.
+ *
+ * These are the pace of a bot's turn, and a bot's turn is the one nobody is
+ * expecting: your own turn you planned, so you already know what it will do.
+ * Slow enough to follow a volley you did not see coming, with {@link PlaybackSpeed}
+ * to wind it forward when you already have.
+ */
 const BEAT = {
-  move: 560,
-  jump: 640,
-  fire: 300,
-  resolve: 900,
-  missile: 320,
-  intercept: 700,
-  small: 360,
-  destroy: 760,
+  move: 700,
+  jump: 800,
+  fire: 380,
+  resolve: 1100,
+  missile: 400,
+  intercept: 850,
+  small: 450,
+  destroy: 950,
 } as const
 
-/** How long a mark stays up. Long enough to read one while the next arrives. */
-const FLOAT = { short: 1500, normal: 1800, long: 2200 } as const
+/**
+ * How long a mark stays up at 1x. A number over a ship is the only record of
+ * what a shot did until the log line scrolls, so it outlives its own beat:
+ * the damage is still readable while the next event is resolving.
+ */
+const FLOAT = { short: 2200, normal: 2800, long: 3600 } as const
+
+/** Winds the whole table forward: every beat and every mark divides by it. */
+export type PlaybackSpeed = 1 | 2 | 4
+export const PLAYBACK_SPEEDS: readonly PlaybackSpeed[] = [1, 2, 4]
+const SPEED_KEY = 'di.playbackSpeed'
+
+function storedSpeed(): PlaybackSpeed {
+  try {
+    const raw = Number(localStorage.getItem(SPEED_KEY))
+    if (PLAYBACK_SPEEDS.includes(raw as PlaybackSpeed)) return raw as PlaybackSpeed
+  } catch {
+    /* private window, blocked storage: 1x is the default anyway */
+  }
+  return 1
+}
 
 let effectSeq = 0
 /** Ring counts in RULES §Movement, used to name a burn by what it actually did. */
@@ -226,6 +255,22 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const skipRef = useRef<(() => void) | null>(null)
+  const [speed, setSpeedState] = useState<PlaybackSpeed>(storedSpeed)
+  /**
+   * The running animation reads the speed off a ref, not off the closure it
+   * started in: winding forward mid-volley has to shorten the beats that are
+   * still to come, not the next turn's.
+   */
+  const speedRef = useRef<PlaybackSpeed>(speed)
+  const setSpeed = useCallback((next: PlaybackSpeed) => {
+    speedRef.current = next
+    setSpeedState(next)
+    try {
+      localStorage.setItem(SPEED_KEY, String(next))
+    } catch {
+      /* the speed just does not survive a reload */
+    }
+  }, [])
   /** One expiry timer per effect: the board's clock is no longer this context's business. */
   const expiryRef = useRef(new Set<ReturnType<typeof setTimeout>>())
 
@@ -240,12 +285,13 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
    * draws the effect runs its own clock (`useBoardClock`).
    */
   const pushEffect = useCallback((effect: EffectDraft) => {
-    const started = { ...effect, start: performance.now() } as TableEffect
+    const life = effect.duration / speedRef.current
+    const started = { ...effect, duration: life, start: performance.now() } as TableEffect
     setEffects(prev => [...prev, started])
     const timer = setTimeout(() => {
       expiryRef.current.delete(timer)
       setEffects(prev => prev.filter(e => e !== started))
-    }, effect.duration)
+    }, life)
     expiryRef.current.add(timer)
   }, [])
 
@@ -373,9 +419,10 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         duration: number = BEAT.move
       ) => {
         const current = snap.ships[playerId]
+        const slide = duration / speedRef.current
         const motion: ShipMotion | undefined =
           kind !== null && current && current.alive
-            ? { from: current.position, kind, start: performance.now(), duration }
+            ? { from: current.position, kind, start: performance.now(), duration: slide }
             : undefined
         snap.ships[playerId] = {
           position: to,
@@ -813,7 +860,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           step()
           return
         }
-        timerRef.current = setTimeout(step, hold)
+        timerRef.current = setTimeout(step, hold / speedRef.current)
       }
 
       skipRef.current = () => {
@@ -862,8 +909,8 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<AnimationContextValue>(
-    () => ({ overlay, effects: onTable, dice, pulses, skip, ping, pinged }),
-    [overlay, onTable, dice, pulses, skip, ping, pinged]
+    () => ({ overlay, effects: onTable, dice, pulses, skip, ping, pinged, speed, setSpeed }),
+    [overlay, onTable, dice, pulses, skip, ping, pinged, speed, setSpeed]
   )
 
   return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>
@@ -877,6 +924,8 @@ const EMPTY: AnimationContextValue = {
   skip: () => {},
   ping: () => {},
   pinged: null,
+  speed: 1,
+  setSpeed: () => {},
 }
 
 export function useAnimation(): AnimationContextValue {
