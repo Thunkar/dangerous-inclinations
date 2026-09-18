@@ -11,7 +11,7 @@
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { isDaringMission } from "../models/missions.ts";
+import { isSecondaryMission } from "../models/missions.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { wrapSector, samePosition } from "./geometry.ts";
 import { createInitialShipState, isDestroyed } from "./ship.ts";
@@ -37,9 +37,9 @@ export function dropCargo(player: Player): { player: Player; events: EventDraft[
       lostData.has(m.id)
     )
       return { ...m, scanAcquired: false };
-    // A daring chit goes down with the ship: the dive, the boarding or the
+    // A secondary chit goes down with the ship: the dive, the boarding or the
     // tour has to be made again.
-    if (isDaringMission(m) && !m.isCompleted && m.acquired && lostData.has(m.id))
+    if (isSecondaryMission(m) && !m.isCompleted && m.acquired && lostData.has(m.id))
       return { ...m, acquired: false };
     return m;
   });

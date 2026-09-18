@@ -13,9 +13,9 @@ import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
 /**
  * Four points win; a hand is three cards drawn from five offers.
  *
- * The three numbers are one decision. A primary card scores two and a daring
+ * The three numbers are one decision. A primary card scores two and a secondary
  * card one, so a hand of three reaches four points two ways — two primaries,
- * or one primary and both daring cards — and three daring cards come to three,
+ * or one primary and both secondary cards — and three secondary cards come to three,
  * which is to say every hand needs at least one primary and no hand is only
  * filler. Three cards out of five is also a real choice at the table rather
  * than a formality: two of the five are left on the dock.
@@ -72,21 +72,21 @@ export type MissionType =
 
 /**
  * The one-point cards that pay a chit: do the thing, take the chit, file it at
- * any station. Garbage Disposal is daring too, but it carries a load instead
+ * any station. Garbage Disposal is a secondary too, but it carries a load instead
  * of a chit and finishes the moment the load is gone.
  */
-export type DaringMissionType = "survey" | "board";
-export const DARING_MISSION_TYPES: readonly DaringMissionType[] = ["survey", "board"];
+export type SecondaryMissionType = "survey" | "board";
+export const SECONDARY_MISSION_TYPES: readonly SecondaryMissionType[] = ["survey", "board"];
 
-export type MissionFamily = "combat" | "trade" | "daring";
+export type MissionFamily = "combat" | "trade" | "secondary";
 
 export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
   destroy_ship: "combat",
   deliver_cargo: "trade",
   intercept_transmission: "trade",
-  survey: "daring",
-  board: "daring",
-  garbage_disposal: "daring",
+  survey: "secondary",
+  board: "secondary",
+  garbage_disposal: "secondary",
 };
 
 /**
@@ -123,7 +123,7 @@ export const MISSION_REQUIREMENTS: Readonly<Record<MissionType, readonly Mission
   destroy_ship: [WEAPON],
   deliver_cargo: [],
   intercept_transmission: [SENSOR_ARRAY],
-  // The daring cards ask for nothing aboard: they are flown, not fitted, which
+  // The secondary cards ask for nothing aboard: they are flown, not fitted, which
   // is what lets any hand carry one as its third.
   board: [],
   garbage_disposal: [],
@@ -177,7 +177,7 @@ export interface InterceptTransmissionMission extends BaseMission {
 }
 
 /**
- * A daring card: do the thing, take the chit, file it at any station.
+ * A secondary card: do the thing, take the chit, file it at any station.
  *
  * Three of them, and the shape is deliberately one shape — the rule at the
  * table is a single sentence with the trigger swapped:
@@ -188,10 +188,10 @@ export interface InterceptTransmissionMission extends BaseMission {
  * | board  | end a turn in another ship's sector           |
  *
  * Neither asks for a tile and neither can be blocked, which is why each is
- * worth a point rather than two: a hand of three daring cards cannot win.
+ * worth a point rather than two: a hand of three secondary cards cannot win.
  */
-export interface DaringMission extends BaseMission {
-  type: DaringMissionType;
+export interface SecondaryMission extends BaseMission {
+  type: SecondaryMissionType;
   /** Always "any": a chit is filed wherever the ship next docks. */
   deliveryPlanetId: string;
   /** The thing has been done and the chit is aboard. */
@@ -203,7 +203,7 @@ export interface DaringMission extends BaseMission {
  * Garbage Disposal: load at any station, then drop it into the black hole.
  *
  * Survey run backwards — the same two legs, the same dive, the other way
- * round — and the only daring card that uses the hold. A load fills it, so a
+ * round — and the only secondary card that uses the hold. A load fills it, so a
  * cargo route and a disposal run cannot be flown at once: this is the card a
  * hunter or an interceptor has room for and a hauler has to queue.
  *
@@ -220,7 +220,7 @@ export type Mission =
   | DestroyShipMission
   | DeliverCargoMission
   | InterceptTransmissionMission
-  | DaringMission
+  | SecondaryMission
   | GarbageDisposalMission;
 
 export type CargoKind = "crate" | "data";
@@ -258,8 +258,8 @@ export function isDeliverCargoMission(m: Mission): m is DeliverCargoMission {
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
   return m.type === "intercept_transmission";
 }
-/** The daring cards that pay a chit (not Garbage Disposal, which pays a load). */
-export function isDaringMission(m: Mission): m is DaringMission {
+/** The secondary cards that pay a chit (not Garbage Disposal, which pays a load). */
+export function isSecondaryMission(m: Mission): m is SecondaryMission {
   return m.type === "survey" || m.type === "board";
 }
 

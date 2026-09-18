@@ -9,7 +9,7 @@ import {
   selectMissionsFromOffers,
 } from "../../game/missions/missionDeck.ts";
 import { checkForWinner, completedMissions } from "../../game/missions/missionChecks.ts";
-import { DARING_CARDS_PER_DECK } from "../../game/missions/missionDeck.ts";
+import { SECONDARY_CARDS_PER_DECK } from "../../game/missions/missionDeck.ts";
 import {
   MISSION_FAMILY,
   SURVEY_RING,
@@ -28,7 +28,7 @@ import {
   GAMMA,
   approachSector,
   coast,
-  daringMission,
+  secondaryMission,
   deliverMission,
   garbageMission,
   destroyMission,
@@ -69,11 +69,11 @@ describe("missions: deck", () => {
     expect(count("destroy_ship")).toBe((players - 1) * COPIES_PER_CARD);
     expect(count("intercept_transmission")).toBe((players - 1) * COPIES_PER_CARD);
     expect(count("deliver_cargo")).toBe(ROUTES * COPIES_PER_CARD);
-    expect(deck.filter((c) => MISSION_FAMILY[c.type] === "daring")).toHaveLength(
-      DARING_CARDS_PER_DECK
+    expect(deck.filter((c) => MISSION_FAMILY[c.type] === "secondary")).toHaveLength(
+      SECONDARY_CARDS_PER_DECK
     );
     expect(deck).toHaveLength(
-      (players - 1) * RIVAL_CARDS * COPIES_PER_CARD + ROUTES * COPIES_PER_CARD + DARING_CARDS_PER_DECK
+      (players - 1) * RIVAL_CARDS * COPIES_PER_CARD + ROUTES * COPIES_PER_CARD + SECONDARY_CARDS_PER_DECK
     );
   });
 
@@ -432,7 +432,7 @@ function surveying(
   return withPower(state, "p1", "forward-0", 2);
 }
 
-describe("missions: daring", () => {
+describe("missions: secondary", () => {
   it("survey data is taken on any turn ended on ring 1 (privately)", () => {
     const result = executeTurnAs(surveying(), coast(1));
     expect(eventsOf(result.events, "data_acquired")).toEqual([
@@ -461,9 +461,9 @@ describe("missions: daring", () => {
 
   it("chit cards file at any station; the disposal card files nowhere", () => {
     const deck = buildMissionDeck(3, PLANET_IDS);
-    const daring = deck.filter((m) => MISSION_FAMILY[m.type] === "daring");
-    expect(daring).toHaveLength(DARING_CARDS_PER_DECK);
-    for (const m of daring) {
+    const secondary = deck.filter((m) => MISSION_FAMILY[m.type] === "secondary");
+    expect(secondary).toHaveLength(SECONDARY_CARDS_PER_DECK);
+    for (const m of secondary) {
       if (m.type === "garbage_disposal") expect("deliveryPlanetId" in m).toBe(false);
       else expect("deliveryPlanetId" in m && m.deliveryPlanetId).toBe("any");
     }
@@ -473,7 +473,7 @@ describe("missions: daring", () => {
     const state = withMissions(
       makeTwoPlayerGame({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 3, sector: 4 }),
       "p1",
-      [daringMission("board")]
+      [secondaryMission("board")]
     );
     // Ring 3 drifts 4: both ships coast and p1 lands where p2 was, together.
     const result = executeTurnAs(state, coast(1));
@@ -490,7 +490,7 @@ describe("missions: daring", () => {
     const state = withMissions(
       makeTwoPlayerGame({ wellId: BH, ring: 3, sector: 0 }, other),
       "p1",
-      [daringMission("board")]
+      [secondaryMission("board")]
     );
     expect(eventTypes(executeTurnAs(state, coast(1)).events)).not.toContain("data_acquired");
   });

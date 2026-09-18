@@ -19,7 +19,7 @@ export type SeatHands = Record<string, number>;
 
 /**
  * `--hands=bot-1=1,bot-2=3`: how many primaries each named seat keeps, the
- * rest of its hand being daring cards. Experiment only — it deals a seat a
+ * rest of its hand being secondary cards. Experiment only — it deals a seat a
  * plan rather than letting it choose one, which is the only way to measure a
  * plan the bots price as second best.
  */

@@ -2,7 +2,7 @@
 
 A game of orbital manoeuvre, heat management and hidden objectives for 2–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to four points from secret missions.
 
-**The game ends at the end of the round in which a player reaches 4 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the three daring cards are worth 1 — so two primaries win, and so does one primary with both daring cards you kept.
+**The game ends at the end of the round in which a player reaches 4 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the three secondary cards are worth 1 — so two primaries win, and so does one primary with both secondary cards you kept.
 
 ---
 
@@ -157,6 +157,8 @@ A wall that holds is no protection against being named. **The cubes on every slo
 
 ### Weapons
 
+**No weapon fires in the first round.** Everyone deploys on the same ring, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting whoever you were placed next to. From the second round on, weapons are live.
+
 **Point blank.** A ship in **your own sector** is in range of every weapon you carry, whatever its arc — there is no ahead, behind or side at zero range. Ending a turn on top of someone (a Board card does exactly that) puts you in reach of everything they have, and them in reach of everything of yours.
 
 - **Railgun** — spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
@@ -202,9 +204,9 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 **Primaries score two.** Destroy, Deliver, Intercept — the kill, the cargo run, the stolen transmission, one for each way of playing. Each is a named errand: a victim, a route, a station to file at. Two of them win the game.
 
-**Daring cards score one.** Survey, Board, Garbage Disposal. Each is a thing you do rather than an errand someone gives you: no tile aboard can do it for you and nobody can block it. Survey and Board pay a chit — take it the moment you do the thing, then file it at **any** station. Garbage Disposal pays nothing to carry: the load goes over the side and the card is done.
+**Secondary cards score one.** Survey, Board, Garbage Disposal. Each is a thing you do rather than an errand someone gives you: no tile aboard can do it for you and nobody can block it. Survey and Board pay a chit — take it the moment you do the thing, then file it at **any** station. Garbage Disposal pays nothing to carry: the load goes over the side and the card is done.
 
-A hand is three cards, so four points is two primaries, or one primary and both daring cards. Three daring cards come to three, which is why every hand needs at least one primary. The round is played out; highest score wins, hull breaks ties.
+A hand is three cards, so four points is two primaries, or one primary and both secondary cards. Three secondary cards come to three, which is why every hand needs at least one primary. The round is played out; highest score wins, hull breaks ties.
 
 | Card                                  | Points | Complete when                                                                                                                                                                                                                                |
 | ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -215,7 +217,7 @@ A hand is three cards, so four points is two primaries, or one primary and both 
 | **Board a Ship**                      | 1      | you end a turn in the **same sector** as another ship — take the chit — then dock at **any** station to file it                       |
 | **Garbage Disposal**                  | 1      | you dock at **any** station to load it (it fills your hold), then end a turn on Black Hole Ring 1 to drop it into the hole            |
 
-**The deck.** One deck for the table, two copies of every card: each Destroy and Intercept offset (below), all six Deliver routes, and each daring card. **Setup:** take out every Destroy and Intercept whose number is the player count or higher — at three players that leaves offsets 1 and 2 — then shuffle and deal **5** to each player. Keep **3**, discard the other two face-down. More seats leave more of the deck pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
+**The deck.** One deck for the table, two copies of every card: each Destroy and Intercept offset (below), all six Deliver routes, and each secondary card. **Setup:** take out every Destroy and Intercept whose number is the player count or higher — at three players that leaves offsets 1 and 2 — then shuffle and deal **5** to each player. Keep **3**, discard the other two face-down. More seats leave more of the deck pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
 
 **Cards count seats, they do not name them.** A Destroy card reads *the 2nd player to your left* — counting left around the table in turn order — so the same card is a different target in every hand, no card can ever name the player holding it, and holding one tells the table nothing. The count only becomes a name when you complete the card and turn it face-up.
 
@@ -258,13 +260,14 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Critical         | names any slot but the fuel scoop; breaks it through shields, and dumps its cubes as heat         |
 | Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                             |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
+| First round      | no weapon fires                                                                                  |
 | Point blank      | a ship in your own sector is in range of every weapon                                            |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |
 | Keeping cards    | one deck: deal 5, keep 3, discard 2; Intercept needs a sensor array, Destroy needs a weapon        |
 | Hold             | one crate; data chits ride free                                                                  |
 | Ammo             | private while the missiles tile is face-down; public once it has fired                           |
-| Win              | 4 points end the round (primaries 2, daring 1); highest score, then hull, then fuel               |
+| Win              | 4 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel               |
 
 ### Turn cheat sheet
 

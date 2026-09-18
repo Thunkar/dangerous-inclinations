@@ -6,7 +6,7 @@
  * same pure helpers the UI uses.
  */
 import type { GameEvent } from "../models/events.ts";
-import type { DaringMissionType, Mission } from "../models/missions.ts";
+import type { SecondaryMissionType, Mission } from "../models/missions.ts";
 import { MISSION_POINTS, MISSIONS_TO_WIN, SURVEY_RING } from "../models/missions.ts";
 import {
   SHIELD_ENERGY_PER_POINT,
@@ -35,7 +35,7 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
 
 /** The rules an agent needs at hand, in the words of RULES.md, kept short. */
 export const AGENT_RULES_DIGEST = `RULES IN BRIEF
-- Win: the round in which someone reaches ${MISSIONS_TO_WIN} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is 3 cards, so ${MISSIONS_TO_WIN} points is two primaries, or one primary and both daring cards.
+- Win: the round in which someone reaches ${MISSIONS_TO_WIN} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is 3 cards, so ${MISSIONS_TO_WIN} points is two primaries, or one primary and both secondary cards.
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
 - Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.
@@ -45,15 +45,16 @@ export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - Shields: every ${SHIELD_ENERGY_PER_POINT} cubes on a tile absorb 1 point of damage, so a tile takes ${SHIELD_ENERGY_PER_POINT} cubes or ${2 * SHIELD_ENERGY_PER_POINT} and never an odd one; every point absorbed is ${SHIELD_HEAT_PER_POINT} heat to YOU. POWERED SHIELDS RUN HOT: each adds its cubes to your heat at EVERY check, absorbing or not. A tile that did absorb has spent its cubes back to the reactor and is dark, so it costs nothing that turn. Lasers ignore shields.
 - Weapons: railgun ${dmg("railgun")} dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser ${dmg("laser")} dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack ${dmg("ballistic_rack")} dmg, +-1 ring/+-1 sector or same ring 1 sector; intercepts missiles on 2+. Missiles ${dmg("missiles")} dmg at ANY ship in your well, any distance, any facing: ${MISSILE.maxAmmo} aboard, each flies ${MISSILE.fuelPerTurn} steps a turn (a step is one ring or one sector) for ${MISSILE.maxMoves} turns, then is gone.
 - POINT BLANK: a ship in YOUR OWN sector (same ring, same sector) is in range of every weapon you carry, whatever its arc.
+- NO WEAPON FIRES IN THE FIRST ROUND. Everyone deploys on the same ring, so the opening round is for getting off the line.
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat. Cubes on every slot are public even while the tile is face-down, so name a loaded slot. (A tile that just absorbed has spent its cubes, so breaking it dumps little — but it is gone until they dock.)
 - Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name — that means no move but a plain coast, no scoop, no shot, no scan and no shields powered. It is the only way back for a ship whose engines or thrusters were shot out, because every station needs a jump to reach.
 - Docking (end your turn on a station's sector, planet ring 1): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
-- Daring cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}, Board = end a turn in another ship's exact sector: take the chit, then dock anywhere to file it. Garbage Disposal = load at any station (fills your hold, so no delivery crate at the same time), then end a turn on BH ring ${SURVEY_RING} to drop it — no chit, no filing.
+- Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}, Board = end a turn in another ship's exact sector: take the chit, then dock anywhere to file it. Garbage Disposal = load at any station (fills your hold, so no delivery crate at the same time), then end a turn on BH ring ${SURVEY_RING} to drop it — no chit, no filing.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
 - Destroyed: respawn at Home next turn, lose the turn after too (you still drift with your ring while recovering), drop cargo.`;
 
-/** What each daring card still asks of you. */
-const DARING_HOW: Record<DaringMissionType, string> = {
+/** What each secondary card still asks of you. */
+const SECONDARY_HOW: Record<SecondaryMissionType, string> = {
   survey: `end a turn on BH R${SURVEY_RING}`,
   board: "end a turn in another ship's exact sector",
 };
@@ -72,7 +73,7 @@ function missionLine(m: Mission, name: (id: string) => string): string {
       }`;
     case "survey":
     case "board":
-      return `${head} — ${m.acquired ? "chit aboard: dock at any station" : DARING_HOW[m.type]}`;
+      return `${head} — ${m.acquired ? "chit aboard: dock at any station" : SECONDARY_HOW[m.type]}`;
     case "garbage_disposal":
       return `${head} — collect a load at ANY station (it fills your hold), then end a turn on BH R${SURVEY_RING} to drop it`;
     case "destroy_ship":

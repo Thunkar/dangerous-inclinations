@@ -6,7 +6,7 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, PlayerAction, ShipLoadout } from "../../models/game.ts";
 import { STARTING_HIT_POINTS } from "../../models/game.ts";
-import type { DaringMission } from "../../models/missions.ts";
+import type { SecondaryMission } from "../../models/missions.ts";
 import { SURVEY_RING } from "../../models/missions.ts";
 import { BLACK_HOLE_ID, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -144,7 +144,7 @@ describe("bot missions", () => {
       [surveyMission()]
     );
 
-    const acquired = (s: GameState) => (getPlayer(s, "p1").missions[0] as DaringMission).acquired;
+    const acquired = (s: GameState) => (getPlayer(s, "p1").missions[0] as SecondaryMission).acquired;
     const state = playUntil(start, "p1", acquired, 60);
 
     expect(acquired(state)).toBe(true);

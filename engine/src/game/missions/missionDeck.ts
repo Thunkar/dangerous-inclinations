@@ -18,14 +18,14 @@
  * with N players, remove every card whose offset is N or more.
  *
  * The mix is two copies of everything — each offset of each rival card, each
- * cargo route, each daring card — which keeps the same share of the deck
+ * cargo route, each secondary card — which keeps the same share of the deck
  * pointed at people as the old per-player decks had (31% at three seats, 53%
  * at six) while leaving enough cards to deal five to six players.
  */
 import type { Player } from "../../models/game.ts";
-import type { Cargo, DaringMission, Mission } from "../../models/missions.ts";
+import type { Cargo, SecondaryMission, Mission } from "../../models/missions.ts";
 import {
-  DARING_MISSION_TYPES,
+  SECONDARY_MISSION_TYPES,
   MISSIONS_PER_PLAYER,
   MISSION_OFFERS_PER_PLAYER,
 } from "../../models/missions.ts";
@@ -37,7 +37,7 @@ import type { Rng } from "../../utils/rng.ts";
 export const COPIES_PER_CARD = 2;
 
 /** Survey, Board, Garbage Disposal. */
-export const DARING_CARDS_PER_DECK = (DARING_MISSION_TYPES.length + 1) * COPIES_PER_CARD;
+export const SECONDARY_CARDS_PER_DECK = (SECONDARY_MISSION_TYPES.length + 1) * COPIES_PER_CARD;
 
 /**
  * A card as it is printed: a rival card counts seats rather than naming one,
@@ -85,7 +85,7 @@ export function buildMissionDeck(
       deck.push({ type: "deliver_cargo", pickupPlanetId, deliveryPlanetId });
     }
     deck.push({ type: "garbage_disposal" });
-    for (const type of DARING_MISSION_TYPES) {
+    for (const type of SECONDARY_MISSION_TYPES) {
       // A chit is filed at whatever station the ship next docks at.
       deck.push({ type, deliveryPlanetId: "any" });
     }
@@ -126,14 +126,14 @@ export function cardForPlayer(
     case "garbage_disposal":
       return { type: card.type, isCompleted: false, cargoId: "" };
     default: {
-      const daring: Omit<DaringMission, "id"> = {
+      const secondary: Omit<SecondaryMission, "id"> = {
         type: card.type,
         isCompleted: false,
         deliveryPlanetId: card.deliveryPlanetId,
         acquired: false,
         dataCargoId: "",
       };
-      return daring;
+      return secondary;
     }
   }
 }

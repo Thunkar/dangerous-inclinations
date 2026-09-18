@@ -223,7 +223,7 @@ function missionRows(batches: BatchResult[]) {
  * What shape of hand seats kept, and how it did.
  *
  * The question a three-card hand asks is which plan you came with: two
- * primaries, or one and a pair of daring cards. If every seat keeps the same
+ * primaries, or one and a pair of secondary cards. If every seat keeps the same
  * shape the table has one plan and the others are untested — that is what this
  * is here to show.
  */
@@ -319,8 +319,8 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   }
   out.push("");
   out.push(
-    `_P is a two-point primary, D a one-point daring card; a hand is ${MISSIONS_PER_PLAYER} cards ` +
-      `and ${MISSIONS_TO_WIN} points win, so 3D+0P cannot win at all. A shape nobody keeps is a ` +
+    `_P is a two-point primary, S a one-point secondary; a hand is ${MISSIONS_PER_PLAYER} cards ` +
+      `and ${MISSIONS_TO_WIN} points win, so 0P+3S cannot win at all. A shape nobody keeps is a ` +
       "plan the table never tested._"
   );
   out.push("");

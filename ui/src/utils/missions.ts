@@ -17,7 +17,7 @@ import { TABLE } from '../theme'
 export const FAMILY_COLOR: Partial<Record<MissionFamily, string>> = {
   combat: TABLE.danger,
   trade: TABLE.teal,
-  daring: TABLE.accent,
+  secondary: TABLE.accent,
 }
 
 export function missionFamily(mission: Mission): MissionFamily {

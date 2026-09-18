@@ -37,7 +37,7 @@ _Table time is the median game at the stated pace: rounds x seats player-turns. 
 | 1P+2D | 171 | 8% | 15% | 1.7 |
 | 0P+3D | 9 | 0% | 0% | 2.3 |
 
-_P is a two-point primary, D a one-point daring card; a hand is 3 cards and 4 points win, so 3D+0P cannot win at all. A shape nobody keeps is a plan the table never tested._
+_P is a two-point primary, D a one-point secondary card; a hand is 3 cards and 4 points win, so 3D+0P cannot win at all. A shape nobody keeps is a plan the table never tested._
 
 ## Hulls the bots chose
 

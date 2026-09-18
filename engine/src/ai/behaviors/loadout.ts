@@ -136,9 +136,9 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  */
 /** Whether any hand of `primaries` two-point cards can be dealt from `offers`. */
 function hasShape(offers: Mission[], primaries: number): boolean {
-  const primary = offers.filter((m) => MISSION_FAMILY[m.type] !== "daring").length;
-  const daring = offers.length - primary;
-  return primaries <= primary && MISSIONS_PER_PLAYER - primaries <= daring;
+  const primary = offers.filter((m) => MISSION_FAMILY[m.type] !== "secondary").length;
+  const secondary = offers.length - primary;
+  return primaries <= primary && MISSIONS_PER_PLAYER - primaries <= secondary;
 }
 
 /**
@@ -148,7 +148,7 @@ function hasShape(offers: Mission[], primaries: number): boolean {
  * Deliberately not "the best hand". The bot used to score every combination
  * against a table of hand-tuned costs, which meant every seat at every table
  * reached for the same shape — 79% of them took three two-point cards and not
- * one ever tried a hand led by daring cards, so the benchmark measured one
+ * one ever tried a hand led by secondary cards, so the benchmark measured one
  * plan and guessed about the rest. Forcing a shape (`--hands=`) measured them
  * head to head: within seven points of each other, with the shape the bots
  * never picked beating one they did. The scorer was not describing the game,
@@ -197,7 +197,7 @@ export function validHands(
   const hands: Mission[][] = [];
   const walk = (from: number, hand: Mission[]) => {
     if (hand.length === MISSIONS_PER_PLAYER) {
-      if (shaped && hand.filter((m) => MISSION_FAMILY[m.type] !== "daring").length !== primaries) {
+      if (shaped && hand.filter((m) => MISSION_FAMILY[m.type] !== "secondary").length !== primaries) {
         return;
       }
       if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) return;

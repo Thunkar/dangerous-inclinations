@@ -6,19 +6,19 @@
  */
 import type { GameState, Player } from "../../models/game.ts";
 import type { EventDraft } from "../../models/events.ts";
-import type { DaringMission, Mission } from "../../models/missions.ts";
+import type { SecondaryMission, Mission } from "../../models/missions.ts";
 import { MISSIONS_TO_WIN, SURVEY_RING, missionPoints } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 
 /**
- * Whether a daring card's thing has been done, read off the board at the end
+ * Whether a secondary card's thing has been done, read off the board at the end
  * of the turn — and, for the grand tour, the wells ticked off so far.
  *
- * A wreck does nothing daring: a destroyed ship is off the board until it is
+ * A wreck does nothing: a destroyed ship is off the board until it is
  * rebuilt at Home.
  */
-function daringDone(mission: DaringMission, player: Player, state: GameState): boolean {
+function secondaryDone(mission: SecondaryMission, player: Player, state: GameState): boolean {
   const ship = player.ship;
   if (isDestroyed(ship)) return false;
   switch (mission.type) {
@@ -112,7 +112,7 @@ export function processMissionEvents(
       case "board": {
         let m = mission;
         if (!m.acquired) {
-          if (daringDone(m, player, state)) {
+          if (secondaryDone(m, player, state)) {
             m = { ...m, acquired: true };
             cargo = [
               ...cargo,

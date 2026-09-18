@@ -36,8 +36,8 @@ export interface PerPlayerStats {
   loadout: string;
   /**
    * The shape of the hand this seat kept, as "2P+1D": primaries (two points
-   * each) and daring cards (one). With three cards and four points to win, the
-   * shape is the plan — two primaries, or one and both daring cards — so this
+   * each) and secondary cards (one). With three cards and four points to win, the
+   * shape is the plan — two primaries, or one and both secondary cards — so this
    * is what says whether a rule change moved the plans or only the numbers.
    */
   handShape: string;
@@ -90,10 +90,10 @@ export interface PerGameStats {
   perPlayer: Record<string, PerPlayerStats>;
 }
 
-/** "2P+1D": the primaries and daring cards a seat kept. */
+/** "2P+1S": the primaries and secondary cards a seat kept. */
 export function handShapeOf(missions: ReadonlyArray<{ type: MissionType }>): string {
-  const daring = missions.filter((m) => MISSION_FAMILY[m.type] === "daring").length;
-  return `${missions.length - daring}P+${daring}D`;
+  const secondary = missions.filter((m) => MISSION_FAMILY[m.type] === "secondary").length;
+  return `${missions.length - secondary}P+${secondary}S`;
 }
 
 export function computePerGameStats(run: GameRunResult): PerGameStats {
