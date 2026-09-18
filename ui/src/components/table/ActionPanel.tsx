@@ -43,7 +43,7 @@ import {
   getWellName,
   hasWorkingCompressor,
   phasedJumpDestination,
-  weaponsAreLive,
+  isOpeningRound,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
@@ -402,12 +402,18 @@ function SegmentedRow({ children, testId }: { children: ReactNode; testId?: stri
 function OrientationControls({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
   const rotating = plan.steps.some(s => s.kind === 'rotate')
-  const thrusters = plan.pendingSubsystems.find(s => s.id === 'rotation')
+  const ready = plan.rotateReady
   const facing = plan.me.ship.facing
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-      <Tooltip title="Flip facing. Needs 1 cube on the thrusters; costs that much heat.">
+      <Tooltip
+        title={
+          ready.ok || rotating
+            ? 'Flip facing. Needs 1 cube on the thrusters; costs that much heat.'
+            : `No rotation: ${ready.reason}.`
+        }
+      >
         <Box component="span" sx={{ display: 'flex' }}>
           <Chip
             size="small"
@@ -416,7 +422,8 @@ function OrientationControls({ disabled }: { disabled: boolean }) {
             color={rotating ? 'primary' : 'default'}
             variant={rotating ? 'filled' : 'outlined'}
             onClick={plan.toggleRotate}
-            disabled={disabled || thrusters?.isBroken}
+            // A queued rotation can always be taken back, whatever the mat says.
+            disabled={disabled || (!rotating && !ready.ok)}
           />
         </Box>
       </Tooltip>
@@ -477,25 +484,21 @@ function MoveControls({ disabled }: { disabled: boolean }) {
   const scoopReady = Boolean(
     scoop && !scoop.isBroken && scoop.allocatedEnergy >= getSubsystemConfig('scoop').minEnergy
   )
-  const engines = plan.pendingSubsystems.find(s => s.id === 'engines')
   const burnDirection = plan.moveFrom.facing === 'prograde' ? 'outward' : 'inward'
   const jumpFuel =
     move.kind === 'jump'
       ? calculateJumpMassCost(move.adjustment, compressor)
       : 0
 
-  /** Why an intensity is out — the engine refuses a burn that leaves the rings. */
+  /** What an intensity costs, or what is standing in its way. */
   const burnReason = (intensity: BurnIntensity) => {
     const cost = BURN_COSTS[intensity]
-    const rings = `${cost.rings} ring${cost.rings > 1 ? 's' : ''} ${burnDirection}`
-    if (!plan.availableBurns[intensity]) {
-      return `No ${intensity} burn from ring ${plan.moveFrom.position.ring} facing ${plan.moveFrom.facing}: there are not ${rings} from here. Rotate to burn the other way.`
-    }
-    const short = engines && !engines.isBroken && engines.allocatedEnergy < cost.energy
-    return `${rings} · ${cost.energy} energy on the engines · ${cost.mass} fuel${
-      short ? ` — the engines only hold ${engines?.allocatedEnergy ?? 0}` : ''
-    }`
+    const ready = plan.burnReady[intensity]
+    if (!ready.ok) return `No ${intensity} burn: ${ready.reason}.`
+    return `${cost.rings} ring${cost.rings > 1 ? 's' : ''} ${burnDirection} · ${cost.energy} energy on the engines · ${cost.mass} fuel`
   }
+  /** The mode button offers a burn when any intensity is available. */
+  const anyBurn = INTENSITIES.find(i => plan.burnReady[i].ok)
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
@@ -515,20 +518,26 @@ function MoveControls({ disabled }: { disabled: boolean }) {
         />
         <Segment
           label="Burn"
-          title="Change ring with the engines. Prograde burns outward, retrograde inward."
+          title={
+            anyBurn
+              ? 'Change ring with the engines. Prograde burns outward, retrograde inward.'
+              : `No burn: ${plan.burnReady.soft.reason}.`
+          }
           selected={move.kind === 'burn'}
-          disabled={disabled}
-          onClick={() => plan.setMove({ kind: 'burn', intensity: 'soft', adjustment: 0 })}
+          disabled={disabled || !anyBurn}
+          onClick={() =>
+            anyBurn && plan.setMove({ kind: 'burn', intensity: anyBurn, adjustment: 0 })
+          }
         />
         <Segment
           label="Jump"
           title={
-            plan.jumpOptions.length === 0
-              ? 'No transfer lane from this sector — jumps leave only from a lane end.'
-              : `Take the transfer lane to ${getWellName(plan.jumpOptions[0].destination.wellId)}.`
+            plan.jumpReady.ok
+              ? `Take the transfer lane to ${getWellName(plan.jumpOptions[0].destination.wellId)}.`
+              : `No jump: ${plan.jumpReady.reason}.`
           }
           selected={move.kind === 'jump'}
-          disabled={disabled || plan.jumpOptions.length === 0}
+          disabled={disabled || !plan.jumpReady.ok}
           onClick={() =>
             plan.jumpOptions[0] &&
             plan.setMove({
@@ -577,7 +586,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
                 label={intensity[0].toUpperCase() + intensity.slice(1)}
                 title={burnReason(intensity)}
                 selected={move.intensity === intensity}
-                disabled={disabled || !plan.availableBurns[intensity]}
+                disabled={disabled || !plan.burnReady[intensity].ok}
                 onClick={() => plan.setMove({ ...move, intensity })}
               />
             ))}
@@ -646,7 +655,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
   const { view } = useGame()
   const weapons = plan.pendingSubsystems.filter(s => getSubsystemConfig(s.type).weaponStats)
   const sensor = plan.pendingSubsystems.find(s => s.type === 'sensor_array')
-  const cold = !weaponsAreLive(view.turn)
+  const opening = isOpeningRound(view.turn)
 
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
@@ -655,9 +664,9 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
           No weapons aboard.
         </Typography>
       )}
-      {cold && weapons.length > 0 && (
+      {opening && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-          No weapon fires in the first round.
+          The first round reaches nobody: no weapon fires and nobody scans.
         </Typography>
       )}
       {weapons.map(weapon => {
@@ -671,7 +680,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
             title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · ${config.minEnergy} energy${
               weapon.isPowered ? '' : ' (not powered — put cubes on it above)'
             }${weapon.isBroken ? ' — broken' : ''}${noAmmo ? ' — no ammo' : ''}${
-              cold ? ' — no weapon fires in the first round' : ''
+              opening ? ' — nothing fires in the first round' : ''
             }`}
           >
             <Box component="span" sx={{ display: 'flex' }}>
@@ -683,14 +692,18 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
                 onClick={() => plan.addFire(weapon.id)}
                 onMouseEnter={() => plan.setFocusWeapon(weapon.id)}
                 onMouseLeave={() => plan.setFocusWeapon(null)}
-                disabled={disabled || queued || weapon.isBroken || noAmmo || cold}
+                disabled={disabled || queued || weapon.isBroken || noAmmo || opening}
                 sx={{ fontSize: '0.8rem' }}
               />
             </Box>
           </Tooltip>
         )
       })}
-      <Tooltip title="Scan a ship on your ring within 3 sectors and look at one of their face-down tiles.">
+      <Tooltip
+        title={`Scan a ship on your ring within 3 sectors and look at one of their face-down tiles.${
+          opening ? ' Nobody scans in the first round.' : ''
+        }`}
+      >
         <Box component="span" sx={{ display: 'flex' }}>
           <Chip
             size="small"
@@ -698,7 +711,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
             label="scan"
             variant="outlined"
             onClick={plan.addScan}
-            disabled={disabled || !sensor}
+            disabled={disabled || !sensor || opening}
           />
         </Box>
       </Tooltip>

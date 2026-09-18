@@ -132,8 +132,13 @@ interface PlanContextValue {
   jumpAdjustmentRange: { min: number; max: number }
   /** Docked at a station: a coast holds the berth, only a burn casts off. */
   moored: boolean
-  /** Burn intensities that stay inside the well from where the move starts. */
-  availableBurns: Record<BurnIntensity, boolean>
+  /**
+   * Whether each move can actually be taken from the mat as it is planned.
+   * A control the engine would refuse is not offered (see {@link MoveReadiness}).
+   */
+  rotateReady: MoveReadiness
+  burnReady: Record<BurnIntensity, MoveReadiness>
+  jumpReady: MoveReadiness
   scoopGain: number
   projectedHeat: number
   /** Total fuel the plan spends. */
@@ -212,6 +217,27 @@ let stepCounter = 0
 const stepId = () => `step-${++stepCounter}`
 
 const flip = (facing: Facing): Facing => (facing === 'prograde' ? 'retrograde' : 'prograde')
+
+/**
+ * Whether a move is available, and what is in the way if it is not.
+ *
+ * The engine refuses a burn whose engines are dark, a rotation with nothing on
+ * the thrusters and a jump with no fuel, but the buttons offered all three and
+ * only said so after the turn was submitted. Every check here is the one the
+ * validator makes (`game/validators.ts`), read off the mat as the player has
+ * planned it — cubes they are about to move count, because that is the mat the
+ * turn will be taken with.
+ *
+ * `reason` is a clause, so a tooltip can end a sentence with it.
+ */
+export interface MoveReadiness {
+  ok: boolean
+  reason: string
+}
+
+const READY: MoveReadiness = { ok: true, reason: '' }
+const blocked = (reason: string): MoveReadiness => ({ ok: false, reason })
+const cubes = (n: number) => `${n} cube${n === 1 ? '' : 's'}`
 
 const BURN_INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
 
@@ -417,13 +443,60 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     () => getAdjustmentRange(ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)),
     [moveFrom]
   )
-  const availableBurns = useMemo<Record<BurnIntensity, boolean>>(() => {
-    const entries = BURN_INTENSITIES.map(intensity => [
-      intensity,
-      burnFitsInWell(moveFrom.position, moveFrom.facing, intensity),
-    ])
-    return Object.fromEntries(entries) as Record<BurnIntensity, boolean>
-  }, [moveFrom])
+  const rotateReady = useMemo<MoveReadiness>(() => {
+    const thrusters = pendingSubsystems.find(s => s.id === 'rotation')
+    const need = getSubsystemConfig('rotation').minEnergy
+    if (!thrusters || thrusters.isBroken) return blocked('the thrusters are broken')
+    if (thrusters.usedThisTurn) return blocked('the thrusters have already turned the ship')
+    if (thrusters.allocatedEnergy < need)
+      return blocked(`the thrusters hold ${thrusters.allocatedEnergy} of the ${cubes(need)} a turn needs`)
+    return READY
+  }, [pendingSubsystems])
+
+  const burnReady = useMemo<Record<BurnIntensity, MoveReadiness>>(() => {
+    const engines = pendingSubsystems.find(s => s.id === 'engines')
+    // Phasing is part of the fuel bill, so the burn already being planned is
+    // priced with the sectors it is shifting; the mode button asks about a
+    // plain burn.
+    const adjustment = moveStep.move.kind === 'burn' ? moveStep.move.adjustment : 0
+    const outward = moveFrom.facing === 'prograde' ? 'outward' : 'inward'
+    const entries = BURN_INTENSITIES.map(intensity => {
+      const cost = BURN_COSTS[intensity]
+      const rings = `${cost.rings} ring${cost.rings === 1 ? '' : 's'} ${outward}`
+      const mass = calculateBurnMassCost(cost.mass, adjustment)
+      const state = !engines || engines.isBroken
+        ? blocked('the engines are broken')
+        : !burnFitsInWell(moveFrom.position, moveFrom.facing, intensity)
+          ? blocked(`there are not ${rings} from ring ${moveFrom.position.ring} — rotate to burn the other way`)
+          : engines.usedThisTurn
+            ? blocked('the engines have already burned this turn')
+            : engines.allocatedEnergy < cost.energy
+              ? blocked(`the engines hold ${engines.allocatedEnergy} of the ${cubes(cost.energy)} a ${intensity} burn needs`)
+              : me.ship.reactionMass < mass
+                ? blocked(`it costs ${mass} fuel and ${me.ship.reactionMass} is aboard`)
+                : READY
+      return [intensity, state]
+    })
+    return Object.fromEntries(entries) as Record<BurnIntensity, MoveReadiness>
+  }, [pendingSubsystems, moveFrom, moveStep, me.ship.reactionMass])
+
+  const jumpReady = useMemo<MoveReadiness>(() => {
+    if (jumpOptions.length === 0)
+      return blocked('jumps leave only from a lane end, and this sector is not one')
+    const engines = pendingSubsystems.find(s => s.id === 'engines')
+    if (!engines || engines.isBroken) return blocked('the engines are broken')
+    if (engines.usedThisTurn) return blocked('the engines have already burned this turn')
+    if (engines.allocatedEnergy < WELL_TRANSFER_COSTS.energy)
+      return blocked(
+        `the engines hold ${engines.allocatedEnergy} of the ${cubes(WELL_TRANSFER_COSTS.energy)} a jump needs`
+      )
+    const adjustment = moveStep.move.kind === 'jump' ? moveStep.move.adjustment : 0
+    const compressor = hasWorkingCompressor({ ...me.ship, subsystems: pendingSubsystems })
+    const mass = calculateJumpMassCost(adjustment, compressor)
+    if (me.ship.reactionMass < mass)
+      return blocked(`it costs ${mass} fuel and ${me.ship.reactionMass} is aboard`)
+    return READY
+  }, [jumpOptions, pendingSubsystems, moveStep, me.ship])
 
   const scoopGain = ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
 
@@ -1079,7 +1152,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       adjustmentRange,
       jumpAdjustmentRange,
       moored,
-      availableBurns,
+      rotateReady,
+      burnReady,
+      jumpReady,
       scoopGain,
       projectedHeat,
       massCost,
@@ -1138,7 +1213,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       adjustmentRange,
       jumpAdjustmentRange,
       moored,
-      availableBurns,
+      rotateReady,
+      burnReady,
+      jumpReady,
       scoopGain,
       projectedHeat,
       massCost,
