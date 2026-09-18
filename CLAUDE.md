@@ -7,9 +7,11 @@ pencil. The digital version exists to playtest the tabletop rules with bots.
 Before adding or changing a mechanic ask: can it be tracked on paper, computed
 with simple arithmetic, and explained in one sentence?
 
-`RULES.md` is the authoritative player-facing manual. `docs/redesign.md`
-records the reasoning behind the current rules. `docs/protocol.md` defines the
-client/server messages.
+`RULES.md` is the authoritative player-facing manual and the only statement of
+what the rules are. **Why** a rule is what it is lives in the commit that
+changed it — `git log` is the design journal, and unlike a design document it
+cannot go stale. `docs/protocol.md` defines the client/server messages;
+`docs/benchmark.md` describes how the rules as they stand play.
 
 ## Monorepo
 
@@ -110,10 +112,11 @@ yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSee
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message
 yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural play + extreme hulls, flags outliers
 yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
-yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal (docs/arena.md)
+yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
 ```
 
-Arena: `docs/arena.md`. Agents play through `yarn seat` (server): digest of
+Arena (`yarn seat help`, and the header of `server/scripts/seat.ts`): agents
+play through `yarn seat` (server): digest of
 the view with legal moves, dry-run preview, intent → actions builder
 (`engine/src/agent/`), chat with `say` and `think` lanes, and drivers for
 Codex (`codex exec`) and Claude (`claude -p`). A player may carry
@@ -162,7 +165,7 @@ view, the turn being animated and the plan being built, then hands it to either
 the SVG board (`board/svg/`) or the WebGL board (`board/three/`, a lazy chunk).
 Neither renderer computes anything rule-shaped: ranges, missile paths and
 positions are all in the model, asked of the engine once, so the two boards
-cannot drift. `docs/board-3d.md` is the design.
+cannot drift.
 
 Which one draws is `BoardModeContext` — remembered per player, forced to the
 flat board without WebGL 2, and overridable per session with `?board=2d|3d`.
@@ -173,6 +176,43 @@ re-render per frame.
 
 `?showcase=1` plays a bot game generated in the browser with no server —
 `&seed=`, `&turns=`, `&seat=` — which is how board work is checked.
+
+## Settled — do not re-propose without measuring
+
+Tried and rejected, so a change that reinvents one of these needs new evidence,
+not an argument:
+
+- **Two-way lanes.** One-way costs ~9 rounds of length and is what gives the map
+  a direction of travel (Alpha → Gamma → Beta → Alpha is the cheap circuit).
+- **Destroy worth 1.** Bots never kept it. Raising it to 2 was the only single
+  change that moved behaviour: gun hulls 57% → 91% of seats, kills 0.2 → 0.6.
+- **Dealing 6 cards instead of 5.** Six offers raise the bar every card must
+  clear; Intercept fell from 16.7% kept-when-offered to 1.7%.
+- **An expensive Survey** (a named planet, two turns held on ring 1 with sensors).
+  It worked, and the bots stopped keeping the card: a card nobody keeps is a
+  missing card, not a priced one.
+- **Shields absorbing a point per cube.** One powered tile was permanent immunity
+  to every 2-damage weapon; 66% of declined shots were declined as unabsorbable.
+- **Radiator at +1 or +3.** Measured after heat became a track: +1 widens the
+  hull spread and lengthens games, +3 pushes the wall back up. +2 stays.
+- **A bigger shield tile** (`shields.maxEnergy=6`) and **shields in the forward
+  slot**. The first makes the game quieter (destructions 3.2 → 2.7), the second
+  changes nothing — bots never spend the bow on a shield.
+- **New mission types** are proposed to the designer, never added unasked.
+  Ambush, Salvage, Breach and Grand Tour were tried and cut.
+
+Known open problems:
+
+- **A mat with no weapon and good survival wins the card race.** No card needs a
+  fight, so the hull that never fights takes more cards (2.34/game vs 1.6–1.9)
+  and dies less. This is the standing `yarn balance` outlier and it is a deck
+  problem, not a shield problem.
+- **Broken engines or thrusters strand a ship.** Only a station repairs a tile,
+  every station is in a planet well, and reaching one needs a jump, which needs
+  working engines. The only exit is being destroyed. The scoop is critical-proof
+  for exactly this reason; the engines and thrusters are not.
+- **Two players is thin**, and `hauler-tanky` takes 51% of seats there and wins
+  64% of the games it is in.
 
 ## Adding a rule
 
