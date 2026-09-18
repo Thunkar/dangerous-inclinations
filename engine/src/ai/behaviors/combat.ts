@@ -178,11 +178,16 @@ function suspectedShieldCubes(slot: SuspectedSlot): number {
  *   and that is powered right now, then a face-down slot whose cube count
  *   reads dangerous, then anything revealed and powered, then an idle gun,
  *   then the engines.
- * - **kill**: get through to the hull. A shield tile holds up to four cubes,
- *   absorbs four damage every turn and is refilled for free on their next
- *   turn, so against any volley the game can assemble it is the single tile
- *   standing between us and their hull. Break it and every later shot lands
- *   in full until they reach a station.
+ * - **kill**: get through to the hull. A shield tile holds up to four cubes and
+ *   absorbs a point per two of them, and the cubes it spends come straight back
+ *   to their reactor, so it is refilled for free on their next turn and is the
+ *   single tile standing between us and their hull. Break it and every later
+ *   shot lands in full until they reach a station.
+ *
+ *   Naming it is a gamble the other way, though: a critical only breaks
+ *   anything if the shot reaches the hull (`game/damage.ts`), so shields that
+ *   still hold eat the very critical meant to bring them down. Against a full
+ *   tile the shot has to be big enough to get through first.
  */
 export function chooseCriticalTarget(
   target: Opponent,

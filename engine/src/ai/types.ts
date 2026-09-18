@@ -158,7 +158,12 @@ export interface BotStatus {
   maxHull: number;
   heat: number;
   dissipation: number;
-  /** Heat the ship can still take this turn without hull damage. */
+  /**
+   * Heat the ship can still take before the track redlines. Heat carries now,
+   * so this is room to MAX_HEAT rather than room to the dissipation: a turn
+   * that ends above the dissipation is not damage, it is a debt carried into
+   * the next turn, and `ScoredActionPlan.heatCarried` is what prices it.
+   */
   heatBudget: number;
   availableEnergy: number;
   reactionMass: number;
@@ -214,6 +219,12 @@ export interface ActionPlan {
   scans: boolean;
   /** Hull damage the bot will take from heat at the end of the turn. */
   heatDamage: number;
+  /**
+   * Heat still on the track after the check, riding into the next turn. Not
+   * damage, but every point of it is a point of next turn's budget already
+   * spent, so a plan that banks heat is worse than an equal one that does not.
+   */
+  heatCarried: number;
   /** Reaction mass spent. */
   massSpent: number;
   /** The plan leaves a station berth (only a burn can). */

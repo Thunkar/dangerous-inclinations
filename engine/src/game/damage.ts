@@ -5,8 +5,9 @@
  * lowers the critical threshold by two (8-10 with one array).
  *
  * Shields absorb one point of damage per SHIELD_ENERGY_PER_POINT cubes on the
- * tile; absorbed damage becomes heat and the spent cubes return to the reactor. A critical that still
- * reaches the hull breaks the slot the attacker named.
+ * tile; absorbed damage becomes heat and the spent cubes return to the reactor,
+ * leaving the tile dark until it is re-powered. A critical breaks the slot the
+ * attacker named whether or not the shot reached the hull.
  */
 import type { ShipState } from "../models/game.ts";
 import { BASE_CRITICAL_CHANCE, SHIELD_HEAT_PER_POINT } from "../models/game.ts";
@@ -110,8 +111,14 @@ export function resolveAttack(
 
   ship = { ...ship, hitPoints: Math.max(0, ship.hitPoints - toHull) };
 
+  // A critical breaks the slot it named whether or not the shot reached the
+  // hull. It used to need `toHull > 0`, which meant shields that held ate the
+  // critical aimed at it: the fattest, most public slot on the mat was also
+  // the one best protected from being named. Absorbing first still blunts it —
+  // the tile that soaked the shot spent its cubes back to the reactor, so
+  // breaking it dumps little or no heat — but the tile is gone until a dock.
   let criticalEffect: WeaponHitResult["criticalEffect"];
-  if (result === "critical" && toHull > 0) {
+  if (result === "critical") {
     const sub = findSubsystem(ship, criticalTarget);
     if (sub && !sub.isBroken) {
       const broken = breakSubsystem(ship, targetPlayerId, criticalTarget);

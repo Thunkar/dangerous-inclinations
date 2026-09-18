@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
+import { MAX_HEAT, SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY } from "../../models/game.ts";
 import { calculateHeatDamage, resolveEndOfTurnHeat } from "../../game/heat.ts";
 import { getDissipationCapacity } from "../../game/ship.ts";
@@ -38,7 +38,7 @@ const TWO_RADIATORS: ShipLoadout = {
   sideSlots: ["radiator", "radiator", "shields", "laser"],
 };
 
-/** A rack at side-0: the one-damage round shields can still absorb (lasers cannot). */
+/** A rack at side-0: a round shields can absorb, unlike a laser. */
 const RACK_SHIP: ShipLoadout = {
   forwardSlots: ["railgun"],
   sideSlots: ["ballistic_rack", "laser", "shields", "shields"],
@@ -91,8 +91,9 @@ describe("heat: subsystems heat up by their allocated energy when used", () => {
     expect(getShip(result.gameState, "p1").hitPoints).toBe(10);
   });
 
-  it("heat from several actions accumulates and excess over dissipation damages the hull", () => {
-    // laser 2 + rotation 1 + engines 3 = 6 heat against dissipation 5.
+  it("heat from several actions accumulates, is shed down to the dissipation and carries the rest", () => {
+    // laser 2 + rotation 1 + engines 3 = 6 heat against dissipation 5: one point
+    // rides into the next turn, and nothing is damage until the track tops out.
     let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 });
     state = withPower(state, "p1", "side-0", 2);
     state = withPower(state, "p1", "rotation", 1);
@@ -104,27 +105,35 @@ describe("heat: subsystems heat up by their allocated energy when used", () => {
       burn(3, "soft")
     );
     expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "heat_damage")).toEqual([
-      expect.objectContaining({ playerId: "p1", heat: 6, dissipation: 5, damage: 1 }),
+    expect(eventsOf(result.events, "heat_damage")).toEqual([]);
+    expect(eventsOf(result.events, "heat_check")).toEqual([
+      expect.objectContaining({ playerId: "p1", heat: 6, dissipation: 5, damage: 0, carried: 1 }),
     ]);
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(9);
-    expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(0);
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(10);
+    expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(1);
   });
 });
 
 describe("heat: end-of-turn resolution", () => {
+  // Heat is a track: only the part above MAX_HEAT is hull, and whatever is left
+  // after shedding the dissipation (5 here) rides into the next turn.
   it.each([
-    [0, 10, false],
-    [5, 10, false],
-    [6, 9, true],
-    [9, 6, true],
-  ])("heat %i at end of turn leaves the hull at %i", (heat, hull, damaged) => {
-    const state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: heat } });
-    const result = executeTurnAs(state, coast(1));
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(hull);
-    expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(0);
-    expect(eventsOf(result.events, "heat_damage").length > 0).toBe(damaged);
-  });
+    [0, 10, 0, false],
+    [5, 10, 0, false],
+    [6, 10, 1, false],
+    [9, 10, 4, false],
+    [10, 10, 5, false],
+    [12, 8, 5, true],
+  ])(
+    "heat %i at the check leaves the hull at %i and carries %i",
+    (heat, hull, carried, damaged) => {
+      const state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: heat } });
+      const result = executeTurnAs(state, coast(1));
+      expect(getShip(result.gameState, "p1").hitPoints).toBe(hull);
+      expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(carried);
+      expect(eventsOf(result.events, "heat_damage").length > 0).toBe(damaged);
+    }
+  );
 
   it("only the active player's heat is resolved; a target keeps shield heat until its own turn ends", () => {
     let state = makeTwoPlayerGame(
@@ -134,15 +143,19 @@ describe("heat: end-of-turn resolution", () => {
     state = withPower(state, "p1", "side-0", 2);
     state = withPower(state, "p2", "side-2", 2);
     const afterP1 = mustExecute(state, fire(1, "side-0", "p2"));
-    // Two cubes buy one of the rack's two rounds, at two heat.
+    // Two cubes buy one point of the rack's two damage, at two heat.
     expect(getShip(afterP1, "p2").heat.currentHeat).toBe(SHIELD_HEAT_PER_POINT);
     const afterP2 = mustExecute(afterP1, coast(1));
+    // Two heat from the absorption, and the tile spent its cubes absorbing so
+    // it adds no standing heat: two against a dissipation of 5 carries nothing.
+    // The hull is 9 because a 2-damage round through a 1-point wall still lands
+    // a point; the heat check took none of it.
     expect(getShip(afterP2, "p2").heat.currentHeat).toBe(0);
     expect(getShip(afterP2, "p2").hitPoints).toBe(9);
   });
 
   it("heat death destroys the ship with cause heat and no killer, dropping cargo", () => {
-    let state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: 8 }, hitPoints: 2 });
+    let state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: 12 }, hitPoints: 2 });
     state = withPlayer(state, "p1", {
       cargo: [
         {
@@ -196,7 +209,7 @@ describe("heat: radiators", () => {
     expect(getDissipationCapacity(getShip(state, "p1").subsystems)).toBe(
       DEFAULT_DISSIPATION_CAPACITY
     );
-    expect(calculateHeatDamage({ ...getShip(state, "p1"), heat: { currentHeat: 7 } })).toBe(2);
+    expect(calculateHeatDamage({ ...getShip(state, "p1"), heat: { currentHeat: 12 } })).toBe(2);
   });
 
   it("a radiator that prevents heat damage is revealed", () => {
@@ -225,24 +238,34 @@ describe("heat: radiators", () => {
     expect(getSub(result.gameState, "p1", "side-0").isRevealed).toBe(false);
   });
 
-  it("resolveEndOfTurnHeat reports damage and resets heat", () => {
-    const ship = { ...getShip(makeTwoPlayerGame(), "p1"), heat: { currentHeat: 8 } };
+  it("resolveEndOfTurnHeat pays for the overflow, caps the track and sheds the rest", () => {
+    const ship = { ...getShip(makeTwoPlayerGame(), "p1"), heat: { currentHeat: 13 } };
     const result = resolveEndOfTurnHeat(ship, "p1");
-    expect(result.damage).toBe(3);
+    expect(result.damage).toBe(13 - MAX_HEAT);
     expect(result.ship.hitPoints).toBe(7);
-    expect(result.ship.heat.currentHeat).toBe(0);
+    // Capped at the top of the track, then the dissipation comes off it.
+    expect(result.ship.heat.currentHeat).toBe(MAX_HEAT - 5);
     expect(result.events).toEqual([
-      { type: "heat_check", playerId: "p1", heat: 8, dissipation: 5, damage: 3 },
-      { type: "heat_damage", playerId: "p1", heat: 8, dissipation: 5, damage: 3 },
+      {
+        type: "heat_check",
+        playerId: "p1",
+        heat: 13,
+        standing: 0,
+        dissipation: 5,
+        damage: 3,
+        carried: 5,
+      },
+      { type: "heat_damage", playerId: "p1", heat: 13, dissipation: 5, damage: 3 },
     ]);
   });
 
   it("wells do not matter: a ship on a planet ring dissipates the same", () => {
     const state = withShip(makeTwoPlayerGame({ wellId: "planet-beta", ring: 2, sector: 0 }), "p1", {
-      heat: { currentHeat: 6 },
+      heat: { currentHeat: 11 },
     });
     const result = executeTurnAs(state, coast(1));
     expect(getShip(result.gameState, "p1").hitPoints).toBe(9);
+    expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(MAX_HEAT - 5);
     expect(getShip(result.gameState, "p1").wellId).not.toBe(BH);
   });
 });

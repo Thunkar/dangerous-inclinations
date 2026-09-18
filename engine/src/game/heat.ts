@@ -1,17 +1,42 @@
 /**
- * Heat. Subsystems add heat when used (see ship.ts useSubsystem). At the end
- * of a player's turn, heat above the ship's dissipation capacity becomes hull
- * damage and heat resets to 0.
+ * Heat, which is a track and not a budget.
+ *
+ * A subsystem adds its allocated energy as heat when it is used (see
+ * `ship.ts` `useSubsystem`), powered shields add their cubes at every check
+ * (`getStandingHeat`), and absorbed damage adds two per point
+ * (`damage.ts`). At the owner's heat check the ship pays for anything above
+ * `MAX_HEAT` in hull, then dissipates and **carries the rest into
+ * the next turn**.
+ *
+ * Heat used to reset to zero here, which made dissipation a spend limit: under
+ * it nothing cost anything, over it a point absorbed cost more hull than it
+ * saved, and so no ship ever crossed the line (1.5% of turns, with a mean 3.67
+ * points of the track unused). Carrying it keeps the long-run price identical —
+ * generate more than you dissipate and you pay the difference every turn once the
+ * track saturates — while giving the ship ten points of buffer to spend first.
+ * That is what makes a hot turn a decision rather than a cliff: you can take one
+ * and climb back out over the quiet turns after it.
  */
 import type { ShipState } from "../models/game.ts";
-import { DEFAULT_DISSIPATION_CAPACITY } from "../models/game.ts";
+import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { getDissipationCapacity, revealSubsystem } from "./ship.ts";
+import { getDissipationCapacity, getStandingHeat, revealSubsystem } from "./ship.ts";
 
 export { addHeat } from "./ship.ts";
 
+/** The heat a ship would be carrying at a check, before it dissipates. */
+export function heatAtCheck(ship: ShipState): number {
+  return ship.heat.currentHeat + getStandingHeat(ship.subsystems);
+}
+
+/** Hull the next heat check would cost: whatever is over the top of the track. */
 export function calculateHeatDamage(ship: ShipState): number {
-  return Math.max(0, ship.heat.currentHeat - getDissipationCapacity(ship.subsystems));
+  return Math.max(0, heatAtCheck(ship) - MAX_HEAT);
+}
+
+/** Heat left on the track after a check: capped at the top, then dissipated. */
+export function heatAfterCheck(heat: number, dissipation: number): number {
+  return Math.max(0, Math.min(heat, MAX_HEAT) - dissipation);
 }
 
 export function resetHeat(ship: ShipState): ShipState {
@@ -19,18 +44,27 @@ export function resetHeat(ship: ShipState): ShipState {
 }
 
 /**
- * End-of-turn heat check. Applies excess heat as hull damage, reveals
- * working radiators whenever heat went above the base dissipation (they are
- * visibly shedding heat, whether or not damage was fully prevented), and
- * resets heat. Emits `heat_damage` only when damage was taken.
+ * End-of-turn heat check.
+ *
+ * 1. Powered shields add their cubes — what they cost just for being on.
+ * 2. Anything over `MAX_HEAT` is hull damage, and the track stops at the top.
+ * 3. The ship dissipates; what is left carries to the next turn.
+ *
+ * Working radiators are revealed whenever the ship dissipated more than a bare hull
+ * could have: they are visibly doing it, whether or not damage was avoided.
+ * Shields are not revealed by that heat — the cubes on the slot are
+ * already public and the dissipation covering them is not, so the arithmetic
+ * is a tell and not a proof, which is the trade RULES.md asks for.
  */
 export function resolveEndOfTurnHeat(
   ship: ShipState,
   playerId: string
 ): { ship: ShipState; damage: number; events: EventDraft[] } {
-  const heat = ship.heat.currentHeat;
+  const standing = getStandingHeat(ship.subsystems);
+  const heat = ship.heat.currentHeat + standing;
   const dissipation = getDissipationCapacity(ship.subsystems);
-  const damage = Math.max(0, heat - dissipation);
+  const damage = Math.max(0, heat - MAX_HEAT);
+  const carried = heatAfterCheck(heat, dissipation);
   const events: EventDraft[] = [];
   let next = ship;
 
@@ -43,11 +77,11 @@ export function resolveEndOfTurnHeat(
     }
   }
 
-  events.push({ type: "heat_check", playerId, heat, dissipation, damage });
+  events.push({ type: "heat_check", playerId, heat, standing, dissipation, damage, carried });
   if (damage > 0) {
     next = { ...next, hitPoints: Math.max(0, next.hitPoints - damage) };
     events.push({ type: "heat_damage", playerId, heat, dissipation, damage });
   }
 
-  return { ship: resetHeat(next), damage, events };
+  return { ship: { ...next, heat: { currentHeat: carried } }, damage, events };
 }

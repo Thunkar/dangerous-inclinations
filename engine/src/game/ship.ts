@@ -68,13 +68,32 @@ export function updateSubsystem(
   };
 }
 
-/** Heat the ship can shed each turn: base plus working radiators. */
+/** Heat the ship dissipates at every check: base plus working radiators. */
 export function getDissipationCapacity(
   subsystems: ReadonlyArray<Pick<Subsystem, "type" | "isBroken">>
 ): number {
   const bonus = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
   const count = subsystems.filter((s) => s.type === "radiator" && !s.isBroken).length;
   return DEFAULT_DISSIPATION_CAPACITY + count * bonus;
+}
+
+/**
+ * Heat powered shields make just by being on: their cubes, added at the
+ * owner's heat check.
+ *
+ * Every other tile costs its cubes in heat when it is used; shields are used
+ * the whole time they are powered, so they are charged every check. Powering
+ * them used to be free until something hit you, which is why bots held four
+ * cubes on 73% of turns and paid on 2% of them.
+ *
+ * A tile that absorbed has already spent its cubes back to the reactor and is
+ * at zero when the check comes, so it costs nothing that turn: shields are
+ * expensive idle and free when they work.
+ */
+export function getStandingHeat(subsystems: ReadonlyArray<Subsystem>): number {
+  return subsystems
+    .filter((s) => s.type === "shields" && s.isPowered && !s.isBroken)
+    .reduce((sum, s) => sum + s.allocatedEnergy, 0);
 }
 
 /** Critical chance in percentage points: base plus each powered, working sensor array. */

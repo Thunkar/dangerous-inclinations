@@ -22,10 +22,17 @@ import {
   REACTOR_CAPACITY,
   SCAN_SECTOR_RANGE,
   SECTORS_PER_RING,
+  MAX_HEAT,
+  SHIELD_ENERGY_PER_POINT,
+  SHIELD_HEAT_PER_POINT,
   STARTING_HIT_POINTS,
+  SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
+
+/** What one radiator sheds, read from the tile so this card cannot drift. */
+const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
 
 const TURN_STEPS = [
   'Destroyed? Respawn at Home, turn over.',
@@ -33,7 +40,7 @@ const TURN_STEPS = [
   'Actions in your order: rotate · move (coast / burn / jump) · fire · scan.',
   'Your missiles move.',
   'Docked? Load, deliver, repair, +hull, reload.',
-  'Heat check: excess heat → hull damage; reset heat.',
+  'Heat check: add your powered shields\' cubes; over the top of the track is hull damage; shed your dissipation and carry the rest.',
   'Flip completed missions. Pass. (Last player: stations drift.)',
 ]
 
@@ -64,9 +71,17 @@ export function RulesButton() {
 function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const quick: Array<[string, string]> = [
     ['Reactor', `${REACTOR_CAPACITY} energy`],
-    ['Dissipation', `${DEFAULT_DISSIPATION_CAPACITY} (+2 per radiator)`],
+    ['Heat track', `${MAX_HEAT} — above it is hull damage; heat does not reset`],
+    [
+      'Dissipation',
+      `${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator), shed at every check`,
+    ],
+    [
+      'Shields',
+      `${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point — and its cubes as heat every turn it is powered`,
+    ],
     ['Hull', `${STARTING_HIT_POINTS}`],
-    ['Fuel', `${MAX_REACTION_MASS} (+6 with compressor)`],
+    ['Fuel', `${MAX_REACTION_MASS}`],
     ['Sectors per ring', `${SECTORS_PER_RING}`],
     [
       'Burn',
@@ -138,7 +153,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
           Public: positions, facing, hull, heat, the cubes on every slot, Home markers, cargo
           counts, face-up tiles, completed missions.
           <br />
-          Private: what a face-down tile is, fuel, missile ammo, missions in hand, where your cargo
+          Private: what a face-down tile is, the ammo in a face-down rack, missions in hand, where your cargo
           is going.
           <br />
           <Box component="span" sx={{ color: TABLE.accent }}>

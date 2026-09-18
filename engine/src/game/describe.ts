@@ -109,11 +109,13 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
         ? `${name(e.victimId)} is destroyed by ${name(e.killerId)}`
         : `${name(e.victimId)} is destroyed by heat`;
     case "heat_check":
-      return `${name(e.playerId)} runs ${e.heat} heat against ${e.dissipation} dissipation`;
+      return `${name(e.playerId)} runs ${e.heat} heat${
+        e.standing > 0 ? ` (${e.standing} from shields)` : ""
+      }, dissipates ${e.dissipation}${e.carried > 0 ? `, carries ${e.carried}` : ""}`;
     case "turn_skipped":
       return `${name(e.playerId)} is recovering and sits this turn out`;
     case "heat_damage":
-      return `${name(e.playerId)} takes ${e.damage} heat damage (${e.heat} heat vs ${e.dissipation} dissipation)`;
+      return `${name(e.playerId)} redlines at ${e.heat} heat: ${e.damage} hull`;
     case "scanned":
       return `${name(e.scannerId)} scans ${name(e.targetId)} (${e.peekedSlot})${heat(e.heat)}`;
     case "scan_result":

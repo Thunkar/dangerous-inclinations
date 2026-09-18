@@ -170,9 +170,15 @@ export type GameEvent =
   | (Base & {
       type: "heat_check";
       playerId: string;
+      /** Heat on the track when the check ran, standing shield heat included. */
       heat: number;
+      /** Of that, the cubes powered shields charged for being on. */
+      standing: number;
       dissipation: number;
+      /** Hull taken for the part of `heat` above MAX_HEAT. */
       damage: number;
+      /** Heat that rides into the next turn: min(heat, MAX_HEAT) - dissipation. */
+      carried: number;
     })
   | (Base & { type: "turn_skipped"; playerId: string; remaining: number })
   | (Base & {

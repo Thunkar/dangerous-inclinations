@@ -18,6 +18,7 @@ export function MyMissions({ me }: { me: Player }) {
     <Panel
       title={`Points ${me.completedMissionCount}/${MISSIONS_TO_WIN}`}
       dense
+      collapseId="points"
       sx={{ flexShrink: 0, minWidth: 0 }}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>

@@ -18,6 +18,7 @@
  *   yarn seat say --as Codex "text" / think "text" / chat
  *   yarn seat wait --as Codex [--timeout 600]     hold a socket open until it is your turn, then print the view
  *   yarn seat agent --as Codex [--driver codex|claude] [--model m] [--turns N] [--quiet-think]
+ *                             [--ask-timeout 900] [--attempts 8]   how long a model gets per question, and how many tries before the seat gives up (0 = for ever)
  *
  * Nothing is kept on this machine: players, lobbies and games live on the
  * server. A seat is named with `--as <name>`, which finds a player of that
@@ -29,7 +30,10 @@
  * that driver. Turns go over the game WebSocket like a browser's; everything
  * else is REST. There is no autopilot: an illegal intent is refused before it
  * is sent and the agent gets the engine's reasons, the legal options and the
- * full rules back, and tries again until its turn is legal.
+ * full rules back, and tries again until its turn is legal — but only while it
+ * is answering. A driver that times out or returns nothing is not being told
+ * anything it can act on, so those attempts are counted and the seat stops
+ * with a reason after `--attempts` of them.
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
 import { homedir, tmpdir, userInfo } from "node:os";
@@ -46,10 +50,18 @@ import type {
 import {
   AGENT_INTENT_GUIDE,
   AGENT_RULES_DIGEST,
+  BOT_LOADOUT_TEMPLATES,
+  EITHER_SLOT_SUBSYSTEMS,
+  FORWARD_SLOT_SUBSYSTEMS,
+  MISSIONS_TO_WIN,
+  SIDE_SLOT_SUBSYSTEMS,
+  WEAPON_SUBSYSTEM_TYPES,
   buildTurn,
   describeEvent,
   describeMission,
   describeViewForAgent,
+  missionPoints,
+  missionRequirements,
   seatOptions,
   type TurnIntent,
 } from "@dangerous-inclinations/engine";
@@ -91,11 +103,12 @@ interface AgentInfo {
 }
 const DRIVERS: ReadonlyArray<AgentInfo["driver"]> = ["claude", "codex"];
 const DEFAULT_MODEL: Record<AgentInfo["driver"], string> = {
-  claude: "claude-fable-5-1",
+  claude: "claude-opus-5",
   codex: "gpt-6-astra",
 };
 const DRIVER_NAME: Record<AgentInfo["driver"], string> = { claude: "Claude", codex: "Codex" };
-const agentLabel = (a?: AgentInfo): string | null => (a ? `${DRIVER_NAME[a.driver]} · ${a.model}` : null);
+const agentLabel = (a?: AgentInfo): string | null =>
+  a ? `${DRIVER_NAME[a.driver]} · ${a.model}` : null;
 const isDriver = (s: string | undefined): s is AgentInfo["driver"] =>
   s !== undefined && (DRIVERS as readonly string[]).includes(s);
 
@@ -296,19 +309,42 @@ function describeEvents(events: GameEvent[], view: GameView): string {
 // Loadout and deployment helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Which tiles fit which slot, and the mats that are known to fly, both read
+ * from the engine rather than written out here. Written out here they went
+ * stale the day the fuel compressor moved to the forward slot, and every
+ * agent that believed the prompt had its first loadout refused.
+ */
+const FORWARD_TILES = [...FORWARD_SLOT_SUBSYSTEMS, ...EITHER_SLOT_SUBSYSTEMS];
+const SIDE_TILES = [...SIDE_SLOT_SUBSYSTEMS, ...EITHER_SLOT_SUBSYSTEMS];
+const presetLines = (): string =>
+  Object.entries(BOT_LOADOUT_TEMPLATES)
+    .map(([name, l]) => `  ${name}: ${l.forwardSlots[0]} / ${l.sideSlots.join(",")}`)
+    .join("\n");
+
 function loadoutPrompt(view: GameView): string {
   const me = view.me!;
   const offers = me.missionOffers
-    .map(
-      (m) =>
-        `  - ${m.id}: ${describeMission(m, nameOf(view))}${m.type === "destroy_ship" ? " (2 points)" : ""}`
-    )
+    .map((m) => {
+      const needs = missionRequirements(m.type)
+        .map((r) => r.anyOf.join(" or "))
+        .join(" and ");
+      const points = missionPoints(m.type);
+      return `  - ${m.id}: ${describeMission(m, nameOf(view))} (${points} ${
+        points === 1 ? "point" : "points"
+      }${needs ? `, needs ${needs}` : ""})`;
+    })
     .join("\n");
-  return `LOADOUT PHASE. Choose 3 of your 5 mission cards and a hull: 1 forward tile (railgun | sensor_array | missiles) and 4 side tiles (laser | shields | radiator | fuel_compressor | ballistic_rack | missiles; repeats allowed).
+  return `LOADOUT PHASE. Keep 3 of your ${me.missionOffers.length} mission cards and build a hull: exactly 1 forward tile and exactly 4 side tiles, repeats allowed.
+  forward slot: ${FORWARD_TILES.join(" | ")}
+  side slots:   ${SIDE_TILES.join(" | ")}
+Nothing else fits, and a tile is never moved once the game starts — a station repairs, it never refits.
 Your offers:
 ${offers}
-Presets that work: Hauler = sensor_array / shields,radiator,fuel_compressor,laser; Raider = railgun / missiles,radiator,fuel_compressor,shields; Scout = sensor_array / shields,laser,laser,fuel_compressor; Hunter = railgun / missiles,radiator,laser,shields.
-Intercept and Survey need a sensor array. Reply with ONE JSON object: {"think": "...", "say": "...", "missionIds": ["id","id","id"], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","fuel_compressor"]}}`;
+Mats that are known to fly (you are not limited to these):
+${presetLines()}
+Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${MISSIONS_TO_WIN} points win and a hand is 3 cards, so keep two 2-point cards, or one plus both 1-point cards.
+Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "missionIds": ["id","id","id"], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","radiator"]}}`;
 }
 
 function deployPrompt(view: GameView): string {
@@ -333,11 +369,33 @@ async function submitDeploy(sector: number): Promise<void> {
 type Driver = AgentInfo;
 
 /**
+ * How long a model gets to answer one prompt, and how many times it is asked
+ * before the seat gives up.
+ *
+ * A driver runs a whole agent session per question: the model reads the
+ * prompt, may open RULES.md and the engine, and thinks. Four minutes was not
+ * enough for a reasoning model on the loadout question, and a timeout came
+ * back as "no usable answer", which sent the seat round the same loop with the
+ * same prompt and the same budget for ever. So the budget is generous and
+ * settable, a timeout says so, and the loop is bounded: `--attempts 0` restores
+ * the old unbounded retry for an unattended game.
+ */
+const askTimeoutMs = Number(flag("ask-timeout") ?? 900) * 1000;
+const MAX_ATTEMPTS = Number(flag("attempts") ?? 8);
+
+/** The answer, or why there wasn't one — a timeout is not a bad answer. */
+interface Ask {
+  answer: Record<string, unknown> | null;
+  /** The model ran out of time, so there is nothing to tell it it got wrong. */
+  timedOut: boolean;
+}
+
+/**
  * Ask the model once. Codex runs `codex exec` and Claude runs `claude -p`,
  * both in the repository with read-only tools so the model can open RULES.md
  * itself. The answer is the outermost JSON object in the reply, or null.
  */
-function askModel(prompt: string, drv: Driver, timeoutMs: number): Record<string, unknown> | null {
+function askModel(prompt: string, drv: Driver, timeoutMs = askTimeoutMs): Ask {
   const outFile = join(tmpdir(), `di-seat-answer-${process.pid}.txt`);
   if (existsSync(outFile)) writeFileSync(outFile, "");
   const argv =
@@ -369,6 +427,7 @@ function askModel(prompt: string, drv: Driver, timeoutMs: number): Record<string
   // A nested Claude Code session refuses to start unless it is told it is not nested.
   const env = { ...process.env };
   delete env.CLAUDECODE;
+  const started = Date.now();
   const run = spawnSync(drv.driver, argv, {
     input: prompt,
     encoding: "utf8",
@@ -377,11 +436,18 @@ function askModel(prompt: string, drv: Driver, timeoutMs: number): Record<string
     cwd: REPO_ROOT,
     env,
   });
+  const took = Math.round((Date.now() - started) / 1000);
   if (run.error) {
-    log(`${drv.driver} failed to run: ${run.error.message}`);
-    return null;
+    const timedOut = (run.error as Error & { code?: string }).code === "ETIMEDOUT";
+    log(
+      timedOut
+        ? `${drv.driver} did not answer within ${Math.round(timeoutMs / 1000)}s — raise it with --ask-timeout <seconds>, or give the seat a faster model`
+        : `${drv.driver} failed to run: ${run.error.message}`
+    );
+    return { answer: null, timedOut };
   }
-  let text = drv.driver === "codex" && existsSync(outFile) ? readFileSync(outFile, "utf8") : run.stdout;
+  let text =
+    drv.driver === "codex" && existsSync(outFile) ? readFileSync(outFile, "utf8") : run.stdout;
   if (drv.driver === "claude") {
     // `--output-format json` wraps the reply: {"type":"result","result":"<the model's text>",...}
     try {
@@ -393,17 +459,36 @@ function askModel(prompt: string, drv: Driver, timeoutMs: number): Record<string
   }
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) {
-    log(`${drv.driver} gave no JSON (exit ${run.status}); stderr tail: ${run.stderr.slice(-400)}`);
-    transcript(`RAW ${drv.driver} reply without JSON (exit ${run.status})\n${text.slice(0, 2000)}\n${run.stderr.slice(-1000)}`);
-    return null;
+    log(`${drv.driver} gave no JSON (exit ${run.status}, ${took}s); stderr tail: ${run.stderr.slice(-400)}`);
+    transcript(
+      `RAW ${drv.driver} reply without JSON (exit ${run.status})\n${text.slice(0, 2000)}\n${run.stderr.slice(-1000)}`
+    );
+    return { answer: null, timedOut: false };
   }
   try {
-    return JSON.parse(match[0]) as Record<string, unknown>;
+    log(`${drv.driver} answered in ${took}s`);
+    return { answer: JSON.parse(match[0]) as Record<string, unknown>, timedOut: false };
   } catch (e) {
     log(`${drv.driver} JSON did not parse: ${(e as Error).message}`);
-    return null;
+    return { answer: null, timedOut: false };
   }
 }
+
+/**
+ * A driver loop that has stopped making progress. Every phase retries until
+ * the table accepts the turn, which is right when the model is being told what
+ * it got wrong and wrong when nothing is coming back at all: a seat that has
+ * timed out eight times in a row is not one prompt away from a legal turn, and
+ * the human watching it needs to hear that rather than watch it spin.
+ */
+function giveUp(phase: string, attempt: number): never {
+  die(
+    `[seat ${seatName ?? PLAYER}] ${phase}: no usable answer in ${attempt} attempts. ` +
+      `Raise --ask-timeout <seconds> (now ${Math.round(askTimeoutMs / 1000)}s), try another --model, ` +
+      `or play the seat by hand with view/try/act. --attempts 0 retries for ever.`
+  );
+}
+const outOfAttempts = (attempt: number) => MAX_ATTEMPTS > 0 && attempt >= MAX_ATTEMPTS;
 
 function transcript(line: string): void {
   mkdirSync(LOG_DIR, { recursive: true });
@@ -446,10 +531,15 @@ async function driveTurn(
   for (let attempt = 1; ; attempt++) {
     const prompt = await turnPrompt(payload, errors, attempt);
     transcript(`PROMPT T${view.turn} attempt ${attempt}\n${prompt}`);
-    const answer = askModel(prompt, drv, 240_000);
+    const { answer, timedOut } = askModel(prompt, drv);
     transcript(`ANSWER T${view.turn} attempt ${attempt}\n${JSON.stringify(answer)}`);
     if (!answer) {
-      errors = ["the model gave no usable answer (answer with one JSON object and nothing else)"];
+      if (outOfAttempts(attempt)) giveUp(`turn ${view.turn}`, attempt);
+      // A timeout is not something the model said wrong, so do not tell it it
+      // answered badly: ask the same question again.
+      errors = timedOut
+        ? errors
+        : ["the model gave no usable answer (answer with one JSON object and nothing else)"];
       log(`attempt ${attempt}: no usable answer`);
       continue;
     }
@@ -487,23 +577,25 @@ async function driveTurn(
     return result.payload;
   }
 }
-async function driveLoadout(
-  payload: ViewPayload,
-  drv: Driver,
-  quietThink: boolean
-): Promise<void> {
+async function driveLoadout(payload: ViewPayload, drv: Driver, quietThink: boolean): Promise<void> {
   const view = payload.view;
   let error: string | undefined;
   for (let attempt = 1; ; attempt++) {
-    const prompt = `${AGENT_RULES_DIGEST}\n\nTHE FULL RULES:\n${fullRules()}\n\n${loadoutPrompt(view)}${
+    // The full rulebook is 24 KB and the driver runs with file tools, so a
+    // model that is handed it reads it, and the first question of the game is
+    // the slowest. The digest and the slot lists below are enough to build a
+    // hull; the book only comes out if that was not enough.
+    const rules = attempt >= 2 ? `\n\nTHE FULL RULES:\n${fullRules()}` : "";
+    const prompt = `${AGENT_RULES_DIGEST}${rules}\n\n${loadoutPrompt(view)}${
       error
-        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again; every tile must fit its slot (forward: railgun, sensor_array or missiles; side: laser, shields, radiator, fuel_compressor, ballistic_rack or missiles) and you keep exactly 3 of the 5 offers by their ids.`
+        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every tile must fit its slot — forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")} — and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids.`
         : ""
     }`;
-    const answer = askModel(prompt, drv, 240_000);
+    const { answer, timedOut } = askModel(prompt, drv);
     transcript(`LOADOUT ANSWER attempt ${attempt}\n${JSON.stringify(answer)}`);
     if (!answer) {
-      error = "no usable answer (one JSON object, nothing else)";
+      if (outOfAttempts(attempt)) giveUp("loadout", attempt);
+      if (!timedOut) error = "no usable answer (one JSON object, nothing else)";
       continue;
     }
     const l = answer.loadout as { forward?: string; sides?: string[] } | undefined;
@@ -529,19 +621,16 @@ async function driveLoadout(
     return;
   }
 }
-async function driveDeploy(
-  payload: ViewPayload,
-  drv: Driver,
-  quietThink: boolean
-): Promise<void> {
+async function driveDeploy(payload: ViewPayload, drv: Driver, quietThink: boolean): Promise<void> {
   const view = payload.view;
   let error: string | undefined;
   for (let attempt = 1; ; attempt++) {
     const prompt = `${AGENT_RULES_DIGEST}\n\n${deployPrompt(view)}${
       error ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Pick a free sector 0-23.` : ""
     }`;
-    const answer = askModel(prompt, drv, 180_000);
+    const { answer } = askModel(prompt, drv);
     transcript(`DEPLOY ANSWER attempt ${attempt}\n${JSON.stringify(answer)}`);
+    if (outOfAttempts(attempt) && !answer) giveUp("deployment", attempt);
     if (!answer || typeof answer.sector !== "number") {
       error = "the answer needs a numeric sector";
       continue;
@@ -690,7 +779,10 @@ async function resolveSeat(opts: { narrow: boolean }): Promise<void> {
   if (matches.length > 1)
     die(
       `${matches.length} seats are named ${seatName}:\n${matches
-        .map((m) => `  ${seatLabel(m.seat)}  player ${m.seat.playerId}  at ${m.lobby.lobbyName} (lobby ${m.lobby.lobbyId})`)
+        .map(
+          (m) =>
+            `  ${seatLabel(m.seat)}  player ${m.seat.playerId}  at ${m.lobby.lobbyName} (lobby ${m.lobby.lobbyId})`
+        )
         .join("\n")}\nNarrow it with --lobby <id> or --game <id>, or use --player <id>.`
     );
   const [m] = matches;
@@ -708,7 +800,9 @@ async function printLobbies(): Promise<LobbyDetail[]> {
     return [];
   }
   details.forEach((d, i) => {
-    const state = d.gameId ? `STARTED  game ${d.gameId}` : `open ${d.players.length}/${d.maxPlayers}`;
+    const state = d.gameId
+      ? `STARTED  game ${d.gameId}`
+      : `open ${d.players.length}/${d.maxPlayers}`;
     console.log(`${String(i + 1).padStart(2)}) ${d.lobbyName}  [${state}]  lobby ${d.lobbyId}`);
     for (const p of d.players)
       console.log(`      ${seatLabel(p, d)}${p.isBot ? "" : `  player ${p.playerId}`}`);
@@ -786,7 +880,9 @@ async function menu(): Promise<void> {
     if (who < 3) {
       const driver = who === 0 ? "claude" : who === 1 ? "codex" : null;
       const name = await ask("Name", driver ? DRIVER_NAME[driver] : userInfo().username);
-      const agent = driver ? { driver, model: await ask("Model", DEFAULT_MODEL[driver]) } : undefined;
+      const agent = driver
+        ? { driver, model: await ask("Model", DEFAULT_MODEL[driver]) }
+        : undefined;
       const created = await http<PlayerRecord>(
         "POST",
         "/api/players",
@@ -823,7 +919,8 @@ async function menu(): Promise<void> {
           lobbyName: name,
           maxPlayers: max,
         });
-        for (let i = 0; i < bots; i++) await http("POST", `/api/lobbies/${created.lobbyId}/bot`, {});
+        for (let i = 0; i < bots; i++)
+          await http("POST", `/api/lobbies/${created.lobbyId}/bot`, {});
         lobby = await lobbyDetail(created.lobbyId);
         console.log(`Created ${lobby.lobbyName}; you are the host.`);
         continue;
@@ -833,7 +930,9 @@ async function menu(): Promise<void> {
         console.log("That table has already started; pick an open lobby or create one.");
         continue;
       }
-      if (await attempt("join", () => http("POST", "/api/lobbies/join", { lobbyId: chosen.lobbyId }))) {
+      if (
+        await attempt("join", () => http("POST", "/api/lobbies/join", { lobbyId: chosen.lobbyId }))
+      ) {
         lobby = await lobbyDetail(chosen.lobbyId);
         console.log(`Joined ${lobby.lobbyName}.`);
       }
@@ -844,15 +943,23 @@ async function menu(): Promise<void> {
     for (;;) {
       const d = await lobbyDetail(LOBBY);
       lobby = d;
-      console.log(`\n${d.lobbyName} (${d.players.length}/${d.maxPlayers})${d.gameId ? ` — STARTED, game ${d.gameId}` : ""}`);
-      for (const p of d.players) console.log(`  ${seatLabel(p, d)}${p.playerId === PLAYER ? "  ← you" : ""}`);
+      console.log(
+        `\n${d.lobbyName} (${d.players.length}/${d.maxPlayers})${d.gameId ? ` — STARTED, game ${d.gameId}` : ""}`
+      );
+      for (const p of d.players)
+        console.log(`  ${seatLabel(p, d)}${p.playerId === PLAYER ? "  ← you" : ""}`);
       if (d.gameId) {
         GAME = d.gameId;
         break;
       }
       const host = d.hostPlayerId === PLAYER;
       const options = host
-        ? ["start the game now", "add a bot", "wait for someone else to start it", "leave the lobby"]
+        ? [
+            "start the game now",
+            "add a bot",
+            "wait for someone else to start it",
+            "leave the lobby",
+          ]
         : ["wait for the host to start it", "leave the lobby"];
       options.forEach((o, i) => item(i + 1, o));
       const w = await pick("Choose", options.length);
@@ -926,10 +1033,16 @@ async function main(): Promise<void> {
       );
       return;
     case "register": {
-      const name = flag("name") ?? seatName ?? die("register --name <name> [--agent claude|codex] [--model m]");
+      const name =
+        flag("name") ??
+        seatName ??
+        die("register --name <name> [--agent claude|codex] [--model m]");
       const driver = flag("agent");
-      if (driver !== undefined && !isDriver(driver)) die(`--agent must be claude or codex, not ${driver}`);
-      const agent = isDriver(driver) ? { driver, model: flag("model") ?? DEFAULT_MODEL[driver] } : undefined;
+      if (driver !== undefined && !isDriver(driver))
+        die(`--agent must be claude or codex, not ${driver}`);
+      const agent = isDriver(driver)
+        ? { driver, model: flag("model") ?? DEFAULT_MODEL[driver] }
+        : undefined;
       const created = await http<PlayerRecord>(
         "POST",
         "/api/players",

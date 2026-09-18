@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { MAX_HEAT } from "../../models/game.ts";
 import { opponentPositions, viewFor } from "../../game/view.ts";
 import { canSeeEvent, filterEventsFor } from "../../models/events.ts";
 import type { GameEvent } from "../../models/events.ts";
@@ -58,6 +59,7 @@ describe("view: what an opponent's mat shows", () => {
       isBroken: null,
       knownVia: null,
       allocatedEnergy: 0,
+      ammo: null,
     });
     expect(slot(view, 1, "side-3").type).toBeNull();
   });
@@ -107,7 +109,7 @@ describe("view: what an opponent's mat shows", () => {
     ).toBe(true);
   });
 
-  it("exposes position, facing, hull, heat, fuel and the free reactor pool, but not ammo, cards or intel", () => {
+  it("exposes position, facing, hull, heat, fuel and the free reactor pool, but not cards or intel", () => {
     const state = withPower(
       withShip(knownGame(), "p2", { heat: { currentHeat: 3 }, hitPoints: 7 }),
       "p2",
@@ -130,7 +132,11 @@ describe("view: what an opponent's mat shows", () => {
     for (const secret of ["missions", "missionOffers", "cargo", "intel", "reactor", "subsystems"]) {
       expect(opponent).not.toHaveProperty(secret);
     }
-    expect(JSON.stringify(opponent)).not.toMatch(/ammo/);
+    // Ammo is readable on a face-up rack and on nothing else, so a slot the
+    // viewer cannot identify must not carry a number either.
+    for (const s of opponent.slots) {
+      if (s.type === null) expect(s.ammo).toBeNull();
+    }
   });
 
   it("fuel is public: a rival's tank is on the table like their hull", () => {
@@ -201,6 +207,25 @@ describe("view: what an opponent's mat shows", () => {
     expect(opponent.completedMissions.map((m) => m.id)).toEqual(["t"]);
   });
 
+  it("a missile rack shows what is left in it only once it is face-up", () => {
+    // side-3 is the missiles tile on SENSOR; side-2 is one p1 has scanned.
+    let state = makeTwoPlayerGame({}, { loadout: SENSOR });
+    state = withPlayer(state, "p1", { intel: { p2: ["side-2"] } });
+    const slot = (id: string) => viewFor(state, "p1").players[1].slots.find((x) => x.id === id)!;
+
+    expect(slot("side-3").type).toBeNull();
+    expect(slot("side-3").ammo).toBeNull();
+
+    state = withSub(state, "p2", "side-3", { isRevealed: true, ammo: 2 });
+    expect(slot("side-3").type).toBe("missiles");
+    expect(slot("side-3").ammo).toBe(2);
+
+    // Only a rack has ammo to show; a face-up laser reports none.
+    state = withSub(state, "p2", "side-1", { isRevealed: true });
+    expect(slot("side-1").type).toBe("laser");
+    expect(slot("side-1").ammo).toBeNull();
+  });
+
   it("shows no ship for an undeployed player and flags destroyed ships", () => {
     const undeployed = withPlayer(knownGame(), "p2", { hasDeployed: false });
     expect(viewFor(undeployed, "p1").players[1].ship).toBeNull();
@@ -224,11 +249,15 @@ describe("view: the viewer's own side", () => {
     state = withPower(state, "p1", "forward-0", 2);
     expect(viewFor(state, "p1").myStats).toEqual({
       dissipationCapacity: 7,
+      maxHeat: MAX_HEAT,
+      standingHeat: 0,
       maxReactionMass: 10,
       criticalChance: 30,
     });
     expect(viewFor(state, "p2").myStats).toEqual({
       dissipationCapacity: 5,
+      maxHeat: MAX_HEAT,
+      standingHeat: 0,
       maxReactionMass: 10,
       criticalChance: 10,
     });

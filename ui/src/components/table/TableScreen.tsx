@@ -1,12 +1,11 @@
 /**
  * The table, in three columns.
  *
- *   left   — the rivals' mats stacked one above the other, your own cards
- *            under them, and the turn log and table talk sharing whatever is
- *            left
+ *   left   — the rivals' mats stacked one above the other, with the turn log
+ *            and table talk sharing whatever is left
  *   middle — the board, the full height of the window
- *   right  — your turn: status first, then the reactor, the move, the guns,
- *            the sequence, and the button that ends it
+ *   right  — your cards, then your turn: status first, then the reactor, the
+ *            move, the guns, the sequence, and the button that ends it
  *
  * Perspective is always the logged-in player: the active player is
  * highlighted, never impersonated.
@@ -25,6 +24,7 @@ import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { useAnimation } from '../../context/AnimationContext'
 import { FONT_MONO, TABLE } from '../../theme'
+import { FoldHeader, useCollapsed } from '../common/Panel'
 import { GameBoard } from '../board/GameBoard'
 import { BoardModeToggle } from '../board/BoardModeToggle'
 import { OpponentCard } from './OpponentCard'
@@ -55,6 +55,7 @@ export function TableScreen({
   const meIndex = view.players.findIndex(p => p.isMe)
   const myColor = getPlayerColor(meIndex)
   const opponents = view.players.filter(p => !p.isMe)
+  const rivalsFolded = useCollapsed('rivals', false)
   const seated = view.me !== null && plan !== null
   /** Read-only tables have no turn to build, so the right column goes away. */
   const playing = seated && !readOnly
@@ -121,7 +122,7 @@ export function TableScreen({
           }}
         />
         {view.finalRound && view.phase === 'active' && (
-          <Tooltip title="Someone has reached 3 points. The round is played out so every seat gets the same number of turns; then highest score wins, hull breaks ties.">
+          <Tooltip title={`Someone reached ${MISSIONS_TO_WIN} points. The round is played out, then highest score wins — hull breaks ties.`}>
             <Chip
               size="small"
               label="FINAL ROUND"
@@ -215,25 +216,31 @@ export function TableScreen({
           }}
         >
           {/*
-            The mats keep their own height; the log and the chat split what
-            is left. Only when the window is too short for every mat at once
-            (four players on a laptop, with the replay bar below) does this
-            stack start to scroll, and both pads keep a readable minimum
-            either way.
+            The mats keep their own height; the log and the chat split what is
+            left. On a short window that leaves both pads too small to read, so
+            every section here folds by its label and remembers it: fold the
+            rivals you are not watching and the pads take the height back.
           */}
+          <FoldHeader
+            label="Rivals"
+            summary={`${opponents.length}`}
+            collapsed={rivalsFolded.collapsed}
+            onToggle={rivalsFolded.toggle}
+          />
           <Box
             sx={{
               flex: '0 1 auto',
               minHeight: 0,
               overflowY: 'auto',
               overflowX: 'hidden',
-              display: 'flex',
+              display: rivalsFolded.collapsed ? 'none' : 'flex',
               flexDirection: 'column',
               gap: 0.75,
             }}
           >
             {/* Watching from a seat: your own tracks have no turn column to sit in. */}
             {seated && !playing && <StatusBlock accent={myColor} />}
+            {seated && !playing && view.me && <MyMissions me={view.me} />}
             {opponents.map(player => (
               <OpponentCard
                 key={player.id}
@@ -247,7 +254,6 @@ export function TableScreen({
                 pulses={pulses}
               />
             ))}
-            {view.me && <MyMissions me={view.me} />}
           </Box>
           <EventLog />
           <TableTalk />
@@ -262,8 +268,17 @@ export function TableScreen({
         {/* Your turn */}
         {playing && (
           <Box
-            sx={{ width: RIGHT_WIDTH, flexShrink: 0, display: 'flex', minHeight: 0, minWidth: 0 }}
+            sx={{
+              width: RIGHT_WIDTH,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 0.75,
+              minHeight: 0,
+              minWidth: 0,
+            }}
           >
+            {view.me && <MyMissions me={view.me} />}
             <ActionPanel />
           </Box>
         )}

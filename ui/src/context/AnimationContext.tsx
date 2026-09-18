@@ -162,17 +162,24 @@ const PING = { rings: 3, stagger: 260, life: 900, radius: 52 } as const
 
 /** How long each event holds the table, in ms. */
 const BEAT = {
-  move: 420,
-  jump: 480,
-  fire: 240,
-  resolve: 760,
-  missile: 260,
-  intercept: 600,
-  small: 240,
-  destroy: 620,
+  move: 560,
+  jump: 640,
+  fire: 300,
+  resolve: 900,
+  missile: 320,
+  intercept: 700,
+  small: 360,
+  destroy: 760,
 } as const
 
+/** How long a mark stays up. Long enough to read one while the next arrives. */
+const FLOAT = { short: 1500, normal: 1800, long: 2200 } as const
+
 let effectSeq = 0
+/** Ring counts in RULES §Movement, used to name a burn by what it actually did. */
+const BURN_RINGS = { soft: 1, medium: 2, hard: 3 } as const
+/** Fuel a burn costs before phasing, so the rest of what was spent is the phase. */
+const BURN_MASS = { soft: 1, medium: 2, hard: 3 } as const
 const nextId = (prefix: string) => `${prefix}-${++effectSeq}`
 
 function snapshotOf(view: GameView): BoardOverlay {
@@ -329,6 +336,30 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
       }
 
       /**
+       * A short mark over a ship, for the things it just did. The board was
+       * only ever labelling outcomes — hits, breaks, docks — so a turn's worth
+       * of flying went past with nothing written on it, which is what made a
+       * turn hard to follow at the speed it plays.
+       */
+      const mark = (
+        playerId: string,
+        text: string,
+        tone: FloatTone,
+        opts: { at?: Position; offset?: { x: number; y: number }; duration?: number } = {}
+      ) => {
+        pushEffect({
+          id: nextId('f'),
+          kind: 'float',
+          at: opts.at ?? positionOf(playerId),
+          playerId,
+          offset: opts.offset ?? { x: 0, y: -26 },
+          text,
+          tone,
+          duration: opts.duration ?? FLOAT.normal,
+        })
+      }
+
+      /**
        * Move a token; it slides from where it was over `duration` ms. `kind`
        * is null for a placement: a respawn or a deployment puts a ship on the
        * board rather than moving it across, and a token that was not already
@@ -367,15 +398,28 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         switch (event.type) {
           case 'rotated':
             if (snap.ships[event.playerId]) snap.ships[event.playerId].facing = event.facing
+            mark(event.playerId, event.facing === 'prograde' ? 'ROTATE ↗' : 'ROTATE ↙', 'good', {
+              at: snap.ships[event.playerId]?.position,
+            })
             return BEAT.small
           case 'coasted':
             moveShip(event.playerId, event.to, 'coast')
             movedThisTurn.add(event.playerId)
+            if (!event.recovering)
+              mark(event.playerId, event.moored ? 'MOORED' : 'COAST', 'good', { at: event.to })
             return BEAT.move
-          case 'burned':
+          case 'burned': {
             moveShip(event.playerId, event.to, 'burn')
             movedThisTurn.add(event.playerId)
+            const phase = event.massSpent - BURN_MASS[event.intensity]
+            mark(
+              event.playerId,
+              `BURN ${BURN_RINGS[event.intensity]}${phase > 0 ? ` · PHASE ${phase}` : ''} · −${event.massSpent} fuel`,
+              'good',
+              { at: event.to }
+            )
             return BEAT.move
+          }
           case 'jumped':
             moveShip(event.playerId, event.to, 'jump', undefined, BEAT.jump)
             movedThisTurn.add(event.playerId)
@@ -388,10 +432,25 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               radius: 30,
               duration: 600,
             })
+            mark(
+              event.playerId,
+              `JUMP${event.sectorAdjustment !== 0 ? ` · PHASE ${Math.abs(event.sectorAdjustment)}` : ''} · −${event.massSpent} fuel${event.compressed ? ' (compressor)' : ''}`,
+              'good',
+              { at: event.to }
+            )
             return BEAT.jump
+          case 'fuel_scooped':
+            mark(event.playerId, `SCOOP +${event.amount} fuel`, 'good', { offset: { x: 0, y: -14 } })
+            return BEAT.small
           case 'recoil':
             if (event.to) moveShip(event.playerId, event.to, 'recoil', undefined, BEAT.small)
-            return event.to ? BEAT.small : 0
+            mark(
+              event.playerId,
+              event.compensated ? `RECOIL HELD · −${event.massSpent} fuel` : 'RECOIL',
+              'heat',
+              { at: event.to }
+            )
+            return BEAT.small
           case 'respawned':
           case 'deployed': {
             const position = event.position
@@ -406,6 +465,11 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               duration: 600,
             })
             return BEAT.small
+          }
+          case 'heat_check': {
+            if (event.damage > 0) return 0 // heat_damage marks it below
+            if (event.carried > 0) mark(event.playerId, `HEAT +${event.carried}`, 'heat')
+            return event.carried > 0 ? BEAT.small : 0
           }
           case 'weapon_fired': {
             pushEffect({
@@ -442,7 +506,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                 playerId: event.targetId,
                 text: 'MISS',
                 tone: 'miss',
-                duration: 1200,
+                duration: FLOAT.normal,
               })
             } else {
               if (event.result === 'critical') {
@@ -453,7 +517,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                   playerId: event.targetId,
                   text: 'CRIT!',
                   tone: 'crit',
-                  duration: 1400,
+                  duration: FLOAT.long,
                 })
                 pushEffect({
                   id: nextId('burst'),
@@ -474,7 +538,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                   offset: { x: 0, y: 14 },
                   text: `-${event.toHull}`,
                   tone: 'damage',
-                  duration: 1200,
+                  duration: FLOAT.normal,
                 })
               }
               if (event.toHeat > 0) {
@@ -486,7 +550,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                   offset: { x: 26, y: 0 },
                   text: `${event.toHeat} shielded`,
                   tone: 'shield',
-                  duration: 1200,
+                  duration: FLOAT.normal,
                 })
               }
             }
@@ -562,7 +626,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                 playerId: event.targetId,
                 text: 'INTERCEPTED',
                 tone: 'good',
-                duration: 1200,
+                duration: FLOAT.normal,
               })
             }
             return BEAT.intercept
@@ -579,7 +643,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               playerId: event.playerId,
               text: `${event.damage} heat`,
               tone: 'heat',
-              duration: 1200,
+              duration: FLOAT.normal,
             })
             return BEAT.small
           }
@@ -598,7 +662,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               playerId: event.playerId,
               text: attacker ? `BROKEN by ${attacker}` : 'BROKEN',
               tone: 'crit',
-              duration: 1400,
+              duration: FLOAT.long,
             })
             return BEAT.small
           }
@@ -625,7 +689,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               playerId: event.targetId,
               text: 'SCANNED',
               tone: 'good',
-              duration: 1200,
+              duration: FLOAT.normal,
             })
             return BEAT.resolve
           }
@@ -649,7 +713,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               playerId: event.victimId,
               text: 'DESTROYED',
               tone: 'damage',
-              duration: 1400,
+              duration: FLOAT.long,
             })
             return BEAT.destroy
           }
@@ -671,7 +735,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               playerId: event.playerId,
               text: 'DOCKED',
               tone: 'good',
-              duration: 1200,
+              duration: FLOAT.normal,
             })
             return BEAT.resolve
           }
@@ -687,7 +751,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               playerId: event.playerId,
               text: 'MISSION',
               tone: 'good',
-              duration: 1400,
+              duration: FLOAT.long,
             })
             return BEAT.resolve
           }
@@ -700,7 +764,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               playerId: event.playerId,
               text: event.action === 'scan' ? 'NO SCAN' : 'NO SHOT',
               tone: 'miss',
-              duration: 1100,
+              duration: FLOAT.short,
             })
             return BEAT.small
           }

@@ -193,7 +193,7 @@ export function OpponentCard({
       }
       action={
         <Tooltip
-          title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} points (Destroy, Deliver and Intercept score 2; Survey 1)`}
+          title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} points`}
         >
           <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
             {Array.from({ length: MISSIONS_TO_WIN }, (_, i) => (
@@ -257,7 +257,7 @@ export function OpponentCard({
             printing it on the card was a line that told nobody anything. */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
           <Tooltip
-            title={`Cargo aboard: crates and data are public tokens (their destinations are not). A hold takes ${CARGO_HOLD_CRATES} crate; data rides free.`}
+            title={`Cargo aboard. The hold takes ${CARGO_HOLD_CRATES} crate; data rides free. Destinations are private.`}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <CargoChits
@@ -279,6 +279,7 @@ export function OpponentCard({
               knownVia={slot.knownVia}
               isBroken={slot.isBroken}
               allocatedEnergy={slot.allocatedEnergy}
+              ammo={slot.ammo}
               size={SLOT_TILE}
               cubeSize={5}
               selected={selectedSlotId === slot.id}

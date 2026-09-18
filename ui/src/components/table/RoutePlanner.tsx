@@ -32,9 +32,15 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
 import RotateRightIcon from '@mui/icons-material/RotateRight'
 import RouteIcon from '@mui/icons-material/Route'
-import type { Facing, MovementPlan, MovementStep, Position } from '@dangerous-inclinations/engine'
+import type {
+  Facing,
+  MovementPlan,
+  MovementStep,
+  Position,
+  Station,
+} from '@dangerous-inclinations/engine'
 import { getWellName } from '@dangerous-inclinations/engine'
-import type { MoveChoice } from '../../context/PlanContext'
+import type { MoveChoice, RouteMode } from '../../context/PlanContext'
 import { usePlan } from '../../context/PlanContext'
 import { SectionLabel } from '../common/Panel'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -186,6 +192,15 @@ export function RoutePlanner({ disabled }: { disabled: boolean }) {
             borderTop: `1px solid ${TABLE.line}`,
           }}
         >
+          {plan.routeStation && (
+            <StationAim
+              station={plan.routeStation}
+              mode={plan.routeMode}
+              disabled={disabled}
+              onSet={plan.setRouteMode}
+            />
+          )}
+
           <DestinationRow
             dest={dest}
             picking={picking}
@@ -341,6 +356,72 @@ function PlannerHeader({
  * Where you asked to go. With nothing chosen it is the way into picking; while
  * picking it is the loud amber state and the way straight back out of it.
  */
+/**
+ * A station is not a place: it advances 4 sectors at the end of every round,
+ * so a route to the sector it is on now lands where it used to be. Clicking
+ * one aims at where it will be when the ship gets there; this is the way back
+ * to the fixed sector, for the rare turn when that is what you meant.
+ */
+function StationAim({
+  station,
+  mode,
+  disabled,
+  onSet,
+}: {
+  station: Station
+  mode: RouteMode
+  disabled: boolean
+  onSet: (mode: RouteMode) => void
+}) {
+  const options: Array<{ value: RouteMode; label: string; tip: string }> = [
+    {
+      value: 'meet',
+      label: 'meet it',
+      tip: 'Arrive where the station will be. It advances 4 sectors a round.',
+    },
+    {
+      value: 'sector',
+      label: `S${station.sector}`,
+      tip: 'Go to the sector it is on now. The station will have moved on.',
+    },
+  ]
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+      <SectionLabel sx={{ flexShrink: 0, mr: 0.25 }}>
+        {getWellName(station.planetId)} station
+      </SectionLabel>
+      {options.map(option => {
+        const on = mode === option.value
+        return (
+          <Tooltip key={option.value} title={option.tip}>
+            <Box
+              component="button"
+              type="button"
+              disabled={disabled}
+              onClick={() => onSet(option.value)}
+              sx={{
+                fontFamily: FONT_MONO,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                px: 0.6,
+                py: '1px',
+                borderRadius: 1,
+                cursor: disabled ? 'default' : 'pointer',
+                color: on ? TABLE.accent : TABLE.inkSoft,
+                border: `1px solid ${on ? TABLE.accent : TABLE.line}`,
+                bgcolor: on ? AMBER_TINT : 'transparent',
+                opacity: disabled ? 0.5 : 1,
+              }}
+            >
+              {option.label}
+            </Box>
+          </Tooltip>
+        )
+      })}
+    </Box>
+  )
+}
+
 function DestinationRow({
   dest,
   picking,
@@ -408,7 +489,7 @@ function DestinationRow({
 
   if (!dest) {
     return (
-      <Tooltip title="Pick a sector on the board. The planner lays out the turns to get there, and offers you the first of them.">
+      <Tooltip title="Pick a sector. The planner lays out the turns and offers you the first.">
         <Button
           fullWidth
           size="small"

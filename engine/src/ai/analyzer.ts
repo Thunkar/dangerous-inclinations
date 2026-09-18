@@ -13,7 +13,7 @@ import { getSubsystemConfig, isWeaponType, SHIELD_ENERGY_PER_POINT } from "../mo
 import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import { positionOf, sectorDistance } from "../game/geometry.ts";
 import { getDissipationCapacity, hasWorkingCompressor } from "../game/ship.ts";
-import { MAX_REACTION_MASS } from "../models/game.ts";
+import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import { canEngage } from "../game/targeting.ts";
 import { isMooredAt } from "../game/stations.ts";
 import type {
@@ -140,7 +140,7 @@ export function analyzeStatus(me: Player, stations: Station[] = []): BotStatus {
     maxHull: ship.maxHitPoints,
     heat: ship.heat.currentHeat,
     dissipation,
-    heatBudget: Math.max(0, dissipation - ship.heat.currentHeat),
+    heatBudget: Math.max(0, MAX_HEAT - ship.heat.currentHeat),
     availableEnergy: ship.reactor.availableEnergy,
     reactionMass: ship.reactionMass,
     maxReactionMass: MAX_REACTION_MASS,

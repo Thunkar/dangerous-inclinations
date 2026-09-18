@@ -10,15 +10,17 @@ import { resolveShipAppearance, type ShipAppearance } from "../models/appearance
  * the tiles in the open, even face-down ones), home markers, crates carried,
  * face-up tiles, broken fixed systems, completed missions, missiles, stations,
  * and the fuel aboard.
- * Private: face-down tile identities, ammo, missions in hand, cargo
+ * Private: face-down tile identities, the ammo in a face-down missiles tile,
+ * missions in hand, cargo
  * destinations, mission offers, what a scan showed you.
  */
 import type { GameState, Missile, Player, Position, Station, GamePhase } from "../models/game.ts";
-import { MAX_REACTION_MASS } from "../models/game.ts";
+import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import type { Mission } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import {
   getDissipationCapacity,
+  getStandingHeat,
   getEffectiveCriticalChance,
   isDestroyed,
 } from "./ship.ts";
@@ -51,6 +53,13 @@ export interface SlotView {
   knownVia: SlotKnowledge;
   /** Energy cubes on the tile. Public: a hint about what the tile is. */
   allocatedEnergy: number;
+  /**
+   * Missiles left in a missiles tile, or null when the viewer cannot read the
+   * tile. Ammo is private only while the tile is: a missiles tile reveals
+   * itself the first time it launches, and after that the table can count what
+   * is left. (A "rack" is the ballistic rack, a different tile.)
+   */
+  ammo: number | null;
 }
 
 export interface FixedSystemView {
@@ -86,6 +95,10 @@ export interface OwnShipStats {
   dissipationCapacity: number;
   maxReactionMass: number;
   criticalChance: number;
+  /** Top of the heat track: above this, the excess is hull damage. */
+  maxHeat: number;
+  /** Heat powered shields will add at the next check, just for being on. */
+  standingHeat: number;
 }
 
 export interface GameView {
@@ -146,6 +159,7 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
         isBroken: visible ? s.isBroken : null,
         knownVia: visible ? known : null,
         allocatedEnergy: s.allocatedEnergy,
+        ammo: visible && s.type === "missiles" ? (s.ammo ?? 0) : null,
       };
     });
 
@@ -197,6 +211,8 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
           dissipationCapacity: getDissipationCapacity(me.ship.subsystems),
           maxReactionMass: MAX_REACTION_MASS,
           criticalChance: getEffectiveCriticalChance(me.ship.subsystems),
+          maxHeat: MAX_HEAT,
+          standingHeat: getStandingHeat(me.ship.subsystems),
         }
       : null,
   };

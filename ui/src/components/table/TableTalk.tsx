@@ -173,6 +173,8 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
     <Panel
       title="Table talk"
       dense
+      collapseId="table-talk"
+      summary={chat.length > 0 ? `${chat.length}` : undefined}
       sx={{ flex: '1 1 0', minHeight: 190, minWidth: 0, ...(sx as object) }}
     >
       <Box sx={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -241,7 +243,7 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
               {/* describeChild: the button keeps its own name, the tooltip only explains it. */}
               <Tooltip
                 describeChild
-                title="Post as reasoning instead of table talk: italic and tagged, so the table can tell it apart."
+                title="Post as reasoning: italic and tagged, not table talk."
               >
                 <Button
                   size="small"

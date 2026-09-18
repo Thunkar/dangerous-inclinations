@@ -24,7 +24,9 @@ server and in recordings.
 
 ## Try it
 
-- Pick Hunter, Raider, Hauler, or Scout. These are the engine's actual presets.
+- Pick one of the six mats. They are the engine's own (`BOT_LOADOUT_TEMPLATES`): three
+  roles — interceptor (sensor), hunter (railgun), hauler (compressor) — each in a
+  tanky and an aggressive variant.
 - Click a mount on the ship or in the list, then choose a compatible subsystem.
   Removing a module exposes its magnetic interface; an incomplete loadout remains
   editable and is marked incomplete.

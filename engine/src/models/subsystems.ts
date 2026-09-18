@@ -234,7 +234,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
      * points at SHIELD_ENERGY_PER_POINT cubes each, so an odd cube would sit
      * on a promise the rules do not keep. Four is most of a reactor for a
      * single tile — two tiles at full wall are eight of ten cubes and eight
-     * heat if the wall is used — which is what makes the wall a decision each
+     * heat if they absorb — which is what makes powering them a decision each
      * turn rather than a setting.
      */
     minEnergy: SHIELD_ENERGY_PER_POINT,

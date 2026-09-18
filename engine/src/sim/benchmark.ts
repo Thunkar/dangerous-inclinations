@@ -28,7 +28,18 @@ import {
   CARGO_HOLD_CRATES,
   type MissionType,
 } from "../models/missions.ts";
-import { MAX_PLAYERS, MIN_PLAYERS, STARTING_HIT_POINTS } from "../models/game.ts";
+import {
+  DEFAULT_DISSIPATION_CAPACITY,
+  MAX_HEAT,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  SHIELD_HEAT_PER_POINT,
+  STARTING_HIT_POINTS,
+} from "../models/game.ts";
+import { SHIELD_ENERGY_PER_POINT, SUBSYSTEM_CONFIGS } from "../models/subsystems.ts";
+
+/** What one radiator adds, read from the tile so the stamp cannot drift. */
+const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
 import { runBatch, type BatchResult } from "./batch.ts";
 
 const DEFAULT_GAMES = 120;
@@ -262,6 +273,12 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push(`| Cards offered / kept | ${MISSION_OFFERS_PER_PLAYER} / ${MISSIONS_PER_PLAYER} |`);
   out.push(`| Seats allowed | ${MIN_PLAYERS}–${MAX_PLAYERS} |`);
   out.push(`| Starting hull | ${STARTING_HIT_POINTS} |`);
+  out.push(
+    `| Heat track | ${MAX_HEAT}; above it is hull damage, then shed ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator) and carry the rest |`
+  );
+  out.push(
+    `| Shields | ${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point, and its cubes as heat every turn it is powered |`
+  );
   out.push(`| Table time assumes | ${args.minutesPerTurn} min per player-turn |`);
   out.push("");
 

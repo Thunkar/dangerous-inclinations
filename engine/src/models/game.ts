@@ -50,6 +50,27 @@ export const MAX_REACTION_MASS = 10;
 export const STARTING_REACTION_MASS = 10;
 export const DEFAULT_DISSIPATION_CAPACITY = 5;
 export const STARTING_HIT_POINTS = 10;
+
+/**
+ * The top of the heat track, and the reason there is a track at all.
+ *
+ * Heat used to reset to zero at every check, which made dissipation a spend
+ * limit rather than a rate: under it everything was free and over it
+ * everything was strictly dominated, so nobody ever crossed the line. Measured
+ * on 18 Sept 2026 over 18,418 acting turns, 69% of turns ended with four or
+ * more points of dissipation unused and only 1.5% went over at all — which is
+ * also why a critical dumping a powered tile's cubes cost 0.21 hull a game
+ * across four seats: there was nothing for it to land on.
+ *
+ * So heat carries. At a check the excess over MAX_HEAT is hull damage and the
+ * track stops there; then the ship dissipates and keeps the rest
+ * into the next turn. The long run is unchanged — a ship generating more than
+ * it dissipates still pays the difference every turn once it saturates — but there
+ * is now a buffer to spend, so running hot is a state you choose to enter and
+ * have to climb out of. Ten to match the hull track: one cube, one track.
+ */
+export const MAX_HEAT = 10;
+
 /**
  * Heat the defender takes per point of damage a shield absorbs. Two since
  * 15 Sept 2026: soaking a volley is a decision about how much heat to eat.

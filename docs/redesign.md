@@ -2,8 +2,15 @@
 
 This document records the design decisions behind the second major revision of the
 rules and the code. It is written for the designer. `RULES.md` remains the player-facing
-manual and is updated to match. Everything here is meant to be tested with the bot
-simulator before being trusted; numbers are starting points, not conclusions.
+manual and is the only authority on what the rules are; where this document and RULES.md
+disagree, RULES.md is right and this document is out of date.
+
+**How to read it.** Sections 1–4 are the redesign itself (14 September 2026). Sections 5b,
+6 and 6b are the measurements and open questions of that week, kept as history and marked
+with the date they were true; several of the levers they weigh were pulled afterwards and
+some were pulled the other way. **Section 6d is the decision log** and is the part that is
+current: every rule change since the redesign, what it was meant to do, and the number that
+said it worked. Section 7 is the code plan, done.
 
 Guiding constraint, unchanged: **every rule must be playable at a table with tiles,
 cubes, a d10 and a pencil.** Where a rule was simplified, the simpler version wins even
@@ -120,6 +127,9 @@ The sensor array is now an intelligence tool for everyone, not a mission-specifi
 
 ### 2.6 Missions (fixes 4)
 
+_As drafted on 14 September 2026. The card values, the deck and the daring cards all
+changed afterwards; RULES.md §Missions and §6d.3 below are current._
+
 Four mission types. One card is one point; first to three wins.
 
 | Card | Complete when |
@@ -145,7 +155,7 @@ The launch-after-move exception stays because it is physically right (the missil
 
 ### 2.8 Things deliberately unchanged
 
-Energy/heat model, dissipation 5, shields as heat converters, burn table, phasing table, weapon stats, ring velocities, 24 sectors, one forward and four side slots (the docs said two forward slots; the code has had one since May, and the tension "railgun or sensor" is good — the docs are now corrected).
+Energy/heat model, dissipation 5, shields as heat converters (they buy absorption with cubes as well since 17 Sept — §6d.5), burn table, phasing table, weapon stats, ring velocities, 24 sectors, one forward and four side slots (the docs said two forward slots; the code has had one since May, and the tension "railgun or sensor" is good — the docs are now corrected).
 
 ---
 
@@ -180,7 +190,7 @@ The simulator should report, before and after:
 
 ---
 
-## 5b. First results
+## 5b. First results (14 September 2026 — history)
 
 Bot-vs-bot, 100 games per row (30 for "before"), seeds 1000+. "Rounds" = full rounds of the table. The old simulator capped games at 150 player-turns (75/50/37 rounds for 2/3/4 bots); the new one at 400.
 
@@ -201,7 +211,7 @@ What this says:
 - **Hidden information works but erodes fast.** With four players almost every tile is face-up by the end (scans average 10 per game); with two, about a third of tiles stay hidden. Scanning may be too cheap, or the sensor array too common in bot loadouts.
 - **Combat does not happen.** Destructions per game are effectively zero and combat loadouts almost never win. Bots pick the scout/hauler loadout (sensor, shields, radiator, compressor, laser) nine times out of ten. Part of this is the bots' risk aversion, part is the rules: a Deliver card takes a few rounds, a kill takes a hunt across the map against a target that can repair at any station. See the first open question below.
 
-## 6. Open questions for playtesting
+## 6. Open questions for playtesting (14 September 2026 — history; see §6d for what was decided)
 
 - **Combat is under-rewarded.** In the first bot simulations after the redesign almost no fights happen: games are decided by Deliver cards, with Survey and Intercept next. With the four-card deck the bots never keep a Destroy card at all (0 of 81 offered over 90 hands at 3 players): their cost model rates a hunt at ~22 turns against 12–16 for the other cards, and forcing them to keep it produced zero kills, so their pessimism is accurate. Bot games therefore contain no combat. Candidates, in order of simplicity (to be decided by the designer, not shipped by default):
   1. Destroy is worth **two** points (it needs another player's active cooperation to fail, and costs the victim a turn and cargo, so the payoff should match the difficulty). **Adopted 15 Sept 2026** after the experiment matrix; the other levers were not.
@@ -227,17 +237,204 @@ After teaching the bots denial (interdict a rival who is one delivery from winni
 
 None of these levers has been pulled; they are the designer's calls.
 
-**Measured (15 Sept 2026, 18 rows × 100 games on identical seeds, `docs/experiments-2026-09-15.md`):** Destroy worth 2 is the only single knob that changes behaviour (bots keep Destroy, gun hulls 57% → 91% of seats, kills 0.2 → 0.6 per game, games 27 → 36 rounds). Shield changes alone make hits hurt without making anyone seek them. Destroy 2 + shield cap 2 gives 1.7 kills per game with every game finishing in 31 rounds and Deliver still the top card; Destroy 2 + spent shields + dock repair 1 gives 1.1. Coasting is not the constraint the shield debate assumed: 32% of turns coast but only 3% are idle, ships hold 4 shield cubes on 58% of turns and still act on 96% of those, and the reactor averages 5.4 of 10 cubes in use. Nothing is adopted yet.
-
-**Decided 15 Sept 2026 (afternoon):** (1) **lasers ignore shields** — shields are electromagnetic and stop only physical projectiles; the laser keeps its one side, 2 damage and ±2 rings/±1 sector; (2) **lanes are one-way** — each planet has an outbound arc from the black hole and an inbound arc back, so Alpha → Gamma → Beta → Alpha is the cheap circuit. Both measured in `docs/weapons-2026-09-15.md` §6–7: the laser rule lifts a laser seat's hull damage ×13 and, if every hull carries one, doubles kills and Destroy completions with 99% of games finishing; the one-way lanes cost about nine rounds of game length (36 → 45 median) because half the Deliver routes now run against the circuit.
-
-**Decided 15 Sept 2026 (evening): Survey costs something.** The card names a planet; the data is taken by ending **two consecutive turns on Black Hole Ring 1 with the sensor array powered**, and it is delivered at the named station. Rationale (designer): Survey was half a Deliver run and completed at the same per-card rate; an easy card has to be paid for. Measured in `docs/weapons-2026-09-15.md` §8 together with the "sneaky hull" experiments (duplicate shields, all-missile hulls, double radiators), run with the tile limits lifted to see what the one-set-per-player rule is protecting against.
-
-**Decided 15 Sept 2026 (night): shields run hot.** Every point a shield absorbs is **2 heat** on its owner (`shieldHeatPerPoint`). Rationale (designer): shields felt cheap; you may still shield up to avoid most damage, but it must cost the other systems. Measured in `docs/edge-cases-2026-09-15.md` §7: with cap 3 it gives 95% of games decided before the cap in 45 rounds with 1.7 kills a game and flattens the sensor+laser hulls to baseline; with cap 4 it gives 87% / 51 / 1.5 and leaves them at 54%. Lowering base dissipation instead was measured (§6) and rejected: it taxes the 6-heat railgun volley more than the 2-heat laser. Shield cap (3 or 4) still to be chosen.
+Every lever above was eventually pulled or discarded; §6d is the record.
 
 ## 6c. How to test a rule before adopting it
 
-The rules are constants in `engine/src/models/`; there are no knobs on the game state (the last of them were retired on 16 Sept 2026, once every question they held open had been answered). To measure a change before adopting it, use the simulator's experiment-only overrides with the same `--baseSeed` as the baseline so that only the rule differs: `--tiles=` (any field of any tile), `--weapons=` (firing stats), `--loadouts=` (the bots' hull templates) and `--seats=` (a hull forced on one seat). Results: `docs/experiments-2026-09-15.md`, `docs/weapons-2026-09-15.md`, `docs/edge-cases-2026-09-15.md`.
+The rules are constants in `engine/src/models/`; there are no knobs on the game state (the last of them were retired on 16 Sept 2026, once every question they held open had been answered). To measure a change before adopting it, use the simulator's experiment-only overrides with the same `--baseSeed` as the baseline so that only the rule differs:
+
+| channel | reaches |
+|---|---|
+| `--tiles=ballistic_rack.damage=3` | any field of any tile: slot group, energy, passive effect |
+| `--weapons=laser.sectorRange=2` | a weapon's firing stats |
+| `--loadouts=hunter-tanky=railgun/...` | the bots' hull templates, per archetype |
+| `--seats=bot-1=railgun/...` | a hull forced on one seat, whatever its hand asks for |
+| `--hands=bot-1=1` | how many two-point cards a seat keeps — the bots price one road to four points and take it every time, so a plan they never choose is only measurable dealt |
+
+Then `yarn balance` (exits 1 on an outlier, a stall or a slow row) and `yarn bench`
+(one page describing how the rules as they stand play at 3/4/5/6 seats, stamped
+with the rules it ran under, so two runs can be diffed). Keep the games and seeds
+fixed between runs or the comparison is worthless.
+
+A change that survives its experiment moves into `engine/src/models/`. The lab
+notes for the changes in §6d were deleted on 18 September once the rules they
+measured no longer existed — wrong numbers read as current are worse than no
+numbers — and each entry there names the commit that carries them.
+
+## 6d. Decision log, 15–18 September 2026
+
+What changed after the redesign, why, and the number that backed it. The
+measurements were lab notes in `docs/` that described rules which no longer
+exist; they were removed on 18 September and live in git history (see the
+commits named below). **This section, not §6b, is what is current.**
+
+**1. Destroy is worth two points** (15 Sept, morning). The only single change that
+moved behaviour: bots start keeping Destroy, gun hulls go from 57% to 91% of
+seats, kills from 0.2 to 0.6 a game, length from 27 to 36 rounds. Shield changes
+alone made hits hurt without making anyone seek one. Measured over 18 rows × 100
+games on identical seeds.
+
+**2. Lasers ignore shields, and lanes are one-way** (15 Sept, afternoon). Shields
+are electromagnetic and stop only physical projectiles; the laser keeps its one
+side, 2 damage, ±2 rings and ±1 sector. A laser seat's hull damage went up
+×13, and with a laser on every hull kills and Destroy completions doubled at 99%
+of games finishing. Separately, each planet got an outbound arc from the black
+hole and an inbound arc back, making Alpha → Gamma → Beta → Alpha the cheap
+circuit; it cost about nine rounds of length (36 → 45 median) because half the
+Deliver routes now run against the circuit. The geometry behind the laser call:
+on real bot movement the railgun has a target in its envelope on 16% of turns and
+keeps it into the next turn 36% of the time, a single laser 4.8% and 17%, and
+missiles 30% and 53% — the laser is starved by its ±1-sector window, not by its
+side, because adjacent rings move at different speeds.
+
+**3. Survey was made expensive, and then made cheap again** (15 Sept evening;
+reverted 16 Sept, commit `6a4c4fe`). It briefly named a planet and asked for two
+consecutive turns held on Black Hole Ring 1 with sensors powered. That worked as
+written — completions fell from 94 to 38 per 100 games — and the bots simply
+stopped keeping it (25% → 3% of held cards), which left hands leaning on Destroy
+and three hunters standing off: 72% of games decided instead of 86%, median 56
+rounds instead of 45. A card nobody keeps is not a priced card, it is a missing
+one. **Current rule:** end one turn on Black Hole Ring 1, take the chit, file it
+at any station, worth 1 point, no sensor needed. The two-turn hold left no trace
+in the code — with a one-turn hold the counter, its event and its UI text were
+all unreachable, so they were deleted rather than set to 1.
+
+**4. Shields run hot** (15 Sept night). Every point a shield absorbs is 2 heat on
+its owner (`SHIELD_HEAT_PER_POINT`). Rationale: shields felt cheap; you may still
+shield up, but it has to cost the other systems. Lowering base dissipation
+instead was measured and rejected — it taxes the 6-heat railgun volley more than
+the 2-heat laser, which is the opposite of what was wanted. Still current.
+
+**5. Shields buy absorption by the point** (17 Sept, commit `69cc98c`). A tile
+used to absorb damage up to the cubes on it and get those cubes back, so one
+powered tile was permanent immunity to every 2-damage weapon and two were
+immunity to the railgun: of the shots a bot holding a Destroy declined to take at
+its named target with a legal shot in hand, **66% were declined because the shot
+would have been absorbed whole**. A point of absorption now costs two cubes — the
+same two as the heat it makes — and a tile takes 2 cubes or 4, never one or
+three. Over 150 games a row the railgun hull went 7% → 12%, the hull spread
+narrowed from 26 points to 16, railgun + lasers + radiators 14% → 25%, railgun +
+racks 18% → 26%; length did not move. Kept honest at the time: **a tile at four
+cubes still absorbs exactly the two a tile used to**, so a 2-damage weapon still
+cannot reach a hull through one full tile, and kills barely moved.
+
+**6. Docking repairs to full, and deployment runs in reverse turn order**
+(15–16 Sept). A dock restores hull, repairs tiles and reloads missiles, but only
+on the turn you arrive; holding the berth afterwards buys the ride and the scoop
+and nothing else. Deployment places the last seat first, which is the cheapest
+answer to the first seat's advantage.
+
+**7. Three roles, two variants; the compressor moves forward; the rack shoots**
+(16 Sept, commit `6a4c4fe`). The forward slot was underused, the rack was never
+built and never fired in 1,400 seats, and the hunter and the raider were the same
+ship — one problem with three faces. The compressor was a tempo tile wearing a
+capacity costume (+6 fuel *and* a free jump), carried by 100% of built hulls; it
+lost the capacity, kept the free jump and moved to the forward slot, where it
+competes with the railgun and the sensor. The rack went from 1 damage to 2, which
+is what makes it the partner a railgun wants on its own ring. The four archetypes
+became **three roles × two variants** (`engine/src/ai/behaviors/loadout.ts`): the
+role is the forward tile and the cards choose it, the variant is the four side
+slots and that is taste. Result: mats in play 3 of 4 → 4 of 6, the most-played mat
+76% → 45%, the rack carried by 30% of seats at 3.1 shots a game, and every card
+type finished in natural play. Also retired in that pass: the last four rule
+knobs on the game state. **The rules are constants now; a game is played under
+RULES.md and nothing else.**
+
+**8. One deck for the table, two daring cards** (17 Sept, commit `6d08495`). The
+deck was dealt the way a computer would deal it — a private stack per seat,
+generated to fit that seat. There is one deck now, shuffled once and dealt round
+the table. Rival cards count seats (“the 2nd to your left”), so no card can name
+its own holder and nobody learns who is hunting whom from a card they did not
+draw; setup removes the offsets the table is too small for. Deliver and Intercept
+joined Destroy at **2 points**, Survey, Board and Garbage Disposal are **1**, and
+four points end the round — so a hand is two primaries, or one plus both daring
+cards. A brief experiment with dealing six instead of five was reverted here: six
+offers raised the bar every card had to clear and Intercept fell straight through
+it (kept when offered 16.7% → 1.7%) despite being the fastest-completing card on
+the table. Deal 5, keep 3.
+
+**9. Nothing can break the fuel scoop** (17 Sept, commit `69cc98c`). A critical
+may name any slot but the scoop, and since a critical is the only thing that
+breaks a tile, nothing breaks it. Repairs happen only at a station, a dry ship
+cannot burn or jump, and a coast moves it along the ring it is already on — a
+critical on the scoop of a dry ship away from a station ring ends that player's
+game with no move that leads back. Bots never named it (0 of 254 breaks in 120
+games), so it costs nothing at the table and closes a door a human would walk
+through on purpose.
+
+**10a. Heat is a track, and a raised screen runs hot** (18 Sept). Three changes
+adopted together, because the first two do nothing apart:
+
+- **Heat carries.** At a check, anything above **10** is hull damage and the
+  track stops there; then the ship sheds its dissipation and keeps the rest.
+  Heat used to reset, which made dissipation a spend limit rather than a rate:
+  under it everything was free and over it a point absorbed cost more hull than
+  it saved, so nobody ever crossed the line. Measured over 18,418 acting turns
+  before the change: **69% of turns ended with four or more points of
+  dissipation unused and 1.5% went over at all**.
+- **A powered shield tile adds its cubes at every check**, absorbing or not —
+  the same rule every other tile follows, applied by making *powered* mean
+  *used*. A tile that did absorb has spent its cubes and gone dark, so it costs
+  nothing that turn: using the wall is what stops it costing you.
+- **A critical breaks the named slot even through shields.** It used to need
+  `toHull > 0`, so a wall that held ate the critical aimed at it — the fattest,
+  most public slot was the one best protected from being named.
+
+What it did, at 150 games × 4 seats on fixed seeds: the wall became a decision
+(mean shield cubes 3.83 → **2.75**, full wall 73% → **56%**, damage soaked 27% →
+**16%**), the heat track came into use (mean unused dissipation 3.67 → **0.95**,
+turns carrying heat 1.5% → **67%**), and the game got bloodier (destructions 3.2
+→ **4.3**, railgun hull damage 12.0 → **18.6**, rack 2.4 → **7.0**). Shields
+stopped being a tax on a hull that fights: one tile on a gun mat went 27% →
+**29%** and no shields 22% → **25%**, while the weaponless turtle came down 40%
+→ **34%**. `docs/shields-2026-09-18.md` §7 has the whole table, including what it
+did **not** fix.
+
+**10b. The radiator stays at +2** (18 Sept). Measured against +1 and +3 on the
+same seeds after the change above: +1 widens the hull spread from 16 points to
+25 and adds six rounds to a game; +3 pushes the wall back up (mean cubes 2.75 →
+3.11) and flattens the rack mat. +2 gives the tightest spread and the shortest
+games, so the tile that was expected to need rebalancing did not.
+
+**10c. A face-up rack shows what is left in it** (18 Sept). Missile ammo was
+private always. It is private only while the tile is: a rack reveals itself the
+first time it launches, and once the tube covers are off the table can count the
+tubes. One line in `view.ts` (`SlotView.ammo`, null unless the viewer can read
+the tile) and one fewer thing to take on trust at the table — a rival who has
+fired three of four missiles cannot bluff a full rack. Ammo behind a face-down
+tile stays hidden, which is the case the leak test now checks.
+
+Asked and answered at the same time: **a shield reveals itself when it absorbs**,
+and not before. It already did, and it stays that way — a shield does not reveal
+itself by running hot, so unexplained heat on a rival's track is a tell and not a
+proof. Radiators are hidden too, so the arithmetic stays ambiguous in both
+directions, which is what the hidden-loadout design is buying.
+
+**11. A station you can dock at** (17 Sept, commit `0b9d7f7`). Board and model
+work, no rule change: the station is built from the ships' material vocabulary so
+it reads both from the table camera and close up, and a moored ship parks under
+its deck instead of intersecting it.
+
+### Open
+
+- **The turtle still wins, at 34% against a 25% baseline.** §6d.10a closed part
+  of the gap but not all of it, and the reason is arithmetic: two radiators put
+  dissipation at 9, and a full single wall (4) plus the scoop (3) is 7 — under
+  it forever. A mat with two radiators buys itself out of the standing cost
+  entirely. Lowering the radiator makes everything else worse (§6d.10b), so the
+  next lever is probably not the radiator and probably not shields: what the
+  measurements keep saying is that **a ship with no weapon and good survival
+  wins the card race**, because no card needs a fight. See
+  `docs/shields-2026-09-18.md` §7.
+- **Two players.** `hauler-tanky` takes 51% of seats there and wins 64% of the
+  games it is in. The old raider did the same (66%) before any of this, so the
+  legs mat inherited the skew rather than caused it. Nothing has addressed it.
+- **The standing outlier.** `compressor + shields×2 + radiators×2` — a mat with
+  no weapon at all that now also jumps for free — is the one hull `yarn balance`
+  still flags. It deals 3.3 damage a game and takes 8.3.
+- **Destroy takes about 25% of winners' cards against a 16.7% deck share** in
+  every pricing tried. A kill is worth two points, so a winner who lands one needs
+  fewer cards; it has never been measured against a deliberate alternative.
 
 ## 7. Code plan
 

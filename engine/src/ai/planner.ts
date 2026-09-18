@@ -23,6 +23,7 @@ import type {
   ScanAction,
   TacticalAction,
 } from "../models/game.ts";
+import { MAX_HEAT } from "../models/game.ts";
 import { SURVEY_RING } from "../models/missions.ts";
 import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
@@ -30,6 +31,7 @@ import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
 import { getStationAt } from "../game/stations.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
+import { heatAfterCheck } from "../game/heat.ts";
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
 import { INTERDICT_DANGER } from "./types.ts";
 import {
@@ -320,7 +322,9 @@ export function buildCandidate(
   tryScan();
   if (status.reactionMass < parameters.lowFuelThreshold) tryScoop();
 
-  // Spare energy goes to defence.
+  // Spare energy goes to defence — but powered shields charge their cubes as
+  // heat at the check, so they come out of the same budget as the volley, and
+  // what is left of the track after that is all they may cost.
   const enemiesNear = situation.opponents.some((o) => o.sameWell);
   assignDefensiveEnergy(
     targets,
@@ -329,8 +333,10 @@ export function buildCandidate(
     enemiesNear || situation.incomingMissiles > 0,
     situation.incomingMissiles > 0,
     getSubsystemConfig("shields").maxEnergy,
-    capacity
+    capacity,
+    Math.max(0, heatBudget - heatUsed)
   );
+  const standingHeat = status.shields.reduce((sum, sh) => sum + (targets.get(sh.id) ?? 0), 0);
 
   // Assemble.
   const { deallocations, allocations } = energyActions(me, targets);
@@ -431,7 +437,8 @@ export function buildCandidate(
     targetId: target?.player.id,
     followsGoal,
     scans: scanChosen !== null,
-    heatDamage: Math.max(0, status.heat + heatUsed - status.dissipation),
+    heatDamage: Math.max(0, status.heat + heatUsed + standingHeat - MAX_HEAT),
+    heatCarried: heatAfterCheck(status.heat + heatUsed + standingHeat, status.dissipation),
     massSpent:
       movement.massCost + (shots.some((s) => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0),
     // Only a burn takes a ship off a berth; a coast holds it and a compensated

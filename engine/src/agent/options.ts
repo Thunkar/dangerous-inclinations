@@ -4,6 +4,7 @@
  * guessing, so an illegal move is never their only option.
  */
 import type { BurnIntensity, Facing, PlayerAction, Position } from "../models/game.ts";
+import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import {
@@ -55,7 +56,14 @@ export interface SeatOptions {
   velocity: number;
   reactorFree: number;
   fuel: number;
+  /** Heat the turn may still make before the track redlines, shields' standing cost already deducted. */
   heatBudget: number;
+  /** Heat already on the track, carried in from last turn. */
+  heatCarried: number;
+  /** Heat powered shields will add at the check, whether or not they absorb. */
+  standingHeat: number;
+  /** Dissipated at every check. What is not dissipated carries to the next turn. */
+  dissipation: number;
   burns: BurnOption[];
   jump: {
     destinationWellId: string;
@@ -94,12 +102,28 @@ export function seatOptions(view: GameView): SeatOptions {
   const velocity = ringVelocity(ship.wellId, ship.ring);
   const compressor = hasWorkingCompressor(ship);
 
+  /**
+   * A move needs working hardware and fuel, not just room on the board. These
+   * were geometry-only and listed every burn the rings allowed, so a ship with
+   * broken engines was told it could burn, the dry run refused it, and the
+   * agent went round the loop with nothing in the options to tell it why.
+   */
+  const working = (id: SubsystemId) => {
+    const sub = ship.subsystems.find((x) => x.id === id);
+    return sub !== undefined && !sub.isBroken;
+  };
+  const enginesWork = working("engines");
+  const thrustersWork = working("rotation");
+
   const burns: BurnOption[] = [];
-  for (const facing of ["prograde", "retrograde"] as Facing[]) {
+  for (const facing of enginesWork ? (["prograde", "retrograde"] as Facing[]) : []) {
+    const needsRotation = facing !== ship.facing;
+    if (needsRotation && !thrustersWork) continue;
     for (const intensity of BURN_INTENSITIES) {
       const cost = BURN_COSTS[intensity];
       const toRing = ship.ring + (facing === "prograde" ? 1 : -1) * cost.rings;
       if (toRing < 1 || toRing > getMaxRing(ship.wellId)) continue;
+      if (cost.mass > ship.reactionMass) continue;
       burns.push({
         intensity,
         facing,
@@ -107,13 +131,14 @@ export function seatOptions(view: GameView): SeatOptions {
         engineEnergy: cost.energy,
         fuel: cost.mass,
         adjustment: getAdjustmentRange(velocity),
-        needsRotation: facing !== ship.facing,
+        needsRotation,
       });
     }
   }
 
-  const jumpOption = getJumpOptions(here)[0];
-  const jump = jumpOption
+  const jumpOption = enginesWork ? getJumpOptions(here)[0] : undefined;
+  const jump =
+    jumpOption && calculateJumpMassCost(0, compressor) <= ship.reactionMass
     ? {
         destinationWellId: jumpOption.destination.wellId,
         destination: jumpOption.destination,
@@ -173,13 +198,20 @@ export function seatOptions(view: GameView): SeatOptions {
         .map((o) => o.id)
     : [];
 
-  const dissipation = view.myStats?.dissipationCapacity ?? 5;
+  const dissipation = view.myStats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY;
+  const standingHeat = view.myStats?.standingHeat ?? 0;
+  const ceiling = view.myStats?.maxHeat ?? MAX_HEAT;
   return {
     position: here,
     velocity,
     reactorFree: ship.reactor.availableEnergy,
     fuel: ship.reactionMass,
-    heatBudget: Math.max(0, dissipation - ship.heat.currentHeat),
+    // Room before the track redlines, with the shields' standing cost already
+    // taken off — not room to the dissipation, which heat no longer resets to.
+    heatBudget: Math.max(0, ceiling - ship.heat.currentHeat - standingHeat),
+    heatCarried: ship.heat.currentHeat,
+    standingHeat,
+    dissipation,
     burns,
     jump,
     moored,

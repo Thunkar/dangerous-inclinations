@@ -16,7 +16,7 @@ CLI, and everyone's reasoning is on the table.
   a player on the server, a lobby, loadout, deployment, a plain-text digest of the view with the
   legal moves, a dry run of any turn, submission over the same socket a browser uses, and chat.
 - **The drivers** (`yarn seat agent`) let a model play a seat: Codex through `codex exec`
-  (`gpt-6-astra` by default) or Claude through `claude -p` (`claude-fable-5-1` by default). The
+  (`gpt-6-astra` by default) or Claude through `claude -p` (`claude-opus-5` by default). The
   driver reads the digest, the model answers with `{think, say, intent}`, and the CLI builds,
   dry-runs and submits the turn, posting the thought and the table talk. Both run in the repository
   with read-only tools, so the model can open RULES.md itself.
@@ -106,6 +106,17 @@ same as JSON; `yarn seat guide` prints the intent format.
 `--driver claude|codex` and `--model` override what is stored with the seat, so a person's seat can
 be handed to a model for a while. Prompts and answers of the drivers are kept in
 `~/.config/dangerous-inclinations/logs/<game>-<seat>.log`; that directory holds nothing else.
+
+**How long a model gets.** A driver runs a whole agent session per question — the model reads the
+prompt, may open RULES.md and the engine, and thinks — so one turn is minutes, not seconds.
+`--ask-timeout <seconds>` (default 900) is the budget for one question and `--attempts <n>`
+(default 8, `0` for ever) is how many times the seat asks before it stops with a reason. The two
+kinds of failure are not the same and the seat treats them differently: a **rejected** intent is
+something the model got wrong, so it is told what and asked again with the rules and the legal
+options attached, and those rounds are what the retry loop is for. A **timeout** or an unparseable
+reply is not something the model said, so it is asked the same question again and the attempt is
+counted; eight of those means the model is too slow or not running, not that it is one prompt from a
+legal turn.
 
 ## Reading a game afterwards
 

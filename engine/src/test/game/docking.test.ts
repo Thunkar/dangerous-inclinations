@@ -176,12 +176,13 @@ describe("docking: ending the turn on a station", () => {
   });
 
   it("docking happens before the heat check", () => {
-    const state = withShip(approaching(ALPHA), "p1", { hitPoints: 5, heat: { currentHeat: 8 } });
+    const state = withShip(approaching(ALPHA), "p1", { hitPoints: 5, heat: { currentHeat: 13 } });
     const result = executeTurnAs(state, coast(1));
     expect(eventTypes(result.events).indexOf("docked")).toBeLessThan(
       eventTypes(result.events).indexOf("heat_damage")
     );
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(7); // to full, then -3 heat
+    // A dock fills the hull, and only then does the track redline: 10, then -3.
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(7);
   });
 });
 

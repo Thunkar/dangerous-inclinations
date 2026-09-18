@@ -9,7 +9,7 @@ A game of orbital manoeuvre, heat management and hidden objectives for 2–6 pla
 ## Components
 
 - The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 3 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
-- Per player: a ship token, a Home marker, a ship mat with 1 forward slot and 4 side slots, a small screen for your cards, 10 energy cubes, a hull track (10) and a heat track.
+- Per player: a ship token, a Home marker, a ship mat with 1 forward slot and 4 side slots, a small screen for your cards, 10 energy cubes, a hull track (10) and a heat track (10).
 - Subsystem tiles: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles. Take as many copies of a tile as you have slots it fits: two shields, four lasers, anything goes. Tiles are double-sided: face-down shows only the slot type.
 - One deck of mission cards, crate tokens, data chits, missile tokens, station tokens, one d10.
 
@@ -58,7 +58,7 @@ Each planet has a station on **Ring 1**. Stations drift like ships: 4 sectors at
 1. **Missions.** Each player draws 5 mission cards from their deck and keeps 3, face-down behind their screen. Return the rest. Cards and mat are chosen together: keep nothing your loadout could never complete (see Missions).
 2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array, fuel compressor or missiles) and 4 side tiles (laser, shields, radiator, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 4** in any empty sector, and puts their Home marker there. Everyone starts together and scatters from there; missions are secret, so pick your sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring).
-4. Fill the hull track to 10, reaction mass to 10 (kept behind your screen), heat to 0. Energy cubes stay in the reactor.
+4. Fill the hull track to 10, reaction mass to 10 and heat to 0 — all three are tracks on your mat, in the open. Energy cubes stay in the reactor. Only your cards and the ammo in a face-down missiles tile sit behind the screen.
 
 ---
 
@@ -76,7 +76,7 @@ Otherwise:
    - **Scan** — with a powered sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
 4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull is restored to full, missiles reloaded. You stay moored until you burn away, riding the station — but the dock itself only happens on arrival.
-5. **Heat check.** If your heat exceeds your dissipation, take the difference as hull damage. Reset heat to 0.
+5. **Heat check.** Add the cubes on every powered shields tile. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
 
@@ -85,10 +85,12 @@ Otherwise:
 ## Energy and Heat
 
 - The reactor holds **10 energy**. Allocating and removing cubes is free and unlimited.
-- **Using** a tile generates heat equal to the energy on it: firing a weapon, burning (engines), rotating (thrusters), scooping, scanning, jumping, intercepting a missile. Powered but unused tiles make no heat.
-- **Dissipation** is 5, plus 2 per working radiator. Excess heat at your heat check becomes hull damage.
-- **Shields** convert incoming damage into heat. **Two cubes buy one point**, so a tile takes 2 cubes or 4 and never an odd one, and every point absorbed is **2 heat**. The cubes spent return to the reactor and the tile goes dark until you re-power it, so a tile is worth its points **between your turns, not per shot**: a volley strips the wall and then walks through the hole. Shields are electromagnetic: they stop railgun slugs, rack rounds and missiles, **not lasers**.
-- Two tiles at four cubes stop 4 damage — and are 8 of your 10 energy and 8 heat, against a dissipation of 5. A full wall, a full burn and a scoop do not fit in the same turn: which of them you can afford is the decision.
+- **Using** a tile costs heat equal to the cubes on it: firing, burning, rotating, scooping, scanning, jumping, intercepting. Powered but unused tiles cost nothing — **except shields**.
+- **Heat is a track. It does not reset.** At your heat check, heat above **10** is hull damage and the track drops to 10. Then **dissipate** — 5, plus 2 per working radiator — and carry the rest into your next turn.
+- So a hot turn is a debt, not a wound: take one, then cool off. Make more heat than you dissipate for long enough and you reach the **redline** at 10, where it costs hull every turn until you stop.
+- **Powered shields cost their cubes in heat at every check**, absorbing or not. A tile that *did* absorb has already spent its cubes, so it costs nothing that turn.
+- **Shields turn the damage they stop into heat.** Two cubes absorb one point, so a tile takes 2 cubes or 4 and never an odd one, and each point absorbed is **2 heat**. Spent cubes return to the reactor and the tile goes dark until you power it again — so a tile is worth its points **between your turns, not per shot**. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds and missiles, **not lasers**.
+- Two tiles at four cubes absorb 4 damage. They are also 8 of your 10 cubes and **8 heat every turn**, against a dissipation of 5. Full shields, a full burn and a scoop do not fit in one turn — and full shields do not fit three turns running.
 
 | Tile                       | Energy | Effect                                                                 |
 | -------------------------- | ------ | ---------------------------------------------------------------------- |
@@ -100,7 +102,7 @@ Otherwise:
 | Fuel compressor (forward)  | —      | A jump's own fuel is refunded                                          |
 | Missiles (forward or side) | 2      | Launch a guided missile at anyone in your well (4 aboard)              |
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
-| Shields (side)             | 2 or 4 | Every 2 cubes absorb 1 damage, as 2 heat                                |
+| Shields (side)             | 2 or 4 | 2 cubes absorb 1 damage, as 2 heat; costs its cubes in heat every check |
 | Radiator (side)            | —      | +2 dissipation                                                         |
 | Ballistic rack (side)      | 2      | 2 damage, ±1 ring or same ring, ±1 sector; intercepts missiles         |
 
@@ -148,7 +150,9 @@ Shields absorb first (every 2 cubes absorb 1 damage and give its owner **2 heat*
 
 ### Critical hits
 
-When you fire, name one slot on the target: forward, side 1–4, engines or thrusters. **Not the fuel scoop** — it is the one tile a critical cannot name, because a dry ship with no scoop has no move that reaches a station to repair it. If the shot is a critical and reaches the hull, that tile is **turned face-up and broken**: its cubes return to the reactor as heat, and it cannot be used until repaired at a station. Naming a face-down slot is a gamble; naming a face-up one is a plan.
+When you fire, name one slot on the target: forward, side 1–4, engines or thrusters. **Not the fuel scoop** — it is the one tile a critical cannot name, because a dry ship with no scoop has no move that reaches a station to repair it. If the shot is a critical, that tile is **turned face-up and broken** — **whether or not the shot got through the shields**: its cubes return to the reactor **as heat**, and it cannot be used until repaired at a station.
+
+A wall that holds is no protection against being named. **The cubes on every slot are public**, even face-down, so a fat slot is a target you can see: four cubes on a side slot is four heat dumped onto its owner the moment a 10 comes up. Naming a face-down slot is a gamble; naming a face-up one is a plan. A tile that has just absorbed has already spent its cubes, so breaking it dumps little or nothing — but it is gone until they dock.
 
 ### Weapons
 
@@ -169,7 +173,7 @@ Your tiles start face-down. **A tile is turned face-up the first time it does so
 
 | Tile            | Face-up when                                                    |
 | --------------- | --------------------------------------------------------------- |
-| Any weapon      | it fires (or a rack intercepts)                                 |
+| Any weapon      | it fires (or a ballistic rack intercepts); a missiles tile then shows what is left |
 | Shields         | they absorb damage                                              |
 | Sensor array    | it scans, or a critical lands on an 8 or 9                      |
 | Radiator        | your heat goes above 5 at a heat check (it is visibly shedding) |
@@ -178,8 +182,8 @@ Your tiles start face-down. **A tile is turned face-up the first time it does so
 
 Face-up tiles stay face-up, even after respawn.
 
-**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and data chits you carry, face-up tiles, broken fixed systems, completed missions.
-**Private:** what a face-down tile is, missile ammo, missions in hand, where your cargo is going.
+**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and data chits you carry, face-up tiles and **the missiles left in a face-up missiles tile**, broken fixed systems, completed missions.
+**Private:** what a face-down tile is, the ammo in a face-down missiles tile, missions in hand, where your cargo is going.
 
 Energy is the tell. Four cubes on a face-down forward slot can only be a railgun; two side slots each holding two cubes suggest lasers or a rack; a slot that never gets a cube may be a radiator or compressor. You learn about a rival from how they power up, before anything is fired.
 
@@ -238,7 +242,8 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 |                  |                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------ |
 | Reactor          | 10 energy                                                                                        |
-| Dissipation      | 5 (+2 per radiator)                                                                              |
+| Heat track       | 10 (the redline). Above it at a check: hull damage, then dissipate and carry the rest             |
+| Dissipation      | 5 (+2 per radiator), at every check. Heat does not reset                                          |
 | Hull             | 10                                                                                               |
 | Fuel             | 10                                                                                               |
 | Sectors per ring | 24                                                                                               |
@@ -246,13 +251,14 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid |
 | Jump             | engines 3, 3 fuel (refunded by a compressor), no drift                                           |
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                     |
-| Shields          | 2 or 4 cubes; 2 cubes a point absorbed, 2 heat a point; lasers ignore them                        |
-| Critical         | names any slot but the fuel scoop                                                                |
+| Shields          | 2 or 4 cubes; 2 cubes a point absorbed, 2 heat a point; **its cubes are heat every turn it is up**; lasers ignore them |
+| Critical         | names any slot but the fuel scoop; breaks it through shields, and dumps its cubes as heat         |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |
 | Keeping cards    | one deck: deal 5, keep 3, discard 2; Intercept needs a sensor array, Destroy needs a weapon        |
 | Hold             | one crate; data chits ride free                                                                  |
+| Ammo             | private while the missiles tile is face-down; public once it has fired                           |
 | Win              | 4 points end the round (primaries 2, daring 1); highest score, then hull, then fuel               |
 
 ### Turn cheat sheet
@@ -262,5 +268,5 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.
 5. Just arrived at a station? Load, deliver, repair, full hull, reload. Moored until you burn away.
-6. Heat check: excess heat → hull damage; reset heat.
+6. Heat check: add your powered shields' cubes; over 10 is hull damage; dissipate and carry the rest.
 7. Flip completed missions. Pass. (Last player: stations move, with whoever is moored.)

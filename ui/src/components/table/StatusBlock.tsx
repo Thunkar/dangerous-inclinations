@@ -1,25 +1,16 @@
 /**
- * Your ship's state, at the top of your own column — the three numbers you
- * steer by, never further than a glance away.
+ * Your ship: hull, heat, fuel, the hold, and missile ammo, which is private
+ * and so lives here rather than under a tile.
  *
- * Hull, heat and fuel are the same segmented tracks the whole table reads,
- * with what the turn you are building will do to them drawn in as ghost
- * segments: heat you are about to make (with the mark where it starts costing
- * hull) and fuel you are about to spend or scoop. Missile ammo lives here too
- * — it is private, and nothing is ever written under a tile.
- *
- * The heat track reads on three levels, so you can see whether powering the
- * shields is worth it before you spend the cubes: heat you already carry
- * (solid), heat this turn's sequence will make (ghost), and the heat your
- * powered shields would make on top if they absorbed their whole allocation
- * (hatched). If that worst case lands past the dissipation mark, the hull it
- * would cost is spelled out beside the bar.
- *
- * It renders without a plan as well (a replay seat, someone else's turn): the
- * ghosts simply disappear.
+ * Each track shows three things: where you are (solid), where this turn leaves
+ * you (ghost), and the worst a rival could make of it (hatched). Heat carries
+ * between turns, so its divider marks the dissipation — left of it goes, right
+ * of it stays. Without a plan (a replay, someone else's turn) the ghosts
+ * disappear.
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import {
+  MAX_HEAT,
   SHIELD_ENERGY_PER_POINT,
   SHIELD_HEAT_PER_POINT,
   getMissileStats,
@@ -41,18 +32,27 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const maxFuel = stats?.maxReactionMass ?? 10
 
   const heatNow = me.ship.heat.currentHeat
-  const heatAfter = plan ? plan.projectedHeat : heatNow
-  /**
-   * Worst case: every powered shield spends its cubes, and every point
-   * absorbed becomes heat (RULES §Shields). A tile buys one point per
-   * SHIELD_ENERGY_PER_POINT cubes, so the cubes are not the damage. Read off
-   * the cubes as they are being moved, so the cost of powering a shield shows
-   * before you commit.
-   */
   const pending = plan?.pendingSubsystems ?? me.ship.subsystems
-  const shieldsOnly = pending
-    .filter(s => s.type === 'shields' && s.isPowered && !s.isBroken)
-    .reduce((sum, s) => sum + Math.floor(s.allocatedEnergy / SHIELD_ENERGY_PER_POINT), 0)
+  const poweredShields = pending.filter(s => s.type === 'shields' && s.isPowered && !s.isBroken)
+  /**
+   * A raised screen runs hot: every powered shield tile adds its cubes at the
+   * check whether or not it absorbed anything (RULES §Heat). Read off the
+   * cubes as they are being moved, so the standing cost of the wall shows
+   * before you commit to it.
+   */
+  const standingHeat = poweredShields.reduce((sum, s) => sum + s.allocatedEnergy, 0)
+  const heatAfter = (plan ? plan.projectedHeat : heatNow) + standingHeat
+  /**
+   * Worst case on top of that: every powered shield spends its cubes and every
+   * point absorbed becomes SHIELD_HEAT_PER_POINT heat. A tile buys one point
+   * per SHIELD_ENERGY_PER_POINT cubes, so the cubes are not the damage — and a
+   * tile that absorbs goes dark, so it stops charging its standing cost, which
+   * is why only the difference is hatched.
+   */
+  const shieldsOnly = poweredShields.reduce(
+    (sum, s) => sum + Math.floor(s.allocatedEnergy / SHIELD_ENERGY_PER_POINT),
+    0
+  )
   /**
    * A powered rack fires on its own at any missile that reaches you, and
    * heats up either way (RULES §Weapons → Ballistic rack). Counted unless the
@@ -67,13 +67,17 @@ export function StatusBlock({ accent }: { accent?: string }) {
         !plan?.steps.some(step => step.kind === 'fire' && step.subsystemId === s.id)
     )
     .reduce((sum, s) => sum + s.allocatedEnergy, 0)
-  const shieldHeat = shieldsOnly * SHIELD_HEAT_PER_POINT + rackHeat
+  // A tile that absorbs spends its cubes back to the reactor and goes dark, so
+  // it trades its standing cost for the absorption heat rather than paying both.
+  const shieldHeat = Math.max(0, shieldsOnly * SHIELD_HEAT_PER_POINT - standingHeat) + rackHeat
   const worstHeat = heatAfter + shieldHeat
-  const heatMax = Math.max(dissipation + 3, heatAfter, heatNow, worstHeat)
-  const overHeat = Math.max(0, heatAfter - dissipation)
-  const worstOverHeat = Math.max(0, worstHeat - dissipation)
+  const heatMax = MAX_HEAT
+  const overHeat = Math.max(0, heatAfter - MAX_HEAT)
+  const worstOverHeat = Math.max(0, worstHeat - MAX_HEAT)
   /** Hull the shields themselves would cost, over and above the planned turn. */
   const shieldHull = worstOverHeat - overHeat
+  /** What is still on the track when the next turn starts. */
+  const carried = Math.max(0, Math.min(heatAfter, MAX_HEAT) - dissipation)
 
   const fuelNow = me.ship.reactionMass
   const fuelAfter = plan ? plan.projectedFuel : fuelNow
@@ -84,6 +88,23 @@ export function StatusBlock({ accent }: { accent?: string }) {
 
   const crates = me.cargo.filter(c => c.isPickedUp && c.kind === 'crate').length
   const data = me.cargo.filter(c => c.isPickedUp && c.kind === 'data').length
+
+  /**
+   * A destroyed ship is off the board and a recovering one cannot act, and
+   * neither fact is visible anywhere else on your own column — an opponent's
+   * card carries the badge but your own tracks did not, so a hull that changed
+   * while your token was missing looked like it changed for no reason.
+   */
+  const destroyed = me.ship.hitPoints <= 0
+  const recovering = !destroyed && me.skipTurns > 0
+  const state = destroyed
+    ? { label: 'DESTROYED', tip: 'Off the board. You return to Home on your next turn.' }
+    : recovering
+      ? { label: 'RECOVERING', tip: `You act again ${me.skipTurns > 1 ? `in ${me.skipTurns} turns` : 'next turn'}.` }
+      : null
+
+  /** At the top of the track any heat at all is hull, so it gets its own state. */
+  const atRedline = heatAfter >= MAX_HEAT
 
   return (
     <Box
@@ -139,6 +160,27 @@ export function StatusBlock({ accent }: { accent?: string }) {
         >
           {getWellName(me.ship.wellId)} R{me.ship.ring} S{me.ship.sector}
         </Typography>
+        {state && (
+          <Tooltip title={state.tip}>
+            <Typography
+              data-testid="ship-state"
+              sx={{
+                fontFamily: FONT_MONO,
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                color: TABLE.danger,
+                border: `1px solid ${TABLE.danger}`,
+                borderRadius: '3px',
+                px: 0.5,
+                lineHeight: 1.4,
+                flexShrink: 0,
+              }}
+            >
+              {state.label}
+            </Typography>
+          </Tooltip>
+        )}
         <Box sx={{ flex: 1, minWidth: 0 }} />
         <Tooltip title="Cargo aboard">
           <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
@@ -166,11 +208,14 @@ export function StatusBlock({ accent }: { accent?: string }) {
         />
         <Tooltip
           title={
-            `Heat now ${heatNow}, ${heatAfter} once this turn has played out. Anything above ` +
-            `${dissipation} at the heat check becomes hull damage.` +
-            (shieldHeat > 0
-              ? ` Shields absorbing everything they can${rackHeat > 0 ? ' and the rack intercepting a missile' : ''} would add up to ${shieldHeat} more (hatched): ${worstHeat} at the check.`
-              : '')
+            [
+              standingHeat > 0 ? `${standingHeat} from shields.` : '',
+              `Dissipates ${dissipation}, carries ${carried}.`,
+              overHeat > 0 ? `−${overHeat} hull.` : `Over ${MAX_HEAT} costs hull.`,
+              shieldHeat > 0 ? `+${shieldHeat} if shields absorb.` : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
           }
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
@@ -202,12 +247,29 @@ export function StatusBlock({ accent }: { accent?: string }) {
                       +{shieldHeat}
                     </Box>
                   )}
-                  <Box component="span" sx={{ color: TABLE.inkFaint, fontWeight: 400 }}>
-                    /{dissipation}
+                  <Box
+                    component="span"
+                    sx={{ color: atRedline ? TABLE.danger : TABLE.inkFaint, fontWeight: atRedline ? 700 : 400 }}
+                  >
+                    /{MAX_HEAT}
                   </Box>
                 </>
               }
             />
+            {atRedline && overHeat === 0 && (
+              <Typography
+                data-testid="heat-redline"
+                sx={{
+                  fontFamily: FONT_MONO,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: TABLE.danger,
+                }}
+                noWrap
+              >
+                REDLINE
+              </Typography>
+            )}
             {overHeat > 0 && (
               <Typography
                 sx={{
@@ -225,16 +287,9 @@ export function StatusBlock({ accent }: { accent?: string }) {
         </Tooltip>
         {shieldHull > 0 && (
           <Tooltip
-            title={
-              `Shields absorb up to ${shieldsOnly} damage and every point absorbed becomes ${SHIELD_HEAT_PER_POINT} heat` +
-              (rackHeat > 0
-                ? `; a powered rack heats by ${rackHeat} when it intercepts a missile`
-                : '') +
-              `. All of it and the heat check reads ${worstHeat} against a dissipation of ${dissipation}: ` +
-              (overHeat > 0
-                ? `${worstOverHeat} hull instead of ${overHeat}.`
-                : `${worstOverHeat} hull.`)
-            }
+            title={`Absorbing ${shieldsOnly} costs ${shieldsOnly * SHIELD_HEAT_PER_POINT} heat${
+              rackHeat > 0 ? `, an intercept ${rackHeat} more` : ''
+            }: ${worstHeat} at the check, ${worstOverHeat} hull.`}
           >
             <Typography
               data-testid="shield-heat-warning"
@@ -247,8 +302,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
                 lineHeight: 1.2,
               }}
             >
-              {rackHeat > 0 ? 'shields or point defence' : 'shields'} would cost −{shieldHull} hull
-              if hit
+              −{shieldHull} hull if {rackHeat > 0 ? 'they absorb or intercept' : 'shields absorb'}
             </Typography>
           </Tooltip>
         )}
@@ -266,7 +320,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         }}
       >
         <Tooltip
-          title={`Fuel now ${fuelNow}, ${fuelAfter} once this turn has played out. Fuel is public: everyone can count the cubes on your mat.`}
+          title="Fuel is public."
         >
           <Box sx={{ display: 'flex', minWidth: 0 }}>
             <PipTrack
@@ -296,7 +350,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
           </Box>
         </Tooltip>
         {missiles.length > 0 && (
-          <Tooltip title={`Missiles aboard: ${ammo} of ${maxAmmo}`}>
+          <Tooltip title="Private until your missiles fire.">
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, flexShrink: 0 }}>
               <Typography variant="overline" sx={{ color: TABLE.inkFaint, lineHeight: 1 }}>
                 Ammo

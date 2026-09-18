@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { MAX_HEAT } from "../../models/game.ts";
 import { burnDestinationRing, projectPosition } from "../../game/movement.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { getAdjustmentRange, calculateBurnMassCost } from "../../models/rings.ts";
@@ -244,8 +245,10 @@ describe("movement: rotation", () => {
     expect(eventsOf(result.events, "rotated")).toEqual([
       expect.objectContaining({ playerId: "p1", facing: "retrograde" }),
     ]);
-    // heat 1 is under dissipation, so check it through a second heat source: preset heat 5 + 1 = 6 -> 1 damage
-    const hot = withShip(state, "p1", { heat: { currentHeat: 5 } });
+    // One point of heat is nowhere near the top of the track, so check the
+    // thrusters charged for it by starting one under it: 9 + 1 redlines by 0,
+    // and 10 + 1 costs a hull.
+    const hot = withShip(state, "p1", { heat: { currentHeat: MAX_HEAT } });
     expect(getShip(executeTurnAs(hot, rotate(1, "retrograde")).gameState, "p1").hitPoints).toBe(9);
   });
 

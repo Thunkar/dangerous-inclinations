@@ -94,9 +94,9 @@ export function ActionPanel() {
               : readOnly
                 ? `You are looking at this table from ${me.name}'s seat. Nothing here can be played.`
                 : sittingOut && destroyed
-                  ? 'Your ship is lost — you return to Home this turn. Full hull, full fuel, no cubes allocated. You do nothing else.'
+                  ? 'Your ship is lost. You return to Home this turn with a full hull and tank and no cubes allocated.'
                   : sittingOut
-                    ? `Your ship is recovering — this turn is lost. The crew puts the ship back together at Home; you act again ${
+                    ? `Your ship is recovering: this turn is lost. You act again ${
                         me.skipTurns > 1 ? `in ${me.skipTurns} turns` : 'next turn'
                       }.`
                     : isAnimating

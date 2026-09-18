@@ -153,7 +153,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
       </Tooltip>
 
       {config?.weaponStats?.hasRecoil && (
-        <Tooltip title="Burn the engines to absorb the recoil (1 fuel, engine heat). The engines then cannot burn this turn.">
+        <Tooltip title="Absorb the recoil: 1 fuel and engine heat, and no burn this turn.">
           <FormControlLabel
             sx={{ m: 0 }}
             control={

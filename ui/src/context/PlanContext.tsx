@@ -27,6 +27,7 @@ import type {
   SubsystemId,
   MovementPlan,
   MovementStep,
+  Station,
 } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
@@ -52,10 +53,23 @@ import {
   projectPosition,
   ringVelocity,
   sectorDistance,
+  getStationAt,
   planMovementAlternatives,
+  planStationMeetUp,
   samePosition,
+  stationPosition,
 } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
+
+/**
+ * What "go there" means when the destination is a station.
+ *
+ * A station is not a place, it is a thing on a circuit: it advances 4 sectors
+ * at the end of every round. Planning to the sector it is on today lands the
+ * ship where it used to be, which is never what anyone clicking a station
+ * wanted — so a station destination means `meet` unless you say otherwise.
+ */
+export type RouteMode = 'meet' | 'sector'
 
 export type MoveChoice =
   | { kind: 'coast'; scoop: boolean }
@@ -163,6 +177,18 @@ interface PlanContextValue {
   reset: () => void
   /** Route planner: a destination sector, the routes the engine finds, and the one in view. */
   routeDestination: Position | null
+  /**
+   * The station the destination was picked on, if any — held by id, because a
+   * station drifts 4 sectors every round and the sector you clicked stops
+   * being the one it is on.
+   */
+  routeStation: Station | null
+  /**
+   * `meet` aims at where the station will be when the ship gets there; `sector`
+   * aims at the fixed sector. Only a station destination can be `meet`.
+   */
+  routeMode: RouteMode
+  setRouteMode: (mode: RouteMode) => void
   routes: MovementPlan[]
   route: MovementPlan | null
   routeIndex: number
@@ -258,6 +284,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [picking, setPicking] = useState<Picking>(null)
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
   const [routeDestination, setRouteDestinationState] = useState<Position | null>(null)
+  const [routeStationId, setRouteStationId] = useState<string | null>(null)
+  const [routeMode, setRouteMode] = useState<RouteMode>('meet')
   const [routeIndex, setRouteIndex] = useState(0)
 
   const isMyTurn = !readOnly && view.activePlayerId === me.id && view.phase === 'active'
@@ -445,8 +473,22 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const engines = pendingSubsystems.find(s => s.id === 'engines')
   const compressor = hasWorkingCompressor(pendingShip)
 
+  /** The station the destination was picked on, found again by id as it drifts. */
+  const routeStation = useMemo<Station | null>(
+    () => (routeStationId ? (view.stations.find(s => s.id === routeStationId) ?? null) : null),
+    [routeStationId, view.stations]
+  )
+
   // Route planner: from where the ship is now (the first step is this turn's move).
   const routes = useMemo<MovementPlan[]>(() => {
+    // Meeting a station is a forward search against a moving target, so it
+    // yields the one plan that arrives when the station does, not a set of
+    // alternatives to a fixed sector.
+    if (routeStation && routeMode === 'meet') {
+      if (samePosition(me.ship, stationPosition(routeStation))) return []
+      const meet = planStationMeetUp(me.ship, routeStation, 20)
+      return meet ? [meet.plan] : []
+    }
     if (!routeDestination || samePosition(me.ship, routeDestination)) return []
     const scoop = pendingSubsystems.find(s => s.id === 'scoop')
     const result = planMovementAlternatives(
@@ -467,13 +509,21 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       }
     )
     return result?.alternatives ?? []
-  }, [routeDestination, me.ship, pendingSubsystems, compressor, view.myStats])
+  }, [routeDestination, routeStation, routeMode, me.ship, pendingSubsystems, compressor, view.myStats])
   const route = routes[Math.min(routeIndex, Math.max(0, routes.length - 1))] ?? null
 
-  // Arrived: the route has done its job.
+  // Arrived: the route has done its job. Meeting a station ends when the ship
+  // is on the station, wherever the two of them got to.
   useEffect(() => {
-    if (routeDestination && samePosition(me.ship, routeDestination)) setRouteDestinationState(null)
-  }, [routeDestination, me.ship])
+    const arrived =
+      routeStation && routeMode === 'meet'
+        ? samePosition(me.ship, stationPosition(routeStation))
+        : routeDestination !== null && samePosition(me.ship, routeDestination)
+    if (arrived) {
+      setRouteDestinationState(null)
+      setRouteStationId(null)
+    }
+  }, [routeDestination, routeStation, routeMode, me.ship])
 
   /**
    * Walk the sequence in order. Heat accumulates, fuel is spent *and earned*
@@ -791,11 +841,18 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     [me, energy]
   )
 
-  const setRouteDestination = useCallback((position: Position | null) => {
-    setRouteDestinationState(position)
-    setRouteIndex(0)
-    setPicking(p => (p?.kind === 'destination' ? null : p))
-  }, [])
+  const setRouteDestination = useCallback(
+    (position: Position | null) => {
+      setRouteDestinationState(position)
+      // Click a station and you meant the station, not the sector under it.
+      const station = position ? getStationAt(view.stations, position) : undefined
+      setRouteStationId(station?.id ?? null)
+      setRouteMode(station ? 'meet' : 'sector')
+      setRouteIndex(0)
+      setPicking(p => (p?.kind === 'destination' ? null : p))
+    },
+    [view.stations]
+  )
 
   const selectRoute = useCallback((index: number) => setRouteIndex(index), [])
 
@@ -1021,6 +1078,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       setFocusWeapon: setFocusWeaponId,
       reset,
       routeDestination,
+      routeStation,
+      routeMode,
+      setRouteMode,
       routes,
       route,
       routeIndex,
@@ -1066,6 +1126,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       removeStep,
       reorderStep,
       routeDestination,
+      routeStation,
+      routeMode,
+      setRouteMode,
       routes,
       route,
       routeIndex,

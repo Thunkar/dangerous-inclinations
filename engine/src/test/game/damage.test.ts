@@ -212,12 +212,26 @@ describe("damage: resolveAttack", () => {
     });
   });
 
-  it("a critical fully absorbed by shields breaks nothing", () => {
+  it("a critical still breaks the named slot when the shields absorbed the whole shot", () => {
+    // The wall holding is not a defence against being named: a fat, public slot
+    // is a target whether or not the shot that names it reaches the hull.
     const state = withPower(base, "p2", "side-2", 4);
     const outcome = resolveAttack(getShip(state, "p2"), "p2", 2, "engines", 10, attacker);
     expect(outcome.hitResult.result).toBe("critical");
-    expect(outcome.hitResult.criticalEffect).toBeUndefined();
-    expect(outcome.ship.subsystems.find((s) => s.id === "engines")!.isBroken).toBe(false);
+    expect(outcome.hitResult.damageToHull).toBe(0);
+    expect(outcome.hitResult.criticalEffect).toMatchObject({ subsystemId: "engines" });
+    expect(outcome.ship.subsystems.find((s) => s.id === "engines")!.isBroken).toBe(true);
+  });
+
+  it("naming the tile that absorbed breaks it, but it has already spent its cubes", () => {
+    const state = withPower(base, "p2", "side-2", 4);
+    const outcome = resolveAttack(getShip(state, "p2"), "p2", 2, "side-2", 10, attacker);
+    const shield = outcome.ship.subsystems.find((s) => s.id === "side-2")!;
+    expect(shield.isBroken).toBe(true);
+    // All four cubes went on the two points it absorbed and returned to the
+    // reactor, so there is nothing left to dump as heat: the punishment for
+    // naming a wall that holds is the tile, not the heat.
+    expect(outcome.hitResult.criticalEffect?.energyLost).toBe(0);
   });
 
   it("a critical on an already broken or unknown slot has no extra effect", () => {

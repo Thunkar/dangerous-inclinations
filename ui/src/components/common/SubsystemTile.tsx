@@ -39,6 +39,11 @@ export interface SubsystemTileProps {
   pulse?: boolean
   /** Cubes needed to power the tile: a tick is drawn after that cell. */
   minEnergy?: number
+  /**
+   * Missiles left in a face-up rack, public once the tile is (RULES §Hidden
+   * Information). null on anything that is not a readable missile tile.
+   */
+  ammo?: number | null
   /** Overrides the built-in tooltip. */
   tooltip?: React.ReactNode
   /** Cell size under the tile. Defaults to a share of the tile. */
@@ -60,6 +65,7 @@ export function SubsystemTile({
   highlighted,
   pulse,
   minEnergy,
+  ammo,
   tooltip,
   cubeSize,
 }: SubsystemTileProps) {
@@ -75,7 +81,9 @@ export function SubsystemTile({
     tooltip ??
     (faceDown
       ? `${slotLabel(id)}: face down. ${allocatedEnergy} energy on it.`
-      : `${name}${knownVia === 'scanned' ? ' (seen by your scan)' : ''}${isBroken ? ' — BROKEN' : ''}`)
+      : `${name}${knownVia === 'scanned' ? ' (seen by your scan)' : ''}${
+          ammo === null || ammo === undefined ? '' : ` — ${ammo} left`
+        }${isBroken ? ' — BROKEN' : ''}`)
 
   const edge = selected ? TABLE.accent : highlighted ? TABLE.accent : isBroken ? TABLE.danger : TABLE.plateEdge
 
