@@ -212,9 +212,23 @@ not an argument:
   the share of damage reaching hulls unchanged.
 - **New mission types** are proposed to the designer, never added unasked.
   Ambush, Salvage, Breach and Grand Tour were tried and cut.
+- **Two decks dealing a forced hand shape**, to stop the deal being a lottery.
+  The shape is not the lottery: 94% of hands at three seats and 98% at six can
+  already take three primaries, so every seat is offered the same plan. What
+  differs is *which* primaries — Deliver is 32–46% of the deck and completes
+  17% of the time against Destroy's 56% — so a forced shape would fix the part
+  that works and leave the part that does not.
 
 Known open problems:
 
+- **Deliver is a card nobody can finish.** 17% completed per hand kept, against
+  Destroy 56%, Survey 74%, Board 50%, Intercept 46%, Garbage 37% — and it is
+  the largest block in the deck (12 of 30 cards at four seats). Two seats that
+  both keep three primaries are not playing the same game if one of them is
+  holding Deliver.
+- **Secondary cards are filler, not a plan.** A hand of 3 primaries wins 33% of
+  its games, 2P+1S 19%, 1P+2S 12%, and the only reason to take a secondary is
+  the 2–6% of deals that cannot offer a third primary.
 - **A mat with no weapon and good survival wins the card race.** No card needs a
   fight, so the hull that never fights takes more cards (2.34/game vs 1.6–1.9)
   and dies less. This is the standing `yarn balance` outlier and it is a deck
