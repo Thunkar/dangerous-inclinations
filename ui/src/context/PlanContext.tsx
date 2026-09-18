@@ -175,6 +175,14 @@ interface PlanContextValue {
   pickTarget: (targetId: string) => void
   setFocusWeapon: (subsystemId: SubsystemId | null) => void
   reset: () => void
+  /**
+   * A broken tile to fix at the heat check. It only lands if the turn makes no
+   * heat at all, so the picker is only offered while that is still true.
+   */
+  repairChoice: SubsystemId | null
+  setRepairChoice: (id: SubsystemId | null) => void
+  /** Tiles that could be named this turn: broken, and the ship can still end cold. */
+  repairable: SubsystemId[]
   /** Route planner: a destination sector, the routes the engine finds, and the one in view. */
   routeDestination: Position | null
   /**
@@ -283,6 +291,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [steps, setSteps] = useState<PlanStep[]>(() => defaultSteps(scoopRuns(me)))
   const [picking, setPicking] = useState<Picking>(null)
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
+  const [repairChoice, setRepairChoiceState] = useState<SubsystemId | null>(null)
   const [routeDestination, setRouteDestinationState] = useState<Position | null>(null)
   const [routeStationId, setRouteStationId] = useState<string | null>(null)
   const [routeMode, setRouteMode] = useState<RouteMode>('meet')
@@ -755,8 +764,31 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           break
       }
     })
+    if (repairChoice !== null)
+      list.push({ playerId: me.id, type: 'repair', data: { subsystemId: repairChoice } })
     return list
-  }, [me, energy, steps, stepStart])
+  }, [me, energy, steps, stepStart, repairChoice])
+
+  /**
+   * A repair needs the ship cold at its check: no heat carried in, none made by
+   * the turn, and no shields powered — a powered shield is heat at the check
+   * even unused. A choice the turn can no longer earn is dropped rather than
+   * refused, so editing the move never leaves an illegal action on the sheet.
+   */
+  const standingHeat = pendingSubsystems
+    .filter(s => s.type === 'shields' && s.isPowered && !s.isBroken)
+    .reduce((sum, s) => sum + s.allocatedEnergy, 0)
+  const repairable = useMemo(
+    () =>
+      projectedHeat === 0 && standingHeat === 0
+        ? me.ship.subsystems.filter(s => s.isBroken).map(s => s.id)
+        : [],
+    [projectedHeat, standingHeat, me.ship.subsystems]
+  )
+  useEffect(() => {
+    if (repairChoice !== null && !repairable.includes(repairChoice)) setRepairChoiceState(null)
+  }, [repairChoice, repairable])
+  const setRepairChoice = useCallback((id: SubsystemId | null) => setRepairChoiceState(id), [])
 
   // --- mutators ------------------------------------------------------------
 
@@ -1077,6 +1109,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       pickTarget,
       setFocusWeapon: setFocusWeaponId,
       reset,
+      repairChoice,
+      setRepairChoice,
+      repairable,
       routeDestination,
       routeStation,
       routeMode,
@@ -1125,6 +1160,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       updateStep,
       removeStep,
       reorderStep,
+      repairChoice,
+      setRepairChoice,
+      repairable,
       routeDestination,
       routeStation,
       routeMode,

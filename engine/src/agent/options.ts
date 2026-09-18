@@ -64,6 +64,11 @@ export interface SeatOptions {
   standingHeat: number;
   /** Dissipated at every check. What is not dissipated carries to the next turn. */
   dissipation: number;
+  /**
+   * Broken tiles, and whether a repair could land this turn: only a ship that
+   * carries no heat in and makes none can name one (RULES §Heat check).
+   */
+  repair: { broken: SubsystemId[]; possibleThisTurn: boolean };
   burns: BurnOption[];
   jump: {
     destinationWellId: string;
@@ -212,6 +217,13 @@ export function seatOptions(view: GameView): SeatOptions {
     heatCarried: ship.heat.currentHeat,
     standingHeat,
     dissipation,
+    repair: {
+      broken: ship.subsystems.filter((s) => s.isBroken).map((s) => s.id),
+      possibleThisTurn:
+        ship.heat.currentHeat === 0 &&
+        standingHeat === 0 &&
+        ship.subsystems.some((s) => s.isBroken),
+    },
     burns,
     jump,
     moored,

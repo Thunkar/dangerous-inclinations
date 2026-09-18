@@ -45,6 +45,7 @@ export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - Shields: every ${SHIELD_ENERGY_PER_POINT} cubes on a tile absorb 1 point of damage, so a tile takes ${SHIELD_ENERGY_PER_POINT} cubes or ${2 * SHIELD_ENERGY_PER_POINT} and never an odd one; every point absorbed is ${SHIELD_HEAT_PER_POINT} heat to YOU. POWERED SHIELDS RUN HOT: each adds its cubes to your heat at EVERY check, absorbing or not. A tile that did absorb has spent its cubes back to the reactor and is dark, so it costs nothing that turn. Lasers ignore shields.
 - Weapons: railgun ${dmg("railgun")} dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser ${dmg("laser")} dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack ${dmg("ballistic_rack")} dmg, +-1 ring/+-1 sector or same ring 1 sector; intercepts missiles on 2+. Missiles ${dmg("missiles")} dmg at ANY ship in your well, any distance, any facing: ${MISSILE.maxAmmo} aboard, each flies ${MISSILE.fuelPerTurn} steps a turn (a step is one ring or one sector) for ${MISSILE.maxMoves} turns, then is gone.
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat. Cubes on every slot are public even while the tile is face-down, so name a loaded slot. (A tile that just absorbed has spent its cubes, so breaking it dumps little — but it is gone until they dock.)
+- Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name — that means no move but a plain coast, no scoop, no shot, no scan and no shields powered. It is the only way back for a ship whose engines or thrusters were shot out, because every station needs a jump to reach.
 - Docking (end your turn on a station's sector, planet ring 1): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
 - Daring cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}, Board = end a turn in another ship's exact sector: take the chit, then dock anywhere to file it. Garbage Disposal = load at any station (fills your hold, so no delivery crate at the same time), then end a turn on BH ring ${SURVEY_RING} to drop it — no chit, no filing.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
@@ -204,6 +205,14 @@ export function describeViewForAgent(
     out.push(
       `  Scan targets (sensors powered, same ring within 3): [${o.scanTargets.map(name).join(", ") || "-"}].`
     );
+    if (o.repair.broken.length > 0)
+      out.push(
+        `  Broken: ${o.repair.broken.join(", ")}. ${
+          o.repair.possibleThisTurn
+            ? 'Repair one with {"repair":"<id>"} IF this turn makes no heat at all (plain coast, no scoop, no shot, no scan, shields off).'
+            : "No repair this turn: you are already carrying heat or your shields are powered."
+        }`
+      );
     out.push(`  Heat budget before damage: ${o.heatBudget}. Reactor free: ${o.reactorFree}.`);
   }
 
@@ -228,6 +237,7 @@ export const AGENT_INTENT_GUIDE = `INTENT FORMAT (JSON). Everything optional; om
   "move": { "kind": "coast", "scoop": false }  // or { "kind": "burn", "intensity": "soft|medium|hard", "adjustment": 0, "facing": "prograde|retrograde" }
                                                // or { "kind": "jump", "destinationWellId": "planet-alpha", "adjustment": 0 }
   "fire": [ { "weapon": "forward-0", "target": "<playerId>", "critical": "engines", "compensateRecoil": false, "when": "after" } ],
-  "scan": { "target": "<playerId>", "slot": "side-1" }
+  "scan": { "target": "<playerId>", "slot": "side-1" },
+  "repair": "engines"                          // a broken tile to fix at the heat check; only lands if the turn makes NO heat
 }
 The builder puts the cubes a burn/rotation/shot/scan needs onto the tiles and orders the actions (rotate, shots marked "before", the move, other shots, scan). Preview it before submitting; if the preview reports errors, fix the intent or fall back to a coast.`;

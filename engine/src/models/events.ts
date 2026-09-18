@@ -168,6 +168,13 @@ export type GameEvent =
       damage: number;
     })
   | (Base & {
+      /** A cold ship's crew got outside and fixed one thing (RULES §Heat check). */
+      type: "subsystem_repaired";
+      playerId: string;
+      subsystemId: SubsystemId;
+      subsystemType: SubsystemType;
+    })
+  | (Base & {
       type: "heat_check";
       playerId: string;
       /** Heat on the track when the check ran, standing shield heat included. */

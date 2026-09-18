@@ -17,6 +17,7 @@ import type {
   WellTransferAction,
   ScanAction,
   Player,
+  RepairAction,
 } from "../models/game.ts";
 import { isTacticalAction, MAX_REACTION_MASS } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
@@ -46,6 +47,7 @@ import {
   validateCoastAction,
   validateBurnAction,
   validateFireWeaponAction,
+  validateRepairAction,
   validateScanAction,
   validateWellTransferAction,
 } from "./validators.ts";
@@ -100,9 +102,24 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
   const allocations = actions.filter(
     (a): a is AllocateEnergyAction => a.type === "allocate_energy"
   );
+  const repairs = actions.filter((a): a is RepairAction => a.type === "repair");
   const tactical = actions
     .filter(isTacticalAction)
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+
+  // One tile a turn: a cold ship's crew get to one thing, not to the mat.
+  if (repairs.length > 1) {
+    return {
+      success: false,
+      state,
+      events: [],
+      errors: ["Only one subsystem may be repaired in a turn"],
+    };
+  }
+  for (const a of repairs) {
+    const errors = validateRepairAction(current, a);
+    if (errors.length > 0) return { success: false, state, events: [], errors };
+  }
 
   for (const a of deallocations) {
     const err = run(a, validateDeallocateEnergyAction, processDeallocateEnergy);

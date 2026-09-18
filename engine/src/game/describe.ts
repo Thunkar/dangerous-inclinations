@@ -102,6 +102,8 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.ownerId)}'s missile burns out at ${pos(e.at)}`;
     case "subsystem_broken":
       return `${name(e.playerId)}'s ${sub(e.subsystemType)} is broken${e.by ? ` by ${name(e.by)}` : ""}${e.energyLost > 0 ? ` (${e.energyLost} energy vents as heat)` : ""}`;
+    case "subsystem_repaired":
+      return `${name(e.playerId)} runs cold and repairs ${sub(e.subsystemType)} (${e.subsystemId})`;
     case "subsystem_revealed":
       return `${name(e.playerId)} reveals ${sub(e.subsystemType)} in ${e.subsystemId}`;
     case "ship_destroyed":

@@ -14,6 +14,7 @@ import type {
   CoastAction,
   BurnAction,
   FireWeaponAction,
+  RepairAction,
   ScanAction,
   WellTransferAction,
 } from "../models/game.ts";
@@ -49,6 +50,7 @@ const ACTIVE_ACTION_TYPES = new Set<string>([
   "scan",
   "allocate_energy",
   "deallocate_energy",
+  "repair",
 ]);
 
 export function validateActionSequence(actions: PlayerAction[]): string[] {
@@ -294,6 +296,25 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
     }
   }
   return errors;
+}
+
+/**
+ * Naming the tile a cold ship's crew will fix. Refused when the slot is not
+ * broken (there is nothing to do) or when the ship is already carrying heat,
+ * because heat only rises during a turn — a ship that starts hot cannot be cold
+ * at its check, and a repair it can never earn should not be submittable.
+ */
+export function validateRepairAction(state: GameState, action: RepairAction): string[] {
+  const player = requirePlayer(state, action.playerId);
+  const sub = findSubsystem(player.ship, action.data.subsystemId);
+  if (!sub) return [`No subsystem ${action.data.subsystemId}`];
+  if (!sub.isBroken) return [`${getSubsystemConfig(sub.type).name} is not broken`];
+  if (player.ship.heat.currentHeat > 0) {
+    return [
+      `Carrying ${player.ship.heat.currentHeat} heat: a repair needs the ship cold at its heat check`,
+    ];
+  }
+  return [];
 }
 
 export function validateScanAction(state: GameState, action: ScanAction): string[] {

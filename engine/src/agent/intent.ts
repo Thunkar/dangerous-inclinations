@@ -42,6 +42,12 @@ export interface TurnIntent {
     | { kind: "jump"; destinationWellId: string; adjustment?: number };
   fire?: FireIntent[];
   scan?: { target: string; slot?: SubsystemId };
+  /**
+   * A broken tile to repair at the heat check. It only lands if the turn makes
+   * no heat at all — no move but a coast without the scoop, no shot, no scan,
+   * and no shields powered.
+   */
+  repair?: SubsystemId;
 }
 
 export interface BuiltTurn {
@@ -216,6 +222,12 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
         sequence: seq(),
         data: { targetPlayerId: intent.scan.target, peekSlot: slot },
       });
+  }
+  if (intent.repair !== undefined) {
+    const sub = ship.subsystems.find((s) => s.id === intent.repair);
+    if (!sub) notes.push(`no subsystem ${intent.repair}; repair dropped`);
+    else if (!sub.isBroken) notes.push(`${intent.repair} is not broken; repair dropped`);
+    else actions.push({ type: "repair", playerId: me.id, data: { subsystemId: intent.repair } });
   }
   return { actions, notes };
 }

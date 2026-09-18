@@ -170,6 +170,8 @@ function summarizeAction(action: PlayerAction): string {
       const phase = action.data.sectorAdjustment ?? 0;
       return `Jump to ${action.data.destinationWellId}${phase ? ` (${phase > 0 ? "+" : ""}${phase})` : ""}`;
     }
+    case "repair":
+      return `Repair ${action.data.subsystemId} if cold`;
     case "deploy_ship":
       return `Deploy at ${action.data.wellId} S${action.data.sector}`;
   }

@@ -225,6 +225,8 @@ export interface ActionPlan {
    * spent, so a plan that banks heat is worse than an equal one that does not.
    */
   heatCarried: number;
+  /** A broken tile this plan repairs by running cold, if any. */
+  repairs?: SubsystemId;
   /** Reaction mass spent. */
   massSpent: number;
   /** The plan leaves a station berth (only a burn can). */

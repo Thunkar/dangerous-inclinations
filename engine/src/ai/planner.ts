@@ -26,6 +26,7 @@ import type {
 import { MAX_HEAT } from "../models/game.ts";
 import { SURVEY_RING } from "../models/missions.ts";
 import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
+import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
@@ -453,6 +454,48 @@ export function buildCandidate(
  * Distinct candidates for this turn: follow the goal, close on a target,
  * hold position. Identical action sequences are merged.
  */
+/**
+ * The tile to fix first: what stops the ship being a ship before what stops it
+ * being dangerous. A broken engine or thruster cannot be repaired anywhere but
+ * a station, and every station needs a jump to reach, so those come first.
+ */
+const REPAIR_ORDER: readonly SubsystemId[] = ["engines", "rotation", "scoop"];
+
+function coldRepairCandidate(situation: TacticalSituation): ActionPlan | null {
+  const { me, ship, status } = situation;
+  if (status.heat > 0) return null;
+  const broken = ship.subsystems.filter((s) => s.isBroken);
+  if (broken.length === 0) return null;
+  const target =
+    REPAIR_ORDER.find((id) => broken.some((s) => s.id === id)) ??
+    broken.find((s) => s.type === "shields")?.id ??
+    broken[0].id;
+
+  // Everything off: a powered shield is heat at the check even unused.
+  const { deallocations } = energyActions(me, new Map());
+  const actions: PlayerAction[] = [
+    ...deallocations,
+    { type: "coast", playerId: me.id, sequence: 1, data: { activateScoop: false } },
+    { type: "repair", playerId: me.id, data: { subsystemId: target } },
+  ];
+  return {
+    actions,
+    description: `Run cold and repair ${target}`,
+    expectedDamage: 0,
+    expectedHullDamage: 0,
+    killsTarget: false,
+    followsGoal: false,
+    scans: false,
+    heatDamage: 0,
+    heatCarried: 0,
+    massSpent: 0,
+    castsOff: false,
+    completesStep: false,
+    denialValue: 0,
+    repairs: target,
+  };
+}
+
 export function generateCandidates(
   situation: TacticalSituation,
   parameters: BotParameters
@@ -526,6 +569,16 @@ export function generateCandidates(
       goalMovement?.kind === "coast"
     )
   );
+
+  /**
+   * Run cold and fix one thing. Nothing else offers this: every other
+   * candidate scoops, shields up or fires, and a ship whose engines are broken
+   * cannot burn or jump, so its goal plans fail and it would otherwise hold
+   * position forever. The crew can only get outside on a turn the ship makes
+   * no heat at all, so this candidate drains the mat and coasts.
+   */
+  const coldRepair = coldRepairCandidate(situation);
+  if (coldRepair) candidates.push(coldRepair);
 
   // A berth is worth the ride and the fuel the scoop skims, and nothing else
   // — the dock itself resolved on arrival. Casting off is always on the table

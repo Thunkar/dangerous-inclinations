@@ -17,6 +17,7 @@ import {
   jump,
   makeTwoPlayerGame,
   mustExecute,
+  repair,
   rotate,
   scan,
   withPlayer,
@@ -182,6 +183,65 @@ describe("heat: end-of-turn resolution", () => {
     const state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: 30 }, hitPoints: 3 });
     const result = executeTurnAs(state, coast(1));
     expect(getShip(result.gameState, "p1").hitPoints).toBe(0);
+  });
+});
+
+describe("heat: a cold ship repairs one tile", () => {
+  /** Engines broken in the black hole: no burn, no jump, and every station is in a planet well. */
+  const stranded = () => withSub(makeTwoPlayerGame(), "p1", "engines", { isBroken: true });
+
+  it("repairs the named tile when nothing made heat, and only that tile", () => {
+    const state = withSub(stranded(), "p1", "side-0", { isBroken: true });
+    const result = executeTurnAs(state, coast(1), repair("engines"));
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "subsystem_repaired")).toEqual([
+      expect.objectContaining({ playerId: "p1", subsystemId: "engines", subsystemType: "engines" }),
+    ]);
+    expect(getSub(result.gameState, "p1", "engines").isBroken).toBe(false);
+    expect(getSub(result.gameState, "p1", "side-0").isBroken).toBe(true);
+  });
+
+  it("does nothing if the turn made any heat at all", () => {
+    let state = withPower(stranded(), "p1", "scoop", 3);
+    const result = executeTurnAs(state, coast(1, true), repair("engines"));
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "subsystem_repaired")).toEqual([]);
+    expect(getSub(result.gameState, "p1", "engines").isBroken).toBe(true);
+  });
+
+  it("does nothing while a shield is powered, because a raised screen is heat", () => {
+    const state = withPower(stranded(), "p1", "side-2", 2);
+    const result = executeTurnAs(state, coast(1), repair("engines"));
+    expect(eventsOf(result.events, "heat_check")[0].standing).toBe(2);
+    expect(eventsOf(result.events, "subsystem_repaired")).toEqual([]);
+  });
+
+  it("does nothing while heat is carried in from an earlier turn", () => {
+    const state = withShip(stranded(), "p1", { heat: { currentHeat: 2 } });
+    const result = executeTurnAs(state, coast(1), repair("engines"));
+    expect(result.errors).toBeDefined();
+  });
+
+  it("refuses a tile that is not broken, and more than one repair a turn", () => {
+    expect(executeTurnAs(stranded(), coast(1), repair("scoop")).errors).toBeDefined();
+    expect(
+      executeTurnAs(
+        withSub(stranded(), "p1", "side-0", { isBroken: true }),
+        coast(1),
+        repair("engines"),
+        repair("side-0")
+      ).errors
+    ).toBeDefined();
+  });
+
+  it("gets a stranded ship moving again: broken engines, one cold turn, then a burn", () => {
+    // p1 runs cold, p2 takes its turn, and p1 can burn again.
+    const cold = mustExecute(stranded(), coast(1), repair("engines"));
+    expect(getSub(cold, "p1", "engines").isBroken).toBe(false);
+    const backToP1 = withPower(mustExecute(cold, coast(1)), "p1", "engines", 1);
+    const after = executeTurnAs(backToP1, burn(1, "soft"));
+    expect(after.errors).toBeUndefined();
+    expect(eventsOf(after.events, "burned")).toHaveLength(1);
   });
 });
 

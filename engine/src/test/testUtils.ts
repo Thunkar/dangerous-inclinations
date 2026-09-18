@@ -23,6 +23,7 @@ import type {
   ShipLoadout,
   ShipState,
   WellTransferAction,
+  RepairAction,
 } from "../models/game.ts";
 import { DEFAULT_LOADOUT } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
@@ -349,6 +350,11 @@ export const fire = (
   type: "fire_weapon",
   sequence,
   data: { subsystemId, targetPlayerId, criticalTarget, compensateRecoil },
+});
+/** Name the tile a cold ship's crew will fix (no sequence: it is not tactical). */
+export const repair = (subsystemId: SubsystemId): Draft<RepairAction> => ({
+  type: "repair",
+  data: { subsystemId },
 });
 export const scan = (
   sequence: number,

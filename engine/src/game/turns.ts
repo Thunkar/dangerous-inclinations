@@ -110,7 +110,9 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   {
     const player = state.players[activeIndex];
     if (!isDestroyed(player.ship)) {
-      const heat = resolveEndOfTurnHeat(player.ship, player.id);
+      // The tile its owner named with the turn; it only lands if heat is 0.
+      const repairChoice = actions.find((a) => a.type === "repair")?.data.subsystemId;
+      const heat = resolveEndOfTurnHeat(player.ship, player.id, repairChoice);
       const players = [...state.players];
       players[activeIndex] = { ...player, ship: heat.ship };
       state = { ...state, players };

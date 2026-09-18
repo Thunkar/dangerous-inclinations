@@ -181,6 +181,8 @@ export function ActionPanel() {
           <WeaponControls disabled={disabled} />
         </Step>
 
+        <RepairControl disabled={disabled} />
+
         <Divider />
         <Step n={5} label="Sequence">
           <SequenceList />
@@ -266,6 +268,69 @@ function TurnShell({
         {children}
       </Box>
     </Panel>
+  )
+}
+
+/**
+ * Naming the tile a cold ship's crew will fix. It appears only when the turn as
+ * built would end at 0 heat and something is broken, because those are exactly
+ * the turns on which it can happen — a control that offered itself and then did
+ * nothing would be worse than none.
+ */
+function RepairControl({ disabled }: { disabled: boolean }) {
+  const plan = usePlan()
+  const broken = plan.me.ship.subsystems.filter(s => s.isBroken)
+  if (broken.length === 0) return null
+
+  const offered = plan.repairable
+  return (
+    <>
+      <Divider />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
+        <SectionLabel>Repair — one a turn, and only cold</SectionLabel>
+        {offered.length === 0 ? (
+          <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: TABLE.inkSoft }}>
+            This turn makes heat. A repair needs everything off: a plain coast, no
+            scoop, no shot, no scan, shields down.
+          </Typography>
+        ) : (
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+            {broken.map(sub => {
+              const can = offered.includes(sub.id)
+              const on = plan.repairChoice === sub.id
+              return (
+                <Tooltip
+                  key={sub.id}
+                  title={`${getSubsystemConfig(sub.type).name} (${sub.id}) — repaired at your heat check`}
+                >
+                  <Box
+                    component="button"
+                    type="button"
+                    disabled={disabled || !can}
+                    onClick={() => plan.setRepairChoice(on ? null : sub.id)}
+                    sx={{
+                      fontFamily: FONT_MONO,
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      px: 0.7,
+                      py: '2px',
+                      borderRadius: 1,
+                      cursor: disabled || !can ? 'default' : 'pointer',
+                      color: on ? TABLE.accent : TABLE.inkSoft,
+                      border: `1px solid ${on ? TABLE.accent : TABLE.line}`,
+                      bgcolor: on ? 'rgba(255,180,69,0.12)' : 'transparent',
+                      opacity: can ? 1 : 0.45,
+                    }}
+                  >
+                    {sub.id}
+                  </Box>
+                </Tooltip>
+              )
+            })}
+          </Box>
+        )}
+      </Box>
+    </>
   )
 }
 

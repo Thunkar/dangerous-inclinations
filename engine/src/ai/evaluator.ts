@@ -46,10 +46,23 @@ function offense(plan: ActionPlan, situation: TacticalSituation): number {
  */
 const CARRIED_HEAT_PENALTY = 3;
 
+/**
+ * A cold turn is a whole turn spent doing nothing, so it has to beat every
+ * other candidate on the defence axis to be chosen at all. Getting the engines,
+ * thrusters or scoop back is worth more than a gun: a ship without them cannot
+ * reach a station to be repaired properly, so the cold turn is the only way out
+ * rather than a shortcut.
+ */
+const REPAIR_VALUE = 35;
+const MOBILITY_REPAIR_VALUE = 90;
+const MOBILITY: ReadonlySet<string> = new Set(["engines", "rotation", "scoop"]);
+
 function defense(plan: ActionPlan, situation: TacticalSituation): number {
   let score = 60;
   score -= plan.heatDamage * 25;
   score -= plan.heatCarried * CARRIED_HEAT_PENALTY;
+  if (plan.repairs !== undefined)
+    score += MOBILITY.has(plan.repairs) ? MOBILITY_REPAIR_VALUE : REPAIR_VALUE;
   const threatened = situation.threats.length > 0 || situation.incomingMissiles > 0;
   const shieldsPowered =
     plan.actions.some(

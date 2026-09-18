@@ -198,6 +198,11 @@ not an argument:
 - **A bigger shield tile** (`shields.maxEnergy=6`) and **shields in the forward
   slot**. The first makes the game quieter (destructions 3.2 → 2.7), the second
   changes nothing — bots never spend the bow on a shield.
+- **Making the engines and thrusters critical-proof** like the scoop, to stop a
+  broken one stranding a ship. Solved instead by the cold repair (RULES §Energy
+  and Heat), which keeps them as targets: measured on identical seeds, it fires
+  on 2% of breaks, every one of them the engines, and leaves destructions and
+  the share of damage reaching hulls unchanged.
 - **New mission types** are proposed to the designer, never added unasked.
   Ambush, Salvage, Breach and Grand Tour were tried and cut.
 
@@ -207,10 +212,6 @@ Known open problems:
   fight, so the hull that never fights takes more cards (2.34/game vs 1.6–1.9)
   and dies less. This is the standing `yarn balance` outlier and it is a deck
   problem, not a shield problem.
-- **Broken engines or thrusters strand a ship.** Only a station repairs a tile,
-  every station is in a planet well, and reaching one needs a jump, which needs
-  working engines. The only exit is being destroyed. The scoop is critical-proof
-  for exactly this reason; the engines and thrusters are not.
 - **Two players is thin**, and `hauler-tanky` takes 51% of seats there and wins
   64% of the games it is in.
 

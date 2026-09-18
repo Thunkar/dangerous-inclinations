@@ -240,6 +240,17 @@ export interface DeployShipAction extends BaseAction {
   data: { wellId: GravityWellId; sector: number };
 }
 
+/**
+ * A standing order for the turn, not a tactical action: name the tile the crew
+ * will get to if the ship is cold at its heat check. It has no sequence because
+ * it does not happen at a point in the turn — it happens at the end of it, and
+ * only if nothing on the mat made heat.
+ */
+export interface RepairAction extends BaseAction {
+  type: "repair";
+  data: { subsystemId: SubsystemId };
+}
+
 export type MovementAction = CoastAction | BurnAction | WellTransferAction;
 
 export type TacticalAction =
@@ -254,6 +265,7 @@ export type PlayerAction =
   | TacticalAction
   | AllocateEnergyAction
   | DeallocateEnergyAction
+  | RepairAction
   | DeployShipAction;
 
 export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([

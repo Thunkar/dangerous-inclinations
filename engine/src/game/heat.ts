@@ -20,7 +20,14 @@
 import type { ShipState } from "../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { getDissipationCapacity, getStandingHeat, revealSubsystem } from "./ship.ts";
+import type { SubsystemId } from "../models/subsystems.ts";
+import {
+  findSubsystem,
+  getDissipationCapacity,
+  getStandingHeat,
+  revealSubsystem,
+  updateSubsystem,
+} from "./ship.ts";
 
 export { addHeat } from "./ship.ts";
 
@@ -47,8 +54,17 @@ export function resetHeat(ship: ShipState): ShipState {
  * End-of-turn heat check.
  *
  * 1. Powered shields add their cubes — what they cost just for being on.
- * 2. Anything over `MAX_HEAT` is hull damage, and the track stops at the top.
- * 3. The ship dissipates; what is left carries to the next turn.
+ * 2. A ship that made no heat at all repairs the tile its owner named.
+ * 3. Anything over `MAX_HEAT` is hull damage, and the track stops at the top.
+ * 4. The ship dissipates; what is left carries to the next turn.
+ *
+ * **Cold repair.** Heat 0 at the check means nothing on the mat was used, no
+ * shield was powered and nothing was absorbed since the last check: everything
+ * off and the crew outside. It is the only repair that does not need a station,
+ * and it is what stops a critical on the engines or the thrusters being a
+ * soft-lock — every station is in a planet well, reaching one needs a jump, and
+ * a jump needs engines, so a ship without them could otherwise never be fixed.
+ * One tile a turn, named by its owner with the turn.
  *
  * Working radiators are revealed whenever the ship dissipated more than a bare hull
  * could have: they are visibly doing it, whether or not damage was avoided.
@@ -58,7 +74,9 @@ export function resetHeat(ship: ShipState): ShipState {
  */
 export function resolveEndOfTurnHeat(
   ship: ShipState,
-  playerId: string
+  playerId: string,
+  /** Tile the owner named for a cold repair, if any. */
+  repairChoice?: SubsystemId
 ): { ship: ShipState; damage: number; events: EventDraft[] } {
   const standing = getStandingHeat(ship.subsystems);
   const heat = ship.heat.currentHeat + standing;
@@ -67,6 +85,19 @@ export function resolveEndOfTurnHeat(
   const carried = heatAfterCheck(heat, dissipation);
   const events: EventDraft[] = [];
   let next = ship;
+
+  if (heat === 0 && repairChoice !== undefined) {
+    const sub = findSubsystem(next, repairChoice);
+    if (sub?.isBroken) {
+      next = updateSubsystem(next, repairChoice, { isBroken: false });
+      events.push({
+        type: "subsystem_repaired",
+        playerId,
+        subsystemId: repairChoice,
+        subsystemType: sub.type,
+      });
+    }
+  }
 
   // Radiators show themselves whenever they are shedding heat the base ship could not.
   if (heat > DEFAULT_DISSIPATION_CAPACITY && dissipation > DEFAULT_DISSIPATION_CAPACITY) {

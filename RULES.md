@@ -76,7 +76,7 @@ Otherwise:
    - **Scan** — with a powered sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
 4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull is restored to full, missiles reloaded. You stay moored until you burn away, riding the station — but the dock itself only happens on arrival.
-5. **Heat check.** Add the cubes on every powered shields tile. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
+5. **Heat check.** Add the cubes on every powered shields tile. **If your heat is now 0**, repair one broken tile of your choice. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
 
@@ -89,6 +89,7 @@ Otherwise:
 - **Heat is a track. It does not reset.** At your heat check, heat above **10** is hull damage and the track drops to 10. Then **dissipate** — 5, plus 2 per working radiator — and carry the rest into your next turn.
 - So a hot turn is a debt, not a wound: take one, then cool off. Make more heat than you dissipate for long enough and you reach the **redline** at 10, where it costs hull every turn until you stop.
 - **Powered shields cost their cubes in heat at every check**, absorbing or not. A tile that *did* absorb has already spent its cubes, so it costs nothing that turn.
+- **A cold ship repairs itself.** If your heat is **0** at your heat check — nothing used, no shields powered, nothing absorbed since your last check — repair **one** broken tile of your choice. Everything is off and the crew is outside. It is the only repair away from a station, and it is slower: a station fixes everything at once, refills your hull and reloads your missiles, all on arrival.
 - **Shields turn the damage they stop into heat.** Two cubes absorb one point, so a tile takes 2 cubes or 4 and never an odd one, and each point absorbed is **2 heat**. Spent cubes return to the reactor and the tile goes dark until you power it again — so a tile is worth its points **between your turns, not per shot**. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds and missiles, **not lasers**.
 - Two tiles at four cubes absorb 4 damage. They are also 8 of your 10 cubes and **8 heat every turn**, against a dissipation of 5. Full shields, a full burn and a scoop do not fit in one turn — and full shields do not fit three turns running.
 
@@ -152,7 +153,7 @@ Shields absorb first (every 2 cubes absorb 1 damage and give its owner **2 heat*
 
 When you fire, name one slot on the target: forward, side 1–4, engines or thrusters. **Not the fuel scoop** — it is the one tile a critical cannot name, because a dry ship with no scoop has no move that reaches a station to repair it. If the shot is a critical, that tile is **turned face-up and broken** — **whether or not the shot got through the shields**: its cubes return to the reactor **as heat**, and it cannot be used until repaired at a station.
 
-A wall that holds is no protection against being named. **The cubes on every slot are public**, even face-down, so a fat slot is a target you can see: four cubes on a side slot is four heat dumped onto its owner the moment a 10 comes up. Naming a face-down slot is a gamble; naming a face-up one is a plan. A tile that has just absorbed has already spent its cubes, so breaking it dumps little or nothing — but it is gone until they dock.
+A wall that holds is no protection against being named. **The cubes on every slot are public**, even face-down, so a fat slot is a target you can see: four cubes on a side slot is four heat dumped onto its owner the moment a 10 comes up. A broken tile is repaired at a station, or one at a time by running cold (see Energy and Heat) — which is how a ship whose engines were shot out still gets home. Naming a face-down slot is a gamble; naming a face-up one is a plan. A tile that has just absorbed has already spent its cubes, so breaking it dumps little or nothing — but it is gone until they dock.
 
 ### Weapons
 
@@ -253,6 +254,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                     |
 | Shields          | 2 or 4 cubes; 2 cubes a point absorbed, 2 heat a point; **its cubes are heat every turn it is up**; lasers ignore them |
 | Critical         | names any slot but the fuel scoop; breaks it through shields, and dumps its cubes as heat         |
+| Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                             |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |
@@ -268,5 +270,5 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.
 5. Just arrived at a station? Load, deliver, repair, full hull, reload. Moored until you burn away.
-6. Heat check: add your powered shields' cubes; over 10 is hull damage; dissipate and carry the rest.
+6. Heat check: add your powered shields' cubes; at 0 heat repair one tile; over 10 is hull damage; dissipate and carry the rest.
 7. Flip completed missions. Pass. (Last player: stations move, with whoever is moored.)
