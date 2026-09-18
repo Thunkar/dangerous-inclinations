@@ -204,7 +204,7 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 **Primaries score two.** Destroy, Deliver, Intercept — the kill, the cargo run, the stolen transmission, one for each way of playing. Each is a named errand: a victim, a route, a station to file at. Two of them win the game.
 
-**Secondary cards score one.** Survey, Board, Garbage Disposal. Each is a thing you do rather than an errand someone gives you: no tile aboard can do it for you and nobody can block it. Survey and Board pay a chit — take it the moment you do the thing, then file it at **any** station. Garbage Disposal pays nothing to carry: the load goes over the side and the card is done.
+**Secondary cards score one.** Survey, Board, Garbage Disposal. Each is a thing you do rather than an errand someone gives you: no tile aboard can do it for you and nobody can block it. Survey and Board pay a chit — take it the moment you do the thing, then file it at **any** station. Garbage Disposal pays nothing to carry: the load is jettisoned and the card is done.
 
 A hand is three cards, so four points is two primaries, or one primary and both secondary cards. Three secondary cards come to three, which is why every hand needs at least one primary. The round is played out; highest score wins, hull breaks ties.
 

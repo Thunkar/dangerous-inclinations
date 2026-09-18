@@ -88,8 +88,8 @@ export function processMissionEvents(
           next = { ...mission, isCompleted: true };
         break;
       case "garbage_disposal": {
-        // The load goes over the side on the innermost ring: no chit, no
-        // filing, the card is done the moment the hold is empty again.
+        // The load is jettisoned on the innermost ring: no chit, no filing,
+        // the card is done the moment the hold is empty again.
         const load = cargo.find((c) => c.id === mission.cargoId);
         const overTheSide =
           load?.isPickedUp === true &&

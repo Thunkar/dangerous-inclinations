@@ -225,7 +225,7 @@ export type GameEvent =
       planetId: string;
     })
   | (Base & {
-      /** A load of garbage goes over the side into the black hole. */
+      /** A load of garbage is jettisoned into the black hole. */
       type: "cargo_dumped";
       playerId: string;
       cargoId: string;

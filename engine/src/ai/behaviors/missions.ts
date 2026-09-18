@@ -267,7 +267,7 @@ export function computeGoals(
           goals.push({
             type: "survey",
             missionId: mission.id,
-            description: "Dump the load into the black hole",
+            description: "Jettison the load into the black hole",
             estimatedTurns: cheapTurnEstimate(from, {
               wellId: BLACK_HOLE_ID,
               ring: SURVEY_RING,
@@ -277,7 +277,7 @@ export function computeGoals(
           });
           break;
         }
-        // Nothing to dump yet, and no room to collect one while a crate is aboard.
+        // Nothing to jettison yet, and no room to collect one while a crate is aboard.
         if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
         const goal = dockAnywhereGoal(view, from, mission, "Collect a load of garbage", 0);
         if (goal) goals.push(goal);

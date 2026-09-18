@@ -506,7 +506,7 @@ describe("missions: secondary", () => {
     expect(getPlayer(arrival.gameState, "p1").completedMissionCount).toBe(0);
   });
 
-  it("the load goes over the side on ring 1, and that is the whole card", () => {
+  it("the load is jettisoned on ring 1, and that is the whole card", () => {
     const card = garbageMission();
     let state = withMissions(
       makeTwoPlayerGame({ wellId: BH, ring: SURVEY_RING, sector: 0 }),

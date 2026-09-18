@@ -207,7 +207,7 @@ export interface SecondaryMission extends BaseMission {
  * cargo route and a disposal run cannot be flown at once: this is the card a
  * hunter or an interceptor has room for and a hauler has to queue.
  *
- * There is no chit and nothing to file: the load goes over the side on the
+ * There is no chit and nothing to file: the load is jettisoned on the
  * innermost ring and the card is done. Destroyed with it aboard, the load is
  * lost — collect another at any station.
  */

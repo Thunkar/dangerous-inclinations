@@ -224,7 +224,7 @@ export function selectMissionsFromOffers(
  * The crates a hand starts with, none of them loaded yet: one per Deliver
  * route, and one load of garbage per disposal card.
  *
- * A load of garbage is collected at *any* station and goes over the side on
+ * A load of garbage is collected at *any* station and is jettisoned on
  * the black hole's innermost ring, so it is the one crate whose pickup is
  * "any" and whose destination is a place with no station at all — which is
  * exactly why docking never takes it off your hands.
