@@ -282,7 +282,19 @@ not an argument:
 - **A missile-carrying hunter preset.** In a duel against the compressor with
   racks×2 the old preset (railgun, missiles, rack, shields, radiator) completed
   Destroy 34% of the time and the prey won 69%: a powered rack rolls at every
-  missile. The presets carry lasers (aggressive) or a rack (tanky) now.
+  missile. The presets carry a laser and a rack (aggressive) or a rack and two
+  shields (tanky) now; two lasers on the hunter left the field with no rack at
+  all and the compressor with two launchers at 52%.
+- **Two lost turns on death.** A respawned ship sat at a known sector with no
+  cubes allocated for two rounds: a free kill on repeat, with no counter-play.
+  One lost turn now, and untouchable (no shot, missile or scan) until the ship
+  acts again. Not a measurement — a table would have found it in an evening.
+- **Criticals naming the forward tile first**, to break compressors: within
+  noise, and the compressor hulls gained if anything (a broken compressor is
+  repaired at the next dock, where that hull was going). **Shields stopping
+  lasers**: halves kills a game and costs the hunter preset six points to get
+  the compressor-with-a-laser hunter from 32% to 15%. Both left alone; both
+  remain as `--bot=criticalOrder=forward` and `--tiles=laser.ignoresShields=false`.
 
 Known open problems:
 
@@ -319,12 +331,6 @@ Known open problems:
   unanswered and the compressor with two launchers reached 52%. The tanky
   hunter (rack + shields×2) is `weak` at 18% and a poor predator (16% Destroy
   completion in the duel); if both presets are to hunt, it wants a second gun.
-- **Criticals naming the forward tile first** (`--bot=criticalOrder=forward`)
-  changes nothing outside noise and, if anything, helps the compressor hulls
-  (racks×2 36% → 43%): a broken compressor is repaired at the next dock, which
-  is where that hull was going. **Shields stopping lasers** would take the
-  compressor-with-a-laser hunter from 32% to 15% but halves kills per game and
-  drops the hunter preset's Destroy win 33% → 27%. Both left alone.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A mat that can hold a gun is a
   mat that gets dealt into Destroy (44% of games) whether or not that gun can
