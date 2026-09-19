@@ -231,9 +231,23 @@ Known open problems:
   its games, 2P+1S 19%, 1P+2S 12%, and the only reason to take a secondary is
   the 2–6% of deals that cannot offer a third primary.
 - **A mat with no weapon and good survival wins the card race.** No card needs a
-  fight, so the hull that never fights takes more cards (2.34/game vs 1.6–1.9)
-  and dies less. This is the standing `yarn balance` outlier and it is a deck
-  problem, not a shield problem.
+  fight, so the hull that never fights takes more cards and dies less: a
+  compressor with shields×2 and radiators×2 wins 45% against a 35% bar over 200
+  games, while the Hauler preset — the same bow with a laser in place of the
+  spare radiator — wins 25%. A deck problem, not a shield problem.
+- **The bots keep cards uniformly among the legal ones, which skews every
+  forced-hull measurement involving a weapon.** A mat that can hold a gun is a
+  mat that gets dealt into Destroy (44% of games) whether or not that gun can
+  finish one: Destroy completes 35% behind a railgun, 12% behind a laser, 5%
+  behind missiles. Splitting a hull's games by whether it kept a Destroy moves
+  the missiles hull between 5% and 32%. Read any weapon hull's balance number as
+  a band. Fixing this is a change to `ai/behaviors/loadout.ts`, not to a rule,
+  and it has to price cards by the mat without going back to a hand-tuned
+  scorer (see the note on `selectBotMissions`).
+- **Carrying cargo does not draw fire**, though the table says it does. Over 200
+  games on each of four hulls, every one took *less* hull damage per turn while
+  holding a crate than while empty. The hauler does lose — 25% against a 35%
+  bar — but not because of the crate.
 - **Two players is thin**, and `hauler-tanky` takes 51% of seats there and wins
   64% of the games it is in.
 
