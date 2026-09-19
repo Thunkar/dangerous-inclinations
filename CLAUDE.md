@@ -255,7 +255,7 @@ not an argument:
 Known open problems:
 
 - **The jump refund is worth about 18 win-points.** With bots that know the
-  circuit, every compressor hull wins 48–56% at three seats against a 35% bar —
+  circuit, every compressor hull wins 45–63% at three seats against a 34% bar —
   racks, launchers, lasers or nothing but shields and radiators behind it — and
   a compressor bow hunting is as good as the railgun hunter (`unpunished`).
   Switch the refund off (`--tiles=fuel_compressor.refuelOnWellTransfer=false`)
@@ -267,24 +267,25 @@ Known open problems:
   the bots' distance estimate was planet-blind and every "any station" was
   Alpha: routes loading at Alpha got their crate 93–100% of the time, routes
   loading at Beta or Gamma 20–38%. With a lane-aware estimate Deliver completes
-  40 per 100 and the Deliver bar (39%) is now the highest of the three,
-  against Destroy 35% and Intercept 30%. The card is not fixed, it is finally
+  39 per 100 and the three primaries are level: dealt Destroy, Deliver or
+  Intercept, seat 1 wins 34% with each. The card is not fixed, it is finally
   measured.
 - **Intercept is the bot's last card.** Goal ranking is `turns − 3 × urgency`
   and the scan has no urgency, so once far planets read as far the interceptor
   does its one-point cards first and scans last: Intercept completion fell
-  46 → 35 per 100 kept when the map fix landed. Next bot change, in
+  46 → 33 per 100 kept when the map fix landed. Next bot change, in
   `ai/behaviors/missions.ts`; not a rule.
 - **Two off-book hunters beat the preset hunter.** The rack hunter (railgun +
   racks×2 + shields + radiator) and the aggressive interceptor hunting (sensor +
-  shields + lasers×2 + radiator) both win 48% with a Destroy card against the
-  hunter-aggressive preset's 35%; the tanky hunter (a second shield for the
-  rack) is 25%. Either the preset is wrong or missiles are the weak gun; the
+  shields + lasers×2 + radiator) win 46% and 45% with a Destroy card against
+  the hunter-aggressive preset's 34%; the tanky hunter (a second shield for the
+  rack) is 27%. Either the preset is wrong or missiles are the weak gun; the
   sensor bow with two launchers, the build the designer asked about, is a fair
-  37%.
+  37%, and under flat salvo heat the pure launcher hulls are playable without
+  being outliers (missiles×3 39%, missiles×5 32%).
 - **The secondary offer is still lopsided.** Everyone is offered all three;
   Garbage Disposal is the one left out (kept 46% against 76–78%) though the map
-  fix lifted its completion 28 → 49 per 100. Survey 70, Board 51.
+  fix lifted its completion 28 → 48 per 100. Survey 71, Board 52.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A mat that can hold a gun is a
   mat that gets dealt into Destroy (44% of games) whether or not that gun can
@@ -300,8 +301,8 @@ Known open problems:
   destroyed ships were carrying something, nearly all of it data chits — but
   that is the hunt for the leader, not the crate.
 - **Two players is thin**, and seat 1 wins 61% of them on the balance seeds.
-- **Six seats runs long**: 48 rounds at the median, 4h48 at a minute a turn,
-  and the salvo rule added three of those rounds.
+- **Six seats runs long**: 46 rounds at the median, 4h36 at a minute a turn,
+  and a human turn is longer than a minute. Four seats is 45 rounds, 3h00.
 
 ## Adding a rule
 
