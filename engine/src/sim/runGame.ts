@@ -133,7 +133,7 @@ export function setupBotGame(
     const choice = botChooseLoadout(player.missionOffers, {
       playerCount: botCount,
       hull: seatLoadouts?.[player.id],
-      primaries: seatHands?.[player.id],
+      primary: seatHands?.[player.id],
       // Seeded: the spread of hands across a batch replays exactly.
       pick: (n) => pickIndex(state, Array.from({ length: n })),
     });

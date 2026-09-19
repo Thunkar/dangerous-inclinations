@@ -17,6 +17,9 @@ import {
   DEFAULT_SHIP_APPEARANCE,
   MISSIONS_PER_PLAYER,
   MISSION_OFFERS_PER_PLAYER,
+  PRIMARIES_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  isPrimaryType,
   type ShipLoadout,
 } from "@dangerous-inclinations/engine";
 
@@ -192,6 +195,13 @@ await games.createGame(GAME_ID, SPECS, [HUMAN], SEED);
 const loadoutView = await games.getView(GAME_ID, HUMAN);
 if (!loadoutView?.me) fail("no view for the human after createGame");
 check(loadoutView.phase === "loadout", "game starts in the loadout phase");
+/** The first primary offered and the first two secondaries: a legal hand. */
+function handFrom(cards: ReadonlyArray<{ id: string; type: MissionType }>): string[] {
+  const primary = cards.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER);
+  const secondaries = cards.filter((m) => !isPrimaryType(m.type)).slice(0, SECONDARIES_PER_PLAYER);
+  return [...primary, ...secondaries].map((m) => m.id);
+}
+
 const offers = loadoutView.me.missionOffers;
 check(
   offers.length === MISSION_OFFERS_PER_PLAYER,
@@ -222,7 +232,8 @@ check(
 const loadoutResult = await games.submitLoadout(GAME_ID, HUMAN, {
   loadout: SMOKE_LOADOUT,
   appearance: cosmetic,
-  missionIds: offers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id),
+  // A hand is one primary and two secondaries (RULES §Missions).
+  missionIds: handFrom(offers),
 });
 if (!loadoutResult.ok) fail(`human loadout rejected: ${loadoutResult.error}`);
 
@@ -540,7 +551,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
   const first = await gameGames.getView(gameId, HUMAN);
   await gameGames.submitLoadout(gameId, HUMAN, {
     loadout: SMOKE_LOADOUT,
-    missionIds: first!.me!.missionOffers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id),
+    missionIds: handFrom(first!.me!.missionOffers),
   });
   const deployed = await gameGames.getView(gameId, HUMAN);
   const used = new Set(deployed!.players.filter((p) => p.hasDeployed && p.ship).map((p) => p.ship!.sector));

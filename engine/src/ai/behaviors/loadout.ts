@@ -5,9 +5,9 @@
  * deterministic.
  */
 import type { ShipLoadout } from "../../models/game.ts";
-import type { Mission } from "../../models/missions.ts";
+import type { Mission, MissionType } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
-import { MISSIONS_PER_PLAYER, MISSION_FAMILY } from "../../models/missions.ts";
+import { MISSIONS_PER_PLAYER, isPrimaryType } from "../../models/missions.ts";
 
 /**
  * A hull is two decisions. **The role** is the forward tile, and the cards
@@ -125,37 +125,23 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
 }
 
 /**
- * Rough turns to complete each card type, before synergies.
+ * The hand a bot keeps: one primary of the three it was dealt, two secondaries
+ * of the three (RULES §Missions).
  *
- * Destroy used to be priced as a hunt across the whole map (22 turns), which
- * is what it costs against a target that behaves unpredictably. It does not:
- * a ship carrying cargo has to dock, everyone can see what it carries, and
- * the lanes and stations are a short list of places to wait (see
- * `behaviors/danger.ts`). Priced as an ambush it sits between the Deliver
- * run and the short cards, which is where the sim says it belongs.
- */
-/** Whether any hand of `primaries` two-point cards can be dealt from `offers`. */
-function hasShape(offers: Mission[], primaries: number): boolean {
-  const primary = offers.filter((m) => MISSION_FAMILY[m.type] !== "secondary").length;
-  const secondary = offers.length - primary;
-  return primaries <= primary && MISSIONS_PER_PLAYER - primaries <= secondary;
-}
-
-/**
- * A hand from the offers, chosen at random among the hands this seat could
- * actually fly.
+ * **The primary is still chosen at random among the three.** Deliberately. The
+ * bot used to score every combination against a table of hand-tuned costs,
+ * which meant every seat at every table reached for the same plan and the
+ * benchmark restated what the scorer believed instead of measuring the game. A
+ * plan the bots never choose is a plan nobody can measure — and the weakest
+ * primary is exactly the one a scorer would drop and the one the designer needs
+ * numbers for. So the spread stays.
  *
- * Deliberately not "the best hand". The bot used to score every combination
- * against a table of hand-tuned costs, which meant every seat at every table
- * reached for the same shape — 79% of them took three two-point cards and not
- * one ever tried a hand led by secondary cards, so the benchmark measured one
- * plan and guessed about the rest. Forcing a shape (`--hands=`) measured them
- * head to head: within seven points of each other, with the shape the bots
- * never picked beating one they did. The scorer was not describing the game,
- * it was deciding it.
- *
- * So the bots spread instead, and the win rate by hand shape in the benchmark
- * is a measurement rather than a restatement of what the scorer believed.
+ * **The secondaries are not chosen at random**, because one pairing is refused
+ * by a rule rather than by taste: a load of garbage fills the hold and so does
+ * a delivery crate ({@link CARGO_HOLD_CRATES} is 1), so Deliver with Garbage
+ * Disposal is two trips where the other pairings are one. That is the engine's
+ * own arithmetic, not an opinion about balance, so the bot avoids it when the
+ * deal offers anything else.
  *
  * @param pick chooses among the hands on offer; wire it to the game's seeded
  *   RNG so a seed replays exactly. Without one the first hand is taken, which
@@ -163,25 +149,45 @@ function hasShape(offers: Mission[], primaries: number): boolean {
  * @param hull a mat already decided for this seat (the simulator forces one to
  *   measure it). Hands that mat could never complete are skipped — the engine
  *   refuses them anyway. A deal with no flyable hand falls back to the first.
- * @param primaries experiment only: keep a hand with exactly this many
- *   two-point cards. Ignored when no such hand can be dealt from these offers.
+ * @param primary experiment only: keep this kind of primary. Ignored when the
+ *   deal does not offer one, so a batch never stalls on a seed.
  */
 export function selectBotMissions(
   offers: Mission[],
   playerCount: number,
   hull?: ShipLoadout,
-  primaries?: number,
+  primary?: MissionType,
   pick?: (n: number) => number
 ): Mission[] {
   void playerCount;
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
-  const hands = validHands(offers, hull, primaries);
+  // Give up the experiment's constraints one at a time rather than all at
+  // once: the forced primary first, then the forced mat. The last resort is a
+  // hand of whatever was offered, which only a hand-built deal can reach —
+  // every real deal holds three primaries and three secondaries.
+  let hands = validHands(offers, hull, primary);
+  if (hands.length === 0) hands = validHands(offers, hull);
+  if (hands.length === 0) hands = validHands(offers, undefined, primary);
+  if (hands.length === 0) hands = validHands(offers);
   if (hands.length === 0) return offers.slice(0, MISSIONS_PER_PLAYER);
-  return hands[pick ? pick(hands.length) : 0];
+  // A hold shared between a crate and a load of garbage is two trips: skip
+  // those hands while any other hand is on the table.
+  const roomy = hands.filter((hand) => !holdIsContested(hand));
+  const choose = roomy.length > 0 ? roomy : hands;
+  return choose[pick ? pick(choose.length) : 0];
+}
+
+/** Deliver and Garbage Disposal both want the one crate the hold takes. */
+function holdIsContested(hand: Mission[]): boolean {
+  return (
+    hand.some((m) => m.type === "deliver_cargo") &&
+    hand.some((m) => m.type === "garbage_disposal")
+  );
 }
 
 /**
- * Every hand of MISSIONS_PER_PLAYER the mat can fly, in a fixed order.
+ * Every hand of one primary and two secondaries the mat can fly, in a fixed
+ * order.
  *
  * "Can fly" is the engine's own rule and the only filter there is: a kept
  * Intercept needs a sensor array, a kept Destroy a gun, and a hand that breaks
@@ -191,22 +197,20 @@ export function selectBotMissions(
 export function validHands(
   offers: Mission[],
   hull?: ShipLoadout,
-  primaries?: number
+  primary?: MissionType
 ): Mission[][] {
-  const shaped = primaries !== undefined && hasShape(offers, primaries);
+  const primaries = offers.filter((m) => isPrimaryType(m.type));
+  const secondaries = offers.filter((m) => !isPrimaryType(m.type));
   const hands: Mission[][] = [];
-  const walk = (from: number, hand: Mission[]) => {
-    if (hand.length === MISSIONS_PER_PLAYER) {
-      if (shaped && hand.filter((m) => MISSION_FAMILY[m.type] !== "secondary").length !== primaries) {
-        return;
+  for (const lead of primaries) {
+    if (primary !== undefined && lead.type !== primary) continue;
+    for (let i = 0; i < secondaries.length; i++) {
+      for (let j = i + 1; j < secondaries.length; j++) {
+        const hand = [lead, secondaries[i], secondaries[j]];
+        if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) continue;
+        hands.push(hand);
       }
-      if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) return;
-      hands.push([...hand]);
-      return;
     }
-    if (offers.length - from < MISSIONS_PER_PLAYER - hand.length) return;
-    for (let i = from; i < offers.length; i++) walk(i + 1, [...hand, offers[i]]);
-  };
-  walk(0, []);
+  }
   return hands;
 }

@@ -3,6 +3,9 @@ import { Alert, Box, Button, Drawer, Tab, Tabs, Typography } from '@mui/material
 import {
   BOT_LOADOUT_TEMPLATES,
   MISSIONS_PER_PLAYER,
+  PRIMARIES_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  isPrimaryType,
   calculateShipStatsFromLoadout,
   describeMission,
   describeMissionRequirement,
@@ -10,6 +13,7 @@ import {
   missionsMissingRequirements,
   resolveShipAppearance,
   validateLoadout,
+  type MissionType,
   type Player,
   type ShipAppearance,
   type ShipLoadout,
@@ -48,18 +52,35 @@ function readDraft(key: string, me: Player): Draft {
       loadout: config.loadout,
       appearance: resolveShipAppearance(saved.appearance),
       missionIds: Array.isArray(saved.missionIds)
-        ? [
-            ...new Set<string>(
-              saved.missionIds.filter(
-                (id: unknown): id is string => typeof id === 'string' && offered.has(id)
-              )
-            ),
-          ].slice(0, MISSIONS_PER_PLAYER)
+        ? legalHand(
+            [
+              ...new Set<string>(
+                saved.missionIds.filter(
+                  (id: unknown): id is string => typeof id === 'string' && offered.has(id)
+                )
+              ),
+            ],
+            me.missionOffers
+          )
         : [],
     }
   } catch {
     return fallback
   }
+}
+
+/**
+ * Trim a restored draft to a hand the referee will take: one errand and two of
+ * your own. A draft saved before the deal changed, or edited by hand, is not a
+ * reason to hand the server something it must refuse.
+ */
+function legalHand(ids: string[], offers: ReadonlyArray<{ id: string; type: MissionType }>): string[] {
+  const of = (primary: boolean) =>
+    ids.filter(id => {
+      const card = offers.find(m => m.id === id)
+      return card !== undefined && isPrimaryType(card.type) === primary
+    })
+  return [...of(true).slice(0, PRIMARIES_PER_PLAYER), ...of(false).slice(0, SECONDARIES_PER_PLAYER)]
 }
 
 export function LoadoutScreen({ headerRight }: { headerRight?: ReactNode }) {
@@ -99,13 +120,17 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
     offers.filter(m => missionIds.includes(m.id)),
     loadout
   )
+  const chosenPrimaries = offers.filter(m => missionIds.includes(m.id) && isPrimaryType(m.type))
+  const chosenSecondaries = missionIds.length - chosenPrimaries.length
   const blocked = !validation.valid
     ? validation.errors.join(' · ')
-    : missionIds.length !== MISSIONS_PER_PLAYER
-      ? `Choose ${MISSIONS_PER_PLAYER - missionIds.length} more mission${MISSIONS_PER_PLAYER - missionIds.length === 1 ? '' : 's'}.`
-      : gaps.length
-        ? `Fit ${[...new Set(gaps.flatMap(g => g.missing.map(r => `a ${r.label}`)))].join(' and ')}, or choose different missions.`
-        : null
+    : chosenPrimaries.length !== PRIMARIES_PER_PLAYER
+      ? `Take ${PRIMARIES_PER_PLAYER} of the errands.`
+      : chosenSecondaries !== SECONDARIES_PER_PLAYER
+        ? `Take ${SECONDARIES_PER_PLAYER} of your own, ${SECONDARIES_PER_PLAYER - chosenSecondaries} to go.`
+        : gaps.length
+          ? `Fit ${[...new Set(gaps.flatMap(g => g.missing.map(r => `a ${r.label}`)))].join(' and ')}, or take a different errand.`
+          : null
 
   useEffect(() => {
     if (submitted || readOnly) return
@@ -143,43 +168,75 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
       setSubmitting(false)
     }
   }
+  /**
+   * Two piles, two decisions (RULES §Missions). Taking an errand swaps out the
+   * one you were holding, because there is only ever room for one; the second
+   * list fills up and then waits for you to drop something.
+   */
+  const pile = (cards: typeof offers, keep: number, title: string, hint: string) => {
+    const chosen = cards.filter(m => missionIds.includes(m.id))
+    return (
+      <Box sx={{ mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1 }}>
+          <Box>
+            <Typography variant="h6">{title}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {hint}
+            </Typography>
+          </Box>
+          <Typography variant="overline" color="primary">
+            {chosen.length}/{keep}
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(176px, 1fr))',
+            gap: 1,
+          }}
+        >
+          {cards.map(m => (
+            <MissionCard
+              key={m.id}
+              mission={m}
+              nameOf={nameOf}
+              selected={missionIds.includes(m.id)}
+              requires={missionRequirementStatus(m.type, loadout)}
+              onClick={
+                disabled
+                  ? undefined
+                  : () => {
+                      const mine = cards.filter(c => missionIds.includes(c.id)).map(c => c.id)
+                      const others = missionIds.filter(id => !mine.includes(id))
+                      let next: string[]
+                      if (mine.includes(m.id)) next = mine.filter(id => id !== m.id)
+                      else if (keep === 1) next = [m.id]
+                      else if (mine.length < keep) next = [...mine, m.id]
+                      else return
+                      patch({ missionIds: [...others, ...next] })
+                    }
+              }
+            />
+          ))}
+        </Box>
+      </Box>
+    )
+  }
+
   const missions = (
     <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
-        <Typography variant="h6">Choose your missions</Typography>
-        <Typography variant="overline" color="primary">
-          {missionIds.length}/{MISSIONS_PER_PLAYER} selected
-        </Typography>
-      </Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(176px, 1fr))',
-          gap: 1,
-        }}
-      >
-        {offers.map(m => (
-          <MissionCard
-            key={m.id}
-            mission={m}
-            nameOf={nameOf}
-            selected={missionIds.includes(m.id)}
-            requires={missionRequirementStatus(m.type, loadout)}
-            onClick={
-              disabled
-                ? undefined
-                : () =>
-                    patch({
-                      missionIds: missionIds.includes(m.id)
-                        ? missionIds.filter(id => id !== m.id)
-                        : missionIds.length < MISSIONS_PER_PLAYER
-                          ? [...missionIds, m.id]
-                          : missionIds,
-                    })
-            }
-          />
-        ))}
-      </Box>
+      {pile(
+        offers.filter(m => isPrimaryType(m.type)),
+        PRIMARIES_PER_PLAYER,
+        'The errand',
+        'Worth 2. Keep one — the mat you build should suit it.'
+      )}
+      {pile(
+        offers.filter(m => !isPrimaryType(m.type)),
+        SECONDARIES_PER_PLAYER,
+        'Your own',
+        'Worth 1 each. Keep two — nothing aboard is needed for these.'
+      )}
       {offers.length === 0 && (
         <Typography color="text.secondary">Waiting for the mission deal…</Typography>
       )}

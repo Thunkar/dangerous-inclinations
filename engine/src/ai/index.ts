@@ -11,7 +11,7 @@
  * function the caller wires to the game's seeded RNG.
  */
 import type { PlayerAction, ShipLoadout } from "../models/game.ts";
-import type { Mission } from "../models/missions.ts";
+import type { Mission, MissionType } from "../models/missions.ts";
 import type { GameView } from "../game/view.ts";
 import { missionsMissingRequirements } from "../game/loadout.ts";
 import type {
@@ -61,14 +61,16 @@ export function botDecideActions(
 }
 
 /**
- * Loadout phase: keep 3 of the offered missions and pick a hull for them.
+ * Loadout phase: keep one primary and two secondaries, then pick a hull for
+ * them. The hand chooses the mat, never the other way round.
  */
 export function botChooseLoadout(
   offers: Mission[],
   context: {
     playerCount: number;
     hull?: ShipLoadout;
-    primaries?: number;
+    /** Experiment only: force the kind of primary this seat keeps. */
+    primary?: MissionType;
     /** Chooses among the flyable hands; wire it to the game's seeded RNG. */
     pick?: (n: number) => number;
   }
@@ -77,14 +79,14 @@ export function botChooseLoadout(
     offers,
     context.playerCount,
     context.hull,
-    context.primaries,
+    context.primary,
     context.pick
   );
-  // A hand and a mat are one choice: a kept Intercept or Survey needs the
-  // sensor array and a kept Destroy needs a gun. `hull` is a mat the
-  // simulator is measuring on this seat; it
-  // is kept only if the trio the bot ended up with can actually fly it, so a
-  // bot never hands the engine a submission it must refuse.
+  // A hand and a mat are one choice: a kept Intercept needs the sensor array
+  // and a kept Destroy needs a gun. `hull` is a mat the simulator is measuring
+  // on this seat; it is kept only if the hand the bot ended up with can
+  // actually fly it, so a bot never hands the engine a submission it must
+  // refuse.
   const imposed =
     context.hull && missionsMissingRequirements(missions, context.hull).length === 0
       ? context.hull

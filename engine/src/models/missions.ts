@@ -11,18 +11,39 @@ import type { SubsystemType } from "./subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
 
 /**
- * Four points win; a hand is three cards drawn from five offers.
+ * Four points win, and a hand is one primary and two secondaries — exactly
+ * four. Each deck is dealt separately: three primaries to choose one from,
+ * three secondaries to choose two from.
  *
- * The three numbers are one decision. A primary card scores two and a secondary
- * card one, so a hand of three reaches four points two ways — two primaries,
- * or one primary and both secondary cards — and three secondary cards come to three,
- * which is to say every hand needs at least one primary and no hand is only
- * filler. Three cards out of five is also a real choice at the table rather
- * than a formality: two of the five are left on the dock.
+ * **Why two decks.** Dealing five from one pile and keeping any three looked
+ * like a choice and was not. Because primaries are most of the deck, 94% of
+ * hands at three seats and 98% at six could take three of them, and three
+ * primaries is the only shape with a spare — four points out of six means any
+ * two of the three will do. So almost every seat was offered the same plan and
+ * took it, the secondaries were the cards you kept when the deal failed you,
+ * and the decision was which cards rather than which kind of game. Measured
+ * over 4,000 deals, the second-best hand available sat 10 points behind the
+ * best: a lock-in wearing the costume of a choice.
+ *
+ * Splitting the decks fixes the shape and hands the choice back as content.
+ * Every seat gets the same frame — one errand somebody set you, two things you
+ * do yourself — and picks inside it: the gap to the second-best hand halves.
+ * The cost is the spare. One primary and two secondaries is four points on the
+ * nose, so all three cards have to come in, and a hand is a chain rather than a
+ * hedge. That is the tension the rest of the balance has to hold.
  */
 export const MISSIONS_TO_WIN = 4;
-export const MISSIONS_PER_PLAYER = 3;
-export const MISSION_OFFERS_PER_PLAYER = 5;
+
+/** Dealt from the primary deck, and kept from that deal. */
+export const PRIMARY_OFFERS_PER_PLAYER = 3;
+export const PRIMARIES_PER_PLAYER = 1;
+/** Dealt from the secondary deck, and kept from that deal. */
+export const SECONDARY_OFFERS_PER_PLAYER = 3;
+export const SECONDARIES_PER_PLAYER = 2;
+
+export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
+export const MISSION_OFFERS_PER_PLAYER =
+  PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER;
 
 /** Black hole ring a ship must end its turn on to complete a Survey. */
 export const SURVEY_RING = 1;
@@ -88,6 +109,11 @@ export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
   board: "secondary",
   garbage_disposal: "secondary",
 };
+
+/** A card that scores two: the errand somebody else set you. */
+export function isPrimaryType(type: MissionType): boolean {
+  return MISSION_FAMILY[type] !== "secondary";
+}
 
 /**
  * One thing a card cannot be completed without.

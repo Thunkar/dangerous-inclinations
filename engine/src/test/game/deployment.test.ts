@@ -20,7 +20,14 @@ import type { SubsystemType } from "../../models/subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "../../models/subsystems.ts";
 import type { Mission, MissionRequirement } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
-import { MISSION_OFFERS_PER_PLAYER, MISSION_REQUIREMENTS } from "../../models/missions.ts";
+import type { SecondaryMissionType } from "../../models/missions.ts";
+import {
+  MISSION_OFFERS_PER_PLAYER,
+  MISSION_REQUIREMENTS,
+  PRIMARIES_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  isPrimaryType,
+} from "../../models/missions.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { DEFAULT_LOADOUT } from "../../models/game.ts";
 import { HOME_RING } from "../../models/gravityWells.ts";
@@ -30,6 +37,7 @@ import {
   canonicalJson,
   coast,
   deliverMission,
+  secondaryMission,
   destroyMission,
   getPlayer,
   getShip,
@@ -44,23 +52,24 @@ const SPECS = [
   { id: "p2", name: "Bo" },
 ];
 
-/** A legal hand: the first MISSIONS_PER_PLAYER cards offered. */
-const pickHand = (state: GameState, playerId: string) =>
-  getPlayer(state, playerId)
-    .missionOffers.slice(0, MISSIONS_PER_PLAYER)
-    .map((m) => m.id);
+/** A legal hand: the first primary offered and the first two secondaries. */
+const pickHand = (state: GameState, playerId: string) => {
+  const offers = getPlayer(state, playerId).missionOffers;
+  const primary = offers.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER);
+  const secondaries = offers.filter((m) => !isPrimaryType(m.type)).slice(0, SECONDARIES_PER_PLAYER);
+  return [...primary, ...secondaries].map((m) => m.id);
+};
 
-/** Filler that any mat can fly, to pad a hand out to its full size. */
+/**
+ * Filler that any mat can fly, to pad a hand out to its full size. Secondaries,
+ * because a hand is one primary and two of these (RULES §Missions) — padding
+ * with another Deliver would make the hand itself illegal.
+ */
 const padHand = (cards: Mission[]): Mission[] => {
-  const routes: Array<[string, string]> = [
-    ["planet-alpha", "planet-beta"],
-    ["planet-beta", "planet-gamma"],
-    ["planet-gamma", "planet-alpha"],
-    ["planet-alpha", "planet-gamma"],
-  ];
+  const filler: SecondaryMissionType[] = ["survey", "board"];
   const padded = [...cards];
   for (let i = 0; padded.length < MISSIONS_PER_PLAYER; i++) {
-    padded.push(deliverMission(routes[i][0], routes[i][1]));
+    padded.push(secondaryMission(filler[i % filler.length], `pad-${i}`));
   }
   return padded;
 };
@@ -313,19 +322,27 @@ describe("setup: a kept card the mat can never fly", () => {
     }
   );
 
-  it("accepts a hand needing both once the array and a gun are aboard", () => {
-    const hand = padHand([interceptMission("p2"), surveyMission(), destroyMission("p2")]);
-    const state = offered(hand);
-    const result = submitLoadout(state, "p1", {
-      loadout: ANY_HAND,
-      missionIds: hand.map((m) => m.id),
-    });
-    expect(result.error).toBeUndefined();
-    expect(getPlayer(result.state, "p1").missions.map((m) => m.id)).toEqual(hand.map((m) => m.id));
+  /**
+   * A hand holds one primary, and only a primary asks for anything aboard, so a
+   * mat now has at most one requirement to satisfy — there is no hand that
+   * needs the array and a gun at once.
+   */
+  it("accepts the card once what it asks for is aboard", () => {
+    for (const card of [interceptMission("p2"), destroyMission("p2")]) {
+      const hand = padHand([card]);
+      const state = offered(hand);
+      const result = submitLoadout(state, "p1", {
+        loadout: ANY_HAND,
+        missionIds: hand.map((m) => m.id),
+      });
+      expect(result.error).toBeUndefined();
+      expect(getPlayer(result.state, "p1").missions.map((m) => m.id)).toEqual(hand.map((m) => m.id));
+    }
   });
 
   it("lets an unflyable card be left in the offers: only kept cards are checked", () => {
-    const keep = padHand([surveyMission("survey-keep")]);
+    // A Deliver asks for nothing aboard, so an unarmed mat can fly this hand.
+    const keep = padHand([deliverMission("planet-alpha", "planet-beta")]);
     const state = offered([...keep, destroyMission("p2"), interceptMission("p2")]);
     const result = submitLoadout(state, "p1", {
       loadout: UNARMED,

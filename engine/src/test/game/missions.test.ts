@@ -2,20 +2,29 @@ import { describe, it, expect } from "vitest";
 import type { ShipLoadout } from "../../models/game.ts";
 import {
   COPIES_PER_CARD,
-  buildMissionDeck,
+  buildPrimaryDeck,
+  buildSecondaryDeck,
   cardForPlayer,
   cratesForMissions,
   dealMissionOffers,
   selectMissionsFromOffers,
 } from "../../game/missions/missionDeck.ts";
 import { checkForWinner, completedMissions } from "../../game/missions/missionChecks.ts";
-import { SECONDARY_CARDS_PER_DECK } from "../../game/missions/missionDeck.ts";
+import {
+  SECONDARY_CARDS_PER_DECK,
+  SECONDARY_COPIES_PER_CARD,
+} from "../../game/missions/missionDeck.ts";
 import {
   MISSION_FAMILY,
   SURVEY_RING,
   MISSION_POINTS,
   MISSIONS_PER_PLAYER,
   MISSION_OFFERS_PER_PLAYER,
+  PRIMARIES_PER_PLAYER,
+  PRIMARY_OFFERS_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  isPrimaryType,
+  SECONDARY_OFFERS_PER_PLAYER,
 } from "../../models/missions.ts";
 import type { Mission } from "../../models/missions.ts";
 import type { GameState } from "../../models/game.ts";
@@ -58,8 +67,8 @@ describe("missions: deck", () => {
   const RIVAL_CARDS = 2;
   const ROUTES = 6;
 
-  it.each([2, 3, 4, 5, 6])("a %i-player deck drops the offsets that would wrap", (players) => {
-    const deck = buildMissionDeck(players, PLANET_IDS);
+  it.each([2, 3, 4, 5, 6])("a %i-player primary deck drops the offsets that would wrap", (players) => {
+    const deck = buildPrimaryDeck(players, PLANET_IDS);
     const offsets = deck.flatMap((c) => ("targetOffset" in c ? [c.targetOffset] : []));
     // Counting left from a holder, an offset of `players` is the holder again.
     expect(Math.max(...offsets)).toBe(players - 1);
@@ -69,22 +78,33 @@ describe("missions: deck", () => {
     expect(count("destroy_ship")).toBe((players - 1) * COPIES_PER_CARD);
     expect(count("intercept_transmission")).toBe((players - 1) * COPIES_PER_CARD);
     expect(count("deliver_cargo")).toBe(ROUTES * COPIES_PER_CARD);
-    expect(deck.filter((c) => MISSION_FAMILY[c.type] === "secondary")).toHaveLength(
-      SECONDARY_CARDS_PER_DECK
-    );
+    // Not one secondary in it: the two piles are dealt apart.
+    expect(deck.filter((c) => MISSION_FAMILY[c.type] === "secondary")).toHaveLength(0);
     expect(deck).toHaveLength(
-      (players - 1) * RIVAL_CARDS * COPIES_PER_CARD + ROUTES * COPIES_PER_CARD + SECONDARY_CARDS_PER_DECK
+      (players - 1) * RIVAL_CARDS * COPIES_PER_CARD + ROUTES * COPIES_PER_CARD
     );
   });
 
-  it.each([2, 3, 4, 5, 6])("a %i-player deck holds enough cards to deal the table", (players) => {
-    expect(buildMissionDeck(players, PLANET_IDS).length).toBeGreaterThanOrEqual(
-      players * MISSION_OFFERS_PER_PLAYER
+  it("the secondary deck is the same pile at every table size", () => {
+    const deck = buildSecondaryDeck();
+    expect(deck).toHaveLength(SECONDARY_CARDS_PER_DECK);
+    expect(deck.every((c) => MISSION_FAMILY[c.type] === "secondary")).toBe(true);
+    for (const type of ["survey", "board", "garbage_disposal"] as const) {
+      expect(deck.filter((c) => c.type === type), type).toHaveLength(SECONDARY_COPIES_PER_CARD);
+    }
+  });
+
+  it.each([2, 3, 4, 5, 6])("both %i-player piles hold enough to deal the table", (players) => {
+    expect(buildPrimaryDeck(players, PLANET_IDS).length).toBeGreaterThanOrEqual(
+      players * PRIMARY_OFFERS_PER_PLAYER
+    );
+    expect(buildSecondaryDeck().length).toBeGreaterThanOrEqual(
+      players * SECONDARY_OFFERS_PER_PLAYER
     );
   });
 
   it("prints no card that names a seat: a rival card counts, it does not point", () => {
-    const deck = buildMissionDeck(6, PLANET_IDS);
+    const deck = buildPrimaryDeck(6, PLANET_IDS);
     for (const card of deck) {
       expect(card).not.toHaveProperty("targetPlayerId");
       if ("targetOffset" in card) expect(card.targetOffset).toBeGreaterThan(0);
@@ -152,7 +172,7 @@ describe("missions: deck", () => {
   });
 
   it("covers every ordered planet pair, and no route to itself", () => {
-    const routes = buildMissionDeck(3, PLANET_IDS).flatMap((c) =>
+    const routes = buildPrimaryDeck(3, PLANET_IDS).flatMap((c) =>
       c.type === "deliver_cargo" ? [`${c.pickupPlanetId}>${c.deliveryPlanetId}`] : []
     );
     expect(new Set(routes).size).toBe(6);
@@ -192,7 +212,10 @@ describe("missions: deck", () => {
 
   it("keeps exactly a hand of offered missions and issues their crates", () => {
     const offers = dealMissionOffers(ids(2), new Rng(7)).get("p1")!;
-    const hand = offers.slice(0, MISSIONS_PER_PLAYER);
+    const hand = [
+      ...offers.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER),
+      ...offers.filter((m) => !isPrimaryType(m.type)).slice(0, SECONDARIES_PER_PLAYER),
+    ];
     const picked = selectMissionsFromOffers(
       offers,
       hand.map((m) => m.id)
@@ -460,7 +483,7 @@ describe("missions: secondary", () => {
   });
 
   it("chit cards file at any station; the disposal card files nowhere", () => {
-    const deck = buildMissionDeck(3, PLANET_IDS);
+    const deck = buildSecondaryDeck();
     const secondary = deck.filter((m) => MISSION_FAMILY[m.type] === "secondary");
     expect(secondary).toHaveLength(SECONDARY_CARDS_PER_DECK);
     for (const m of secondary) {

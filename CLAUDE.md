@@ -52,10 +52,11 @@ Scanning peeks at one tile privately. Completed missions are face-up. Reaching
 4 points triggers the final round: the round is played out, then highest score
 wins (hull, then fuel, break ties). Six card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, board,
-garbage disposal). One physical deck for the table: rival cards count seats
+garbage disposal). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
-is hunting whom; setup removes offsets the table is too small for. Deal 5, keep
-3, so a hand is two primaries or one plus both secondary cards.
+is hunting whom; setup removes offsets the table is too small for. Deal 3
+primaries and keep 1, deal 3 secondaries and keep 2 — four points exactly, with
+no spare, so all three cards have to come in.
 New mission types are proposed to the designer, never added unasked.
 
 Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate,
@@ -227,9 +228,12 @@ Known open problems:
   the largest block in the deck (12 of 30 cards at four seats). Two seats that
   both keep three primaries are not playing the same game if one of them is
   holding Deliver.
-- **Secondary cards are filler, not a plan.** A hand of 3 primaries wins 33% of
-  its games, 2P+1S 19%, 1P+2S 12%, and the only reason to take a secondary is
-  the 2–6% of deals that cannot offer a third primary.
+- **Secondary cards were filler** under the old single-deck deal, and the two
+  decks are the answer: 2P+1S was the best hand available in 1–2% of deals
+  (the secondary cannot contribute — 2+1 is 3), so the real choice was 3P or
+  nothing, and the second-best hand sat 10 points behind the best. Splitting
+  the decks halves that gap. The cost is the spare: 3P was the only shape that
+  could lose a card and still win.
 - **A mat with no weapon and good survival wins the card race.** No card needs a
   fight, so the hull that never fights takes more cards and dies less: a
   compressor with shields×2 and radiators×2 wins 45% against a 35% bar over 200

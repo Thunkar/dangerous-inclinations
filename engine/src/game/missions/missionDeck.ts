@@ -1,10 +1,17 @@
 /**
- * The mission deck: one pile, shuffled once, dealt round the table.
+ * The mission decks: two piles, each shuffled once and dealt round the table.
  *
- * It is a physical deck, so it is built the way a physical deck has to be.
+ * They are physical decks, so they are built the way physical decks have to be.
  * There is no per-player deck and no card that knows who is holding it —
  * every card reads the same in every hand, which is the only way a face-down
  * card can leak nothing.
+ *
+ * **Why two piles.** A hand is one primary and two secondaries (RULES
+ * §Missions), so each pile is dealt against the choice it carries: three
+ * primaries to pick the errand from, three secondaries to pick two of. Mixing
+ * them in one pile made the shape of a hand an accident of the shuffle, and
+ * because primaries are most of the cards the accident nearly always fell the
+ * same way.
  *
  * **Naming a rival without naming a seat.** A Destroy card that said "destroy
  * Ada" could be drawn by Ada, and putting it back would tell her that nobody
@@ -17,27 +24,43 @@
  * so a smaller table takes out the cards that would wrap onto the holder:
  * with N players, remove every card whose offset is N or more.
  *
- * The mix is two copies of everything — each offset of each rival card, each
- * cargo route, each secondary card — which keeps the same share of the deck
- * pointed at people as the old per-player decks had (31% at three seats, 53%
- * at six) while leaving enough cards to deal five to six players.
+ * The primary pile is two copies of everything — each offset of each rival
+ * card, each cargo route — which keeps the same share of it pointed at people
+ * as the old per-player decks had (31% at three seats, 53% at six).
+ *
+ * The secondary pile is {@link SECONDARY_COPIES_PER_CARD} of each, which is
+ * {@link MAX_PLAYERS}: three secondaries a seat means a full table needs
+ * eighteen, so the printed pile is sized by the biggest table rather than by
+ * symmetry with the other one. A hand may therefore hold two of the same
+ * secondary, which is two separate chits and two separate filings.
  */
 import type { Player } from "../../models/game.ts";
 import type { Cargo, SecondaryMission, Mission } from "../../models/missions.ts";
 import {
   SECONDARY_MISSION_TYPES,
   MISSIONS_PER_PLAYER,
-  MISSION_OFFERS_PER_PLAYER,
+  PRIMARIES_PER_PLAYER,
+  PRIMARY_OFFERS_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  SECONDARY_OFFERS_PER_PLAYER,
+  isPrimaryType,
 } from "../../models/missions.ts";
 import { MAX_PLAYERS } from "../../models/game.ts";
 import { BLACK_HOLE_ID, PLANETS } from "../../models/gravityWells.ts";
 import type { Rng } from "../../utils/rng.ts";
 
-/** Copies of each distinct card in the printed deck. */
+/** Copies of each distinct card in the printed primary deck. */
 export const COPIES_PER_CARD = 2;
 
+/**
+ * Copies of each secondary. Three are dealt to every seat, so a full table
+ * needs {@link MAX_PLAYERS} of each for the pile to go round.
+ */
+export const SECONDARY_COPIES_PER_CARD = MAX_PLAYERS;
+
 /** Survey, Board, Garbage Disposal. */
-export const SECONDARY_CARDS_PER_DECK = (SECONDARY_MISSION_TYPES.length + 1) * COPIES_PER_CARD;
+export const SECONDARY_CARDS_PER_DECK =
+  (SECONDARY_MISSION_TYPES.length + 1) * SECONDARY_COPIES_PER_CARD;
 
 /**
  * A card as it is printed: a rival card counts seats rather than naming one,
@@ -55,13 +78,13 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 export type MissionBlueprint = DistributiveOmit<Mission, "id">;
 
 /**
- * The printed deck, in a fixed order, minus the cards a table this size
- * cannot use.
+ * The printed primary pile, in a fixed order, minus the cards a table this
+ * size cannot use.
  *
  * @param playerCount seats at the table; rival cards that would wrap onto
  *   their own holder are left in the box.
  */
-export function buildMissionDeck(
+export function buildPrimaryDeck(
   playerCount: number,
   planetIds: readonly string[] = PLANETS.map((p) => p.id)
 ): DeckCard[] {
@@ -84,6 +107,17 @@ export function buildMissionDeck(
     for (const [pickupPlanetId, deliveryPlanetId] of allRoutes(planetIds)) {
       deck.push({ type: "deliver_cargo", pickupPlanetId, deliveryPlanetId });
     }
+  }
+  return deck;
+}
+
+/**
+ * The printed secondary pile. It names no rival and no route, so it is the
+ * same pile at every table size.
+ */
+export function buildSecondaryDeck(): DeckCard[] {
+  const deck: DeckCard[] = [];
+  for (let copy = 0; copy < SECONDARY_COPIES_PER_CARD; copy++) {
     deck.push({ type: "garbage_disposal" });
     for (const type of SECONDARY_MISSION_TYPES) {
       // A chit is filed at whatever station the ship next docks at.
@@ -163,33 +197,37 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
 }
 
 /**
- * Shuffle the deck and deal round the table, advancing `rng`. Deterministic
+ * Shuffle both piles and deal round the table, advancing `rng`. Deterministic
  * for a seed.
  *
- * One pile, dealt a card at a time the way a dealer would: the same card can
+ * Each pile is dealt a card at a time the way a dealer would: the same card can
  * only reach one hand, so a route somebody else is flying is a route you were
- * not offered. Ids are handed out as the cards land, so an id says nothing
- * about what the card is — crates and chits are named after their mission and
- * sit on the table for everyone to see.
+ * not offered. Primaries first, then secondaries, so a seat's offers arrive in
+ * the order the loadout screen reads them. Ids are handed out as the cards
+ * land, so an id says nothing about what the card is — crates and chits are
+ * named after their mission and sit on the table for everyone to see.
  */
 export function dealMissionOffers(
   players: ReadonlyArray<Pick<Player, "id">>,
   rng: Rng,
   planetIds: readonly string[] = PLANETS.map((p) => p.id)
 ): Map<string, Mission[]> {
-  const deck = rng.shuffle(buildMissionDeck(players.length, planetIds));
   const offers = new Map<string, Mission[]>(players.map((p) => [p.id, []]));
   let next = 0;
-  let onTop = 0;
-  for (let round = 0; round < MISSION_OFFERS_PER_PLAYER; round++) {
-    players.forEach((player, seat) => {
-      const card = deck[onTop++];
-      if (!card) return;
-      offers
-        .get(player.id)!
-        .push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
-    });
-  }
+  const deal = (deck: DeckCard[], rounds: number) => {
+    let onTop = 0;
+    for (let round = 0; round < rounds; round++) {
+      players.forEach((player, seat) => {
+        const card = deck[onTop++];
+        if (!card) return;
+        offers
+          .get(player.id)!
+          .push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
+      });
+    }
+  };
+  deal(rng.shuffle(buildPrimaryDeck(players.length, planetIds)), PRIMARY_OFFERS_PER_PLAYER);
+  deal(rng.shuffle(buildSecondaryDeck()), SECONDARY_OFFERS_PER_PLAYER);
   return offers;
 }
 
@@ -201,21 +239,22 @@ export function selectMissionsFromOffers(
   offers: Mission[],
   selectedIds: string[]
 ): { missions: Mission[]; cargo: Cargo[]; error?: string } {
+  const fail = (error: string) => ({ missions: [], cargo: [], error });
   if (selectedIds.length !== MISSIONS_PER_PLAYER) {
-    return {
-      missions: [],
-      cargo: [],
-      error: `Must select exactly ${MISSIONS_PER_PLAYER} missions (got ${selectedIds.length})`,
-    };
+    return fail(`Must select exactly ${MISSIONS_PER_PLAYER} missions (got ${selectedIds.length})`);
   }
   const selected = new Set(selectedIds);
   const missions = offers.filter((m) => selected.has(m.id));
   if (missions.length !== MISSIONS_PER_PLAYER) {
-    return {
-      missions: [],
-      cargo: [],
-      error: "One or more selected mission IDs not found in your offers",
-    };
+    return fail("One or more selected mission IDs not found in your offers");
+  }
+  // The two piles are dealt separately and kept separately: the shape of a
+  // hand is the rule, not an outcome of the shuffle (RULES §Missions).
+  const primaries = missions.filter((m) => isPrimaryType(m.type)).length;
+  if (primaries !== PRIMARIES_PER_PLAYER) {
+    return fail(
+      `A hand is ${PRIMARIES_PER_PLAYER} primary and ${SECONDARIES_PER_PLAYER} secondaries (got ${primaries} primary)`
+    );
   }
   return { missions, cargo: cratesForMissions(missions) };
 }

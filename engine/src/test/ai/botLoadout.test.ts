@@ -4,7 +4,12 @@
  */
 import { describe, it, expect } from "vitest";
 import type { Mission } from "../../models/missions.ts";
-import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
+import {
+  MISSIONS_PER_PLAYER,
+  PRIMARIES_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  isPrimaryType,
+} from "../../models/missions.ts";
 import { missionsMissingRequirements, validateLoadout } from "../../game/loadout.ts";
 import { createGame, submitLoadout } from "../../game/setup.ts";
 import { botChooseLoadout } from "../../ai/index.ts";
@@ -22,6 +27,8 @@ import {
   deliverMission,
   destroyMission,
   interceptMission,
+  garbageMission,
+  secondaryMission,
   surveyMission,
 } from "../testUtils.ts";
 
@@ -94,19 +101,20 @@ describe("botChooseLoadout", () => {
   });
 
   it("keeps any hand it can fly, and spreads across them", () => {
-    // The bot no longer scores hands: every hand the mat could fly is valid,
-    // and which one it takes is the seeded pick. Measuring which plan wins is
-    // the benchmark's job, not the chooser's.
+    // The bot does not score the primary: every hand the mat could fly is
+    // valid, and which one it takes is the seeded pick. Measuring which plan
+    // wins is the benchmark's job, not the chooser's.
     const offers: Mission[] = [
       destroyMission("p2"),
       interceptMission("p3"),
       deliverMission(ALPHA, BETA),
-      surveyMission(),
-      deliverMission(BETA, GAMMA),
+      surveyMission("survey-a"),
+      surveyMission("survey-b"),
+      secondaryMission("board", "board-a"),
     ];
     const hands = validHands(offers);
-    // Five offers, three kept: every combination is on the table.
-    expect(hands).toHaveLength(10);
+    // Three primaries, and three ways to take two of the three secondaries.
+    expect(hands).toHaveLength(9);
 
     const seen = new Set(
       hands.map((_, i) =>
@@ -119,6 +127,48 @@ describe("botChooseLoadout", () => {
     expect(seen.size).toBe(hands.length);
   });
 
+  it("every hand it keeps is one primary and two secondaries", () => {
+    const offers: Mission[] = [
+      destroyMission("p2"),
+      interceptMission("p3"),
+      deliverMission(ALPHA, BETA),
+      surveyMission("survey-a"),
+      secondaryMission("board", "board-a"),
+      garbageMission("garbage-a"),
+    ];
+    for (const hand of validHands(offers)) {
+      expect(hand.filter((m) => isPrimaryType(m.type))).toHaveLength(PRIMARIES_PER_PLAYER);
+      expect(hand.filter((m) => !isPrimaryType(m.type))).toHaveLength(SECONDARIES_PER_PLAYER);
+    }
+  });
+
+  it("does not put a load of garbage in the hold a delivery crate needs", () => {
+    // Both want the one crate the hold takes, so that pairing is two trips.
+    // Every other pairing is on the table, so the bot takes one of those.
+    const offers: Mission[] = [
+      deliverMission(ALPHA, BETA),
+      surveyMission("survey-a"),
+      secondaryMission("board", "board-a"),
+      garbageMission("garbage-a"),
+    ];
+    for (let i = 0; i < 3; i++) {
+      const kept = botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n }).missionIds;
+      expect(kept).not.toContain("garbage-a");
+    }
+  });
+
+  it("takes the garbage anyway when the deal leaves nothing else", () => {
+    // Only a clashing pair is on the table, and a hand of two is not a hand.
+    const offers: Mission[] = [
+      deliverMission(ALPHA, BETA),
+      garbageMission("garbage-a"),
+      garbageMission("garbage-b"),
+    ];
+    const kept = botChooseLoadout(offers, { playerCount: 3 }).missionIds;
+    expect(kept).toHaveLength(MISSIONS_PER_PLAYER);
+    expect(kept).toContain("garbage-a");
+  });
+
   it("never offers a hand the forced mat cannot fly", () => {
     const railgun: ShipLoadout = {
       forwardSlots: ["railgun"],
@@ -128,8 +178,9 @@ describe("botChooseLoadout", () => {
       interceptMission("p2"),
       interceptMission("p3", "intercept-p3"),
       deliverMission(ALPHA, BETA),
-      deliverMission(BETA, GAMMA),
-      surveyMission(),
+      surveyMission("survey-a"),
+      secondaryMission("board", "board-a"),
+      garbageMission("garbage-a"),
     ];
     const hands = validHands(offers, railgun);
     expect(hands.length).toBeGreaterThan(0);
@@ -251,9 +302,10 @@ describe("botChooseLoadout", () => {
       const offers = [
         interceptMission("p2"),
         deliverMission(ALPHA, BETA),
-        deliverMission(BETA, GAMMA),
-        deliverMission(GAMMA, ALPHA),
         destroyMission("p2"),
+        surveyMission("survey-a"),
+        secondaryMission("board", "board-a"),
+        garbageMission("garbage-a"),
       ];
       const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
       expect(choice.loadout).toEqual(RAILGUN);
@@ -269,8 +321,9 @@ describe("botChooseLoadout", () => {
         interceptMission("p2"),
         interceptMission("p3", "intercept-p3"),
         interceptMission("p4", "intercept-p4"),
-        deliverMission(ALPHA, BETA),
-        destroyMission("p2"),
+        surveyMission("survey-a"),
+        secondaryMission("board", "board-a"),
+        garbageMission("garbage-a"),
       ];
       const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
       expect(choice.loadout).not.toEqual(RAILGUN);
