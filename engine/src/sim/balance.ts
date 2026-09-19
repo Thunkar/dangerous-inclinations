@@ -22,10 +22,17 @@
  *   yarn balance --only=natural,baselines,logical
  *   yarn balance --only=logical:hunter_aggressive,offbook:missile_boat
  *   yarn balance --output=/tmp/balance  # writes balance.md and balance.json
+ *   yarn balance --rules=missionsToWin=4  # the same matrix under a proposed rule
  *
  * `--only=` takes section names (natural, baselines, logical, illogical,
  * offbook, extreme), full row ids (`illogical:hauler_tanky+destroy`) or a bare
  * row name (`turtle`).
+ *
+ * `--rules=` is the experiment-only channel of `sim/ruleOverrides.ts`: the
+ * whole matrix is played under it and the page stamps it under the title, so a
+ * proposed rule can be read against the same rows as the standing ones. Two
+ * pages are only comparable when they ran the same games, the same seeds and
+ * the same overrides.
  *
  * **Every forced row reports `stuck`**: the share of its games in which seat 1
  * really flew the forced hull and really kept the forced card. Both are
@@ -60,9 +67,15 @@ import { cpus } from "node:os";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ShipLoadout } from "../models/game.ts";
-import type { MissionType } from "../models/missions.ts";
+import { DEFAULT_POINTS_TO_WIN, type MissionType } from "../models/missions.ts";
 import { BOT_LOADOUT_TEMPLATES, type BotArchetype } from "../ai/behaviors/loadout.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
+import {
+  applyRuleOverrides,
+  describeRuleOverrides,
+  parseRuleOverrides,
+  type RuleOverrides,
+} from "./ruleOverrides.ts";
 import { handShapeOf, type PerGameStats, type PerPlayerStats } from "./stats.ts";
 
 const OUTLIER_MARGIN = 0.12;
@@ -324,6 +337,8 @@ interface Args {
   only?: Set<string>;
   output?: string;
   noFail: boolean;
+  /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
+  rules?: RuleOverrides;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -356,6 +371,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "output":
         args.output = value;
+        break;
+      case "rules":
+        args.rules = parseRuleOverrides(value);
         break;
       case "no-fail":
         args.noFail = true;
@@ -534,6 +552,9 @@ function renderForced(rows: ForcedRow[]): string[] {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  // In this process so the page's header stamps the live values; the workers
+  // that play the games get the same overrides with every job.
+  applyRuleOverrides(args.rules);
   const want = (id: string) => {
     if (!args.only) return true;
     const [section, name] = id.split(":");
@@ -545,6 +566,7 @@ async function main() {
     baseSeed: args.baseSeed,
     workers: args.workers,
     tiebreak: true,
+    rules: args.rules,
   };
   const started = Date.now();
   const log = (s: string) =>
@@ -598,9 +620,15 @@ async function main() {
 
   const lines: string[] = [];
   lines.push(`# Balance suite — ${new Date().toISOString().slice(0, 10)}`);
+  // A run under `--rules=` is not the standing matrix: say so where the reader
+  // looks first, or two pages get diffed as if they were the same suite.
+  if (describeRuleOverrides(args.rules)) {
+    lines.push("");
+    lines.push(`Experiment overrides: ${describeRuleOverrides(args.rules)}`);
+  }
   lines.push("");
   lines.push(
-    `${args.games} games per row, seeds ${args.baseSeed}+, turn cap 400, 3 players in every forced row, rules as in RULES.md.`
+    `${args.games} games per row, seeds ${args.baseSeed}+, turn cap 400, 3 players in every forced row, points to win ${args.rules?.missionsToWin ?? DEFAULT_POINTS_TO_WIN}.`
   );
   lines.push("");
   lines.push(
