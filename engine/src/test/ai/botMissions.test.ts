@@ -237,7 +237,7 @@ describe("bot fuel in port", () => {
 
   it("does not hold a berth it has already docked at once the tank is full", () => {
     // Docking resolved on arrival, so the berth has nothing left to give: with
-    // fuel aboard and an errand elsewhere, the bot leaves.
+    // fuel aboard and a mission elsewhere, the bot leaves.
     const state = inPort(10);
     const result = executeTurn(state, botDecideActions(viewFor(state, "p1")).actions);
     expect(result.errors).toBeUndefined();

@@ -95,7 +95,7 @@ export const BOARD_VIEWBOX = `${BOARD_BOUNDS.x} ${BOARD_BOUNDS.y} ${BOARD_BOUNDS
  * and four wells spread over a triangle 2652 units across leave each of them a
  * fifth of the height of the screen. But the whole board is not where the game
  * is: everyone deploys on black hole ring 4, every Home is in that sector, and a
- * ship is only ever elsewhere between errands. So both renderers open on the
+ * ship is only ever elsewhere between missions. So both renderers open on the
  * black hole's plate and a margin — near enough to read a sector number, far
  * enough to show the lane arcs leaving for all three planets — and the planets
  * sit off the edges until you go and look at them.

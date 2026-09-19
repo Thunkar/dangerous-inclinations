@@ -70,9 +70,9 @@ function readDraft(key: string, me: Player): Draft {
 }
 
 /**
- * Trim a restored draft to a hand the referee will take: one errand and two of
- * your own. A draft saved before the deal changed, or edited by hand, is not a
- * reason to hand the server something it must refuse.
+ * Trim a restored draft to a hand the referee will take: one primary mission
+ * and two of your own. A draft saved before the deal changed, or edited by
+ * hand, is not a reason to hand the server something it must refuse.
  */
 function legalHand(
   ids: string[],
@@ -136,11 +136,11 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   const blocked = !validation.valid
     ? validation.errors.join(' · ')
     : chosenPrimaries.length !== PRIMARIES_PER_PLAYER
-      ? `Take ${PRIMARIES_PER_PLAYER} of the errands.`
+      ? 'Take one primary mission.'
       : chosenSecondaries !== SECONDARIES_PER_PLAYER
         ? `Take ${SECONDARIES_PER_PLAYER} of your own, ${SECONDARIES_PER_PLAYER - chosenSecondaries} to go.`
         : gaps.length
-          ? `Fit ${[...new Set(gaps.flatMap(g => g.missing.map(r => `a ${r.label}`)))].join(' and ')}, or take a different errand.`
+          ? `Fit ${[...new Set(gaps.flatMap(g => g.missing.map(r => `a ${r.label}`)))].join(' and ')}, or take a different primary mission.`
           : null
 
   useEffect(() => {
@@ -180,7 +180,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
     }
   }
   /**
-   * Two piles, two decisions (RULES §Missions). Taking an errand swaps out the
+   * Two piles, two decisions (RULES §Missions). Taking a primary swaps out the
    * one you were holding, because there is only ever room for one; the second
    * list fills up and then waits for you to drop something.
    */
@@ -247,7 +247,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
       {pile(
         offers.filter(m => isPrimaryType(m.type)),
         PRIMARIES_PER_PLAYER,
-        'The errand',
+        'Primary mission',
         'Worth 2. Keep one — the mat you build should suit it.'
       )}
       {pile(

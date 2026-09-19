@@ -52,7 +52,7 @@ _Table time is the median game at the stated pace: rounds x seats player-turns. 
 | Deliver + Garbage/Garbage | 15 | 1% | 20% | 1.7 |
 | Deliver + Board/Garbage | 10 | 0% | 0% | 1 |
 
-_Every hand is one primary and two secondaries, which is 4 points exactly, so the row is the errand a seat took and what it took beside it. A hand nobody keeps is a plan the table never tested._
+_Every hand is one primary and two secondaries, which is 4 points exactly, so the row is the primary a seat took and what it took beside it. A hand nobody keeps is a plan the table never tested._
 
 ## Hulls the bots chose
 

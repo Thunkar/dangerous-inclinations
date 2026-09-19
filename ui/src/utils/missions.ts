@@ -3,7 +3,8 @@
  * (`describeMission`); everything here is the little line of progress printed
  * under it, and the family colour of the card.
  *
- * Four kinds of card: Destroy, Deliver, Intercept and Survey.
+ * Six kinds of card: the primaries Destroy, Deliver and Intercept, and the
+ * secondaries Survey, Board and Garbage Disposal.
  */
 import type { Cargo, Mission, MissionFamily } from '@dangerous-inclinations/engine'
 import {

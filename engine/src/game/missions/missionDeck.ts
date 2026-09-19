@@ -8,7 +8,7 @@
  *
  * **Why two piles.** A hand is one primary and two secondaries (RULES
  * §Missions), so each pile is dealt against the choice it carries: three
- * primaries to pick the errand from, three secondaries to pick two of. Mixing
+ * primaries to pick the primary mission from, three secondaries to pick two of. Mixing
  * them in one pile made the shape of a hand an accident of the shuffle, and
  * because primaries are most of the cards the accident nearly always fell the
  * same way.
@@ -100,7 +100,7 @@ export function buildPrimaryDeck(
         type: "intercept_transmission",
         targetOffset,
         // The station is printed on the card, so a copy of the same offset is
-        // still a different errand.
+        // still a different primary mission.
         deliveryPlanetId: planetIds[(targetOffset + copy) % planetIds.length],
       });
     }

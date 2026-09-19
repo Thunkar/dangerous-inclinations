@@ -35,7 +35,7 @@ export interface PerPlayerStats {
   hiddenTilesAtEnd: number;
   loadout: string;
   /**
-   * The errand this seat kept, and the secondaries beside it — "Destroy +
+   * The primary this seat kept, and the secondaries beside it — "Destroy +
    * Board/Survey". The shape of a hand is a rule now (one primary, two
    * secondaries), so the plan is which cards rather than how many of each, and
    * this is what says whether a rule change moved the plans or only the
@@ -100,7 +100,7 @@ const CARD_LABEL: Record<MissionType, string> = {
   garbage_disposal: "Garbage",
 };
 
-/** "Destroy + Board/Survey": the errand a seat took, and what it took beside it. */
+/** "Destroy + Board/Survey": the primary a seat took, and what it took beside it. */
 export function handShapeOf(missions: ReadonlyArray<{ type: MissionType }>): string {
   const label = (m: { type: MissionType }) => CARD_LABEL[m.type];
   const primaries = missions.filter((m) => MISSION_FAMILY[m.type] !== "secondary").map(label);

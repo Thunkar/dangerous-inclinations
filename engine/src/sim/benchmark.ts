@@ -335,7 +335,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push("");
   out.push(
     `_Every hand is one primary and two secondaries, which is ${MISSIONS_TO_WIN} points exactly, ` +
-      "so the row is the errand a seat took and what it took beside it. A hand nobody keeps is a " +
+      "so the row is the primary a seat took and what it took beside it. A hand nobody keeps is a " +
       "plan the table never tested._"
   );
   out.push("");

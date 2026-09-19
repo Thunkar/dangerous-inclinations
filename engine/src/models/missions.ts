@@ -1,8 +1,9 @@
 /**
  * Missions: secret objectives. First player to complete MISSIONS_TO_WIN wins.
  *
- * Four mission types:
- *   destroy_ship, deliver_cargo, intercept_transmission, survey
+ * Six mission types, in two kinds:
+ *   primaries (2 points): destroy_ship, deliver_cargo, intercept_transmission
+ *   secondaries (1 point): survey, board, garbage_disposal
  *
  * Completed missions are face-up: everyone can see them.
  */
@@ -26,7 +27,7 @@ import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
  * best: a lock-in wearing the costume of a choice.
  *
  * Splitting the decks fixes the shape and hands the choice back as content.
- * Every seat gets the same frame — one errand somebody set you, two things you
+ * Every seat gets the same frame — one primary somebody set you, two things you
  * do yourself — and picks inside it: the gap to the second-best hand halves.
  * The cost is the spare. One primary and two secondaries is four points on the
  * nose, so all three cards have to come in, and a hand is a chain rather than a
@@ -114,7 +115,7 @@ export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
   garbage_disposal: "secondary",
 };
 
-/** A card that scores two: the errand somebody else set you. */
+/** A card that scores two: the primary mission somebody else set you. */
 export function isPrimaryType(type: MissionType): boolean {
   return MISSION_FAMILY[type] !== "secondary";
 }
@@ -195,7 +196,7 @@ export interface DeliverCargoMission extends BaseMission {
  * The station is the card's, fixed when it is dealt. Filing anywhere made this
  * the cheapest two points on the table — a scan and then whatever dock the
  * route passed anyway — and it took over half of all winning cards (measured
- * 17 Sept 2026). Every two-point card is a named errand now.
+ * 17 Sept 2026). Every two-point card names what it wants now.
  */
 export interface InterceptTransmissionMission extends BaseMission {
   type: "intercept_transmission";

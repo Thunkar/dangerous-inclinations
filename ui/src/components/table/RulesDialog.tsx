@@ -99,7 +99,10 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
       'Survey',
       'two consecutive turns on Black Hole Ring 1 with sensors powered, then dock at the named planet',
     ],
-    ['Missions', 'Destroy · Deliver · Intercept · Survey'],
+    [
+      'Missions',
+      'Primaries (2 pts): Destroy · Deliver · Intercept — Secondaries (1 pt): Survey · Board · Garbage Disposal',
+    ],
     [
       'Win',
       `${MISSIONS_TO_WIN} points trigger the final round; when it ends, highest score wins (hull, then fuel, break ties). Destroy is worth 2, every other card 1`,
@@ -153,7 +156,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
           Public: positions, facing, hull, heat, the cubes on every slot, Home markers, cargo
           counts, face-up tiles, completed missions.
           <br />
-          Private: what a face-down tile is, the ammo in a face-down rack, missions in hand, where your cargo
+          Private: what a face-down tile is, the ammo in a face-down missiles tile, missions in hand, where your cargo
           is going.
           <br />
           <Box component="span" sx={{ color: TABLE.accent }}>

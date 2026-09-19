@@ -1,7 +1,7 @@
 /**
  * Goals. Each incomplete mission becomes a goal with a cheap turn estimate;
  * the cheapest (after urgency) is pursued and gets a real movement plan.
- * Four mission types, plus three standing goals that no card names:
+ * Six mission types, plus three standing goals that no card names:
  *
  *   destroy_ship               → hunt: get weapons on the target
  *   deliver_cargo              → dock at pickup, then at delivery
@@ -352,7 +352,7 @@ export function computeGoals(
   // A station the ship is already moored at is not a destination: docking
   // resolved the moment it arrived, and it keeps resolving every turn it
   // holds the berth. Sending it "there" would be a goal satisfied by sitting
-  // still, which is how a bot with no affordable errand left used to hold a
+  // still, which is how a bot with no affordable primary left used to hold a
   // berth for the rest of the game.
   const elsewhere = PLANETS.map((p) => p.id).filter((id) => !(status.moored && id === from.wellId));
 
