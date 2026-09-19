@@ -14,7 +14,16 @@ export type LoadoutOverrides = Partial<Record<BotArchetype, ShipLoadout>>;
 /** Hull forced on a given seat (`bot-1`…), whatever archetype its hand asks for. */
 export type SeatLoadouts = Record<string, ShipLoadout>;
 
-/** Seat id to the kind of primary its hand must lead with. */
+/**
+ * Seat id to the kind of primary its hand must lead with.
+ *
+ * The plan is **dealt, not filtered**: if the shuffle offered that seat no card
+ * of the kind asked for, `setupBotGame` swaps one of its primary offers for a
+ * printed card of that kind before the bot chooses (see `dealForcedPrimaries`
+ * in sim/runGame.ts), so the row measures the plan in every game rather than
+ * in the half of them the deal happened to serve. Experiment only — nothing
+ * outside the simulator passes this, and the server never touches a deal.
+ */
 export type SeatHands = Record<string, MissionType>;
 
 /**
@@ -23,7 +32,7 @@ export type SeatHands = Record<string, MissionType>;
  * which is the only way to measure a plan the bots price as second best.
  *
  * Every hand is one primary and two secondaries now (RULES §Missions), so the
- * shape is no longer a thing to force; which errand you are running is.
+ * shape is no longer a thing to force; which primary you are running is.
  */
 const PRIMARY_ALIASES: Record<string, MissionType> = {
   destroy: "destroy_ship",
@@ -40,9 +49,7 @@ export function parseSeatHands(text: string): SeatHands {
     const [seat, kind] = entry.split("=");
     const type = PRIMARY_ALIASES[(kind ?? "").trim()];
     if (!seat || !type) {
-      throw new Error(
-        `--hands: expected seat=<destroy|deliver|intercept>, got "${entry}"`
-      );
+      throw new Error(`--hands: expected seat=<destroy|deliver|intercept>, got "${entry}"`);
     }
     out[seat.trim()] = type;
   }

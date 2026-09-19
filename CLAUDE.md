@@ -117,7 +117,7 @@ yarn workspace @dangerous-inclinations/engine test --run
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --tiles=ballistic_rack.damage=3
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message
-yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural play + extreme hulls, flags outliers
+yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural, baselines, logical, illogical, off-book, extreme; flags
 yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
 node scripts/shot.mjs '/?showcase=1&seed=7&board=2d' shot.png   # photograph the running UI (needs `yarn dev`)
@@ -142,12 +142,24 @@ page can be diffed to see what a rule change actually did. Keep the games and
 seeds fixed between runs or the comparison is worthless. It is a description and
 never fails; the gate is below.
 
-Balance regression: `yarn balance` (engine) plays natural games at 2/3/4
-players and forces the presets plus sixteen extreme hulls on one seat, then
-prints one table and exits 1 on an `outlier` (a hull that wins outright 12+
-points more often than seat 1 does with its own hand), a `stall` (20%+ of games
-at the cap) or a `slow` natural row. Run it after any rule change; `--quick`
-for 40 games a row, `--output=dir` to keep the table.
+Balance regression: `yarn balance` (engine) answers the designer's four
+questions in six sections, every forced row at 3 players on seat 1: **natural**
+play at 3/2/4; **baselines** (seat 1 dealt Destroy, Deliver or Intercept with
+its own mat — the bar every row with that card is read against); **logical**
+(the six presets with the card their role implies); **illogical** (a preset
+with a card that fights it — sensor bow hauling, compressor hunting); **off-book**
+(builds no preset has, with the card they are built for: sensor bow with two
+launchers, a missile boat, a rack hunter, a hauler with point defence); and
+**extreme** (nineteen wild hulls with a random legal hand, against the own-hand
+bar). One table, one flag column. Failing flags: `outlier` (12+ points over its
+bar), `stall` (20%+ of games at the cap), `slow` (a natural row), `unpunished`
+(an illogical row not below its bar). Informational: `weak` (a preset 12+
+under its bar with its own card), `dead` (an off-book build 12+ under),
+`glass`, `bloody`, `diluted` (the forced hull stuck in under 90% of games; the
+row's other flags are suppressed). Run it after any rule change; `--quick` for
+40 games a row, `--games=200` for a number worth quoting, `--only=section` or
+row ids, `--output=dir` to keep the table. A forced primary is *dealt* to the
+seat, not filtered for, so a Destroy row is a Destroy row on every seed.
 
 Rule experiments: the rules are constants in `engine/src/models/`, not knobs on
 the state — a game is played under RULES.md and nothing else. A proposed change
@@ -155,8 +167,8 @@ is measured before it is adopted with the simulator's experiment-only override
 channels, which mutate the configuration of the process running the batch:
 `--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
 any tile), `--weapons=laser.damage=3` (firing stats), `--loadouts=` (the bots'
-hull templates), `--seats=` (a hull forced on one seat) and `--hands=bot-1=1`
-(how many two-point cards a seat keeps — the bots price one road to four points
+hull templates), `--seats=` (a hull forced on one seat) and `--hands=bot-1=destroy`
+(the primary a seat is dealt and keeps — the bots price one road to four points
 and take it every time, so a plan they never choose is only measurable dealt). The summary prints
 turn behaviour (coast/burn/jump/firing shares, shield cubes, heat at check,
 damage soaked). A change that survives its experiment moves into the models.

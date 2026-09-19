@@ -22,6 +22,8 @@ import {
   type SeatHands,
 } from "./loadoutOverrides.ts";
 import { createGame, submitLoadout } from "../game/setup.ts";
+import { assignMissionId, buildPrimaryDeck, cardForPlayer } from "../game/missions/missionDeck.ts";
+import { isPrimaryType } from "../models/missions.ts";
 import { rankPlayers } from "../game/missions/missionChecks.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
@@ -50,10 +52,10 @@ export interface GameConfig {
   /** Experiment-only: force a hull on a seat (`bot-1`…), whatever its hand asks for. */
   seatLoadouts?: SeatLoadouts;
   /**
-   * Experiment-only: force the shape of a seat's hand — how many of its cards
-   * are two-point primaries. The bots pick the cheapest road to four points
-   * and that road is the same shape every time, so a plan they never choose is
-   * only measurable by dealing it to them.
+   * Experiment-only: the primary a seat runs. The bots pick among the plans
+   * they are offered, so a plan they never choose is only measurable dealt —
+   * and dealt is what this is: a seat the shuffle did not serve has an offer
+   * swapped for the card (see {@link dealForcedPrimaries}).
    */
   seatHands?: SeatHands;
 }
@@ -112,6 +114,39 @@ export function botIds(count: number): string[] {
 }
 
 /**
+ * Experiment only (`--hands=`): make sure a seat told to run a plan was dealt
+ * the card for it.
+ *
+ * A bot can only keep what the deal put in front of it, and the primary pile
+ * does not offer every card to every seat — at three seats a hand is offered a
+ * Destroy 45% of the time and an Intercept 47%, so *filtering* a forced plan
+ * measured that plan in half the games and whatever else turned up in the rest.
+ * So the plan is dealt: a seat whose three primary offers hold no card of the
+ * forced type has its first primary offer replaced by a printed one that does,
+ * drawn from {@link buildPrimaryDeck} with the game's own RNG so a seed still
+ * replays exactly. Every other seat, and every seat the shuffle already
+ * served, keeps the deal it was given — a seed that needs no swap plays the
+ * same game it played before.
+ *
+ * This never reaches the server: nothing outside the simulator passes
+ * `seatHands`, and a dealt hand is the two printed piles and nothing else.
+ */
+function dealForcedPrimaries(state: GameState, botCount: number, seatHands: SeatHands): GameState {
+  for (const [seatId, type] of Object.entries(seatHands)) {
+    const seat = state.players.findIndex((p) => p.id === seatId);
+    if (seat === -1) continue;
+    const offers = state.players[seat].missionOffers;
+    if (offers.some((m) => m.type === type)) continue;
+    const printed = buildPrimaryDeck(botCount).filter((card) => card.type === type);
+    const slot = offers.findIndex((m) => isPrimaryType(m.type));
+    if (printed.length === 0 || slot === -1) continue;
+    const card = printed[pickIndex(state, printed)];
+    offers[slot] = assignMissionId(cardForPlayer(card, seat, state.players), `m-forced-${seatId}`);
+  }
+  return state;
+}
+
+/**
  * Create a game with `botCount` bots, run loadout and deployment through the
  * AI, and return the state in the active phase.
  */
@@ -125,6 +160,7 @@ export function setupBotGame(
     botIds(botCount).map((id, i) => ({ id, name: `Bot ${i + 1}` })),
     seed
   );
+  if (seatHands) state = dealForcedPrimaries(state, botCount, seatHands);
 
   for (const player of state.players) {
     // A forced hull is offered to the bot, not stapled on: the bot keeps cards
