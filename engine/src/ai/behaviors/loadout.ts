@@ -26,8 +26,8 @@ import {
  *
  * | Variant    | Spends its side slots on                                  |
  * |------------|-----------------------------------------------------------|
- * | tanky      | a second shield tile, and the one gun it needs for Destroy |
- * | aggressive | a second gun, and the radiator that volley needs           |
+ * | tanky      | two shield tiles, a radiator, and the one gun it needs for Destroy |
+ * | aggressive | a second gun in place of one of those shield tiles         |
  */
 export type BotRole = "interceptor" | "hunter" | "hauler";
 export type HullVariant = "tanky" | "aggressive";
@@ -46,17 +46,27 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  *
  * **Why the guns are paired.** A shield tile holds two cubes, absorbs two
  * damage a turn and is refilled for free next turn, so a lone 2-damage shot
- * never reaches a hull. The railgun's four is exactly two shield tiles: it
- * wants a partner on its own ring, and the ballistic rack is the only
- * broadside that fires there — which is why the aggressive hunter carries
- * both (4 + 2 = 6). Off the ring the laser is the gun that matters, since
- * shields are electromagnetic and do not stop it.
+ * never reaches a hull. The railgun's four is exactly two shield tiles, so it
+ * wants a partner, and which partner depends on where the fight is: a laser
+ * ignores shields — they are electromagnetic — and reaches two rings out, one
+ * further than a rack, while a ballistic rack is the only broadside that fires
+ * on the railgun's own ring, which is where the spinal shot puts the fight.
  *
- * **Why the aggressive mats carry a radiator.** Using a tile costs its energy
- * in heat, and heat over the dissipation is your own hull. Railgun plus
- * missiles is six against a dissipation of five; the radiator's +2 makes the
- * volley free. The full three-gun hunter volley is eight, one over even then:
- * firing everything is a decision, not a default.
+ * **Why neither hunter carries missiles.** Measured in duels against the
+ * strongest off-book hull — a compressor bow with two ballistic racks, a
+ * shield tile and a radiator — the missile-carrying hunter completed its
+ * Destroy 34% of the time: a powered rack rolls at every missile that reaches
+ * it, so a salvo aimed at the one mat built to answer it arrives as dice. The
+ * tanky hunter takes the rack instead and keeps both shield tiles, which also
+ * buys it the roll against somebody else's missiles; the aggressive one sells
+ * a shield tile for a second laser and fights a ring out, where the rack
+ * cannot reach and shields do not help.
+ *
+ * **Why every mat carries a radiator.** Using a tile costs its energy in heat,
+ * and heat over the dissipation is your own hull. The railgun plus one
+ * broadside is six against a dissipation of five; the radiator's +2 makes that
+ * pair free. The aggressive hunter's full three-gun volley is eight, one over
+ * even then: firing everything is a decision, not a default.
  */
 export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   "interceptor-tanky": {
@@ -69,11 +79,11 @@ export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   },
   "hunter-tanky": {
     forwardSlots: ["railgun"],
-    sideSlots: ["missiles", "radiator", "shields", "shields"],
+    sideSlots: ["ballistic_rack", "shields", "shields", "radiator"],
   },
   "hunter-aggressive": {
     forwardSlots: ["railgun"],
-    sideSlots: ["missiles", "radiator", "ballistic_rack", "shields"],
+    sideSlots: ["laser", "laser", "shields", "radiator"],
   },
   "hauler-tanky": {
     forwardSlots: ["fuel_compressor"],

@@ -248,13 +248,13 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         offers.filter(m => isPrimaryType(m.type)),
         PRIMARIES_PER_PLAYER,
         'Primary mission',
-        'Worth 2. Keep one — the mat you build should suit it.'
+        'Worth 2 of the 3 that win. Keep one — the mat you build should suit it.'
       )}
       {pile(
         offers.filter(m => !isPrimaryType(m.type)),
         SECONDARIES_PER_PLAYER,
         'Secondary missions',
-        'Worth 1 each. Keep two, and they must be different things to do.'
+        'Worth 1 each. Keep two different things to do: one of them finishes the win, the other is your spare.'
       )}
       {offers.length === 0 && (
         <Typography color="text.secondary">Waiting for the mission deal…</Typography>

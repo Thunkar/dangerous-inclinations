@@ -14,7 +14,7 @@
  *
  * | key                | reaches                                          |
  * |--------------------|--------------------------------------------------|
- * | missionsToWin      | MISSIONS_TO_WIN (default 4)                      |
+ * | missionsToWin      | MISSIONS_TO_WIN (default 3)                      |
  * | secondariesKept    | SECONDARIES_PER_PLAYER (default 2); the hand size follows |
  * | compressedJumpFuel | COMPRESSED_JUMP_MASS (default 0)                 |
  */

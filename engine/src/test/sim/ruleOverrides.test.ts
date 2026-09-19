@@ -86,15 +86,17 @@ describe("parseRuleOverrides", () => {
 });
 
 describe("missionsToWin", () => {
-  it("does not end a game at 3 points under the rules as they stand", () => {
-    const state = withPlayer(makeTwoPlayerGame(), "p1", { completedMissionCount: 3 });
+  // Three points win as the rules stand, so a seat holding one completed
+  // primary is a point short: the override is measured at two.
+  it("does not end a game at 2 points under the rules as they stand", () => {
+    const state = withPlayer(makeTwoPlayerGame(), "p1", { completedMissionCount: 2 });
     expect(checkForWinner(state)).toBeUndefined();
   });
 
-  it("triggers the final round at 3 points once the rule is overridden", () => {
-    const state = withPlayer(makeTwoPlayerGame(), "p1", { completedMissionCount: 3 });
-    applyRuleOverrides({ missionsToWin: 3 });
-    expect(MISSIONS_TO_WIN).toBe(3);
+  it("triggers the final round at 2 points once the rule is overridden", () => {
+    const state = withPlayer(makeTwoPlayerGame(), "p1", { completedMissionCount: 2 });
+    applyRuleOverrides({ missionsToWin: 2 });
+    expect(MISSIONS_TO_WIN).toBe(2);
     expect(checkForWinner(state)?.id).toBe("p1");
   });
 });

@@ -109,7 +109,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Win',
-      `${MISSIONS_TO_WIN} points trigger the final round; when it ends, highest score wins (hull, then fuel, break ties). Destroy is worth 2, every other card 1`,
+      `${MISSIONS_TO_WIN} points trigger the final round; when it ends, highest score wins (hull, then fuel, break ties). Your primary and either secondary is a win; two secondaries are not`,
     ],
   ]
 

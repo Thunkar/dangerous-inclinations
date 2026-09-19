@@ -30,7 +30,7 @@ function offense(plan: ActionPlan, situation: TacticalSituation): number {
     );
     if (missionTarget) score += 15;
   }
-  // Denial. A hit on a player one dock from their third card costs them the
+  // Denial. A hit on a player one dock from the win costs them the
   // cargo and the tempo, which is worth more than the same hit on someone
   // who has nothing aboard — with no Destroy card needed to collect it.
   score += plan.denialValue * DENIAL_SCALE;

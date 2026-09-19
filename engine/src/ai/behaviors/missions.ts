@@ -13,8 +13,8 @@
  *   nothing at all             → dock at the nearest station (repairs, cargo)
  *
  * Interdiction is the one goal that is not about the bot's own hand. A race
- * for three cards is also a race to stop whoever is ahead: a player two
- * cards down with a crate aboard is one dock from the win, and their route
+ * for three points is also a race to stop whoever is ahead: a player two
+ * points up with a crate aboard is one dock from the win, and their route
  * is public (see `danger.ts`). Shooting them there costs them the crate and
  * a turn whether or not anyone holds their Destroy card.
  */

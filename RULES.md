@@ -1,8 +1,8 @@
 # Dangerous Inclinations — Rules
 
-A game of orbital manoeuvre, heat management and hidden objectives for 2–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to four points from secret missions.
+A game of orbital manoeuvre, heat management and hidden objectives for 2–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
 
-**The game ends at the end of the round in which a player reaches 4 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the three secondary cards are worth 1 — so two primaries win, and so does one primary with both secondary cards you kept.
+**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the three secondary cards are worth 1 — so your primary and either of your secondary cards wins, and two secondary cards on their own do not.
 
 ---
 
@@ -205,13 +205,13 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 ## Missions
 
-**Four points trigger the final round.** Cards come in two kinds.
+**Three points trigger the final round.** Cards come in two kinds.
 
-**Primaries score two.** Destroy, Deliver, Intercept — the kill, the cargo run, the stolen transmission, one for each way of playing. Each names what it wants: a victim, a route, a station to file at. Two of them win the game.
+**Primaries score two.** Destroy, Deliver, Intercept — the kill, the cargo run, the stolen transmission, one for each way of playing. Each names what it wants: a victim, a route, a station to file at. Yours is two thirds of the win on its own.
 
 **Secondary cards score one.** Survey, Board, Garbage Disposal. Each is a thing you do rather than a primary someone sets you: no tile aboard can do it for you and nobody can block it. Survey and Board pay a chit — take it the moment you do the thing, then file it at **any** station. Garbage Disposal pays nothing to carry: the load is jettisoned and the card is done.
 
-**A hand is one primary and two secondaries** — two points and one and one, four exactly. There is no spare: all three have to come in. The round is played out; highest score wins, hull breaks ties.
+**A hand is one primary and two secondaries** — two points and one and one, five on the table for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
 
 | Card                                  | Points | Complete when                                                                                                                                                                                                                                |
 | ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -283,8 +283,8 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Hold             | one crate; data chits ride free                                                                  |
 | Ammo             | private while the missiles tile is face-down; public once it has fired                           |
 | Salvo            | one action launches any number of your missiles at one ship for the tile's 2 heat; a powered rack rolls at every missile that reaches it in a turn for its 2 heat |
-| Win              | 4 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel               |
-| Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries — four points exactly, no spare                     |
+| Win              | 3 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel               |
+| Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries — five points held, three win: the primary and either secondary |
 
 ### Turn cheat sheet
 

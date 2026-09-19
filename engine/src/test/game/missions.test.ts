@@ -599,28 +599,26 @@ describe("missions: secondary", () => {
 });
 
 describe("missions: winning", () => {
-  it("the third point starts the final round; the game ends when the round does", () => {
-    const done = [
-      { ...surveyMission("s"), acquired: true, isCompleted: true },
-      { ...destroyMission("p2", "t"), isCompleted: true },
-    ];
+  it("a primary on top of one secondary starts the final round; the game ends when the round does", () => {
+    // Three points win, and a hand holds five: the primary and either
+    // secondary is the win, so a seat with one chit filed wins on the kill.
+    const done = [{ ...surveyMission("s"), acquired: true, isCompleted: true }];
     let state = withShip(gunline(), "p2", { hitPoints: 4 });
     state = withPlayer(state, "p1", {
       missions: [...done, destroyMission("p2")],
-      completedMissionCount: 2,
+      completedMissionCount: 1,
     });
     // p1 (first seat) reaches 3: not over yet, p2 still gets this round's turn.
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
     expect(result.gameState.phase).toBe("active");
     expect(result.gameState.finalRound).toBe(true);
     expect(eventsOf(result.events, "final_round")).toEqual([
-      expect.objectContaining({ playerId: "p1", points: 4, turnsLeft: 1 }),
+      expect.objectContaining({ playerId: "p1", points: 3, turnsLeft: 1 }),
     ]);
     expect(eventsOf(result.events, "game_ended")).toEqual([]);
     expect(checkForWinner(result.gameState)?.id).toBe("p1");
     expect(completedMissions(getPlayer(result.gameState, "p1")).map((m) => m.id)).toEqual([
       "s",
-      "t",
       "destroy-p2",
     ]);
 
@@ -662,6 +660,8 @@ describe("missions: winning", () => {
     ]);
   });
 
+  // Three points win, so a primary on its own is one point short — and so are
+  // the two secondaries a hand keeps.
   it("two points do not end the game: a Destroy alone is not a win", () => {
     let state = withShip(gunline(), "p2", { hitPoints: 4 });
     state = withPlayer(state, "p1", {

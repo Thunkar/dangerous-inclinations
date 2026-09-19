@@ -368,8 +368,8 @@ export function firingOptions(
  *
  * Under the "mission" preference the order is: a ship a Destroy card names,
  * then the ship closest to winning the game (a hit on a player one dock from
- * their third card costs them cargo and a turn, which is worth more than the
- * same hit on a bystander), then whoever is weakest.
+ * the win costs them cargo and a turn, which is worth more than the same hit
+ * on a bystander), then whoever is weakest.
  */
 export function selectTarget(
   situation: TacticalSituation,

@@ -91,7 +91,10 @@ function dataChit(): Cargo {
   };
 }
 
-/** Every card but one face-up and a crate in the hold: one dock from the win. */
+/**
+ * A point short of the three that win, with a crate in the hold: the delivery
+ * is worth two, so the next dock ends the game.
+ */
 const ONE_FROM_WINNING = MISSIONS_TO_WIN - 1;
 
 function aboutToWin(state: GameState, playerId: string, cargo: Cargo[] = [crate(ALPHA, BETA)]) {
@@ -303,7 +306,7 @@ describe("interdiction goals", () => {
     expect(situation.currentGoal?.targetPlayerId).toBe("p2");
   });
 
-  it("keeps racing when it is closer to its own third card than they are to theirs", () => {
+  it("keeps racing when it is closer to its own last card than they are to theirs", () => {
     // Both are one dock from the win and both are orbiting Alpha, so the
     // public reading of the race is the trip out of this well: a crate cannot
     // be delivered where it was loaded, and the way out is Alpha's inbound

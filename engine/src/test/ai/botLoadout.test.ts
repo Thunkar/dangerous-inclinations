@@ -270,17 +270,19 @@ describe("botChooseLoadout", () => {
     // A shield tile eats two damage a turn and is refilled for free, so a
     // volley has to beat the cubes to reach a hull — and heat over the
     // dissipation is the bot's own hull. Every hull that shoots carries a
-    // radiator, and the railgun hull carries a second gun that can bear on
-    // its own ring, which a laser never can.
+    // radiator, and the railgun mats carry a second gun to pair with the bow.
     for (const [name, template] of Object.entries(BOT_LOADOUT_TEMPLATES)) {
       expect(template.sideSlots, name).toContain("radiator");
     }
-    // Only the railgun mats can pair a gun along their own ring; a laser cannot.
+    // The hunter's partner gun is a broadside that lands its damage: a rack on
+    // the railgun's own ring, a laser a ring further out. Never missiles — a
+    // powered rack rolls at every one of them (see loadout.ts).
     for (const name of ["hunter-tanky", "hunter-aggressive"] as const) {
       const hunter = BOT_LOADOUT_TEMPLATES[name];
       expect(hunter.forwardSlots, name).toEqual(["railgun"]);
+      expect(hunter.sideSlots, name).not.toContain("missiles");
       expect(
-        hunter.sideSlots.some((t) => t === "missiles" || t === "ballistic_rack"),
+        hunter.sideSlots.some((t) => t === "laser" || t === "ballistic_rack"),
         name
       ).toBe(true);
     }

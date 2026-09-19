@@ -1,5 +1,5 @@
 /**
- * Threat-to-win: how close every other player is to their third card, read
+ * Threat-to-win: how close every other player is to the three points, read
  * from public information only, and where to stand to stop them.
  *
  * A race for three secret objectives has a second source of value besides
@@ -10,7 +10,7 @@
  *
  * | Public fact                  | What it says                                   |
  * |------------------------------|------------------------------------------------|
- * | `completedMissionCount` = 2  | one card from the win                          |
+ * | `completedMissionCount` = 2  | one card from the win, whichever card it is    |
  * | `cargoAboard.crates` > 0     | a Deliver is in progress; it ends at a station  |
  * | `cargoAboard.data` > 0       | an Intercept or Survey chit, deliverable at any station |
  * | the well they are in         | a crate cannot be delivered where it was loaded |

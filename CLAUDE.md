@@ -51,16 +51,17 @@ loaded, ships are repaired and data is delivered.
 Loadout tiles (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
 Scanning peeks at one tile privately. Completed missions are face-up. Reaching
-4 points triggers the final round: the round is played out, then highest score
+3 points triggers the final round: the round is played out, then highest score
 wins (hull, then fuel, break ties). Six card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, board,
 garbage disposal). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
 is hunting whom; setup removes offsets the table is too small for. Deal 3
 primaries and keep 1; take one off each of the three secondary stacks and keep
-2 — four points exactly, with no spare, so all three cards have to come in. The
-secondary offer is the same for everyone, so those three have to be worth
-roughly the same or the choice is fake.
+2 — five points held and three win, so the primary plus either secondary is the
+win and the other secondary is the spare. The secondary offer is the same for
+everyone, so those three have to be worth roughly the same or the choice is
+fake.
 New mission types are proposed to the designer, never added unasked.
 
 Missiles fire in **salvos**: one action launches any number of a tile's missiles
@@ -178,7 +179,7 @@ any tile), `--weapons=laser.damage=3` (firing stats),
 win, the shape of a hand, what a compressed jump costs — `yarn bench --rules=`
 takes it too and stamps it on the page), `--loadouts=` (the bots'
 hull templates), `--seats=` (a hull forced on one seat) and `--hands=bot-1=destroy`
-(the primary a seat is dealt and keeps — the bots price one road to four points
+(the primary a seat is dealt and keeps — the bots price one road to the win
 and take it every time, so a plan they never choose is only measurable dealt). The summary prints
 turn behaviour (coast/burn/jump/firing shares, shield cubes, heat at check,
 damage soaked). A change that survives its experiment moves into the models.
