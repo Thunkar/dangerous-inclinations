@@ -14,6 +14,7 @@ import {
   SHIELD_ENERGY_PER_POINT,
   SHIELD_HEAT_PER_POINT,
   getMissileStats,
+  getSubsystemConfig,
   getWellName,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -86,11 +87,15 @@ export function StatusBlock({ accent }: { accent?: string }) {
    * flying at you in this well. Never fewer than one: a launcher within reach
    * can put a round in the air before your next check. Counted unless the plan
    * already fires the rack this turn, in which case its heat is in `heatAfter`.
+   * Under the experiment that charges the rack once a turn, one roll is the
+   * whole worst case.
    */
   const incoming = view.missiles.filter(
     m => m.targetId === me.id && m.wellId === me.ship.wellId
   ).length
-  const rackRolls = Math.max(1, incoming)
+  const perRollHeat =
+    getSubsystemConfig('ballistic_rack').weaponStats?.heatPerIntercept !== false
+  const rackRolls = perRollHeat ? Math.max(1, incoming) : 1
   const rackHeat = pending
     .filter(
       s =>

@@ -109,6 +109,18 @@ export interface WeaponStats {
   maxAmmo?: number; // Ammunition-based weapons
   fuelPerTurn?: number; // Guided projectiles: steps per move
   maxMoves?: number; // Guided projectiles: moves before expiry
+  /**
+   * How a salvo is charged heat. True is the rule (RULES §Weapons): every
+   * missile of a salvo costs the tile's cubes. False is the experiment — the
+   * tile is used once and charged once, however many rounds leave the rail.
+   */
+  heatPerMissile?: boolean;
+  /**
+   * How point defence is charged heat. True is the rule (RULES §Weapons): the
+   * rack pays its cubes at every missile it rolls at. False is the experiment
+   * — only the first roll of a player-turn costs cubes, the rest are free.
+   */
+  heatPerIntercept?: boolean;
 }
 
 /** Passive bonuses that need no energy. */
@@ -279,6 +291,9 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       maxAmmo: 4,
       fuelPerTurn: 3,
       maxMoves: 3,
+      // The rule: a salvo pays the tile's cubes once per missile. The flag is
+      // an experiment channel for the simulator, never a knob on a game.
+      heatPerMissile: true,
     },
   },
 
@@ -296,6 +311,9 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       arc: "broadside",
       sideRestricted: false,
       canTargetSameRing: true,
+      // The rule: the rack pays its cubes at every missile it rolls at. The
+      // flag is an experiment channel for the simulator, never a knob on a game.
+      heatPerIntercept: true,
     },
   },
 };

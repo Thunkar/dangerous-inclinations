@@ -704,8 +704,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           if (!weapon || !isWeaponType(weapon.type)) break
           const config = getSubsystemConfig(weapon.type)
           // A salvo pays the tile's cubes once per missile (RULES §Weapons →
-          // Missiles), so how big the launch is, is how hot the turn runs.
-          const salvo = weapon.type === 'missiles' ? Math.max(1, step.count) : 1
+          // Missiles), so how big the launch is, is how hot the turn runs —
+          // unless the experiment flag charges the tile once for the launch.
+          const perMissileHeat =
+            getSubsystemConfig('missiles').weaponStats?.heatPerMissile !== false
+          const salvo =
+            weapon.type === 'missiles' && perMissileHeat ? Math.max(1, step.count) : 1
           if (weapon.isBroken) problems.push(`${config.name} is broken`)
           else if (!weapon.isPowered)
             problems.push(`${config.name} needs ${config.minEnergy} energy to fire`)

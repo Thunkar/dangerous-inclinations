@@ -40,6 +40,8 @@ const WEAPON_FIELDS: ReadonlySet<string> = new Set<keyof WeaponStats>([
   "maxAmmo",
   "fuelPerTurn",
   "maxMoves",
+  "heatPerMissile",
+  "heatPerIntercept",
 ]);
 const CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof SubsystemConfig>([
   "name",

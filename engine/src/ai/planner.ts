@@ -40,6 +40,7 @@ import {
   destroyTargetIds,
   firingOptions,
   isWeaponReady,
+  salvoHeat,
   selectTarget,
   weaponRangeTarget,
   hullThrough,
@@ -270,7 +271,8 @@ export function buildCandidate(
   const fired = new Set<string>();
   /**
    * A salvo of `count` rounds off the same tile: the cubes are unchanged, the
-   * damage and the heat are per missile.
+   * damage is per missile and the heat is whatever the tile charges for a
+   * launch that size.
    */
   const sized = (intent: FireIntent, count: number): FireIntent =>
     count === intent.count
@@ -279,7 +281,7 @@ export function buildCandidate(
           ...intent,
           count,
           damage: (intent.damage / intent.count) * count,
-          heat: (intent.heat / intent.count) * count,
+          heat: salvoHeat(intent.weapon, count),
         };
   for (const { opponent, intent: offered } of queue) {
     if (fired.has(offered.weapon.id)) continue;

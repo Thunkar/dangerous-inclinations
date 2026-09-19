@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { OPENING_ROUNDS, FIRST_TURN } from "../../models/game.ts";
 import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game/missiles.ts";
 import { processActions } from "../../game/actionProcessors.ts";
-import { getMissileStats } from "../../models/subsystems.ts";
+import { SUBSYSTEM_CONFIGS, getMissileStats } from "../../models/subsystems.ts";
 import type { GameState, Missile, PlayerAction, ShipLoadout } from "../../models/game.ts";
 import {
   ALPHA,
@@ -519,5 +519,63 @@ describe("missiles: through executeTurn", () => {
       cause: "missile",
     });
     expect(eventsOf(result.events, "cargo_dropped")).toEqual([]); // nothing carried
+  });
+});
+
+describe("missiles: the heat experiment channels", () => {
+  const missileStats = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
+  const rackStats = SUBSYSTEM_CONFIGS.ballistic_rack.weaponStats!;
+  const rule = {
+    heatPerMissile: missileStats.heatPerMissile,
+    heatPerIntercept: rackStats.heatPerIntercept,
+  };
+  afterEach(() => {
+    missileStats.heatPerMissile = rule.heatPerMissile;
+    rackStats.heatPerIntercept = rule.heatPerIntercept;
+  });
+
+  it.each([
+    [true, 6],
+    [false, 2],
+  ])("with heatPerMissile %s a salvo of three costs %i heat", (flag, expected) => {
+    missileStats.heatPerMissile = flag;
+    const processed = processActions(launcher(), [
+      { ...fire(1, "side-3", "p2", undefined, undefined, 3), playerId: "p1" } as PlayerAction,
+    ]);
+    expect(processed.success).toBe(true);
+    expect(processed.state.missiles).toHaveLength(3);
+    expect(getShip(processed.state, "p1").heat.currentHeat).toBe(expected);
+    expect(eventsOf(processed.events as never, "weapon_fired")[0]).toMatchObject({
+      count: 3,
+      heat: expected,
+    });
+  });
+
+  it.each([
+    [true, 6],
+    [false, 2],
+  ])("with heatPerIntercept %s three rolls cost %i heat", (flag, expected) => {
+    rackStats.heatPerIntercept = flag;
+    const onTarget = missileAt(
+      makeTwoPlayerGame({}, { ring: 5, sector: 13, loadout: RACK }),
+      5,
+      12
+    );
+    const salvo: GameState = {
+      ...onTarget,
+      forcedRollValue: 5,
+      missiles: Array.from({ length: 3 }, (_, i) => ({ ...onTarget.missiles[0], id: `m-${i + 1}` })),
+    };
+    const result = processOwnerMissiles(withPower(salvo, "p2", "side-0", 2), "p1");
+    const intercepts = eventsOf(result.events as never, "missile_intercepted");
+    expect(intercepts).toHaveLength(3);
+    expect(intercepts.every((e) => e.destroyed)).toBe(true);
+    expect(result.state.missiles).toEqual([]);
+    expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
+    expect(getShip(result.state, "p2")).toMatchObject({
+      hitPoints: 10,
+      heat: { currentHeat: expected },
+    });
+    expect(intercepts.reduce((sum, e) => sum + e.heat, 0)).toBe(expected);
   });
 });

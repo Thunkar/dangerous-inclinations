@@ -19,7 +19,7 @@
  */
 import type { GameState, Missile, Player, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { getMissileStats } from "../models/subsystems.ts";
+import { getMissileStats, getSubsystemConfig } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import { rollD10, nextEntityId } from "../utils/rng.ts";
 import {
@@ -181,9 +181,19 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       (s) => s.type === "ballistic_rack" && s.isPowered && !s.isBroken
     );
     if (rack) {
-      const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");
-      targetShip = used.ship;
-      events.push(...used.events);
+      // `heatPerIntercept: false` is the experiment where only the rack's
+      // first roll of a player-turn costs its cubes and the rest are free; the
+      // flag is true in the rules, so every roll is charged and revealing.
+      const chargeThisRoll =
+        getSubsystemConfig("ballistic_rack").weaponStats?.heatPerIntercept !== false ||
+        !rack.usedThisTurn;
+      let heat = 0;
+      if (chargeThisRoll) {
+        const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");
+        targetShip = used.ship;
+        heat = used.heat;
+        events.push(...used.events);
+      }
       const roll = rollD10(state);
       const destroyed = roll >= 2;
       events.push({
@@ -193,7 +203,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
         targetId: target.id,
         roll,
         destroyed,
-        heat: used.heat,
+        heat,
       });
       if (destroyed) {
         players[targetIndex] = { ...target, ship: targetShip };

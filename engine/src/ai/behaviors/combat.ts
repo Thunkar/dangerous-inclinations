@@ -65,6 +65,16 @@ export function weaponEnergy(weapon: Subsystem): number {
 }
 
 /**
+ * Heat a salvo of `count` rounds off `weapon` costs: the tile's cubes once per
+ * missile under the rule, once for the whole launch under the experiment
+ * (`--tiles=missiles.heatPerMissile=false`).
+ */
+export function salvoHeat(weapon: Subsystem, count: number): number {
+  const perMissile = getSubsystemConfig(weapon.type).weaponStats?.heatPerMissile !== false;
+  return weaponEnergy(weapon) * (perMissile ? count : 1);
+}
+
+/**
  * Everything one tile could put on a ship in a single action. A missiles tile
  * may empty its magazine at one target in one launch, so its potential is the
  * whole magazine — a bot that priced it at one round would never see that its
@@ -327,7 +337,7 @@ export function firingOptions(
         phase,
         damage: damage * ammo,
         shielded,
-        heat: energy * ammo,
+        heat: salvoHeat(weapon, ammo),
         energy,
         count: ammo,
       });
