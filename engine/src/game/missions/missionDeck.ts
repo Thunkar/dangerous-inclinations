@@ -214,20 +214,57 @@ export function dealMissionOffers(
 ): Map<string, Mission[]> {
   const offers = new Map<string, Mission[]>(players.map((p) => [p.id, []]));
   let next = 0;
-  const deal = (deck: DeckCard[], rounds: number) => {
+  const deal = (deck: DeckCard[], rounds: number, fix?: (dealt: DeckCard[][]) => void) => {
+    const hands: DeckCard[][] = players.map(() => []);
     let onTop = 0;
     for (let round = 0; round < rounds; round++) {
-      players.forEach((player, seat) => {
+      players.forEach((_player, seat) => {
         const card = deck[onTop++];
-        if (!card) return;
+        if (card) hands[seat].push(card);
+      });
+    }
+    fix?.(hands);
+    players.forEach((player, seat) => {
+      for (const card of hands[seat]) {
         offers
           .get(player.id)!
           .push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
-      });
-    }
+      }
+    });
+    return onTop;
   };
+
   deal(rng.shuffle(buildPrimaryDeck(players.length, planetIds)), PRIMARY_OFFERS_PER_PLAYER);
-  deal(rng.shuffle(buildSecondaryDeck()), SECONDARY_OFFERS_PER_PLAYER);
+
+  /**
+   * The secondaries are not a pile you cut into — they are three stacks, one
+   * per kind, and every player takes one off each. A hand keeps two of them
+   * and they have to differ, so dealing three of a kind would be dealing a
+   * seat no choice at all; at six seats the pile is exactly consumed, so there
+   * is nothing left to redraw from and a "draw again" rule has a hole in it
+   * precisely where the table is fullest.
+   *
+   * Taking one of each closes that by construction, needs no redraw and no
+   * deck sized to the player count, and is one sentence at the table. The
+   * price is that everybody is offered the same three, so the choice is which
+   * one to leave rather than what turned up — and the three had better be
+   * worth roughly the same, or it is not a choice.
+   */
+  const stacks = new Map<string, DeckCard[]>();
+  for (const card of buildSecondaryDeck()) {
+    const stack = stacks.get(card.type) ?? [];
+    stack.push(card);
+    stacks.set(card.type, stack);
+  }
+  // One stack per kind, and a seat takes one off each of them.
+  for (const stack of [...stacks.values()].slice(0, SECONDARY_OFFERS_PER_PLAYER)) {
+    const shuffled = rng.shuffle(stack);
+    players.forEach((player, seat) => {
+      const card = shuffled[seat];
+      if (!card) return;
+      offers.get(player.id)!.push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
+    });
+  }
   return offers;
 }
 
@@ -255,6 +292,12 @@ export function selectMissionsFromOffers(
     return fail(
       `A hand is ${PRIMARIES_PER_PLAYER} primary and ${SECONDARIES_PER_PLAYER} secondaries (got ${primaries} primary)`
     );
+  }
+  // Two of the same secondary is one plan done twice: the pair has to differ,
+  // so the second choice is a different thing to go and do.
+  const secondaries = missions.filter((m) => !isPrimaryType(m.type));
+  if (new Set(secondaries.map((m) => m.type)).size !== secondaries.length) {
+    return fail("Your two secondaries must be different cards");
   }
   return { missions, cargo: cratesForMissions(missions) };
 }

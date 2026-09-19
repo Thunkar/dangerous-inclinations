@@ -55,8 +55,10 @@ worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, board
 garbage disposal). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
 is hunting whom; setup removes offsets the table is too small for. Deal 3
-primaries and keep 1, deal 3 secondaries and keep 2 — four points exactly, with
-no spare, so all three cards have to come in.
+primaries and keep 1; take one off each of the three secondary stacks and keep
+2 — four points exactly, with no spare, so all three cards have to come in. The
+secondary offer is the same for everyone, so those three have to be worth
+roughly the same or the choice is fake.
 New mission types are proposed to the designer, never added unasked.
 
 Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate,

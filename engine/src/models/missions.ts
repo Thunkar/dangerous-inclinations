@@ -37,7 +37,11 @@ export const MISSIONS_TO_WIN = 4;
 /** Dealt from the primary deck, and kept from that deal. */
 export const PRIMARY_OFFERS_PER_PLAYER = 3;
 export const PRIMARIES_PER_PLAYER = 1;
-/** Dealt from the secondary deck, and kept from that deal. */
+/**
+ * Dealt from the secondary stacks, and kept from that deal. The offer is one
+ * card of each kind, so this is the number of kinds — keep it in step with
+ * {@link SECONDARY_MISSION_TYPES} plus Garbage Disposal.
+ */
 export const SECONDARY_OFFERS_PER_PLAYER = 3;
 export const SECONDARIES_PER_PLAYER = 2;
 

@@ -195,10 +195,13 @@ await games.createGame(GAME_ID, SPECS, [HUMAN], SEED);
 const loadoutView = await games.getView(GAME_ID, HUMAN);
 if (!loadoutView?.me) fail("no view for the human after createGame");
 check(loadoutView.phase === "loadout", "game starts in the loadout phase");
-/** The first primary offered and the first two secondaries: a legal hand. */
+/** One primary and two secondaries of different kinds: a legal hand. */
 function handFrom(cards: ReadonlyArray<{ id: string; type: MissionType }>): string[] {
   const primary = cards.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER);
-  const secondaries = cards.filter((m) => !isPrimaryType(m.type)).slice(0, SECONDARIES_PER_PLAYER);
+  const seen = new Set<string>();
+  const secondaries = cards
+    .filter((m) => !isPrimaryType(m.type) && !seen.has(m.type) && seen.add(m.type))
+    .slice(0, SECONDARIES_PER_PLAYER);
   return [...primary, ...secondaries].map((m) => m.id);
 }
 

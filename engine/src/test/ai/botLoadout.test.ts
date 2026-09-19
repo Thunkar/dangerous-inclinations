@@ -104,27 +104,44 @@ describe("botChooseLoadout", () => {
     // The bot does not score the primary: every hand the mat could fly is
     // valid, and which one it takes is the seeded pick. Measuring which plan
     // wins is the benchmark's job, not the chooser's.
+    // No Deliver here, so no hand is a hold clash and every one stays on the
+    // table — the pairing rule is covered by its own test above.
     const offers: Mission[] = [
       destroyMission("p2"),
       interceptMission("p3"),
-      deliverMission(ALPHA, BETA),
+      interceptMission("p4", "intercept-p4"),
       surveyMission("survey-a"),
-      surveyMission("survey-b"),
       secondaryMission("board", "board-a"),
+      garbageMission("garbage-a"),
     ];
     const hands = validHands(offers);
-    // Three primaries, and three ways to take two of the three secondaries.
+    // Three primaries, and three ways to take two of three distinct secondaries.
     expect(hands).toHaveLength(9);
 
     const seen = new Set(
       hands.map((_, i) =>
-        botChooseLoadout(offers, { playerCount: 3, pick: () => i })
+        botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n })
           .missionIds.slice()
           .sort()
           .join(",")
       )
     );
     expect(seen.size).toBe(hands.length);
+  });
+
+  it("never pairs a secondary with another of its own kind", () => {
+    const offers: Mission[] = [
+      deliverMission(ALPHA, BETA),
+      surveyMission("survey-a"),
+      surveyMission("survey-b"),
+      secondaryMission("board", "board-a"),
+    ];
+    const hands = validHands(offers);
+    expect(hands.length).toBeGreaterThan(0);
+    for (const hand of hands) {
+      const kinds = hand.filter((m) => !isPrimaryType(m.type)).map((m) => m.type);
+      expect(new Set(kinds).size).toBe(kinds.length);
+    }
   });
 
   it("every hand it keeps is one primary and two secondaries", () => {

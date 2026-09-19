@@ -136,12 +136,13 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  * primary is exactly the one a scorer would drop and the one the designer needs
  * numbers for. So the spread stays.
  *
- * **The secondaries are not chosen at random**, because one pairing is refused
- * by a rule rather than by taste: a load of garbage fills the hold and so does
- * a delivery crate ({@link CARGO_HOLD_CRATES} is 1), so Deliver with Garbage
- * Disposal is two trips where the other pairings are one. That is the engine's
- * own arithmetic, not an opinion about balance, so the bot avoids it when the
- * deal offers anything else.
+ * **The secondaries are not chosen at random.** Two of them have to be
+ * different cards, which the deal guarantees is possible, and one surviving
+ * pairing is refused by a rule rather than by taste: a load of garbage fills
+ * the hold and so does a delivery crate ({@link CARGO_HOLD_CRATES} is 1), so
+ * Deliver with Garbage Disposal is two trips where the other pairings are one.
+ * That is the engine's own arithmetic, not an opinion about balance, so the bot
+ * avoids it when the deal offers anything else.
  *
  * @param pick chooses among the hands on offer; wire it to the game's seeded
  *   RNG so a seed replays exactly. Without one the first hand is taken, which
@@ -206,6 +207,8 @@ export function validHands(
     if (primary !== undefined && lead.type !== primary) continue;
     for (let i = 0; i < secondaries.length; i++) {
       for (let j = i + 1; j < secondaries.length; j++) {
+        // The pair has to be two different things to do (RULES §Missions).
+        if (secondaries[i].type === secondaries[j].type) continue;
         const hand = [lead, secondaries[i], secondaries[j]];
         if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) continue;
         hands.push(hand);

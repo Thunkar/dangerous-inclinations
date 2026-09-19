@@ -226,9 +226,11 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 The **primary pile** is two copies of every errand: each Destroy and Intercept offset (below), and all six Deliver routes. **Setup:** take out every Destroy and Intercept whose number is the player count or higher — at three players that leaves offsets 1 and 2. More seats leave more of it pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
 
-The **secondary pile** is six copies each of Survey, Board and Garbage Disposal. It names no rival and no route, so it is the same pile at every table size; eighteen cards is what a full table needs to be dealt three each.
+The **secondaries** are three stacks, one per card: six copies each of Survey, Board and Garbage Disposal. They name no rival and no route, so they are the same stacks at every table size.
 
-**The deal.** Three primaries to each player, who keeps **one**. Three secondaries to each player, who keeps **two**. The rest go back face-down. Both decisions are real and neither is the shape of your hand: everyone plays one errand and two things of their own, and what changes is which.
+**The deal.** Shuffle the primary pile and deal **three** to each player, who keeps **one**. Then each player takes **one card off each secondary stack** and keeps **two** of the three. The rest go back face-down.
+
+So the errand is the luck of the draw and the two things you do yourself are a straight choice: everyone is offered all three, and what you decide is which one to leave. Neither decision is the shape of your hand — every hand is one errand and two of your own — and what changes is which.
 
 **Cards count seats, they do not name them.** A Destroy card reads *the 2nd player to your left* — counting left around the table in turn order — so the same card is a different target in every hand, no card can ever name the player holding it, and holding one tells the table nothing. The count only becomes a name when you complete the card and turn it face-up.
 
@@ -281,7 +283,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Hold             | one crate; data chits ride free                                                                  |
 | Ammo             | private while the missiles tile is face-down; public once it has fired                           |
 | Win              | 4 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel               |
-| Hand             | 1 primary of 3 dealt, 2 secondaries of 3 dealt — four points exactly, no spare                   |
+| Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries — four points exactly, no spare                     |
 
 ### Turn cheat sheet
 

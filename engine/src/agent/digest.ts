@@ -35,7 +35,7 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
 
 /** The rules an agent needs at hand, in the words of RULES.md, kept short. */
 export const AGENT_RULES_DIGEST = `RULES IN BRIEF
-- Win: the round in which someone reaches ${MISSIONS_TO_WIN} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is ONE primary and TWO secondaries, which is ${MISSIONS_TO_WIN} exactly: all three must be completed, there is no spare.
+- Win: the round in which someone reaches ${MISSIONS_TO_WIN} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is ${MISSIONS_TO_WIN} exactly: all three must be completed, there is no spare.
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
 - Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.

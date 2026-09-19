@@ -52,11 +52,14 @@ const SPECS = [
   { id: "p2", name: "Bo" },
 ];
 
-/** A legal hand: the first primary offered and the first two secondaries. */
+/** A legal hand: one primary, and two secondaries of different kinds. */
 const pickHand = (state: GameState, playerId: string) => {
   const offers = getPlayer(state, playerId).missionOffers;
   const primary = offers.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER);
-  const secondaries = offers.filter((m) => !isPrimaryType(m.type)).slice(0, SECONDARIES_PER_PLAYER);
+  const seen = new Set<string>();
+  const secondaries = offers
+    .filter((m) => !isPrimaryType(m.type) && !seen.has(m.type) && seen.add(m.type))
+    .slice(0, SECONDARIES_PER_PLAYER);
   return [...primary, ...secondaries].map((m) => m.id);
 };
 
@@ -66,7 +69,7 @@ const pickHand = (state: GameState, playerId: string) => {
  * with another Deliver would make the hand itself illegal.
  */
 const padHand = (cards: Mission[]): Mission[] => {
-  const filler: SecondaryMissionType[] = ["survey", "board"];
+  const filler: SecondaryMissionType[] = ["survey", "board"]; // two kinds: a pair must differ
   const padded = [...cards];
   for (let i = 0; padded.length < MISSIONS_PER_PLAYER; i++) {
     padded.push(secondaryMission(filler[i % filler.length], `pad-${i}`));
@@ -169,7 +172,10 @@ describe("setup: submitLoadout", () => {
     expect(p1.missions.map((m) => m.id)).toEqual(ids);
     expect(p1.ship.subsystems.find((s) => s.id === "forward-0")?.type).toBe("sensor_array");
     expect(p1.ship.subsystems.find((s) => s.id === "side-3")?.type).toBe("ballistic_rack");
-    expect(p1.cargo).toHaveLength(p1.missions.filter((m) => m.type === "deliver_cargo").length);
+    // A crate per Deliver, and a load of garbage is a crate too.
+    expect(p1.cargo).toHaveLength(
+      p1.missions.filter((m) => m.type === "deliver_cargo" || m.type === "garbage_disposal").length
+    );
     expect(state.phase).toBe("loadout");
     expect(getPlayer(state, "p2").hasSubmittedLoadout).toBe(false);
   });

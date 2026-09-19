@@ -80,7 +80,12 @@ function legalHand(ids: string[], offers: ReadonlyArray<{ id: string; type: Miss
       const card = offers.find(m => m.id === id)
       return card !== undefined && isPrimaryType(card.type) === primary
     })
-  return [...of(true).slice(0, PRIMARIES_PER_PLAYER), ...of(false).slice(0, SECONDARIES_PER_PLAYER)]
+  const seen = new Set<string>()
+  const secondaries = of(false).filter(id => {
+    const type = offers.find(m => m.id === id)!.type
+    return !seen.has(type) && seen.add(type)
+  })
+  return [...of(true).slice(0, PRIMARIES_PER_PLAYER), ...secondaries.slice(0, SECONDARIES_PER_PLAYER)]
 }
 
 export function LoadoutScreen({ headerRight }: { headerRight?: ReactNode }) {
@@ -206,12 +211,17 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
                 disabled
                   ? undefined
                   : () => {
-                      const mine = cards.filter(c => missionIds.includes(c.id)).map(c => c.id)
-                      const others = missionIds.filter(id => !mine.includes(id))
+                      const mine = cards.filter(c => missionIds.includes(c.id))
+                      const others = missionIds.filter(id => !mine.some(c => c.id === id))
+                      const ids = mine.map(c => c.id)
                       let next: string[]
-                      if (mine.includes(m.id)) next = mine.filter(id => id !== m.id)
+                      if (ids.includes(m.id)) next = ids.filter(id => id !== m.id)
                       else if (keep === 1) next = [m.id]
-                      else if (mine.length < keep) next = [...mine, m.id]
+                      // Two of the same secondary is one plan done twice: the
+                      // new card takes the place of the one of its own kind.
+                      else if (mine.some(c => c.type === m.type))
+                        next = [...ids.filter(id => id !== mine.find(c => c.type === m.type)!.id), m.id]
+                      else if (ids.length < keep) next = [...ids, m.id]
                       else return
                       patch({ missionIds: [...others, ...next] })
                     }
@@ -235,7 +245,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         offers.filter(m => !isPrimaryType(m.type)),
         SECONDARIES_PER_PLAYER,
         'Your own',
-        'Worth 1 each. Keep two — nothing aboard is needed for these.'
+        'Worth 1 each. Keep two, and they must be different things to do.'
       )}
       {offers.length === 0 && (
         <Typography color="text.secondary">Waiting for the mission deal…</Typography>
