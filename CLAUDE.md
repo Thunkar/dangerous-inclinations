@@ -241,25 +241,49 @@ not an argument:
   differs is *which* primaries — Deliver is 32–46% of the deck and completes
   17% of the time against Destroy's 56% — so a forced shape would fix the part
   that works and leave the part that does not.
+- **A rack that intercepts once a turn.** Three launchers firing one missile
+  each were already a salvo it could not answer: a sensor bow with missiles×3
+  won 66% of three-seat games against a 37% Destroy bar. Point defence rolls at
+  every missile now, salvos are one action at heat per missile, and that hull
+  sits at 40%.
+- **The compressor as a side tile** (`fuel_compressor.slotType=side`). Measured
+  on the balance seeds with the hauler templates moved to a sensor bow: the
+  weaponless pacifist wins 48% with the compressor on its side as it does with
+  it forward. The value is the refund, not the slot.
 
 Known open problems:
 
-- **Deliver is a card nobody can finish.** 17% completed per hand kept, against
-  Destroy 56%, Survey 74%, Board 50%, Intercept 46%, Garbage 37% — and it is
-  the largest block in the deck (12 of 30 cards at four seats). Two seats that
-  both keep three primaries are not playing the same game if one of them is
-  holding Deliver.
-- **Secondary cards were filler** under the old single-deck deal, and the two
-  decks are the answer: 2P+1S was the best hand available in 1–2% of deals
-  (the secondary cannot contribute — 2+1 is 3), so the real choice was 3P or
-  nothing, and the second-best hand sat 10 points behind the best. Splitting
-  the decks halves that gap. The cost is the spare: 3P was the only shape that
-  could lose a card and still win.
-- **A mat with no weapon and good survival wins the card race.** No card needs a
-  fight, so the hull that never fights takes more cards and dies less: a
-  compressor with shields×2 and radiators×2 wins 45% against a 35% bar over 200
-  games, while the Hauler preset — the same bow with a laser in place of the
-  spare radiator — wins 25%. A deck problem, not a shield problem.
+- **The jump refund is worth about 18 win-points.** With bots that know the
+  circuit, every compressor hull wins 48–56% at three seats against a 35% bar —
+  racks, launchers, lasers or nothing but shields and radiators behind it — and
+  a compressor bow hunting is as good as the railgun hunter (`unpunished`).
+  Switch the refund off (`--tiles=fuel_compressor.refuelOnWellTransfer=false`)
+  and the same hulls fall to 29–34% while natural play does not move. The
+  compressor is the one forward tile that serves every card, so the price of
+  the refund is the lever; a partial refund needs a constant and an override
+  channel before it can be measured.
+- **Deliver was mostly a bot problem.** It completed 20 per 100 kept because
+  the bots' distance estimate was planet-blind and every "any station" was
+  Alpha: routes loading at Alpha got their crate 93–100% of the time, routes
+  loading at Beta or Gamma 20–38%. With a lane-aware estimate Deliver completes
+  40 per 100 and the Deliver bar (39%) is now the highest of the three,
+  against Destroy 35% and Intercept 30%. The card is not fixed, it is finally
+  measured.
+- **Intercept is the bot's last card.** Goal ranking is `turns − 3 × urgency`
+  and the scan has no urgency, so once far planets read as far the interceptor
+  does its one-point cards first and scans last: Intercept completion fell
+  46 → 35 per 100 kept when the map fix landed. Next bot change, in
+  `ai/behaviors/missions.ts`; not a rule.
+- **Two off-book hunters beat the preset hunter.** The rack hunter (railgun +
+  racks×2 + shields + radiator) and the aggressive interceptor hunting (sensor +
+  shields + lasers×2 + radiator) both win 48% with a Destroy card against the
+  hunter-aggressive preset's 35%; the tanky hunter (a second shield for the
+  rack) is 25%. Either the preset is wrong or missiles are the weak gun; the
+  sensor bow with two launchers, the build the designer asked about, is a fair
+  37%.
+- **The secondary offer is still lopsided.** Everyone is offered all three;
+  Garbage Disposal is the one left out (kept 46% against 76–78%) though the map
+  fix lifted its completion 28 → 49 per 100. Survey 70, Board 51.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A mat that can hold a gun is a
   mat that gets dealt into Destroy (44% of games) whether or not that gun can
@@ -271,10 +295,12 @@ Known open problems:
   scorer (see the note on `selectBotMissions`).
 - **Carrying cargo does not draw fire**, though the table says it does. Over 200
   games on each of four hulls, every one took *less* hull damage per turn while
-  holding a crate than while empty. The hauler does lose — 25% against a 35%
-  bar — but not because of the crate.
-- **Two players is thin**, and `hauler-tanky` takes 51% of seats there and wins
-  64% of the games it is in.
+  holding a crate than while empty. Kills still fall on carriers — 72% of
+  destroyed ships were carrying something, nearly all of it data chits — but
+  that is the hunt for the leader, not the crate.
+- **Two players is thin**, and seat 1 wins 61% of them on the balance seeds.
+- **Six seats runs long**: 48 rounds at the median, 4h48 at a minute a turn,
+  and the salvo rule added three of those rounds.
 
 ## Adding a rule
 
