@@ -255,41 +255,60 @@ not an argument:
   on the balance seeds with the hauler templates moved to a sensor bow: the
   weaponless pacifist wins 48% with the compressor on its side as it does with
   it forward. The value is the refund, not the slot.
+- **Pricing the compressor's jump.** A 1-fuel jump took the weaponless
+  compressor hull 50% → 32% and left the hauler preset alone (34% → 31%); a
+  compressor needing 4 cubes (`--tiles=fuel_compressor.minEnergy=4,…`, the
+  engine honours a powered compressor) missed its target — the gunboats did not
+  move (racks 63% → 59%) and the cargo hauler paid (34% → 26%), because a
+  fighter jumps rarely and a Deliver ship jumps every few turns and needs its
+  shields on arrival. The designer kept the jump free: the answer was hunters
+  that can kill the hull (below), not a price on the tile.
+- **Heat per missile, and per interception roll.** Measured against one tile
+  use on both sides: no row moved outside noise and missiles launched per game
+  were identical (10.5), because the four-round magazine is the limit. Flat
+  adopted; `--tiles=missiles.heatPerMissile=true,ballistic_rack.heatPerIntercept=true`
+  replays the old reading. Charging only the attacker flat shifts power to the
+  launcher hulls (+4 to +7), so the halves stay together.
+- **Four points to win with three mandatory cards.** 41–49 rounds by seat
+  count; three points with the same hand runs 27–31 and every game finishes.
+  Keeping all three secondaries (any three points) let Deliver holders win 44%
+  while completing Deliver 21% of the time, so the primary stays mandatory.
+- **An "efficiency" secondary — end a turn at 10 heat with an empty tank.**
+  84% of seats do both in one turn incidentally by round 11 (24% of turns end
+  at exactly 10 heat, 20% dry). A free point as stated; it needs a cost.
+- **A missile-carrying hunter preset.** In a duel against the compressor with
+  racks×2 the old preset (railgun, missiles, rack, shields, radiator) completed
+  Destroy 34% of the time and the prey won 69%: a powered rack rolls at every
+  missile. The presets carry lasers (aggressive) or a rack (tanky) now.
 
 Known open problems:
 
-- **The jump refund is worth about 18 win-points.** With bots that know the
-  circuit, every compressor hull wins 45–63% at three seats against a 34% bar —
-  racks, launchers, lasers or nothing but shields and radiators behind it — and
-  a compressor bow hunting is as good as the railgun hunter (`unpunished`).
-  Switch the refund off (`--tiles=fuel_compressor.refuelOnWellTransfer=false`)
-  and the same hulls fall to 29–34% while natural play does not move. The
-  compressor is the one forward tile that serves every card, so the price of
-  the refund is the lever; a partial refund needs a constant and an override
-  channel before it can be measured.
-- **Deliver was mostly a bot problem.** It completed 20 per 100 kept because
-  the bots' distance estimate was planet-blind and every "any station" was
-  Alpha: routes loading at Alpha got their crate 93–100% of the time, routes
-  loading at Beta or Gamma 20–38%. With a lane-aware estimate Deliver completes
-  39 per 100 and the three primaries are level: dealt Destroy, Deliver or
-  Intercept, seat 1 wins 34% with each. The card is not fixed, it is finally
-  measured.
+- **Three points favour Destroy.** Dealt Destroy, seat 1 wins 55% of three-seat
+  games; dealt Deliver 34%, Intercept 33%, against 43% with its own hand. Under
+  four points the three were level at 34%. A kill and a dive need no station,
+  and the laser hunter can now kill. Levers not yet measured: a Deliver that
+  pays on pickup, the scan's urgency for the bots (below), the primary's value.
 - **Intercept is the bot's last card.** Goal ranking is `turns − 3 × urgency`
-  and the scan has no urgency, so once far planets read as far the interceptor
-  does its one-point cards first and scans last: Intercept completion fell
-  46 → 33 per 100 kept when the map fix landed. Next bot change, in
+  and the scan has no urgency, so the interceptor does its one-point cards first
+  and scans last: 22 completed per 100 kept, and the sensor hull wins 18% of
+  its natural seats against 29% for the laser hunter. Next bot change, in
   `ai/behaviors/missions.ts`; not a rule.
-- **Two off-book hunters beat the preset hunter.** The rack hunter (railgun +
-  racks×2 + shields + radiator) and the aggressive interceptor hunting (sensor +
-  shields + lasers×2 + radiator) win 46% and 45% with a Destroy card against
-  the hunter-aggressive preset's 34%; the tanky hunter (a second shield for the
-  rack) is 27%. Either the preset is wrong or missiles are the weak gun; the
-  sensor bow with two launchers, the build the designer asked about, is a fair
-  37%, and under flat salvo heat the pure launcher hulls are playable without
-  being outliers (missiles×3 39%, missiles×5 32%).
+- **Every hunting hull sits 20 points over the haulers.** With Destroy: rack
+  hunter 64%, compressor + launchers×2 62%, sensor + launchers×3 60%, the laser
+  hunter preset 55%; with Deliver the hauler presets 34–35%. Within the margin
+  of their own reference, so no flag, but the primary decides more than the mat.
+  The compressor + missiles + laser hull hunting (61%) is the one `unpunished`
+  row; the laser interceptor hunting is `dead` at 36%.
+- **The compressor family tops the extreme set without crossing the margin.**
+  Racks×2 53%, launchers×2 49%, lasers×2 43%, shields and radiators alone 41%
+  against 43%. Its natural predators are lasers (ignore its shields, outrange
+  its racks by a ring) and racks (trade on its own ring): in a duel a laser
+  hunter takes it to 50%, a rack hunter to 45%, four lasers to 45%; missiles
+  never (86%). The refund is still worth about 18 points to a weaponless hull.
 - **The secondary offer is still lopsided.** Everyone is offered all three;
-  Garbage Disposal is the one left out (kept 46% against 76–78%) though the map
-  fix lifted its completion 28 → 48 per 100. Survey 71, Board 52.
+  Garbage Disposal is the one left out (kept 46% against 76–78%). Completed per
+  100 kept under three points: Survey 47, Board 27, Garbage 25 — the spare
+  secondary is mostly never attempted, which is the rule working.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A mat that can hold a gun is a
   mat that gets dealt into Destroy (44% of games) whether or not that gun can
@@ -304,9 +323,11 @@ Known open problems:
   holding a crate than while empty. Kills still fall on carriers — 72% of
   destroyed ships were carrying something, nearly all of it data chits — but
   that is the hunt for the leader, not the crate.
-- **Two players is thin**, and seat 1 wins 61% of them on the balance seeds.
-- **Six seats runs long**: 46 rounds at the median, 4h36 at a minute a turn,
-  and a human turn is longer than a minute. Four seats is 45 rounds, 3h00.
+- **Two players is thin**, and seat 1 wins 56% of them on the balance seeds.
+  The designer wants no artificial limit; special rules for two may come later.
+- **Length is fine now**: 28 / 27 / 31 / 30 rounds at 3 / 4 / 5 / 6 seats, 1h24
+  to 3h00 at a minute a turn, every game decided. Kills per game 2.2 / 5.3 /
+  9.7 / 13.7; the 4-seat natural row is `bloody` (more than a kill per seat).
 
 ## Adding a rule
 
