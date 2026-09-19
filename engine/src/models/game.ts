@@ -239,6 +239,13 @@ export interface FireWeaponAction extends BaseAction {
     criticalTarget: SubsystemId;
     /** Railgun only: engines cancel the recoil (1 mass, engine heat). */
     compensateRecoil?: boolean;
+    /**
+     * Missiles only: how many of the tile's remaining rounds this launch puts
+     * in the air, all at the same ship and the same critical slot. Absent is
+     * one. Every missile of the salvo costs the tile's cubes in heat, which is
+     * what makes the size of a salvo a decision rather than a formality.
+     */
+    count?: number;
   };
 }
 

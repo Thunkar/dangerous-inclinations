@@ -10,9 +10,12 @@
  * along, so it starts from where it was dropped), then moves up to
  * `fuelPerTurn` steps toward its target (a step is one ring or one sector;
  * rings close first). If it ends on the target's sector it
- * attacks: a powered ballistic rack may intercept it on a 2+, otherwise it
- * rolls to hit like any weapon. A missile that has moved `maxMoves` times
- * without hitting is removed. Missiles never cross gravity wells.
+ * attacks: a powered ballistic rack rolls against it and destroys it on a 2+,
+ * otherwise it rolls to hit like any weapon. The rack rolls at every missile
+ * that reaches the ship — a salvo is not stopped by one round of point defence
+ * — and each roll costs the rack's cubes in heat. A missile that has moved
+ * `maxMoves` times without hitting is removed. Missiles never cross gravity
+ * wells.
  */
 import type { GameState, Missile, Player, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
@@ -168,10 +171,14 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       continue;
     }
 
-    // On target. Point defence first.
+    // On target. Point defence first: a powered rack rolls at every missile
+    // that reaches its ship, not once a turn, and pays its cubes in heat for
+    // each roll — so a salvo stays a gamble on both sides. The rack is read off
+    // the target as it stands now, because an earlier missile of the same
+    // salvo may already have broken it or heated the ship.
     let targetShip = target.ship;
     const rack = targetShip.subsystems.find(
-      (s) => s.type === "ballistic_rack" && s.isPowered && !s.isBroken && !s.usedThisTurn
+      (s) => s.type === "ballistic_rack" && s.isPowered && !s.isBroken
     );
     if (rack) {
       const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");

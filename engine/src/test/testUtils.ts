@@ -348,11 +348,13 @@ export const fire = (
   subsystemId: SubsystemId,
   targetPlayerId: string,
   criticalTarget: SubsystemId = "engines",
-  compensateRecoil?: boolean
+  compensateRecoil?: boolean,
+  /** Missiles only: how many rounds the salvo puts in the air. */
+  count?: number
 ): Draft<FireWeaponAction> => ({
   type: "fire_weapon",
   sequence,
-  data: { subsystemId, targetPlayerId, criticalTarget, compensateRecoil },
+  data: { subsystemId, targetPlayerId, criticalTarget, compensateRecoil, count },
 });
 /** Name the tile a cold ship's crew will fix (no sequence: it is not tactical). */
 export const repair = (subsystemId: SubsystemId): Draft<RepairAction> => ({

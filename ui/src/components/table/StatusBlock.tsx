@@ -80,10 +80,17 @@ export function StatusBlock({ accent }: { accent?: string }) {
     0
   )
   /**
-   * A powered rack fires on its own at any missile that reaches you, and
-   * heats up either way (RULES §Weapons → Ballistic rack). Counted unless the
-   * plan already fires it this turn, in which case its heat is in `heatAfter`.
+   * A powered rack rolls at every missile that reaches you and pays its cubes
+   * for each roll, hit or miss (RULES §Weapons → Ballistic rack) — so a salvo
+   * of four is four rolls, and the worst case is one roll per missile already
+   * flying at you in this well. Never fewer than one: a launcher within reach
+   * can put a round in the air before your next check. Counted unless the plan
+   * already fires the rack this turn, in which case its heat is in `heatAfter`.
    */
+  const incoming = view.missiles.filter(
+    m => m.targetId === me.id && m.wellId === me.ship.wellId
+  ).length
+  const rackRolls = Math.max(1, incoming)
   const rackHeat = pending
     .filter(
       s =>
@@ -92,7 +99,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         !s.isBroken &&
         !plan?.steps.some(step => step.kind === 'fire' && step.subsystemId === s.id)
     )
-    .reduce((sum, s) => sum + s.allocatedEnergy, 0)
+    .reduce((sum, s) => sum + s.allocatedEnergy * rackRolls, 0)
   // A tile that absorbs spends its cubes back to the reactor and goes dark, so
   // it trades its standing cost for the absorption heat rather than paying both.
   const shieldHeat = Math.max(0, shieldsOnly * SHIELD_HEAT_PER_POINT - standingHeat) + rackHeat

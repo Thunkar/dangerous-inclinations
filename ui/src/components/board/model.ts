@@ -290,7 +290,10 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           target: target.position,
           launchedAfterMove: moveIndex >= 0 && index > moveIndex,
           color: colorOf(plan.me.id),
-          label: `Planned missile at ${nameOf(target.id)} — rides its orbit, then flies up to 3 steps`,
+          label:
+            step.count > 1
+              ? `Planned salvo of ${step.count} at ${nameOf(target.id)} — each rides its orbit, then flies up to 3 steps`
+              : `Planned missile at ${nameOf(target.id)} — rides its orbit, then flies up to 3 steps`,
         },
       ]
     })

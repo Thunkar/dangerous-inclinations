@@ -134,6 +134,9 @@ const FireWeaponActionSchema = z
         targetPlayerId: id,
         criticalTarget: id,
         compensateRecoil: z.boolean().optional(),
+        // A missiles tile launches a salvo in one action; the engine's
+        // validator is what bounds it against the rounds actually aboard.
+        count: z.number().int().min(1).optional(),
       })
       .strict(),
   })

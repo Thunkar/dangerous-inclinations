@@ -23,6 +23,11 @@ export interface FireIntent {
   critical?: SubsystemId;
   compensateRecoil?: boolean;
   /**
+   * Missiles only: how many rounds go up in this one launch. A salvo needs no
+   * extra cubes on the tile, only the heat — its cubes once per missile.
+   */
+  count?: number;
+  /**
    * Fire before or after the move. Default: a railgun after the move (its
    * recoil would derail a burn), anything else before the move if the target
    * is in range from where the ship stands, otherwise after.
@@ -170,6 +175,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       targetPlayerId: f.target,
       criticalTarget: f.critical ?? "engines",
       ...(f.compensateRecoil ? { compensateRecoil: true } : {}),
+      ...(f.count !== undefined ? { count: f.count } : {}),
     },
   });
 

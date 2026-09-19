@@ -43,6 +43,8 @@ export interface WeaponOption {
   type: string;
   damage: number;
   energy: number;
+  /** Missiles only: rounds left, and so the biggest salvo this tile can fire. */
+  ammo: number | null;
   /** Opponents in range from where the ship is now (before any move). */
   targetsNow: string[];
   /** Opponents in range after a plain coast. */
@@ -185,6 +187,7 @@ export function seatOptions(view: GameView): SeatOptions {
         type: weapon.type,
         damage: stats.damage,
         energy: config.minEnergy,
+        ammo: weapon.type === "missiles" ? (weapon.ammo ?? 0) : null,
         targetsNow: cold ? [] : inRange(here),
         targetsAfterCoast: cold ? [] : inRange(afterCoast),
         ready: !weapon.isBroken && !noAmmo && !cold,

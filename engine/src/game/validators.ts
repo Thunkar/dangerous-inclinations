@@ -262,7 +262,20 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
   if (!weapon.isPowered || weapon.allocatedEnergy < config.minEnergy)
     errors.push(`${config.name} not powered`);
   if (weapon.usedThisTurn) errors.push(`${config.name} already fired this turn`);
-  if (weapon.type === "missiles" && (weapon.ammo ?? 0) <= 0) errors.push("No missiles remaining");
+  // A salvo is any number of the tile's remaining rounds in one action; every
+  // other weapon fires once, so a count on one is a mistake worth refusing.
+  const count = action.data.count;
+  if (weapon.type === "missiles") {
+    const ammo = weapon.ammo ?? 0;
+    if (ammo <= 0) errors.push("No missiles remaining");
+    else if (count !== undefined) {
+      if (!Number.isInteger(count) || count < 1)
+        errors.push("A salvo launches a whole number of missiles, at least one");
+      else if (count > ammo) errors.push(`Only ${ammo} missiles remaining`);
+    }
+  } else if (count !== undefined && count !== 1) {
+    errors.push(`${config.name} fires once: only a missiles tile launches a salvo`);
+  }
 
   const { errors: targetErrors, target } = validateTarget(
     state,

@@ -78,7 +78,9 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.playerId)} jumps to ${pos(e.to)}${phased}${fuel}${heat(e.heat)}`;
     }
     case "weapon_fired":
-      return `${name(e.attackerId)} fires ${sub(e.weaponType)} at ${name(e.targetId)}${heat(e.heat)}`;
+      return (e.count ?? 1) > 1
+        ? `${name(e.attackerId)} launches ${e.count} missiles at ${name(e.targetId)}${heat(e.heat)}`
+        : `${name(e.attackerId)} fires ${sub(e.weaponType)} at ${name(e.targetId)}${heat(e.heat)}`;
     case "attack_resolved": {
       const who = `${name(e.attackerId)}'s ${sub(e.weaponType)}`;
       if (e.result === "miss") return `${who} misses ${name(e.targetId)} (rolled ${e.roll})`;

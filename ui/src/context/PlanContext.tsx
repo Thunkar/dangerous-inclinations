@@ -86,6 +86,12 @@ export type PlanStep =
       targetId: string | null
       criticalTarget: SubsystemId
       compensateRecoil: boolean
+      /**
+       * Missiles only: how many of the tile's remaining rounds this action puts
+       * in the air, at one ship and one named slot. Every other weapon fires
+       * once, so it stays at 1.
+       */
+      count: number
     }
   | { id: string; kind: 'scan'; targetId: string | null; peekSlot: SubsystemId | null }
 
@@ -697,12 +703,21 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
           if (!weapon || !isWeaponType(weapon.type)) break
           const config = getSubsystemConfig(weapon.type)
+          // A salvo pays the tile's cubes once per missile (RULES §Weapons →
+          // Missiles), so how big the launch is, is how hot the turn runs.
+          const salvo = weapon.type === 'missiles' ? Math.max(1, step.count) : 1
           if (weapon.isBroken) problems.push(`${config.name} is broken`)
           else if (!weapon.isPowered)
             problems.push(`${config.name} needs ${config.minEnergy} energy to fire`)
-          else heat += weapon.allocatedEnergy
-          if (weapon.type === 'missiles' && (weapon.ammo ?? 0) <= 0)
-            problems.push('No missiles left aboard')
+          else heat += weapon.allocatedEnergy * salvo
+          if (weapon.type === 'missiles') {
+            const ammo = weapon.ammo ?? 0
+            if (ammo <= 0) problems.push('No missiles left aboard')
+            else if (step.count > ammo)
+              problems.push(`${config.name}: ${step.count} missiles planned, ${ammo} aboard`)
+            if (step.count < 1)
+              problems.push(`${config.name}: a salvo launches at least one missile`)
+          }
           if (!step.targetId) problems.push(`${config.name}: pick a target`)
           else if (!targetsInRange(step).some(t => t.id === step.targetId))
             problems.push(`${config.name}: target out of range from where you fire`)
@@ -812,8 +827,11 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
             })
           }
           break
-        case 'fire':
+        case 'fire': {
           if (!step.targetId) break
+          // Only a missiles tile takes a count: the engine refuses one on any
+          // other weapon, so it is sent for a launcher and nothing else.
+          const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
           list.push({
             playerId: me.id,
             type: 'fire_weapon',
@@ -823,9 +841,11 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
               targetPlayerId: step.targetId,
               criticalTarget: step.criticalTarget,
               ...(step.compensateRecoil ? { compensateRecoil: true } : {}),
+              ...(weapon?.type === 'missiles' ? { count: step.count } : {}),
             },
           })
           break
+        }
         case 'scan':
           if (!step.targetId || !step.peekSlot) break
           list.push({
@@ -1028,6 +1048,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
             targetId: targets.length === 1 ? targets[0].id : null,
             criticalTarget: 'engines',
             compensateRecoil: false,
+            count: 1,
           },
         ]
       })

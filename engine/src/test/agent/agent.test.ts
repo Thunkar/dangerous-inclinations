@@ -31,6 +31,26 @@ describe("agent seat tooling", () => {
     expect(o.jump).toBeNull();
     const laser = o.weapons.find((w) => w.weapon === "side-0");
     expect(laser?.targetsNow).toEqual(["p2"]); // port laser fires outward: p2 is one ring out
+    // Rounds left is the biggest salvo the launcher can fire; nothing else has ammo.
+    expect(o.weapons.find((w) => w.weapon === "side-3")?.ammo).toBe(4);
+    expect(laser?.ammo).toBeNull();
+  });
+
+  it("builds a salvo from a count and leaves the tile at its minimum cubes", () => {
+    const state = start();
+    const built = buildTurn(viewFor(state, "p1"), {
+      fire: [{ weapon: "side-3", target: "p2", count: 3 }],
+    });
+    const shot = built.actions.find((a) => a.type === "fire_weapon");
+    expect(shot).toMatchObject({ data: { subsystemId: "side-3", count: 3 } });
+    // A salvo costs heat per missile, not cubes: the tile stays at its minimum.
+    const allocated = built.actions.find(
+      (a) => a.type === "allocate_energy" && a.data.subsystemId === "side-3"
+    );
+    expect(allocated).toMatchObject({ data: { amount: 2 } });
+    const result = executeTurn(state, built.actions);
+    expect(result.errors).toBeUndefined();
+    expect(result.gameState.missiles).toHaveLength(3);
   });
 
   it.each([

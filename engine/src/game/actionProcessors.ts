@@ -18,6 +18,7 @@ import type {
   ScanAction,
   Player,
   RepairAction,
+  Missile,
 } from "../models/game.ts";
 import { isTacticalAction, MAX_REACTION_MASS } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
@@ -32,6 +33,7 @@ import { createMissile, revealSensors } from "./missiles.ts";
 import { processScan } from "./scan.ts";
 import { isMooredAt } from "./stations.ts";
 import {
+  addHeat,
   findSubsystem,
   hasWorkingCompressor,
   isDestroyed,
@@ -410,42 +412,57 @@ function processFireWeapon(
   const config = getSubsystemConfig(weapon.type);
   const weaponType = weapon.type;
 
+  // A missiles tile may empty as much of its magazine as it likes at one ship
+  // in one action; the tile is used once, but each missile costs its cubes in
+  // heat, which is the whole price of a salvo.
+  const salvo = weaponType === "missiles" ? Math.max(1, Math.trunc(action.data.count ?? 1)) : 1;
   const used = useSubsystem(attacker.ship, attacker.id, weapon.id, "fired");
-  attacker = { ...attacker, ship: used.ship };
+  const extraHeat = used.heat * (salvo - 1);
+  attacker = { ...attacker, ship: addHeat(used.ship, extraHeat) };
   events.push({
     type: "weapon_fired",
     attackerId: attacker.id,
     targetId: action.data.targetPlayerId,
     subsystemId: weapon.id,
     weaponType,
-    heat: used.heat,
+    heat: used.heat + extraHeat,
+    ...(weaponType === "missiles" ? { count: salvo } : {}),
   });
   events.push(...used.events);
 
   let working: GameState = { ...state, players };
 
   if (weaponType === "missiles") {
-    const missile = createMissile(
-      working,
-      attacker,
-      action.data.targetPlayerId,
-      action.data.criticalTarget,
-      movedThisTurn
-    );
+    const launched: Missile[] = [];
+    for (let i = 0; i < salvo; i++) {
+      // createMissile draws the next entity id off `working`, so each round of
+      // the salvo gets its own token.
+      launched.push(
+        createMissile(
+          working,
+          attacker,
+          action.data.targetPlayerId,
+          action.data.criticalTarget,
+          movedThisTurn
+        )
+      );
+    }
     attacker = {
       ...attacker,
-      ship: updateSubsystem(attacker.ship, weapon.id, (s) => ({ ammo: (s.ammo ?? 1) - 1 })),
+      ship: updateSubsystem(attacker.ship, weapon.id, (s) => ({ ammo: (s.ammo ?? salvo) - salvo })),
     };
     players[attackerIndex] = attacker;
-    working = { ...working, players, missiles: [...working.missiles, missile] };
-    events.push({
-      type: "missile_launched",
-      ownerId: attacker.id,
-      missileId: missile.id,
-      targetId: action.data.targetPlayerId,
-      at: positionOf(attacker.ship),
-      criticalTarget: action.data.criticalTarget,
-    });
+    working = { ...working, players, missiles: [...working.missiles, ...launched] };
+    for (const missile of launched) {
+      events.push({
+        type: "missile_launched",
+        ownerId: attacker.id,
+        missileId: missile.id,
+        targetId: action.data.targetPlayerId,
+        at: positionOf(attacker.ship),
+        criticalTarget: action.data.criticalTarget,
+      });
+    }
   } else {
     players[attackerIndex] = attacker;
     const target = players[targetIndex];

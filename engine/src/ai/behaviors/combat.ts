@@ -41,11 +41,17 @@ export interface FireIntent {
   weapon: Subsystem;
   targetId: string;
   phase: FiringPhase;
+  /** Damage of the whole action: for a salvo, one missile's damage times `count`. */
   damage: number;
-  /** Heat the shot adds (weapon energy, plus engine energy when compensating recoil). */
+  /**
+   * Heat the action adds: the tile's cubes once per missile of a salvo, plus
+   * engine energy when compensating recoil.
+   */
   heat: number;
-  /** Reactor energy the weapon needs. */
+  /** Reactor energy the weapon needs. A salvo needs no more cubes than one shot. */
   energy: number;
+  /** Rounds this action puts in the air. 1 for everything but a missiles salvo. */
+  count: number;
   /** Railgun only. */
   compensateRecoil?: boolean;
 }
@@ -59,11 +65,22 @@ export function weaponEnergy(weapon: Subsystem): number {
 }
 
 /**
+ * Everything one tile could put on a ship in a single action. A missiles tile
+ * may empty its magazine at one target in one launch, so its potential is the
+ * whole magazine — a bot that priced it at one round would never see that its
+ * launcher can finish a ship.
+ */
+export function weaponPotential(weapon: Subsystem): number {
+  const damage = weaponDamage(weapon);
+  return weapon.type === "missiles" ? damage * Math.max(0, weapon.ammo ?? 0) : damage;
+}
+
+/**
  * Damage the bot could put on one ship in a single turn if every weapon
  * bore, before shields.
  */
 export function volleyPotential(weapons: Subsystem[]): number {
-  return weapons.reduce((sum, w) => sum + weaponDamage(w), 0);
+  return weapons.reduce((sum, w) => sum + weaponPotential(w), 0);
 }
 
 /** Whether shields can soak this weapon's damage (lasers go straight through). */
@@ -93,7 +110,7 @@ export function hullThrough(
 /** {@link hullThrough} for weapons the bot could fire this turn. */
 export function hullPotential(weapons: Subsystem[], shieldAbsorption: number): number {
   return hullThrough(
-    weapons.map((w) => ({ damage: weaponDamage(w), shielded: shieldsStop(w) })),
+    weapons.map((w) => ({ damage: weaponPotential(w), shielded: shieldsStop(w) })),
     shieldAbsorption
   );
 }
@@ -291,6 +308,7 @@ export function firingOptions(
         shielded,
         heat: energy + (compensate ? BURN_COSTS.soft.energy : 0),
         energy,
+        count: 1,
         compensateRecoil: compensate,
       });
       continue;
@@ -299,15 +317,19 @@ export function firingOptions(
     if (weapon.type === "missiles") {
       const phase: FiringPhase | null = inPost ? "post" : inPre ? "pre" : null;
       if (!phase) continue;
-      if (parameters.conserveAmmo && (weapon.ammo ?? 0) <= 1 && target.hull > damage) continue;
+      const ammo = Math.max(0, weapon.ammo ?? 0);
+      if (parameters.conserveAmmo && ammo <= 1 && target.hull > damage) continue;
+      // The whole magazine is the opening offer: the planner trims it to what
+      // the heat budget takes and to what the target actually needs.
       intents.push({
         weapon,
         targetId: target.player.id,
         phase,
-        damage,
+        damage: damage * ammo,
         shielded,
-        heat: energy,
+        heat: energy * ammo,
         energy,
+        count: ammo,
       });
       continue;
     }
@@ -324,6 +346,7 @@ export function firingOptions(
       shielded,
       heat: energy,
       energy,
+      count: 1,
     });
   }
 

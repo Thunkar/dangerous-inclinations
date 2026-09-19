@@ -38,6 +38,17 @@ const POSSIBLE = 0.5;
 const SUSPECTED_SHIELD_WEIGHT = 0.5;
 
 /**
+ * Damage a face-up weapon slot could put on us in one action. A missiles tile
+ * launches any number of its remaining rounds at one ship in a single action,
+ * and the rounds left in a face-up tile are public, so a launcher with four
+ * aboard threatens all four at once.
+ */
+function visibleWeaponDamage(slot: SlotView): number {
+  const damage = getSubsystemConfig(slot.type!).weaponStats?.damage ?? 0;
+  return slot.type === "missiles" ? damage * Math.max(0, slot.ammo ?? 0) : damage;
+}
+
+/**
  * What a slot can be, read through the cubes sitting on it. Allocation is
  * public and a tile is either off or at least at its minimum, so the cube
  * count narrows the tile down:
@@ -197,7 +208,11 @@ function analyzeOpponent(player: PlayerView, myPosition: Position, stations: Sta
       isPowered,
       inRange,
     });
-    if (inRange) threatInRange += getSubsystemConfig(slot.type).weaponStats?.damage ?? 0;
+    // A face-up missiles tile shows what is left, and the whole magazine can
+    // come at us in one launch, so the threat is the magazine. A face-down one
+    // is only suspected, and its ammo is behind the screen: it stays priced at
+    // a single missile above.
+    if (inRange) threatInRange += visibleWeaponDamage(slot);
   }
 
   return {

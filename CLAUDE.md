@@ -63,6 +63,11 @@ secondary offer is the same for everyone, so those three have to be worth
 roughly the same or the choice is fake.
 New mission types are proposed to the designer, never added unasked.
 
+Missiles fire in **salvos**: one action launches any number of a tile's missiles
+at one ship, 2 heat per missile; a powered ballistic rack rolls at **every**
+missile that reaches it, 2 heat a roll — so a salvo is a heat gamble on both
+sides, and heat stays one per point of damage across every weapon.
+
 Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate,
 one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
 arrival only) → heat

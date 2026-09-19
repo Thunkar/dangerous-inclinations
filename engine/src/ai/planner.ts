@@ -268,26 +268,60 @@ export function buildCandidate(
 
   const shots: Array<{ opponent: Opponent; intent: FireIntent }> = [];
   const fired = new Set<string>();
-  for (const { opponent, intent } of queue) {
-    if (fired.has(intent.weapon.id)) continue;
+  /**
+   * A salvo of `count` rounds off the same tile: the cubes are unchanged, the
+   * damage and the heat are per missile.
+   */
+  const sized = (intent: FireIntent, count: number): FireIntent =>
+    count === intent.count
+      ? intent
+      : {
+          ...intent,
+          count,
+          damage: (intent.damage / intent.count) * count,
+          heat: (intent.heat / intent.count) * count,
+        };
+  for (const { opponent, intent: offered } of queue) {
+    if (fired.has(offered.weapon.id)) continue;
     if (hullOn(opponent) >= opponent.hull) continue;
-    const energy = intent.energy + (intent.compensateRecoil ? BURN_COSTS.soft.energy : 0);
-    const decisive = hullOn(opponent, intent) >= opponent.hull;
+    const energy = offered.energy + (offered.compensateRecoil ? BURN_COSTS.soft.energy : 0);
     // Heat over the dissipation is hull damage at the end of the turn. It is
     // worth paying for a shot that finishes a ship — and for any shot at a
     // player about to win, whatever else the bot was doing this turn, because
     // the shot costs them cargo and tempo they cannot buy back.
-    const worthOverheating = decisive || opponent.danger.score >= INTERDICT_DANGER;
-    const overflow = worthOverheating
-      ? Math.max(
-          0,
-          Math.min(
-            MAX_OVERHEAT,
-            status.hull - MIN_HULL_AFTER_OVERHEAT - (status.heat + heatUsed - status.dissipation)
+    const room = (decisive: boolean) =>
+      decisive || opponent.danger.score >= INTERDICT_DANGER
+        ? Math.max(
+            0,
+            Math.min(
+              MAX_OVERHEAT,
+              status.hull - MIN_HULL_AFTER_OVERHEAT - (status.heat + heatUsed - status.dissipation)
+            )
           )
-        )
-      : 0;
-    if (!fits(energy, intent.heat, overflow)) continue;
+        : 0;
+    // A salvo costs its tile's cubes in heat once per missile, so its size is
+    // the decision: spend the fewest rounds that still finish the ship, and if
+    // none of them does, spend as many as the budget takes. Everything else
+    // fires once and has only itself to offer.
+    const kills = (count: number) => hullOn(opponent, sized(offered, count)) >= opponent.hull;
+    let smallestKill = 0;
+    for (let c = 1; c <= offered.count; c++) {
+      if (kills(c)) {
+        smallestKill = c;
+        break;
+      }
+    }
+    const candidates: number[] = [];
+    if (smallestKill > 0) candidates.push(smallestKill);
+    for (let c = offered.count; c >= 1; c--) if (c !== smallestKill) candidates.push(c);
+    let intent: FireIntent | null = null;
+    for (const count of candidates) {
+      const candidate = sized(offered, count);
+      if (!fits(energy, candidate.heat, room(kills(count)))) continue;
+      intent = candidate;
+      break;
+    }
+    if (!intent) continue;
     if (intent.compensateRecoil)
       targets.set(
         status.engines.id,
@@ -327,12 +361,23 @@ export function buildCandidate(
   // heat at the check, so they come out of the same budget as the volley, and
   // what is left of the track after that is all they may cost.
   const enemiesNear = situation.opponents.some((o) => o.sameWell);
+  // A rack is only point defence while it is already powered: a salvo launched
+  // after the enemy's move can reach us on the same turn, so waiting until the
+  // missiles are on the board is waiting one turn too long. Anyone in the well
+  // with a launcher we know about — or a slot whose cubes read like one — is
+  // reason enough to keep the rack up.
+  const launcherAimedAtUs = situation.opponents.some(
+    (o) =>
+      o.sameWell &&
+      (o.knownWeapons.some((w) => w.type === "missiles" && !w.isBroken && w.inRange) ||
+        o.unknownSlots.some((s) => s.inRange && s.suspected?.type === "missiles"))
+  );
   assignDefensiveEnergy(
     targets,
     status.shields,
     status.racks.filter((r) => !shots.some((s) => s.intent.weapon.id === r.id)),
     enemiesNear || situation.incomingMissiles > 0,
-    situation.incomingMissiles > 0,
+    situation.incomingMissiles > 0 || launcherAimedAtUs,
     getSubsystemConfig("shields").maxEnergy,
     capacity,
     Math.max(0, heatBudget - heatUsed)
@@ -357,6 +402,7 @@ export function buildCandidate(
       ...(shot.intent.weapon.type === "railgun"
         ? { compensateRecoil: shot.intent.compensateRecoil === true }
         : {}),
+      ...(shot.intent.weapon.type === "missiles" ? { count: shot.intent.count } : {}),
     },
   });
   const scanAction = (intent: ScanIntent): ScanAction => ({

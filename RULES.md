@@ -74,7 +74,7 @@ If your ship was destroyed, your whole turn is: place it on your Home sector (ne
 Otherwise:
 
 1. **Energy.** Move cubes freely between the reactor and your tiles, in the open. A tile is either off (0 cubes) or on (at least its minimum). Allocations persist between turns. Everyone can see how many cubes sit on each of your slots; they can't see what a face-down slot is.
-2. **Actions,** in any order you choose. Each tile may act once per turn (a ballistic rack may also intercept once during each other player's turn):
+2. **Actions,** in any order you choose. Each tile may act once per turn (a ballistic rack also intercepts during other players' turns):
    - **Rotate** — flip facing (prograde ↔ retrograde). Thrusters need 1 cube.
    - **Move** — exactly one of: _coast_, _burn_ or _jump_. If you take no move, you coast.
    - **Fire** — any number of powered weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
@@ -92,7 +92,7 @@ Otherwise:
 ## Energy and Heat
 
 - The reactor holds **10 energy**. Allocating and removing cubes is free and unlimited.
-- **Using** a tile costs heat equal to the cubes on it: firing, burning, rotating, scooping, scanning, jumping, intercepting. Powered but unused tiles cost nothing — **except shields**.
+- **Using** a tile costs heat equal to the cubes on it: firing, burning, rotating, scooping, scanning, jumping, intercepting. Powered but unused tiles cost nothing — **except shields**. A missiles tile pays it **once per missile launched**, and a ballistic rack **once per missile it rolls against**.
 - **Heat is a track. It does not reset.** At your heat check, heat above **10** is hull damage and the track drops to 10. Then **dissipate** — 5, plus 2 per working radiator — and carry the rest into your next turn.
 - So a hot turn is a debt, not a wound: take one, then cool off. Make more heat than you dissipate for long enough and you reach the **redline** at 10, where it costs hull every turn until you stop.
 - **Powered shields cost their cubes in heat at every check**, absorbing or not. A tile that *did* absorb has already spent its cubes, so it costs nothing that turn.
@@ -108,11 +108,11 @@ Otherwise:
 | Railgun (forward)          | 4      | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil                 |
 | Sensor array (forward)     | 2      | Scan; criticals on 8–10 while powered                                  |
 | Fuel compressor (forward)  | —      | A jump's own fuel is refunded                                          |
-| Missiles (forward or side) | 2      | Launch a guided missile at anyone in your well (4 aboard)              |
+| Missiles (forward or side) | 2      | Launch any number of your guided missiles at one ship in your well (4 aboard); its cubes in heat per missile |
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
 | Shields (side)             | 2 or 4 | 2 cubes absorb 1 damage, as 2 heat; costs its cubes in heat every check |
 | Radiator (side)            | —      | +2 dissipation                                                         |
-| Ballistic rack (side)      | 2      | 2 damage, ±1 ring or same ring, ±1 sector; intercepts missiles         |
+| Ballistic rack (side)      | 2      | 2 damage, ±1 ring or same ring, ±1 sector; intercepts every missile that reaches you, its cubes in heat per roll |
 
 ---
 
@@ -168,8 +168,8 @@ A wall that holds is no protection against being named. **The cubes on every slo
 
 - **Railgun** — spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
 - **Broadside laser** — targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port tiles (side 1–2) fire outward and starboard tiles (side 3–4) fire inward; facing retrograde swaps them.
-- **Ballistic rack** — 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away — the only broadside that can join a railgun shot on your own ring. While powered it also **intercepts** missiles that reach you: roll a d10, on 2+ the missile is destroyed (the rack is used and heats up either way).
-- **Missiles** — target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. Place a missile token on your sector and name the critical slot. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
+- **Ballistic rack** — 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away — the only broadside that can join a railgun shot on your own ring. While powered it **intercepts every missile that reaches you**: roll a d10 against each one, on 2+ that missile is destroyed, and **every roll costs the rack's cubes in heat** whether it hits or misses. One rack does all the rolling however many you carry.
+- **Missiles** — target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. One action launches **as many of your remaining missiles as you like at one ship**, all naming the same critical slot, and **each missile costs the tile's cubes in heat** — so how big a salvo is, is how hot you are willing to run. Place a token on your sector for each. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
 
   _Riding the orbit:_ a missile drifts with its ring like everything else. The one exception is the turn you launch it: if you launch **after** moving, the missile has already ridden along with your ship, so it does not drift again that turn — it just flies its 3 steps from where you dropped it. Launch before moving and it drifts with the ring like your ship did. (The app draws the path either way.)
 
@@ -282,6 +282,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Keeping cards    | 3 primaries keep 1, one off each secondary stack keep 2, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon        |
 | Hold             | one crate; data chits ride free                                                                  |
 | Ammo             | private while the missiles tile is face-down; public once it has fired                           |
+| Salvo            | one action launches any number of your missiles at one ship, 2 heat each; a powered rack rolls at every missile that reaches it, 2 heat a roll |
 | Win              | 4 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel               |
 | Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries — four points exactly, no spare                     |
 

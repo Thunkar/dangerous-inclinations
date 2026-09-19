@@ -61,7 +61,9 @@ describe("bot targeting", () => {
       { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
       { wellId: BH, ring: 4, sector: 0 }
     );
-    const state = grounded(base, "p1");
+    // One round left in the launcher: a full salvo would spend the turn's whole
+    // heat budget and crowd out the second laser, which is not what is on trial.
+    const state = withSub(grounded(base, "p1"), "p1", "side-3", { ammo: 1 });
     const decision = botDecideActions(viewFor(state, "p1"));
     const shots = decision.actions.filter((a): a is FireWeaponAction => a.type === "fire_weapon");
 
@@ -359,10 +361,62 @@ describe("bot lethality estimates", () => {
       { hitPoints: 4 }
     );
     state = withPower(state, "p2", "side-2", 2);
+    // One round in the launcher, so the volley is the rack and one missile.
+    state = withSub(state, "p1", "side-3", { ammo: 1 });
 
     const plan = planAgainst(state, "p1", "p2");
     expect(plan.expectedHullDamage).toBe(3.5);
     expect(plan.killsTarget).toBe(false);
+  });
+});
+
+/**
+ * A salvo is any number of the tile's rounds in one launch, each one costing
+ * the tile's cubes in heat, so the size of the salvo is the decision the bot
+ * has to make: enough to finish the job, no more than the heat track takes.
+ */
+describe("bot salvos", () => {
+  /** Nothing aboard but the launcher, so the salvo is the whole volley. */
+  const LAUNCHER: ShipLoadout = {
+    forwardSlots: ["missiles"],
+    sideSlots: [null, null, null, null],
+  };
+
+  const launcherAgainst = (hull: number, heat = 0): GameState => {
+    const base = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: LAUNCHER },
+        { wellId: BH, ring: 4, sector: 0 }
+      ),
+      "p1"
+    );
+    return withShip(withShip(base, "p2", { hitPoints: hull }), "p1", {
+      heat: { currentHeat: heat },
+    });
+  };
+
+  const salvoAt = (state: GameState): number => {
+    const shots = shotsOf(state, "p1");
+    expect(shots).toHaveLength(1);
+    return shots[0].data.count ?? 1;
+  };
+
+  it("spends exactly the rounds it takes to finish a ship", () => {
+    // Four hull, two damage a missile: two rounds, and the other two stay aboard.
+    const state = launcherAgainst(4);
+    expect(salvoAt(state)).toBe(2);
+    expect(
+      executeTurn(state, botDecideActions(viewFor(state, "p1")).actions).errors
+    ).toBeUndefined();
+  });
+
+  it("empties more than one round into a ship it cannot finish this turn", () => {
+    expect(salvoAt(launcherAgainst(10))).toBeGreaterThan(1);
+  });
+
+  it("trims the salvo to what the heat track still takes", () => {
+    // Six heat carried: four left before the redline, and each missile is two.
+    expect(salvoAt(launcherAgainst(10, 6))).toBe(2);
   });
 });
 

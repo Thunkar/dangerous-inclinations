@@ -91,7 +91,9 @@ function stepTitle(step: PlanStep, nameOf: (id: string) => string): string {
         }`
       return `Jump to ${getWellName(step.move.destinationWellId)}`
     case 'fire':
-      return `Fire ${slotLabel(step.subsystemId)}${step.targetId ? ` at ${nameOf(step.targetId)}` : ''}`
+      return `Fire ${slotLabel(step.subsystemId)}${step.count > 1 ? ` ×${step.count}` : ''}${
+        step.targetId ? ` at ${nameOf(step.targetId)}` : ''
+      }`
     case 'scan':
       return `Scan${step.targetId ? ` ${nameOf(step.targetId)}` : ''}`
   }
@@ -111,6 +113,12 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
    */
   const outOfReach = new Set(plan.targetsOutOfReach(step).map((t) => t.id))
   const wasted = step.targetId !== null && outOfReach.has(step.targetId)
+  /**
+   * One action launches as many of this tile's rounds as you like at one ship
+   * (RULES §Weapons → Missiles). With one round left there is nothing to
+   * decide, so the control only appears when the magazine holds a choice.
+   */
+  const ammo = weapon?.type === 'missiles' ? (weapon.ammo ?? 0) : 0
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 0.5 }}>
@@ -132,6 +140,23 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
           </MenuItem>
         ))}
       </Select>
+
+      {ammo > 1 && (
+        <Tooltip title="How many rounds go up in this one launch, all at that ship and that slot. Each missile costs the tile's cubes in heat.">
+          <Select
+            size="small"
+            value={Math.min(step.count, ammo)}
+            onChange={(e) => plan.updateStep(step.id, { count: Number(e.target.value) })}
+            sx={{ fontSize: '0.82rem', minWidth: 72, '& .MuiSelect-select': { py: 0.35 } }}
+          >
+            {Array.from({ length: ammo }, (_, i) => i + 1).map((n) => (
+              <MenuItem key={n} value={n} sx={{ fontSize: '0.82rem' }}>
+                ×{n}
+              </MenuItem>
+            ))}
+          </Select>
+        </Tooltip>
+      )}
 
       {wasted && (
         <Typography sx={{ fontSize: '0.74rem', color: TABLE.danger, lineHeight: 1.3 }}>

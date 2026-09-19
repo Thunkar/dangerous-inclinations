@@ -90,7 +90,10 @@ export type GameEvent =
       targetId: string;
       subsystemId: SubsystemId;
       weaponType: WeaponType;
+      /** The whole action's heat: for a salvo, the tile's cubes once per missile. */
       heat: number;
+      /** Missiles only: how many went up in this one action. */
+      count?: number;
     })
   | (Base & {
       type: "attack_resolved";
