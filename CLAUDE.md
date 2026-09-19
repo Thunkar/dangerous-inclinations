@@ -283,32 +283,45 @@ not an argument:
 
 Known open problems:
 
-- **Three points favour Destroy.** Dealt Destroy, seat 1 wins 55% of three-seat
-  games; dealt Deliver 34%, Intercept 33%, against 43% with its own hand. Under
-  four points the three were level at 34%. A kill and a dive need no station,
-  and the laser hunter can now kill. Levers not yet measured: a Deliver that
-  pays on pickup, the scan's urgency for the bots (below), the primary's value.
-- **Intercept is the bot's last card.** Goal ranking is `turns − 3 × urgency`
-  and the scan has no urgency, so the interceptor does its one-point cards first
-  and scans last: 22 completed per 100 kept, and the sensor hull wins 18% of
-  its natural seats against 29% for the laser hunter. Next bot change, in
-  `ai/behaviors/missions.ts`; not a rule.
-- **Every hunting hull sits 20 points over the haulers.** With Destroy: rack
-  hunter 64%, compressor + launchers×2 62%, sensor + launchers×3 60%, the laser
-  hunter preset 55%; with Deliver the hauler presets 34–35%. Within the margin
-  of their own reference, so no flag, but the primary decides more than the mat.
-  The compressor + missiles + laser hull hunting (61%) is the one `unpunished`
-  row; the laser interceptor hunting is `dead` at 36%.
-- **The compressor family tops the extreme set without crossing the margin.**
-  Racks×2 53%, launchers×2 49%, lasers×2 43%, shields and radiators alone 41%
-  against 43%. Its natural predators are lasers (ignore its shields, outrange
-  its racks by a ring) and racks (trade on its own ring): in a duel a laser
-  hunter takes it to 50%, a rack hunter to 45%, four lasers to 45%; missiles
-  never (86%). The refund is still worth about 18 points to a weaponless hull.
+- **The primary you are dealt is worth ±10 points, and which way flips with
+  the bots.** Three points to win makes the game a race of 22–27 rounds. With
+  bots that scanned last, dealt Destroy won 55% against 34/33; with bots that
+  start their primary first (the scan and the Deliver pickup carry urgency now)
+  dealt Deliver wins 41%, Destroy 33%, Intercept 23%, against 31% with a hand
+  of its own choosing. Under four points the three were level at 34%. The
+  swing says the rules are sensitive to how well each card is played, which
+  humans will differ on too. Levers not yet measured: Intercept's scan range
+  or filing station, a Deliver that pays on pickup, the primary's value.
+- **Intercept is the weak card.** 28 completed per 100 kept, the sensor hull
+  wins 19% of its natural seats, and dealt Intercept 23%. The bots now scan
+  first (Intercept completions +12% from that alone), so what remains is the
+  card: a rival on your ring within three sectors, then a named station, in a
+  game that ends in 23 rounds. A rules question for the designer.
+- **The compressor wins a race.** With the game short, the weaponless
+  compressor hull (shields×2 + radiators×2) is an outlier again at 45% and the
+  compressor with two launchers at 51%, against 31%; racks×2 and lasers×2
+  behind it sit at 36%. The refund was measured at about 18 points to a
+  weaponless hull; a 1-fuel jump took that hull 50% → 32% under four points
+  without touching the hauler preset, and the designer kept the jump free. Its
+  natural predators are racks and lasers (duel: rack hunter 57% prey wins,
+  four lasers 61%, the laser-and-rack hunter preset 69%; missiles never, 93%),
+  and with bots that race, hunting is slower than running.
 - **The secondary offer is still lopsided.** Everyone is offered all three;
   Garbage Disposal is the one left out (kept 46% against 76–78%). Completed per
-  100 kept under three points: Survey 47, Board 27, Garbage 25 — the spare
+  100 kept under three points: Survey 35, Board 28, Garbage 14 — the spare
   secondary is mostly never attempted, which is the rule working.
+- **Point defence lives on one preset.** Bots holding Destroy always fly the
+  aggressive hunter, so the aggressive hunter's rack is the only rack in
+  natural play; when it briefly carried two lasers instead, missiles went
+  unanswered and the compressor with two launchers reached 52%. The tanky
+  hunter (rack + shields×2) is `weak` at 18% and a poor predator (16% Destroy
+  completion in the duel); if both presets are to hunt, it wants a second gun.
+- **Criticals naming the forward tile first** (`--bot=criticalOrder=forward`)
+  changes nothing outside noise and, if anything, helps the compressor hulls
+  (racks×2 36% → 43%): a broken compressor is repaired at the next dock, which
+  is where that hull was going. **Shields stopping lasers** would take the
+  compressor-with-a-laser hunter from 32% to 15% but halves kills per game and
+  drops the hunter preset's Destroy win 33% → 27%. Both left alone.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A mat that can hold a gun is a
   mat that gets dealt into Destroy (44% of games) whether or not that gun can
@@ -323,11 +336,13 @@ Known open problems:
   holding a crate than while empty. Kills still fall on carriers — 72% of
   destroyed ships were carrying something, nearly all of it data chits — but
   that is the hunt for the leader, not the crate.
-- **Two players is thin**, and seat 1 wins 56% of them on the balance seeds.
+- **Two players is thin**, and seat 1 wins 62% of them on the balance seeds.
   The designer wants no artificial limit; special rules for two may come later.
-- **Length is fine now**: 28 / 27 / 31 / 30 rounds at 3 / 4 / 5 / 6 seats, 1h24
-  to 3h00 at a minute a turn, every game decided. Kills per game 2.2 / 5.3 /
-  9.7 / 13.7; the 4-seat natural row is `bloody` (more than a kill per seat).
+- **Length is short now**: 23 / 25 / 24 / 27 rounds at 3 / 4 / 5 / 6 seats,
+  1h09 to 2h42 at a minute a turn, every game decided, about five cards
+  completed a game at three seats. Kills per game 1.4 / 4.4 / 5.9 / 9.5. The
+  benchmark's seat spread at 3 and 4 seats (22 / 43 / 35 and 25 / 23 / 14 / 38)
+  is 120 games and may be noise; worth one confirming run before reading it.
 
 ## Adding a rule
 
