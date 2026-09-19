@@ -27,7 +27,7 @@ import {
  * | Variant    | Spends its side slots on                                  |
  * |------------|-----------------------------------------------------------|
  * | tanky      | two shield tiles, a radiator, and the one gun it needs for Destroy |
- * | aggressive | a second gun in place of one of those shield tiles         |
+ * | aggressive | a second gun — not always another of the same — in place of one of those shield tiles |
  */
 export type BotRole = "interceptor" | "hunter" | "hauler";
 export type HullVariant = "tanky" | "aggressive";
@@ -59,8 +59,17 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * it, so a salvo aimed at the one mat built to answer it arrives as dice. The
  * tanky hunter takes the rack instead and keeps both shield tiles, which also
  * buys it the roll against somebody else's missiles; the aggressive one sells
- * a shield tile for a second laser and fights a ring out, where the rack
- * cannot reach and shields do not help.
+ * a shield tile for a second gun.
+ *
+ * **Why the aggressive hunter's second gun is a rack and not a laser.** Every
+ * bot holding a Destroy flies this mat, and the interceptor and hauler presets
+ * already carry lasers, so while this one carried two of them no ship in
+ * natural play carried a ballistic rack at all: point defence had left the
+ * table, missiles went unanswered, and the compressor hull with two launchers
+ * became a 52% outlier. The laser in side-0 keeps the shot that goes through
+ * shields and reaches a ring out; the rack in side-1 keeps point defence in
+ * the field and is the one broadside that fires on the railgun's own ring,
+ * which is where the spinal shot puts the fight.
  *
  * **Why every mat carries a radiator.** Using a tile costs its energy in heat,
  * and heat over the dissipation is your own hull. The railgun plus one
@@ -83,7 +92,7 @@ export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   },
   "hunter-aggressive": {
     forwardSlots: ["railgun"],
-    sideSlots: ["laser", "laser", "shields", "radiator"],
+    sideSlots: ["laser", "ballistic_rack", "shields", "radiator"],
   },
   "hauler-tanky": {
     forwardSlots: ["fuel_compressor"],
