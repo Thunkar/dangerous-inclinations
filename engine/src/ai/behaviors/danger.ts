@@ -25,7 +25,13 @@
  * Nothing here reads a `GameState` or a hidden card; every input is a field
  * of {@link PlayerView} or a station position.
  */
-import type { Position, ShipState, Station } from "../../models/game.ts";
+import type {
+  GravityWellId,
+  Position,
+  ShipState,
+  Station,
+  TransferArc,
+} from "../../models/game.ts";
 import type { Subsystem } from "../../models/subsystems.ts";
 import { MISSIONS_TO_WIN, MISSION_POINTS } from "../../models/missions.ts";
 import {
@@ -35,8 +41,10 @@ import {
   TRANSFER_LANES,
   arcSectors,
   isPlanet,
+  laneArrivalArc,
+  laneDepartureArc,
 } from "../../models/gravityWells.ts";
-import { sectorDistance } from "../../game/geometry.ts";
+import { forwardDistance, sectorDistance } from "../../game/geometry.ts";
 import { getStationForPlanet } from "../../game/stations.ts";
 import type { PlayerView } from "../../game/view.ts";
 import type { OpponentDanger } from "../types.ts";
@@ -53,16 +61,56 @@ export { CRITICAL_DANGER, INTERDICT_DANGER } from "../types.ts";
 
 /** Average sectors per turn used by the cheap estimate. */
 const AVERAGE_VELOCITY = 3;
-/** Turns to line up with a transfer lane and jump. */
-const JUMP_OVERHEAD = 5;
-/** Extra turns to cross the black hole between two planets. */
-const PLANET_TO_PLANET_OVERHEAD = 4;
+
+interface PlanetLanes {
+  /** Black hole ring 5 arc the jump *to* this planet leaves from. */
+  departure: TransferArc;
+  /** Planet ring 4 arc the jump *home* leaves from. */
+  homeDeparture: TransferArc;
+  /** Black hole ring 5 sector that jump home lands on. */
+  homeArrival: number;
+}
+
+/** The two doors of every planet, read off the lane table once. */
+const PLANET_LANES: Record<string, PlanetLanes> = {};
+for (const planet of PLANETS) {
+  const out = TRANSFER_LANES.find((l) => l.planetId === planet.id && l.direction === "outbound");
+  const back = TRANSFER_LANES.find((l) => l.planetId === planet.id && l.direction === "inbound");
+  if (!out || !back) continue;
+  PLANET_LANES[planet.id] = {
+    departure: laneDepartureArc(out),
+    homeDeparture: laneDepartureArc(back),
+    homeArrival: laneArrivalArc(back).startSector,
+  };
+}
+
+const planetLanes = (wellId: GravityWellId): PlanetLanes | undefined => PLANET_LANES[wellId];
+
+/** Turns of drift from `sector` prograde onto the nearest sector of `arc`. */
+function turnsToArc(sector: number, arc: TransferArc): number {
+  const ahead = Math.min(...arcSectors(arc).map((s) => forwardDistance(sector, s)));
+  return Math.ceil(ahead / AVERAGE_VELOCITY);
+}
 
 /**
  * Planner-free estimate of turns from `from` to `to`, for ranking goals and
  * for guessing how long an opponent needs to reach their delivery. Biased
  * toward overestimating: mis-ranking a hard goal as harder only nudges the
  * bot toward easier ones.
+ *
+ * It has to know the circuit, or every "any station" is Alpha. Lanes are
+ * one-way four-sector arcs at fixed sectors, so which planet is near depends
+ * on where you are standing: from black hole ring 5 sector 0 the door to Beta
+ * is underfoot and Alpha's is sixteen sectors of drift away, and from Alpha
+ * the way home lands you next to Gamma's door, not Beta's. An estimate that
+ * only counted rings and a flat jump overhead tied all three planets, so the
+ * first one in `PLANETS` won every tie and the bots delivered to Alpha.
+ *
+ * So a cross-well trip is priced leg by leg: rings out to the lane ring, the
+ * prograde drift onto the departure arc at {@link AVERAGE_VELOCITY} sectors a
+ * turn, one turn for the jump, and the same again for a second well. Sectors
+ * are aligned across rings — a burn lands on the sector it left — so the
+ * current sector is the right one to measure the drift from.
  */
 export function cheapTurnEstimate(from: Position, to: Position): number {
   if (from.wellId === to.wellId) {
@@ -71,14 +119,24 @@ export function cheapTurnEstimate(from: Position, to: Position): number {
       Math.ceil(sectorDistance(from.sector, to.sector) / AVERAGE_VELOCITY)
     );
   }
-  const fromLaneRing = isPlanet(from.wellId) ? PLANET_OUTER_RING : BLACK_HOLE_OUTER_RING;
-  const toLaneRing = isPlanet(to.wellId) ? PLANET_OUTER_RING : BLACK_HOLE_OUTER_RING;
-  const planetToPlanet = isPlanet(from.wellId) && isPlanet(to.wellId);
+
+  // Leaving a planet is always the same trip: out to the lane ring, round to
+  // the inbound arc, jump, and you are on black hole ring 5 at a known sector.
+  let turns = 0;
+  let sector = from.sector;
+  const home = planetLanes(from.wellId);
+  if (home) {
+    turns += Math.abs(from.ring - PLANET_OUTER_RING) + turnsToArc(from.sector, home.homeDeparture);
+    turns += 1;
+    sector = home.homeArrival;
+  } else {
+    turns += Math.abs(from.ring - BLACK_HOLE_OUTER_RING);
+  }
+
+  const destination = planetLanes(to.wellId);
+  if (!destination) return turns + Math.abs(to.ring - BLACK_HOLE_OUTER_RING);
   return (
-    Math.abs(from.ring - fromLaneRing) +
-    JUMP_OVERHEAD +
-    (planetToPlanet ? PLANET_TO_PLANET_OVERHEAD : 0) +
-    Math.abs(to.ring - toLaneRing)
+    turns + turnsToArc(sector, destination.departure) + 1 + Math.abs(to.ring - PLANET_OUTER_RING)
   );
 }
 

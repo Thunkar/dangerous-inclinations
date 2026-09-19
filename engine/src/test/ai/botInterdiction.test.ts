@@ -13,15 +13,23 @@
 import { describe, it, expect } from "vitest";
 import type { Cargo } from "../../models/missions.ts";
 import { MISSIONS_TO_WIN } from "../../models/missions.ts";
-import type { GameState, ShipLoadout } from "../../models/game.ts";
-import { STATION_RING } from "../../models/gravityWells.ts";
+import type { GameState, Position, ShipLoadout } from "../../models/game.ts";
+import {
+  BLACK_HOLE_OUTER_RING,
+  PLANET_OUTER_RING,
+  STATION_RING,
+} from "../../models/gravityWells.ts";
 import { viewFor } from "../../game/view.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { getStationForPlanet } from "../../game/stations.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
 import { DEFAULT_BOT_PARAMETERS, INTERDICT_DANGER } from "../../ai/types.ts";
 import type { Opponent } from "../../ai/types.ts";
-import { assessDanger, predictedDeliveryPlanets } from "../../ai/behaviors/danger.ts";
+import {
+  assessDanger,
+  cheapTurnEstimate,
+  predictedDeliveryPlanets,
+} from "../../ai/behaviors/danger.ts";
 import { generateCandidates } from "../../ai/planner.ts";
 import {
   ALPHA,
@@ -99,6 +107,71 @@ function opponent(state: GameState, viewerId: string, id: string): Opponent {
   if (!found) throw new Error(`no opponent ${id}`);
   return found;
 }
+
+describe("cheap turn estimates: the map has a direction of travel", () => {
+  /**
+   * The estimate ranks every "which station?" the bots ask, and the lanes are
+   * one-way arcs at fixed sectors, so which planet is near depends on where
+   * you are standing. An estimate that only counted rings tied all three and
+   * the first planet listed won every tie.
+   */
+  const WELLS = [BH, ALPHA, BETA, GAMMA];
+  const station = (planetId: string): Position => ({
+    wellId: planetId,
+    ring: STATION_RING,
+    sector: 0,
+  });
+  const laneRing = (wellId: string) => (wellId === BH ? BLACK_HOLE_OUTER_RING : PLANET_OUTER_RING);
+
+  it("prices the planets by where their lane door sits on black hole ring 5", () => {
+    // Reading ring 5 prograde: out to Beta (0-3), out to Gamma (8-11), out to
+    // Alpha (16-19). On sector 0 you are already under Beta's door.
+    const from: Position = { wellId: BH, ring: 4, sector: 0 };
+
+    expect(cheapTurnEstimate(from, station(BETA))).toBeLessThan(
+      cheapTurnEstimate(from, station(GAMMA))
+    );
+    expect(cheapTurnEstimate(from, station(GAMMA))).toBeLessThan(
+      cheapTurnEstimate(from, station(ALPHA))
+    );
+  });
+
+  it.each([
+    [ALPHA, GAMMA, BETA],
+    [GAMMA, BETA, ALPHA],
+    [BETA, ALPHA, GAMMA],
+  ])("from %s the cheap next stop is %s and not %s", (from, near, far) => {
+    // The jump home lands beside the next planet's door: Alpha -> Gamma ->
+    // Beta -> Alpha is the circuit, and the estimate has to see it.
+    const at: Position = { wellId: from, ring: STATION_RING, sector: 0 };
+
+    expect(cheapTurnEstimate(at, station(near))).toBeLessThan(cheapTurnEstimate(at, station(far)));
+  });
+
+  it.each(WELLS.flatMap((a) => WELLS.filter((b) => b !== a).map((b) => [a, b] as const)))(
+    "never prices %s -> %s below the ring legs plus the jump",
+    (fromWell, toWell) => {
+      // Overestimating a trip only nudges a bot toward an easier goal;
+      // underestimating the jump itself would make a crossing look free.
+      // Sector 17 is inside every planet's inbound arc and inside Alpha's
+      // outbound one, so on those rows the jump is all there is above the
+      // ring legs.
+      const from: Position = { wellId: fromWell, ring: 2, sector: 17 };
+      const to: Position = { wellId: toWell, ring: 1, sector: 19 };
+      const ringLegs =
+        Math.abs(from.ring - laneRing(fromWell)) + Math.abs(to.ring - laneRing(toWell));
+
+      expect(cheapTurnEstimate(from, to)).toBeGreaterThanOrEqual(ringLegs + 1);
+    }
+  );
+
+  it("leaves a target in the same well as the rings plus the shortest arc", () => {
+    // Two rings crossed and six sectors of drift at three sectors a turn.
+    expect(
+      cheapTurnEstimate({ wellId: BH, ring: 4, sector: 0 }, { wellId: BH, ring: 2, sector: 6 })
+    ).toBe(4);
+  });
+});
 
 describe("danger: reading the scoreboard and the hold", () => {
   it("scores a player one card from the win with a crate aboard as the one to stop", () => {
@@ -231,7 +304,11 @@ describe("interdiction goals", () => {
   });
 
   it("keeps racing when it is closer to its own third card than they are to theirs", () => {
-    // Both are one dock from the win; the bot is nearer the station. Turning
+    // Both are one dock from the win and both are orbiting Alpha, so the
+    // public reading of the race is the trip out of this well: a crate cannot
+    // be delivered where it was loaded, and the way out is Alpha's inbound
+    // lane on ring 4 sectors 16-19. The bot is the one sitting just short of
+    // it and p2 is most of a lap behind, so the bot gets home first — turning
     // to fight would hand the game to the third player.
     let state = aboutToWin(threeWay(), "p2", [crate(BETA, ALPHA)]);
     state = withPlayer(state, "p1", {
@@ -239,9 +316,7 @@ describe("interdiction goals", () => {
       cargo: [crate(BETA, ALPHA)],
       missions: [deliverMission(BETA, ALPHA)],
     });
-    state = withShip(state, "p1", {
-      sector: approachSector(state, ALPHA),
-    });
+    state = withShip(state, "p1", { sector: 13 });
     const situation = situationOf(state, "p1");
 
     expect(situation.myDanger.turnsToWin).toBeLessThanOrEqual(

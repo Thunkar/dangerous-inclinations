@@ -195,19 +195,24 @@ describe("bot missions", () => {
     expect(goal).toContain(BETA);
   });
 
-  it("stops surveying once the data is aboard and delivers it at the named planet", () => {
+  it("stops surveying once the data is aboard and files it at the station the circuit reaches first", () => {
+    // A survey chit is filed anywhere — the deck deals every survey and board
+    // card with "any" for its station — so the bot takes the door it is
+    // already standing under. From black hole ring 1 sector 0 that is Beta's
+    // outbound lane at ring 5 sectors 0-3, not Alpha's at 16-19.
     const start = withMissions(
       makeGameState([
         makePlayer("p1", { wellId: BLACK_HOLE_ID, ring: SURVEY_RING, sector: 0 }, SENSOR_HULL),
         makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 12 }),
       ]),
       "p1",
-      [surveyMission("survey-1", ALPHA)]
+      [surveyMission("survey-1")]
     );
 
     const completed = (s: GameState) => getPlayer(s, "p1").completedMissionCount > 0;
     const state = playUntil(start, "p1", completed, 120);
     expect(completed(state)).toBe(true);
+    expect(getShip(state, "p1").wellId).toBe(BETA);
   });
 });
 
