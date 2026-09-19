@@ -6,6 +6,7 @@ import { ShipAppearanceSchema, type ShipAppearance } from "../models/appearance.
 import type { GameState, Player, ShipLoadout } from "../models/game.ts";
 import { DEFAULT_LOADOUT, MAX_PLAYERS, MIN_PLAYERS } from "../models/game.ts";
 import { HOME_RING, HOME_WELL_ID } from "../models/gravityWells.ts";
+import { DEFAULT_POINTS_TO_WIN } from "../models/missions.ts";
 import { Rng, createDeterminismFields } from "../utils/rng.ts";
 import { createInitialShipState } from "./ship.ts";
 import { createInitialStations } from "./stations.ts";
@@ -39,13 +40,31 @@ export function createPlayer(spec: PlayerSpec): Player {
   };
 }
 
+export interface GameOptions {
+  /**
+   * Points that trigger the final round, agreed by the table before the deal:
+   * three (the default) or four. Any whole number of 2 or more is accepted so
+   * an experiment can measure one; the lobby only offers three and four.
+   */
+  pointsToWin?: number;
+}
+
 /**
  * Create a game in the loadout phase with mission offers dealt.
  * @param seed omit for a fresh random seed (captured on the state)
+ * @param options table agreements settled before the deal
  */
-export function createGame(specs: PlayerSpec[], seed?: number): GameState {
+export function createGame(
+  specs: PlayerSpec[],
+  seed?: number,
+  options?: GameOptions
+): GameState {
   if (specs.length < MIN_PLAYERS || specs.length > MAX_PLAYERS) {
     throw new Error(`A game needs ${MIN_PLAYERS} to ${MAX_PLAYERS} players (got ${specs.length})`);
+  }
+  const pointsToWin = options?.pointsToWin ?? DEFAULT_POINTS_TO_WIN;
+  if (!Number.isInteger(pointsToWin) || pointsToWin < 2) {
+    throw new Error(`Points to win must be a whole number of 2 or more (got ${pointsToWin})`);
   }
   if (new Set(specs.map((s) => s.id)).size !== specs.length) {
     throw new Error("Player ids must be unique");
@@ -65,6 +84,7 @@ export function createGame(specs: PlayerSpec[], seed?: number): GameState {
     rngSeed: determinism.rngSeed,
     rngState: rng.state,
     nextEntityId: determinism.nextEntityId,
+    pointsToWin,
   };
 }
 

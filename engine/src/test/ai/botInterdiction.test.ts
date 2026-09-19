@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { Cargo } from "../../models/missions.ts";
-import { MISSIONS_TO_WIN } from "../../models/missions.ts";
+import { DEFAULT_POINTS_TO_WIN } from "../../models/missions.ts";
 import type { GameState, Position, ShipLoadout } from "../../models/game.ts";
 import {
   BLACK_HOLE_OUTER_RING,
@@ -95,7 +95,7 @@ function dataChit(): Cargo {
  * A point short of the three that win, with a crate in the hold: the delivery
  * is worth two, so the next dock ends the game.
  */
-const ONE_FROM_WINNING = MISSIONS_TO_WIN - 1;
+const ONE_FROM_WINNING = DEFAULT_POINTS_TO_WIN - 1;
 
 function aboutToWin(state: GameState, playerId: string, cargo: Cargo[] = [crate(ALPHA, BETA)]) {
   return withPlayer(state, playerId, { completedMissionCount: ONE_FROM_WINNING, cargo });
@@ -247,12 +247,14 @@ describe("danger: reading the scoreboard and the hold", () => {
     const carrying = assessDanger(
       { cargoAboard: { crates: 1, data: 0 }, completedMissionCount: ONE_FROM_WINNING },
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
-      stations
+      stations,
+      DEFAULT_POINTS_TO_WIN
     );
     const empty = assessDanger(
       { cargoAboard: { crates: 0, data: 0 }, completedMissionCount: ONE_FROM_WINNING },
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
-      stations
+      stations,
+      DEFAULT_POINTS_TO_WIN
     );
 
     expect(carrying.deliveryPosition?.wellId).toBe(carrying.predictedPlanets[0]);

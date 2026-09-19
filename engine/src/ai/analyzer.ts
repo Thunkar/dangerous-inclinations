@@ -170,7 +170,12 @@ export function analyzeStatus(me: Player, stations: Station[] = []): BotStatus {
   };
 }
 
-function analyzeOpponent(player: PlayerView, myPosition: Position, stations: Station[]): Opponent {
+function analyzeOpponent(
+  player: PlayerView,
+  myPosition: Position,
+  stations: Station[],
+  pointsToWin: number
+): Opponent {
   const ship = player.ship!;
   const position: Position = { wellId: ship.wellId, ring: ship.ring, sector: ship.sector };
   const sameWell = position.wellId === myPosition.wellId;
@@ -228,7 +233,7 @@ function analyzeOpponent(player: PlayerView, myPosition: Position, stations: Sta
     unknownSlots,
     shieldAbsorption: shieldAbsorption(player.slots),
     threat: Math.min(1, threatInRange / FULL_THREAT_DAMAGE),
-    danger: assessDanger(player, position, stations),
+    danger: assessDanger(player, position, stations, pointsToWin),
   };
 }
 
@@ -239,7 +244,7 @@ export function analyzeSituation(view: GameView, parameters: BotParameters): Tac
 
   const opponents = view.players
     .filter((p) => !p.isMe && p.hasDeployed && p.ship && !p.ship.isDestroyed)
-    .map((p) => analyzeOpponent(p, status.position, view.stations));
+    .map((p) => analyzeOpponent(p, status.position, view.stations, view.pointsToWin));
 
   // The bot reads its own position in the race with exactly the formula it
   // uses on everyone else, so "am I ahead of them?" is one comparison.
@@ -247,7 +252,8 @@ export function analyzeSituation(view: GameView, parameters: BotParameters): Tac
   const myDanger = assessDanger(
     mine ?? { cargoAboard: { crates: 0, data: 0 }, completedMissionCount: 0 },
     status.position,
-    view.stations
+    view.stations,
+    view.pointsToWin
   );
 
   const threats = opponents

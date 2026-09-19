@@ -162,11 +162,14 @@ export function setupBotGame(
   seed: number,
   botCount: number,
   seatLoadouts?: SeatLoadouts,
-  seatHands?: SeatHands
+  seatHands?: SeatHands,
+  /** What the table plays to; the engine's default when omitted. */
+  pointsToWin?: number
 ): GameState {
   let state = createGame(
     botIds(botCount).map((id, i) => ({ id, name: `Bot ${i + 1}` })),
-    seed
+    seed,
+    { pointsToWin }
   );
   if (seatHands) state = dealForcedPrimaries(state, botCount, seatHands);
 
@@ -213,7 +216,15 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;
 
-  const initialState = setupBotGame(seed, botCount, config.seatLoadouts, config.seatHands);
+  const initialState = setupBotGame(
+    seed,
+    botCount,
+    config.seatLoadouts,
+    config.seatHands,
+    // Points to win is a table agreement, not a constant the override channel
+    // reassigns: it is dealt into the game like any other setting.
+    config.rules?.missionsToWin
+  );
   let state = initialState;
   const turns: GameRunResult["turns"] = [];
   const turnStats: TurnStat[] = [];

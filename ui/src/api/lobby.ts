@@ -10,8 +10,10 @@ import type {
   JoinLobbyRequest,
   JoinLobbyResponse,
   LobbyListItem,
+  PointsToWin,
   ServerLobby,
   StartGameResponse,
+  UpdateLobbyRequest,
 } from './types'
 
 /**
@@ -34,13 +36,26 @@ export async function getLobby(lobbyId: string): Promise<ServerLobby> {
 export async function createLobby(
   lobbyName: string,
   maxPlayers: number,
+  pointsToWin: PointsToWin,
   password?: string
 ): Promise<CreateLobbyResponse> {
   return api.post<CreateLobbyResponse>('/api/lobbies', {
     lobbyName,
     maxPlayers,
+    pointsToWin,
     password,
   } as CreateLobbyRequest)
+}
+
+/**
+ * Change a table setting before the deal (host only). Once the game exists the
+ * agreement is on the state and the server refuses to move it.
+ */
+export async function updateLobbySettings(
+  lobbyId: string,
+  settings: UpdateLobbyRequest
+): Promise<ServerLobby> {
+  return api.patch<ServerLobby>(`/api/lobbies/${lobbyId}`, settings)
 }
 
 /**

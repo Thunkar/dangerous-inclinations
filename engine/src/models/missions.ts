@@ -1,5 +1,6 @@
 /**
- * Missions: secret objectives. First player to complete MISSIONS_TO_WIN wins.
+ * Missions: secret objectives. First player to reach the table's points to win
+ * (`GameState.pointsToWin`, three by default) triggers the final round.
  *
  * Six mission types, in two kinds:
  *   primaries (2 points): destroy_ship, deliver_cargo, intercept_transmission
@@ -12,21 +13,23 @@ import type { SubsystemType } from "./subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
 
 /**
- * Three points win, and a hand is one primary and two secondaries — five on
- * the table for the three that win. The hand is unchanged by the number: a
- * primary and either secondary is a win, and the other secondary is the spare
- * a player takes when the game puts it in their way. Two secondaries on their
- * own are two points and cannot win, so the primary somebody else set you is
- * still the card that has to come in. Each deck is dealt separately: three
- * primaries to choose one from, three secondaries to choose two from.
+ * Three points win by default, and a hand is one primary and two secondaries
+ * — five on the table for the three that win. The hand is unchanged by the
+ * number: a primary and either secondary is a win, and the other secondary is
+ * the spare a player takes when the game puts it in their way. Two secondaries
+ * on their own are two points and cannot win, so the primary somebody else set
+ * you is still the card that has to come in. Each deck is dealt separately:
+ * three primaries to choose one from, three secondaries to choose two from.
  *
- * **Why three and not four.** Four points against a hand worth exactly four
- * made all three cards mandatory, which made a hand a chain: measured on
- * 200-game rows it ran 41 to 49 rounds by seat count and games were still
- * unfinished at the cap. Three runs 27 rounds at every seat count and every
- * game finishes. The primary stays mandatory either way — what the change
- * buys back is the spare, and with it a decision about whether the third card
- * is worth the detour.
+ * **Three or four, agreed before the deal.** Three is the game; a table that
+ * wants a longer evening may agree on four, which makes all three cards
+ * mandatory and turns a hand into a chain. Measured on 200-game rows, four ran
+ * 41 to 49 rounds by seat count with games still unfinished at the cap, where
+ * three runs 27 rounds at every seat count and every game finishes. The
+ * primary is mandatory either way — what three buys is the spare, and with it
+ * a decision about whether the third card is worth the detour. The number is
+ * settled once, before the cards come out, and is carried on the game
+ * (`GameState.pointsToWin`); everything downstream reads it from there.
  *
  * **Why two decks.** Dealing five from one pile and keeping any three looked
  * like a choice and was not. Because primaries are most of the deck, 94% of
@@ -42,7 +45,8 @@ import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
  * Every seat gets the same frame — one primary somebody set you, two things you
  * do yourself — and picks inside it: the gap to the second-best hand halves.
  */
-export let MISSIONS_TO_WIN = 3;
+export const DEFAULT_POINTS_TO_WIN = 3;
+
 
 /** Dealt from the primary deck, and kept from that deal. */
 export const PRIMARY_OFFERS_PER_PLAYER = 3;
@@ -60,17 +64,18 @@ export const MISSION_OFFERS_PER_PLAYER =
   PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER;
 
 /**
- * These are the game's constants, not knobs on the state: a game is played
+ * The hand shape is a constant, not a knob on the state: a game is played
  * under RULES.md and nothing else. The one door out is the simulator's
- * experiment channel (`yarn sim --rules=missionsToWin=4`, sim/ruleOverrides.ts),
- * which reassigns them once at process start so a proposed change can be
- * measured before it is adopted. Nothing in the server, the UI or the engine's
- * own logic calls this, and a change that survives its experiment is written
- * into the values above. Read the bindings at call time — a module that
- * snapshots one into a top-level const would not see the override.
+ * experiment channel (`yarn sim --rules=secondariesKept=3`,
+ * sim/ruleOverrides.ts), which reassigns it once at process start so a
+ * proposed change can be measured before it is adopted. Nothing in the server,
+ * the UI or the engine's own logic calls this, and a change that survives its
+ * experiment is written into the values above. Read the binding at call time —
+ * a module that snapshots it into a top-level const would not see the
+ * override. Points to win is *not* here: the table agrees it before the deal,
+ * so it rides on the state (`GameState.pointsToWin`).
  */
-export function setMissionRules(rules: { toWin?: number; secondariesKept?: number }): void {
-  if (rules.toWin !== undefined) MISSIONS_TO_WIN = rules.toWin;
+export function setMissionRules(rules: { secondariesKept?: number }): void {
   if (rules.secondariesKept !== undefined) SECONDARIES_PER_PLAYER = rules.secondariesKept;
   MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
 }

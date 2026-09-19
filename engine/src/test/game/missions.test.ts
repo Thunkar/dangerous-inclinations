@@ -10,11 +10,14 @@ import {
   selectMissionsFromOffers,
 } from "../../game/missions/missionDeck.ts";
 import { checkForWinner, completedMissions } from "../../game/missions/missionChecks.ts";
+import { createGame } from "../../game/setup.ts";
+import { viewFor } from "../../game/view.ts";
 import {
   SECONDARY_CARDS_PER_DECK,
   SECONDARY_COPIES_PER_CARD,
 } from "../../game/missions/missionDeck.ts";
 import {
+  DEFAULT_POINTS_TO_WIN,
   MISSION_FAMILY,
   SURVEY_RING,
   MISSION_POINTS,
@@ -672,5 +675,69 @@ describe("missions: winning", () => {
     expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(2);
     expect(result.gameState.phase).toBe("active");
     expect(checkForWinner(result.gameState)).toBeUndefined();
+  });
+});
+
+describe("missions: the points the table plays to", () => {
+  const SPECS = [
+    { id: "p1", name: "One" },
+    { id: "p2", name: "Two" },
+  ];
+
+  it("is three when the table agrees nothing", () => {
+    expect(createGame(SPECS, 1).pointsToWin).toBe(DEFAULT_POINTS_TO_WIN);
+  });
+
+  it.each([
+    ["three", 3],
+    ["four", 4],
+  ])("is the %s the table agreed on, and the view says so", (_case, pointsToWin) => {
+    const state = createGame(SPECS, 1, { pointsToWin });
+    expect(state.pointsToWin).toBe(pointsToWin);
+    expect(viewFor(state, "p1").pointsToWin).toBe(pointsToWin);
+  });
+
+  it.each([
+    ["three", 3, 2, false],
+    ["three", 3, 3, true],
+    ["four", 4, 3, false],
+    ["four", 4, 4, true],
+  ])(
+    "at a table on %s, %i points reached by a seat with %i triggers the final round: %s",
+    (_case, pointsToWin, completed, triggers) => {
+      const state = withPlayer(makeTwoPlayerGame({}, {}, { pointsToWin }), "p1", {
+        completedMissionCount: completed,
+      });
+      expect(checkForWinner(state)?.id).toBe(triggers ? "p1" : undefined);
+    }
+  );
+
+  it("plays the fourth point out at a four-point table where three would have ended it", () => {
+    // p1 holds a filed chit and a Destroy: the kill takes it to three, which
+    // ends a three-point game and is one short of a four-point one.
+    const done = [{ ...surveyMission("s"), acquired: true, isCompleted: true }];
+    const setUp = (pointsToWin: number) =>
+      withPlayer(withShip({ ...gunline(), pointsToWin }, "p2", { hitPoints: 4 }), "p1", {
+        missions: [...done, destroyMission("p2")],
+        completedMissionCount: 1,
+      });
+
+    const atThree = executeTurnAs(setUp(3), fire(1, "forward-0", "p2"));
+    expect(getPlayer(atThree.gameState, "p1").completedMissionCount).toBe(3);
+    expect(atThree.gameState.finalRound).toBe(true);
+
+    const atFour = executeTurnAs(setUp(4), fire(1, "forward-0", "p2"));
+    expect(getPlayer(atFour.gameState, "p1").completedMissionCount).toBe(3);
+    expect(atFour.gameState.finalRound).toBeUndefined();
+    expect(checkForWinner(atFour.gameState)).toBeUndefined();
+  });
+
+  it.each([
+    ["one point", 1],
+    ["zero", 0],
+    ["a fraction", 2.5],
+    ["nonsense", Number.NaN],
+  ])("refuses %s as the number to play to", (_case, pointsToWin) => {
+    expect(() => createGame(SPECS, 1, { pointsToWin })).toThrow();
   });
 });

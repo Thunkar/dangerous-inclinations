@@ -24,7 +24,6 @@ import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
 import {
   MAX_HEAT,
   CARGO_HOLD_CRATES,
-  MISSIONS_TO_WIN,
   isCriticalTarget,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -66,7 +65,7 @@ export function OpponentCard({
   const destroyed = ship?.isDestroyed ?? false
   const { ping } = useAnimation()
   /** Who plays this seat: an agent's driver and model, or nothing for people and bots. */
-  const { seats } = useGame()
+  const { seats, view } = useGame()
   const agent = agentLabel(seats.find(s => s.playerId === player.id)?.agent)
   /** Back at Home with a full hull, but sitting the next turn out. */
   const recovering = !destroyed && player.skipTurns > 0
@@ -194,10 +193,10 @@ export function OpponentCard({
       }
       action={
         <Tooltip
-          title={`${player.completedMissionCount} of ${MISSIONS_TO_WIN} points`}
+          title={`${player.completedMissionCount} of ${view.pointsToWin} points`}
         >
           <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
-            {Array.from({ length: MISSIONS_TO_WIN }, (_, i) => (
+            {Array.from({ length: view.pointsToWin }, (_, i) => (
               <Box
                 key={i}
                 sx={{

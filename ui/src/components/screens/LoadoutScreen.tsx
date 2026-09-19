@@ -248,7 +248,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         offers.filter(m => isPrimaryType(m.type)),
         PRIMARIES_PER_PLAYER,
         'Primary mission',
-        'Worth 2 of the 3 that win. Keep one — the mat you build should suit it.'
+        `Worth 2 of the ${view.pointsToWin} that win. Keep one — the mat you build should suit it.`
       )}
       {pile(
         offers.filter(m => !isPrimaryType(m.type)),

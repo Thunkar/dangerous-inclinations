@@ -60,5 +60,7 @@ export const api = {
     apiCall<T>(endpoint, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   put: <T>(endpoint: string, body?: unknown) =>
     apiCall<T>(endpoint, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  patch: <T>(endpoint: string, body?: unknown) =>
+    apiCall<T>(endpoint, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(endpoint: string) => apiCall<T>(endpoint, { method: 'DELETE' }),
 }

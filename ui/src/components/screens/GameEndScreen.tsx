@@ -3,7 +3,6 @@
  * show every player's completed cards, face-up as they were flipped.
  */
 import { Box, Button, Typography } from '@mui/material'
-import { MISSIONS_TO_WIN } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { MissionCard } from '../common/MissionCard'
@@ -32,7 +31,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
         {winner
-          ? `${winner.completedMissionCount} of ${MISSIONS_TO_WIN} points.`
+          ? `${winner.completedMissionCount} of ${view.pointsToWin} points.`
           : 'No winner was declared.'}
       </Typography>
 
@@ -53,7 +52,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
               }
             >
               <SectionLabel>
-                {player.completedMissionCount} / {MISSIONS_TO_WIN} points · hull{' '}
+                {player.completedMissionCount} / {view.pointsToWin} points · hull{' '}
                 {player.ship?.hitPoints ?? 0}/{player.ship?.maxHitPoints ?? 10}
               </SectionLabel>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>

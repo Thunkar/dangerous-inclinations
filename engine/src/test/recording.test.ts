@@ -5,7 +5,9 @@
 import { describe, it, expect } from "vitest";
 import { executeTurn } from "../game/turns.ts";
 import { cloneState, reconstructStateAtTurn, replayRecording } from "../recording/replay.ts";
+import { DEFAULT_POINTS_TO_WIN } from "../models/missions.ts";
 import { RECORDING_SCHEMA_VERSION, type GameRecording } from "../recording/types.ts";
+import type { GameState } from "../models/game.ts";
 import { canonicalJson, playScripted, scriptedGameStart } from "./testUtils.ts";
 
 function record(seed: number, turnCount: number): GameRecording {
@@ -77,6 +79,25 @@ describe("recording: replay", () => {
     expect(canonicalJson(reconstructStateAtTurn(stripped, 7))).toBe(
       canonicalJson(recording.turns[7].resultingStateSnapshot)
     );
+  });
+
+  it("opens a recording written before the table could agree on four points", () => {
+    // Those games were all played to the default, so that is what they load as.
+    const strip = (state: GameState) => {
+      const { pointsToWin: _dropped, ...rest } = state;
+      return rest as GameState;
+    };
+    const old: GameRecording = {
+      ...recording,
+      initialState: strip(recording.initialState),
+      turns: recording.turns.map((t) => ({
+        ...t,
+        resultingStateSnapshot: strip(t.resultingStateSnapshot),
+      })),
+    };
+    expect(reconstructStateAtTurn(old, -1).pointsToWin).toBe(DEFAULT_POINTS_TO_WIN);
+    expect(reconstructStateAtTurn(old, 5).pointsToWin).toBe(DEFAULT_POINTS_TO_WIN);
+    expect(replayRecording(old).pointsToWin).toBe(DEFAULT_POINTS_TO_WIN);
   });
 
   it("throws when a recorded turn no longer validates", () => {

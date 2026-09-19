@@ -37,6 +37,7 @@ import type {
   InterceptTransmissionMission,
   Mission,
 } from "../models/missions.ts";
+import { DEFAULT_POINTS_TO_WIN } from "../models/missions.ts";
 import { createInitialShipState, updateSubsystem } from "../game/ship.ts";
 import { createInitialStations, getStationForPlanet } from "../game/stations.ts";
 import { PLANET_OUTER_RING, STATION_RING } from "../models/gravityWells.ts";
@@ -91,6 +92,7 @@ export function makeGameState(players: Player[], overrides: Partial<GameState> =
     missiles: [],
     stations: createInitialStations(),
     phase: "active",
+    pointsToWin: DEFAULT_POINTS_TO_WIN,
     ...testDeterminismDefaults(),
     ...overrides,
   };

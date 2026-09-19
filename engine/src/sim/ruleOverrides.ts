@@ -4,7 +4,7 @@
  *
  * Where `--tiles` and `--weapons` reach the mats, this reaches the three
  * numbers the rules themselves are made of: what a game is worth, what a hand
- * is, and what a compressed jump costs. They are constants in
+ * is, and what a compressed jump costs. The last two are constants in
  * `models/missions.ts` and `models/rings.ts` — a game is played under RULES.md
  * and nothing else — so this channel reassigns them through their own setters,
  * once, in the process (or worker thread) about to run the games. Every game
@@ -12,9 +12,14 @@
  * never see the channel at all: a change that survives its experiment is
  * written into the models for real.
  *
+ * `missionsToWin` is the exception, and no longer an override of anything: the
+ * table agrees its points to win before the deal, so the number rides on the
+ * state. The key stays for the batches already written against it and is
+ * handed to `createGame` as `pointsToWin` by {@link runGame}, not applied here.
+ *
  * | key                | reaches                                          |
  * |--------------------|--------------------------------------------------|
- * | missionsToWin      | MISSIONS_TO_WIN (default 3)                      |
+ * | missionsToWin      | GameState.pointsToWin (default 3), via createGame |
  * | secondariesKept    | SECONDARIES_PER_PLAYER (default 2); the hand size follows |
  * | compressedJumpFuel | COMPRESSED_JUMP_MASS (default 0)                 |
  */
@@ -22,7 +27,7 @@ import { setMissionRules } from "../models/missions.ts";
 import { setCompressedJumpMass } from "../models/rings.ts";
 
 export interface RuleOverrides {
-  /** Points that trigger the final round. */
+  /** Points that trigger the final round; passed to `createGame`, not a binding. */
   missionsToWin?: number;
   /** One-point cards a hand keeps; the hand is this plus the one primary. */
   secondariesKept?: number;
@@ -48,13 +53,15 @@ export function parseRuleOverrides(text: string): RuleOverrides {
   return out;
 }
 
+/**
+ * Reassign the constants an override reaches. `missionsToWin` is not one of
+ * them: {@link runGame} passes it to `createGame` so the games of the batch are
+ * created playing to it.
+ */
 export function applyRuleOverrides(overrides?: RuleOverrides): void {
   if (!overrides) return;
-  if (overrides.missionsToWin !== undefined || overrides.secondariesKept !== undefined)
-    setMissionRules({
-      toWin: overrides.missionsToWin,
-      secondariesKept: overrides.secondariesKept,
-    });
+  if (overrides.secondariesKept !== undefined)
+    setMissionRules({ secondariesKept: overrides.secondariesKept });
   if (overrides.compressedJumpFuel !== undefined)
     setCompressedJumpMass(overrides.compressedJumpFuel);
 }

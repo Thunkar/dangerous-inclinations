@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { CreateLobbySchema, JoinLobbySchema } from "../schemas/lobby.ts";
+import { CreateLobbySchema, JoinLobbySchema, UpdateLobbySchema } from "../schemas/lobby.ts";
 import {
   createLobby,
   getLobby,
@@ -9,6 +9,7 @@ import {
   startGame,
   addBot,
   removeBot,
+  updateLobbySettings,
 } from "../services/lobbyService.ts";
 import { getPlayer } from "../services/playerService.ts";
 
@@ -52,6 +53,7 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
       lobbyName: l.lobbyName,
       hasPassword: !!l.password,
       maxPlayers: l.maxPlayers,
+      pointsToWin: l.pointsToWin,
       currentPlayers: l.players.length,
       gameStarted: !!l.gameId,
       createdAt: l.createdAt,
@@ -76,6 +78,35 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
       return reply.send({ ...safeLobby, hasPassword: !!password });
     },
   );
+
+  // Change a table setting before the deal (host only)
+  fastify.patch<{
+    Headers: { "x-player-id": string };
+    Params: { lobbyId: string };
+  }>("/api/lobbies/:lobbyId", async (request, reply) => {
+    const playerId = request.headers["x-player-id"];
+    const { lobbyId } = request.params;
+
+    if (!playerId) {
+      return reply.code(401).send({ error: "Player ID required" });
+    }
+
+    const result = UpdateLobbySchema.safeParse(request.body);
+    if (!result.success) {
+      return reply.code(400).send({
+        error: "Invalid request",
+        details: result.error.errors,
+      });
+    }
+
+    const updated = await updateLobbySettings(lobbyId, playerId, result.data);
+    if (!updated.success) {
+      return reply.code(400).send({ error: updated.error });
+    }
+
+    const { password, ...safeLobby } = updated.lobby!;
+    return reply.send({ ...safeLobby, hasPassword: !!password });
+  });
 
   // Join lobby
   fastify.post<{ Headers: { "x-player-id": string } }>(

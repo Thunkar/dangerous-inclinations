@@ -29,6 +29,7 @@ import {
   botChooseLoadout,
   botDecideActions,
   createGame as engineCreateGame,
+  type GameOptions,
   deployShip,
   executeTurn,
   filterEventsFor,
@@ -36,6 +37,7 @@ import {
   isDestroyed,
   missionTargetsPlayer,
   pickIndex,
+  restoreRecordedState,
   stampEvents,
   submitLoadout as engineSubmitLoadout,
   transitionToActivePhase,
@@ -556,9 +558,11 @@ export function createGameService(deps: GameServiceDeps) {
       gameId: string,
       players: PlayerSpec[],
       humanPlayerIds: Iterable<string>,
-      seed?: number
+      seed?: number,
+      /** What the table agreed on before the deal (points to win). */
+      options?: GameOptions
     ): Promise<GameState> {
-      const state = engineCreateGame(players, seed);
+      const state = engineCreateGame(players, seed, options);
       await saveState(gameId, state);
       await setHumanPlayerIds(gameId, humanPlayerIds);
       return state;
@@ -747,7 +751,13 @@ export function createGameService(deps: GameServiceDeps) {
         if (snapshot.phase !== "active" && snapshot.phase !== "ended") {
           return { ok: false, error: `Cannot rewind into a "${snapshot.phase}" snapshot` };
         }
-        const restored: GameState = { ...snapshot, phase: "active", winnerId: undefined };
+        // A snapshot recorded before the table could agree on four points was
+        // played to the default; give it back the field so the game reads it.
+        const restored: GameState = restoreRecordedState({
+          ...snapshot,
+          phase: "active",
+          winnerId: undefined,
+        });
 
         await recordings.truncate(gameId, turnIndex);
         await saveState(gameId, restored);
@@ -839,7 +849,9 @@ export function createGameService(deps: GameServiceDeps) {
       }
 
       const forked = renamePlayerEverywhere(
-        { ...snapshot, phase: "active", winnerId: undefined },
+        // As in `rewind`: a recording from before `pointsToWin` existed was
+        // played to the default, so that is what the fork carries on with.
+        restoreRecordedState({ ...snapshot, phase: "active", winnerId: undefined }),
         seat,
         options.humanPlayerId,
         options.humanPlayerName

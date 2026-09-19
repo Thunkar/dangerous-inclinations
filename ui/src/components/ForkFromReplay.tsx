@@ -24,7 +24,7 @@ import {
   Typography,
 } from '@mui/material'
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'
-import { MISSIONS_TO_WIN } from '@dangerous-inclinations/engine'
+import { DEFAULT_POINTS_TO_WIN } from '@dangerous-inclinations/engine'
 import type { GameRecording } from '@dangerous-inclinations/engine'
 import { getStoredPlayerId } from '../api/client.ts'
 import { forkRecording } from '../api/game.ts'
@@ -59,6 +59,9 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
       .map((p) => ({
         id: p.id,
         name: p.name,
+        // A recording from before the table could agree on the number was
+        // played to the default.
+        pointsToWin: snapshot.pointsToWin ?? DEFAULT_POINTS_TO_WIN,
         isBot: kinds.get(p.id) !== 'human',
         isMine: p.id === myPlayerId,
         hull: p.ship.hitPoints,
@@ -145,7 +148,7 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
                           {seat.isMine ? ' (your seat)' : ''}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Hull {seat.hull}/{seat.maxHull} · {seat.missionsDone} of {MISSIONS_TO_WIN} missions
+                          Hull {seat.hull}/{seat.maxHull} · {seat.missionsDone} of {seat.pointsToWin} missions
                           completed
                         </Typography>
                       </Box>

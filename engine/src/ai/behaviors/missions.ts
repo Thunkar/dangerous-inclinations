@@ -65,7 +65,7 @@ const INTERDICT_CHASE_RANGE = 6;
  * Urgency on the first step of a two-point card, so starting the primary
  * outranks a secondary at the same distance.
  *
- * Three points win (`MISSIONS_TO_WIN`) and a hand is one two-point primary
+ * The table plays to three points or four, and a hand is one two-point primary
  * plus two one-point secondaries: the secondaries alone are two points, so
  * the primary is not optional and the game cannot be won without it. Its
  * first step — the Intercept's scan, the Deliver's pickup — carried no

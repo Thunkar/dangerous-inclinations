@@ -112,7 +112,11 @@ export interface GameView {
   winnerId?: string;
   /** Someone has reached the points needed; the game ends when this round does. */
   finalRound: boolean;
-  /** Rules in force for this game (public). */
+  /**
+   * Points that trigger the final round, as the table agreed before the deal.
+   * Public: everyone is playing to the same number.
+   */
+  pointsToWin: number;
   /** The viewer's full player record, or null for a spectator. */
   me: Player | null;
   myStats: OwnShipStats | null;
@@ -205,6 +209,7 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     missiles: state.missiles,
     winnerId: state.winnerId,
     finalRound: state.finalRound === true,
+    pointsToWin: state.pointsToWin,
     me,
     myStats: me
       ? {

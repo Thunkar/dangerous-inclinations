@@ -23,7 +23,7 @@ import LockIcon from '@mui/icons-material/Lock'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary'
-import type { GlobalSocketMessage, LobbyListItem } from '../../api/types'
+import type { GlobalSocketMessage, LobbyListItem, PointsToWin } from '../../api/types'
 import { MAX_PLAYERS, MIN_PLAYERS } from '@dangerous-inclinations/engine'
 import { createLobby, joinLobby, listLobbies } from '../../api/lobby'
 import { usePlayer } from '../../context/PlayerContext'
@@ -57,6 +57,8 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newMax, setNewMax] = useState<number>(SEAT_COUNTS[Math.floor(SEAT_COUNTS.length / 2)])
+  // The table can still change this in the lobby; three is the game.
+  const [newPointsToWin, setNewPointsToWin] = useState<PointsToWin>(3)
   const [newPassword, setNewPassword] = useState('')
 
   const [joinTarget, setJoinTarget] = useState<LobbyListItem | null>(null)
@@ -98,7 +100,12 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
   const doCreate = async () => {
     setBusy(true)
     try {
-      const lobby = await createLobby(newName.trim() || `${playerName}'s table`, newMax, newPassword || undefined)
+      const lobby = await createLobby(
+        newName.trim() || `${playerName}'s table`,
+        newMax,
+        newPointsToWin,
+        newPassword || undefined,
+      )
       await joinLobby(lobby.lobbyId, newPassword || undefined)
       setCreateOpen(false)
       onLobbyJoined(lobby.lobbyId)
@@ -197,7 +204,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
                 <Typography sx={{ fontWeight: 700, color: TABLE.ink }}>{lobby.lobbyName}</Typography>
                 {lobby.hasPassword && <LockIcon sx={{ fontSize: 15, color: TABLE.inkSoft }} />}
                 <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-                  {lobby.currentPlayers}/{lobby.maxPlayers} seats
+                  {lobby.currentPlayers}/{lobby.maxPlayers} seats · {lobby.pointsToWin} points
                 </Typography>
                 <Box sx={{ flex: 1 }} />
                 <Button
@@ -232,6 +239,15 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
                 {n} players
               </MenuItem>
             ))}
+          </Select>
+          <Select
+            value={newPointsToWin}
+            onChange={(e) => setNewPointsToWin(Number(e.target.value) as PointsToWin)}
+            fullWidth
+            size="small"
+          >
+            <MenuItem value={3}>3 points to win</MenuItem>
+            <MenuItem value={4}>4 points to win</MenuItem>
           </Select>
           <TextField
             label="Password (optional)"

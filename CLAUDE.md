@@ -51,8 +51,9 @@ loaded, ships are repaired and data is delivered.
 Loadout tiles (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
 Scanning peeks at one tile privately. Completed missions are face-up. Reaching
-3 points triggers the final round: the round is played out, then highest score
-wins (hull, then fuel, break ties). Six card types in two kinds: primaries
+the table's points (3 by default; the lobby may set 4, and the value rides on
+`GameState.pointsToWin` and the view) triggers the final round: the round is
+played out, then highest score wins (hull, then fuel, break ties). Six card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, board,
 garbage disposal). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
@@ -175,9 +176,10 @@ is measured before it is adopted with the simulator's experiment-only override
 channels, which mutate the configuration of the process running the batch:
 `--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
 any tile), `--weapons=laser.damage=3` (firing stats),
-`--rules=missionsToWin=3,secondariesKept=3,compressedJumpFuel=1` (points to
-win, the shape of a hand, what a compressed jump costs — `yarn bench --rules=`
-takes it too and stamps it on the page), `--loadouts=` (the bots'
+`--rules=missionsToWin=4,secondariesKept=3,compressedJumpFuel=1` (the table's
+points to win — a real game option, passed to `createGame` — then two
+experiment-only knobs: the shape of a hand and what a compressed jump costs;
+`yarn bench --rules=` takes it too and stamps it on the page), `--loadouts=` (the bots'
 hull templates), `--seats=` (a hull forced on one seat) and `--hands=bot-1=destroy`
 (the primary a seat is dealt and keeps — the bots price one road to the win
 and take it every time, so a plan they never choose is only measurable dealt). The summary prints

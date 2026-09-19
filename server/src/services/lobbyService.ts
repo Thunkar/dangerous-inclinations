@@ -6,11 +6,11 @@
  */
 import { randomUUID } from "node:crypto";
 import type { PlayerSpec } from "@dangerous-inclinations/engine";
-import { MAX_PLAYERS, MIN_PLAYERS } from "@dangerous-inclinations/engine";
+import { DEFAULT_POINTS_TO_WIN, MAX_PLAYERS, MIN_PLAYERS } from "@dangerous-inclinations/engine";
 import { getRedis } from "./redis.ts";
 import { createKeyedLock } from "./lock.ts";
 import { broadcastToRoom } from "../websocket/rooms.ts";
-import type { CreateLobbyInput } from "../schemas/lobby.ts";
+import type { CreateLobbyInput, UpdateLobbyInput } from "../schemas/lobby.ts";
 import { getPlayer } from "./playerService.ts";
 import type { AgentInfo, PlayerAuth } from "../schemas/player.ts";
 import { gameService } from "./live.ts";
@@ -34,6 +34,11 @@ export interface Lobby {
   lobbyName: string;
   password?: string;
   maxPlayers: number;
+  /**
+   * Points that will trigger the final round: the table's agreement, settled
+   * here because it has to be settled before the cards come out.
+   */
+  pointsToWin: number;
   players: LobbyPlayer[];
   hostPlayerId: string;
   /** Set when the host starts the game. */
@@ -64,6 +69,12 @@ function seatFor(playerId: string, player: PlayerAuth): LobbyPlayer {
   };
 }
 
+/** A lobby as everyone in it may see it: the password never leaves the server. */
+export function publicLobby(lobby: Lobby): Omit<Lobby, "password"> & { hasPassword: boolean } {
+  const { password, ...rest } = lobby;
+  return { ...rest, hasPassword: !!password };
+}
+
 async function saveLobby(lobby: Lobby): Promise<void> {
   await getRedis().set(lobbyKey(lobby.lobbyId), JSON.stringify(lobby));
 }
@@ -91,6 +102,7 @@ export async function createLobby(input: CreateLobbyInput, hostPlayerId: string)
     // Belt and braces: the schema bounds this too, but a lobby that can never
     // start a game is worse than a clamped one.
     maxPlayers: Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, Math.trunc(input.maxPlayers))),
+    pointsToWin: input.pointsToWin,
     players: [seatFor(hostPlayerId, hostPlayer)],
     hostPlayerId,
     createdAt: Date.now(),
@@ -114,9 +126,44 @@ export async function createLobby(input: CreateLobbyInput, hostPlayerId: string)
   return lobby;
 }
 
+/**
+ * A lobby as it comes back out of Redis. One written before the table could
+ * agree on the points to win plays the default, exactly as it would have when
+ * it was created.
+ */
+function parseLobby(data: string): Lobby {
+  const lobby = JSON.parse(data) as Lobby;
+  return { ...lobby, pointsToWin: lobby.pointsToWin ?? DEFAULT_POINTS_TO_WIN };
+}
+
 export async function getLobby(lobbyId: string): Promise<Lobby | null> {
   const data = await getRedis().get(lobbyKey(lobbyId));
-  return data ? (JSON.parse(data) as Lobby) : null;
+  return data ? parseLobby(data) : null;
+}
+
+/**
+ * Host changes a table setting before the deal. Once the game exists the
+ * agreement is on the state and cannot move.
+ */
+export function updateLobbySettings(
+  lobbyId: string,
+  hostPlayerId: string,
+  settings: UpdateLobbyInput
+): Promise<{ success: boolean; error?: string; lobby?: Lobby }> {
+  return withLobbyLock(lobbyId, async () => {
+    const lobby = await getLobby(lobbyId);
+    if (!lobby) return { success: false, error: "Lobby not found" };
+    if (lobby.hostPlayerId !== hostPlayerId)
+      return { success: false, error: "Only the host can change the table's settings" };
+    if (lobby.gameId) return { success: false, error: "Game already started" };
+
+    lobby.pointsToWin = settings.pointsToWin;
+    await saveLobby(lobby);
+
+    // Everyone at the table sees the agreement, and nobody sees the password.
+    broadcastToRoom("lobby", { type: "LOBBY_STATE", payload: publicLobby(lobby) }, lobbyId);
+    return { success: true, lobby };
+  });
 }
 
 export async function listLobbies(): Promise<Lobby[]> {
@@ -125,7 +172,7 @@ export async function listLobbies(): Promise<Lobby[]> {
   const lobbies = await Promise.all(
     lobbyIds.map(async (id) => {
       const data = await redis.get(lobbyKey(id));
-      return data ? (JSON.parse(data) as Lobby) : null;
+      return data ? parseLobby(data) : null;
     }),
   );
   return lobbies.filter((l): l is Lobby => l !== null);
@@ -273,14 +320,18 @@ export function startGame(lobbyId: string, hostPlayerId: string): Promise<string
     const specs: PlayerSpec[] = lobby.players.map((p) => ({ id: p.playerId, name: p.playerName }));
     const humanPlayerIds = lobby.players.filter((p) => !p.isBot).map((p) => p.playerId);
 
-    await gameService.createGame(gameId, specs, humanPlayerIds);
+    await gameService.createGame(gameId, specs, humanPlayerIds, undefined, {
+      pointsToWin: lobby.pointsToWin,
+    });
 
     lobby.gameId = gameId;
     await saveLobby(lobby);
 
     broadcastToRoom("lobby", { type: "GAME_STARTING", payload: { gameId } }, lobbyId);
     broadcastLobbyUpdate(lobby);
-    log.info(`Game ${gameId} started from lobby ${lobbyId} (${specs.length} players, ${humanPlayerIds.length} human)`);
+    log.info(
+      `Game ${gameId} started from lobby ${lobbyId} (${specs.length} players, ${humanPlayerIds.length} human, ${lobby.pointsToWin} points to win)`
+    );
     return gameId;
   });
 }

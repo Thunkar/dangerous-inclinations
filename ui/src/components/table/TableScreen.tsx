@@ -18,7 +18,6 @@
 import { Box, Chip, Tooltip, Typography } from '@mui/material'
 import FastForwardIcon from '@mui/icons-material/FastForward'
 import VisibilityIcon from '@mui/icons-material/Visibility'
-import { MISSIONS_TO_WIN } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
@@ -123,7 +122,7 @@ export function TableScreen({
           }}
         />
         {view.finalRound && view.phase === 'active' && (
-          <Tooltip title={`Someone reached ${MISSIONS_TO_WIN} points. The round is played out, then highest score wins — hull breaks ties.`}>
+          <Tooltip title={`Someone reached ${view.pointsToWin} points. The round is played out, then highest score wins — hull breaks ties.`}>
             <Chip
               size="small"
               label="FINAL ROUND"
@@ -177,7 +176,7 @@ export function TableScreen({
             sx={{ color: TABLE.inkFaint, flexShrink: 1, minWidth: 0 }}
             noWrap
           >
-            {MISSIONS_TO_WIN} points end the round · highest score wins · Destroy, Deliver and
+            {view.pointsToWin} points end the round · highest score wins · Destroy, Deliver and
             Intercept score 2
           </Typography>
         )}

@@ -7,7 +7,7 @@
  */
 import type { GameEvent } from "../models/events.ts";
 import type { SecondaryMissionType, Mission } from "../models/missions.ts";
-import { MISSION_POINTS, MISSIONS_TO_WIN, SURVEY_RING } from "../models/missions.ts";
+import { DEFAULT_POINTS_TO_WIN, MISSION_POINTS, SURVEY_RING } from "../models/missions.ts";
 import {
   SHIELD_ENERGY_PER_POINT,
   SUBSYSTEM_CONFIGS,
@@ -38,12 +38,13 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
  *
  * Built when it is asked for, not at module load: the numbers in it are the
  * game's constants, and a copy frozen into a top-level string would still say
- * three points in a process the simulator's experiment channel
- * (sim/ruleOverrides.ts) had set to four.
+ * three points at a table that agreed on four.
+ *
+ * @param pointsToWin what this table plays to (`view.pointsToWin`).
  */
-export function agentRulesDigest(): string {
+export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): string {
   return `RULES IN BRIEF
-- Win: the round in which someone reaches ${MISSIONS_TO_WIN} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is five points held for the ${MISSIONS_TO_WIN} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
+- Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
 - Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.
@@ -117,7 +118,7 @@ export function describeViewForAgent(
   if (!me) throw new Error("A spectator has no seat to describe");
   const name = (id: string) => view.players.find((p) => p.id === id)?.name ?? id;
   const out: string[] = [];
-  if (options.includeRules !== false) out.push(agentRulesDigest(), "");
+  if (options.includeRules !== false) out.push(agentRulesDigest(view.pointsToWin), "");
 
   const active = view.players.find((p) => p.id === view.activePlayerId);
   out.push(
@@ -144,7 +145,7 @@ export function describeViewForAgent(
       })
       .join("; ")}`
   );
-  out.push(`YOUR POINTS: ${me.completedMissionCount}/${MISSIONS_TO_WIN}. CARDS:`);
+  out.push(`YOUR POINTS: ${me.completedMissionCount}/${view.pointsToWin}. CARDS:`);
   for (const m of me.missions) out.push(`  - ${missionLine(m, name)}`);
   if (me.cargo.length)
     out.push(

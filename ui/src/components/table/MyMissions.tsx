@@ -5,18 +5,17 @@
  */
 import { Box, Typography } from '@mui/material'
 import type { Player } from '@dangerous-inclinations/engine'
-import { MISSIONS_TO_WIN } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../theme'
 import { Panel } from '../common/Panel'
 import { MissionCard } from '../common/MissionCard'
 import { useGame } from '../../context/GameContext'
 
 export function MyMissions({ me }: { me: Player }) {
-  const { nameOf } = useGame()
+  const { nameOf, view } = useGame()
 
   return (
     <Panel
-      title={`Points ${me.completedMissionCount}/${MISSIONS_TO_WIN}`}
+      title={`Points ${me.completedMissionCount}/${view.pointsToWin}`}
       dense
       collapseId="points"
       sx={{ flexShrink: 0, minWidth: 0 }}

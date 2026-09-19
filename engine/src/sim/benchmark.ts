@@ -28,7 +28,7 @@ import {
   STATION_RING,
 } from "../models/gravityWells.ts";
 import {
-  MISSIONS_TO_WIN,
+  DEFAULT_POINTS_TO_WIN,
   PRIMARIES_PER_PLAYER,
   PRIMARY_OFFERS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
@@ -278,6 +278,11 @@ function handShapeRows(batches: BatchResult[]) {
     .sort((a, b) => b.seats - a.seats);
 }
 
+/** What this run's games were created playing to. */
+function pointsToWin(args: Args): number {
+  return args.rules?.missionsToWin ?? DEFAULT_POINTS_TO_WIN;
+}
+
 function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   const out: string[] = [];
   const today = new Date().toISOString().slice(0, 10);
@@ -292,7 +297,9 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push("");
   out.push("| rule | value |");
   out.push("|---|---|");
-  out.push(`| Points to win | ${MISSIONS_TO_WIN} |`);
+  // The value the run was played to: `--rules=missionsToWin=` is dealt into
+  // every game of the batch, so the page stamps what the games actually used.
+  out.push(`| Points to win | ${pointsToWin(args)} |`);
   out.push(
     `| Card values | ${TYPES.map((t) => `${TYPE_LABEL[t]} ${MISSION_POINTS[t]}`).join(", ")} |`
   );
@@ -363,7 +370,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push("");
   out.push(
     "_Every hand is one primary and two secondaries, which is five points held for the " +
-      `${MISSIONS_TO_WIN} that win, so the row is the primary a seat took and what it took beside ` +
+      `${pointsToWin(args)} that win, so the row is the primary a seat took and what it took beside ` +
       "it. A hand nobody keeps is a plan the table never tested._"
   );
   out.push("");

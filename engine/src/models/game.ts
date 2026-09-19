@@ -364,10 +364,15 @@ export interface GameState {
   phase: GamePhase;
   winnerId?: string;
   /**
-   * Someone has reached MISSIONS_TO_WIN: the round is played out so every
-   * seat gets the same number of turns, then the standings decide.
+   * Someone has reached {@link GameState.pointsToWin}: the round is played out
+   * so every seat gets the same number of turns, then the standings decide.
    */
   finalRound?: boolean;
+  /**
+   * Points that trigger the final round, agreed by the table before the deal:
+   * three (the game) or four (all three cards mandatory). Fixed for the game.
+   */
+  pointsToWin: number;
   // Determinism
   rngSeed: number;
   rngState: number;

@@ -7,7 +7,7 @@
 import type { GameState, Player } from "../../models/game.ts";
 import type { EventDraft } from "../../models/events.ts";
 import type { SecondaryMission, Mission } from "../../models/missions.ts";
-import { MISSIONS_TO_WIN, SURVEY_RING, missionPoints } from "../../models/missions.ts";
+import { SURVEY_RING, missionPoints } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 
@@ -171,7 +171,7 @@ export function processMissionEvents(
 
 /** The first seat, in turn order, that has reached the points needed to trigger the final round. */
 export function checkForWinner(state: GameState): Player | undefined {
-  return state.players.find((p) => p.completedMissionCount >= MISSIONS_TO_WIN);
+  return state.players.find((p) => p.completedMissionCount >= state.pointsToWin);
 }
 
 export type Decider = "points" | "hull" | "fuel" | "seat";

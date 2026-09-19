@@ -1,8 +1,8 @@
 /**
- * The simulator's experiment-only rule channel: `--rules=` reaches three of
- * the game's constants so a proposed change can be measured before it is
- * adopted. Every test here restores the rules it moved, because the constants
- * are process-wide.
+ * The simulator's experiment-only rule channel: `--rules=` reaches the hand
+ * shape and the jump cost, which are constants, and the points to win, which
+ * is dealt into each game. Every test here restores the constants it moved,
+ * because those are process-wide.
  */
 import { describe, it, expect, afterEach } from "vitest";
 import {
@@ -11,8 +11,8 @@ import {
   type RuleOverrides,
 } from "../../sim/ruleOverrides.ts";
 import {
+  DEFAULT_POINTS_TO_WIN,
   MISSIONS_PER_PLAYER,
-  MISSIONS_TO_WIN,
   SECONDARIES_PER_PLAYER,
   setMissionRules,
 } from "../../models/missions.ts";
@@ -24,6 +24,8 @@ import {
 } from "../../models/rings.ts";
 import { selectMissionsFromOffers } from "../../game/missions/missionDeck.ts";
 import { checkForWinner } from "../../game/missions/missionChecks.ts";
+import { createGame } from "../../game/setup.ts";
+import { setupBotGame } from "../../sim/runGame.ts";
 import { validHands } from "../../ai/behaviors/loadout.ts";
 import {
   ALPHA,
@@ -40,16 +42,12 @@ import {
 
 /** The rules as they stand, read before anything moves them. */
 const RULES_AS_THEY_STAND = {
-  toWin: MISSIONS_TO_WIN,
   secondariesKept: SECONDARIES_PER_PLAYER,
   compressedJump: COMPRESSED_JUMP_MASS,
 };
 
 afterEach(() => {
-  setMissionRules({
-    toWin: RULES_AS_THEY_STAND.toWin,
-    secondariesKept: RULES_AS_THEY_STAND.secondariesKept,
-  });
+  setMissionRules({ secondariesKept: RULES_AS_THEY_STAND.secondariesKept });
   setCompressedJumpMass(RULES_AS_THEY_STAND.compressedJump);
 });
 
@@ -86,18 +84,25 @@ describe("parseRuleOverrides", () => {
 });
 
 describe("missionsToWin", () => {
-  // Three points win as the rules stand, so a seat holding one completed
-  // primary is a point short: the override is measured at two.
-  it("does not end a game at 2 points under the rules as they stand", () => {
-    const state = withPlayer(makeTwoPlayerGame(), "p1", { completedMissionCount: 2 });
-    expect(checkForWinner(state)).toBeUndefined();
+  // Points to win is a table agreement now, not a constant: the key is dealt
+  // into every game the batch creates instead of reassigning a binding.
+  it.each([
+    ["the default when the batch says nothing", undefined, DEFAULT_POINTS_TO_WIN],
+    ["four when the batch asks for four", 4, 4],
+  ])("creates the batch's games playing to %s", (_case, override, expected) => {
+    expect(setupBotGame(11, 2, undefined, undefined, override).pointsToWin).toBe(expected);
   });
 
-  it("triggers the final round at 2 points once the rule is overridden", () => {
-    const state = withPlayer(makeTwoPlayerGame(), "p1", { completedMissionCount: 2 });
+  it("changes nothing in the process, so a game made beside it still plays to three", () => {
     applyRuleOverrides({ missionsToWin: 2 });
-    expect(MISSIONS_TO_WIN).toBe(2);
-    expect(checkForWinner(state)?.id).toBe("p1");
+    const state = withPlayer(makeTwoPlayerGame(), "p1", { completedMissionCount: 2 });
+    expect(checkForWinner(state)).toBeUndefined();
+    expect(
+      createGame([
+        { id: "a", name: "A" },
+        { id: "b", name: "B" },
+      ]).pointsToWin
+    ).toBe(DEFAULT_POINTS_TO_WIN);
   });
 });
 

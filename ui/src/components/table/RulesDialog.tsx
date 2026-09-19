@@ -17,7 +17,6 @@ import {
   DEFAULT_DISSIPATION_CAPACITY,
   MAX_REACTION_MASS,
   MAX_SECTOR_ADJUSTMENT,
-  MISSIONS_TO_WIN,
   PLANET_RINGS,
   REACTOR_CAPACITY,
   SCAN_SECTOR_RANGE,
@@ -30,6 +29,7 @@ import {
   WELL_TRANSFER_COSTS,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
+import { useGame } from '../../context/GameContext'
 
 /** What one radiator sheds, read from the tile so this card cannot drift. */
 const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
@@ -69,6 +69,8 @@ export function RulesButton() {
 }
 
 function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
+  // The number this table agreed on, not the game's default.
+  const { view } = useGame()
   const quick: Array<[string, string]> = [
     ['Reactor', `${REACTOR_CAPACITY} energy`],
     ['Heat track', `${MAX_HEAT} — above it is hull damage; heat does not reset`],
@@ -109,7 +111,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Win',
-      `${MISSIONS_TO_WIN} points trigger the final round; when it ends, highest score wins (hull, then fuel, break ties). Your primary and either secondary is a win; two secondaries are not`,
+      `${view.pointsToWin} points trigger the final round; when it ends, highest score wins (hull, then fuel, break ties). Your primary and either secondary is a win; two secondaries are not`,
     ],
   ]
 
