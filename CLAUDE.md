@@ -298,29 +298,30 @@ not an argument:
 
 Known open problems:
 
-- **The primary you are dealt is worth ±10 points, and which way flips with
-  the bots.** Three points to win makes the game a race of 22–27 rounds. With
-  bots that scanned last, dealt Destroy won 55% against 34/33; with bots that
-  start their primary first (the scan and the Deliver pickup carry urgency now)
-  dealt Deliver wins 41%, Destroy 33%, Intercept 23%, against 31% with a hand
-  of its own choosing. Under four points the three were level at 34%. The
-  swing says the rules are sensitive to how well each card is played, which
-  humans will differ on too. Levers not yet measured: Intercept's scan range
-  or filing station, a Deliver that pays on pickup, the primary's value.
-- **Intercept is the weak card.** 28 completed per 100 kept, the sensor hull
-  wins 19% of its natural seats, and dealt Intercept 23%. The bots now scan
-  first (Intercept completions +12% from that alone), so what remains is the
-  card: a rival on your ring within three sectors, then a named station, in a
-  game that ends in 23 rounds. A rules question for the designer.
-- **The compressor wins a race.** With the game short, the weaponless
-  compressor hull (shields×2 + radiators×2) is an outlier again at 45% and the
-  compressor with two launchers at 51%, against 31%; racks×2 and lasers×2
-  behind it sit at 36%. The refund was measured at about 18 points to a
-  weaponless hull; a 1-fuel jump took that hull 50% → 32% under four points
-  without touching the hauler preset, and the designer kept the jump free. Its
-  natural predators are racks and lasers (duel: rack hunter 57% prey wins,
-  four lasers 61%, the laser-and-rack hunter preset 69%; missiles never, 93%),
-  and with bots that race, hunting is slower than running.
+- **The primary you are dealt is worth about ten points, and which way flips
+  with the bots.** At 400 games a row: dealt Destroy 32%, Deliver 36%,
+  Intercept 23%, against 33% with a hand of its own choosing (three points);
+  27% / 38% / 28% against 32% at four. With bots that scanned last the same
+  cards read 55 / 34 / 33. The swing says the rules are sensitive to how well
+  each card is played, which humans will differ on too. Levers not yet
+  measured: Intercept's scan range or filing station, a Deliver that pays on
+  pickup, the primary's value.
+- **Intercept is the weak card, and the designer calls it the player's
+  problem.** 28 completed per 100 kept, dealt Intercept 23% (28% under four
+  points, where the interceptor has time). The bots scan first now; what
+  remains is the card — a rival on your ring within three sectors, then a
+  named station — and a sensor bow that reveals itself early. Not a rule
+  change for now.
+- **The compressor wins a race.** Against 33%: compressor + launchers×2 50%
+  (`outlier`), shields×2 + radiators×2 43%, lasers×2 41%, racks×2 40%; under
+  four points the family is four outliers at 42–47% against 32%. The refund
+  was measured at about 18 points to a weaponless hull; a 1-fuel jump took
+  that hull 50% → 32% without touching the hauler preset, and the designer
+  kept the jump free, expecting tables to gang up on a runner whose cards are
+  public. Its natural predators are racks and lasers (400-game duels: rack
+  hunter 59% prey wins, four lasers 65%, the laser-and-rack hunter preset
+  70%; missiles never, 90–92%), and with bots that race, hunting is slower
+  than running.
 - **The secondary offer is still lopsided.** Everyone is offered all three;
   Garbage Disposal is the one left out (kept 46% against 76–78%). Completed per
   100 kept under three points: Survey 35, Board 28, Garbage 14 — the spare
@@ -345,13 +346,15 @@ Known open problems:
   holding a crate than while empty. Kills still fall on carriers — 72% of
   destroyed ships were carrying something, nearly all of it data chits — but
   that is the hunt for the leader, not the crate.
-- **Two players is thin**, and seat 1 wins 62% of them on the balance seeds.
-  The designer wants no artificial limit; special rules for two may come later.
-- **Length is short now**: 23 / 25 / 24 / 27 rounds at 3 / 4 / 5 / 6 seats,
-  1h09 to 2h42 at a minute a turn, every game decided, about five cards
-  completed a game at three seats. Kills per game 1.4 / 4.4 / 5.9 / 9.5. The
-  benchmark's seat spread at 3 and 4 seats (22 / 43 / 35 and 25 / 23 / 14 / 38)
-  is 120 games and may be noise; worth one confirming run before reading it.
+- **Two players is thin**, and seat 1 wins 56% of them on the balance seeds
+  (50 / 50 under four points). The designer wants no artificial limit; special
+  rules for two may come later.
+- **Length**: 24 / 24 / 25 / 27 rounds at 3 / 4 / 5 / 6 seats under three
+  points, 1h12 to 2h42 at a minute a turn, every game decided, five cards
+  completed a game at three seats; kills 1.6 / 3.8 / 6.8 / 11.2. Under four
+  points 39 / 41 / 45 / 51 rounds, kills 3.1 / 5.9 / 10.5 / 19.3. At 240 games
+  per seat count the benchmark's seat spread is 24 / 38 / 38 at three seats
+  and flat at four to six.
 
 ## Adding a rule
 
