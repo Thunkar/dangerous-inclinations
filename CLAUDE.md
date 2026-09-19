@@ -64,9 +64,11 @@ roughly the same or the choice is fake.
 New mission types are proposed to the designer, never added unasked.
 
 Missiles fire in **salvos**: one action launches any number of a tile's missiles
-at one ship, 2 heat per missile; a powered ballistic rack rolls at **every**
-missile that reaches it, 2 heat a roll — so a salvo is a heat gamble on both
-sides, and heat stays one per point of damage across every weapon.
+at one ship, and that is **one use of the tile** — the 4-round magazine, refilled
+at a station, is what limits missiles, not heat. A powered ballistic rack rolls
+at **every** missile that reaches it, also for one use of the rack, and the two
+halves stay together: a rack that answers a whole salvo is what keeps a salvo
+that costs one tile's heat honest.
 
 Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate,
 one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
@@ -244,8 +246,7 @@ not an argument:
 - **A rack that intercepts once a turn.** Three launchers firing one missile
   each were already a salvo it could not answer: a sensor bow with missiles×3
   won 66% of three-seat games against a 37% Destroy bar. Point defence rolls at
-  every missile now, salvos are one action at heat per missile, and that hull
-  sits at 40%.
+  every missile now, salvos are one action, and that hull sits at 40%.
 - **The compressor as a side tile** (`fuel_compressor.slotType=side`). Measured
   on the balance seeds with the hauler templates moved to a sensor bow: the
   weaponless pacifist wins 48% with the compressor on its side as it does with

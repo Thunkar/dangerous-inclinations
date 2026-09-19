@@ -172,18 +172,18 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     }
 
     // On target. Point defence first: a powered rack rolls at every missile
-    // that reaches its ship, not once a turn, and pays its cubes in heat for
-    // each roll — so a salvo stays a gamble on both sides. The rack is read off
-    // the target as it stands now, because an earlier missile of the same
+    // that reaches its ship, and the whole turn of rolling is one use of the
+    // rack — which is what keeps a one-action salvo honest. The rack is read
+    // off the target as it stands now, because an earlier missile of the same
     // salvo may already have broken it or heated the ship.
     let targetShip = target.ship;
     const rack = targetShip.subsystems.find(
       (s) => s.type === "ballistic_rack" && s.isPowered && !s.isBroken
     );
     if (rack) {
-      // `heatPerIntercept: false` is the experiment where only the rack's
-      // first roll of a player-turn costs its cubes and the rest are free; the
-      // flag is true in the rules, so every roll is charged and revealing.
+      // A turn of interceptions is one use of the rack: the first roll of a
+      // player-turn costs its cubes and the rest of that turn's rolls are
+      // free. `heatPerIntercept: true` is the experiment that charges each one.
       const chargeThisRoll =
         getSubsystemConfig("ballistic_rack").weaponStats?.heatPerIntercept !== false ||
         !rack.usedThisTurn;

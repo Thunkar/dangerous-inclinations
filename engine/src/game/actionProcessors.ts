@@ -413,9 +413,9 @@ function processFireWeapon(
   const weaponType = weapon.type;
 
   // A missiles tile may empty as much of its magazine as it likes at one ship
-  // in one action; the tile is used once, but each missile costs its cubes in
-  // heat, which is the whole price of a salvo. `heatPerMissile: false` is the
-  // experiment where the tile is charged once however big the salvo.
+  // in one action, and that is one use of the tile: its cubes are charged once
+  // however big the salvo, because the magazine is what limits missiles.
+  // `heatPerMissile: true` is the experiment that charges them per missile.
   const salvo = weaponType === "missiles" ? Math.max(1, Math.trunc(action.data.count ?? 1)) : 1;
   const perMissileHeat = config.weaponStats?.heatPerMissile !== false;
   const used = useSubsystem(attacker.ship, attacker.id, weapon.id, "fired");

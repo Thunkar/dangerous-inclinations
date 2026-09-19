@@ -181,7 +181,7 @@ describe("missiles: launch", () => {
     expect(executeTurnAs(state, fire(1, "side-3", "p2")).errors?.[0]).toMatch(/no missiles/i);
   });
 
-  it("a salvo puts one token per missile in the air and pays the tile's cubes for each", () => {
+  it("a salvo puts one token per missile in the air and is one use of the tile", () => {
     const processed = processActions(launcher(), [
       { ...fire(1, "side-3", "p2", "side-1", undefined, 3), playerId: "p1" } as PlayerAction,
     ]);
@@ -194,10 +194,11 @@ describe("missiles: launch", () => {
       expect(missile).toMatchObject({ targetId: "p2", criticalTarget: "side-1" });
     }
     expect(getSub(processed.state, "p1", "side-3").ammo).toBe(1);
-    expect(getShip(processed.state, "p1").heat.currentHeat).toBe(6);
+    // Three rounds off the rail, the tile's two cubes charged once.
+    expect(getShip(processed.state, "p1").heat.currentHeat).toBe(2);
     expect(eventsOf(processed.events as never, "weapon_fired")[0]).toMatchObject({
       count: 3,
-      heat: 6,
+      heat: 2,
     });
   });
 
@@ -449,26 +450,30 @@ describe("missiles: on the target's sector", () => {
     missiles: Array.from({ length: count }, (_, i) => ({ ...state.missiles[0], id: `m-${i + 1}` })),
   });
 
-  it("one rack rolls at every missile of a salvo and pays its cubes for each roll", () => {
+  it("one rack rolls at every missile of a salvo and is used once for the turn", () => {
     const state = withPower(salvoOf(onTarget(RACK), 3), "p2", "side-0", 2);
     const result = processOwnerMissiles({ ...state, forcedRollValue: 5 }, "p1");
-    expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(3);
+    const intercepts = eventsOf(result.events as never, "missile_intercepted");
+    expect(intercepts).toHaveLength(3);
+    // The rack's cubes are charged on its first roll of the turn; the rest ride free.
+    expect(intercepts.map((e) => e.heat)).toEqual([2, 0, 0]);
     expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
     expect(result.state.missiles).toEqual([]);
     expect(getShip(result.state, "p2")).toMatchObject({
       hitPoints: 10,
-      heat: { currentHeat: 6 },
+      heat: { currentHeat: 2 },
     });
   });
 
-  it("a rack that keeps rolling 1 still pays for every roll and every missile attacks", () => {
+  it("a rack that keeps rolling 1 keeps rolling and every missile attacks", () => {
     // A 1 is a miss for the attack too, so the salvo does no damage here: what
-    // is on trial is that the rack does not stop rolling and does not stop paying.
+    // is on trial is that the rack does not stop rolling after a miss, and that
+    // a turn of misses still costs it only the one use.
     const state = withPower(salvoOf(onTarget(RACK), 3), "p2", "side-0", 2);
     const result = processOwnerMissiles({ ...state, forcedRollValue: 1 }, "p1");
     expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(3);
     expect(eventsOf(result.events as never, "attack_resolved")).toHaveLength(3);
-    expect(getShip(result.state, "p2").heat.currentHeat).toBe(6);
+    expect(getShip(result.state, "p2").heat.currentHeat).toBe(2);
   });
 
   it("an unpowered rack lets the whole salvo through", () => {
@@ -489,7 +494,7 @@ describe("missiles: on the target's sector", () => {
     );
     const result = processOwnerMissiles({ ...two, forcedRollValue: 5 }, "p1");
     expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(2);
-    expect(getShip(result.state, "p2")).toMatchObject({ hitPoints: 10, heat: { currentHeat: 4 } });
+    expect(getShip(result.state, "p2")).toMatchObject({ hitPoints: 10, heat: { currentHeat: 2 } });
     expect(getSub(result.state, "p2", "side-2").isRevealed).toBe(false);
   });
 
@@ -534,9 +539,10 @@ describe("missiles: the heat experiment channels", () => {
     rackStats.heatPerIntercept = rule.heatPerIntercept;
   });
 
+  // False is the rule (one use of the tile), true the experiment (per missile).
   it.each([
-    [true, 6],
     [false, 2],
+    [true, 6],
   ])("with heatPerMissile %s a salvo of three costs %i heat", (flag, expected) => {
     missileStats.heatPerMissile = flag;
     const processed = processActions(launcher(), [
@@ -551,9 +557,10 @@ describe("missiles: the heat experiment channels", () => {
     });
   });
 
+  // False is the rule (one use of the rack a turn), true the experiment (per roll).
   it.each([
-    [true, 6],
     [false, 2],
+    [true, 6],
   ])("with heatPerIntercept %s three rolls cost %i heat", (flag, expected) => {
     rackStats.heatPerIntercept = flag;
     const onTarget = missileAt(

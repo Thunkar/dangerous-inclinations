@@ -82,13 +82,12 @@ export function StatusBlock({ accent }: { accent?: string }) {
   )
   /**
    * A powered rack rolls at every missile that reaches you and pays its cubes
-   * for each roll, hit or miss (RULES §Weapons → Ballistic rack) — so a salvo
-   * of four is four rolls, and the worst case is one roll per missile already
-   * flying at you in this well. Never fewer than one: a launcher within reach
-   * can put a round in the air before your next check. Counted unless the plan
-   * already fires the rack this turn, in which case its heat is in `heatAfter`.
-   * Under the experiment that charges the rack once a turn, one roll is the
-   * whole worst case.
+   * once for the turn however many it rolls at (RULES §Weapons → Ballistic
+   * rack), so the worst case is that one use. Counted unless the plan already
+   * fires the rack this turn, in which case its heat is in `heatAfter`. Under
+   * the experiment that charges every roll, the worst case is one roll per
+   * missile already flying at you in this well, never fewer than one: a
+   * launcher within reach can put a round in the air before your next check.
    */
   const incoming = view.missiles.filter(
     m => m.targetId === me.id && m.wellId === me.ship.wellId

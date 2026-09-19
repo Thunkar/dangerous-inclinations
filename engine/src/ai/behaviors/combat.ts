@@ -44,8 +44,8 @@ export interface FireIntent {
   /** Damage of the whole action: for a salvo, one missile's damage times `count`. */
   damage: number;
   /**
-   * Heat the action adds: the tile's cubes once per missile of a salvo, plus
-   * engine energy when compensating recoil.
+   * Heat the action adds: the tile's cubes once, whatever the size of a salvo,
+   * plus engine energy when compensating recoil.
    */
   heat: number;
   /** Reactor energy the weapon needs. A salvo needs no more cubes than one shot. */
@@ -65,9 +65,9 @@ export function weaponEnergy(weapon: Subsystem): number {
 }
 
 /**
- * Heat a salvo of `count` rounds off `weapon` costs: the tile's cubes once per
- * missile under the rule, once for the whole launch under the experiment
- * (`--tiles=missiles.heatPerMissile=false`).
+ * Heat a salvo of `count` rounds off `weapon` costs: the tile's cubes once for
+ * the whole launch under the rule, once per missile under the experiment
+ * (`--tiles=missiles.heatPerMissile=true`).
  */
 export function salvoHeat(weapon: Subsystem, count: number): number {
   const perMissile = getSubsystemConfig(weapon.type).weaponStats?.heatPerMissile !== false;

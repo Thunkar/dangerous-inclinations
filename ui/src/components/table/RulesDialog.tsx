@@ -95,7 +95,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['Hit roll', '1 miss, 2–9 hit, 10 crit (8–10 with sensors)'],
     [
       'Salvo',
-      `one action launches any number of a tile's missiles at one ship, all naming the same slot, ${SUBSYSTEM_CONFIGS.missiles.minEnergy} heat each — and a powered ballistic rack rolls at every missile that reaches it, ${SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy} heat a roll`,
+      `one action launches any number of a tile's missiles at one ship, all naming the same slot, for the tile's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} heat — and a powered ballistic rack rolls at every missile that reaches it in a turn for its ${SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy} heat`,
     ],
     ['Scan', `same ring, within ${SCAN_SECTOR_RANGE} sectors, sensor powered`],
     ['Docking', 'full hull, repair all, reload missiles, load/deliver cargo'],

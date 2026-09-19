@@ -301,10 +301,10 @@ export function buildCandidate(
             )
           )
         : 0;
-    // A salvo costs its tile's cubes in heat once per missile, so its size is
-    // the decision: spend the fewest rounds that still finish the ship, and if
-    // none of them does, spend as many as the budget takes. Everything else
-    // fires once and has only itself to offer.
+    // A salvo is one use of its tile whatever its size, so the only reason to
+    // hold rounds back is the next target: spend the fewest that still finish
+    // the ship, and if none of them does, spend as many as the budget takes.
+    // Everything else fires once and has only itself to offer.
     const kills = (count: number) => hullOn(opponent, sized(offered, count)) >= opponent.hull;
     let smallestKill = 0;
     for (let c = 1; c <= offered.count; c++) {

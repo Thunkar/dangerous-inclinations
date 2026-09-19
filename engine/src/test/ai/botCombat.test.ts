@@ -61,8 +61,9 @@ describe("bot targeting", () => {
       { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
       { wellId: BH, ring: 4, sector: 0 }
     );
-    // One round left in the launcher: a full salvo would spend the turn's whole
-    // heat budget and crowd out the second laser, which is not what is on trial.
+    // One round left in the launcher, which the bot keeps rather than spend on
+    // a full-hull ship: a salvo in the plan would crowd the second laser out of
+    // the heat budget, and the second laser is what is on trial.
     const state = withSub(grounded(base, "p1"), "p1", "side-3", { ammo: 1 });
     const decision = botDecideActions(viewFor(state, "p1"));
     const shots = decision.actions.filter((a): a is FireWeaponAction => a.type === "fire_weapon");
@@ -263,8 +264,16 @@ describe("bot targeting", () => {
     };
     state = withMissions(grounded(state, "p1"), "p1", [destroyMission("p3")]);
     const shots = shotsOf(state, "p1");
-    expect(shots.length).toBeGreaterThan(0);
-    for (const shot of shots) expect(shot.data.targetPlayerId).toBe("p3");
+    // Re-baselined for the flat salvo: the whole magazine is one use of the
+    // tile now, so the launcher empties into the Destroy target and a laser
+    // covers the rest of its ten hull. Only the gun that would otherwise be
+    // shooting a corpse goes to the bystander.
+    expect(shots[0].data.targetPlayerId).toBe("p3");
+    expect(shots.find((s) => s.data.subsystemId === "side-3")?.data).toMatchObject({
+      targetPlayerId: "p3",
+      count: 4,
+    });
+    expect(shots.filter((s) => s.data.targetPlayerId === "p2")).toHaveLength(1);
   });
 });
 
@@ -371,9 +380,10 @@ describe("bot lethality estimates", () => {
 });
 
 /**
- * A salvo is any number of the tile's rounds in one launch, each one costing
- * the tile's cubes in heat, so the size of the salvo is the decision the bot
- * has to make: enough to finish the job, no more than the heat track takes.
+ * A salvo is any number of the tile's rounds in one launch for one use of the
+ * tile, so heat no longer prices its size: the only reason to hold rounds back
+ * is the next target. The bot spends the fewest that finish the job, and the
+ * whole magazine when none of them does.
  */
 describe("bot salvos", () => {
   /** Nothing aboard but the launcher, so the salvo is the whole volley. */
@@ -410,13 +420,16 @@ describe("bot salvos", () => {
     ).toBeUndefined();
   });
 
-  it("empties more than one round into a ship it cannot finish this turn", () => {
-    expect(salvoAt(launcherAgainst(10))).toBeGreaterThan(1);
+  it("empties the whole magazine into a ship it cannot finish this turn", () => {
+    // Ten hull against four rounds of two: nothing finishes it, so everything goes.
+    expect(salvoAt(launcherAgainst(10))).toBe(4);
   });
 
-  it("trims the salvo to what the heat track still takes", () => {
-    // Six heat carried: four left before the redline, and each missile is two.
-    expect(salvoAt(launcherAgainst(10, 6))).toBe(2);
+  it("heat does not trim the salvo, because the launch is one use of the tile", () => {
+    // Re-baselined for the flat rule: six heat carried used to leave room for
+    // two missiles at two heat each. A salvo of any size is now the tile's two
+    // cubes once, so the same budget buys the whole magazine.
+    expect(salvoAt(launcherAgainst(10, 6))).toBe(4);
   });
 });
 

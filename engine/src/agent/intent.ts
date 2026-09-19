@@ -23,8 +23,9 @@ export interface FireIntent {
   critical?: SubsystemId;
   compensateRecoil?: boolean;
   /**
-   * Missiles only: how many rounds go up in this one launch. A salvo needs no
-   * extra cubes on the tile, only the heat — its cubes once per missile.
+   * Missiles only: how many rounds go up in this one launch. A salvo of any
+   * size is one use of the tile: no extra cubes and no extra heat, so the
+   * magazine is what limits it.
    */
   count?: number;
   /**

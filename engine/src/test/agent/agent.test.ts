@@ -43,7 +43,7 @@ describe("agent seat tooling", () => {
     });
     const shot = built.actions.find((a) => a.type === "fire_weapon");
     expect(shot).toMatchObject({ data: { subsystemId: "side-3", count: 3 } });
-    // A salvo costs heat per missile, not cubes: the tile stays at its minimum.
+    // A salvo of any size is one use of the tile: it stays at its minimum cubes.
     const allocated = built.actions.find(
       (a) => a.type === "allocate_energy" && a.data.subsystemId === "side-3"
     );

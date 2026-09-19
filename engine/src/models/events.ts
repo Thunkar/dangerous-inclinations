@@ -90,7 +90,7 @@ export type GameEvent =
       targetId: string;
       subsystemId: SubsystemId;
       weaponType: WeaponType;
-      /** The whole action's heat: for a salvo, the tile's cubes once per missile. */
+      /** The whole action's heat: for a salvo, the tile's cubes once, whatever its size. */
       heat: number;
       /** Missiles only: how many went up in this one action. */
       count?: number;
