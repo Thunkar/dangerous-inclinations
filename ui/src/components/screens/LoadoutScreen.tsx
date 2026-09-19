@@ -74,7 +74,10 @@ function readDraft(key: string, me: Player): Draft {
  * your own. A draft saved before the deal changed, or edited by hand, is not a
  * reason to hand the server something it must refuse.
  */
-function legalHand(ids: string[], offers: ReadonlyArray<{ id: string; type: MissionType }>): string[] {
+function legalHand(
+  ids: string[],
+  offers: ReadonlyArray<{ id: string; type: MissionType }>
+): string[] {
   const of = (primary: boolean) =>
     ids.filter(id => {
       const card = offers.find(m => m.id === id)
@@ -85,7 +88,10 @@ function legalHand(ids: string[], offers: ReadonlyArray<{ id: string; type: Miss
     const type = offers.find(m => m.id === id)!.type
     return !seen.has(type) && seen.add(type)
   })
-  return [...of(true).slice(0, PRIMARIES_PER_PLAYER), ...secondaries.slice(0, SECONDARIES_PER_PLAYER)]
+  return [
+    ...of(true).slice(0, PRIMARIES_PER_PLAYER),
+    ...secondaries.slice(0, SECONDARIES_PER_PLAYER),
+  ]
 }
 
 export function LoadoutScreen({ headerRight }: { headerRight?: ReactNode }) {
@@ -220,7 +226,10 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
                       // Two of the same secondary is one plan done twice: the
                       // new card takes the place of the one of its own kind.
                       else if (mine.some(c => c.type === m.type))
-                        next = [...ids.filter(id => id !== mine.find(c => c.type === m.type)!.id), m.id]
+                        next = [
+                          ...ids.filter(id => id !== mine.find(c => c.type === m.type)!.id),
+                          m.id,
+                        ]
                       else if (ids.length < keep) next = [...ids, m.id]
                       else return
                       patch({ missionIds: [...others, ...next] })
@@ -244,7 +253,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
       {pile(
         offers.filter(m => !isPrimaryType(m.type)),
         SECONDARIES_PER_PLAYER,
-        'Your own',
+        'Secondary missions',
         'Worth 1 each. Keep two, and they must be different things to do.'
       )}
       {offers.length === 0 && (

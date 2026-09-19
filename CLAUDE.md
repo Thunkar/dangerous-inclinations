@@ -11,7 +11,10 @@ with simple arithmetic, and explained in one sentence?
 what the rules are. **Why** a rule is what it is lives in the commit that
 changed it — `git log` is the design journal, and unlike a design document it
 cannot go stale. `docs/protocol.md` defines the client/server messages;
-`docs/benchmark.md` describes how the rules as they stand play.
+`docs/benchmark.md` describes how the rules as they stand play;
+`docs/handoff.md` is where the current session left off — what is open, what is
+proposed and not built, and the traps. Unlike the other two it is a snapshot
+and will go stale: delete it once its contents have landed or been rejected.
 
 ## Monorepo
 
