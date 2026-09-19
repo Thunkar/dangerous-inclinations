@@ -61,6 +61,19 @@ const INTERDICT_PLAN_TURNS = 14;
 const INTERDICT_SLACK = 2;
 /** Ring plus sector distance at which an opponent is close enough to simply chase. */
 const INTERDICT_CHASE_RANGE = 6;
+/**
+ * Urgency on the first step of a two-point card, so starting the primary
+ * outranks a secondary at the same distance.
+ *
+ * Three points win (`MISSIONS_TO_WIN`) and a hand is one two-point primary
+ * plus two one-point secondaries: the secondaries alone are two points, so
+ * the primary is not optional and the game cannot be won without it. Its
+ * first step — the Intercept's scan, the Deliver's pickup — carried no
+ * urgency, so the cheapest-first ranking sent the bot to its short
+ * secondaries and left the primary until last, when the target had wandered
+ * and the hull was worse.
+ */
+const PRIMARY_START_URGENCY = 1;
 
 export const REPAIR_GOAL_ID = "repair";
 /** Goal of last resort: a station is always worth something (fuel, repairs, cargo). */
@@ -227,7 +240,7 @@ export function computeGoals(
           mission,
           planetId,
           inHand ? `Deliver crate to ${planetId}` : `Pick up crate at ${planetId}`,
-          inHand ? 2 : 0
+          inHand ? 2 : PRIMARY_START_URGENCY
         );
         if (goal) goals.push(goal);
         break;
@@ -242,7 +255,7 @@ export function computeGoals(
             description: `Scan ${target.player.name}`,
             targetPlayerId: target.player.id,
             estimatedTurns: cheapTurnEstimate(from, target.position) + 1,
-            urgency: 0,
+            urgency: PRIMARY_START_URGENCY,
           });
         } else {
           // The card names the station the transmission is filed at.

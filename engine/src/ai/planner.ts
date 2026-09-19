@@ -433,7 +433,8 @@ export function buildCandidate(
       targetPlayerId: shot.intent.targetId,
       criticalTarget: chooseCriticalTarget(
         shot.opponent,
-        killIntent(shot.opponent) ? "kill" : "suppress"
+        killIntent(shot.opponent) ? "kill" : "suppress",
+        parameters.criticalOrder
       ),
       ...(shot.intent.weapon.type === "railgun"
         ? { compensateRecoil: shot.intent.compensateRecoil === true }

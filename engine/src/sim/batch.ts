@@ -9,6 +9,7 @@ import { freshSeed } from "../utils/rng.ts";
 import type { WeaponOverrides } from "./weaponOverrides.ts";
 import type { TileOverrides } from "./tileOverrides.ts";
 import type { RuleOverrides } from "./ruleOverrides.ts";
+import type { BotOverrides } from "./botOverrides.ts";
 import type { LoadoutOverrides, SeatHands, SeatLoadouts } from "./loadoutOverrides.ts";
 import {
   computePerGameStats,
@@ -32,6 +33,7 @@ export interface BatchConfig {
   tiles?: TileOverrides;
   rules?: RuleOverrides;
   weapons?: WeaponOverrides;
+  bots?: BotOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
   seatHands?: SeatHands;
@@ -56,6 +58,7 @@ export interface WorkerJob {
   tiles?: TileOverrides;
   rules?: RuleOverrides;
   weapons?: WeaponOverrides;
+  bots?: BotOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
   seatHands?: SeatHands;
@@ -87,6 +90,7 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
     tiles: config.tiles,
     rules: config.rules,
     weapons: config.weapons,
+    bots: config.bots,
     loadouts: config.loadouts,
     seatLoadouts: config.seatLoadouts,
     seatHands: config.seatHands,

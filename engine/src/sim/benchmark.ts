@@ -8,6 +8,7 @@
  *   yarn bench --minutes=1              # table time at this pace per turn
  *   yarn bench --output=docs/bench-2026-09-18.md
  *   yarn bench --rules=missionsToWin=3   # a page played under a proposed rule
+ *   yarn bench --bot=criticalOrder=forward  # a page played by bots told to think differently
  *
  * It exists to be diffed. Every run stamps the rules it was played under at
  * the top, so two pages side by side say what changed and what it did — which
@@ -55,6 +56,12 @@ import {
   parseRuleOverrides,
   type RuleOverrides,
 } from "./ruleOverrides.ts";
+import {
+  applyBotOverrides,
+  describeBotOverrides,
+  parseBotOverrides,
+  type BotOverrides,
+} from "./botOverrides.ts";
 
 const DEFAULT_GAMES = 120;
 const QUICK_GAMES = 40;
@@ -94,6 +101,8 @@ interface Args {
   output?: string;
   /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
   rules?: RuleOverrides;
+  /** Experiment-only bot parameter overrides, stamped on the page (see sim/botOverrides.ts). */
+  bot?: BotOverrides;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -115,6 +124,7 @@ function parseArgs(argv: string[]): Args {
     else if (key === "minutes") args.minutesPerTurn = Number(value);
     else if (key === "output") args.output = value;
     else if (key === "rules") args.rules = parseRuleOverrides(value);
+    else if (key === "bot") args.bot = parseBotOverrides(value);
     else if (key === "players") {
       args.players = value
         .split(",")
@@ -310,6 +320,10 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   // the reader looks first, or two pages get diffed as if they were.
   if (describeRuleOverrides(args.rules))
     out.push(`| Experiment overrides | ${describeRuleOverrides(args.rules)} |`);
+  // Bots told to think differently play a different game, so the page says so
+  // for the same reason a rule override does.
+  if (describeBotOverrides(args.bot))
+    out.push(`| Bot overrides | ${describeBotOverrides(args.bot)} |`);
   out.push("");
 
   out.push("## By seat count");
@@ -394,6 +408,7 @@ async function main() {
   // In this process for the stamp the page prints; the workers that play the
   // games get the same overrides with every job.
   applyRuleOverrides(args.rules);
+  applyBotOverrides(args.bot);
   const rows: SeatRow[] = [];
   const batches: BatchResult[] = [];
 
@@ -406,6 +421,7 @@ async function main() {
       maxTurns: MAX_TURNS_PER_PLAYER * players,
       workers: args.workers,
       rules: args.rules,
+      bots: args.bot,
     });
     batches.push(batch);
     rows.push(seatRow(players, batch));

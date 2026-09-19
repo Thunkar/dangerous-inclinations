@@ -7,7 +7,8 @@
  * submitLoadout, deployShip), and bots decide from `viewFor`, so sim results
  * describe the same game humans play. The experiment-only override channels
  * (sim/ruleOverrides.ts, tileOverrides.ts, weaponOverrides.ts,
- * loadoutOverrides.ts) let a change be measured before it is adopted.
+ * loadoutOverrides.ts, botOverrides.ts) let a change be measured before it is
+ * adopted.
  */
 import type { GameState, PlayerAction } from "../models/game.ts";
 import type { GameEvent } from "../models/events.ts";
@@ -17,6 +18,7 @@ import { cloneState } from "../recording/replay.ts";
 import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
 import { applyRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
+import { applyBotOverrides, type BotOverrides } from "./botOverrides.ts";
 import {
   applyLoadoutOverrides,
   type LoadoutOverrides,
@@ -51,6 +53,8 @@ export interface GameConfig {
   rules?: RuleOverrides;
   /** Experiment-only weapon stat overrides (see sim/weaponOverrides.ts). */
   weapons?: WeaponOverrides;
+  /** Experiment-only bot parameter overrides (see sim/botOverrides.ts). */
+  bots?: BotOverrides;
   /** Experiment-only bot hull overrides (see sim/loadoutOverrides.ts). */
   loadouts?: LoadoutOverrides;
   /** Experiment-only: force a hull on a seat (`bot-1`…), whatever its hand asks for. */
@@ -205,6 +209,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   applyRuleOverrides(config.rules);
   applyTileOverrides(config.tiles);
   applyWeaponOverrides(config.weapons);
+  applyBotOverrides(config.bots);
   applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;
 

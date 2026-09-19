@@ -4,7 +4,7 @@
  * the turn.
  */
 import { describe, it, expect } from "vitest";
-import type { GameState, PlayerAction, ShipLoadout } from "../../models/game.ts";
+import type { GameState, PlayerAction, Position, ShipLoadout } from "../../models/game.ts";
 import { STARTING_HIT_POINTS } from "../../models/game.ts";
 import type { SecondaryMission } from "../../models/missions.ts";
 import { SURVEY_RING } from "../../models/missions.ts";
@@ -12,7 +12,8 @@ import { BLACK_HOLE_ID, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { viewFor } from "../../game/view.ts";
 import { getStationForPlanet } from "../../game/stations.ts";
-import { botDecideActions } from "../../ai/index.ts";
+import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
+import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import {
   ALPHA,
   BETA,
@@ -144,7 +145,8 @@ describe("bot missions", () => {
       [surveyMission()]
     );
 
-    const acquired = (s: GameState) => (getPlayer(s, "p1").missions[0] as SecondaryMission).acquired;
+    const acquired = (s: GameState) =>
+      (getPlayer(s, "p1").missions[0] as SecondaryMission).acquired;
     const state = playUntil(start, "p1", acquired, 60);
 
     expect(acquired(state)).toBe(true);
@@ -213,6 +215,112 @@ describe("bot missions", () => {
     const state = playUntil(start, "p1", completed, 120);
     expect(completed(state)).toBe(true);
     expect(getShip(state, "p1").wellId).toBe(BETA);
+  });
+});
+
+describe("goal order: the primary before the secondary", () => {
+  /**
+   * Three points win and the hand is one two-point primary plus two one-point
+   * secondaries, so the primary is the only card the bot cannot do without.
+   * Its first step — the Intercept's scan, the Deliver's pickup — is what used
+   * to rank last: it finishes nothing by itself, while a survey dive is short
+   * and a whole point. Ranking is cheapest-first after urgency, so at equal
+   * distance the primary's opening step now goes first, and only a genuinely
+   * longer trip (more than the urgency's three turns) sends the bot to the
+   * secondary.
+   *
+   * Every fixture lists the survey card first, so a sort that ignored urgency
+   * would leave the survey at the head of the list.
+   */
+  const goalsFor = (state: GameState) =>
+    analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).goals;
+
+  const goalOf = (state: GameState, missionId: string) => {
+    const goal = goalsFor(state).find((g) => g.missionId === missionId);
+    if (!goal) throw new Error(`no goal for ${missionId}`);
+    return goal;
+  };
+
+  describe("Intercept's scan against a survey dive", () => {
+    const SURVEY = surveyMission();
+    const INTERCEPT = interceptMission("p2");
+
+    /** p1 three rings above the survey ring, with the scan target where the row says. */
+    const shadowing = (target: Position): GameState =>
+      withMissions(
+        makeGameState([
+          makePlayer("p1", { wellId: BH, ring: 4, sector: 0 }, SENSOR_HULL),
+          makePlayer("p2", target),
+        ]),
+        "p1",
+        [SURVEY, INTERCEPT]
+      );
+
+    it.each([
+      {
+        where: "as near as the dive",
+        target: { wellId: BH, ring: 2, sector: 0 } as Position,
+        gap: 0,
+        first: "the scan",
+        firstId: INTERCEPT.id,
+      },
+      {
+        where: "five turns past it",
+        target: { wellId: BH, ring: 1, sector: 12 } as Position,
+        gap: 5,
+        first: "the dive",
+        firstId: SURVEY.id,
+      },
+    ])("with the target $where, pursues $first first", ({ target, gap, firstId }) => {
+      const state = shadowing(target);
+      const shadow = goalOf(state, INTERCEPT.id);
+      const dive = goalOf(state, SURVEY.id);
+      expect(shadow.type).toBe("shadow");
+      expect(shadow.estimatedTurns - dive.estimatedTurns).toBe(gap);
+      expect(goalsFor(state)[0].missionId).toBe(firstId);
+    });
+  });
+
+  describe("Deliver's pickup against a survey dive", () => {
+    const SURVEY = surveyMission();
+
+    /** p1 on black hole ring 5, four turns from the dive and from Alpha's berth. */
+    const fetching = (pickupPlanetId: string, deliveryPlanetId: string): GameState =>
+      withMissions(
+        makeGameState([
+          makePlayer("p1", { wellId: BH, ring: 5, sector: 13 }, SENSOR_HULL),
+          makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 12 }),
+        ]),
+        "p1",
+        [SURVEY, deliverMission(pickupPlanetId, deliveryPlanetId)]
+      );
+
+    it.each([
+      {
+        where: "as near as the dive",
+        pickup: ALPHA,
+        delivery: BETA,
+        gap: 0,
+        first: "the pickup",
+        pickupFirst: true,
+      },
+      {
+        where: "six turns past it",
+        pickup: GAMMA,
+        delivery: ALPHA,
+        gap: 6,
+        first: "the dive",
+        pickupFirst: false,
+      },
+    ])("with the pickup $where, pursues $first first", ({ pickup, delivery, gap, pickupFirst }) => {
+      const state = fetching(pickup, delivery);
+      const deliver = deliverMission(pickup, delivery);
+      const fetch = goalOf(state, deliver.id);
+      const dive = goalOf(state, SURVEY.id);
+      expect(fetch.type).toBe("dock");
+      expect(fetch.estimatedTurns - dive.estimatedTurns).toBe(gap);
+      expect(goalsFor(state)[0].missionId).toBe(pickupFirst ? deliver.id : SURVEY.id);
+    });
   });
 });
 

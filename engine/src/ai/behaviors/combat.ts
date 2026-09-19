@@ -194,6 +194,47 @@ function suspectedShieldCubes(slot: SuspectedSlot): number {
 }
 
 /**
+ * Slot to break under the "forward" order: the bow first, whatever it holds.
+ *
+ * The forward tile is the ship's role — the gun, the eyes or the legs — and a
+ * compressor or a sensor carries no cubes, so a policy that reads cubes never
+ * names them. This one names the bow on the evidence that every ship has one,
+ * and only steps back to the cubes when the bow is already public and broken.
+ */
+function forwardCriticalTarget(target: Opponent, suspicion: Map<SubsystemId, number>): SubsystemId {
+  // A face-down slot reads `null`, which is not proof of a break: unknown
+  // counts as intact, and the bow is named.
+  const forward = target.player.slots.find((s) => s.group === "forward" && s.isBroken !== true);
+  if (forward) return forward.id;
+
+  const side = target.player.slots
+    .filter((s) => s.group === "side" && s.isBroken !== true && s.allocatedEnergy > 0)
+    .sort(
+      (a, b) =>
+        b.allocatedEnergy - a.allocatedEnergy ||
+        (suspicion.get(b.id) ?? 0) - (suspicion.get(a.id) ?? 0) ||
+        a.index - b.index
+    )[0];
+  if (side) return side.id;
+
+  const engines = target.player.fixed.find((f) => f.type === "engines" && !f.isBroken);
+  if (engines) return engines.id;
+  const thrusters = target.player.fixed.find((f) => f.type === "rotation" && !f.isBroken);
+  if (thrusters) return thrusters.id;
+  return fallbackCriticalTarget(target);
+}
+
+/** What the cubes on each face-down slot are worth as a weapon read. */
+function suspicionBySlot(target: Opponent): Map<SubsystemId, number> {
+  return new Map(
+    target.unknownSlots.map((s) => [
+      s.slot.id,
+      (s.suspected?.damage ?? 0) * (s.suspected?.confidence ?? 0),
+    ])
+  );
+}
+
+/**
  * Slot to break on a critical. Every candidate must be a tile that is still
  * intact — breaking a broken tile does nothing — and cubes are the evidence:
  * energy allocation is public, and a broken tile is turned face-up with its
@@ -216,11 +257,18 @@ function suspectedShieldCubes(slot: SuspectedSlot): number {
  *   anything if the shot reaches the hull (`game/damage.ts`), so shields that
  *   still hold eat the very critical meant to bring them down. Against a full
  *   tile the shot has to be big enough to get through first.
+ *
+ * `order` is the bot's standing policy (`BotParameters.criticalOrder`) and
+ * comes first: under "forward" the bow is named whatever the cubes say and the
+ * shield preference above does not apply (see {@link forwardCriticalTarget}).
  */
 export function chooseCriticalTarget(
   target: Opponent,
-  intent: "suppress" | "kill" = "suppress"
+  intent: "suppress" | "kill" = "suppress",
+  order: "suppress" | "forward" = "suppress"
 ): SubsystemId {
+  if (order === "forward") return forwardCriticalTarget(target, suspicionBySlot(target));
+
   const working = target.knownWeapons.filter((w) => !w.isBroken);
 
   if (intent === "kill") {

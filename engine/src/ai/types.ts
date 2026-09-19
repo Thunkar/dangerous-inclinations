@@ -276,6 +276,12 @@ export interface BotParameters {
   conserveAmmo: boolean;
   /** Spend heat and energy on scanning unknown enemy tiles when adjacent. */
   scanUnknowns: boolean;
+  /**
+   * Which tile a critical names: "suppress" reads the cubes and breaks
+   * whatever is shooting back, "forward" goes for the bow whatever it holds
+   * (see `behaviors/combat.chooseCriticalTarget`).
+   */
+  criticalOrder: "suppress" | "forward";
 }
 
 export const DEFAULT_BOT_PARAMETERS: BotParameters = {
@@ -285,6 +291,7 @@ export const DEFAULT_BOT_PARAMETERS: BotParameters = {
   lowFuelThreshold: 6,
   conserveAmmo: false,
   scanUnknowns: true,
+  criticalOrder: "suppress",
 };
 
 /**
