@@ -16,6 +16,7 @@
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --weapons=laser.damage=3,laser.sideRestricted=false  experiment-only weapon stat overrides
  *   --tiles=ballistic_rack.damage=3,fuel_compressor.slotType=side  experiment-only tile overrides (any field of any tile)
+ *   --rules=missionsToWin=3,secondariesKept=3,compressedJumpFuel=1  experiment-only rule overrides
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)
  *   --seats=bot-1=railgun/missiles,radiator,laser,shields  force a hull on a seat, whatever its hand asks for
  *   --hands=bot-1=1       force the shape of a seat's hand: how many two-point cards it keeps
@@ -29,6 +30,7 @@ import { formatFailure } from "./runGame.ts";
 import type { AggregateStats } from "./stats.ts";
 import { parseWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 import { parseTileOverrides, type TileOverrides } from "./tileOverrides.ts";
+import { parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import {
   parseLoadoutOverrides,
   parseSeatHands,
@@ -50,6 +52,7 @@ interface Args {
   quiet: boolean;
   tiebreak: boolean;
   tiles?: TileOverrides;
+  rules?: RuleOverrides;
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
@@ -112,6 +115,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "tiles":
         args.tiles = parseTileOverrides(value);
+        break;
+      case "rules":
+        args.rules = parseRuleOverrides(value);
         break;
       case "weapons":
         args.weapons = parseWeaponOverrides(value);
@@ -191,7 +197,7 @@ function printSummary(a: AggregateStats): void {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   console.log(
-    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.tiebreak ? ", tiebreak" : ""}${args.weapons ? `, weapons ${JSON.stringify(args.weapons)}` : ""}...`
+    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.tiebreak ? ", tiebreak" : ""}${args.weapons ? `, weapons ${JSON.stringify(args.weapons)}` : ""}${args.rules ? `, rules ${JSON.stringify(args.rules)}` : ""}...`
   );
   const start = Date.now();
 
@@ -205,6 +211,7 @@ async function main(): Promise<void> {
     label: args.label,
     tiebreak: args.tiebreak,
     tiles: args.tiles,
+    rules: args.rules,
     weapons: args.weapons,
     loadouts: args.loadouts,
     seatLoadouts: args.seatLoadouts,

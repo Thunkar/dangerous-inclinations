@@ -173,7 +173,10 @@ the state — a game is played under RULES.md and nothing else. A proposed chang
 is measured before it is adopted with the simulator's experiment-only override
 channels, which mutate the configuration of the process running the batch:
 `--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
-any tile), `--weapons=laser.damage=3` (firing stats), `--loadouts=` (the bots'
+any tile), `--weapons=laser.damage=3` (firing stats),
+`--rules=missionsToWin=3,secondariesKept=3,compressedJumpFuel=1` (points to
+win, the shape of a hand, what a compressed jump costs — `yarn bench --rules=`
+takes it too and stamps it on the page), `--loadouts=` (the bots'
 hull templates), `--seats=` (a hull forced on one seat) and `--hands=bot-1=destroy`
 (the primary a seat is dealt and keeps — the bots price one road to four points
 and take it every time, so a plan they never choose is only measurable dealt). The summary prints

@@ -33,8 +33,16 @@ const dmg = (t: "railgun" | "laser" | "ballistic_rack" | "missiles") =>
 const RADIATOR_BONUS = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
 const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
 
-/** The rules an agent needs at hand, in the words of RULES.md, kept short. */
-export const AGENT_RULES_DIGEST = `RULES IN BRIEF
+/**
+ * The rules an agent needs at hand, in the words of RULES.md, kept short.
+ *
+ * Built when it is asked for, not at module load: the numbers in it are the
+ * game's constants, and a copy frozen into a top-level string would still say
+ * four points in a process the simulator's experiment channel
+ * (sim/ruleOverrides.ts) had set to three.
+ */
+export function agentRulesDigest(): string {
+  return `RULES IN BRIEF
 - Win: the round in which someone reaches ${MISSIONS_TO_WIN} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is ${MISSIONS_TO_WIN} exactly: all three must be completed, there is no spare.
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
@@ -52,6 +60,7 @@ export const AGENT_RULES_DIGEST = `RULES IN BRIEF
 - Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}, Board = end a turn in another ship's exact sector: take the chit, then dock anywhere to file it. Garbage Disposal = load at any station (fills your hold, so no delivery crate at the same time), then end a turn on BH ring ${SURVEY_RING} to drop it — no chit, no filing.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
 - Destroyed: respawn at Home next turn, lose the turn after too (you still drift with your ring while recovering), drop cargo.`;
+}
 
 /** What each secondary card still asks of you. */
 const SECONDARY_HOW: Record<SecondaryMissionType, string> = {
@@ -108,7 +117,7 @@ export function describeViewForAgent(
   if (!me) throw new Error("A spectator has no seat to describe");
   const name = (id: string) => view.players.find((p) => p.id === id)?.name ?? id;
   const out: string[] = [];
-  if (options.includeRules !== false) out.push(AGENT_RULES_DIGEST, "");
+  if (options.includeRules !== false) out.push(agentRulesDigest(), "");
 
   const active = view.players.find((p) => p.id === view.activePlayerId);
   out.push(

@@ -7,6 +7,7 @@
  *   yarn bench --players=3,4            # only these seat counts
  *   yarn bench --minutes=1              # table time at this pace per turn
  *   yarn bench --output=docs/bench-2026-09-18.md
+ *   yarn bench --rules=missionsToWin=3   # a page played under a proposed rule
  *
  * It exists to be diffed. Every run stamps the rules it was played under at
  * the top, so two pages side by side say what changed and what it did — which
@@ -48,6 +49,12 @@ import { SHIELD_ENERGY_PER_POINT, SUBSYSTEM_CONFIGS } from "../models/subsystems
 /** What one radiator adds, read from the tile so the stamp cannot drift. */
 const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
 import { runBatch, type BatchResult } from "./batch.ts";
+import {
+  applyRuleOverrides,
+  describeRuleOverrides,
+  parseRuleOverrides,
+  type RuleOverrides,
+} from "./ruleOverrides.ts";
 
 const DEFAULT_GAMES = 120;
 const QUICK_GAMES = 40;
@@ -85,6 +92,8 @@ interface Args {
   minutesPerTurn: number;
   workers: number;
   output?: string;
+  /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
+  rules?: RuleOverrides;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -105,6 +114,7 @@ function parseArgs(argv: string[]): Args {
     else if (key === "workers") args.workers = Number(value);
     else if (key === "minutes") args.minutesPerTurn = Number(value);
     else if (key === "output") args.output = value;
+    else if (key === "rules") args.rules = parseRuleOverrides(value);
     else if (key === "players") {
       args.players = value
         .split(",")
@@ -296,6 +306,10 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   );
   out.push("| Repair | a station on arrival fixes everything; away from one, one tile a turn at 0 heat |");
   out.push(`| Table time assumes | ${args.minutesPerTurn} min per player-turn |`);
+  // A page run under `--rules=` is not the standing benchmark: say so where
+  // the reader looks first, or two pages get diffed as if they were.
+  if (describeRuleOverrides(args.rules))
+    out.push(`| Experiment overrides | ${describeRuleOverrides(args.rules)} |`);
   out.push("");
 
   out.push("## By seat count");
@@ -377,6 +391,9 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  // In this process for the stamp the page prints; the workers that play the
+  // games get the same overrides with every job.
+  applyRuleOverrides(args.rules);
   const rows: SeatRow[] = [];
   const batches: BatchResult[] = [];
 
@@ -388,6 +405,7 @@ async function main() {
       baseSeed: BASE_SEED,
       maxTurns: MAX_TURNS_PER_PLAYER * players,
       workers: args.workers,
+      rules: args.rules,
     });
     batches.push(batch);
     rows.push(seatRow(players, batch));

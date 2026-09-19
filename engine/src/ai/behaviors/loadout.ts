@@ -7,7 +7,11 @@
 import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission, MissionType } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
-import { MISSIONS_PER_PLAYER, isPrimaryType } from "../../models/missions.ts";
+import {
+  MISSIONS_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  isPrimaryType,
+} from "../../models/missions.ts";
 
 /**
  * A hull is two decisions. **The role** is the forward tile, and the cards
@@ -187,8 +191,8 @@ function holdIsContested(hand: Mission[]): boolean {
 }
 
 /**
- * Every hand of one primary and two secondaries the mat can fly, in a fixed
- * order.
+ * Every hand of one primary and {@link SECONDARIES_PER_PLAYER} secondaries the
+ * mat can fly, in a fixed order.
  *
  * "Can fly" is the engine's own rule and the only filter there is: a kept
  * Intercept needs a sensor array, a kept Destroy a gun, and a hand that breaks
@@ -205,14 +209,29 @@ export function validHands(
   const hands: Mission[][] = [];
   for (const lead of primaries) {
     if (primary !== undefined && lead.type !== primary) continue;
-    for (let i = 0; i < secondaries.length; i++) {
-      for (let j = i + 1; j < secondaries.length; j++) {
-        // The pair has to be two different things to do (RULES §Missions).
-        if (secondaries[i].type === secondaries[j].type) continue;
-        const hand = [lead, secondaries[i], secondaries[j]];
-        if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) continue;
-        hands.push(hand);
-      }
+    for (const kept of distinctSecondaries(secondaries, SECONDARIES_PER_PLAYER)) {
+      const hand = [lead, ...kept];
+      if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) continue;
+      hands.push(hand);
+    }
+  }
+  return hands;
+}
+
+/**
+ * Every way of taking `count` of the offered secondaries, no two of a kind —
+ * the kept cards have to be that many different things to do (RULES
+ * §Missions) — in the order they were dealt, so a seed keeps replaying the
+ * same hand. The deal is one card of each kind, so at the standing two this is
+ * the three pairs and at three it is the single hand that takes them all.
+ */
+function distinctSecondaries(offers: Mission[], count: number): Mission[][] {
+  if (count <= 0) return [[]];
+  const hands: Mission[][] = [];
+  for (let i = 0; i <= offers.length - count; i++) {
+    for (const rest of distinctSecondaries(offers.slice(i + 1), count - 1)) {
+      if (rest.some((m) => m.type === offers[i].type)) continue;
+      hands.push([offers[i], ...rest]);
     }
   }
   return hands;

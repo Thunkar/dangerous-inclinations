@@ -33,7 +33,7 @@ import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
  * nose, so all three cards have to come in, and a hand is a chain rather than a
  * hedge. That is the tension the rest of the balance has to hold.
  */
-export const MISSIONS_TO_WIN = 4;
+export let MISSIONS_TO_WIN = 4;
 
 /** Dealt from the primary deck, and kept from that deal. */
 export const PRIMARY_OFFERS_PER_PLAYER = 3;
@@ -44,11 +44,27 @@ export const PRIMARIES_PER_PLAYER = 1;
  * {@link SECONDARY_MISSION_TYPES} plus Garbage Disposal.
  */
 export const SECONDARY_OFFERS_PER_PLAYER = 3;
-export const SECONDARIES_PER_PLAYER = 2;
+export let SECONDARIES_PER_PLAYER = 2;
 
-export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
+export let MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
 export const MISSION_OFFERS_PER_PLAYER =
   PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER;
+
+/**
+ * These are the game's constants, not knobs on the state: a game is played
+ * under RULES.md and nothing else. The one door out is the simulator's
+ * experiment channel (`yarn sim --rules=missionsToWin=3`, sim/ruleOverrides.ts),
+ * which reassigns them once at process start so a proposed change can be
+ * measured before it is adopted. Nothing in the server, the UI or the engine's
+ * own logic calls this, and a change that survives its experiment is written
+ * into the values above. Read the bindings at call time — a module that
+ * snapshots one into a top-level const would not see the override.
+ */
+export function setMissionRules(rules: { toWin?: number; secondariesKept?: number }): void {
+  if (rules.toWin !== undefined) MISSIONS_TO_WIN = rules.toWin;
+  if (rules.secondariesKept !== undefined) SECONDARIES_PER_PLAYER = rules.secondariesKept;
+  MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
+}
 
 /** Black hole ring a ship must end its turn on to complete a Survey. */
 export const SURVEY_RING = 1;

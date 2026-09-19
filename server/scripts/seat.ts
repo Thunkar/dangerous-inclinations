@@ -49,7 +49,7 @@ import type {
 } from "@dangerous-inclinations/engine";
 import {
   AGENT_INTENT_GUIDE,
-  AGENT_RULES_DIGEST,
+  agentRulesDigest,
   BOT_LOADOUT_TEMPLATES,
   EITHER_SLOT_SUBSYSTEMS,
   FORWARD_SLOT_SUBSYSTEMS,
@@ -512,7 +512,7 @@ async function turnPrompt(payload: ViewPayload, errors?: string[], attempt = 1):
     : "";
   return `You are playing a seat in Dangerous Inclinations, a hidden-information tabletop space game. Play to win. Be concrete and legal. The working directory is the game's repository: RULES.md there is the complete rulebook, read it whenever the brief below is not enough. Do not run the game yourself; the table validates your intent and comes back to you if it is illegal.
 
-${AGENT_RULES_DIGEST}
+${agentRulesDigest()}
 
 ${digest(payload, { rules: false, turns: 2 })}
 ${talk}
@@ -586,7 +586,7 @@ async function driveLoadout(payload: ViewPayload, drv: Driver, quietThink: boole
     // the slowest. The digest and the slot lists below are enough to build a
     // hull; the book only comes out if that was not enough.
     const rules = attempt >= 2 ? `\n\nTHE FULL RULES:\n${fullRules()}` : "";
-    const prompt = `${AGENT_RULES_DIGEST}${rules}\n\n${loadoutPrompt(view)}${
+    const prompt = `${agentRulesDigest()}${rules}\n\n${loadoutPrompt(view)}${
       error
         ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every tile must fit its slot — forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")} — and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids.`
         : ""
@@ -625,7 +625,7 @@ async function driveDeploy(payload: ViewPayload, drv: Driver, quietThink: boolea
   const view = payload.view;
   let error: string | undefined;
   for (let attempt = 1; ; attempt++) {
-    const prompt = `${AGENT_RULES_DIGEST}\n\n${deployPrompt(view)}${
+    const prompt = `${agentRulesDigest()}\n\n${deployPrompt(view)}${
       error ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Pick a free sector 0-23.` : ""
     }`;
     const { answer } = askModel(prompt, drv);
@@ -1097,7 +1097,7 @@ async function main(): Promise<void> {
       return;
     }
     case "guide":
-      console.log(AGENT_RULES_DIGEST, "\n\n", AGENT_INTENT_GUIDE);
+      console.log(agentRulesDigest(), "\n\n", AGENT_INTENT_GUIDE);
       return;
     case "try": {
       const { view } = await getView();

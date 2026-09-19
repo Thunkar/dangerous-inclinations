@@ -5,8 +5,9 @@
  *
  * Setup uses exactly the engine functions the server uses (createGame,
  * submitLoadout, deployShip), and bots decide from `viewFor`, so sim results
- * describe the same game humans play. Rule overrides (models/rules.ts) let
- * experiments measure a change before it is adopted.
+ * describe the same game humans play. The experiment-only override channels
+ * (sim/ruleOverrides.ts, tileOverrides.ts, weaponOverrides.ts,
+ * loadoutOverrides.ts) let a change be measured before it is adopted.
  */
 import type { GameState, PlayerAction } from "../models/game.ts";
 import type { GameEvent } from "../models/events.ts";
@@ -15,6 +16,7 @@ import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
 import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
+import { applyRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import {
   applyLoadoutOverrides,
   type LoadoutOverrides,
@@ -45,6 +47,8 @@ export interface GameConfig {
   tiebreak?: boolean;
   /** Experiment-only tile overrides: any field of any tile (see sim/tileOverrides.ts). */
   tiles?: TileOverrides;
+  /** Experiment-only rule overrides: points to win, hand shape, jump fuel (see sim/ruleOverrides.ts). */
+  rules?: RuleOverrides;
   /** Experiment-only weapon stat overrides (see sim/weaponOverrides.ts). */
   weapons?: WeaponOverrides;
   /** Experiment-only bot hull overrides (see sim/loadoutOverrides.ts). */
@@ -198,6 +202,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const seed = config.seed ?? freshSeed();
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
+  applyRuleOverrides(config.rules);
   applyTileOverrides(config.tiles);
   applyWeaponOverrides(config.weapons);
   applyLoadoutOverrides(config.loadouts);

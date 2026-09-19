@@ -8,6 +8,7 @@ import { runGame, type GameRunResult, type InvalidTurn } from "./runGame.ts";
 import { freshSeed } from "../utils/rng.ts";
 import type { WeaponOverrides } from "./weaponOverrides.ts";
 import type { TileOverrides } from "./tileOverrides.ts";
+import type { RuleOverrides } from "./ruleOverrides.ts";
 import type { LoadoutOverrides, SeatHands, SeatLoadouts } from "./loadoutOverrides.ts";
 import {
   computePerGameStats,
@@ -29,6 +30,7 @@ export interface BatchConfig {
   label?: string;
   tiebreak?: boolean;
   tiles?: TileOverrides;
+  rules?: RuleOverrides;
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
@@ -52,6 +54,7 @@ export interface WorkerJob {
   label?: string;
   tiebreak?: boolean;
   tiles?: TileOverrides;
+  rules?: RuleOverrides;
   weapons?: WeaponOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
@@ -82,6 +85,7 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
     label: config.label,
     tiebreak: config.tiebreak,
     tiles: config.tiles,
+    rules: config.rules,
     weapons: config.weapons,
     loadouts: config.loadouts,
     seatLoadouts: config.seatLoadouts,
