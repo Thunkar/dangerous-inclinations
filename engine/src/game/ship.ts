@@ -105,11 +105,42 @@ export function getEffectiveCriticalChance(subsystems: ReadonlyArray<Subsystem>)
   return BASE_CRITICAL_CHANCE + count * bonus;
 }
 
-/** True if a working passive system discounts jump fuel (fuel compressor). */
-export function hasWorkingCompressor(ship: ShipState): boolean {
-  return ship.subsystems.some(
+/**
+ * Compressor tiles aboard and unbroken: what would discount a jump if it had
+ * the cubes it asks for. As the rules stand it asks for none.
+ */
+export function compressorsAboard(ship: ShipState): Subsystem[] {
+  return ship.subsystems.filter(
     (s) => !s.isBroken && getSubsystemConfig(s.type).passiveEffect?.refuelOnWellTransfer === true
   );
+}
+
+/** True if a compressor is aboard and unbroken, powered or not. */
+export function hasCompressorAboard(ship: ShipState): boolean {
+  return compressorsAboard(ship).length > 0;
+}
+
+/**
+ * A compressor does its job while it is unbroken and holds the cubes its tile
+ * asks for. The tile is passive as the rules stand (`minEnergy: 0`), so that
+ * is every unbroken one; the simulator's tile channel can price it in energy
+ * (`--tiles=fuel_compressor.minEnergy=4,...`) and then only a powered one pays
+ * for the lane.
+ */
+function isCompressorRunning(sub: Subsystem): boolean {
+  const config = getSubsystemConfig(sub.type);
+  if (config.passiveEffect?.refuelOnWellTransfer !== true || sub.isBroken) return false;
+  return config.minEnergy === 0 || (sub.isPowered && sub.allocatedEnergy >= config.minEnergy);
+}
+
+/** The compressors actually paying for a lane right now. */
+export function workingCompressors(ship: ShipState): Subsystem[] {
+  return ship.subsystems.filter(isCompressorRunning);
+}
+
+/** True if a working system discounts jump fuel (fuel compressor). */
+export function hasWorkingCompressor(ship: ShipState): boolean {
+  return ship.subsystems.some(isCompressorRunning);
 }
 
 export function addHeat(ship: ShipState, amount: number): ShipState {

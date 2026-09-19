@@ -37,9 +37,9 @@ import {
   findSubsystem,
   hasWorkingCompressor,
   isDestroyed,
-  revealSubsystem,
   updateSubsystem,
   useSubsystem,
+  workingCompressors,
 } from "./ship.ts";
 import {
   validateActionSequence,
@@ -370,11 +370,13 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
     heat = used.heat;
     events.push(...used.events);
     if (compressed) {
-      for (const compressor of ship.subsystems.filter(
-        (s) => s.type === "fuel_compressor" && !s.isBroken
-      )) {
-        const r = revealSubsystem(ship, p.id, compressor.id, "compressed_jump");
+      // Using the tile: heat is its cubes if it charges any (none while it is
+      // passive, which is the rule as it stands), and it flips face-up the
+      // first time it pays for a lane.
+      for (const compressor of workingCompressors(ship)) {
+        const r = useSubsystem(ship, p.id, compressor.id, "compressed_jump");
         ship = r.ship;
+        heat += r.heat;
         events.push(...r.events);
       }
     }

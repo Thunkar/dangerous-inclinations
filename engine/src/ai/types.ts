@@ -180,6 +180,12 @@ export interface BotStatus {
   shields: Subsystem[];
   racks: Subsystem[];
   brokenSubsystems: Subsystem[];
+  /**
+   * A compressor aboard and unbroken — workable, once it holds the cubes its
+   * tile asks for (none while it is passive). Jump costs are planned assuming
+   * the bot powers it, and the candidate that jumps budgets those cubes; if
+   * the reactor cannot hold them alongside the engines it pays full fuel.
+   */
   hasCompressor: boolean;
 }
 

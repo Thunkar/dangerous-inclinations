@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   TRANSFER_LANES,
   TRANSFER_POINTS,
@@ -13,8 +13,9 @@ import {
   PLANET_OUTER_RING,
   STATION_RING,
 } from "../../models/gravityWells.ts";
-import { SECTORS_PER_RING } from "../../models/rings.ts";
+import { SECTORS_PER_RING, WELL_TRANSFER_COSTS } from "../../models/rings.ts";
 import type { ShipLoadout } from "../../models/game.ts";
+import { SUBSYSTEM_CONFIGS } from "../../models/subsystems.ts";
 import {
   ALPHA,
   BETA,
@@ -292,6 +293,65 @@ describe("jumps: executing a well transfer", () => {
     const state = makeTwoPlayerGame({ wellId: BETA, ring: PLANET_OUTER_RING, sector: 17 });
     const result = executeTurnAs(withPower(state, "p1", "engines", 3), jump(1, BH));
     expect(getShip(result.gameState, "p1").sector).toBe(13);
+  });
+});
+
+/**
+ * Experiment only: the tile is passive as the rules stand, and the simulator's
+ * tile channel is the only thing that gives it a price
+ * (`--tiles=fuel_compressor.minEnergy=4,maxEnergy=4,isPassive=false,generatesHeatOnUse=true`).
+ * The configuration is process-wide, so every test here puts it back.
+ */
+describe("jumps: a fuel compressor that costs cubes", () => {
+  const AS_IT_STANDS = { ...SUBSYSTEM_CONFIGS.fuel_compressor };
+  const CUBES = 4;
+
+  afterEach(() => {
+    SUBSYSTEM_CONFIGS.fuel_compressor = { ...AS_IT_STANDS };
+  });
+
+  function priceTheTile(): void {
+    SUBSYSTEM_CONFIGS.fuel_compressor = {
+      ...AS_IT_STANDS,
+      minEnergy: CUBES,
+      maxEnergy: CUBES,
+      isPassive: false,
+      generatesHeatOnUse: true,
+    };
+  }
+
+  it.each([
+    ["powered, it pays for the lane and charges its cubes as heat", CUBES, 0, 3 + CUBES, true],
+    ["unpowered, it pays for nothing and costs nothing", 0, WELL_TRANSFER_COSTS.mass, 3, false],
+  ])("%s", (_case, cubes, massSpent, heat, works) => {
+    priceTheTile();
+    const base = readyToJump(BH, 5, 17, "prograde", COMPRESSOR);
+    const state = cubes > 0 ? withPower(base, "p1", "forward-0", cubes) : base;
+    const fuelBefore = getShip(state, "p1").reactionMass;
+
+    const result = executeTurnAs(state, jump(1, ALPHA));
+
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(fuelBefore - massSpent);
+    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
+      massSpent,
+      compressed: works,
+      heat,
+    });
+    expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(works);
+    expect(
+      eventsOf(result.events, "subsystem_revealed").some((e) => e.subsystemId === "forward-0")
+    ).toBe(works);
+  });
+
+  it("is still passive, free and silent under the rules as they stand", () => {
+    const state = readyToJump(BH, 5, 17, "prograde", COMPRESSOR);
+    const result = executeTurnAs(state, jump(1, ALPHA));
+    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
+      massSpent: 0,
+      compressed: true,
+      heat: 3,
+    });
   });
 });
 

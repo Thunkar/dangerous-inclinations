@@ -12,7 +12,7 @@ import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
 import { getSubsystemConfig, isWeaponType, SHIELD_ENERGY_PER_POINT } from "../models/subsystems.ts";
 import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import { positionOf, sectorDistance } from "../game/geometry.ts";
-import { getDissipationCapacity, hasWorkingCompressor } from "../game/ship.ts";
+import { getDissipationCapacity, hasCompressorAboard } from "../game/ship.ts";
 import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import { canEngage } from "../game/targeting.ts";
 import { isMooredAt } from "../game/stations.ts";
@@ -166,7 +166,7 @@ export function analyzeStatus(me: Player, stations: Station[] = []): BotStatus {
     shields: ship.subsystems.filter((s) => s.type === "shields"),
     racks: ship.subsystems.filter((s) => s.type === "ballistic_rack"),
     brokenSubsystems: ship.subsystems.filter((s) => s.isBroken),
-    hasCompressor: hasWorkingCompressor(ship),
+    hasCompressor: hasCompressorAboard(ship),
   };
 }
 
