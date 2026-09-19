@@ -98,6 +98,12 @@ export interface Opponent {
   sameWell: boolean;
   ringDistance: number;
   sectorDistance: number;
+  /**
+   * Just back from a respawn: no shot, missile or scan may be aimed at them
+   * until they act (RULES §Destruction and Respawn). Boarding them is still
+   * allowed — that is a rendezvous, not an attack.
+   */
+  recovering: boolean;
   /** Weapon tiles the bot has seen (face-up or scanned). */
   knownWeapons: KnownWeapon[];
   /** Face-down tiles the bot has not seen, read through their energy cubes. */

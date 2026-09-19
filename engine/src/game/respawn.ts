@@ -5,15 +5,20 @@
  * station (they must be picked up again), data is lost, and a load of garbage
  * is simply gone — collect another at any station, which is the same thing. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
- * occupied) fully repaired and refuelled, and the turn ends; the next turn is
- * lost too (the ship is recovering: it takes no action, it only drifts with
- * its ring — see `executeTurn`). Face-up tiles stay face-up.
+ * occupied) fully repaired and refuelled, drifts with its ring like anything
+ * else in orbit, and the turn ends. It is `recovering` from then until its
+ * owner's next turn begins: nobody may fire at it, missile it or scan it, and
+ * on that next turn it acts normally. Face-up tiles stay face-up.
+ *
+ * One turn, not two: two lost turns at a known sector with no cubes on the
+ * mat was a free kill for a hunter waiting at Home, with no counter-play.
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import { isSecondaryMission } from "../models/missions.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
-import { wrapSector, samePosition } from "./geometry.ts";
+import { wrapSector, samePosition, positionOf } from "./geometry.ts";
+import { applyOrbitalMovement } from "./movement.ts";
 import { createInitialShipState, isDestroyed } from "./ship.ts";
 
 export function needsRespawn(player: Player): boolean {
@@ -98,15 +103,29 @@ export function respawnPlayer(
 ): { state: GameState; events: EventDraft[] } {
   const player = state.players[playerIndex];
   if (!player.home) return { state, events: [] };
-  const position = findRespawnPosition(state, player.home, player.id);
+  const placed = findRespawnPosition(state, player.home, player.id);
+  // The ship is in orbit the moment it is placed, so the respawn turn ends
+  // with the ring carrying it exactly as a coast would. Home is on the black
+  // hole's home ring and stations orbit a planet, so there is no berth to hold
+  // and nothing for `advanceStations` to carry.
+  const ship = applyOrbitalMovement(createRespawnedShip(player.ship, placed));
+  const position = positionOf(ship);
   const players = [...state.players];
-  players[playerIndex] = {
-    ...player,
-    ship: createRespawnedShip(player.ship, position),
-    skipTurns: 1,
-  };
+  players[playerIndex] = { ...player, ship, recovering: true, skipTurns: 0 };
   return {
     state: { ...state, players },
-    events: [{ type: "respawned", playerId: player.id, position }],
+    events: [
+      { type: "respawned", playerId: player.id, position },
+      // The board moves the token on a `coasted` like any other drift; the
+      // flag says the helm was empty, so the log does not claim a coast.
+      {
+        type: "coasted",
+        playerId: player.id,
+        to: position,
+        scooped: false,
+        heat: 0,
+        recovering: true,
+      },
+    ],
   };
 }

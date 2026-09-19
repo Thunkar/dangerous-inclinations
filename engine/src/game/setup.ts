@@ -36,6 +36,7 @@ export function createPlayer(spec: PlayerSpec): Player {
     hasSubmittedLoadout: false,
     home: null,
     skipTurns: 0,
+    recovering: false,
     intel: {},
   };
 }

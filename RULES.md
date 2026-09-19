@@ -69,7 +69,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 ## A Turn
 
-If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy allocated. Face-up tiles stay face-up. Play passes. **Your next turn is lost as well** (the ship is recovering): you take no actions, you just drift.
+If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy allocated, and drift with the ring like any ship that coasts. Face-up tiles stay face-up. Play passes. **Until your next turn begins nobody can touch you**: no weapon fires at you, no missile attacks you and nobody scans you. On that next turn you act normally.
 
 Otherwise:
 
@@ -249,9 +249,9 @@ When you complete a mission, turn the card face-up for everyone to see.
 When your hull reaches 0:
 
 - remove your ship; drop your cargo: crates go back to their pickup station (you must load them again), data chits are lost;
-- on your next turn you only respawn at Home (see A Turn), and the turn after that is lost too. Two turns gone.
+- on your next turn you respawn at Home and drift, untouchable until you act again (see A Turn). One turn gone.
 
-Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card.
+Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card. Nobody collects it twice over: a ship coming back cannot be shot at the sector everyone knows it returns to.
 
 ---
 
@@ -276,6 +276,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                             |
 | Scan             | same ring, within 3 sectors, sensor powered                                                      |
 | First round      | no weapon fires and nobody scans                                                                 |
+| Respawn          | next turn: back at Home, full hull and tank, drifting, untouchable until you act                 |
 | Point blank      | a ship in your own sector is in range of every weapon                                            |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |
@@ -288,7 +289,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 
 ### Turn cheat sheet
 
-1. Destroyed? Respawn at Home, turn over. Recovering? You only drift, turn over.
+1. Destroyed? Respawn at Home and drift; nobody can touch you until your next turn. Turn over.
 2. Energy: move cubes.
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.

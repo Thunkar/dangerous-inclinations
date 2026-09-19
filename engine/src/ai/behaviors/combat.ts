@@ -335,6 +335,9 @@ export function firingOptions(
   // Nothing reaches another ship in the opening round (RULES §Firing), so
   // there is nothing to plan: the engine would refuse every one of these.
   if (isOpeningRound(situation.view.turn)) return intents;
+  // Nor does anything reach a ship that just came back: it is untouchable
+  // until it acts (RULES §Destruction and Respawn).
+  if (target.recovering) return intents;
 
   for (const weapon of status.weapons) {
     if (!isWeaponReady(weapon)) continue;

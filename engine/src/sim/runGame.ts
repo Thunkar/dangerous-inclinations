@@ -32,7 +32,7 @@ import { rankPlayers } from "../game/missions/missionChecks.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
 import { viewFor } from "../game/view.ts";
-import { getDissipationCapacity, isDestroyed } from "../game/ship.ts";
+import { getDissipationCapacity } from "../game/ship.ts";
 import { pickIndex, freshSeed } from "../utils/rng.ts";
 import { botChooseDeployment, botChooseLoadout, botDecideActions } from "../ai/index.ts";
 
@@ -84,7 +84,11 @@ export interface TurnStat {
   heatAtCheck: number;
   dissipation: number;
   heatDamage: number;
-  /** The turn was a respawn or recovery turn, or the ship is destroyed. */
+  /**
+   * The turn was the respawn turn: the ship came back at Home and drifted, and
+   * that was the whole turn. The turn after it is played in full, so it is not
+   * lost (RULES §Destruction and Respawn).
+   */
   lost: boolean;
 }
 
@@ -330,10 +334,7 @@ function turnStat(turn: number, playerId: string, events: GameEvent[], after: Ga
     heatAtCheck: heat ? heat.heat : 0,
     dissipation: heat ? heat.dissipation : getDissipationCapacity(player.ship.subsystems),
     heatDamage: heat ? heat.damage : 0,
-    lost:
-      events.some(
-        (e) => (e.type === "respawned" || e.type === "turn_skipped") && e.playerId === playerId
-      ) || isDestroyed(player.ship),
+    lost: events.some((e) => e.type === "respawned" && e.playerId === playerId),
   };
 }
 

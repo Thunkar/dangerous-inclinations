@@ -21,6 +21,7 @@ import {
   getShip,
   makeTwoPlayerGame,
   withMissions,
+  withPlayer,
   withPower,
   withShip,
   withSub,
@@ -477,6 +478,50 @@ describe("bot does not shoot corpses", () => {
     );
 
     expect(shotsOf(state, "p1")).toHaveLength(1);
+  });
+});
+
+/**
+ * A ship just back from a respawn cannot be touched until it acts (RULES
+ * §Destruction and Respawn), so the bot must not propose a shot or a scan at
+ * it: the engine would refuse the turn, and the sim would count it invalid.
+ */
+describe("bot leaves a recovering ship alone", () => {
+  const duel = () =>
+    grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 4, sector: 0 }
+      ),
+      "p1"
+    );
+
+  it("fires at nobody while the only target is recovering", () => {
+    const state = withPlayer(duel(), "p2", { recovering: true });
+    const decision = botDecideActions(viewFor(state, "p1"));
+    expect(decision.actions.filter((a) => a.type === "fire_weapon" || a.type === "scan")).toEqual(
+      []
+    );
+    expect(executeTurn(state, decision.actions).errors).toBeUndefined();
+  });
+
+  it("shoots the other one instead", () => {
+    const base = duel();
+    // p3 sits in the same arc as p2, whole and touchable.
+    let state: GameState = {
+      ...base,
+      players: [
+        ...base.players,
+        { ...base.players[1], id: "p3", name: "p3", ship: { ...getShip(base, "p2"), sector: 1 } },
+      ],
+    };
+    state = withPlayer(state, "p2", { recovering: true });
+    const shots = shotsOf(state, "p1");
+    expect(shots.length).toBeGreaterThan(0);
+    expect(shots.every((s) => s.data.targetPlayerId === "p3")).toBe(true);
+    expect(
+      executeTurn(state, botDecideActions(viewFor(state, "p1")).actions).errors
+    ).toBeUndefined();
   });
 });
 

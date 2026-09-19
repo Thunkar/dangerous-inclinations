@@ -365,7 +365,15 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     () => ({ ...me.ship, subsystems: pendingSubsystems }),
     [me.ship, pendingSubsystems]
   )
-  const targets = useMemo<Target[]>(() => opponentPositions(view), [view])
+  /**
+   * A ship just back from a respawn cannot be touched until it acts (RULES
+   * §Destruction and Respawn), so it is on no picker and in no range list: the
+   * engine would refuse the shot or the scan.
+   */
+  const targets = useMemo<Target[]>(() => {
+    const untouchable = new Set(view.players.filter(p => p.recovering).map(p => p.id))
+    return opponentPositions(view).filter(t => !untouchable.has(t.id))
+  }, [view])
 
   const moveStep = useMemo(
     () => steps.find((s): s is MoveStep => s.kind === 'move') ?? (defaultSteps()[0] as MoveStep),
@@ -626,6 +634,10 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     const problems: string[] = []
     let engineUses = 0
     let reportedShortFuel = false
+    // A ship that just came back is off every target list, so a step still
+    // aimed at one is named rather than reported as out of range.
+    const untouchable = (id: string) => view.players.some(p => p.id === id && p.recovering)
+    const nameOf = (id: string) => view.players.find(p => p.id === id)?.name ?? id
 
     const spend = (amount: number, what: string) => {
       spent += amount
@@ -723,6 +735,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
               problems.push(`${config.name}: a salvo launches at least one missile`)
           }
           if (!step.targetId) problems.push(`${config.name}: pick a target`)
+          else if (untouchable(step.targetId))
+            problems.push(`${nameOf(step.targetId)} cannot be targeted while it comes back`)
           else if (!targetsInRange(step).some(t => t.id === step.targetId))
             problems.push(`${config.name}: target out of range from where you fire`)
           if (config.weaponStats?.hasRecoil) {
@@ -752,6 +766,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
             )
           else heat += sensor.allocatedEnergy
           if (!step.targetId) problems.push('Scan: pick a target on your ring within 3 sectors')
+          else if (untouchable(step.targetId))
+            problems.push(`${nameOf(step.targetId)} cannot be targeted while it comes back`)
           else if (!targetsInRange(step).some(t => t.id === step.targetId))
             problems.push('Scan: the target must be on your ring within 3 sectors')
           if (!step.peekSlot) problems.push('Scan: choose which tile to look at')
@@ -773,6 +789,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     me.ship,
     targetsInRange,
     availableEnergy,
+    view.players,
   ])
 
   const actions = useMemo<PlayerAction[]>(() => {

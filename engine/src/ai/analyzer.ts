@@ -229,6 +229,7 @@ function analyzeOpponent(
     sameWell,
     ringDistance,
     sectorDistance: sectorDist,
+    recovering: player.recovering === true,
     knownWeapons,
     unknownSlots,
     shieldAbsorption: shieldAbsorption(player.slots),

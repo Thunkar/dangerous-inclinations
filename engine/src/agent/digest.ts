@@ -60,7 +60,7 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
 - Docking (end your turn on a station's sector, planet ring 2): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
 - Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}, Board = end a turn in another ship's exact sector: take the chit, then dock anywhere to file it. Garbage Disposal = load at any station (fills your hold, so no delivery crate at the same time), then end a turn on BH ring ${SURVEY_RING} to drop it — no chit, no filing.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
-- Destroyed: respawn at Home next turn, lose the turn after too (you still drift with your ring while recovering), drop cargo.`;
+- Destroyed: you drop your cargo and lose one turn — on your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. Nobody can fire at, missile or scan it until your following turn, when you act normally.`;
 }
 
 /** What each secondary card still asks of you. */
@@ -133,7 +133,9 @@ export function describeViewForAgent(
     `YOUR SHIP: ${pos(ship)}, facing ${ship.facing}. Hull ${ship.hitPoints}/${ship.maxHitPoints}. Heat ${ship.heat.currentHeat}/${stats?.maxHeat ?? MAX_HEAT} carried${
       stats?.standingHeat ? ` +${stats.standingHeat} from shields` : ""
     }, dissipates ${stats?.dissipationCapacity ?? "?"}. Fuel ${ship.reactionMass}/${stats?.maxReactionMass ?? "?"}. Reactor: ${ship.reactor.availableEnergy} free of ${ship.reactor.totalCapacity}.${
-      me.skipTurns > 0 ? ` RECOVERING (${me.skipTurns} lost turn left).` : ""
+      me.recovering
+        ? " UNTOUCHABLE: you came back at Home last turn and nobody could touch you. You act normally now."
+        : ""
     }`
   );
   out.push(
@@ -168,7 +170,7 @@ export function describeViewForAgent(
     out.push(
       `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.completedMissionCount} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Tiles: ${tileLine(p)}. Completed: ${
         p.completedMissions.map((m) => describeMission(m, name)).join("; ") || "none"
-      }.${p.skipTurns ? " Recovering." : ""}`
+      }.${p.recovering ? " UNTOUCHABLE until they act: no shot, missile or scan reaches them." : ""}`
     );
   }
   out.push(

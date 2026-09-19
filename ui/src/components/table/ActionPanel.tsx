@@ -63,19 +63,21 @@ export function ActionPanel() {
   const me = plan.me
 
   const destroyed = me.ship.hitPoints <= 0
-  /** The turn after the respawn turn: the ship is back, the crew is not. */
-  const recovering = !destroyed && me.skipTurns > 0
   const waiting = !plan.isMyTurn
   const disabled = waiting || isAnimating || readOnly
-  /** A turn you hold but cannot play: respawning, or recovering from it. */
-  const sittingOut = (destroyed || recovering) && !waiting && !readOnly && view.phase !== 'ended'
+  /**
+   * A turn you hold but cannot play. Only the respawn turn is one of those
+   * now: the turn after it is played in full, untouchable but in command
+   * (RULES §Destruction and Respawn).
+   */
+  const sittingOut = destroyed && !waiting && !readOnly && view.phase !== 'ended'
 
   const winner = view.players.find(p => p.id === view.winnerId)?.name
   const active = view.players.find(p => p.id === view.activePlayerId)
 
   // Whatever state the table is in, your own tracks stay at the top of the
   // column: hull, heat and fuel are never something to go looking for.
-  if (view.phase === 'ended' || readOnly || waiting || destroyed || recovering) {
+  if (view.phase === 'ended' || readOnly || waiting || destroyed) {
     const title =
       view.phase === 'ended'
         ? 'Game over'
@@ -94,15 +96,11 @@ export function ActionPanel() {
                 : 'The game has ended.'
               : readOnly
                 ? `You are looking at this table from ${me.name}'s seat. Nothing here can be played.`
-                : sittingOut && destroyed
-                  ? 'Your ship is lost. You return to Home this turn with a full hull and tank and no cubes allocated.'
-                  : sittingOut
-                    ? `Your ship is recovering: this turn is lost. You act again ${
-                        me.skipTurns > 1 ? `in ${me.skipTurns} turns` : 'next turn'
-                      }.`
-                    : isAnimating
-                      ? 'Watching the turn play out…'
-                      : `Waiting for ${active?.name ?? 'the next player'} to act.`}
+                : sittingOut
+                  ? 'Your ship is lost. You return to Home this turn with a full hull and tank and drift; nobody can touch you until your next turn.'
+                  : isAnimating
+                    ? 'Watching the turn play out…'
+                    : `Waiting for ${active?.name ?? 'the next player'} to act.`}
           </Typography>
         </Box>
         {sittingOut && (

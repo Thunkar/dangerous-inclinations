@@ -1,8 +1,9 @@
 /**
  * One player's turn.
  *
- *  1. If the ship is destroyed: respawn at Home. The turn ends here. A ship
- *     recovering from that respawn drifts with its ring and nothing else.
+ *  1. If the ship is destroyed: respawn at Home and drift with the ring. The
+ *     turn ends here, and the ship cannot be touched until this player's next
+ *     turn begins — which is this pipeline's first act: clearing the flag.
  *  2. Energy changes, then tactical actions in the chosen order.
  *  3. The player's missiles move and resolve.
  *  4. Docking (if the ship ended on a station).
@@ -57,16 +58,26 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     return finish(gameState, state, events, turn);
   }
 
-  // A respawned ship sits out the turn after its return: submitted actions are
-  // ignored, but the ship is still in orbit, so it drifts with its ring like
-  // anything else on it (RULES §A Turn: "you take no actions, you just
-  // drift"). It cannot be moored — Home is on the black hole's home ring and
-  // stations orbit planet ring 1 — so there is no berth to hold and nothing
-  // for `advanceStations` to carry. The lost turn is still spent.
+  // The untouchable turn is over: the ship came back last turn and is a target
+  // again from the moment its owner takes the helm. This turn is played in
+  // full (RULES §Destruction and Respawn).
+  if (active.recovering) {
+    const players = [...state.players];
+    players[activeIndex] = { ...active, recovering: false };
+    state = { ...state, players };
+  }
+
+  // Only old recordings reach here: they were made when the turn after the
+  // respawn was lost as well, and they still replay. Submitted actions are
+  // ignored, but the ship is in orbit, so it drifts with its ring like
+  // anything else on it. It cannot be moored — Home is on the black hole's
+  // home ring and stations orbit a planet — so there is no berth to hold and
+  // nothing for `advanceStations` to carry.
   if (active.skipTurns > 0) {
     const ship = applyOrbitalMovement(active.ship);
     const players = [...state.players];
-    players[activeIndex] = { ...active, ship, skipTurns: active.skipTurns - 1 };
+    // From `state`, not from `active`: the flag cleared above must stay cleared.
+    players[activeIndex] = { ...players[activeIndex], ship, skipTurns: active.skipTurns - 1 };
     state = { ...state, players };
     events.push({ type: "turn_skipped", playerId: active.id, remaining: active.skipTurns - 1 });
     // The board moves the token on a `coasted` like any other drift; the flag

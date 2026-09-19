@@ -388,6 +388,48 @@ describe("weapons: firing", () => {
   });
 });
 
+/**
+ * A ship just back from Home is untouchable until it acts (RULES §Destruction
+ * and Respawn). The free kill on a wreck parked at a sector everyone knows is
+ * exactly what the rule took away, so a shot and a scan are both refused.
+ */
+describe("weapons: a recovering ship cannot be shot or scanned", () => {
+  const SENSING: ShipLoadout = {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["laser", "shields", "radiator", "missiles"],
+  };
+  /** p1 armed with a port laser one ring in from p2, and sensors to match. */
+  const gunned = () =>
+    withPower(makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 }), "p1", "side-0", 2);
+  const sensing = () =>
+    withPower(
+      makeTwoPlayerGame({ loadout: SENSING, ring: 3, sector: 0 }, { ring: 3, sector: 1 }),
+      "p1",
+      "forward-0",
+      getSubsystemConfig("sensor_array").minEnergy
+    );
+
+  it.each([
+    ["a shot", "weapon_fired", gunned, () => fire(1, "side-0", "p2")],
+    ["a scan", "scanned", sensing, () => scan(1, "p2", "side-0")],
+  ])("refuses %s while the target is recovering", (_what, event, build, action) => {
+    const state = withPlayer(build(), "p2", { recovering: true });
+    const result = executeTurnAs(state, action());
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(eventTypes(result.events)).not.toContain(event);
+    expect(result.gameState).toBe(state);
+  });
+
+  it.each([
+    ["the shot", "weapon_fired", gunned, () => fire(1, "side-0", "p2")],
+    ["the scan", "scanned", sensing, () => scan(1, "p2", "side-0")],
+  ])("allows %s once they have acted", (_what, event, build, action) => {
+    const result = executeTurnAs(build(), action());
+    expect(result.errors ?? []).toEqual([]);
+    expect(eventTypes(result.events)).toContain(event);
+  });
+});
+
 describe("weapons: railgun recoil", () => {
   /** p1 at R3 S0 with a powered railgun; p2 two sectors ahead on the same ring. */
   const gunline = (facing: Facing = "prograde", ring = 3) =>

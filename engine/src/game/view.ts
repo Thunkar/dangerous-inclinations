@@ -78,8 +78,14 @@ export interface PlayerView {
   hasSubmittedLoadout: boolean;
   hasDeployed: boolean;
   home: Position | null;
-  /** Turns this player still has to sit out after respawning. */
+  /** Only ever 0 in a live game; still on the view so old recordings render. */
   skipTurns: number;
+  /**
+   * Back at Home from a respawn and untouchable until they act: no shot, no
+   * missile and no scan reaches them. Public — a ship nobody can touch is
+   * something the whole table can see.
+   */
+  recovering: boolean;
   ship: PublicShipView | null;
   fixed: FixedSystemView[];
   slots: SlotView[];
@@ -177,6 +183,7 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     hasDeployed: player.hasDeployed,
     home: player.home,
     skipTurns: player.skipTurns,
+    recovering: player.recovering === true,
     ship: shipView(player),
     fixed: player.ship.subsystems
       .filter((s) => s.slotGroup === undefined)

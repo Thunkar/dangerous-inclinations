@@ -498,6 +498,39 @@ describe("missiles: on the target's sector", () => {
     expect(getSub(result.state, "p2", "side-2").isRevealed).toBe(false);
   });
 
+  /**
+   * A ship just back from Home is untouchable until it acts (RULES
+   * §Destruction and Respawn): the missile finds nothing to hit and nothing to
+   * shoot it down, so it flies on with one more move behind it.
+   */
+  it("slides past a recovering target: no attack, no interception, still in the air", () => {
+    const state = withPlayer(withPower(onTarget(RACK), "p2", "side-0", 2), "p2", {
+      recovering: true,
+    });
+    const result = processOwnerMissiles(state, "p1");
+    expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
+    expect(eventTypes(result.events as never)).not.toContain("missile_intercepted");
+    expect(getShip(result.state, "p2")).toMatchObject({ hitPoints: 10, heat: { currentHeat: 0 } });
+    expect(result.state.missiles).toEqual([
+      expect.objectContaining({ id: "m-1", ring: 5, sector: 13, movesMade: 1 }),
+    ]);
+    expect(eventsOf(result.events as never, "missile_moved")).toHaveLength(1);
+  });
+
+  it("but the clock still runs: its last move over a recovering ship burns it out", () => {
+    const state = withPlayer(
+      missileAt(makeTwoPlayerGame({}, { ring: 5, sector: 13 }), 5, 12, {
+        movesMade: getMissileStats().maxMoves - 1,
+      }),
+      "p2",
+      { recovering: true }
+    );
+    const result = processOwnerMissiles(state, "p1");
+    expect(eventTypes(result.events as never)).toContain("missile_expired");
+    expect(result.state.missiles).toEqual([]);
+    expect(getShip(result.state, "p2").hitPoints).toBe(10);
+  });
+
   it("shields absorb missile damage like any other: two cubes stop one point", () => {
     const state = withPower(onTarget(), "p2", "side-2", 2);
     const result = processOwnerMissiles(state, "p1");

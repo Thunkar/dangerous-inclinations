@@ -14,8 +14,9 @@
  * otherwise it rolls to hit like any weapon. The rack rolls at every missile
  * that reaches the ship — a salvo is not stopped by one round of point defence
  * — and each roll costs the rack's cubes in heat. A missile that has moved
- * `maxMoves` times without hitting is removed. Missiles never cross gravity
- * wells.
+ * `maxMoves` times without hitting is removed. A missile that catches a ship
+ * recovering from a respawn does neither: it slides past untouchable prey and
+ * stays in flight. Missiles never cross gravity wells.
  */
 import type { GameState, Missile, Player, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
@@ -154,7 +155,13 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     const start = missile.launchedAfterMove ? at : driftPosition(at);
     const moved = stepToward(start, targetPos, MISSILE.fuelPerTurn);
 
-    if (!samePosition(moved, targetPos)) {
+    // A ship that just came back cannot be touched until it acts (RULES
+    // §Destruction and Respawn), so a missile that catches it neither attacks
+    // nor is shot down: it stays in the air with one more move behind it and
+    // burns out on schedule.
+    const untouchable = target.recovering === true;
+
+    if (untouchable || !samePosition(moved, targetPos)) {
       const movesMade = missile.movesMade + 1;
       if (movesMade >= MISSILE.maxMoves) {
         events.push({ type: "missile_expired", missileId: missile.id, ownerId, at: moved });

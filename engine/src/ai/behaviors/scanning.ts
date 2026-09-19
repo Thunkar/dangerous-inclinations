@@ -75,6 +75,9 @@ export function scanOption(
   let best: ScanIntent | null = null;
   for (const opponent of situation.opponents) {
     if (!opponent.sameWell) continue;
+    // Untouchable until they act: the engine refuses the scan (RULES
+    // §Destruction and Respawn).
+    if (opponent.recovering) continue;
     const phase: FiringPhase | null = canScanFrom(post, opponent.position)
       ? "post"
       : canScanFrom(pre, opponent.position)

@@ -157,7 +157,11 @@ export function seatOptions(view: GameView): SeatOptions {
     : null;
   const moored = isMooredAt(view.stations, here);
 
-  const opponents = view.players.filter((p) => !p.isMe && p.ship && !p.ship.isDestroyed);
+  // A ship recovering from a respawn is untouchable until it acts (RULES
+  // §Destruction and Respawn), so it is on nobody's target list this turn.
+  const opponents = view.players.filter(
+    (p) => !p.isMe && p.ship && !p.ship.isDestroyed && !p.recovering
+  );
   const afterCoast = projectPosition(ship, ship.facing, {
     kind: "coast",
     moored,

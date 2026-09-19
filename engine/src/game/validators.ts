@@ -246,6 +246,11 @@ function validateTarget(
   if (!target) return { errors: [`Target ${targetId} not found`] };
   if (!target.hasDeployed || isDestroyed(target.ship))
     return { errors: [`${target.name} is not on the board`] };
+  // Just back from Home: untouchable until they act (RULES §Destruction and
+  // Respawn). Both a shot and a scan are refused, which is the whole point —
+  // a ship that returns to a sector everyone knows must not be a free kill.
+  if (target.recovering)
+    return { errors: [`${target.name} cannot be touched until they act again`] };
   return { errors: [], target };
 }
 

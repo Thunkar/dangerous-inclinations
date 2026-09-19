@@ -614,6 +614,9 @@ export function generateCandidates(
       .filter(
         (o) =>
           o.sameWell &&
+          // Nothing can be done to a ship recovering from a respawn this turn,
+          // so leaving the route to reach it buys nothing.
+          !o.recovering &&
           o.ringDistance <= 3 &&
           (missionTargets.has(o.player.id) ||
             o.danger.score >= INTERDICT_DANGER ||

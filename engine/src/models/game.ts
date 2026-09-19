@@ -332,8 +332,20 @@ export interface Player {
   hasSubmittedLoadout: boolean;
   /** Where the ship deployed; destroyed ships return here. */
   home: Position | null;
-  /** Turns still to sit out after respawning (a destroyed ship loses the respawn turn and the next). */
+  /**
+   * Turns still to sit out after respawning. Nothing sets it any more — a
+   * destroyed ship loses the respawn turn and nothing else — but old
+   * recordings were made when the turn after was lost too, and they still
+   * replay (see `executeTurn`).
+   */
   skipTurns: number;
+  /**
+   * Back from the dead and untouchable: set when the ship is placed at Home
+   * on its respawn turn, cleared when its owner's next turn begins. While it
+   * is set nobody may fire at, scan or missile this ship (RULES §Destruction
+   * and Respawn).
+   */
+  recovering: boolean;
   /**
    * Face-down slots of other players this player has seen through scans.
    * Private knowledge; the table only sees face-up tiles.

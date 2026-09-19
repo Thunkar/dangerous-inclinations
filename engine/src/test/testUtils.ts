@@ -72,6 +72,7 @@ export function makePlayer(
     hasSubmittedLoadout: true,
     home: { wellId: BH, ring: 4, sector: 0 },
     skipTurns: 0,
+    recovering: false,
     intel: {},
     ...overrides,
     ...(overrides.ship ? { ship: { ...ship, ...overrides.ship } } : {}),

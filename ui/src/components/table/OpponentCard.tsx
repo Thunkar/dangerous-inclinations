@@ -67,8 +67,8 @@ export function OpponentCard({
   /** Who plays this seat: an agent's driver and model, or nothing for people and bots. */
   const { seats, view } = useGame()
   const agent = agentLabel(seats.find(s => s.playerId === player.id)?.agent)
-  /** Back at Home with a full hull, but sitting the next turn out. */
-  const recovering = !destroyed && player.skipTurns > 0
+  /** Back at Home with a full hull, and nobody can touch it until it acts. */
+  const recovering = !destroyed && player.recovering
   const slots = [...player.slots].sort((a, b) =>
     a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1
   )
@@ -178,14 +178,13 @@ export function OpponentCard({
             </Typography>
           )}
           {recovering && (
-            <Tooltip
-              title={`Rebuilt at Home — sits out ${player.skipTurns} more turn${player.skipTurns > 1 ? 's' : ''}`}
-            >
+            <Tooltip title="Respawned at Home — no shot, missile or scan reaches it until it acts">
               <Typography
                 variant="overline"
-                sx={{ color: TABLE.accent, lineHeight: 1, fontSize: '0.68rem' }}
+                noWrap
+                sx={{ color: TABLE.accent, lineHeight: 1, fontSize: '0.68rem', flexShrink: 0 }}
               >
-                recovering
+                respawned, untouchable this round
               </Typography>
             </Tooltip>
           )}

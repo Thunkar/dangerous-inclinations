@@ -45,7 +45,7 @@ export interface PerPlayerStats {
 }
 
 export interface TurnBehaviour {
-  /** Share of acting turns (not lost to respawn/recovery) that were a plain coast. */
+  /** Share of acting turns (not the respawn turn) that were a plain coast. */
   coastShare: number;
   /** Share of acting turns that coasted without scooping or firing: nothing was done. */
   idleShare: number;
@@ -67,7 +67,7 @@ export interface TurnBehaviour {
   heatDamageShare: number;
   /** Share of weapon damage soaked by shields (toHeat / (toHeat + toHull)). */
   absorbedShare: number;
-  /** Share of all player-turns lost to respawn or recovery. */
+  /** Share of all player-turns spent respawning: one per destruction. */
   lostTurnShare: number;
 }
 

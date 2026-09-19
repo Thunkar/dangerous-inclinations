@@ -126,17 +126,18 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const data = me.cargo.filter(c => c.isPickedUp && c.kind === 'data').length
 
   /**
-   * A destroyed ship is off the board and a recovering one cannot act, and
-   * neither fact is visible anywhere else on your own column — an opponent's
-   * card carries the badge but your own tracks did not, so a hull that changed
-   * while your token was missing looked like it changed for no reason.
+   * A destroyed ship is off the board and one just back from Home cannot be
+   * touched, and neither fact is visible anywhere else on your own column — an
+   * opponent's card carries the badge but your own tracks did not, so a hull
+   * that changed while your token was missing looked like it changed for no
+   * reason.
    */
   const destroyed = me.ship.hitPoints <= 0
-  const recovering = !destroyed && me.skipTurns > 0
+  const recovering = !destroyed && me.recovering
   const state = destroyed
     ? { label: 'DESTROYED', tip: 'Off the board. You return to Home on your next turn.' }
     : recovering
-      ? { label: 'RECOVERING', tip: `You act again ${me.skipTurns > 1 ? `in ${me.skipTurns} turns` : 'next turn'}.` }
+      ? { label: 'UNTOUCHABLE', tip: 'Just back from Home: nobody can touch you until you act.' }
       : null
 
   /** At the top of the track any heat at all is hull, so it gets its own state. */
