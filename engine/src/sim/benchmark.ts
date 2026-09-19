@@ -26,9 +26,11 @@ import {
   STATION_RING,
 } from "../models/gravityWells.ts";
 import {
-  MISSIONS_PER_PLAYER,
   MISSIONS_TO_WIN,
-  MISSION_OFFERS_PER_PLAYER,
+  PRIMARIES_PER_PLAYER,
+  PRIMARY_OFFERS_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  SECONDARY_OFFERS_PER_PLAYER,
   MISSION_POINTS,
   CARGO_HOLD_CRATES,
   type MissionType,
@@ -275,7 +277,10 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
     `| Card values | ${TYPES.map((t) => `${TYPE_LABEL[t]} ${MISSION_POINTS[t]}`).join(", ")} |`
   );
   out.push(`| Hold | ${CARGO_HOLD_CRATES} crate (data rides free) |`);
-  out.push(`| Cards offered / kept | ${MISSION_OFFERS_PER_PLAYER} / ${MISSIONS_PER_PLAYER} |`);
+  out.push(
+    `| The deal | ${PRIMARY_OFFERS_PER_PLAYER} primaries keep ${PRIMARIES_PER_PLAYER}, ` +
+      `${SECONDARY_OFFERS_PER_PLAYER} secondaries keep ${SECONDARIES_PER_PLAYER} |`
+  );
   out.push(`| Seats allowed | ${MIN_PLAYERS}–${MAX_PLAYERS} |`);
   // The map is a rule: a page run under a different one is not comparable.
   out.push(
@@ -329,8 +334,8 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   }
   out.push("");
   out.push(
-    `_P is a two-point primary, S a one-point secondary; a hand is ${MISSIONS_PER_PLAYER} cards ` +
-      `and ${MISSIONS_TO_WIN} points win, so 0P+3S cannot win at all. A shape nobody keeps is a ` +
+    `_Every hand is one primary and two secondaries, which is ${MISSIONS_TO_WIN} points exactly, ` +
+      "so the row is the errand a seat took and what it took beside it. A hand nobody keeps is a " +
       "plan the table never tested._"
   );
   out.push("");
@@ -362,8 +367,9 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push("");
   out.push(
     "_Pick rate is the read on a card: one nobody keeps does not exist, whatever it would score. " +
-      "One deck serves the table, and setup takes out the rival cards a table this size cannot " +
-      "use, so the offered column is not flat across seat counts._"
+      "Two piles serve the table and each is dealt against its own choice, so pick rates inside a " +
+      "pile compare and the two piles do not; setup takes out the rival cards a table this size " +
+      "cannot use, so the offered column is not flat across seat counts._"
   );
   out.push("");
   return out.join("\n");

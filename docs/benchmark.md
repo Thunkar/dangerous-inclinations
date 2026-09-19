@@ -1,4 +1,4 @@
-# Benchmark — 2026-09-18
+# Benchmark — 2026-09-19
 
 120 games per seat count, seeds 20000+, bots choosing their own hands and hulls.
 
@@ -9,7 +9,7 @@
 | Points to win | 4 |
 | Card values | Deliver 2, Destroy 2, Intercept 2, Survey 1, Board 1, Garbage 1 |
 | Hold | 1 crate (data rides free) |
-| Cards offered / kept | 5 / 3 |
+| The deal | 3 primaries keep 1, 3 secondaries keep 2 |
 | Seats allowed | 2–6 |
 | Drift | black hole 8/6/4/2/1, planet 6/4/2/1 (station on planet ring 2) |
 | Starting hull | 10 |
@@ -22,10 +22,10 @@
 
 | seats | decided | rounds (median) | rounds (p75) | table time | kills/game | cards/game | burn | scoop | firing | lost | wins by seat | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 3 | 99% | 33 | 49 | 1h39 | 2.5 | 7.3 | 53% | 34% | 23% | 4% | 26% / 33% / 41% | — |
-| 4 | 99% | 33 | 42 | 2h12 | 4.8 | 8 | 55% | 31% | 31% | 6% | 30% / 25% / 25% / 19% | a kill per seat per game |
-| 5 | 100% | 33 | 50 | 2h45 | 8.2 | 8.6 | 56% | 30% | 35% | 8% | 23% / 20% / 19% / 16% / 22% | a kill per seat per game |
-| 6 | 99% | 30 | 42 | 3h00 | 10.4 | 9.6 | 57% | 28% | 40% | 9% | 15% / 15% / 18% / 24% / 14% / 13% | a kill per seat per game |
+| 3 | 100% | 30 | 39 | 1h30 | 2.7 | 7.1 | 55% | 33% | 26% | 5% | 28% / 37% / 36% | — |
+| 4 | 100% | 32 | 42 | 2h08 | 5 | 8.3 | 55% | 31% | 34% | 7% | 19% / 27% / 23% / 32% | a kill per seat per game |
+| 5 | 100% | 36 | 52 | 3h00 | 9.4 | 9.7 | 54% | 31% | 38% | 8% | 23% / 11% / 18% / 29% / 19% | a kill per seat per game; seat spread 18% |
+| 6 | 100% | 45 | 67 | 4h30 | 16.5 | 11.2 | 55% | 30% | 43% | 10% | 20% / 12% / 18% / 15% / 18% / 18% | a kill per seat per game |
 
 _Table time is the median game at the stated pace: rounds x seats player-turns. `lost` is the share of turns spent respawning. `wins by seat` is turn order, first seat first._
 
@@ -33,21 +33,34 @@ _Table time is the median game at the stated pace: rounds x seats player-turns. 
 
 | hand | seats | share of seats | win rate | points scored |
 |---|---|---|---|---|
-| 3P+0S | 1176 | 54% | 28% | 1.9 |
-| 2P+1S | 804 | 37% | 14% | 1.8 |
-| 1P+2S | 171 | 8% | 20% | 1.8 |
-| 0P+3S | 9 | 0% | 0% | 1.9 |
+| Deliver + Board/Survey | 330 | 15% | 16% | 1.8 |
+| Destroy + Garbage/Survey | 205 | 9% | 16% | 2.1 |
+| Intercept + Garbage/Survey | 195 | 9% | 24% | 1.9 |
+| Intercept + Board/Garbage | 194 | 9% | 14% | 1.7 |
+| Destroy + Board/Garbage | 174 | 8% | 13% | 1.8 |
+| Destroy + Board/Survey | 159 | 7% | 30% | 2.3 |
+| Intercept + Board/Survey | 150 | 7% | 30% | 2.1 |
+| Deliver + Board/Board | 137 | 6% | 22% | 1.9 |
+| Deliver + Survey/Survey | 127 | 6% | 36% | 2.6 |
+| Destroy + Garbage/Garbage | 113 | 5% | 7% | 1.5 |
+| Intercept + Garbage/Garbage | 92 | 4% | 8% | 1.8 |
+| Intercept + Board/Board | 75 | 3% | 35% | 2.3 |
+| Destroy + Survey/Survey | 59 | 3% | 53% | 2.9 |
+| Intercept + Survey/Survey | 56 | 3% | 50% | 2.7 |
+| Destroy + Board/Board | 52 | 2% | 37% | 2.3 |
+| Deliver + Garbage/Survey | 17 | 1% | 35% | 2.4 |
+| Deliver + Garbage/Garbage | 15 | 1% | 20% | 1.7 |
+| Deliver + Board/Garbage | 10 | 0% | 0% | 1 |
 
-_P is a two-point primary, S a one-point secondary; a hand is 3 cards and 4 points win, so 0P+3S cannot win at all. A shape nobody keeps is a plan the table never tested._
+_Every hand is one primary and two secondaries, which is 4 points exactly, so the row is the errand a seat took and what it took beside it. A hand nobody keeps is a plan the table never tested._
 
 ## Hulls the bots chose
 
 | hull | seats | share of seats | win rate |
 |---|---|---|---|
-| railgun,missiles,radiator,ballistic_rack,shields | 632 | 29% | 17% |
-| sensor_array,shields,shields,radiator,laser | 605 | 28% | 21% |
-| sensor_array,shields,laser,laser,radiator | 551 | 26% | 32% |
-| fuel_compressor,shields,shields,radiator,laser | 372 | 17% | 18% |
+| sensor_array,shields,shields,radiator,laser | 762 | 35% | 24% |
+| railgun,missiles,radiator,ballistic_rack,shields | 762 | 35% | 21% |
+| fuel_compressor,shields,shields,radiator,laser | 636 | 29% | 22% |
 
 _A hull's win rate is against the field, so the fair share is 1/seats — about 25% across a 3–6 seat mix._
 
@@ -55,12 +68,12 @@ _A hull's win rate is against the field, so the fair share is 1/seats — about 
 
 | card | offered | kept | pick rate | completed per 100 kept | share of winning cards |
 |---|---|---|---|---|---|
-| Deliver | 4004 | 2426 | 61% | 16 | 26% |
-| Destroy | 2447 | 1454 | 59% | 50 | 32% |
-| Intercept | 2416 | 1427 | 59% | 41 | 30% |
-| Survey | 652 | 398 | 61% | 73 | 6% |
-| Board | 639 | 401 | 63% | 52 | 4% |
-| Garbage | 642 | 374 | 58% | 30 | 3% |
+| Deliver | 2912 | 636 | 22% | 25 | 10% |
+| Destroy | 1814 | 762 | 42% | 64 | 11% |
+| Intercept | 1754 | 762 | 43% | 47 | 13% |
+| Survey | 2144 | 1540 | 72% | 75 | 31% |
+| Board | 2169 | 1545 | 71% | 58 | 24% |
+| Garbage | 2167 | 1235 | 57% | 23 | 12% |
 
-_Pick rate is the read on a card: one nobody keeps does not exist, whatever it would score. One deck serves the table, and setup takes out the rival cards a table this size cannot use, so the offered column is not flat across seat counts._
+_Pick rate is the read on a card: one nobody keeps does not exist, whatever it would score. Two piles serve the table and each is dealt against its own choice, so pick rates inside a pile compare and the two piles do not; setup takes out the rival cards a table this size cannot use, so the offered column is not flat across seat counts._
 

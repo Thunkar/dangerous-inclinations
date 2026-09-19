@@ -35,10 +35,11 @@ export interface PerPlayerStats {
   hiddenTilesAtEnd: number;
   loadout: string;
   /**
-   * The shape of the hand this seat kept, as "2P+1D": primaries (two points
-   * each) and secondary cards (one). With three cards and four points to win, the
-   * shape is the plan — two primaries, or one and both secondary cards — so this
-   * is what says whether a rule change moved the plans or only the numbers.
+   * The errand this seat kept, and the secondaries beside it — "Destroy +
+   * Board/Survey". The shape of a hand is a rule now (one primary, two
+   * secondaries), so the plan is which cards rather than how many of each, and
+   * this is what says whether a rule change moved the plans or only the
+   * numbers.
    */
   handShape: string;
 }
@@ -90,10 +91,21 @@ export interface PerGameStats {
   perPlayer: Record<string, PerPlayerStats>;
 }
 
-/** "2P+1S": the primaries and secondary cards a seat kept. */
+const CARD_LABEL: Record<MissionType, string> = {
+  destroy_ship: "Destroy",
+  deliver_cargo: "Deliver",
+  intercept_transmission: "Intercept",
+  survey: "Survey",
+  board: "Board",
+  garbage_disposal: "Garbage",
+};
+
+/** "Destroy + Board/Survey": the errand a seat took, and what it took beside it. */
 export function handShapeOf(missions: ReadonlyArray<{ type: MissionType }>): string {
-  const secondary = missions.filter((m) => MISSION_FAMILY[m.type] === "secondary").length;
-  return `${missions.length - secondary}P+${secondary}S`;
+  const label = (m: { type: MissionType }) => CARD_LABEL[m.type];
+  const primaries = missions.filter((m) => MISSION_FAMILY[m.type] !== "secondary").map(label);
+  const secondaries = missions.filter((m) => MISSION_FAMILY[m.type] === "secondary").map(label);
+  return `${primaries.sort().join("+") || "—"} + ${secondaries.sort().join("/") || "—"}`;
 }
 
 export function computePerGameStats(run: GameRunResult): PerGameStats {
