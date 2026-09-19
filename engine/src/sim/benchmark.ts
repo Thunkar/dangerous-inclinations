@@ -117,8 +117,13 @@ function parseArgs(argv: string[]): Args {
       args.games = QUICK_GAMES;
       continue;
     }
-    const [key, value] = raw.replace(/^--/, "").split("=");
-    if (value === undefined) continue;
+    // Split on the first "=" only: values carry their own, as in
+    // --rules=missionsToWin=4,secondariesKept=3.
+    const flag = raw.replace(/^--/, "");
+    const eq = flag.indexOf("=");
+    if (eq === -1) continue;
+    const key = flag.slice(0, eq);
+    const value = flag.slice(eq + 1);
     if (key === "games") args.games = Number(value);
     else if (key === "workers") args.workers = Number(value);
     else if (key === "minutes") args.minutesPerTurn = Number(value);
