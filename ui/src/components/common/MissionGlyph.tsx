@@ -12,8 +12,13 @@
 import type { MissionType } from '@dangerous-inclinations/engine'
 import type { ReactElement } from 'react'
 
-/** A bar is a bar: heavy enough to be a shape rather than a line. */
-const BAR = 5
+/**
+ * The signal bars: four thick, and every step off the dish's mouth is the same
+ * 7 units, so the gap between them is the same 3 everywhere and the three read
+ * as one axis rather than as three marks.
+ */
+const SIGNAL_BAR = 4
+const SIGNAL_STEP = 7
 
 /**
  * The black hole's spin. One bar, 24 long and 5 thick, laid tangent to a circle
@@ -24,6 +29,23 @@ const BAR = 5
  */
 const SPIN_BAR = 'M29 47h24v5H29z'
 const SPIN_TURNS = [0, 120, 240]
+
+/**
+ * The incoming signal: one 13x7 bar stepped twice along the mouth's normal by
+ * {@link SIGNAL_STEP}, so the three are parallel by construction and the two
+ * gaps cannot differ.
+ */
+const SIGNAL_BARS = [0, 1, 2]
+  .map(step => {
+    const x = 30 + (step * SIGNAL_STEP * 7) / 14.765
+    const y = 16 - (step * SIGNAL_STEP * 13) / 14.765
+    return `M${x.toFixed(1)} ${y.toFixed(1)}L${(x + 13).toFixed(1)} ${(y + 7).toFixed(1)}`
+  })
+  .join('')
+
+/** A bone: a 6-thick bar, 50 long, with both ends cut off at 45°. */
+const BONE = 'M7 50l4-3h42l4 3-4 3H11z'
+const BONE_TURNS = [18, -18]
 
 const ART: Record<MissionType, ReactElement> = {
   // A gunsight, and a hull sitting in it.
@@ -45,12 +67,18 @@ const ART: Record<MissionType, ReactElement> = {
       <path d="M53 10h7v44h-7z" />
     </>
   ),
-  // A dish, and somebody else's traffic coming into it.
+  // A dish on its mast, and somebody else's traffic coming into it. The cup is
+  // one trapezoid — 34 across the mouth, 18 across the back, 12 deep — turned
+  // 30° so the mouth faces the signal; the three bars are the same length and
+  // thickness, parallel to the mouth, and step off it by the same distance,
+  // so the signal reads as one axis rather than three marks. Nothing touches
+  // the dish. The alternative (a mast with three chevrons off its tip) was
+  // drawn and dropped: it reads as a transmitter, and this card receives.
   intercept_transmission: (
     <>
-      <path d="M6 16L31 5l-5 25z" />
-      <path d="M23 26h6v24h-6zM12 48h28v6H12z" />
-      <path d="M35 20l9-9M39 30l13-13M43 40l16-16" stroke="currentColor" strokeWidth={BAR} />
+      <path d="M13 24h34l-8 12H21z" transform="rotate(30 30 30)" />
+      <path d="M24 34h7v21h-7zM17 55h20v5H17z" />
+      <path d={SIGNAL_BARS} fill="none" stroke="currentColor" strokeWidth={SIGNAL_BAR} />
     </>
   ),
   // The hole, and the fact that it turns: three identical bars tangent to the
@@ -63,20 +91,20 @@ const ART: Record<MissionType, ReactElement> = {
       ))}
     </>
   ),
-  // Somebody else's crate, and the claw coming down on it: a cable, and two
-  // angular jaws that splay out and hook back in, six clear units above the
-  // box. Open arms rather than a closed frame — jaws drawn round the crate
-  // read as a badge, not as a grab.
+  // The flag they fly: a skull cut with straight edges — chamfered crown,
+  // hexagonal sockets, a notched nose, four teeth — over crossed bones with
+  // chisel ends. The bones are one bar turned ±18° about (32,50), so the two
+  // are the same bone, and they clear the jaw by five units: at 24px the
+  // sockets and the X are the whole read.
   piracy: (
     <>
-      <path d="M30 2h4v10h-4z" />
       <path
-        d="M32 12L14 22v10l8 6M32 12l18 10v10l-8 6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={BAR}
+        fillRule="evenodd"
+        d="M24 2h16l10 10v13l-8 6v7H22v-7l-8-6V12zM21 11h6l3 5-3 7h-6l-3-7zM43 11h-6l-3 5 3 7h6l3-7zM32 24l5 7H27zM26 33h2.5v5H26zM31 33h2.5v5H31zM36 33h2.5v5H36z"
       />
-      <path fillRule="evenodd" d="M11 44h42v16H11zM17 50h30v3H17z" />
+      {BONE_TURNS.map(turn => (
+        <path key={turn} d={BONE} transform={`rotate(${turn} 32 50)`} />
+      ))}
     </>
   ),
   // A banded drum, and a hose pumping into the station's wall. The nozzle
