@@ -21,10 +21,11 @@ import type {
 } from '@dangerous-inclinations/engine'
 import {
   SECTORS_PER_RING,
-  deploymentPositions,
   getJumpOptions,
   canEngage,
   getSubsystemConfig,
+  legalDeploymentsAgainst,
+  placedShipPositions,
   projectMissilePath,
   samePosition,
 } from '@dangerous-inclinations/engine'
@@ -355,18 +356,18 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     return getJumpOptions(plan.moveFrom.position).map(o => o.lane.id)
   }, [plan])
 
-  const freeDeploymentSectors = useMemo<Position[]>(() => {
-    if (!deploymentEnabled) return []
-    const taken = view.players.flatMap(p =>
-      p.ship ? [{ wellId: p.ship.wellId, ring: p.ship.ring, sector: p.ship.sector }] : []
-    )
-    return deploymentPositions().filter(position => !taken.some(t => samePosition(t, position)))
-  }, [deploymentEnabled, view.players])
+  // Exactly where the rules would let this ship go (RULES §Deployment): both
+  // rings, three sectors clear of every ship already placed — the engine's own
+  // answer, so the board cannot offer a cell the server would refuse.
+  const legalDeployments = useMemo<Position[]>(
+    () => (deploymentEnabled ? legalDeploymentsAgainst(placedShipPositions(view)) : []),
+    [deploymentEnabled, view]
+  )
 
   const deployment = useMemo(
     () =>
-      deploymentEnabled && onDeploy ? { positions: freeDeploymentSectors, onPick: onDeploy } : null,
-    [deploymentEnabled, onDeploy, freeDeploymentSectors]
+      deploymentEnabled && onDeploy ? { positions: legalDeployments, onPick: onDeploy } : null,
+    [deploymentEnabled, onDeploy, legalDeployments]
   )
 
   // A destination is only picked on your own turn, and never over a turn that

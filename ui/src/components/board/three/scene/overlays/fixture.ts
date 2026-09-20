@@ -6,8 +6,8 @@
  * missiles, ranges, routes and deployment sectors cannot be looked at when
  * nobody is playing. Everything that could be asked of the engine is: the
  * missile paths come from `projectMissilePath`, the shaded sectors from
- * `canEngage`, the jump from `getJumpOptions`, the deployment ring from
- * `deploymentPositions`. Only the seats and the shape of the turn are invented,
+ * `canEngage`, the jump from `getJumpOptions`, the deployment cells from
+ * `legalDeploymentsAgainst`. Only the seats and the shape of the turn are invented,
  * and this file is test data, never a renderer.
  */
 import type {
@@ -20,9 +20,9 @@ import type {
 import {
   SECTORS_PER_RING,
   createInitialStations,
-  deploymentPositions,
   getJumpOptions,
   canEngage,
+  legalDeploymentsAgainst,
   projectMissilePath,
 } from '@dangerous-inclinations/engine'
 import { getPlayerColor } from '../../../../../utils/playerColors'
@@ -70,9 +70,6 @@ const FOCUS_WEAPON: Subsystem = {
   slotGroup: 'side',
   slotIndex: 0,
 }
-
-/** A handful of the deployment ring is still free; the rest is taken. */
-const FREE_DEPLOYMENT_SECTORS = [0, 1, 10, 11, 15, 16, 22, 23]
 
 /** Where the route starts, out on the slow ring with a lane ahead of it. */
 const ROUTE_ORIGIN: Position = { wellId: 'blackhole', ring: 5, sector: 14 }
@@ -250,9 +247,9 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     { wellId: 'blackhole', ring: 2, sector: 11 },
   ]
 
-  const free = deploymentPositions().filter(position =>
-    FREE_DEPLOYMENT_SECTORS.includes(position.sector)
-  )
+  // The rule, against the three ships already down (their Homes are where
+  // they were placed): both rings, three sectors clear of every one of them.
+  const free = legalDeploymentsAgainst(SEATS.map(seat => seat.home))
 
   return {
     ships,

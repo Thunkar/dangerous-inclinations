@@ -18,9 +18,13 @@ export async function getGame(gameId: string): Promise<GameViewResponse> {
   return api.get<GameViewResponse>(`/api/games/${gameId}`)
 }
 
-/** Deployment: place your ship and Home marker on a Black Hole Ring 4 sector. */
-export async function deployShip(gameId: string, sector: number): Promise<ViewResponse> {
-  return api.post<ViewResponse>(`/api/games/${gameId}/deploy`, { sector })
+/** Deployment: place your ship and Home marker on a Black Hole Ring 3 or Ring 4 sector. */
+export async function deployShip(
+  gameId: string,
+  sector: number,
+  ring: number
+): Promise<ViewResponse> {
+  return api.post<ViewResponse>(`/api/games/${gameId}/deploy`, { ring, sector })
 }
 
 /** Loadout phase: the ship's tiles and the three missions kept from the five offered. */

@@ -90,7 +90,7 @@ export interface GameContextValue {
   nameOf: (playerId: string) => string
   submitTurn: (actions: PlayerAction[]) => void
   submitLoadout: (loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance) => Promise<void>
-  deploy: (sector: number) => Promise<void>
+  deploy: (sector: number, ring: number) => Promise<void>
   registerAnimator: (animator: Animator | null) => void
   /** The last {@link TURN_HISTORY} player-turns, oldest first. */
   history: TurnRecord[]
@@ -378,8 +378,8 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
   )
 
   const deploy = useCallback(
-    async (sector: number) => {
-      const result = await deployShipAPI(gameId, sector)
+    async (sector: number, ring: number) => {
+      const result = await deployShipAPI(gameId, sector, ring)
       enqueue({ view: result.view, events: [], animate: false })
     },
     [gameId, enqueue],

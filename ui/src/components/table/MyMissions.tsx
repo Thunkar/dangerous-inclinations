@@ -47,7 +47,9 @@ export function MyMissions({ me }: { me: Player }) {
       sx={{ flexShrink: 0, minWidth: 0 }}
     >
       {faceUp.length > 0 && <FaceUpRow missions={faceUp} nameOf={nameOf} />}
-      {held.length > 0 && <Hand missions={held} cargo={me.cargo} nameOf={nameOf} />}
+      {held.length > 0 && (
+        <Hand missions={held} cargo={me.cargo} fuel={me.ship?.reactionMass} nameOf={nameOf} />
+      )}
       {me.missions.length === 0 && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
           No missions yet.
@@ -95,10 +97,13 @@ function FaceUpRow({
 function Hand({
   missions,
   cargo,
+  fuel,
   nameOf,
 }: {
   missions: ReadonlyArray<Mission>
   cargo: Player['cargo']
+  /** The tank, for the Tanker card's line. */
+  fuel: number | undefined
   nameOf: (playerId: string) => string
 }) {
   // Pointing lifts a card; clicking, tabbing or tapping pins the lift so the
@@ -185,7 +190,14 @@ function Hand({
                 transition: 'transform 140ms ease-out',
               }}
             >
-              <MissionCard mission={mission} nameOf={nameOf} cargo={cargo} held compact />
+              <MissionCard
+                mission={mission}
+                nameOf={nameOf}
+                cargo={cargo}
+                fuel={fuel}
+                held
+                compact
+              />
             </Box>
           </Box>
         )

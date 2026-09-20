@@ -63,21 +63,29 @@ const ART: Record<MissionType, ReactElement> = {
       ))}
     </>
   ),
-  // Two hulls in one sector, with a tube between them.
-  board: (
+  // Somebody else's crate, and the claw coming down on it: a cable, and two
+  // angular jaws that splay out and hook back in, six clear units above the
+  // box. Open arms rather than a closed frame — jaws drawn round the crate
+  // read as a badge, not as a grab.
+  piracy: (
     <>
-      <path d="M2 20h14l10 12-10 12H2l5-12z" />
-      <path d="M62 20H48L38 32l10 12h14l-5-12z" />
-      <path d="M26 28h12v8H26z" />
+      <path d="M30 2h4v10h-4z" />
+      <path
+        d="M32 12L14 22v10l8 6M32 12l18 10v10l-8 6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={BAR}
+      />
+      <path fillRule="evenodd" d="M11 44h42v16H11zM17 50h30v3H17z" />
     </>
   ),
-  // A load, dropped down the hole. Four units of air above the arrow and four
-  // below it: the load is falling, not resting on the disc.
-  garbage_disposal: (
+  // A banded drum, and a hose pumping into the station's wall. The nozzle
+  // points at the wall, so the fuel is arriving rather than leaving.
+  tanker: (
     <>
-      <path d="M18 4h28v14H18z" />
-      <path d="M29 22h6v8h-6zM32 39L22 29h20z" />
-      <circle cx="32" cy="52" r="9" />
+      <path fillRule="evenodd" d="M4 10h24v44H4zM7 22h18v3H7zM7 39h18v3H7z" />
+      <path d="M28 29h10v6H28zM38 24l9 8-9 8z" />
+      <path d="M50 20h9v32h-9zM53 4h3v12h-3z" />
     </>
   ),
 }
@@ -88,8 +96,8 @@ export const MISSION_CODE: Record<MissionType, string> = {
   deliver_cargo: 'DLV',
   intercept_transmission: 'ICT',
   survey: 'SVY',
-  board: 'BRD',
-  garbage_disposal: 'GBG',
+  piracy: 'PRC',
+  tanker: 'TNK',
 }
 
 /**

@@ -4,12 +4,14 @@
  * under it, and the family colour of the card.
  *
  * Six kinds of card: the primaries Destroy, Deliver and Intercept, and the
- * secondaries Survey, Board and Garbage Disposal.
+ * secondaries Survey, Piracy and Tanker.
  */
 import type { Cargo, Mission, MissionFamily } from '@dangerous-inclinations/engine'
 import {
   CARGO_HOLD_CRATES,
+  MAX_REACTION_MASS,
   MISSION_FAMILY,
+  TANKER_FUEL,
   getWellName,
   missionPoints as pointsForType,
 } from '@dangerous-inclinations/engine'
@@ -29,8 +31,16 @@ export function missionFamilyColor(mission: Mission): string {
   return FAMILY_COLOR[missionFamily(mission)] ?? TABLE.inkSoft
 }
 
-/** One line telling the player how far along a card is, or null if there is none. */
-export function missionProgress(mission: Mission, cargo: ReadonlyArray<Cargo>): string | null {
+/**
+ * One line telling the player how far along a card is, or null if there is
+ * none. `fuel` is the ship's tank where the card is drawn next to it (the
+ * hand at the table); a Tanker read off the board prints the rule instead.
+ */
+export function missionProgress(
+  mission: Mission,
+  cargo: ReadonlyArray<Cargo>,
+  fuel?: number
+): string | null {
   switch (mission.type) {
     case 'deliver_cargo': {
       const crate = cargo.find(c => c.missionId === mission.id)
@@ -51,17 +61,21 @@ export function missionProgress(mission: Mission, cargo: ReadonlyArray<Cargo>): 
         ? `Transmission taken — file it at ${getWellName(mission.deliveryPlanetId)}`
         : `Scan them first, then file at ${getWellName(mission.deliveryPlanetId)}`
     case 'survey':
-    case 'board':
-      if (mission.acquired) return 'Chit aboard — dock anywhere to file it'
-      return mission.type === 'survey'
-        ? 'End a turn on Black Hole R1'
-        : "End a turn in another ship's sector"
-    case 'garbage_disposal': {
-      const load = cargo.find(c => c.missionId === mission.id)
-      return load?.isPickedUp
-        ? 'Load aboard — end a turn on Black Hole R1 to drop it'
-        : 'Collect a load at any station (it fills your hold)'
+      return mission.acquired
+        ? 'Chit aboard — dock anywhere to file it'
+        : 'End a turn on Black Hole R1'
+    case 'piracy': {
+      // The loot rides as the card's own crate (engine `seizeCrate`), so the
+      // hold answers whether the job is still to find a mark or to sell.
+      const loot = cargo.find(c => c.missionId === mission.id)
+      return loot?.isPickedUp
+        ? 'Sell the crate at any station'
+        : 'Find an undocked ship carrying a crate'
     }
+    case 'tanker':
+      return fuel === undefined
+        ? `Arrive at a station with ${TANKER_FUEL} fuel`
+        : `Arrive at a station with ${TANKER_FUEL} fuel (tank ${fuel}/${MAX_REACTION_MASS})`
     default:
       // Destroy has nothing to track: you either put their hull to 0 or you don't.
       return null

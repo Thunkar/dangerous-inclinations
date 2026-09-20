@@ -808,6 +808,13 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           case 'cargo_picked_up':
           case 'cargo_delivered':
             return BEAT.small
+          case 'cargo_seized':
+            mark(event.victimId, 'CRATE SEIZED', 'heat', { at: event.at })
+            mark(event.pirateId, '+CRATE', 'good', { at: event.at })
+            return BEAT.resolve
+          case 'fuel_sold':
+            mark(event.playerId, `SOLD ${event.amount} FUEL`, 'good')
+            return BEAT.small
           case 'mission_completed': {
             const at = positionOf(event.playerId)
             pushEffect({

@@ -155,6 +155,8 @@ interface MissionCardProps {
   nameOf: (playerId: string) => string
   /** Your own cargo, for progress lines. Omit for opponents. */
   cargo?: ReadonlyArray<Cargo>
+  /** Your own tank, for the Tanker card's progress line. Omit for opponents. */
+  fuel?: number
   /** Face-up for the whole table (completed), or held in your hand. */
   faceUpToTable?: boolean
   /** Still behind your screen: nobody else knows you hold it. */
@@ -173,6 +175,7 @@ export function MissionCard({
   mission,
   nameOf,
   cargo,
+  fuel,
   faceUpToTable,
   held,
   selected,
@@ -184,7 +187,7 @@ export function MissionCard({
   const band = FAMILY_INK[missionFamily(mission)] ?? missionFamilyColor(mission)
   const points = missionPoints(mission)
   const done = mission.isCompleted || faceUpToTable
-  const progress = cargo ? missionProgress(mission, cargo) : null
+  const progress = cargo ? missionProgress(mission, cargo, fuel) : null
   const unmet = requires?.some(r => !r.met) ?? false
   const outline = selected ? (unmet ? TABLE.heat : TABLE.accent) : null
   // Face up, behind the screen, or kept at the shipyard. This is not card

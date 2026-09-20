@@ -285,7 +285,7 @@ export const DeploymentSectors = memo(function DeploymentSectors({
           hovered.sector === position.sector
         return (
           <g
-            key={`${position.wellId}-${position.sector}`}
+            key={`${position.wellId}-${position.ring}-${position.sector}`}
             style={{ cursor: 'pointer' }}
             /* Claim the gesture before the board's pan handler sees it. */
             onPointerDown={event => event.stopPropagation()}

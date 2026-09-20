@@ -12,6 +12,8 @@ export function actorOf(event: GameEvent): string | undefined {
   if ('attackerId' in event) return event.attackerId
   if ('ownerId' in event) return event.ownerId
   if ('scannerId' in event) return event.scannerId
+  // A seizure is the pirate's line, not the victim's.
+  if ('pirateId' in event) return event.pirateId
   if ('victimId' in event) return event.victimId
   if ('winnerId' in event) return event.winnerId
   return undefined
@@ -29,6 +31,7 @@ const SUBJECT_KEYS = [
   'targetId',
   'ownerId',
   'scannerId',
+  'pirateId',
   'victimId',
   'killerId',
   'by',

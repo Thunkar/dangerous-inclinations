@@ -16,6 +16,8 @@ import {
   BURN_COSTS,
   COMPRESSED_JUMP_MASS,
   DEFAULT_DISSIPATION_CAPACITY,
+  DEPLOYMENT_GAP,
+  HOME_RINGS,
   MAX_REACTION_MASS,
   MAX_SECTOR_ADJUSTMENT,
   PLANET_RINGS,
@@ -27,6 +29,7 @@ import {
   SHIELD_HEAT_PER_POINT,
   STARTING_HIT_POINTS,
   SUBSYSTEM_CONFIGS,
+  TANKER_FUEL,
   WELL_TRANSFER_COSTS,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -102,13 +105,22 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     ['Scan', `same ring, within ${SCAN_SECTOR_RANGE} sectors, sensor powered`],
     ['Docking', 'full hull, repair all, reload missiles, load/deliver cargo'],
+    ['Survey', 'end a turn on Black Hole Ring 1 — take the chit — then dock at any station'],
     [
-      'Survey',
-      'two consecutive turns on Black Hole Ring 1 with sensors powered, then dock at the named planet',
+      'Piracy',
+      'end a turn in the same sector as an undocked ship carrying a crate: the crate is yours — sell it at any station',
+    ],
+    [
+      'Tanker',
+      `arrive at a station with ${TANKER_FUEL} or more fuel and pump it in: the card is done`,
+    ],
+    [
+      'Deployment',
+      `Black Hole Ring ${HOME_RINGS.join(' or ')}, at least ${DEPLOYMENT_GAP} sectors from every ship already placed (if no sector qualifies, the farthest one); that position is your Home`,
     ],
     [
       'Missions',
-      'Primaries (2 pts): Destroy · Deliver · Intercept — Secondaries (1 pt): Survey · Board · Garbage Disposal',
+      'Primaries (2 pts): Destroy · Deliver · Intercept — Secondaries (1 pt): Survey · Piracy · Tanker',
     ],
     [
       'Win',
