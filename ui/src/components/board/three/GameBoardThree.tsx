@@ -156,7 +156,7 @@ function Board({
             selectableIds={model.selectableIds}
             onPickTarget={model.onPickTarget}
           />
-          <Effects effects={model.effects} />
+          <Effects effects={model.effects} pointOf={model.pointOf} />
         </Suspense>
         <CameraRig rig={rig} followWellId={followWellId} />
         {/* The label is the request: the scene's adaptive ladder may have since

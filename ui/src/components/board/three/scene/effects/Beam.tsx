@@ -16,9 +16,11 @@
 import { useMemo, useRef } from 'react'
 import { Quaternion, Vector3, type Group, type Mesh } from 'three'
 import { useFrame } from '@react-three/fiber'
-import type { WeaponType } from '@dangerous-inclinations/engine'
+import type { Position, WeaponType } from '@dangerous-inclinations/engine'
 import type { TableEffect } from '../../../../../context/AnimationContext'
-import { LAYER, positionWorld } from '../../world'
+import type { BoardModel } from '../../../model'
+import { positionPoint } from '../../../geometry'
+import { LAYER, elevationAt, toWorld } from '../../world'
 import { NO_RAYCAST, ballGeometry, boltGeometry, useEffectMaterial } from './resources'
 
 type BeamEffect = Extract<TableEffect, { kind: 'beam' }>
@@ -58,7 +60,7 @@ const STYLE: Record<WeaponType | 'pdc', BeamStyle> = {
 
 const UP = new Vector3(0, 1, 0)
 
-export function Beam({ effect }: { effect: BeamEffect }) {
+export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardModel['pointOf'] }) {
   const group = useRef<Group>(null)
   const head = useRef<Mesh>(null)
   const muzzle = useRef<Mesh>(null)
@@ -69,10 +71,20 @@ export function Beam({ effect }: { effect: BeamEffect }) {
 
   const style = STYLE[effect.weapon] ?? STYLE.railgun
 
-  /** The shot's frame: both ends, its length, and the way the tube points. */
+  /**
+   * The shot's frame: both ends, its length, and the way the tube points.
+   *
+   * An end that names a ship is the hull's own point, so a shot at one of two
+   * ships sharing a sector lands on the one that was hit — and a shot between
+   * them is a short beam rather than no beam at all. An end that names nothing
+   * (a missile a rack is shooting down) stays on its sector, and so does a ship
+   * that has left the table.
+   */
   const shot = useMemo(() => {
-    const from = positionWorld(effect.from, MUZZLE)
-    const to = positionWorld(effect.to, MUZZLE)
+    const end = (id: string | undefined, position: Position) =>
+      toWorld((id ? pointOf(id) : null) ?? positionPoint(position), elevationAt(position) + MUZZLE)
+    const from = end(effect.fromId, effect.from)
+    const to = end(effect.toId, effect.to)
     const span = new Vector3().subVectors(to, from)
     const length = Math.max(1, span.length())
     return {
@@ -83,7 +95,7 @@ export function Beam({ effect }: { effect: BeamEffect }) {
       mid: new Vector3().addVectors(from, to).multiplyScalar(0.5),
       aim: new Quaternion().setFromUnitVectors(UP, span.clone().divideScalar(length)),
     }
-  }, [effect.from, effect.to])
+  }, [effect.from, effect.to, effect.fromId, effect.toId, pointOf])
 
   const point = useMemo(() => new Vector3(), [])
 

@@ -2,15 +2,18 @@
  * Transient effects: weapon beams, bursts and floating numbers. Everything is
  * pushed by AnimationContext from the turn's events and fades on its own.
  *
- * An effect is anchored to a sector, not to a place on this board: the flat
- * board turns that into a point here, the 3D board puts it at the sector's
- * ring elevation. A float may carry a small nudge in board units so two of
- * them on one ship do not sit on top of each other.
+ * An effect is anchored to a ship where it is about one and to a sector where
+ * it is about a place: the model's `pointOf` knows where a hull is actually
+ * drawn, which is beside the centre of its sector whenever somebody else is
+ * standing in it, and the sector is the fallback. A float may carry a small
+ * nudge in board units so two of them on one ship do not sit on top of each
+ * other.
  */
 import { memo } from 'react'
 import type { TableEffect } from '../../../../context/AnimationContext'
 import { FONT_MONO } from '../../../../theme'
 import { positionPoint } from '../../geometry'
+import type { BoardModel } from '../../model'
 
 const TONE_COLORS = {
   damage: '#ff5a72',
@@ -23,9 +26,11 @@ const TONE_COLORS = {
 
 export const EffectsLayer = memo(function EffectsLayer({
   effects,
+  pointOf,
   now,
 }: {
   effects: ReadonlyArray<TableEffect>
+  pointOf: BoardModel['pointOf']
   now: number
 }) {
   return (
@@ -35,8 +40,8 @@ export const EffectsLayer = memo(function EffectsLayer({
         if (effect.kind === 'beam') {
           const fade = progress < 0.25 ? progress / 0.25 : 1 - (progress - 0.25) / 0.75
           const head = Math.min(1, progress / 0.3)
-          const from = positionPoint(effect.from)
-          const to = positionPoint(effect.to)
+          const from = (effect.fromId ? pointOf(effect.fromId) : null) ?? positionPoint(effect.from)
+          const to = (effect.toId ? pointOf(effect.toId) : null) ?? positionPoint(effect.to)
           const x = from.x + (to.x - from.x) * head
           const y = from.y + (to.y - from.y) * head
           const dashed = effect.weapon === 'missiles' || effect.weapon === 'ballistic_rack'
@@ -58,7 +63,7 @@ export const EffectsLayer = memo(function EffectsLayer({
         }
         if (effect.kind === 'burst') {
           const r = effect.radius * (0.3 + progress * 0.9)
-          const at = positionPoint(effect.at)
+          const at = pointOf(effect.playerId) ?? positionPoint(effect.at)
           return (
             <circle
               key={effect.id}
@@ -73,7 +78,7 @@ export const EffectsLayer = memo(function EffectsLayer({
           )
         }
         if (effect.kind !== 'float') return null
-        const anchor = positionPoint(effect.at)
+        const anchor = pointOf(effect.playerId) ?? positionPoint(effect.at)
         const at = {
           x: anchor.x + (effect.offset?.x ?? 0),
           y: anchor.y + (effect.offset?.y ?? 0),

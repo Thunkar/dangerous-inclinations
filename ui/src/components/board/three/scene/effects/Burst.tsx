@@ -14,7 +14,9 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { Group, Mesh, Points } from 'three'
 import { useFrame } from '@react-three/fiber'
 import type { TableEffect } from '../../../../../context/AnimationContext'
-import { LAYER, positionWorld } from '../../world'
+import type { BoardModel } from '../../../model'
+import { positionPoint } from '../../../geometry'
+import { LAYER, elevationAt, toWorld } from '../../world'
 import { reportImpact, type ImpactKind } from './impacts'
 import {
   FLAT,
@@ -40,7 +42,13 @@ const MEANING: Record<string, ImpactKind> = {
   '#46d191': 'good',
 }
 
-export function Burst({ effect }: { effect: BurstEffect }) {
+export function Burst({
+  effect,
+  pointOf,
+}: {
+  effect: BurstEffect
+  pointOf: BoardModel['pointOf']
+}) {
   const group = useRef<Group>(null)
   const core = useRef<Mesh>(null)
   const sparks = useRef<Points>(null)
@@ -49,7 +57,16 @@ export function Burst({ effect }: { effect: BurstEffect }) {
   const puff = useEffectMaterial('puff')
   const glow = useEffectMaterial('glow')
 
-  const anchor = useMemo(() => positionWorld(effect.at, LAYER.effect), [effect.at])
+  // Over the hull it is about, which is not the middle of its sector when
+  // somebody else is standing there too; its sector once it has left the table.
+  const anchor = useMemo(
+    () =>
+      toWorld(
+        pointOf(effect.playerId) ?? positionPoint(effect.at),
+        elevationAt(effect.at) + LAYER.effect
+      ),
+    [effect.at, effect.playerId, pointOf]
+  )
 
   // A burst is the cue that something happened to the ship it names: the hull
   // reads it back out of here rather than out of an event of its own.

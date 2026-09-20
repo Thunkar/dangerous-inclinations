@@ -18,8 +18,10 @@ import { useFrame } from '@react-three/fiber'
 import type { Position } from '@dangerous-inclinations/engine'
 import { samePosition } from '@dangerous-inclinations/engine'
 import type { FloatTone, TableEffect } from '../../../../../context/AnimationContext'
+import type { BoardModel } from '../../../model'
+import { positionPoint } from '../../../geometry'
 import { BOARD_FONT } from '../../fonts'
-import { LAYER, positionWorld } from '../../world'
+import { LAYER, elevationAt, toWorld } from '../../world'
 import { reportImpact, type ImpactKind } from './impacts'
 import { NO_RAYCAST } from './resources'
 
@@ -84,19 +86,31 @@ function claimStep(id: string, at: Position): number {
 /** Troika's text mesh: the two opacities are set per frame, never in React. */
 type TextMesh = Mesh & { fillOpacity: number; outlineOpacity: number }
 
-export function Float({ effect }: { effect: FloatEffect }) {
+export function Float({
+  effect,
+  pointOf,
+}: {
+  effect: FloatEffect
+  pointOf: BoardModel['pointOf']
+}) {
   const group = useRef<Group>(null)
   const text = useRef<TextMesh>(null)
 
   const step = claimStep(effect.id, effect.at)
 
+  // The step is claimed against the sector, so two ships crowded into one still
+  // stack their numbers instead of writing over each other; only where the pile
+  // stands moves, onto the hull the number is about.
   const anchor = useMemo(() => {
-    const at = positionWorld(effect.at, LAYER.effect)
+    const at = toWorld(
+      pointOf(effect.playerId) ?? positionPoint(effect.at),
+      elevationAt(effect.at) + LAYER.effect
+    )
     at.x += effect.offset?.x ?? 0
     at.z += effect.offset?.y ?? 0
     at.y += HEIGHT + step * STACK
     return at
-  }, [effect.at, effect.offset, step])
+  }, [effect.at, effect.playerId, effect.offset, step, pointOf])
 
   useEffect(
     () => () => {

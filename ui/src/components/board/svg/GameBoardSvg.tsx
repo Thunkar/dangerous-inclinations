@@ -203,7 +203,7 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
               onHover={setHoveredDeployment}
             />
           )}
-          <EffectsLayer effects={model.effects} now={now} />
+          <EffectsLayer effects={model.effects} pointOf={model.pointOf} now={now} />
         </g>
       </Box>
 

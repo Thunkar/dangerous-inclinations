@@ -21,6 +21,7 @@ import {
   viewFor,
 } from '@dangerous-inclinations/engine'
 import type { BoardModel, HomeMarker, ShipToken } from '../../model'
+import { crowdOffset, radialPoint } from '../../geometry'
 import { visualForPlayer } from '../../../../ships/visual'
 import { getPlayerColor } from '../../../../utils/playerColors'
 
@@ -227,5 +228,9 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     colorOf,
     nameOf,
     positionOf: playerId => ships.find(ship => ship.playerId === playerId)?.position ?? null,
+    pointOf: playerId => {
+      const token = ships.find(ship => ship.playerId === playerId)
+      return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null
+    },
   }
 }

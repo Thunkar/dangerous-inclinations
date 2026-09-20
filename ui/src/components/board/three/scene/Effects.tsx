@@ -10,6 +10,10 @@
  * What each mark means is the flat board's `EffectsLayer`, and the timing is
  * the animator's to the millisecond — only the drawing is new. A `tween` draws
  * nothing at all: it exists to keep the clock alive while a token slides.
+ *
+ * `pointOf` comes down from the model so that a mark about a ship lands on the
+ * hull rather than on the middle of its sector, which is not the same place
+ * once two ships stand in one cell.
  */
 import { memo, useEffect } from 'react'
 import { Text } from '@react-three/drei'
@@ -31,7 +35,13 @@ import { countRender } from './effects/renders'
  */
 const FLOAT_GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -+!'
 
-export const Effects = memo(function Effects({ effects }: { effects: BoardModel['effects'] }) {
+export const Effects = memo(function Effects({
+  effects,
+  pointOf,
+}: {
+  effects: BoardModel['effects']
+  pointOf: BoardModel['pointOf']
+}) {
   countRender('Effects')
 
   // The shared buffers and the material pool belong to the board, not to any
@@ -50,9 +60,12 @@ export const Effects = memo(function Effects({ effects }: { effects: BoardModel[
         {FLOAT_GLYPHS}
       </Text>
       {effects.map(effect => {
-        if (effect.kind === 'beam') return <Beam key={effect.id} effect={effect} />
-        if (effect.kind === 'burst') return <Burst key={effect.id} effect={effect} />
-        if (effect.kind === 'float') return <Float key={effect.id} effect={effect} />
+        if (effect.kind === 'beam')
+          return <Beam key={effect.id} effect={effect} pointOf={pointOf} />
+        if (effect.kind === 'burst')
+          return <Burst key={effect.id} effect={effect} pointOf={pointOf} />
+        if (effect.kind === 'float')
+          return <Float key={effect.id} effect={effect} pointOf={pointOf} />
         return null
       })}
     </>

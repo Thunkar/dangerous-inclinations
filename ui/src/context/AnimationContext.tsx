@@ -43,6 +43,15 @@ export type TableEffect =
       weapon: WeaponType | 'pdc'
       from: Position
       to: Position
+      /**
+       * The ships at either end, where there is one. A sector is a cell and
+       * two hulls standing in it are drawn side by side, so a shot aimed at the
+       * sector lands beside the ship it hit: a renderer that can find the hull
+       * puts the end of the beam on it, and falls back to `from`/`to` for an
+       * end that is a place rather than a ship (a missile a rack shoots down).
+       */
+      fromId?: string
+      toId?: string
       color: string
       start: number
       duration: number
@@ -56,6 +65,9 @@ export type TableEffect =
        * subject — the ship being hit, docking, breaking or coming back — and a
        * sector is not enough to find them: two ships can share one, and a shot
        * can push its target out of the sector its own numbers were anchored to.
+       * It is also where the mark is drawn: a board that stands two hulls side
+       * by side in one sector hangs the mark off the hull, and only falls back
+       * to `at` when the ship is no longer on the table.
        */
       playerId: string
       /** Board-unit nudge off the anchor, so two floats on one ship do not stack. */
@@ -525,6 +537,8 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               weapon: event.weaponType,
               from: positionOf(event.attackerId),
               to: positionOf(event.targetId),
+              fromId: event.attackerId,
+              toId: event.targetId,
               color: BEAM_COLORS[event.weaponType],
               duration: 520,
             })
@@ -655,6 +669,9 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               kind: 'beam',
               weapon: 'pdc',
               from: at,
+              // The rack is the ship being shot at; the other end is a missile
+              // in flight, which is a place and not a hull.
+              fromId: event.targetId,
               to: (() => {
                 const missile = snap.missiles.find(m => m.id === event.missileId)
                 return missile
@@ -726,6 +743,8 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               weapon: 'pdc',
               from: positionOf(event.scannerId),
               to: positionOf(event.targetId),
+              fromId: event.scannerId,
+              toId: event.targetId,
               color: '#49c3ff',
               duration: 700,
             })

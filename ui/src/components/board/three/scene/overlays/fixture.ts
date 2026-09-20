@@ -26,7 +26,7 @@ import {
   projectMissilePath,
 } from '@dangerous-inclinations/engine'
 import { getPlayerColor } from '../../../../../utils/playerColors'
-import { ringsOf } from '../../../geometry'
+import { crowdOffset, radialPoint, ringsOf } from '../../../geometry'
 import type { BoardModel, HomeMarker, MissilePreview, ShipToken } from '../../../model'
 
 interface FixtureSeat {
@@ -279,5 +279,9 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     colorOf,
     nameOf,
     positionOf,
+    pointOf: playerId => {
+      const token = ships.find(ship => ship.playerId === playerId)
+      return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null
+    },
   }
 }

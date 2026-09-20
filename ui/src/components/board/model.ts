@@ -34,7 +34,7 @@ import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
-import { ringsOf } from './geometry'
+import { crowdOffset, radialPoint, ringsOf, type Point } from './geometry'
 
 export interface ShipToken {
   visual?: ShipVisual
@@ -139,6 +139,14 @@ export interface BoardModel {
   nameOf: (playerId: string) => string
   /** Where a player's ship is drawn right now (overlay first), or null if absent. */
   positionOf: (playerId: string) => Position | null
+  /**
+   * The board point that ship's hull is drawn on: its sector, plus the radial
+   * step it takes among the ships sharing it. A sector is a cell and a beam
+   * aimed at the cell misses a hull standing beside its centre, so an effect
+   * that knows whose it is asks here and only falls back to the sector when
+   * the ship has left the table.
+   */
+  pointOf: (playerId: string) => Point | null
 }
 
 export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions): BoardModel {
@@ -217,6 +225,14 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     (playerId: string): Position | null => {
       const token = ships.find(s => s.playerId === playerId)
       return token ? token.position : null
+    },
+    [ships]
+  )
+
+  const pointOf = useCallback(
+    (playerId: string): Point | null => {
+      const token = ships.find(s => s.playerId === playerId)
+      return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null
     },
     [ships]
   )
@@ -386,6 +402,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       colorOf,
       nameOf,
       positionOf,
+      pointOf,
     }),
     [
       ships,
@@ -410,6 +427,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       colorOf,
       nameOf,
       positionOf,
+      pointOf,
     ]
   )
 }
