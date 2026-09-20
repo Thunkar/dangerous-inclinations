@@ -264,8 +264,9 @@ not an argument:
   engine honours a powered compressor) missed its target — the gunboats did not
   move (racks 63% → 59%) and the cargo hauler paid (34% → 26%), because a
   fighter jumps rarely and a Deliver ship jumps every few turns and needs its
-  shields on arrival. The designer kept the jump free: the answer was hunters
-  that can kill the hull (below), not a price on the tile.
+  shields on arrival. The designer kept the jump free and asked for hunters
+  that can kill the hull instead; no hunter preset does (below), so the price
+  was remeasured on the whole matrix — see the open problem.
 - **Heat per missile, and per interception roll.** Measured against one tile
   use on both sides: no row moved outside noise and missiles launched per game
   were identical (10.5), because the four-round magazine is the limit. Flat
@@ -312,16 +313,26 @@ Known open problems:
   remains is the card — a rival on your ring within three sectors, then a
   named station — and a sensor bow that reveals itself early. Not a rule
   change for now.
-- **The compressor wins a race.** Against 33%: compressor + launchers×2 50%
-  (`outlier`), shields×2 + radiators×2 43%, lasers×2 41%, racks×2 40%; under
-  four points the family is four outliers at 42–47% against 32%. The refund
-  was measured at about 18 points to a weaponless hull; a 1-fuel jump took
-  that hull 50% → 32% without touching the hauler preset, and the designer
-  kept the jump free, expecting tables to gang up on a runner whose cards are
-  public. Its natural predators are racks and lasers (400-game duels: rack
-  hunter 59% prey wins, four lasers 65%, the laser-and-rack hunter preset
-  70%; missiles never, 90–92%), and with bots that race, hunting is slower
-  than running.
+- **The compressor wins a race; a fuel a jump is measured and awaits the
+  designer's call.** Against 33%: compressor + launchers×2 50% (`outlier`),
+  shields×2 + radiators×2 43%, lasers×2 41%, racks×2 40%; under four points
+  the family is four outliers at 42–47% against 32%. The refund is worth about
+  18 points to a weaponless hull. Its natural predators are racks and lasers
+  (400-game duels: rack hunter 59% prey wins, four lasers 65%, the
+  laser-and-rack hunter preset 70%; missiles never, 90–92%), and with bots
+  that race, hunting is slower than running. The whole matrix rerun with
+  `--rules=compressedJumpFuel=1` (400 games a row, 240 a seat count, same
+  seeds): at three points no failing flag — the family falls to 33–37%, every
+  gun hull gains 2–9, the hauler presets with Deliver land at 30% and 37%
+  against a 30% reference, dealt Destroy / Deliver / Intercept read 37 / 31 /
+  26 against 32, and the prey's duel wins fall to 55% (hunter preset), 51%
+  (rack hunter) and 46% (four lasers); games run 27 rounds instead of 24 at
+  three to five seats. At four points the five failing flags become one (the
+  compressor-with-a-laser hull hunting, 38% against 36%), the family sits at
+  34–41% against 35%, the duels read 54 / 43 / 32, and games run 45 / 45 /
+  46 / 53 rounds. The Deliver hulls pay too (hauler-aggressive + Deliver 47%
+  → 37%), which is the cost the designer declined before; the balance report
+  page carries the full comparison.
 - **The secondary offer is still lopsided.** Everyone is offered all three;
   Garbage Disposal is the one left out (kept 46% against 76–78%). Completed per
   100 kept under three points: Survey 35, Board 28, Garbage 14 — the spare
