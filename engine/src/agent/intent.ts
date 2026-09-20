@@ -1,7 +1,7 @@
 /**
  * From what an agent wants to do to the actions the engine accepts. The
- * builder fills in what the intent implies — cubes on the engines for a burn,
- * on the thrusters for a rotation, on a weapon that fires — and orders the
+ * builder fills in what the intent implies (cubes on the engines for a burn,
+ * on the thrusters for a rotation, on a weapon that fires) and orders the
  * actions the way a turn is played, so an agent describes a turn and never
  * hand-assembles allocation bookkeeping.
  */
@@ -50,7 +50,7 @@ export interface TurnIntent {
   scan?: { target: string; slot?: SubsystemId };
   /**
    * A broken tile to repair at the heat check. It only lands if the turn makes
-   * no heat at all — no move but a coast without the scoop, no shot, no scan,
+   * no heat at all: no move but a coast without the scoop, no shot, no scan,
    * and no shields powered.
    */
   repair?: SubsystemId;

@@ -15,9 +15,9 @@
  * | `cargoAboard.data` > 0       | an Intercept or Survey chit, deliverable at any station |
  * | the well they are in         | a crate cannot be delivered where it was loaded |
  *
- * Stations sit on planet ring 1 and drift 4 sectors a round, and the lanes
+ * Stations sit on planet ring 2 and drift 4 sectors a round, and the lanes
  * are the only way between wells, so "where will they be in five turns" is
- * a short list of places — which is exactly what makes shooting them
+ * a short list of places, which is exactly what makes shooting them
  * practical. Killing a carrier costs them the cargo (crates go back to their
  * pickup station, data is lost) and their next turn, so a kill next to a
  * delivery is worth several turns of their race.
@@ -109,7 +109,7 @@ function turnsToArc(sector: number, arc: TransferArc): number {
  * So a cross-well trip is priced leg by leg: rings out to the lane ring, the
  * prograde drift onto the departure arc at {@link AVERAGE_VELOCITY} sectors a
  * turn, one turn for the jump, and the same again for a second well. Sectors
- * are aligned across rings — a burn lands on the sector it left — so the
+ * are aligned across rings (a burn lands on the sector it left), so the
  * current sector is the right one to measure the drift from.
  */
 export function cheapTurnEstimate(from: Position, to: Position): number {
@@ -170,7 +170,7 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
  * A data chit (a scan or a survey) is delivered at *any* station, so every
  * planet is a candidate. A crate was loaded at one station and its route
  * ends at a different planet, so the well they are orbiting right now is the
- * one place that crate cannot be going — the pickup is excluded. (A ship
+ * one place that crate cannot be going: the pickup is excluded. (A ship
  * carrying both is heading somewhere it can drop the chit, which includes
  * where it is.)
  */
@@ -210,7 +210,7 @@ export function assessDanger(
   player: Pick<PlayerView, "cargoAboard" | "completedMissionCount">,
   position: Position,
   stations: Station[],
-  /** What this table plays to (`view.pointsToWin`), three or four. */
+  /** What this game plays to (`view.pointsToWin`), three. */
   pointsToWin: number
 ): OpponentDanger {
   const crates = player.cargoAboard.crates;
@@ -303,14 +303,14 @@ export interface InterceptionPlan {
  * Three candidates, all planned with the same forward search so they are
  * comparable in turns:
  *
- * 1. **chase** — weapon range of the target's own drifting orbit. Taken
+ * 1. **chase**: weapon range of the target's own drifting orbit. Taken
  *    outright when it lands within {@link IMMEDIATE_ENGAGE_TURNS}; otherwise
  *    it carries {@link CHASE_PENALTY} turns, because a chase only works if
  *    the target obligingly coasts.
- * 2. **station** — weapon range of the station they are carrying cargo to.
+ * 2. **station**: weapon range of the station they are carrying cargo to.
  *    Stations drift 4 sectors a round, which the planner's moving-target
  *    search already lines up.
- * 3. **lane** — the arrival arcs of that planet, when they still have a well
+ * 3. **lane**: the arrival arcs of that planet, when they still have a well
  *    to cross. Fixed sectors, and they cannot get in any other way.
  */
 export function planInterception(

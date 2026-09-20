@@ -28,13 +28,14 @@ import {
   placedShipPositions,
   samePosition,
   wrapSector,
+  type MissionType,
   type ShipLoadout,
 } from "@dangerous-inclinations/engine";
 
 /**
- * A loadout that can fly any hand the deal produces: the sensor array is the one
- * tile a card asks for (Intercept and Survey), so the smoke run never has to
- * care which three cards it kept.
+ * A loadout that can fly any hand the deal produces: the sensor array and a gun
+ * are the only tiles a card asks for (Intercept and Destroy), so the smoke run
+ * never has to care which three cards it kept.
  */
 const SMOKE_LOADOUT: ShipLoadout = {
   forwardSlots: ["sensor_array"],
@@ -657,8 +658,8 @@ console.log(`  bot turns rejected by the engine: ${games.getBotInvalidTurnCount(
 
 const unique = [...new Set(failures)];
 if (unique.length > 0) {
-  console.error(`\nsmoke: FAILED — ${unique.length} of ${checks} checks`);
+  console.error(`\nsmoke: FAILED, ${unique.length} of ${checks} checks`);
   for (const failure of unique.slice(0, 40)) console.error(`  - ${failure}`);
   process.exit(1);
 }
-console.log(`\nsmoke: OK — ${checks} checks passed`);
+console.log(`\nsmoke: OK, ${checks} checks passed`);

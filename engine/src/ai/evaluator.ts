@@ -32,7 +32,7 @@ function offense(plan: ActionPlan, situation: TacticalSituation): number {
   }
   // Denial. A hit on a player one dock from the win costs them the
   // cargo and the tempo, which is worth more than the same hit on someone
-  // who has nothing aboard — with no Destroy card needed to collect it.
+  // who has nothing aboard, with no Destroy card needed to collect it.
   score += plan.denialValue * DENIAL_SCALE;
   return clamp(score);
 }
@@ -40,7 +40,7 @@ function offense(plan: ActionPlan, situation: TacticalSituation): number {
 /**
  * Points off per point of heat the plan leaves on the track. Small next to the
  * 25 a point of actual damage costs, because carried heat is a debt and not a
- * wound — but it is next turn's budget spent in advance, so between two plans
+ * wound, but it is next turn's budget spent in advance, so between two plans
  * that do the same thing the cooler one wins, and a ship near the top of the
  * track will spend a turn shedding rather than bank one more point.
  */

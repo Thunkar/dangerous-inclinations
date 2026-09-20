@@ -19,7 +19,7 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
         const p = positionPoint(home.position)
         return (
           <g key={`home-${home.playerId}`} opacity={0.8}>
-            <title>{`${home.name}'s Home — ${getWellName(home.position.wellId)} R${home.position.ring} S${home.position.sector}`}</title>
+            <title>{`${home.name}'s Home · ${getWellName(home.position.wellId)} R${home.position.ring} S${home.position.sector}`}</title>
             {/* Landing-pad brackets at the four corners: a berth, not a hull outline
                 (a ship parked on its Home sits inside them). */}
             {[
@@ -46,7 +46,7 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
         const color = wellColor(station.planetId)
         return (
           <g key={station.id}>
-            <title>{`${getWellName(station.planetId)} Station — dock here to load, deliver, repair and reload`}</title>
+            <title>{`${getWellName(station.planetId)} Station · dock here to load, deliver, repair and reload`}</title>
             <circle cx={p.x} cy={p.y} r={10} fill="#080b11" stroke={color} strokeWidth={2.5} />
             <circle cx={p.x} cy={p.y} r={3.5} fill={color} />
             <line x1={p.x - 15} y1={p.y} x2={p.x + 15} y2={p.y} stroke={color} strokeWidth={1.6} />

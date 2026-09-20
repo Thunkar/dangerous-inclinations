@@ -3,11 +3,11 @@
  * corvettes, not a token.
  *
  * It used to be an icosahedron, a torus and two crossed spars, the whole thing
- * in the planet's colour — legible from the table and nothing at all close up,
+ * in the planet's colour: legible from the table and nothing at all close up,
  * which is the opposite of how the rest of the board is drawn (see
  * `Planet.tsx`: texture at range, a world when you fly to it). So it is built
- * out of the ship's own material vocabulary — plated structure, bare steel
- * truss, copper plumbing, cyan for anything live — and the planet's colour is
+ * out of the ship's own material vocabulary (plated structure, bare steel
+ * truss, copper plumbing, cyan for anything live) and the planet's colour is
  * spent where the table camera actually looks: the deck's top face and a wide
  * identity band around the core.
  *
@@ -23,7 +23,7 @@
  *
  * Geometry repeats across the three stations, so it is built once at module
  * scope and outlives any single board; only the materials differ per planet,
- * and those are disposed with the token. Nothing re-renders per frame — the
+ * and those are disposed with the token. Nothing re-renders per frame: the
  * ring's spin and the beacon's pulse are written straight onto refs.
  */
 import { useEffect, useMemo, useRef } from 'react'
@@ -55,7 +55,7 @@ const DECK = 12
 /**
  * The deck is wider than the habitat ring on purpose: seen from the table the
  * ring would otherwise cover it, and the deck's face is where the planet's
- * colour lives — the one thing that has to carry at that distance.
+ * colour lives, the one thing that has to carry at that distance.
  */
 const DECK_RADIUS = 17
 const DECK_THICKNESS = 2.4

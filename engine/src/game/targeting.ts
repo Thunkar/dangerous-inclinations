@@ -9,7 +9,7 @@
  *   Side-restricted broadsides only fire toward the ring direction their side
  *   faces; same-ring shots need `canTargetSameRing`.
  * Turret (missiles): any ship in the launcher's well, any facing, any
- *   distance — a guided projectile has no firing box, its flight is its
+ *   distance: a guided projectile has no firing box, its flight is its
  *   range (see `missileCanReach`, game/missiles.ts, for whether it will
  *   actually catch up).
  * Nothing fires across gravity wells.
@@ -56,7 +56,7 @@ function checkRange(
    * firing box excluded that: the railgun wants a target *ahead*, a broadside
    * wants a side to fire toward, and neither means anything at zero range. Only
    * a missile could reach a ship you were sitting on, which is not a rule
-   * anyone would write down — and a Board card puts you there on purpose.
+   * anyone would write down, and a Piracy card puts you there on purpose.
    */
   if (ringDist === 0 && sectorDist === 0) return true;
 
@@ -85,7 +85,7 @@ function checkRange(
     case "turret":
       // Self-guided: the well is the only limit. Whether the projectile can
       // still catch a drifting target is the projectile's problem, not the
-      // launcher's — a missile that never closes is simply wasted.
+      // launcher's: a missile that never closes is simply wasted.
       return true;
   }
 }
@@ -93,8 +93,8 @@ function checkRange(
 /**
  * Whether the shot is worth taking, not merely legal.
  *
- * {@link isInWeaponRange} answers the rules question — the referee lets a
- * missile go at anyone in the well — and a launch at a ship no missile could
+ * {@link isInWeaponRange} answers the rules question (the referee lets a
+ * missile go at anyone in the well), and a launch at a ship no missile could
  * catch is a legal way to waste one. This answers the other question: would
  * anything actually arrive? Boxed weapons hit the moment they are in range;
  * a guided one has to run its target down, so it is asked

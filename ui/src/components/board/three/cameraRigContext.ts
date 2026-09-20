@@ -21,7 +21,7 @@ export interface CameraRigApi {
   flyTo: (wellId: GravityWellId) => void
   /** Dolly in (factor > 1) or out (factor < 1). */
   zoomBy: (factor: number) => void
-  /** Put the camera back in the view the board opened in — the recentre button. */
+  /** Put the camera back in the view the board opened in: the recentre button. */
   reset: () => void
 }
 
@@ -40,8 +40,8 @@ export interface CameraRigValue extends CameraRigApi {
 export const CameraRigContext = createContext<CameraRigValue | null>(null)
 
 /**
- * The camera's API. It carries `handle` too — the rig inside the canvas
- * registers itself through it — but callers only ever need the four verbs.
+ * The camera's API. It carries `handle` too (the rig inside the canvas
+ * registers itself through it) but callers only ever need the four verbs.
  */
 export function useCameraRig(): CameraRigValue {
   const value = useContext(CameraRigContext)

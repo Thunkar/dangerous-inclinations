@@ -18,7 +18,7 @@
  * accretion disc, the starfield's twinkle. Nothing moved, and nothing looked
  * broken enough to notice.
  *
- * A typed array survived, because `cloneUniforms` passes one by reference —
+ * A typed array survived, because `cloneUniforms` passes one by reference,
  * which is exactly the asymmetry that named the bug.
  *
  * So the clock walks the scene each frame and writes the time into every
@@ -33,7 +33,7 @@ import type { Material, Mesh, Object3D, ShaderMaterial } from 'three'
  *
  * Still the one source of board time, and still what to read from a `useFrame`
  * of your own. Passing it straight to a `<shaderMaterial>` as `uTime` is
- * correct and is what the scene does — the clock is what makes it true.
+ * correct and is what the scene does: the clock is what makes it true.
  */
 export const sceneTime = { value: 0 }
 

@@ -5,7 +5,7 @@ import {
   type ShipLoadout,
   type SubsystemType,
 } from '@dangerous-inclinations/engine'
-import { DEFAULT_CONFIG, MOUNTS, type MountId, type WorkshopConfig } from './config'
+import { DEFAULT_CONFIG, MOUNTS, type MountId, type ShipConfig } from './config'
 
 export interface VisibleModule {
   type: SubsystemType | null
@@ -25,7 +25,7 @@ export function visualForPlayer(player: PlayerView, seat: number): ShipVisual {
   return {
     appearance: resolveShipAppearance(player.appearance),
     driveBroken: player.fixed.some(s => s.type === 'engines' && s.isBroken),
-    identity: `K—${String(seat + 1).padStart(2, '0')}`,
+    identity: `K-${String(seat + 1).padStart(2, '0')}`,
     slots: Object.fromEntries(
       MOUNTS.map(mount => {
         const slot = player.slots.find(s => s.id === mount.id)
@@ -47,11 +47,11 @@ export function editorConfig(
   appearance: ShipAppearance,
   accent: string,
   identity?: string
-): WorkshopConfig {
+): ShipConfig {
   return { ...DEFAULT_CONFIG, loadout, paint: appearance.paint, accent, appearance, identity }
 }
 
-export function boardConfig(visual: ShipVisual | undefined, accent: string): WorkshopConfig {
+export function boardConfig(visual: ShipVisual | undefined, accent: string): ShipConfig {
   const appearance = resolveShipAppearance(visual?.appearance)
   return editorConfig(
     {
@@ -66,7 +66,7 @@ export function boardConfig(visual: ShipVisual | undefined, accent: string): Wor
   )
 }
 
-export function visibleSlots(config: WorkshopConfig, concealed: boolean): VisibleSlots {
+export function visibleSlots(config: ShipConfig, concealed: boolean): VisibleSlots {
   return Object.fromEntries(
     MOUNTS.map(m => {
       const type =

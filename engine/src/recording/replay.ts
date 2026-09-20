@@ -12,9 +12,9 @@ export function cloneState(state: GameState): GameState {
 }
 
 /**
- * A state read back out of a recording. A file written before the table could
- * agree on four points carries no `pointsToWin`, and that game was played to
- * the default — so an old recording still opens, and still replays to the same
+ * A state read back out of a recording. A file written before `pointsToWin`
+ * was carried on the state has no such field, and that game was played to the
+ * default, so an old recording still opens, and still replays to the same
  * ending.
  */
 export function restoreRecordedState(state: GameState): GameState {

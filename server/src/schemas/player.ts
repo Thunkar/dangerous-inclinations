@@ -30,5 +30,3 @@ export interface PlayerAuth {
   agent?: AgentInfo;
   createdAt: number;
 }
-
-export type CreatePlayerInput = z.infer<typeof CreatePlayerSchema>;

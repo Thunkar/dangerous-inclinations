@@ -276,7 +276,7 @@ describe("Movement Planner", () => {
         sector: 0,
         facing: "prograde",
       };
-      // Same ring, 2 coasts ahead — scoop should recover fuel on each coast
+      // Same ring, 2 coasts ahead: scoop should recover fuel on each coast
       const destination: OrbitalPosition = {
         wellId: "blackhole",
         ring: 3,
@@ -598,7 +598,7 @@ describe("Movement Planner", () => {
         sector: 2,
       };
 
-      // Test with increasing available mass — turns should never increase
+      // Test with increasing available mass: turns should never increase
       let prevTurns = Infinity;
       for (const mass of [3, 5, 7, 10]) {
         const plan = planMovement(origin, destination, {
@@ -867,7 +867,7 @@ describe("movementPlanner: orbitingTarget", () => {
     expect(target.positionAt(0)).toEqual({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 });
   });
 
-  it("positionAt(1) returns the same position — round-end happens AFTER turn 1", () => {
+  it("positionAt(1) returns the same position: round-end happens AFTER turn 1", () => {
     // The bot's first action's match check fires before the round ends, so
     // the station hasn't moved yet at turn 1.
     const target = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 4);
@@ -1019,7 +1019,7 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
   it("handles cross-well dynamic targets", () => {
     // BH R5 S18 is the BH→alpha transfer point, so the well_transfer
     // is available on turn 1. After landing on alpha R3 S5 the bot still
-    // has to navigate down to R1 — easily within budget.
+    // has to navigate down to R1, easily within budget.
     const plan = planMovementToTarget(
       { wellId: "blackhole", ring: 5, sector: 18, facing: "prograde" },
       orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 0 }, 4),
@@ -1067,7 +1067,7 @@ describe("movementPlanner: planStationMeetUp (convenience)", () => {
   });
 
   it("chooses a plan that actually intercepts the station (regression: trailing bug)", () => {
-    // This is the bug that drove the redesign — on the station's own ring the
+    // This is the bug that drove the redesign: on the station's own ring the
     // bot's orbital velocity matches the station's, so coasting trails it
     // forever. The planner must prove it lands on the station, not adjacent.
     const ship = makeShip("planet-alpha", STATION_RING, 8, "retrograde");

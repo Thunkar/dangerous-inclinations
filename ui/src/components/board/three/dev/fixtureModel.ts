@@ -6,7 +6,7 @@
  * wells, hands one of them a long slide so a screenshot can catch it mid-arc,
  * doubles up two of the sectors so the crowd spread has something to spread,
  * and fills in the rest of the contract with the empty values a quiet board
- * has. Positions and stations come from the engine — nothing here is a rule.
+ * has. Positions and stations come from the engine: nothing here is a rule.
  */
 import type { Position, Station } from '@dangerous-inclinations/engine'
 import {

@@ -1,8 +1,10 @@
 /**
- * The mission decks: two piles, each shuffled once and dealt round the table.
+ * The mission decks: a primary pile shuffled once and dealt round the table,
+ * and a secondary pile that is simply handed out, one card of each kind to
+ * every seat.
  *
  * They are physical decks, so they are built the way physical decks have to be.
- * There is no per-player deck and no card that knows who is holding it —
+ * There is no per-player deck and no card that knows who is holding it:
  * every card reads the same in every hand, which is the only way a face-down
  * card can leak nothing.
  *
@@ -24,15 +26,16 @@
  * so a smaller table takes out the cards that would wrap onto the holder:
  * with N players, remove every card whose offset is N or more.
  *
- * The primary pile is two copies of everything — each offset of each rival
- * card, each cargo route — which keeps the same share of it pointed at people
+ * The primary pile is two copies of everything (each offset of each rival
+ * card, each cargo route), which keeps the same share of it pointed at people
  * as the old per-player decks had (31% at three seats, 53% at six).
  *
  * The secondary pile is {@link SECONDARY_COPIES_PER_CARD} of each, which is
- * {@link MAX_PLAYERS}: three secondaries a seat means a full table needs
+ * {@link MAX_PLAYERS}: one of each kind to every seat means a full table needs
  * eighteen, so the printed pile is sized by the biggest table rather than by
- * symmetry with the other one. A hand may therefore hold two of the same
- * secondary, which is two separate chits and two separate filings.
+ * symmetry with the other one. It is never cut into: every player is handed
+ * one Survey, one Piracy and one Tanker and keeps two of the three, so no
+ * hand can hold two of a kind and there is nothing to redraw.
  */
 import type { Player } from "../../models/game.ts";
 import type { Cargo, SecondaryMission, Mission } from "../../models/missions.ts";
@@ -59,8 +62,8 @@ export const COPIES_PER_CARD = 2;
 export const SECONDARY_COPIES_PER_CARD = MAX_PLAYERS;
 
 /** Survey, Piracy, Tanker: one of each for every seat. */
-export const SECONDARY_STACKS = 3;
-export const SECONDARY_CARDS_PER_DECK = SECONDARY_STACKS * SECONDARY_COPIES_PER_CARD;
+export const SECONDARY_KINDS = 3;
+export const SECONDARY_CARDS_PER_DECK = SECONDARY_KINDS * SECONDARY_COPIES_PER_CARD;
 
 /**
  * A card as it is printed: a rival card counts seats rather than naming one,
@@ -208,7 +211,7 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
  * only reach one hand, so a route somebody else is flying is a route you were
  * not offered. Primaries first, then secondaries, so a seat's offers arrive in
  * the order the loadout screen reads them. Ids are handed out as the cards
- * land, so an id says nothing about what the card is — crates and chits are
+ * land, so an id says nothing about what the card is: crates and chits are
  * named after their mission and sit on the table for everyone to see.
  */
 export function dealMissionOffers(
@@ -218,7 +221,7 @@ export function dealMissionOffers(
 ): Map<string, Mission[]> {
   const offers = new Map<string, Mission[]>(players.map((p) => [p.id, []]));
   let next = 0;
-  const deal = (deck: DeckCard[], rounds: number, fix?: (dealt: DeckCard[][]) => void) => {
+  const deal = (deck: DeckCard[], rounds: number) => {
     const hands: DeckCard[][] = players.map(() => []);
     let onTop = 0;
     for (let round = 0; round < rounds; round++) {
@@ -227,7 +230,6 @@ export function dealMissionOffers(
         if (card) hands[seat].push(card);
       });
     }
-    fix?.(hands);
     players.forEach((player, seat) => {
       for (const card of hands[seat]) {
         offers
@@ -235,7 +237,6 @@ export function dealMissionOffers(
           .push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
       }
     });
-    return onTop;
   };
 
   deal(rng.shuffle(buildPrimaryDeck(players.length, planetIds)), PRIMARY_OFFERS_PER_PLAYER);
@@ -253,19 +254,19 @@ export function dealMissionOffers(
    * Taking one of each closes that by construction, needs no redraw and no
    * deck sized to the player count, and is one sentence at the table. The
    * price is that everybody is offered the same three, so the choice is which
-   * one to leave rather than what turned up — and the three had better be
+   * one to leave rather than what turned up, and the three had better be
    * worth roughly the same, or it is not a choice.
    */
-  const stacks = new Map<string, DeckCard[]>();
+  const byKind = new Map<string, DeckCard[]>();
   for (const card of buildSecondaryDeck()) {
-    const stack = stacks.get(card.type) ?? [];
-    stack.push(card);
-    stacks.set(card.type, stack);
+    const ofKind = byKind.get(card.type) ?? [];
+    ofKind.push(card);
+    byKind.set(card.type, ofKind);
   }
   // One of each kind for every seat: the cards of a kind are identical, so
   // the shuffle below orders nothing a player could tell apart.
-  for (const stack of [...stacks.values()].slice(0, SECONDARY_OFFERS_PER_PLAYER)) {
-    const shuffled = rng.shuffle(stack);
+  for (const ofKind of [...byKind.values()].slice(0, SECONDARY_OFFERS_PER_PLAYER)) {
+    const shuffled = rng.shuffle(ofKind);
     players.forEach((player, seat) => {
       const card = shuffled[seat];
       if (!card) return;

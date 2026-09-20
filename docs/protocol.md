@@ -27,25 +27,25 @@ nothing locally and resolves a seat from these.
 A lobby settles nothing but its name, its seats and its password: a game is
 played to `DEFAULT_POINTS_TO_WIN` and there is no table agreement to negotiate.
 The number still rides on `GameState.pointsToWin` and reaches every client as
-the public `GameView.pointsToWin` — what the table is playing to is not hidden
-information — and the simulator can still play a batch at another number
+the public `GameView.pointsToWin` (what the table is playing to is not hidden
+information) and the simulator can still play a batch at another number
 (`--rules=missionsToWin=4`).
 
 ## REST (`/api/games`)
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| GET | `/api/games/:gameId` | — | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat) |
+| GET | `/api/games/:gameId` | none | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat) |
 | POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance }` | `{ view }` or `400 { error }` |
 | POST | `/api/games/:gameId/deploy` | `{ ring: 3 \| 4, sector: number }` | `{ view }` or `400 { error }`. Black Hole ring 3 or ring 4, at least three sectors from every ship already placed (if no position is that clear, the clearest ones are legal instead); the position becomes the player's Home |
-| POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` | `{ ok, errors?, events? }` — dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn |
-| GET | `/api/games/:gameId/chat` | — | `{ messages: ChatMessage[] }` — table talk, oldest first |
+| POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` | `{ ok, errors?, events? }` (dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn) |
+| GET | `/api/games/:gameId/chat` | none | `{ messages: ChatMessage[] }` (table talk, oldest first) |
 | POST | `/api/games/:gameId/chat` | `{ text, kind?: "say" \| "think" }` | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning, shown to humans, not fed to other agents |
 | POST | `/api/games/:gameId/rewind` | `{ turnIndex: number }` | `{ view }` (dev tool; live games only, refused once a game is finalized) |
 | POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` | `{ gameId, view }` (archived recordings only; the seat must be your own original seat or a bot's) |
-| GET | `/api/health` | — | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }` |
-| GET | `/api/recordings` | — | list of **finished** recordings only |
-| GET | `/api/recordings/:id` | — | a finished recording (full states; the game is over) |
+| GET | `/api/health` | none | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }` |
+| GET | `/api/recordings` | none | list of **finished** recordings only |
+| GET | `/api/recordings/:id` | none | a finished recording (full states; the game is over) |
 
 Loadout and deployment submissions for bots happen server-side through the AI
 (`botChooseLoadout`, `botChooseDeployment` with the game's seeded RNG via

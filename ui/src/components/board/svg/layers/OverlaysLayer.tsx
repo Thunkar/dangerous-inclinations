@@ -3,7 +3,7 @@
  * the path the turn you are building will take, and the sectors you may
  * deploy into.
  *
- * Every range answer comes from the engine, tested sector by sector — the
+ * Every range answer comes from the engine, tested sector by sector: the
  * sweep lives in the board model now, so both boards shade the same wedges
  * and no renderer re-implements a rule.
  *
@@ -23,8 +23,8 @@ import { trackAttr, trackPoints } from '../../trajectory'
 
 /**
  * The one accent used for anything you may click. Every deployment sector is
- * on the same ring of the same well now, so the wedges carry no well colour —
- * they are simply the thing on the board you are being asked to click, and the
+ * on the same ring of the same well now, so the wedges carry no well colour.
+ * They are simply the thing on the board you are being asked to click, and the
  * black hole's own colour is all but black.
  */
 const DEPLOY_ACCENT = '#ffb445'
@@ -131,7 +131,7 @@ export const SectorPicker = memo(function SectorPicker({
  * All of it in the route accent, never the player's colour. A route is a
  * proposal the planner found, several turns long; the planned path beside it is
  * the move you are actually committing this turn, and that one is yours. Drawing
- * both in your colour made two different things look like one — and this board
+ * both in your colour made two different things look like one, and this board
  * already printed the route's destination diamond in the accent, so the legs
  * were the half that was out of step. The 3D board has always drawn it this way.
  */
@@ -193,7 +193,7 @@ export const RouteOverlay = memo(function RouteOverlay({ route }: { route: Movem
 // Weapon range
 // ---------------------------------------------------------------------------
 
-/** The sectors the focus weapon reaches — asked of the engine in the model. */
+/** The sectors the focus weapon reaches: asked of the engine in the model. */
 export const RangeOverlay = memo(function RangeOverlay({ cells }: { cells: Position[] }) {
   if (cells.length === 0) return null
 
@@ -229,7 +229,7 @@ export const PlannedPath = memo(function PlannedPath({
   color: string
 }) {
   if (points.length < 2) return null
-  // The arcs the ship actually rides, bowed clear of the rings they ride — the
+  // The arcs the ship actually rides, bowed clear of the rings they ride: the
   // same polyline the 3D board draws, from the same helper.
   const track = trackPoints(points, 'arc')
   const end = positionPoint(points[points.length - 1])
@@ -296,7 +296,7 @@ export const DeploymentSectors = memo(function DeploymentSectors({
             onMouseEnter={() => onHover(position)}
             onMouseLeave={() => onHover(null)}
           >
-            <title>{`Place your ship here — ${getWellName(position.wellId)} R${position.ring} S${position.sector}. This sector becomes your Home.`}</title>
+            <title>{`Place your ship here · ${getWellName(position.wellId)} R${position.ring} S${position.sector}. This sector becomes your Home.`}</title>
             <path
               d={sectorWedgePath(position.wellId, position.sector, radius - 16, radius + 16)}
               fill={DEPLOY_ACCENT}

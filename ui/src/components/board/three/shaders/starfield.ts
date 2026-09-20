@@ -8,7 +8,7 @@
  *
  * Each star carries its own size, colour temperature and twinkle phase as
  * attributes, so the whole field is one draw call and nothing is computed per
- * frame except one time uniform. Points are kept small — a couple of pixels —
+ * frame except one time uniform. Points are kept small (a couple of pixels)
  * because the expensive part of a star field is fill rate, not vertex count,
  * and because a sky of fat blobs competes with the board.
  */

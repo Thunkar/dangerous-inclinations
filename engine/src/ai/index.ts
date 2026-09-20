@@ -109,31 +109,6 @@ export function botChooseDeployment(
   return chooseDeployment(view, pick);
 }
 
-export function createBotParameters(difficulty: "easy" | "medium" | "hard"): BotParameters {
-  switch (difficulty) {
-    case "easy":
-      return {
-        aggressiveness: 0.3,
-        targetPreference: "closest",
-        repairHullThreshold: 6,
-        lowFuelThreshold: 7,
-        conserveAmmo: true,
-        scanUnknowns: false,
-      };
-    case "medium":
-      return DEFAULT_BOT_PARAMETERS;
-    case "hard":
-      return {
-        aggressiveness: 0.8,
-        targetPreference: "mission",
-        repairHullThreshold: 4,
-        lowFuelThreshold: 5,
-        conserveAmmo: false,
-        scanUnknowns: true,
-      };
-  }
-}
-
 function emptyLog(reason: string): BotDecisionLog {
   return {
     situation: {

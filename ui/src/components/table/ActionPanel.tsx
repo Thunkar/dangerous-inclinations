@@ -2,11 +2,11 @@
  * Your turn, in the order a turn is actually played: read the ship, route the
  * reactor, then decide what to do with it.
  *
- *   status          — hull, heat, fuel, ammo, where you are: always on screen
- *   1. Ship & energy — cubes on the tiles, and what is left in the reactor
- *   2. Orientation  — which way the nose points
- *   3. Move         — coast, burn or jump; exactly one per turn
- *      Route planner — its own plate under the move row: a navigation aid
+ *   status          · hull, heat, fuel, ammo, where you are: always on screen
+ *   1. Ship & energy · cubes on the tiles, and what is left in the reactor
+ *   2. Orientation  · which way the nose points
+ *   3. Move         · coast, burn or jump; exactly one per turn
+ *      Route planner · its own plate under the move row: a navigation aid
  *                      that proposes a move, never one that commits it
  *   4. Weapons & scan
  *   5. The sequence you have built, in the order it will happen
@@ -169,7 +169,7 @@ export function ActionPanel() {
         </Step>
 
         <Divider />
-        <Step n={3} label="Move — one per turn">
+        <Step n={3} label="Move · one per turn">
           <MoveControls disabled={disabled} />
         </Step>
         {/* Not a fourth move: an instrument that proposes one. Its own plate. */}
@@ -273,7 +273,7 @@ function TurnShell({
 /**
  * Naming the tile a cold ship's crew will fix. It appears only when the turn as
  * built would end at 0 heat and something is broken, because those are exactly
- * the turns on which it can happen — a control that offered itself and then did
+ * the turns on which it can happen. A control that offered itself and then did
  * nothing would be worse than none.
  */
 function RepairControl({ disabled }: { disabled: boolean }) {
@@ -286,7 +286,7 @@ function RepairControl({ disabled }: { disabled: boolean }) {
     <>
       <Divider />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>Repair — one a turn, and only cold</SectionLabel>
+        <SectionLabel>Repair · one a turn, and only cold</SectionLabel>
         {offered.length === 0 ? (
           <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: TABLE.inkSoft }}>
             This turn makes heat. A repair needs everything off: a plain coast, no
@@ -300,7 +300,7 @@ function RepairControl({ disabled }: { disabled: boolean }) {
               return (
                 <Tooltip
                   key={sub.id}
-                  title={`${getSubsystemConfig(sub.type).name} (${sub.id}) — repaired at your heat check`}
+                  title={`${getSubsystemConfig(sub.type).name} (${sub.id}) · repaired at your heat check`}
                 >
                   <Box
                     component="button"
@@ -346,8 +346,8 @@ function Step({ n, label, children }: { n: number; label: string; children: Reac
 }
 
 /**
- * A segment of a segmented control. Each button carries its own tooltip —
- * including the reason it cannot be pressed — so the row itself stays as
+ * A segment of a segmented control. Each button carries its own tooltip
+ * (including the reason it cannot be pressed) so the row itself stays as
  * narrow as the column, whatever the reason is.
  */
 function Segment({
@@ -550,7 +550,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
       {move.kind === 'coast' && plan.moored && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
           The station carries you 4 sectors at the end of the round, and holding the berth repairs
-          nothing more — the dock happened on arrival.
+          nothing more: the dock happened on arrival.
         </Typography>
       )}
 
@@ -558,7 +558,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
         <Tooltip
           title={`Recover fuel equal to this ring's velocity (${plan.scoopGain}). Needs ${
             getSubsystemConfig('scoop').minEnergy
-          } cubes on the scoop — a berth is as good a place to skim from as any.`}
+          } cubes on the scoop. A berth is as good a place to skim from as any.`}
         >
           <Box component="span" sx={{ display: 'flex' }}>
             <Chip
@@ -675,9 +675,9 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
           <Tooltip
             key={weapon.id}
             title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · ${config.minEnergy} energy${
-              weapon.isPowered ? '' : ' (not powered — put cubes on it above)'
-            }${weapon.isBroken ? ' — broken' : ''}${noAmmo ? ' — no ammo' : ''}${
-              opening ? ' — nothing fires in the first round' : ''
+              weapon.isPowered ? '' : ' (not powered: put cubes on it above)'
+            }${weapon.isBroken ? ' · broken' : ''}${noAmmo ? ' · no ammo' : ''}${
+              opening ? ' · nothing fires in the first round' : ''
             }`}
           >
             <Box component="span" sx={{ display: 'flex' }}>

@@ -1,5 +1,5 @@
 /**
- * Route planner — the navigation instrument, not a move.
+ * Route planner: the navigation instrument, not a move.
  *
  * The move row above commits part of *this* turn. This is a different kind of
  * thing: you name a sector, the engine lays out the turns it would take to get
@@ -9,10 +9,10 @@
  *
  * Reading it, top to bottom:
  *
- *   destination — where you asked to go (and the way in and out of picking)
- *   routes      — the alternatives the engine found, turns and fuel side by side
- *   itinerary   — the chosen route turn by turn, ending on the destination
- *   the step    — the one leg of it that can be this turn's move
+ *   destination · where you asked to go (and the way in and out of picking)
+ *   routes      · the alternatives the engine found, turns and fuel side by side
+ *   itinerary   · the chosen route turn by turn, ending on the destination
+ *   the step    · the one leg of it that can be this turn's move
  *
  * The last block is the one a player must not misread, so it is derived, never
  * remembered: it compares the route's first step against the move actually
@@ -97,7 +97,7 @@ function routeLegs(steps: MovementStep[], facing: Facing): Leg[] {
   return out
 }
 
-/** The move the planner would set from a route step — the same one `applyRouteStep` builds. */
+/** The move the planner would set from a route step: the same one `applyRouteStep` builds. */
 function moveForStep(step: MovementStep): MoveChoice {
   if (step.actionType === 'coast') return { kind: 'coast', scoop: step.massCost < 0 }
   if (step.actionType === 'well_transfer')
@@ -129,8 +129,8 @@ export function RoutePlanner({ disabled }: { disabled: boolean }) {
   const dest = plan.routeDestination
   const route = plan.route
   /**
-   * Folded away until it is wanted. Asking for a destination — or already
-   * having one — is asking for the planner, so the fold is derived from that
+   * Folded away until it is wanted. Asking for a destination (or already
+   * having one) is asking for the planner, so the fold is derived from that
    * unless you have said otherwise since; both buttons that change what the
    * planner is *for* hand the fold back to it.
    */
@@ -845,7 +845,7 @@ function FirstStep({
       title={`Set this turn's move to the first turn of the route (${describeStep(
         step,
         facing
-      )}) — the rotation and the cubes it needs included. Nothing else about the turn changes.`}
+      )}), the rotation and the cubes it needs included. Nothing else about the turn changes.`}
     >
       <Box component="span" sx={{ display: 'flex', mt: 0.1, minWidth: 0 }}>
         <Button

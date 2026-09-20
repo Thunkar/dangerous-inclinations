@@ -7,7 +7,7 @@
  * crate whose station this is stays on the dock until the hold is free.
  *
  * Arriving, not sitting. A docked ship stays moored until it burns away, and
- * for a while the whole dock re-resolved every turn it held the berth — a free
+ * for a while the whole dock re-resolved every turn it held the berth: a free
  * repair shop for anyone content to park in one. A visit is an event now: the
  * berth afterwards is worth the ride the station gives you and the fuel your
  * scoop skims, and nothing else. Come back for more and it is a trip.
@@ -108,7 +108,7 @@ export function processDocking(
   });
 
   // Tanker: arrive with the card's fuel in the tank and it goes into the drums
-  // (RULES §Missions). Automatic, like every other thing a dock does to you —
+  // (RULES §Missions). Automatic, like every other thing a dock does to you:
   // there is no chit and nothing to decide, only a tank that had enough in it.
   const tanking = player.missions.some((m) => m.type === "tanker" && !m.isCompleted);
   if (tanking && ship.reactionMass >= TANKER_FUEL) {

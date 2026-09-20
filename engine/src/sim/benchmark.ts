@@ -11,7 +11,7 @@
  *   yarn bench --bot=aggressiveness=0.8,targetPreference=weakest  # a page played by bots told to think differently
  *
  * It exists to be diffed. Every run stamps the rules it was played under at
- * the top, so two pages side by side say what changed and what it did — which
+ * the top, so two pages side by side say what changed and what it did, which
  * is the only way to tell a rule that helped from a rule that merely moved the
  * numbers around. Keep the games and the seeds the same between runs and the
  * comparison is honest; change them and it is not.
@@ -194,7 +194,7 @@ function seatRow(players: number, batch: BatchResult): SeatRow {
     scoop: a.behaviour.scoopShare,
     firing: a.behaviour.firingShare,
     lost: a.behaviour.lostTurnShare,
-    notes: notes.join("; ") || "—",
+    notes: notes.join("; ") || "none",
   };
 }
 
@@ -255,7 +255,7 @@ function missionRows(batches: BatchResult[]) {
  *
  * The question a three-card hand asks is which plan you came with: two
  * primaries, or one and a pair of secondary cards. If every seat keeps the same
- * shape the table has one plan and the others are untested — that is what this
+ * shape the table has one plan and the others are untested. That is what this
  * is here to show.
  */
 function handShapeRows(batches: BatchResult[]) {
@@ -291,7 +291,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   const out: string[] = [];
   const today = new Date().toISOString().slice(0, 10);
 
-  out.push(`# Benchmark — ${today}`);
+  out.push(`# Benchmark (${today})`);
   out.push("");
   out.push(
     `${args.games} games per seat count, seeds ${BASE_SEED}+, bots choosing their own hands and hulls.`
@@ -388,7 +388,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   }
   out.push("");
   out.push(
-    "_A hull's win rate is against the field, so the fair share is 1/seats — about 25% across a 3–6 seat mix._"
+    "_A hull's win rate is against the field, so the fair share is 1/seats, about 25% across a 3–6 seat mix._"
   );
   out.push("");
 

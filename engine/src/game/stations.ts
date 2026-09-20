@@ -45,8 +45,8 @@ export function stationPosition(station: Station): Position {
 }
 
 /**
- * Moored: sitting on a station's sector. Docking is derived from position —
- * on the table the ship token is on the station token — so there is no
+ * Moored: sitting on a station's sector. Docking is derived from position
+ * (on the table the ship token is on the station token), so there is no
  * separate "docked" flag that could go stale.
  */
 export function isMooredAt(stations: Station[], position: Position): boolean {

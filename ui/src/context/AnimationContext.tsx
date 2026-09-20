@@ -1,5 +1,5 @@
 /**
- * AnimationContext — the table in motion.
+ * AnimationContext: the table in motion.
  *
  * Everything here is driven by the turn's `GameEvent[]`: nothing is inferred
  * by diffing states. When a turn arrives, GameContext hands us the previous
@@ -62,7 +62,7 @@ export type TableEffect =
       at: Position
       /**
        * Who the mark is about. Every float and burst the animator pushes has a
-       * subject — the ship being hit, docking, breaking or coming back — and a
+       * subject (the ship being hit, docking, breaking or coming back) and a
        * sector is not enough to find them: two ships can share one, and a shot
        * can push its target out of the sector its own numbers were anchored to.
        * It is also where the mark is drawn: a board that stands two hulls side
@@ -140,7 +140,7 @@ interface AnimationContextValue {
   skip: () => void
   /**
    * Find a ship: rings expand off it and its name floats up. Nothing about
-   * the game changes — a ping is one player asking their own table where
+   * the game changes. A ping is one player asking their own table where
    * somebody is, and only they see it.
    */
   ping: (playerId: string) => void
@@ -239,7 +239,7 @@ function snapshotOf(view: GameView): BoardOverlay {
 /**
  * Where the critical band starts for a shot by `attackerId`, as far as this
  * seat can tell. The bonus is real only for a sensor array that is powered
- * (RULES: criticals on 8–10 *while powered*) and unbroken — and we may only
+ * (RULES: criticals on 8–10 *while powered*) and unbroken, and we may only
  * draw it when the tile is face-up at the table, or is our own. A tile we
  * learned through a scan is face-down to everyone else, so it never widens
  * the band we print for the table to read.
@@ -309,7 +309,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
 
   /**
    * Pings are kept apart from the turn's own effects. A turn's animation
-   * clears the table when it ends, and a ping is not part of any turn — it is
+   * clears the table when it ends, and a ping is not part of any turn. It is
    * one player asking where somebody is, and it should not vanish because a
    * bot two seats over finished moving.
    */
@@ -380,7 +380,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
        * Where to hang an effect for a player: the board as it stands mid-turn
        * first, then where the ship ends up. A player with a ship in neither is
        * only possible for an event about somebody who was never on the table,
-       * which the engine does not emit — their Home (or the ring everyone
+       * which the engine does not emit. Their Home (or the ring everyone
        * deploys on) keeps the effect on the board rather than nowhere.
        */
       const positionOf = (playerId: string): Position => {
@@ -395,7 +395,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
 
       /**
        * A short mark over a ship, for the things it just did. The board was
-       * only ever labelling outcomes — hits, breaks, docks — so a turn's worth
+       * only ever labelling outcomes (hits, breaks, docks), so a turn's worth
        * of flying went past with nothing written on it, which is what made a
        * turn hard to follow at the speed it plays.
        */

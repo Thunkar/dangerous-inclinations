@@ -1,7 +1,7 @@
 /**
  * The 3D board.
  *
- * Same model as the SVG board, same marks, same meanings — drawn in WebGL so
+ * Same model as the SVG board, same marks, same meanings, drawn in WebGL so
  * the black hole is a well you can see into and a ship is a hull with a nose.
  * It renders a `BoardModel` and nothing else: every coordinate comes from
  * `geometry.ts` through `world.ts`, every rule answer is already in the model.
@@ -60,7 +60,7 @@ const PRESET_ICON: Record<CameraPreset, React.ReactNode> = {
  * expensive thing in the scene: 103 ms a frame against 61 at 1440x900 under
  * SwiftShader, where the whole cheap path saves only three.
  *
- * `?fx=on` turns it on — tuned so that is defensible — and the scene's own
+ * `?fx=on` turns it on (tuned so that is defensible) and the scene's own
  * adaptive ladder in `Environment.tsx` will drop it again on a machine that
  * cannot afford it. `?quality=high|low` pins that ladder for a screenshot.
  */

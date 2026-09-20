@@ -5,16 +5,16 @@
  *
  * The crosshair by the name pings them: rings expand off their hull on the
  * board and, on the 3D board, the camera swings to their well. It asks the
- * table a question and changes nothing in the game — three wells and 120
+ * table a question and changes nothing in the game: three wells and 120
  * sectors are a lot of board to search by eye.
  *
  * The slots are the interesting part. A face-down tile shows only which slot
- * it is — but the energy cubes on it are public, so four cubes on a face-down
+ * it is, but the energy cubes on it are public, so four cubes on a face-down
  * forward slot can only be a railgun. A tile you have seen through a scan
  * carries an eye badge; it is face-up for you alone.
  *
  * Clicking a slot names it: the slot a critical hit would break, or the tile a
- * scan will look at. A scan wants a face-down tile — but once you know them
+ * scan will look at. A scan wants a face-down tile, but once you know them
  * all, any slot will do (the engine takes whichever it can and tells you).
  */
 import { ShipMark } from '../../ships/ShipMark'
@@ -178,7 +178,7 @@ export function OpponentCard({
             </Typography>
           )}
           {recovering && (
-            <Tooltip title="Respawned at Home — no shot, missile or scan reaches it until it acts">
+            <Tooltip title="Respawned at Home · no shot, missile or scan reaches it until it acts">
               <Typography
                 variant="overline"
                 noWrap
@@ -301,8 +301,8 @@ export function OpponentCard({
             return (
               <Tooltip
                 key={fixed.id}
-                title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' — broken' : ''}${
-                  targetable ? '' : ' — a critical cannot name it'
+                title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' · broken' : ''}${
+                  targetable ? '' : ' · a critical cannot name it'
                 }`}
               >
                 <Box>

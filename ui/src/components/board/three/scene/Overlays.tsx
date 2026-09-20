@@ -4,9 +4,9 @@
  * about to pick and the sectors you may deploy into.
  *
  * Every answer is already in the model; this only draws it. Five marks, each
- * the one the paper board prints — amber for a weapon's reach and for anything
+ * the one the paper board prints (amber for a weapon's reach and for anything
  * you are being asked to click, your own colour for your move, a cool cyan for
- * the planner — laid on the surface at the layer that keeps them off the rings
+ * the planner) laid on the surface at the layer that keeps them off the rings
  * and out of the way of the tokens.
  */
 import { memo, useMemo } from 'react'
@@ -44,7 +44,7 @@ const PIP_HEIGHT = 14
 // Weapon range
 // ---------------------------------------------------------------------------
 
-/** The sectors the focus weapon reaches — asked of the engine in the model. */
+/** The sectors the focus weapon reaches: asked of the engine in the model. */
 const RangeWedges = memo(function RangeWedges({ cells }: { cells: readonly Position[] }) {
   return (
     <WedgeField
@@ -123,7 +123,7 @@ function RoutePip({ position, ordinal }: { position: Vector3; ordinal: number })
 /**
  * The turns of a planned route: one dashed leg per step, a numbered pip where
  * each turn ends and a diamond on the destination. A jump between wells is the
- * straight line the SVG board draws — there is no arc to follow between them.
+ * straight line the SVG board draws: there is no arc to follow between them.
  */
 const RouteOverlay = memo(function RouteOverlay({ route }: { route: MovementPlan }) {
   const legs = useMemo(
@@ -234,7 +234,7 @@ const DeploymentWedges = memo(function DeploymentWedges({
       litColor={ACCENT}
       litFillOpacity={0.55}
       label={cell =>
-        `Place your ship here — ${getWellName(cell.wellId)} R${cell.ring} S${cell.sector}. This sector becomes your Home.`
+        `Place your ship here · ${getWellName(cell.wellId)} R${cell.ring} S${cell.sector}. This sector becomes your Home.`
       }
       onPick={onPick}
     />

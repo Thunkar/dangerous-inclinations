@@ -101,7 +101,7 @@ export interface Opponent {
   /**
    * Just back from a respawn: no shot, missile or scan may be aimed at them
    * until they act (RULES §Destruction and Respawn). Matching orbits with them
-   * is still allowed — that is a rendezvous, not an attack (and a wreck has
+   * is still allowed: that is a rendezvous, not an attack (and a wreck has
    * dropped its crate anyway, so there is nothing aboard to take).
    */
   recovering: boolean;
@@ -178,7 +178,7 @@ export interface BotStatus {
   maxReactionMass: number;
   position: Position;
   facing: Facing;
-  /** Docked at a station: a coast holds the berth, and the scoop cannot run. */
+  /** Docked at a station: a coast holds the berth, and the scoop still runs. */
   moored: boolean;
   engines: Subsystem;
   rotation: Subsystem;

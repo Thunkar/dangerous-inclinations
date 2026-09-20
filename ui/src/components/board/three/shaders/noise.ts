@@ -4,7 +4,7 @@
  * Nothing in the scene loads a texture: a planet's bands, a rock's craters and
  * the turbulence in the accretion disc are all the same handful of GLSL
  * functions sampled at different scales. They live here so there is one
- * implementation to tune and one place where the cost is paid — `fbm3` is the
+ * implementation to tune and one place where the cost is paid. `fbm3` is the
  * hot loop of the whole art pass, and its octave count is a `#define` the
  * caller sets, so the cheap quality path compiles a shorter loop rather than
  * branching per pixel.
@@ -71,7 +71,7 @@ export const GLSL_NOISE = /* glsl */ `
     return sum / max(norm, 0.0001);
   }
 
-  /* Ridged sum: |noise| folded, which leaves sharp creases — crater rims,
+  /* Ridged sum: |noise| folded, which leaves sharp creases: crater rims,
      cloud edges, the filaments in a nebula. */
   float ridge3(vec3 p) {
     float sum = 0.0;

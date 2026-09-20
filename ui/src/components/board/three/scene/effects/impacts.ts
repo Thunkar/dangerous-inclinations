@@ -4,7 +4,7 @@
  * No event says "flinch": the flat board's mark for a hit is a number floating
  * over a hull, and that mark now names its subject, so this is where the two
  * halves meet. `Effects` posts every anchored float and burst here as it
- * appears and `Ships` samples it once a frame per hull — a hull reaction
+ * appears and `Ships` samples it once a frame per hull: a hull reaction
  * therefore costs no new field on `BoardModel`, no new event, and nothing that
  * crosses React.
  *
@@ -60,7 +60,7 @@ export interface HullReaction {
  */
 const sample: HullReaction = { shake: 0, flash: 0, color: '#ffffff' }
 
-/** A sharp attack and a long decay — the shape of a hit, not of a fade. */
+/** A sharp attack and a long decay: the shape of a hit, not of a fade. */
 function envelope(u: number): number {
   if (u < 0 || u > 1) return 0
   return u < 0.1 ? u / 0.1 : (1 - u) / 0.9

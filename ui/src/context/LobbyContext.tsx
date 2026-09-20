@@ -93,14 +93,6 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
       (data) => {
         if (!isLobbyMessage(data)) return
         switch (data.type) {
-          case 'LOBBY_STATE':
-            setLobbyState(data.payload)
-            // A roster update can be the first news that the game started.
-            if (data.payload.gameId) {
-              setGameId(data.payload.gameId)
-              setPhase('game')
-            }
-            break
           case 'PLAYER_JOINED':
             setLobbyState((prev) =>
               prev && !prev.players.some((p) => p.playerId === data.payload.playerId)

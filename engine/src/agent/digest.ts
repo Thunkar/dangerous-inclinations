@@ -42,8 +42,8 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
  * The rules an agent needs at hand, in the words of RULES.md, kept short.
  *
  * Built when it is asked for, not at module load: the numbers in it are the
- * game's constants, and a copy frozen into a top-level string would still say
- * three points at a table that agreed on four.
+ * game's constants, and a copy frozen into a top-level string would go stale
+ * the first time one of them moved.
  *
  * @param pointsToWin what this table plays to (`view.pointsToWin`).
  */
@@ -54,18 +54,18 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
 - Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.
 - Burn: drift, then change ring. Prograde facing burns OUTWARD, retrograde INWARD. soft 1 ring / 1 fuel / 1 cube on engines; medium 2/2/2; hard 3/3/3. Phasing: adjust arrival sector, 1 fuel per sector, from -(velocity-1) to +3.
-- Jump: only from a lane's departure arc, engines at 3, 3 fuel (1 with a compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way. Phasing: shift the landing 1 fuel a sector, never out of the arrival arc — so any departure sector reaches any of the arc's 4 sectors. A compressor pays two of the jump's three fuel, never the phasing.
-- Heat is a TRACK and does NOT reset. Using a tile costs its cubes in heat. At your heat check: anything above ${MAX_HEAT} is hull damage and the track stops at ${MAX_HEAT}, then you dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_BONUS} per working radiator) and CARRY THE REST into next turn. So a hot turn is a debt, not a wound — but generate more than you dissipate for long enough and you redline.
+- Jump: only from a lane's departure arc, engines at 3, 3 fuel (1 with a compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way. Phasing: shift the landing 1 fuel a sector, never out of the arrival arc, so any departure sector reaches any of the arc's 4 sectors. A compressor pays two of the jump's three fuel, never the phasing.
+- Heat is a TRACK and does NOT reset. Using a tile costs its cubes in heat. At your heat check: anything above ${MAX_HEAT} is hull damage and the track stops at ${MAX_HEAT}, then you dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_BONUS} per working radiator) and CARRY THE REST into next turn. So a hot turn is a debt, not a wound, but generate more than you dissipate for long enough and you redline.
 - Shields: every ${SHIELD_ENERGY_PER_POINT} cubes on a tile absorb 1 point of damage, so a tile takes ${SHIELD_ENERGY_PER_POINT} cubes or ${2 * SHIELD_ENERGY_PER_POINT} and never an odd one; every point absorbed is ${SHIELD_HEAT_PER_POINT} heat to YOU. POWERED SHIELDS RUN HOT: each adds its cubes to your heat at EVERY check, absorbing or not. A tile that did absorb has spent its cubes back to the reactor and is dark, so it costs nothing that turn. Lasers ignore shields.
-- Weapons: railgun ${dmg("railgun")} dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser ${dmg("laser")} dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack ${dmg("ballistic_rack")} dmg, +-1 ring/+-1 sector or same ring 1 sector; intercepts missiles on 2+. Missiles ${dmg("missiles")} dmg at ANY ship in your well, any distance, any facing: ${MISSILE.maxAmmo} aboard, each flies ${MISSILE.fuelPerTurn} steps a turn (a step is one ring or one sector) for ${MISSILE.maxMoves} turns, then is gone.
+- Weapons: railgun ${dmg("railgun")} dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser ${dmg("laser")} dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack ${dmg("ballistic_rack")} dmg, +-1 ring/+-1 sector or same ring 1 sector; while powered it rolls at EVERY missile that reaches you and destroys it on 2+, and the whole turn of rolling is ONE use of the rack. Missiles ${dmg("missiles")} dmg at ANY ship in your well, any distance, any facing: ${MISSILE.maxAmmo} aboard, each flies ${MISSILE.fuelPerTurn} steps a turn (a step is one ring or one sector) for ${MISSILE.maxMoves} turns, then is gone. One action launches AS MANY as you like at ONE ship for ONE use of the tile, so the magazine is the limit, not the heat.
 - POINT BLANK: a ship in YOUR OWN sector (same ring, same sector) is in range of every weapon you carry, whatever its arc.
 - THE FIRST ROUND REACHES NOBODY: no weapon fires and nobody scans. Deploy on Black Hole ring 3 or 4, at least three sectors from every placed ship; if no sector qualifies, the farthest one.
-- Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat. Cubes on every slot are public even while the tile is face-down, so name a loaded slot. (A tile that just absorbed has spent its cubes, so breaking it dumps little — but it is gone until they dock.)
-- Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name — that means no move but a plain coast, no scoop, no shot, no scan and no shields powered. It is the only way back for a ship whose engines or thrusters were shot out, because every station needs a jump to reach.
-- Docking (end your turn on a station's sector, planet ring 2): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
-- Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the chit, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or a data chit and it is yours, then sell the loot at ANY station — a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and it is pumped in automatically: hand in ${TANKER_FUEL}, the card is done.
+- Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat. Cubes on every slot are public even while the tile is face-down, so name a loaded slot. (A tile that just absorbed has spent its cubes, so breaking it dumps little, but it is gone until they dock.)
+- Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name: that means no move but a plain coast, no scoop, no shot, no scan and no shields powered. It is the only way back for a ship whose engines or thrusters were shot out, because every station needs a jump to reach.
+- Docking (end your turn on a station's sector, planet ring 2): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it: a coast does not drift, and the station carries you when it advances. Burn to cast off.
+- Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the chit, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or a data chit and it is yours, then sell the loot at ANY station: a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and it is pumped in automatically: hand in ${TANKER_FUEL}, the card is done.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
-- Destroyed: you drop your cargo and lose one turn — on your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. Nobody can fire at, missile or scan it until your following turn, when you act normally.`;
+- Destroyed: you drop your cargo and lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. Nobody can fire at, missile or scan it until your following turn, when you act normally.`;
 }
 
 /** What each chit-paying secondary card still asks of you. */
@@ -75,24 +75,24 @@ const SECONDARY_HOW: Record<SecondaryMissionType, string> = {
 
 function missionLine(m: Mission, name: (id: string) => string): string {
   const head = describeMission(m, name);
-  if (m.isCompleted) return `${head} — DONE`;
+  if (m.isCompleted) return `${head} · DONE`;
   switch (m.type) {
     case "deliver_cargo":
-      return `${head} — load the crate at ${getWellName(m.pickupPlanetId as never)}'s station, deliver at ${getWellName(m.deliveryPlanetId as never)}'s`;
+      return `${head} · load the crate at ${getWellName(m.pickupPlanetId as never)}'s station, deliver at ${getWellName(m.deliveryPlanetId as never)}'s`;
     case "intercept_transmission":
-      return `${head} — ${
+      return `${head} · ${
         m.scanAcquired
           ? `data aboard: file it at ${getWellName(m.deliveryPlanetId as never)}'s station`
           : `scan them first (same ring, within 3 sectors, sensors powered), then file at ${getWellName(m.deliveryPlanetId as never)}'s station`
       }`;
     case "survey":
-      return `${head} — ${m.acquired ? "chit aboard: dock at any station" : SECONDARY_HOW[m.type]}`;
+      return `${head} · ${m.acquired ? "chit aboard: dock at any station" : SECONDARY_HOW[m.type]}`;
     case "piracy":
-      return `${head} — end a turn in the sector of a ship carrying a crate or a chit (hold empty, neither of you moored), then sell the loot at ANY station`;
+      return `${head} · end a turn in the sector of a ship carrying a crate or a chit (hold empty, neither of you moored), then sell the loot at ANY station`;
     case "tanker":
-      return `${head} — arrive at any station with ${TANKER_FUEL}+ fuel and it is pumped in`;
+      return `${head} · arrive at any station with ${TANKER_FUEL}+ fuel and it is pumped in`;
     case "destroy_ship":
-      return `${head} — worth 2 points`;
+      return `${head} · worth 2 points`;
   }
 }
 
@@ -197,7 +197,7 @@ export function describeViewForAgent(
     out.push("", "LEGAL THIS TURN:");
     out.push(
       o.moored
-        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off. You docked on arrival — holding the berth repairs nothing more${o.scoopGain ? `, though the scoop would still gain ${o.scoopGain} fuel for 3 cubes` : ""}.`
+        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off. You docked on arrival: holding the berth repairs nothing more${o.scoopGain ? `, though the scoop would still gain ${o.scoopGain} fuel for 3 cubes` : ""}.`
         : `  Drift: coast moves you ${o.velocity} sectors forward${o.scoopGain ? ` (scoop would gain ${o.scoopGain} fuel for 3 cubes)` : ""}.`
     );
     out.push(

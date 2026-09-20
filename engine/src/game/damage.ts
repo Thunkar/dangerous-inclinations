@@ -78,7 +78,7 @@ export function resolveAttack(
   const events: EventDraft[] = [];
   let ship = target;
 
-  // Shields absorb first, tile by tile in slot order — except laser damage,
+  // Shields absorb first, tile by tile in slot order, except laser damage,
   // which goes straight to the hull.
   let remainingDamage = damage;
   let absorbed = 0;
@@ -114,9 +114,9 @@ export function resolveAttack(
   // A critical breaks the slot it named whether or not the shot reached the
   // hull. It used to need `toHull > 0`, which meant shields that held ate the
   // critical aimed at it: the fattest, most public slot on the loadout was also
-  // the one best protected from being named. Absorbing first still blunts it —
-  // the tile that soaked the shot spent its cubes back to the reactor, so
-  // breaking it dumps little or no heat — but the tile is gone until a dock.
+  // the one best protected from being named. Absorbing first still blunts it
+  // (the tile that soaked the shot spent its cubes back to the reactor, so
+  // breaking it dumps little or no heat), but the tile is gone until a dock.
   let criticalEffect: WeaponHitResult["criticalEffect"];
   if (result === "critical") {
     const sub = findSubsystem(ship, criticalTarget);

@@ -7,7 +7,7 @@
  *
  * The `Rng` class is a thin handle; the canonical state lives on GameState.
  * Prefer the helper functions (rollD10, pickIndex, shuffle) which take a
- * GameState and mutate its rngState in place — matching the snapshot-mutate
+ * GameState and mutate its rngState in place, matching the snapshot-mutate
  * style the engine already uses.
  */
 
@@ -115,7 +115,7 @@ export function pickIndex<T>(state: GameState, arr: readonly T[]): number {
 
 /**
  * Allocate the next monotonic entity ID and bump GameState's counter.
- * Use for missile/cargo/scan IDs — anything that needs to be deterministic
+ * Use for missile/cargo/scan IDs: anything that needs to be deterministic
  * and unique across a single game.
  */
 export function nextEntityId(state: GameState, prefix: string): string {

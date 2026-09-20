@@ -5,7 +5,7 @@
  * of wedges you can click: the planning overlays and the missile tracks draw
  * the same five marks and they must read the same, so they are made once here.
  * Dashes drift, wedges breathe and hover lights move in `useFrame` against the
- * shared scene clock — React hears about a hover and nothing else.
+ * shared scene clock: React hears about a hover and nothing else.
  *
  * Nothing here knows what a mark means. The overlays decide that.
  */
@@ -69,8 +69,8 @@ const TOOLTIP_STYLE: React.CSSProperties = {
  *
  * The `style` is not decoration: drei lays the label out in a real div over the
  * canvas, and a tooltip standing between the pointer and the sector it names
- * swallows the click that would have picked it. Only `style` reaches that div —
- * `Html`'s own `pointerEvents` prop is read in transform mode alone — so the
+ * swallows the click that would have picked it. Only `style` reaches that div
+ * (`Html`'s own `pointerEvents` prop is read in transform mode alone) so the
  * rule goes there.
  */
 export function BoardTooltip({
@@ -184,7 +184,7 @@ export function SurfaceLine({
   )
 }
 
-/** A filled dot lying on the surface — the end of a track, an impact point. */
+/** A filled dot lying on the surface: the end of a track, an impact point. */
 export function SurfaceDot({
   position,
   color,
@@ -281,13 +281,13 @@ export interface WedgeFieldProps {
   /** Half-width of the band each wedge covers. */
   band: number
   color: string
-  /** Fill alpha at rest — the SVG board's `fill-opacity`. */
+  /** Fill alpha at rest: the SVG board's `fill-opacity`. */
   fillOpacity: number
   /** Edge alpha at rest; zero draws no edge. */
   edgeOpacity?: number
   /**
    * When given, both alphas are multiplied by a breath running between these
-   * two over 2.6 s — the SVG board animates the whole element's opacity, and a
+   * two over 2.6 s: the SVG board animates the whole element's opacity, and a
    * sector you are being asked to click has to be asking. */
   breathe?: readonly [number, number]
   /** The wedge under the pointer, drawn at full strength. */

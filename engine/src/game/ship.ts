@@ -12,7 +12,7 @@ import {
   REACTOR_CAPACITY,
   STARTING_HIT_POINTS,
 } from "../models/game.ts";
-import type { Subsystem, SubsystemId, SubsystemType } from "../models/subsystems.ts";
+import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
 import { SUBSYSTEM_CONFIGS, getSubsystemConfig, getMissileStats } from "../models/subsystems.ts";
 import type { EventDraft, RevealReason } from "../models/events.ts";
 import { createSubsystemsFromLoadout, calculateShipStatsFromLoadout } from "./loadout.ts";
@@ -45,14 +45,6 @@ export function isDestroyed(ship: ShipState): boolean {
 
 export function findSubsystem(ship: ShipState, id: SubsystemId): Subsystem | undefined {
   return ship.subsystems.find((s) => s.id === id);
-}
-
-export function getSubsystemsOfType(ship: ShipState, type: SubsystemType): Subsystem[] {
-  return ship.subsystems.filter((s) => s.type === type);
-}
-
-export function hasSubsystemType(ship: ShipState, type: SubsystemType): boolean {
-  return ship.subsystems.some((s) => s.type === type);
 }
 
 export function updateSubsystem(
@@ -248,11 +240,6 @@ export function resetSubsystemUsage(ship: ShipState): ShipState {
     ...ship,
     subsystems: ship.subsystems.map((s) => (s.usedThisTurn ? { ...s, usedThisTurn: false } : s)),
   };
-}
-
-/** Set of tile ids that are face-up on this ship. */
-export function revealedSubsystemIds(ship: ShipState): SubsystemId[] {
-  return ship.subsystems.filter((s) => s.isRevealed).map((s) => s.id);
 }
 
 // ---------------------------------------------------------------------------

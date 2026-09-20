@@ -3,19 +3,19 @@
  *
  * `geometry.ts` stays the single source of every coordinate: this module only
  * lifts its flat points into world space and adds the third axis. The mapping
- * is deliberately boring — board `(x, y)` becomes world `(x, elevation, y)`
- * with Y up — so that seen from straight above the 3D board IS the 2D board:
+ * is deliberately boring (board `(x, y)` becomes world `(x, elevation, y)`
+ * with Y up) so that seen from straight above the 3D board IS the 2D board:
  * sector 0 of the black hole points away from the default camera and sectors
  * increase clockwise, exactly as they are printed.
  *
  * The one liberty taken is elevation. Each ring sits on its own terrace and the
  * surface ramps down between them, so a gravity well is a flight of steps to
  * the body at the bottom: the black hole falls 125 units from its rim to its
- * floor — one body radius — and a planet only dimples by 52. Every step inward
+ * floor (one body radius) and a planet only dimples by 52. Every step inward
  * is larger than the one outside it, which is the ring-velocity rule drawn as a
- * slope. The terraces are flat on purpose — a ribbon, its ticks and its 24
+ * slope. The terraces are flat on purpose (a ribbon, its ticks and its 24
  * numbers all lie in one plane, so they read at the Table camera instead of
- * going edge-on — and no drop is steep enough to hide the terrace below it from
+ * going edge-on) and no drop is steep enough to hide the terrace below it from
  * a camera 62° above the plane. It is a display choice and nothing else reads it
  * as a rule; `FLAT_BOARD` turns it off and every well becomes coplanar again.
  *
@@ -53,17 +53,11 @@ export const BOARD_SPAN = Math.max(BOARD_BOUNDS.width, BOARD_BOUNDS.height)
  * lands smaller on screen when the board opens out. Type, ticks and the
  * terraces that carry them are therefore written as the number the designer
  * settled on times this scale: they land on screen at the size they were tuned
- * to, and only the tokens — which keep their board-unit size on purpose — come
+ * to, and only the tokens, which keep their board-unit size on purpose, come
  * out smaller against a roomier board. `geometry.ts` says why it is measured
  * against the framing rather than against the board.
  */
 export { PRINT_SCALE } from '../geometry'
-
-/** Centre of the drawn board (the artwork is not centred on the black hole). */
-export const BOARD_CENTER: Point = {
-  x: BOARD_BOUNDS.x + BOARD_BOUNDS.width / 2,
-  y: BOARD_BOUNDS.y + BOARD_BOUNDS.height / 2,
-}
 
 /** Near/far chosen for a board this size: close enough to hug one well, far enough for the stars. */
 export const CAMERA_NEAR = 5
@@ -103,8 +97,6 @@ export const LAYER = {
   effect: 13,
 } as const
 
-export type BoardLayer = (typeof LAYER)[keyof typeof LAYER]
-
 /**
  * How high above its terrace the tallest thing on the board stands: a hull, a
  * lane badge, a float. The camera frames this much headroom and no more.
@@ -116,21 +108,21 @@ export const BOARD_RELIEF = 42
  *
  * The fall across the innermost gap is `ringDrop()` and every gap outward of it
  * is `DROP_FALLOFF` times shallower, so the steps accelerate inward the way the
- * ring velocities do. A terrace reaches `TERRACE_INNER` inside its ring — far
- * enough to carry the ticks and the numbers, so both scale with the type — and
+ * ring velocities do. A terrace reaches `TERRACE_INNER` inside its ring (far
+ * enough to carry the ticks and the numbers, so both scale with the type) and
  * `TERRACE_OUTER` outside it; what is left of the gap is the ramp.
  *
  * How deep the funnel may be is not a matter of taste but of occlusion: seen
  * from the Table camera's 62°, a ramp of length L can fall about `OCCLUSION`
  * times L before its near lip starts eating the terrace inside it, and a number
  * you cannot see is a rule you cannot play. So the drop is solved from the ramp
- * rather than tuned against it, and it sits exactly at that limit — deeper reads
+ * rather than tuned against it, and it sits exactly at that limit: deeper reads
  * as more of a funnel and costs the inner rings' near side.
  *
  * Occlusion is not the only limit, though, and `MAX_FALL_SHARE` is the other.
  * Opening the black hole's gaps from 56.5 units to 80 widened every ramp from
  * 28.1 units to 51.7 and so raised the occlusion ceiling from a 121-unit fall to
- * a 223-unit one — which the well is not allowed to take, because depth is not
+ * a 223-unit one, which the well is not allowed to take, because depth is not
  * free (see `MAX_FALL_SHARE`).
  */
 const OCCLUSION = 1.27
@@ -150,7 +142,7 @@ const PLANET_DEPTH_SCALE = 0.42
  * is half of ring 1.
  *
  * So a well falls by the lesser of what occlusion allows and half of its own
- * ring 1 — which for the black hole is exactly one body radius, and exactly the
+ * ring 1, which for the black hole is exactly one body radius, and exactly the
  * fall it already had. Wider rings buy the funnel a longer, gentler ramp rather
  * than a deeper hole. Only the black hole is anywhere near this limit; a planet
  * dimples by a third of what it would allow.
@@ -287,7 +279,7 @@ export function funnelSampleRadii(wellId: GravityWellId, outerRadius: number): n
 
 /**
  * The board's monospace face, measured. A digit stands 0.688 em tall, and the
- * ink of the widest sector number — two digits — spans 1.1 em across, rather
+ * ink of the widest sector number (two digits) spans 1.1 em across, rather
  * less than the 1.2 em their advances take, because a digit carries side
  * bearings. It is the ink that has to fit between one sector and the next.
  */
@@ -300,7 +292,7 @@ const WIDEST_INK = 1.1
  *
  * `LABEL_FILL` used to bind on the innermost ring of each well, which is what
  * kept the type honest; `LABEL_MAX` binds everywhere else. It has come down
- * twice — 26, then 23, now 19 — and at 19 every ring on the board is on the cap
+ * twice (26, then 23, now 19) and at 19 every ring on the board is on the cap
  * and none is short of arc, so all fourteen print at one size and the fill is a
  * backstop rather than a rule. A number is now a third of the ink it was two
  * passes ago: the board is a map, and a map's type sits under its geography.
@@ -329,7 +321,7 @@ export interface SectorLabelBand {
 }
 
 /**
- * Where a ring's numbers sit and how big they are — the SVG board's rule, in
+ * Where a ring's numbers sit and how big they are: the SVG board's rule, in
  * world units: a number is never wider than its share of the arc it names, so
  * an inner ring simply prints smaller rather than dropping any of its 24.
  * `Wells` reads it too, so a well's name can be printed inside the innermost
@@ -358,11 +350,6 @@ export function toWorld(point: Point, elevation = 0): Vector3 {
 /** World point of a game position, lifted off the surface by a layer offset. */
 export function positionWorld(position: Position, layer: number = LAYER.token): Vector3 {
   return toWorld(positionPoint(position), elevationAt(position) + layer)
-}
-
-/** World point of a well's centre, at the bottom of its funnel. */
-export function wellCenterWorld(wellId: GravityWellId, layer = 0): Vector3 {
-  return toWorld(wellCenter(wellId), surfaceElevation(wellId, 0) + layer)
 }
 
 /**
@@ -411,12 +398,6 @@ export function interpolateWorld(
   const point = interpolatePositions(from, to, t)
   const elevation = elevationAt(from) + (elevationAt(to) - elevationAt(from)) * t
   return out.set(point.x, elevation + layer, point.y)
-}
-
-/** `count` points along that arc, ends included — for ribbons and dashed paths. */
-export function arcSamples(from: Position, to: Position, count: number, layer = 0): Vector3[] {
-  const n = Math.max(2, Math.floor(count))
-  return Array.from({ length: n }, (_, i) => interpolateWorld(from, to, i / (n - 1), layer))
 }
 
 /**

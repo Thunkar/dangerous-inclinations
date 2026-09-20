@@ -4,7 +4,7 @@
  *
  * Each track shows three things: where you are (solid), where this turn leaves
  * you (ghost), and the worst a rival could make of it (hatched). Heat carries
- * between turns, so its divider marks the dissipation — left of it goes, right
+ * between turns, so its divider marks the dissipation: left of it goes, right
  * of it stays. Without a plan (a replay, someone else's turn) the ghosts
  * disappear.
  */
@@ -71,7 +71,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
   /**
    * Worst case on top of that: every powered shield spends its cubes and every
    * point absorbed becomes SHIELD_HEAT_PER_POINT heat. A tile buys one point
-   * per SHIELD_ENERGY_PER_POINT cubes, so the cubes are not the damage — and a
+   * per SHIELD_ENERGY_PER_POINT cubes, so the cubes are not the damage, and a
    * tile that absorbs goes dark, so it stops charging its standing cost, which
    * is why only the difference is hatched.
    */
@@ -117,7 +117,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
 
   /**
    * A destroyed ship is off the board and one just back from Home cannot be
-   * touched, and neither fact is visible anywhere else on your own column — an
+   * touched, and neither fact is visible anywhere else on your own column: an
    * opponent's card carries the badge but your own tracks did not, so a hull
    * that changed while your token was missing looked like it changed for no
    * reason.
@@ -370,7 +370,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         {/*
           One line per launcher, named by its slot: two missiles tiles are two
           separate magazines and a single total cannot say which one is empty.
-          The rounds are drawn rather than counted — four of them read at a
+          The rounds are drawn rather than counted: four of them read at a
           glance, and a spent one leaves its outline behind so the magazine's
           size stays visible.
         */}

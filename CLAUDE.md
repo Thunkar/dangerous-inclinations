@@ -9,7 +9,7 @@ with simple arithmetic, and explained in one sentence?
 
 `RULES.md` is the authoritative player-facing manual and the only statement of
 what the rules are. **Why** a rule is what it is lives in the commit that
-changed it — `git log` is the design journal, and unlike a design document it
+changed it. `git log` is the design journal, and unlike a design document it
 cannot go stale. `docs/protocol.md` defines the client/server messages;
 `docs/benchmark.md` describes how the rules as they stand play. What is open
 is the list at the end of this file; there is no handoff document, because a
@@ -55,13 +55,13 @@ Scanning peeks at one tile privately. Completed missions are face-up. Reaching
 the table's points (3; the value rides on `GameState.pointsToWin` and the
 view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
 played out, then highest score wins (hull, then fuel, break ties). Six card types in two kinds: primaries
-worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy —
-seize an undocked rival's crate or data chit, loot that fills the hold and
-sells anywhere, their card back to undone — and tanker — arrive at a station
-with eight fuel and pump it in). Two physical decks for the table: rival cards count seats
+worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy
+(seize an undocked rival's crate or data chit, loot that fills the hold and
+sells anywhere, their card back to undone) and tanker (arrive at a station
+with eight fuel and pump it in)). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
 is hunting whom; setup removes offsets the table is too small for. Deal 3
-primaries and keep 1; take one of each secondary and keep 2 — five points
+primaries and keep 1; take one of each secondary and keep 2. Five points
 held and three win, so the primary plus either secondary is the win and the
 other secondary is the spare. The secondary offer is the same for everyone
 and needs no shuffle, so those three have to be worth roughly the same or the
@@ -69,7 +69,7 @@ choice is fake.
 New mission types are proposed to the designer, never added unasked.
 
 Missiles fire in **salvos**: one action launches any number of a tile's missiles
-at one ship, and that is **one use of the tile** — the 4-round magazine, refilled
+at one ship, and that is **one use of the tile**: the 4-round magazine, refilled
 at a station, is what limits missiles, not heat. A powered ballistic rack rolls
 at **every** missile that reaches it, also for one use of the rack, and the two
 halves stay together: a rack that answers a whole salvo is what keeps a salvo
@@ -79,8 +79,8 @@ Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate
 one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
 arrival only) → heat
 check (excess over dissipation = hull damage, reset) → missions → pass.
-Stations advance at round end. The first round reaches nobody — no weapon
-fires and nobody scans — because everyone deploys around one hole, so the opening
+Stations advance at round end. The first round reaches nobody (no weapon
+fires and nobody scans) because everyone deploys around one hole, so the opening
 round is for getting off the line.
 
 ## Key files
@@ -146,7 +146,7 @@ autopilot: an illegal intent is refused before submission and the agent gets
 the engine's reasons, the legal options and the full rules back until its
 turn is legal.
 
-Benchmark: `yarn bench` (engine) writes `docs/benchmark.md` — one page describing
+Benchmark: `yarn bench` (engine) writes `docs/benchmark.md`, one page describing
 how the rules as they stand play at 3/4/5/6 seats: length in rounds and in table
 time, kills, the hulls bots chose and their win rates, and every card's pick rate
 and payoff. It stamps the rules it ran under at the top, so two versions of the
@@ -157,9 +157,9 @@ never fails; the gate is below.
 Balance regression: `yarn balance` (engine) answers the designer's four
 questions in six sections, every forced row at 3 players on seat 1: **natural**
 play at 3/2/4; **baselines** (seat 1 dealt Destroy, Deliver or Intercept with
-its own loadout — the bar every row with that card is read against); **logical**
+its own loadout: the bar every row with that card is read against); **logical**
 (the six presets with the card their role implies); **illogical** (a preset
-with a card that fights it — sensor bow hauling, compressor hunting); **off-book**
+with a card that fights it: sensor bow hauling, compressor hunting); **off-book**
 (builds no preset has, with the card they are built for: sensor bow with two
 launchers, a missile boat, a rack hunter, a hauler with point defence); and
 **extreme** (nineteen wild hulls with a random legal hand, against the own-hand
@@ -174,17 +174,17 @@ row ids, `--output=dir` to keep the table. A forced primary is *dealt* to the
 seat, not filtered for, so a Destroy row is a Destroy row on every seed.
 
 Rule experiments: the rules are constants in `engine/src/models/`, not knobs on
-the state — a game is played under RULES.md and nothing else. A proposed change
+the state. A game is played under RULES.md and nothing else. A proposed change
 is measured before it is adopted with the simulator's experiment-only override
 channels, which mutate the configuration of the process running the batch:
 `--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
 any tile), `--weapons=laser.damage=3` (firing stats),
-`--rules=missionsToWin=4` (the table's points to win — a real game option,
+`--rules=missionsToWin=4` (the table's points to win, a real game option,
 passed to `createGame`; `yarn bench --rules=` takes it too and stamps it on
 the page), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'
 parameters), `--loadouts=` (the bots' hull templates), `--seats=` (a hull
 forced on one seat) and `--hands=bot-1=destroy` (the primary a seat is dealt
-and keeps — the bots price one road to the win and take it every time, so a
+and keeps: the bots price one road to the win and take it every time, so a
 plan they never choose is only measurable dealt). The summary prints turn
 behaviour (coast/burn/jump/firing shares, shield cubes, heat at check, damage
 soaked). A change that survives its experiment moves into the models, and a
@@ -212,7 +212,7 @@ Neither renderer computes anything rule-shaped: ranges, missile paths and
 positions are all in the model, asked of the engine once, so the two boards
 cannot drift.
 
-Which one draws is `BoardModeContext` — remembered per player, forced to the
+Which one draws is `BoardModeContext`, remembered per player, forced to the
 flat board without WebGL 2, and overridable per session with `?board=2d|3d`.
 Time is not in the model: a sliding token carries its `motion` and an effect
 its `start`/`duration`, and each renderer reads its own clock (`useBoardClock`
@@ -222,7 +222,7 @@ re-render per frame.
 `ui/dev-three.html` mounts the 3D board on a fixture with no server
 (`board/three/dev/fixtureModel.ts`), which is how board work is checked.
 
-## Settled — do not re-propose without measuring
+## Settled: do not re-propose without measuring
 
 Tried and rejected, so a change that reinvents one of these needs new evidence,
 not an argument:
@@ -242,7 +242,7 @@ not an argument:
   hull spread and lengthens games, +3 pushes the wall back up. +2 stays.
 - **A bigger shield tile** (`shields.maxEnergy=6`) and **shields in the forward
   slot**. The first makes the game quieter (destructions 3.2 → 2.7), the second
-  changes nothing — bots never spend the bow on a shield.
+  changes nothing: bots never spend the bow on a shield.
 - **Making the engines and thrusters critical-proof** like the scoop, to stop a
   broken one stranding a ship. Solved instead by the cold repair (RULES §Energy
   and Heat), which keeps them as targets: measured on identical seeds, it fires
@@ -253,8 +253,8 @@ not an argument:
 - **Two decks dealing a forced hand shape**, to stop the deal being a lottery.
   The shape is not the lottery: 94% of hands at three seats and 98% at six can
   already take three primaries, so every seat is offered the same plan. What
-  differs is *which* primaries — Deliver is 32–46% of the deck and completes
-  17% of the time against Destroy's 56% — so a forced shape would fix the part
+  differs is *which* primaries (Deliver is 32–46% of the deck and completes
+  17% of the time against Destroy's 56%), so a forced shape would fix the part
   that works and leave the part that does not.
 - **A rack that intercepts once a turn.** Three launchers firing one missile
   each were already a salvo it could not answer: a sensor bow with missiles×3
@@ -268,7 +268,7 @@ not an argument:
   weaponless hull: with the jump free every compressor hull won 40–50% at
   three seats against 32%, and no hunter preset could take the compressor with
   two racks in a duel (prey wins 59–89%). A compressor needing 4 cubes instead
-  missed its target — the gunboats did not move (racks 63% → 59%) and the
+  missed its target: the gunboats did not move (racks 63% → 59%) and the
   cargo hauler paid (34% → 26%), because a fighter jumps rarely and a Deliver
   ship jumps every few turns and needs its shields on arrival. A jump at 1
   fuel, measured on the whole matrix at 400 games a row, cleared every
@@ -288,7 +288,7 @@ not an argument:
   count; three points with the same hand runs 27–31 and every game finishes.
   Keeping all three secondaries (any three points) let Deliver holders win 44%
   while completing Deliver 21% of the time, so the primary stays mandatory.
-- **An "efficiency" secondary — end a turn at 10 heat with an empty tank.**
+- **An "efficiency" secondary: end a turn at 10 heat with an empty tank.**
   84% of seats do both in one turn incidentally by round 11 (24% of turns end
   at exactly 10 heat, 20% dry). A free point as stated; it needs a cost.
 - **A missile-carrying hunter preset.** In a duel against the compressor with
@@ -300,24 +300,24 @@ not an argument:
 - **Two lost turns on death.** A respawned ship sat at a known sector with no
   cubes allocated for two rounds: a free kill on repeat, with no counter-play.
   One lost turn now, and untouchable (no shot, missile or scan) until the ship
-  acts again. Not a measurement — a table would have found it in an evening.
+  acts again. Not a measurement: a table would have found it in an evening.
 - **Board and Garbage Disposal.** Garbage was a worse Survey by construction
   (a station stop, a full hold, then the same dive: kept 47% against 76%,
   17 completed per 100 kept) and Board scored on the opening turn at a
   crowded table. Replaced by Piracy and Tanker (RULES §Missions). Roads not
-  taken on the way: **Freight** (a crate from any station to another planet's
-  — Deliver with the route left open, too close to Deliver); **blocking
+  taken on the way: **Freight** (a crate from any station to a station of another planet,
+  Deliver with the route left open, too close to Deliver); **blocking
   cards in the opening rounds** (accounting the designer will not have);
   **Tanker at six fuel** (once the bots held fuel back for the run in it
-  read 47 per 100 kept and sat in three winners' hands out of four — the
+  read 47 per 100 kept and sat in three winners' hands out of four: the
   free point the "efficiency" secondary was cut for); **Piracy on crates
   only** (one carrier on the board at a time, 9 per 100 kept). A chit is
   cargo now, the victim's card goes back to undone, and the card reads 22–31
   per 100.
 - **A same-ring deployment gap of four.** Measured against the three-sector
-  rule: the round-two Intercept scan stays at 40% of kept either way — the
+  rule: the round-two Intercept scan stays at 40% of kept either way (the
   interceptor moves into range on its first legal turn, it is not standing
-  in it — so the gap stays at three.
+  in it), so the gap stays at three.
 - **Four points as a table option.** Offered in the lobby for a day: 39–51
   rounds by seat count against three points' 27, and the designer pulled it
   as too long. The value still rides on the state and `--rules=missionsToWin=4`
@@ -347,7 +347,7 @@ Known open problems:
   Tanker is a fight-free road to three for the hull that arrives with fuel
   (the compressor, below). Dealt Intercept 32% (26 before): the hunting hands
   deploy on ring 3 with their targets and 40% of scans come on the first
-  legal turn — the interceptor moving into range, which the designer calls
+  legal turn: the interceptor moving into range, which the designer calls
   play. In natural three-seat games the sensor bow wins 24% against the
   railgun's 34 and the compressor's 38: a scan is a chit and a chit is loot,
   three seizures in four are chits, and the benchmark has Intercept and
@@ -359,7 +359,7 @@ Known open problems:
   by four). Split by hand, the weaponless runner wins 46% and 85% of its wins
   are Deliver + Tanker: a compressor pays one fuel for a lane, so it is the
   hull that arrives at a station holding eight, and the fuel card is its
-  free point — under the old secondaries the same hull read 33%. Every
+  free point. Under the old secondaries the same hull read 33%. Every
   answer measured on the same seeds trades the runner's excess for
   something worse: a 2-fuel jump takes the runner only to 42% and dealt
   Deliver 41% → 32%; "a fuel compressor cannot be a Tanker" (the deal refuses
@@ -373,8 +373,8 @@ Known open problems:
 - **The secondary offer is still lopsided, but the cards are level.**
   Everyone is offered all three; Piracy is the one left out now (kept 47%
   against 76–77% for Survey and Tanker). Completed per 100 kept in the
-  benchmark: Survey 23, Piracy 22, Tanker 26 — the same card within noise,
-  which the deal wanted. Tanker is in 28% of winners' cards, Survey 15%,
+  benchmark: Survey 23, Piracy 22, Tanker 26 (the same card within noise,
+  which the deal wanted). Tanker is in 28% of winners' cards, Survey 15%,
   Piracy 11%. Half of all Survey dives now complete in round one, because
   ring 3 is one turn from ring 1; the chit is not the point, the filing is,
   and a round-one chit is round-one loot for a pirate from ring 3.
@@ -382,7 +382,7 @@ Known open problems:
   aggressive hunter, so the aggressive hunter's rack is the only rack in
   natural play, and no hull a bot can reach carries a launcher (the aggressive
   hauler's missiles want a Destroy card a hauler never holds), so no missile
-  is fired in natural play at all — the salvo rule is exercised only by
+  is fired in natural play at all. The salvo rule is exercised only by
   forced hulls; when the hunter briefly carried two lasers instead, missiles
   went unanswered and the compressor with two launchers reached 52%. The tanky
   hunter (rack + shields×2) is `weak` at 22% and the poorest predator among
@@ -399,14 +399,14 @@ Known open problems:
   scorer (see the note on `selectBotMissions`).
 - **Carrying cargo does not draw fire**, though the table says it does. Over 200
   games on each of four hulls, every one took *less* hull damage per turn while
-  holding a crate than while empty. Kills still fall on carriers — 72% of
-  destroyed ships were carrying something, nearly all of it data chits — but
+  holding a crate than while empty. Kills still fall on carriers (72% of
+  destroyed ships were carrying something, nearly all of it data chits), but
   that is the hunt for the leader, not the crate.
 - **Two players is thin**, and seat 1 wins 50% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
 - **Length**: 27 / 27 / 27 / 33 rounds at 3 / 4 / 5 / 6 seats under three
   points, 1h21 to 3h18 at a minute a turn, every game decided, five cards
-  completed a game at three seats; kills 3.3 / 6.5 / 10.8 / 17.8 — nearly
+  completed a game at three seats; kills 3.3 / 6.5 / 10.8 / 17.8, nearly
   double the old cards' 1.9 / 3.9 / 7.7 / 11.0, because a chit aboard is a
   reason to fight. The bots' fuel husbandry decides the length: with the
   Tanker holder's reserve unlimited games ran 19 rounds, with none 39; the

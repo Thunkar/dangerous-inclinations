@@ -1,8 +1,8 @@
 /**
  * Telling a click from a camera drag.
  *
- * The 2D board already makes this distinction — a press that travels more than
- * four pixels is a pan, not a click — and the 3D board must make it the same
+ * The 2D board already makes this distinction (a press that travels more than
+ * four pixels is a pan, not a click) and the 3D board must make it the same
  * way, or every attempt to orbit would fire at whatever ship the pointer
  * happens to land on. The camera controls handle the drag itself; this hook
  * only reports whether the press that is ending moved far enough to be one.

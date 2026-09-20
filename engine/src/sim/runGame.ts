@@ -17,7 +17,7 @@ import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
 import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
-import { type RuleOverrides } from "./ruleOverrides.ts";
+import type { RuleOverrides } from "./ruleOverrides.ts";
 import { applyBotOverrides, type BotOverrides } from "./botOverrides.ts";
 import {
   applyLoadoutOverrides,
@@ -49,7 +49,7 @@ export interface GameConfig {
   tiebreak?: boolean;
   /** Experiment-only tile overrides: any field of any tile (see sim/tileOverrides.ts). */
   tiles?: TileOverrides;
-  /** Experiment-only rule overrides: points to win, hand shape, jump fuel (see sim/ruleOverrides.ts). */
+  /** Experiment-only rule overrides: points to win (see sim/ruleOverrides.ts). */
   rules?: RuleOverrides;
   /** Experiment-only weapon stat overrides (see sim/weaponOverrides.ts). */
   weapons?: WeaponOverrides;
@@ -61,7 +61,7 @@ export interface GameConfig {
   seatLoadouts?: SeatLoadouts;
   /**
    * Experiment-only: the primary a seat runs. The bots pick among the plans
-   * they are offered, so a plan they never choose is only measurable dealt —
+   * they are offered, so a plan they never choose is only measurable dealt,
    * and dealt is what this is: a seat the shuffle did not serve has an offer
    * swapped for the card (see {@link dealForcedPrimaries}).
    */
@@ -130,14 +130,14 @@ export function botIds(count: number): string[] {
  * the card for it.
  *
  * A bot can only keep what the deal put in front of it, and the primary pile
- * does not offer every card to every seat — at three seats a hand is offered a
+ * does not offer every card to every seat: at three seats a hand is offered a
  * Destroy 45% of the time and an Intercept 47%, so *filtering* a forced plan
  * measured that plan in half the games and whatever else turned up in the rest.
  * So the plan is dealt: a seat whose three primary offers hold no card of the
  * forced type has its first primary offer replaced by a printed one that does,
  * drawn from {@link buildPrimaryDeck} with the game's own RNG so a seed still
  * replays exactly. Every other seat, and every seat the shuffle already
- * served, keeps the deal it was given — a seed that needs no swap plays the
+ * served, keeps the deal it was given: a seed that needs no swap plays the
  * same game it played before.
  *
  * This never reaches the server: nothing outside the simulator passes

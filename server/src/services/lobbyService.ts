@@ -254,7 +254,7 @@ export function leaveLobby(lobbyId: string, playerId: string): Promise<boolean> 
 
 /**
  * Host starts the game: the engine deals mission offers and the lobby moves to
- * the loadout phase. `GAME_STARTING` carries only the id — each client then
+ * the loadout phase. `GAME_STARTING` carries only the id: each client then
  * connects to the game room and receives its own view.
  */
 export function startGame(lobbyId: string, hostPlayerId: string): Promise<string | null> {

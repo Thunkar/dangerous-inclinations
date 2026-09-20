@@ -8,7 +8,7 @@
  *
  * `?board=svg` draws the same fixture with the flat renderer instead, which is
  * how the two boards are checked against each other: the same model, the same
- * marks, the same meanings. Dev only — Vite builds `index.html`, so neither
+ * marks, the same meanings. Dev only: Vite builds `index.html`, so neither
  * page reaches production.
  *
  * Query flags: `?picker=on` adds the destination picker over every sector,

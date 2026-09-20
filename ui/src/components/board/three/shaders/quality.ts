@@ -1,7 +1,7 @@
 /**
  * How much the shaders in this folder are allowed to cost.
  *
- * One number, decided once, early, by `scene/Environment.tsx` — which is the
+ * One number, decided once, early, by `scene/Environment.tsx`, which is the
  * only thing that measures and the only thing that may call `stepDown`. This
  * module is just where the answer is kept, because three different components
  * compile shaders against it (`BlackHole`, `Planet`, the star shells) and they

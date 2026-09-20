@@ -1,7 +1,7 @@
 /**
  * Your points, and the cards they will come from: the completed ones face up in
  * a row of tabs, the rest fanned as a hand you can point at and read. The hand
- * itself is `common/MissionHand.tsx` — deployment holds the same cards the same
+ * itself is `common/MissionHand.tsx`. Deployment holds the same cards the same
  * way.
  */
 import type { Player } from '@dangerous-inclinations/engine'

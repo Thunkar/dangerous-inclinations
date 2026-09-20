@@ -1,5 +1,5 @@
 /**
- * The cards behind your screen, held as a hand — at the table and at
+ * The cards behind your screen, held as a hand: at the table and at
  * deployment, where they are what the ring and sector are chosen for. They
  * overlap in a fan, each tilted a few degrees about a pivot below the table, so
  * the whole hand is one card tall however many you hold. Point at one (or tab
@@ -10,11 +10,11 @@
  * element under the pointer: the hand is cut into one vertical band per card,
  * at the edges of the resting fan, and the cards take no pointer events of
  * their own. A card that is already up therefore cannot cover the slice of the
- * card beside it — crossing into the next band lifts that card at once,
+ * card beside it: crossing into the next band lifts that card at once,
  * whatever is raised.
  *
  * They are yours alone: the table sees that you hold them, not what they say.
- * A completed card is the opposite — it is the scoreboard — so it leaves the
+ * A completed card is the opposite (it is the scoreboard) so it leaves the
  * hand and sits face up in the row of tabs above it. Deployment has none, so
  * there the row simply is not there.
  */
@@ -28,8 +28,8 @@ import { missionFamilyColor, missionPoints } from '../../utils/missions'
 
 /**
  * The fan: the total spread in degrees, about a pivot well below the cards, so
- * the tilt is what walks them apart. At three cards that is 43px of step —
- * about 40% of each card showing — and 219px of a 234px column.
+ * the tilt is what walks them apart. At three cards that is 43px of step
+ * (about 40% of each card showing) and 219px of a 234px column.
  */
 const SPREAD = 15
 const PIVOT_DEPTH = 2.6

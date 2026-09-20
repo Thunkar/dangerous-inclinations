@@ -1,6 +1,6 @@
 /**
  * Card art: one poster glyph per mission type. These are silhouettes, not
- * diagrams — filled polygons and a few heavy bars, cut with straight edges, the
+ * diagrams: filled polygons and a few heavy bars, cut with straight edges, the
  * way a stencil or a lino block cuts. A circle appears only where the game has
  * one: the black hole's disc.
  *
@@ -22,7 +22,7 @@ const SIGNAL_STEP = 7
 
 /**
  * The black hole's spin. One bar, 24 long and 5 thick, laid tangent to a circle
- * of radius 15 — four clear units off a disc of 11 — and slid 9 along its own
+ * of radius 15 (four clear units off a disc of 11) and slid 9 along its own
  * tangent; three turns of it at 120°. Every bar is the same distance from the
  * disc and the figure is rotationally symmetric: the spin is read from the
  * offset, not from bars at different radii.
@@ -68,7 +68,7 @@ const ART: Record<MissionType, ReactElement> = {
     </>
   ),
   // A dish on its mast, and somebody else's traffic coming into it. The cup is
-  // one trapezoid — 34 across the mouth, 18 across the back, 12 deep — turned
+  // one trapezoid (34 across the mouth, 18 across the back, 12 deep) turned
   // 30° so the mouth faces the signal; the three bars are the same length and
   // thickness, parallel to the mouth, and step off it by the same distance,
   // so the signal reads as one axis rather than three marks. Nothing touches
@@ -91,8 +91,8 @@ const ART: Record<MissionType, ReactElement> = {
       ))}
     </>
   ),
-  // The flag they fly: a skull cut with straight edges — chamfered crown,
-  // hexagonal sockets, a notched nose, four teeth — over crossed bones with
+  // The flag they fly: a skull cut with straight edges (chamfered crown,
+  // hexagonal sockets, a notched nose, four teeth) over crossed bones with
   // chisel ends. The bones are one bar turned ±18° about (32,50), so the two
   // are the same bone, and they clear the jaw by five units: at 24px the
   // sockets and the X are the whole read.

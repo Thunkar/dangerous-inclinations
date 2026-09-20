@@ -2,7 +2,7 @@ import { lazy, Suspense, useRef, useState } from 'react'
 import { Box, Button, CircularProgress } from '@mui/material'
 import { useBoardMode } from '../context/BoardModeContext'
 import { TABLE, FONT_MONO } from '../theme'
-import type { MountId, WorkshopConfig } from './config'
+import type { MountId, ShipConfig } from './config'
 import type { CameraView, ViewerHandle } from './Viewer'
 
 const Viewer = lazy(() => import('./Viewer').then(m => ({ default: m.Viewer })))
@@ -12,7 +12,7 @@ export function ShipStage({
   selected,
   onSelect,
 }: {
-  config: WorkshopConfig
+  config: ShipConfig
   selected: MountId
   onSelect: (id: MountId) => void
 }) {

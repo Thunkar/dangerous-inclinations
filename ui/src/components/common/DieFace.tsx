@@ -1,7 +1,7 @@
 /**
  * A d10, as rolled on the table. The face carries the number; the band under
  * it marks where the thresholds are, so the roll reads itself: 1 misses,
- * 2–9 hits, 10 is a critical — 8–10 when the attacker's sensor array is up.
+ * 2–9 hits, 10 is a critical (8–10 when the attacker's sensor array is up).
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import { FONT_MONO, TABLE } from '../../theme'

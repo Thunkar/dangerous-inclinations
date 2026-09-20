@@ -46,7 +46,3 @@ export function positionOf(ship: ShipState | Position): Position {
 export function samePosition(a: Position, b: Position): boolean {
   return a.wellId === b.wellId && a.ring === b.ring && a.sector === b.sector;
 }
-
-export function formatPosition(p: Position): string {
-  return `${p.wellId} R${p.ring} S${p.sector}`;
-}

@@ -13,6 +13,7 @@
  *   yarn seat try --as Codex --intent '{...}'     build + dry-run a turn: errors or the events it would cause
  *   yarn seat act --as Codex --intent '{...}'    build, dry-run, submit (an illegal turn is refused, nothing is sent)
  *   yarn seat loadout --as Codex --forward railgun --sides missiles,radiator,laser,shields --missions m1,m2,m3
+ *                                                 (the three are one primary and two different secondaries)
  *   yarn seat deploy --as Codex --sector 6 [--ring 3|4]   (ring 4 unless asked; no --sector prints the rule and the legal positions)
  *   yarn seat rules                               the full RULES.md
  *   yarn seat say --as Codex "text" / think "text" / chat
@@ -30,7 +31,7 @@
  * that driver. Turns go over the game WebSocket like a browser's; everything
  * else is REST. There is no autopilot: an illegal intent is refused before it
  * is sent and the agent gets the engine's reasons, the legal options and the
- * full rules back, and tries again until its turn is legal — but only while it
+ * full rules back, and tries again until its turn is legal, but only while it
  * is answering. A driver that times out or returns nothing is not being told
  * anything it can act on, so those attempts are counted and the seat stops
  * with a reason after `--attempts` of them.
@@ -342,12 +343,12 @@ function loadoutPrompt(view: GameView): string {
   return `LOADOUT PHASE. Keep 3 of your ${me.missionOffers.length} mission cards and build a hull: exactly 1 forward tile and exactly 4 side tiles, repeats allowed.
   forward slot: ${FORWARD_TILES.join(" | ")}
   side slots:   ${SIDE_TILES.join(" | ")}
-Nothing else fits, and a tile is never moved once the game starts — a station repairs, it never refits.
+Nothing else fits, and a tile is never moved once the game starts: a station repairs, it never refits.
 Your offers:
 ${offers}
 Loadouts that are known to fly (you are not limited to these):
 ${presetLines()}
-Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is 3 cards, so keep two 2-point cards, or one plus both 1-point cards.
+Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO DIFFERENT 1-point secondaries (Survey, Piracy, Tanker), which is five points held: your primary and either secondary wins, and the third card you are offered is the one you leave.
 Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "missionIds": ["id","id","id"], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","radiator"]}}`;
 }
 
@@ -394,7 +395,7 @@ type Driver = AgentInfo;
 const askTimeoutMs = Number(flag("ask-timeout") ?? 900) * 1000;
 const MAX_ATTEMPTS = Number(flag("attempts") ?? 8);
 
-/** The answer, or why there wasn't one — a timeout is not a bad answer. */
+/** The answer, or why there wasn't one: a timeout is not a bad answer. */
 interface Ask {
   answer: Record<string, unknown> | null;
   /** The model ran out of time, so there is nothing to tell it it got wrong. */
@@ -452,7 +453,7 @@ function askModel(prompt: string, drv: Driver, timeoutMs = askTimeoutMs): Ask {
     const timedOut = (run.error as Error & { code?: string }).code === "ETIMEDOUT";
     log(
       timedOut
-        ? `${drv.driver} did not answer within ${Math.round(timeoutMs / 1000)}s — raise it with --ask-timeout <seconds>, or give the seat a faster model`
+        ? `${drv.driver} did not answer within ${Math.round(timeoutMs / 1000)}s: raise it with --ask-timeout <seconds>, or give the seat a faster model`
         : `${drv.driver} failed to run: ${run.error.message}`
     );
     return { answer: null, timedOut };
@@ -599,7 +600,7 @@ async function driveLoadout(payload: ViewPayload, drv: Driver, quietThink: boole
     const rules = attempt >= 2 ? `\n\nTHE FULL RULES:\n${fullRules()}` : "";
     const prompt = `${agentRulesDigest()}${rules}\n\n${loadoutPrompt(view)}${
       error
-        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every tile must fit its slot — forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")} — and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids.`
+        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every tile must fit its slot (forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")}) and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids: one primary and two different secondaries.`
         : ""
     }`;
     const { answer, timedOut } = askModel(prompt, drv);
@@ -964,7 +965,7 @@ async function menu(): Promise<void> {
       const d = await lobbyDetail(LOBBY);
       lobby = d;
       console.log(
-        `\n${d.lobbyName} (${d.players.length}/${d.maxPlayers})${d.gameId ? ` — STARTED, game ${d.gameId}` : ""}`
+        `\n${d.lobbyName} (${d.players.length}/${d.maxPlayers})${d.gameId ? `: STARTED, game ${d.gameId}` : ""}`
       );
       for (const p of d.players)
         console.log(`  ${seatLabel(p, d)}${p.playerId === PLAYER ? "  ← you" : ""}`);

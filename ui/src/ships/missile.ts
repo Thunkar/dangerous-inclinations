@@ -6,8 +6,8 @@
  *
  * It used to be a glowing cone, which read as a spark rather than as ordnance.
  * This is a body you can name the parts of at close range and still a dart at
- * table range, because the two things that carry — the fins and the band
- * behind the nose — are the owner's colour and the nozzle is lit.
+ * table range, because the two things that carry (the fins and the band
+ * behind the nose) are the owner's colour and the nozzle is lit.
  *
  * **Built in board units, not concept units.** A corvette is modelled small and
  * the board scales it by four; a missile exists nowhere but the board, so it is
@@ -47,7 +47,7 @@ export interface MissileModel {
  * One missile, in the owner's colour.
  *
  * Plain three.js: the caller memoises it, mounts `root` with `<primitive>` and
- * calls `dispose()` when it unmounts. Nothing here animates — the wake and the
+ * calls `dispose()` when it unmounts. Nothing here animates: the wake and the
  * flicker belong to the board.
  */
 export function createMissile(color: string): MissileModel {
@@ -75,7 +75,7 @@ export function createMissile(color: string): MissileModel {
    * a cylinder five units across shows the camera its flanks, not its crown,
    * and there is no environment map out here, so the yard's steel at 0.75
    * metalness rendered the whole body black on the board. Steel stays where a
-   * frame would actually be bare — the shroud, the fin seats, the strapping.
+   * frame would actually be bare: the shroud, the fin seats, the strapping.
    */
   const paint = material(HULL_INK.paint, 0.2)
   const steel = material(HULL_INK.steel, 0.3)
@@ -140,7 +140,7 @@ export function createMissile(color: string): MissileModel {
   ])
 
   // Plating: a panel gap down each upper flank and a copper feed line down the
-  // lower one — the plumbing every other thing in this yard wears. Both are
+  // lower one: the plumbing every other thing in this yard wears. Both are
   // kept off the crown, because the crown is the face the table camera looks
   // at and a dark stripe straight down it swallowed the whole airframe.
   const spine = noseBase - nozzleFront

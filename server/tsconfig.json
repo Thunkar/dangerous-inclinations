@@ -7,7 +7,7 @@
     "types": ["node"],
     "skipLibCheck": true,
 
-    /* Node native TS — sources use .ts extensions, emit rewrites to .js */
+    /* Node native TS: sources use .ts extensions, emit rewrites to .js */
     "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,

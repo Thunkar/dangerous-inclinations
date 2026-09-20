@@ -14,16 +14,16 @@
  * are two ceilings, not one, and the hand-tuned multiples of the horizon this
  * file used to carry met them only by luck:
  *
- *  - **In plan** — the Top camera — the nearest ink of ring 1 sits at
+ *  - **In plan** (the Top camera) the nearest ink of ring 1 sits at
  *    `sectorLabelBand('blackhole', 1).inner`. Nothing with any alpha may cross
  *    it, in any direction.
- *  - **In elevation** — the Table camera, 62° above the plane — the black hole
+ *  - **In elevation** (the Table camera, 62° above the plane) the black hole
  *    is a solid ball and a tilted sheet floating above the floor of the pit,
  *    and both of them ride *up* the screen toward ring 1's far numbers. A point
  *    at height `y` above the ring-1 plane and plan distance `d` on the far side
  *    lands `d·sin P + y·cos P` up the screen, against a ceiling ring 1's own
  *    ink sets at `L·sin P`. So every unit of height costs 0.47 units of
- *    ceiling — and a tilted disc *has* to be lifted, or its low edge cuts the
+ *    ceiling, and a tilted disc *has* to be lifted, or its low edge cuts the
  *    floor of the pit. This is the ceiling that decides how big the horizon may
  *    be, and it is why there are no polar jets (see the treatments below).
  *
@@ -36,7 +36,7 @@
  *
  * There was a third and it was the tightest: `Wells` printed BLACK HOLE on the
  * floor of the pit, in the band between this module's `bodyExtent` and ring 1's
- * numbers, and reserving that lane cost the disc a fifth of its radius — for a
+ * numbers, and reserving that lane cost the disc a fifth of its radius, for a
  * label on the one body whose identity is never in doubt. The name is printed
  * below the plate now instead, where nothing competes for the room, and
  * `bodyExtent` is free to tell the plain truth about how far the black hole
@@ -46,7 +46,7 @@
  * Both ceilings grow with the board. `budget()` reads them from `world.ts` and
  * `geometry.ts` every time, and `blackHoleBody()` bisects the disc's radius
  * against them by sampling the sheet where it actually goes rather than a
- * circle drawn round it — so opening the rings out moves ring 1 outward and the
+ * circle drawn round it, so opening the rings out moves ring 1 outward and the
  * black hole grows into the room with nothing here touched. It already has
  * once: the board was opened out 1.42x while this was being written and the
  * disc followed on its own.
@@ -56,7 +56,7 @@ import { wellVisual } from '../geometry'
 import { PRINT_SCALE, funnelFloorRadius, sectorLabelBand, surfaceElevation } from './world'
 
 /**
- * The shallowest Table camera, in degrees above the plane — `CameraRig`'s first
+ * The shallowest Table camera, in degrees above the plane: `CameraRig`'s first
  * candidate pitch, and the one that leaves the least room over the hole. Read
  * here rather than imported to keep this module free of the camera, so it has
  * to be kept in step with `TABLE_PITCHES[0]` there by hand.
@@ -64,14 +64,14 @@ import { PRINT_SCALE, funnelFloorRadius, sectorLabelBand, surfaceElevation } fro
  * It is 62 rather than 55 because this file is where the cost of a shallow
  * camera is paid. The ceiling up the screen is `ink·sin P` and a horizon resting
  * in the pit reaches `r·(1 + 0.95·cos P)`, so the largest legal black hole is
- * `ink·sin P / (1 + 0.95·cos P)` — 0.53·ink at 55°, 0.61·ink at 62°. Seven
+ * `ink·sin P / (1 + 0.95·cos P)`: 0.53·ink at 55°, 0.61·ink at 62°. Seven
  * degrees of pitch are worth a fifth of the body.
  */
 const TABLE_PITCH = 62
 
 /**
  * How far the black hole's light reaches over the top of the horizon, in horizon
- * radii — the photon ring and the lensed arc, which face the camera and so climb
+ * radii: the photon ring and the lensed arc, which face the camera and so climb
  * the screen at the full rate rather than the disc's foreshortened one. It is
  * `arcOuterUp` below, and it is the outermost bright thing the hole draws
  * upward, so it and not the silhouette is what the ceiling has to be measured
@@ -84,7 +84,7 @@ const ARC_REACH = 1.1
  *
  * A ball resting exactly on the floor sits with its centre a full radius up, and
  * every unit of that centre height is 0.47 units of ceiling spent before the
- * light has reached anywhere — which is a poor way to spend a budget on a body
+ * light has reached anywhere, which is a poor way to spend a budget on a body
  * that is a hole. Settling it in costs nothing that can be seen: the plate is
  * opaque and the cut is black on dark, so from any camera above the plane the
  * silhouette is the same circle. It buys the hole about a sixth of its radius.
@@ -137,25 +137,25 @@ export function budget(): BlackHoleBudget {
 /**
  * Three ways of spending the budget, for the designer to choose between.
  *
- *  - **blaze** — the disc as a disc: a flat sheet at a shallow tilt, lit right
+ *  - **blaze**, the disc as a disc: a flat sheet at a shallow tilt, lit right
  *    across the annulus instead of dying a third of the way out, with spiral
  *    filaments, a white-hot inner lip, a little vertical thickness and hard
  *    Doppler beaming. This is the existing black hole grown into its own room.
- *  - **warp** — the disc as the gravity well: the sheet leaves the hole's
+ *  - **warp**, the disc as the gravity well: the sheet leaves the hole's
  *    equator tilted and settles into the board plane at its outer edge, so the
  *    light lies in the funnel the board is already drawn as. Its outer edge is
  *    on the floor, which costs it no lift at all, so it may spread wider.
- *  - **halo** — the disc as a body of gas: half again as wide a scale height, so
+ *  - **halo**, the disc as a body of gas: half again as wide a scale height, so
  *    the shells stand well clear of the midplane and the inner disc is a fat
  *    torus rather than a sheet; calmer beaming, looser arms, and a photon ring
  *    and lensed arc strong enough to carry the picture. Mass, not fire.
  *
- * A fourth was drawn and thrown away: polar jets. Height looks free — nothing
- * is printed above the plate — but at the Table pitch every unit of height
+ * A fourth was drawn and thrown away: polar jets. Height looks free (nothing
+ * is printed above the plate) but at the Table pitch every unit of height
  * buys 0.57 units of travel up the screen *toward* ring 1's far numbers, and a
  * jet leaning away from the camera adds its own lean on top. The arithmetic
  * comes out at 0.80 units of ceiling per unit of jet, which caps a legal jet at
- * about 1.3 horizon radii — a stub inside the lensed arc, not a jet. They
+ * about 1.3 horizon radii: a stub inside the lensed arc, not a jet. They
  * become possible if the board opens out far enough.
  */
 export type BlackHoleTreatment = 'blaze' | 'warp' | 'halo'
@@ -251,7 +251,7 @@ export function blackHoleTreatment(): BlackHoleTreatment {
 
 export interface BlackHoleBody {
   treatment: BlackHoleTreatment
-  /** Event horizon radius — the radius the flat board prints, so the two agree. */
+  /** Event horizon radius: the radius the flat board prints, so the two agree. */
   radius: number
   /** World elevation of the centre of the horizon. */
   centerY: number
@@ -290,7 +290,7 @@ const RAD = Math.PI / 180
 /**
  * Scale height of the disc at a fraction `u` along its radius, as a share of
  * its thickest. Pinched shut at the last stable orbit, fattest just outside it,
- * thinning away outward — a flared disc, seen edge-on as a lens rather than as
+ * thinning away outward: a flared disc, seen edge-on as a lens rather than as
  * a slab. **Mirror of `discPuff` in `shaders/accretion.ts`.**
  */
 export function sheetPuff(u: number): number {
@@ -317,10 +317,10 @@ function ease(t: number): number {
  * `z` is the board axis the well's name is printed along.
  *
  * The sheet is a circle rotated about the board's x axis, so in plan it is an
- * ellipse squashed along z — which is the room the name lives in. Warped, the
+ * ellipse squashed along z, which is the room the name lives in. Warped, the
  * rotation relaxes with radius and the whole sheet settles toward the floor.
  *
- * **This is a mirror of `discSheet` in `shaders/accretion.ts`** — the solver
+ * **This is a mirror of `discSheet` in `shaders/accretion.ts`**: the solver
  * below has to know where the sheet goes in order to prove it never reaches
  * ring 1's numbers, and the shader has to draw it. Change one, change both.
  */
@@ -344,7 +344,7 @@ export function sheetPoint(
  * is allowed to take.
  *
  * It cannot simply sit on the floor: the disc is tilted, so its low edge would
- * cut through the pit. The centre is lifted until that edge clears — computed
+ * cut through the pit. The centre is lifted until that edge clears, computed
  * from `world.ts` rather than tuned by hand, so a deeper funnel carries the
  * body down with it. Then the disc's outer radius is the largest that keeps
  * every ceiling in `budget()`: found by bisection over the radius, testing the
@@ -424,14 +424,14 @@ export function blackHoleBody(treatment = blackHoleTreatment()): BlackHoleBody {
   const pool = Math.min(room.plan, room.floor - PLAN_GAP) * tuning.pool
   // What the name and the well's labels have to clear: the last triangle of the
   // sheet, measured along the axis the name is printed on, which the tilt
-  // squashes. Not the bright radius — the shader's own outer kill takes the
+  // squashes. Not the bright radius: the shader's own outer kill takes the
   // alpha to nothing by the last triangle and not a unit before it, so this is
   // where the black hole provably stops.
   const shape: SheetShape = { inner, outer, tilt, warp: tuning.warp, lift }
   const extent = Math.max(radius * 1.55, Math.abs(sheetPoint(1, -Math.PI / 2, shape).z))
 
   // The lensed arc faces the camera, so unlike the disc it climbs the screen at
-  // the full rate — and the room it has is wildly lopsided. Straight up is
+  // the full rate, and the room it has is wildly lopsided. Straight up is
   // where ring 1's far numbers are: at the board's tuned proportion the
   // silhouette alone reaches within a couple of units of them, so over the top
   // the arc can be little more than the photon ring. Down and to the sides the

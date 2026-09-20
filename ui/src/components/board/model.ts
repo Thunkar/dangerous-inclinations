@@ -1,5 +1,5 @@
 /**
- * The board model — everything either renderer draws, derived once.
+ * The board model: everything either renderer draws, derived once.
  *
  * `useBoardModel()` reads GameContext (the view), AnimationContext (the turn
  * overlay and its effects) and PlanContext (previews of the turn being
@@ -89,7 +89,7 @@ export interface FocusWeapon {
 }
 
 export interface BoardModelOptions {
-  /** Deployment phase: clicking a free Black Hole ring-4 sector places your ship and Home. */
+  /** Deployment phase: clicking a legal Black Hole ring-3 or ring-4 sector places your ship and Home. */
   onDeploy?: (position: Position) => void
   deploymentEnabled?: boolean
 }
@@ -129,7 +129,7 @@ export interface BoardModel {
   effects: TableEffect[]
   /**
    * A ship the player asked to be shown. The rings are already in `effects`;
-   * this is here for the renderers that can do more — the 3D board swings its
+   * this is here for the renderers that can do more: the 3D board swings its
    * camera to the well. Its `id` changes on every ping, so asking for the same
    * ship twice answers twice.
    */
@@ -166,7 +166,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
   }, [view.players])
 
   /**
-   * A token per living ship: where it is, and — while a turn is playing — the
+   * A token per living ship: where it is, and (while a turn is playing) the
    * slide it is in the middle of. The slide itself is not resolved here; a
    * renderer reads its own clock against `motion`.
    */
@@ -267,7 +267,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
   }, [plan, overlay])
 
   /**
-   * The range is the engine's answer, sector by sector — the UI never
+   * The range is the engine's answer, sector by sector: the UI never
    * re-implements a rule, and both boards shade exactly the same wedges.
    *
    * `canEngage`, not the bare range rule: a missile may legally be launched at
@@ -323,8 +323,8 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           color: colorOf(plan.me.id),
           label:
             step.count > 1
-              ? `Planned salvo of ${step.count} at ${nameOf(target.id)} — each rides its orbit, then flies up to 3 steps`
-              : `Planned missile at ${nameOf(target.id)} — rides its orbit, then flies up to 3 steps`,
+              ? `Planned salvo of ${step.count} at ${nameOf(target.id)} · each rides its orbit, then flies up to 3 steps`
+              : `Planned missile at ${nameOf(target.id)} · rides its orbit, then flies up to 3 steps`,
         },
       ]
     })
@@ -357,7 +357,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
   }, [plan])
 
   // Exactly where the rules would let this ship go (RULES §Deployment): both
-  // rings, three sectors clear of every ship already placed — the engine's own
+  // rings, three sectors clear of every ship already placed: the engine's own
   // answer, so the board cannot offer a cell the server would refuse.
   const legalDeployments = useMemo<Position[]>(
     () => (deploymentEnabled ? legalDeploymentsAgainst(placedShipPositions(view)) : []),

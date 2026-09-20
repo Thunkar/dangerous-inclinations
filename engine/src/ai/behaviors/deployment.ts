@@ -7,10 +7,10 @@
  *
  * Preference, in order:
  *   1. a Deliver card wants the lane: ring 4 under the arc toward its pickup
- *      planet, or two sectors behind it — from ring 4 a soft burn outward
+ *      planet, or two sectors behind it: from ring 4 a soft burn outward
  *      lands on the same sector of ring 5, and ring 4 drifts 2 a turn, so
  *      starting there means an early jump;
- *   2. a card that has to reach somebody — Destroy, Intercept, Piracy — wants
+ *   2. a card that has to reach somebody (Destroy, Intercept, Piracy) wants
  *      ring 3, which drifts 4 a turn and brings the whole ring past the ship,
  *      on the legal sector farthest from the ships already placed;
  *   3. anyone else takes ring 4, farthest from the ships already placed
@@ -25,6 +25,7 @@ import {
   arcSectors,
 } from "../../models/gravityWells.ts";
 import type { Position } from "../../models/game.ts";
+import type { MissionType } from "../../models/missions.ts";
 import { sectorDistance, wrapSector } from "../../game/geometry.ts";
 import { legalDeploymentsAgainst } from "../../game/deployment.ts";
 import type { GameView } from "../../game/view.ts";
@@ -38,12 +39,12 @@ export interface DeploymentChoice {
 /** The inner deployment ring: four sectors a turn. */
 const FAST_RING = HOME_RINGS[0];
 
-/**
- * Cards whose holder has to come to somebody. `piracy` is named as a string
- * because the card is being added by another hand; when it lands as a
- * `MissionType` this set can hold the type itself.
- */
-const HUNTING_MISSIONS = new Set<string>(["destroy_ship", "intercept_transmission", "piracy"]);
+/** Cards whose holder has to come to somebody. */
+const HUNTING_MISSIONS = new Set<MissionType>([
+  "destroy_ship",
+  "intercept_transmission",
+  "piracy",
+]);
 
 /** Where the ships already placed sit, as the view shows them. */
 export function placedShipPositions(view: GameView): Position[] {
@@ -93,7 +94,7 @@ export function chooseDeployment(view: GameView, pick: (n: number) => number): D
 
   // 2/3. The fast ring if this seat has to reach somebody, the outer ring
   // otherwise; either way as far as possible from the ships already placed.
-  const hunting = missions.some((m) => HUNTING_MISSIONS.has(m.type as string));
+  const hunting = missions.some((m) => HUNTING_MISSIONS.has(m.type));
   const wantedRing = onRing(hunting ? FAST_RING : HOME_RING);
   return take(farthest(wantedRing.length > 0 ? wantedRing : legal));
 }

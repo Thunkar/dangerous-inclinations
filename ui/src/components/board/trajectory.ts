@@ -5,7 +5,7 @@
  * sampled at that ring's own radius lands exactly on the ring's ink: on the flat
  * board the dashes vanish into the ring, and in three dimensions the two fight
  * for the same pixels. So a track bows. It leaves its ring by a share of the gap
- * to the next one, runs beside it, and comes back down onto it at both ends —
+ * to the next one, runs beside it, and comes back down onto it at both ends,
  * which keeps every mark that means a sector (the dot where a missile lands, the
  * ring where a move ends, a route's numbered pip) exactly on the sector it names,
  * and lets a leg that changes ring join a leg that does not without a kink.
@@ -26,8 +26,8 @@
  *   share it would read as a hook rather than as a line beside the ring.
  *
  * Nothing here decides where a path goes: the positions come from the model,
- * which asked the engine. Both renderers import it — it names no renderer and
- * touches no `three` — so a track is the same polyline on either board.
+ * which asked the engine. Both renderers import it (it names no renderer and
+ * touches no `three`) so a track is the same polyline on either board.
  */
 import type { GravityWellId, Position } from '@dangerous-inclinations/engine'
 import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
@@ -43,7 +43,7 @@ import {
 /**
  * How far a track runs beside its ring at the top of the bow, as a share of the
  * gap to the nearest ring. At a fifth or so it clears everything else printed on
- * a ring — the ribbon, the widest lane, the band a range wedge shades — while
+ * a ring (the ribbon, the widest lane, the band a range wedge shades) while
  * staying inside the plate margin at the rim and nowhere near the ring next
  * door: four fifths of the gap is still between the track and it.
  */
@@ -60,7 +60,7 @@ const BOW_SHOULDER = 0.34
  * How much ring a track has to ride before it bows all the way out: a sector and
  * a half. A track bows in proportion to how far it rides, because a step of a
  * single sector that leapt the full width would read as a hook rather than as a
- * line beside the ring — at this setting it still lifts about three quarters of
+ * line beside the ring. At this setting it still lifts about three quarters of
  * the way, which is well clear of the ring's ink.
  */
 const FULL_BOW_SECTORS = 1.5
@@ -90,7 +90,7 @@ export interface TrackPoint extends Point {
   sameWell: boolean
 }
 
-/** The gap to the nearest other ring of the same well — the unit the bow is measured in. */
+/** The gap to the nearest other ring of the same well: the unit the bow is measured in. */
 function ringGap(wellId: GravityWellId, ring: number): number {
   const here = ringRadius(wellId, ring)
   let gap = Infinity
@@ -120,7 +120,7 @@ function ridesRing(from: Position, to: Position): boolean {
 /**
  * The polyline for a run of positions: one leg per pair, of the given shape,
  * bowed off any ring it rides. Repeated positions are dropped, as they always
- * were — a step that goes nowhere draws nothing.
+ * were: a step that goes nowhere draws nothing.
  */
 export function trackPoints(
   positions: readonly Position[],

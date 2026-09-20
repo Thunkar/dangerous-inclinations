@@ -1,11 +1,11 @@
 /**
  * Ship tokens. A ship is a wedge pointing the way it faces, in its player's
  * colour; the active player's token wears a ring. Hull and heat are printed
- * on the loadouts, not here — the board stays readable.
+ * on the loadouts, not here: the board stays readable.
  *
  * A token carrying a `motion` is mid-slide: this layer eases it along the
  * ring between the sector it left and the one it is heading for, against the
- * board's own clock. The model never resolves that — the 3D board slides the
+ * board's own clock. The model never resolves that: the 3D board slides the
  * same tokens against `performance.now()` in its frame loop.
  *
  * Where several ships share a sector the model has already numbered them, and
@@ -78,7 +78,7 @@ export const ShipsLayer = memo(function ShipsLayer({
             style={{ cursor: onSelect && selectable ? 'pointer' : 'default' }}
             onClick={onSelect && selectable ? () => onSelect(ship.playerId) : undefined}
           >
-            <title>{`${ship.name} — hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}`}</title>
+            <title>{`${ship.name} · hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}`}</title>
             {selectable && (
               <circle
                 cx={p.x}

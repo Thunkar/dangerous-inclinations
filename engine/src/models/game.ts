@@ -34,8 +34,8 @@ export const DEFAULT_LOADOUT: ShipLoadout = {
 
 export const MIN_PLAYERS = 2;
 /**
- * Six seats. The board holds them comfortably — everyone deploys on the black
- * hole's home ring, which is 24 sectors wide — but the table changes shape as
+ * Six seats. The board holds them comfortably (everyone deploys on the black
+ * hole's two home rings, 24 sectors each), but the table changes shape as
  * seats are added: each opponent puts another Destroy and another Intercept in
  * every deck, so a six-player game is a fight and a three-player game is a
  * trade route. Two seats is still legal and still thin.
@@ -58,14 +58,14 @@ export const STARTING_HIT_POINTS = 10;
  * limit rather than a rate: under it everything was free and over it
  * everything was strictly dominated, so nobody ever crossed the line. Measured
  * on 18 Sept 2026 over 18,418 acting turns, 69% of turns ended with four or
- * more points of dissipation unused and only 1.5% went over at all — which is
+ * more points of dissipation unused and only 1.5% went over at all, which is
  * also why a critical dumping a powered tile's cubes cost 0.21 hull a game
  * across four seats: there was nothing for it to land on.
  *
  * So heat carries. At a check the excess over MAX_HEAT is hull damage and the
  * track stops there; then the ship dissipates and keeps the rest
- * into the next turn. The long run is unchanged — a ship generating more than
- * it dissipates still pays the difference every turn once it saturates — but there
+ * into the next turn. The long run is unchanged (a ship generating more than
+ * it dissipates still pays the difference every turn once it saturates), but there
  * is now a buffer to spend, so running hot is a state you choose to enter and
  * have to climb out of. Ten to match the hull track: one cube, one track.
  */
@@ -80,13 +80,13 @@ export const SHIELD_HEAT_PER_POINT = 2;
 /**
  * Rounds at the start of the game in which nothing reaches another ship.
  *
- * Everyone deploys on the same ring, in a sector they picked while the board
- * was still empty, so before anyone has moved the table is a firing line: the
- * first seat opens on a neighbour who never had a turn, and point blank (RULES
- * §Firing) means the neighbour two sectors away is in range of everything.
+ * Everyone deploys around the same hole, in a sector they picked while the
+ * board was still empty, so before anyone has moved the table is a firing
+ * line: the first seat opens on a neighbour who never had a turn, and the
+ * three sectors that separate them are inside almost every weapon's box.
  *
  * A scan is the same problem without the damage. The sensor's range is a ring
- * and three sectors, which on the deployment ring is most of the table, and
+ * and three sectors, which on a deployment ring is most of the table, and
  * the tile it turns up stays turned up: the first seat would read the loadouts of
  * the seats that had not moved yet, and they could not read back. Holding both
  * for one round costs nothing that cannot be got back and gives every seat one
@@ -96,7 +96,7 @@ export const OPENING_ROUNDS = 1;
 
 /**
  * The round a game starts play on. Deployment hands the board over at this
- * number (`game/deployment.ts`), so it is the first round anyone acts in —
+ * number (`game/deployment.ts`), so it is the first round anyone acts in,
  * not zero, which is the value a game carries while it is still being set up.
  */
 export const FIRST_TURN = 1;
@@ -187,7 +187,7 @@ export interface ShipState {
   /**
    * Fuel aboard. Public (RULES §Hidden information): the cubes sit on the loadout
    * where anyone can count them. A tank was private and a spent pile public
-   * for a day, which fooled nobody — every ship starts with the same ten and
+   * for a day, which fooled nobody: every ship starts with the same ten and
    * every burn is announced, so the arithmetic was there for the doing.
    */
   reactionMass: number;
@@ -242,8 +242,9 @@ export interface FireWeaponAction extends BaseAction {
     /**
      * Missiles only: how many of the tile's remaining rounds this launch puts
      * in the air, all at the same ship and the same critical slot. Absent is
-     * one. Every missile of the salvo costs the tile's cubes in heat, which is
-     * what makes the size of a salvo a decision rather than a formality.
+     * one. The whole salvo is one use of the tile, so it costs the tile's
+     * cubes in heat once whatever its size: the magazine is what limits
+     * missiles, not the heat.
      */
     count?: number;
   };
@@ -279,15 +280,13 @@ export interface DeployShipAction extends BaseAction {
 /**
  * A standing order for the turn, not a tactical action: name the tile the crew
  * will get to if the ship is cold at its heat check. It has no sequence because
- * it does not happen at a point in the turn — it happens at the end of it, and
+ * it does not happen at a point in the turn: it happens at the end of it, and
  * only if nothing on the loadout made heat.
  */
 export interface RepairAction extends BaseAction {
   type: "repair";
   data: { subsystemId: SubsystemId };
 }
-
-export type MovementAction = CoastAction | BurnAction | WellTransferAction;
 
 export type TacticalAction =
   | RotateAction
@@ -333,8 +332,8 @@ export interface Player {
   /** Where the ship deployed; destroyed ships return here. */
   home: Position | null;
   /**
-   * Turns still to sit out after respawning. Nothing sets it any more — a
-   * destroyed ship loses the respawn turn and nothing else — but old
+   * Turns still to sit out after respawning. Nothing sets it any more (a
+   * destroyed ship loses the respawn turn and nothing else), but old
    * recordings were made when the turn after was lost too, and they still
    * replay (see `executeTurn`).
    */

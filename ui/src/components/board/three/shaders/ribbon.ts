@@ -1,9 +1,9 @@
 /**
  * The ribbon shader: one dashed band that drifts.
  *
- * Rings use it to show their velocity — the dashes drift prograde at a speed
+ * Rings use it to show their velocity: the dashes drift prograde at a speed
  * proportional to the ring's own velocity, so the movement rule is visible
- * standing still — and lanes use it to show direction of travel, the dashes
+ * standing still, and lanes use it to show direction of travel, the dashes
  * running from the departure arc toward the arrival one. Both animate entirely
  * on the GPU from `sceneTime`; the CPU does nothing per frame.
  *

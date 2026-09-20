@@ -2,8 +2,8 @@
  * Table talk: the chat channel every seat shares, humans and agents alike.
  *
  * Two lanes on the same pad. A `say` is a line spoken at the table, in the
- * speaker's colour. A `think` is the reasoning behind a move — an agent's, or
- * a human's when they choose to think out loud — set in italics, dimmed and
+ * speaker's colour. A `think` is the reasoning behind a move (an agent's, or
+ * a human's when they choose to think out loud) set in italics, dimmed and
  * tagged, so nobody mistakes reasoning for table talk.
  *
  * Purely presentational: it renders what the server has broadcast and posts

@@ -62,8 +62,8 @@ const SETTLE_MS = 320
  * A jump: charge on the departure arc, cross, arrive. Fractions of the beat.
  *
  * The crossing is a straight line and it is flat. A transfer lane joins two
- * arcs that lie in the same plane — black hole ring 5 and a planet's ring 3 are
- * both the rim of their own well, at the height of the table — so there is
+ * arcs that lie in the same plane (black hole ring 5 and a planet's ring 3 are
+ * both the rim of their own well, at the height of the table) so there is
  * nothing to fly over, and the hull used to hop over a 200-unit parabola and
  * pitch up and back down along it for no reason anyone at the table could name.
  * What is left is the part that meant something: a hard shove off the departure
@@ -78,7 +78,7 @@ const JUMP_ROLL = 0.34
 /** The warp flash left on the arc at each end. */
 const FLASH_SIZE = 34
 
-/** A hull that has just appeared — a respawn, a deployment — materialises. */
+/** A hull that has just appeared (a respawn, a deployment) materialises. */
 const BORN_MS = 340
 
 /** Nozzle glow at rest, and how much more of it the engines make under way. */
@@ -100,7 +100,7 @@ const THRUST: Record<MoveKind, number> = {
   recoil: 0.12,
 }
 
-/** Ease with no corner at either end — the shape of a jump, not of a slide. */
+/** Ease with no corner at either end: the shape of a jump, not of a slide. */
 function smoother(t: number): number {
   return t * t * t * (t * (t * 6 - 15) + 10)
 }
@@ -338,7 +338,7 @@ function ShipMesh({
 
   /**
    * Everything about the move that does not change while it plays: what kind
-   * of move it is, which way it crosses, and how hard the hull lays over — a
+   * of move it is, which way it crosses, and how hard the hull lays over: a
    * one-sector nudge is not a four-sector sweep. The inboard wing is the one
    * that drops, which is the other wing when the ship is flying backwards.
    *
@@ -435,7 +435,7 @@ function ShipMesh({
 
     // A mark that names this ship is something that just happened to it: the
     // hull shudders and lights up in that mark's colour. The sector it is
-    // anchored to is not consulted — two hulls can share one, and a shot can
+    // anchored to is not consulted: two hulls can share one, and a shot can
     // shove its target out of the sector its own numbers hang over.
     const impact = sampleImpact(ship.playerId, now)
     if (impact.shake > 0.001) {
@@ -537,7 +537,7 @@ function ShipMesh({
 
         {hovered && (
           <BoardTooltip position={[0, HOVER + HEIGHT + 26, 0]}>
-            {`${ship.name} — hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}`}
+            {`${ship.name} · hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}`}
           </BoardTooltip>
         )}
       </group>

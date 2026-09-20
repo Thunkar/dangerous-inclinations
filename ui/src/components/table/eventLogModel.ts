@@ -1,7 +1,7 @@
 /**
  * What the turn log draws, with no React in it: which lines are about you, and
  * how the bots' cube shuffling folds down. Pure so it can be checked against a
- * real game's events — the board keeps its model out of the renderer for the
+ * real game's events. The board keeps its model out of the renderer for the
  * same reason (`components/board/model.ts`).
  */
 import type { GameEvent } from '@dangerous-inclinations/engine'
@@ -22,7 +22,7 @@ export function actorOf(event: GameEvent): string | undefined {
 /**
  * Every id a line names, not just the one that acted. A shot at you is the
  * attacker's line by `actorOf`, so it used to be coloured and weighted like
- * the rest of their housekeeping — which is how a laser that took two hull off
+ * the rest of their housekeeping, which is how a laser that took two hull off
  * a freshly respawned ship read as nothing at all.
  */
 const SUBJECT_KEYS = [

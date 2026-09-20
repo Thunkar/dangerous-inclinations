@@ -6,7 +6,7 @@
  *
  * A stored id is only ever thrown away when the server says it does not know
  * it. If the server cannot be reached, the id stays put and the app offers to
- * try again — losing a seat (and with it a game in progress) to a dropped
+ * try again. Losing a seat (and with it a game in progress) to a dropped
  * connection is not a trade worth making.
  */
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'

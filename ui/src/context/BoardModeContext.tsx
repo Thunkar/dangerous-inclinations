@@ -1,10 +1,10 @@
 /**
- * BoardModeContext — which renderer draws the board.
+ * BoardModeContext: which renderer draws the board.
  *
  * One choice, remembered across sessions in `localStorage` (the same pattern
  * as the player id), because it is a preference about how you like to look at
  * the table rather than anything about the game. `?board=3d` (or `2d`)
- * overrides it for this session only — deep links and screenshots need to
+ * overrides it for this session only. Deep links and screenshots need to
  * name a renderer without changing what the player gets next time.
  *
  * A browser with no WebGL 2 is pinned to the flat board and told why: the 3D

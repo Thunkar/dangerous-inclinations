@@ -35,7 +35,7 @@ export function canScanFrom(from: Position, target: Position): boolean {
 /**
  * Slot to look at: the face-down tile whose energy cubes make it the most
  * interesting (a powered slot is doing something), else any face-down one,
- * else the first slot — a scan of a known tile is legal and still acquires
+ * else the first slot: a scan of a known tile is legal and still acquires
  * an Intercept transmission.
  */
 export function choosePeekSlot(target: Opponent): SubsystemId {
@@ -57,7 +57,7 @@ export function scanOption(
   post: Position,
   parameters: BotParameters
 ): ScanIntent | null {
-  // Nothing reaches another ship in the opening round (RULES §Firing), a scan
+  // Nothing reaches another ship in the opening round (RULES §A Turn), a scan
   // included: the engine would refuse it.
   if (isOpeningRound(situation.view.turn)) return null;
   const sensor = situation.status.sensors.find((s) => !s.isBroken && !s.usedThisTurn);

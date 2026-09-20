@@ -9,7 +9,7 @@
  * stack, vendored here under the SIL Open Font License (see the LICENSE file
  * beside it) and bundled as a hashed asset.
  *
- * Pass it to every `<Text>` on the board — there is no other font.
+ * Pass it to every `<Text>` on the board: there is no other font.
  */
 import boardFontUrl from './LiberationMono-Regular.ttf?url'
 

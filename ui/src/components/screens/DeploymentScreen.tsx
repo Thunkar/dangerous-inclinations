@@ -1,8 +1,8 @@
 /**
  * Deployment: in reverse turn order (last seat first), place your ship on Black
  * Hole Ring 3 or Ring 4, at least three sectors from every ship already
- * placed. The position you pick becomes your Home — where you come back after
- * you are destroyed — so pick it with the cards you kept in mind: Ring 4
+ * placed. The position you pick becomes your Home (where you come back after
+ * you are destroyed) so pick it with the cards you kept in mind: Ring 4
  * drifts 2 a turn and lines up with the lanes, Ring 3 drifts 4 and brings the
  * ring past you.
  *
@@ -55,7 +55,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
     [legal, ring]
   )
 
-  if (!me) return <Centered>Watching the table — no ship to place.</Centered>
+  if (!me) return <Centered>Watching the table: no ship to place.</Centered>
 
   const onDeploy = async (position: Position) => {
     if (!myTurn || placing) return
@@ -102,7 +102,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           <Panel title="Ring and sector" dense sx={{ flexShrink: 0 }}>
             <SectionLabel>
               Black Hole Ring {HOME_RINGS.join(' or ')}, at least {DEPLOYMENT_GAP} sectors from
-              every ship already placed — that position becomes your Home.
+              every ship already placed. That position becomes your Home.
             </SectionLabel>
             <Box sx={{ display: 'flex', gap: 0.75, mt: 0.75 }}>
               {HOME_RINGS.map(r => (
@@ -236,7 +236,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           {myTurn && (
             <Alert severity="success">
               Place your ship on Black Hole Ring {HOME_RINGS.join(' or ')}, at least{' '}
-              {DEPLOYMENT_GAP} sectors from every ship already placed — that position becomes your
+              {DEPLOYMENT_GAP} sectors from every ship already placed. That position becomes your
               Home.
             </Alert>
           )}

@@ -1,6 +1,6 @@
 /**
  * Deployment phase. `botChooseDeployment` names a legal position on Black Hole
- * ring 3 or ring 4 — three sectors clear of every ship already placed — and it
+ * ring 3 or ring 4 (three sectors clear of every ship already placed) and it
  * becomes the bot's Home. All randomness goes through the `pick` callback the
  * caller wires to the game's seeded RNG.
  */

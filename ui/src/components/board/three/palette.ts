@@ -4,14 +4,14 @@
  * Every colour here is one from `theme.ts`; the only translation is that the
  * SVG board writes its faint lines as `rgba(...)` while a WebGL material takes
  * a solid colour and a separate opacity. `EDGE_HUE` is the hue of
- * `TABLE.plateEdge` and `TABLE.line` — the cool blue-grey every printed line
+ * `TABLE.plateEdge` and `TABLE.line`: the cool blue-grey every printed line
  * on the table is drawn in.
  *
  * The lighting constants live here too, because a planet is lit twice: once by
  * the scene's lights (which model the plate) and once inside its own shader
  * (which models its terminator). Both read the same key direction and the same
  * two colours from this file, so a planet's shadow always falls the way the
- * board's does. One cool key, one navy fill, one amber lamp at the black hole —
+ * board's does. One cool key, one navy fill, one amber lamp at the black hole:
  * the same restraint as the rest of the table.
  */
 import { Color, LinearSRGBColorSpace } from 'three'
@@ -45,8 +45,8 @@ export const BOARD_INK = {
  * A colour for a shader that writes straight to the canvas.
  *
  * `new Color('#ffb445')` converts to the linear working space, which is what a
- * lit material wants. A raw additive glow does not go through that pipeline —
- * whatever it writes is what the screen shows — so a theme colour handed to one
+ * lit material wants. A raw additive glow does not go through that pipeline
+ * (whatever it writes is what the screen shows) so a theme colour handed to one
  * unconverted comes out a hue or two too saturated. This keeps the numbers as
  * the theme wrote them.
  */
@@ -105,7 +105,7 @@ export const STAR_TINTS: readonly string[] = [
 /**
  * The accretion disc's temperature ramp: near-white at the inner edge, the
  * theme's amber through the body of it, a dim ember at the outside. One hue,
- * three stops — a second hue here would put a colour on the table that means
+ * three stops: a second hue here would put a colour on the table that means
  * nothing in the rules.
  */
 export const DISC_INK = {

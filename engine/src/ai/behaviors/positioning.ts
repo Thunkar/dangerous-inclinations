@@ -57,9 +57,10 @@ export function coastChoice(wantsScoop: boolean): MovementChoice {
  * ring above and inward otherwise, rotating if the nose is the wrong way
  * round.
  *
- * A berth cannot be refuelled — the scoop needs a well to skim (RULES
- * §Stations) — so a ship that lets its tank run down in port is marooned
- * there. This is the move it has to make while it can still pay for it.
+ * A berth is as good a place to skim from as any (RULES §Coast), so a tank
+ * that runs down in port is not a ship stranded there. What the berth cannot
+ * do is dock again: this is the move that turns the next arrival back into a
+ * visit.
  */
 export function castOffChoice(ship: ShipState, status: BotStatus): MovementChoice | null {
   if (!burnIsValid(ship, status, "soft", 0)) return null;

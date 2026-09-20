@@ -21,7 +21,7 @@
  *                 (note the singular: --bots=N is how many bots play, --bot= is how they think)
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)
  *   --seats=bot-1=railgun/missiles,radiator,laser,shields  force a hull on a seat, whatever its hand asks for
- *   --hands=bot-1=1       force the shape of a seat's hand: how many two-point cards it keeps
+ *   --hands=bot-1=destroy  the primary a seat is dealt and keeps (destroy|deliver|intercept)
  *   --quiet       no per-game progress
  */
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -229,7 +229,7 @@ async function main(): Promise<void> {
       ? undefined
       : (done, total, last) => {
           process.stdout.write(
-            `  [${done}/${total}] seed=${last.seed} rounds=${last.rounds} winner=${last.winnerId ?? "—"} ${last.endReason}\n`
+            `  [${done}/${total}] seed=${last.seed} rounds=${last.rounds} winner=${last.winnerId ?? "none"} ${last.endReason}\n`
           );
         },
   });

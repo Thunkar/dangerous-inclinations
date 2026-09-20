@@ -3,7 +3,7 @@
  *
  * The timing is the flat board's, to the millisecond: the head travels out
  * over the first 30% of the effect and the whole thing fades in for a quarter
- * and out for three. Only the character is new — a railgun is a thick bright
+ * and out for three. Only the character is new: a railgun is a thick bright
  * bolt, a laser a thin continuous line, a rack and a missile launch dashed
  * tracers, point defence a fine cyan one.
  *
@@ -75,7 +75,7 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
    * The shot's frame: both ends, its length, and the way the tube points.
    *
    * An end that names a ship is the hull's own point, so a shot at one of two
-   * ships sharing a sector lands on the one that was hit — and a shot between
+   * ships sharing a sector lands on the one that was hit, and a shot between
    * them is a short beam rather than no beam at all. An end that names nothing
    * (a missile a rack is shooting down) stays on its sector, and so does a ship
    * that has left the table.

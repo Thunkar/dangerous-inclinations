@@ -25,7 +25,7 @@ import {
   Vector3,
 } from 'three'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { MOUNTS, mountTransform, type MountId, type Vec3, type WorkshopConfig } from './config'
+import { MOUNTS, mountTransform, type MountId, type Vec3, type ShipConfig } from './config'
 import { HULL_INK } from './palette'
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
@@ -38,7 +38,7 @@ export interface ShipModel {
   engineGlow: Material
   nozzles: Vector3[]
   /** Incremental editor updates; board batches are rebuilt from their visual spec. */
-  update: (config: WorkshopConfig, slots?: VisibleSlots) => void
+  update: (config: ShipConfig, slots?: VisibleSlots) => void
   dispose: () => void
 }
 
@@ -93,7 +93,7 @@ function reverseWinding(geometry: BufferGeometry) {
 }
 
 export function createShip(
-  config: WorkshopConfig,
+  config: ShipConfig,
   concealed = false,
   options: { slots?: VisibleSlots; detail?: 'hero' | 'board' } = {}
 ): ShipModel {
@@ -236,8 +236,8 @@ export function createShip(
     dark
   )
   // Armor relief: flush inset plating at one end of the dial, deep slab armor
-  // with wide shadow channels at the other. Everything painted on the deck —
-  // markings and spine — rides on top of the plate, so the armor is free to
+  // with wide shadow channels at the other. Everything painted on the deck
+  // (markings and spine) rides on top of the plate, so the armor is free to
   // grow; the bow tile grows least, to keep the citadel clear.
   const relief = config.appearance?.armorRelief ?? 0.5
   const deck = 0.05 + relief * 0.33
@@ -358,7 +358,7 @@ export function createShip(
     ctx.fillStyle = '#e5e8de'
     ctx.font = 'bold 70px monospace'
     ctx.textAlign = 'center'
-    ctx.fillText(config.identity ?? 'K—07', 256, 85)
+    ctx.fillText(config.identity ?? 'K-07', 256, 85)
     const texture = new CanvasTexture(canvas)
     texture.colorSpace = SRGBColorSpace
     textures.add(texture)
@@ -799,8 +799,8 @@ export function createShip(
       }
       case 'fuel_compressor': {
         // The compressor sits on the bow hardpoint, whose frame sends local +Y
-        // down the nose and local X across it. It holds no fuel of its own —
-        // it buys a jump, it is not a tank — so the bow carries the pump and
+        // down the nose and local X across it. It holds no fuel of its own
+        // (it buys a jump, it is not a tank), so the bow carries the pump and
         // the exchanger that keeps it running: a squat volute mated flat to
         // the nose, a stack of thin fins standing off it on two spacers, and
         // copper from the casing over the stack and back into the hull. It
@@ -985,7 +985,7 @@ export function createShip(
   }
   const previous = new Map<MountId, string>()
   const damageMaterials = new Map<Material, Material>()
-  function update(next: WorkshopConfig, slots = visibleSlots(next, concealed)) {
+  function update(next: ShipConfig, slots = visibleSlots(next, concealed)) {
     if (!resin) {
       hull.color.set(next.paint)
       pale.color.set(

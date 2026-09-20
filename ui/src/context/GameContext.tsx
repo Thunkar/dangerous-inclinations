@@ -53,7 +53,7 @@ export type Animator = (
  * board you were not watching, and the log tells you what happened without
  * showing you where. So the last {@link TURN_HISTORY} of them are held as the
  * pair of views they ran between plus their events, which is exactly what the
- * animator needs — a replay is the same animation over the same inputs, and
+ * animator needs. A replay is the same animation over the same inputs, and
  * it commits nothing.
  */
 export interface TurnRecord {
@@ -119,7 +119,7 @@ interface QueuedUpdate {
   /**
    * A replay of a turn already played: animate from this view instead of the
    * live one and commit nothing at the end. It rides the same queue as a real
-   * turn because there is only one animator and one board — a replay that ran
+   * turn because there is only one animator and one board. A replay that ran
    * beside an arriving turn would have the two of them writing the same
    * overlay.
    */

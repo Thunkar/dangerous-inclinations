@@ -5,9 +5,9 @@
  * of the engine once): the drift around its ring first, then the flight steps
  * toward its target. Nothing here works one out.
  *
- * It is drawn the way the paper board draws it — the drift solid, because it
+ * It is drawn the way the paper board draws it: the drift solid, because it
  * happens whatever anyone does, and the flight dashed, because it is an
- * intention — with a dot on the sector the warhead would reach. A launch you
+ * intention, with a dot on the sector the warhead would reach. A launch you
  * have queued but not sent is the same marks at half strength, with a ring
  * where the rail is. A missile whose target has left the board has no path at
  * all: it is drawn as a dart and nothing more.
@@ -29,7 +29,7 @@ import { NO_RAYCAST, arcPoints, chordPoints } from './overlays/paths'
 /** Word for word the reminder the SVG board's tooltip carries. */
 const MISSILE_TOOLTIP =
   'Rides its orbit, then flies up to 3 steps toward the target (rings first). ' +
-  'Launched after moving? It already rode along — no drift this turn. 3 flights max.'
+  'Launched after moving? It already rode along: no drift this turn. 3 flights max.'
 
 /**
  * Missile dimensions in board units: unmistakably smaller than a hull. The
@@ -45,7 +45,7 @@ const HOVER_RADIUS = 16
 
 /** A planned launch is drawn at the strength the SVG board draws it. */
 const PREVIEW_OPACITY = 0.55
-/** Dash drift, board units a second — the same flow as the planning overlays. */
+/** Dash drift, board units a second: the same flow as the planning overlays. */
 const DASH_SPEED = 9
 
 /** One shared empty path: a missile whose target has left the board has none. */

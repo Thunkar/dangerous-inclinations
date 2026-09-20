@@ -27,6 +27,7 @@ import {
 } from "../models/subsystems.ts";
 import {
   BURN_COSTS,
+  COMPRESSED_JUMP_MASS,
   WELL_TRANSFER_COSTS,
   getAdjustmentRange,
   calculateBurnMassCost,
@@ -247,7 +248,7 @@ function validateTarget(
   if (!target.hasDeployed || isDestroyed(target.ship))
     return { errors: [`${target.name} is not on the board`] };
   // Just back from Home: untouchable until they act (RULES §Destruction and
-  // Respawn). Both a shot and a scan are refused, which is the whole point —
+  // Respawn). Both a shot and a scan are refused, which is the whole point:
   // a ship that returns to a sector everyone knows must not be a free kill.
   if (target.recovering)
     return { errors: [`${target.name} cannot be touched until they act again`] };
@@ -320,7 +321,7 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
 /**
  * Naming the tile a cold ship's crew will fix. Refused when the slot is not
  * broken (there is nothing to do) or when the ship is already carrying heat,
- * because heat only rises during a turn — a ship that starts hot cannot be cold
+ * because heat only rises during a turn: a ship that starts hot cannot be cold
  * at its check, and a repair it can never earn should not be submittable.
  */
 export function validateRepairAction(state: GameState, action: RepairAction): string[] {
@@ -382,7 +383,7 @@ export function validateWellTransferAction(state: GameState, action: WellTransfe
   const mass = calculateJumpMassCost(adjustment, compressor);
   if (player.ship.reactionMass < mass) {
     const breakdown = compressor
-      ? `${Math.abs(adjustment)} phasing, the compressor paying for the lane`
+      ? `${COMPRESSED_JUMP_MASS} jump with the compressor + ${Math.abs(adjustment)} phasing`
       : `${WELL_TRANSFER_COSTS.mass} jump + ${Math.abs(adjustment)} phasing`;
     errors.push(
       `Not enough reaction mass for a jump (need ${mass}: ${breakdown}, have ${player.ship.reactionMass})`

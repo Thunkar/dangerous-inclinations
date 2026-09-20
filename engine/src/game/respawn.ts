@@ -2,8 +2,8 @@
  * Destruction and respawn.
  *
  * When a ship is destroyed it drops its cargo: crates return to their origin
- * station (they must be picked up again), data is lost, and seized loot —
- * which has no origin — is simply gone, to be taken again. On the owner's next
+ * station (they must be picked up again), data is lost, and seized loot
+ * (which has no origin) is simply gone, to be taken again. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
  * occupied) fully repaired and refuelled, drifts with its ring like anything
  * else in orbit, and the turn ends. It is `recovering` from then until its
@@ -65,7 +65,7 @@ export function dropCargo(player: Player): { player: Player; events: EventDraft[
   };
 }
 
-/** Home sector if free, otherwise the nearest free sector on the home ring. */
+/** Home sector if free, otherwise the nearest free sector on the Home marker's ring. */
 export function findRespawnPosition(state: GameState, home: Position, selfId: string): Position {
   const occupied = (pos: Position) =>
     state.players.some(
@@ -104,9 +104,9 @@ export function respawnPlayer(
   if (!player.home) return { state, events: [] };
   const placed = findRespawnPosition(state, player.home, player.id);
   // The ship is in orbit the moment it is placed, so the respawn turn ends
-  // with the ring carrying it exactly as a coast would. Home is on the black
-  // hole's home ring and stations orbit a planet, so there is no berth to hold
-  // and nothing for `advanceStations` to carry.
+  // with the ring carrying it exactly as a coast would. Home is on one of the
+  // black hole's deployment rings and stations orbit a planet, so there is no
+  // berth to hold and nothing for `advanceStations` to carry.
   const ship = applyOrbitalMovement(createRespawnedShip(player.ship, placed));
   const position = positionOf(ship);
   const players = [...state.players];

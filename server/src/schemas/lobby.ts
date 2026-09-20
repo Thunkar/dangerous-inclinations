@@ -15,4 +15,3 @@ export const JoinLobbySchema = z.object({
 });
 
 export type CreateLobbyInput = z.infer<typeof CreateLobbySchema>;
-export type JoinLobbyInput = z.infer<typeof JoinLobbySchema>;

@@ -191,7 +191,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
       target: target.position,
       launchedAfterMove: false,
       color: colorOf(me.playerId),
-      label: `Planned missile at ${target.name} — rides its orbit, then flies up to 3 steps`,
+      label: `Planned missile at ${target.name} · rides its orbit, then flies up to 3 steps`,
     },
   ]
 

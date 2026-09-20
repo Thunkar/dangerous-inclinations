@@ -1,6 +1,6 @@
 /**
- * Transfer lanes. Each lane is two 4-sector arcs — one on Black Hole Ring 5,
- * one on a planet's Ring 3 — drawn in the planet's colour and lettered A or B
+ * Transfer lanes. Each lane is two 4-sector arcs (one on Black Hole Ring 5,
+ * one on a planet's Ring 4) drawn in the planet's colour and lettered A or B
  * at both ends, so you can read which arc comes out where without a line
  * cutting across the map. Lanes are one-way: the departure arc is solid with a
  * filled letter, the arrival arc dashed with a hollow one. The arc you could
@@ -24,8 +24,8 @@ function laneTitle(lane: TransferLane): string {
     `R${arc.ring} S${arc.startSector}–${arc.startSector + arc.length - 1}`
   const planet = getWellName(lane.planetId)
   return lane.direction === 'outbound'
-    ? `${planet} lane ${laneLetter(lane.id)} — one way: jump from Black Hole ${span(bh)} to ${planet} ${span(pl)}`
-    : `${planet} lane ${laneLetter(lane.id)} — one way: jump from ${planet} ${span(pl)} to Black Hole ${span(bh)}`
+    ? `${planet} lane ${laneLetter(lane.id)} · one way: jump from Black Hole ${span(bh)} to ${planet} ${span(pl)}`
+    : `${planet} lane ${laneLetter(lane.id)} · one way: jump from ${planet} ${span(pl)} to Black Hole ${span(bh)}`
 }
 
 const LABEL_OFFSET = 15 * PRINT_SCALE

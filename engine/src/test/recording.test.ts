@@ -81,7 +81,7 @@ describe("recording: replay", () => {
     );
   });
 
-  it("opens a recording written before the table could agree on four points", () => {
+  it("opens a recording written before `pointsToWin` rode on the state", () => {
     // Those games were all played to the default, so that is what they load as.
     const strip = (state: GameState) => {
       const { pointsToWin: _dropped, ...rest } = state;

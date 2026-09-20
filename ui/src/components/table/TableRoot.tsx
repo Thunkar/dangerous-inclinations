@@ -3,7 +3,7 @@
  * events, and the plan you are building (only when you actually hold a seat).
  *
  * A spectator has no plan, so no PlanProvider is mounted and nothing under the
- * table may reach for one — `TableScreen` renders its controls only when a
+ * table may reach for one: `TableScreen` renders its controls only when a
  * seat exists.
  */
 import type { ReactNode } from 'react'

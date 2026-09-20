@@ -3,7 +3,7 @@
  *
  * The flat board draws one expanding circle. In three dimensions that circle
  * is a shockwave running out across the surface, a core that flashes and dies,
- * and a puff of sparks thrown off the sector — the same event with enough life
+ * and a puff of sparks thrown off the sector: the same event with enough life
  * that a detonation reads as a detonation and a dock does not.
  *
  * Colour and radius are the effect's; the animator already decides what a

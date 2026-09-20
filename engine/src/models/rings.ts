@@ -27,7 +27,7 @@ export const WELL_TRANSFER_COSTS = {
 /**
  * Fuel a jump costs with a working fuel compressor is one against the lane's
  * three; the tile pays two of the three and never the phasing. A constant, not
- * a knob — a game is played under RULES.md and nothing else.
+ * a knob: a game is played under RULES.md and nothing else.
  */
 export const COMPRESSED_JUMP_MASS = 1;
 
@@ -52,7 +52,7 @@ export function calculateBurnMassCost(baseMassCost: number, sectorAdjustment: nu
 /**
  * Fuel a jump costs: the lane's own cost, which a working fuel compressor cuts
  * to {@link COMPRESSED_JUMP_MASS}, plus the phasing, which it never cheapens
- * (RULES §Jump: "a compressor pays for the jump, not for the phasing").
+ * (RULES §Jump: "A compressor cheapens the jump, never the phasing").
  */
 export function calculateJumpMassCost(sectorAdjustment: number, hasCompressor: boolean): number {
   const lane = hasCompressor ? COMPRESSED_JUMP_MASS : WELL_TRANSFER_COSTS.mass;

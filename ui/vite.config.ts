@@ -5,14 +5,10 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // The authoring workshop loads its exporter on demand. Prebundle it with
-  // the shared model helpers so opening a dev entry cannot invalidate Three's
-  // dependency cache halfway through a design/export session.
+  // Prebundle the shared model helpers so opening a dev entry cannot
+  // invalidate Three's dependency cache halfway through a session.
   optimizeDeps: {
-    include: [
-      'three/examples/jsm/exporters/GLTFExporter.js',
-      'three/addons/utils/BufferGeometryUtils.js',
-    ],
+    include: ['three/addons/utils/BufferGeometryUtils.js'],
   },
   resolve: {
     alias: {

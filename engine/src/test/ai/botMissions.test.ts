@@ -1,6 +1,6 @@
 /**
  * The bot plays all four mission types. Each test puts a bot in front of one
- * mission's next step and checks it takes it — and that the engine accepts
+ * mission's next step and checks it takes it, and that the engine accepts
  * the turn.
  */
 import { describe, it, expect } from "vitest";
@@ -203,8 +203,8 @@ describe("bot missions", () => {
   });
 
   it("stops surveying once the data is aboard and files it at the station the circuit reaches first", () => {
-    // A survey chit is filed anywhere — the deck deals every survey card with
-    // "any" for its station — so the bot takes the door it is
+    // A survey chit is filed anywhere (the deck deals every survey card with
+    // "any" for its station) so the bot takes the door it is
     // already standing under. From black hole ring 1 sector 0 that is Beta's
     // outbound lane at ring 5 sectors 0-3, not Alpha's at 16-19.
     const start = withMissions(
@@ -408,7 +408,7 @@ describe("goal order: the primary before the secondary", () => {
   /**
    * Three points win and the hand is one two-point primary plus two one-point
    * secondaries, so the primary is the only card the bot cannot do without.
-   * Its first step — the Intercept's scan, the Deliver's pickup — is what used
+   * Its first step (the Intercept's scan, the Deliver's pickup) is what used
    * to rank last: it finishes nothing by itself, while a survey dive is short
    * and a whole point. Ranking is cheapest-first after urgency, so at equal
    * distance the primary's opening step now goes first, and only a genuinely

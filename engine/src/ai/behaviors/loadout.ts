@@ -16,7 +16,7 @@ import {
 /**
  * A hull is two decisions. **The role** is the forward tile, and the cards
  * choose it: a gun, eyes, or legs. **The variant** is how the four side slots
- * are spent, and that is taste — the same role played safe or played hard.
+ * are spent, and that is taste: the same role played safe or played hard.
  *
  * | Role        | Forward    | Closes off                              |
  * |-------------|------------|-----------------------------------------|
@@ -27,7 +27,7 @@ import {
  * | Variant    | Spends its side slots on                                  |
  * |------------|-----------------------------------------------------------|
  * | tanky      | two shield tiles, a radiator, and the one gun it needs for Destroy |
- * | aggressive | a second gun — not always another of the same — in place of one of those shield tiles |
+ * | aggressive | a second gun (not always another of the same) in place of one of those shield tiles |
  */
 export type BotRole = "interceptor" | "hunter" | "hauler";
 export type HullVariant = "tanky" | "aggressive";
@@ -48,13 +48,13 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * damage a turn and is refilled for free next turn, so a lone 2-damage shot
  * never reaches a hull. The railgun's four is exactly two shield tiles, so it
  * wants a partner, and which partner depends on where the fight is: a laser
- * ignores shields — they are electromagnetic — and reaches two rings out, one
+ * ignores shields (they are electromagnetic) and reaches two rings out, one
  * further than a rack, while a ballistic rack is the only broadside that fires
  * on the railgun's own ring, which is where the spinal shot puts the fight.
  *
  * **Why neither hunter carries missiles.** Measured in duels against the
- * strongest off-book hull — a compressor bow with two ballistic racks, a
- * shield tile and a radiator — the missile-carrying hunter completed its
+ * strongest off-book hull (a compressor bow with two ballistic racks, a
+ * shield tile and a radiator), the missile-carrying hunter completed its
  * Destroy 34% of the time: a powered rack rolls at every missile that reaches
  * it, so a salvo aimed at the one loadout built to answer it arrives as dice. The
  * tanky hunter takes the rack instead and keeps both shield tiles, which also
@@ -72,7 +72,8 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * which is where the spinal shot puts the fight.
  *
  * **Why every loadout carries a radiator.** Using a tile costs its energy in heat,
- * and heat over the dissipation is your own hull. The railgun plus one
+ * and heat the ship cannot dissipate is carried, so a hull that makes more than
+ * it sheds walks up to the redline and pays there. The railgun plus one
  * broadside is six against a dissipation of five; the radiator's +2 makes that
  * pair free. The aggressive hunter's full three-gun volley is eight, one over
  * even then: firing everything is a decision, not a default.
@@ -110,9 +111,9 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
 
 /**
  * The role is the forward tile, and the cards decide it. Intercept cannot
- * start without a scan and Survey needs powered sensors on the ring, so
- * either card takes the eyes and rules out the other two. With nothing to
- * scan the choice is the gun or the legs: a Destroy card has to catch someone
+ * start without a scan, so that card takes the eyes and rules out the other
+ * two. With nothing to scan the choice is the gun or the legs: a Destroy card
+ * has to catch someone
  * and get through their shields, which is what the railgun's four damage is
  * for, while a hand of cargo runs would rather not pay three fuel a jump.
  */
@@ -126,7 +127,7 @@ export function classifyRole(missions: Mission[]): BotRole {
 }
 
 /**
- * The variant is taste, and a bot has none — so it reads the hand instead: a
+ * The variant is taste, and a bot has none, so it reads the hand instead: a
  * Destroy card is the one card that cannot be scored by flying carefully, and
  * a bot holding one takes the second gun over the second shield.
  *
@@ -155,7 +156,7 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  * bot used to score every combination against a table of hand-tuned costs,
  * which meant every seat at every table reached for the same plan and the
  * benchmark restated what the scorer believed instead of measuring the game. A
- * plan the bots never choose is a plan nobody can measure — and the weakest
+ * plan the bots never choose is a plan nobody can measure, and the weakest
  * primary is exactly the one a scorer would drop and the one the designer needs
  * numbers for. So the spread stays.
  *
@@ -172,7 +173,7 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  *   RNG so a seed replays exactly. Without one the first hand is taken, which
  *   keeps the function pure for tests.
  * @param hull a loadout already decided for this seat (the simulator forces one to
- *   measure it). Hands that loadout could never complete are skipped — the engine
+ *   measure it). Hands that loadout could never complete are skipped: the engine
  *   refuses them anyway. A deal with no flyable hand falls back to the first.
  * @param primary experiment only: keep this kind of primary. Ignored when the
  *   deal does not offer one, so a batch never stalls on a seed.
@@ -188,7 +189,7 @@ export function selectBotMissions(
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
   // Give up the experiment's constraints one at a time rather than all at
   // once: the forced primary first, then the forced loadout. The last resort is a
-  // hand of whatever was offered, which only a hand-built deal can reach —
+  // hand of whatever was offered, which only a hand-built deal can reach:
   // every real deal holds three primaries and three secondaries.
   let hands = validHands(offers, hull, primary);
   if (hands.length === 0) hands = validHands(offers, hull);
@@ -236,11 +237,11 @@ export function validHands(
 }
 
 /**
- * Every way of taking `count` of the offered secondaries, no two of a kind —
+ * Every way of taking `count` of the offered secondaries, no two of a kind:
  * the kept cards have to be that many different things to do (RULES
- * §Missions) — in the order they were dealt, so a seed keeps replaying the
- * same hand. The deal is one card of each kind, so at the standing two this is
- * the three pairs and at three it is the single hand that takes them all.
+ * §Missions), in the order they were dealt, so a seed keeps replaying the
+ * same hand. The deal is one card of each kind and a hand keeps two, so this
+ * is the three pairs.
  */
 function distinctSecondaries(offers: Mission[], count: number): Mission[][] {
   if (count <= 0) return [[]];

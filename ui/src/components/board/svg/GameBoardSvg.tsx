@@ -1,8 +1,8 @@
 /**
  * The 2D board: the printed table, drawn as SVG.
  *
- * Everything it draws arrives in one `BoardModel` — positions, previews,
- * ranges, the callbacks a click may fire — so this file knows no rule and no
+ * Everything it draws arrives in one `BoardModel` (positions, previews,
+ * ranges, the callbacks a click may fire) so this file knows no rule and no
  * context. What is left here is renderer business: the pan and zoom of the
  * map, the seven layers in the order they stack, and the three buttons in the
  * corner.
@@ -44,7 +44,7 @@ const DRAG_THRESHOLD = 4
  * Where the board opens, and it is not on the whole board.
  *
  * The viewBox is cut to the artwork, so at zoom 1 the four wells share the pane
- * between them and each gets a fifth of its height — which is how a black hole
+ * between them and each gets a fifth of its height, which is how a black hole
  * with 24 numbers printed round its innermost ring ends up illegible on a
  * 1440-pixel screen. The game is played in the black hole's well, so that is
  * what the board opens on (`HOME_VIEW_RADIUS`), with the planets falling off

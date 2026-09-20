@@ -3,7 +3,7 @@
  *
  * A recording holds the full states (the game is over, so nothing is secret
  * any more), and the screen renders it through `viewFor` for whichever seat
- * you pick — including "spectator", which shows only what the table knew.
+ * you pick, including "spectator", which shows only what the table knew.
  *
  * The table and its transport live in `RecordingTable`; this screen only
  * fetches the recording and adds the fork and back buttons to its header.

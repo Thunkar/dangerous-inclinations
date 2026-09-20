@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo } from 'react'
 import { createShip } from './model'
-import type { WorkshopConfig } from './config'
+import type { ShipConfig } from './config'
 import { visibleSlots } from './visual'
 
 /** Rebuild only the structural hull; paint and individual slots update in place. */
-export function useShipModel(config: WorkshopConfig, concealed = false) {
+export function useShipModel(config: ShipConfig, concealed = false) {
   const structural = JSON.stringify({
     ...config,
     paint: '#aab4b2',
@@ -19,7 +19,7 @@ export function useShipModel(config: WorkshopConfig, concealed = false) {
         }
       : undefined,
   })
-  const model = useMemo(() => createShip(JSON.parse(structural) as WorkshopConfig), [structural])
+  const model = useMemo(() => createShip(JSON.parse(structural) as ShipConfig), [structural])
   useLayoutEffect(() => {
     model.update(config, visibleSlots(config, concealed))
   }, [model, config, concealed])

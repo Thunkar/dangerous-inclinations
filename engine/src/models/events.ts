@@ -7,7 +7,7 @@
  *
  * Visibility: most events are public (everyone at the table saw it), including
  * energy allocation (cubes sit on the tiles in the open). An event with
- * `privateTo` is only delivered to those players — e.g. what a scan revealed
+ * `privateTo` is only delivered to those players: e.g. what a scan revealed
  * is yours alone.
  */
 

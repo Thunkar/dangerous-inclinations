@@ -3,11 +3,12 @@
  *
  *  1. If the ship is destroyed: respawn at Home and drift with the ring. The
  *     turn ends here, and the ship cannot be touched until this player's next
- *     turn begins — which is this pipeline's first act: clearing the flag.
+ *     turn begins, which is this pipeline's first act: clearing the flag.
  *  2. Energy changes, then tactical actions in the chosen order.
  *  3. The player's missiles move and resolve.
  *  4. Docking (if the ship ended on a station).
- *  5. Heat check: excess heat becomes hull damage, heat resets.
+ *  5. Heat check: heat over the redline becomes hull damage, then the ship
+ *     dissipates and carries what is left into its next turn.
  *  6. Missions are updated from everything that happened.
  *  7. Play passes on; at the end of every round stations move, carrying the
  *     ships moored to them.
@@ -70,8 +71,8 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   // Only old recordings reach here: they were made when the turn after the
   // respawn was lost as well, and they still replay. Submitted actions are
   // ignored, but the ship is in orbit, so it drifts with its ring like
-  // anything else on it. It cannot be moored — Home is on the black hole's
-  // home ring and stations orbit a planet — so there is no berth to hold and
+  // anything else on it. It cannot be moored (Home is on one of the black
+  // hole's deployment rings and stations orbit a planet), so no berth to hold and
   // nothing for `advanceStations` to carry.
   if (active.skipTurns > 0) {
     const ship = applyOrbitalMovement(active.ship);
@@ -192,7 +193,7 @@ function finish(
 
   // Reaching the points needed does not end the game on the spot: the round
   // is played out so every seat has had the same number of turns, then the
-  // standings decide (RULES §Winning).
+  // standings decide (RULES §Missions).
   const reached = checkForWinner(next);
   if (reached && !state.finalRound) {
     next = { ...next, finalRound: true };

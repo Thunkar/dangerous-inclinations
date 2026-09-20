@@ -149,9 +149,9 @@ describe("missions: deck", () => {
     const players = ids(6);
     const offers = dealMissionOffers(players, new Rng(11));
     // Cards are only distinguishable by what they say, and the primary pile
-    // holds COPIES_PER_CARD of each — so no card off it may appear more often
-    // than that. The secondaries are three stacks and every seat takes one off
-    // each, which is the stacks' own test.
+    // holds COPIES_PER_CARD of each, so no card off it may appear more often
+    // than that. Every seat is handed one of each secondary instead of cutting
+    // into a pile, which is the secondary deal's own test.
     const seen = new Map<string, number>();
     for (const [holder, hand] of offers) {
       const seat = players.findIndex((p) => p.id === holder);
@@ -879,7 +879,7 @@ describe("missions: winning", () => {
     ]);
   });
 
-  // Three points win, so a primary on its own is one point short — and so are
+  // Three points win, so a primary on its own is one point short, and so are
   // the two secondaries a hand keeps.
   it("two points do not end the game: a Destroy alone is not a win", () => {
     let state = withShip(gunline(), "p2", { hitPoints: 4 });

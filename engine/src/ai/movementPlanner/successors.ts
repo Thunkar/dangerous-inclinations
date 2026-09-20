@@ -3,14 +3,14 @@
  *
  * Given a position and a fuel budget, this enumerates every position the
  * ship can occupy after one movement action: coast, burn (any intensity ×
- * any sector adjustment in the ring's range, in either direction since
- * rotation is free within the turn) and jump. It is the dual of
+ * any sector adjustment in the ring's range, in either direction, since a
+ * rotation costs no fuel and is not the turn's one move) and jump. It is the dual of
  * {@link ./predecessors.ts:getPredecessors} and is used by the forward BFS
  * and by the reverse planner's reachability helper.
  *
  * Engine rules encoded here (see game/movement.ts and actionProcessors.ts):
  *   - coast / burn: orbital drift first, then the ring change + phasing;
- *   - jump: the lane's destination sector IS the turn's movement — there is
+ *   - jump: the lane's destination sector IS the turn's movement: there is
  *     no drift after landing, and facing does not matter; phasing shifts the
  *     landing inside the arrival arc for 1 fuel a sector.
  */

@@ -82,7 +82,7 @@ export interface PlayerView {
   skipTurns: number;
   /**
    * Back at Home from a respawn and untouchable until they act: no shot, no
-   * missile and no scan reaches them. Public — a ship nobody can touch is
+   * missile and no scan reaches them. Public: a ship nobody can touch is
    * something the whole table can see.
    */
   recovering: boolean;

@@ -1,8 +1,8 @@
 /**
  * Where a drawn line goes on a board that is not flat.
  *
- * The shape of a track — which way it curves, and how far it bows off the ring
- * it rides so it is not drawn on top of it — belongs to `trajectory.ts`, which
+ * The shape of a track (which way it curves, and how far it bows off the ring
+ * it rides so it is not drawn on top of it) belongs to `trajectory.ts`, which
  * both boards share. This module only lifts that flat polyline into the world:
  * a sample inside one well sits on the surface beneath it, so a route across the
  * black hole's inner rings hugs the funnel instead of hanging over the pit, and

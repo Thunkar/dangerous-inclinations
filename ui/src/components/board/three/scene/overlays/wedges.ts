@@ -2,7 +2,7 @@
  * Sector wedges, merged into one buffer.
  *
  * A weapon's range can be a hundred and twenty sectors and the destination
- * picker is every sector of every ring of every well — three hundred and
+ * picker is every sector of every ring of every well: three hundred and
  * thirty-six of them. One mesh each would be three hundred and thirty-six draw
  * calls and as many materials, so the whole field is built once as a single
  * geometry and the cell under the pointer is recovered from the triangle the
@@ -17,7 +17,7 @@ import type { Position } from '@dangerous-inclinations/engine'
 import { polar, ringRadius, sectorEdgeAngle, wellCenter } from '../../../geometry'
 import { LAYER, sectorWedgeGeometry, surfaceElevation } from '../../world'
 
-/** Half-width of a range or picker wedge, in board units — the SVG board's 13. */
+/** Half-width of a range or picker wedge, in board units: the SVG board's 13. */
 export const WEDGE_BAND = 13
 /** A deployment sector is the wider mark, as it is on the SVG board. */
 export const DEPLOY_BAND = 16

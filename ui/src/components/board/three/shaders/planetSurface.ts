@@ -4,8 +4,8 @@
  * The board needs the planets told apart at a glance and it needs them told
  * apart at a glance *in their printed colours*, which is the hard part: three
  * spheres tinted blue, red and green all look like the same sphere. So the
- * difference is carried by the surface rather than by the hue — a banded gas
- * giant, a cratered rock, an ocean world under cloud — and the hue stays
+ * difference is carried by the surface rather than by the hue (a banded gas
+ * giant, a cratered rock, an ocean world under cloud) and the hue stays
  * exactly the one on the rules sheet.
  *
  * The surface pattern is sampled on the *object-space* normal, so it turns with
@@ -53,7 +53,7 @@ const COMMON = /* glsl */ `
 
 /**
  * The lit sphere. `bump` fakes relief by tilting the lambert term instead of
- * the normal — a third of the cost and, on a body forty pixels across, the
+ * the normal: a third of the cost and, on a body forty pixels across, the
  * same picture. `gloss` is the only specular anywhere on the board.
  */
 const SHADE = /* glsl */ `
@@ -135,8 +135,8 @@ const ROCK_BODY = /* glsl */ `
 
     // Twelve impacts, placed by hash rather than by hand. A crater is shape,
     // not paint: almost all of it is a dent in the lambert term, and the rim is
-    // lit asymmetrically — bright on the wall facing away from the star, dark
-    // on the wall the star is behind — which is what makes it read as a bowl
+    // lit asymmetrically (bright on the wall facing away from the star, dark
+    // on the wall the star is behind), which is what makes it read as a bowl
     // instead of a drawn circle.
     vec3 toKey = normalize(uKeyDirection);
     float relief = (base - 0.5) * 0.10 + (grit - 0.5) * 0.05;

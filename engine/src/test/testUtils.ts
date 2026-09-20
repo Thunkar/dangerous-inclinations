@@ -41,7 +41,7 @@ import type {
 import { DEFAULT_POINTS_TO_WIN } from "../models/missions.ts";
 import { createInitialShipState, updateSubsystem } from "../game/ship.ts";
 import { createInitialStations, getStationForPlanet } from "../game/stations.ts";
-import { PLANET_OUTER_RING, STATION_RING } from "../models/gravityWells.ts";
+import { PLANET_OUTER_RING } from "../models/gravityWells.ts";
 import { executeTurn, type TurnResult } from "../game/turns.ts";
 import { ringVelocity, wrapSector } from "../game/geometry.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
@@ -209,18 +209,6 @@ export function approachSector(state: GameState, planetId: string): number {
   const station = getStationForPlanet(state.stations, planetId);
   if (!station) throw new Error(`no station at ${planetId}`);
   return wrapSector(station.sector - ringVelocity(planetId, station.ring));
-}
-
-/** p1 on the station's ring, one coast short of it; p2 parked far away. */
-export function approachingStation(planetId: string, loadout?: ShipLoadout): GameState {
-  const stations = createInitialStations();
-  const sector = wrapSector(
-    getStationForPlanet(stations, planetId)!.sector - ringVelocity(planetId, STATION_RING)
-  );
-  return makeGameState([
-    makePlayer("p1", { wellId: planetId, ring: STATION_RING, sector }, loadout),
-    makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
-  ]);
 }
 
 // ---------------------------------------------------------------------------

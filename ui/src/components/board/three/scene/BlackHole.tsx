@@ -4,31 +4,31 @@
  * It is the centre of the board and it is asked to look like it without ever
  * getting in the way of the numbers printed around it. Four layers, outward:
  *
- *  1. **The horizon** — a sphere darker than the felt, so it reads as a hole
+ *  1. **The horizon**: a sphere darker than the felt, so it reads as a hole
  *     cut in the table rather than a ball resting on it, with one hard amber
  *     line at the silhouette. Without that line it is not visible at all.
- *  2. **The photon ring and the lensed arc** — camera-facing annuli just
+ *  2. **The photon ring and the lensed arc**: camera-facing annuli just
  *     outside the silhouette. The ring is the cheapest true statement about a
  *     black hole available: light that went round instead of falling in, with a
  *     second, fainter order of the same image outside it. The arc is the far
  *     side of the disc, bent over the top of the hole, which is what stops the
  *     flat disc reading as a hat brim.
- *  3. **The accretion disc** — a sheet, not a decal: tilted out of the board
+ *  3. **The accretion disc**, a sheet, not a decal: tilted out of the board
  *     plane, turning, wound into spiral filaments, white hot at its inner lip,
  *     brighter on the limb turning toward you, and drawn three times at a
  *     flared scale height so it has a thickness. It turns differentially, and
  *     it turns *visibly*: bright clumps of gas orbit at their own radius's
- *     Keplerian rate — this component tells them where they are, once a frame —
+ *     Keplerian rate (this component tells them where they are, once a frame)
  *     and the inner edge laps the outer. See `shaders/accretion.ts` for why
  *     that took landmarks rather than more turbulence.
- *  4. **The pool** — the light spilling onto the floor of the pit, drawn flat
+ *  4. **The pool**: the light spilling onto the floor of the pit, drawn flat
  *     in the board plane where it can never intersect the funnel wall, and
  *     spent long before ring 1's sector numbers. Its mottle turns at the rate
  *     of the gas at the disc's outer edge, because that is the gas throwing it.
  *
  * Not one radius in this file is a number. Every one comes from `bodies.ts`,
- * which solves them against ring 1's own ink — in plan for the Top camera and
- * up the screen for the Table one — so opening the board out makes the black
+ * which solves them against ring 1's own ink (in plan for the Top camera and
+ * up the screen for the Table one) so opening the board out makes the black
  * hole bigger and nothing here has to be touched. The whole group floats at the
  * elevation `blackHoleBody()` computes, so a deeper gravity funnel carries it
  * down without the disc cutting into the wall.
@@ -85,8 +85,8 @@ const localCamera = new Vector3()
  * uniforms through `cloneUniforms`, which copies a **number by value** and
  * shares an **object or a typed array by reference**. So `uTime: sceneTime`
  * ends up as a private `{ value }` on the material, frozen at whatever the
- * clock read when the copy happened — a fraction of a second after the board
- * opened — and every later `sceneTime.value += delta` writes to an object the
+ * clock read when the copy happened (a fraction of a second after the board
+ * opened) and every later `sceneTime.value += delta` writes to an object the
  * renderer will never look at again. `uApproach` and `uLean`, written here
  * every frame, were dead in exactly the same way: the Doppler-beamed limb was
  * pinned to the board instead of following the camera.
@@ -98,9 +98,9 @@ const localCamera = new Vector3()
  * Writing through the live material is proof against it however the copy
  * happens, and it costs five assignments a frame.
  *
- * The same bug had frozen everything else that animates through `sceneTime` —
- * the ring dashes, the lane flow, the planets, the nebula, the stars' twinkle —
- * and `SceneClock` now writes `uTime` through the whole scene every frame, so
+ * The same bug had frozen everything else that animates through `sceneTime`:
+ * the ring dashes, the lane flow, the planets, the nebula, the stars' twinkle.
+ * `SceneClock` now writes `uTime` through the whole scene every frame, so
  * that half is fixed there rather than here. What is left below is the half
  * only the black hole needs: `uApproach` and `uLean` are the camera's bearing
  * in the disc's own frame, which no shared clock could know.
@@ -124,7 +124,7 @@ const DISC_LIGHT = 0.74
  * The unit sheet the disc is drawn on: a grid in (fraction of the radius,
  * azimuth) that the vertex shader bends into place. One buffer serves the
  * midplane and both shells, and the radial resolution is what the warp and the
- * scale height are smooth over — a four-segment ring creases visibly.
+ * scale height are smooth over: a four-segment ring creases visibly.
  */
 function discSheetGeometry(radialSteps: number, arcSteps: number): BufferGeometry {
   const positions = new Float32Array((radialSteps + 1) * (arcSteps + 1) * 3)
@@ -284,8 +284,8 @@ export function BlackHole({
   const arcFragment = useMemo(() => withOctaves(2, LENSED_ARC_FRAGMENT), [])
   const poolFragment = useMemo(() => withOctaves(2, LIGHT_POOL_FRAGMENT), [])
 
-  // The shells are the expensive half of the disc — the same fragment shader
-  // over again, twice — so a machine that has already been stepped down draws
+  // The shells are the expensive half of the disc (the same fragment shader
+  // over again, twice) so a machine that has already been stepped down draws
   // the midplane alone.
   const shells = quality === 'cheap' ? [0] : body.shells ? [0, 1, -1] : [0]
 
@@ -303,7 +303,7 @@ export function BlackHole({
     )
 
     // Beaming: find the limb of the disc that is turning toward the camera.
-    // The disc turns prograde — the way sectors increase — so the limb coming
+    // The disc turns prograde (the way sectors increase) so the limb coming
     // at you is a quarter turn behind the camera's own bearing over the board.
     // The hole sits at the board's origin, so the camera's bearing over the
     // board is its own x/z angle.
@@ -330,7 +330,7 @@ export function BlackHole({
 
       {/* The light on the floor of the pit. Flat in the board plane, so it
           lies along the funnel instead of cutting through it, and radially
-          bounded in board units — which is what keeps it off ring 1. */}
+          bounded in board units, which is what keeps it off ring 1. */}
       <mesh position={[0, floorOffset, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={0}>
         <circleGeometry args={[body.pool, 96]} />
         <shaderMaterial
@@ -378,7 +378,7 @@ export function BlackHole({
       </group>
 
       {/* The disc: one sheet drawn three times, a midplane and two shells. The
-          shells are drawn at under half the midplane's weight — three sheets at
+          shells are drawn at under half the midplane's weight: three sheets at
           full strength add to white and a white black hole is a smudge. */}
       {shells.map(shell => (
         <mesh key={shell} geometry={sheet} renderOrder={2} frustumCulled={false}>

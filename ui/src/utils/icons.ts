@@ -4,7 +4,7 @@
  * The PNGs in /assets/icons come from several sources and are not consistent:
  * some are dark on transparent, some light, one is tinted. They all carry an
  * alpha channel, so every icon is flattened to a single silhouette with
- * `brightness(0) invert(1)` and rendered light — one treatment everywhere, on
+ * `brightness(0) invert(1)` and rendered light: one treatment everywhere, on
  * tiles, in the palette, in slots and on the loadouts.
  *
  * Colour never comes from the icon itself: a tile's category shows as a thin
@@ -41,19 +41,12 @@ export function subsystemCategory(type: SubsystemType): SubsystemCategory {
   return 'utility'
 }
 
-/** Category colours are for edges and badges only — never for the glyph. */
+/** Category colours are for edges and badges only, never for the glyph. */
 export const CATEGORY_COLOR: Record<SubsystemCategory, string> = {
   weapon: '#ff9a63',
   defence: TABLE.energy,
   passive: TABLE.hull,
   utility: TABLE.fuel,
-}
-
-export const CATEGORY_LABEL: Record<SubsystemCategory, string> = {
-  weapon: 'weapon',
-  defence: 'defence',
-  passive: 'passive',
-  utility: 'utility',
 }
 
 export function subsystemCategoryColor(type: SubsystemType): string {

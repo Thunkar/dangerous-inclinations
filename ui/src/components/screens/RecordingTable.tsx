@@ -3,7 +3,7 @@
  *
  * The seat picker, the turn slider and the speed control are the same
  * whatever produced the recording: `ReplayScreen` fetches one from the server
- * and renders it here through `ReplayGameProvider` — so a change to the
+ * and renders it here through `ReplayGameProvider`, so a change to the
  * transport is made once. Anything a caller needs next to the seat picker
  * (fork, back) comes in through `headerExtras`, which is handed the turn
  * being shown.

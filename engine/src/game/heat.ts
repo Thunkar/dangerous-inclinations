@@ -11,9 +11,9 @@
  * Heat used to reset to zero here, which made dissipation a spend limit: under
  * it nothing cost anything, over it a point absorbed cost more hull than it
  * saved, and so no ship ever crossed the line (1.5% of turns, with a mean 3.67
- * points of the track unused). Carrying it keeps the long-run price identical —
- * generate more than you dissipate and you pay the difference every turn once the
- * track saturates — while giving the ship ten points of buffer to spend first.
+ * points of the track unused). Carrying it keeps the long-run price identical
+ * (generate more than you dissipate and you pay the difference every turn once the
+ * track saturates) while giving the ship ten points of buffer to spend first.
  * That is what makes a hot turn a decision rather than a cliff: you can take one
  * and climb back out over the quiet turns after it.
  */
@@ -46,14 +46,10 @@ export function heatAfterCheck(heat: number, dissipation: number): number {
   return Math.max(0, Math.min(heat, MAX_HEAT) - dissipation);
 }
 
-export function resetHeat(ship: ShipState): ShipState {
-  return { ...ship, heat: { currentHeat: 0 } };
-}
-
 /**
  * End-of-turn heat check.
  *
- * 1. Powered shields add their cubes — what they cost just for being on.
+ * 1. Powered shields add their cubes: what they cost just for being on.
  * 2. A ship that made no heat at all repairs the tile its owner named.
  * 3. Anything over `MAX_HEAT` is hull damage, and the track stops at the top.
  * 4. The ship dissipates; what is left carries to the next turn.
@@ -62,13 +58,13 @@ export function resetHeat(ship: ShipState): ShipState {
  * shield was powered and nothing was absorbed since the last check: everything
  * off and the crew outside. It is the only repair that does not need a station,
  * and it is what stops a critical on the engines or the thrusters being a
- * soft-lock — every station is in a planet well, reaching one needs a jump, and
+ * soft-lock: every station is in a planet well, reaching one needs a jump, and
  * a jump needs engines, so a ship without them could otherwise never be fixed.
  * One tile a turn, named by its owner with the turn.
  *
  * Working radiators are revealed whenever the ship dissipated more than a bare hull
  * could have: they are visibly doing it, whether or not damage was avoided.
- * Shields are not revealed by that heat — the cubes on the slot are
+ * Shields are not revealed by that heat: the cubes on the slot are
  * already public and the dissipation covering them is not, so the arithmetic
  * is a tell and not a proof, which is the trade RULES.md asks for.
  */

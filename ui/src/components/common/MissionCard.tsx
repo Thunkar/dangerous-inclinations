@@ -2,7 +2,7 @@
  * A mission card, drawn as the printed one will be: a cream paper card on the
  * dark table, with one big diagonal of the family's colour across the picture,
  * a heavy black silhouette on it, and the job typed underneath. Flat ink, sharp
- * corners, thin black rules — no gradient, no glow, no texture. Whatever
+ * corners, thin black rules: no gradient, no glow, no texture. Whatever
  * survives here survives a press.
  *
  * **Every card of a size is the same card.** A deck is cut, not laid out: the
@@ -38,7 +38,7 @@ const INK_SOFT = 'rgba(20,22,26,0.66)'
 const PAPER_SOFT = 'rgba(233,223,199,0.6)'
 /**
  * The family colour as it prints. The table's screen colours are mixed for a
- * dark felt and have no bite on cream — same three hues, pressed harder.
+ * dark felt and have no bite on cream: same three hues, pressed harder.
  */
 const FAMILY_INK: Record<MissionFamily, string> = {
   combat: '#d21b33',
@@ -49,7 +49,7 @@ const FAMILY_INK: Record<MissionFamily, string> = {
 /**
  * The cut of the card. Width and height are 5:7; the title strip, description
  * and foot are fixed, three hairline rules separate the four sections, and the
- * picture is whatever is left — so the sum is the height by construction and
+ * picture is whatever is left, so the sum is the height by construction and
  * cannot drift when a number here is edited.
  */
 interface Cut {
@@ -116,7 +116,6 @@ const FAN: Cut = {
 }
 
 /** 5:7, the proportion of the card that will be printed. */
-export const CARD_WIDTH = FULL.width
 export const FAN_CARD_WIDTH = FAN.width
 export const FAN_CARD_HEIGHT = FAN.height
 
@@ -190,7 +189,7 @@ export function MissionCard({
   const unmet = requires?.some(r => !r.met) ?? false
   const outline = selected ? (unmet ? TABLE.heat : TABLE.accent) : null
   // Face up, behind the screen, or kept at the shipyard. This is not card
-  // content — a printed card has no such line — so it rides over the corner as
+  // content (a printed card has no such line) so it rides over the corner as
   // a badge and moves nothing.
   const state = done ? 'face up' : held ? 'in hand' : selected ? 'kept' : null
   const needs = requires !== undefined && requires.length > 0
@@ -427,7 +426,7 @@ export function MissionCard({
  * What the card needs aboard, on the one footer line: the word, the tiles that
  * would satisfy it, and the labels. Warm red until the loadout carries one of
  * them and paper with a tick once it does, so an unflyable card is impossible
- * to miss on the shipyard screen — the only place the line has anything to say.
+ * to miss on the shipyard screen, the only place the line has anything to say.
  * It lives on the black foot, which is where the light subsystem icons read.
  */
 function RequirementLine({

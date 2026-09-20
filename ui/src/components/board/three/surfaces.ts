@@ -1,8 +1,8 @@
 /**
  * The buffers the board is printed on.
  *
- * Every surface the scene draws — the plate under a well, a ring ribbon, a
- * lane arc, a sector tick — is a strip of triangles that hugs the funnel from
+ * Every surface the scene draws (the plate under a well, a ring ribbon, a
+ * lane arc, a sector tick) is a strip of triangles that hugs the funnel from
  * `world.ts`, so nothing floats and nothing sinks. Each builder returns a
  * fresh `BufferGeometry` that the caller owns and must dispose.
  *
@@ -91,8 +91,8 @@ export function arcRibbonGeometry(
  * The dark plate a well is printed on: a disc displaced by the funnel, so the
  * well is visibly a well rather than a circle with numbers around it.
  *
- * The rings are sampled where the shape needs it rather than evenly — every
- * terrace edge and ten steps down every ramp, from `funnelSampleRadii` — so a
+ * The rings are sampled where the shape needs it rather than evenly (every
+ * terrace edge and ten steps down every ramp, from `funnelSampleRadii`) so a
  * flat terrace comes out flat and the step below it keeps its shoulder.
  */
 export function funnelPlateGeometry(

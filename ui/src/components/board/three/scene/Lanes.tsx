@@ -5,7 +5,7 @@
  * Lanes are one-way, so direction is shown by movement rather than by an
  * arrowhead: the departure arc is solid and its dashes run toward the arrival
  * arc, which is dashed and hollow-lettered. The arc you could jump from right
- * now is brighter and flows faster. No connector line crosses the map — the
+ * now is brighter and flows faster. No connector line crosses the map: the
  * letter is what tells you which arc comes out where.
  */
 import { useMemo } from 'react'

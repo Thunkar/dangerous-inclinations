@@ -9,8 +9,9 @@
  * Energy and heat:
  * - Energy allocated to a subsystem persists across turns.
  * - Using a subsystem generates heat equal to its allocated energy.
- * - Heat above the ship's dissipation capacity becomes hull damage at the end
- *   of the owner's turn, then heat resets to 0.
+ * - Heat is a track that does not reset: at the owner's heat check anything
+ *   over the redline is hull damage, and what survives the dissipation is
+ *   carried into the next turn.
  *
  * Hidden information:
  * - Loadout tiles start face-down (`isRevealed: false`). A tile flips face-up
@@ -64,16 +65,13 @@ export const SLOT_IDS: readonly SubsystemId[] = [
   ...Array.from({ length: SIDE_SLOT_COUNT }, (_, i) => slotSubsystemId("side", i)),
 ];
 
-/** Every subsystem id a ship can have (fixed systems + slots). */
-export const ALL_SUBSYSTEM_IDS: readonly SubsystemId[] = [...FIXED_SUBSYSTEM_TYPES, ...SLOT_IDS];
-
 /**
  * Slots no critical may name, and since a critical is the only thing that
  * breaks a tile, slots that cannot break at all.
  *
  * The fuel scoop is the way home. Broken tiles are only repaired at a station,
  * a dry ship cannot burn or jump, and a coast moves it along the ring it is
- * already on — so a critical on the scoop of a ship with an empty tank, away
+ * already on, so a critical on the scoop of a ship with an empty tank, away
  * from a planet's station ring, takes that player out of the game with no move
  * that leads back. Every other tile a critical can break costs a capability;
  * this one costs the rest of the evening.
@@ -85,12 +83,12 @@ export function isCriticalTarget(id: SubsystemId): boolean {
 }
 
 /**
- * Energy a shield spends per point of damage it absorbs — the same two as the
+ * Energy a shield spends per point of damage it absorbs: the same two as the
  * heat (SHIELD_HEAT_PER_POINT), so a point costs two cubes and two heat.
  *
  * At one cube a point a shield tile soaked its cubes every round for free,
- * which made every 2-damage weapon — missiles, the rack, and the railgun
- * against two tiles — permanently unable to reach a hull: 66% of the shots a
+ * which made every 2-damage weapon (missiles, the rack, and the railgun
+ * against two tiles) permanently unable to reach a hull: 66% of the shots a
  * bot declined to take at a Destroy target were declined because they would
  * have been absorbed whole. The cubes are not destroyed: they return to the
  * reactor and the tile goes dark until it is re-powered.
@@ -125,7 +123,7 @@ export interface SubsystemConfig {
   maxEnergy: number;
   /**
    * Cubes this tile takes at a time; an allocation must be a multiple of it.
-   * Omitted means one, which is every tile but the shields — they buy
+   * Omitted means one, which is every tile but the shields. They buy
    * absorption in whole points at SHIELD_ENERGY_PER_POINT cubes each.
    */
   energyStep?: number;
@@ -233,8 +231,8 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
      * Two cubes or four, never one or three: a tile buys absorption in whole
      * points at SHIELD_ENERGY_PER_POINT cubes each, so an odd cube would sit
      * on a promise the rules do not keep. Four is most of a reactor for a
-     * single tile — two tiles at full wall are eight of ten cubes and eight
-     * heat if they absorb — which is what makes powering them a decision each
+     * single tile (two tiles at full wall are eight of ten cubes and eight
+     * heat if they absorb), which is what makes powering them a decision each
      * turn rather than a setting.
      */
     minEnergy: SHIELD_ENERGY_PER_POINT,

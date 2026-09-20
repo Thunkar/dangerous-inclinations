@@ -2,7 +2,7 @@
  * Finished games the server kept. Open one to watch it back from any seat.
  *
  * Recordings are identified on the wire by ids; nothing here shows one. A
- * game is named by what it was — a table game or a run of the simulator —
+ * game is named by what it was (a table game or a run of the simulator)
  * when it was played, and how it ended.
  */
 import { useEffect, useState } from 'react'

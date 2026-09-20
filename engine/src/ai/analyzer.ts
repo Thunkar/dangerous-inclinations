@@ -87,7 +87,7 @@ export function suspectedWeapon(
       ? weapon("missiles", POSSIBLE)
       : null;
   }
-  // Two cubes on a side slot is a laser, a rack, missiles — or shields.
+  // Two cubes on a side slot is a laser, a rack, missiles, or shields.
   return slot.allocatedEnergy === getSubsystemConfig("missiles").minEnergy
     ? weapon("missiles", POSSIBLE)
     : null;

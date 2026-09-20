@@ -8,7 +8,7 @@
  * in between.
  *
  * What each mark means is the flat board's `EffectsLayer`, and the timing is
- * the animator's to the millisecond — only the drawing is new. A `tween` draws
+ * the animator's to the millisecond: only the drawing is new. A `tween` draws
  * nothing at all: it exists to keep the clock alive while a token slides.
  *
  * `pointOf` comes down from the model so that a mark about a ship lands on the
@@ -29,7 +29,7 @@ import { countRender } from './effects/renders'
 /**
  * Troika draws each glyph the first time something asks for it, and it does
  * the work in a worker: a number that lives for a second can be half over
- * before its letters arrive. This string is never seen — it is here so that
+ * before its letters arrive. This string is never seen: it is here so that
  * every character a float can use is in the atlas before the first shot of the
  * game is fired.
  */

@@ -66,8 +66,8 @@ function allocations(candidate: ActionPlan): Record<string, number> {
 
 /**
  * Play the candidate and read back what the lane cost. Phasing is never
- * cheapened, so the fuel a jump spends is the lane's own cost — one with a
- * working compressor — plus a point per sector of phasing.
+ * cheapened, so the fuel a jump spends is the lane's own cost (one with a
+ * working compressor) plus a point per sector of phasing.
  */
 function takeTheLane(state: GameState, candidate: ActionPlan) {
   const jump = candidate.actions.find((a) => a.type === "well_transfer");

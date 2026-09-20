@@ -1,8 +1,8 @@
 /**
  * A frame-time probe for the dev harness.
  *
- * It answers one question — what does this scene cost, with the composer on
- * and off — and answers it on the console rather than on screen, so a headless
+ * It answers one question (what does this scene cost, with the composer on
+ * and off) and answers it on the console rather than on screen, so a headless
  * screenshot run can read it. It is mounted only when the harness asks for it
  * (`?stats=1`) and is never part of the table.
  */

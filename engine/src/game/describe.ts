@@ -37,7 +37,7 @@ export function describeMission(m: Mission, name: NameResolver): string {
 
 /**
  * A requirement in a player's words: "a sensor array", or "a weapon (railgun,
- * broadside laser, missiles or ballistic rack)" when several tiles count —
+ * broadside laser, missiles or ballistic rack)" when several tiles count:
  * the label alone is what a player needs, the names say what satisfies it.
  */
 export function describeMissionRequirement(requirement: MissionRequirement): string {
@@ -159,7 +159,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "final_round":
       return e.turnsLeft === 0
         ? `${name(e.playerId)} reaches ${e.points} points as the round ends`
-        : `${name(e.playerId)} reaches ${e.points} points — the round is played out (${e.turnsLeft} more to act)`;
+        : `${name(e.playerId)} reaches ${e.points} points: the round is played out (${e.turnsLeft} more to act)`;
     case "game_ended":
       return e.decidedBy === "points"
         ? `${name(e.winnerId)} wins`

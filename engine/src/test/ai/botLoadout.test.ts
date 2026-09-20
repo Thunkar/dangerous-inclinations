@@ -105,7 +105,7 @@ describe("botChooseLoadout", () => {
     // valid, and which one it takes is the seeded pick. Measuring which plan
     // wins is the benchmark's job, not the chooser's.
     // No Deliver here, so no hand is a hold clash and every one stays on the
-    // table — the pairing rule is covered by its own test above.
+    // table. The pairing rule is covered by its own test above.
     const offers: Mission[] = [
       destroyMission("p2"),
       interceptMission("p3"),
@@ -268,14 +268,14 @@ describe("botChooseLoadout", () => {
 
   it("gives every combat hull the heat headroom its volley needs", () => {
     // A shield tile eats two damage a turn and is refilled for free, so a
-    // volley has to beat the cubes to reach a hull — and heat over the
+    // volley has to beat the cubes to reach a hull, and heat over the
     // dissipation is the bot's own hull. Every hull that shoots carries a
     // radiator, and the railgun loadouts carry a second gun to pair with the bow.
     for (const [name, template] of Object.entries(BOT_LOADOUT_TEMPLATES)) {
       expect(template.sideSlots, name).toContain("radiator");
     }
     // The hunter's partner gun is a broadside that lands its damage: a rack on
-    // the railgun's own ring, a laser a ring further out. Never missiles — a
+    // the railgun's own ring, a laser a ring further out. Never missiles: a
     // powered rack rolls at every one of them (see loadout.ts).
     for (const name of ["hunter-tanky", "hunter-aggressive"] as const) {
       const hunter = BOT_LOADOUT_TEMPLATES[name];
@@ -352,7 +352,7 @@ describe("botChooseLoadout", () => {
   });
 
   // A bot picks its cards first and then a hull that fits them, so it should
-  // never hand the referee a hand its loadout cannot fly — at any table size.
+  // never hand the referee a hand its loadout cannot fly, at any table size.
   it.each([2, 3, 4])("never keeps a card its hull cannot complete (%i players)", (playerCount) => {
     for (let seed = 0; seed < 40; seed++) {
       const state = createGame(

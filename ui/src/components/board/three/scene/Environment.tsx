@@ -1,18 +1,18 @@
 /**
- * Deep space, lit for reading — and the one place that decides how much of it
+ * Deep space, lit for reading, and the one place that decides how much of it
  * this machine can afford.
  *
  * The room: a baked navy sky so the board never sits on flat black, three
  * shells of stars turning at different rates so orbiting the board parallaxes
  * them against each other, one cool key from above, a dim back light so a hull
  * has an edge against the void, a navy hemisphere fill so nothing goes solid
- * black, and one amber lamp down in the pit — the only warm light on the table.
+ * black, and one amber lamp down in the pit: the only warm light on the table.
  * All of it is subordinate to the board: the sky stays at the luminance of the
  * felt, and nothing glows anywhere near a sector number.
  *
  * ## Quality
  *
- * The `postprocessing` prop is the *request* — the board's query flag, or its
+ * The `postprocessing` prop is the *request*: the board's query flag, or its
  * default. What actually runs is decided here, by measuring. The composer costs
  * about two and a half times the frame time where there is no GPU to do it on,
  * and a playtester on a weak laptop is a real person; so the scene starts on
@@ -20,7 +20,7 @@
  * it cannot keep up: first the composer, which is where nearly all of the cost
  * is, and only on a machine that is still hopeless afterwards the whole cheap
  * path (fewer stars, a coarser sky, two-octave shaders, no cloud deck, coarser
- * spheres). It never steps back up — a board that changes its mind while you
+ * spheres). It never steps back up: a board that changes its mind while you
  * are looking at it is worse than a board that is a little plain.
  *
  * `?quality=high` pins the requested path and `?quality=low` pins the cheap
@@ -29,7 +29,7 @@
  * A screen-space lensing pass lived in this composer chain for a while and was
  * taken out again: at a strength that never touched a sector number it was
  * invisible, and at a strength you could see it bent the numbers. The black
- * hole says the same thing with geometry instead — see `scene/BlackHole.tsx` —
+ * hole says the same thing with geometry instead (see `scene/BlackHole.tsx`)
  * which costs nothing and cannot warp the board.
  *
  * This file is the only thing that measures and the only thing that steps the
@@ -364,7 +364,7 @@ export function Environment({ postprocessing = true }: { postprocessing?: boolea
       {composerOn && (
         <EffectComposer multisampling={0} enableNormalPass={false}>
           {/* High threshold and a tight radius: only the hottest part of the
-              disc blooms, and it must not spill across the horizon — a black
+              disc blooms, and it must not spill across the horizon: a black
               hole with a grey middle is a smudge, not a hole. */}
           <Bloom
             mipmapBlur

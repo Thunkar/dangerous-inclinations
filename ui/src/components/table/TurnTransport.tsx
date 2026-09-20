@@ -3,8 +3,8 @@
  *
  * A table with bots runs several turns between two of yours, and the log says
  * what happened without showing you where it happened. A tick replays one of
- * those turns over the board — the same animation, from the same pair of
- * views, committing nothing — so a volley you missed can be watched again
+ * those turns over the board (the same animation, from the same pair of
+ * views, committing nothing) so a volley you missed can be watched again
  * without touching the game.
  *
  * The speed sits here because it is the same question: how fast somebody

@@ -196,7 +196,7 @@ const pools: { [K in MaterialKind]: MaterialByKind[K][] } = {
  *
  * The claim is repeated when the effect mounts and given back when it
  * unmounts, so a material is never on the free list and on the table at the
- * same time — which is what React's development double-mount would otherwise
+ * same time, which is what React's development double-mount would otherwise
  * arrange.
  */
 export function useEffectMaterial<K extends MaterialKind>(kind: K): MaterialByKind[K] {

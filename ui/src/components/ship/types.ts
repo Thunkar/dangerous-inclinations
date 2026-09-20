@@ -35,7 +35,7 @@ export interface ShipDisplayProps {
   fixed?: FixedSlotContent
   shipImageSrc?: string
   metrics?: Partial<ShipMetrics>
-  /** Dim the hull plate — used while the loadout is still being filled. */
+  /** Dim the hull plate: used while the loadout is still being filled. */
   faded?: boolean
   /** Rails that would accept whatever is being dragged or held. */
   activeRails?: { forward?: boolean; side?: boolean }

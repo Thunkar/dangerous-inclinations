@@ -75,7 +75,7 @@ export function salvoHeat(weapon: Subsystem): number {
 /**
  * Everything one tile could put on a ship in a single action. A missiles tile
  * may empty its magazine at one target in one launch, so its potential is the
- * whole magazine — a bot that priced it at one round would never see that its
+ * whole magazine: a bot that priced it at one round would never see that its
  * launcher can finish a ship.
  */
 export function weaponPotential(weapon: Subsystem): number {
@@ -182,7 +182,7 @@ function fallbackCriticalTarget(target: Opponent): SubsystemId {
 /**
  * What a slot's cubes say about it being a shield tile: a side slot holding
  * one to four cubes that no weapon's cube count explains. Bigger is better
- * to break — those are the cubes soaking our volley.
+ * to break: those are the cubes soaking our volley.
  */
 function suspectedShieldCubes(slot: SuspectedSlot): number {
   if (slot.suspected !== null) return 0;
@@ -193,7 +193,7 @@ function suspectedShieldCubes(slot: SuspectedSlot): number {
 
 /**
  * Slot to break on a critical. Every candidate must be a tile that is still
- * intact — breaking a broken tile does nothing — and cubes are the evidence:
+ * intact (breaking a broken tile does nothing) and cubes are the evidence:
  * energy allocation is public, and a broken tile is turned face-up with its
  * cubes returned to the reactor, so any slot carrying cubes is certainly
  * still working.
@@ -282,7 +282,7 @@ export function firingOptions(
   const { status } = situation;
   const targetPos = target.position;
 
-  // Nothing reaches another ship in the opening round (RULES §Firing), so
+  // Nothing reaches another ship in the opening round (RULES §A Turn), so
   // there is nothing to plan: the engine would refuse every one of these.
   if (isOpeningRound(situation.view.turn)) return intents;
   // Nor does anything reach a ship that just came back: it is untouchable

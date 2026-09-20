@@ -79,7 +79,7 @@ export function shipOrigin(ship: ShipState): OrientedPosition {
  * Planner options describing the ship's tank, scoop and compressor.
  *
  * `reserveMass` is fuel the route may not touch: both the tank and what is in
- * it shrink by it, which is exactly the arithmetic of a reserve — every
+ * it shrink by it, which is exactly the arithmetic of a reserve: every
  * affordability check along the path reads "fuel above the reserve", and the
  * scoop's headroom to the real tank is unchanged. A Tanker pumps its fuel on
  * arrival, so its dock trips are planned with that reserved and the search

@@ -1,16 +1,16 @@
 /**
- * Ship & energy — the first thing you do on your turn.
+ * Ship & energy: the first thing you do on your turn.
  *
  * The hull with every tile seated in its rail, the cubes routed to each of
  * them, and what is left in the reactor. A tile that takes energy prints a
  * row of cells: lit up to what it holds, hollow to its maximum, with a tick
  * after the minimum it needs to do anything at all. Passive tiles print no
- * cells at all — they never take a cube — and nothing is ever written under
+ * cells at all (they never take a cube) and nothing is ever written under
  * a tile: missile ammo is read off the status block above.
  *
  * Left click powers a tile up (to its minimum from cold, then one cube at a
  * time); right click takes a cube back, and turns the tile off at its
- * minimum. A cell can also be clicked directly to set the level — below the
+ * minimum. A cell can also be clicked directly to set the level: below the
  * minimum that means off, because a tile is either off or powered.
  *
  * Nothing here touches the ship: these are cubes moved on your own loadout, and
@@ -125,7 +125,7 @@ export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
   )
 }
 
-/** Name, what the tile holds, and what it needs — the same on every tile. */
+/** Name, what the tile holds, and what it needs: the same on every tile. */
 function TileTip({ sub }: { sub: Subsystem }) {
   const config = getSubsystemConfig(sub.type)
   const passive = config.maxEnergy === 0
@@ -136,7 +136,7 @@ function TileTip({ sub }: { sub: Subsystem }) {
       </Typography>
       {passive ? (
         <Typography variant="caption" sx={{ display: 'block' }}>
-          Passive — it works without a cube.
+          Passive: it works without a cube.
         </Typography>
       ) : (
         <>
@@ -150,7 +150,7 @@ function TileTip({ sub }: { sub: Subsystem }) {
       )}
       {sub.isBroken && (
         <Typography variant="caption" sx={{ display: 'block', color: TABLE.danger }}>
-          BROKEN — it takes no energy until repaired
+          BROKEN · it takes no energy until repaired
         </Typography>
       )}
     </Box>

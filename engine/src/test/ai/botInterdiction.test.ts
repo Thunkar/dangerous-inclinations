@@ -5,7 +5,7 @@
  * own progress. What a rival carries is public (crates and data chits sit on
  * the ship), their score is public (completed cards are face-up), stations
  * are the only place cargo can be handed over and the lanes are the only way
- * between wells — so the whole table can tell who is one dock from winning
+ * between wells, so the whole table can tell who is one dock from winning
  * and roughly where they have to go. These tests pin down that deduction and
  * the behaviour it drives, all from `viewFor` fixtures: the bot never sees
  * anything a player in its seat would not.
@@ -215,7 +215,7 @@ describe("danger: reading the scoreboard and the hold", () => {
 
   it("excludes the planet a crate was loaded at from where it can be delivered", () => {
     // A Deliver route runs between two different planets, so the crate on a
-    // ship orbiting Alpha is going to Beta or Gamma — never back to Alpha.
+    // ship orbiting Alpha is going to Beta or Gamma, never back to Alpha.
     const stations = makeGameState([]).stations;
     const planets = predictedDeliveryPlanets(
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
@@ -313,7 +313,7 @@ describe("interdiction goals", () => {
     // public reading of the race is the trip out of this well: a crate cannot
     // be delivered where it was loaded, and the way out is Alpha's inbound
     // lane on ring 4 sectors 16-19. The bot is the one sitting just short of
-    // it and p2 is most of a lap behind, so the bot gets home first — turning
+    // it and p2 is most of a lap behind, so the bot gets home first: turning
     // to fight would hand the game to the third player.
     let state = aboutToWin(threeWay(), "p2", [crate(BETA, ALPHA)]);
     state = withPlayer(state, "p1", {
@@ -332,7 +332,7 @@ describe("interdiction goals", () => {
 
   it("does not divert when its guns cannot beat the shield cubes on the target", () => {
     // A shield tile buys one point of absorption for every two cubes on it, so
-    // the wall below — two tiles, four cubes — stops a two-damage rack whole
+    // the wall below (two tiles, four cubes) stops a two-damage rack whole
     // and the bot has no business chasing. A laser skips the shields, so the
     // same trader with a laser does divert. Same board, same rival, same
     // score: only the bot's hull differs.
@@ -464,7 +464,7 @@ describe("denial valuation", () => {
   });
 
   it("counts a hit on anyone, and counts it far higher on the player about to win", () => {
-    // What a shot takes off a ship does not depend on the scoreboard — their
+    // What a shot takes off a ship does not depend on the scoreboard: their
     // hull, and on a kill their hold and their next two turns. The scoreboard
     // decides how urgent that is, not whether it is worth anything.
     const nobody = planAgainst(duel(), "p2");

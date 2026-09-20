@@ -30,7 +30,7 @@ describe("bot-vs-bot games", () => {
     }
   }
 
-  it("deals, keeps and completes only the four card types that exist", () => {
+  it("deals, keeps and completes only the card types that exist", () => {
     const kept = new Set<MissionType>();
     const completed = new Set<MissionType>();
     for (const seed of SEEDS) {

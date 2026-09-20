@@ -295,7 +295,7 @@ describe("movement: fuel scoop", () => {
     [ALPHA, 1, 0, 6],
   ])("scooping on %s ring %i from %i mass gives %i", (wellId, ring, mass, expected) => {
     // Sector 6: a planet ring can carry a station, and the scoop cannot be
-    // run in port (RULES §Stations) — every station starts on sector 0.
+    // run in port (RULES §Stations): every station starts on sector 0.
     let state = withPower(shipAt(wellId, ring, 6), "p1", "scoop", 3);
     state = withShip(state, "p1", { reactionMass: mass });
     const result = executeTurnAs(state, coast(1, true));

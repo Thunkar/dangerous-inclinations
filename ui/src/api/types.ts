@@ -96,7 +96,7 @@ export interface StartGameResponse {
   gameId: string
 }
 
-/** `GET /api/players/:id/status` — the lobby (with its gameId) is all the client needs to resume. */
+/** `GET /api/players/:id/status`: the lobby (with its gameId) is all the client needs to resume. */
 export interface PlayerStatusResponse {
   player: Player
   lobby: ServerLobby | null
@@ -165,12 +165,12 @@ export interface ChatMessage {
 
 export type ChatKind = 'say' | 'think'
 
-/** `GET /api/games/:gameId/chat` — oldest first. */
+/** `GET /api/games/:gameId/chat`: oldest first. */
 export interface ChatHistoryResponse {
   messages: ChatMessage[]
 }
 
-/** `POST /api/games/:gameId/chat` — the line as the table will see it. */
+/** `POST /api/games/:gameId/chat`: the line as the table will see it. */
 export interface ChatPostResponse {
   message: ChatMessage
 }
@@ -184,7 +184,6 @@ export type GameSocketMessage =
 
 export type LobbySocketMessage =
   | { type: 'CONNECTED'; room: 'lobby'; roomId: string }
-  | { type: 'LOBBY_STATE'; payload: ServerLobby }
   | { type: 'PLAYER_JOINED'; payload: LobbyPlayer }
   | { type: 'PLAYER_LEFT'; payload: { playerId: string } }
   | { type: 'GAME_STARTING'; payload: { gameId: string } }

@@ -41,7 +41,7 @@ export async function playerRoutes(fastify: FastifyInstance) {
   /**
    * The caller's current session: lobby (if any) and, when its game has
    * started, the caller's own view of it. The view is always built for
-   * `x-player-id`, never for the id in the URL — asking for someone else's
+   * `x-player-id`, never for the id in the URL: asking for someone else's
    * status is a 403, not another player's view.
    */
   fastify.get<{ Headers: { "x-player-id"?: string }; Params: { playerId: string } }>(

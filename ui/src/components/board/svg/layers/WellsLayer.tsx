@@ -2,7 +2,7 @@
  * The printed board: the black hole, the three planets, their rings, the
  * sector ticks and every sector number.
  *
- * Every ring carries all 24 labels — the inner rings simply print theirs
+ * Every ring carries all 24 labels: the inner rings simply print theirs
  * smaller, because a number you have to count around to is no number at all.
  * Static: nothing here reads game state.
  */
@@ -28,8 +28,8 @@ import {
  * so the old 1.2 printed units was already a one-pixel hairline: taking it
  * thinner only makes the browser draw the same pixel more faintly, which is a
  * paler ring rather than a finer one. So the width comes down for every view
- * that is zoomed in past the default — where it is a real line and reads
- * visibly finer — and the ink comes up to hold it at the default, where the
+ * that is zoomed in past the default (where it is a real line and reads
+ * visibly finer) and the ink comes up to hold it at the default, where the
  * screen has nothing thinner to offer.
  */
 const RING_STROKE = 'rgba(126,165,205,0.26)'

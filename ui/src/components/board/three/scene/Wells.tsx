@@ -5,7 +5,7 @@
  * hole is visibly a well and the planets visibly dimples; the rings are
  * emissive ribbons laid on that surface at their own elevation. Each ribbon
  * carries a faint dashed pattern drifting prograde at a speed proportional to
- * the ring's velocity — the movement rule, animated, and the only thing on the
+ * the ring's velocity: the movement rule, animated, and the only thing on the
  * board that moves when nobody is playing.
  *
  * A well's name is printed below the well in the widest empty band its plate
@@ -13,7 +13,7 @@
  * name can no more overrun a sector number than a five-letter one can. There
  * are two such bands: inside ring 1, between the body and ring 1's numbers,
  * which is where the paper board prints it; and outside the outermost ring,
- * between its numbers and the rim of the plate. A planet keeps the first — its
+ * between its numbers and the rim of the plate. A planet keeps the first: its
  * pit is nearly empty. The black hole's is not: its accretion disc reaches out
  * to ring 1's numbers, and reserving a lane for a ten-letter label on the one
  * body whose identity is never in doubt cost the disc a fifth of its radius.
@@ -113,7 +113,7 @@ function fitName(text: string, inner: number, outer: number): Nameplate {
  *
  * *Below the plate* the band starts a clearance outside the rim and is allowed
  * one more plate margin of room. It is the only other place on the board that
- * is provably empty — the outermost ring carries the transfer lanes' ribbons,
+ * is provably empty: the outermost ring carries the transfer lanes' ribbons,
  * and their A/B badges sit a badge's width outside it again, so the strip
  * between the last ring and the rim is not free even though it looks it. The
  * black hole ends up here, because its accretion disc reaches the ring 1
@@ -195,7 +195,7 @@ function Well({ well, onFocus }: { well: GravityWell; onFocus?: (wellId: Gravity
         receiveShadow={false}
       >
         {/* A little sheen, so the key light models the slope of the funnel
-            instead of leaving it a flat dark disc — and a vertex shade by depth
+            instead of leaving it a flat dark disc, and a vertex shade by depth
             under it, so a terrace reads as a step even where no light falls. */}
         <meshStandardMaterial
           color={BOARD_INK.plate}

@@ -1,6 +1,6 @@
 /**
  * The turn log, kept at the left edge of the table like a score pad. Every
- * line is an engine event run through `describeEvent` — the same text the
+ * line is an engine event run through `describeEvent`: the same text the
  * simulator and the replay use.
  *
  * It sits at the foot of the left column and takes whatever height is left

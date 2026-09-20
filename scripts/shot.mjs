@@ -1,9 +1,7 @@
 /**
  * Drive the running app and photograph it. Not a test: a way to see a change.
  *   node scripts/shot.mjs <url-path> <out.png> [waitMs]
- * The dev server must be up (`yarn dev`). There is no canned page any more —
- * the `?showcase=1` bot game was removed — so a board is photographed at a
- * real table.
+ * The dev server must be up (`yarn dev`).
  *
  * `PLAYER_ID=<id>` seats the browser at one: the app reads the viewer off
  * `localStorage.playerId`, so that with `/?game=<id>` is how the board, the

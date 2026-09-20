@@ -3,7 +3,7 @@
  *
  * Picks a ship in the game you are watching and starts a fresh live game from
  * this turn with you in that seat; everyone else carries on as bots. Only a
- * bot's seat or your own can be taken — another player's seat would hand you
+ * bot's seat or your own can be taken: another player's seat would hand you
  * their missions, cargo and everything their scans found.
  */
 
@@ -59,14 +59,14 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
       .map((p) => ({
         id: p.id,
         name: p.name,
-        // A recording from before the table could agree on the number was
-        // played to the default.
+        // A recording from before the points target was written into the
+        // snapshot was played to the default.
         pointsToWin: snapshot.pointsToWin ?? DEFAULT_POINTS_TO_WIN,
         isBot: kinds.get(p.id) !== 'human',
         isMine: p.id === myPlayerId,
         hull: p.ship.hitPoints,
         maxHull: p.ship.maxHitPoints,
-        missionsDone: p.completedMissionCount,
+        pointsScored: p.completedMissionCount,
       }))
       // Another human's seat would expose their hand; the server refuses it too.
       .filter((p) => p.isBot || p.isMine)
@@ -76,7 +76,7 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
   // is over there is no game to carry on with.
   const isPlayable = snapshot.phase === 'active' || snapshot.phase === 'ended'
   const blockReason = !isPlayable
-    ? 'The game had not started here — scrub forward to a turn that was played.'
+    ? 'The game had not started here. Scrub forward to a turn that was played.'
     : seats.length === 0
       ? 'Every ship in this game was played by someone else, so there is no seat to take.'
       : null
@@ -148,8 +148,8 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
                           {seat.isMine ? ' (your seat)' : ''}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Hull {seat.hull}/{seat.maxHull} · {seat.missionsDone} of {seat.pointsToWin} missions
-                          completed
+                          Hull {seat.hull}/{seat.maxHull} · {seat.pointsScored} of{' '}
+                          {seat.pointsToWin} points
                         </Typography>
                       </Box>
                     }

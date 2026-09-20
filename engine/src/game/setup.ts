@@ -120,8 +120,8 @@ export function submitLoadout(
   const picked = selectMissionsFromOffers(player.missionOffers, submission.missionIds);
   if (picked.error) return { state, error: picked.error };
 
-  // A card you can never complete is not a card: Intercept and Survey need the
-  // sensor array, Destroy needs a gun, and a loadout is fixed for the game.
+  // A card you can never complete is not a card: Intercept needs the sensor
+  // array, Destroy needs a gun, and a loadout is fixed for the game.
   const gaps = missionsMissingRequirements(picked.missions, submission.loadout);
   if (gaps.length > 0) {
     const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;

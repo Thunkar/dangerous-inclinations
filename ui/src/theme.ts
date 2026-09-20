@@ -9,10 +9,6 @@ export const FONT_SANS =
 export const FONT_MONO =
   'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
 
-/** Calm sans headings; technical readings retain monospace. */
-export const FONT_DISPLAY = FONT_SANS
-export const FONT_BODY = FONT_SANS
-
 const DISPLAY = { fontFamily: FONT_SANS, letterSpacing: '-0.025em' } as const
 
 const MONO_LABEL = {

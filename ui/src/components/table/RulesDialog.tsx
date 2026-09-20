@@ -43,7 +43,7 @@ const TURN_STEPS = [
   'Energy: move cubes.',
   'Actions in your order: rotate · move (coast / burn / jump) · fire · scan.',
   'Your missiles move.',
-  'Docked? Load, deliver, repair, +hull, reload.',
+  'Just arrived at a station? Load, deliver, repair, +hull, reload. Moored until you burn away.',
   'Heat check: add your powered shields\' cubes; over the top of the track is hull damage; shed your dissipation and carry the rest.',
   'Flip completed missions. Pass. (Last player: stations drift.)',
 ]
@@ -77,21 +77,21 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { view } = useGame()
   const quick: Array<[string, string]> = [
     ['Reactor', `${REACTOR_CAPACITY} energy`],
-    ['Heat track', `${MAX_HEAT} — above it is hull damage; heat does not reset`],
+    ['Heat track', `${MAX_HEAT} · above it is hull damage; heat does not reset`],
     [
       'Dissipation',
       `${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator), shed at every check`,
     ],
     [
       'Shields',
-      `${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point — and its cubes as heat every turn it is powered`,
+      `${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point, and its cubes as heat every turn it is powered`,
     ],
     ['Hull', `${STARTING_HIT_POINTS}`],
     ['Fuel', `${MAX_REACTION_MASS}`],
     ['Sectors per ring', `${SECTORS_PER_RING}`],
     [
       'Burn',
-      `soft ${BURN_COSTS.soft.rings} / medium ${BURN_COSTS.medium.rings} / hard ${BURN_COSTS.hard.rings} rings — same in fuel and engine energy`,
+      `soft ${BURN_COSTS.soft.rings} / medium ${BURN_COSTS.medium.rings} / hard ${BURN_COSTS.hard.rings} rings · same in fuel and engine energy`,
     ],
     ['Phasing', `−(velocity−1) to +${MAX_SECTOR_ADJUSTMENT} sectors, 1 fuel each`],
     [
@@ -101,14 +101,17 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['Hit roll', '1 miss, 2–9 hit, 10 crit (8–10 with sensors)'],
     [
       'Salvo',
-      `one action launches any number of a tile's missiles at one ship, all naming the same slot, for the tile's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} heat — and a powered ballistic rack rolls at every missile that reaches it in a turn for its ${SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy} heat`,
+      `one action launches any number of a tile's missiles at one ship, all naming the same slot, for the tile's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} heat, and a powered ballistic rack rolls at every missile that reaches it in a turn for its ${SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy} heat`,
     ],
     ['Scan', `same ring, within ${SCAN_SECTOR_RANGE} sectors, sensor powered`],
-    ['Docking', 'full hull, repair all, reload missiles, load/deliver cargo'],
-    ['Survey', 'end a turn on Black Hole Ring 1 — take the chit — then dock at any station'],
+    [
+      'Docking',
+      'on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away',
+    ],
+    ['Survey', 'end a turn on Black Hole Ring 1 (take the chit) then dock at any station'],
     [
       'Piracy',
-      'end a turn in the same sector as an undocked ship carrying a crate or a data chit: it is yours — the loot fills your hold and sells at any station, and their card goes back to undone',
+      'end a turn in the same sector as an undocked ship carrying a crate or a data chit: it is yours. The loot fills your hold and sells at any station, and their card goes back to undone',
     ],
     [
       'Tanker',
@@ -120,7 +123,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Missions',
-      'Primaries (2 pts): Destroy · Deliver · Intercept — Secondaries (1 pt): Survey · Piracy · Tanker',
+      'Primaries (2 pts): Destroy · Deliver · Intercept. Secondaries (1 pt): Survey · Piracy · Tanker',
     ],
     [
       'Win',
@@ -172,7 +175,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
 
         <Heading>Hidden information</Heading>
         <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
-          Public: positions, facing, hull, heat, the cubes on every slot, Home markers, cargo
+          Public: positions, facing, hull, heat, fuel, the cubes on every slot, Home markers, cargo
           counts, face-up tiles, completed missions.
           <br />
           Private: what a face-down tile is, the ammo in a face-down missiles tile, missions in hand, where your cargo
@@ -187,7 +190,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
         <Heading>Reveals</Heading>
         <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
           A tile flips face-up the first time it does something: a weapon fires, shields absorb,
-          sensors scan, a radiator saves you hull, a compressor cheapens a jump — or a critical
+          sensors scan, a radiator saves you hull, a compressor cheapens a jump, or a critical
           breaks it.
         </Typography>
       </DialogContent>

@@ -2,8 +2,8 @@
  * The board in the middle of the table, and the switch between its two
  * renderers.
  *
- * Both draw the same `BoardModel` — derived here, once, from the view, the
- * turn being animated and the plan being built — so a range, a path or a
+ * Both draw the same `BoardModel` (derived here, once, from the view, the
+ * turn being animated and the plan being built) so a range, a path or a
  * target can never differ between them. The 3D board is a lazy chunk: a table
  * played on the flat board never downloads it.
  */
@@ -18,7 +18,7 @@ import { GameBoardSvg } from './svg/GameBoardSvg'
 const GameBoardThree = lazy(() => import('./three/GameBoardThree'))
 
 interface GameBoardProps {
-  /** Deployment phase: clicking a free Black Hole ring-4 sector places your ship and Home. */
+  /** Deployment phase: clicking a legal Black Hole ring-3 or ring-4 sector places your ship and Home. */
   onDeploy?: (position: Position) => void
   deploymentEnabled?: boolean
 }

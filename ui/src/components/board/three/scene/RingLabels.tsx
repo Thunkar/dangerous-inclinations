@@ -2,8 +2,8 @@
  * Sector ticks and every sector number, laid flat on the ring they belong to.
  *
  * The paper board prints all 24 numbers on all of its rings, so this one does
- * too: an inner ring prints its numbers smaller — by the same rule the SVG
- * board uses, a number is never wider than a share of the arc it names — and
+ * too: an inner ring prints its numbers smaller (by the same rule the SVG
+ * board uses, a number is never wider than a share of the arc it names) and
  * fades them up as the camera comes closer, but never drops one. A number you
  * have to count around to is no number at all.
  *
@@ -113,7 +113,7 @@ function SectorNumbers({
     if (import.meta.env.DEV) {
       // Dev only: what the headless legibility checks read. The cap height of a
       // digit of this ring, in screen pixels, before the board's own tilt
-      // foreshortens it — the same number the fade above is decided on.
+      // foreshortens it: the same number the fade above is decided on.
       const host = window as unknown as {
         __boardLabels?: Record<string, { size: number; pixels: number; opacity: number }>
       }

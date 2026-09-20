@@ -3,16 +3,16 @@
  * matrix and prints one page, so a rule change can be checked for regressions
  * in one command. The matrix answers the designer's four questions:
  *
- *   1. Natural    — do the games themselves finish, and is a seat a seat?
- *   2. Baselines  — what is a hand worth before a loadout is chosen for it? Seat 1
+ *   1. Natural:     do the games themselves finish, and is a seat a seat?
+ *   2. Baselines:   what is a hand worth before a loadout is chosen for it? Seat 1
  *                   keeps Destroy / Deliver / Intercept with its own loadout, and
  *                   those three numbers are the bar for every row below.
- *   3. Logical    — are the six presets balanced flown with the card their
+ *   3. Logical:     are the six presets balanced flown with the card their
  *                   role implies (interceptor+Intercept, hunter+Destroy,
  *                   hauler+Deliver)?
- *   4. Illogical  — are loadouts that fight their card actually bad?
- *   5. Off-book   — can a build no preset offers compete?
- *   6. Extreme    — are the sharpest hulls unfairly competitive?
+ *   4. Illogical:   are loadouts that fight their card actually bad?
+ *   5. Off-book:    can a build no preset offers compete?
+ *   6. Extreme:     are the sharpest hulls unfairly competitive?
  *
  * Every forced row is 3 players with the hull and/or the primary imposed on
  * seat 1 against normal opponents.
@@ -28,11 +28,11 @@
  * offbook, extreme), full row ids (`illogical:hauler_tanky+destroy`) or a bare
  * row name (`turtle`).
  *
- * `--rules=missionsToWin=4` plays the whole matrix at the table's other points
- * setting (`sim/ruleOverrides.ts`) and the page stamps it under the title, so
- * the four-point game can be read against the same rows as the three-point
- * one. Two pages are only comparable when they ran the same games, the same
- * seeds and the same setting.
+ * `--rules=missionsToWin=4` plays the whole matrix at a points-to-win a table
+ * is never offered (`sim/ruleOverrides.ts`) and the page stamps it under the
+ * title, so a proposed four-point game can be read against the same rows as
+ * the three-point one that is the game. Two pages are only comparable when
+ * they ran the same games, the same seeds and the same setting.
  *
  * **Every forced row reports `stuck`**: the share of its games in which seat 1
  * really flew the forced hull and really kept the forced card. Both are
@@ -41,7 +41,7 @@
  *
  * The card is guaranteed: a seat the shuffle did not offer one is dealt one
  * (`dealForcedPrimaries` in sim/runGame.ts), which is what makes a row about
- * the loadout rather than about the deal — before that, at three seats only 45% of
+ * the loadout rather than about the deal: before that, at three seats only 45% of
  * hands were offered a Destroy and 47% an Intercept, and half of every such row
  * was a seat playing some other plan. So `stuck` now reads the hull, which is
  * dropped only when no hand the deal can make is one that loadout could fly.
@@ -52,7 +52,7 @@
  *   `stall`      at least STALL_SHARE of its games reach the turn cap
  *   `slow`       a natural row finishes fewer than SLOW_FINISH of its games,
  *                or runs past SLOW_ROUNDS
- *   `unpunished` an illogical row is *not below* its bar — a loadout that fights
+ *   `unpunished` an illogical row is *not below* its bar: a loadout that fights
  *                its card costs nothing, so the card is not choosing the loadout
  *
  * Flags, informational:
@@ -99,7 +99,7 @@ const PRIMARY_OF: Record<Exclude<BarName, "any">, MissionType> = {
   intercept: "intercept_transmission",
 };
 
-/** "Destroy", "Deliver", "Intercept" — the labels the stats module prints. */
+/** "Destroy", "Deliver", "Intercept": the labels the stats module prints. */
 const cardLabel = (type: MissionType) => handShapeOf([{ type }]).split(" + ")[0];
 
 interface RowSpec {
@@ -144,7 +144,7 @@ const logicalRows: RowSpec[] = (
 
 /**
  * Loadouts that fight their card. A compressor cannot scan, so a hauler with an
- * Intercept is not a row the engine would ever accept — the mismatches are the
+ * Intercept is not a row the engine would ever accept: the mismatches are the
  * ones a player could actually submit.
  */
 const illogicalRows: RowSpec[] = (
@@ -319,9 +319,9 @@ const ROWS: RowSpec[] = [
 
 const SECTION_TITLE: Record<Section, string> = {
   baselines: "Baselines by primary (seat 1 keeps the card, picks its own loadout)",
-  logical: "Logical — each preset flown with the card its role implies",
-  illogical: "Illogical — loadouts that fight their card (a row at or above its bar is unpunished)",
-  offbook: "Off-book — builds no preset offers, each with the card it is built for",
+  logical: "Logical: each preset flown with the card its role implies",
+  illogical: "Illogical: loadouts that fight their card (a row at or above its bar is unpunished)",
+  offbook: "Off-book: builds no preset offers, each with the card it is built for",
   extreme: "Extreme hulls, random legal hand",
 };
 
@@ -464,7 +464,7 @@ function flewHull(p: PerPlayerStats, loadout: ShipLoadout): boolean {
   );
 }
 
-/** "Destroy + Board/Survey" — the primary is everything before the separator. */
+/** "Destroy + Survey/Tanker": the primary is everything before the separator. */
 function keptPrimary(p: PerPlayerStats, primary: MissionType): boolean {
   return p.handShape.split(" + ")[0] === cardLabel(primary);
 }
@@ -611,7 +611,7 @@ async function main() {
   }
 
   const lines: string[] = [];
-  lines.push(`# Balance suite — ${new Date().toISOString().slice(0, 10)}`);
+  lines.push(`# Balance suite (${new Date().toISOString().slice(0, 10)})`);
   // A run under `--rules=` is not the standing matrix: say so where the reader
   // looks first, or two pages get diffed as if they were the same suite.
   if (describeRuleOverrides(args.rules)) {
@@ -630,7 +630,7 @@ async function main() {
   if (unmeasured.length) {
     lines.push("");
     lines.push(
-      `Not measured in this run: ${unmeasured.join(", ")} — the fallback constant ${pct(FALLBACK_BAR)} stands in, so every comparison against ${unmeasured.length > 1 ? "those bars is" : "that bar is"} indicative only.`
+      `Not measured in this run: ${unmeasured.join(", ")}. The fallback constant ${pct(FALLBACK_BAR)} stands in, so every comparison against ${unmeasured.length > 1 ? "those bars is" : "that bar is"} indicative only.`
     );
   }
   if (natural.length) {
@@ -670,8 +670,8 @@ async function main() {
   lines.push("");
   if (failing.length || info.length) {
     const parts: string[] = [];
-    if (failing.length) parts.push(`failing — ${failing.join("; ")}`);
-    if (info.length) parts.push(`informational — ${info.join("; ")}`);
+    if (failing.length) parts.push(`failing: ${failing.join("; ")}`);
+    if (info.length) parts.push(`informational: ${info.join("; ")}`);
     lines.push(`**Flags:** ${parts.join(". ")}.`);
   } else {
     lines.push("**No flags: nothing is an outlier, a stall, a slow row or unpunished.**");

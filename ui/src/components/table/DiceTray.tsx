@@ -1,7 +1,7 @@
 /**
  * The dice tray. Every d10 rolled during the turn being played lands here,
- * with the thresholds marked: 1 misses, 2–9 hit, 10 is a critical — 8–10 when
- * the attacker's sensor array is face-up.
+ * with the thresholds marked: 1 misses, 2–9 hit, 10 is a critical (8–10 when
+ * the attacker's sensor array is face-up).
  */
 import { Box, Typography } from '@mui/material'
 import { useAnimation } from '../../context/AnimationContext'

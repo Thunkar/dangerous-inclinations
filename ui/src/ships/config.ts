@@ -12,7 +12,7 @@ import { MOUNTS, type MountId } from './mounts'
 export { MOUNTS, type MountId } from './mounts'
 export type Vec3 = [number, number, number]
 export type Finish = 'paint' | 'resin'
-export interface WorkshopConfig {
+export interface ShipConfig {
   /** Optional production cosmetics; authoring controls stay independent. */
   appearance?: ShipAppearance
   identity?: string
@@ -30,7 +30,7 @@ export interface WorkshopConfig {
   magnetMillimeters: number
 }
 
-export const DEFAULT_CONFIG: WorkshopConfig = {
+export const DEFAULT_CONFIG: ShipConfig = {
   version: 1,
   loadout: structuredClone(BOT_LOADOUT_TEMPLATES['hunter-aggressive']),
   length: 1,
@@ -46,31 +46,26 @@ export const DEFAULT_CONFIG: WorkshopConfig = {
 }
 
 export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
-  railgun: 'Bow gun, 4 damage up to 5 sectors ahead — For Sir Isaac Newton fans.',
+  railgun: 'Bow gun, 4 damage up to 5 sectors ahead. For Sir Isaac Newton fans.',
   sensor_array:
-    'Scans a rival tile within 3 sectors; crits on 8+ — We know what you did. From really far away.',
-  missiles: 'Salvo any number at one ship in the well; 4 aboard — 4 times the fun.',
-  laser: 'Side gun, 2 damage, ignores shields — Warning: do not point at cats. Or people in ships.',
-  shields: "Absorbs 1 damage per 2 cubes — For people who don't like to be touched.",
-  radiator: 'Passive: +2 heat dissipation at every check — Keep away from direct sunlight.',
-  fuel_compressor:
-    'Passive: a jump costs 1 fuel instead of 3 — The cheapest way to go on vacation.',
+    'Scans a rival tile on your ring within 3 sectors; crits on 8+. We know what you did. From really far away.',
+  missiles: 'Salvo any number at one ship in the well; 4 aboard. 4 times the fun.',
+  laser: 'Side gun, 2 damage, ignores shields. Warning: do not point at cats. Or people in ships.',
+  shields: "Absorbs 1 damage per 2 cubes. For people who don't like to be touched.",
+  radiator: 'Passive: +2 heat dissipation at every check. Keep away from direct sunlight.',
+  fuel_compressor: 'Passive: a jump costs 1 fuel instead of 3. The cheapest way to go on vacation.',
   ballistic_rack:
-    '2 damage close in; powered, it rolls at every incoming missile — Definitely passive-aggressive',
+    '2 damage close in; powered, it rolls at every incoming missile. Definitely passive-aggressive',
 }
 
-export function moduleAt(config: WorkshopConfig, id: MountId): SubsystemType | null {
+export function moduleAt(config: ShipConfig, id: MountId): SubsystemType | null {
   const mount = MOUNTS.find(m => m.id === id)!
   return mount.group === 'forward'
     ? config.loadout.forwardSlots[mount.index]
     : config.loadout.sideSlots[mount.index]
 }
 
-export function setModule(
-  config: WorkshopConfig,
-  id: MountId,
-  type: SubsystemType | null
-): WorkshopConfig {
+export function setModule(config: ShipConfig, id: MountId, type: SubsystemType | null): ShipConfig {
   const mount = MOUNTS.find(m => m.id === id)!
   if (type && !canInstallInSlot(type, mount.group)) return config
   const loadout = structuredClone(config.loadout)
@@ -86,7 +81,7 @@ export function setModule(
  * upside down; the reflection is the negative Z scale.
  */
 export function mountTransform(
-  config: WorkshopConfig,
+  config: ShipConfig,
   id: MountId
 ): { position: Vec3; rotation: Vec3; scale: Vec3; normal: Vec3 } {
   if (id === 'forward-0') {
@@ -110,7 +105,7 @@ export function mountTransform(
 
 // Imports and links are untrusted. Validate before touching engine helpers,
 // which assume their callers already have a valid SubsystemType.
-export function parseConfig(value: unknown): WorkshopConfig {
+export function parseConfig(value: unknown): ShipConfig {
   if (!value || typeof value !== 'object') throw new Error('This is not a shipyard design.')
   const v = value as Record<string, unknown>
   if (v.version !== 1) throw new Error('Unsupported design version.')

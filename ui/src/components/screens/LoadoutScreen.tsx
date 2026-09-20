@@ -121,7 +121,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   const seat = view.players.findIndex(p => p.id === me.id)
   const accent = getPlayerColor(seat)
   const config = useMemo(
-    () => editorConfig(loadout, appearance, accent, `CV—${String(seat + 1).padStart(2, '0')}`),
+    () => editorConfig(loadout, appearance, accent, `CV-${String(seat + 1).padStart(2, '0')}`),
     [loadout, appearance, accent, seat]
   )
   const validation = validateLoadout(loadout)
@@ -248,13 +248,13 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         offers.filter(m => isPrimaryType(m.type)),
         PRIMARIES_PER_PLAYER,
         'Primary mission',
-        `Worth 2 of the ${view.pointsToWin} points to win — fit a ship that can fly it.`
+        `Worth 2 of the ${view.pointsToWin} points to win. Fit a ship that can fly it.`
       )}
       {pile(
         offers.filter(m => !isPrimaryType(m.type)),
         SECONDARIES_PER_PLAYER,
         'Secondary missions',
-        'Worth 1 each, and they must be of different kinds — the second is your spare.'
+        'Worth 1 each, and they must be of different kinds: the second is your spare.'
       )}
       {offers.length === 0 && (
         <Typography color="text.secondary">Waiting for the mission deal…</Typography>

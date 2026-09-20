@@ -2,7 +2,7 @@
  * Deployment. Everyone starts together: in reverse turn order (the last seat
  * first, the first seat last) each player places their ship, facing prograde,
  * on Black Hole Ring 3 or Ring 4, at least three sectors from every ship
- * already placed — and if the ring is too crowded for that, on the clearest
+ * already placed, and if the ring is too crowded for that, on the clearest
  * sector left. That position becomes their Home marker (where a destroyed ship
  * returns). Ring 3 drifts four sectors a turn against ring 4's two, which is
  * the point of offering it. The seat that acts first every round picks last.
@@ -39,8 +39,8 @@ function placedShips(state: GameState): Position[] {
 
 /**
  * The rule itself, read against the ships already on the board: the free
- * deployment positions three sectors clear of every one of them, or — if no
- * position is that clear — the free positions as clear as the board allows.
+ * deployment positions three sectors clear of every one of them, or (if no
+ * position is that clear) the free positions as clear as the board allows.
  * The ring is ignored in the distance: ring 3 and ring 4 in the same sector
  * are neighbours.
  */

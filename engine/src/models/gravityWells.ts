@@ -27,7 +27,7 @@ export const BLACKHOLE_RINGS: RingConfig[] = [
  * behind the station could never gain: the fastest route to a dock was to burn
  * back and forth between the outer two rings until the phase came round, which
  * is a wait dressed up as a manoeuvre. A ring inside the station turns that
- * into a slingshot — dive, let the faster orbit carry you round, burn out onto
+ * into a slingshot: dive, let the faster orbit carry you round, burn out onto
  * the station on the turn you choose.
  *
  * The velocities are the black hole's own sequence (8/6/4/2/1) minus its

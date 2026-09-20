@@ -37,10 +37,10 @@ function crateAboard(cargo: readonly Cargo[]): boolean {
 
 /**
  * Piracy: a pirate that ends its turn in a loaded ship's sector takes what it
- * carries — a crate or a data chit (RULES §Missions).
+ * carries: a crate or a data chit (RULES §Missions).
  *
- * The hold is the whole constraint — {@link CARGO_HOLD_CRATES} is one, so a
- * pirate with freight of its own takes nothing — and a moored ship is out of
+ * The hold is the whole constraint ({@link CARGO_HOLD_CRATES} is one, so a
+ * pirate with freight of its own takes nothing), and a moored ship is out of
  * it at both ends: a berth is not a place cargo changes hands. A crate first
  * when the mark carries both. What the victim loses goes back to undone: the
  * item is off the hold, a Deliver holder loads again at its pickup station, a
@@ -85,7 +85,7 @@ function seizeLoot(
         return m;
       }),
     };
-    // The loot rides as the card's own crate whatever was taken — it fills the
+    // The loot rides as the card's own crate whatever was taken: it fills the
     // hold and everyone can see it. Seized before and lost since, it is the
     // same crate coming back aboard.
     const loot: Cargo = {

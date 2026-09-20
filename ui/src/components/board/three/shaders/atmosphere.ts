@@ -3,13 +3,13 @@
  *
  * A Fresnel term on a slightly larger sphere is the usual trick and it does not
  * work: on a back-faced shell the term is flat across the whole disc, so what
- * you get is a hard annulus — a drawn outline, which is what a planet looked
+ * you get is a hard annulus: a drawn outline, which is what a planet looked
  * like before this pass. What reads as air is a halo that starts at the limb
  * and *falls off outward*, brighter on the side the star is on.
  *
  * So the profile is a function of the fragment's distance from the planet's
- * centre measured in the camera's own plane — two subtractions in the vertex
- * shader — rather than of the normal. The shell is back-faced, so the opaque
+ * centre measured in the camera's own plane (two subtractions in the vertex
+ * shader) rather than of the normal. The shell is back-faced, so the opaque
  * body cuts the inner half of the halo for free and the maths never has to
  * care where the body is.
  *

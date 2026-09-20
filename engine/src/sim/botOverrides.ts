@@ -5,8 +5,8 @@
  * Where `--tiles`, `--weapons` and `--rules` change the game, this changes the
  * players: the knobs every bot decides with (`ai/types.BotParameters`). A way
  * of playing the bots do not use is not measurable, so a proposed one is given
- * to them here first — a batch played by bots that shoot the weakest ship in
- * range says what that habit is worth — and only moves into the defaults once
+ * to them here first (a batch played by bots that shoot the weakest ship in
+ * range says what that habit is worth) and only moves into the defaults once
  * the batch says it is worth having.
  *
  * Like the other channels it mutates the shared configuration of the process

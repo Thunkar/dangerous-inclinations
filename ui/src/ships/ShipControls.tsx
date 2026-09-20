@@ -15,23 +15,16 @@ import {
 } from '@dangerous-inclinations/engine'
 import { SubsystemIcon } from '../components/common/SubsystemIcon'
 import { TABLE, FONT_MONO } from '../theme'
-import {
-  MODULE_NOTES,
-  MOUNTS,
-  moduleAt,
-  setModule,
-  type MountId,
-  type WorkshopConfig,
-} from './config'
+import { MODULE_NOTES, MOUNTS, moduleAt, setModule, type MountId, type ShipConfig } from './config'
 
 const DEFAULT_ROLE: BotRole = 'hauler'
 const DEFAULT_VARIANT: HullVariant = 'tanky'
 
 /** What each choice buys, in the words the loadout itself would use. */
 const ROLE_NOTE: Record<BotRole, string> = {
-  interceptor: 'Sensor array — scans, and the Intercept and Survey cards that need one',
-  hunter: 'Railgun — the long shot down your own ring, for a Destroy card',
-  hauler: 'Fuel compressor — jumps cost 1 fuel, but you can never scan',
+  interceptor: 'Sensor array: scans, and the Intercept and Survey cards that need one',
+  hunter: 'Railgun: the long shot down your own ring, for a Destroy card',
+  hauler: 'Fuel compressor: jumps cost 1 fuel, but you can never scan',
 }
 const VARIANT_NOTE: Record<HullVariant, string> = {
   tanky: 'A second shield tile, and the one gun a Destroy card needs',
@@ -102,7 +95,7 @@ export function SystemControls({
   onChange,
   disabled,
 }: {
-  config: WorkshopConfig
+  config: ShipConfig
   selected: MountId
   onSelect: (id: MountId) => void
   onChange: (loadout: ShipLoadout) => void
@@ -119,7 +112,7 @@ export function SystemControls({
       </Typography>
       {/*
         Two decisions, not six loadouts. What the forward slot is for is the plan
-        you came with — a gun, eyes or legs, one for each two-point card — and
+        you came with (a gun, eyes or legs, one for each two-point card) and
         how the four side slots are spent is taste. As a matrix the six cells
         all read "tanky" or "aggressive" and said nothing; as two rows each
         button names its own choice.
@@ -142,7 +135,7 @@ export function SystemControls({
       />
       {archetype === null && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 2.5 }}>
-          Loadout of your own — pick a profile to start from, or leave it.
+          Loadout of your own: pick a profile to start from, or leave it.
         </Typography>
       )}
 

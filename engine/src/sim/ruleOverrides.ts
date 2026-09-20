@@ -1,10 +1,10 @@
 /**
  * The simulator's rule channel: `--rules=missionsToWin=4`.
  *
- * One key is left, and it overrides nothing in the process. Points to win is a
- * real table option — the table agrees it before the deal, so the number rides
- * on the state — and {@link runGame} hands it to `createGame` as `pointsToWin`
- * so every game of the batch is created playing to it. Everything else the
+ * One key is left, and it overrides nothing in the process. A table plays to
+ * three and is offered nothing else, but the number rides on the state, so
+ * {@link runGame} can hand it to `createGame` as `pointsToWin` and create
+ * every game of a batch playing to another one. Everything else the
  * rules are made of is a constant in `models/`: a game is played under RULES.md
  * and nothing else, and a proposed change to one of those is measured by
  * changing the constant, not by switching it at run time.

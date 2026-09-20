@@ -1,9 +1,9 @@
 import { Component, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
-import { Box3, Color, Vector3, type Group, type PerspectiveCamera, type WebGLRenderer } from 'three'
+import { Vector3, type Group, type PerspectiveCamera, type WebGLRenderer } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import { MOUNTS, mountTransform, type MountId, type WorkshopConfig } from './config'
+import { MOUNTS, mountTransform, type MountId, type ShipConfig } from './config'
 import { poseShip } from './model'
 import { useShipModel } from './useShipModel'
 
@@ -14,7 +14,7 @@ export interface ViewerHandle {
   capture: () => string
 }
 interface ViewerProps {
-  config: WorkshopConfig
+  config: ShipConfig
   selected: MountId
   onSelect: (id: MountId) => void
   exploded: number
@@ -198,52 +198,6 @@ export function Viewer(props: ViewerProps) {
         }
       >
         <Scene {...props} />
-      </Canvas>
-    </ViewBoundary>
-  )
-}
-
-/** A second, fixed camera keeps the same 96px silhouette visible during edits. */
-function Miniature({ config, concealed }: { config: WorkshopConfig; concealed: boolean }) {
-  const model = useShipModel(config, concealed)
-  const { invalidate } = useThree()
-  useLayoutEffect(() => {
-    const box = new Box3().setFromObject(model.root)
-    const center = box.getCenter(new Vector3())
-    const scale = 9.6 / box.getSize(new Vector3()).x
-    model.root.position.copy(center).multiplyScalar(-scale)
-    model.root.scale.setScalar(scale)
-    invalidate()
-  }, [model, config, concealed, invalidate])
-  return (
-    <>
-      <hemisphereLight args={['#ffffff', '#425058', 2]} />
-      <directionalLight position={[3, 8, 5]} intensity={3} />
-      <primitive object={model.root} />
-    </>
-  )
-}
-
-export function MiniaturePreview({
-  config,
-  concealed,
-}: {
-  config: WorkshopConfig
-  concealed: boolean
-}) {
-  return (
-    <ViewBoundary>
-      <Canvas
-        frameloop="demand"
-        orthographic
-        dpr={[1, 1.5]}
-        camera={{ position: [0, 20, 0], up: [1, 0, 0], zoom: 10, near: 0.1, far: 50 }}
-        gl={{ antialias: true, alpha: true }}
-        onCreated={({ scene }) => {
-          scene.background = new Color('#182024')
-        }}
-      >
-        <Miniature config={config} concealed={concealed} />
       </Canvas>
     </ViewBoundary>
   )

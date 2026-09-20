@@ -3,8 +3,9 @@
  * position that reaches `target` in one movement action. The dual of
  * {@link ./successors.ts:getSuccessors}; used by the reverse BFS.
  *
- * Rotation is free within a turn, so burn predecessors come in both
- * facings (the ship rotates before burning). Jumps land on the arrival arc
+ * Rotation costs no fuel and is not the turn's one move (it costs a cube on
+ * the thrusters and a point of heat, which the planner does not model), so
+ * burn predecessors come in both facings: the ship rotates before burning. Jumps land on the arrival arc
  * with no drift and work from either facing: with phasing, every departure
  * sector of a lane reaches every sector of its arrival arc.
  */

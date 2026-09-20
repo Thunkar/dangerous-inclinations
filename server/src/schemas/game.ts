@@ -24,8 +24,8 @@ export const LoadoutSubmissionSchema = z
     appearance: ShipAppearanceSchema.optional(),
     // The engine checks the count against MISSIONS_PER_PLAYER, that the ids
     // were actually offered, and that the loadout can complete every card kept
-    // (Intercept and Survey need a sensor array, Destroy a weapon); this
-    // only bounds the payload.
+    // (Intercept needs a sensor array, Destroy a weapon), and that the hand is
+    // one primary and two different secondaries; this only bounds the payload.
     missionIds: z.array(z.string().min(1)).min(1).max(16),
   })
   .strict();
@@ -69,7 +69,7 @@ export const ForkSchema = z
  * there: a malformed action must fail the whole submission, never silently
  * turn into a coast.
  *
- * `deploy_ship` is deliberately absent — deployment goes through
+ * `deploy_ship` is deliberately absent: deployment goes through
  * `POST /api/games/:gameId/deploy`, not SUBMIT_TURN.
  */
 const id = z.string().min(1);
@@ -188,9 +188,6 @@ export const SubmitTurnSchema = z
 export type SubmittedAction = z.infer<typeof PlayerActionSchema>;
 const _actionsAreEngineActions: (a: SubmittedAction) => PlayerAction = (a) => a;
 void _actionsAreEngineActions;
-
-export type LoadoutSubmissionInput = z.infer<typeof LoadoutSubmissionSchema>;
-export type DeployInput = z.infer<typeof DeploySchema>;
 
 /** Table talk: a line of chat, or a player's reasoning (`think`). */
 export const ChatSchema = z

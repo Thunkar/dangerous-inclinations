@@ -1,14 +1,14 @@
 /**
  * The camera rig: damped orbit, pan and dolly, bounded to the board.
  *
- * The board is a table, not a world, so the camera is kept honest — it cannot
+ * The board is a table, not a world, so the camera is kept honest: it cannot
  * be trucked off the edge, cannot dolly further out than the whole board or
  * closer in than one well, and never drops below the plane where the numbers
  * would go edge-on. Three presets frame it: Table (three-quarter from the near
  * edge, the default), Top (the 2D board with lighting) and Follow (the well
  * your own ship is in). `flyTo` is what a double-click on a body calls.
  *
- * A preset opens on the black hole rather than on the whole board — the board is
+ * A preset opens on the black hole rather than on the whole board. The board is
  * a triangle of wells 2652 units across and fitting all of it leaves each well a
  * fifth of the screen, while the game is played almost entirely in the one at
  * the centre (`HOME_VIEW_RADIUS` in `geometry.ts`). Recentre is what puts the
@@ -59,7 +59,7 @@ import {
  * It was 55°, and the seven degrees were bought rather than chosen. Everything
  * the black hole draws has to stay below the far side of ring 1's numbers as
  * they land *on screen*, and at a pitch P that ceiling is `ink·sin P` while a
- * horizon resting in the pit reaches `r·(1 + 0.95·cos P)` — so a degree of
+ * horizon resting in the pit reaches `r·(1 + 0.95·cos P)`, so a degree of
  * pitch is worth about a percent of black hole (`three/bodies.ts` does the
  * arithmetic). 62° buys the body a fifth of its radius, hands the sector
  * numbers 8% less foreshortening with it, and is still plainly a three-quarter
@@ -77,7 +77,7 @@ const TOP_PITCH = 89.9
 const FRAME_FILL = 0.9
 
 /**
- * Room left around one well when it is framed on its own — empty board, so it
+ * Room left around one well when it is framed on its own: empty board, so it
  * is a share of a framing rather than a number of units, and it stays where it
  * is on screen however the board is redrawn.
  *
@@ -85,7 +85,7 @@ const FRAME_FILL = 0.9
  * the same reason the printed sizes are: the board is never seen whole, so its
  * span is not what this margin is seen against. Measured against the span, the
  * planets would have been pushed a tenth further away the moment the black hole
- * grew — which has nothing to do with the planets.
+ * grew, which has nothing to do with the planets.
  */
 const WELL_MARGIN = HOME_VIEW_RADIUS * 0.0826
 
@@ -95,8 +95,8 @@ const PITCH_GAIN = 1.15
 /**
  * How far in and out a hand may dolly, as shares of the board's span. They were
  * 180 and 4400 units when the board spanned 1656 of them; written this way they
- * are the same two pictures — a camera dipped right into the plate, and one far
- * enough back to hold the whole board at the narrowest pane the table makes —
+ * are the same two pictures (a camera dipped right into the plate, and one far
+ * enough back to hold the whole board at the narrowest pane the table makes)
  * on a board of any size. The framing solver brackets its search with the far
  * one, so a board that outgrew it would simply be framed from too close.
  */
@@ -262,7 +262,7 @@ export function CameraRigProvider({
   const [preset, setPresetState] = useState<CameraPreset>(initialPreset)
   const presetRef = useRef(preset)
   presetRef.current = preset
-  /** The view the board opened in — what Recentre puts it back to. */
+  /** The view the board opened in: what Recentre puts it back to. */
   const openedIn = useRef(initialPreset)
 
   const value = useMemo<CameraRigValue>(
@@ -278,8 +278,8 @@ export function CameraRigProvider({
       /*
        * Recentre puts the board back where it was when you sat down: the same
        * framing, the same pitch, the same constant. It is the only control that
-       * reaches the three-quarter view — that preset lost its button for being
-       * the same thing twice — so it also drops Top or Follow if one of them is
+       * reaches the three-quarter view (that preset lost its button for being
+       * the same thing twice) so it also drops Top or Follow if one of them is
        * selected, which is the whole of what "put it back" can mean.
        *
        * It used to fit the whole board instead. That picture is still there for
@@ -396,8 +396,8 @@ export function CameraRig({
   /**
    * The target may be trucked anywhere over the board and a little under it:
    * the funnel floor is the lowest thing anyone would want to look at. Both
-   * come from the board itself — the box is `BOARD_BOUNDS`, the floor is the
-   * funnel's — so opening the board out moved the clamp with it and there is
+   * come from the board itself (the box is `BOARD_BOUNDS`, the floor is the
+   * funnel's) so opening the board out moved the clamp with it and there is
    * nothing here fitted to a board of a particular size.
    */
   const boundary = useMemo(() => {
@@ -419,7 +419,7 @@ export function CameraRig({
   }, [boundary])
 
   /*
-   * Re-frame whenever the pane changes shape — the flat board's viewBox does
+   * Re-frame whenever the pane changes shape. The flat board's viewBox does
    * the same, and it is the only way the board fills a column that is 830 wide
    * on one screen and 1170 on the next. A camera someone has already dragged is
    * left where they put it.

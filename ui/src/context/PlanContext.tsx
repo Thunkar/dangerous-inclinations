@@ -1,9 +1,9 @@
 /**
- * PlanContext — the turn you are putting together.
+ * PlanContext: the turn you are putting together.
  *
  * Energy cubes moved on your loadout, plus an ordered list of steps (rotate, one
  * move, any number of weapons, a scan). Every number here is a preview
- * computed with pure engine functions — range, projected position, costs. The
+ * computed with pure engine functions: range, projected position, costs. The
  * server is the referee; nothing here advances state.
  */
 import {
@@ -67,7 +67,7 @@ import { useGame } from './GameContext'
  * A station is not a place, it is a thing on a circuit: it advances 4 sectors
  * at the end of every round. Planning to the sector it is on today lands the
  * ship where it used to be, which is never what anyone clicking a station
- * wanted — so a station destination means `meet` unless you say otherwise.
+ * wanted, so a station destination means `meet` unless you say otherwise.
  */
 export type RouteMode = 'meet' | 'sector'
 
@@ -197,7 +197,7 @@ interface PlanContextValue {
   /** Route planner: a destination sector, the routes the engine finds, and the one in view. */
   routeDestination: Position | null
   /**
-   * The station the destination was picked on, if any — held by id, because a
+   * The station the destination was picked on, if any: held by id, because a
    * station drifts 4 sectors every round and the sector you clicked stops
    * being the one it is on.
    */
@@ -231,7 +231,7 @@ const flip = (facing: Facing): Facing => (facing === 'prograde' ? 'retrograde' :
  * the thrusters and a jump with no fuel, but the buttons offered all three and
  * only said so after the turn was submitted. Every check here is the one the
  * validator makes (`game/validators.ts`), read off the loadout as the player has
- * planned it — cubes they are about to move count, because that is the loadout the
+ * planned it. Cubes they are about to move count, because that is the loadout the
  * turn will be taken with.
  *
  * `reason` is a clause, so a tooltip can end a sentence with it.
@@ -248,7 +248,7 @@ const cubes = (n: number) => `${n} cube${n === 1 ? '' : 's'}`
 const BURN_INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
 
 /**
- * A burn changes exactly its number of rings — there is no partial burn off
+ * A burn changes exactly its number of rings: there is no partial burn off
  * the edge of the well (RULES §Burn), and the engine rejects one that would
  * leave the rings. Prograde burns outward, retrograde inward.
  */
@@ -481,7 +481,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       const state = !engines || engines.isBroken
         ? blocked('the engines are broken')
         : !burnFitsInWell(moveFrom.position, moveFrom.facing, intensity)
-          ? blocked(`there are not ${rings} from ring ${moveFrom.position.ring} — rotate to burn the other way`)
+          ? blocked(`there are not ${rings} from ring ${moveFrom.position.ring}: rotate to burn the other way`)
           : engines.usedThisTurn
             ? blocked('the engines have already burned this turn')
             : engines.allocatedEnergy < cost.energy
@@ -624,7 +624,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   /**
    * Walk the sequence in order. Heat accumulates, fuel is spent *and earned*
    * as the turn plays out, so a scoop earlier in the sequence pays for a burn
-   * or a recoil compensation later in it — exactly as the engine sees it.
+   * or a recoil compensation later in it, exactly as the engine sees it.
    */
   const { projectedHeat, massCost, projectedFuel, issues } = useMemo(() => {
     let heat = me.ship.heat.currentHeat
@@ -880,7 +880,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   /**
    * A repair needs the ship cold at its check: no heat carried in, none made by
-   * the turn, and no shields powered — a powered shield is heat at the check
+   * the turn, and no shields powered. A powered shield is heat at the check
    * even unused. A choice the turn can no longer earn is dropped rather than
    * refused, so editing the move never leaves an illegal action on the sheet.
    */
@@ -1083,7 +1083,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   /**
    * Which tile a scan should look at by default: the first face-down one, in
-   * loadout order. If every tile is already known to you, any slot will do — the
+   * loadout order. If every tile is already known to you, any slot will do. The
    * engine peeks the first face-down slot it can find and tells you which.
    */
   const defaultPeekSlot = useCallback(

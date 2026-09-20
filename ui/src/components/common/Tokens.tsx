@@ -1,6 +1,6 @@
 /**
  * The readouts on a loadout: energy cells, segmented hull/heat/fuel bars and the
- * cargo chits in the hold. Everything is a plain lit shape — no icons, so it
+ * cargo chits in the hold. Everything is a plain lit shape: no icons, so it
  * reads at a glance from across the table.
  */
 import type { ReactNode } from 'react'
@@ -97,12 +97,12 @@ interface PipTrackProps {
   compact?: boolean
   /**
    * Where the track ends up once the planned turn has played out. Segments
-   * between the two are drawn as ghosts — heat about to be made, fuel about
+   * between the two are drawn as ghosts: heat about to be made, fuel about
    * to be spent or scooped.
    */
   projected?: number
   /**
-   * Where the track could still end up in the worst case — heat your powered
+   * Where the track could still end up in the worst case: heat your powered
    * shields would make if they absorbed their whole allocation. Segments past
    * the ghosts are drawn hatched: heat that is not yours to spend, only heat
    * someone else can put on you.
@@ -198,38 +198,6 @@ export function PipTrack({
       </Typography>
     </Box>
   )
-}
-
-/** A compact numeric readout with a coloured value — fuel, ammo, score. */
-export function Counter({
-  label,
-  value,
-  color = TABLE.ink,
-  suffix,
-  title,
-}: {
-  label: string
-  value: number | string
-  color?: string
-  suffix?: string
-  title?: string
-}) {
-  const body = (
-    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-      <Typography variant="overline" sx={{ color: TABLE.inkFaint, lineHeight: 1 }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 700, fontSize: '0.85rem', color, lineHeight: 1 }}>
-        {value}
-        {suffix && (
-          <Box component="span" sx={{ color: TABLE.inkFaint, fontWeight: 400, fontSize: '0.8em' }}>
-            {suffix}
-          </Box>
-        )}
-      </Typography>
-    </Box>
-  )
-  return title ? <Tooltip title={title}>{body}</Tooltip> : body
 }
 
 // ---------------------------------------------------------------------------

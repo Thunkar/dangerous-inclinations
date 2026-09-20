@@ -2,7 +2,7 @@
  * Missiles.
  *
  * Launch: the missile appears at the firing ship's position. Any ship in the
- * same well can be fired at, however far away — a guided missile has no firing
+ * same well can be fired at, however far away: a guided missile has no firing
  * box, and {@link missileCanReach} is how a bot or a preview asks whether this
  * one will actually catch up.
  * At the end of the owner's turn each of their missiles drifts with its ring
@@ -12,8 +12,9 @@
  * rings close first). If it ends on the target's sector it
  * attacks: a powered ballistic rack rolls against it and destroys it on a 2+,
  * otherwise it rolls to hit like any weapon. The rack rolls at every missile
- * that reaches the ship — a salvo is not stopped by one round of point defence
- * — and each roll costs the rack's cubes in heat. A missile that has moved
+ * that reaches the ship (a salvo is not stopped by one round of point defence),
+ * and the whole turn of rolling is one use of the rack: the first roll costs
+ * its cubes in heat and the rest are free. A missile that has moved
  * `maxMoves` times without hitting is removed. A missile that catches a ship
  * recovering from a respawn does neither: it slides past untouchable prey and
  * stays in flight. Missiles never cross gravity wells.
@@ -99,7 +100,7 @@ export function projectMissilePath(
  * exception (a missile launched once the ship has moved rode along and does
  * not drift again that turn) is counted exactly as the engine will replay it.
  * The target is assumed to coast: it is a best case, not a promise, which is
- * all a launcher can know — the target moves after the missile is away.
+ * all a launcher can know: the target moves after the missile is away.
  */
 export function missileCanReach(
   from: Position,
@@ -180,7 +181,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
 
     // On target. Point defence first: a powered rack rolls at every missile
     // that reaches its ship, and the whole turn of rolling is one use of the
-    // rack — which is what keeps a one-action salvo honest. The rack is read
+    // rack, which is what keeps a one-action salvo honest. The rack is read
     // off the target as it stands now, because an earlier missile of the same
     // salvo may already have broken it or heated the ship.
     let targetShip = target.ship;

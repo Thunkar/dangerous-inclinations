@@ -57,12 +57,3 @@ export type ServerGameMessage =
   | { type: "TURN_EXECUTED"; payload: TurnExecutedPayload }
   | { type: "TURN_ERROR"; payload: TurnErrorPayload }
   | { type: "CHAT"; payload: ChatMessage };
-
-export interface SubmitTurnPayload {
-  actions: PlayerAction[];
-  /** Turn and active player the client believes it is acting in. */
-  turn: number;
-  activePlayerId: string;
-}
-
-export type ClientGameMessage = { type: "SUBMIT_TURN"; payload: SubmitTurnPayload };

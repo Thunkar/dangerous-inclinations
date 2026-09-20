@@ -1,8 +1,8 @@
 /**
  * A number, or a word, rising off a sector.
  *
- * The same four beats the flat board uses — pop in, rise 38 board units, hold,
- * fade — turned to face whatever angle the camera is at. The tone's colour is
+ * The same four beats the flat board uses (pop in, rise 38 board units, hold,
+ * fade) turned to face whatever angle the camera is at. The tone's colour is
  * the flat board's, and so is the dark outline: a hull number has to stay
  * readable when it crosses the accretion disc.
  *
@@ -65,8 +65,8 @@ const RISE = 38
 const STACK = 64
 
 /**
- * A turn can put four of these on one sector at once — a critical, the damage,
- * what the shield soaked and the tile it broke — and the animator's nudge only
+ * A turn can put four of these on one sector at once (a critical, the damage,
+ * what the shield soaked and the tile it broke) and the animator's nudge only
  * separates two of them. Each float takes the lowest free step over its own
  * sector and gives it back when it expires, so a pile-up reads as a list.
  */

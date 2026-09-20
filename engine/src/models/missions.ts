@@ -1,6 +1,6 @@
 /**
- * Missions: secret objectives. First player to reach the table's points to win
- * (`GameState.pointsToWin`, three by default) triggers the final round.
+ * Missions: secret objectives. First player to reach the points to win
+ * (`GameState.pointsToWin`, three) triggers the final round.
  *
  * Six mission types, in two kinds:
  *   primaries (2 points): destroy_ship, deliver_cargo, intercept_transmission
@@ -13,28 +13,27 @@ import type { SubsystemType } from "./subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
 
 /**
- * Three points win by default, and a hand is one primary and two secondaries
- * — five on the table for the three that win. The hand is unchanged by the
+ * Three points win by default, and a hand is one primary and two secondaries:
+ * five on the table for the three that win. The hand is unchanged by the
  * number: a primary and either secondary is a win, and the other secondary is
  * the spare a player takes when the game puts it in their way. Two secondaries
  * on their own are two points and cannot win, so the primary somebody else set
  * you is still the card that has to come in. Each deck is dealt separately:
  * three primaries to choose one from, three secondaries to choose two from.
  *
- * **Three or four, agreed before the deal.** Three is the game; a table that
- * wants a longer evening may agree on four, which makes all three cards
- * mandatory and turns a hand into a chain. Measured on 200-game rows, four ran
- * 41 to 49 rounds by seat count with games still unfinished at the cap, where
- * three runs 27 rounds at every seat count and every game finishes. The
- * primary is mandatory either way — what three buys is the spare, and with it
- * a decision about whether the third card is worth the detour. The number is
- * settled once, before the cards come out, and is carried on the game
- * (`GameState.pointsToWin`); everything downstream reads it from there.
+ * **Three, and no option.** Four was offered as a longer evening and cut:
+ * measured on 200-game rows it ran 41 to 49 rounds by seat count with games
+ * still unfinished at the cap, where three runs 27 rounds at every seat count
+ * and every game finishes. What three buys is the spare, and with it a
+ * decision about whether the third card is worth the detour. The number still
+ * rides on the game (`GameState.pointsToWin`) and everything downstream reads
+ * it from there, so the simulator can play a batch to another number
+ * (`--rules=missionsToWin=`) without a table ever being offered one.
  *
  * **Why two decks.** Dealing five from one pile and keeping any three looked
  * like a choice and was not. Because primaries are most of the deck, 94% of
  * hands at three seats and 98% at six could take three of them, and three
- * primaries was the only shape with a spare — when four points won, six on the
+ * primaries was the only shape with a spare: when four points won, six on the
  * table meant any two of the three would do. So almost every seat was offered
  * the same plan and took it, the secondaries were the cards you kept when the
  * deal failed you, and the decision was which cards rather than which kind of
@@ -42,8 +41,8 @@ import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
  * points behind the best: a lock-in wearing the costume of a choice.
  *
  * Splitting the decks fixes the shape and hands the choice back as content.
- * Every seat gets the same frame — one primary somebody set you, two things you
- * do yourself — and picks inside it: the gap to the second-best hand halves.
+ * Every seat gets the same frame (one primary somebody set you, two things you
+ * do yourself) and picks inside it: the gap to the second-best hand halves.
  */
 export const DEFAULT_POINTS_TO_WIN = 3;
 
@@ -53,7 +52,7 @@ export const PRIMARY_OFFERS_PER_PLAYER = 3;
 export const PRIMARIES_PER_PLAYER = 1;
 /**
  * One of each kind for every seat, and kept from that offer. This is the
- * number of kinds — keep it in step with what {@link buildSecondaryDeck}
+ * number of kinds. Keep it in step with what {@link buildSecondaryDeck}
  * prints.
  */
 export const SECONDARY_OFFERS_PER_PLAYER = 3;
@@ -75,7 +74,7 @@ export const TANKER_FUEL = 8;
  * One card at two points for each way of playing: Destroy for the hunter,
  * Deliver for the hauler, Intercept for the interceptor. Two of your own kind
  * is a win, so a hand states an intention instead of collecting whatever was
- * cheapest. Survey is the odd one at a point — a dive nobody has to cooperate
+ * cheapest. Survey is the odd one at a point: a dive nobody has to cooperate
  * with, which is exactly why it is not a plan of its own.
  */
 export const MISSION_POINTS: Readonly<Record<MissionType, number>> = {
@@ -96,8 +95,8 @@ export function missionPoints(type: MissionType): number {
  * route waits until the first is delivered, and two cards that load at the
  * same station are two trips rather than one.
  *
- * Data chits ride free — a scan's transmission and a survey's readings are
- * numbers, not freight — so an Intercept or a Survey can always be carried
+ * Data chits ride free (a scan's transmission and a survey's readings are
+ * numbers, not freight), so an Intercept or a Survey can always be carried
  * alongside whatever is in the hold.
  */
 export const CARGO_HOLD_CRATES = 1;
@@ -114,7 +113,7 @@ export type MissionType =
 
 /**
  * The one-point cards that pay a chit: do the thing, take the chit, file it at
- * any station. Survey is the only one left — Piracy pays a crate somebody else
+ * any station. Survey is the only one left: Piracy pays a crate somebody else
  * loaded and Tanker pays nothing at all, so neither has a chit to file.
  */
 export type SecondaryMissionType = "survey";
@@ -142,8 +141,8 @@ export function isPrimaryType(type: MissionType): boolean {
  * `anyOf` lists the tiles that satisfy it and **one of them is enough**, so a
  * card that needs several different tiles carries several requirements and a
  * card that accepts any of a family carries one. `label` is the bare noun to
- * call it by at the table — "weapon" is what a player needs to hear, not four
- * tile names — and the names behind it are `anyOf` (see
+ * call it by at the table ("weapon" is what a player needs to hear, not four
+ * tile names), and the names behind it are `anyOf` (see
  * `describeMissionRequirement`, game/describe.ts).
  */
 export interface MissionRequirement {
@@ -157,12 +156,11 @@ const WEAPON: MissionRequirement = { label: "weapon", anyOf: WEAPON_SUBSYSTEM_TY
 /**
  * What each card needs aboard to be completable at all.
  *
- * An Intercept opens with a scan and a Survey is held with the sensors lit on
- * the ring, so either card is dead weight on a loadout with no sensor array. A
- * Destroy is completed by reducing a hull to 0 yourself, and only a weapon or
- * a missile credits a kill — heat kills nobody's target — so it needs any one
- * gun. A loadout is fixed for the game and a station repairs tiles, it never
- * fits one. This is the single table the rule lives in — the referee refuses
+ * An Intercept opens with a scan, so it is dead weight on a loadout with no
+ * sensor array. A Destroy is completed by reducing a hull to 0 yourself, and
+ * only a weapon or a missile credits a kill (heat kills nobody's target), so
+ * it needs any one gun. A loadout is fixed for the game and a station repairs tiles, it never
+ * fits one. This is the single table the rule lives in: the referee refuses
  * a submission that breaks it (`missionsMissingRequirements`, game/loadout.ts)
  * and the loadout screen reads the same list while you choose.
  */
@@ -177,7 +175,7 @@ export const MISSION_REQUIREMENTS: Readonly<Record<MissionType, readonly Mission
   // Nothing. A Survey is flown, not instrumented: the dive to the innermost
   // ring is the reading. It asked for a sensor array until 17 Sept 2026, which
   // made the one card any hand could use as filler a card only the sensor loadouts
-  // could keep — and left half the table with no filler at all.
+  // could keep, and left half the table with no filler at all.
   survey: [],
 };
 
@@ -210,8 +208,8 @@ export interface DeliverCargoMission extends BaseMission {
  * Scan the target, then file what you took at the station the card names.
  *
  * The station is the card's, fixed when it is dealt. Filing anywhere made this
- * the cheapest two points on the table — a scan and then whatever dock the
- * route passed anyway — and it took over half of all winning cards (measured
+ * the cheapest two points on the table (a scan and then whatever dock the
+ * route passed anyway), and it took over half of all winning cards (measured
  * 17 Sept 2026). Every two-point card names what it wants now.
  */
 export interface InterceptTransmissionMission extends BaseMission {
@@ -227,7 +225,7 @@ export interface InterceptTransmissionMission extends BaseMission {
  * A secondary card that pays a chit: do the thing, take the chit, file it at
  * any station.
  *
- * Survey is the one card of this shape — end a turn on the black hole's
+ * Survey is the one card of this shape: end a turn on the black hole's
  * innermost ring, then dock anywhere. It asks for no tile and cannot be
  * blocked, which is why it is worth a point rather than two: the two
  * secondaries a hand keeps are two points, one short of the win, so the
@@ -247,15 +245,15 @@ export interface SecondaryMission extends BaseMission {
  * chit and the loot is yours; sell it at any station.
  *
  * The only secondary card that uses the hold, and the only one somebody else
- * pays for. A pirate needs room — {@link CARGO_HOLD_CRATES} is one, so a
- * pirate already carrying a crate takes nothing — and neither ship may be
+ * pays for. A pirate needs room ({@link CARGO_HOLD_CRATES} is one, so a
+ * pirate already carrying a crate takes nothing), and neither ship may be
  * moored: a berth is not a place cargo changes hands. A crate first when the
  * mark carries both, and what the victim loses goes back to undone: a Deliver
  * reloads at its station, a Survey dives again, an Intercept scans again.
  *
- * The loot rides as {@link cargoId} whatever was taken — a crate to everyone
- * watching, delivered at *any* station — and the card is done when it is sold.
- * Destroyed with it aboard, the loot goes over the side — and a crate on a
+ * The loot rides as {@link cargoId} whatever was taken (a crate to everyone
+ * watching, delivered at *any* station), and the card is done when it is sold.
+ * Destroyed with it aboard, the loot goes over the side, and a crate on a
  * pirate is a crate another pirate can take.
  */
 export interface PiracyMission extends BaseMission {
@@ -268,7 +266,7 @@ export interface PiracyMission extends BaseMission {
  * Tanker: arrive at a station with {@link TANKER_FUEL} or more in the tank and
  * pump it in; the card is done.
  *
- * Nothing is carried and nothing is chosen — a full tank is the whole cost,
+ * Nothing is carried and nothing is chosen: a full tank is the whole cost,
  * and the card is paid the moment the ship makes port with one. It is the
  * secondary that competes with the hold for nothing at all and with every
  * burn for everything.
@@ -311,20 +309,10 @@ export function missionTargetsPlayer(
   return mission.type === "destroy_ship" || mission.type === "intercept_transmission";
 }
 
-export function isDestroyShipMission(m: Mission): m is DestroyShipMission {
-  return m.type === "destroy_ship";
-}
-export function isDeliverCargoMission(m: Mission): m is DeliverCargoMission {
-  return m.type === "deliver_cargo";
-}
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
   return m.type === "intercept_transmission";
 }
 /** The secondary cards that pay a chit (not Piracy or Tanker, which pay neither). */
 export function isSecondaryMission(m: Mission): m is SecondaryMission {
   return m.type === "survey";
-}
-
-export function isPiracyMission(m: Mission): m is PiracyMission {
-  return m.type === "piracy";
 }

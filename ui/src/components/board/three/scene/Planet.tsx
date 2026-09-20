@@ -2,12 +2,12 @@
  * A planet: a world, not a ball.
  *
  * Three spheres tinted blue, red and green read as the same sphere three times,
- * and the colours are not negotiable — they are the ones on the rules sheet, so
+ * and the colours are not negotiable: they are the ones on the rules sheet, so
  * a planet is recognisable from the paper board. The difference has to be
  * carried by the surface instead, so each well gets its own kind: Alpha is a
  * banded gas giant, Beta a cratered rock, Gamma an ocean world under cloud. At
  * the Table view that difference reads as texture; fly to one and it is a
- * world. All of it is procedural — the repository holds no images and the
+ * world. All of it is procedural: the repository holds no images and the
  * board fetches nothing.
  *
  * Each body turns at its own rate, slowly enough that a screenshot taken a
@@ -56,7 +56,7 @@ const SPIN: Record<string, number> = {
  *
  * Generous, and mostly sideways. The camera looks *down* on the board, so a
  * world with a polite Earth-like tilt shows the table nothing but its own north
- * pole, and a gas giant seen pole-on is a set of concentric rings — a
+ * pole, and a gas giant seen pole-on is a set of concentric rings: a
  * fingerprint, not a planet. Leaning each axis over toward the horizontal
  * brings the equator into view, which is where the bands, the continents and
  * the terminator all live.
@@ -115,7 +115,7 @@ export function Planet({
   )
 
   /* The limb glow: the printed colour bleached toward white, warmer where the
-     star grazes it. Narrow on purpose — the planet's name is printed on the
+     star grazes it. Narrow on purpose: the planet's name is printed on the
      plate just outside the body and must stay ink on black. */
   const airUniforms = useMemo(
     () => ({

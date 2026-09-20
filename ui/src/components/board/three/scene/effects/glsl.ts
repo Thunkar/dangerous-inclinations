@@ -4,7 +4,7 @@
  * Three programs, each compiled once and shared by every material of its kind:
  * a bolt (a tube that travels, bows over the funnel and may run in dashes), a
  * shockwave (a ring expanding across a disc) and a spark puff (points thrown
- * out of a point). Everything an effect varies — colour, progress, dash pitch —
+ * out of a point). Everything an effect varies (colour, progress, dash pitch)
  * is a uniform, so a frame costs a handful of number writes and nothing else.
  *
  * It lives here rather than in `three/shaders/` because nothing else on the
@@ -37,7 +37,7 @@ export const BOLT_VERTEX = /* glsl */ `
  * `uBase`; the flat board draws exactly the same two things as a line and a
  * dot. `uDashes` above zero breaks the shaft into a tracer, and `uSoft` fades
  * the tube out toward its own silhouette so a bolt reads as round light rather
- * than as a plank — full strength on the envelope, barely on the core.
+ * than as a plank: full strength on the envelope, barely on the core.
  */
 export const BOLT_FRAGMENT = /* glsl */ `
   uniform vec3 uColor;

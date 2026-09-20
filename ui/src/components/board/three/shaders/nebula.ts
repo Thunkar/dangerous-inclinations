@@ -3,7 +3,7 @@
  *
  * The sky has to do two contradictory things: stop the board floating on flat
  * black, and stay so dark that it never lifts the black behind a sector number.
- * The way through is frequency, not brightness — big soft shapes at the
+ * The way through is frequency, not brightness: big soft shapes at the
  * luminance of the felt itself, nothing anywhere near the luminance of the
  * plates.
  *
@@ -12,7 +12,7 @@
  * four-octave fbm in the fragment shader is the single most expensive thing the
  * scene could possibly do and the single least valuable: the result is blurry
  * by design. Baking it costs about twenty milliseconds at start-up and nothing
- * afterwards. Nothing is fetched — the texture is generated, like every other
+ * afterwards. Nothing is fetched: the texture is generated, like every other
  * surface here.
  *
  * Mipmaps are off on purpose: the only visible artefact of an equirect sky is
@@ -104,7 +104,7 @@ function fbm(x: number, y: number, z: number, octaves: number, ridged = false): 
 }
 
 export interface NebulaPalette {
-  /** The darkest the sky ever gets — the table's own felt. */
+  /** The darkest the sky ever gets: the table's own felt. */
   base: string
   /** The navy the clouds are made of. */
   cloud: string

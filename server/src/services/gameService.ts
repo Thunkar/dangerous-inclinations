@@ -112,8 +112,6 @@ const gameKey = (gameId: string) => `game:${gameId}`;
 const humansKey = (gameId: string) => `game-humans:${gameId}`;
 const chatKey = (gameId: string) => `game-chat:${gameId}`;
 
-export type GameService = ReturnType<typeof createGameService>;
-
 export function createGameService(deps: GameServiceDeps) {
   const { kv, recordings, transport } = deps;
   const bots = deps.bots ?? engineBots;
@@ -143,7 +141,7 @@ export function createGameService(deps: GameServiceDeps) {
 
   /**
    * Per-game serialization. Turn processing awaits persistence between steps,
-   * so two submissions for the same game must not interleave — and neither may
+   * so two submissions for the same game must not interleave, and neither may
    * a deletion, which would otherwise be undone by a turn already in flight.
    */
   const withGameLock = createKeyedLock();
@@ -756,7 +754,7 @@ export function createGameService(deps: GameServiceDeps) {
         if (snapshot.phase !== "active" && snapshot.phase !== "ended") {
           return { ok: false, error: `Cannot rewind into a "${snapshot.phase}" snapshot` };
         }
-        // A snapshot recorded before the table could agree on four points was
+        // A snapshot recorded before `pointsToWin` rode on the state was
         // played to the default; give it back the field so the game reads it.
         const restored: GameState = restoreRecordedState({
           ...snapshot,
@@ -791,7 +789,7 @@ export function createGameService(deps: GameServiceDeps) {
      * Only archived (finalized) recordings can be forked. A live recording
      * holds every player's missions, intel and the RNG state, so forking one
      * would hand the caller a seat with full sight of a game still being
-     * played — including their opponents' hidden information.
+     * played, including their opponents' hidden information.
      */
     async forkGameFromRecording(
       recordingId: string,

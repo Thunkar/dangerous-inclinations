@@ -1,7 +1,7 @@
 /**
  * The turn you are building, in the order it will happen. Steps can be moved
  * up and down: a weapon before the move fires from where you are now, after it
- * from where you end up — and the range preview follows.
+ * from where you end up, and the range preview follows.
  */
 import { Box, Chip, FormControlLabel, IconButton, MenuItem, Select, Switch, Tooltip, Typography } from '@mui/material'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
@@ -108,8 +108,8 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
   const picking = plan.picking?.kind === 'crit' && plan.picking.stepId === step.id
   /**
    * Legal to launch at, but the missile expires before it closes. The rules
-   * allow the shot — a missile is self-guided and nobody stops you throwing
-   * one away — so the target stays in the list, marked.
+   * allow the shot (a missile is self-guided and nobody stops you throwing
+   * one away) so the target stays in the list, marked.
    */
   const outOfReach = new Set(plan.targetsOutOfReach(step).map((t) => t.id))
   const wasted = step.targetId !== null && outOfReach.has(step.targetId)
@@ -136,7 +136,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
         {inRange.map((target) => (
           <MenuItem key={target.id} value={target.id} sx={{ fontSize: '0.82rem' }}>
             {nameOf(target.id)}
-            {outOfReach.has(target.id) ? ' — too far to catch' : ''}
+            {outOfReach.has(target.id) ? ' · too far to catch' : ''}
           </MenuItem>
         ))}
       </Select>
@@ -160,12 +160,12 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
 
       {wasted && (
         <Typography sx={{ fontSize: '0.74rem', color: TABLE.danger, lineHeight: 1.3 }}>
-          This one runs out of fuel before it catches them — three moves of three steps, and they
+          This one runs out of fuel before it catches them: three moves of three steps, and they
           keep drifting.
         </Typography>
       )}
 
-      <Tooltip title="Name the slot a critical hit would break — click it on their loadout">
+      <Tooltip title="Name the slot a critical hit would break: click it on their loadout">
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}
@@ -211,7 +211,7 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
   const note = !target
     ? null
     : faceDown.length === 0
-      ? 'You already know every tile on that loadout — the scan still takes their transmission.'
+      ? 'You already know every tile on that loadout. The scan still takes their transmission.'
       : chosen && chosen.type !== null
         ? 'You already know that tile: the scan will look at the first face-down one instead.'
         : null
@@ -235,7 +235,7 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         ))}
       </Select>
 
-      <Tooltip title="Choose which face-down tile to look at — click it on their loadout">
+      <Tooltip title="Choose which face-down tile to look at: click it on their loadout">
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}

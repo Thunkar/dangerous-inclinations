@@ -27,7 +27,7 @@ export async function deployShip(
   return api.post<ViewResponse>(`/api/games/${gameId}/deploy`, { ring, sector })
 }
 
-/** Loadout phase: the ship's tiles and the three missions kept from the five offered. */
+/** Loadout phase: the ship's tiles and the three missions kept from the six offered. */
 export async function submitLoadout(
   gameId: string,
   loadout: ShipLoadout,

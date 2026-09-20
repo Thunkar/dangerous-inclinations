@@ -45,7 +45,7 @@ export function missionProgress(
     case 'deliver_cargo': {
       const crate = cargo.find(c => c.missionId === mission.id)
       if (crate?.isPickedUp) {
-        return `Crate aboard — deliver at ${getWellName(mission.deliveryPlanetId)}`
+        return `Crate aboard · deliver at ${getWellName(mission.deliveryPlanetId)}`
       }
       // The hold takes one crate (RULES §Missions): a route whose turn has not
       // come yet is waiting on the one in the hold, not on a trip to its
@@ -53,16 +53,16 @@ export function missionProgress(
       const holdFull =
         cargo.filter(c => c.kind === 'crate' && c.isPickedUp).length >= CARGO_HOLD_CRATES
       return holdFull
-        ? `Hold full — deliver first, then load at ${getWellName(mission.pickupPlanetId)}`
+        ? `Hold full · deliver first, then load at ${getWellName(mission.pickupPlanetId)}`
         : `Load the crate at ${getWellName(mission.pickupPlanetId)}`
     }
     case 'intercept_transmission':
       return mission.scanAcquired
-        ? `Transmission taken — file it at ${getWellName(mission.deliveryPlanetId)}`
+        ? `Transmission taken · file it at ${getWellName(mission.deliveryPlanetId)}`
         : `Scan them first, then file at ${getWellName(mission.deliveryPlanetId)}`
     case 'survey':
       return mission.acquired
-        ? 'Chit aboard — dock anywhere to file it'
+        ? 'Chit aboard · dock anywhere to file it'
         : 'End a turn on Black Hole R1'
     case 'piracy': {
       // The loot rides as the card's own crate (engine `seizeLoot`), so the

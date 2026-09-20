@@ -21,14 +21,14 @@ export type SeatLoadouts = Record<string, ShipLoadout>;
  * of the kind asked for, `setupBotGame` swaps one of its primary offers for a
  * printed card of that kind before the bot chooses (see `dealForcedPrimaries`
  * in sim/runGame.ts), so the row measures the plan in every game rather than
- * in the half of them the deal happened to serve. Experiment only — nothing
+ * in the half of them the deal happened to serve. Experiment only: nothing
  * outside the simulator passes this, and the server never touches a deal.
  */
 export type SeatHands = Record<string, MissionType>;
 
 /**
  * `--hands=bot-1=destroy,bot-2=intercept`: the primary each named seat keeps.
- * Experiment only — it deals a seat a plan rather than letting it choose one,
+ * Experiment only: it deals a seat a plan rather than letting it choose one,
  * which is the only way to measure a plan the bots price as second best.
  *
  * Every hand is one primary and two secondaries now (RULES §Missions), so the

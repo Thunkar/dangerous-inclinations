@@ -65,7 +65,7 @@ const pickHand = (state: GameState, playerId: string) => {
 
 /**
  * Filler that any loadout can fly, to pad a hand out to its full size. Secondaries,
- * because a hand is one primary and two of these (RULES §Missions) — padding
+ * because a hand is one primary and two of these (RULES §Missions): padding
  * with another Deliver would make the hand itself illegal.
  */
 const padHand = (cards: Mission[]): Mission[] => {
@@ -337,7 +337,7 @@ describe("setup: a kept card the loadout can never fly", () => {
 
   /**
    * A hand holds one primary, and only a primary asks for anything aboard, so a
-   * loadout now has at most one requirement to satisfy — there is no hand that
+   * loadout now has at most one requirement to satisfy: there is no hand that
    * needs the array and a gun at once.
    */
   it("accepts the card once what it asks for is aboard", () => {

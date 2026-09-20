@@ -66,8 +66,8 @@ const HUNT_PLAN_TURNS = 10;
 /** Ambushes are set further ahead than a chase: the meeting point is fixed. */
 const INTERDICT_PLAN_TURNS = 14;
 /**
- * Turns of grace on an ambush. Arriving with the target is enough — the shot
- * happens on the way in — but arriving several turns after they have docked
+ * Turns of grace on an ambush. Arriving with the target is enough (the shot
+ * happens on the way in), but arriving several turns after they have docked
  * is a wasted trip.
  */
 const INTERDICT_SLACK = 2;
@@ -77,10 +77,10 @@ const INTERDICT_CHASE_RANGE = 6;
  * Urgency on the first step of a two-point card, so starting the primary
  * outranks a secondary at the same distance.
  *
- * The table plays to three points or four, and a hand is one two-point primary
- * plus two one-point secondaries: the secondaries alone are two points, so
+ * The table plays to three points, and a hand is one two-point primary plus
+ * two one-point secondaries: the secondaries alone are two points, so
  * the primary is not optional and the game cannot be won without it. Its
- * first step — the Intercept's scan, the Deliver's pickup — carried no
+ * first step (the Intercept's scan, the Deliver's pickup) carried no
  * urgency, so the cheapest-first ranking sent the bot to its short
  * secondaries and left the primary until last, when the target had wandered
  * and the hull was worse.
@@ -91,7 +91,7 @@ const PRIMARY_START_URGENCY = 1;
  *
  * The card hands in {@link TANKER_FUEL} on arrival, so the tank has to hold
  * that much when the ship makes port and the approach has to be paid for out
- * of what is left. One is a phase on the final burn — the estimate the goals
+ * of what is left. One is a phase on the final burn: the estimate the goals
  * are ranked with counts turns, not fuel, so this is a margin rather than a
  * prediction; the reserve on the dock plan does the real accounting.
  */
@@ -225,7 +225,7 @@ function dockAnywhereGoal(
  * Conditions, all from public information:
  *
  * - they are close enough to the win to score {@link INTERDICT_DANGER};
- * - the bot is not itself winning the race — if its own turns-to-win is no
+ * - the bot is not itself winning the race: if its own turns-to-win is no
  *   worse than theirs, racing beats fighting;
  * - its guns can actually beat the shield cubes it can see on them (a shield
  *   tile absorbs four damage a turn and is refilled for free, so a smaller
@@ -358,8 +358,8 @@ export function computeGoals(
         // The hold takes one crate: a pirate carrying freight of its own
         // seizes nothing, so there is no trip to make yet.
         if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
-        // Who is carrying is public (`PlayerView.cargoAboard`) — a chit counts,
-        // it is loot like any other — and a moored ship neither loses cargo nor
+        // Who is carrying is public (`PlayerView.cargoAboard`): a chit counts,
+        // it is loot like any other, and a moored ship neither loses cargo nor
         // takes any.
         const carriers = opponents.filter(
           (o) =>
@@ -384,7 +384,7 @@ export function computeGoals(
             targetPlayerId: prey.player.id,
             estimatedTurns: turns,
             // Ranked with the chit's filing while the seizure is a turn or two
-            // off — the window shuts the moment the carrier docks — and at no
+            // off (the window shuts the moment the carrier docks) and at no
             // urgency past that, so a crate on the far side of the well never
             // drags the bot off the card it has to finish.
             urgency: turns <= PIRACY_CHASE_TURNS ? 2 : 0,
@@ -420,7 +420,7 @@ export function computeGoals(
       case "tanker": {
         // No trip of its own while the primary is open. The pumping happens on
         // *any* arrival with the fuel aboard (RULES §Stations), so the card is not
-        // a destination — it is a reserve carried on the trips the seat is
+        // a destination: it is a reserve carried on the trips the seat is
         // making anyway, which `attachPlanToGoal` plans for below. A dock goal
         // of its own was a wasted journey: 10 arrivals in 118 held the fuel.
         if (primaryOutstanding(me)) break;
@@ -471,7 +471,7 @@ export function computeGoals(
   // Interdiction: no card names this, the scoreboard does. A player two
   // cards down with cargo aboard wins on their next dock unless someone
   // meets them there. It is only worth the detour while the detour is no
-  // longer than the bot's own next card — a turn spent away from a delivery
+  // longer than the bot's own next card: a turn spent away from a delivery
   // that was about to land is a turn given to everyone else at the table.
   const prey = interdictionTarget(opponents, from, status, myDanger);
   const hunting = me.missions.some(
@@ -519,7 +519,7 @@ export function computeGoals(
   }
 
   // Never stand still: with nothing else to chase, a station is worth a trip
-  // for the repairs and whatever cargo turns up there — and it has to be a
+  // for the repairs and whatever cargo turns up there, and it has to be a
   // trip, since a dock resolves on arrival and the berth underneath the ship
   // has already given everything it has (RULES §Stations).
   if (goals.length === 0) {
@@ -605,7 +605,7 @@ export function attachPlanToGoal(
       );
     case "pirate": {
       // No carrier in the well: wait on the arrival arc every crate bound for
-      // this planet has to come through. A coast, not a berth — a moored ship
+      // this planet has to come through. A coast, not a berth: a moored ship
       // seizes nothing.
       if (!goal.targetPlayerId && goal.planetId) {
         return planned(planShipToTarget(ship, laneArrivalTarget(goal.planetId), PLAN_TURNS));

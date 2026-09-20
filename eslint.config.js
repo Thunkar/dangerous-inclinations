@@ -28,7 +28,7 @@ export default tseslint.config(
       },
     },
     rules: {
-      // Type-only import discipline — required for verbatimModuleSyntax + native Node TS.
+      // Type-only import discipline, required for verbatimModuleSyntax + native Node TS.
       "@typescript-eslint/consistent-type-imports": [
         "error",
         { prefer: "type-imports", fixStyle: "separate-type-imports" },
@@ -44,12 +44,12 @@ export default tseslint.config(
         },
       ],
       "no-unused-vars": "off",
-      // `any` is real tech debt but pre-existing in UI/server code — warn, don't block.
+      // `any` is real tech debt but pre-existing in UI/server code: warn, do not block.
       "@typescript-eslint/no-explicit-any": "warn",
     },
   },
   // UI: React + browser globals + react-hooks plugin.
-  // The hooks rules surface real issues but most are pre-existing — start as
+  // The hooks rules surface real issues but most are pre-existing, so start as
   // warnings so fresh violations stand out without blocking CI.
   {
     files: ["ui/**/*.{ts,tsx}"],

@@ -1,5 +1,5 @@
 /**
- * Board geometry — the single source for every coordinate on the table.
+ * Board geometry: the single source for every coordinate on the table.
  *
  * The board is drawn in one origin-centred coordinate system: the black hole
  * sits at (0, 0) and the three planets at 120° intervals around it. Sector 0
@@ -21,20 +21,20 @@ export interface Point {
  * Nothing here can make the board bigger, and this is the whole arithmetic of
  * the file.
  *
- * Both renderers fit whatever board they are handed — the camera solves its
- * framing from the artwork, the SVG viewBox is cut to it — so multiplying every
+ * Both renderers fit whatever board they are handed (the camera solves its
+ * framing from the artwork, the SVG viewBox is cut to it), so multiplying every
  * number below by the same factor is the identity on screen. A previous pass
  * proved it the hard way: the board was grown 1.42x and the picture came back
  * pixel for pixel, because the only things that did not grow were the tokens,
  * which therefore shrank. Only two things can change what you actually see:
- * *proportion* between the board and what stands on it, and *framing* — how much
+ * *proportion* between the board and what stands on it, and *framing*, how much
  * of the board you are shown (`HOME_VIEW_RADIUS`).
  *
  * That is why spacing is bought and paid for rather than simply asked for. Ring
  * 1 cannot come inward: 24 numbers have to fit round it, so its circumference
  * caps the type on the entire board, and everything inside it is the room the
  * black hole has. So a wider gap between rings has to be taken outward, which
- * grows the well — and since the board opens on that well, growing it shrinks
+ * grows the well, and since the board opens on that well, growing it shrinks
  * everything in it, the black hole included. The bill is settled by tightening
  * the framing by exactly as much as the well grew, which is free: the margin
  * the view used to leave outside the plate was empty board.
@@ -46,7 +46,7 @@ export interface Point {
  *
  * Ring 1, the bodies and the ships keep every unit they had, the framed radius
  * is the same 691 units it was, and so the whole board lands on screen at the
- * scale it did — with the gap between two rings 1.42x wider, because that is the
+ * scale it did, with the gap between two rings 1.42x wider, because that is the
  * one number that moved.
  */
 
@@ -71,7 +71,7 @@ export const PLATE_MARGIN = 26
 /**
  * Distance from the black hole to each planet's centre: the black hole's plate
  * (596), a planet's (358) and 136 units of clear space between them. It follows
- * the wells outward — they must not end up touching — and costs nothing on
+ * the wells outward (they must not end up touching) and costs nothing on
  * screen, because neither renderer opens on the whole board any more.
  */
 const PLANET_ORBIT_RADIUS = 1090
@@ -94,11 +94,11 @@ export const BOARD_VIEWBOX = `${BOARD_BOUNDS.x} ${BOARD_BOUNDS.y} ${BOARD_BOUNDS
  * A board that has to fit the pane at rest can only ever be as big as the pane,
  * and four wells spread over a triangle 2652 units across leave each of them a
  * fifth of the height of the screen. But the whole board is not where the game
- * is: everyone deploys on black hole ring 4, every Home is in that sector, and a
- * ship is only ever elsewhere between missions. So both renderers open on the
- * black hole's plate and a margin — near enough to read a sector number, far
- * enough to show the lane arcs leaving for all three planets — and the planets
- * sit off the edges until you go and look at them.
+ * is: everyone deploys on black hole ring 3 or 4, every Home is in one of those
+ * two sectors, and a ship is only ever elsewhere between missions. So both
+ * renderers open on the black hole's plate and a margin (near enough to read a
+ * sector number, far enough to show the lane arcs leaving for all three
+ * planets) and the planets sit off the edges until you go and look at them.
  *
  * The margin is what paid for the wider rings. It was 38% of the plate, which on
  * a plate of 502 units was 190 units of nothing at all between the rim and the
@@ -107,7 +107,7 @@ export const BOARD_VIEWBOX = `${BOARD_BOUNDS.x} ${BOARD_BOUNDS.y} ${BOARD_BOUNDS
  * trade: the same 691 units are framed, so the same pixels per board unit reach
  * the screen, so the black hole is the size it was and the gap between two rings
  * is wider by exactly the factor the rings moved. What is spent is empty margin,
- * and what is left — 96 units past the rim — is still more than the black hole's
+ * and what is left (96 units past the rim) is still more than the black hole's
  * own name needs below the plate.
  */
 export const HOME_VIEW_RADIUS =
@@ -116,7 +116,7 @@ export const HOME_VIEW_RADIUS =
 /**
  * How much bigger the view is than the one every printed size was tuned in.
  *
- * Printed sizes — sector numbers, ticks, ring lines, lane ribbons, well names —
+ * Printed sizes (sector numbers, ticks, ring lines, lane ribbons, well names)
  * are written as the number that was settled on times this scale, so that they
  * land on screen at the size they were judged at however the board is redrawn.
  * Only the tokens keep their board-unit size on purpose, so they come out
@@ -126,7 +126,7 @@ export const HOME_VIEW_RADIUS =
  * a way that only showed when the wells moved: the board is never seen whole, so
  * its height is not what any of this type is seen against. Pushing the planets
  * apart would have swollen every letter on the board. What the type is actually
- * read at is the view the board opens in, so that is what it is pinned to — and
+ * read at is the view the board opens in, so that is what it is pinned to, and
  * `TUNED_HOME_VIEW_RADIUS` is that radius on the board the printing was tuned
  * on, before either rescale.
  */
@@ -149,17 +149,17 @@ export interface WellVisual {
  * size on purpose, so that opening the board out gives a ship more room; a body
  * has no such reason, and when the board grew 1.42x with these radii written as
  * absolutes every body came out a third smaller against its own rings than it
- * had been drawn to be — the black hole a marble at the bottom of a wide pit,
+ * had been drawn to be: the black hole a marble at the bottom of a wide pit,
  * the planets peas. Written as a share of ring 1 they follow the board on their
- * own, and everything that is placed at a multiple of a body — the atmosphere
- * shell, the well's name, the accretion disc's inner edge — follows with them.
+ * own, and everything that is placed at a multiple of a body (the atmosphere
+ * shell, the well's name, the accretion disc's inner edge) follows with them.
  *
  * The black hole's share is not free: `three/bodies.ts` proves that at the Table
  * camera's pitch the top of the horizon stays below the far side of ring 1's
  * numbers, and half of ring 1 is the most that ceiling allows. It is written
  * here rather than solved because the flat board prints the same circle and the
  * two boards have to agree about the one body they both draw. The planets are
- * unconstrained — nothing else is in their pits — and keep the share they were
+ * unconstrained (nothing else is in their pits) and keep the share they were
  * drawn at, so they grew with ring 1 and no further.
  */
 const BODY_SHARE = {
@@ -233,7 +233,7 @@ export function sectorEdgeAngle(wellId: GravityWellId, sector: number): number {
   return (sector / SECTORS_PER_RING) * 2 * Math.PI - Math.PI / 2 + sectorRotation(wellId)
 }
 
-/** Angle of the middle of a sector — where tokens sit. */
+/** Angle of the middle of a sector: where tokens sit. */
 export function sectorAngle(wellId: GravityWellId, sector: number): number {
   return sectorEdgeAngle(wellId, sector + 0.5)
 }
@@ -256,8 +256,8 @@ export function positionPoint(position: Position): Point {
  *
  * A sector is one cell and holds as many ships as want to sit in it, so the
  * board has to say "two here" without saying anything the rules do not: the
- * hulls part along the radius, which is the one direction a sector has spare —
- * they sit broadside to it, and the sector's own arc is already spoken for by
+ * hulls part along the radius, which is the one direction a sector has spare.
+ * They sit broadside to it, and the sector's own arc is already spoken for by
  * its neighbours.
  *
  * The step is bounded on both sides. A hull is `WIDTH` = 26 board units across
@@ -325,7 +325,7 @@ function arcPath(
   return `M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`
 }
 
-/** Wedge covering exactly one sector, between two radii — for clickable cells. */
+/** Wedge covering exactly one sector, between two radii: for clickable cells. */
 export function sectorWedgePath(
   wellId: GravityWellId,
   sector: number,

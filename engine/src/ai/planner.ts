@@ -2,8 +2,8 @@
  * Candidate action sequences.
  *
  * A candidate is built around one movement choice (follow the goal plan,
- * close on a target, or hold position). Everything else — facing, energy,
- * heat, which weapons fire and when, scans, scoop, shields — is derived
+ * close on a target, or hold position). Everything else (facing, energy,
+ * heat, which weapons fire and when, scans, scoop, shields) is derived
  * from that movement so that every action in the sequence is valid for the
  * engine at the moment it executes:
  *
@@ -13,8 +13,9 @@
  *   4. shots and scans that are in range from the projected position
  *
  * Energy allocations precede all of that (the engine applies them first);
- * the reactor holds 10 and heat above the dissipation capacity at the end
- * of the turn costs hull, so both are budgeted while the sequence is built.
+ * the reactor holds 10 and heat over the redline at the end of the turn costs
+ * hull, so both are budgeted while the sequence is built. Heat is a track:
+ * what is left after the dissipation is carried, not forgiven.
  */
 import type {
   Facing,
@@ -74,7 +75,7 @@ const CARGO_DENIAL = 4;
  * says about them.
  *
  * A crate or a chit aboard is a card halfway done, and a kill sends it back to
- * the dock along with two of their turns — that loss is the same whether they
+ * the dock along with two of their turns. That loss is the same whether they
  * are winning or last. Denial used to be multiplied by a danger score that
  * stays near zero until a player is two points up, and measured 17 Sept 2026
  * the table saw a card coming 18% of the time and never once below two points:
@@ -82,8 +83,8 @@ const CARGO_DENIAL = 4;
  * shooting at.
  *
  * Only the hold lifts the weight. A flat floor under every shot was tried
- * first and it made bots fire at anyone in reach — every card's completion
- * rate fell, the cheapest secondary of the time by a sixth — because a ship
+ * first and it made bots fire at anyone in reach (every card's completion
+ * rate fell, the cheapest secondary of the time by a sixth) because a ship
  * with nothing aboard has nothing to drop.
  */
 const LOADED_DENIAL = 0.5;
@@ -150,7 +151,7 @@ export function buildCandidate(
   const post = projectPosition(ship, facing, preview);
   const endsOnStation = getStationAt(view.stations, post) !== undefined;
   /**
-   * "Arrives at a station" — deliberately not "is at one". Since RULES §Moored
+   * "Arrives at a station" (deliberately not "is at one"). Since RULES §Moored
    * a docked ship stays docked, so a coast keeps ending on the station; if
    * that counted as completing a mission step (`completesStep` below, +35 on
    * missionProgress) a moored bot would rate sitting still as progress every
@@ -164,7 +165,7 @@ export function buildCandidate(
     post.ring === SURVEY_RING &&
     me.missions.some((m) => m.type === "survey" && !m.isCompleted && !m.acquired);
   // Docking and the survey are both resolved from where the ship ends its
-  // turn, so an uncompensated railgun recoil must not move it — and a moored
+  // turn, so an uncompensated railgun recoil must not move it, and a moored
   // ship pushed off its berth loses the berth.
   const postPositionMatters = endsOnStation || surveying;
 
@@ -207,15 +208,6 @@ export function buildCandidate(
     scanChosen = scan;
   };
   if (scan?.forMission) tryScan();
-
-  // A survey only counts with the sensor array powered while the ship holds the ring.
-  if (surveying) {
-    const sensor = status.sensors.find((s) => !s.isBroken);
-    const sensorEnergy = getSubsystemConfig("sensor_array").minEnergy;
-    if (sensor && !targets.has(sensor.id) && fits(sensorEnergy, 0)) {
-      targets.set(sensor.id, sensorEnergy);
-    }
-  }
 
   // Weapons: concentrate on one target, biggest hits first, spilling
   // over to the next once that one is already accounted for.
@@ -271,7 +263,7 @@ export function buildCandidate(
   const fired = new Set<string>();
   /**
    * A salvo of `count` rounds off the same tile: the cubes and the heat are
-   * unchanged — a launch is one use of the tile however big it is — and the
+   * unchanged (a launch is one use of the tile however big it is) and the
    * damage is per missile.
    */
   const sized = (intent: FireIntent, count: number): FireIntent =>
@@ -287,8 +279,8 @@ export function buildCandidate(
     if (fired.has(offered.weapon.id)) continue;
     if (hullOn(opponent) >= opponent.hull) continue;
     const energy = offered.energy + (offered.compensateRecoil ? BURN_COSTS.soft.energy : 0);
-    // Heat over the dissipation is hull damage at the end of the turn. It is
-    // worth paying for a shot that finishes a ship — and for any shot at a
+    // Heat over the redline is hull damage at the end of the turn. It is
+    // worth paying for a shot that finishes a ship, and for any shot at a
     // player about to win, whatever else the bot was doing this turn, because
     // the shot costs them cargo and tempo they cannot buy back.
     const room = (decisive: boolean) =>
@@ -345,8 +337,8 @@ export function buildCandidate(
     const hull = hullOn(option.opponent);
     expectedHullDamage += hull;
     if (hull <= 0) continue;
-    // What the hit costs them — hull, and on a kill their hold and their next
-    // turn — weighted by how close they are to winning, or by the fact that
+    // What the hit costs them (hull, and on a kill their hold and their next
+    // turn) weighted by how close they are to winning, or by the fact that
     // they are carrying something, whichever says more.
     const { danger } = option.opponent;
     const kills = hull >= option.opponent.hull;
@@ -359,14 +351,14 @@ export function buildCandidate(
   tryScan();
   if (status.reactionMass < parameters.lowFuelThreshold) tryScoop();
 
-  // Spare energy goes to defence — but powered shields charge their cubes as
+  // Spare energy goes to defence, but powered shields charge their cubes as
   // heat at the check, so they come out of the same budget as the volley, and
   // what is left of the track after that is all they may cost.
   const enemiesNear = situation.opponents.some((o) => o.sameWell);
   // A rack is only point defence while it is already powered: a salvo launched
   // after the enemy's move can reach us on the same turn, so waiting until the
   // missiles are on the board is waiting one turn too long. Anyone in the well
-  // with a launcher we know about — or a slot whose cubes read like one — is
+  // with a launcher we know about (or a slot whose cubes read like one) is
   // reason enough to keep the rack up.
   const launcherAimedAtUs = situation.opponents.some(
     (o) =>
@@ -553,8 +545,8 @@ export function generateCandidates(
 
   const planned = currentGoal?.plan ? movementFromPlan(ship, status, currentGoal.plan) : null;
   /**
-   * A coast while moored holds the berth — the ship does not drift, it sits
-   * where it is — so it cannot be a step toward a goal that is somewhere
+   * A coast while moored holds the berth (the ship does not drift, it sits
+   * where it is), so it cannot be a step toward a goal that is somewhere
    * else. The route planner offers one anyway when the real route is
    * unaffordable (it falls back to coarser targets, and with a tank too low
    * to burn, everything coarse is a coast), and a bot that accepted it scored
@@ -631,8 +623,8 @@ export function generateCandidates(
   const coldRepair = coldRepairCandidate(situation);
   if (coldRepair) candidates.push(coldRepair);
 
-  // A berth is worth the ride and the fuel the scoop skims, and nothing else
-  // — the dock itself resolved on arrival. Casting off is always on the table
+  // A berth is worth the ride and the fuel the scoop skims, and nothing else:
+  // the dock itself resolved on arrival. Casting off is always on the table
   // so that a bot whose goal it cannot yet afford has something to choose
   // besides "hold position", which it used to choose for the rest of the game.
   if (status.moored) {

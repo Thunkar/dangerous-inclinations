@@ -1,5 +1,5 @@
 /**
- * The loadout: the hull silhouette with its slot rails around it — the
+ * The loadout: the hull silhouette with its slot rails around it. The
  * forward slot at the nose, two side slots down each flank, the fixed systems
  * at the stern and the scoop at the bow.
  *

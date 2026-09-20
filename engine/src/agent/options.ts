@@ -3,7 +3,7 @@
  * same pure functions the UI uses for previews. Agents read this instead of
  * guessing, so an illegal move is never their only option.
  */
-import type { BurnIntensity, Facing, PlayerAction, Position } from "../models/game.ts";
+import type { BurnIntensity, Facing, Position } from "../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, isOpeningRound } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
@@ -166,7 +166,7 @@ export function seatOptions(view: GameView): SeatOptions {
     kind: "coast",
     moored,
   } as MovementPreview);
-  // The opening round reaches nobody: no shot and no scan (RULES §Firing).
+  // The opening round reaches nobody: no shot and no scan (RULES §A Turn).
   const opening = isOpeningRound(view.turn);
   const weapons: WeaponOption[] = ship.subsystems
     .filter((s) => getSubsystemConfig(s.type).weaponStats)
@@ -229,7 +229,7 @@ export function seatOptions(view: GameView): SeatOptions {
     reactorFree: ship.reactor.availableEnergy,
     fuel: ship.reactionMass,
     // Room before the track redlines, with the shields' standing cost already
-    // taken off — not room to the dissipation, which heat no longer resets to.
+    // taken off, not room to the dissipation, which heat no longer resets to.
     heatBudget: Math.max(0, ceiling - ship.heat.currentHeat - standingHeat),
     heatCarried: ship.heat.currentHeat,
     standingHeat,
@@ -260,6 +260,3 @@ export function seatOptions(view: GameView): SeatOptions {
     }),
   };
 }
-
-/** The engine's own bot decides: always a legal turn from the same view. */
-export type FallbackActions = PlayerAction[];

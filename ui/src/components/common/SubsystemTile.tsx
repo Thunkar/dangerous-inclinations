@@ -3,13 +3,13 @@
  *
  * Face-down it shows only the slot it sits in and a "?"; face-up it shows the
  * system's icon behind a thin luminous edge. A tile learned through a scan
- * carries a small eye badge — it is face-up for you alone. Broken tiles are
+ * carries a small eye badge: it is face-up for you alone. Broken tiles are
  * struck through and go dark.
  *
  * Energy cells are drawn under every tile for every player, face-down or not:
  * at the table the cubes sit on top of the module in the open. Four cells lit
  * on a face-down forward slot can only be a railgun. A tile that takes no
- * energy at all prints no cells — and nothing else is ever written under a
+ * energy at all prints no cells, and nothing else is ever written under a
  * tile.
  */
 import { Box, Tooltip, Typography } from '@mui/material'
@@ -76,14 +76,14 @@ export function SubsystemTile({
   const wells = faceDown ? Math.max(allocatedEnergy, 4) : cubeCapacity
   const live = allocatedEnergy > 0 && !isBroken
 
-  const name = config?.name ?? `${slotLabel(id)} — face down`
+  const name = config?.name ?? `${slotLabel(id)} · face down`
   const tip =
     tooltip ??
     (faceDown
       ? `${slotLabel(id)}: face down. ${allocatedEnergy} energy on it.`
       : `${name}${knownVia === 'scanned' ? ' (seen by your scan)' : ''}${
-          ammo === null || ammo === undefined ? '' : ` — ${ammo} left`
-        }${isBroken ? ' — BROKEN' : ''}`)
+          ammo === null || ammo === undefined ? '' : ` · ${ammo} left`
+        }${isBroken ? ' · BROKEN' : ''}`)
 
   const edge = selected ? TABLE.accent : highlighted ? TABLE.accent : isBroken ? TABLE.danger : TABLE.plateEdge
 

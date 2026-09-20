@@ -3,13 +3,13 @@
  *
  * The disc is drawn as a sheet of its own rather than as a flat annulus, so one
  * shader serves every treatment in `bodies.ts`. The vertex stage takes a unit
- * disc — an attribute carrying (fraction along the radius, azimuth) — and puts
+ * disc, an attribute carrying (fraction along the radius, azimuth), and puts
  * it where the treatment says: tilted out of the board plane, optionally warped
  * so the tilt relaxes and the outer edge settles into the floor of the pit, and
  * offset along the normal by a flared scale height so the same geometry can be
  * drawn three times as a midplane and two shells and read as something with a
  * thickness instead of a decal. **`sheetPoint` and `sheetPuff` in `bodies.ts`
- * are mirrors of `discSheet` and `discPuff` below** — the budget solver has to
+ * are mirrors of `discSheet` and `discPuff` below**: the budget solver has to
  * know where the sheet goes to prove it never reaches ring 1's numbers.
  *
  * ## Why the disc did not read as turning, and what carries the rotation now
@@ -18,25 +18,25 @@
  * not moving at all.** `uTime` never reached the GPU. Every `<shaderMaterial>`
  * has its uniforms run through three's `cloneUniforms`, which copies a number by
  * value, so the shared `sceneTime` object arrives as a private copy frozen a
- * fraction of a second after the board opens — measured on the board, the whole
+ * fraction of a second after the board opens. Measured on the board, the whole
  * disc was pixel-for-pixel identical over nine seconds. `scene/BlackHole.tsx`
  * describes the bug and writes the clock through the live material now; it is
  * still true of everything else the board draws.
  *
- * With the clock running, the disc turned — and still did not read as turning,
+ * With the clock running, the disc turned, and still did not read as turning,
  * in four more ways, every one of which had to go before it read as a wheel:
  *
  *  1. **The cross-fade was inverted.** Keplerian shear winds a continuous field
  *     up without limit until the filaments are finer than a pixel, so the shear
  *     was bounded by advecting two copies of the turbulence half a cycle apart
  *     and cross-fading them. The weight was `abs(1 - 2f)`, which puts each copy
- *     at *full* strength at `f = 0` and `f = 0.5` — exactly the instants its own
+ *     at *full* strength at `f = 0` and `f = 0.5`: exactly the instants its own
  *     shear resets. So the differential rotation was never visible at full
  *     weight at all: it was seen only mid-fade, half of one wound state blended
  *     with half of another, and once every 34 seconds the whole pattern snapped
  *     back through five radians in plain sight. Measured off the pixels with
  *     the clock running, the old disc turned at 0.394 rad/s at the inner edge
- *     of its bright annulus and 0.394 rad/s two thirds of the way out — the
+ *     of its bright annulus and 0.394 rad/s two thirds of the way out: the
  *     same rate at both radii, which is a printed wheel and not a disc. The
  *     differential the shear existed to draw had been faded away to nothing.
  *  2. **Nothing had an angular identity.** Three octaves of value noise, folded
@@ -44,7 +44,7 @@
  *     enough or distinct enough to pick out and follow round. A texture that
  *     rotates but has no landmarks is a texture that shimmers.
  *  3. **The bright parts did not move.** Almost all of the disc's light is in
- *     two structures that are axisymmetric or locked to the camera — the
+ *     two structures that are axisymmetric or locked to the camera: the
  *     white-hot inner lip, and the Doppler-beamed approaching limb. Both are
  *     physically right and both stand perfectly still, so the eye, which reads
  *     the brightest thing in a picture first, concluded that nothing turned.
@@ -59,7 +59,7 @@
  *    a separate piece of turbulence, turning *rigidly* at the Keplerian rate of
  *    its own radius (ω ∝ r^-3/2), and neighbours are cross-faded across the
  *    outer third of each band. A rigid rotation never winds anything up, so
- *    there is no shear to bound, no cycle, no reset, and no moiré — for ever —
+ *    there is no shear to bound, no cycle, no reset, and no moiré (for ever),
  *    while two neighbouring bands sliding past each other is precisely what
  *    shear looks like. The join is not a circle: it wobbles in azimuth and
  *    drifts, so the radius where two pieces of gas are mixed half and half
@@ -70,8 +70,8 @@
  *    tens of pixels across at the table camera, it is brighter than the gas
  *    around it, and it can be picked out of one frame and found again in the
  *    next. Because a knot never shears against itself it is bounded by
- *    construction too. Their positions are solved on the CPU once a frame —
- *    `writeKnots` below — and handed to the shader as a small uniform array,
+ *    construction too. Their positions are solved on the CPU once a frame
+ *    (`writeKnots` below) and handed to the shader as a small uniform array,
  *    which is both cheaper than deriving them per pixel and the reason the
  *    midplane and its two shells show the same clumps.
  *  - **A turning lip.** The inner lip is the brightest thing the disc draws, so
@@ -81,7 +81,7 @@
  *
  * What was kept: the static log-spiral winding that gives the arms their trail,
  * the temperature ramp, the radial profile that lights the whole annulus, and
- * the Doppler beaming — which, now that clumps go round, does something it could
+ * the Doppler beaming, which, now that clumps go round, does something it could
  * not do before: each knot brightens as it swings toward you and dims as it goes
  * away, so it pulses once an orbit.
  *
@@ -155,7 +155,7 @@ export const ACCRETION_VERTEX = /* glsl */ `
  * The spread it buys is set by how deep the annulus is, and that is `bodies.ts`
  * business, not this file's: the outer edge takes `INNER_PERIOD · (r_out /
  * r_in)^1.5` seconds. On the board as it is drawn today that is about 1.48
- * radii — 142.5 units to 210 — so the outer edge takes a little over sixteen
+ * radii (142.5 units to 210), so the outer edge takes a little over sixteen
  * seconds against the inner edge's nine, and the inner laps the outer about
  * every twenty. Open the rings out, the disc grows into the room, the ratio
  * widens and the lap gets quicker with nothing here touched.
@@ -174,19 +174,14 @@ export function orbitRate(radius: number, inner: number): number {
   return INNER_RATE / (q * Math.sqrt(q))
 }
 
-/** Seconds for one turn at `radius`. Reporting and tests; the shader has rates. */
-export function orbitPeriod(radius: number, inner: number): number {
-  return (2 * Math.PI) / orbitRate(radius, inner)
-}
-
 /* ------------------------------------------------------------------ clumps */
 
 /**
  * How many clumps of gas are alight at once, and how long each one lasts.
  *
- * The count is the same for the midplane and both shells — they share one
+ * The count is the same for the midplane and both shells (they share one
  * uniform array, so the three sheets are three slices of the same clumps rather
- * than three different discs — and it is what the fragment loop costs, ten
+ * than three different discs), and it is what the fragment loop costs, ten
  * times a dozen instructions over the disc's pixels. Ten with a lifetime of
  * sixteen seconds leaves about five alight at any moment, staggered so the disc
  * never blinks.
@@ -224,9 +219,9 @@ function frac(x: number): number {
  * disc drawn three times over is work done a hundred thousand times for an
  * answer that changes ten times a frame.
  *
- * `shape` takes four floats a clump — azimuth, the fraction along the annulus it
+ * `shape` takes four floats a clump (azimuth, the fraction along the annulus it
  * sits at, and the reciprocals of its angular and radial half-widths, so the
- * shader divides nothing — and `gain` one, its brightness, which rises and falls
+ * shader divides nothing) and `gain` one, its brightness, which rises and falls
  * over its life so clumps are lit out of the gas and put back into it rather
  * than appearing. Each generation draws a new radius and a new azimuth, or ten
  * clumps would trace ten fixed orbits for ever.
@@ -254,7 +249,7 @@ export function writeKnots(
     const azimuth = start + orbitRate(inner + (outer - inner) * u, inner) * age
     // Wider round than across: gas at one radius is drawn out along its own
     // orbit, which is what makes a clump read as a filament and not as a dot.
-    // Sized to land at tens of pixels at the board's own camera — a clump
+    // Sized to land at tens of pixels at the board's own camera: a clump
     // finer than that is another piece of turbulence, which is what the disc
     // had too much of already.
     const across = 0.2 + 0.26 * frac(seed * 17.3 + 0.41)
@@ -271,8 +266,8 @@ export function writeKnots(
 
 /**
  * Annuli of gas, each turning rigidly at its own rate. Six is enough that
- * neighbours differ by a tenth of their speed — a radian of slip between them
- * every twenty seconds, which reads as shear — and few enough that a band is
+ * neighbours differ by a tenth of their speed (a radian of slip between them
+ * every twenty seconds, which reads as shear) and few enough that a band is
  * wide enough to hold a filament.
  */
 const BANDS = 6
@@ -311,7 +306,7 @@ const ACCRETION_FRAGMENT = /* glsl */ `
   }
 
   /* One band of gas: turbulence turning rigidly at the rate of its own radius.
-     Rigid is the whole point — it can turn for an hour and never wind up. */
+     Rigid is the whole point: it can turn for an hour and never wind up. */
   float bandGas(float band, float angle, float spiral, float scale, float depth) {
     float u = (clamp(band, 0.0, BANDS - 1.0) + 0.5) / BANDS;
     float phase = angle + spiral - uTime * kepler(mix(uInner, uOuter, u));
@@ -319,7 +314,7 @@ const ACCRETION_FRAGMENT = /* glsl */ `
   }
 
   /* The clumps, summed. Each is an ellipse in (azimuth, radius) with a smooth
-     compact falloff — no transcendentals, and nothing outside it to pay for. */
+     compact falloff: no transcendentals, and nothing outside it to pay for. */
   float clumpLight(float angle, float t) {
     float sum = 0.0;
     for (int k = 0; k < KNOTS; k++) {
@@ -347,8 +342,8 @@ const ACCRETION_FRAGMENT = /* glsl */ `
     // past the bright radius it keeps growing and keeps killing the exponential.
     float x = (radius - uInner) / max(uBright - uInner, 0.001);
 
-    // Rotation is prograde — the way sectors increase, the way every ring on
-    // the board drifts — and it is differential: each band of gas turns at its
+    // Rotation is prograde (the way sectors increase, the way every ring on
+    // the board drifts) and it is differential: each band of gas turns at its
     // own Keplerian rate, so the inner edge laps the outer. Because every band
     // turns *rigidly* nothing shears against itself and nothing winds up, which
     // is what the old cross-fade was for and could not do. The trailing arms
@@ -378,7 +373,7 @@ const ACCRETION_FRAGMENT = /* glsl */ `
     // Outward the gas gets patchier, not merely dimmer: the same field raised
     // to a rising power, which digs the gaps between the filaments out to
     // nothing. It is the difference between a disc that ends in wisps and one
-    // that ends in a wash — and a wash is what would fog ring 1's numbers.
+    // that ends in a wash, and a wash is what would fog ring 1's numbers.
     density = pow(density, mix(1.0, 1.8, clamp(x, 0.0, 1.0)));
 
     // The landmarks. They ride the gas rather than sit on top of it, and they
@@ -395,7 +390,7 @@ const ACCRETION_FRAGMENT = /* glsl */ `
     color = mix(color, uHot, knots * 0.46);
 
     // The inner edge is a white-hot line, not a fade: that is where the light
-    // is — and a bright ring that never changes is the strongest possible
+    // is, and a bright ring that never changes is the strongest possible
     // statement that nothing is turning, so it carries hot spots at the inner
     // orbit's own rate. Three of them, beaten against a fifth harmonic so the
     // pattern is not a rosette, normalised so the lip is no brighter on average
@@ -423,7 +418,7 @@ const ACCRETION_FRAGMENT = /* glsl */ `
 
     // A clump lifts the floor the beaming may dim it to, so that it stays
     // visible all the way round rather than disappearing for half its orbit on
-    // the receding limb — which would leave nothing to follow for half a turn.
+    // the receding limb, which would leave nothing to follow for half a turn.
     float alpha = profile * density * clamp(boost, 0.5 + 0.45 * knots, 1.8) * uIntensity;
 
     // Additive blending multiplies by alpha for us; write the colour straight.
@@ -462,14 +457,14 @@ export const FACING_VERTEX = /* glsl */ `
  *
  * Doing it properly means tracing a geodesic per pixel. Doing it convincingly
  * means drawing one more annulus, square to the camera, masked to the top and
- * bottom of the silhouette — where the flat disc is hidden — and left out at
+ * bottom of the silhouette (where the flat disc is hidden) and left out at
  * the sides, where the flat disc is already drawn and a second copy would only
  * double it. Because it faces the camera it arcs over the hole from every
  * angle, which is exactly the property the real thing has.
  *
  * The lower arc is the underside of the near half of the disc and is drawn
  * dimmer, and it is given a wider band than the upper one, because down the
- * screen there is twice the room before ring 1's ink — which is also what stops
+ * screen there is twice the room before ring 1's ink, which is also what stops
  * the pair reading as a symmetrical halo. The whole arc carries the disc's own
  * beaming, so the side of the sky the approaching limb is bent onto is the
  * bright one and the pair never reads as symmetrical either way round.
@@ -497,7 +492,7 @@ export const LENSED_ARC_FRAGMENT = /* glsl */ `
   void main() {
     float radius = length(vPlane);
     float angle = atan(vPlane.y, vPlane.x);
-    // The annulus is square to the camera, so its local +y is up the screen —
+    // The annulus is square to the camera, so its local +y is up the screen,
     // which is where ring 1's far numbers are and where the arc has least room.
     // It gets a tighter outer radius there and its full reach everywhere else.
     float outer = mix(uOuter, uOuterUp, clamp(sin(angle), 0.0, 1.0));
@@ -505,7 +500,7 @@ export const LENSED_ARC_FRAGMENT = /* glsl */ `
 
     // Top and bottom: at the sides the flat disc is already there, and a second
     // copy of it turns the whole thing into a halo. Wider than a knife edge,
-    // though — the arc has to get round the hole to be an arc.
+    // though: the arc has to get round the hole to be an arc.
     float poles = pow(abs(sin(angle)), 2.6);
     float side = angle > 0.0 ? 1.0 : uUnderside;
 
@@ -522,7 +517,7 @@ export const LENSED_ARC_FRAGMENT = /* glsl */ `
     float profile = exp(-band * band);
     vec3 color = mix(uWarm, uHot, pow(1.0 - t, 2.0));
     // A little more contrast in the grain than it had, so the flow round the arc
-    // reads — but not a unit more of peak, because the arc is the outermost
+    // reads, but not a unit more of peak, because the arc is the outermost
     // bright thing the hole throws up the screen and bodies.ts has measured its
     // ceiling against ring 1's far numbers.
     float alpha = profile * poles * side * mix(0.4, 1.0, grain) * max(lean, 0.1) * uIntensity;

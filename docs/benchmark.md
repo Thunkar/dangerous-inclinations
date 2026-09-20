@@ -1,4 +1,4 @@
-# Benchmark — 2026-09-20
+# Benchmark (2026-09-20)
 
 240 games per seat count, seeds 20000+, bots choosing their own hands and hulls.
 
@@ -51,7 +51,7 @@ _Every hand is one primary and two secondaries, which is five points held for th
 | sensor_array,shields,shields,radiator,laser | 1512 | 35% | 17% |
 | fuel_compressor,shields,shields,radiator,laser | 1257 | 29% | 31% |
 
-_A hull's win rate is against the field, so the fair share is 1/seats — about 25% across a 3–6 seat mix._
+_A hull's win rate is against the field, so the fair share is 1/seats, about 25% across a 3–6 seat mix._
 
 ## Cards
 
