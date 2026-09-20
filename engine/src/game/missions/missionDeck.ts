@@ -46,7 +46,7 @@ import {
   isPrimaryType,
 } from "../../models/missions.ts";
 import { MAX_PLAYERS } from "../../models/game.ts";
-import { BLACK_HOLE_ID, PLANETS } from "../../models/gravityWells.ts";
+import { PLANETS } from "../../models/gravityWells.ts";
 import type { Rng } from "../../utils/rng.ts";
 
 /** Copies of each distinct card in the printed primary deck. */
@@ -58,9 +58,9 @@ export const COPIES_PER_CARD = 2;
  */
 export const SECONDARY_COPIES_PER_CARD = MAX_PLAYERS;
 
-/** Survey, Board, Garbage Disposal. */
-export const SECONDARY_CARDS_PER_DECK =
-  (SECONDARY_MISSION_TYPES.length + 1) * SECONDARY_COPIES_PER_CARD;
+/** Survey, Piracy, Tanker: three stacks, and every seat takes one off each. */
+export const SECONDARY_STACKS = 3;
+export const SECONDARY_CARDS_PER_DECK = SECONDARY_STACKS * SECONDARY_COPIES_PER_CARD;
 
 /**
  * A card as it is printed: a rival card counts seats rather than naming one,
@@ -70,8 +70,9 @@ export type DeckCard =
   | { type: "destroy_ship"; targetOffset: number }
   | { type: "intercept_transmission"; targetOffset: number; deliveryPlanetId: string }
   | { type: "deliver_cargo"; pickupPlanetId: string; deliveryPlanetId: string }
-  | { type: "survey" | "board"; deliveryPlanetId: string }
-  | { type: "garbage_disposal" };
+  | { type: "survey"; deliveryPlanetId: string }
+  | { type: "piracy" }
+  | { type: "tanker" };
 
 /** A card before it gets an id (distributive over the mission union). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -118,7 +119,8 @@ export function buildPrimaryDeck(
 export function buildSecondaryDeck(): DeckCard[] {
   const deck: DeckCard[] = [];
   for (let copy = 0; copy < SECONDARY_COPIES_PER_CARD; copy++) {
-    deck.push({ type: "garbage_disposal" });
+    deck.push({ type: "piracy" });
+    deck.push({ type: "tanker" });
     for (const type of SECONDARY_MISSION_TYPES) {
       // A chit is filed at whatever station the ship next docks at.
       deck.push({ type, deliveryPlanetId: "any" });
@@ -157,8 +159,10 @@ export function cardForPlayer(
         deliveryPlanetId: card.deliveryPlanetId,
         cargoId: "",
       };
-    case "garbage_disposal":
+    case "piracy":
       return { type: card.type, isCompleted: false, cargoId: "" };
+    case "tanker":
+      return { type: card.type, isCompleted: false };
     default: {
       const secondary: Omit<SecondaryMission, "id"> = {
         type: card.type,
@@ -187,10 +191,10 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
     case "intercept_transmission":
       return { ...card, id, dataCargoId: `data-${id}` };
     case "survey":
-    case "board":
       return { ...card, id, dataCargoId: `data-${id}` };
-    case "garbage_disposal":
-      return { ...card, id, cargoId: `load-${id}` };
+    case "piracy":
+      return { ...card, id, cargoId: `loot-${id}` };
+    case "tanker":
     case "destroy_ship":
       return { ...card, id };
   }
@@ -304,12 +308,11 @@ export function selectMissionsFromOffers(
 
 /**
  * The crates a hand starts with, none of them loaded yet: one per Deliver
- * route, and one load of garbage per disposal card.
+ * route, and nothing else.
  *
- * A load of garbage is collected at *any* station and is jettisoned on
- * the black hole's innermost ring, so it is the one crate whose pickup is
- * "any" and whose destination is a place with no station at all — which is
- * exactly why docking never takes it off your hands.
+ * A Piracy card owns a crate too, but it is somebody else's until it is taken:
+ * the loot comes into being at the seizure (`missionChecks.ts`), not at the
+ * deal.
  */
 export function cratesForMissions(missions: Mission[]): Cargo[] {
   return missions.flatMap((m) => {
@@ -321,18 +324,6 @@ export function cratesForMissions(missions: Mission[]): Cargo[] {
           kind: "crate" as const,
           pickupPlanetId: m.pickupPlanetId,
           deliveryPlanetId: m.deliveryPlanetId,
-          isPickedUp: false,
-        },
-      ];
-    }
-    if (m.type === "garbage_disposal") {
-      return [
-        {
-          id: m.cargoId,
-          missionId: m.id,
-          kind: "crate" as const,
-          pickupPlanetId: "any",
-          deliveryPlanetId: BLACK_HOLE_ID,
           isPickedUp: false,
         },
       ];

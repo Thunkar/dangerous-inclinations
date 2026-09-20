@@ -83,8 +83,8 @@ const CARGO_DENIAL = 4;
  *
  * Only the hold lifts the weight. A flat floor under every shot was tried
  * first and it made bots fire at anyone in reach — every card's completion
- * rate fell, Board's by a sixth — because a ship with nothing aboard has
- * nothing to drop.
+ * rate fell, the cheapest secondary of the time by a sixth — because a ship
+ * with nothing aboard has nothing to drop.
  */
 const LOADED_DENIAL = 0.5;
 

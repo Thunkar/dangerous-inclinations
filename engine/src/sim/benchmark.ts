@@ -80,16 +80,16 @@ const TYPES: MissionType[] = [
   "destroy_ship",
   "intercept_transmission",
   "survey",
-  "board",
-  "garbage_disposal",
+  "piracy",
+  "tanker",
 ];
 const TYPE_LABEL: Record<MissionType, string> = {
   deliver_cargo: "Deliver",
   destroy_ship: "Destroy",
   intercept_transmission: "Intercept",
   survey: "Survey",
-  board: "Board",
-  garbage_disposal: "Garbage",
+  piracy: "Piracy",
+  tanker: "Tanker",
 };
 
 interface Args {

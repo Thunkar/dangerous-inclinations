@@ -27,8 +27,8 @@ import {
   deliverMission,
   destroyMission,
   interceptMission,
-  garbageMission,
-  secondaryMission,
+  piracyMission,
+  tankerMission,
   surveyMission,
 } from "../testUtils.ts";
 
@@ -111,8 +111,8 @@ describe("botChooseLoadout", () => {
       interceptMission("p3"),
       interceptMission("p4", "intercept-p4"),
       surveyMission("survey-a"),
-      secondaryMission("board", "board-a"),
-      garbageMission("garbage-a"),
+      piracyMission("piracy-a"),
+      tankerMission("tanker-a"),
     ];
     const hands = validHands(offers);
     // Three primaries, and three ways to take two of three distinct secondaries.
@@ -134,7 +134,7 @@ describe("botChooseLoadout", () => {
       deliverMission(ALPHA, BETA),
       surveyMission("survey-a"),
       surveyMission("survey-b"),
-      secondaryMission("board", "board-a"),
+      piracyMission("piracy-a"),
     ];
     const hands = validHands(offers);
     expect(hands.length).toBeGreaterThan(0);
@@ -150,8 +150,8 @@ describe("botChooseLoadout", () => {
       interceptMission("p3"),
       deliverMission(ALPHA, BETA),
       surveyMission("survey-a"),
-      secondaryMission("board", "board-a"),
-      garbageMission("garbage-a"),
+      piracyMission("piracy-a"),
+      tankerMission("tanker-a"),
     ];
     for (const hand of validHands(offers)) {
       expect(hand.filter((m) => isPrimaryType(m.type))).toHaveLength(PRIMARIES_PER_PLAYER);
@@ -159,31 +159,31 @@ describe("botChooseLoadout", () => {
     }
   });
 
-  it("does not put a load of garbage in the hold a delivery crate needs", () => {
+  it("does not take a Piracy card into the hold a delivery crate needs", () => {
     // Both want the one crate the hold takes, so that pairing is two trips.
     // Every other pairing is on the table, so the bot takes one of those.
     const offers: Mission[] = [
       deliverMission(ALPHA, BETA),
       surveyMission("survey-a"),
-      secondaryMission("board", "board-a"),
-      garbageMission("garbage-a"),
+      piracyMission("piracy-a"),
+      tankerMission("tanker-a"),
     ];
     for (let i = 0; i < 3; i++) {
       const kept = botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n }).missionIds;
-      expect(kept).not.toContain("garbage-a");
+      expect(kept).not.toContain("piracy-a");
     }
   });
 
-  it("takes the garbage anyway when the deal leaves nothing else", () => {
+  it("takes the Piracy card anyway when the deal leaves nothing else", () => {
     // Only a clashing pair is on the table, and a hand of two is not a hand.
     const offers: Mission[] = [
       deliverMission(ALPHA, BETA),
-      garbageMission("garbage-a"),
-      garbageMission("garbage-b"),
+      piracyMission("piracy-a"),
+      piracyMission("piracy-b"),
     ];
     const kept = botChooseLoadout(offers, { playerCount: 3 }).missionIds;
     expect(kept).toHaveLength(MISSIONS_PER_PLAYER);
-    expect(kept).toContain("garbage-a");
+    expect(kept).toContain("piracy-a");
   });
 
   it("never offers a hand the forced loadout cannot fly", () => {
@@ -196,8 +196,8 @@ describe("botChooseLoadout", () => {
       interceptMission("p3", "intercept-p3"),
       deliverMission(ALPHA, BETA),
       surveyMission("survey-a"),
-      secondaryMission("board", "board-a"),
-      garbageMission("garbage-a"),
+      piracyMission("piracy-a"),
+      tankerMission("tanker-a"),
     ];
     const hands = validHands(offers, railgun);
     expect(hands.length).toBeGreaterThan(0);
@@ -323,8 +323,8 @@ describe("botChooseLoadout", () => {
         deliverMission(ALPHA, BETA),
         destroyMission("p2"),
         surveyMission("survey-a"),
-        secondaryMission("board", "board-a"),
-        garbageMission("garbage-a"),
+        piracyMission("piracy-a"),
+        tankerMission("tanker-a"),
       ];
       const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
       expect(choice.loadout).toEqual(RAILGUN);
@@ -341,8 +341,8 @@ describe("botChooseLoadout", () => {
         interceptMission("p3", "intercept-p3"),
         interceptMission("p4", "intercept-p4"),
         surveyMission("survey-a"),
-        secondaryMission("board", "board-a"),
-        garbageMission("garbage-a"),
+        piracyMission("piracy-a"),
+        tankerMission("tanker-a"),
       ];
       const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
       expect(choice.loadout).not.toEqual(RAILGUN);

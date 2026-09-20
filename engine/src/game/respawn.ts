@@ -2,8 +2,8 @@
  * Destruction and respawn.
  *
  * When a ship is destroyed it drops its cargo: crates return to their origin
- * station (they must be picked up again), data is lost, and a load of garbage
- * is simply gone — collect another at any station, which is the same thing. On the owner's next
+ * station (they must be picked up again), data is lost, and a seized crate —
+ * which has no origin — is simply gone, to be taken again. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
  * occupied) fully repaired and refuelled, drifts with its ring like anything
  * else in orbit, and the turn ends. It is `recovering` from then until its
@@ -42,8 +42,7 @@ export function dropCargo(player: Player): { player: Player; events: EventDraft[
       lostData.has(m.id)
     )
       return { ...m, scanAcquired: false };
-    // A secondary chit goes down with the ship: the dive, the boarding or the
-    // tour has to be made again.
+    // A secondary chit goes down with the ship: the dive has to be made again.
     if (isSecondaryMission(m) && !m.isCompleted && m.acquired && lostData.has(m.id))
       return { ...m, acquired: false };
     return m;

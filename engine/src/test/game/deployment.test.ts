@@ -21,7 +21,6 @@ import type { SubsystemType } from "../../models/subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "../../models/subsystems.ts";
 import type { Mission, MissionRequirement } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
-import type { SecondaryMissionType } from "../../models/missions.ts";
 import {
   MISSION_OFFERS_PER_PLAYER,
   MISSION_REQUIREMENTS,
@@ -38,13 +37,13 @@ import {
   canonicalJson,
   coast,
   deliverMission,
-  secondaryMission,
   destroyMission,
   getPlayer,
   getShip,
   interceptMission,
   mustExecute,
   surveyMission,
+  tankerMission,
   withPlayer,
 } from "../testUtils.ts";
 
@@ -70,10 +69,11 @@ const pickHand = (state: GameState, playerId: string) => {
  * with another Deliver would make the hand itself illegal.
  */
 const padHand = (cards: Mission[]): Mission[] => {
-  const filler: SecondaryMissionType[] = ["survey", "board"]; // two kinds: a pair must differ
+  // Two kinds, because the pair a hand keeps must differ.
+  const filler: Array<(id: string) => Mission> = [surveyMission, tankerMission];
   const padded = [...cards];
   for (let i = 0; padded.length < MISSIONS_PER_PLAYER; i++) {
-    padded.push(secondaryMission(filler[i % filler.length], `pad-${i}`));
+    padded.push(filler[i % filler.length](`pad-${i}`));
   }
   return padded;
 };
@@ -173,9 +173,9 @@ describe("setup: submitLoadout", () => {
     expect(p1.missions.map((m) => m.id)).toEqual(ids);
     expect(p1.ship.subsystems.find((s) => s.id === "forward-0")?.type).toBe("sensor_array");
     expect(p1.ship.subsystems.find((s) => s.id === "side-3")?.type).toBe("ballistic_rack");
-    // A crate per Deliver, and a load of garbage is a crate too.
+    // A crate per Deliver, and nothing else starts in a hold.
     expect(p1.cargo).toHaveLength(
-      p1.missions.filter((m) => m.type === "deliver_cargo" || m.type === "garbage_disposal").length
+      p1.missions.filter((m) => m.type === "deliver_cargo").length
     );
     expect(state.phase).toBe("loadout");
     expect(getPlayer(state, "p2").hasSubmittedLoadout).toBe(false);

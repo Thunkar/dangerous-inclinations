@@ -228,11 +228,20 @@ export type GameEvent =
       planetId: string;
     })
   | (Base & {
-      /** A load of garbage is jettisoned into the black hole. */
-      type: "cargo_dumped";
-      playerId: string;
+      /** Piracy: a crate taken off a ship sharing the pirate's sector. */
+      type: "cargo_seized";
+      pirateId: string;
+      victimId: string;
+      /** The victim's crate, which goes back to the dock it was loaded at. */
       cargoId: string;
       at: Position;
+    })
+  | (Base & {
+      /** Tanker: fuel pumped into a station's drums on arrival. */
+      type: "fuel_sold";
+      playerId: string;
+      amount: number;
+      planetId: string;
     })
   | (Base & {
       type: "cargo_dropped";
@@ -244,7 +253,7 @@ export type GameEvent =
       type: "data_acquired";
       playerId: string;
       /** Which card took a chit: a scan, or one of the secondary cards. */
-      kind: "scan" | "survey" | "board" | "grand_tour";
+      kind: "scan" | "survey" | "grand_tour";
       missionId: string;
     })
   | (Base & {

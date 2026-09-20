@@ -100,8 +100,9 @@ export interface Opponent {
   sectorDistance: number;
   /**
    * Just back from a respawn: no shot, missile or scan may be aimed at them
-   * until they act (RULES §Destruction and Respawn). Boarding them is still
-   * allowed — that is a rendezvous, not an attack.
+   * until they act (RULES §Destruction and Respawn). Matching orbits with them
+   * is still allowed — that is a rendezvous, not an attack (and a wreck has
+   * dropped its crate anyway, so there is nothing aboard to take).
    */
   recovering: boolean;
   /** Weapon tiles the bot has seen (face-up or scanned). */
@@ -133,7 +134,8 @@ export type BotGoalType =
   | "shadow" // intercept: get within scan range of the target
   | "dock" // deliver, deliver data, repair: end a turn on a station
   | "survey" // end a turn on black hole ring SURVEY_RING
-  | "board" // end a turn in another ship's exact sector
+  | "pirate" // piracy: end a turn in a loaded ship's exact sector
+  | "tanker" // fill the tank at the black hole's fast rings
   | "tour"; // grand tour: be in the planet well this goal names
 
 /**

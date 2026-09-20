@@ -5,9 +5,9 @@
  */
 import { describe, it, expect } from "vitest";
 import type { GameState, PlayerAction, Position, ShipLoadout } from "../../models/game.ts";
-import { STARTING_HIT_POINTS } from "../../models/game.ts";
-import type { SecondaryMission } from "../../models/missions.ts";
-import { SURVEY_RING } from "../../models/missions.ts";
+import { MAX_REACTION_MASS, STARTING_HIT_POINTS } from "../../models/game.ts";
+import type { Mission, SecondaryMission } from "../../models/missions.ts";
+import { SURVEY_RING, TANKER_FUEL } from "../../models/missions.ts";
 import { BLACK_HOLE_ID, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { viewFor } from "../../game/view.ts";
@@ -27,8 +27,11 @@ import {
   makeGameState,
   makePlayer,
   makeTwoPlayerGame,
+  piracyMission,
   surveyMission,
+  tankerMission,
   withMissions,
+  withPlayer,
   withPower,
   withShip,
 } from "../testUtils.ts";
@@ -198,8 +201,8 @@ describe("bot missions", () => {
   });
 
   it("stops surveying once the data is aboard and files it at the station the circuit reaches first", () => {
-    // A survey chit is filed anywhere — the deck deals every survey and board
-    // card with "any" for its station — so the bot takes the door it is
+    // A survey chit is filed anywhere — the deck deals every survey card with
+    // "any" for its station — so the bot takes the door it is
     // already standing under. From black hole ring 1 sector 0 that is Beta's
     // outbound lane at ring 5 sectors 0-3, not Alpha's at 16-19.
     const start = withMissions(
@@ -215,6 +218,69 @@ describe("bot missions", () => {
     const state = playUntil(start, "p1", completed, 120);
     expect(completed(state)).toBe(true);
     expect(getShip(state, "p1").wellId).toBe(BETA);
+  });
+});
+
+describe("bot goals: piracy and tanker", () => {
+  const goalFor = (state: GameState, missionId: string) =>
+    analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).goals.find(
+      (g) => g.missionId === missionId
+    );
+
+  /** p1 holds `missions`; p3 is nearer than p2, and p2 is the one carrying. */
+  const table = (missions: Mission[]): GameState => {
+    let state = makeGameState([
+      makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }),
+      makePlayer("p2", { wellId: BH, ring: 3, sector: 8 }),
+      makePlayer("p3", { wellId: BH, ring: 3, sector: 1 }),
+    ]);
+    state = withMissions(state, "p1", missions);
+    state = withMissions(state, "p2", [deliverMission(ALPHA, BETA)]);
+    return withPlayer(state, "p2", {
+      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+    });
+  };
+
+  it("goes after the ship that is carrying, not the ship that is closest", () => {
+    const card = piracyMission();
+    expect(goalFor(table([card]), card.id)).toMatchObject({
+      type: "pirate",
+      targetPlayerId: "p2",
+    });
+  });
+
+  it("has nobody to chase while every hold at the table is empty", () => {
+    const card = piracyMission();
+    const state = table([card]);
+    const empty = withPlayer(state, "p2", {
+      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: false })),
+    });
+    expect(goalFor(empty, card.id)).toBeUndefined();
+  });
+
+  it("turns for a station once the seized crate is aboard", () => {
+    const card = piracyMission();
+    const state = withPlayer(table([card]), "p1", {
+      cargo: [
+        {
+          id: card.cargoId,
+          missionId: card.id,
+          kind: "crate",
+          deliveryPlanetId: "any",
+          isPickedUp: true,
+        },
+      ],
+    });
+    expect(goalFor(state, card.id)).toMatchObject({ type: "dock" });
+  });
+
+  it.each([
+    ["too little to arrive with six", TANKER_FUEL - 1, "tanker"],
+    ["enough to arrive with six", MAX_REACTION_MASS, "dock"],
+  ])("a tanker with %s heads for the %s", (_label, reactionMass, type) => {
+    const card = tankerMission();
+    const state = withShip(table([card]), "p1", { reactionMass });
+    expect(goalFor(state, card.id)).toMatchObject({ type });
   });
 });
 

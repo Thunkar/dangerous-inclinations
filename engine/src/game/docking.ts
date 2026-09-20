@@ -15,7 +15,7 @@
 import type { GameState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo } from "../models/missions.ts";
-import { CARGO_HOLD_CRATES } from "../models/missions.ts";
+import { CARGO_HOLD_CRATES, TANKER_FUEL } from "../models/missions.ts";
 import { positionOf } from "./geometry.ts";
 import { getStationAt } from "./stations.ts";
 import { isDestroyed, reloadMissiles, repairAllSubsystems } from "./ship.ts";
@@ -71,7 +71,7 @@ export function processDocking(
   // The hold takes one crate; data chits are numbers and ride free.
   let cratesAboard = cargo.filter((c) => c.kind === "crate").length;
   for (const item of waiting) {
-    // A load of garbage is collected wherever you dock (RULES §Missions).
+    // A seized crate has no dock of its own, so nothing reloads it.
     const mine = item.pickupPlanetId === "any" || item.pickupPlanetId === planetId;
     const room = item.kind !== "crate" || cratesAboard < CARGO_HOLD_CRATES;
     if (!mine || !room) {
@@ -96,7 +96,7 @@ export function processDocking(
   // 17 Sept 2026: a quarter more kills, but the no-weapon hull it was aimed at
   // did not budge (+13 to +12), because that hull was never healing anyway.
   const hullRestored = reloaded.ship.maxHitPoints - reloaded.ship.hitPoints;
-  const ship = { ...reloaded.ship, hitPoints: reloaded.ship.hitPoints + hullRestored };
+  let ship = { ...reloaded.ship, hitPoints: reloaded.ship.hitPoints + hullRestored };
 
   events.push({
     type: "docked",
@@ -106,6 +106,15 @@ export function processDocking(
     repaired: repaired.repaired,
     missilesReloaded: reloaded.reloaded,
   });
+
+  // Tanker: arrive with six in the tank and it goes into the station's drums
+  // (RULES §Missions). Automatic, like every other thing a dock does to you —
+  // there is no chit and nothing to decide, only a tank that had enough in it.
+  const tanking = player.missions.some((m) => m.type === "tanker" && !m.isCompleted);
+  if (tanking && ship.reactionMass >= TANKER_FUEL) {
+    ship = { ...ship, reactionMass: ship.reactionMass - TANKER_FUEL };
+    events.push({ type: "fuel_sold", playerId: player.id, amount: TANKER_FUEL, planetId });
+  }
 
   const players = [...state.players];
   players[playerIndex] = { ...player, ship, cargo };

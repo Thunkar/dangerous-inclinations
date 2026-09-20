@@ -7,7 +7,12 @@
  */
 import type { GameEvent } from "../models/events.ts";
 import type { SecondaryMissionType, Mission } from "../models/missions.ts";
-import { DEFAULT_POINTS_TO_WIN, MISSION_POINTS, SURVEY_RING } from "../models/missions.ts";
+import {
+  DEFAULT_POINTS_TO_WIN,
+  MISSION_POINTS,
+  SURVEY_RING,
+  TANKER_FUEL,
+} from "../models/missions.ts";
 import {
   SHIELD_ENERGY_PER_POINT,
   SUBSYSTEM_CONFIGS,
@@ -44,7 +49,7 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
  */
 export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): string {
   return `RULES IN BRIEF
-- Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Board and Garbage Disposal ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
+- Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Piracy and Tanker ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
 - Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.
@@ -58,15 +63,14 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat. Cubes on every slot are public even while the tile is face-down, so name a loaded slot. (A tile that just absorbed has spent its cubes, so breaking it dumps little — but it is gone until they dock.)
 - Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name — that means no move but a plain coast, no scoop, no shot, no scan and no shields powered. It is the only way back for a ship whose engines or thrusters were shot out, because every station needs a jump to reach.
 - Docking (end your turn on a station's sector, planet ring 2): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
-- Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}, Board = end a turn in another ship's exact sector: take the chit, then dock anywhere to file it. Garbage Disposal = load at any station (fills your hold, so no delivery crate at the same time), then end a turn on BH ring ${SURVEY_RING} to drop it — no chit, no filing.
+- Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the chit, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate and the crate is yours, then sell it at ANY station — your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and it is pumped in automatically: hand in ${TANKER_FUEL}, the card is done.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
 - Destroyed: you drop your cargo and lose one turn — on your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. Nobody can fire at, missile or scan it until your following turn, when you act normally.`;
 }
 
-/** What each secondary card still asks of you. */
+/** What each chit-paying secondary card still asks of you. */
 const SECONDARY_HOW: Record<SecondaryMissionType, string> = {
   survey: `end a turn on BH R${SURVEY_RING}`,
-  board: "end a turn in another ship's exact sector",
 };
 
 function missionLine(m: Mission, name: (id: string) => string): string {
@@ -82,10 +86,11 @@ function missionLine(m: Mission, name: (id: string) => string): string {
           : `scan them first (same ring, within 3 sectors, sensors powered), then file at ${getWellName(m.deliveryPlanetId as never)}'s station`
       }`;
     case "survey":
-    case "board":
       return `${head} — ${m.acquired ? "chit aboard: dock at any station" : SECONDARY_HOW[m.type]}`;
-    case "garbage_disposal":
-      return `${head} — collect a load at ANY station (it fills your hold), then end a turn on BH R${SURVEY_RING} to drop it`;
+    case "piracy":
+      return `${head} — end a turn in the sector of a ship carrying a crate (hold empty, neither of you moored), then sell it at ANY station`;
+    case "tanker":
+      return `${head} — arrive at any station with ${TANKER_FUEL}+ fuel and it is pumped in`;
     case "destroy_ship":
       return `${head} — worth 2 points`;
   }

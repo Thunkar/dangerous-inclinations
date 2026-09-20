@@ -4,7 +4,7 @@
  *
  * Six mission types, in two kinds:
  *   primaries (2 points): destroy_ship, deliver_cargo, intercept_transmission
- *   secondaries (1 point): survey, board, garbage_disposal
+ *   secondaries (1 point): survey, piracy, tanker
  *
  * Completed missions are face-up: everyone can see them.
  */
@@ -54,7 +54,7 @@ export const PRIMARIES_PER_PLAYER = 1;
 /**
  * Dealt from the secondary stacks, and kept from that deal. The offer is one
  * card of each kind, so this is the number of kinds — keep it in step with
- * {@link SECONDARY_MISSION_TYPES} plus Garbage Disposal.
+ * the stacks {@link buildSecondaryDeck} prints.
  */
 export const SECONDARY_OFFERS_PER_PLAYER = 3;
 export const SECONDARIES_PER_PLAYER = 2;
@@ -65,6 +65,9 @@ export const MISSION_OFFERS_PER_PLAYER =
 
 /** Black hole ring a ship must end its turn on to complete a Survey. */
 export const SURVEY_RING = 1;
+
+/** Fuel a Tanker hands in, in one go, on arrival at a station. */
+export const TANKER_FUEL = 6;
 
 /**
  * What a completed card scores.
@@ -80,8 +83,8 @@ export const MISSION_POINTS: Readonly<Record<MissionType, number>> = {
   deliver_cargo: 2,
   intercept_transmission: 2,
   survey: 1,
-  board: 1,
-  garbage_disposal: 1,
+  piracy: 1,
+  tanker: 1,
 };
 
 export function missionPoints(type: MissionType): number {
@@ -106,16 +109,16 @@ export type MissionType =
   | "deliver_cargo"
   | "intercept_transmission"
   | "survey"
-  | "board"
-  | "garbage_disposal";
+  | "piracy"
+  | "tanker";
 
 /**
  * The one-point cards that pay a chit: do the thing, take the chit, file it at
- * any station. Garbage Disposal is a secondary too, but it carries a load instead
- * of a chit and finishes the moment the load is gone.
+ * any station. Survey is the only one left — Piracy pays a crate somebody else
+ * loaded and Tanker pays nothing at all, so neither has a chit to file.
  */
-export type SecondaryMissionType = "survey" | "board";
-export const SECONDARY_MISSION_TYPES: readonly SecondaryMissionType[] = ["survey", "board"];
+export type SecondaryMissionType = "survey";
+export const SECONDARY_MISSION_TYPES: readonly SecondaryMissionType[] = ["survey"];
 
 export type MissionFamily = "combat" | "trade" | "secondary";
 
@@ -124,8 +127,8 @@ export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
   deliver_cargo: "trade",
   intercept_transmission: "trade",
   survey: "secondary",
-  board: "secondary",
-  garbage_disposal: "secondary",
+  piracy: "secondary",
+  tanker: "secondary",
 };
 
 /** A card that scores two: the primary mission somebody else set you. */
@@ -169,8 +172,8 @@ export const MISSION_REQUIREMENTS: Readonly<Record<MissionType, readonly Mission
   intercept_transmission: [SENSOR_ARRAY],
   // The secondary cards ask for nothing aboard: they are flown, not fitted, which
   // is what lets any hand carry one as its third.
-  board: [],
-  garbage_disposal: [],
+  piracy: [],
+  tanker: [],
   // Nothing. A Survey is flown, not instrumented: the dive to the innermost
   // ring is the reading. It asked for a sensor array until 17 Sept 2026, which
   // made the one card any hand could use as filler a card only the sensor loadouts
@@ -221,19 +224,14 @@ export interface InterceptTransmissionMission extends BaseMission {
 }
 
 /**
- * A secondary card: do the thing, take the chit, file it at any station.
+ * A secondary card that pays a chit: do the thing, take the chit, file it at
+ * any station.
  *
- * Three of them, and the shape is deliberately one shape — the rule at the
- * table is a single sentence with the trigger swapped:
- *
- * | Card   | The thing                                    |
- * |--------|----------------------------------------------|
- * | survey | end a turn on the black hole's innermost ring |
- * | board  | end a turn in another ship's sector           |
- *
- * Neither asks for a tile and neither can be blocked, which is why each is
- * worth a point rather than two: the two a hand keeps are two points, one
- * short of the win, so the primary is the card that has to come in.
+ * Survey is the one card of this shape — end a turn on the black hole's
+ * innermost ring, then dock anywhere. It asks for no tile and cannot be
+ * blocked, which is why it is worth a point rather than two: the two
+ * secondaries a hand keeps are two points, one short of the win, so the
+ * primary is the card that has to come in.
  */
 export interface SecondaryMission extends BaseMission {
   type: SecondaryMissionType;
@@ -245,20 +243,36 @@ export interface SecondaryMission extends BaseMission {
 }
 
 /**
- * Garbage Disposal: load at any station, then drop it into the black hole.
+ * Piracy: end a turn in the same sector as a ship carrying a crate and the
+ * crate is yours; sell it at any station.
  *
- * Survey run backwards — the same two legs, the same dive, the other way
- * round — and the only secondary card that uses the hold. A load fills it, so a
- * cargo route and a disposal run cannot be flown at once: this is the card a
- * hunter or an interceptor has room for and a hauler has to queue.
+ * The only secondary card that uses the hold, and the only one somebody else
+ * pays for. A pirate needs room — {@link CARGO_HOLD_CRATES} is one, so a
+ * pirate already carrying a crate takes nothing — and neither ship may be
+ * moored: a berth is not a place a crate changes hands.
  *
- * There is no chit and nothing to file: the load is jettisoned on the
- * innermost ring and the card is done. Destroyed with it aboard, the load is
- * lost — collect another at any station.
+ * The seized crate rides as {@link cargoId}, delivered at *any* station like a
+ * chit, and the card is done when it is sold. Destroyed with it aboard, the
+ * loot goes over the side — and a crate on a pirate is a crate another pirate
+ * can take.
  */
-export interface GarbageDisposalMission extends BaseMission {
-  type: "garbage_disposal";
+export interface PiracyMission extends BaseMission {
+  type: "piracy";
+  /** Id the seized crate takes aboard the pirate. */
   cargoId: string;
+}
+
+/**
+ * Tanker: arrive at a station with {@link TANKER_FUEL} or more in the tank and
+ * pump it in; the card is done.
+ *
+ * Nothing is carried and nothing is chosen — a full tank is the whole cost,
+ * and the card is paid the moment the ship makes port with one. It is the
+ * secondary that competes with the hold for nothing at all and with every
+ * burn for everything.
+ */
+export interface TankerMission extends BaseMission {
+  type: "tanker";
 }
 
 export type Mission =
@@ -266,7 +280,8 @@ export type Mission =
   | DeliverCargoMission
   | InterceptTransmissionMission
   | SecondaryMission
-  | GarbageDisposalMission;
+  | PiracyMission
+  | TankerMission;
 
 export type CargoKind = "crate" | "data";
 
@@ -281,7 +296,7 @@ export interface Cargo {
   kind: CargoKind;
   /** Mission this item belongs to. */
   missionId: string;
-  /** Planet whose station it is collected at, or "any" for a load of garbage. */
+  /** Planet whose station it is collected at; absent for a seized crate. */
   pickupPlanetId?: string;
   /** Planet id, or "any". */
   deliveryPlanetId: string;
@@ -303,11 +318,11 @@ export function isDeliverCargoMission(m: Mission): m is DeliverCargoMission {
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
   return m.type === "intercept_transmission";
 }
-/** The secondary cards that pay a chit (not Garbage Disposal, which pays a load). */
+/** The secondary cards that pay a chit (not Piracy or Tanker, which pay neither). */
 export function isSecondaryMission(m: Mission): m is SecondaryMission {
-  return m.type === "survey" || m.type === "board";
+  return m.type === "survey";
 }
 
-export function isGarbageDisposalMission(m: Mission): m is GarbageDisposalMission {
-  return m.type === "garbage_disposal";
+export function isPiracyMission(m: Mission): m is PiracyMission {
+  return m.type === "piracy";
 }

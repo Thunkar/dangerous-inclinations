@@ -27,10 +27,10 @@ export function describeMission(m: Mission, name: NameResolver): string {
       return `Intercept ${name(m.targetPlayerId)} → file at ${getWellName(m.deliveryPlanetId)}`;
     case "survey":
       return "Survey the Event Horizon";
-    case "board":
-      return "Board a ship";
-    case "garbage_disposal":
-      return "Jettison a load into the black hole";
+    case "piracy":
+      return "Seize a crate and sell it";
+    case "tanker":
+      return "Pump six fuel into a station";
   }
 }
 
@@ -131,8 +131,10 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.playerId)} loads a crate at ${getWellName(e.planetId)}`;
     case "cargo_delivered":
       return `${name(e.playerId)} delivers ${e.kind} at ${getWellName(e.planetId)}`;
-    case "cargo_dumped":
-      return `${name(e.playerId)} drops the load into the black hole at ${pos(e.at)}`;
+    case "cargo_seized":
+      return `${name(e.pirateId)} seizes ${name(e.victimId)}'s crate at ${pos(e.at)}`;
+    case "fuel_sold":
+      return `${name(e.playerId)} pumps ${e.amount} fuel into ${getWellName(e.planetId)}'s station`;
     case "cargo_dropped": {
       const parts: string[] = [];
       if (e.crates) parts.push(`${e.crates} crate(s)`);

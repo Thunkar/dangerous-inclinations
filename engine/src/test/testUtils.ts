@@ -33,7 +33,8 @@ import type {
   SecondaryMissionType,
   DeliverCargoMission,
   DestroyShipMission,
-  GarbageDisposalMission,
+  PiracyMission,
+  TankerMission,
   InterceptTransmissionMission,
   Mission,
 } from "../models/missions.ts";
@@ -284,7 +285,7 @@ export const interceptMission = (
   scanAcquired: false,
   dataCargoId: `data-${id}`,
 });
-/** Any of the three secondary cards; `survey` unless another is asked for. */
+/** A chit-paying secondary card (Survey is the only one). */
 export const secondaryMission = (
   type: SecondaryMissionType = "survey",
   id = `${type}-1`,
@@ -300,11 +301,17 @@ export const secondaryMission = (
 export const surveyMission = (id = "survey-1", deliveryPlanetId = "any"): SecondaryMission =>
   secondaryMission("survey", id, deliveryPlanetId);
 
-export const garbageMission = (id = "garbage-1"): GarbageDisposalMission => ({
+export const piracyMission = (id = "piracy-1"): PiracyMission => ({
   id,
-  type: "garbage_disposal",
+  type: "piracy",
   isCompleted: false,
-  cargoId: `load-${id}`,
+  cargoId: `loot-${id}`,
+});
+
+export const tankerMission = (id = "tanker-1"): TankerMission => ({
+  id,
+  type: "tanker",
+  isCompleted: false,
 });
 
 // ---------------------------------------------------------------------------

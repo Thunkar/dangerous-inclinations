@@ -6,38 +6,97 @@
  */
 import type { GameState, Player } from "../../models/game.ts";
 import type { EventDraft } from "../../models/events.ts";
-import type { SecondaryMission, Mission } from "../../models/missions.ts";
+import type { Cargo, PiracyMission, SecondaryMission, Mission } from "../../models/missions.ts";
 import { SURVEY_RING, missionPoints } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
+import { positionOf, samePosition } from "../geometry.ts";
+import { isMooredAt } from "../stations.ts";
 
 /**
  * Whether a secondary card's thing has been done, read off the board at the end
- * of the turn — and, for the grand tour, the wells ticked off so far.
+ * of the turn.
  *
  * A wreck does nothing: a destroyed ship is off the board until it is
  * rebuilt at Home.
  */
-function secondaryDone(mission: SecondaryMission, player: Player, state: GameState): boolean {
+function secondaryDone(mission: SecondaryMission, player: Player): boolean {
   const ship = player.ship;
   if (isDestroyed(ship)) return false;
   switch (mission.type) {
     case "survey":
       // The dive: the innermost ring of the black hole, held to the end of a turn.
       return ship.wellId === BLACK_HOLE_ID && ship.ring === SURVEY_RING;
-    case "board": {
-      // Matched orbits with somebody: the same well, ring and sector.
-      return state.players.some(
-        (p) =>
-          p.id !== player.id &&
-          p.hasDeployed &&
-          !isDestroyed(p.ship) &&
-          p.ship.wellId === ship.wellId &&
-          p.ship.ring === ship.ring &&
-          p.ship.sector === ship.sector
-      );
-    }
   }
+}
+
+/** A crate in the hold, as opposed to one waiting on a dock. */
+function crateAboard(cargo: readonly Cargo[]): boolean {
+  return cargo.some((c) => c.kind === "crate" && c.isPickedUp);
+}
+
+/**
+ * Piracy: a pirate that ends its turn in a loaded ship's sector takes the
+ * crate (RULES §Missions).
+ *
+ * The hold is the whole constraint — {@link CARGO_HOLD_CRATES} is one, so a
+ * pirate with freight of its own takes nothing — and a moored ship is out of
+ * it at both ends: a berth is not a place a crate changes hands. The victim's
+ * crate is simply no longer aboard: a Deliver holder loads again at its pickup
+ * station, and a pirate who has been pirated has to seize again.
+ *
+ * `players` is written in place (the victim's hold); the pirate's own hold
+ * comes back as `cargo` because the caller is already carrying it.
+ */
+function seizeCrate(
+  players: Player[],
+  pirateIndex: number,
+  mission: PiracyMission,
+  cargo: Cargo[],
+  state: GameState
+): { cargo: Cargo[]; event: EventDraft } | null {
+  const pirate = players[pirateIndex];
+  const ship = pirate.ship;
+  if (isDestroyed(ship) || isMooredAt(state.stations, positionOf(ship))) return null;
+  if (crateAboard(cargo)) return null;
+  // Two loaded ships in the same sector are settled by the table, not by a
+  // die: the next seat in turn order after the pirate.
+  for (let step = 1; step < players.length; step++) {
+    const victimIndex = (pirateIndex + step) % players.length;
+    const victim = players[victimIndex];
+    if (!victim.hasDeployed || isDestroyed(victim.ship)) continue;
+    if (!samePosition(positionOf(victim.ship), positionOf(ship))) continue;
+    if (isMooredAt(state.stations, positionOf(victim.ship))) continue;
+    const crate = victim.cargo.find((c) => c.kind === "crate" && c.isPickedUp);
+    if (!crate) continue;
+    players[victimIndex] = {
+      ...victim,
+      cargo: victim.cargo.map((c) => (c.id === crate.id ? { ...c, isPickedUp: false } : c)),
+    };
+    // The loot rides as the card's own crate, sold at any station. Seized
+    // before and lost since, it is the same crate coming back aboard.
+    const loot: Cargo = {
+      id: mission.cargoId,
+      missionId: mission.id,
+      kind: "crate",
+      deliveryPlanetId: "any",
+      isPickedUp: true,
+    };
+    const next = cargo.some((c) => c.id === loot.id)
+      ? cargo.map((c) => (c.id === loot.id ? loot : c))
+      : [...cargo, loot];
+    return {
+      cargo: next,
+      event: {
+        type: "cargo_seized",
+        pirateId: pirate.id,
+        victimId: victim.id,
+        cargoId: crate.id,
+        at: positionOf(ship),
+      },
+    };
+  }
+  return null;
 }
 
 export interface MissionCheckResult {
@@ -61,16 +120,31 @@ export function processMissionEvents(
 
   const kills = new Set<string>();
   const deliveredCargoIds = new Set<string>();
+  let pumpedFuel = false;
 
   for (const e of turnEvents) {
     if (e.type === "ship_destroyed" && e.killerId === playerId) kills.add(e.victimId);
     if (e.type === "cargo_delivered" && e.playerId === playerId) {
       deliveredCargoIds.add(e.cargoId);
     }
+    if (e.type === "fuel_sold" && e.playerId === playerId) pumpedFuel = true;
   }
 
+  const players = [...state.players];
   let cargo = player.cargo;
   let completed = 0;
+
+  // Seizures first: a crate taken this turn is aboard for the rest of it, so
+  // a second Piracy card in the same hand finds the hold full.
+  let seized = false;
+  for (const mission of player.missions) {
+    if (mission.type !== "piracy" || mission.isCompleted) continue;
+    const taken = seizeCrate(players, index, mission, cargo, state);
+    if (!taken) continue;
+    cargo = taken.cargo;
+    events.push(taken.event);
+    seized = true;
+  }
 
   const missions: Mission[] = player.missions.map((mission) => {
     if (mission.isCompleted) return mission;
@@ -87,32 +161,19 @@ export function processMissionEvents(
         if (mission.scanAcquired && deliveredCargoIds.has(mission.dataCargoId))
           next = { ...mission, isCompleted: true };
         break;
-      case "garbage_disposal": {
-        // The load is jettisoned on the innermost ring: no chit, no filing,
-        // the card is done the moment the hold is empty again.
-        const load = cargo.find((c) => c.id === mission.cargoId);
-        const overTheSide =
-          load?.isPickedUp === true &&
-          !isDestroyed(player.ship) &&
-          player.ship.wellId === BLACK_HOLE_ID &&
-          player.ship.ring === SURVEY_RING;
-        if (overTheSide) {
-          cargo = cargo.filter((c) => c.id !== mission.cargoId);
-          next = { ...mission, isCompleted: true };
-          events.push({
-            type: "cargo_dumped",
-            playerId,
-            cargoId: mission.cargoId,
-            at: { wellId: player.ship.wellId, ring: player.ship.ring, sector: player.ship.sector },
-          });
-        }
+      case "piracy":
+        // The loot is sold like any other freight: a crate bound for "any"
+        // station is delivered on arrival (game/docking.ts).
+        if (deliveredCargoIds.has(mission.cargoId)) next = { ...mission, isCompleted: true };
         break;
-      }
-      case "survey":
-      case "board": {
+      case "tanker":
+        // Paid on arrival, no choice and no chit: the pumping is the card.
+        if (pumpedFuel) next = { ...mission, isCompleted: true };
+        break;
+      case "survey": {
         let m = mission;
         if (!m.acquired) {
-          if (secondaryDone(m, player, state)) {
+          if (secondaryDone(m, player)) {
             m = { ...m, acquired: true };
             cargo = [
               ...cargo,
@@ -145,6 +206,7 @@ export function processMissionEvents(
 
   if (
     completed === 0 &&
+    !seized &&
     cargo === player.cargo &&
     missions.every((m, i) => m === player.missions[i])
   ) {
@@ -164,7 +226,6 @@ export function processMissionEvents(
     }
   }
 
-  const players = [...state.players];
   players[index] = { ...player, missions, cargo, completedMissionCount };
   return { state: { ...state, players }, events };
 }

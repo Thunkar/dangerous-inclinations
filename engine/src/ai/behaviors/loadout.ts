@@ -161,11 +161,12 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  *
  * **The secondaries are not chosen at random.** Two of them have to be
  * different cards, which the deal guarantees is possible, and one surviving
- * pairing is refused by a rule rather than by taste: a load of garbage fills
- * the hold and so does a delivery crate ({@link CARGO_HOLD_CRATES} is 1), so
- * Deliver with Garbage Disposal is two trips where the other pairings are one.
- * That is the engine's own arithmetic, not an opinion about balance, so the bot
- * avoids it when the deal offers anything else.
+ * pairing is refused by a rule rather than by taste: a seized crate fills the
+ * hold and so does a delivery crate ({@link CARGO_HOLD_CRATES} is 1), and a
+ * pirate with freight of its own seizes nothing, so Deliver with Piracy is two
+ * trips where the other pairings are one. That is the engine's own arithmetic,
+ * not an opinion about balance, so the bot avoids it when the deal offers
+ * anything else.
  *
  * @param pick chooses among the hands on offer; wire it to the game's seeded
  *   RNG so a seed replays exactly. Without one the first hand is taken, which
@@ -194,19 +195,16 @@ export function selectBotMissions(
   if (hands.length === 0) hands = validHands(offers, undefined, primary);
   if (hands.length === 0) hands = validHands(offers);
   if (hands.length === 0) return offers.slice(0, MISSIONS_PER_PLAYER);
-  // A hold shared between a crate and a load of garbage is two trips: skip
+  // A hold shared between a delivery crate and a seized one is two trips: skip
   // those hands while any other hand is on the table.
   const roomy = hands.filter((hand) => !holdIsContested(hand));
   const choose = roomy.length > 0 ? roomy : hands;
   return choose[pick ? pick(choose.length) : 0];
 }
 
-/** Deliver and Garbage Disposal both want the one crate the hold takes. */
+/** Deliver and Piracy both want the one crate the hold takes. */
 function holdIsContested(hand: Mission[]): boolean {
-  return (
-    hand.some((m) => m.type === "deliver_cargo") &&
-    hand.some((m) => m.type === "garbage_disposal")
-  );
+  return hand.some((m) => m.type === "deliver_cargo") && hand.some((m) => m.type === "piracy");
 }
 
 /**

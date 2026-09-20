@@ -208,7 +208,7 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 **Primaries score two.** Destroy, Deliver, Intercept — the kill, the cargo run, the stolen transmission, one for each way of playing. Each names what it wants: a victim, a route, a station to file at. Yours is two thirds of the win on its own.
 
-**Secondary cards score one.** Survey, Board, Garbage Disposal. Each is a thing you do rather than a primary someone sets you: no tile aboard can do it for you and nobody can block it. Survey and Board pay a chit — take it the moment you do the thing, then file it at **any** station. Garbage Disposal pays nothing to carry: the load is jettisoned and the card is done.
+**Secondary cards score one.** Survey, Piracy, Tanker. Each is a thing you do rather than a primary someone sets you: no tile aboard can do it for you. Survey pays a chit — take it the moment you dive, then file it at **any** station. Piracy pays in cargo: the crate you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card.
 
 **A hand is one primary and two secondaries** — two points and one and one, five on the table for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
 
@@ -218,14 +218,14 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 | **Deliver [A → B]**                                 | 2      | you dock at A (load the crate), then dock at B                                                                             |
 | **Intercept [Nth to your left] → file at [planet]** | 2      | you scan them (take the data chit), then dock at **that planet's** station                                                 |
 | **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1 — take the chit — then dock at **any** station to file it                              |
-| **Board a Ship**                                    | 1      | you end a turn in the **same sector** as another ship — take the chit — then dock at **any** station to file it            |
-| **Garbage Disposal**                                | 1      | you dock at **any** station to load it (it fills your hold), then end a turn on Black Hole Ring 1 to drop it into the hole |
+| **Piracy**                                          | 1      | you end a turn in the **same sector** as an undocked ship carrying a crate: the crate is yours (your hold must be empty) — then dock at **any** station to sell it |
+| **Tanker**                                          | 1      | you **arrive** at **any** station with **6 or more fuel**: hand in 6, and the card is done                                  |
 
 **The decks.** Two piles for the table, dealt separately.
 
 The **primary pile** is two copies of every primary mission: each Destroy and Intercept offset (below), and all six Deliver routes. **Setup:** take out every Destroy and Intercept whose number is the player count or higher — at three players that leaves offsets 1 and 2. More seats leave more of it pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
 
-The **secondaries** are three stacks, one per card: six copies each of Survey, Board and Garbage Disposal. They name no rival and no route, so they are the same stacks at every table size.
+The **secondaries** are three stacks, one per card: six copies each of Survey, Piracy and Tanker. They name no rival and no route, so they are the same stacks at every table size.
 
 **The deal.** Shuffle the primary pile and deal **three** to each player, who keeps **one**. Then each player takes **one card off each secondary stack** and keeps **two** of the three. The cards you leave go face-down onto one shared discard pile, never back onto the stack they came from: three stacks have three different faces, so a card put back would tell the table exactly which secondary you kept out.
 
@@ -233,7 +233,7 @@ So the primary mission is the luck of the draw and the two things you do yoursel
 
 **Cards count seats, they do not name them.** A Destroy card reads _the 2nd player to your left_ — counting left around the table in turn order — so the same card is a different target in every hand, no card can ever name the player holding it, and holding one tells the table nothing. The count only becomes a name when you complete the card and turn it face-up.
 
-**Your hold takes one crate.** A load of garbage is a crate like any other, so a disposal run and a cargo route cannot be flown at the same time — which is why the card suits a ship with nothing else in its hold. Destroyed with a load aboard, it is lost: collect another at any station.
+**Your hold takes one crate.** A seized crate is a crate like any other, so a pirate carrying its own cargo route seizes nothing until the hold is empty — which is why Piracy suits a ship with nothing else to carry. A moored ship neither takes nor loses a crate. Destroyed with a crate aboard, it is lost: the Deliver holder loads another at the pickup planet, the pirate seizes another.
 
 A crate fills it, so a second Deliver waits until the first is delivered — two routes that load at the same station are two trips, and the only pair that is one trip is a chain, where you drop at the station you collect the next one from. Data chits are numbers, not freight: a scan's transmission and a survey's readings ride free alongside whatever is in the hold, however many you carry.
 

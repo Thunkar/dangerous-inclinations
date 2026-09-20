@@ -96,11 +96,11 @@ const CARD_LABEL: Record<MissionType, string> = {
   deliver_cargo: "Deliver",
   intercept_transmission: "Intercept",
   survey: "Survey",
-  board: "Board",
-  garbage_disposal: "Garbage",
+  piracy: "Piracy",
+  tanker: "Tanker",
 };
 
-/** "Destroy + Board/Survey": the primary a seat took, and what it took beside it. */
+/** "Destroy + Piracy/Survey": the primary a seat took, and what it took beside it. */
 export function handShapeOf(missions: ReadonlyArray<{ type: MissionType }>): string {
   const label = (m: { type: MissionType }) => CARD_LABEL[m.type];
   const primaries = missions.filter((m) => MISSION_FAMILY[m.type] !== "secondary").map(label);

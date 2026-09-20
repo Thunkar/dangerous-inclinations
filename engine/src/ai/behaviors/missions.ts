@@ -6,8 +6,9 @@
  *   destroy_ship               → hunt: get weapons on the target
  *   deliver_cargo              → dock at pickup, then at delivery
  *   intercept_transmission     → shadow (scan range), then dock at the card's station
- *   survey / board             → do the thing, then dock anywhere to file the chit
- *   garbage_disposal           → load at any station, then dive to black hole ring 1
+ *   survey                     → dive to black hole ring 1, then dock anywhere to file the chit
+ *   piracy                     → match orbits with a loaded rival, then dock anywhere to sell
+ *   tanker                     → fill the tank at the fast rings, then dock anywhere with six
  *   an opponent about to win    → interdict: meet them where their cargo must go
  *   broken systems / low hull  → dock at the nearest station (repairs)
  *   nothing at all             → dock at the nearest station (repairs, cargo)
@@ -20,7 +21,7 @@
  */
 import type { Player, Position } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
-import { SCAN_SECTOR_RANGE, SURVEY_RING } from "../../models/missions.ts";
+import { SCAN_SECTOR_RANGE, SURVEY_RING, TANKER_FUEL } from "../../models/missions.ts";
 import {
   BLACK_HOLE_ID,
   PLANETS,
@@ -28,7 +29,7 @@ import {
   STATION_RING,
 } from "../../models/gravityWells.ts";
 import type { GameView } from "../../game/view.ts";
-import { getStationForPlanet } from "../../game/stations.ts";
+import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
 import {
   anySectorOnRing,
@@ -74,6 +75,16 @@ const INTERDICT_CHASE_RANGE = 6;
  * and the hull was worse.
  */
 const PRIMARY_START_URGENCY = 1;
+/**
+ * Fuel kept back for the run in to the station on a Tanker.
+ *
+ * The card hands in {@link TANKER_FUEL} on arrival, so the tank has to hold
+ * that much when the ship makes port and the approach has to be paid for out
+ * of what is left. Two is a soft burn and a phase — the estimate the goals are
+ * ranked with counts turns, not fuel, so this is the margin rather than a
+ * prediction.
+ */
+const TANKER_APPROACH_FUEL = 2;
 
 export const REPAIR_GOAL_ID = "repair";
 /** Goal of last resort: a station is always worth something (fuel, repairs, cargo). */
@@ -271,44 +282,51 @@ export function computeGoals(
         }
         break;
       }
-      case "garbage_disposal": {
-        // Load at any station, then take it down the well. The hold is the
-        // whole cost: a crate of somebody's freight and a load of garbage
-        // cannot ride together.
-        const load = me.cargo.find((c) => c.missionId === mission.id);
-        if (load?.isPickedUp) {
-          goals.push({
-            type: "survey",
-            missionId: mission.id,
-            description: "Jettison the load into the black hole",
-            estimatedTurns: cheapTurnEstimate(from, {
-              wellId: BLACK_HOLE_ID,
-              ring: SURVEY_RING,
-              sector: from.sector,
-            }),
-            urgency: 1,
-          });
-          break;
-        }
-        // Nothing to jettison yet, and no room to collect one while a crate is aboard.
-        if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
-        const goal = dockAnywhereGoal(view, from, mission, "Collect a load of garbage", 0);
-        if (goal) goals.push(goal);
-        break;
-      }
-      case "survey":
-      case "board": {
-        if (mission.acquired) {
-          // A chit is filed at whatever station comes next.
-          const goal = dockAnywhereGoal(view, from, mission, "File the chit", 2);
+      case "piracy": {
+        // The seized crate sells at any station, like a chit that happens to
+        // fill the hold.
+        const loot = me.cargo.find((c) => c.missionId === mission.id);
+        if (loot?.isPickedUp) {
+          const goal = dockAnywhereGoal(view, from, mission, "Sell the seized crate", 2);
           if (goal) goals.push(goal);
           break;
         }
-        if (mission.type === "survey") {
+        // The hold takes one crate: a pirate carrying freight of its own
+        // seizes nothing, so there is no trip to make yet.
+        if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
+        // Who is carrying is public (`PlayerView.cargoAboard`), and a moored
+        // ship neither loses a crate nor takes one.
+        const prey = opponents
+          .filter(
+            (o) => o.player.cargoAboard.crates > 0 && !isMooredAt(view.stations, o.position)
+          )
+          .sort(
+            (a, b) => cheapTurnEstimate(from, a.position) - cheapTurnEstimate(from, b.position)
+          )[0];
+        if (!prey) break;
+        // Ranked with the chit's filing rather than with the survey dive: the
+        // window is the trip between two stations and it shuts the moment the
+        // carrier docks, so at the dive's urgency the chase lost to whatever
+        // errand it would have interrupted and the card never came in.
+        goals.push({
+          type: "pirate",
+          missionId: mission.id,
+          description: `Take ${prey.player.name}'s crate`,
+          targetPlayerId: prey.player.id,
+          estimatedTurns: cheapTurnEstimate(from, prey.position) + 1,
+          urgency: 2,
+        });
+        break;
+      }
+      case "tanker": {
+        // Six fuel is handed in on arrival, so the tank has to still hold six
+        // when the ship gets there: below that, the trip is to the fast rings
+        // and the scoop (the planner takes the fuel out of a coast).
+        if (status.reactionMass < TANKER_FUEL + TANKER_APPROACH_FUEL) {
           goals.push({
-            type: "survey",
+            type: "tanker",
             missionId: mission.id,
-            description: "Survey the event horizon",
+            description: "Fill the tank at the fast rings",
             estimatedTurns: cheapTurnEstimate(from, {
               wellId: BLACK_HOLE_ID,
               ring: SURVEY_RING,
@@ -318,18 +336,26 @@ export function computeGoals(
           });
           break;
         }
-        // Board: whoever is easiest to match orbits with. Their ship moves, so
-        // the plan is made against a drifting target like any other chase.
-        const prey = [...opponents].sort(
-          (a, b) => cheapTurnEstimate(from, a.position) - cheapTurnEstimate(from, b.position)
-        )[0];
-        if (!prey) break;
+        const goal = dockAnywhereGoal(view, from, mission, "Pump the fuel in", 2);
+        if (goal) goals.push(goal);
+        break;
+      }
+      case "survey": {
+        if (mission.acquired) {
+          // A chit is filed at whatever station comes next.
+          const goal = dockAnywhereGoal(view, from, mission, "File the chit", 2);
+          if (goal) goals.push(goal);
+          break;
+        }
         goals.push({
-          type: "board",
+          type: "survey",
           missionId: mission.id,
-          description: `Board ${prey.player.name}`,
-          targetPlayerId: prey.player.id,
-          estimatedTurns: cheapTurnEstimate(from, prey.position) + 1,
+          description: "Survey the event horizon",
+          estimatedTurns: cheapTurnEstimate(from, {
+            wellId: BLACK_HOLE_ID,
+            ring: SURVEY_RING,
+            sector: from.sector,
+          }),
           urgency: 0,
         });
         break;
@@ -445,11 +471,14 @@ export function attachPlanToGoal(
       );
     }
     case "survey":
+    // A tanker fills where the orbit is fastest, which is the dive the survey
+    // makes: the scoop takes a ring's velocity in fuel out of a coast.
+    case "tanker":
       return planned(
         planShipToTarget(ship, anySectorOnRing(BLACK_HOLE_ID, SURVEY_RING), PLAN_TURNS)
       );
-    case "board": {
-      // The same sector, not near it: a boarding is matched orbits. Their ship
+    case "pirate": {
+      // The same sector, not near it: a seizure is matched orbits. Their ship
       // drifts while we close, so it is planned as a moving target.
       const prey = opponents.find((o) => o.player.id === goal.targetPlayerId);
       if (!prey) return goal;
