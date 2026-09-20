@@ -28,7 +28,7 @@ import { useGame } from '../../context/GameContext'
 import { GameBoard } from '../board/GameBoard'
 import { BoardModeToggle } from '../board/BoardModeToggle'
 import { Panel, SectionLabel } from '../common/Panel'
-import { MissionCard } from '../common/MissionCard'
+import { MissionHand } from '../common/MissionHand'
 import { getPlayerColor } from '../../utils/playerColors'
 import { FONT_MONO, TABLE } from '../../theme'
 import { TableTalk } from '../table/TableTalk'
@@ -214,18 +214,14 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
             </Box>
           </Panel>
 
-          <Panel title="Your missions" dense>
+          {/* The hand is one card tall and no shorter: a column that squeezed
+              it would cut the cards off again. */}
+          <Panel title="Your missions" dense sx={{ flexShrink: 0 }}>
             <SectionLabel>They should decide which ring and sector Home goes in.</SectionLabel>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.5 }}>
-              {me.missions.map(mission => (
-                <MissionCard
-                  key={mission.id}
-                  mission={mission}
-                  nameOf={nameOf}
-                  cargo={me.cargo}
-                  held
-                />
-              ))}
+            {/* The same hand you will hold at the table: one card tall, no
+                column of cards to scroll past the board. */}
+            <Box sx={{ mt: 0.5 }}>
+              <MissionHand missions={me.missions} cargo={me.cargo} nameOf={nameOf} />
             </Box>
           </Panel>
 

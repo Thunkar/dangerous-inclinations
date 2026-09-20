@@ -10,8 +10,7 @@
  * height, the text is clamped to a fixed number of lines, and the foot's space
  * is reserved even when there is nothing to print in it. Two cards of the same
  * size therefore measure the same however long their wording is, and both sizes
- * are 5:7. The `compact` card is the size the table's hand fans (see
- * `table/MyMissions.tsx`).
+ * are 5:7. The `compact` card is the size a hand fans (see `MissionHand.tsx`).
  */
 import { Box, Typography } from '@mui/material'
 import type {
