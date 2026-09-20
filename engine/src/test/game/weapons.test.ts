@@ -389,9 +389,10 @@ describe("weapons: firing", () => {
 });
 
 /**
- * A ship just back from Home is untouchable until it acts (RULES §Destruction
- * and Respawn). The free kill on a wreck parked at a sector everyone knows is
- * exactly what the rule took away, so a shot and a scan are both refused.
+ * A ship just back from Home is untouchable until the turn it plays next is
+ * over (RULES §Destruction and Respawn). The free kill on a wreck parked at a
+ * sector everyone knows is exactly what the rule took away, so a shot and a
+ * scan are both refused.
  */
 describe("weapons: a recovering ship cannot be shot or scanned", () => {
   const SENSING: ShipLoadout = {
@@ -423,7 +424,7 @@ describe("weapons: a recovering ship cannot be shot or scanned", () => {
   it.each([
     ["the shot", "weapon_fired", gunned, () => fire(1, "side-0", "p2")],
     ["the scan", "scanned", sensing, () => scan(1, "p2", "side-0")],
-  ])("allows %s once they have acted", (_what, event, build, action) => {
+  ])("allows %s once their turn back is over", (_what, event, build, action) => {
     const result = executeTurnAs(build(), action());
     expect(result.errors ?? []).toEqual([]);
     expect(eventTypes(result.events)).toContain(event);

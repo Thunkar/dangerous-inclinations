@@ -100,7 +100,8 @@ export interface Opponent {
   sectorDistance: number;
   /**
    * Just back from a respawn: no shot, missile or scan may be aimed at them
-   * until they act (RULES §Destruction and Respawn). Matching orbits with them
+   * until the turn they play next is over (RULES §Destruction and Respawn).
+   * Matching orbits with them
    * is still allowed: that is a rendezvous, not an attack (and a wreck has
    * dropped its crate anyway, so there is nothing aboard to take).
    */

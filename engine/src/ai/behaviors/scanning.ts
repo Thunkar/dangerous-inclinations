@@ -5,7 +5,7 @@
  * face-down tiles to the bot.
  */
 import type { Position } from "../../models/game.ts";
-import { isOpeningRound } from "../../models/game.ts";
+import { isQuietTurn } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { SCAN_SECTOR_RANGE } from "../../models/missions.ts";
@@ -57,9 +57,10 @@ export function scanOption(
   post: Position,
   parameters: BotParameters
 ): ScanIntent | null {
-  // Nothing reaches another ship in the opening round (RULES §A Turn), a scan
-  // included: the engine would refuse it.
-  if (isOpeningRound(situation.view.turn)) return null;
+  // A quiet turn reaches nobody, a scan included: the engine would refuse it.
+  // The opening round is one (RULES §A Turn) and so is the bot's own turn back
+  // from Home (RULES §Destruction and Respawn).
+  if (isQuietTurn(situation.view.turn, situation.me)) return null;
   const sensor = situation.status.sensors.find((s) => !s.isBroken && !s.usedThisTurn);
   if (!sensor) return null;
   const energy = getSubsystemConfig("sensor_array").minEnergy;
@@ -75,8 +76,8 @@ export function scanOption(
   let best: ScanIntent | null = null;
   for (const opponent of situation.opponents) {
     if (!opponent.sameWell) continue;
-    // Untouchable until they act: the engine refuses the scan (RULES
-    // §Destruction and Respawn).
+    // Untouchable until their returning turn is over: the engine refuses the
+    // scan (RULES §Destruction and Respawn).
     if (opponent.recovering) continue;
     const phase: FiringPhase | null = canScanFrom(post, opponent.position)
       ? "post"

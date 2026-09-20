@@ -6,12 +6,16 @@
  * (which has no origin) is simply gone, to be taken again. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
  * occupied) fully repaired and refuelled, drifts with its ring like anything
- * else in orbit, and the turn ends. It is `recovering` from then until its
- * owner's next turn begins: nobody may fire at it, missile it or scan it, and
- * on that next turn it acts normally. Face-up tiles stay face-up.
+ * else in orbit, and the turn ends. It is `recovering` from then until the end
+ * of the turn its owner plays next: nobody may fire at it, missile it or scan
+ * it, and that turn is a first round of its own, so it allocates energy,
+ * rotates and moves but fires at nobody and scans nobody. Face-up tiles stay
+ * face-up.
  *
- * One turn, not two: two lost turns at a known sector with no cubes on the
- * loadout was a free kill for a hunter waiting at Home, with no counter-play.
+ * One turn lost, not two: two lost turns at a known sector with no cubes on
+ * the loadout was a free kill for a hunter waiting at Home, with no
+ * counter-play. The turn back is a real turn; it is only a silent one, because
+ * immunity and a free opening shot in the same turn read wrong at the table.
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";

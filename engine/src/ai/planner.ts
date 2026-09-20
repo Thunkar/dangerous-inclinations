@@ -571,7 +571,7 @@ export function generateCandidates(
       .filter(
         (o) =>
           o.sameWell &&
-          // Nothing can be done to a ship recovering from a respawn this turn,
+          // Nothing can be done to a ship still recovering from a respawn,
           // so leaving the route to reach it buys nothing.
           !o.recovering &&
           o.ringDistance <= 3 &&

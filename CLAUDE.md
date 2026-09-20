@@ -44,8 +44,9 @@ Data flow: `UI → WebSocket → server → engine → new state → viewFor →
 
 2–6 players. Ships orbit a black hole (5 rings) and three planets (4 rings
 each); every ring has 24 sectors. Everyone deploys on black hole ring 3 or 4, at least three
-sectors from every placed ship; that position is their Home (destroyed ships respawn there, drift one turn and cannot be
-touched until they act again). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
+sectors from every placed ship; that position is their Home (destroyed ships respawn there, drift one turn, and
+their next turn is a first round of their own: untouchable until it is over, and
+firing at and scanning nobody on it). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
 from black hole ring 5 to its ring 4 and an inbound lane back. Stations orbit planet ring 2, with a faster ring 1 inside them, and are where cargo is
 loaded, ships are repaired and data is delivered.
 
@@ -301,6 +302,15 @@ not an argument:
   cubes allocated for two rounds: a free kill on repeat, with no counter-play.
   One lost turn now, and untouchable (no shot, missile or scan) until the ship
   acts again. Not a measurement: a table would have found it in an evening.
+  Amended 20 Sept 2026: coming back is deploying again, so the turn after the
+  respawn is a first round of the ship's own. It allocates energy, rotates and
+  moves, and stays untouchable until that turn ends, but no weapon of its fires
+  and it scans nobody. The old shape gave a returning ship a round of immunity
+  and then the first shot out of a sector everyone already knew, which reads
+  wrong at the table. Removing the lost turn instead was rejected: respawn
+  hands back full hull, full fuel and zero heat, so with no tempo cost death is
+  a free refit for a dry ship. This is not the two lost turns above: the second
+  turn has energy and a move, and the ship is untouchable while it makes them.
 - **Board and Garbage Disposal.** Garbage was a worse Survey by construction
   (a station stop, a full hold, then the same dive: kept 47% against 76%,
   17 completed per 100 kept) and Board scored on the opening turn at a
@@ -333,7 +343,7 @@ not an argument:
 Known open problems:
 
 - **The primary you are dealt is worth about ten points, and which way flips
-  with the bots.** At 400 games a row: dealt Destroy 33%, Deliver 41%,
+  with the bots.** At 400 games a row: dealt Destroy 32%, Deliver 42%,
   Intercept 32%, against 33% with a hand of its own choosing (three points;
   four points not re-measured since the secondaries changed). Before Piracy
   and Tanker the same cards read 37 / 31 / 26, with the jump free 32 / 36 /
@@ -342,22 +352,23 @@ Known open problems:
   measured: Intercept's scan range or filing station, a Deliver that pays on
   pickup, the primary's value.
 - **Deliver is the strong dealt card, and a chit aboard makes every Intercept
-  and Survey holder prey.** Dealt Deliver 41% against 33 (31 before Piracy
-  and Tanker): the hauler presets read 41% and 38% against 41, and Deliver +
+  and Survey holder prey.** Dealt Deliver 42% against 33 (31 before Piracy
+  and Tanker): the hauler presets read 42% and 39% against 42, and Deliver +
   Tanker is a fight-free road to three for the hull that arrives with fuel
   (the compressor, below). Dealt Intercept 32% (26 before): the hunting hands
   deploy on ring 3 with their targets and 40% of scans come on the first
   legal turn: the interceptor moving into range, which the designer calls
   play. In natural three-seat games the sensor bow wins 24% against the
-  railgun's 34 and the compressor's 38: a scan is a chit and a chit is loot,
-  three seizures in four are chits, and the benchmark has Intercept and
-  Survey both at 23 completed per 100 kept.
-- **The compressor runner is over the line again, and Tanker put it there.**
+  railgun's 36 and the compressor's 36: a scan is a chit and a chit is loot,
+  three seizures in four are chits, and the benchmark has Intercept at 21 and
+  Survey at 23 completed per 100 kept.
+- **The compressor runner sits on the line, and Tanker put it there.**
   Under Piracy and Tanker, 400 games a row against 33%: compressor +
-  shields×2 + radiators×2 46% (`outlier`), racks×2 41%, launchers×2 38%,
-  lasers×2 34%; the compressor-with-a-laser hull hunting 37% (`unpunished`
-  by four). Split by hand, the weaponless runner wins 46% and 85% of its wins
-  are Deliver + Tanker: a compressor pays one fuel for a lane, so it is the
+  shields×2 + radiators×2 44% (one point under the `outlier` line; 46% and
+  flagged before the quiet returning turn), racks×2 38%, launchers×2 35%,
+  lasers×2 35%; the compressor-with-a-laser hull hunting 34% against 32
+  (`unpunished` by two, the matrix's one failing flag). Split by hand before
+  the quiet turn, 85% of the weaponless runner's wins were Deliver + Tanker: a compressor pays one fuel for a lane, so it is the
   hull that arrives at a station holding eight, and the fuel card is its
   free point. Under the old secondaries the same hull read 33%. Every
   answer measured on the same seeds trades the runner's excess for
@@ -373,9 +384,9 @@ Known open problems:
 - **The secondary offer is still lopsided, but the cards are level.**
   Everyone is offered all three; Piracy is the one left out now (kept 47%
   against 76–77% for Survey and Tanker). Completed per 100 kept in the
-  benchmark: Survey 23, Piracy 22, Tanker 26 (the same card within noise,
-  which the deal wanted). Tanker is in 28% of winners' cards, Survey 15%,
-  Piracy 11%. Half of all Survey dives now complete in round one, because
+  benchmark: Survey 23, Piracy 25, Tanker 26 (the same card within noise,
+  which the deal wanted). Tanker is in 27% of winners' cards, Survey 15%,
+  Piracy 12%. Half of all Survey dives now complete in round one, because
   ring 3 is one turn from ring 1; the chit is not the point, the filing is,
   and a round-one chit is round-one loot for a pirate from ring 3.
 - **Point defence lives on one preset.** Bots holding Destroy always fly the
@@ -385,8 +396,8 @@ Known open problems:
   is fired in natural play at all. The salvo rule is exercised only by
   forced hulls; when the hunter briefly carried two lasers instead, missiles
   went unanswered and the compressor with two launchers reached 52%. The tanky
-  hunter (rack + shields×2) is `weak` at 22% and the poorest predator among
-  the gun hulls (the prey wins 67% of duels against it); if both presets are
+  hunter (rack + shields×2) reads 24% against 32 and is the poorest predator
+  among the gun hulls (the prey wins 67% of duels against it); if both presets are
   to hunt, it wants a second gun.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A loadout that can hold a gun is a
@@ -402,17 +413,19 @@ Known open problems:
   holding a crate than while empty. Kills still fall on carriers (72% of
   destroyed ships were carrying something, nearly all of it data chits), but
   that is the hunt for the leader, not the crate.
-- **Two players is thin**, and seat 1 wins 50% of them on the balance seeds. The designer wants no artificial limit; special
+- **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: 27 / 27 / 27 / 33 rounds at 3 / 4 / 5 / 6 seats under three
-  points, 1h21 to 3h18 at a minute a turn, every game decided, five cards
-  completed a game at three seats; kills 3.3 / 6.5 / 10.8 / 17.8, nearly
-  double the old cards' 1.9 / 3.9 / 7.7 / 11.0, because a chit aboard is a
-  reason to fight. The bots' fuel husbandry decides the length: with the
+- **Length**: 27 / 25 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats under three
+  points, 1h21 to 2h42 at a minute a turn, 98–100% of games decided, five
+  cards completed a game at three seats; kills 3.0 / 5.6 / 10.4 / 14.8, well
+  above the old cards' 1.9 / 3.9 / 7.7 / 11.0, because a chit aboard is a
+  reason to fight. The quiet returning turn (20 Sept) took kills down from
+  3.3 / 6.5 / 10.8 / 17.8 and the six-seat game from 33 rounds to 27: a ship
+  back from Home no longer opens with a revenge shot. The bots' fuel husbandry decides the length: with the
   Tanker holder's reserve unlimited games ran 19 rounds, with none 39; the
   standing bots keep a one-fuel margin and detour up to three turns. Four
   points not re-measured since the secondaries changed. The benchmark's seat
-  spread is 35 / 33 / 31 at three seats.
+  spread is 33 / 31 / 35 at three seats.
 
 ## Adding a rule
 

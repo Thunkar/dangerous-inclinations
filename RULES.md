@@ -69,7 +69,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 ## A Turn
 
-If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy allocated, and drift with the ring like any ship that coasts. Face-up tiles stay face-up. Play passes. **Until your next turn begins nobody can touch you**: no weapon fires at you, no missile attacks you and nobody scans you. On that next turn you act normally.
+If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy allocated, and drift with the ring like any ship that coasts. Face-up tiles stay face-up. Play passes. **Until your next turn is over nobody can touch you**: no weapon fires at you, no missile attacks you and nobody scans you. That next turn is **a first round of your own**: you allocate energy, rotate and move as usual, but no weapon of yours fires and you scan nobody. From the turn after it you are live again, and so is everyone's aim at you.
 
 Otherwise:
 
@@ -85,7 +85,7 @@ Otherwise:
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
 
-**The first round reaches nobody: no weapon fires and nobody scans.** Everyone deploys around the same hole, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting (or reading the loadout of) whoever you were placed next to. Everything else is allowed. From the second round on, both are live.
+**The first round reaches nobody: no weapon fires and nobody scans.** Everyone deploys around the same hole, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting (or reading the loadout of) whoever you were placed next to. Everything else is allowed. From the second round on, both are live. Coming back from Home is deploying again, so a returning ship's first turn is quiet the same way (see Destruction and Respawn).
 
 ---
 
@@ -248,9 +248,9 @@ When you complete a mission, turn the card face-up for everyone to see.
 When your hull reaches 0:
 
 - remove your ship; drop your cargo: crates go back to their pickup station (you must load them again), data chits are lost;
-- on your next turn you respawn at Home and drift, untouchable until you act again (see A Turn). One turn gone.
+- on your next turn you respawn at Home and drift, and the turn after that is a first round of your own: untouchable until it is over, and on it no weapon of yours fires and you scan nobody (see A Turn). One turn gone.
 
-Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card. Nobody collects it twice over: a ship coming back cannot be shot at the sector everyone knows it returns to.
+Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card. Nobody collects it twice over: a ship coming back cannot be shot at the sector everyone knows it returns to, and it does not get to fire first for the privilege.
 
 ---
 
@@ -275,7 +275,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                                                                                                 |
 | Scan             | same ring, within 3 sectors, sensor powered                                                                                                                           |
 | First round      | no weapon fires and nobody scans                                                                                                                                      |
-| Respawn          | next turn: back at Home, full hull and tank, drifting, untouchable until you act                                                                                      |
+| Respawn          | next turn: back at Home, full hull and tank, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody      |
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                                 |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away                                                      |
 | Survey           | a turn ended on Black Hole Ring 1, take the chit, then any station                                                                                                    |
@@ -288,7 +288,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 
 ### Turn cheat sheet
 
-1. Destroyed? Respawn at Home and drift; nobody can touch you until your next turn. Turn over.
+1. Destroyed? Respawn at Home and drift. Turn over. Your next turn is a first round of your own: untouchable until it ends, no weapon of yours fires and you scan nobody.
 2. Energy: move cubes.
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.

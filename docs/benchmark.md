@@ -22,10 +22,10 @@
 
 | seats | decided | rounds (median) | rounds (p75) | table time | kills/game | cards/game | burn | scoop | firing | lost | wins by seat | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 3 | 99% | 27 | 41 | 1h21 | 3.3 | 4.9 | 54% | 34% | 19% | 2% | 35% / 33% / 31% | a kill per seat per game |
-| 4 | 100% | 27 | 45 | 1h48 | 6.5 | 5.4 | 55% | 32% | 26% | 4% | 23% / 26% / 27% / 24% | a kill per seat per game |
-| 5 | 100% | 27 | 47 | 2h15 | 10.8 | 6.3 | 56% | 30% | 33% | 5% | 20% / 23% / 20% / 21% / 17% | a kill per seat per game |
-| 6 | 100% | 33 | 51 | 3h18 | 17.8 | 7.1 | 56% | 29% | 40% | 7% | 14% / 12% / 16% / 21% / 18% / 19% | a kill per seat per game |
+| 3 | 99% | 27 | 39 | 1h21 | 3 | 4.9 | 54% | 34% | 19% | 2% | 33% / 31% / 35% | a kill per seat per game |
+| 4 | 98% | 25 | 41 | 1h40 | 5.6 | 5.3 | 55% | 32% | 25% | 3% | 24% / 24% / 25% / 26% | a kill per seat per game |
+| 5 | 99% | 27 | 51 | 2h15 | 10.4 | 6.4 | 55% | 31% | 32% | 5% | 19% / 23% / 18% / 25% / 15% | a kill per seat per game |
+| 6 | 100% | 27 | 50 | 2h42 | 14.8 | 6.8 | 56% | 30% | 36% | 6% | 13% / 18% / 17% / 17% / 17% / 19% | a kill per seat per game |
 
 _Table time is the median game at the stated pace: rounds x seats player-turns. `lost` is the share of turns spent respawning. `wins by seat` is turn order, first seat first._
 
@@ -33,13 +33,13 @@ _Table time is the median game at the stated pace: rounds x seats player-turns. 
 
 | hand | seats | share of seats | win rate | points scored |
 |---|---|---|---|---|
-| Deliver + Survey/Tanker | 1257 | 29% | 31% | 1.4 |
-| Destroy + Piracy/Survey | 544 | 13% | 20% | 1.6 |
-| Intercept + Survey/Tanker | 533 | 12% | 18% | 1 |
-| Destroy + Survey/Tanker | 515 | 12% | 19% | 1.5 |
-| Intercept + Piracy/Tanker | 502 | 12% | 18% | 1 |
-| Destroy + Piracy/Tanker | 492 | 11% | 21% | 1.7 |
-| Intercept + Piracy/Survey | 477 | 11% | 15% | 0.9 |
+| Deliver + Survey/Tanker | 1257 | 29% | 30% | 1.4 |
+| Destroy + Piracy/Survey | 544 | 13% | 21% | 1.6 |
+| Intercept + Survey/Tanker | 533 | 12% | 16% | 0.9 |
+| Destroy + Survey/Tanker | 515 | 12% | 18% | 1.4 |
+| Intercept + Piracy/Tanker | 502 | 12% | 19% | 1 |
+| Destroy + Piracy/Tanker | 492 | 11% | 22% | 1.7 |
+| Intercept + Piracy/Survey | 477 | 11% | 16% | 0.9 |
 
 _Every hand is one primary and two secondaries, which is five points held for the 3 that win, so the row is the primary a seat took and what it took beside it. A hand nobody keeps is a plan the table never tested._
 
@@ -49,7 +49,7 @@ _Every hand is one primary and two secondaries, which is five points held for th
 |---|---|---|---|
 | railgun,laser,ballistic_rack,shields,radiator | 1551 | 36% | 20% |
 | sensor_array,shields,shields,radiator,laser | 1512 | 35% | 17% |
-| fuel_compressor,shields,shields,radiator,laser | 1257 | 29% | 31% |
+| fuel_compressor,shields,shields,radiator,laser | 1257 | 29% | 30% |
 
 _A hull's win rate is against the field, so the fair share is 1/seats, about 25% across a 3–6 seat mix._
 
@@ -59,10 +59,10 @@ _A hull's win rate is against the field, so the fair share is 1/seats, about 25%
 |---|---|---|---|---|---|
 | Deliver | 5871 | 1257 | 21% | 39 | 18% |
 | Destroy | 3575 | 1551 | 43% | 62 | 15% |
-| Intercept | 3514 | 1512 | 43% | 23 | 12% |
+| Intercept | 3514 | 1512 | 43% | 21 | 12% |
 | Survey | 4320 | 3326 | 77% | 23 | 15% |
-| Piracy | 4320 | 2015 | 47% | 22 | 11% |
-| Tanker | 4320 | 3299 | 76% | 26 | 28% |
+| Piracy | 4320 | 2015 | 47% | 25 | 12% |
+| Tanker | 4320 | 3299 | 76% | 26 | 27% |
 
 _Pick rate is the read on a card: one nobody keeps does not exist, whatever it would score. Two piles serve the table and each is dealt against its own choice, so pick rates inside a pile compare and the two piles do not; setup takes out the rival cards a table this size cannot use, so the offered column is not flat across seat counts._
 

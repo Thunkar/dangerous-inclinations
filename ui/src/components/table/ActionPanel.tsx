@@ -44,6 +44,7 @@ import {
   hasWorkingCompressor,
   phasedJumpDestination,
   isOpeningRound,
+  isQuietTurn,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
@@ -66,9 +67,10 @@ export function ActionPanel() {
   const waiting = !plan.isMyTurn
   const disabled = waiting || isAnimating || readOnly
   /**
-   * A turn you hold but cannot play. Only the respawn turn is one of those
-   * now: the turn after it is played in full, untouchable but in command
-   * (RULES §Destruction and Respawn).
+   * A turn you hold but cannot play. Only the respawn turn is one of those:
+   * the turn after it is yours to fly, untouchable and in command, and quiet
+   * only in that no weapon of yours fires and you scan nobody (RULES
+   * §Destruction and Respawn).
    */
   const sittingOut = destroyed && !waiting && !readOnly && view.phase !== 'ended'
 
@@ -652,7 +654,10 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
   const { view } = useGame()
   const weapons = plan.pendingSubsystems.filter(s => getSubsystemConfig(s.type).weaponStats)
   const sensor = plan.pendingSubsystems.find(s => s.type === 'sensor_array')
-  const opening = isOpeningRound(view.turn)
+  // A quiet turn reaches nobody: the opening round, and your own turn back
+  // from Home, which is a first round of your own.
+  const quiet = isQuietTurn(view.turn, plan.me)
+  const back = quiet && !isOpeningRound(view.turn)
 
   return (
     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
@@ -661,9 +666,11 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
           No weapons aboard.
         </Typography>
       )}
-      {opening && (
+      {quiet && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-          The first round reaches nobody: no weapon fires and nobody scans.
+          {back
+            ? 'Back from Home: this turn is a first round of your own. Nobody touches you until it is over, and you fire at nobody and scan nobody.'
+            : 'The first round reaches nobody: no weapon fires and nobody scans.'}
         </Typography>
       )}
       {weapons.map(weapon => {
@@ -677,7 +684,11 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
             title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · ${config.minEnergy} energy${
               weapon.isPowered ? '' : ' (not powered: put cubes on it above)'
             }${weapon.isBroken ? ' · broken' : ''}${noAmmo ? ' · no ammo' : ''}${
-              opening ? ' · nothing fires in the first round' : ''
+              quiet
+                ? back
+                  ? ' · nothing of yours fires on your turn back from Home'
+                  : ' · nothing fires in the first round'
+                : ''
             }`}
           >
             <Box component="span" sx={{ display: 'flex' }}>
@@ -689,7 +700,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
                 onClick={() => plan.addFire(weapon.id)}
                 onMouseEnter={() => plan.setFocusWeapon(weapon.id)}
                 onMouseLeave={() => plan.setFocusWeapon(null)}
-                disabled={disabled || queued || weapon.isBroken || noAmmo || opening}
+                disabled={disabled || queued || weapon.isBroken || noAmmo || quiet}
                 sx={{ fontSize: '0.8rem' }}
               />
             </Box>
@@ -698,7 +709,11 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
       })}
       <Tooltip
         title={`Scan a ship on your ring within 3 sectors and look at one of their face-down tiles.${
-          opening ? ' Nobody scans in the first round.' : ''
+          quiet
+            ? back
+              ? ' You scan nobody on your turn back from Home.'
+              : ' Nobody scans in the first round.'
+            : ''
         }`}
       >
         <Box component="span" sx={{ display: 'flex' }}>
@@ -708,7 +723,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
             label="scan"
             variant="outlined"
             onClick={plan.addScan}
-            disabled={disabled || !sensor || opening}
+            disabled={disabled || !sensor || quiet}
           />
         </Box>
       </Tooltip>

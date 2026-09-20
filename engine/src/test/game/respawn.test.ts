@@ -3,11 +3,14 @@ import { describe, it, expect } from "vitest";
 import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
 import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from "../../game/respawn.ts";
 import { REACTOR_CAPACITY } from "../../models/game.ts";
-import type { GameState, Player, ShipLoadout } from "../../models/game.ts";
+import type { GameState, Player, Position, ShipLoadout } from "../../models/game.ts";
 import type { Cargo } from "../../models/missions.ts";
+import { getSubsystemConfig } from "../../models/subsystems.ts";
+import { BURN_COSTS, WELL_TRANSFER_COSTS } from "../../models/rings.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import {
   allocate,
+  ALPHA,
   BETA,
   BH,
   burn,
@@ -20,10 +23,13 @@ import {
   getShip,
   getSub,
   interceptMission,
+  jump,
   makeGameState,
   makePlayer,
   makeTwoPlayerGame,
   mustExecute,
+  rotate,
+  scan,
   surveyMission,
   withPlayer,
   withPower,
@@ -199,16 +205,19 @@ describe("respawn: the turn after dying", () => {
   });
 
   /**
-   * Re-baselined when the recovery turn went away: the respawn costs one turn,
-   * not two, and what the second turn used to buy is bought instead by being
-   * untouchable until it comes (RULES §Destruction and Respawn).
+   * One turn lost, not two: the respawn turn drifts and the turn after it is
+   * flown by its crew, quiet but in command, with the flag going out only when
+   * it ends (RULES §Destruction and Respawn).
    */
-  it("only the respawn turn is lost: the ship comes back untouchable and acts next turn", () => {
+  it("only the respawn turn is lost: the ship flies the next one and the flag ends with it", () => {
     let state = mustExecute(wreck()); // p2 back at Beta R4, drifted to S8; p1 to act
     expect(getPlayer(state, "p2")).toMatchObject({ recovering: true, skipTurns: 0 });
     expect(viewFor(state, "p1").players[1].recovering).toBe(true);
 
     state = mustExecute(state, coast(1));
+    // Still untouchable while the other seat plays: the flag is spent by p2's
+    // own turn, not by the round moving on.
+    expect(getPlayer(state, "p2").recovering).toBe(true);
     // Scooping is something only a crew at the helm can do: a lost turn drifts
     // and nothing else.
     const acting = executeTurnAs(state, allocate("scoop", 3), coast(1, true));
@@ -224,6 +233,131 @@ describe("respawn: the turn after dying", () => {
       hitPoints: 0,
     });
     expect(executeTurnAs(state, fire(1, "side-3", "p2")).errors?.[0]).toMatch(/not on the board/i);
+  });
+});
+
+/**
+ * Coming back is deploying again, so the turn after the respawn is a first
+ * round of the ship's own (RULES §A Turn, §Destruction and Respawn): energy,
+ * rotation and a move are all hers, no weapon of hers fires and she scans
+ * nobody, and she stays untouchable until that turn is over.
+ */
+describe("respawn: the turn back is a first round of its own", () => {
+  /** A sensor bow with a laser and a launcher: every way of reaching a ship. */
+  const ARMED: ShipLoadout = {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["laser", "missiles", "shields", "radiator"],
+  };
+
+  /**
+   * p2 just back from Home and to act, sharing p1's sector: point blank for
+   * every weapon it carries and well inside scan range, so nothing but the
+   * rule stands between it and a shot.
+   */
+  function returning(at: Partial<Position> = {}): GameState {
+    const where = { ring: 3, sector: 0, ...at };
+    let state = makeTwoPlayerGame(
+      { ...where, loadout: ARMED },
+      { ...where, loadout: ARMED },
+      { activePlayerIndex: 1 }
+    );
+    state = withPlayer(state, "p2", { recovering: true });
+    for (const [id, type] of [
+      ["forward-0", "sensor_array"],
+      ["side-0", "laser"],
+      ["side-1", "missiles"],
+    ] as const) {
+      state = withPower(state, "p2", id, getSubsystemConfig(type).minEnergy);
+    }
+    return state;
+  }
+
+  const reaching = () =>
+    [
+      ["a shot", "weapon_fired", () => fire(1, "side-0", "p1")],
+      ["a salvo", "missile_launched", () => fire(1, "side-1", "p1", "engines", undefined, 2)],
+      ["a scan", "scanned", () => scan(1, "p1", "side-0")],
+    ] as const;
+
+  it.each(reaching())("refuses %s on the turn back from Home", (_what, event, action) => {
+    const state = returning();
+    const result = executeTurnAs(state, action());
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(eventTypes(result.events)).not.toContain(event);
+    expect(result.gameState).toBe(state);
+  });
+
+  it.each(reaching())("allows %s the turn after that", (_what, event, action) => {
+    // p2 flies its quiet turn, p1 takes theirs, and p2 comes round live. Both
+    // ships are on ring 3, so they drift together and stay point blank.
+    let state = mustExecute(returning(), coast(1));
+    state = mustExecute(state, coast(1));
+    const result = executeTurnAs(state, action());
+    expect(result.errors ?? []).toEqual([]);
+    expect(eventTypes(result.events)).toContain(event);
+  });
+
+  it.each([
+    ["puts cubes on a tile", "energy_allocated", returning, [allocate("engines", 1)]],
+    [
+      "rotates",
+      "rotated",
+      returning,
+      [allocate("rotation", 1), rotate(1, "retrograde")],
+    ],
+    [
+      "burns",
+      "burned",
+      returning,
+      [allocate("engines", BURN_COSTS.soft.energy), burn(1, "soft")],
+    ],
+    [
+      "jumps",
+      "jumped",
+      () => returning({ ring: 5, sector: 17 }),
+      [allocate("engines", WELL_TRANSFER_COSTS.energy), jump(1, ALPHA)],
+    ],
+  ])("still %s on it", (_what, event, build, actions) => {
+    const result = executeTurnAs(build(), ...actions);
+    expect(result.errors ?? []).toEqual([]);
+    expect(eventTypes(result.events)).toContain(event);
+  });
+
+  /**
+   * p1 retrograde with a spinal railgun, p2 three sectors behind it on ring 5
+   * (drift 1, so the arc holds while the round goes round).
+   */
+  function underTheGun(): GameState {
+    const state = makeTwoPlayerGame(
+      { wellId: BH, ring: 5, sector: 5, facing: "retrograde" },
+      { wellId: BH, ring: 5, sector: 2, loadout: ARMED }
+    );
+    return withPlayer(
+      withPower(state, "p1", "forward-0", getSubsystemConfig("railgun").minEnergy),
+      "p2",
+      { recovering: true }
+    );
+  }
+
+  it("nobody reaches it while the other seats play, and everybody does once its turn is over", () => {
+    const state = underTheGun();
+    const early = executeTurnAs(state, fire(1, "forward-0", "p2"));
+    expect(early.errors?.length).toBeGreaterThan(0);
+    expect(eventTypes(early.events)).not.toContain("weapon_fired");
+
+    // p1 plays out its turn: the round moving on does not spend p2's flag.
+    let next = mustExecute(state, coast(1));
+    expect(getPlayer(next, "p2").recovering).toBe(true);
+    expect(viewFor(next, "p1").players[1].recovering).toBe(true);
+
+    // p2 flies its quiet turn, and the flag goes out with it.
+    next = mustExecute(next, coast(1));
+    expect(getPlayer(next, "p2").recovering).toBe(false);
+    expect(viewFor(next, "p1").players[1].recovering).toBe(false);
+
+    const late = executeTurnAs(next, fire(1, "forward-0", "p2"));
+    expect(late.errors ?? []).toEqual([]);
+    expect(eventTypes(late.events)).toContain("weapon_fired");
   });
 });
 

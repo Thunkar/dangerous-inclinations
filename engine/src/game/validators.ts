@@ -18,7 +18,7 @@ import type {
   ScanAction,
   WellTransferAction,
 } from "../models/game.ts";
-import { isOpeningRound, isTacticalAction } from "../models/game.ts";
+import { isOpeningRound, isQuietTurn, isTacticalAction } from "../models/game.ts";
 import {
   energyStepOf,
   getSubsystemConfig,
@@ -247,17 +247,34 @@ function validateTarget(
   if (!target) return { errors: [`Target ${targetId} not found`] };
   if (!target.hasDeployed || isDestroyed(target.ship))
     return { errors: [`${target.name} is not on the board`] };
-  // Just back from Home: untouchable until they act (RULES §Destruction and
-  // Respawn). Both a shot and a scan are refused, which is the whole point:
-  // a ship that returns to a sector everyone knows must not be a free kill.
+  // Just back from Home: untouchable until their returning turn is over
+  // (RULES §Destruction and Respawn). Both a shot and a scan are refused,
+  // which is the whole point: a ship that returns to a sector everyone knows
+  // must not be a free kill.
   if (target.recovering)
-    return { errors: [`${target.name} cannot be touched until they act again`] };
+    return { errors: [`${target.name} cannot be touched until their next turn is over`] };
   return { errors: [], target };
 }
 
+/**
+ * The refusal a quiet turn owes the player, or null. Two turns are quiet: the
+ * opening round, and a ship's first turn back from Home. The reasons read
+ * differently because a player who cannot fire deserves to know which one it
+ * is (RULES §A Turn, §Destruction and Respawn).
+ */
+function quietTurnRefusal(state: GameState, player: Player, what: "fire" | "scan"): string | null {
+  if (!isQuietTurn(state.turn, player)) return null;
+  if (isOpeningRound(state.turn))
+    return what === "fire" ? "No weapon fires in the first round" : "Nobody scans in the first round";
+  return what === "fire"
+    ? "Back from Home: this turn is a first round of your own, so no weapon of yours fires"
+    : "Back from Home: this turn is a first round of your own, so you scan nobody";
+}
+
 export function validateFireWeaponAction(state: GameState, action: FireWeaponAction): string[] {
-  if (isOpeningRound(state.turn)) return ["No weapon fires in the first round"];
   const player = requirePlayer(state, action.playerId);
+  const quiet = quietTurnRefusal(state, player, "fire");
+  if (quiet) return [quiet];
   const weapon = findSubsystem(player.ship, action.data.subsystemId);
   if (!weapon) return [`Weapon ${action.data.subsystemId} not found`];
   if (!isWeaponType(weapon.type)) return [`${weapon.id} is not a weapon`];
@@ -338,8 +355,9 @@ export function validateRepairAction(state: GameState, action: RepairAction): st
 }
 
 export function validateScanAction(state: GameState, action: ScanAction): string[] {
-  if (isOpeningRound(state.turn)) return ["Nobody scans in the first round"];
   const player = requirePlayer(state, action.playerId);
+  const quiet = quietTurnRefusal(state, player, "scan");
+  if (quiet) return [quiet];
   if (!player.ship.subsystems.some((s) => s.type === "sensor_array"))
     return ["No sensor array installed"];
   const sensor = findReadySensor(player.ship);

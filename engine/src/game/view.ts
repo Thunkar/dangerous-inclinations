@@ -81,8 +81,9 @@ export interface PlayerView {
   /** Only ever 0 in a live game; still on the view so old recordings render. */
   skipTurns: number;
   /**
-   * Back at Home from a respawn and untouchable until they act: no shot, no
-   * missile and no scan reaches them. Public: a ship nobody can touch is
+   * Back at Home from a respawn and untouchable until the end of the turn
+   * they play next: no shot, no missile and no scan reaches them, and they
+   * fire at nobody and scan nobody on it. Public: a ship nobody can touch is
    * something the whole table can see.
    */
   recovering: boolean;

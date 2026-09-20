@@ -5,7 +5,7 @@
  * rejects a bot's fire action for range.
  */
 import type { Facing, Player, Position } from "../../models/game.ts";
-import { isOpeningRound } from "../../models/game.ts";
+import { isQuietTurn } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
 import { getSubsystemConfig, isCriticalTarget } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
@@ -282,11 +282,13 @@ export function firingOptions(
   const { status } = situation;
   const targetPos = target.position;
 
-  // Nothing reaches another ship in the opening round (RULES §A Turn), so
-  // there is nothing to plan: the engine would refuse every one of these.
-  if (isOpeningRound(situation.view.turn)) return intents;
+  // A quiet turn reaches nobody, so there is nothing to plan: the engine
+  // would refuse every one of these. The opening round is one (RULES §A Turn)
+  // and so is the bot's own turn back from Home, which is a first round of
+  // its own (RULES §Destruction and Respawn).
+  if (isQuietTurn(situation.view.turn, situation.me)) return intents;
   // Nor does anything reach a ship that just came back: it is untouchable
-  // until it acts (RULES §Destruction and Respawn).
+  // until its returning turn is over.
   if (target.recovering) return intents;
 
   for (const weapon of status.weapons) {

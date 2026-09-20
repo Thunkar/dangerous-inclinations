@@ -481,9 +481,10 @@ describe("bot does not shoot corpses", () => {
 });
 
 /**
- * A ship just back from a respawn cannot be touched until it acts (RULES
- * §Destruction and Respawn), so the bot must not propose a shot or a scan at
- * it: the engine would refuse the turn, and the sim would count it invalid.
+ * A ship just back from a respawn cannot be touched until the turn it plays
+ * next is over (RULES §Destruction and Respawn), so the bot must not propose a
+ * shot or a scan at it: the engine would refuse the turn, and the sim would
+ * count it invalid.
  */
 describe("bot leaves a recovering ship alone", () => {
   const duel = () =>
@@ -521,6 +522,43 @@ describe("bot leaves a recovering ship alone", () => {
     expect(
       executeTurn(state, botDecideActions(viewFor(state, "p1")).actions).errors
     ).toBeUndefined();
+  });
+});
+
+/**
+ * Its own turn back from Home is a first round of its own (RULES §Destruction
+ * and Respawn): the bot may fly it, but it fires at nobody and scans nobody,
+ * and a plan that did either would be refused.
+ */
+describe("bot flies its own turn back from Home quietly", () => {
+  /** A sensor bow over two lasers: the bot has both a shot and a scan to want. */
+  const SCOUT: ShipLoadout = {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["laser", "laser", "shields", "missiles"],
+  };
+
+  it.each([
+    ["with a gunship", GUNSHIP],
+    ["with a sensor bow", SCOUT],
+  ])("submits no shot and no scan %s", (_what, loadout) => {
+    const base = makeTwoPlayerGame(
+      { wellId: BH, ring: 3, sector: 0, loadout },
+      { wellId: BH, ring: 3, sector: 0 }
+    );
+    const state = withPlayer(base, "p1", { recovering: true });
+    const decision = botDecideActions(viewFor(state, "p1"));
+    expect(decision.actions.filter((a) => a.type === "fire_weapon" || a.type === "scan")).toEqual(
+      []
+    );
+    expect(executeTurn(state, decision.actions).errors).toBeUndefined();
+  });
+
+  it("takes the same shot the turn after, when the flag is gone", () => {
+    const base = makeTwoPlayerGame(
+      { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+      { wellId: BH, ring: 3, sector: 0 }
+    );
+    expect(shotsOf(grounded(base, "p1"), "p1").length).toBeGreaterThan(0);
   });
 });
 

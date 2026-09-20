@@ -106,6 +106,16 @@ export function isOpeningRound(turn: number): boolean {
   return turn < FIRST_TURN + OPENING_ROUNDS;
 }
 
+/**
+ * Whether this seat's turn is a quiet one: it fires at nobody (missile
+ * launches included) and it scans nobody. The opening round is quiet for
+ * everyone (RULES §A Turn), and so is a ship's first turn back from Home,
+ * which is a first round of its own (RULES §Destruction and Respawn).
+ */
+export function isQuietTurn(turn: number, me: { recovering: boolean }): boolean {
+  return isOpeningRound(turn) || me.recovering;
+}
+
 export type Facing = "prograde" | "retrograde";
 export type BurnIntensity = "soft" | "medium" | "hard";
 
@@ -340,8 +350,10 @@ export interface Player {
   skipTurns: number;
   /**
    * Back from the dead and untouchable: set when the ship is placed at Home
-   * on its respawn turn, cleared when its owner's next turn begins. While it
-   * is set nobody may fire at, scan or missile this ship (RULES §Destruction
+   * on its respawn turn, cleared at the end of the turn its owner plays next.
+   * While it is set nobody may fire at, scan or missile this ship, and the
+   * ship itself fires at nobody and scans nobody on that turn: coming back is
+   * deploying again, so it is a first round of its own (RULES §Destruction
    * and Respawn).
    */
   recovering: boolean;

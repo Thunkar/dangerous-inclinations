@@ -499,9 +499,9 @@ describe("missiles: on the target's sector", () => {
   });
 
   /**
-   * A ship just back from Home is untouchable until it acts (RULES
-   * §Destruction and Respawn): the missile finds nothing to hit and nothing to
-   * shoot it down, so it flies on with one more move behind it.
+   * A ship just back from Home is untouchable until the turn it plays next is
+   * over (RULES §Destruction and Respawn): the missile finds nothing to hit and
+   * nothing to shoot it down, so it flies on with one more move behind it.
    */
   it("slides past a recovering target: no attack, no interception, still in the air", () => {
     const state = withPlayer(withPower(onTarget(RACK), "p2", "side-0", 2), "p2", {

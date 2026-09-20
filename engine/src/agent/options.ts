@@ -4,7 +4,7 @@
  * guessing, so an illegal move is never their only option.
  */
 import type { BurnIntensity, Facing, Position } from "../models/game.ts";
-import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, isOpeningRound } from "../models/game.ts";
+import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, isOpeningRound, isQuietTurn } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import {
@@ -157,8 +157,9 @@ export function seatOptions(view: GameView): SeatOptions {
     : null;
   const moored = isMooredAt(view.stations, here);
 
-  // A ship recovering from a respawn is untouchable until it acts (RULES
-  // §Destruction and Respawn), so it is on nobody's target list this turn.
+  // A ship recovering from a respawn is untouchable until the turn it plays
+  // next is over (RULES §Destruction and Respawn), so it is on nobody's
+  // target list while the flag is up.
   const opponents = view.players.filter(
     (p) => !p.isMe && p.ship && !p.ship.isDestroyed && !p.recovering
   );
@@ -166,15 +167,20 @@ export function seatOptions(view: GameView): SeatOptions {
     kind: "coast",
     moored,
   } as MovementPreview);
-  // The opening round reaches nobody: no shot and no scan (RULES §A Turn).
-  const opening = isOpeningRound(view.turn);
+  // A quiet turn reaches nobody: no shot and no scan. The opening round is
+  // one (RULES §A Turn), and so is this seat's own turn back from Home, which
+  // is a first round of its own (RULES §Destruction and Respawn).
+  const quiet = isQuietTurn(view.turn, me);
+  const quietReason = isOpeningRound(view.turn)
+    ? "no weapon fires in the first round"
+    : "back from Home: a first round of your own, so no weapon of yours fires";
   const weapons: WeaponOption[] = ship.subsystems
     .filter((s) => getSubsystemConfig(s.type).weaponStats)
     .map((weapon) => {
       const config = getSubsystemConfig(weapon.type);
       const stats = config.weaponStats!;
       const noAmmo = weapon.type === "missiles" && (weapon.ammo ?? 0) <= 0;
-      const cold = opening;
+      const cold = quiet;
       const inRange = (from: Position & { facing: Facing }) =>
         opponents
           .filter((o) => {
@@ -200,14 +206,14 @@ export function seatOptions(view: GameView): SeatOptions {
           : noAmmo
             ? "no ammo"
             : cold
-              ? "no weapon fires in the first round"
+              ? quietReason
               : undefined,
       };
     });
 
   const sensor = ship.subsystems.find((s) => s.type === "sensor_array" && !s.isBroken);
   const scanTargets =
-    sensor && !opening
+    sensor && !quiet
       ? opponents
           .filter((o) => {
             const s = o.ship!;

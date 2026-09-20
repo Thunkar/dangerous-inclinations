@@ -65,7 +65,7 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
 - Docking (end your turn on a station's sector, planet ring 2): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it: a coast does not drift, and the station carries you when it advances. Burn to cast off.
 - Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the chit, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or a data chit and it is yours, then sell the loot at ANY station: a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and it is pumped in automatically: hand in ${TANKER_FUEL}, the card is done.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
-- Destroyed: you drop your cargo and lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. Nobody can fire at, missile or scan it until your following turn, when you act normally.`;
+- Destroyed: you drop your cargo and lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. The turn after that is A FIRST ROUND OF YOUR OWN: energy, rotation and a move are yours, but no weapon of yours fires and you scan nobody, and nobody can fire at, missile or scan you until that turn is over.`;
 }
 
 /** What each chit-paying secondary card still asks of you. */
@@ -139,7 +139,7 @@ export function describeViewForAgent(
       stats?.standingHeat ? ` +${stats.standingHeat} from shields` : ""
     }, dissipates ${stats?.dissipationCapacity ?? "?"}. Fuel ${ship.reactionMass}/${stats?.maxReactionMass ?? "?"}. Reactor: ${ship.reactor.availableEnergy} free of ${ship.reactor.totalCapacity}.${
       me.recovering
-        ? " UNTOUCHABLE: you came back at Home last turn and nobody could touch you. You act normally now."
+        ? " UNTOUCHABLE: you came back at Home last turn, and this turn is a first round of your own. Nobody touches you until it is over, and you fire at nobody and scan nobody on it."
         : ""
     }`
   );
@@ -175,7 +175,7 @@ export function describeViewForAgent(
     out.push(
       `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.completedMissionCount} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Tiles: ${tileLine(p)}. Completed: ${
         p.completedMissions.map((m) => describeMission(m, name)).join("; ") || "none"
-      }.${p.recovering ? " UNTOUCHABLE until they act: no shot, missile or scan reaches them." : ""}`
+      }.${p.recovering ? " UNTOUCHABLE until their next turn is over: no shot, missile or scan reaches them, and they fire at nobody on it." : ""}`
     );
   }
   out.push(

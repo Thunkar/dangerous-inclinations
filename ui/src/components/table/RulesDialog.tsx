@@ -39,7 +39,7 @@ import { useGame } from '../../context/GameContext'
 const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
 
 const TURN_STEPS = [
-  'Destroyed? Respawn at Home, turn over.',
+  'Destroyed? Respawn at Home, turn over. Next turn is a first round of your own: untouchable until it ends, no firing, no scanning.',
   'Energy: move cubes.',
   'Actions in your order: rotate · move (coast / burn / jump) · fire · scan.',
   'Your missiles move.',

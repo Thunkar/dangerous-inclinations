@@ -16,8 +16,8 @@
  * and the whole turn of rolling is one use of the rack: the first roll costs
  * its cubes in heat and the rest are free. A missile that has moved
  * `maxMoves` times without hitting is removed. A missile that catches a ship
- * recovering from a respawn does neither: it slides past untouchable prey and
- * stays in flight. Missiles never cross gravity wells.
+ * still recovering from a respawn does neither: it slides past untouchable
+ * prey and stays in flight. Missiles never cross gravity wells.
  */
 import type { GameState, Missile, Player, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
@@ -156,10 +156,10 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     const start = missile.launchedAfterMove ? at : driftPosition(at);
     const moved = stepToward(start, targetPos, MISSILE.fuelPerTurn);
 
-    // A ship that just came back cannot be touched until it acts (RULES
-    // §Destruction and Respawn), so a missile that catches it neither attacks
-    // nor is shot down: it stays in the air with one more move behind it and
-    // burns out on schedule.
+    // A ship that just came back cannot be touched until its returning turn
+    // is over (RULES §Destruction and Respawn), so a missile that catches it
+    // neither attacks nor is shot down: it stays in the air with one more move
+    // behind it and burns out on schedule.
     const untouchable = target.recovering === true;
 
     if (untouchable || !samePosition(moved, targetPos)) {

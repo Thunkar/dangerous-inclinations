@@ -366,9 +366,11 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     [me.ship, pendingSubsystems]
   )
   /**
-   * A ship just back from a respawn cannot be touched until it acts (RULES
-   * §Destruction and Respawn), so it is on no picker and in no range list: the
-   * engine would refuse the shot or the scan.
+   * A ship just back from a respawn cannot be touched until the turn it plays
+   * next is over (RULES §Destruction and Respawn), so it is on no picker and
+   * in no range list: the engine would refuse the shot or the scan. Your own
+   * returning turn is quiet the same way, which ActionPanel enforces by
+   * greying out every weapon and the scan.
    */
   const targets = useMemo<Target[]>(() => {
     const untouchable = new Set(view.players.filter(p => p.recovering).map(p => p.id))
@@ -634,8 +636,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     const problems: string[] = []
     let engineUses = 0
     let reportedShortFuel = false
-    // A ship that just came back is off every target list, so a step still
-    // aimed at one is named rather than reported as out of range.
+    // A ship that just came back is off every target list until its own turn
+    // is over, so a step still aimed at one is named rather than reported as
+    // out of range.
     const untouchable = (id: string) => view.players.some(p => p.id === id && p.recovering)
     const nameOf = (id: string) => view.players.find(p => p.id === id)?.name ?? id
 
@@ -731,7 +734,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           }
           if (!step.targetId) problems.push(`${config.name}: pick a target`)
           else if (untouchable(step.targetId))
-            problems.push(`${nameOf(step.targetId)} cannot be targeted while it comes back`)
+            problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
           else if (!targetsInRange(step).some(t => t.id === step.targetId))
             problems.push(`${config.name}: target out of range from where you fire`)
           if (config.weaponStats?.hasRecoil) {
@@ -762,7 +765,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           else heat += sensor.allocatedEnergy
           if (!step.targetId) problems.push('Scan: pick a target on your ring within 3 sectors')
           else if (untouchable(step.targetId))
-            problems.push(`${nameOf(step.targetId)} cannot be targeted while it comes back`)
+            problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
           else if (!targetsInRange(step).some(t => t.id === step.targetId))
             problems.push('Scan: the target must be on your ring within 3 sectors')
           if (!step.peekSlot) problems.push('Scan: choose which tile to look at')

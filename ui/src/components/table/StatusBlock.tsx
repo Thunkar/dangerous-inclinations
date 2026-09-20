@@ -127,7 +127,10 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const state = destroyed
     ? { label: 'DESTROYED', tip: 'Off the board. You return to Home on your next turn.' }
     : recovering
-      ? { label: 'UNTOUCHABLE', tip: 'Just back from Home: nobody can touch you until you act.' }
+      ? {
+          label: 'UNTOUCHABLE',
+          tip: 'Back from Home: this turn is a first round of your own. Nobody touches you until it is over, and you fire at nobody and scan nobody.',
+        }
       : null
 
   /** At the top of the track any heat at all is hull, so it gets its own state. */
