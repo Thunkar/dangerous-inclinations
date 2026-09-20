@@ -95,7 +95,7 @@ const PRIMARY_START_URGENCY = 1;
  * ranked with counts turns, not fuel, so this is the margin rather than a
  * prediction.
  */
-const TANKER_APPROACH_FUEL = 2;
+const TANKER_APPROACH_FUEL = 1;
 /**
  * Sectors a coast has to be worth before a Tanker calls a ring a pump.
  *
@@ -124,7 +124,7 @@ const PIRACY_CHASE_TURNS = 5;
  * Turns a Tanker's reserve may add to a dock trip before it stops being a
  * reserve and becomes a trip of its own.
  */
-const TANKER_DETOUR_TURNS = 2;
+const TANKER_DETOUR_TURNS = 3;
 
 export const REPAIR_GOAL_ID = "repair";
 /** Goal of last resort: a station is always worth something (fuel, repairs, cargo). */
