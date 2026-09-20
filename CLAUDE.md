@@ -340,8 +340,11 @@ Known open problems:
   secondary is mostly never attempted, which is the rule working.
 - **Point defence lives on one preset.** Bots holding Destroy always fly the
   aggressive hunter, so the aggressive hunter's rack is the only rack in
-  natural play; when it briefly carried two lasers instead, missiles went
-  unanswered and the compressor with two launchers reached 52%. The tanky
+  natural play, and no hull a bot can reach carries a launcher (the aggressive
+  hauler's missiles want a Destroy card a hauler never holds), so no missile
+  is fired in natural play at all — the salvo rule is exercised only by
+  forced hulls; when the hunter briefly carried two lasers instead, missiles
+  went unanswered and the compressor with two launchers reached 52%. The tanky
   hunter (rack + shields×2) is `weak` at 22% and the poorest predator among
   the gun hulls (the prey wins 67% of duels against it); if both presets are
   to hunt, it wants a second gun.

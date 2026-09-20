@@ -20,7 +20,7 @@ export interface ShowcaseOptions {
 
 /**
  * Seed 6 played 40 turns: at step 23 the three ships sit in three different
- * wells, two missiles are in flight and every Home is on the board — the
+ * wells, every Home is on the board — the
  * busiest table the first forty turns of a three-bot game offer.
  */
 export const SHOWCASE_DEFAULTS = {
