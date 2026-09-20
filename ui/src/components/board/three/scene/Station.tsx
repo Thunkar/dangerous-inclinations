@@ -332,7 +332,7 @@ export function StationToken({ station }: { station: Station }) {
         </group>
       ))}
 
-      {/* Tankage in saddles, flanged and banded like the compressor drums. */}
+      {/* Tankage in saddles, flanged and banded. */}
       {[-1, 1].map(side => (
         <group key={side} name={`station_tank_${side}`} position={[0, DECK + 3.2, side * 8.6]}>
           <mesh geometry={GEO.saddle} material={mat.dark} />
