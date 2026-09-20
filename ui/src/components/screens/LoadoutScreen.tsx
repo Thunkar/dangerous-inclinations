@@ -202,7 +202,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(176px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
             gap: 1,
           }}
         >
