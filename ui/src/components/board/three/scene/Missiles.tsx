@@ -12,12 +12,13 @@
  * where the rail is. A missile whose target has left the board has no path at
  * all: it is drawn as a dart and nothing more.
  */
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AdditiveBlending, DoubleSide, type MeshBasicMaterial } from 'three'
 import { useFrame } from '@react-three/fiber'
 import type { Missile, Position } from '@dangerous-inclinations/engine'
 import { samePosition } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../theme'
+import { createMissile } from '../../../../ships/missile'
 import { facingAngle, positionPoint } from '../../geometry'
 import type { BoardModel, MissilePreview } from '../../model'
 import { sceneTime } from '../clock'
@@ -30,7 +31,11 @@ const MISSILE_TOOLTIP =
   'Rides its orbit, then flies up to 3 steps toward the target (rings first). ' +
   'Launched after moving? It already rode along — no drift this turn. 3 flights max.'
 
-/** Dart dimensions in board units: unmistakably smaller than a hull. */
+/**
+ * Missile dimensions in board units: unmistakably smaller than a hull. The
+ * model in `ships/missile.ts` is built to this envelope, so it drops straight
+ * into the place the old cone held and the wake still sits behind its tail.
+ */
 const LENGTH = 26
 const WIDTH = 9
 /** How far the dart floats over the track it is drawing. */
@@ -62,9 +67,13 @@ function phaseOf(id: string): number {
   return (hash / 1000) * Math.PI * 2
 }
 
-/** The dart itself: a glowing head with a short additive wake behind it. */
+/** The dart itself: the missile model, with a short additive wake behind it. */
 function Dart({ color, phase }: { color: string; phase: number }) {
   const wake = useRef<MeshBasicMaterial>(null)
+  // Plain three.js, built once per colour and handed back to the GPU with the
+  // token: the same bargain the hull and the station make.
+  const model = useMemo(() => createMissile(color), [color])
+  useEffect(() => () => model.dispose(), [model])
 
   useFrame(() => {
     const material = wake.current
@@ -73,18 +82,7 @@ function Dart({ color, phase }: { color: string; phase: number }) {
 
   return (
     <group position={[0, HOVER, 0]}>
-      <mesh rotation={[0, 0, -Math.PI / 2]} scale={[WIDTH, LENGTH, WIDTH]}>
-        <coneGeometry args={[0.5, 1, 6]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={1.5}
-          roughness={0.35}
-          metalness={0.2}
-          flatShading
-          toneMapped={false}
-        />
-      </mesh>
+      <primitive object={model.root} dispose={null} />
 
       <mesh
         position={[-LENGTH * 0.78, 0, 0]}
