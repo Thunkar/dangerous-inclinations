@@ -299,6 +299,23 @@ not an argument:
   cubes allocated for two rounds: a free kill on repeat, with no counter-play.
   One lost turn now, and untouchable (no shot, missile or scan) until the ship
   acts again. Not a measurement — a table would have found it in an evening.
+- **Board and Garbage Disposal.** Garbage was a worse Survey by construction
+  (a station stop, a full hold, then the same dive: kept 47% against 76%,
+  17 completed per 100 kept) and Board scored on the opening turn at a
+  crowded table. Replaced by Piracy and Tanker (RULES §Missions). Roads not
+  taken on the way: **Freight** (a crate from any station to another planet's
+  — Deliver with the route left open, too close to Deliver); **blocking
+  cards in the opening rounds** (accounting the designer will not have);
+  **Tanker at six fuel** (once the bots held fuel back for the run in it
+  read 47 per 100 kept and sat in three winners' hands out of four — the
+  free point the "efficiency" secondary was cut for); **Piracy on crates
+  only** (one carrier on the board at a time, 9 per 100 kept). A chit is
+  cargo now, the victim's card goes back to undone, and the card reads 22–31
+  per 100.
+- **A same-ring deployment gap of four.** Measured against the three-sector
+  rule: the round-two Intercept scan stays at 40% of kept either way — the
+  interceptor moves into range on its first legal turn, it is not standing
+  in it — so the gap stays at three.
 - **Criticals naming the forward tile first**, to break compressors: within
   noise, and the compressor hulls gained if anything (a broken compressor is
   repaired at the next dock, where that hull was going). **Shields stopping
@@ -310,36 +327,51 @@ not an argument:
 Known open problems:
 
 - **The primary you are dealt is worth about ten points, and which way flips
-  with the bots.** At 400 games a row: dealt Destroy 37%, Deliver 31%,
-  Intercept 26%, against 32% with a hand of its own choosing (three points);
-  36 / 30 / 32 against 35 at four. With the jump free the same cards read
-  32 / 36 / 23, and with bots that scanned last 55 / 34 / 33. The swing says the rules are sensitive to how well
+  with the bots.** At 400 games a row: dealt Destroy 33%, Deliver 41%,
+  Intercept 32%, against 33% with a hand of its own choosing (three points;
+  four points not re-measured since the secondaries changed). Before Piracy
+  and Tanker the same cards read 37 / 31 / 26, with the jump free 32 / 36 /
+  23, and with bots that scanned last 55 / 34 / 33. The swing says the rules are sensitive to how well
   each card is played, which humans will differ on too. Levers not yet
   measured: Intercept's scan range or filing station, a Deliver that pays on
   pickup, the primary's value.
-- **Intercept and Deliver are the weak cards, and the designer calls
-  Intercept the player's problem.** Intercept: 29 completed per 100 kept,
-  dealt Intercept 26% (32% under four points, where the interceptor has
-  time). The bots scan first now; what remains is the card — a rival on your
-  ring within three sectors, then a named station — and a sensor bow that
-  reveals itself early. Not a rule change for now. Deliver: dealt Deliver
-  31% (30% at four) since the jump costs a fuel — the hauler pays what the
-  runner used to get free, and its presets sit on the reference (30% and 37%
-  against 30%). Priced any further, the hauler goes with the runner.
-- **The compressor family is in band, two points from the line at four
-  points.** With a jump at 1 fuel: compressor + launchers×2 37%, shields×2 +
-  radiators×2 33%, lasers×2 36%, racks×2 37% against 32% at three points;
-  39 / 34 / 41 / 39 against 35% at four, where the compressor-with-a-laser
-  hull hunting (hauler-aggressive + Destroy) sits at 38% against 36% and
-  trips `unpunished`, a flag that fires at equality. Its natural predators
-  are racks and lasers (400-game duels: hunter preset 55% prey wins, rack
-  hunter 51%, four lasers 46%; missiles never, 86–90%; at four points 54 /
-  43 / 32). Watch it, do not price it further: the next fuel takes the
-  hauler with it.
-- **The secondary offer is still lopsided.** Everyone is offered all three;
-  Garbage Disposal is the one left out (kept 47% against 76–77%). Completed per
-  100 kept under three points: Survey 34, Board 27, Garbage 17 — the spare
-  secondary is mostly never attempted, which is the rule working.
+- **Deliver is the strong dealt card, and a chit aboard makes every Intercept
+  and Survey holder prey.** Dealt Deliver 41% against 33 (31 before Piracy
+  and Tanker): the hauler presets read 41% and 38% against 41, and Deliver +
+  Tanker is a fight-free road to three for the hull that arrives with fuel
+  (the compressor, below). Dealt Intercept 32% (26 before): the hunting hands
+  deploy on ring 3 with their targets and 40% of scans come on the first
+  legal turn — the interceptor moving into range, which the designer calls
+  play. In natural three-seat games the sensor bow wins 24% against the
+  railgun's 34 and the compressor's 38: a scan is a chit and a chit is loot,
+  three seizures in four are chits, and the benchmark has Intercept and
+  Survey both at 23 completed per 100 kept.
+- **The compressor runner is over the line again, and Tanker put it there.**
+  Under Piracy and Tanker, 400 games a row against 33%: compressor +
+  shields×2 + radiators×2 46% (`outlier`), racks×2 41%, launchers×2 38%,
+  lasers×2 34%; the compressor-with-a-laser hull hunting 37% (`unpunished`
+  by four). Split by hand, the weaponless runner wins 46% and 85% of its wins
+  are Deliver + Tanker: a compressor pays one fuel for a lane, so it is the
+  hull that arrives at a station holding eight, and the fuel card is its
+  free point — under the old secondaries the same hull read 33%. Every
+  answer measured on the same seeds trades the runner's excess for
+  something worse: a 2-fuel jump takes the runner only to 42% and dealt
+  Deliver 41% → 32%; "a fuel compressor cannot be a Tanker" (the deal refuses
+  the card on that hull) takes it to 40% but dealt Deliver to 32%, the
+  railgun hull to 41% of natural games and games to 33–39 rounds; "a visit
+  is one deal, cargo or fuel" takes it to 32% with Deliver at 27% and Tanker
+  at 12 per 100; Tanker at 7 changes nothing for the runner and gives
+  20-round games. Left as it stands: missions are public, a runner with a
+  crate aboard is Piracy's prey, and the designer's line is that a hull may
+  dominate a game but not every game.
+- **The secondary offer is still lopsided, but the cards are level.**
+  Everyone is offered all three; Piracy is the one left out now (kept 47%
+  against 76–77% for Survey and Tanker). Completed per 100 kept in the
+  benchmark: Survey 23, Piracy 22, Tanker 26 — the same card within noise,
+  which the deal wanted. Tanker is in 28% of winners' cards, Survey 15%,
+  Piracy 11%. Half of all Survey dives now complete in round one, because
+  ring 3 is one turn from ring 1; the chit is not the point, the filing is,
+  and a round-one chit is round-one loot for a pirate from ring 3.
 - **Point defence lives on one preset.** Bots holding Destroy always fly the
   aggressive hunter, so the aggressive hunter's rack is the only rack in
   natural play, and no hull a bot can reach carries a launcher (the aggressive
@@ -364,16 +396,17 @@ Known open problems:
   holding a crate than while empty. Kills still fall on carriers — 72% of
   destroyed ships were carrying something, nearly all of it data chits — but
   that is the hunt for the leader, not the crate.
-- **Two players is thin**, and seat 1 wins 54% of them on the balance seeds
-  (49% under four points). The designer wants no artificial limit; special
+- **Two players is thin**, and seat 1 wins 50% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: 27 / 26 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats under three
-  points, 1h21 to 2h42 at a minute a turn, every game decided, five cards
-  completed a game at three seats; kills 1.9 / 3.9 / 7.7 / 11.0. Under four
-  points 45 / 45 / 46 / 53 rounds, kills 3.7 / 6.5 / 11.6 / 20.2. The free
-  jump ran three rounds shorter at three to five seats. At 240 games per seat
-  count the benchmark's seat spread is 29 / 42 / 30 at three seats and flat
-  at four to six.
+- **Length**: 27 / 27 / 27 / 33 rounds at 3 / 4 / 5 / 6 seats under three
+  points, 1h21 to 3h18 at a minute a turn, every game decided, five cards
+  completed a game at three seats; kills 3.3 / 6.5 / 10.8 / 17.8 — nearly
+  double the old cards' 1.9 / 3.9 / 7.7 / 11.0, because a chit aboard is a
+  reason to fight. The bots' fuel husbandry decides the length: with the
+  Tanker holder's reserve unlimited games ran 19 rounds, with none 39; the
+  standing bots keep a one-fuel margin and detour up to three turns. Four
+  points not re-measured since the secondaries changed. The benchmark's seat
+  spread is 35 / 33 / 31 at three seats.
 
 ## Adding a rule
 
