@@ -30,7 +30,7 @@ export function describeMission(m: Mission, name: NameResolver): string {
     case "board":
       return "Board a ship";
     case "garbage_disposal":
-      return "Garbage Disposal: jettison the load into the black hole";
+      return "Jettison a load into the black hole";
   }
 }
 

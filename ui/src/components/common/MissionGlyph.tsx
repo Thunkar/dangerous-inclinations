@@ -15,12 +15,15 @@ import type { ReactElement } from 'react'
 /** A bar is a bar: heavy enough to be a shape rather than a line. */
 const BAR = 5
 
-/** The black hole's spin: same bar, three turns, each one further out. */
-const SPIN = [
-  { turn: 0, d: 'M18 46h28v5H18z' },
-  { turn: 120, d: 'M20 49h26v5H20z' },
-  { turn: 240, d: 'M22 52h24v5H22z' },
-]
+/**
+ * The black hole's spin. One bar, 24 long and 5 thick, laid tangent to a circle
+ * of radius 15 — four clear units off a disc of 11 — and slid 9 along its own
+ * tangent; three turns of it at 120°. Every bar is the same distance from the
+ * disc and the figure is rotationally symmetric: the spin is read from the
+ * offset, not from bars at different radii.
+ */
+const SPIN_BAR = 'M29 47h24v5H29z'
+const SPIN_TURNS = [0, 120, 240]
 
 const ART: Record<MissionType, ReactElement> = {
   // A gunsight, and a hull sitting in it.
@@ -50,15 +53,13 @@ const ART: Record<MissionType, ReactElement> = {
       <path d="M35 20l9-9M39 30l13-13M43 40l16-16" stroke="currentColor" strokeWidth={BAR} />
     </>
   ),
-  // The hole, and the fact that it turns. Three straight bars thrown round the
-  // disc, each one a little further out than the last and all ending on the
-  // same leading edge: a ring unwinding, which is a rotation drawn in straight
-  // lines.
+  // The hole, and the fact that it turns: three identical bars tangent to the
+  // same circle, each slid the same way round it.
   survey: (
     <>
       <circle cx="32" cy="32" r="11" />
-      {SPIN.map(({ turn, d }) => (
-        <path key={turn} d={d} transform={`rotate(${turn} 32 32)`} />
+      {SPIN_TURNS.map(turn => (
+        <path key={turn} d={SPIN_BAR} transform={`rotate(${turn} 32 32)`} />
       ))}
     </>
   ),
