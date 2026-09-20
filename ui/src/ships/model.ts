@@ -256,7 +256,7 @@ export function createShip(
     plate(body, [l - channel, keel, 1.6 - channel * 2], [x, -0.79 - keel / 2, 0], hull)
     for (const side of [-1, 1]) {
       plate(body, [l - channel, chine, 0.5], [x, 0.61, side * 0.98], pale, [side * 0.68, 0, 0])
-      plate(body, [l - channel, chine * 0.85, 0.42], [x, -0.62, side * 0.98], hull, [
+      plate(body, [l - channel, chine * 0.85, 0.42], [x, -0.62, side * 0.98], pale, [
         -side * 0.65,
         0,
         0,
@@ -799,27 +799,39 @@ export function createShip(
       }
       case 'fuel_compressor': {
         // The compressor sits on the bow hardpoint, whose frame sends local +Y
-        // down the nose and local X across it. It holds no fuel of its own any
-        // more — it buys a jump, it is not a tank — so the mass is a pump block
-        // mated flat to the bow rather than cylinders reaching past it. The
-        // drums stand dorsal-ventral (axis along local Z) to keep it shallow.
-        plate(p, [1.04, 0.16, 0.76], [0, 0.08, 0], dark)
-        for (const x of [-0.31, 0.31]) {
-          const drum = new Group()
-          drum.name = `compressor_drum_${x < 0 ? 0 : 1}`
-          p.add(drum)
-          cylinder(drum, 0.25, 0.25, 0.6, [x, 0.36, 0], pale, [Math.PI / 2, 0, 0])
-          // Flanged end caps, and one accent band around the barrel.
-          for (const z of [-0.3, 0.3])
-            cylinder(drum, 0.28, 0.28, 0.07, [x, 0.36, z], steel, [Math.PI / 2, 0, 0])
-          ring(drum, 0.255, 0.035, [x, 0.36, 0], accent, [0, 0, 0])
+        // down the nose and local X across it. It holds no fuel of its own —
+        // it buys a jump, it is not a tank — so the bow carries the pump and
+        // the exchanger that keeps it running: a squat volute mated flat to
+        // the nose, a stack of thin fins standing off it on two spacers, and
+        // copper from the casing over the stack and back into the hull. It
+        // fills the bay sideways rather than reaching past the collar.
+        plate(p, [1.1, 0.14, 1.0], [0, 0.29, 0], dark)
+        const pump = new Group()
+        pump.name = 'compressor_pump'
+        p.add(pump)
+        cylinder(pump, 0.4, 0.44, 0.26, [0, 0.49, 0], pale, [0, 0, 0], 16)
+        // One band around the casing, and the impeller ring capping it.
+        ring(pump, 0.425, 0.035, [0, 0.41, 0], accent)
+        ring(pump, 0.405, 0.05, [0, 0.595, 0], steel)
+        for (const x of [-0.5, 0.5]) box(pump, [0.13, 0.26, 0.44], [x, 0.49, 0], steel)
+        const exchanger = new Group()
+        exchanger.name = 'compressor_heat_exchanger'
+        p.add(exchanger)
+        plate(exchanger, [1.22, 0.07, 0.62], [0, 0.665, 0], pale)
+        plate(exchanger, [1.08, 0.022, 0.54], [0, 0.715, 0], dark)
+        for (let i = 0; i < 11; i++)
+          box(exchanger, [0.032, 0.18, 0.58], [-0.5 + i * 0.1, 0.8, 0], steel)
+        // Coolant leaves the casing, climbs past the stack, crosses the fins
+        // and drops back through the mating face.
+        for (const side of [-1, 1]) {
+          pipe(p, [side * 0.38, 0.48, 0], [side * 0.58, 0.48, 0], 0.05, copper)
+          pipe(p, [side * 0.58, 0.18, 0], [side * 0.58, 0.845, 0], 0.045, copper)
+          cylinder(p, 0.075, 0.075, 0.05, [side * 0.58, 0.26, 0], dark, [0, 0, 0], 8)
         }
-        // Manifold across the pair, with the feed running back into the hull.
-        pipe(p, [-0.31, 0.63, 0], [0.31, 0.63, 0], 0.06, copper)
-        pipe(p, [0, 0.63, 0], [0, 0.63, -0.34], 0.06, copper)
-        plate(p, [0.3, 0.18, 0.2], [0, 0.56, -0.4], dark)
-        // Intake trunking low on the mating face, between the drums.
-        plate(p, [0.34, 0.26, 0.42], [0, 0.22, 0], hull)
+        pipe(p, [-0.58, 0.845, 0], [0.58, 0.845, 0], 0.042, copper)
+        // Pressure telltale on the dorsal lip of the exchanger.
+        box(p, [0.22, 0.1, 0.045], [0, 0.665, 0.3], dark)
+        cylinder(p, 0.05, 0.05, 0.025, [0, 0.665, 0.33], cyan, [Math.PI / 2, 0, 0], 10)
         break
       }
       case 'ballistic_rack': {
@@ -883,8 +895,8 @@ export function createShip(
     const cradle = new Group()
     cradle.name = forward ? 'armored_bow_collar' : 'armored_equipment_bay'
     frame.add(cradle)
-    // Mount-local +Z is dorsal on every mount, so the secondary-painted
-    // shoulder is the upper one on the bow and on both flanks alike.
+    // Both shoulders take the secondary paint: the scheme reads the same
+    // above and below, so a ship seen from under the ring is the same ship.
     if (forward) {
       // A tapered upper/lower collar flows out of the existing bow armor.
       // Its open end protects the breech without bridging across the rails.
@@ -897,7 +909,7 @@ export function createShip(
             [0.32, 0.98, 0.1],
             [0.73, 0.77, 0.075],
           ]),
-          z > 0 ? pale : hull,
+          pale,
           [0, 0, z],
           [0, 0, Math.PI / 2]
         )
@@ -930,7 +942,7 @@ export function createShip(
             [0.66, 0.32, 0.135],
             [0.97, 0.18, 0.075],
           ]),
-          z > 0 ? pale : hull,
+          pale,
           [0, 0.08, z]
         )
         plate(cradle, [0.14, 0.025, 0.2], [-0.58, 0.415, z], accent)

@@ -52,7 +52,8 @@ export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
   laser: 'A compact broadside lens recessed into a short armored focusing collar.',
   shields: 'Three exposed field coils in an open protective cage.',
   radiator: 'Twin thin radiator panels with shallow coolant manifolds and exposed radiative faces.',
-  fuel_compressor: 'Twin fore–aft pressure tanks, cradled in saddles against the hull.',
+  fuel_compressor:
+    'A squat transfer pump under a standoff stack of cooling fins, plumbed in copper to the hull.',
   ballistic_rack:
     'An armored PDC turret with a traverse ring, elevation cradle, and short barrel cluster.',
 }
