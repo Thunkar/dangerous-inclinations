@@ -327,31 +327,37 @@ not an argument:
 Known open problems:
 
 - **The primary you are dealt is worth about ten points, and which way flips
-  with the bots.** At 400 games a row: dealt Destroy 33%, Deliver 41%,
-  Intercept 32%, against 33% with a hand of its own choosing (three points;
-  four points not re-measured since the secondaries changed). Before Piracy
-  and Tanker the same cards read 37 / 31 / 26, with the jump free 32 / 36 /
-  23, and with bots that scanned last 55 / 34 / 33. The swing says the rules are sensitive to how well
+  with the bots.** At 400 games a row under the four-card deal: dealt
+  Destroy 29%, Deliver 37%, Intercept 30%, against 37% with a hand of its own
+  choosing (three points; four points not re-measured since the secondaries
+  changed) — and the reference itself now carries a seat-order tilt, 37 / 35
+  / 28 by seat in natural three-seat play where the stacks gave 33 / 33 / 34.
+  Under the three stacks the same cards read 33 / 41 / 32 against 33, before
+  Piracy and Tanker 37 / 31 / 26, with the jump free 32 / 36 / 23, and with
+  bots that scanned last 55 / 34 / 33. The swing says the rules are sensitive to how well
   each card is played, which humans will differ on too. Levers not yet
   measured: Intercept's scan range or filing station, a Deliver that pays on
   pickup, the primary's value.
-- **Deliver is the strong dealt card, and a chit aboard makes every Intercept
-  and Survey holder prey.** Dealt Deliver 41% against 33 (31 before Piracy
-  and Tanker): the hauler presets read 41% and 38% against 41, and Deliver +
-  Tanker is a fight-free road to three for the hull that arrives with fuel
-  (the compressor, below). Dealt Intercept 32% (26 before): the hunting hands
-  deploy on ring 3 with their targets and 40% of scans come on the first
-  legal turn — the interceptor moving into range, which the designer calls
-  play. In natural three-seat games the sensor bow wins 24% against the
-  railgun's 34 and the compressor's 38: a scan is a chit and a chit is loot,
-  three seizures in four are chits, and the benchmark has Intercept and
-  Survey both at 23 completed per 100 kept.
-- **The compressor runner is over the line again, and Tanker put it there.**
-  Under Piracy and Tanker, 400 games a row against 33%: compressor +
-  shields×2 + radiators×2 46% (`outlier`), racks×2 41%, launchers×2 38%,
-  lasers×2 34%; the compressor-with-a-laser hull hunting 37% (`unpunished`
-  by four). Split by hand, the weaponless runner wins 46% and 85% of its wins
-  are Deliver + Tanker: a compressor pays one fuel for a lane, so it is the
+- **Destroy is the weak dealt card now, and a chit aboard makes every
+  Intercept and Survey holder prey.** Dealt Destroy 29% against 37 under the
+  four-card deal (33 against 33 under the stacks): the game is bloodier and
+  the hunter is in it, `glass` on most gun rows. Dealt Deliver 37% sits on
+  the reference, its presets at 37% and 36%, and Deliver + Tanker is still a
+  fight-free road to three for the hull that arrives with fuel (the
+  compressor, below). Dealt Intercept 30%: the hunting hands deploy on ring 3
+  with their targets and 35–40% of scans come on the first legal turn — the
+  interceptor moving into range, which the designer calls play. In natural
+  three-seat games the bows read compressor 35, railgun 34, sensor 30 (38 /
+  34 / 24 under the stacks): a scan is a chit and a chit is loot, three
+  seizures in four are chits, and half of all Survey dives complete in
+  round one from ring 3, where they are stolen as often as filed.
+- **The compressor family is the strongest family, and Tanker is why.**
+  Under the four-card deal, 400 games a row against 37%: compressor +
+  shields×2 + radiators×2 45%, racks×2 44%, lasers×2 42%, launchers×2 41% —
+  every one in band and every one above the line; the compressor-with-a-laser
+  hull hunting 35% against 29 (`unpunished` by six). Under the three stacks
+  the runner read 46% against 33 (`outlier`). Split by hand, the weaponless
+  runner wins 85% of its games on Deliver + Tanker: a compressor pays one fuel for a lane, so it is the
   hull that arrives at a station holding eight, and the fuel card is its
   free point — under the old secondaries the same hull read 33%. Every
   answer measured on the same seeds trades the runner's excess for
@@ -364,14 +370,14 @@ Known open problems:
   20-round games. Left as it stands: missions are public, a runner with a
   crate aboard is Piracy's prey, and the designer's line is that a hull may
   dominate a game but not every game.
-- **The secondary offer is still lopsided, but the cards are level.**
-  Everyone is offered all three; Piracy is the one left out now (kept 47%
-  against 76–77% for Survey and Tanker). Completed per 100 kept in the
-  benchmark: Survey 23, Piracy 22, Tanker 26 — the same card within noise,
-  which the deal wanted. Tanker is in 28% of winners' cards, Survey 15%,
-  Piracy 11%. Half of all Survey dives now complete in round one, because
-  ring 3 is one turn from ring 1; the chit is not the point, the filing is,
-  and a round-one chit is round-one loot for a pirate from ring 3.
+- **The secondaries are level, and the offer is a mild lottery by design.**
+  One pile, four dealt, two of different kinds kept: a seat sees no copy of
+  a given secondary about one time in six. Kept when offered in the
+  benchmark: Survey 53%, Tanker 55%, Piracy 42% — half is the baseline, so
+  Piracy is still the one left behind, by less than under the stacks (47
+  against 76). Completed per 100 kept: Survey 22, Piracy 22, Tanker 27, the
+  same card within noise; Tanker is in 26% of winners' cards, Survey 15%,
+  Piracy 13%.
 - **Point defence lives on one preset.** Bots holding Destroy always fly the
   aggressive hunter, so the aggressive hunter's rack is the only rack in
   natural play, and no hull a bot can reach carries a launcher (the aggressive
@@ -398,15 +404,15 @@ Known open problems:
   that is the hunt for the leader, not the crate.
 - **Two players is thin**, and seat 1 wins 50% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: 27 / 27 / 27 / 33 rounds at 3 / 4 / 5 / 6 seats under three
-  points, 1h21 to 3h18 at a minute a turn, every game decided, five cards
-  completed a game at three seats; kills 3.3 / 6.5 / 10.8 / 17.8 — nearly
+- **Length**: 27 / 27 / 33 / 28 rounds at 3 / 4 / 5 / 6 seats under three
+  points, 1h21 to 2h48 at a minute a turn, 98–99% of games decided, five
+  cards completed a game at three seats; kills 4.1 / 7.8 / 14.0 / 19.7 —
   double the old cards' 1.9 / 3.9 / 7.7 / 11.0, because a chit aboard is a
   reason to fight. The bots' fuel husbandry decides the length: with the
   Tanker holder's reserve unlimited games ran 19 rounds, with none 39; the
   standing bots keep a one-fuel margin and detour up to three turns. Four
   points not re-measured since the secondaries changed. The benchmark's seat
-  spread is 35 / 33 / 31 at three seats.
+  spread is 37 / 35 / 28 at three seats under the four-card deal.
 
 ## Adding a rule
 
