@@ -215,7 +215,7 @@ export function SubsystemTile({
       {/*
         Nothing is ever written under a tile: a tile that takes no energy
         (radiator, compressor) simply prints no cells, and ammo is read off
-        the status block, not the mat.
+        the status block, not the loadout.
       */}
       <Box sx={{ minHeight: Math.max(7, Math.round(size * 0.15)) }}>
         <EnergyCubes

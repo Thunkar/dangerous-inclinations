@@ -1,5 +1,5 @@
 /**
- * The readouts on a mat: energy cells, segmented hull/heat/fuel bars and the
+ * The readouts on a loadout: energy cells, segmented hull/heat/fuel bars and the
  * cargo chits in the hold. Everything is a plain lit shape — no icons, so it
  * reads at a glance from across the table.
  */

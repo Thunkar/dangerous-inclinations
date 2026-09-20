@@ -626,7 +626,7 @@ export function generateCandidates(
    * candidate scoops, shields up or fires, and a ship whose engines are broken
    * cannot burn or jump, so its goal plans fail and it would otherwise hold
    * position forever. The crew can only get outside on a turn the ship makes
-   * no heat at all, so this candidate drains the mat and coasts.
+   * no heat at all, so this candidate drains the loadout and coasts.
    */
   const coldRepair = coldRepairCandidate(situation);
   if (coldRepair) candidates.push(coldRepair);

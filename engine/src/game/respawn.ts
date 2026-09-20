@@ -11,7 +11,7 @@
  * on that next turn it acts normally. Face-up tiles stay face-up.
  *
  * One turn, not two: two lost turns at a known sector with no cubes on the
- * mat was a free kill for a hunter waiting at Home, with no counter-play.
+ * loadout was a free kill for a hunter waiting at Home, with no counter-play.
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";

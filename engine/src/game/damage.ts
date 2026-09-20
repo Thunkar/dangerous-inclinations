@@ -113,7 +113,7 @@ export function resolveAttack(
 
   // A critical breaks the slot it named whether or not the shot reached the
   // hull. It used to need `toHull > 0`, which meant shields that held ate the
-  // critical aimed at it: the fattest, most public slot on the mat was also
+  // critical aimed at it: the fattest, most public slot on the loadout was also
   // the one best protected from being named. Absorbing first still blunts it —
   // the tile that soaked the shot spent its cubes back to the reactor, so
   // breaking it dumps little or no heat — but the tile is gone until a dock.

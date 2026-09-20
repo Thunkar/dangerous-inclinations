@@ -302,13 +302,13 @@ describe("movement: fuel scoop", () => {
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1").reactionMass).toBe(expected);
     expect(eventsOf(result.events, "coasted")[0]).toMatchObject({ scooped: true, heat: 3 });
-    // Fuel is public, so the gain is too: the cubes go on the mat in the open.
+    // Fuel is public, so the gain is too: the cubes go on the loadout in the open.
     const scooped = eventsOf(result.events, "fuel_scooped")[0];
     expect(scooped).toMatchObject({ amount: expected - mass });
     expect(scooped).not.toHaveProperty("privateTo");
   });
 
-  it("the scoop takes the headroom, never more: the tank holds 10 on every mat", () => {
+  it("the scoop takes the headroom, never more: the tank holds 10 on every loadout", () => {
     let state = withPower(makeTwoPlayerGame({ ring: 1 }), "p1", "scoop", 3);
     expect(getShip(state, "p1").reactionMass).toBe(10);
     // Black hole ring 1 offers eight; only the four that fit are taken.

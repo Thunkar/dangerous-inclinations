@@ -45,7 +45,7 @@ export function concerns(event: GameEvent, playerId: string | undefined): boolea
  * Cube shuffling is a third of the log and none of it is news: a round of four
  * seats routinely spends eight lines saying who moved energy where, between
  * the lines that say what happened. One line per player per turn instead,
- * unless it is your own mat, where the cubes are the decision you just made.
+ * unless it is your own loadout, where the cubes are the decision you just made.
  */
 export interface Line {
   event: GameEvent

@@ -5,7 +5,7 @@
  * some are dark on transparent, some light, one is tinted. They all carry an
  * alpha channel, so every icon is flattened to a single silhouette with
  * `brightness(0) invert(1)` and rendered light — one treatment everywhere, on
- * tiles, in the palette, in slots and on the mats.
+ * tiles, in the palette, in slots and on the loadouts.
  *
  * Colour never comes from the icon itself: a tile's category shows as a thin
  * edge or a small badge, never as the glyph's fill.

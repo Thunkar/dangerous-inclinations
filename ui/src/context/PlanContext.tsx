@@ -1,7 +1,7 @@
 /**
  * PlanContext — the turn you are putting together.
  *
- * Energy cubes moved on your mat, plus an ordered list of steps (rotate, one
+ * Energy cubes moved on your loadout, plus an ordered list of steps (rotate, one
  * move, any number of weapons, a scan). Every number here is a preview
  * computed with pure engine functions — range, projected position, costs. The
  * server is the referee; nothing here advances state.
@@ -99,7 +99,7 @@ export type FireStep = Extract<PlanStep, { kind: 'fire' }>
 export type ScanStep = Extract<PlanStep, { kind: 'scan' }>
 export type MoveStep = Extract<PlanStep, { kind: 'move' }>
 
-/** What a click on an opponent's mat is currently for. */
+/** What a click on an opponent's loadout is currently for. */
 export type Picking =
   | { kind: 'crit'; stepId: string }
   | { kind: 'peek'; stepId: string }
@@ -139,7 +139,7 @@ interface PlanContextValue {
   /** Docked at a station: a coast holds the berth, only a burn casts off. */
   moored: boolean
   /**
-   * Whether each move can actually be taken from the mat as it is planned.
+   * Whether each move can actually be taken from the loadout as it is planned.
    * A control the engine would refuse is not offered (see {@link MoveReadiness}).
    */
   rotateReady: MoveReadiness
@@ -180,9 +180,9 @@ interface PlanContextValue {
   removeStep: (id: string) => void
   reorderStep: (id: string, direction: -1 | 1) => void
   setPicking: (picking: Picking) => void
-  /** A slot on an opponent's mat was clicked while picking. */
+  /** A slot on an opponent's loadout was clicked while picking. */
   pickSlot: (targetId: string, slotId: SubsystemId) => void
-  /** An opponent's ship or mat was clicked: aim the step being edited at them. */
+  /** An opponent's ship or loadout was clicked: aim the step being edited at them. */
   pickTarget: (targetId: string) => void
   setFocusWeapon: (subsystemId: SubsystemId | null) => void
   reset: () => void
@@ -230,8 +230,8 @@ const flip = (facing: Facing): Facing => (facing === 'prograde' ? 'retrograde' :
  * The engine refuses a burn whose engines are dark, a rotation with nothing on
  * the thrusters and a jump with no fuel, but the buttons offered all three and
  * only said so after the turn was submitted. Every check here is the one the
- * validator makes (`game/validators.ts`), read off the mat as the player has
- * planned it — cubes they are about to move count, because that is the mat the
+ * validator makes (`game/validators.ts`), read off the loadout as the player has
+ * planned it — cubes they are about to move count, because that is the loadout the
  * turn will be taken with.
  *
  * `reason` is a clause, so a tooltip can end a sentence with it.
@@ -959,7 +959,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   /**
    * The tile click model: a tile is off or at least at its minimum, never in
    * between. Everything is decided inside the updater, so a burst of clicks
-   * lands one cube at a time even before the mat has re-rendered.
+   * lands one cube at a time even before the loadout has re-rendered.
    */
   const power = useCallback(
     (subsystemId: SubsystemId, direction: 1 | -1) => {
@@ -1083,7 +1083,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   /**
    * Which tile a scan should look at by default: the first face-down one, in
-   * mat order. If every tile is already known to you, any slot will do — the
+   * loadout order. If every tile is already known to you, any slot will do — the
    * engine peeks the first face-down slot it can find and tells you which.
    */
   const defaultPeekSlot = useCallback(
@@ -1103,7 +1103,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         prev.map(s => {
           if (s.id !== id) return s
           const next = { ...s, ...patch } as PlanStep
-          // Aiming a scan at someone else invalidates the slot picked on the old mat.
+          // Aiming a scan at someone else invalidates the slot picked on the old loadout.
           if (
             next.kind === 'scan' &&
             s.kind === 'scan' &&

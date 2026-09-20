@@ -1,6 +1,6 @@
 import { resolveShipAppearance, type ShipAppearance } from '@dangerous-inclinations/engine'
 
-/** Lightweight hull-only schematic for mats. Module knowledge stays on the tiles. */
+/** Lightweight hull-only schematic for loadouts. Module knowledge stays on the tiles. */
 export function ShipMark({
   appearance,
   accent = '#ddaa78',

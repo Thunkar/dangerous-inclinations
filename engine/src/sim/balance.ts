@@ -4,13 +4,13 @@
  * in one command. The matrix answers the designer's four questions:
  *
  *   1. Natural    — do the games themselves finish, and is a seat a seat?
- *   2. Baselines  — what is a hand worth before a mat is chosen for it? Seat 1
- *                   keeps Destroy / Deliver / Intercept with its own mat, and
+ *   2. Baselines  — what is a hand worth before a loadout is chosen for it? Seat 1
+ *                   keeps Destroy / Deliver / Intercept with its own loadout, and
  *                   those three numbers are the bar for every row below.
  *   3. Logical    — are the six presets balanced flown with the card their
  *                   role implies (interceptor+Intercept, hunter+Destroy,
  *                   hauler+Deliver)?
- *   4. Illogical  — are mats that fight their card actually bad?
+ *   4. Illogical  — are loadouts that fight their card actually bad?
  *   5. Off-book   — can a build no preset offers compete?
  *   6. Extreme    — are the sharpest hulls unfairly competitive?
  *
@@ -41,10 +41,10 @@
  *
  * The card is guaranteed: a seat the shuffle did not offer one is dealt one
  * (`dealForcedPrimaries` in sim/runGame.ts), which is what makes a row about
- * the mat rather than about the deal — before that, at three seats only 45% of
+ * the loadout rather than about the deal — before that, at three seats only 45% of
  * hands were offered a Destroy and 47% an Intercept, and half of every such row
  * was a seat playing some other plan. So `stuck` now reads the hull, which is
- * dropped only when no hand the deal can make is one that mat could fly.
+ * dropped only when no hand the deal can make is one that loadout could fly.
  *
  * Flags, failing (exit code 1 unless --no-fail):
  *   `outlier`    an off-book or extreme row wins outright at least
@@ -52,8 +52,8 @@
  *   `stall`      at least STALL_SHARE of its games reach the turn cap
  *   `slow`       a natural row finishes fewer than SLOW_FINISH of its games,
  *                or runs past SLOW_ROUNDS
- *   `unpunished` an illogical row is *not below* its bar — a mat that fights
- *                its card costs nothing, so the card is not choosing the mat
+ *   `unpunished` an illogical row is *not below* its bar — a loadout that fights
+ *                its card costs nothing, so the card is not choosing the loadout
  *
  * Flags, informational:
  *   `weak`       a preset flying its own card is OUTLIER_MARGIN under its bar
@@ -106,9 +106,9 @@ interface RowSpec {
   /** `section:name`, and what `--only=` takes. */
   id: string;
   section: Section;
-  /** The mat, for the table. */
+  /** The loadout, for the table. */
   label: string;
-  /** Omitted on a baseline row: the bot picks its own mat. */
+  /** Omitted on a baseline row: the bot picks its own loadout. */
   loadout?: ShipLoadout;
   /** Omitted on an extreme row: the bot keeps whatever it is dealt. */
   primary?: MissionType;
@@ -118,7 +118,7 @@ interface RowSpec {
 const baselineRows: RowSpec[] = (["destroy", "deliver", "intercept"] as const).map((bar) => ({
   id: `baselines:${bar}`,
   section: "baselines",
-  label: "own mat",
+  label: "own loadout",
   primary: PRIMARY_OF[bar],
   bar: "any",
 }));
@@ -143,7 +143,7 @@ const logicalRows: RowSpec[] = (
 }));
 
 /**
- * Mats that fight their card. A compressor cannot scan, so a hauler with an
+ * Loadouts that fight their card. A compressor cannot scan, so a hauler with an
  * Intercept is not a row the engine would ever accept — the mismatches are the
  * ones a player could actually submit.
  */
@@ -318,9 +318,9 @@ const ROWS: RowSpec[] = [
 ];
 
 const SECTION_TITLE: Record<Section, string> = {
-  baselines: "Baselines by primary (seat 1 keeps the card, picks its own mat)",
+  baselines: "Baselines by primary (seat 1 keeps the card, picks its own loadout)",
   logical: "Logical — each preset flown with the card its role implies",
-  illogical: "Illogical — mats that fight their card (a row at or above its bar is unpunished)",
+  illogical: "Illogical — loadouts that fight their card (a row at or above its bar is unpunished)",
   offbook: "Off-book — builds no preset offers, each with the card it is built for",
   extreme: "Extreme hulls, random legal hand",
 };
@@ -456,7 +456,7 @@ function naturalRow(bots: number, batch: BatchResult): NaturalRow {
 /** A forced hull is dropped when no dealt hand can fly it, so check the tiles. */
 function flewHull(p: PerPlayerStats, loadout: ShipLoadout): boolean {
   // Side slots are a set, not an order: the engine keeps whatever order the
-  // submission used, and a row is the same mat either way.
+  // submission used, and a row is the same loadout either way.
   const sorted = (xs: Array<string | null>) => [...xs].sort().join(",");
   const tiles = p.loadout.split(",");
   return (
@@ -494,7 +494,7 @@ function forcedRow(spec: RowSpec, batch: BatchResult, bar: number): ForcedRow {
     if (real >= bar + OUTLIER_MARGIN) flags.push("outlier");
     if (spec.section === "offbook" && real <= bar - OUTLIER_MARGIN) flags.push("dead");
   }
-  // The reverse test: an illogical mat is supposed to cost its pilot something.
+  // The reverse test: an illogical loadout is supposed to cost its pilot something.
   if (spec.section === "illogical" && real >= bar) flags.push("unpunished");
   if (spec.section === "logical" && real <= bar - OUTLIER_MARGIN) flags.push("weak");
   if (1 - finish >= STALL_SHARE) flags.push("stall");
@@ -531,7 +531,7 @@ const FAILING = new Set(["outlier", "stall", "slow", "unpunished"]);
 function renderForced(rows: ForcedRow[]): string[] {
   const lines: string[] = [];
   lines.push(
-    "| row | mat | card | outright | bar | vs bar | stuck | wins | others (each) | kills/g | deaths/g | dealt/g | taken/g | decided before cap | rounds | flags |"
+    "| row | loadout | card | outright | bar | vs bar | stuck | wins | others (each) | kills/g | deaths/g | dealt/g | taken/g | decided before cap | rounds | flags |"
   );
   lines.push("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
   for (const f of rows) {

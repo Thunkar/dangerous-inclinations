@@ -1,5 +1,5 @@
 /**
- * Reading an opponent's mat.
+ * Reading an opponent's loadout.
  *
  * Energy allocation is public but tile identities are not, so everything the
  * bot believes about an enemy's guns and shields comes from cube counts on

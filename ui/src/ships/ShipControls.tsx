@@ -27,7 +27,7 @@ import {
 const DEFAULT_ROLE: BotRole = 'hauler'
 const DEFAULT_VARIANT: HullVariant = 'tanky'
 
-/** What each choice buys, in the words the mat itself would use. */
+/** What each choice buys, in the words the loadout itself would use. */
 const ROLE_NOTE: Record<BotRole, string> = {
   interceptor: 'Sensor array — scans, and the Intercept and Survey cards that need one',
   hunter: 'Railgun — the long shot down your own ring, for a Destroy card',
@@ -41,7 +41,7 @@ const VARIANT_NOTE: Record<HullVariant, string> = {
 const templateFor = (role: BotRole, variant: HullVariant): ShipLoadout =>
   structuredClone(BOT_LOADOUT_TEMPLATES[`${role}-${variant}`])
 
-/** Which profile this mat is, or null once it has been edited into its own. */
+/** Which profile this loadout is, or null once it has been edited into its own. */
 function archetypeOf(loadout: ShipLoadout): { role: BotRole; variant: HullVariant } | null {
   const same = (a: ShipLoadout, b: ShipLoadout) => JSON.stringify(a) === JSON.stringify(b)
   for (const role of BOT_ROLES) {
@@ -118,7 +118,7 @@ export function SystemControls({
         01 / Mission profile
       </Typography>
       {/*
-        Two decisions, not six mats. What the forward slot is for is the plan
+        Two decisions, not six loadouts. What the forward slot is for is the plan
         you came with — a gun, eyes or legs, one for each two-point card — and
         how the four side slots are spent is taste. As a matrix the six cells
         all read "tanky" or "aggressive" and said nothing; as two rows each
@@ -142,7 +142,7 @@ export function SystemControls({
       />
       {archetype === null && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 2.5 }}>
-          Mat of your own — pick a profile to start from, or leave it.
+          Loadout of your own — pick a profile to start from, or leave it.
         </Typography>
       )}
 

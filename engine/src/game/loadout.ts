@@ -113,7 +113,7 @@ export function hasSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType)
   return countSubsystemInLoadout(loadout, type) > 0;
 }
 
-/** Tiles from a requirement that this mat actually carries; any one satisfies it. */
+/** Tiles from a requirement that this loadout actually carries; any one satisfies it. */
 export function fittedForRequirement(
   loadout: ShipLoadout,
   requirement: MissionRequirement
@@ -121,7 +121,7 @@ export function fittedForRequirement(
   return requirement.anyOf.filter((type) => hasSubsystemInLoadout(loadout, type));
 }
 
-/** A requirement of one card, checked against the mat being fitted. */
+/** A requirement of one card, checked against the loadout being fitted. */
 export interface MissionRequirementStatus {
   requirement: MissionRequirement;
   /** The tiles aboard that satisfy it, in requirement order. Empty when unmet. */
@@ -129,7 +129,7 @@ export interface MissionRequirementStatus {
   met: boolean;
 }
 
-/** Every requirement of a card against a mat, met or not (for the loadout screen). */
+/** Every requirement of a card against a loadout, met or not (for the loadout screen). */
 export function missionRequirementStatus(
   type: MissionType,
   loadout: ShipLoadout
@@ -147,7 +147,7 @@ export interface MissionLoadoutGap<M> {
 }
 
 /**
- * Cards in `missions` that this mat could never complete, each with the
+ * Cards in `missions` that this loadout could never complete, each with the
  * requirements it fails (MISSION_REQUIREMENTS). Empty means the hand and the
  * hull agree. The referee calls this before accepting a loadout and the
  * loadout screen calls it on every change, so a player sees the clash while

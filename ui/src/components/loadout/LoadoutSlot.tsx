@@ -1,5 +1,5 @@
 /**
- * An empty bay on the mat, or the tile seated in it. Drop a palette card on
+ * An empty bay on the loadout, or the tile seated in it. Drop a palette card on
  * it, or click it while a card is selected. The little × pulls the tile back
  * out.
  */

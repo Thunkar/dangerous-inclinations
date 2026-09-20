@@ -9,7 +9,7 @@ A game of orbital manoeuvre, heat management and hidden objectives for 2–6 pla
 ## Components
 
 - The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 4 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
-- Per player: a ship token, a Home marker, a ship mat with 1 forward slot and 4 side slots, a small screen for your cards, 10 energy cubes, a hull track (10) and a heat track (10).
+- Per player: a ship token, a Home marker, a loadout with 1 forward slot and 4 side slots, a small screen for your cards, 10 energy cubes, a hull track (10) and a heat track (10).
 - Subsystem tiles: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles. Take as many copies of a tile as you have slots it fits: two shields, four lasers, anything goes. Tiles are double-sided: face-down shows only the slot type.
 - One deck of mission cards, crate tokens, data chits, missile tokens, station tokens, one d10.
 
@@ -60,10 +60,10 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 ## Setup
 
-1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then each player takes **one card off each of the three secondary stacks** and keeps **two**. Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile, never back onto their stack. Cards and mat are chosen together: keep nothing your loadout could never complete (see Missions).
-2. **Loadout.** Each player fills their ship mat: 1 forward tile (railgun, sensor array, fuel compressor or missiles) and 4 side tiles (laser, shields, radiator, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every mat.
+1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then each player takes **one card off each of the three secondary stacks** and keeps **two**. Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile, never back onto their stack. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
+2. **Loadout.** Each player fills their loadout: 1 forward tile (railgun, sensor array, fuel compressor or missiles) and 4 side tiles (laser, shields, radiator, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 4** in any empty sector, and puts their Home marker there. Everyone starts together and scatters from there; missions are secret, so pick your sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring).
-4. Fill the hull track to 10, reaction mass to 10 and heat to 0 — all three are tracks on your mat, in the open. Energy cubes stay in the reactor. Only your cards and the ammo in a face-down missiles tile sit behind the screen.
+4. Fill the hull track to 10, reaction mass to 10 and heat to 0 — all three are tracks on your loadout, in the open. Energy cubes stay in the reactor. Only your cards and the ammo in a face-down missiles tile sit behind the screen.
 
 ---
 
@@ -85,7 +85,7 @@ Otherwise:
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
 
-**The first round reaches nobody: no weapon fires and nobody scans.** Everyone deploys on the same ring, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting — or reading the mat of — whoever you were placed next to. Everything else is allowed. From the second round on, both are live.
+**The first round reaches nobody: no weapon fires and nobody scans.** Everyone deploys on the same ring, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting — or reading the loadout of — whoever you were placed next to. Everything else is allowed. From the second round on, both are live.
 
 ---
 
@@ -237,7 +237,7 @@ So the primary mission is the luck of the draw and the two things you do yoursel
 
 A crate fills it, so a second Deliver waits until the first is delivered — two routes that load at the same station are two trips, and the only pair that is one trip is a chain, where you drop at the station you collect the next one from. Data chits are numbers, not freight: a scan's transmission and a survey's readings ride free alongside whatever is in the hold, however many you carry.
 
-**Keep only cards your mat can fly.** Intercept opens with a scan, so it needs a **sensor array**, and Destroy needs a **weapon** — railgun, broadside laser, ballistic rack or missiles — since a ship that cooks itself on its own heat credits nobody. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
+**Keep only cards your loadout can fly.** Intercept opens with a scan, so it needs a **sensor array**, and Destroy needs a **weapon** — railgun, broadside laser, ballistic rack or missiles — since a ship that cooks itself on its own heat credits nobody. Your loadout is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
 
 When you complete a mission, turn the card face-up for everyone to see.
 

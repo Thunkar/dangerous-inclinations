@@ -2,7 +2,7 @@
  * The board's clock.
  *
  * Time used to live in AnimationContext, which meant every frame of every
- * beam re-rendered the whole table — mats, log, action column and all. It
+ * beam re-rendered the whole table — loadouts, log, action column and all. It
  * lives here instead: one rAF loop, owned by the renderer that needs it, and
  * running only while something on the board is actually moving.
  *

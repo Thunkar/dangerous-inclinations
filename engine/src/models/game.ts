@@ -87,7 +87,7 @@ export const SHIELD_HEAT_PER_POINT = 2;
  *
  * A scan is the same problem without the damage. The sensor's range is a ring
  * and three sectors, which on the deployment ring is most of the table, and
- * the tile it turns up stays turned up: the first seat would read the mats of
+ * the tile it turns up stays turned up: the first seat would read the loadouts of
  * the seats that had not moved yet, and they could not read back. Holding both
  * for one round costs nothing that cannot be got back and gives every seat one
  * turn to choose where it is standing.
@@ -185,7 +185,7 @@ export interface ShipState {
   sector: number;
   facing: Facing;
   /**
-   * Fuel aboard. Public (RULES §Hidden information): the cubes sit on the mat
+   * Fuel aboard. Public (RULES §Hidden information): the cubes sit on the loadout
    * where anyone can count them. A tank was private and a spent pile public
    * for a day, which fooled nobody — every ship starts with the same ten and
    * every burn is announced, so the arithmetic was there for the doing.
@@ -280,7 +280,7 @@ export interface DeployShipAction extends BaseAction {
  * A standing order for the turn, not a tactical action: name the tile the crew
  * will get to if the ship is cold at its heat check. It has no sequence because
  * it does not happen at a point in the turn — it happens at the end of it, and
- * only if nothing on the mat made heat.
+ * only if nothing on the loadout made heat.
  */
 export interface RepairAction extends BaseAction {
   type: "repair";

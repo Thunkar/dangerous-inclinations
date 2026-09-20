@@ -58,7 +58,7 @@ export function resetHeat(ship: ShipState): ShipState {
  * 3. Anything over `MAX_HEAT` is hull damage, and the track stops at the top.
  * 4. The ship dissipates; what is left carries to the next turn.
  *
- * **Cold repair.** Heat 0 at the check means nothing on the mat was used, no
+ * **Cold repair.** Heat 0 at the check means nothing on the loadout was used, no
  * shield was powered and nothing was absorbed since the last check: everything
  * off and the crew outside. It is the only repair that does not need a station,
  * and it is what stops a critical on the engines or the thrusters being a

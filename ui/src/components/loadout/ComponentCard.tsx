@@ -1,5 +1,5 @@
 /**
- * A tile in the palette. Drag it onto a slot on the mat, or click it and then
+ * A tile in the palette. Drag it onto a slot on the loadout, or click it and then
  * click the slot — both work, because at the table you would just pick the
  * chit up.
  */

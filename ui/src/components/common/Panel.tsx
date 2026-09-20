@@ -3,7 +3,7 @@
  * a matte dark plate with a thin luminous edge and a monospace stencil label.
  *
  * A plate given a `collapseId` can be folded away by its label, and remembers
- * that per player and per plate. The left column stacks the rivals' mats, the
+ * that per player and per plate. The left column stacks the rivals' loadouts, the
  * turn log and the table talk in whatever height is left, and on a short
  * window that leaves the two pads too small to read — folding a plate you are
  * not using is cheaper than scrolling the column.

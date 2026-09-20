@@ -64,7 +64,7 @@ const pickHand = (state: GameState, playerId: string) => {
 };
 
 /**
- * Filler that any mat can fly, to pad a hand out to its full size. Secondaries,
+ * Filler that any loadout can fly, to pad a hand out to its full size. Secondaries,
  * because a hand is one primary and two of these (RULES §Missions) — padding
  * with another Deliver would make the hand itself illegal.
  */
@@ -78,7 +78,7 @@ const padHand = (cards: Mission[]): Mission[] => {
 };
 
 /**
- * A mat that can fly any hand: the sensor array is what Intercept and Survey
+ * A loadout that can fly any hand: the sensor array is what Intercept and Survey
  * need, and nothing else on a card asks for a particular tile.
  */
 const ANY_HAND: ShipLoadout = {
@@ -249,7 +249,7 @@ describe("setup: submitLoadout", () => {
   });
 });
 
-describe("setup: a kept card the mat can never fly", () => {
+describe("setup: a kept card the loadout can never fly", () => {
   /** Guns and no sensors: fine for a Destroy, dead weight for an Intercept. */
   const GUNSHIP: ShipLoadout = {
     forwardSlots: ["railgun"],
@@ -269,12 +269,12 @@ describe("setup: a kept card the mat can never fly", () => {
     ["a Destroy", destroyMission("p2"), [], [WEAPON]],
     ["a Deliver", deliverMission("planet-alpha", "planet-beta"), [], []],
     ["an Intercept", interceptMission("p2"), [SENSOR_ARRAY], []],
-    // A Survey is a dive, not a reading taken with an instrument: no mat lacks
+    // A Survey is a dive, not a reading taken with an instrument: no loadout lacks
     // anything for it.
     ["a Survey", surveyMission(), [], []],
   ];
 
-  it.each(CARDS)("%s knows what each mat lacks for it", (_label, mission, onGunship, onUnarmed) => {
+  it.each(CARDS)("%s knows what each loadout lacks for it", (_label, mission, onGunship, onUnarmed) => {
     const gaps = (missing: MissionRequirement[]) =>
       missing.length > 0 ? [{ mission, missing }] : [];
     expect(missionsMissingRequirements([mission], GUNSHIP)).toEqual(gaps(onGunship));
@@ -283,7 +283,7 @@ describe("setup: a kept card the mat can never fly", () => {
     expect(missionsMissingRequirements([mission], ANY_HAND)).toEqual([]);
   });
 
-  /** A mat whose only weapon is `type`; everything else aboard is passive. */
+  /** A loadout whose only weapon is `type`; everything else aboard is passive. */
   const armedWith = (type: SubsystemType): ShipLoadout =>
     canInstallInSlot(type, "forward")
       ? { forwardSlots: [type], sideSlots: ["shields", "shields", "radiator", "radiator"] }
@@ -292,7 +292,7 @@ describe("setup: a kept card the mat can never fly", () => {
           sideSlots: [type, "shields", "radiator", "radiator"],
         };
 
-  it.each(WEAPON_SUBSYSTEM_TYPES)("a Destroy card flies on a mat whose only gun is %s", (type) => {
+  it.each(WEAPON_SUBSYSTEM_TYPES)("a Destroy card flies on a loadout whose only gun is %s", (type) => {
     expect(missionsMissingRequirements([destroyMission("p2")], armedWith(type))).toEqual([]);
   });
 
@@ -330,7 +330,7 @@ describe("setup: a kept card the mat can never fly", () => {
 
   /**
    * A hand holds one primary, and only a primary asks for anything aboard, so a
-   * mat now has at most one requirement to satisfy — there is no hand that
+   * loadout now has at most one requirement to satisfy — there is no hand that
    * needs the array and a gun at once.
    */
   it("accepts the card once what it asks for is aboard", () => {
@@ -347,7 +347,7 @@ describe("setup: a kept card the mat can never fly", () => {
   });
 
   it("lets an unflyable card be left in the offers: only kept cards are checked", () => {
-    // A Deliver asks for nothing aboard, so an unarmed mat can fly this hand.
+    // A Deliver asks for nothing aboard, so an unarmed loadout can fly this hand.
     const keep = padHand([deliverMission("planet-alpha", "planet-beta")]);
     const state = offered([...keep, destroyMission("p2"), interceptMission("p2")]);
     const result = submitLoadout(state, "p1", {
@@ -424,7 +424,7 @@ describe("loadout: validation and instantiation", () => {
       forwardSlots: ["railgun"],
       sideSlots: ["radiator", "radiator", "shields", "laser"],
     };
-    // Radiators are the only passive a mat can stack: the tank is 10 on every ship.
+    // Radiators are the only passive a loadout can stack: the tank is 10 on every ship.
     expect(calculateShipStatsFromLoadout(passive)).toEqual({
       dissipationCapacity: 9,
       reactionMass: 10,

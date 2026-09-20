@@ -108,7 +108,7 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
     .filter(isTacticalAction)
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
 
-  // One tile a turn: a cold ship's crew get to one thing, not to the mat.
+  // One tile a turn: a cold ship's crew get to one thing, not to the loadout.
   if (repairs.length > 1) {
     return {
       success: false,

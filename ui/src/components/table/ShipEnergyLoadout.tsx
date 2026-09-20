@@ -13,7 +13,7 @@
  * minimum. A cell can also be clicked directly to set the level — below the
  * minimum that means off, because a tile is either off or powered.
  *
- * Nothing here touches the ship: these are cubes moved on your own mat, and
+ * Nothing here touches the ship: these are cubes moved on your own loadout, and
  * they leave as allocate/deallocate actions when you end the turn.
  */
 import { Box, Typography } from '@mui/material'
@@ -36,7 +36,7 @@ const CUBE = 7
 
 const SLOT_IDS: SubsystemId[] = ['forward-0', 'side-0', 'side-1', 'side-2', 'side-3']
 
-export function ShipEnergyMat({ disabled }: { disabled: boolean }) {
+export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
   const { view } = useGame()
   const { pulses } = useAnimation()

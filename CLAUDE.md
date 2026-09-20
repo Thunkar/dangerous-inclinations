@@ -155,7 +155,7 @@ never fails; the gate is below.
 Balance regression: `yarn balance` (engine) answers the designer's four
 questions in six sections, every forced row at 3 players on seat 1: **natural**
 play at 3/2/4; **baselines** (seat 1 dealt Destroy, Deliver or Intercept with
-its own mat — the bar every row with that card is read against); **logical**
+its own loadout — the bar every row with that card is read against); **logical**
 (the six presets with the card their role implies); **illogical** (a preset
 with a card that fights it — sensor bow hauling, compressor hunting); **off-book**
 (builds no preset has, with the card they are built for: sensor bow with two
@@ -349,13 +349,13 @@ Known open problems:
   the gun hulls (the prey wins 67% of duels against it); if both presets are
   to hunt, it wants a second gun.
 - **The bots keep cards uniformly among the legal ones, which skews every
-  forced-hull measurement involving a weapon.** A mat that can hold a gun is a
-  mat that gets dealt into Destroy (44% of games) whether or not that gun can
+  forced-hull measurement involving a weapon.** A loadout that can hold a gun is a
+  loadout that gets dealt into Destroy (44% of games) whether or not that gun can
   finish one: Destroy completes 35% behind a railgun, 12% behind a laser, 5%
   behind missiles. Splitting a hull's games by whether it kept a Destroy moves
   the missiles hull between 5% and 32%. Read any weapon hull's balance number as
   a band. Fixing this is a change to `ai/behaviors/loadout.ts`, not to a rule,
-  and it has to price cards by the mat without going back to a hand-tuned
+  and it has to price cards by the loadout without going back to a hand-tuned
   scorer (see the note on `selectBotMissions`).
 - **Carrying cargo does not draw fire**, though the table says it does. Over 200
   games on each of four hulls, every one took *less* hull damage per turn while

@@ -102,7 +102,7 @@ export function EventLog() {
                 >
                   {folded > 1 && 'playerId' in event
                     ? `${nameOf(event.playerId)} re-routes energy across ${folded} tiles (${
-                        net === 0 ? 'no net change' : net > 0 ? `+${net} on the mat` : `${net} on the mat`
+                        net === 0 ? 'no net change' : net > 0 ? `+${net} on the loadout` : `${net} on the loadout`
                       })`
                     : describeEvent(event, nameOf)}
                 </Typography>

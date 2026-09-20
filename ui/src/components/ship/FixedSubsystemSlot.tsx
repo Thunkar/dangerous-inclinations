@@ -1,5 +1,5 @@
 /**
- * A fixed system printed on every mat: engines, thrusters, fuel scoop. It
+ * A fixed system printed on every loadout: engines, thrusters, fuel scoop. It
  * cannot be changed, so it sits in its rail dimmed and unlit.
  */
 import { Box, Tooltip } from '@mui/material'

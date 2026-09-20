@@ -2,7 +2,7 @@
  * One of the four slot rails bolted to the hull: aft (engines and thrusters),
  * port and starboard (two side slots each) and forward (scoop + the forward
  * slot). Each rail is a dark instrument plate whose inner edge glows toward
- * the hull, so the mat reads as hardware rather than as a form.
+ * the hull, so the loadout reads as hardware rather than as a form.
  */
 import { Box } from '@mui/material'
 import { FONT_MONO, TABLE } from '../../theme'

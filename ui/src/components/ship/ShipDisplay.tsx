@@ -1,9 +1,9 @@
 /**
- * The ship mat: the hull silhouette with its slot rails around it — the
+ * The loadout: the hull silhouette with its slot rails around it — the
  * forward slot at the nose, two side slots down each flank, the fixed systems
  * at the stern and the scoop at the bow.
  *
- * The same mat is used to fit the ship out at the start of the game (the
+ * The same loadout is used to fit the ship out at the start of the game (the
  * rails hold drop targets) and to run it at the table (the rails hold the
  * tiles and their energy cells).
  */

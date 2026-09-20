@@ -48,7 +48,7 @@ function knownGame() {
 const slot = (view: ReturnType<typeof viewFor>, playerIndex: number, id: string) =>
   view.players[playerIndex].slots.find((s) => s.id === id)!;
 
-describe("view: what an opponent's mat shows", () => {
+describe("view: what an opponent's loadout shows", () => {
   const view = viewFor(knownGame(), "p1");
 
   it("face-down tiles are unknown: no type, no condition", () => {

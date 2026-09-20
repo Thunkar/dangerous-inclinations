@@ -1,7 +1,7 @@
 /**
  * Ship tokens. A ship is a wedge pointing the way it faces, in its player's
  * colour; the active player's token wears a ring. Hull and heat are printed
- * on the mats, not here — the board stays readable.
+ * on the loadouts, not here — the board stays readable.
  *
  * A token carrying a `motion` is mid-slide: this layer eases it along the
  * ring between the sector it left and the one it is heading for, against the

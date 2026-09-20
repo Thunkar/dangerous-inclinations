@@ -34,9 +34,9 @@ export interface PublicShipView {
   hitPoints: number;
   maxHitPoints: number;
   heat: number;
-  /** Energy not routed to any tile (public: 10 minus the cubes on the mat). */
+  /** Energy not routed to any tile (public: 10 minus the cubes on the loadout). */
   reactorAvailable: number;
-  /** Fuel aboard: cubes on the mat, in the open like the hull and the heat. */
+  /** Fuel aboard: cubes on the loadout, in the open like the hull and the heat. */
   fuel: number;
   isDestroyed: boolean;
 }

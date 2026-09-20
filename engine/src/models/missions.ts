@@ -155,7 +155,7 @@ const WEAPON: MissionRequirement = { label: "weapon", anyOf: WEAPON_SUBSYSTEM_TY
  * What each card needs aboard to be completable at all.
  *
  * An Intercept opens with a scan and a Survey is held with the sensors lit on
- * the ring, so either card is dead weight on a mat with no sensor array. A
+ * the ring, so either card is dead weight on a loadout with no sensor array. A
  * Destroy is completed by reducing a hull to 0 yourself, and only a weapon or
  * a missile credits a kill — heat kills nobody's target — so it needs any one
  * gun. A loadout is fixed for the game and a station repairs tiles, it never
@@ -173,7 +173,7 @@ export const MISSION_REQUIREMENTS: Readonly<Record<MissionType, readonly Mission
   garbage_disposal: [],
   // Nothing. A Survey is flown, not instrumented: the dive to the innermost
   // ring is the reading. It asked for a sensor array until 17 Sept 2026, which
-  // made the one card any hand could use as filler a card only the sensor mats
+  // made the one card any hand could use as filler a card only the sensor loadouts
   // could keep — and left half the table with no filler at all.
   survey: [],
 };

@@ -90,7 +90,7 @@ describe("weapons: point blank", () => {
 describe("weapons: the opening round reaches nobody", () => {
   /**
    * Everyone deploys on the same ring, so before anyone has moved the table is
-   * a firing line and every mat is within sensor range. The rule is about the
+   * a firing line and every loadout is within sensor range. The rule is about the
    * round, not about the ship: a seat that has already taken its turn is no
    * more allowed to shoot than the one that has not.
    */

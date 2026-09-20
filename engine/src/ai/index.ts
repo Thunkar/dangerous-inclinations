@@ -62,7 +62,7 @@ export function botDecideActions(
 
 /**
  * Loadout phase: keep one primary and two secondaries, then pick a hull for
- * them. The hand chooses the mat, never the other way round.
+ * them. The hand chooses the loadout, never the other way round.
  */
 export function botChooseLoadout(
   offers: Mission[],
@@ -82,8 +82,8 @@ export function botChooseLoadout(
     context.primary,
     context.pick
   );
-  // A hand and a mat are one choice: a kept Intercept needs the sensor array
-  // and a kept Destroy needs a gun. `hull` is a mat the simulator is measuring
+  // A hand and a loadout are one choice: a kept Intercept needs the sensor array
+  // and a kept Destroy needs a gun. `hull` is a loadout the simulator is measuring
   // on this seat; it is kept only if the hand the bot ended up with can
   // actually fly it, so a bot never hands the engine a submission it must
   // refuse.

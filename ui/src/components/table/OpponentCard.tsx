@@ -1,5 +1,5 @@
 /**
- * A rival's mat, seen from across the table and kept narrow: name and colour,
+ * A rival's loadout, seen from across the table and kept narrow: name and colour,
  * hull and heat, home port, the hold, the fuel they have burned, the score,
  * and the five slots.
  *
@@ -232,7 +232,7 @@ export function OpponentCard({
               size={8}
             />
           </Box>
-          {/* Fuel is public: the cubes sit on the mat (RULES §Hidden information). */}
+          {/* Fuel is public: the cubes sit on the loadout (RULES §Hidden information). */}
           <Tooltip title={`Fuel aboard: ${ship?.fuel ?? 0}. Everyone can count it.`}>
             <Typography
               sx={{

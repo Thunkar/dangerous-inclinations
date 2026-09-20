@@ -33,7 +33,7 @@ import {
 } from "../testUtils.ts";
 
 /**
- * A hand that should produce each mat a bot can reach. A hunter always holds a
+ * A hand that should produce each loadout a bot can reach. A hunter always holds a
  * Destroy and a hauler never does, so `hunter-tanky` and `hauler-aggressive`
  * are human-only: the balance suite forces those.
  */
@@ -101,7 +101,7 @@ describe("botChooseLoadout", () => {
   });
 
   it("keeps any hand it can fly, and spreads across them", () => {
-    // The bot does not score the primary: every hand the mat could fly is
+    // The bot does not score the primary: every hand the loadout could fly is
     // valid, and which one it takes is the seeded pick. Measuring which plan
     // wins is the benchmark's job, not the chooser's.
     // No Deliver here, so no hand is a hold clash and every one stays on the
@@ -186,7 +186,7 @@ describe("botChooseLoadout", () => {
     expect(kept).toContain("garbage-a");
   });
 
-  it("never offers a hand the forced mat cannot fly", () => {
+  it("never offers a hand the forced loadout cannot fly", () => {
     const railgun: ShipLoadout = {
       forwardSlots: ["railgun"],
       sideSlots: ["missiles", "radiator", "shields", "shields"],
@@ -257,7 +257,7 @@ describe("botChooseLoadout", () => {
       { playerCount: 3 }
     );
     expect(kill.loadout.forwardSlots).toEqual(["railgun"]);
-    // A Survey is a dive any mat can make, so it asks for nothing forward: a
+    // A Survey is a dive any loadout can make, so it asks for nothing forward: a
     // cargo hand carrying one still spends the slot on the legs.
     const survey = botChooseLoadout(
       [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()],
@@ -270,7 +270,7 @@ describe("botChooseLoadout", () => {
     // A shield tile eats two damage a turn and is refilled for free, so a
     // volley has to beat the cubes to reach a hull — and heat over the
     // dissipation is the bot's own hull. Every hull that shoots carries a
-    // radiator, and the railgun mats carry a second gun to pair with the bow.
+    // radiator, and the railgun loadouts carry a second gun to pair with the bow.
     for (const [name, template] of Object.entries(BOT_LOADOUT_TEMPLATES)) {
       expect(template.sideSlots, name).toContain("radiator");
     }
@@ -308,7 +308,7 @@ describe("botChooseLoadout", () => {
   });
 
   // The simulator forces a hull on a seat to measure it. The bot then picks
-  // cards that hull can fly; a deal with no flyable hand leaves it its own mat.
+  // cards that hull can fly; a deal with no flyable hand leaves it its own loadout.
   describe("a hull imposed on the seat", () => {
     const RAILGUN: ShipLoadout = {
       forwardSlots: ["railgun"],
@@ -316,7 +316,7 @@ describe("botChooseLoadout", () => {
     };
 
     it("keeps the hull and drops the cards it cannot fly when a flyable hand exists", () => {
-      // The railgun mat has no sensor array: Intercept and Survey are dead
+      // The railgun loadout has no sensor array: Intercept and Survey are dead
       // weight on it, and the four that are left are exactly a hand.
       const offers = [
         interceptMission("p2"),
@@ -333,7 +333,7 @@ describe("botChooseLoadout", () => {
     });
 
     it("gives the hull up when too few offers suit the hull to make a hand", () => {
-      // The railgun mat has no sensor array, so three of these five are dead
+      // The railgun loadout has no sensor array, so three of these five are dead
       // weight on it and no full hand is flyable. (A Survey would be: it asks
       // for nothing, which is the point of it.)
       const offers = [
@@ -352,7 +352,7 @@ describe("botChooseLoadout", () => {
   });
 
   // A bot picks its cards first and then a hull that fits them, so it should
-  // never hand the referee a hand its mat cannot fly — at any table size.
+  // never hand the referee a hand its loadout cannot fly — at any table size.
   it.each([2, 3, 4])("never keeps a card its hull cannot complete (%i players)", (playerCount) => {
     for (let seed = 0; seed < 40; seed++) {
       const state = createGame(

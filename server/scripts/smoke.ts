@@ -25,7 +25,7 @@ import {
 } from "@dangerous-inclinations/engine";
 
 /**
- * A mat that can fly any hand the deal produces: the sensor array is the one
+ * A loadout that can fly any hand the deal produces: the sensor array is the one
  * tile a card asks for (Intercept and Survey), so the smoke run never has to
  * care which three cards it kept.
  */
@@ -110,7 +110,7 @@ function inspectHumanMessage(message: ServerGameMessage, index: number): void {
 
   for (const player of view.players) {
     if (player.id === HUMAN) {
-      // Positive control: redaction must not blank out the recipient's own mat.
+      // Positive control: redaction must not blank out the recipient's own loadout.
       check(player.isMe === true, `${where}: the human's own entry is flagged isMe`);
       if (player.hasSubmittedLoadout) {
         ownSlotsSeen += player.slots.length;

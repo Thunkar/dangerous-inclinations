@@ -52,7 +52,7 @@ import { FONT_MONO, TABLE } from '../../theme'
 import { slotLabel } from '../../utils/slots'
 import { RoutePlanner } from './RoutePlanner'
 import { SequenceList } from './SequenceList'
-import { ShipEnergyMat } from './ShipEnergyMat'
+import { ShipEnergyLoadout } from './ShipEnergyLoadout'
 import { StatusBlock } from './StatusBlock'
 
 const INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
@@ -160,7 +160,7 @@ export function ActionPanel() {
         )}
 
         <Step n={1} label="Ship & energy">
-          <ShipEnergyMat disabled={disabled} />
+          <ShipEnergyLoadout disabled={disabled} />
         </Step>
 
         <Divider />
@@ -420,7 +420,7 @@ function OrientationControls({ disabled }: { disabled: boolean }) {
             color={rotating ? 'primary' : 'default'}
             variant={rotating ? 'filled' : 'outlined'}
             onClick={plan.toggleRotate}
-            // A queued rotation can always be taken back, whatever the mat says.
+            // A queued rotation can always be taken back, whatever the loadout says.
             disabled={disabled || (!rotating && !ready.ok)}
           />
         </Box>

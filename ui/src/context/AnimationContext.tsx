@@ -134,7 +134,7 @@ interface AnimationContextValue {
   effects: TableEffect[]
   /** Dice rolled during the turn just played, newest last. */
   dice: DieRoll[]
-  /** Mat ids that should flash (broken tiles, reveals). */
+  /** Loadout ids that should flash (broken tiles, reveals). */
   pulses: Record<string, number>
   /** Skip the rest of the current animation. */
   skip: () => void

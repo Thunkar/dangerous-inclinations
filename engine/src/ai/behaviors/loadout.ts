@@ -37,10 +37,10 @@ export const BOT_ROLES: readonly BotRole[] = ["interceptor", "hunter", "hauler"]
 export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
 
 /**
- * The six mats, which are also the presets offered to a human on the loadout
+ * The six loadouts, which are also the presets offered to a human on the loadout
  * screen, so the table above, the tiles below and the UI must agree.
  *
- * **Every mat carries a weapon**, which is what a kept Destroy card needs
+ * **Every loadout carries a weapon**, which is what a kept Destroy card needs
  * (RULES §Missions): the two roles that spend their forward slot on eyes or
  * legs buy theirs with a side slot.
  *
@@ -56,13 +56,13 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * strongest off-book hull — a compressor bow with two ballistic racks, a
  * shield tile and a radiator — the missile-carrying hunter completed its
  * Destroy 34% of the time: a powered rack rolls at every missile that reaches
- * it, so a salvo aimed at the one mat built to answer it arrives as dice. The
+ * it, so a salvo aimed at the one loadout built to answer it arrives as dice. The
  * tanky hunter takes the rack instead and keeps both shield tiles, which also
  * buys it the roll against somebody else's missiles; the aggressive one sells
  * a shield tile for a second gun.
  *
  * **Why the aggressive hunter's second gun is a rack and not a laser.** Every
- * bot holding a Destroy flies this mat, and the interceptor and hauler presets
+ * bot holding a Destroy flies this loadout, and the interceptor and hauler presets
  * already carry lasers, so while this one carried two of them no ship in
  * natural play carried a ballistic rack at all: point defence had left the
  * table, missiles went unanswered, and the compressor hull with two launchers
@@ -71,7 +71,7 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * the field and is the one broadside that fires on the railgun's own ring,
  * which is where the spinal shot puts the fight.
  *
- * **Why every mat carries a radiator.** Using a tile costs its energy in heat,
+ * **Why every loadout carries a radiator.** Using a tile costs its energy in heat,
  * and heat over the dissipation is your own hull. The railgun plus one
  * broadside is six against a dissipation of five; the radiator's +2 makes that
  * pair free. The aggressive hunter's full three-gun volley is eight, one over
@@ -118,7 +118,7 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
  */
 export function classifyRole(missions: Mission[]): BotRole {
   const active = missions.filter((m) => !m.isCompleted);
-  // Only Intercept asks for the eyes now: a Survey is a dive any mat can make,
+  // Only Intercept asks for the eyes now: a Survey is a dive any loadout can make,
   // so holding one says nothing about which forward tile to bolt on.
   if (count(active, "intercept_transmission") > 0) return "interceptor";
   if (count(active, "destroy_ship") > 0) return "hunter";
@@ -130,7 +130,7 @@ export function classifyRole(missions: Mission[]): BotRole {
  * Destroy card is the one card that cannot be scored by flying carefully, and
  * a bot holding one takes the second gun over the second shield.
  *
- * This ties two of the six mats to the role that implies them (a hunter always
+ * This ties two of the six loadouts to the role that implies them (a hunter always
  * holds a Destroy, a hauler never does), so bots fly four of the six. The
  * other two are measured by forcing them in the balance suite.
  */
@@ -170,8 +170,8 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  * @param pick chooses among the hands on offer; wire it to the game's seeded
  *   RNG so a seed replays exactly. Without one the first hand is taken, which
  *   keeps the function pure for tests.
- * @param hull a mat already decided for this seat (the simulator forces one to
- *   measure it). Hands that mat could never complete are skipped — the engine
+ * @param hull a loadout already decided for this seat (the simulator forces one to
+ *   measure it). Hands that loadout could never complete are skipped — the engine
  *   refuses them anyway. A deal with no flyable hand falls back to the first.
  * @param primary experiment only: keep this kind of primary. Ignored when the
  *   deal does not offer one, so a batch never stalls on a seed.
@@ -186,7 +186,7 @@ export function selectBotMissions(
   void playerCount;
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
   // Give up the experiment's constraints one at a time rather than all at
-  // once: the forced primary first, then the forced mat. The last resort is a
+  // once: the forced primary first, then the forced loadout. The last resort is a
   // hand of whatever was offered, which only a hand-built deal can reach —
   // every real deal holds three primaries and three secondaries.
   let hands = validHands(offers, hull, primary);
@@ -211,11 +211,11 @@ function holdIsContested(hand: Mission[]): boolean {
 
 /**
  * Every hand of one primary and {@link SECONDARIES_PER_PLAYER} secondaries the
- * mat can fly, in a fixed order.
+ * loadout can fly, in a fixed order.
  *
  * "Can fly" is the engine's own rule and the only filter there is: a kept
  * Intercept needs a sensor array, a kept Destroy a gun, and a hand that breaks
- * that is refused at submission. With no mat decided yet every hand is
+ * that is refused at submission. With no loadout decided yet every hand is
  * flyable, because the caller fits one to whatever is kept.
  */
 export function validHands(

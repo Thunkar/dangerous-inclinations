@@ -1,6 +1,6 @@
 /**
  * The tiles in your set, grouped by the rail they fit: forward, side, and the
- * one that goes either way. Drag a card onto the mat, or click it and then
+ * one that goes either way. Drag a card onto the loadout, or click it and then
  * click a bay.
  */
 import { Box } from '@mui/material'

@@ -1,7 +1,7 @@
 /**
  * The table, in three columns.
  *
- *   left   — the rivals' mats stacked one above the other, with the turn log
+ *   left   — the rivals' loadouts stacked one above the other, with the turn log
  *            and table talk sharing whatever is left
  *   middle — the board, the full height of the window
  *   right  — your cards, then your turn: status first, then the reactor, the
@@ -38,7 +38,7 @@ import { TurnTransport } from './TurnTransport'
 
 /** The rivals' column: narrow enough that the board keeps the middle. */
 const LEFT_WIDTH = 252
-/** Your own column: the ship mat sets the floor at 252 + the plate's padding. */
+/** Your own column: the loadout sets the floor at 252 + the plate's padding. */
 const RIGHT_WIDTH = 348
 
 export function TableScreen({
@@ -60,9 +60,9 @@ export function TableScreen({
   /** Read-only tables have no turn to build, so the right column goes away. */
   const playing = seated && !readOnly
 
-  const matPick = plan?.picking && plan.picking.kind !== 'destination' ? plan.picking : null
-  const picking = matPick ? matPick.kind : null
-  const activeStep = matPick ? plan?.steps.find(s => s.id === matPick.stepId) : undefined
+  const loadoutPick = plan?.picking && plan.picking.kind !== 'destination' ? plan.picking : null
+  const picking = loadoutPick ? loadoutPick.kind : null
+  const activeStep = loadoutPick ? plan?.steps.find(s => s.id === loadoutPick.stepId) : undefined
   const selectedSlotId =
     activeStep?.kind === 'fire'
       ? activeStep.criticalTarget
@@ -216,7 +216,7 @@ export function TableScreen({
           }}
         >
           {/*
-            The mats keep their own height; the log and the chat split what is
+            The loadouts keep their own height; the log and the chat split what is
             left. On a short window that leaves both pads too small to read, so
             every section here folds by its label and remembers it: fold the
             rivals you are not watching and the pads take the height back.

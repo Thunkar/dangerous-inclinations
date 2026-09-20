@@ -165,7 +165,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
         </Typography>
       )}
 
-      <Tooltip title="Name the slot a critical hit would break — click it on their mat">
+      <Tooltip title="Name the slot a critical hit would break — click it on their loadout">
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}
@@ -211,7 +211,7 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
   const note = !target
     ? null
     : faceDown.length === 0
-      ? 'You already know every tile on that mat — the scan still takes their transmission.'
+      ? 'You already know every tile on that loadout — the scan still takes their transmission.'
       : chosen && chosen.type !== null
         ? 'You already know that tile: the scan will look at the first face-down one instead.'
         : null
@@ -235,7 +235,7 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         ))}
       </Select>
 
-      <Tooltip title="Choose which face-down tile to look at — click it on their mat">
+      <Tooltip title="Choose which face-down tile to look at — click it on their loadout">
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}

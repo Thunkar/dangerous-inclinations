@@ -1,6 +1,6 @@
 /**
  * Player colours: a UI concern, assigned by seat order. The single source for
- * every screen (lobby, mats, board tokens, log).
+ * every screen (lobby, loadouts, board tokens, log).
  */
 export const PLAYER_COLORS = [
   '#2f6fb3', // blue

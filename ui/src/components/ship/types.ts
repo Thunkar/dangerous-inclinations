@@ -18,14 +18,14 @@ export interface FixedSlotContent {
 }
 
 export interface ShipMetrics {
-  /** Overall width of the mat, in px. */
+  /** Overall width of the loadout, in px. */
   width: number
   height: number
   /** Thickness of the four slot rails. */
   band: number
 }
 
-/** Default mat geometry: the loadout screen's full-size ship. */
+/** Default loadout geometry: the loadout screen's full-size ship. */
 export const DEFAULT_SHIP_METRICS: ShipMetrics = { width: 372, height: 300, band: 66 }
 
 export interface ShipDisplayProps {
@@ -35,7 +35,7 @@ export interface ShipDisplayProps {
   fixed?: FixedSlotContent
   shipImageSrc?: string
   metrics?: Partial<ShipMetrics>
-  /** Dim the hull plate — used while the mat is still being filled. */
+  /** Dim the hull plate — used while the loadout is still being filled. */
   faded?: boolean
   /** Rails that would accept whatever is being dragged or held. */
   activeRails?: { forward?: boolean; side?: boolean }
