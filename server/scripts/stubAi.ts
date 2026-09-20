@@ -10,8 +10,10 @@ import { DEFAULT_LOADOUT } from "../../engine/src/models/game.ts";
 import type { Mission } from "../../engine/src/models/missions.ts";
 import { MISSIONS_PER_PLAYER } from "../../engine/src/models/missions.ts";
 import type { GameView } from "../../engine/src/game/view.ts";
-import { PLANETS, HOME_RING } from "../../engine/src/models/gravityWells.ts";
-import { SECTORS_PER_RING } from "../../engine/src/models/rings.ts";
+import { HOME_RING, HOME_WELL_ID } from "../../engine/src/models/gravityWells.ts";
+// The rule itself, not the bot that reads it: engine/src/ai is exactly what
+// this stub stands in for, so nothing here may import from it.
+import { legalDeploymentsAgainst } from "../../engine/src/game/deployment.ts";
 
 export function botDecideActions(_view: GameView): { actions: PlayerAction[] } {
   return { actions: [] };
@@ -24,15 +26,14 @@ export function botChooseLoadout(
   return { missionIds: offers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id), loadout: DEFAULT_LOADOUT };
 }
 
-export function botChooseDeployment(view: GameView, pick: (n: number) => number): { wellId: string; sector: number } {
-  const taken = new Set(
-    view.players
-      .filter((p) => p.ship && p.ship.ring === HOME_RING)
-      .map((p) => `${p.ship!.wellId}:${p.ship!.sector}`),
-  );
-  const planet = PLANETS[pick(PLANETS.length)];
-  for (let sector = 0; sector < SECTORS_PER_RING; sector++) {
-    if (!taken.has(`${planet.id}:${sector}`)) return { wellId: planet.id, sector };
-  }
-  return { wellId: PLANETS[0].id, sector: 0 };
+export function botChooseDeployment(
+  view: GameView,
+  pick: (n: number) => number,
+): { wellId: string; ring: number; sector: number } {
+  const placed = view.players
+    .filter((p) => p.hasDeployed && p.ship)
+    .map((p) => ({ wellId: p.ship!.wellId, ring: p.ship!.ring, sector: p.ship!.sector }));
+  const legal = legalDeploymentsAgainst(placed);
+  if (legal.length === 0) return { wellId: HOME_WELL_ID, ring: HOME_RING, sector: 0 };
+  return legal[pick(legal.length)];
 }

@@ -62,7 +62,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then each player takes **one card off each of the three secondary stacks** and keeps **two**. Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile, never back onto their stack. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
 2. **Loadout.** Each player fills their loadout: 1 forward tile (railgun, sensor array, fuel compressor or missiles) and 4 side tiles (laser, shields, radiator, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
-3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 4** in any empty sector, and puts their Home marker there. Everyone starts together and scatters from there; missions are secret, so pick your sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring).
+3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 3 or Ring 4**, **at least three sectors from every ship already placed** (if no sector qualifies, the one farthest from them), and puts their Home marker there. Everyone starts around the hole and scatters from there; missions are secret, so pick your ring and sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring; Ring 3 drifts 4 and is two burns from the lane ring).
 4. Fill the hull track to 10, reaction mass to 10 and heat to 0 — all three are tracks on your loadout, in the open. Energy cubes stay in the reactor. Only your cards and the ammo in a face-down missiles tile sit behind the screen.
 
 ---
@@ -85,7 +85,7 @@ Otherwise:
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
 
-**The first round reaches nobody: no weapon fires and nobody scans.** Everyone deploys on the same ring, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting — or reading the loadout of — whoever you were placed next to. Everything else is allowed. From the second round on, both are live.
+**The first round reaches nobody: no weapon fires and nobody scans.** Everyone deploys around the same hole, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting — or reading the loadout of — whoever you were placed next to. Everything else is allowed. From the second round on, both are live.
 
 ---
 

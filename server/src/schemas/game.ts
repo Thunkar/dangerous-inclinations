@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  HOME_RINGS,
   SECTORS_PER_RING,
   ShipAppearanceSchema,
   SUBSYSTEM_CONFIGS,
@@ -31,8 +32,8 @@ export const LoadoutSubmissionSchema = z
 
 export const DeploySchema = z
   .object({
-    /** Ignored: deployment is always on the black hole's home ring. Kept so older clients don't 400. */
-    wellId: z.string().optional(),
+    /** Black Hole ring 3 or ring 4; the engine refuses anything else. */
+    ring: z.union([z.literal(HOME_RINGS[0]), z.literal(HOME_RINGS[1])]),
     sector: z
       .number()
       .int()

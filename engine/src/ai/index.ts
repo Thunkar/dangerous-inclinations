@@ -27,6 +27,7 @@ import { generateCandidates } from "./planner.ts";
 import { evaluatePlan, selectBest } from "./evaluator.ts";
 import { selectBotLoadout, selectBotMissions } from "./behaviors/loadout.ts";
 import { chooseDeployment } from "./behaviors/deployment.ts";
+import type { DeploymentChoice } from "./behaviors/deployment.ts";
 
 /**
  * Decide the bot's actions for its turn. A destroyed bot returns no actions:
@@ -98,13 +99,13 @@ export function botChooseLoadout(
 }
 
 /**
- * Deployment phase: a planet and a free sector on its outer ring.
+ * Deployment phase: a legal ring and sector of the black hole's deployment rings.
  * `pick(n)` must return an integer in [0, n) from the game's seeded RNG.
  */
 export function botChooseDeployment(
   view: GameView,
   pick: (n: number) => number
-): { wellId: string; sector: number } {
+): DeploymentChoice {
   return chooseDeployment(view, pick);
 }
 
@@ -290,7 +291,7 @@ export {
 } from "./behaviors/loadout.ts";
 export type { BotArchetype, BotRole, HullVariant } from "./behaviors/loadout.ts";
 export { analyzeSituation, shieldAbsorption, suspectedWeapon } from "./analyzer.ts";
-export { chooseDeployment } from "./behaviors/deployment.ts";
+export { chooseDeployment, placedShipPositions } from "./behaviors/deployment.ts";
 export type { DeploymentChoice } from "./behaviors/deployment.ts";
 
 // Movement planner

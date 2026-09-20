@@ -16,11 +16,17 @@ import type { GameRecording } from "@dangerous-inclinations/engine";
 import {
   DEFAULT_POINTS_TO_WIN,
   DEFAULT_SHIP_APPEARANCE,
+  DEPLOYMENT_GAP,
+  HOME_RINGS,
   MISSIONS_PER_PLAYER,
   MISSION_OFFERS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   isPrimaryType,
+  legalDeploymentsAgainst,
+  placedShipPositions,
+  samePosition,
+  wrapSector,
   type ShipLoadout,
 } from "@dangerous-inclinations/engine";
 
@@ -271,18 +277,40 @@ check(
 );
 check(afterLoadout.activePlayerId === HUMAN, `the human is next to deploy (got ${afterLoadout.activePlayerId})`);
 
-// Everyone deploys on Black Hole Ring 4; any sector nobody has taken yet.
-const free = new Set(Array.from({ length: 24 }, (_, i) => i));
-for (const p of afterLoadout.players) {
-  if (p.ship && p.hasDeployed) free.delete(p.ship.sector);
-}
-const deployResult = await games.deploy(GAME_ID, HUMAN, [...free][0]);
+// Everyone deploys on Black Hole ring 3 or ring 4, three sectors clear of every
+// ship already placed. The legal set is the engine's, read from the view.
+const placed = placedShipPositions(afterLoadout);
+const legalNow = legalDeploymentsAgainst(placed);
+const onRingThree = legalNow.find((p) => p.ring === HOME_RINGS[0]);
+if (!onRingThree) fail("no legal position on the inner deployment ring");
+
+// Two sectors from a ship already placed: inside the gap, so refused.
+const tooClose = {
+  wellId: onRingThree.wellId,
+  ring: HOME_RINGS[0],
+  sector: wrapSector(placed[0].sector + DEPLOYMENT_GAP - 1),
+};
+check(
+  !legalNow.some((p) => samePosition(p, tooClose)),
+  "the engine's legal set excludes a position two sectors from a placed ship",
+);
+const crowded = await games.deploy(GAME_ID, HUMAN, tooClose.sector, tooClose.ring);
+check(
+  !crowded.ok && typeof crowded.error === "string" && crowded.error.length > 0,
+  "a deployment inside the three-sector gap is refused with the engine's reason",
+);
+
+const deployResult = await games.deploy(GAME_ID, HUMAN, onRingThree.sector, onRingThree.ring);
 if (!deployResult.ok) fail(`human deployment rejected: ${deployResult.error}`);
 
 const afterDeploy = await games.getView(GAME_ID, HUMAN);
 if (!afterDeploy) fail("no view after deployment");
 check(afterDeploy.phase === "active", `the game is active once everyone deployed (phase ${afterDeploy.phase})`);
 check(afterDeploy.players.every((p) => p.hasDeployed), "every player deployed");
+check(
+  afterDeploy.me?.home?.ring === HOME_RINGS[0] && afterDeploy.me?.home?.sector === onRingThree.sector,
+  "a human deployment on the inner ring reaches the board",
+);
 console.log(`smoke: deployment done, turn ${afterDeploy.turn}, ${afterDeploy.activePlayerId} to act`);
 
 // --- Preview and table talk ---------------------------------------------------
@@ -577,9 +605,8 @@ async function freshGame(archive: RecordingArchive | null = null) {
     missionIds: handFrom(first!.me!.missionOffers),
   });
   const deployed = await gameGames.getView(gameId, HUMAN);
-  const used = new Set(deployed!.players.filter((p) => p.hasDeployed && p.ship).map((p) => p.ship!.sector));
-  const freeSector = [...Array(24).keys()].find((sector) => !used.has(sector))!;
-  await gameGames.deploy(gameId, HUMAN, freeSector);
+  const spot = legalDeploymentsAgainst(placedShipPositions(deployed!))[0];
+  await gameGames.deploy(gameId, HUMAN, spot.sector, spot.ring);
   return { kv: gameKv, games: gameGames, recordings: gameRecordings, gameId };
 }
 

@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { runGame, setupBotGame, formatFailure } from "../../sim/runGame.ts";
-import { HOME_RING, HOME_WELL_ID } from "../../models/gravityWells.ts";
+import { HOME_RINGS, HOME_WELL_ID } from "../../models/gravityWells.ts";
 import type { MissionType } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER, MISSION_FAMILY } from "../../models/missions.ts";
 
@@ -60,7 +60,7 @@ describe("bot-vs-bot games", () => {
     expect(JSON.stringify(b.turns)).toBe(JSON.stringify(a.turns));
   });
 
-  it("sets every bot up with three missions and a home on Black Hole Ring 4", () => {
+  it("sets every bot up with three missions and a home on a Black Hole deployment ring", () => {
     const state = setupBotGame(11, 4);
     expect(state.phase).toBe("active");
     const homes = new Set<string>();
@@ -70,7 +70,7 @@ describe("bot-vs-bot games", () => {
       expect(player.hasDeployed).toBe(true);
       expect(player.home).not.toBeNull();
       expect(player.home!.wellId).toBe(HOME_WELL_ID);
-      expect(player.home!.ring).toBe(HOME_RING);
+      expect(HOME_RINGS as readonly number[]).toContain(player.home!.ring);
       const key = `${player.home!.wellId}:${player.home!.sector}`;
       expect(homes.has(key)).toBe(false);
       homes.add(key);

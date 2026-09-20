@@ -43,8 +43,8 @@ Data flow: `UI → WebSocket → server → engine → new state → viewFor →
 ## Game summary
 
 2–6 players. Ships orbit a black hole (5 rings) and three planets (4 rings
-each); every ring has 24 sectors. Everyone deploys on black hole ring 4; that
-sector is their Home (destroyed ships respawn there, drift one turn and cannot be
+each); every ring has 24 sectors. Everyone deploys on black hole ring 3 or 4, at least three
+sectors from every placed ship; that position is their Home (destroyed ships respawn there, drift one turn and cannot be
 touched until they act again). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
 from black hole ring 5 to its ring 4 and an inbound lane back. Stations orbit planet ring 2, with a faster ring 1 inside them, and are where cargo is
 loaded, ships are repaired and data is delivered.
@@ -78,7 +78,7 @@ one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
 arrival only) → heat
 check (excess over dissipation = hull damage, reset) → missions → pass.
 Stations advance at round end. The first round reaches nobody — no weapon
-fires and nobody scans — because everyone deploys on one ring, so the opening
+fires and nobody scans — because everyone deploys around one hole, so the opening
 round is for getting off the line.
 
 ## Key files

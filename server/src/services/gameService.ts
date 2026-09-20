@@ -24,7 +24,7 @@ import type {
 import {
   DEFAULT_LOADOUT,
   MISSIONS_PER_PLAYER,
-  HOME_WELL_ID,
+  type DeploymentChoice,
   botChooseDeployment,
   botChooseLoadout,
   botDecideActions,
@@ -33,7 +33,7 @@ import {
   deployShip,
   executeTurn,
   filterEventsFor,
-  getAvailableDeploymentSectors,
+  legalDeploymentPositions,
   isDestroyed,
   missionTargetsPlayer,
   pickIndex,
@@ -64,7 +64,7 @@ export interface BotStrategy {
     offers: Mission[],
     context: { playerCount: number; pick?: (n: number) => number }
   ): { missionIds: string[]; loadout: ShipLoadout };
-  chooseDeployment(view: GameView, pick: (n: number) => number): { wellId: string; sector: number };
+  chooseDeployment(view: GameView, pick: (n: number) => number): DeploymentChoice;
   decideActions(view: GameView): { actions: PlayerAction[] };
 }
 
@@ -318,10 +318,10 @@ export function createGameService(deps: GameServiceDeps) {
     return state;
   }
 
-  function fallbackDeployment(state: GameState): { wellId: string; sector: number } {
-    const free = getAvailableDeploymentSectors(state);
-    if (free.length > 0) return { wellId: HOME_WELL_ID, sector: free[0] };
-    throw new Error("No free deployment sector on the home ring");
+  function fallbackDeployment(state: GameState): DeploymentChoice {
+    const legal = legalDeploymentPositions(state);
+    if (legal.length > 0) return legal[0];
+    throw new Error("No legal deployment position on the home rings");
   }
 
   /** Deploy bots, in turn order, until a human has to deploy or the game starts. */
@@ -336,7 +336,7 @@ export function createGameService(deps: GameServiceDeps) {
 
       // The bot draws from the game's seeded RNG so live games replay from their seed.
       const pick = (n: number) => pickIndex(state, Array.from({ length: n }));
-      let choice: { wellId: string; sector: number };
+      let choice: DeploymentChoice;
       try {
         choice = bots.chooseDeployment(viewFor(state, bot.id), pick);
       } catch (error) {
@@ -344,13 +344,13 @@ export function createGameService(deps: GameServiceDeps) {
         choice = fallbackDeployment(state);
       }
 
-      let result = deployShip(state, bot.id, choice.sector);
+      let result = deployShip(state, bot.id, choice.sector, choice.ring);
       if (!result.success) {
         log.error(
-          `Bot ${bot.id} deployment rejected (${result.error}), placing it on the first free sector`
+          `Bot ${bot.id} deployment rejected (${result.error}), placing it on the first legal position`
         );
         const fallback = fallbackDeployment(state);
-        result = deployShip(state, bot.id, fallback.sector);
+        result = deployShip(state, bot.id, fallback.sector, fallback.ring);
         if (!result.success)
           throw new Error(`Fallback deployment rejected for bot ${bot.id}: ${result.error}`);
       }
@@ -634,11 +634,16 @@ export function createGameService(deps: GameServiceDeps) {
       });
     },
 
-    deploy(gameId: string, playerId: string, sector: number): Promise<Result<{ view: GameView }>> {
+    deploy(
+      gameId: string,
+      playerId: string,
+      sector: number,
+      ring: number
+    ): Promise<Result<{ view: GameView }>> {
       return withGameLock(gameId, async () => {
         const state = await loadState(gameId);
         if (!state) return { ok: false, error: "Game not found" };
-        const result = deployShip(state, playerId, sector);
+        const result = deployShip(state, playerId, sector, ring);
         if (!result.success) return { ok: false, error: result.error };
         const humans = await getHumanPlayerIds(gameId);
         if (!humansAreRegistered(gameId, state, humans))

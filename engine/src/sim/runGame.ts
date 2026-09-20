@@ -201,7 +201,7 @@ export function setupBotGame(
     const view = viewFor(state, active.id);
     const pick = (n: number) => pickIndex(state, Array.from({ length: n }));
     const choice = botChooseDeployment(view, pick);
-    const result = deployShip(state, active.id, choice.sector);
+    const result = deployShip(state, active.id, choice.sector, choice.ring);
     if (!result.success) throw new Error(`Bot ${active.id} deployment rejected: ${result.error}`);
     state = transitionToActivePhase(result.state);
   }

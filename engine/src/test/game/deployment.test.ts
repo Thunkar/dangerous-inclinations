@@ -4,6 +4,7 @@ import {
   deployShip,
   deploymentPositions,
   getAvailableDeploymentSectors,
+  legalDeploymentsAgainst,
   transitionToActivePhase,
 } from "../../game/deployment.ts";
 import { createGame, createPlayer, submitLoadout } from "../../game/setup.ts";
@@ -274,14 +275,17 @@ describe("setup: a kept card the loadout can never fly", () => {
     ["a Survey", surveyMission(), [], []],
   ];
 
-  it.each(CARDS)("%s knows what each loadout lacks for it", (_label, mission, onGunship, onUnarmed) => {
-    const gaps = (missing: MissionRequirement[]) =>
-      missing.length > 0 ? [{ mission, missing }] : [];
-    expect(missionsMissingRequirements([mission], GUNSHIP)).toEqual(gaps(onGunship));
-    expect(missionsMissingRequirements([mission], UNARMED)).toEqual(gaps(onUnarmed));
-    // ANY_HAND carries both a gun and the array, so it can fly every card.
-    expect(missionsMissingRequirements([mission], ANY_HAND)).toEqual([]);
-  });
+  it.each(CARDS)(
+    "%s knows what each loadout lacks for it",
+    (_label, mission, onGunship, onUnarmed) => {
+      const gaps = (missing: MissionRequirement[]) =>
+        missing.length > 0 ? [{ mission, missing }] : [];
+      expect(missionsMissingRequirements([mission], GUNSHIP)).toEqual(gaps(onGunship));
+      expect(missionsMissingRequirements([mission], UNARMED)).toEqual(gaps(onUnarmed));
+      // ANY_HAND carries both a gun and the array, so it can fly every card.
+      expect(missionsMissingRequirements([mission], ANY_HAND)).toEqual([]);
+    }
+  );
 
   /** A loadout whose only weapon is `type`; everything else aboard is passive. */
   const armedWith = (type: SubsystemType): ShipLoadout =>
@@ -292,9 +296,12 @@ describe("setup: a kept card the loadout can never fly", () => {
           sideSlots: [type, "shields", "radiator", "radiator"],
         };
 
-  it.each(WEAPON_SUBSYSTEM_TYPES)("a Destroy card flies on a loadout whose only gun is %s", (type) => {
-    expect(missionsMissingRequirements([destroyMission("p2")], armedWith(type))).toEqual([]);
-  });
+  it.each(WEAPON_SUBSYSTEM_TYPES)(
+    "a Destroy card flies on a loadout whose only gun is %s",
+    (type) => {
+      expect(missionsMissingRequirements([destroyMission("p2")], armedWith(type))).toEqual([]);
+    }
+  );
 
   it("reports which of a requirement's tiles are aboard, for the loadout screen", () => {
     expect(missionRequirementStatus("destroy_ship", GUNSHIP)).toEqual([
@@ -342,7 +349,9 @@ describe("setup: a kept card the loadout can never fly", () => {
         missionIds: hand.map((m) => m.id),
       });
       expect(result.error).toBeUndefined();
-      expect(getPlayer(result.state, "p1").missions.map((m) => m.id)).toEqual(hand.map((m) => m.id));
+      expect(getPlayer(result.state, "p1").missions.map((m) => m.id)).toEqual(
+        hand.map((m) => m.id)
+      );
     }
   });
 
@@ -433,11 +442,51 @@ describe("loadout: validation and instantiation", () => {
 });
 
 describe("deployment", () => {
-  it("offers every sector of Black Hole Ring 4", () => {
+  it("offers every sector of Black Hole Rings 3 and 4", () => {
     const positions = deploymentPositions();
-    expect(positions).toHaveLength(24);
-    expect(positions.every((p) => p.ring === HOME_RING && p.wellId === BH)).toBe(true);
+    expect(positions).toHaveLength(48);
+    expect(positions.every((p) => p.wellId === BH)).toBe(true);
+    expect(new Set(positions.map((p) => p.ring))).toEqual(new Set([3, 4]));
+    expect(new Set(positions.filter((p) => p.ring === 3).map((p) => p.sector)).size).toBe(24);
     expect(getAvailableDeploymentSectors(readyToDeploy())).toHaveLength(24);
+  });
+
+  it("keeps a placement three sectors clear of every placed ship, on either ring", () => {
+    const placed = [{ wellId: BH, ring: HOME_RING, sector: 0 }];
+    const legal = legalDeploymentsAgainst(placed);
+    // Both rings stay open, but not near the ship: ring 3 sector 0 is its neighbour.
+    for (const ring of [3, 4]) {
+      for (const sector of [0, 1, 2, 22, 23]) {
+        expect(legal).not.toContainEqual({ wellId: BH, ring, sector });
+      }
+      expect(legal).toContainEqual({ wellId: BH, ring, sector: 3 });
+      expect(legal).toContainEqual({ wellId: BH, ring, sector: 21 });
+    }
+    expect(legal).toHaveLength(2 * (24 - 5));
+  });
+
+  it("falls back to the clearest sectors when six ships leave none three clear", () => {
+    // Ships every four sectors: every free sector is within two of one of them.
+    const placed = [0, 4, 8, 12, 16, 20].map((sector) => ({ wellId: BH, ring: HOME_RING, sector }));
+    const legal = legalDeploymentsAgainst(placed);
+    expect(legal.length).toBeGreaterThan(0);
+    const clearance = (sector: number) =>
+      Math.min(
+        ...placed.map((p) => Math.min((sector - p.sector + 24) % 24, (p.sector - sector + 24) % 24))
+      );
+    expect(legal.every((p) => clearance(p.sector) === 2)).toBe(true);
+    expect(legalDeploymentsAgainst([]).length).toBe(48);
+  });
+
+  it("refuses a ring that is not a deployment ring, and a sector too close to a placed ship", () => {
+    const state = deployShip(readyToDeploy(), "p2", 5).state; // p1 places next
+    expect(deployShip(state, "p1", 5, 5).success).toBe(false); // black hole ring 5
+    expect(deployShip(state, "p1", 5, 2).success).toBe(false);
+    expect(deployShip(state, "p1", 7).success).toBe(false); // two sectors away
+    expect(deployShip(state, "p1", 5, 3).success).toBe(false); // the other ring, same sector
+    const ok = deployShip(state, "p1", 8, 3); // three away, on the inner ring
+    expect(ok.success).toBe(true);
+    expect(getPlayer(ok.state, "p1").home).toEqual({ wellId: BH, ring: 3, sector: 8 });
   });
 
   it("places the ship facing prograde and plants the Home marker there", () => {
@@ -469,7 +518,7 @@ describe("deployment", () => {
     });
     const afterP2 = deployShip(state, "p2", 0).state;
     expect(deployShip(afterP2, "p2", 1).error).toMatch(/already deployed/i);
-    expect(deployShip(afterP2, "p1", 23).success).toBe(true);
+    expect(deployShip(afterP2, "p1", 12).success).toBe(true);
   });
 
   it.each([

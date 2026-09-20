@@ -40,7 +40,7 @@ information.
 |--------|------|------|----------|
 | GET | `/api/games/:gameId` | — | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat) |
 | POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance }` | `{ view }` or `400 { error }` |
-| POST | `/api/games/:gameId/deploy` | `{ wellId: string, sector: number }` | `{ view }` or `400 { error }` |
+| POST | `/api/games/:gameId/deploy` | `{ ring: 3 \| 4, sector: number }` | `{ view }` or `400 { error }`. Black Hole ring 3 or ring 4, at least three sectors from every ship already placed (if no position is that clear, the clearest ones are legal instead); the position becomes the player's Home |
 | POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` | `{ ok, errors?, events? }` — dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn |
 | GET | `/api/games/:gameId/chat` | — | `{ messages: ChatMessage[] }` — table talk, oldest first |
 | POST | `/api/games/:gameId/chat` | `{ text, kind?: "say" \| "think" }` | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning, shown to humans, not fed to other agents |

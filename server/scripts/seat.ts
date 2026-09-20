@@ -13,7 +13,7 @@
  *   yarn seat try --as Codex --intent '{...}'     build + dry-run a turn: errors or the events it would cause
  *   yarn seat act --as Codex --intent '{...}'    build, dry-run, submit (an illegal turn is refused, nothing is sent)
  *   yarn seat loadout --as Codex --forward railgun --sides missiles,radiator,laser,shields --missions m1,m2,m3
- *   yarn seat deploy --as Codex --sector 6
+ *   yarn seat deploy --as Codex --sector 6 [--ring 3|4]   (ring 4 unless asked; no --sector prints the rule and the legal positions)
  *   yarn seat rules                               the full RULES.md
  *   yarn seat say --as Codex "text" / think "text" / chat
  *   yarn seat wait --as Codex [--timeout 600]     hold a socket open until it is your turn, then print the view
@@ -51,16 +51,21 @@ import {
   AGENT_INTENT_GUIDE,
   agentRulesDigest,
   BOT_LOADOUT_TEMPLATES,
+  DEPLOYMENT_GAP,
   EITHER_SLOT_SUBSYSTEMS,
   FORWARD_SLOT_SUBSYSTEMS,
+  HOME_RING,
+  HOME_RINGS,
   SIDE_SLOT_SUBSYSTEMS,
   WEAPON_SUBSYSTEM_TYPES,
   buildTurn,
   describeEvent,
   describeMission,
   describeViewForAgent,
+  legalDeploymentsAgainst,
   missionPoints,
   missionRequirements,
+  placedShipPositions,
   seatOptions,
   type TurnIntent,
 } from "@dangerous-inclinations/engine";
@@ -349,16 +354,23 @@ Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "mis
 function deployPrompt(view: GameView): string {
   const taken = view.players
     .filter((p) => p.hasDeployed && p.ship)
-    .map((p) => `${p.name} S${p.ship!.sector}`);
-  return `DEPLOYMENT PHASE. Place your ship on Black Hole Ring 4 (drifts 2 sectors a turn; a soft burn outward reaches ring 5, the lane ring). Lanes out of the black hole leave from ring 5 sectors 0-3 (to Beta), 8-11 (to Gamma), 16-19 (to Alpha). Taken sectors: ${taken.join(", ") || "none"}. Your sector becomes your Home (where you respawn).
-Reply with ONE JSON object: {"think": "...", "say": "...", "sector": <0-23>}`;
+    .map((p) => `${p.name} R${p.ship!.ring} S${p.ship!.sector}`);
+  const legal = legalDeploymentsAgainst(placedShipPositions(view));
+  const legalLines = HOME_RINGS.map((ring) => {
+    const sectors = legal.filter((p) => p.ring === ring).map((p) => p.sector);
+    return `  ring ${ring}: ${sectors.length > 0 ? sectors.join(", ") : "nothing legal"}`;
+  }).join("\n");
+  return `DEPLOYMENT PHASE. Place your ship on Black Hole ring 3 or ring 4, at least ${DEPLOYMENT_GAP} sectors from every ship already placed (if the board is too crowded for that, the clearest positions left are the legal ones). Ring 3 drifts 4 sectors a turn; ring 4 drifts 2 and a soft burn outward from it reaches ring 5, the lane ring. Lanes out of the black hole leave from ring 5 sectors 0-3 (to Beta), 8-11 (to Gamma), 16-19 (to Alpha). Already placed: ${taken.join(", ") || "nobody"}. Your ring and sector become your Home (where you respawn).
+Legal positions:
+${legalLines}
+Reply with ONE JSON object: {"think": "...", "say": "...", "ring": <${HOME_RINGS.join(" or ")}>, "sector": <0-23>}`;
 }
 
 async function submitLoadout(loadout: ShipLoadout, missionIds: string[]): Promise<void> {
   await http("POST", `/api/games/${needGame()}/loadout`, { loadout, missionIds });
 }
-async function submitDeploy(sector: number): Promise<void> {
-  await http("POST", `/api/games/${needGame()}/deploy`, { sector });
+async function submitDeploy(sector: number, ring: number): Promise<void> {
+  await http("POST", `/api/games/${needGame()}/deploy`, { ring, sector });
 }
 
 // ---------------------------------------------------------------------------
@@ -625,7 +637,9 @@ async function driveDeploy(payload: ViewPayload, drv: Driver, quietThink: boolea
   let error: string | undefined;
   for (let attempt = 1; ; attempt++) {
     const prompt = `${agentRulesDigest()}\n\n${deployPrompt(view)}${
-      error ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Pick a free sector 0-23.` : ""
+      error
+        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Pick one of the legal positions above.`
+        : ""
     }`;
     const { answer } = askModel(prompt, drv);
     transcript(`DEPLOY ANSWER attempt ${attempt}\n${JSON.stringify(answer)}`);
@@ -634,8 +648,15 @@ async function driveDeploy(payload: ViewPayload, drv: Driver, quietThink: boolea
       error = "the answer needs a numeric sector";
       continue;
     }
+    // A ring the answer leaves out is the outer one, which is where everyone
+    // used to start; a ring that is not a deployment ring is a rejected answer.
+    const ring = answer.ring === undefined ? HOME_RING : Math.round(Number(answer.ring));
+    if (!(HOME_RINGS as readonly number[]).includes(ring)) {
+      error = `ring ${String(answer.ring)} is not a deployment ring (${HOME_RINGS.join(" or ")})`;
+      continue;
+    }
     try {
-      await submitDeploy(Math.round(answer.sector));
+      await submitDeploy(Math.round(answer.sector), ring);
     } catch (e) {
       error = (e as Error).message;
       log(`deploy attempt ${attempt} rejected: ${error}`);
@@ -1166,9 +1187,16 @@ async function main(): Promise<void> {
       return;
     }
     case "deploy": {
-      const sector = Number(flag("sector") ?? die("--sector <n>"));
-      await submitDeploy(sector);
-      console.log(`deployed at Black Hole R4 S${sector}`);
+      if (!flag("sector")) {
+        console.log(deployPrompt((await getView()).view));
+        return;
+      }
+      const sector = Number(flag("sector"));
+      const ring = Number(flag("ring") ?? HOME_RING);
+      if (!(HOME_RINGS as readonly number[]).includes(ring))
+        die(`--ring must be ${HOME_RINGS.join(" or ")}`);
+      await submitDeploy(sector, ring);
+      console.log(`deployed at Black Hole R${ring} S${sector}`);
       return;
     }
     case "say":
