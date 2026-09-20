@@ -91,9 +91,9 @@ const PRIMARY_START_URGENCY = 1;
  *
  * The card hands in {@link TANKER_FUEL} on arrival, so the tank has to hold
  * that much when the ship makes port and the approach has to be paid for out
- * of what is left. Two is a soft burn and a phase — the estimate the goals are
- * ranked with counts turns, not fuel, so this is the margin rather than a
- * prediction.
+ * of what is left. One is a phase on the final burn — the estimate the goals
+ * are ranked with counts turns, not fuel, so this is a margin rather than a
+ * prediction; the reserve on the dock plan does the real accounting.
  */
 const TANKER_APPROACH_FUEL = 1;
 /**
