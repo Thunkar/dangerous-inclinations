@@ -104,16 +104,10 @@ export function MissionCard({
   const progress = cargo ? missionProgress(mission, cargo) : null
   const unmet = requires?.some(r => !r.met) ?? false
   const outline = selected ? (unmet ? TABLE.heat : TABLE.accent) : null
-  // Face up, behind the screen, or still on offer at the shipyard.
-  const state = done
-    ? 'face up'
-    : held
-      ? 'in hand'
-      : onClick
-        ? selected
-          ? 'kept'
-          : 'offered'
-        : null
+  // Face up, behind the screen, or kept at the shipyard. A card nobody has
+  // done anything with yet says nothing: the offer is the screen it is on.
+  const state = done ? 'face up' : held ? 'in hand' : selected ? 'kept' : null
+  const needs = requires && requires.length > 0
   const art = compact ? ART.fan : ART.full
   const bandThickness = BAND_THICKNESS(art.glyph, art.margin)
 
@@ -276,59 +270,59 @@ export function MissionCard({
         )}
       </Box>
 
-      {/* A black bar at the foot: where the card stands, and what it needs. */}
-      <Box
-        sx={{
-          mt: 'auto',
-          flexShrink: 0,
-          bgcolor: INK,
-          color: PAPER,
-          px: compact ? '5px' : 1,
-          py: compact ? '2px' : '4px',
-        }}
-      >
+      {/* A black bar at the foot, and only when there is something to put in
+          it: where the card stands, and what it needs aboard. A card that is
+          merely on offer says nothing — the screen it is on says that. */}
+      {(state || needs) && (
         <Box
           sx={{
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            gap: 0.5,
+            mt: 'auto',
+            flexShrink: 0,
+            bgcolor: INK,
+            color: PAPER,
+            px: compact ? '5px' : 1,
+            py: compact ? '2px' : '4px',
           }}
         >
-          <Typography
-            sx={{
-              fontFamily: FONT_MONO,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.14em',
-              lineHeight: 1.5,
-              fontSize: compact ? '0.5rem' : '0.58rem',
-              color: done ? TABLE.success : selected ? TABLE.accent : PAPER,
-            }}
-          >
-            {state}
-          </Typography>
-          {/* The serial, where a printed card carries it: the foot. */}
-          <Typography
-            sx={{
-              fontFamily: FONT_MONO,
-              letterSpacing: '0.1em',
-              lineHeight: 1.5,
-              fontSize: compact ? '0.46rem' : '0.54rem',
-              color: 'rgba(233,223,199,0.55)',
-            }}
-          >
-            {MISSION_CODE[mission.type]}
-          </Typography>
-        </Box>
-        {requires && requires.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mt: 0.4, mb: 0.2 }}>
-            {requires.map(r => (
-              <RequirementChip key={r.requirement.label} status={r} />
-            ))}
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+            {state && (
+              <Typography
+                sx={{
+                  fontFamily: FONT_MONO,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  lineHeight: 1.5,
+                  fontSize: compact ? '0.5rem' : '0.58rem',
+                  color: done ? TABLE.success : selected ? TABLE.accent : PAPER,
+                }}
+              >
+                {state}
+              </Typography>
+            )}
+            {/* The serial, where a printed card carries it: the foot. */}
+            <Typography
+              sx={{
+                ml: 'auto',
+                fontFamily: FONT_MONO,
+                letterSpacing: '0.1em',
+                lineHeight: 1.5,
+                fontSize: compact ? '0.46rem' : '0.54rem',
+                color: 'rgba(233,223,199,0.55)',
+              }}
+            >
+              {MISSION_CODE[mission.type]}
+            </Typography>
           </Box>
-        )}
-      </Box>
+          {needs && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mt: 0.4, mb: 0.2 }}>
+              {requires.map(r => (
+                <RequirementChip key={r.requirement.label} status={r} />
+              ))}
+            </Box>
+          )}
+        </Box>
+      )}
     </Box>
   )
 }
