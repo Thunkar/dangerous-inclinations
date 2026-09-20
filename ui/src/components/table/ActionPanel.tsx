@@ -95,7 +95,7 @@ export function ActionPanel() {
                 ? `${winner} wins.`
                 : 'The game has ended.'
               : readOnly
-                ? `You are looking at this table from ${me.name}'s seat. Nothing here can be played.`
+                ? 'Nothing here can be played.'
                 : sittingOut
                   ? 'Your ship is lost. You return to Home this turn with a full hull and tank and drift; nobody can touch you until your next turn.'
                   : isAnimating
@@ -549,8 +549,8 @@ function MoveControls({ disabled }: { disabled: boolean }) {
 
       {move.kind === 'coast' && plan.moored && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
-          Moored: no drift of your own — the station carries you 4 sectors at the end of the round.
-          You docked on arrival; holding the berth repairs nothing more. Burn to cast off.
+          The station carries you 4 sectors at the end of the round, and holding the berth repairs
+          nothing more — the dock happened on arrival.
         </Typography>
       )}
 
@@ -638,9 +638,8 @@ function MoveControls({ disabled }: { disabled: boolean }) {
           />
           <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
             Engines at {WELL_TRANSFER_COSTS.energy}, {jumpFuel} fuel
-            {compressor ? " (the compressor pays two of the jump's three fuel, never the phasing)" : ''}. A jump is
-            your whole move: no drift. Phasing shifts where you land for 1 fuel a sector, never
-            outside the arrival arc.
+            {compressor ? " (the compressor pays two of the jump's three fuel, never the phasing)" : ''}. Phasing
+            never lands you outside the arrival arc.
           </Typography>
         </Box>
       )}

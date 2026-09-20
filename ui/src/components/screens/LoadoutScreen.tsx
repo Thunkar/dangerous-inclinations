@@ -248,13 +248,13 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         offers.filter(m => isPrimaryType(m.type)),
         PRIMARIES_PER_PLAYER,
         'Primary mission',
-        `Worth 2 of the ${view.pointsToWin} that win. Keep one — the loadout you build should suit it.`
+        `Worth 2 of the ${view.pointsToWin} points to win — fit a ship that can fly it.`
       )}
       {pile(
         offers.filter(m => !isPrimaryType(m.type)),
         SECONDARIES_PER_PLAYER,
         'Secondary missions',
-        'Worth 1 each. Keep two different things to do: one of them finishes the win, the other is your spare.'
+        'Worth 1 each, and they must be of different kinds — the second is your spare.'
       )}
       {offers.length === 0 && (
         <Typography color="text.secondary">Waiting for the mission deal…</Typography>
@@ -284,7 +284,6 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
     >
       <Header
         title="Shipyard"
-        subtitle="Choose your missions. Fit your systems. Make it yours."
         right={
           <>
             <Button onClick={() => setTalk(true)}>Table talk</Button>
@@ -333,11 +332,8 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
           }}
         >
           <Box sx={{ px: 2.5, pt: 2.5, pb: 2 }}>
-            <Typography variant="overline" color="text.secondary">
-              Vessel configuration
-            </Typography>
             <Typography variant="h5" sx={{ mt: 0.5 }}>
-              Make it your own.
+              Vessel configuration{' '}
             </Typography>
           </Box>
           <Tabs

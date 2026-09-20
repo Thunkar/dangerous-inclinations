@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState } from 'react'
-import { Box, Button, CircularProgress, Typography } from '@mui/material'
+import { Box, Button, CircularProgress } from '@mui/material'
 import { useBoardMode } from '../context/BoardModeContext'
 import { TABLE, FONT_MONO } from '../theme'
 import type { MountId, WorkshopConfig } from './config'
@@ -81,14 +81,6 @@ export function ShipStage({
             The 3D preview is unavailable. Select a mount in Systems to fit your ship.
           </Box>
         )}
-      </Box>
-      <Box sx={{ position: 'absolute', top: 24, left: 24, pointerEvents: 'none' }}>
-        <Typography variant="overline" sx={{ color: TABLE.accent }}>
-          Modular corvette
-        </Typography>
-        <Typography variant="h4" sx={{ mt: 0.5, fontWeight: 450 }}>
-          Built for the burn.
-        </Typography>
       </Box>
       {canRender3d && (
         <Box

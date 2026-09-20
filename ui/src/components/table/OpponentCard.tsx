@@ -233,7 +233,7 @@ export function OpponentCard({
             />
           </Box>
           {/* Fuel is public: the cubes sit on the loadout (RULES §Hidden information). */}
-          <Tooltip title={`Fuel aboard: ${ship?.fuel ?? 0}. Everyone can count it.`}>
+          <Tooltip title="Fuel is public: everyone can count it.">
             <Typography
               sx={{
                 fontFamily: FONT_MONO,

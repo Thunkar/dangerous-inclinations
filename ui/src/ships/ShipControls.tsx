@@ -115,7 +115,7 @@ export function SystemControls({
   return (
     <>
       <Typography variant="overline" color="text.secondary">
-        01 / Mission profile
+        01 / Mission profile (presets)
       </Typography>
       {/*
         Two decisions, not six loadouts. What the forward slot is for is the plan
@@ -125,7 +125,7 @@ export function SystemControls({
         button names its own choice.
       */}
       <ArchetypeChoice
-        label="Primary · what the nose is for"
+        label="Primary role"
         options={BOT_ROLES}
         value={archetype?.role ?? null}
         describe={role => ROLE_NOTE[role]}
@@ -133,7 +133,7 @@ export function SystemControls({
         disabled={disabled}
       />
       <ArchetypeChoice
-        label="Secondary · how the sides are spent"
+        label="Secondary role"
         options={HULL_VARIANTS}
         value={archetype?.variant ?? null}
         describe={variant => VARIANT_NOTE[variant]}
@@ -216,6 +216,7 @@ export function SystemControls({
             disabled={disabled}
             aria-pressed={type === current}
             aria-label={`Fit ${getSubsystemConfig(type).name}`}
+            title={MODULE_NOTES[type]}
             variant="outlined"
             onClick={() => onChange(setModule(config, selected, type).loadout)}
             sx={{

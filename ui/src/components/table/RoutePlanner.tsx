@@ -489,7 +489,7 @@ function DestinationRow({
 
   if (!dest) {
     return (
-      <Tooltip title="Pick a sector. The planner lays out the turns and offers you the first.">
+      <Tooltip title="The planner lays out the turns it takes and offers you the first.">
         <Button
           fullWidth
           size="small"

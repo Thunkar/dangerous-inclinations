@@ -2,11 +2,11 @@
  * A recording on the table, with the transport that walks it.
  *
  * The seat picker, the turn slider and the speed control are the same
- * whatever produced the recording: `ReplayScreen` fetches one from the
- * server, the showcase page generates one in the browser, and both render it
- * here through `ReplayGameProvider` — so a change to the transport is made
- * once. Anything a caller needs next to the seat picker (fork, back) comes in
- * through `headerExtras`, which is handed the turn being shown.
+ * whatever produced the recording: `ReplayScreen` fetches one from the server
+ * and renders it here through `ReplayGameProvider` — so a change to the
+ * transport is made once. Anything a caller needs next to the seat picker
+ * (fork, back) comes in through `headerExtras`, which is handed the turn
+ * being shown.
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { Box, IconButton, MenuItem, Paper, Select, Slider, Typography } from '@mui/material'

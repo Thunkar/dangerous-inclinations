@@ -152,8 +152,8 @@ export function TableScreen({
           <Tooltip
             title={
               view.me
-                ? `You are looking at this table from ${view.me.name}'s seat. Nothing here can be played.`
-                : 'You have no ship at this table. Everything shown is public information.'
+                ? 'Nothing here can be played.'
+                : 'Everything shown here is public information.'
             }
           >
             <Chip
@@ -168,17 +168,6 @@ export function TableScreen({
               }}
             />
           </Tooltip>
-        )}
-        {/* The replay bar brings its own chrome: the reminder gives way to it. */}
-        {!readOnly && (
-          <Typography
-            variant="caption"
-            sx={{ color: TABLE.inkFaint, flexShrink: 1, minWidth: 0 }}
-            noWrap
-          >
-            {view.pointsToWin} points end the round · highest score wins · Destroy, Deliver and
-            Intercept score 2
-          </Typography>
         )}
         {isAnimating && (
           <Tooltip title="Skip to the end of this turn">

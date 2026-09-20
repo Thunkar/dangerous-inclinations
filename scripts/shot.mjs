@@ -1,16 +1,17 @@
 /**
  * Drive the running app and photograph it. Not a test: a way to see a change.
  *   node scripts/shot.mjs <url-path> <out.png> [waitMs]
- * The dev server must be up (`yarn dev`); `?showcase=1` plays a bot game in the
- * browser with no server behind it, which is how board work is checked.
+ * The dev server must be up (`yarn dev`). There is no canned page any more —
+ * the `?showcase=1` bot game was removed — so a board is photographed at a
+ * real table.
  *
- * `PLAYER_ID=<id>` seats the browser at a real table: the app reads the viewer
- * off `localStorage.playerId`, so this with `/?game=<id>` is the only way to
- * photograph the turn column, the plan and the transport.
+ * `PLAYER_ID=<id>` seats the browser at one: the app reads the viewer off
+ * `localStorage.playerId`, so that with `/?game=<id>` is how the board, the
+ * turn column, the plan and the transport are photographed.
  */
 import { chromium } from 'playwright'
 
-const [path = '/?showcase=1&seed=7&turns=30&board=2d', out = 'shot.png', wait = '6000'] =
+const [path = '/', out = 'shot.png', wait = '6000'] =
   process.argv.slice(2)
 const base = process.env.UI_URL ?? 'http://localhost:5173'
 const playerId = process.env.PLAYER_ID

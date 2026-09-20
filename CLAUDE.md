@@ -132,7 +132,7 @@ yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak ch
 yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural, baselines, logical, illogical, off-book, extreme; flags
 yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
-node scripts/shot.mjs '/?showcase=1&seed=7&board=2d' shot.png   # photograph the running UI (needs `yarn dev`)
+node scripts/shot.mjs '/' shot.png                    # photograph the running UI (needs `yarn dev`; PLAYER_ID + ?game=<id> for a seat)
 ```
 
 Arena (`yarn seat help`, and the header of `server/scripts/seat.ts`): agents
@@ -193,13 +193,15 @@ in the settled list below and in the commit that removed it.
 
 The batch runner and the sim CLI are not exported from the engine's browser
 barrel (they use worker threads); use `yarn sim`. A single headless game
-(`runGame`, `setupBotGame`) is pure and is exported, because the UI's
-`?showcase=1` page builds its canned game with it in the browser.
+(`runGame`, `setupBotGame`) is pure and is exported, so a browser page can
+build a canned game with it (the showcase page that did was removed on 20 Sept
+2026; `ui/dev-three.html` renders the 3D board from a hand-made fixture).
 
 Seeing a change: `scripts/shot.mjs` drives the running app with Playwright and
 writes a PNG, reporting page errors and the text of the status block and turn
-log. `?showcase=1` needs no server; `?game=<id>` with `localStorage.playerId`
-set renders a real seat, which is the only way to see the turn column.
+log. `?game=<id>` with `localStorage.playerId` set renders a real seat; there
+is no server-less table page any more, so a screenshot means running the
+stack (docker compose, server, Vite) and creating a game over REST.
 
 ## The board has two renderers
 
@@ -217,8 +219,8 @@ its `start`/`duration`, and each renderer reads its own clock (`useBoardClock`
 for the flat board, `useFrame` for the 3D one). Nothing in the 3D scene may
 re-render per frame.
 
-`?showcase=1` plays a bot game generated in the browser with no server —
-`&seed=`, `&turns=`, `&seat=` — which is how board work is checked.
+`ui/dev-three.html` mounts the 3D board on a fixture with no server
+(`board/three/dev/fixtureModel.ts`), which is how board work is checked.
 
 ## Settled — do not re-propose without measuring
 

@@ -46,16 +46,17 @@ export const DEFAULT_CONFIG: WorkshopConfig = {
 }
 
 export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
-  railgun: 'Heavy paired rails with a narrow accelerator channel, coil jackets, and cooling lines.',
-  sensor_array: 'Four faceted sensor arrays, paired optics, and protected antenna elements.',
-  missiles: 'A four-cell silo cassette with exposed warhead noses and armored rims.',
-  laser: 'A compact broadside lens recessed into a short armored focusing collar.',
-  shields: 'Three exposed field coils in an open protective cage.',
-  radiator: 'Twin thin radiator panels with shallow coolant manifolds and exposed radiative faces.',
+  railgun: 'Bow gun, 4 damage up to 5 sectors ahead — For Sir Isaac Newton fans.',
+  sensor_array:
+    'Scans a rival tile within 3 sectors; crits on 8+ — We know what you did. From really far away.',
+  missiles: 'Salvo any number at one ship in the well; 4 aboard — 4 times the fun.',
+  laser: 'Side gun, 2 damage, ignores shields — Warning: do not point at cats. Or people in ships.',
+  shields: "Absorbs 1 damage per 2 cubes — For people who don't like to be touched.",
+  radiator: 'Passive: +2 heat dissipation at every check — Keep away from direct sunlight.',
   fuel_compressor:
-    'A squat transfer pump under a standoff stack of cooling fins, plumbed in copper to the hull.',
+    'Passive: a jump costs 1 fuel instead of 3 — The cheapest way to go on vacation.',
   ballistic_rack:
-    'An armored PDC turret with a traverse ring, elevation cradle, and short barrel cluster.',
+    '2 damage close in; powered, it rolls at every incoming missile — Definitely passive-aggressive',
 }
 
 export function moduleAt(config: WorkshopConfig, id: MountId): SubsystemType | null {

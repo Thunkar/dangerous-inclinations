@@ -142,7 +142,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
       </Select>
 
       {ammo > 1 && (
-        <Tooltip title="How many rounds go up in this one launch, all at that ship and that slot. Each missile costs the tile's cubes in heat.">
+        <Tooltip title="How many rounds go up in this one launch, all at that ship and that slot.">
           <Select
             size="small"
             value={Math.min(step.count, ammo)}

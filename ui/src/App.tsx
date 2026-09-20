@@ -1,11 +1,10 @@
 /**
  * App root: theme, identity, sockets, and which screen is on the table.
  *
- * Routing is four query flags rather than a router dependency:
+ * Routing is three query flags rather than a router dependency:
  *   ?recordings=1   the list of finished games
  *   ?replay=<id>    replay one of them
  *   ?game=<id>      drop straight into a live game (forks land here)
- *   ?showcase=1     a canned bot game on the board, no server needed (dev)
  *   (none)          lobby browser → lobby → game
  */
 import { useCallback, useEffect, useState } from 'react'
@@ -24,7 +23,6 @@ import { LoadoutScreen } from './components/screens/LoadoutScreen'
 import { DeploymentScreen } from './components/screens/DeploymentScreen'
 import { GameEndScreen } from './components/screens/GameEndScreen'
 import { ReplayScreen } from './components/screens/ReplayScreen'
-import { ShowcaseScreen } from './dev/ShowcaseScreen'
 import { RecordingsBrowser } from './components/screens/RecordingsBrowser'
 import { TableRoot } from './components/table/TableRoot'
 import { AbandonGameButton } from './components/AbandonGameButton'
@@ -38,11 +36,9 @@ type Route =
   | { kind: 'recordings' }
   | { kind: 'replay'; id: string }
   | { kind: 'game'; gameId: string }
-  | { kind: 'showcase' }
 
 function parseRoute(search: string): Route {
   const params = new URLSearchParams(search)
-  if (params.get('showcase') === '1') return { kind: 'showcase' }
   const replay = params.get('replay')
   if (replay) return { kind: 'replay', id: replay }
   if (params.get('recordings') === '1') return { kind: 'recordings' }
@@ -65,7 +61,6 @@ function useRoute(): { route: Route; goTo: (next: Route) => void } {
     if (next.kind === 'replay') params.set('replay', next.id)
     if (next.kind === 'recordings') params.set('recordings', '1')
     if (next.kind === 'game') params.set('game', next.gameId)
-    if (next.kind === 'showcase') params.set('showcase', '1')
     const search = params.toString()
     window.history.pushState(null, '', search ? `?${search}` : window.location.pathname)
     setRoute(next)
@@ -142,12 +137,18 @@ function PlayerNameSetup() {
           fullWidth
           label="Your name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && submit()}
           autoFocus
           sx={{ mb: 2 }}
         />
-        <Button fullWidth variant="contained" size="large" onClick={submit} disabled={!name.trim() || saving}>
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          onClick={submit}
+          disabled={!name.trim() || saving}
+        >
           {saving ? <CircularProgress size={22} color="inherit" /> : 'Sit down'}
         </Button>
       </Paper>
@@ -160,7 +161,13 @@ function PlayerNameSetup() {
 // ---------------------------------------------------------------------------
 
 /** Picks the screen for the game's phase. Perspective is always this player. */
-function GameScreens({ headerRight, onLeave }: { headerRight?: React.ReactNode; onLeave?: () => void }) {
+function GameScreens({
+  headerRight,
+  onLeave,
+}: {
+  headerRight?: React.ReactNode
+  onLeave?: () => void
+}) {
   const { view } = useGame()
 
   switch (view.phase) {
@@ -182,12 +189,20 @@ function GameScreens({ headerRight, onLeave }: { headerRight?: React.ReactNode; 
   }
 }
 
-function LiveGame({ gameId, headerRight, onLeave }: { gameId: string; headerRight?: React.ReactNode; onLeave?: () => void }) {
+function LiveGame({
+  gameId,
+  headerRight,
+  onLeave,
+}: {
+  gameId: string
+  headerRight?: React.ReactNode
+  onLeave?: () => void
+}) {
   return (
     <GameProvider
       gameId={gameId}
       fallback={<Loading message="Setting up the table…" />}
-      renderError={(message) => <Failure message={message} />}
+      renderError={message => <Failure message={message} />}
     >
       <GameScreens headerRight={headerRight} onLeave={onLeave} />
     </GameProvider>
@@ -210,7 +225,9 @@ function LobbyFlow({ onOpenRecordings }: { onOpenRecordings: () => void }) {
       return <LobbyScreen />
     case 'game':
       if (!gameId) return <Loading message="Waiting for the game to start…" />
-      return <LiveGame gameId={gameId} headerRight={<AbandonGameButton />} onLeave={returnToLobby} />
+      return (
+        <LiveGame gameId={gameId} headerRight={<AbandonGameButton />} onLeave={returnToLobby} />
+      )
   }
 }
 
@@ -219,7 +236,8 @@ function AuthenticatedApp({ onOpenRecordings }: { onOpenRecordings: () => void }
 
   if (isLoading) return <Loading message="Connecting to the server…" />
   // A transient failure keeps the saved seat: retry in place rather than reloading.
-  if (error) return <Failure message={error} onRetry={canRetry ? retry : () => window.location.reload()} />
+  if (error)
+    return <Failure message={error} onRetry={canRetry ? retry : () => window.location.reload()} />
   if (!isAuthenticated) return null
   if (isNewPlayer) return <PlayerNameSetup />
 
@@ -235,17 +253,16 @@ function AuthenticatedApp({ onOpenRecordings }: { onOpenRecordings: () => void }
 function RootRouter() {
   const { route, goTo } = useRoute()
 
-  // The showcase builds its own game: it sits outside the player and socket
-  // providers so it works with no server at all.
-  if (route.kind === 'showcase') return <ShowcaseScreen />
-
   if (route.kind === 'replay') {
     return <ReplayScreen recordingId={route.id} onExit={() => goTo({ kind: 'recordings' })} />
   }
 
   if (route.kind === 'recordings') {
     return (
-      <RecordingsBrowser onOpen={(id) => goTo({ kind: 'replay', id })} onExit={() => goTo({ kind: 'app' })} />
+      <RecordingsBrowser
+        onOpen={id => goTo({ kind: 'replay', id })}
+        onExit={() => goTo({ kind: 'app' })}
+      />
     )
   }
 
@@ -273,7 +290,7 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       {/* Which renderer draws the board is a preference of the whole app: a
-          replay, the showcase and a live table all read it. */}
+          replay and a live table both read it. */}
       <BoardModeProvider>
         <RootRouter />
       </BoardModeProvider>
