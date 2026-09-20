@@ -4,14 +4,13 @@
  * (GameProvider) takes over; this context only remembers which game it is.
  */
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
-import type { PointsToWin, ServerLobby, LobbySocketMessage } from '../api/types'
+import type { ServerLobby, LobbySocketMessage } from '../api/types'
 import {
   getLobby,
   leaveLobby,
   startGame as startGameAPI,
   addBot as addBotAPI,
   removeBot as removeBotAPI,
-  updateLobbySettings,
 } from '../api/lobby'
 import { MIN_PLAYERS } from '@dangerous-inclinations/engine'
 import { getPlayerStatus } from '../api/player'
@@ -31,8 +30,6 @@ interface LobbyContextType {
   joinLobby: (lobbyId: string) => void
   addBotToLobby: (botName?: string) => Promise<void>
   removeBotFromLobby: (botId: string) => Promise<void>
-  /** Host only: the points this table plays to, settled before the deal. */
-  setPointsToWin: (points: PointsToWin) => Promise<void>
   startGame: () => Promise<void>
   canStart: () => { canStart: boolean; reason?: string }
   leaveLobbyAction: () => Promise<void>
@@ -199,25 +196,6 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
     [currentLobbyId],
   )
 
-  const setPointsToWin = useCallback(
-    async (points: PointsToWin) => {
-      if (!currentLobbyId) return
-      // Optimistic: the server's LOBBY_STATE follows and is the truth.
-      setLobbyState((prev) => (prev ? { ...prev, pointsToWin: points } : prev))
-      try {
-        setLobbyState(await updateLobbySettings(currentLobbyId, { pointsToWin: points }))
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to change the points to win')
-        try {
-          setLobbyState(await getLobby(currentLobbyId))
-        } catch {
-          // The socket will put it right.
-        }
-      }
-    },
-    [currentLobbyId],
-  )
-
   const canStart = useCallback(() => {
     if (!lobbyState) return { canStart: false, reason: 'No lobby' }
     if (lobbyState.players.length < MIN_PLAYERS)
@@ -264,7 +242,6 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
         joinLobby: joinLobbyAction,
         addBotToLobby,
         removeBotFromLobby,
-        setPointsToWin,
         startGame,
         canStart,
         leaveLobbyAction,

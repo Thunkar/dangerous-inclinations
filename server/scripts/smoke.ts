@@ -14,10 +14,11 @@
  */
 import type { GameRecording } from "@dangerous-inclinations/engine";
 import {
-  DEFAULT_POINTS_TO_WIN,
   DEFAULT_SHIP_APPEARANCE,
   DEPLOYMENT_GAP,
   HOME_RINGS,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
   MISSIONS_PER_PLAYER,
   MISSION_OFFERS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
@@ -46,7 +47,7 @@ import { createGameService, type GameTransport } from "../src/services/gameServi
 import { checkStatusAccess } from "../src/services/playerService.ts";
 import { LoadoutSubmissionSchema, SubmitTurnSchema } from "../src/schemas/game.ts";
 import { CreatePlayerSchema } from "../src/schemas/player.ts";
-import { CreateLobbySchema, UpdateLobbySchema } from "../src/schemas/lobby.ts";
+import { CreateLobbySchema } from "../src/schemas/lobby.ts";
 import {
   broadcastViews as roomBroadcastViews,
   getConnectedPlayers,
@@ -448,22 +449,14 @@ check(
 );
 check(!CreatePlayerSchema.safeParse({ playerName: "X", agent: { driver: "claude" } }).success, "an agent without a model is rejected");
 
-// --- Table settings (the lobby agrees the points to win before the deal) -----
+// --- Table size (the seats are the only thing a lobby settles) ---------------
 const lobbyBody = { lobbyName: "Smoke", maxPlayers: 3 };
-const defaultedLobby = CreateLobbySchema.safeParse(lobbyBody);
-check(
-  defaultedLobby.success && defaultedLobby.data.pointsToWin === DEFAULT_POINTS_TO_WIN,
-  "a lobby created without a number plays to three",
-);
-for (const points of [3, 4]) {
-  const created = CreateLobbySchema.safeParse({ ...lobbyBody, pointsToWin: points });
-  check(created.success && created.data.pointsToWin === points, `a lobby may be created on ${points} points`);
-  check(UpdateLobbySchema.safeParse({ pointsToWin: points }).success, `the host may set the table to ${points} points`);
-}
-check(!UpdateLobbySchema.safeParse({}).success, "a settings change has to name the number it sets");
-for (const points of [2, 5, 3.5, "3", null]) {
-  check(!CreateLobbySchema.safeParse({ ...lobbyBody, pointsToWin: points }).success, `a lobby on ${points} points is refused`);
-  check(!UpdateLobbySchema.safeParse({ pointsToWin: points }).success, `setting the table to ${points} points is refused`);
+check(CreateLobbySchema.safeParse(lobbyBody).success, "a lobby may be created for a legal number of seats");
+for (const seats of [MIN_PLAYERS - 1, MAX_PLAYERS + 1, 3.5, "3", null]) {
+  check(
+    !CreateLobbySchema.safeParse({ ...lobbyBody, maxPlayers: seats }).success,
+    `a lobby of ${seats} seats is refused`,
+  );
 }
 
 // --- Forking (finished recordings only, and only a seat you may take) --------

@@ -24,15 +24,12 @@ lobby and its game view; `GET /api/lobbies` and `GET /api/lobbies/:id` list
 seats with their ids, `agent` and, once started, `gameId`. The seat CLI keeps
 nothing locally and resolves a seat from these.
 
-A lobby also carries `pointsToWin`, the one rule the table agrees before the
-deal (RULES §Missions): 3 or 4, and nothing else. `POST /api/lobbies` takes it
-optionally and defaults to 3; `PATCH /api/lobbies/:lobbyId` (host only, before
-the game starts) changes it and answers with the lobby, broadcasting
-`LOBBY_STATE` to the lobby room; every lobby payload returns it. On
-`POST /api/lobbies/:lobbyId/start` it is handed to `createGame`, from where it
-rides on `GameState.pointsToWin` and reaches every client as the public
-`GameView.pointsToWin` — the number the table is playing to is not hidden
-information.
+A lobby settles nothing but its name, its seats and its password: a game is
+played to `DEFAULT_POINTS_TO_WIN` and there is no table agreement to negotiate.
+The number still rides on `GameState.pointsToWin` and reaches every client as
+the public `GameView.pointsToWin` — what the table is playing to is not hidden
+information — and the simulator can still play a batch at another number
+(`--rules=missionsToWin=4`).
 
 ## REST (`/api/games`)
 

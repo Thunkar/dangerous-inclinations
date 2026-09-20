@@ -73,7 +73,7 @@ export function RulesButton() {
 }
 
 function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
-  // The number this table agreed on, not the game's default.
+  // The number this game is played to, read off the view.
   const { view } = useGame()
   const quick: Array<[string, string]> = [
     ['Reactor', `${REACTOR_CAPACITY} energy`],

@@ -2,16 +2,7 @@
  * The table before the game: who is sitting down, bots you have pulled up to
  * the empty seats, and the button that deals the cards.
  */
-import {
-  Alert,
-  Box,
-  Button,
-  IconButton,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, IconButton, Tooltip, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
 import PersonIcon from '@mui/icons-material/Person'
@@ -31,7 +22,6 @@ export function LobbyScreen() {
     lobbyState,
     addBotToLobby,
     removeBotFromLobby,
-    setPointsToWin,
     startGame,
     canStart,
     leaveLobbyAction,
@@ -131,37 +121,6 @@ export function LobbyScreen() {
               )}
             </Box>
           ))}
-        </Box>
-
-        {/*
-          The table's one agreement before the cards come out: three points, or
-          four with all three cards mandatory. Everyone sees it; the host sets it.
-        */}
-        <Box sx={{ mt: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Typography sx={{ color: TABLE.ink, fontWeight: 600 }}>Points to win</Typography>
-            <ToggleButtonGroup
-              exclusive
-              size="small"
-              value={lobbyState.pointsToWin}
-              disabled={!isHost}
-              onChange={(_event, value) => {
-                if (value === 3 || value === 4) setPointsToWin(value)
-              }}
-              aria-label="Points to win"
-            >
-              <ToggleButton value={3}>3</ToggleButton>
-              <ToggleButton value={4}>4</ToggleButton>
-            </ToggleButtonGroup>
-            {!isHost && (
-              <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-                the host sets this
-              </Typography>
-            )}
-          </Box>
-          <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mt: 0.5 }}>
-            3 — a primary and one secondary win (the second is your spare) · 4 — all three cards
-          </Typography>
         </Box>
 
         {error && (

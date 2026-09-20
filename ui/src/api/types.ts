@@ -52,8 +52,6 @@ export interface ServerLobby {
   lobbyName: string
   hasPassword: boolean
   maxPlayers: number
-  /** Points that will win this table's game: 3 or 4, agreed before the deal. */
-  pointsToWin: number
   players: LobbyPlayer[]
   hostPlayerId: string
   /** Set once the game has started. */
@@ -66,7 +64,6 @@ export interface LobbyListItem {
   lobbyName: string
   hasPassword: boolean
   maxPlayers: number
-  pointsToWin: number
   currentPlayers: number
   gameStarted: boolean
   createdAt: number
@@ -76,22 +73,12 @@ export interface CreateLobbyRequest {
   lobbyName: string
   password?: string
   maxPlayers: number
-  pointsToWin: PointsToWin
-}
-
-/** The two numbers a table may agree on (RULES §Missions). */
-export type PointsToWin = 3 | 4
-
-/** `PATCH /api/lobbies/:lobbyId` — settings the host may change before the deal. */
-export interface UpdateLobbyRequest {
-  pointsToWin: PointsToWin
 }
 
 export interface CreateLobbyResponse {
   lobbyId: string
   lobbyName: string
   maxPlayers: number
-  pointsToWin: number
   hostPlayerId: string
 }
 

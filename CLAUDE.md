@@ -52,8 +52,8 @@ loaded, ships are repaired and data is delivered.
 Loadout tiles (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
 Scanning peeks at one tile privately. Completed missions are face-up. Reaching
-the table's points (3 by default; the lobby may set 4, and the value rides on
-`GameState.pointsToWin` and the view) triggers the final round: the round is
+the table's points (3; the value rides on `GameState.pointsToWin` and the
+view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
 played out, then highest score wins (hull, then fuel, break ties). Six card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy —
 seize an undocked rival's crate or data chit, loot that fills the hold and
@@ -318,6 +318,10 @@ not an argument:
   rule: the round-two Intercept scan stays at 40% of kept either way — the
   interceptor moves into range on its first legal turn, it is not standing
   in it — so the gap stays at three.
+- **Four points as a table option.** Offered in the lobby for a day: 39–51
+  rounds by seat count against three points' 27, and the designer pulled it
+  as too long. The value still rides on the state and `--rules=missionsToWin=4`
+  still measures it.
 - **Criticals naming the forward tile first**, to break compressors: within
   noise, and the compressor hulls gained if anything (a broken compressor is
   repaired at the next dock, where that hull was going). **Shields stopping

@@ -2,7 +2,7 @@
 
 A game of orbital manoeuvre, heat management and hidden objectives for 2–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
 
-**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns — unless the table agrees on 4 before the deal, in which case all three of your cards have to come in. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the three secondary cards are worth 1 — so your primary and either of your secondary cards wins, and two secondary cards on their own do not.
+**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the three secondary cards are worth 1 — so your primary and either of your secondary cards wins, and two secondary cards on their own do not.
 
 ---
 
@@ -204,7 +204,7 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 ## Missions
 
-**Three points trigger the final round** — or four, if the table agrees so before the deal, which makes all three of your cards mandatory. Cards come in two kinds.
+**Three points trigger the final round.** Cards come in two kinds.
 
 **Primaries score two.** Destroy, Deliver, Intercept — the kill, the cargo run, the stolen transmission, one for each way of playing. Each names what it wants: a victim, a route, a station to file at. Yours is two thirds of the win on its own.
 
@@ -283,7 +283,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Hold             | one crate; data chits ride free                                                                                                                                       |
 | Ammo             | private while the missiles tile is face-down; public once it has fired                                                                                                |
 | Salvo            | one action launches any number of your missiles at one ship for the tile's 2 heat; a powered rack rolls at every missile that reaches it in a turn for its 2 heat     |
-| Win              | 3 points end the round — 4 if the table agreed so before the deal, making all three cards mandatory (primaries 2, secondaries 1); highest score, then hull, then fuel |
+| Win              | 3 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel                                                                            |
 | Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries — five points held, three win: the primary and either secondary                                                          |
 
 ### Turn cheat sheet
