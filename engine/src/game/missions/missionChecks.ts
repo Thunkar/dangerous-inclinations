@@ -36,19 +36,21 @@ function crateAboard(cargo: readonly Cargo[]): boolean {
 }
 
 /**
- * Piracy: a pirate that ends its turn in a loaded ship's sector takes the
- * crate (RULES §Missions).
+ * Piracy: a pirate that ends its turn in a loaded ship's sector takes what it
+ * carries — a crate or a data chit (RULES §Missions).
  *
  * The hold is the whole constraint — {@link CARGO_HOLD_CRATES} is one, so a
  * pirate with freight of its own takes nothing — and a moored ship is out of
- * it at both ends: a berth is not a place a crate changes hands. The victim's
- * crate is simply no longer aboard: a Deliver holder loads again at its pickup
- * station, and a pirate who has been pirated has to seize again.
+ * it at both ends: a berth is not a place cargo changes hands. A crate first
+ * when the mark carries both. What the victim loses goes back to undone: the
+ * item is off the hold, a Deliver holder loads again at its pickup station, a
+ * Survey dives again, an Intercept scans again, and a pirate who has been
+ * pirated has to seize again.
  *
- * `players` is written in place (the victim's hold); the pirate's own hold
- * comes back as `cargo` because the caller is already carrying it.
+ * `players` is written in place (the victim's hold and cards); the pirate's
+ * own hold comes back as `cargo` because the caller is already carrying it.
  */
-function seizeCrate(
+function seizeLoot(
   players: Player[],
   pirateIndex: number,
   mission: PiracyMission,
@@ -67,14 +69,25 @@ function seizeCrate(
     if (!victim.hasDeployed || isDestroyed(victim.ship)) continue;
     if (!samePosition(positionOf(victim.ship), positionOf(ship))) continue;
     if (isMooredAt(state.stations, positionOf(victim.ship))) continue;
-    const crate = victim.cargo.find((c) => c.kind === "crate" && c.isPickedUp);
-    if (!crate) continue;
+    const aboard = victim.cargo.filter((c) => c.isPickedUp);
+    const taken = aboard.find((c) => c.kind === "crate") ?? aboard.find((c) => c.kind === "data");
+    if (!taken) continue;
     players[victimIndex] = {
       ...victim,
-      cargo: victim.cargo.map((c) => (c.id === crate.id ? { ...c, isPickedUp: false } : c)),
+      cargo: victim.cargo.map((c) => (c.id === taken.id ? { ...c, isPickedUp: false } : c)),
+      // The card the item was doing goes back to undone. A Deliver keeps its
+      // crate to reload, so only the cards that remember having done the thing
+      // have anything to forget.
+      missions: victim.missions.map((m) => {
+        if (m.id !== taken.missionId || m.isCompleted) return m;
+        if (m.type === "survey") return { ...m, acquired: false };
+        if (m.type === "intercept_transmission") return { ...m, scanAcquired: false };
+        return m;
+      }),
     };
-    // The loot rides as the card's own crate, sold at any station. Seized
-    // before and lost since, it is the same crate coming back aboard.
+    // The loot rides as the card's own crate whatever was taken — it fills the
+    // hold and everyone can see it. Seized before and lost since, it is the
+    // same crate coming back aboard.
     const loot: Cargo = {
       id: mission.cargoId,
       missionId: mission.id,
@@ -91,7 +104,8 @@ function seizeCrate(
         type: "cargo_seized",
         pirateId: pirate.id,
         victimId: victim.id,
-        cargoId: crate.id,
+        kind: taken.kind,
+        cargoId: taken.id,
         at: positionOf(ship),
       },
     };
@@ -134,12 +148,12 @@ export function processMissionEvents(
   let cargo = player.cargo;
   let completed = 0;
 
-  // Seizures first: a crate taken this turn is aboard for the rest of it, so
+  // Seizures first: loot taken this turn is aboard for the rest of it, so
   // a second Piracy card in the same hand finds the hold full.
   let seized = false;
   for (const mission of player.missions) {
     if (mission.type !== "piracy" || mission.isCompleted) continue;
-    const taken = seizeCrate(players, index, mission, cargo, state);
+    const taken = seizeLoot(players, index, mission, cargo, state);
     if (!taken) continue;
     cargo = taken.cargo;
     events.push(taken.event);
@@ -175,16 +189,18 @@ export function processMissionEvents(
         if (!m.acquired) {
           if (secondaryDone(m, player)) {
             m = { ...m, acquired: true };
-            cargo = [
-              ...cargo,
-              {
-                id: m.dataCargoId,
-                missionId: m.id,
-                kind: "data",
-                deliveryPlanetId: m.deliveryPlanetId,
-                isPickedUp: true,
-              },
-            ];
+            // A chit a pirate took is still in the hold, un-picked: the dive
+            // that takes it again puts the same chit back aboard.
+            const chit: Cargo = {
+              id: m.dataCargoId,
+              missionId: m.id,
+              kind: "data",
+              deliveryPlanetId: m.deliveryPlanetId,
+              isPickedUp: true,
+            };
+            cargo = cargo.some((c) => c.id === chit.id)
+              ? cargo.map((c) => (c.id === chit.id ? chit : c))
+              : [...cargo, chit];
             events.push({
               type: "data_acquired",
               playerId,

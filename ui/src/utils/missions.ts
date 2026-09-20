@@ -65,12 +65,12 @@ export function missionProgress(
         ? 'Chit aboard — dock anywhere to file it'
         : 'End a turn on Black Hole R1'
     case 'piracy': {
-      // The loot rides as the card's own crate (engine `seizeCrate`), so the
+      // The loot rides as the card's own crate (engine `seizeLoot`), so the
       // hold answers whether the job is still to find a mark or to sell.
       const loot = cargo.find(c => c.missionId === mission.id)
       return loot?.isPickedUp
-        ? 'Sell the crate at any station'
-        : 'Find an undocked ship carrying a crate'
+        ? 'Sell the loot at any station'
+        : 'Find an undocked ship carrying a crate or a chit'
     }
     case 'tanker':
       return fuel === undefined

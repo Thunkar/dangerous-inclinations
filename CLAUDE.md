@@ -56,8 +56,9 @@ the table's points (3 by default; the lobby may set 4, and the value rides on
 `GameState.pointsToWin` and the view) triggers the final round: the round is
 played out, then highest score wins (hull, then fuel, break ties). Six card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy —
-seize an undocked rival's crate and sell it anywhere — and tanker — arrive at
-a station with six fuel and pump it in). Two physical decks for the table: rival cards count seats
+seize an undocked rival's crate or data chit, loot that fills the hold and
+sells anywhere, their card back to undone — and tanker — arrive at a station
+with eight fuel and pump it in). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
 is hunting whom; setup removes offsets the table is too small for. Deal 3
 primaries and keep 1; take one off each of the three secondary stacks and keep

@@ -108,7 +108,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['Survey', 'end a turn on Black Hole Ring 1 — take the chit — then dock at any station'],
     [
       'Piracy',
-      'end a turn in the same sector as an undocked ship carrying a crate: the crate is yours — sell it at any station',
+      'end a turn in the same sector as an undocked ship carrying a crate or a data chit: it is yours — the loot fills your hold and sells at any station, and their card goes back to undone',
     ],
     [
       'Tanker',

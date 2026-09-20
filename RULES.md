@@ -208,7 +208,7 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 **Primaries score two.** Destroy, Deliver, Intercept — the kill, the cargo run, the stolen transmission, one for each way of playing. Each names what it wants: a victim, a route, a station to file at. Yours is two thirds of the win on its own.
 
-**Secondary cards score one.** Survey, Piracy, Tanker. Each is a thing you do rather than a primary someone sets you: no tile aboard can do it for you. Survey pays a chit — take it the moment you dive, then file it at **any** station. Piracy pays in cargo: the crate you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card.
+**Secondary cards score one.** Survey, Piracy, Tanker. Each is a thing you do rather than a primary someone sets you: no tile aboard can do it for you. Survey pays a chit — take it the moment you dive, then file it at **any** station. Piracy pays in loot: the crate or chit you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card.
 
 **A hand is one primary and two secondaries** — two points and one and one, five on the table for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
 
@@ -218,8 +218,8 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 | **Deliver [A → B]**                                 | 2      | you dock at A (load the crate), then dock at B                                                                             |
 | **Intercept [Nth to your left] → file at [planet]** | 2      | you scan them (take the data chit), then dock at **that planet's** station                                                 |
 | **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1 — take the chit — then dock at **any** station to file it                              |
-| **Piracy**                                          | 1      | you end a turn in the **same sector** as an undocked ship carrying a crate: the crate is yours (your hold must be empty) — then dock at **any** station to sell it |
-| **Tanker**                                          | 1      | you **arrive** at **any** station with **6 or more fuel**: hand in 6, and the card is done                                  |
+| **Piracy**                                          | 1      | you end a turn in the **same sector** as an undocked ship carrying a crate or a data chit: it is yours (your hold must be empty; loot fills it) — then dock at **any** station to sell it. Their card goes back to undone |
+| **Tanker**                                          | 1      | you **arrive** at **any** station with **8 or more fuel**: hand in 8, and the card is done                                  |
 
 **The decks.** Two piles for the table, dealt separately.
 
@@ -233,7 +233,7 @@ So the primary mission is the luck of the draw and the two things you do yoursel
 
 **Cards count seats, they do not name them.** A Destroy card reads _the 2nd player to your left_ — counting left around the table in turn order — so the same card is a different target in every hand, no card can ever name the player holding it, and holding one tells the table nothing. The count only becomes a name when you complete the card and turn it face-up.
 
-**Your hold takes one crate.** A seized crate is a crate like any other, so a pirate carrying its own cargo route seizes nothing until the hold is empty — which is why Piracy suits a ship with nothing else to carry. A moored ship neither takes nor loses a crate. Destroyed with a crate aboard, it is lost: the Deliver holder loads another at the pickup planet, the pirate seizes another.
+**Your hold takes one crate.** Loot — a seized crate or a seized chit — fills the hold like a crate, so a pirate carrying its own cargo route seizes nothing until the hold is empty, which is why Piracy suits a ship with nothing else to carry, and loot can be seized in turn. A moored ship neither takes nor loses anything. Destroyed with a crate aboard, it is lost: the Deliver holder loads another at the pickup planet, the pirate seizes another.
 
 A crate fills it, so a second Deliver waits until the first is delivered — two routes that load at the same station are two trips, and the only pair that is one trip is a chain, where you drop at the station you collect the next one from. Data chits are numbers, not freight: a scan's transmission and a survey's readings ride free alongside whatever is in the hold, however many you carry.
 

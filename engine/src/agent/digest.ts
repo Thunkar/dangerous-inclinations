@@ -63,7 +63,7 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 with powered sensors). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat. Cubes on every slot are public even while the tile is face-down, so name a loaded slot. (A tile that just absorbed has spent its cubes, so breaking it dumps little — but it is gone until they dock.)
 - Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name — that means no move but a plain coast, no scoop, no shot, no scan and no shields powered. It is the only way back for a ship whose engines or thrusters were shot out, because every station needs a jump to reach.
 - Docking (end your turn on a station's sector, planet ring 2): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it — a coast does not drift, and the station carries you when it advances. Burn to cast off.
-- Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the chit, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate and the crate is yours, then sell it at ANY station — your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and it is pumped in automatically: hand in ${TANKER_FUEL}, the card is done.
+- Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the chit, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or a data chit and it is yours, then sell the loot at ANY station — a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and it is pumped in automatically: hand in ${TANKER_FUEL}, the card is done.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
 - Destroyed: you drop your cargo and lose one turn — on your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. Nobody can fire at, missile or scan it until your following turn, when you act normally.`;
 }
@@ -88,7 +88,7 @@ function missionLine(m: Mission, name: (id: string) => string): string {
     case "survey":
       return `${head} — ${m.acquired ? "chit aboard: dock at any station" : SECONDARY_HOW[m.type]}`;
     case "piracy":
-      return `${head} — end a turn in the sector of a ship carrying a crate (hold empty, neither of you moored), then sell it at ANY station`;
+      return `${head} — end a turn in the sector of a ship carrying a crate or a chit (hold empty, neither of you moored), then sell the loot at ANY station`;
     case "tanker":
       return `${head} — arrive at any station with ${TANKER_FUEL}+ fuel and it is pumped in`;
     case "destroy_ship":

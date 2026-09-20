@@ -2,7 +2,7 @@
  * Destruction and respawn.
  *
  * When a ship is destroyed it drops its cargo: crates return to their origin
- * station (they must be picked up again), data is lost, and a seized crate —
+ * station (they must be picked up again), data is lost, and seized loot —
  * which has no origin — is simply gone, to be taken again. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
  * occupied) fully repaired and refuelled, drifts with its ring like anything

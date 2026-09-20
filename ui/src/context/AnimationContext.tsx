@@ -809,8 +809,13 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           case 'cargo_delivered':
             return BEAT.small
           case 'cargo_seized':
-            mark(event.victimId, 'CRATE SEIZED', 'heat', { at: event.at })
-            mark(event.pirateId, '+CRATE', 'good', { at: event.at })
+            mark(
+              event.victimId,
+              event.kind === 'data' ? 'CHIT SEIZED' : 'CRATE SEIZED',
+              'heat',
+              { at: event.at }
+            )
+            mark(event.pirateId, '+LOOT', 'good', { at: event.at })
             return BEAT.resolve
           case 'fuel_sold':
             mark(event.playerId, `SOLD ${event.amount} FUEL`, 'good')

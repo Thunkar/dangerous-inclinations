@@ -3,6 +3,7 @@
  */
 import type { GameEvent } from "../models/events.ts";
 import type { Mission, MissionRequirement } from "../models/missions.ts";
+import { TANKER_FUEL } from "../models/missions.ts";
 import type { Position } from "../models/game.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { getWellName } from "../models/gravityWells.ts";
@@ -28,9 +29,9 @@ export function describeMission(m: Mission, name: NameResolver): string {
     case "survey":
       return "Survey the Event Horizon";
     case "piracy":
-      return "Seize a crate and sell it";
+      return "Seize cargo and sell it";
     case "tanker":
-      return "Pump six fuel into a station";
+      return `Pump ${TANKER_FUEL} fuel into a station`;
   }
 }
 
@@ -132,7 +133,9 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "cargo_delivered":
       return `${name(e.playerId)} delivers ${e.kind} at ${getWellName(e.planetId)}`;
     case "cargo_seized":
-      return `${name(e.pirateId)} seizes ${name(e.victimId)}'s crate at ${pos(e.at)}`;
+      return `${name(e.pirateId)} seizes ${name(e.victimId)}'s ${
+        e.kind === "data" ? "data chit" : "crate"
+      } at ${pos(e.at)}`;
     case "fuel_sold":
       return `${name(e.playerId)} pumps ${e.amount} fuel into ${getWellName(e.planetId)}'s station`;
     case "cargo_dropped": {

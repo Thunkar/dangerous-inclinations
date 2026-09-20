@@ -260,6 +260,15 @@ describe("bot goals: piracy and tanker", () => {
     });
   });
 
+  it("counts a chit as loot: a ship carrying only data is prey", () => {
+    const card = piracyMission();
+    const state = table([card]);
+    const chitOnly = withPlayer(state, "p2", {
+      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, kind: "data" as const })),
+    });
+    expect(goalFor(chitOnly, card.id)).toMatchObject({ type: "pirate", targetPlayerId: "p2" });
+  });
+
   it("has nobody to chase while every hold at the table is empty", () => {
     const card = piracyMission();
     const state = table([card]);
@@ -286,22 +295,22 @@ describe("bot goals: piracy and tanker", () => {
   });
 
   it.each([
-    ["too little to arrive with six", TANKER_FUEL - 1, "tanker"],
-    ["enough to arrive with six", MAX_REACTION_MASS, "dock"],
+    ["too little to arrive with the fuel", TANKER_FUEL - 1, "tanker"],
+    ["enough to arrive with the fuel", MAX_REACTION_MASS, "dock"],
   ])("a tanker with %s heads for the %s", (_label, reactionMass, type) => {
     const card = tankerMission();
     const state = withShip(table([card]), "p1", { reactionMass });
     expect(goalFor(state, card.id)).toMatchObject({ type });
   });
 
-  // The pumping happens on any arrival with six aboard, so while the two-point
-  // card somebody else set the seat is still open the Tanker is not a
-  // destination at all: it is six held back on the trips the seat is already
-  // making.
+  // The pumping happens on any arrival with the fuel aboard, so while the
+  // two-point card somebody else set the seat is still open the Tanker is not a
+  // destination at all: it is the fuel held back on the trips the seat is
+  // already making.
   describe("the tanker waits for the primary", () => {
     it.each([
       ["a tank that could not pump", 3],
-      ["the six and the approach aboard", TANKER_FUEL + 2],
+      ["the fuel and the approach aboard", MAX_REACTION_MASS],
     ])("makes no trip of its own with %s while the primary is open", (_label, reactionMass) => {
       const card = tankerMission();
       const state = withShip(table([card, PRIMARY]), "p1", { reactionMass });
@@ -309,7 +318,7 @@ describe("bot goals: piracy and tanker", () => {
       expect(currentGoal(state)?.missionId).toBe(PRIMARY.id);
     });
 
-    it("holds six back on a dock trip it was making anyway", () => {
+    it("holds the fuel back on a dock trip it was making anyway", () => {
       // ALPHA ring 1 is a berth away from its station: the fastest route burns
       // the tank down to one and pumps nothing, and one turn longer arrives
       // with seven. Without the card the seat takes the fast route.
@@ -329,7 +338,7 @@ describe("bot goals: piracy and tanker", () => {
       const plain = currentGoal(berth([fetch]));
       expect(tanking?.missionId).toBe(fetch.id);
       expect(plain?.missionId).toBe(fetch.id);
-      // Six still aboard when it makes port, which is what pumps.
+      // The fuel still aboard when it makes port, which is what pumps.
       expect(MAX_REACTION_MASS - tanking!.plan!.totalMassCost).toBeGreaterThanOrEqual(TANKER_FUEL);
       expect(MAX_REACTION_MASS - plain!.plan!.totalMassCost).toBeLessThan(TANKER_FUEL);
       expect(tanking!.plan!.totalTurns).toBeGreaterThan(plain!.plan!.totalTurns);

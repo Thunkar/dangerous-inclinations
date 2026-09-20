@@ -232,7 +232,9 @@ export type GameEvent =
       type: "cargo_seized";
       pirateId: string;
       victimId: string;
-      /** The victim's crate, which goes back to the dock it was loaded at. */
+      /** What was taken: a crate goes first when the mark carries both. */
+      kind: CargoKind;
+      /** The victim's item, whose card goes back to undone. */
       cargoId: string;
       at: Position;
     })

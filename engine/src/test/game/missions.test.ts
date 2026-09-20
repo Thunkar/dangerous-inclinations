@@ -563,8 +563,8 @@ const CRATE = deliverMission(ALPHA, BETA);
 describe("missions: how a card reads", () => {
   const lines: Array<[string, Mission, string]> = [
     ["survey", surveyMission(), "Survey the Event Horizon"],
-    ["piracy", piracyMission(), "Seize a crate and sell it"],
-    ["tanker", tankerMission(), "Pump six fuel into a station"],
+    ["piracy", piracyMission(), "Seize cargo and sell it"],
+    ["tanker", tankerMission(), `Pump ${TANKER_FUEL} fuel into a station`],
   ];
   it.each(lines)("%s says what to do in one line", (_label, mission, text) => {
     expect(describeMission(mission, (id) => id)).toBe(text);
@@ -580,6 +580,7 @@ describe("missions: piracy", () => {
       expect.objectContaining({
         pirateId: "p1",
         victimId: "p2",
+        kind: "crate",
         cargoId: CRATE.cargoId,
         at: { wellId: BH, ring: 3, sector: 4 },
       }),
@@ -653,24 +654,7 @@ describe("missions: piracy", () => {
         });
       },
     ],
-    [
-      "the other ship carries only data",
-      () => {
-        const chit = { ...surveyMission("survey-p2"), acquired: true };
-        return withPlayer(alongside([piracyMission()], []), "p2", {
-          missions: [chit],
-          cargo: [
-            {
-              id: chit.dataCargoId,
-              missionId: chit.id,
-              kind: "data",
-              deliveryPlanetId: "any",
-              isPickedUp: true,
-            },
-          ],
-        });
-      },
-    ],
+    ["the other ship's hold is empty", () => alongside([piracyMission()], [])],
     [
       "the other ship is a sector away",
       () => withShip(alongside([piracyMission()], [CRATE]), "p2", { sector: 5 }),
@@ -700,7 +684,75 @@ describe("missions: piracy", () => {
     expect(eventTypes(result.events).includes("cargo_seized")).toBe(seized);
   });
 
-  it("sells the seized crate at any station, which is the whole card", () => {
+  it.each([
+    [
+      "a survey's chit, which has to be dived for again",
+      () => {
+        const card = { ...surveyMission("survey-p2"), acquired: true };
+        return { card, cargoId: card.dataCargoId, to: "any", undone: { acquired: false } };
+      },
+    ],
+    [
+      "an intercept's transmission, which has to be scanned again",
+      () => {
+        const card = { ...interceptMission("p1", "intercept-p2", BETA), scanAcquired: true };
+        return { card, cargoId: card.dataCargoId, to: BETA, undone: { scanAcquired: false } };
+      },
+    ],
+  ])("takes %s, and the loot is a crate aboard the pirate", (_label, build) => {
+    const loot = piracyMission();
+    const { card, cargoId, to, undone } = build();
+    const state = withPlayer(alongside([loot], []), "p2", {
+      missions: [card],
+      cargo: [
+        { id: cargoId, missionId: card.id, kind: "data", deliveryPlanetId: to, isPickedUp: true },
+      ],
+    });
+    const result = executeTurnAs(state, coast(1));
+
+    expect(eventsOf(result.events, "cargo_seized")[0]).toMatchObject({ kind: "data", cargoId });
+    // Loot is loot: it fills the hold and is public as a crate whatever it was.
+    expect(getPlayer(result.gameState, "p1").cargo).toEqual([
+      expect.objectContaining({
+        id: loot.cargoId,
+        kind: "crate",
+        deliveryPlanetId: "any",
+        isPickedUp: true,
+      }),
+    ]);
+    expect(getPlayer(result.gameState, "p2").cargo).toEqual([
+      expect.objectContaining({ id: cargoId, isPickedUp: false }),
+    ]);
+    expect(getPlayer(result.gameState, "p2").missions[0]).toMatchObject(undone);
+  });
+
+  it("takes the crate first from a ship carrying both, and leaves the chit", () => {
+    const chit = { ...surveyMission("survey-p2"), acquired: true };
+    let state = alongside([piracyMission()], [CRATE]);
+    state = withPlayer(state, "p2", {
+      missions: [...getPlayer(state, "p2").missions, chit],
+      cargo: [
+        ...getPlayer(state, "p2").cargo,
+        {
+          id: chit.dataCargoId,
+          missionId: chit.id,
+          kind: "data",
+          deliveryPlanetId: "any",
+          isPickedUp: true,
+        },
+      ],
+    });
+    const result = executeTurnAs(state, coast(1));
+
+    expect(eventsOf(result.events, "cargo_seized")).toEqual([
+      expect.objectContaining({ kind: "crate", cargoId: CRATE.cargoId }),
+    ]);
+    const victim = getPlayer(result.gameState, "p2");
+    expect(victim.cargo.find((c) => c.id === chit.dataCargoId)).toMatchObject({ isPickedUp: true });
+    expect(victim.missions.find((m) => m.type === "survey")).toMatchObject({ acquired: true });
+  });
+
+  it("sells the loot at any station, which is the whole card", () => {
     const card = piracyMission();
     const state = docking(ALPHA, [card], (s) =>
       withPlayer(s, "p1", {
@@ -728,9 +780,9 @@ describe("missions: piracy", () => {
 
 describe("missions: tanker", () => {
   it.each([
-    ["six exactly", TANKER_FUEL, true],
-    ["seven", TANKER_FUEL + 1, true],
-    ["five", TANKER_FUEL - 1, false],
+    ["the card's fuel exactly", TANKER_FUEL, true],
+    ["one more", TANKER_FUEL + 1, true],
+    ["one short", TANKER_FUEL - 1, false],
   ])("arriving with %s: pumped %s", (_label, fuel, pumped) => {
     const state = withShip(docking(ALPHA, [tankerMission()]), "p1", { reactionMass: fuel });
     const result = executeTurnAs(state, coast(1));

@@ -107,7 +107,7 @@ export function processDocking(
     missilesReloaded: reloaded.reloaded,
   });
 
-  // Tanker: arrive with six in the tank and it goes into the station's drums
+  // Tanker: arrive with the card's fuel in the tank and it goes into the drums
   // (RULES §Missions). Automatic, like every other thing a dock does to you —
   // there is no chit and nothing to decide, only a tank that had enough in it.
   const tanking = player.missions.some((m) => m.type === "tanker" && !m.isCompleted);

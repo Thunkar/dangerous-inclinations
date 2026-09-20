@@ -9,7 +9,7 @@
  *   survey                     → dive to black hole ring 1, then dock anywhere to file the chit
  *   piracy                     → match orbits with a carrier in this well (or wait
  *                                on the lane arc they arrive through), then dock to sell
- *   tanker                     → no trip of its own: six held back on every dock
+ *   tanker                     → no trip of its own: the fuel held back on every dock
  *                                plan, and the fast rings once the primary is in
  *   an opponent about to win    → interdict: meet them where their cargo must go
  *   broken systems / low hull  → dock at the nearest station (repairs)
@@ -151,7 +151,7 @@ function primaryOutstanding(me: Player): boolean {
   return me.missions.some((m) => !m.isCompleted && isPrimaryType(m.type));
 }
 
-/** A Tanker still to pump: every station this seat reaches wants six aboard. */
+/** A Tanker still to pump: every station this seat reaches wants the fuel aboard. */
 function holdsTanker(me: Player): boolean {
   return me.missions.some((m) => !m.isCompleted && m.type === "tanker");
 }
@@ -351,17 +351,20 @@ export function computeGoals(
         // fill the hold.
         const loot = me.cargo.find((c) => c.missionId === mission.id);
         if (loot?.isPickedUp) {
-          const goal = dockAnywhereGoal(view, from, mission, "Sell the seized crate", 2);
+          const goal = dockAnywhereGoal(view, from, mission, "Sell the loot", 2);
           if (goal) goals.push(goal);
           break;
         }
         // The hold takes one crate: a pirate carrying freight of its own
         // seizes nothing, so there is no trip to make yet.
         if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
-        // Who is carrying is public (`PlayerView.cargoAboard`), and a moored
-        // ship neither loses a crate nor takes one.
+        // Who is carrying is public (`PlayerView.cargoAboard`) — a chit counts,
+        // it is loot like any other — and a moored ship neither loses cargo nor
+        // takes any.
         const carriers = opponents.filter(
-          (o) => o.player.cargoAboard.crates > 0 && !isMooredAt(view.stations, o.position)
+          (o) =>
+            o.player.cargoAboard.crates + o.player.cargoAboard.data > 0 &&
+            !isMooredAt(view.stations, o.position)
         );
         // Only a carrier in the same well is a chase. The lanes are one-way
         // and the crate is already running for a station, so a chase that
@@ -377,7 +380,7 @@ export function computeGoals(
           goals.push({
             type: "pirate",
             missionId: mission.id,
-            description: `Take ${prey.player.name}'s crate`,
+            description: `Take ${prey.player.name}'s cargo`,
             targetPlayerId: prey.player.id,
             estimatedTurns: turns,
             // Ranked with the chit's filing while the seizure is a turn or two
@@ -389,7 +392,7 @@ export function computeGoals(
           break;
         }
         // Nobody in this well to chase. Once the primary is in, the pirate
-        // goes and stands where the crates have to arrive: a planet's outbound
+        // goes and stands where the cargo has to arrive: a planet's outbound
         // lane lands on one four-sector arc and there is no other door.
         if (primaryOutstanding(me)) break;
         const ambush = nearestPlanet(
@@ -407,7 +410,7 @@ export function computeGoals(
         goals.push({
           type: "pirate",
           missionId: mission.id,
-          description: `Wait for a crate at ${ambush.planetId}`,
+          description: `Wait for a carrier at ${ambush.planetId}`,
           planetId: ambush.planetId,
           estimatedTurns: ambush.turns,
           urgency: 0,
@@ -416,12 +419,12 @@ export function computeGoals(
       }
       case "tanker": {
         // No trip of its own while the primary is open. The pumping happens on
-        // *any* arrival with six aboard (RULES §Stations), so the card is not
+        // *any* arrival with the fuel aboard (RULES §Stations), so the card is not
         // a destination — it is a reserve carried on the trips the seat is
         // making anyway, which `attachPlanToGoal` plans for below. A dock goal
-        // of its own was a wasted journey: 10 arrivals in 118 held the six.
+        // of its own was a wasted journey: 10 arrivals in 118 held the fuel.
         if (primaryOutstanding(me)) break;
-        // Six fuel is handed in on arrival, so the tank has to still hold six
+        // The fuel is handed in on arrival, so the tank has to still hold it
         // when the ship gets there: below that, the trip is to the fast rings
         // and the scoop (the planner takes the fuel out of a coast).
         if (status.reactionMass < TANKER_FUEL + TANKER_APPROACH_FUEL) {
@@ -565,11 +568,11 @@ export function attachPlanToGoal(
     case "dock": {
       const station = getStationForPlanet(view.stations, goal.planetId!);
       if (!station) return goal;
-      // A seat holding a Tanker arrives with the six if there is any route
+      // A seat holding a Tanker arrives with the fuel if there is any route
       // that does: the card is paid on arrival whatever brought the ship in,
       // so the reserve rides on the trip rather than costing one. The fastest
       // route burns the tank down to two and pumps nothing; the same search
-      // with six held back coasts in instead. Fastest when no such route
+      // with the fuel held back coasts in instead. Fastest when no such route
       // exists, which is the old behaviour for every other seat.
       const reserve = holdsTanker(me) ? TANKER_FUEL : 0;
       const fastest = planStationMeetUp(ship, station, PLAN_TURNS);

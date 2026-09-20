@@ -94,7 +94,11 @@ export function processScan(state: GameState, action: ScanAction): ScanResult {
         deliveryPlanetId: mission.deliveryPlanetId,
         isPickedUp: true,
       };
-      cargo = [...cargo, data];
+      // A chit a pirate took is still in the hold, un-picked: scanning again
+      // puts the same chit back aboard rather than a second copy of it.
+      cargo = cargo.some((c) => c.id === data.id)
+        ? cargo.map((c) => (c.id === data.id ? data : c))
+        : [...cargo, data];
       events.push({
         type: "data_acquired",
         playerId: scanner.id,

@@ -67,7 +67,7 @@ export const MISSION_OFFERS_PER_PLAYER =
 export const SURVEY_RING = 1;
 
 /** Fuel a Tanker hands in, in one go, on arrival at a station. */
-export const TANKER_FUEL = 6;
+export const TANKER_FUEL = 8;
 
 /**
  * What a completed card scores.
@@ -243,18 +243,20 @@ export interface SecondaryMission extends BaseMission {
 }
 
 /**
- * Piracy: end a turn in the same sector as a ship carrying a crate and the
- * crate is yours; sell it at any station.
+ * Piracy: end a turn in the same sector as a ship carrying a crate or a data
+ * chit and the loot is yours; sell it at any station.
  *
  * The only secondary card that uses the hold, and the only one somebody else
  * pays for. A pirate needs room — {@link CARGO_HOLD_CRATES} is one, so a
  * pirate already carrying a crate takes nothing — and neither ship may be
- * moored: a berth is not a place a crate changes hands.
+ * moored: a berth is not a place cargo changes hands. A crate first when the
+ * mark carries both, and what the victim loses goes back to undone: a Deliver
+ * reloads at its station, a Survey dives again, an Intercept scans again.
  *
- * The seized crate rides as {@link cargoId}, delivered at *any* station like a
- * chit, and the card is done when it is sold. Destroyed with it aboard, the
- * loot goes over the side — and a crate on a pirate is a crate another pirate
- * can take.
+ * The loot rides as {@link cargoId} whatever was taken — a crate to everyone
+ * watching, delivered at *any* station — and the card is done when it is sold.
+ * Destroyed with it aboard, the loot goes over the side — and a crate on a
+ * pirate is a crate another pirate can take.
  */
 export interface PiracyMission extends BaseMission {
   type: "piracy";
