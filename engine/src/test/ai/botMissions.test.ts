@@ -8,11 +8,13 @@ import type { GameState, PlayerAction, Position, ShipLoadout } from "../../model
 import { MAX_REACTION_MASS, STARTING_HIT_POINTS } from "../../models/game.ts";
 import type { Mission, SecondaryMission } from "../../models/missions.ts";
 import { SURVEY_RING, TANKER_FUEL } from "../../models/missions.ts";
-import { BLACK_HOLE_ID, STATION_RING } from "../../models/gravityWells.ts";
+import { BLACK_HOLE_ID, BLACK_HOLE_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
+import { ringVelocity } from "../../game/geometry.ts";
 import { viewFor } from "../../game/view.ts";
 import { getStationForPlanet } from "../../game/stations.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
+import { predictedDeliveryPlanets } from "../../ai/behaviors/danger.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import {
   ALPHA,
@@ -226,12 +228,21 @@ describe("bot goals: piracy and tanker", () => {
     analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).goals.find(
       (g) => g.missionId === missionId
     );
+  const currentGoal = (state: GameState) =>
+    analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).currentGoal;
+
+  /** The two-point card the seat cannot win without, open and done. */
+  const PRIMARY = deliverMission(GAMMA, BETA, "primary-p1");
+  const PRIMARY_DONE: Mission = { ...PRIMARY, isCompleted: true };
 
   /** p1 holds `missions`; p3 is nearer than p2, and p2 is the one carrying. */
-  const table = (missions: Mission[]): GameState => {
+  const table = (
+    missions: Mission[],
+    carrier: Position = { wellId: BH, ring: 3, sector: 8 }
+  ): GameState => {
     let state = makeGameState([
       makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }),
-      makePlayer("p2", { wellId: BH, ring: 3, sector: 8 }),
+      makePlayer("p2", carrier),
       makePlayer("p3", { wellId: BH, ring: 3, sector: 1 }),
     ]);
     state = withMissions(state, "p1", missions);
@@ -281,6 +292,106 @@ describe("bot goals: piracy and tanker", () => {
     const card = tankerMission();
     const state = withShip(table([card]), "p1", { reactionMass });
     expect(goalFor(state, card.id)).toMatchObject({ type });
+  });
+
+  // The pumping happens on any arrival with six aboard, so while the two-point
+  // card somebody else set the seat is still open the Tanker is not a
+  // destination at all: it is six held back on the trips the seat is already
+  // making.
+  describe("the tanker waits for the primary", () => {
+    it.each([
+      ["a tank that could not pump", 3],
+      ["the six and the approach aboard", TANKER_FUEL + 2],
+    ])("makes no trip of its own with %s while the primary is open", (_label, reactionMass) => {
+      const card = tankerMission();
+      const state = withShip(table([card, PRIMARY]), "p1", { reactionMass });
+      expect(goalFor(state, card.id)).toBeUndefined();
+      expect(currentGoal(state)?.missionId).toBe(PRIMARY.id);
+    });
+
+    it("holds six back on a dock trip it was making anyway", () => {
+      // ALPHA ring 1 is a berth away from its station: the fastest route burns
+      // the tank down to one and pumps nothing, and one turn longer arrives
+      // with seven. Without the card the seat takes the fast route.
+      const card = tankerMission();
+      const berth = (missions: Mission[]): GameState => {
+        const start = makeGameState([
+          makePlayer("p1", { wellId: ALPHA, ring: 1, sector: 0 }),
+          makePlayer("p2", { wellId: BH, ring: 3, sector: 12 }),
+        ]);
+        return withShip(withMissions(start, "p1", missions), "p1", {
+          reactionMass: MAX_REACTION_MASS,
+        });
+      };
+      const fetch = deliverMission(ALPHA, BETA, "fetch-p1");
+
+      const tanking = currentGoal(berth([fetch, card]));
+      const plain = currentGoal(berth([fetch]));
+      expect(tanking?.missionId).toBe(fetch.id);
+      expect(plain?.missionId).toBe(fetch.id);
+      // Six still aboard when it makes port, which is what pumps.
+      expect(MAX_REACTION_MASS - tanking!.plan!.totalMassCost).toBeGreaterThanOrEqual(TANKER_FUEL);
+      expect(MAX_REACTION_MASS - plain!.plan!.totalMassCost).toBeLessThan(TANKER_FUEL);
+      expect(tanking!.plan!.totalTurns).toBeGreaterThan(plain!.plan!.totalTurns);
+    });
+
+    it("fills at the nearest fast ring, not the event horizon, once the primary is in", () => {
+      const card = tankerMission();
+      const start = makeGameState([
+        makePlayer("p1", { wellId: BH, ring: BLACK_HOLE_OUTER_RING, sector: 0 }),
+        makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 12 }),
+      ]);
+      const state = withShip(withMissions(start, "p1", [card, PRIMARY_DONE]), "p1", {
+        reactionMass: 3,
+      });
+
+      const goal = currentGoal(state);
+      expect(goal?.missionId).toBe(card.id);
+      const destination = goal?.plan?.destination;
+      expect(destination?.wellId).toBe(BH);
+      expect(destination?.ring).not.toBe(SURVEY_RING);
+      expect(ringVelocity(BH, destination!.ring)).toBeGreaterThanOrEqual(4);
+    });
+  });
+
+  // A chase across the map never closes: the crate is already running for a
+  // station and the lanes are one-way.
+  describe("piracy hunts what it can catch", () => {
+    it.each([
+      { where: "two turns off", carrier: { wellId: BH, ring: 3, sector: 6 }, turns: 3, urgency: 2 },
+      {
+        where: "six turns off",
+        carrier: { wellId: BH, ring: 1, sector: 12 },
+        turns: 7,
+        urgency: 0,
+      },
+    ])("chases a carrier $where at urgency $urgency", ({ carrier, turns, urgency }) => {
+      const card = piracyMission();
+      const state = table([card, PRIMARY], carrier as Position);
+      expect(goalFor(state, card.id)).toMatchObject({
+        type: "pirate",
+        targetPlayerId: "p2",
+        estimatedTurns: turns,
+        urgency,
+      });
+    });
+
+    it("leaves a carrier in another well alone while the primary is open", () => {
+      const card = piracyMission();
+      const state = table([card, PRIMARY], { wellId: ALPHA, ring: 3, sector: 0 });
+      expect(goalFor(state, card.id)).toBeUndefined();
+    });
+
+    it("ambushes at the planet the carriers are running for once the primary is in", () => {
+      const card = piracyMission();
+      const carrier: Position = { wellId: ALPHA, ring: 3, sector: 0 };
+      const state = table([card, PRIMARY_DONE], carrier);
+      const predicted = predictedDeliveryPlanets(carrier, 1, 0, state.stations)[0];
+
+      const goal = goalFor(state, card.id);
+      expect(goal).toMatchObject({ type: "pirate", planetId: predicted });
+      expect(goal?.targetPlayerId).toBeUndefined();
+    });
   });
 });
 

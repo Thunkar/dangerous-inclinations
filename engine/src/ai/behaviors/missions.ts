@@ -7,8 +7,10 @@
  *   deliver_cargo              → dock at pickup, then at delivery
  *   intercept_transmission     → shadow (scan range), then dock at the card's station
  *   survey                     → dive to black hole ring 1, then dock anywhere to file the chit
- *   piracy                     → match orbits with a loaded rival, then dock anywhere to sell
- *   tanker                     → fill the tank at the fast rings, then dock anywhere with six
+ *   piracy                     → match orbits with a carrier in this well (or wait
+ *                                on the lane arc they arrive through), then dock to sell
+ *   tanker                     → no trip of its own: six held back on every dock
+ *                                plan, and the fast rings once the primary is in
  *   an opponent about to win    → interdict: meet them where their cargo must go
  *   broken systems / low hull  → dock at the nearest station (repairs)
  *   nothing at all             → dock at the nearest station (repairs, cargo)
@@ -21,12 +23,20 @@
  */
 import type { Player, Position } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
-import { SCAN_SECTOR_RANGE, SURVEY_RING, TANKER_FUEL } from "../../models/missions.ts";
 import {
+  SCAN_SECTOR_RANGE,
+  SURVEY_RING,
+  TANKER_FUEL,
+  isPrimaryType,
+} from "../../models/missions.ts";
+import {
+  BLACKHOLE_RINGS,
   BLACK_HOLE_ID,
+  BLACK_HOLE_OUTER_RING,
   PLANETS,
   PLANET_OUTER_RING,
   STATION_RING,
+  isPlanet,
 } from "../../models/gravityWells.ts";
 import type { GameView } from "../../game/view.ts";
 import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
@@ -42,6 +52,7 @@ import {
   CRITICAL_DANGER,
   INTERDICT_DANGER,
   cheapTurnEstimate,
+  laneArrivalTarget,
   planInterception,
   stationPositionFor,
 } from "./danger.ts";
@@ -85,12 +96,65 @@ const PRIMARY_START_URGENCY = 1;
  * prediction.
  */
 const TANKER_APPROACH_FUEL = 2;
+/**
+ * Sectors a coast has to be worth before a Tanker calls a ring a pump.
+ *
+ * The scoop takes the ring's velocity out of a coast, so a ring paying four a
+ * turn fills an empty tank in three coasts and black hole ring 3 is one burn
+ * off the lane ring the ship leaves by. The event horizon pays eight and
+ * costs two more burns each way to reach and leave: ranked in turns the dive
+ * read as cheap, which is how it became the first thing every seat did.
+ */
+const TANKER_FILL_VELOCITY = 4;
+/**
+ * Turns within which a carrier is worth dropping everything for.
+ *
+ * A seizure is matched orbits with a ship that is running for a station, so
+ * the chase only ever works from close by; further out the goal is still
+ * ranked, at no urgency, and happens when nothing else wants the turn.
+ *
+ * Five, not three: measured on 30 games a row, three left the card at 11
+ * completions per 100 kept against the 15 it managed when every chase carried
+ * the urgency, and five puts it at 16 without touching the length of a game
+ * or any other card. Half a well is still a chase worth making; the far side
+ * of one never was.
+ */
+const PIRACY_CHASE_TURNS = 5;
+/**
+ * Turns a Tanker's reserve may add to a dock trip before it stops being a
+ * reserve and becomes a trip of its own.
+ */
+const TANKER_DETOUR_TURNS = 2;
 
 export const REPAIR_GOAL_ID = "repair";
 /** Goal of last resort: a station is always worth something (fuel, repairs, cargo). */
 export const IDLE_GOAL_ID = "idle";
 /** Standing goal: stop the player who is about to win. */
 export const INTERDICT_GOAL_ID = "interdict";
+
+/**
+ * The black hole ring a Tanker fills at: the nearest one whose coast is worth
+ * {@link TANKER_FILL_VELOCITY} fuel, read off the ring table rather than
+ * named. A ship in a planet well comes back through the outer ring, so that
+ * is the ring it measures from.
+ */
+function tankerFillRing(from: Position): number {
+  const ring = from.wellId === BLACK_HOLE_ID ? from.ring : BLACK_HOLE_OUTER_RING;
+  const rings = BLACKHOLE_RINGS.filter((r) => r.velocity >= TANKER_FILL_VELOCITY).map(
+    (r) => r.ring
+  );
+  return rings.sort((a, b) => Math.abs(a - ring) - Math.abs(b - ring) || a - b)[0] ?? SURVEY_RING;
+}
+
+/** The two-point card somebody else set this seat, while it is still open. */
+function primaryOutstanding(me: Player): boolean {
+  return me.missions.some((m) => !m.isCompleted && isPrimaryType(m.type));
+}
+
+/** A Tanker still to pump: every station this seat reaches wants six aboard. */
+function holdsTanker(me: Player): boolean {
+  return me.missions.some((m) => !m.isCompleted && m.type === "tanker");
+}
 
 /** Weapons that could actually be fired this trip (missiles need ammo). */
 function usableWeapons(status: BotStatus) {
@@ -296,29 +360,67 @@ export function computeGoals(
         if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
         // Who is carrying is public (`PlayerView.cargoAboard`), and a moored
         // ship neither loses a crate nor takes one.
-        const prey = opponents
-          .filter(
-            (o) => o.player.cargoAboard.crates > 0 && !isMooredAt(view.stations, o.position)
-          )
+        const carriers = opponents.filter(
+          (o) => o.player.cargoAboard.crates > 0 && !isMooredAt(view.stations, o.position)
+        );
+        // Only a carrier in the same well is a chase. The lanes are one-way
+        // and the crate is already running for a station, so a chase that
+        // starts a jump away arrives where somebody used to be: aimed at a
+        // carrier's current sector anywhere on the map, it never closed.
+        const prey = carriers
+          .filter((o) => o.sameWell)
           .sort(
             (a, b) => cheapTurnEstimate(from, a.position) - cheapTurnEstimate(from, b.position)
           )[0];
-        if (!prey) break;
-        // Ranked with the chit's filing rather than with the survey dive: the
-        // window is the trip between two stations and it shuts the moment the
-        // carrier docks, so at the dive's urgency the chase lost to whatever
-        // errand it would have interrupted and the card never came in.
+        if (prey) {
+          const turns = cheapTurnEstimate(from, prey.position) + 1;
+          goals.push({
+            type: "pirate",
+            missionId: mission.id,
+            description: `Take ${prey.player.name}'s crate`,
+            targetPlayerId: prey.player.id,
+            estimatedTurns: turns,
+            // Ranked with the chit's filing while the seizure is a turn or two
+            // off — the window shuts the moment the carrier docks — and at no
+            // urgency past that, so a crate on the far side of the well never
+            // drags the bot off the card it has to finish.
+            urgency: turns <= PIRACY_CHASE_TURNS ? 2 : 0,
+          });
+          break;
+        }
+        // Nobody in this well to chase. Once the primary is in, the pirate
+        // goes and stands where the crates have to arrive: a planet's outbound
+        // lane lands on one four-sector arc and there is no other door.
+        if (primaryOutstanding(me)) break;
+        const ambush = nearestPlanet(
+          view,
+          from,
+          carriers
+            .map(
+              (o) =>
+                o.danger.predictedPlanets[0] ??
+                (isPlanet(o.position.wellId) ? o.position.wellId : null)
+            )
+            .filter((id): id is string => id !== null)
+        );
+        if (!ambush) break;
         goals.push({
           type: "pirate",
           missionId: mission.id,
-          description: `Take ${prey.player.name}'s crate`,
-          targetPlayerId: prey.player.id,
-          estimatedTurns: cheapTurnEstimate(from, prey.position) + 1,
-          urgency: 2,
+          description: `Wait for a crate at ${ambush.planetId}`,
+          planetId: ambush.planetId,
+          estimatedTurns: ambush.turns,
+          urgency: 0,
         });
         break;
       }
       case "tanker": {
+        // No trip of its own while the primary is open. The pumping happens on
+        // *any* arrival with six aboard (RULES §Stations), so the card is not
+        // a destination — it is a reserve carried on the trips the seat is
+        // making anyway, which `attachPlanToGoal` plans for below. A dock goal
+        // of its own was a wasted journey: 10 arrivals in 118 held the six.
+        if (primaryOutstanding(me)) break;
         // Six fuel is handed in on arrival, so the tank has to still hold six
         // when the ship gets there: below that, the trip is to the fast rings
         // and the scoop (the planner takes the fuel out of a coast).
@@ -329,7 +431,7 @@ export function computeGoals(
             description: "Fill the tank at the fast rings",
             estimatedTurns: cheapTurnEstimate(from, {
               wellId: BLACK_HOLE_ID,
-              ring: SURVEY_RING,
+              ring: tankerFillRing(from),
               sector: from.sector,
             }),
             urgency: 0,
@@ -463,7 +565,19 @@ export function attachPlanToGoal(
     case "dock": {
       const station = getStationForPlanet(view.stations, goal.planetId!);
       if (!station) return goal;
-      const meet = planStationMeetUp(ship, station, PLAN_TURNS);
+      // A seat holding a Tanker arrives with the six if there is any route
+      // that does: the card is paid on arrival whatever brought the ship in,
+      // so the reserve rides on the trip rather than costing one. The fastest
+      // route burns the tank down to two and pumps nothing; the same search
+      // with six held back coasts in instead. Fastest when no such route
+      // exists, which is the old behaviour for every other seat.
+      const reserve = holdsTanker(me) ? TANKER_FUEL : 0;
+      const fastest = planStationMeetUp(ship, station, PLAN_TURNS);
+      const fuelled = reserve > 0 ? planStationMeetUp(ship, station, PLAN_TURNS, reserve) : null;
+      const meet =
+        fuelled && (!fastest || fuelled.totalTurns <= fastest.totalTurns + TANKER_DETOUR_TURNS)
+          ? fuelled
+          : fastest;
       if (meet) return planned(meet.plan);
       return planned(
         planShipToTarget(ship, anySectorOnRing(station.planetId, STATION_RING), PLAN_TURNS) ??
@@ -471,13 +585,28 @@ export function attachPlanToGoal(
       );
     }
     case "survey":
-    // A tanker fills where the orbit is fastest, which is the dive the survey
-    // makes: the scoop takes a ring's velocity in fuel out of a coast.
-    case "tanker":
       return planned(
         planShipToTarget(ship, anySectorOnRing(BLACK_HOLE_ID, SURVEY_RING), PLAN_TURNS)
       );
+    // A tanker fills where a coast is worth enough fuel to be worth the trip,
+    // which is not the survey's dive: the scoop takes a ring's velocity out of
+    // a coast, and the climb back out of the event horizon costs more turns
+    // than the faster ring saves.
+    case "tanker":
+      return planned(
+        planShipToTarget(
+          ship,
+          anySectorOnRing(BLACK_HOLE_ID, tankerFillRing(status.position)),
+          PLAN_TURNS
+        )
+      );
     case "pirate": {
+      // No carrier in the well: wait on the arrival arc every crate bound for
+      // this planet has to come through. A coast, not a berth — a moored ship
+      // seizes nothing.
+      if (!goal.targetPlayerId && goal.planetId) {
+        return planned(planShipToTarget(ship, laneArrivalTarget(goal.planetId), PLAN_TURNS));
+      }
       // The same sector, not near it: a seizure is matched orbits. Their ship
       // drifts while we close, so it is planned as a moving target.
       const prey = opponents.find((o) => o.player.id === goal.targetPlayerId);

@@ -75,16 +75,29 @@ export function shipOrigin(ship: ShipState): OrientedPosition {
   return { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing: ship.facing };
 }
 
-/** Planner options describing the ship's tank, scoop and compressor. */
-export function shipPlannerOptions(ship: ShipState, maxTurns: number): PlannerOptions {
+/**
+ * Planner options describing the ship's tank, scoop and compressor.
+ *
+ * `reserveMass` is fuel the route may not touch: both the tank and what is in
+ * it shrink by it, which is exactly the arithmetic of a reserve — every
+ * affordability check along the path reads "fuel above the reserve", and the
+ * scoop's headroom to the real tank is unchanged. A Tanker pumps six on
+ * arrival, so its dock trips are planned with six reserved and the search
+ * coasts in where it would otherwise burn.
+ */
+export function shipPlannerOptions(
+  ship: ShipState,
+  maxTurns: number,
+  reserveMass = 0
+): PlannerOptions {
   const scoop = ship.subsystems.find((s) => s.type === "scoop");
   return {
     mode: "fastest",
     maxTurns,
-    availableMass: ship.reactionMass,
+    availableMass: ship.reactionMass - reserveMass,
     allowWellTransfers: true,
     hasFuelScoop: scoop !== undefined && !scoop.isBroken,
-    maxFuelCapacity: MAX_REACTION_MASS,
+    maxFuelCapacity: MAX_REACTION_MASS - reserveMass,
     hasFuelCompressor: hasWorkingCompressor(ship),
   };
 }
@@ -115,13 +128,20 @@ export function planFromShip(
 
 /**
  * Plan movement from a ship to any {@link PlannerTarget} (forward BFS).
+ *
+ * `reserveMass` is fuel the route must still have aboard when it arrives.
  */
 export function planShipToTarget(
   ship: ShipState,
   target: PlannerTarget,
-  maxTurns: number = 12
+  maxTurns: number = 12,
+  reserveMass = 0
 ): MovementPlan | null {
-  return planMovementToTarget(shipOrigin(ship), target, shipPlannerOptions(ship, maxTurns));
+  return planMovementToTarget(
+    shipOrigin(ship),
+    target,
+    shipPlannerOptions(ship, maxTurns, reserveMass)
+  );
 }
 
 /**
@@ -198,9 +218,10 @@ export function stationTarget(
 export function planStationMeetUp(
   ship: ShipState,
   station: Pick<Station, "planetId" | "ring" | "sector">,
-  maxTurns: number = 12
+  maxTurns: number = 12,
+  reserveMass = 0
 ): StationMeetPlan | null {
-  const plan = planShipToTarget(ship, stationTarget(station), maxTurns);
+  const plan = planShipToTarget(ship, stationTarget(station), maxTurns, reserveMass);
   if (!plan) return null;
   return { meetPosition: plan.destination, totalTurns: plan.totalTurns, plan };
 }
