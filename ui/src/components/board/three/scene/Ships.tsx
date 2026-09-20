@@ -22,11 +22,19 @@ import { boardConfig, type ShipVisual } from '../../../../ships/visual'
 import { MOUNTS } from '../../../../ships/config'
 import { TABLE } from '../../../../theme'
 import type { ShipToken } from '../../model'
-import { headingAtPoint, positionPoint } from '../../geometry'
+import { crowdOffset, headingAtPoint, positionPoint, radialPoint } from '../../geometry'
 import { sceneTime } from '../clock'
 import { DASHED_RING_FRAGMENT, DASHED_RING_VERTEX } from '../shaders/dashedRing'
 import { usePointerDrag } from '../usePointerDrag'
-import { LAYER, facingYaw, interpolateWorld, positionWorld, yawFromHeading } from '../world'
+import {
+  LAYER,
+  elevationAt,
+  facingYaw,
+  interpolateWorld,
+  positionWorld,
+  toWorld,
+  yawFromHeading,
+} from '../world'
 import { BoardTooltip } from './overlays/marks'
 import { sampleImpact } from './effects/impacts'
 import { countRender } from './effects/renders'
@@ -301,7 +309,28 @@ function ShipMesh({
   const [hovered, setHovered] = useState(false)
   const scratch = useMemo(() => new Vector3(), [])
 
-  const resting = useMemo(() => positionWorld(ship.position, LAYER.token), [ship.position])
+  /**
+   * Where the hull stands at rest: its sector, moved out along the radius by
+   * its share of the crowd standing in that sector. `crowdOffset` is the flat
+   * board's too, so two hulls part by the same amount on either board.
+   */
+  const resting = useMemo(
+    () =>
+      toWorld(
+        radialPoint(ship.position, crowdOffset(ship.crowd)),
+        elevationAt(ship.position) + LAYER.token
+      ),
+    [ship.position, ship.crowd]
+  )
+  /**
+   * That nudge on its own, so a slide can ease into its slot over the beat it
+   * is already sliding for rather than start the turn standing in it. It is
+   * horizontal: a crowd never changes which terrace a hull is on.
+   */
+  const slot = useMemo(
+    () => new Vector3().subVectors(resting, positionWorld(ship.position, LAYER.token)),
+    [resting, ship.position]
+  )
   const restingYaw = useMemo(
     () => facingYaw(ship.position, ship.facing),
     [ship.position, ship.facing]
@@ -330,11 +359,13 @@ function ShipMesh({
       thrust: THRUST[motion.kind],
       heading: Math.atan2(to.y - from.y, to.x - from.x),
       departure: positionWorld(motion.from, LAYER.token),
-      arrival: positionWorld(ship.position, LAYER.token),
+      // The arriving flash goes off around the hull, which may be standing off
+      // the centre of its sector; the departing one stays on the arc it left.
+      arrival: resting,
       bank:
         Math.min(1, 0.3 + swept * 0.22) * (ship.facing === 'prograde' ? 1 : -1) * (jump ? 0 : 1),
     }
-  }, [ship.motion, ship.position, ship.facing])
+  }, [ship.motion, ship.position, ship.facing, resting])
 
   useFrame(() => {
     const node = group.current
@@ -362,7 +393,7 @@ function ShipMesh({
           MathUtils.clamp((raw - JUMP_CHARGE) / (JUMP_ARRIVE - JUMP_CHARGE), 0, 1)
         )
         interpolateWorld(motion.from, ship.position, crossing, LAYER.token, scratch)
-        node.position.copy(scratch)
+        node.position.copy(scratch).addScaledVector(slot, crossing)
         heading.rotation.y = yawFromHeading(move.heading)
         const speed = Math.sin(Math.PI * crossing) ** 0.6
         lean = JUMP_ROLL * Math.sin(Math.PI * crossing)
@@ -372,7 +403,7 @@ function ShipMesh({
         // The same ease-in-out-quad the SVG board slides tokens with.
         const t = raw < 0.5 ? 2 * raw * raw : 1 - (-2 * raw + 2) ** 2 / 2
         interpolateWorld(motion.from, ship.position, t, LAYER.token, scratch)
-        node.position.copy(scratch)
+        node.position.copy(scratch).addScaledVector(slot, t)
         heading.rotation.y = yawFromHeading(
           headingAtPoint(ship.position.wellId, { x: scratch.x, y: scratch.z }, ship.facing)
         )

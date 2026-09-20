@@ -251,6 +251,43 @@ export function positionPoint(position: Position): Point {
   )
 }
 
+/**
+ * How far apart two ships standing in the same sector are drawn, in board units.
+ *
+ * A sector is one cell and holds as many ships as want to sit in it, so the
+ * board has to say "two here" without saying anything the rules do not: the
+ * hulls part along the radius, which is the one direction a sector has spare —
+ * they sit broadside to it, and the sector's own arc is already spoken for by
+ * its neighbours.
+ *
+ * The step is bounded on both sides. A hull is `WIDTH` = 26 board units across
+ * the beam (`three/scene/Ships.tsx`), so anything under that still overlaps;
+ * and a station's deck is `DECK_RADIUS` = 17 (`three/scene/Station.tsx`), so a
+ * pair moored at one berth, parted by half a step each, must keep that half
+ * under 17 or one of them ends up alongside the station instead of under it.
+ * 30 is the room between: 4 units of air between two hulls, and ±15 at a berth.
+ */
+const CROWD_STEP = 30
+
+/**
+ * The radial nudge one ship takes among those sharing its sector; positive is
+ * outward, and a crowd is always centred on the sector, so a ship alone sits
+ * exactly where it did. Both boards apply it, so neither can draw the spread
+ * its own way.
+ */
+export function crowdOffset(crowd: { index: number; count: number }): number {
+  return (crowd.index - (crowd.count - 1) / 2) * CROWD_STEP
+}
+
+/** Board coordinates of a game position, moved `offset` units out along the radius. */
+export function radialPoint(position: Position, offset: number): Point {
+  return polar(
+    wellCenter(position.wellId),
+    ringRadius(position.wellId, position.ring) + offset,
+    sectorAngle(position.wellId, position.sector)
+  )
+}
+
 /** Heading (radians) a token points in when facing prograde/retrograde. */
 export function facingAngle(position: Position, facing: 'prograde' | 'retrograde'): number {
   const tangent = sectorAngle(position.wellId, position.sector) + Math.PI / 2

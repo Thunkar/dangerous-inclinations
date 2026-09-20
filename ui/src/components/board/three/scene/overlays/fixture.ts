@@ -168,6 +168,8 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     hitPoints: [8, 10, 5][index],
     maxHitPoints: 10,
     heat: [2, 0, 4][index],
+    // Three seats, three sectors: nobody here is in anybody's way.
+    crowd: { index: 0, count: 1 },
   }))
 
   const homes: HomeMarker[] = SEATS.map((seat, index) => ({

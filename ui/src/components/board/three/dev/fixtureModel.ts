@@ -2,11 +2,11 @@
  * A board model with nothing behind it, for the dev harness.
  *
  * The 3D board renders a `BoardModel` and only that, so it can be worked on
- * without a server, a game or a seat: this fixture stands three ships on three
- * different wells, hands one of them a long slide so a screenshot can catch it
- * mid-arc, and fills in the rest of the contract with the empty values a quiet
- * board has. Positions and stations come from the engine — nothing here is a
- * rule.
+ * without a server, a game or a seat: this fixture stands five ships on two
+ * wells, hands one of them a long slide so a screenshot can catch it mid-arc,
+ * doubles up two of the sectors so the crowd spread has something to spread,
+ * and fills in the rest of the contract with the empty values a quiet board
+ * has. Positions and stations come from the engine — nothing here is a rule.
  */
 import type { Position, Station } from '@dangerous-inclinations/engine'
 import {
@@ -17,6 +17,7 @@ import {
   createSubsystemsFromLoadout,
   BOT_LOADOUT_TEMPLATES,
   DEFAULT_SHIP_APPEARANCE,
+  samePosition,
   viewFor,
 } from '@dangerous-inclinations/engine'
 import type { BoardModel, HomeMarker, ShipToken } from '../../model'
@@ -57,6 +58,22 @@ const SEATS: FixtureSeat[] = [
     position: ALPHA_BERTH,
     home: { wellId: 'blackhole', ring: 4, sector: 20 },
   },
+  {
+    // Standing on Aurora's sector: two hulls in one cell, which without the
+    // crowd spread are one hull with another inside it.
+    playerId: 'p4',
+    name: 'Lumen',
+    position: { wellId: 'blackhole', ring: 4, sector: 5 },
+    home: { wellId: 'blackhole', ring: 4, sector: 8 },
+  },
+  {
+    // A second hull in Alpha's berth: the spread must not push either of them
+    // out from under the deck.
+    playerId: 'p5',
+    name: 'Tender',
+    position: ALPHA_BERTH,
+    home: { wellId: 'blackhole', ring: 4, sector: 2 },
+  },
 ]
 
 /** Long enough that a screenshot taken seconds after load still catches the slide. */
@@ -80,6 +97,8 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     BOT_LOADOUT_TEMPLATES['hauler-tanky'],
     BOT_LOADOUT_TEMPLATES['hunter-aggressive'],
     BOT_LOADOUT_TEMPLATES['interceptor-aggressive'],
+    BOT_LOADOUT_TEMPLATES['hunter-tanky'],
+    BOT_LOADOUT_TEMPLATES['hauler-aggressive'],
   ]
   state.players.forEach((player, index) => {
     player.hasSubmittedLoadout = true
@@ -87,13 +106,13 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     player.ship.subsystems = createSubsystemsFromLoadout(templates[index])
     player.appearance = {
       ...DEFAULT_SHIP_APPEARANCE,
-      paint: ['#aab4b2', '#344149', '#926b51'][index],
+      paint: ['#aab4b2', '#344149', '#926b51', '#6d7f8c', '#8a7a4f'][index],
     }
   })
   state.players[1].ship.subsystems.find(s => s.id === 'forward-0')!.isRevealed = true
   state.players[0].intel.p3 = ['side-2']
   const views = viewFor(state, 'p1').players
-  const ships: ShipToken[] = [
+  const tokens: Omit<ShipToken, 'crowd'>[] = [
     {
       playerId: 'p1',
       name: 'Aurora',
@@ -141,7 +160,40 @@ export function createFixtureModel(now = performance.now()): BoardModel {
       maxHitPoints: 10,
       heat: 4,
     },
+    {
+      playerId: 'p4',
+      name: 'Lumen',
+      color: colorOf('p4'),
+      visual: visualForPlayer(views[3], 3),
+      position: SEATS[3].position,
+      facing: 'prograde',
+      isActive: false,
+      isMe: false,
+      hitPoints: 7,
+      maxHitPoints: 10,
+      heat: 1,
+    },
+    {
+      playerId: 'p5',
+      name: 'Tender',
+      color: colorOf('p5'),
+      visual: visualForPlayer(views[4], 4),
+      position: SEATS[4].position,
+      facing: 'retrograde',
+      isActive: false,
+      isMe: false,
+      hitPoints: 9,
+      maxHitPoints: 10,
+      heat: 0,
+    },
   ]
+
+  // The same numbering the board model does, so the harness crowds as a real
+  // table does.
+  const ships: ShipToken[] = tokens.map(token => {
+    const sharing = tokens.filter(other => samePosition(other.position, token.position))
+    return { ...token, crowd: { index: sharing.indexOf(token), count: sharing.length } }
+  })
 
   const homes: HomeMarker[] = SEATS.map(seat => ({
     playerId: seat.playerId,

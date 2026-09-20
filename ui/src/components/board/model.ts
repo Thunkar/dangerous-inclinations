@@ -45,6 +45,14 @@ export interface ShipToken {
   facing: Facing
   /** Set while the token slides from its previous sector; renderers interpolate. */
   motion?: ShipMotion
+  /**
+   * Where this ship stands among the live ships sharing its sector, so that
+   * neither renderer draws two hulls in the same place: `count` is how many are
+   * on it and `index` is this one's place in seat order, which is the same at
+   * every seat and on both boards. Alone is `{ index: 0, count: 1 }`.
+   * `geometry.crowdOffset` turns it into the radial nudge each board applies.
+   */
+  crowd: { index: number; count: number }
   isActive: boolean
   isMe: boolean
   hitPoints: number
@@ -154,7 +162,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
    * renderer reads its own clock against `motion`.
    */
   const ships = useMemo<ShipToken[]>(() => {
-    return view.players.flatMap((player, index) => {
+    const tokens = view.players.flatMap<Omit<ShipToken, 'crowd'>>((player, index) => {
       const live = overlay?.ships[player.id]
       const publicShip = player.ship
       if (!live && !publicShip) return []
@@ -179,6 +187,12 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           heat: publicShip?.heat ?? 0,
         },
       ]
+    })
+    // Sharing is read off the resting positions, never off a slide: a token
+    // half-way round the ring still belongs to the sector it is heading for.
+    return tokens.map(token => {
+      const sharing = tokens.filter(other => samePosition(other.position, token.position))
+      return { ...token, crowd: { index: sharing.indexOf(token), count: sharing.length } }
     })
   }, [view.players, overlay])
 
