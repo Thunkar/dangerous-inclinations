@@ -129,6 +129,31 @@ describe("botChooseLoadout", () => {
     expect(seen.size).toBe(hands.length);
   });
 
+  it("keeps two different secondaries out of the four the pile deals", () => {
+    // Four cards off a pile of three kinds always repeat one, so the pairs on
+    // offer are five of the six, and every one of them is two things to do.
+    const offers: Mission[] = [
+      destroyMission("p2"),
+      interceptMission("p3"),
+      destroyMission("p4", "destroy-p4"),
+      surveyMission("survey-a"),
+      surveyMission("survey-b"),
+      piracyMission("piracy-a"),
+      tankerMission("tanker-a"),
+    ];
+    const hands = validHands(offers);
+    expect(hands).toHaveLength(15);
+    for (let i = 0; i < hands.length; i++) {
+      const kept = botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n }).missionIds;
+      const kinds = kept
+        .map((id) => offers.find((m) => m.id === id)!)
+        .filter((m) => !isPrimaryType(m.type))
+        .map((m) => m.type);
+      expect(kinds).toHaveLength(SECONDARIES_PER_PLAYER);
+      expect(new Set(kinds).size).toBe(SECONDARIES_PER_PLAYER);
+    }
+  });
+
   it("never pairs a secondary with another of its own kind", () => {
     const offers: Mission[] = [
       deliverMission(ALPHA, BETA),

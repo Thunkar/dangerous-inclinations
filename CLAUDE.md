@@ -61,11 +61,11 @@ sells anywhere, their card back to undone — and tanker — arrive at a station
 with eight fuel and pump it in). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
 is hunting whom; setup removes offsets the table is too small for. Deal 3
-primaries and keep 1; take one off each of the three secondary stacks and keep
-2 — five points held and three win, so the primary plus either secondary is the
-win and the other secondary is the spare. The secondary offer is the same for
-everyone, so those three have to be worth roughly the same or the choice is
-fake.
+primaries and keep 1; deal 4 secondaries from one pile of eight copies each
+and keep 2 of different kinds — five points held and three win, so the
+primary plus either secondary is the win and the other secondary is the
+spare. The offer varies seat to seat now, so the three secondaries have to be
+worth roughly the same or the deal is a lottery.
 New mission types are proposed to the designer, never added unasked.
 
 Missiles fire in **salvos**: one action launches any number of a tile's missiles

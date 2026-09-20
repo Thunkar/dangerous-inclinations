@@ -347,7 +347,7 @@ Your offers:
 ${offers}
 Loadouts that are known to fly (you are not limited to these):
 ${presetLines()}
-Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is 3 cards, so keep two 2-point cards, or one plus both 1-point cards.
+Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is ONE of the three 2-point primaries plus TWO of the four 1-point secondaries, and those two must be different cards.
 Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "missionIds": ["id","id","id"], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","radiator"]}}`;
 }
 

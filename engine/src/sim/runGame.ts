@@ -179,7 +179,7 @@ export function setupBotGame(
 
   for (const player of state.players) {
     // A forced hull is offered to the bot, not stapled on: the bot keeps cards
-    // that hull can fly, and a deal with no flyable trio (four of the six
+    // that hull can fly, and a deal with no flyable trio (four of the seven
     // offers needing a sensor array) leaves the seat its own loadout for that game.
     const choice = botChooseLoadout(player.missionOffers, {
       playerCount: botCount,

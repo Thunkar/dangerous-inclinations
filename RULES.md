@@ -60,7 +60,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 ## Setup
 
-1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then each player takes **one card off each of the three secondary stacks** and keeps **two**. Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile, never back onto their stack. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
+1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then deal each player **four secondary cards**, of which they keep **two of different kinds** (four of a kind: draw four more — at a full table, where the pile is used up, deal the secondaries again). Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
 2. **Loadout.** Each player fills their loadout: 1 forward tile (railgun, sensor array, fuel compressor or missiles) and 4 side tiles (laser, shields, radiator, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 3 or Ring 4**, **at least three sectors from every ship already placed** (if no sector qualifies, the one farthest from them), and puts their Home marker there. Everyone starts around the hole and scatters from there; missions are secret, so pick your ring and sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring; Ring 3 drifts 4 and is two burns from the lane ring).
 4. Fill the hull track to 10, reaction mass to 10 and heat to 0 — all three are tracks on your loadout, in the open. Energy cubes stay in the reactor. Only your cards and the ammo in a face-down missiles tile sit behind the screen.
@@ -225,9 +225,9 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 The **primary pile** is two copies of every primary mission: each Destroy and Intercept offset (below), and all six Deliver routes. **Setup:** take out every Destroy and Intercept whose number is the player count or higher — at three players that leaves offsets 1 and 2. More seats leave more of it pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
 
-The **secondaries** are three stacks, one per card: six copies each of Survey, Piracy and Tanker. They name no rival and no route, so they are the same stacks at every table size.
+The **secondary pile** is eight copies each of Survey, Piracy and Tanker — 24 cards, which six players take in full. They name no rival and no route, so it is the same pile at every table size.
 
-**The deal.** Shuffle the primary pile and deal **three** to each player, who keeps **one**. Then each player takes **one card off each secondary stack** and keeps **two** of the three. The cards you leave go face-down onto one shared discard pile, never back onto the stack they came from: three stacks have three different faces, so a card put back would tell the table exactly which secondary you kept out.
+**The deal.** Shuffle the primary pile and deal **three** to each player, who keeps **one**. Then shuffle the secondary pile and deal **four** to each player, who keeps **two of different kinds**; a player dealt four of a kind draws four more, or, at a full table where the pile is used up, the secondaries are dealt again. The cards you leave go face-down onto one shared discard pile.
 
 So the primary mission is the luck of the draw and the two things you do yourself are a straight choice: everyone is offered all three, and what you decide is which one to leave. Neither decision is the shape of your hand — every hand is one primary and two of your own — and what changes is which.
 
@@ -279,7 +279,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                                 |
 | Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away                                                      |
 | Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                                                                                              |
-| Keeping cards    | 3 primaries keep 1, one off each secondary stack keep 2, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon                             |
+| Keeping cards    | 3 primaries keep 1, 4 secondaries keep 2 of different kinds, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon                          |
 | Hold             | one crate; data chits ride free                                                                                                                                       |
 | Ammo             | private while the missiles tile is face-down; public once it has fired                                                                                                |
 | Salvo            | one action launches any number of your missiles at one ship for the tile's 2 heat; a powered rack rolls at every missile that reaches it in a turn for its 2 heat     |

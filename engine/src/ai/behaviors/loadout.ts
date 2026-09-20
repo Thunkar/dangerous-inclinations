@@ -149,7 +149,7 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
 
 /**
  * The hand a bot keeps: one primary of the three it was dealt, two secondaries
- * of the three (RULES §Missions).
+ * of the four (RULES §Missions).
  *
  * **The primary is still chosen at random among the three.** Deliberately. The
  * bot used to score every combination against a table of hand-tuned costs,
@@ -189,7 +189,7 @@ export function selectBotMissions(
   // Give up the experiment's constraints one at a time rather than all at
   // once: the forced primary first, then the forced loadout. The last resort is a
   // hand of whatever was offered, which only a hand-built deal can reach —
-  // every real deal holds three primaries and three secondaries.
+  // every real deal holds three primaries and four secondaries.
   let hands = validHands(offers, hull, primary);
   if (hands.length === 0) hands = validHands(offers, hull);
   if (hands.length === 0) hands = validHands(offers, undefined, primary);
@@ -239,8 +239,9 @@ export function validHands(
  * Every way of taking `count` of the offered secondaries, no two of a kind —
  * the kept cards have to be that many different things to do (RULES
  * §Missions) — in the order they were dealt, so a seed keeps replaying the
- * same hand. The deal is one card of each kind, so at the standing two this is
- * the three pairs and at three it is the single hand that takes them all.
+ * same hand. Four cards off a pile of three kinds always hold a kind twice, so
+ * at the standing two this is three pairs to five, never the six of four
+ * different cards.
  */
 function distinctSecondaries(offers: Mission[], count: number): Mission[][] {
   if (count <= 0) return [[]];

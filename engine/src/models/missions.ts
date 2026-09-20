@@ -19,7 +19,8 @@ import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
  * the spare a player takes when the game puts it in their way. Two secondaries
  * on their own are two points and cannot win, so the primary somebody else set
  * you is still the card that has to come in. Each deck is dealt separately:
- * three primaries to choose one from, three secondaries to choose two from.
+ * three primaries to choose one from, four secondaries to choose two of
+ * different kinds from.
  *
  * **Three or four, agreed before the deal.** Three is the game; a table that
  * wants a longer evening may agree on four, which makes all three cards
@@ -52,11 +53,12 @@ export const DEFAULT_POINTS_TO_WIN = 3;
 export const PRIMARY_OFFERS_PER_PLAYER = 3;
 export const PRIMARIES_PER_PLAYER = 1;
 /**
- * Dealt from the secondary stacks, and kept from that deal. The offer is one
- * card of each kind, so this is the number of kinds — keep it in step with
- * the stacks {@link buildSecondaryDeck} prints.
+ * Dealt from the secondary pile, and kept from that deal. Four off one
+ * shuffled pile rather than one of each kind: what turned up is part of the
+ * choice again, and the two kept still have to be different cards — keep it in
+ * step with the copies {@link buildSecondaryDeck} prints.
  */
-export const SECONDARY_OFFERS_PER_PLAYER = 3;
+export const SECONDARY_OFFERS_PER_PLAYER = 4;
 export const SECONDARIES_PER_PLAYER = 2;
 
 export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;

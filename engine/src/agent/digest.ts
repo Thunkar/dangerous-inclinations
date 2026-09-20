@@ -10,6 +10,8 @@ import type { SecondaryMissionType, Mission } from "../models/missions.ts";
 import {
   DEFAULT_POINTS_TO_WIN,
   MISSION_POINTS,
+  PRIMARY_OFFERS_PER_PLAYER,
+  SECONDARY_OFFERS_PER_PLAYER,
   SURVEY_RING,
   TANKER_FUEL,
 } from "../models/missions.ts";
@@ -49,7 +51,7 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
  */
 export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): string {
   return `RULES IN BRIEF
-- Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Piracy and Tanker ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
+- Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Piracy and Tanker ${MISSION_POINTS.survey}. You are dealt ${PRIMARY_OFFERS_PER_PLAYER} primaries and ${SECONDARY_OFFERS_PER_PLAYER} secondaries off two piles; a hand is ONE primary and TWO DIFFERENT secondaries, which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
 - Turn: energy (move cubes freely; a tile is off or at least its minimum) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any powered weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop with 3 cubes: +velocity fuel; it runs in port too).
 - Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.
