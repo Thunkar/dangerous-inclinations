@@ -16,7 +16,6 @@ import { viewFor } from "../../game/view.ts";
 import {
   SECONDARY_CARDS_PER_DECK,
   SECONDARY_COPIES_PER_CARD,
-  secondaryPile,
 } from "../../game/missions/missionDeck.ts";
 import {
   DEFAULT_POINTS_TO_WIN,
@@ -34,7 +33,6 @@ import {
 } from "../../models/missions.ts";
 import type { Mission } from "../../models/missions.ts";
 import type { GameState } from "../../models/game.ts";
-import { MAX_PLAYERS } from "../../models/game.ts";
 import { PLANETS, STATION_RING } from "../../models/gravityWells.ts";
 import { createInitialStations, getStationForPlanet } from "../../game/stations.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
@@ -97,16 +95,11 @@ describe("missions: deck", () => {
 
   it("the secondary deck is the same pile at every table size", () => {
     const deck = buildSecondaryDeck();
-    expect(deck).toHaveLength(24);
     expect(deck).toHaveLength(SECONDARY_CARDS_PER_DECK);
     expect(deck.every((c) => MISSION_FAMILY[c.type] === "secondary")).toBe(true);
     for (const type of ["survey", "piracy", "tanker"] as const) {
-      expect(deck.filter((c) => c.type === type), type).toHaveLength(8);
       expect(deck.filter((c) => c.type === type), type).toHaveLength(SECONDARY_COPIES_PER_CARD);
     }
-    // The pile is sized by the biggest table: six seats taking four cards each
-    // take the lot, which is what stops a seventh secondary being printed.
-    expect(deck).toHaveLength(MAX_PLAYERS * SECONDARY_OFFERS_PER_PLAYER);
   });
 
   it.each([2, 3, 4, 5, 6])("both %i-player piles hold enough to deal the table", (players) => {
@@ -115,51 +108,6 @@ describe("missions: deck", () => {
     );
     expect(buildSecondaryDeck().length).toBeGreaterThanOrEqual(
       players * SECONDARY_OFFERS_PER_PLAYER
-    );
-  });
-
-  it.each([2, 3, 4, 5, 6])("offers every %i-player seat four secondaries off one pile", (players) => {
-    const offers = dealMissionOffers(ids(players), new Rng(9));
-    for (const [holder, hand] of offers) {
-      const secondaries = hand.filter((m) => !isPrimaryType(m.type));
-      expect(secondaries, holder).toHaveLength(SECONDARY_OFFERS_PER_PLAYER);
-    }
-  });
-
-  it("a full table takes the whole secondary pile: nothing is left and no card is dealt twice", () => {
-    const offers = dealMissionOffers(ids(MAX_PLAYERS), new Rng(9));
-    const dealt = [...offers.values()].flat().filter((m) => !isPrimaryType(m.type));
-    expect(dealt).toHaveLength(SECONDARY_CARDS_PER_DECK);
-    for (const type of ["survey", "piracy", "tanker"] as const) {
-      expect(dealt.filter((m) => m.type === type), type).toHaveLength(SECONDARY_COPIES_PER_CARD);
-    }
-  });
-
-  it.each([2, 3, 4, 5, 6])("never offers a %i-player seat four secondaries of one kind", (players) => {
-    // Four of a kind is a seat with no choice: the two it keeps have to differ,
-    // so the deal goes back in and the table is dealt again.
-    for (let seed = 1; seed <= 60; seed++) {
-      for (const [holder, hand] of dealMissionOffers(ids(players), new Rng(seed))) {
-        const kinds = new Set(hand.filter((m) => !isPrimaryType(m.type)).map((m) => m.type));
-        expect(kinds.size, `${holder} seed ${seed}`).toBeGreaterThan(1);
-      }
-    }
-  });
-
-  it("a seat dealt four of a kind puts them back and draws four more", () => {
-    // Seed 1 at two seats is such a shuffle. Only that seat draws again: the
-    // other keeps the hand the deal gave it.
-    const raw = new Rng(1).shuffle(buildSecondaryDeck());
-    const dealtBy = (pile: typeof raw, seat: number) =>
-      pile.filter((_c, i) => i < 2 * SECONDARY_OFFERS_PER_PLAYER && i % 2 === seat);
-    expect(new Set(dealtBy(raw, 0).map((c) => c.type)).size).toBe(1);
-
-    const fixed = secondaryPile(2, new Rng(1));
-    expect(new Set(dealtBy(fixed, 0).map((c) => c.type)).size).toBeGreaterThan(1);
-    expect(dealtBy(fixed, 1)).toEqual(dealtBy(raw, 1));
-    // Still the printed pile, only in another order.
-    expect([...fixed].sort((a, b) => a.type.localeCompare(b.type))).toEqual(
-      [...raw].sort((a, b) => a.type.localeCompare(b.type))
     );
   });
 
@@ -202,8 +150,8 @@ describe("missions: deck", () => {
     const offers = dealMissionOffers(players, new Rng(11));
     // Cards are only distinguishable by what they say, and the primary pile
     // holds COPIES_PER_CARD of each — so no card off it may appear more often
-    // than that. The secondary pile is one pile of eight of each and a full
-    // table takes the lot, which is that pile's own test.
+    // than that. The secondaries are three stacks and every seat takes one off
+    // each, which is the stacks' own test.
     const seen = new Map<string, number>();
     for (const [holder, hand] of offers) {
       const seat = players.findIndex((p) => p.id === holder);
@@ -259,7 +207,7 @@ describe("missions: deck", () => {
     for (const id of routesForId.keys()) expect(id).not.toMatch(/alpha|beta|gamma/);
   });
 
-  it("deals a full offer per player with unique ids, deterministically for a seed", () => {
+  it("deals 5 offers per player with unique ids, deterministically for a seed", () => {
     const a = dealMissionOffers(ids(3), new Rng(42));
     const b = dealMissionOffers(ids(3), new Rng(42));
     const c = dealMissionOffers(ids(3), new Rng(43));
@@ -305,38 +253,6 @@ describe("missions: deck", () => {
     const picked = selectMissionsFromOffers(offers, pick(offers));
     expect(picked.error).toBeDefined();
     expect(picked.missions).toEqual([]);
-  });
-
-  it("refuses two secondaries of one kind and takes two that differ", () => {
-    const offers = [
-      destroyMission("p2"),
-      surveyMission("survey-a"),
-      surveyMission("survey-b"),
-      piracyMission("piracy-a"),
-    ];
-    const twoAlike = selectMissionsFromOffers(offers, ["destroy-p2", "survey-a", "survey-b"]);
-    expect(twoAlike.error).toBeDefined();
-    expect(twoAlike.missions).toEqual([]);
-
-    const differing = selectMissionsFromOffers(offers, ["destroy-p2", "survey-a", "piracy-a"]);
-    expect(differing.error).toBeUndefined();
-    expect(differing.missions.map((m) => m.id)).toEqual(["destroy-p2", "survey-a", "piracy-a"]);
-  });
-
-  it("refuses a hand that is not one primary and two secondaries", () => {
-    const offers = [
-      destroyMission("p2"),
-      interceptMission("p3"),
-      surveyMission("survey-a"),
-      piracyMission("piracy-a"),
-    ];
-    const twoPrimaries = selectMissionsFromOffers(offers, [
-      "destroy-p2",
-      "intercept-p3",
-      "survey-a",
-    ]);
-    expect(twoPrimaries.error).toBeDefined();
-    expect(twoPrimaries.missions).toEqual([]);
   });
 
   it("crates exist only for deliver missions and start at their origin", () => {

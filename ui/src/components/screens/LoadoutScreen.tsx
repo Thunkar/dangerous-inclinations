@@ -110,9 +110,6 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   const [tab, setTab] = useState('missions')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Why a click did nothing: the pile refuses a second card of a kind you
-  // already hold rather than letting the referee say so after submission.
-  const [hint, setHint] = useState<string | null>(null)
   const [storageError, setStorageError] = useState(false)
   const [talk, setTalk] = useState(false)
   const submitted = me.hasSubmittedLoadout
@@ -141,7 +138,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
     : chosenPrimaries.length !== PRIMARIES_PER_PLAYER
       ? 'Take one primary mission.'
       : chosenSecondaries !== SECONDARIES_PER_PLAYER
-        ? `Take ${SECONDARIES_PER_PLAYER} different secondaries, ${SECONDARIES_PER_PLAYER - chosenSecondaries} to go.`
+        ? `Take ${SECONDARIES_PER_PLAYER} of your own, ${SECONDARIES_PER_PLAYER - chosenSecondaries} to go.`
         : gaps.length
           ? `Fit ${[...new Set(gaps.flatMap(g => g.missing.map(r => `a ${r.label}`)))].join(' and ')}, or take a different primary mission.`
           : null
@@ -227,13 +224,14 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
                       if (ids.includes(m.id)) next = ids.filter(id => id !== m.id)
                       else if (keep === 1) next = [m.id]
                       // Two of the same secondary is one plan done twice: the
-                      // pile deals four and the two kept have to differ.
-                      else if (mine.some(c => c.type === m.type)) {
-                        setHint('Your two secondaries have to be different cards.')
-                        return
-                      } else if (ids.length < keep) next = [...ids, m.id]
+                      // new card takes the place of the one of its own kind.
+                      else if (mine.some(c => c.type === m.type))
+                        next = [
+                          ...ids.filter(id => id !== mine.find(c => c.type === m.type)!.id),
+                          m.id,
+                        ]
+                      else if (ids.length < keep) next = [...ids, m.id]
                       else return
-                      setHint(null)
                       patch({ missionIds: [...others, ...next] })
                     }
               }
@@ -256,12 +254,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         offers.filter(m => !isPrimaryType(m.type)),
         SECONDARIES_PER_PLAYER,
         'Secondary missions',
-        'Worth 1 each. Four from the pile — keep two different ones: one finishes the win, the other is your spare.'
-      )}
-      {hint && (
-        <Alert severity="info" sx={{ mt: 1.5 }}>
-          {hint}
-        </Alert>
+        'Worth 1 each. Keep two different things to do: one of them finishes the win, the other is your spare.'
       )}
       {offers.length === 0 && (
         <Typography color="text.secondary">Waiting for the mission deal…</Typography>

@@ -8,7 +8,7 @@
  *
  * **Why two piles.** A hand is one primary and two secondaries (RULES
  * §Missions), so each pile is dealt against the choice it carries: three
- * primaries to pick the primary mission from, four secondaries to pick two of. Mixing
+ * primaries to pick the primary mission from, three secondaries to pick two of. Mixing
  * them in one pile made the shape of a hand an accident of the shuffle, and
  * because primaries are most of the cards the accident nearly always fell the
  * same way.
@@ -28,12 +28,11 @@
  * card, each cargo route — which keeps the same share of it pointed at people
  * as the old per-player decks had (31% at three seats, 53% at six).
  *
- * The secondary pile is {@link SECONDARY_COPIES_PER_CARD} of each, sized by
- * the biggest table rather than by symmetry with the other one: six seats
- * taking four cards is twenty-four, so six players take the lot. An offer may
- * therefore hold two or more of the same secondary, and since the two kept
- * have to be different cards, a seat dealt four of one kind was dealt no
- * choice at all: it puts them back and draws four more ({@link secondaryPile}).
+ * The secondary pile is {@link SECONDARY_COPIES_PER_CARD} of each, which is
+ * {@link MAX_PLAYERS}: three secondaries a seat means a full table needs
+ * eighteen, so the printed pile is sized by the biggest table rather than by
+ * symmetry with the other one. A hand may therefore hold two of the same
+ * secondary, which is two separate chits and two separate filings.
  */
 import type { Player } from "../../models/game.ts";
 import type { Cargo, SecondaryMission, Mission } from "../../models/missions.ts";
@@ -54,32 +53,14 @@ import type { Rng } from "../../utils/rng.ts";
 export const COPIES_PER_CARD = 2;
 
 /**
- * Copies of each secondary. Six seats times four cards is twenty-four, and
- * there are three secondaries, so eight of each is exactly what a full table
- * takes off the pile.
+ * Copies of each secondary. Three are dealt to every seat, so a full table
+ * needs {@link MAX_PLAYERS} of each for the pile to go round.
  */
-export const SECONDARY_COPIES_PER_CARD = 8;
+export const SECONDARY_COPIES_PER_CARD = MAX_PLAYERS;
 
-/** Survey, Piracy and Tanker, in one pile. */
-export const SECONDARY_CARDS_PER_DECK = 3 * SECONDARY_COPIES_PER_CARD;
-
-/**
- * Draws a seat dealt four of a kind makes before it takes what came (RULES
- * §Missions: "a player dealt four of a kind draws four more").
- */
-const SECONDARY_REDRAWS = 3;
-
-/**
- * Whole passes of the secondary deal behind that.
- *
- * Six seats take all twenty-four cards, so at a full table there is nothing
- * left to draw four more from and the redraw hands the seat its own cards
- * back. Then the deal goes back in and the table is dealt again: about one
- * six-seat deal in eight needs a second pass, needing a tenth is a
- * one-in-a-billion shuffle, and the bound is only there so the deal cannot
- * loop.
- */
-const SECONDARY_DEAL_PASSES = 10;
+/** Survey, Piracy, Tanker: one of each for every seat. */
+export const SECONDARY_STACKS = 3;
+export const SECONDARY_CARDS_PER_DECK = SECONDARY_STACKS * SECONDARY_COPIES_PER_CARD;
 
 /**
  * A card as it is printed: a rival card counts seats rather than naming one,
@@ -258,49 +239,40 @@ export function dealMissionOffers(
   };
 
   deal(rng.shuffle(buildPrimaryDeck(players.length, planetIds)), PRIMARY_OFFERS_PER_PLAYER);
-  deal(secondaryPile(players.length, rng), SECONDARY_OFFERS_PER_PLAYER);
+
+  /**
+   * The secondaries are not a pile you cut into: every player is handed one
+   * of each kind. A hand keeps two of them and they have to differ, so a
+   * shuffled pile would sometimes deal a seat no choice at all, and at six
+   * seats a 24-card pile is exactly consumed, so a "draw again" rule has a
+   * hole in it precisely where the table is fullest (measured 20 Sept 2026:
+   * one seat in fifty dealt four of a kind, a redeal in a tenth of six-seat
+   * games). The cards of a kind are identical, so there is nothing to shuffle
+   * and nothing a player could tell apart.
+   *
+   * Taking one of each closes that by construction, needs no redraw and no
+   * deck sized to the player count, and is one sentence at the table. The
+   * price is that everybody is offered the same three, so the choice is which
+   * one to leave rather than what turned up — and the three had better be
+   * worth roughly the same, or it is not a choice.
+   */
+  const stacks = new Map<string, DeckCard[]>();
+  for (const card of buildSecondaryDeck()) {
+    const stack = stacks.get(card.type) ?? [];
+    stack.push(card);
+    stacks.set(card.type, stack);
+  }
+  // One of each kind for every seat: the cards of a kind are identical, so
+  // the shuffle below orders nothing a player could tell apart.
+  for (const stack of [...stacks.values()].slice(0, SECONDARY_OFFERS_PER_PLAYER)) {
+    const shuffled = rng.shuffle(stack);
+    players.forEach((player, seat) => {
+      const card = shuffled[seat];
+      if (!card) return;
+      offers.get(player.id)!.push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
+    });
+  }
   return offers;
-}
-
-/**
- * A shuffled secondary pile stacked so that dealing it round the table gives
- * nobody four cards of one kind — a seat with nothing to choose between, since
- * the two it keeps have to be different (RULES §Missions).
- *
- * The seat puts its four back, what is left of the pile is shuffled and it
- * draws four more. At a full table nothing is left, so the draw hands the same
- * four back and the whole deal goes in again instead; either way the pile that
- * comes out is the printed one in another order.
- */
-export function secondaryPile(playerCount: number, rng: Rng): DeckCard[] {
-  let hands: DeckCard[][] = [];
-  let rest: DeckCard[] = [];
-  for (let pass = 0; pass < SECONDARY_DEAL_PASSES; pass++) {
-    const pile = rng.shuffle(buildSecondaryDeck());
-    const dealt = Math.min(pile.length, playerCount * SECONDARY_OFFERS_PER_PLAYER);
-    hands = Array.from({ length: playerCount }, () => []);
-    for (let i = 0; i < dealt; i++) hands[i % playerCount].push(pile[i]);
-    rest = pile.slice(dealt);
-    for (const hand of hands) {
-      for (let draw = 0; draw < SECONDARY_REDRAWS && oneKindOnly(hand); draw++) {
-        rest = rng.shuffle([...rest, ...hand.splice(0)]);
-        hand.push(...rest.splice(0, SECONDARY_OFFERS_PER_PLAYER));
-      }
-    }
-    if (!hands.some(oneKindOnly)) break;
-  }
-  // Back into one pile in the order the deal takes it off the top, so the
-  // secondaries are dealt exactly as the primaries are.
-  const stacked: DeckCard[] = [];
-  for (let round = 0; round < SECONDARY_OFFERS_PER_PLAYER; round++) {
-    for (const hand of hands) if (hand[round]) stacked.push(hand[round]);
-  }
-  return [...stacked, ...rest];
-}
-
-/** The cards this seat was dealt all say one thing. */
-function oneKindOnly(hand: readonly DeckCard[]): boolean {
-  return hand.length > 1 && hand.every((card) => card.type === hand[0].type);
 }
 
 /**
