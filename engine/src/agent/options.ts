@@ -76,7 +76,7 @@ export interface SeatOptions {
     destinationWellId: string;
     destination: Position;
     energy: number;
-    /** Fuel for an unphased jump (0 with a working compressor). */
+    /** Fuel for an unphased jump (1 with a working compressor). */
     fuel: number;
     /** Fuel each sector of phasing costs; a compressor does not pay for it. */
     phasingFuel: number;

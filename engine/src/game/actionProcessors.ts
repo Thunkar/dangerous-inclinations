@@ -33,7 +33,6 @@ import { createMissile, revealSensors } from "./missiles.ts";
 import { processScan } from "./scan.ts";
 import { isMooredAt } from "./stations.ts";
 import {
-  addHeat,
   findSubsystem,
   hasWorkingCompressor,
   isDestroyed,
@@ -417,19 +416,16 @@ function processFireWeapon(
   // A missiles tile may empty as much of its magazine as it likes at one ship
   // in one action, and that is one use of the tile: its cubes are charged once
   // however big the salvo, because the magazine is what limits missiles.
-  // `heatPerMissile: true` is the experiment that charges them per missile.
   const salvo = weaponType === "missiles" ? Math.max(1, Math.trunc(action.data.count ?? 1)) : 1;
-  const perMissileHeat = config.weaponStats?.heatPerMissile !== false;
   const used = useSubsystem(attacker.ship, attacker.id, weapon.id, "fired");
-  const extraHeat = perMissileHeat ? used.heat * (salvo - 1) : 0;
-  attacker = { ...attacker, ship: addHeat(used.ship, extraHeat) };
+  attacker = { ...attacker, ship: used.ship };
   events.push({
     type: "weapon_fired",
     attackerId: attacker.id,
     targetId: action.data.targetPlayerId,
     subsystemId: weapon.id,
     weaponType,
-    heat: used.heat + extraHeat,
+    heat: used.heat,
     ...(weaponType === "missiles" ? { count: salvo } : {}),
   });
   events.push(...used.events);

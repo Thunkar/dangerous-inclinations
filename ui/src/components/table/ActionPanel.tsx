@@ -637,8 +637,8 @@ function MoveControls({ disabled }: { disabled: boolean }) {
             onChange={adjustment => plan.setMove({ ...move, adjustment })}
           />
           <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
-            Engines at {WELL_TRANSFER_COSTS.energy}, {jumpFuel === 0 ? 'no' : jumpFuel} fuel
-            {compressor ? ' (the compressor refunds the jump, not the phasing)' : ''}. A jump is
+            Engines at {WELL_TRANSFER_COSTS.energy}, {jumpFuel} fuel
+            {compressor ? " (the compressor pays two of the jump's three fuel, never the phasing)" : ''}. A jump is
             your whole move: no drift. Phasing shifts where you land for 1 fuel a sector, never
             outside the arrival arc.
           </Typography>

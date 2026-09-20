@@ -7,8 +7,8 @@
  *   yarn bench --players=3,4            # only these seat counts
  *   yarn bench --minutes=1              # table time at this pace per turn
  *   yarn bench --output=docs/bench-2026-09-18.md
- *   yarn bench --rules=missionsToWin=3   # a page played under a proposed rule
- *   yarn bench --bot=criticalOrder=forward  # a page played by bots told to think differently
+ *   yarn bench --rules=missionsToWin=4   # a page played under a proposed rule
+ *   yarn bench --bot=aggressiveness=0.8,targetPreference=weakest  # a page played by bots told to think differently
  *
  * It exists to be diffed. Every run stamps the rules it was played under at
  * the top, so two pages side by side say what changed and what it did — which
@@ -51,7 +51,6 @@ import { SHIELD_ENERGY_PER_POINT, SUBSYSTEM_CONFIGS } from "../models/subsystems
 const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
 import { runBatch, type BatchResult } from "./batch.ts";
 import {
-  applyRuleOverrides,
   describeRuleOverrides,
   parseRuleOverrides,
   type RuleOverrides,
@@ -118,7 +117,7 @@ function parseArgs(argv: string[]): Args {
       continue;
     }
     // Split on the first "=" only: values carry their own, as in
-    // --rules=missionsToWin=4,secondariesKept=3.
+    // --rules=missionsToWin=4.
     const flag = raw.replace(/^--/, "");
     const eq = flag.indexOf("=");
     if (eq === -1) continue;
@@ -419,7 +418,6 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   // In this process for the stamp the page prints; the workers that play the
   // games get the same overrides with every job.
-  applyRuleOverrides(args.rules);
   applyBotOverrides(args.bot);
   const rows: SeatRow[] = [];
   const batches: BatchResult[] = [];

@@ -70,11 +70,9 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       const phased = e.sectorAdjustment
         ? `, phased ${e.sectorAdjustment > 0 ? "+" : ""}${e.sectorAdjustment} in the arc`
         : "";
-      const fuel = !e.compressed
-        ? ` (-${e.massSpent} fuel)`
-        : e.massSpent > 0
-          ? ` (-${e.massSpent} fuel for the phasing; the compressor pays for the lane)`
-          : " (the compressor pays for the lane)";
+      const fuel = e.compressed
+        ? ` (-${e.massSpent} fuel; the compressor pays two of the lane's three)`
+        : ` (-${e.massSpent} fuel)`;
       return `${name(e.playerId)} jumps to ${pos(e.to)}${phased}${fuel}${heat(e.heat)}`;
     }
     case "weapon_fired":

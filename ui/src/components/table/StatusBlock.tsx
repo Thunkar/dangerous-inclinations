@@ -14,7 +14,6 @@ import {
   SHIELD_ENERGY_PER_POINT,
   SHIELD_HEAT_PER_POINT,
   getMissileStats,
-  getSubsystemConfig,
   getWellName,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -84,17 +83,8 @@ export function StatusBlock({ accent }: { accent?: string }) {
    * A powered rack rolls at every missile that reaches you and pays its cubes
    * once for the turn however many it rolls at (RULES §Weapons → Ballistic
    * rack), so the worst case is that one use. Counted unless the plan already
-   * fires the rack this turn, in which case its heat is in `heatAfter`. Under
-   * the experiment that charges every roll, the worst case is one roll per
-   * missile already flying at you in this well, never fewer than one: a
-   * launcher within reach can put a round in the air before your next check.
+   * fires the rack this turn, in which case its heat is in `heatAfter`.
    */
-  const incoming = view.missiles.filter(
-    m => m.targetId === me.id && m.wellId === me.ship.wellId
-  ).length
-  const perRollHeat =
-    getSubsystemConfig('ballistic_rack').weaponStats?.heatPerIntercept !== false
-  const rackRolls = perRollHeat ? Math.max(1, incoming) : 1
   const rackHeat = pending
     .filter(
       s =>
@@ -103,7 +93,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         !s.isBroken &&
         !plan?.steps.some(step => step.kind === 'fire' && step.subsystemId === s.id)
     )
-    .reduce((sum, s) => sum + s.allocatedEnergy * rackRolls, 0)
+    .reduce((sum, s) => sum + s.allocatedEnergy, 0)
   // A tile that absorbs spends its cubes back to the reactor and goes dark, so
   // it trades its standing cost for the absorption heat rather than paying both.
   const shieldHeat = Math.max(0, shieldsOnly * SHIELD_HEAT_PER_POINT - standingHeat) + rackHeat

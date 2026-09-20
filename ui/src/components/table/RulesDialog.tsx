@@ -14,6 +14,7 @@ import MenuBookIcon from '@mui/icons-material/MenuBook'
 import {
   BLACKHOLE_RINGS,
   BURN_COSTS,
+  COMPRESSED_JUMP_MASS,
   DEFAULT_DISSIPATION_CAPACITY,
   MAX_REACTION_MASS,
   MAX_SECTOR_ADJUSTMENT,
@@ -92,7 +93,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['Phasing', `−(velocity−1) to +${MAX_SECTOR_ADJUSTMENT} sectors, 1 fuel each`],
     [
       'Jump',
-      `engines ${WELL_TRANSFER_COSTS.energy}, ${WELL_TRANSFER_COSTS.mass} fuel (free with compressor), no drift`,
+      `engines ${WELL_TRANSFER_COSTS.energy}, ${WELL_TRANSFER_COSTS.mass} fuel (${COMPRESSED_JUMP_MASS} with a compressor), no drift`,
     ],
     ['Hit roll', '1 miss, 2–9 hit, 10 crit (8–10 with sensors)'],
     [
@@ -174,7 +175,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
         <Heading>Reveals</Heading>
         <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
           A tile flips face-up the first time it does something: a weapon fires, shields absorb,
-          sensors scan, a radiator saves you hull, a compressor refunds a jump — or a critical
+          sensors scan, a radiator saves you hull, a compressor cheapens a jump — or a critical
           breaks it.
         </Typography>
       </DialogContent>

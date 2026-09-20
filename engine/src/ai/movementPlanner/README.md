@@ -148,7 +148,7 @@ It finds the origin at layer 1 → 1-turn coast. If our target had been a statio
 Both algorithms also track **reaction mass** alongside turns. This matters because:
 
 - Burns cost mass (1 / 2 / 3 for soft / medium / hard, plus 1 per sector of adjustment).
-- Well transfers cost 3 mass (refunded if a fuel compressor is installed — but the refund is applied by the engine, not the planner).
+- Well transfers cost 3 mass (1 with a working fuel compressor — `calculateJumpMassCost` is what applies the discount).
 - Coasting with a fuel scoop installed _recovers_ mass equal to the ring's velocity. This makes the edge-weight graph have **negative weights** in the mass dimension.
 
 Negative weights break ordinary shortest-path. The reverse BFS handles this with a Pareto frontier: at each `(position, turn)` we keep _all_ entries that aren't dominated by a (lower turns AND lower mass) entry. The forward BFS handles it more simply with a coarse mass bucket — fine for our small-state-space problem (≤12 turns × ≤720 oriented positions).

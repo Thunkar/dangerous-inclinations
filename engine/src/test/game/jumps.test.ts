@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   TRANSFER_LANES,
   TRANSFER_POINTS,
@@ -13,9 +13,8 @@ import {
   PLANET_OUTER_RING,
   STATION_RING,
 } from "../../models/gravityWells.ts";
-import { SECTORS_PER_RING, WELL_TRANSFER_COSTS } from "../../models/rings.ts";
+import { COMPRESSED_JUMP_MASS, SECTORS_PER_RING } from "../../models/rings.ts";
 import type { ShipLoadout } from "../../models/game.ts";
-import { SUBSYSTEM_CONFIGS } from "../../models/subsystems.ts";
 import {
   ALPHA,
   BETA,
@@ -252,15 +251,17 @@ describe("jumps: executing a well transfer", () => {
     expect(result.gameState).toBe(state);
   });
 
-  it("a working fuel compressor pays for the lane and is revealed", () => {
+  it("a working fuel compressor pays two of the lane's three fuel and is revealed", () => {
+    // The lane is 3 and the tile pays 2 of it, so a compressed jump is 1.
+    expect(COMPRESSED_JUMP_MASS).toBe(1);
     const state = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
-      reactionMass: 0,
+      reactionMass: 1,
     });
     const result = executeTurnAs(state, jump(1, ALPHA));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1").reactionMass).toBe(0);
     expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
-      massSpent: 0,
+      massSpent: 1,
       compressed: true,
     });
     expect(eventsOf(result.events, "subsystem_revealed")).toEqual([
@@ -293,65 +294,6 @@ describe("jumps: executing a well transfer", () => {
     const state = makeTwoPlayerGame({ wellId: BETA, ring: PLANET_OUTER_RING, sector: 17 });
     const result = executeTurnAs(withPower(state, "p1", "engines", 3), jump(1, BH));
     expect(getShip(result.gameState, "p1").sector).toBe(13);
-  });
-});
-
-/**
- * Experiment only: the tile is passive as the rules stand, and the simulator's
- * tile channel is the only thing that gives it a price
- * (`--tiles=fuel_compressor.minEnergy=4,maxEnergy=4,isPassive=false,generatesHeatOnUse=true`).
- * The configuration is process-wide, so every test here puts it back.
- */
-describe("jumps: a fuel compressor that costs cubes", () => {
-  const AS_IT_STANDS = { ...SUBSYSTEM_CONFIGS.fuel_compressor };
-  const CUBES = 4;
-
-  afterEach(() => {
-    SUBSYSTEM_CONFIGS.fuel_compressor = { ...AS_IT_STANDS };
-  });
-
-  function priceTheTile(): void {
-    SUBSYSTEM_CONFIGS.fuel_compressor = {
-      ...AS_IT_STANDS,
-      minEnergy: CUBES,
-      maxEnergy: CUBES,
-      isPassive: false,
-      generatesHeatOnUse: true,
-    };
-  }
-
-  it.each([
-    ["powered, it pays for the lane and charges its cubes as heat", CUBES, 0, 3 + CUBES, true],
-    ["unpowered, it pays for nothing and costs nothing", 0, WELL_TRANSFER_COSTS.mass, 3, false],
-  ])("%s", (_case, cubes, massSpent, heat, works) => {
-    priceTheTile();
-    const base = readyToJump(BH, 5, 17, "prograde", COMPRESSOR);
-    const state = cubes > 0 ? withPower(base, "p1", "forward-0", cubes) : base;
-    const fuelBefore = getShip(state, "p1").reactionMass;
-
-    const result = executeTurnAs(state, jump(1, ALPHA));
-
-    expect(result.errors).toBeUndefined();
-    expect(getShip(result.gameState, "p1").reactionMass).toBe(fuelBefore - massSpent);
-    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
-      massSpent,
-      compressed: works,
-      heat,
-    });
-    expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(works);
-    expect(
-      eventsOf(result.events, "subsystem_revealed").some((e) => e.subsystemId === "forward-0")
-    ).toBe(works);
-  });
-
-  it("is still passive, free and silent under the rules as they stand", () => {
-    const state = readyToJump(BH, 5, 17, "prograde", COMPRESSOR);
-    const result = executeTurnAs(state, jump(1, ALPHA));
-    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
-      massSpent: 0,
-      compressed: true,
-      heat: 3,
-    });
   });
 });
 
@@ -440,26 +382,31 @@ describe("jumps: phasing inside the arrival arc", () => {
     expect(result.errors?.[0]).toMatch(/integer/i);
   });
 
-  it("a compressor pays for the lane but never for the phasing", () => {
+  it("a compressor cheapens the lane but never the phasing", () => {
     const phasing = 2;
     const state = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
-      reactionMass: phasing,
+      reactionMass: COMPRESSED_JUMP_MASS + phasing,
     });
     const result = executeTurnAs(state, jump(1, ALPHA, phasing));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1")).toMatchObject({ sector: 7, reactionMass: 0 });
     expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
-      massSpent: phasing,
+      massSpent: COMPRESSED_JUMP_MASS + phasing,
       compressed: true,
     });
   });
 
-  it("a compressor with a dry tank can still jump, but cannot phase", () => {
+  it("a compressor with a dry tank cannot jump at all", () => {
     const dry = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
       reactionMass: 0,
     });
-    expect(executeTurnAs(dry, jump(1, ALPHA)).errors).toBeUndefined();
-    expect(executeTurnAs(dry, jump(1, ALPHA, 1)).errors?.[0]).toMatch(/reaction mass/i);
+    expect(executeTurnAs(dry, jump(1, ALPHA)).errors?.[0]).toMatch(/reaction mass/i);
+    expect(
+      executeTurnAs(
+        withShip(dry, "p1", { reactionMass: COMPRESSED_JUMP_MASS }),
+        jump(1, ALPHA, 1)
+      ).errors?.[0]
+    ).toMatch(/reaction mass/i);
   });
 
   it("phasing an inbound jump works the same way, and still skips the drift", () => {

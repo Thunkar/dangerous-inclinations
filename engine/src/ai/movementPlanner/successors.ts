@@ -47,7 +47,7 @@ export interface SuccessorOptions {
   allowWellTransfers: boolean;
   /** Coast steps recover mass equal to the ring velocity. */
   hasFuelScoop?: boolean;
-  /** A compressor refunds a jump's own mass (never its phasing). */
+  /** A compressor cheapens a jump's own mass (never its phasing). */
   hasFuelCompressor?: boolean;
 }
 

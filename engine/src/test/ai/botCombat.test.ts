@@ -11,8 +11,7 @@ import { viewFor } from "../../game/view.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
 import { generateCandidates } from "../../ai/planner.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
-import type { ActionPlan, Opponent } from "../../ai/types.ts";
-import { chooseCriticalTarget } from "../../ai/behaviors/combat.ts";
+import type { ActionPlan } from "../../ai/types.ts";
 import { parseBotOverrides } from "../../sim/botOverrides.ts";
 import {
   ALPHA,
@@ -525,76 +524,12 @@ describe("bot leaves a recovering ship alone", () => {
   });
 });
 
-/** The opponent as the bot's analyzer reads it: two players, so the only one. */
-function opponentOf(state: GameState, viewerId: string): Opponent {
-  return analyzeSituation(viewFor(state, viewerId), DEFAULT_BOT_PARAMETERS).opponents[0];
-}
-
-/**
- * `criticalOrder`: the standing policy for which tile a critical names.
- *
- * "suppress" reads the cubes and breaks whatever is shooting back — the tests
- * above and in botThreat are its specification. "forward" goes for the bow
- * instead, on the reasoning that the forward tile is the ship's role, and only
- * falls back to the cubes once the bow is public and already broken.
- */
-describe("critical order", () => {
-  const gunships = () =>
-    makeTwoPlayerGame(
-      { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
-      { wellId: BH, ring: 4, sector: 0, loadout: GUNSHIP }
-    );
-  /** A break is public, so this is the one thing that talks the bow out of it. */
-  const brokenBow = (state: GameState) =>
-    withSub(state, "p2", "forward-0", { isRevealed: true, isBroken: true });
-
-  it.each([
-    ["a face-down bow, which reads as intact until a break says otherwise", gunships, "forward-0"],
-    [
-      "the bow even with four cubes glowing on a side slot",
-      () => withPower(gunships(), "p2", "side-2", 4),
-      "forward-0",
-    ],
-    [
-      "the fattest powered side slot once the bow is public and broken",
-      () => withPower(withPower(brokenBow(gunships()), "p2", "side-0", 2), "p2", "side-2", 4),
-      "side-2",
-    ],
-    [
-      "the engines with the bow broken and not a cube on the sides",
-      () => brokenBow(gunships()),
-      "engines",
-    ],
-    [
-      "the thrusters when the engines are gone too",
-      () => withSub(brokenBow(gunships()), "p2", "engines", { isBroken: true }),
-      "rotation",
-    ],
-  ])("under forward, names %s", (_case, build, expected) => {
-    expect(chooseCriticalTarget(opponentOf(build(), "p1"), "suppress", "forward")).toBe(expected);
-  });
-
-  it.each([
-    ["suppress", "side-2"],
-    ["forward", "forward-0"],
-  ])("with a kill in hand, the %s order names %s", (order, expected) => {
-    // A face-up shield tile at four cubes is the single thing between the
-    // volley and the hull, which is exactly what "kill" is for — and what the
-    // forward order overrules.
-    let state = withSub(gunships(), "p2", "side-2", { isRevealed: true });
-    state = withPower(state, "p2", "side-2", 4);
-    expect(
-      chooseCriticalTarget(opponentOf(state, "p1"), "kill", order as "suppress" | "forward")
-    ).toBe(expected);
-  });
-});
-
 describe("parseBotOverrides", () => {
   it.each([
-    ["criticalOrder=forward", { criticalOrder: "forward" }],
+    ["targetPreference=weakest", { targetPreference: "weakest" }],
     [
-      "criticalOrder=suppress,aggressiveness=0.8",
-      { criticalOrder: "suppress", aggressiveness: 0.8 },
+      "targetPreference=closest,aggressiveness=0.8",
+      { targetPreference: "closest", aggressiveness: 0.8 },
     ],
     ["conserveAmmo=true", { conserveAmmo: true }],
   ])("reads %s", (text, expected) => {
@@ -602,11 +537,11 @@ describe("parseBotOverrides", () => {
   });
 
   it.each([
-    ["criticalOrdr=forward"], // an unknown parameter
-    ["criticalOrder=bow"], // not one of the policy's words
+    ["targetPreferenc=weakest"], // an unknown parameter
+    ["targetPreference=bravest"], // not one of the parameter's words
     ["aggressiveness=lots"], // not a number
     ["conserveAmmo=yes"], // not a boolean
-    ["criticalOrder"], // no value at all
+    ["targetPreference"], // no value at all
   ])("refuses %s", (text) => {
     expect(() => parseBotOverrides(text)).toThrow();
   });

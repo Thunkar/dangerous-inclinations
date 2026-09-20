@@ -109,22 +109,6 @@ export interface WeaponStats {
   maxAmmo?: number; // Ammunition-based weapons
   fuelPerTurn?: number; // Guided projectiles: steps per move
   maxMoves?: number; // Guided projectiles: moves before expiry
-  /**
-   * How a salvo is charged heat. False is the rule (RULES §Weapons): a salvo
-   * is one use of the missiles tile, charged its cubes once however many
-   * rounds leave the rail. True is the experiment channel — cubes per missile
-   * — and on 200-game rows it changed nothing but how missiles felt, because
-   * launches per game were identical: the magazine is the limit, not the heat.
-   */
-  heatPerMissile?: boolean;
-  /**
-   * How point defence is charged heat. False is the rule (RULES §Weapons): a
-   * turn of interceptions is one use of the rack, charged its cubes once
-   * however many missiles it rolls at. True is the experiment channel — cubes
-   * per roll — and on the same rows it only made the rack feel dearer without
-   * moving what either side launched, so the plain rule stands.
-   */
-  heatPerIntercept?: boolean;
 }
 
 /** Passive bonuses that need no energy. */
@@ -295,10 +279,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       maxAmmo: 4,
       fuelPerTurn: 3,
       maxMoves: 3,
-      // The rule: a salvo is one use of the tile, its cubes once however many
-      // rounds leave the rail. True is the experiment channel (cubes per
-      // missile) for the simulator, never a knob on a game.
-      heatPerMissile: false,
     },
   },
 
@@ -316,10 +296,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       arc: "broadside",
       sideRestricted: false,
       canTargetSameRing: true,
-      // The rule: a turn of interceptions is one use of the rack, its cubes
-      // once however many missiles it rolls at. True is the experiment channel
-      // (cubes per roll) for the simulator, never a knob on a game.
-      heatPerIntercept: false,
     },
   },
 };

@@ -186,12 +186,7 @@ export interface BotStatus {
   shields: Subsystem[];
   racks: Subsystem[];
   brokenSubsystems: Subsystem[];
-  /**
-   * A compressor aboard and unbroken — workable, once it holds the cubes its
-   * tile asks for (none while it is passive). Jump costs are planned assuming
-   * the bot powers it, and the candidate that jumps budgets those cubes; if
-   * the reactor cannot hold them alongside the engines it pays full fuel.
-   */
+  /** A compressor aboard and unbroken, which is what cheapens a jump's fuel. */
   hasCompressor: boolean;
 }
 
@@ -282,12 +277,6 @@ export interface BotParameters {
   conserveAmmo: boolean;
   /** Spend heat and energy on scanning unknown enemy tiles when adjacent. */
   scanUnknowns: boolean;
-  /**
-   * Which tile a critical names: "suppress" reads the cubes and breaks
-   * whatever is shooting back, "forward" goes for the bow whatever it holds
-   * (see `behaviors/combat.chooseCriticalTarget`).
-   */
-  criticalOrder: "suppress" | "forward";
 }
 
 export const DEFAULT_BOT_PARAMETERS: BotParameters = {
@@ -297,7 +286,6 @@ export const DEFAULT_BOT_PARAMETERS: BotParameters = {
   lowFuelThreshold: 6,
   conserveAmmo: false,
   scanUnknowns: true,
-  criticalOrder: "suppress",
 };
 
 /**

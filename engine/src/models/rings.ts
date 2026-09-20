@@ -25,22 +25,11 @@ export const WELL_TRANSFER_COSTS = {
 } as const;
 
 /**
- * Fuel a jump costs with a working fuel compressor: none. The tile pays the
- * lane, so the only fuel a compressed jump burns is its phasing.
- *
- * This is one of the game's constants, not a knob on the state: a game is
- * played under RULES.md and nothing else. Only the simulator's experiment
- * channel (`yarn sim --rules=compressedJumpFuel=1`, sim/ruleOverrides.ts)
- * reassigns it, once at process start, so a proposed change can be measured
- * before it is adopted; the server and the UI never touch it. Read the binding
- * at call time — a top-level const holding a copy would not see the override.
+ * Fuel a jump costs with a working fuel compressor is one against the lane's
+ * three; the tile pays two of the three and never the phasing. A constant, not
+ * a knob — a game is played under RULES.md and nothing else.
  */
-export let COMPRESSED_JUMP_MASS = 0;
-
-/** Experiment channel only (see {@link COMPRESSED_JUMP_MASS}). */
-export function setCompressedJumpMass(mass: number): void {
-  COMPRESSED_JUMP_MASS = mass;
-}
+export const COMPRESSED_JUMP_MASS = 1;
 
 /**
  * Allowed sector adjustment for a burn from a ring with the given velocity.
@@ -61,9 +50,9 @@ export function calculateBurnMassCost(baseMassCost: number, sectorAdjustment: nu
 }
 
 /**
- * Fuel a jump costs: the lane's own cost, which a working fuel compressor
- * refunds, plus the phasing, which it never does (RULES §Jump: "a compressor
- * pays for the jump, not for the phasing").
+ * Fuel a jump costs: the lane's own cost, which a working fuel compressor cuts
+ * to {@link COMPRESSED_JUMP_MASS}, plus the phasing, which it never cheapens
+ * (RULES §Jump: "a compressor pays for the jump, not for the phasing").
  */
 export function calculateJumpMassCost(sectorAdjustment: number, hasCompressor: boolean): number {
   const lane = hasCompressor ? COMPRESSED_JUMP_MASS : WELL_TRANSFER_COSTS.mass;

@@ -177,15 +177,17 @@ is measured before it is adopted with the simulator's experiment-only override
 channels, which mutate the configuration of the process running the batch:
 `--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
 any tile), `--weapons=laser.damage=3` (firing stats),
-`--rules=missionsToWin=4,secondariesKept=3,compressedJumpFuel=1` (the table's
-points to win — a real game option, passed to `createGame` — then two
-experiment-only knobs: the shape of a hand and what a compressed jump costs;
-`yarn bench --rules=` takes it too and stamps it on the page), `--loadouts=` (the bots'
-hull templates), `--seats=` (a hull forced on one seat) and `--hands=bot-1=destroy`
-(the primary a seat is dealt and keeps — the bots price one road to the win
-and take it every time, so a plan they never choose is only measurable dealt). The summary prints
-turn behaviour (coast/burn/jump/firing shares, shield cubes, heat at check,
-damage soaked). A change that survives its experiment moves into the models.
+`--rules=missionsToWin=4` (the table's points to win — a real game option,
+passed to `createGame`; `yarn bench --rules=` takes it too and stamps it on
+the page), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'
+parameters), `--loadouts=` (the bots' hull templates), `--seats=` (a hull
+forced on one seat) and `--hands=bot-1=destroy` (the primary a seat is dealt
+and keeps — the bots price one road to the win and take it every time, so a
+plan they never choose is only measurable dealt). The summary prints turn
+behaviour (coast/burn/jump/firing shares, shield cubes, heat at check, damage
+soaked). A change that survives its experiment moves into the models, and a
+switch whose experiment is over is deleted, not kept: the measurement lives
+in the settled list below and in the commit that removed it.
 
 The batch runner and the sim CLI are not exported from the engine's browser
 barrel (they use worker threads); use `yarn sim`. A single headless game
@@ -258,21 +260,26 @@ not an argument:
   on the balance seeds with the hauler templates moved to a sensor bow: the
   weaponless pacifist wins 48% with the compressor on its side as it does with
   it forward. The value is the refund, not the slot.
-- **Pricing the compressor's jump.** A 1-fuel jump took the weaponless
-  compressor hull 50% → 32% and left the hauler preset alone (34% → 31%); a
-  compressor needing 4 cubes (`--tiles=fuel_compressor.minEnergy=4,…`, the
-  engine honours a powered compressor) missed its target — the gunboats did not
-  move (racks 63% → 59%) and the cargo hauler paid (34% → 26%), because a
-  fighter jumps rarely and a Deliver ship jumps every few turns and needs its
-  shields on arrival. The designer kept the jump free and asked for hunters
-  that can kill the hull instead; no hunter preset does (below), so the price
-  was remeasured on the whole matrix — see the open problem.
+- **A compressed jump for free.** The refund was worth about 18 points to a
+  weaponless hull: with the jump free every compressor hull won 40–50% at
+  three seats against 32%, and no hunter preset could take the compressor with
+  two racks in a duel (prey wins 59–89%). A compressor needing 4 cubes instead
+  missed its target — the gunboats did not move (racks 63% → 59%) and the
+  cargo hauler paid (34% → 26%), because a fighter jumps rarely and a Deliver
+  ship jumps every few turns and needs its shields on arrival. A jump at 1
+  fuel, measured on the whole matrix at 400 games a row, cleared every
+  failing flag at three points (the family 33–37%, every gun hull up 2–9, the
+  hauler presets with Deliver at 30% and 37% against 30%) and four of five at
+  four points, and gave the hunters their duels back (hunter preset 70% → 55%
+  prey wins, rack hunter 59% → 51%, four lasers 65% → 46%). Adopted 20 Sept
+  2026: the price is a constant, the powered compressor and the
+  `compressedJumpFuel` switch are gone. The cost is three rounds a game and
+  Deliver's hulls paying too (hauler-aggressive + Deliver 47% → 37%).
 - **Heat per missile, and per interception roll.** Measured against one tile
   use on both sides: no row moved outside noise and missiles launched per game
   were identical (10.5), because the four-round magazine is the limit. Flat
-  adopted; `--tiles=missiles.heatPerMissile=true,ballistic_rack.heatPerIntercept=true`
-  replays the old reading. Charging only the attacker flat shifts power to the
-  launcher hulls (+4 to +7), so the halves stay together.
+  adopted and the switch removed. Charging only the attacker flat shifts power
+  to the launcher hulls (+4 to +7), so the halves stay together.
 - **Four points to win with three mandatory cards.** 41–49 rounds by seat
   count; three points with the same hand runs 27–31 and every game finishes.
   Keeping all three secondaries (any three points) let Deliver holders win 44%
@@ -294,55 +301,50 @@ not an argument:
   noise, and the compressor hulls gained if anything (a broken compressor is
   repaired at the next dock, where that hull was going). **Shields stopping
   lasers**: halves kills a game and costs the hunter preset six points to get
-  the compressor-with-a-laser hunter from 32% to 15%. Both left alone; both
-  remain as `--bot=criticalOrder=forward` and `--tiles=laser.ignoresShields=false`.
+  the compressor-with-a-laser hunter from 32% to 15%. Both left alone; the
+  critical-order switch is gone, and shields-stop-lasers is a tile field
+  (`--tiles=laser.ignoresShields=false`), not a switch.
 
 Known open problems:
 
 - **The primary you are dealt is worth about ten points, and which way flips
-  with the bots.** At 400 games a row: dealt Destroy 32%, Deliver 36%,
-  Intercept 23%, against 33% with a hand of its own choosing (three points);
-  27% / 38% / 28% against 32% at four. With bots that scanned last the same
-  cards read 55 / 34 / 33. The swing says the rules are sensitive to how well
+  with the bots.** At 400 games a row: dealt Destroy 37%, Deliver 31%,
+  Intercept 26%, against 32% with a hand of its own choosing (three points);
+  36 / 30 / 32 against 35 at four. With the jump free the same cards read
+  32 / 36 / 23, and with bots that scanned last 55 / 34 / 33. The swing says the rules are sensitive to how well
   each card is played, which humans will differ on too. Levers not yet
   measured: Intercept's scan range or filing station, a Deliver that pays on
   pickup, the primary's value.
-- **Intercept is the weak card, and the designer calls it the player's
-  problem.** 28 completed per 100 kept, dealt Intercept 23% (28% under four
-  points, where the interceptor has time). The bots scan first now; what
-  remains is the card — a rival on your ring within three sectors, then a
-  named station — and a sensor bow that reveals itself early. Not a rule
-  change for now.
-- **The compressor wins a race; a fuel a jump is measured and awaits the
-  designer's call.** Against 33%: compressor + launchers×2 50% (`outlier`),
-  shields×2 + radiators×2 43%, lasers×2 41%, racks×2 40%; under four points
-  the family is four outliers at 42–47% against 32%. The refund is worth about
-  18 points to a weaponless hull. Its natural predators are racks and lasers
-  (400-game duels: rack hunter 59% prey wins, four lasers 65%, the
-  laser-and-rack hunter preset 70%; missiles never, 90–92%), and with bots
-  that race, hunting is slower than running. The whole matrix rerun with
-  `--rules=compressedJumpFuel=1` (400 games a row, 240 a seat count, same
-  seeds): at three points no failing flag — the family falls to 33–37%, every
-  gun hull gains 2–9, the hauler presets with Deliver land at 30% and 37%
-  against a 30% reference, dealt Destroy / Deliver / Intercept read 37 / 31 /
-  26 against 32, and the prey's duel wins fall to 55% (hunter preset), 51%
-  (rack hunter) and 46% (four lasers); games run 27 rounds instead of 24 at
-  three to five seats. At four points the five failing flags become one (the
-  compressor-with-a-laser hull hunting, 38% against 36%), the family sits at
-  34–41% against 35%, the duels read 54 / 43 / 32, and games run 45 / 45 /
-  46 / 53 rounds. The Deliver hulls pay too (hauler-aggressive + Deliver 47%
-  → 37%), which is the cost the designer declined before; the balance report
-  page carries the full comparison.
+- **Intercept and Deliver are the weak cards, and the designer calls
+  Intercept the player's problem.** Intercept: 29 completed per 100 kept,
+  dealt Intercept 26% (32% under four points, where the interceptor has
+  time). The bots scan first now; what remains is the card — a rival on your
+  ring within three sectors, then a named station — and a sensor bow that
+  reveals itself early. Not a rule change for now. Deliver: dealt Deliver
+  31% (30% at four) since the jump costs a fuel — the hauler pays what the
+  runner used to get free, and its presets sit on the reference (30% and 37%
+  against 30%). Priced any further, the hauler goes with the runner.
+- **The compressor family is in band, two points from the line at four
+  points.** With a jump at 1 fuel: compressor + launchers×2 37%, shields×2 +
+  radiators×2 33%, lasers×2 36%, racks×2 37% against 32% at three points;
+  39 / 34 / 41 / 39 against 35% at four, where the compressor-with-a-laser
+  hull hunting (hauler-aggressive + Destroy) sits at 38% against 36% and
+  trips `unpunished`, a flag that fires at equality. Its natural predators
+  are racks and lasers (400-game duels: hunter preset 55% prey wins, rack
+  hunter 51%, four lasers 46%; missiles never, 86–90%; at four points 54 /
+  43 / 32). Watch it, do not price it further: the next fuel takes the
+  hauler with it.
 - **The secondary offer is still lopsided.** Everyone is offered all three;
-  Garbage Disposal is the one left out (kept 46% against 76–78%). Completed per
-  100 kept under three points: Survey 35, Board 28, Garbage 14 — the spare
+  Garbage Disposal is the one left out (kept 47% against 76–77%). Completed per
+  100 kept under three points: Survey 34, Board 27, Garbage 17 — the spare
   secondary is mostly never attempted, which is the rule working.
 - **Point defence lives on one preset.** Bots holding Destroy always fly the
   aggressive hunter, so the aggressive hunter's rack is the only rack in
   natural play; when it briefly carried two lasers instead, missiles went
   unanswered and the compressor with two launchers reached 52%. The tanky
-  hunter (rack + shields×2) is `weak` at 18% and a poor predator (16% Destroy
-  completion in the duel); if both presets are to hunt, it wants a second gun.
+  hunter (rack + shields×2) is `weak` at 22% and the poorest predator among
+  the gun hulls (the prey wins 67% of duels against it); if both presets are
+  to hunt, it wants a second gun.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A mat that can hold a gun is a
   mat that gets dealt into Destroy (44% of games) whether or not that gun can
@@ -357,15 +359,16 @@ Known open problems:
   holding a crate than while empty. Kills still fall on carriers — 72% of
   destroyed ships were carrying something, nearly all of it data chits — but
   that is the hunt for the leader, not the crate.
-- **Two players is thin**, and seat 1 wins 56% of them on the balance seeds
-  (50 / 50 under four points). The designer wants no artificial limit; special
+- **Two players is thin**, and seat 1 wins 54% of them on the balance seeds
+  (49% under four points). The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: 24 / 24 / 25 / 27 rounds at 3 / 4 / 5 / 6 seats under three
-  points, 1h12 to 2h42 at a minute a turn, every game decided, five cards
-  completed a game at three seats; kills 1.6 / 3.8 / 6.8 / 11.2. Under four
-  points 39 / 41 / 45 / 51 rounds, kills 3.1 / 5.9 / 10.5 / 19.3. At 240 games
-  per seat count the benchmark's seat spread is 24 / 38 / 38 at three seats
-  and flat at four to six.
+- **Length**: 27 / 26 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats under three
+  points, 1h21 to 2h42 at a minute a turn, every game decided, five cards
+  completed a game at three seats; kills 1.9 / 3.9 / 7.7 / 11.0. Under four
+  points 45 / 45 / 46 / 53 rounds, kills 3.7 / 6.5 / 11.6 / 20.2. The free
+  jump ran three rounds shorter at three to five seats. At 240 games per seat
+  count the benchmark's seat spread is 29 / 42 / 30 at three seats and flat
+  at four to six.
 
 ## Adding a rule
 

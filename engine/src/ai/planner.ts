@@ -28,9 +28,8 @@ import { SURVEY_RING } from "../models/missions.ts";
 import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
-import { BURN_COSTS, calculateJumpMassCost } from "../models/rings.ts";
+import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
-import { compressorsAboard } from "../game/ship.ts";
 import { getStationAt } from "../game/stations.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { heatAfterCheck } from "../game/heat.ts";
@@ -110,27 +109,8 @@ export function buildCandidate(
   const capacity = me.ship.reactor.totalCapacity;
   const rotationEnergy = getSubsystemConfig("rotation").minEnergy;
 
-  /**
-   * A compressor pays for a lane only while it holds the cubes its tile asks
-   * for, so a jump is budgeted at engines + compressor and its cubes are heat
-   * like any other tile's. The tile is passive as the rules stand and asks for
-   * none, which leaves every line below at zero; the simulator's tile channel
-   * is what prices it (`--tiles=fuel_compressor.minEnergy=4,...`).
-   */
-  const compressor = compressorsAboard(ship).find((s) => getSubsystemConfig(s.type).minEnergy > 0);
-  const compressorEnergy = compressor ? getSubsystemConfig(compressor.type).minEnergy : 0;
-  const compressorHeat =
-    compressor && getSubsystemConfig(compressor.type).generatesHeatOnUse ? compressorEnergy : 0;
-  const compressesLane = (m: MovementChoice) => m.kind === "jump" && compressor !== undefined;
-
   // A movement whose heat alone would gut the hull is not worth it.
-  const movementHeatDamage = Math.max(
-    0,
-    status.heat +
-      movement.engineEnergy +
-      (compressesLane(movement) ? compressorHeat : 0) -
-      status.dissipation
-  );
+  const movementHeatDamage = Math.max(0, status.heat + movement.engineEnergy - status.dissipation);
   if (movementHeatDamage > 0 && status.hull - movementHeatDamage < MIN_HULL_AFTER_OVERHEAT) {
     movement = coastChoice(false);
   }
@@ -142,22 +122,12 @@ export function buildCandidate(
   if (movement.engineEnergy + movementRotation > capacity) {
     movement = coastChoice(false);
   }
-  // A jump the reactor cannot power alongside the compressor is made
-  // uncompressed, for the lane's full fuel — the movement plan priced it with
-  // the discount, so the tank is checked again here and a jump it can no
-  // longer pay for becomes a coast.
-  let compressed = compressesLane(movement);
-  if (compressed && movement.engineEnergy + movementRotation + compressorEnergy > capacity) {
-    const bare = calculateJumpMassCost(movement.sectorAdjustment ?? 0, false);
-    movement = status.reactionMass >= bare ? { ...movement, massCost: bare } : coastChoice(false);
-    compressed = false;
-  }
 
   // Facing: the burn direction, or whatever gives the railgun a shot.
   const canRotate =
     !status.rotation.isBroken &&
     !status.rotation.usedThisTurn &&
-    movement.engineEnergy + (compressed ? compressorEnergy : 0) + rotationEnergy <= capacity;
+    movement.engineEnergy + rotationEnergy <= capacity;
   const preview =
     movement.kind === "coast" && moored ? { ...movement.preview, moored: true } : movement.preview;
   let facing: Facing = movement.requiredFacing ?? ship.facing;
@@ -204,10 +174,6 @@ export function buildCandidate(
   if (movement.engineEnergy > 0) {
     targets.set(status.engines.id, movement.engineEnergy);
     heatUsed += movement.engineEnergy;
-  }
-  if (compressed && compressor) {
-    targets.set(compressor.id, compressorEnergy);
-    heatUsed += compressorHeat;
   }
   if (rotate) {
     targets.set(status.rotation.id, getSubsystemConfig("rotation").minEnergy);
@@ -304,9 +270,9 @@ export function buildCandidate(
   const shots: Array<{ opponent: Opponent; intent: FireIntent }> = [];
   const fired = new Set<string>();
   /**
-   * A salvo of `count` rounds off the same tile: the cubes are unchanged, the
-   * damage is per missile and the heat is whatever the tile charges for a
-   * launch that size.
+   * A salvo of `count` rounds off the same tile: the cubes and the heat are
+   * unchanged — a launch is one use of the tile however big it is — and the
+   * damage is per missile.
    */
   const sized = (intent: FireIntent, count: number): FireIntent =>
     count === intent.count
@@ -315,7 +281,7 @@ export function buildCandidate(
           ...intent,
           count,
           damage: (intent.damage / intent.count) * count,
-          heat: salvoHeat(intent.weapon, count),
+          heat: salvoHeat(intent.weapon),
         };
   for (const { opponent, intent: offered } of queue) {
     if (fired.has(offered.weapon.id)) continue;
@@ -433,8 +399,7 @@ export function buildCandidate(
       targetPlayerId: shot.intent.targetId,
       criticalTarget: chooseCriticalTarget(
         shot.opponent,
-        killIntent(shot.opponent) ? "kill" : "suppress",
-        parameters.criticalOrder
+        killIntent(shot.opponent) ? "kill" : "suppress"
       ),
       ...(shot.intent.weapon.type === "railgun"
         ? { compensateRecoil: shot.intent.compensateRecoil === true }

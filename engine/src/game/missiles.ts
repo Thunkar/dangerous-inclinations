@@ -20,7 +20,7 @@
  */
 import type { GameState, Missile, Player, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { getMissileStats, getSubsystemConfig } from "../models/subsystems.ts";
+import { getMissileStats } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import { rollD10, nextEntityId } from "../utils/rng.ts";
 import {
@@ -189,13 +189,9 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     );
     if (rack) {
       // A turn of interceptions is one use of the rack: the first roll of a
-      // player-turn costs its cubes and the rest of that turn's rolls are
-      // free. `heatPerIntercept: true` is the experiment that charges each one.
-      const chargeThisRoll =
-        getSubsystemConfig("ballistic_rack").weaponStats?.heatPerIntercept !== false ||
-        !rack.usedThisTurn;
+      // player-turn costs its cubes and the rest of that turn's rolls are free.
       let heat = 0;
-      if (chargeThisRoll) {
+      if (!rack.usedThisTurn) {
         const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");
         targetShip = used.ship;
         heat = used.heat;

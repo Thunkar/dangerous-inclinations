@@ -28,11 +28,11 @@
  * offbook, extreme), full row ids (`illogical:hauler_tanky+destroy`) or a bare
  * row name (`turtle`).
  *
- * `--rules=` is the experiment-only channel of `sim/ruleOverrides.ts`: the
- * whole matrix is played under it and the page stamps it under the title, so a
- * proposed rule can be read against the same rows as the standing ones. Two
- * pages are only comparable when they ran the same games, the same seeds and
- * the same overrides.
+ * `--rules=missionsToWin=4` plays the whole matrix at the table's other points
+ * setting (`sim/ruleOverrides.ts`) and the page stamps it under the title, so
+ * the four-point game can be read against the same rows as the three-point
+ * one. Two pages are only comparable when they ran the same games, the same
+ * seeds and the same setting.
  *
  * **Every forced row reports `stuck`**: the share of its games in which seat 1
  * really flew the forced hull and really kept the forced card. Both are
@@ -70,12 +70,7 @@ import type { ShipLoadout } from "../models/game.ts";
 import { DEFAULT_POINTS_TO_WIN, type MissionType } from "../models/missions.ts";
 import { BOT_LOADOUT_TEMPLATES, type BotArchetype } from "../ai/behaviors/loadout.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
-import {
-  applyRuleOverrides,
-  describeRuleOverrides,
-  parseRuleOverrides,
-  type RuleOverrides,
-} from "./ruleOverrides.ts";
+import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import { handShapeOf, type PerGameStats, type PerPlayerStats } from "./stats.ts";
 
 const OUTLIER_MARGIN = 0.12;
@@ -552,9 +547,6 @@ function renderForced(rows: ForcedRow[]): string[] {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  // In this process so the page's header stamps the live values; the workers
-  // that play the games get the same overrides with every job.
-  applyRuleOverrides(args.rules);
   const want = (id: string) => {
     if (!args.only) return true;
     const [section, name] = id.split(":");

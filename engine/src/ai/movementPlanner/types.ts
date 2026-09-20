@@ -80,7 +80,7 @@ export interface PlannerOptions {
   hasFuelScoop: boolean;
   /** Maximum fuel the ship can hold (caps scoop recovery). */
   maxFuelCapacity: number;
-  /** A working fuel compressor refunds a jump's own fuel (never its phasing). */
+  /** A working fuel compressor cheapens a jump's own fuel (never its phasing). */
   hasFuelCompressor: boolean;
 }
 

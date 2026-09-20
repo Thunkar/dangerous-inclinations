@@ -1,13 +1,13 @@
 /**
  * Experiment-only bot parameter overrides for the simulator:
- * `--bot=criticalOrder=forward,aggressiveness=0.8`
+ * `--bot=aggressiveness=0.8,targetPreference=weakest`
  *
  * Where `--tiles`, `--weapons` and `--rules` change the game, this changes the
- * players: the knobs every bot decides with (`ai/types.BotParameters`). A
- * policy the bots do not use is not measurable, so a proposed one is given to
- * them here first — `criticalOrder=forward` plays a batch in which every
- * critical goes for the bow — and only moves into the defaults once the batch
- * says it is worth having.
+ * players: the knobs every bot decides with (`ai/types.BotParameters`). A way
+ * of playing the bots do not use is not measurable, so a proposed one is given
+ * to them here first — a batch played by bots that shoot the weakest ship in
+ * range says what that habit is worth — and only moves into the defaults once
+ * the batch says it is worth having.
  *
  * Like the other channels it mutates the shared configuration of the process
  * (or worker thread) running the games, so every game of a batch is played by
@@ -21,7 +21,6 @@ export type BotOverrides = Partial<BotParameters>;
 /** Keys whose value is one of a fixed set of words, and what those words are. */
 const ENUM_VALUES: Partial<Record<keyof BotParameters, readonly string[]>> = {
   targetPreference: ["closest", "weakest", "mission"],
-  criticalOrder: ["suppress", "forward"],
 };
 const BOOLEAN_KEYS: ReadonlySet<keyof BotParameters> = new Set<keyof BotParameters>([
   "conserveAmmo",

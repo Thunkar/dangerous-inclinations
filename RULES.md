@@ -95,23 +95,22 @@ Otherwise:
 - **Using** a tile costs heat equal to the cubes on it: firing, burning, rotating, scooping, scanning, jumping, intercepting. Powered but unused tiles cost nothing — **except shields**. A salvo is **one use of the missiles tile** and a turn of interceptions is **one use of the ballistic rack**, whatever the count.
 - **Heat is a track. It does not reset.** At your heat check, heat above **10** is hull damage and the track drops to 10. Then **dissipate** — 5, plus 2 per working radiator — and carry the rest into your next turn.
 - So a hot turn is a debt, not a wound: take one, then cool off. Make more heat than you dissipate for long enough and you reach the **redline** at 10, where it costs hull every turn until you stop.
-- **Powered shields cost their cubes in heat at every check**, absorbing or not. A tile that *did* absorb has already spent its cubes, so it costs nothing that turn.
 - **A cold ship repairs itself.** If your heat is **0** at your heat check — nothing used, no shields powered, nothing absorbed since your last check — repair **one** broken tile of your choice. Everything is off and the crew is outside. It is the only repair away from a station, and it is slower: a station fixes everything at once, refills your hull and reloads your missiles, all on arrival.
-- **Shields turn the damage they stop into heat.** Two cubes absorb one point, so a tile takes 2 cubes or 4 and never an odd one, and each point absorbed is **2 heat**. Spent cubes return to the reactor and the tile goes dark until you power it again — so a tile is worth its points **between your turns, not per shot**. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds and missiles, **not lasers**.
+- **Shields turn the damage they stop into heat.** Two cubes absorb one point, so a tile takes 2 cubes or 4 and never an odd one. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds and missiles, **not lasers**.
 - Two tiles at four cubes absorb 4 damage. They are also 8 of your 10 cubes and **8 heat every turn**, against a dissipation of 5. Full shields, a full burn and a scoop do not fit in one turn — and full shields do not fit three turns running.
 
-| Tile                       | Energy | Effect                                                                 |
-| -------------------------- | ------ | ---------------------------------------------------------------------- |
-| Engines (fixed)            | 1–3    | Burns and jumps; once per turn                                         |
-| Thrusters (fixed)          | 1      | Rotate                                                                 |
-| Fuel scoop (fixed)         | 3      | While coasting, recover fuel equal to your ring's velocity             |
-| Railgun (forward)          | 4      | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil                 |
-| Sensor array (forward)     | 2      | Scan; criticals on 8–10 while powered                                  |
-| Fuel compressor (forward)  | —      | A jump's own fuel is refunded                                          |
-| Missiles (forward or side) | 2      | Launch any number of your guided missiles at one ship in your well (4 aboard) |
-| Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only |
-| Shields (side)             | 2 or 4 | 2 cubes absorb 1 damage, as 2 heat; costs its cubes in heat every check |
-| Radiator (side)            | —      | +2 dissipation                                                         |
+| Tile                       | Energy | Effect                                                                               |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------ |
+| Engines (fixed)            | 1–3    | Burns and jumps; once per turn                                                       |
+| Thrusters (fixed)          | 1      | Rotate                                                                               |
+| Fuel scoop (fixed)         | 3      | While coasting, recover fuel equal to your ring's velocity                           |
+| Railgun (forward)          | 4      | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil                               |
+| Sensor array (forward)     | 2      | Scan; criticals on 8–10 while powered                                                |
+| Fuel compressor (forward)  | —      | A jump costs 1 fuel instead of 3                                                     |
+| Missiles (forward or side) | 2      | Launch any number of your guided missiles at one ship in your well (4 aboard)        |
+| Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only               |
+| Shields (side)             | 2 or 4 | 2 cubes absorb 1 damage, as 2 heat; costs its cubes in heat every check              |
+| Radiator (side)            | —      | +2 dissipation                                                                       |
 | Ballistic rack (side)      | 2      | 2 damage, ±1 ring or same ring, ±1 sector; intercepts every missile that reaches you |
 
 ---
@@ -136,9 +135,9 @@ Drift, then change ring. Prograde facing burns **outward**, retrograde burns **i
 
 ### Jump
 
-From a lane's departure arc (the black hole arc of an outbound lane, the planet arc of an inbound one), with engines at 3, pay 3 fuel (free with a fuel compressor) and move to the matching sector of the arrival arc. Facing is kept. A jump is your whole move: no drift this turn.
+From a lane's departure arc (the black hole arc of an outbound lane, the planet arc of an inbound one), with engines at 3, pay 3 fuel (1 with a fuel compressor) and move to the matching sector of the arrival arc. Facing is kept. A jump is your whole move: no drift this turn.
 
-**Phasing a jump.** As in a burn, you may shift where you arrive for 1 fuel per sector, never outside the arrival arc — so any departure sector can reach any of the arc's four sectors, the matching one for free. A compressor pays for the jump, not for the phasing.
+**Phasing a jump.** As in a burn, you may shift where you arrive for 1 fuel per sector, never outside the arrival arc — so any departure sector can reach any of the arc's four sectors, the matching one for free. A compressor cheapens the jump, never the phasing.
 
 ### Rotation
 
@@ -181,14 +180,14 @@ Nothing fires across gravity wells.
 
 Your tiles start face-down. **A tile is turned face-up the first time it does something:**
 
-| Tile            | Face-up when                                                    |
-| --------------- | --------------------------------------------------------------- |
+| Tile            | Face-up when                                                                       |
+| --------------- | ---------------------------------------------------------------------------------- |
 | Any weapon      | it fires (or a ballistic rack intercepts); a missiles tile then shows what is left |
-| Shields         | they absorb damage                                              |
-| Sensor array    | it scans, or a critical lands on an 8 or 9                      |
-| Radiator        | your heat goes above 5 at a heat check (it is visibly shedding) |
-| Fuel compressor | a jump is refunded                                              |
-| Any tile        | it is broken by a critical                                      |
+| Shields         | they absorb damage                                                                 |
+| Sensor array    | it scans, or a critical lands on an 8 or 9                                         |
+| Radiator        | your heat goes above 5 at a heat check (it is visibly shedding)                    |
+| Fuel compressor | a jump costs 1 fuel instead of 3                                                   |
+| Any tile        | it is broken by a critical                                                         |
 
 Face-up tiles stay face-up, even after respawn.
 
@@ -213,14 +212,14 @@ With a powered sensor array, target a ship on your ring within 3 sectors. The se
 
 **A hand is one primary and two secondaries** — two points and one and one, five on the table for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
 
-| Card                                  | Points | Complete when                                                                                                                                                                                                                                |
-| ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Destroy [Nth to your left]**        | 2      | you reduce their hull to 0                                                                                                                                                                                                                   |
-| **Deliver [A → B]**                   | 2      | you dock at A (load the crate), then dock at B                                                                                                                                                                                               |
-| **Intercept [Nth to your left] → file at [planet]** | 2 | you scan them (take the data chit), then dock at **that planet's** station                                                                                                                                                     |
-| **Survey the Event Horizon**          | 1      | you end a turn on Black Hole Ring 1 — take the chit — then dock at **any** station to file it                                         |
-| **Board a Ship**                      | 1      | you end a turn in the **same sector** as another ship — take the chit — then dock at **any** station to file it                       |
-| **Garbage Disposal**                  | 1      | you dock at **any** station to load it (it fills your hold), then end a turn on Black Hole Ring 1 to drop it into the hole            |
+| Card                                                | Points | Complete when                                                                                                              |
+| --------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| **Destroy [Nth to your left]**                      | 2      | you reduce their hull to 0                                                                                                 |
+| **Deliver [A → B]**                                 | 2      | you dock at A (load the crate), then dock at B                                                                             |
+| **Intercept [Nth to your left] → file at [planet]** | 2      | you scan them (take the data chit), then dock at **that planet's** station                                                 |
+| **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1 — take the chit — then dock at **any** station to file it                              |
+| **Board a Ship**                                    | 1      | you end a turn in the **same sector** as another ship — take the chit — then dock at **any** station to file it            |
+| **Garbage Disposal**                                | 1      | you dock at **any** station to load it (it fills your hold), then end a turn on Black Hole Ring 1 to drop it into the hole |
 
 **The decks.** Two piles for the table, dealt separately.
 
@@ -232,11 +231,11 @@ The **secondaries** are three stacks, one per card: six copies each of Survey, B
 
 So the primary mission is the luck of the draw and the two things you do yourself are a straight choice: everyone is offered all three, and what you decide is which one to leave. Neither decision is the shape of your hand — every hand is one primary and two of your own — and what changes is which.
 
-**Cards count seats, they do not name them.** A Destroy card reads *the 2nd player to your left* — counting left around the table in turn order — so the same card is a different target in every hand, no card can ever name the player holding it, and holding one tells the table nothing. The count only becomes a name when you complete the card and turn it face-up.
+**Cards count seats, they do not name them.** A Destroy card reads _the 2nd player to your left_ — counting left around the table in turn order — so the same card is a different target in every hand, no card can ever name the player holding it, and holding one tells the table nothing. The count only becomes a name when you complete the card and turn it face-up.
 
 **Your hold takes one crate.** A load of garbage is a crate like any other, so a disposal run and a cargo route cannot be flown at the same time — which is why the card suits a ship with nothing else in its hold. Destroyed with a load aboard, it is lost: collect another at any station.
 
- A crate fills it, so a second Deliver waits until the first is delivered — two routes that load at the same station are two trips, and the only pair that is one trip is a chain, where you drop at the station you collect the next one from. Data chits are numbers, not freight: a scan's transmission and a survey's readings ride free alongside whatever is in the hold, however many you carry.
+A crate fills it, so a second Deliver waits until the first is delivered — two routes that load at the same station are two trips, and the only pair that is one trip is a chain, where you drop at the station you collect the next one from. Data chits are numbers, not freight: a scan's transmission and a survey's readings ride free alongside whatever is in the hold, however many you carry.
 
 **Keep only cards your mat can fly.** Intercept opens with a scan, so it needs a **sensor array**, and Destroy needs a **weapon** — railgun, broadside laser, ballistic rack or missiles — since a ship that cooks itself on its own heat credits nobody. Your mat is fixed for the game — a station repairs tiles, it never fits one — so a card you cannot start is a card you never score.
 
@@ -257,35 +256,35 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 
 ## Quick Reference
 
-|                  |                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------ |
-| Reactor          | 10 energy                                                                                        |
-| Heat track       | 10 (the redline). Above it at a check: hull damage, then dissipate and carry the rest             |
-| Dissipation      | 5 (+2 per radiator), at every check. Heat does not reset                                          |
-| Hull             | 10                                                                                               |
-| Fuel             | 10                                                                                               |
-| Sectors per ring | 24                                                                                               |
-| Drift            | black hole 8/6/4/2/1 · planet 6/4/2/1, innermost first                                           |
-| Station ring     | planet Ring 2; Ring 1 is faster, so it is how you catch one                                       |
-| Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)                                          |
-| Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid |
-| Jump             | engines 3, 3 fuel (refunded by a compressor), no drift                                           |
-| Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                     |
-| Shields          | 2 or 4 cubes; 2 cubes a point absorbed, 2 heat a point; **its cubes are heat every turn it is up**; lasers ignore them |
-| Critical         | names any slot but the fuel scoop; breaks it through shields, and dumps its cubes as heat         |
-| Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                             |
-| Scan             | same ring, within 3 sectors, sensor powered                                                      |
-| First round      | no weapon fires and nobody scans                                                                 |
-| Respawn          | next turn: back at Home, full hull and tank, drifting, untouchable until you act                 |
-| Point blank      | a ship in your own sector is in range of every weapon                                            |
-| Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away          |
-| Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                        |
-| Keeping cards    | 3 primaries keep 1, one off each secondary stack keep 2, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon        |
-| Hold             | one crate; data chits ride free                                                                  |
-| Ammo             | private while the missiles tile is face-down; public once it has fired                           |
-| Salvo            | one action launches any number of your missiles at one ship for the tile's 2 heat; a powered rack rolls at every missile that reaches it in a turn for its 2 heat |
+|                  |                                                                                                                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reactor          | 10 energy                                                                                                                                                             |
+| Heat track       | 10 (the redline). Above it at a check: hull damage, then dissipate and carry the rest                                                                                 |
+| Dissipation      | 5 (+2 per radiator), at every check. Heat does not reset                                                                                                              |
+| Hull             | 10                                                                                                                                                                    |
+| Fuel             | 10                                                                                                                                                                    |
+| Sectors per ring | 24                                                                                                                                                                    |
+| Drift            | black hole 8/6/4/2/1 · planet 6/4/2/1, innermost first                                                                                                                |
+| Station ring     | planet Ring 2; Ring 1 is faster, so it is how you catch one                                                                                                           |
+| Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)                                                                                                               |
+| Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid                                                                      |
+| Jump             | engines 3, 3 fuel (1 with a compressor), no drift                                                                                                                     |
+| Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                                                                                          |
+| Shields          | 2 or 4 cubes; 2 cubes a point absorbed, 2 heat a point; **its cubes are heat every turn it is up**; lasers ignore them                                                |
+| Critical         | names any slot; breaks it through shields, and dumps its cubes as heat                                                                                                |
+| Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                                                                                                 |
+| Scan             | same ring, within 3 sectors, sensor powered                                                                                                                           |
+| First round      | no weapon fires and nobody scans                                                                                                                                      |
+| Respawn          | next turn: back at Home, full hull and tank, drifting, untouchable until you act                                                                                      |
+| Point blank      | a ship in your own sector is in range of every weapon                                                                                                                 |
+| Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away                                                      |
+| Survey           | a turn ended on Black Hole Ring 1 with sensors powered, then any station                                                                                              |
+| Keeping cards    | 3 primaries keep 1, one off each secondary stack keep 2, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon                             |
+| Hold             | one crate; data chits ride free                                                                                                                                       |
+| Ammo             | private while the missiles tile is face-down; public once it has fired                                                                                                |
+| Salvo            | one action launches any number of your missiles at one ship for the tile's 2 heat; a powered rack rolls at every missile that reaches it in a turn for its 2 heat     |
 | Win              | 3 points end the round — 4 if the table agreed so before the deal, making all three cards mandatory (primaries 2, secondaries 1); highest score, then hull, then fuel |
-| Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries — five points held, three win: the primary and either secondary |
+| Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries — five points held, three win: the primary and either secondary                                                          |
 
 ### Turn cheat sheet
 

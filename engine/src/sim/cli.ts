@@ -16,8 +16,8 @@
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --weapons=laser.damage=3,laser.sideRestricted=false  experiment-only weapon stat overrides
  *   --tiles=ballistic_rack.damage=3,fuel_compressor.slotType=side  experiment-only tile overrides (any field of any tile)
- *   --rules=missionsToWin=3,secondariesKept=3,compressedJumpFuel=1  experiment-only rule overrides
- *   --bot=criticalOrder=forward,aggressiveness=0.8  experiment-only bot parameter overrides
+ *   --rules=missionsToWin=4  the table's points to win, dealt into every game of the batch
+ *   --bot=aggressiveness=0.8,targetPreference=weakest  experiment-only bot parameter overrides
  *                 (note the singular: --bots=N is how many bots play, --bot= is how they think)
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)
  *   --seats=bot-1=railgun/missiles,radiator,laser,shields  force a hull on a seat, whatever its hand asks for

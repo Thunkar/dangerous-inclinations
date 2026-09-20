@@ -118,7 +118,6 @@ export function createBotParameters(difficulty: "easy" | "medium" | "hard"): Bot
         lowFuelThreshold: 7,
         conserveAmmo: true,
         scanUnknowns: false,
-        criticalOrder: "suppress",
       };
     case "medium":
       return DEFAULT_BOT_PARAMETERS;
@@ -130,7 +129,6 @@ export function createBotParameters(difficulty: "easy" | "medium" | "hard"): Bot
         lowFuelThreshold: 5,
         conserveAmmo: false,
         scanUnknowns: true,
-        criticalOrder: "suppress",
       };
   }
 }

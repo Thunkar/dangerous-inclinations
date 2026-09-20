@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { OPENING_ROUNDS, FIRST_TURN } from "../../models/game.ts";
 import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game/missiles.ts";
 import { processActions } from "../../game/actionProcessors.ts";
@@ -560,42 +560,24 @@ describe("missiles: through executeTurn", () => {
   });
 });
 
-describe("missiles: the heat experiment channels", () => {
-  const missileStats = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
-  const rackStats = SUBSYSTEM_CONFIGS.ballistic_rack.weaponStats!;
-  const rule = {
-    heatPerMissile: missileStats.heatPerMissile,
-    heatPerIntercept: rackStats.heatPerIntercept,
-  };
-  afterEach(() => {
-    missileStats.heatPerMissile = rule.heatPerMissile;
-    rackStats.heatPerIntercept = rule.heatPerIntercept;
-  });
-
-  // False is the rule (one use of the tile), true the experiment (per missile).
-  it.each([
-    [false, 2],
-    [true, 6],
-  ])("with heatPerMissile %s a salvo of three costs %i heat", (flag, expected) => {
-    missileStats.heatPerMissile = flag;
+describe("missiles: a salvo and a turn of interceptions are one use of a tile", () => {
+  it("a salvo of three costs the launcher's cubes once", () => {
     const processed = processActions(launcher(), [
       { ...fire(1, "side-3", "p2", undefined, undefined, 3), playerId: "p1" } as PlayerAction,
     ]);
     expect(processed.success).toBe(true);
     expect(processed.state.missiles).toHaveLength(3);
-    expect(getShip(processed.state, "p1").heat.currentHeat).toBe(expected);
+    expect(getShip(processed.state, "p1").heat.currentHeat).toBe(
+      SUBSYSTEM_CONFIGS.missiles.minEnergy
+    );
     expect(eventsOf(processed.events as never, "weapon_fired")[0]).toMatchObject({
       count: 3,
-      heat: expected,
+      heat: SUBSYSTEM_CONFIGS.missiles.minEnergy,
     });
   });
 
-  // False is the rule (one use of the rack a turn), true the experiment (per roll).
-  it.each([
-    [false, 2],
-    [true, 6],
-  ])("with heatPerIntercept %s three rolls cost %i heat", (flag, expected) => {
-    rackStats.heatPerIntercept = flag;
+  it("three interception rolls cost the rack's cubes once", () => {
+    const expected = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy;
     const onTarget = missileAt(
       makeTwoPlayerGame({}, { ring: 5, sector: 13, loadout: RACK }),
       5,

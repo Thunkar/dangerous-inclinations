@@ -57,28 +57,11 @@ export const PRIMARIES_PER_PLAYER = 1;
  * {@link SECONDARY_MISSION_TYPES} plus Garbage Disposal.
  */
 export const SECONDARY_OFFERS_PER_PLAYER = 3;
-export let SECONDARIES_PER_PLAYER = 2;
+export const SECONDARIES_PER_PLAYER = 2;
 
-export let MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
+export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
 export const MISSION_OFFERS_PER_PLAYER =
   PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER;
-
-/**
- * The hand shape is a constant, not a knob on the state: a game is played
- * under RULES.md and nothing else. The one door out is the simulator's
- * experiment channel (`yarn sim --rules=secondariesKept=3`,
- * sim/ruleOverrides.ts), which reassigns it once at process start so a
- * proposed change can be measured before it is adopted. Nothing in the server,
- * the UI or the engine's own logic calls this, and a change that survives its
- * experiment is written into the values above. Read the binding at call time —
- * a module that snapshots it into a top-level const would not see the
- * override. Points to win is *not* here: the table agrees it before the deal,
- * so it rides on the state (`GameState.pointsToWin`).
- */
-export function setMissionRules(rules: { secondariesKept?: number }): void {
-  if (rules.secondariesKept !== undefined) SECONDARIES_PER_PLAYER = rules.secondariesKept;
-  MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
-}
 
 /** Black hole ring a ship must end its turn on to complete a Survey. */
 export const SURVEY_RING = 1;

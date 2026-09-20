@@ -31,7 +31,7 @@ const DEFAULT_VARIANT: HullVariant = 'tanky'
 const ROLE_NOTE: Record<BotRole, string> = {
   interceptor: 'Sensor array — scans, and the Intercept and Survey cards that need one',
   hunter: 'Railgun — the long shot down your own ring, for a Destroy card',
-  hauler: 'Fuel compressor — jumps cost nothing, but you can never scan',
+  hauler: 'Fuel compressor — jumps cost 1 fuel, but you can never scan',
 }
 const VARIANT_NOTE: Record<HullVariant, string> = {
   tanky: 'A second shield tile, and the one gun a Destroy card needs',

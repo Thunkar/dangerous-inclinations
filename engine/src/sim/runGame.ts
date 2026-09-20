@@ -17,7 +17,7 @@ import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
 import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
-import { applyRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
+import { type RuleOverrides } from "./ruleOverrides.ts";
 import { applyBotOverrides, type BotOverrides } from "./botOverrides.ts";
 import {
   applyLoadoutOverrides,
@@ -213,7 +213,6 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const seed = config.seed ?? freshSeed();
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
-  applyRuleOverrides(config.rules);
   applyTileOverrides(config.tiles);
   applyWeaponOverrides(config.weapons);
   applyBotOverrides(config.bots);

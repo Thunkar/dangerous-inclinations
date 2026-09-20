@@ -1,17 +1,13 @@
 /**
- * How a bot budgets a jump when the fuel compressor is not free.
+ * How a bot budgets a jump it takes with a fuel compressor aboard.
  *
- * The tile is passive as the rules stand, so nothing here fires in a real
- * game: this is the simulator's tile channel
- * (`--tiles=fuel_compressor.minEnergy=4,maxEnergy=4,isPassive=false,generatesHeatOnUse=true`)
- * being measurable, which means the bot has to power the tile on the turn it
- * uses the lane or pay the lane's full fuel. The configuration is
- * process-wide, so the test puts it back.
+ * The tile is passive: it asks for no cubes and the candidate that jumps
+ * budgets the engines alone, so the only thing the compressor changes is what
+ * the lane costs in fuel.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
-import { SUBSYSTEM_CONFIGS } from "../../models/subsystems.ts";
-import { WELL_TRANSFER_COSTS } from "../../models/rings.ts";
+import { COMPRESSED_JUMP_MASS, WELL_TRANSFER_COSTS } from "../../models/rings.ts";
 import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
 import { viewFor } from "../../game/view.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -36,23 +32,6 @@ const HAULER: ShipLoadout = {
   forwardSlots: ["fuel_compressor"],
   sideSlots: ["shields", "shields", "radiator", "laser"],
 };
-
-const CUBES = 4;
-const AS_IT_STANDS = { ...SUBSYSTEM_CONFIGS.fuel_compressor };
-
-afterEach(() => {
-  SUBSYSTEM_CONFIGS.fuel_compressor = { ...AS_IT_STANDS };
-});
-
-function priceTheTile(): void {
-  SUBSYSTEM_CONFIGS.fuel_compressor = {
-    ...AS_IT_STANDS,
-    minEnergy: CUBES,
-    maxEnergy: CUBES,
-    isPassive: false,
-    generatesHeatOnUse: true,
-  };
-}
 
 /**
  * A hauler at the end of Alpha's departure arc with a crate to fetch there:
@@ -87,7 +66,7 @@ function allocations(candidate: ActionPlan): Record<string, number> {
 
 /**
  * Play the candidate and read back what the lane cost. Phasing is never
- * compressed, so the fuel a jump spends is the lane's own cost — zero with a
+ * cheapened, so the fuel a jump spends is the lane's own cost — one with a
  * working compressor — plus a point per sector of phasing.
  */
 function takeTheLane(state: GameState, candidate: ActionPlan) {
@@ -105,50 +84,16 @@ function takeTheLane(state: GameState, candidate: ActionPlan) {
   };
 }
 
-describe("a bot jumping with a compressor that costs cubes", () => {
-  it("powers the compressor alongside the engines on the turn it takes the lane", () => {
-    priceTheTile();
-    const state = onAlphasLane();
-    const candidate = jumpCandidate(state);
-
-    expect(allocations(candidate)).toMatchObject({
-      "forward-0": CUBES,
-      engines: WELL_TRANSFER_COSTS.energy,
-    });
-
-    const { jumped, laneFuel } = takeTheLane(state, candidate);
-    expect(jumped).toMatchObject({ compressed: true });
-    expect(laneFuel).toBe(0);
-    // The engines' cubes and the tile's, both charged to the same check.
-    expect(jumped.heat).toBe(WELL_TRANSFER_COSTS.energy + CUBES);
-  });
-
-  it("leaves the tile cold and still jumps free under the rules as they stand", () => {
+describe("a bot jumping with a fuel compressor", () => {
+  it("leaves the tile cold and takes the lane for one fuel", () => {
     const state = onAlphasLane();
     const candidate = jumpCandidate(state);
 
     expect(allocations(candidate)["forward-0"]).toBeUndefined();
+    expect(allocations(candidate).engines).toBe(WELL_TRANSFER_COSTS.energy);
 
     const { jumped, laneFuel } = takeTheLane(state, candidate);
     expect(jumped).toMatchObject({ compressed: true, heat: WELL_TRANSFER_COSTS.energy });
-    expect(laneFuel).toBe(0);
-  });
-
-  it("jumps uncompressed, for the lane's full fuel, when the reactor cannot hold both", () => {
-    SUBSYSTEM_CONFIGS.fuel_compressor = {
-      ...AS_IT_STANDS,
-      minEnergy: 9,
-      maxEnergy: 9,
-      isPassive: false,
-      generatesHeatOnUse: false,
-    };
-    const state = onAlphasLane();
-    const candidate = jumpCandidate(state);
-
-    expect(allocations(candidate)["forward-0"]).toBeUndefined();
-
-    const { jumped, laneFuel } = takeTheLane(state, candidate);
-    expect(jumped).toMatchObject({ compressed: false });
-    expect(laneFuel).toBe(WELL_TRANSFER_COSTS.mass);
+    expect(laneFuel).toBe(COMPRESSED_JUMP_MASS);
   });
 });
