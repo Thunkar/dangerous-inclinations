@@ -1,16 +1,15 @@
 /**
- * From what an agent wants to do to the actions the engine accepts. The
- * builder fills in what the intent implies (cubes on the engines for a burn,
- * on the thrusters for a rotation, on a weapon that fires) and orders the
- * actions the way a turn is played, so an agent describes a turn and never
- * hand-assembles allocation bookkeeping.
+ * From what an agent wants to do to the actions the engine accepts. Cubes for
+ * a burn, a rotation or a shot are not the agent's business at all: the engine
+ * powers a tile from the action that uses it. What the builder does carry is
+ * `power` and `unpower`, the standing tiles the agent wants up while it is not
+ * acting, and the order a turn is played in.
  */
 import type { BurnIntensity, Facing, GravityWellId, Player, PlayerAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { getSubsystemConfig } from "../models/subsystems.ts";
-import { BURN_COSTS, WELL_TRANSFER_COSTS } from "../models/rings.ts";
+import { getSubsystemConfig, isStandingType } from "../models/subsystems.ts";
 import type { GameView } from "../game/view.ts";
-import { energyActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
+import { standingActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, type MovementPreview } from "../game/movement.ts";
 import { isMooredAt } from "../game/stations.ts";
@@ -37,9 +36,14 @@ export interface FireIntent {
 }
 
 export interface TurnIntent {
-  /** Cubes wanted on tiles at the end of the energy step; tiles not named keep their cubes. */
+  /**
+   * Cubes wanted on standing tiles (shields, a ballistic rack, a sensor
+   * array); ones not named keep what they hold. Nothing else takes cubes here:
+   * the engines, the thrusters, the scoop and every weapon are powered by the
+   * action that uses them.
+   */
   power?: Partial<Record<SubsystemId, number>>;
-  /** Tiles to switch off (take every cube back). */
+  /** Standing tiles to switch off (take every cube back). */
   unpower?: SubsystemId[];
   rotate?: boolean;
   move?:
@@ -70,15 +74,28 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   const notes: string[] = [];
   const find = (id: SubsystemId) => ship.subsystems.find((s) => s.id === id);
 
-  // Energy targets: start from what is allocated, apply the intent, then raise
-  // whatever the intent's actions need.
+  // Standing tiles only: what is up now, then what the intent asks for. A
+  // tile an action powers is not named here and never needs to be.
   const targets: EnergyTargets = new Map();
-  for (const s of ship.subsystems) targets.set(s.id, s.allocatedEnergy);
-  for (const id of intent.unpower ?? []) targets.set(id, 0);
+  for (const st of ship.subsystems) {
+    if (isStandingType(st.type)) targets.set(st.id, st.allocatedEnergy);
+  }
+  const notStanding = (id: SubsystemId) => {
+    notes.push(`${id} is powered by the action that uses it; it takes no cubes here`);
+  };
+  for (const id of intent.unpower ?? []) {
+    const sub = find(id);
+    if (sub && !isStandingType(sub.type)) notStanding(id);
+    else targets.set(id, 0);
+  }
   for (const [id, cubes] of Object.entries(intent.power ?? {}) as Array<[SubsystemId, number]>) {
     const sub = find(id);
     if (!sub) {
       notes.push(`no tile ${id} aboard; ignored`);
+      continue;
+    }
+    if (!isStandingType(sub.type)) {
+      notStanding(id);
       continue;
     }
     const c = getSubsystemConfig(sub.type);
@@ -88,14 +105,6 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       targets.set(id, c.minEnergy);
     } else targets.set(id, wanted);
   }
-  const raise = (id: SubsystemId, cubes: number, why: string) => {
-    const sub = find(id);
-    if (!sub || sub.isBroken) return;
-    if ((targets.get(id) ?? 0) < cubes) {
-      targets.set(id, cubes);
-      notes.push(`${id} set to ${cubes} cubes for ${why}`);
-    }
-  };
 
   let facing: Facing = ship.facing;
   let rotate = intent.rotate === true;
@@ -105,13 +114,8 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       move.facing ??
       (rotate ? (ship.facing === "prograde" ? "retrograde" : "prograde") : ship.facing);
     if (wantFacing !== ship.facing) rotate = true;
-    raise("engines", BURN_COSTS[move.intensity].energy, `the ${move.intensity} burn`);
   }
-  if (move.kind === "jump") raise("engines", WELL_TRANSFER_COSTS.energy, "the jump");
-  if (move.kind === "coast" && move.scoop)
-    raise("scoop", getSubsystemConfig("scoop").minEnergy, "the scoop");
   if (rotate) {
-    raise("rotation", getSubsystemConfig("rotation").minEnergy, "the rotation");
     facing = ship.facing === "prograde" ? "retrograde" : "prograde";
   }
   for (const f of intent.fire ?? []) {
@@ -120,13 +124,9 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       notes.push(`no weapon ${f.weapon} aboard; shot dropped`);
       continue;
     }
-    raise(f.weapon, getSubsystemConfig(w.type).minEnergy, "the shot");
-    if (f.compensateRecoil) raise("engines", BURN_COSTS.soft.energy, "recoil compensation");
   }
-  if (intent.scan) raise("forward-0", getSubsystemConfig("sensor_array").minEnergy, "the scan");
 
-  const { deallocations, allocations } = energyActions(me as Player, targets);
-  const actions: PlayerAction[] = [...deallocations, ...allocations];
+  const actions: PlayerAction[] = standingActions(me as Player, targets);
   let sequence = 0;
   const seq = () => ++sequence;
 

@@ -59,8 +59,8 @@ export interface TurnBehaviour {
   shieldsFullShare: number;
   /** Of the turns ending with 4 cubes on shields, the share that also burned, jumped, scooped or fired. */
   shieldsFullActingShare: number;
-  /** Mean cubes allocated to any subsystem at the end of an acting turn (reactor holds 10). */
-  meanEnergyInUse: number;
+  /** Mean cubes left switched on at the end of an acting turn: the standing bill. */
+  meanStandingEnergy: number;
   shieldsPoweredShare: number;
   meanHeatAtCheck: number;
   /** Share of acting turns whose heat check dealt damage. */
@@ -209,7 +209,7 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
         : full.filter((t) => t.burned || t.jumped || t.scooped || t.shotsFired > 0).length /
             full.length;
     })(),
-    meanEnergyInUse: mean((t) => t.energyInUse),
+    meanStandingEnergy: mean((t) => t.standingEnergy),
     shieldsPoweredShare: share((t) => t.shieldCubes > 0),
     meanHeatAtCheck: mean((t) => t.heatAtCheck),
     heatDamageShare: share((t) => t.heatDamage > 0),

@@ -21,7 +21,7 @@
  */
 import type { GameState, Missile, Player, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { getMissileStats } from "../models/subsystems.ts";
+import { getMissileStats, interceptsPerRack } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import { rollD10, nextEntityId } from "../utils/rng.ts";
 import {
@@ -32,7 +32,7 @@ import {
   wrapSector,
 } from "./geometry.ts";
 import { resolveAttack } from "./damage.ts";
-import { isDestroyed, revealSubsystem, useSubsystem } from "./ship.ts";
+import { isDestroyed, updateSubsystem, useSubsystem } from "./ship.ts";
 
 const MISSILE = getMissileStats();
 
@@ -179,14 +179,20 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       continue;
     }
 
-    // On target. Point defence first: a powered rack rolls at every missile
-    // that reaches its ship, and the whole turn of rolling is one use of the
-    // rack, which is what keeps a one-action salvo honest. The rack is read
-    // off the target as it stands now, because an earlier missile of the same
-    // salvo may already have broken it or heated the ship.
+    // On target. Point defence first: a rack that is up rolls at the missiles
+    // reaching its ship until its cubes are spoken for, which is as many as
+    // those cubes could have thrown (`interceptsPerRack`). A ship expecting
+    // more than that carries a second rack and pays for it at every check.
+    //
+    // The racks are read off the target as it stands now, because an earlier
+    // missile of the same salvo may already have broken one or heated the ship.
     let targetShip = target.ship;
     const rack = targetShip.subsystems.find(
-      (s) => s.type === "ballistic_rack" && s.isPowered && !s.isBroken
+      (s) =>
+        s.type === "ballistic_rack" &&
+        s.isPowered &&
+        !s.isBroken &&
+        s.rollsThisTurn < interceptsPerRack()
     );
     if (rack) {
       // A turn of interceptions is one use of the rack: the first roll of a
@@ -198,6 +204,9 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
         heat = used.heat;
         events.push(...used.events);
       }
+      targetShip = updateSubsystem(targetShip, rack.id, (r) => ({
+        rollsThisTurn: r.rollsThisTurn + 1,
+      }));
       const roll = rollD10(state);
       const destroyed = roll >= 2;
       events.push({
@@ -241,11 +250,6 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       targetHullAfter: outcome.ship.hitPoints,
     });
     events.push(...outcome.events);
-    if (outcome.hitResult.sensorAssistedCritical) {
-      const revealed = revealSensors(players[ownerIndex]);
-      players[ownerIndex] = revealed.player;
-      events.push(...revealed.events);
-    }
     if (isDestroyed(outcome.ship) && !isDestroyed(target.ship)) {
       events.push({
         type: "ship_destroyed",
@@ -257,18 +261,4 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
   }
 
   return { state: { ...state, players, missiles: survivors }, events };
-}
-
-/** Reveal the attacker's powered sensor arrays after a sensor-assisted critical. */
-export function revealSensors(player: Player): { player: Player; events: EventDraft[] } {
-  const events: EventDraft[] = [];
-  let ship = player.ship;
-  for (const sensor of ship.subsystems.filter(
-    (s) => s.type === "sensor_array" && s.isPowered && !s.isRevealed
-  )) {
-    const r = revealSubsystem(ship, player.id, sensor.id, "critical_bonus");
-    ship = r.ship;
-    events.push(...r.events);
-  }
-  return { player: { ...player, ship }, events };
 }

@@ -45,7 +45,6 @@ const CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof SubsystemConfig>([
   "name",
   "minEnergy",
   "maxEnergy",
-  "generatesHeatOnUse",
   "slotType",
   "isPassive",
 ]);

@@ -64,17 +64,15 @@ function defense(plan: ActionPlan, situation: TacticalSituation): number {
   if (plan.repairs !== undefined)
     score += MOBILITY.has(plan.repairs) ? MOBILITY_REPAIR_VALUE : REPAIR_VALUE;
   const threatened = situation.threats.length > 0 || situation.incomingMissiles > 0;
-  const shieldsPowered =
-    plan.actions.some(
-      (a) =>
-        a.type === "allocate_energy" &&
-        situation.status.shields.some((s) => s.id === a.data.subsystemId)
-    ) ||
-    situation.status.shields.some(
-      (s) =>
-        s.allocatedEnergy > 0 &&
-        !plan.actions.some((a) => a.type === "deallocate_energy" && a.data.subsystemId === s.id)
-    );
+  // A wall the plan raises, or one already up that the plan does not lower.
+  const switched = new Map(
+    plan.actions
+      .filter((a) => a.type === "set_standing_power")
+      .map((a) => [a.data.subsystemId, a.data.amount])
+  );
+  const shieldsPowered = situation.status.shields.some(
+    (s) => (switched.get(s.id) ?? s.allocatedEnergy) > 0
+  );
   if (threatened) score += shieldsPowered ? 15 : -15;
   // Heading for repairs when the hull is low is defence too.
   if (situation.currentGoal?.missionId === "repair" && plan.followsGoal) score += 20;

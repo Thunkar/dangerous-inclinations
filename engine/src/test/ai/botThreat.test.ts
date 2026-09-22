@@ -37,68 +37,61 @@ function opponentOf(state: Parameters<typeof viewFor>[0], viewerId: string): Opp
 }
 
 describe("suspectedWeapon: what the cubes on a face-down slot can mean", () => {
-  it("reads four cubes on the forward slot as a railgun, for certain", () => {
-    const read = suspectedWeapon({ group: "forward", allocatedEnergy: 4 });
-    expect(read).toEqual({ type: "railgun", damage: 4, confidence: 1 });
+  it.each([2, 4])("reads a loaded forward slot (%i cubes) as no weapon: only a sensor stands", (cubes) => {
+    expect(suspectedWeapon({ group: "forward", allocatedEnergy: cubes })).toBeNull();
   });
 
-  it("reads two cubes on the forward slot as maybe-missiles (it may be a sensor)", () => {
-    const read = suspectedWeapon({ group: "forward", allocatedEnergy: 2 });
-    expect(read?.type).toBe("missiles");
+  it("reads two cubes on a side slot as a possible ballistic rack", () => {
+    // Two cubes on a side slot is a half wall or a rack, and the rack is the
+    // one that shoots back.
+    const read = suspectedWeapon({ group: "side", allocatedEnergy: 2 });
+    expect(read?.type).toBe("ballistic_rack");
     expect(read?.confidence).toBeLessThan(1);
     expect(read?.confidence).toBeGreaterThan(0);
   });
 
-  it("reads two cubes on a side slot as the widest envelope, missiles, at reduced weight", () => {
-    // Laser, ballistic rack, missiles and shields all fit two cubes; the
-    // turret reaches furthest, so that is what the bot plans around.
-    const read = suspectedWeapon({ group: "side", allocatedEnergy: 2 });
-    expect(read?.type).toBe("missiles");
-    expect(read?.confidence).toBeLessThan(1);
+  it("reads four cubes on a side slot as a full wall: nothing that can shoot", () => {
+    expect(suspectedWeapon({ group: "side", allocatedEnergy: 4 })).toBeNull();
   });
 
-  it("reads side slots at 1, 3 or 4 cubes as shields: nothing that can shoot", () => {
-    for (const cubes of [1, 3, 4]) {
-      expect(suspectedWeapon({ group: "side", allocatedEnergy: cubes })).toBeNull();
-    }
-  });
-
-  it("reads an empty slot as harmless whatever it is", () => {
+  it("reads a dark slot as unknown, not as harmless", () => {
+    // It says nothing, which is the point: every gun on the board is dark
+    // between shots, so silence here is what a scan is for.
     expect(suspectedWeapon({ group: "forward", allocatedEnergy: 0 })).toBeNull();
     expect(suspectedWeapon({ group: "side", allocatedEnergy: 0 })).toBeNull();
   });
 });
 
 describe("threat assessment", () => {
-  it("does not fear a face-up weapon with no cubes on it: it cannot fire", () => {
+  it("fears a face-up weapon whether or not it is lit: firing is what powers it", () => {
     const state = withSub(facingOff(), "p2", "side-2", { isRevealed: true });
     const opponent = opponentOf(state, "p1");
 
     const laser = opponent.knownWeapons.find((w) => w.slotId === "side-2");
     expect(laser?.type).toBe("laser");
     expect(laser?.isPowered).toBe(false);
-    expect(laser?.inRange).toBe(false);
-    expect(opponent.threat).toBe(0);
-  });
-
-  it("fears the same weapon once it is powered and bearing", () => {
-    let state = withSub(facingOff(), "p2", "side-2", { isRevealed: true });
-    state = withPower(state, "p2", "side-2", 2);
-    const opponent = opponentOf(state, "p1");
-
-    expect(opponent.knownWeapons.find((w) => w.slotId === "side-2")?.inRange).toBe(true);
+    expect(laser?.inRange).toBe(true);
     expect(opponent.threat).toBeGreaterThan(0);
   });
 
-  it("counts a face-down slot with two cubes as a possible missile threat, at less than full weight", () => {
-    // Two cubes on a face-down side slot, three sectors away: out of every
-    // broadside arc, but inside a turret's. Worth worrying about, not worth
-    // treating as a fact.
+  it("stops fearing it once it is broken", () => {
+    let state = withSub(facingOff(), "p2", "side-2", { isRevealed: true });
+    state = withSub(state, "p2", "side-2", { isBroken: true });
+    const opponent = opponentOf(state, "p1");
+
+    expect(opponent.knownWeapons.find((w) => w.slotId === "side-2")?.inRange).toBe(false);
+    expect(opponent.threat).toBe(0);
+  });
+
+  it("counts a face-down slot with two cubes as a possible rack, at less than full weight", () => {
+    // Two cubes on a face-down side slot one sector away: a half wall or a
+    // rack, and a rack reaches exactly that far. Worth worrying about, not
+    // worth treating as a fact.
     const known = withPower(
       withSub(
         makeTwoPlayerGame(
           { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
-          { wellId: BH, ring: 3, sector: 3, loadout: GUNSHIP }
+          { wellId: BH, ring: 3, sector: 1, loadout: GUNSHIP }
         ),
         "p2",
         "side-3",
@@ -111,7 +104,7 @@ describe("threat assessment", () => {
     const hidden = withPower(
       makeTwoPlayerGame(
         { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
-        { wellId: BH, ring: 3, sector: 3, loadout: GUNSHIP }
+        { wellId: BH, ring: 3, sector: 1, loadout: GUNSHIP }
       ),
       "p2",
       "side-3",
@@ -122,7 +115,7 @@ describe("threat assessment", () => {
     const confirmed = opponentOf(known, "p1");
     const slot = suspected.unknownSlots.find((s) => s.slot.id === "side-3");
 
-    expect(slot?.suspected?.type).toBe("missiles");
+    expect(slot?.suspected?.type).toBe("ballistic_rack");
     expect(slot?.inRange).toBe(true);
     expect(suspected.threat).toBeGreaterThan(0);
     expect(suspected.threat).toBeLessThan(confirmed.threat);
@@ -136,9 +129,14 @@ describe("shieldAbsorption", () => {
     expect(opponentOf(state, "p1").shieldAbsorption).toBe(1);
   });
 
-  it("counts a face-down side slot that has never fired as half a shield", () => {
+  it("counts a face-down side slot at two cubes as half a shield: it may be a rack", () => {
     const state = withPower(facingOff(), "p2", "side-1", 2);
     expect(opponentOf(state, "p1").shieldAbsorption).toBe(0.5);
+  });
+
+  it("counts a face-down side slot at four cubes whole: nothing else holds four", () => {
+    const state = withPower(facingOff(), "p2", "side-1", 4);
+    expect(opponentOf(state, "p1").shieldAbsorption).toBe(2);
   });
 
   it("ignores empty slots and forward slots", () => {
@@ -148,19 +146,19 @@ describe("shieldAbsorption", () => {
 });
 
 describe("chooseCriticalTarget", () => {
-  it("names a face-up weapon that is powered before one that is cold", () => {
+  it("names the biggest gun it has seen, lit or not", () => {
+    // A railgun face-up in the bow and a laser face-up on the side: both are
+    // dark between turns, so the choice is damage, not cubes.
     let state = withSub(facingOff(), "p2", "side-0", { isRevealed: true });
-    state = withSub(state, "p2", "side-2", { isRevealed: true });
-    state = withPower(state, "p2", "side-2", 2);
-    expect(chooseCriticalTarget(opponentOf(state, "p1"))).toBe("side-2");
+    state = withSub(state, "p2", "forward-0", { isRevealed: true });
+    expect(chooseCriticalTarget(opponentOf(state, "p1"))).toBe("forward-0");
   });
 
-  it("gambles on the face-down slot whose cubes read most dangerous", () => {
-    let state = withPower(facingOff(), "p2", "forward-0", 4);
-    state = withPower(state, "p2", "side-3", 2);
-    // Four cubes forward can only be a railgun; two on a side slot might be
-    // anything. The railgun is both the likelier and the nastier read.
-    expect(chooseCriticalTarget(opponentOf(state, "p1"))).toBe("forward-0");
+  it("gambles on a loaded face-down slot when it has seen no gun at all", () => {
+    // Nothing face-up, one side slot carrying cubes: it is standing, so it is
+    // a wall, a rack or a sensor, and breaking it dumps the cubes as heat.
+    const state = withPower(facingOff(), "p2", "side-3", 2);
+    expect(chooseCriticalTarget(opponentOf(state, "p1"))).toBe("side-3");
   });
 
   it("falls back to the engines when nothing is known and nothing is powered", () => {

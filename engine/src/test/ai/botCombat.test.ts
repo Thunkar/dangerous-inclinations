@@ -24,6 +24,7 @@ import {
   withPower,
   withShip,
   withSub,
+  eventsOf,
 } from "../testUtils.ts";
 
 /** Railgun forward, two lasers on the port side, shields, missiles. */
@@ -76,15 +77,13 @@ describe("bot targeting", () => {
     expect(new Set(slots).size).toBe(slots.length);
     for (const shot of shots) expect(shot.data.targetPlayerId).toBe("p2");
 
-    // Two tiles of the same type get their own energy, addressed by slot id.
-    const powered = decision.actions.filter(
-      (a) =>
-        a.type === "allocate_energy" &&
-        (a.data.subsystemId === "side-0" || a.data.subsystemId === "side-1")
-    );
-    expect(powered).toHaveLength(2);
-
+    // Two tiles of the same type each pay their own cubes in heat, addressed
+    // by slot id: one shot's worth apiece, with nothing allocated by hand.
     const result = executeTurn(state, decision.actions);
+    const lasers = eventsOf(result.events, "weapon_fired").filter(
+      (e) => e.attackerId === "p1" && (e.subsystemId === "side-0" || e.subsystemId === "side-1")
+    );
+    expect(lasers.map((e) => e.heat)).toEqual([2, 2]);
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p2").hitPoints).toBeLessThan(10);
   });

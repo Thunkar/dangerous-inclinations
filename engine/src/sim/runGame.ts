@@ -80,7 +80,11 @@ export interface TurnStat {
   /** Cubes on shields at the end of the turn (after any refunds). */
   shieldCubes: number;
   /** Cubes allocated to any subsystem at the end of the turn. */
-  energyInUse: number;
+  /**
+   * Cubes left standing at the end of the turn: a wall, a rack, a sensor. This
+   * is what the ship pays at every check for as long as it leaves them up.
+   */
+  standingEnergy: number;
   heatAtCheck: number;
   dissipation: number;
   heatDamage: number;
@@ -329,7 +333,7 @@ function turnStat(turn: number, playerId: string, events: GameEvent[], after: Ga
     scooped: events.some((e) => e.type === "coasted" && e.playerId === playerId && e.scooped),
     shotsFired: events.filter((e) => e.type === "weapon_fired" && e.attackerId === playerId).length,
     shieldCubes: shields.reduce((sum, s) => sum + s.allocatedEnergy, 0),
-    energyInUse: player.ship.subsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0),
+    standingEnergy: player.ship.subsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0),
     heatAtCheck: heat ? heat.heat : 0,
     dissipation: heat ? heat.dissipation : getDissipationCapacity(player.ship.subsystems),
     heatDamage: heat ? heat.damage : 0,

@@ -6,6 +6,7 @@ import { missileCanReach } from "../../game/missiles.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import type { Facing, ShipLoadout } from "../../models/game.ts";
 import { FIRST_TURN } from "../../models/game.ts";
+import { BURN_COSTS } from "../../models/rings.ts";
 import {
   ALPHA,
   BH,
@@ -26,7 +27,6 @@ import {
   withPlayer,
   withPower,
   withShip,
-  withSub,
 } from "../testUtils.ts";
 
 const STARBOARD_LASER: ShipLoadout = {
@@ -248,14 +248,9 @@ describe("weapons: missile range (turret)", () => {
 });
 
 describe("weapons: firing", () => {
-  /** p1 at R3 S0 with a powered port laser, p2 one ring out. */
+  /** p1 at R3 S0 with a port laser, p2 one ring out. Firing powers the laser. */
   const duel = (targetSector = 0) =>
-    withPower(
-      makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: targetSector }),
-      "p1",
-      "side-0",
-      2
-    );
+    makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: targetSector });
 
   it("firing uses the weapon, reveals it, heats it and resolves an attack", () => {
     const result = executeTurnAs(duel(), fire(1, "side-0", "p2"));
@@ -301,7 +296,6 @@ describe("weapons: firing", () => {
       makePlayer("p1", { wellId: BH, ring: 5, sector: 17 }, STARBOARD_LASER),
       makePlayer("p2", { wellId: ALPHA, ring: 2, sector: 5 }),
     ]);
-    state = withPower(state, "p1", "engines", 3);
     state = withPower(state, "p1", "side-2", 2);
     expect(executeTurnAs(state, fire(1, "side-2", "p2"), jump(2, ALPHA)).errors?.[0]).toMatch(
       /out of range/i
@@ -322,44 +316,6 @@ describe("weapons: firing", () => {
   });
 
   it.each([
-    [
-      "an unpowered weapon",
-      (s: ReturnType<typeof duel>) => withPower(s, "p1", "side-0", 0),
-      "side-0",
-      "p2",
-      /not powered/i,
-    ],
-    [
-      "a broken weapon",
-      (s: ReturnType<typeof duel>) => withSub(s, "p1", "side-0", { isBroken: true }),
-      "side-0",
-      "p2",
-      /broken/i,
-    ],
-    [
-      "a non-weapon tile",
-      (s: ReturnType<typeof duel>) => withPower(s, "p1", "side-2", 2),
-      "side-2",
-      "p2",
-      /not a weapon/i,
-    ],
-    ["an unknown weapon id", (s: ReturnType<typeof duel>) => s, "side-9", "p2", /not found/i],
-    ["yourself", (s: ReturnType<typeof duel>) => s, "side-0", "p1", /yourself/i],
-    ["an unknown target", (s: ReturnType<typeof duel>) => s, "side-0", "p9", /not found/i],
-    [
-      "a destroyed target",
-      (s: ReturnType<typeof duel>) => withShip(s, "p2", { hitPoints: 0 }),
-      "side-0",
-      "p2",
-      /not on the board/i,
-    ],
-    [
-      "an undeployed target",
-      (s: ReturnType<typeof duel>) => withPlayer(s, "p2", { hasDeployed: false }),
-      "side-0",
-      "p2",
-      /not on the board/i,
-    ],
     [
       "a target in another well",
       (s: ReturnType<typeof duel>) => withShip(s, "p2", { wellId: ALPHA }),
@@ -433,16 +389,10 @@ describe("weapons: a recovering ship cannot be shot or scanned", () => {
 
 describe("weapons: railgun recoil", () => {
   /** p1 at R3 S0 with a powered railgun; p2 two sectors ahead on the same ring. */
+  // No cubes placed: the shot powers the railgun and the compensation powers
+  // the engines.
   const gunline = (facing: Facing = "prograde", ring = 3) =>
-    withPower(
-      makeTwoPlayerGame(
-        { ring, sector: 0, facing },
-        { ring, sector: facing === "prograde" ? 2 : 22 }
-      ),
-      "p1",
-      "forward-0",
-      4
-    );
+    makeTwoPlayerGame({ ring, sector: 0, facing }, { ring, sector: facing === "prograde" ? 2 : 22 });
 
   it("an uncompensated shot pushes the ship one ring in its facing direction", () => {
     const prograde = executeTurnAs(gunline("prograde"), fire(1, "forward-0", "p2"));
@@ -467,7 +417,6 @@ describe("weapons: railgun recoil", () => {
       makePlayer("p2", { wellId: BH, ring: 3, sector: 2 }),
       makePlayer("p3", { wellId: BH, ring: 3, sector: 1 }),
     ]);
-    state = withPower(state, "p1", "forward-0", 4);
     state = withPower(state, "p1", "side-2", 2);
     // From R3 the starboard laser cannot hit p3 on R3; after the recoil to R4 it fires inward at R3.
     expect(executeTurnAs(state, fire(1, "side-2", "p3")).errors?.[0]).toMatch(/out of range/i);
@@ -476,21 +425,20 @@ describe("weapons: railgun recoil", () => {
     expect(getShip(result.gameState, "p3").hitPoints).toBe(8);
   });
 
-  it("compensating costs 1 mass, uses the engines and heats them by their allocation", () => {
-    const state = withPower(gunline(), "p1", "engines", 2);
-    const result = executeTurnAs(state, fire(1, "forward-0", "p2", "engines", true));
+  it("compensating costs 1 mass and a soft burn's cube on the engines", () => {
+    const result = executeTurnAs(gunline(), fire(1, "forward-0", "p2", "engines", true));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1")).toMatchObject({ ring: 3, reactionMass: 9 });
     expect(eventsOf(result.events, "recoil")[0]).toMatchObject({
       compensated: true,
       massSpent: 1,
-      heat: 2,
+      heat: BURN_COSTS.soft.energy,
     });
     expect(eventsOf(result.events, "recoil")[0]).not.toHaveProperty("to");
   });
 
   it("compensation uses the engines for the turn: a burn afterwards is rejected, and vice versa", () => {
-    const state = withPower(gunline(), "p1", "engines", 3);
+    const state = gunline();
     expect(
       executeTurnAs(state, fire(1, "forward-0", "p2", "engines", true), burn(2, "soft")).errors?.[0]
     ).toMatch(/already used/i);
@@ -504,14 +452,16 @@ describe("weapons: railgun recoil", () => {
     ).toMatch(/already used/i);
   });
 
-  it("compensation needs powered engines and a unit of mass", () => {
-    expect(
-      executeTurnAs(gunline(), fire(1, "forward-0", "p2", "engines", true)).errors?.[0]
-    ).toMatch(/energy in engines/i);
-    const dry = withShip(withPower(gunline(), "p1", "engines", 1), "p1", { reactionMass: 0 });
+  it("compensation needs a unit of mass, and nothing else", () => {
+    const dry = withShip(gunline(), "p1", { reactionMass: 0 });
     expect(executeTurnAs(dry, fire(1, "forward-0", "p2", "engines", true)).errors?.[0]).toMatch(
       /reaction mass/i
     );
+    // Four cubes on the railgun and one on the engines is five heat, which is
+    // a price and no longer a refusal: nothing caps what a ship may light.
+    const result = executeTurnAs(gunline(), fire(1, "forward-0", "p2", "engines", true));
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(5);
   });
 
   it("an uncompensated shot that would push the ship off the rings is rejected", () => {

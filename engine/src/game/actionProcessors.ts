@@ -11,8 +11,7 @@ import type {
   CoastAction,
   BurnAction,
   RotateAction,
-  AllocateEnergyAction,
-  DeallocateEnergyAction,
+  SetStandingPowerAction,
   FireWeaponAction,
   WellTransferAction,
   ScanAction,
@@ -23,13 +22,13 @@ import type {
 import { isTacticalAction, MAX_REACTION_MASS } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import { getSubsystemConfig, isWeaponType } from "../models/subsystems.ts";
-import { BURN_COSTS, calculateJumpMassCost } from "../models/rings.ts";
+import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from "../models/rings.ts";
 import { findJump, getMaxRing, phasedJumpDestination } from "../models/gravityWells.ts";
 import { rollD10 } from "../utils/rng.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
 import { applyOrbitalMovement, applyBurn, applyRotation } from "./movement.ts";
 import { resolveAttack } from "./damage.ts";
-import { createMissile, revealSensors } from "./missiles.ts";
+import { createMissile } from "./missiles.ts";
 import { processScan } from "./scan.ts";
 import { isMooredAt } from "./stations.ts";
 import {
@@ -42,8 +41,7 @@ import {
 } from "./ship.ts";
 import {
   validateActionSequence,
-  validateAllocateEnergyAction,
-  validateDeallocateEnergyAction,
+  validateSetStandingPowerAction,
   validateRotateAction,
   validateCoastAction,
   validateBurnAction,
@@ -97,11 +95,8 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
     return null;
   };
 
-  const deallocations = actions.filter(
-    (a): a is DeallocateEnergyAction => a.type === "deallocate_energy"
-  );
-  const allocations = actions.filter(
-    (a): a is AllocateEnergyAction => a.type === "allocate_energy"
+  const standing = actions.filter(
+    (a): a is SetStandingPowerAction => a.type === "set_standing_power"
   );
   const repairs = actions.filter((a): a is RepairAction => a.type === "repair");
   const tactical = actions
@@ -122,12 +117,9 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
 
-  for (const a of deallocations) {
-    const err = run(a, validateDeallocateEnergyAction, processDeallocateEnergy);
-    if (err) return { success: false, state, events: [], errors: err };
-  }
-  for (const a of allocations) {
-    const err = run(a, validateAllocateEnergyAction, processAllocateEnergy);
+  // Switches first, before anything is flown.
+  for (const a of standing) {
+    const err = run(a, validateSetStandingPowerAction, processSetStandingPower);
     if (err) return { success: false, state, events: [], errors: err };
   }
   // Ships alive when the turn began: shots at one of these that dies mid-turn are skipped, not errors.
@@ -210,60 +202,33 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
 // Energy
 // ---------------------------------------------------------------------------
 
-function processAllocateEnergy(state: GameState, action: AllocateEnergyAction): Step {
+/**
+ * Switch a standing tile on or off. `amount` is the setting, not a delta: a
+ * shield dropping from 4 to 2 will cost two at the check instead of four, and
+ * one going dark costs nothing.
+ */
+function processSetStandingPower(state: GameState, action: SetStandingPowerAction): Step {
+  const events: EventDraft[] = [];
   const next = withPlayer(state, action.playerId, (p) => {
-    let ship = updateSubsystem(p.ship, action.data.subsystemId, (s) => ({
-      allocatedEnergy: s.allocatedEnergy + action.data.amount,
-      isPowered: true,
-    }));
-    ship = {
-      ...ship,
-      reactor: {
-        ...ship.reactor,
-        availableEnergy: ship.reactor.availableEnergy - action.data.amount,
-      },
-    };
-    return { ...p, ship };
-  });
-  return {
-    state: next,
-    events: [
-      {
-        type: "energy_allocated",
-        playerId: action.playerId,
-        subsystemId: action.data.subsystemId,
-        amount: action.data.amount,
-      },
-    ],
-  };
-}
-
-function processDeallocateEnergy(state: GameState, action: DeallocateEnergyAction): Step {
-  const next = withPlayer(state, action.playerId, (p) => {
-    let ship = updateSubsystem(p.ship, action.data.subsystemId, (s) => {
-      const remaining = s.allocatedEnergy - action.data.amount;
-      return { allocatedEnergy: remaining, isPowered: remaining > 0 };
+    const sub = findSubsystem(p.ship, action.data.subsystemId)!;
+    const previous = sub.allocatedEnergy;
+    const amount = action.data.amount;
+    if (amount === previous) return p;
+    const ship = updateSubsystem(p.ship, action.data.subsystemId, {
+      allocatedEnergy: amount,
+      isPowered: amount > 0,
+      isStanding: amount > 0,
     });
-    ship = {
-      ...ship,
-      reactor: {
-        ...ship.reactor,
-        availableEnergy: ship.reactor.availableEnergy + action.data.amount,
-      },
-    };
+    events.push({
+      type: "standing_power_set",
+      playerId: action.playerId,
+      subsystemId: action.data.subsystemId,
+      amount,
+      previous,
+    });
     return { ...p, ship };
   });
-  return {
-    state: next,
-    events: [
-      {
-        type: "energy_deallocated",
-        playerId: action.playerId,
-        subsystemId: action.data.subsystemId,
-        amount: action.data.amount,
-      },
-    ],
-  };
+  return { state: next, events };
 }
 
 // ---------------------------------------------------------------------------
@@ -330,7 +295,13 @@ function processBurn(state: GameState, action: BurnAction): Step {
     const drifted = applyOrbitalMovement(p.ship);
     const burned = applyBurn(drifted, action.data.burnIntensity, action.data.sectorAdjustment ?? 0);
     massSpent = burned.massSpent;
-    const used = useSubsystem(burned.ship, p.id, "engines");
+    const used = useSubsystem(
+      burned.ship,
+      p.id,
+      "engines",
+      "fired",
+      BURN_COSTS[action.data.burnIntensity].energy
+    );
     heat = used.heat;
     events.push(...used.events);
     return { ...p, ship: used.ship };
@@ -364,7 +335,7 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
 
   const next = withPlayer(state, action.playerId, (p) => {
     let ship = { ...p.ship, ...destination, reactionMass: p.ship.reactionMass - massSpent };
-    const used = useSubsystem(ship, p.id, "engines");
+    const used = useSubsystem(ship, p.id, "engines", "fired", WELL_TRANSFER_COSTS.energy);
     ship = used.ship;
     heat = used.heat;
     events.push(...used.events);
@@ -491,12 +462,6 @@ function processFireWeapon(
       targetHullAfter: outcome.ship.hitPoints,
     });
     events.push(...outcome.events);
-    if (outcome.hitResult.sensorAssistedCritical) {
-      const revealed = revealSensors(attacker);
-      attacker = revealed.player;
-      players[attackerIndex] = attacker;
-      events.push(...revealed.events);
-    }
     if (isDestroyed(outcome.ship) && !isDestroyed(target.ship)) {
       events.push({
         type: "ship_destroyed",
@@ -511,7 +476,13 @@ function processFireWeapon(
   // Recoil.
   if (config.weaponStats?.hasRecoil) {
     if (action.data.compensateRecoil) {
-      const compensated = useSubsystem(attacker.ship, attacker.id, "engines");
+      const compensated = useSubsystem(
+        attacker.ship,
+        attacker.id,
+        "engines",
+        "fired",
+        BURN_COSTS.soft.energy
+      );
       const ship = {
         ...compensated.ship,
         reactionMass: compensated.ship.reactionMass - BURN_COSTS.soft.mass,

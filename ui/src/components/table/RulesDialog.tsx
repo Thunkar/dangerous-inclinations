@@ -21,7 +21,6 @@ import {
   MAX_REACTION_MASS,
   MAX_SECTOR_ADJUSTMENT,
   PLANET_RINGS,
-  REACTOR_CAPACITY,
   SCAN_SECTOR_RANGE,
   SECTORS_PER_RING,
   MAX_HEAT,
@@ -29,6 +28,7 @@ import {
   SHIELD_HEAT_PER_POINT,
   STARTING_HIT_POINTS,
   SUBSYSTEM_CONFIGS,
+  interceptsPerRack,
   TANKER_FUEL,
   WELL_TRANSFER_COSTS,
 } from '@dangerous-inclinations/engine'
@@ -76,7 +76,8 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
   // The number this game is played to, read off the view.
   const { view } = useGame()
   const quick: Array<[string, string]> = [
-    ['Reactor', `${REACTOR_CAPACITY} energy`],
+    ['Energy', 'an action powers the tile it uses; shields, racks and sensors you switch on'],
+    ['Heat', "every cube on a tile is a point of heat at your check, however it got there"],
     ['Heat track', `${MAX_HEAT} · above it is hull damage; heat does not reset`],
     [
       'Dissipation',
@@ -84,7 +85,11 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Shields',
-      `${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point, and its cubes as heat every turn it is powered`,
+      `${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point, and its cubes as heat at every check it is up`,
+    ],
+    [
+      'Ballistic rack',
+      `while up it rolls at ${interceptsPerRack()} missiles a turn, the same number its cubes could have thrown`,
     ],
     ['Hull', `${STARTING_HIT_POINTS}`],
     ['Fuel', `${MAX_REACTION_MASS}`],
@@ -101,7 +106,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['Hit roll', '1 miss, 2–9 hit, 10 crit (8–10 with sensors)'],
     [
       'Salvo',
-      `one action launches any number of a tile's missiles at one ship, all naming the same slot, for the tile's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} heat, and a powered ballistic rack rolls at every missile that reaches it in a turn for its ${SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy} heat`,
+      `one action launches any number of a tile's missiles at one ship, all naming the same slot, and the tile holds its ${SUBSYSTEM_CONFIGS.missiles.minEnergy} cubes once; a rack that is up rolls at ${interceptsPerRack()} of them a turn, so it takes a second rack to answer a second launcher`,
     ],
     ['Scan', `same ring, within ${SCAN_SECTOR_RANGE} sectors, sensor powered`],
     [

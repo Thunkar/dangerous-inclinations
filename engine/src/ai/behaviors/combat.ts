@@ -48,7 +48,7 @@ export interface FireIntent {
    * plus engine energy when compensating recoil.
    */
   heat: number;
-  /** Reactor energy the weapon needs. A salvo needs no more cubes than one shot. */
+  /** Cubes the weapon takes, and so its heat. A salvo needs no more than one shot. */
   energy: number;
   /** Rounds this action puts in the air. 1 for everything but a missiles salvo. */
   count: number;
@@ -183,9 +183,13 @@ function fallbackCriticalTarget(target: Opponent): SubsystemId {
  * What a slot's cubes say about it being a shield tile: a side slot holding
  * one to four cubes that no weapon's cube count explains. Bigger is better
  * to break: those are the cubes soaking our volley.
+ *
+ * A side slot at four can only be a wall, since the rack is the other standing
+ * side tile and holds two. At two it may be either, which `suspectedWeapon`
+ * has already read as a possible rack: that is a slot worth breaking too, so
+ * it is not excluded here, only ranked below the certainty.
  */
 function suspectedShieldCubes(slot: SuspectedSlot): number {
-  if (slot.suspected !== null) return 0;
   if (slot.slot.group !== "side") return 0;
   const cubes = slot.slot.allocatedEnergy;
   return cubes >= 1 && cubes <= getSubsystemConfig("shields").maxEnergy ? cubes : 0;
@@ -193,20 +197,22 @@ function suspectedShieldCubes(slot: SuspectedSlot): number {
 
 /**
  * Slot to break on a critical. Every candidate must be a tile that is still
- * intact (breaking a broken tile does nothing) and cubes are the evidence:
- * energy allocation is public, and a broken tile is turned face-up with its
- * cubes returned to the reactor, so any slot carrying cubes is certainly
- * still working.
+ * intact (breaking a broken tile does nothing).
+ *
+ * Cubes are still evidence, but of a narrower thing than they were: only a
+ * standing tile carries any between turns, so a loaded slot is a wall, a rack
+ * or a sensor, and a gun is dark whatever it is about to do. Breaking a loaded
+ * slot also dumps its cubes on its owner as heat, which a dark one cannot do.
  *
  * `intent` decides what "best" means:
  *
- * - **suppress** (the default): stop them shooting us. A weapon we have seen
- *   and that is powered right now, then a face-down slot whose cube count
- *   reads dangerous, then anything revealed and powered, then an idle gun,
- *   then the engines.
+ * - **suppress** (the default): stop them shooting us. The biggest gun we have
+ *   actually seen, then a loaded face-down slot (a rack is a gun and a sensor
+ *   is their critical range, and either way the cubes burn), then anything
+ *   else of theirs we know, then the engines.
  * - **kill**: get through to the hull. A shield tile holds up to four cubes and
  *   absorbs a point per two of them, and the cubes it spends come straight back
- *   to their reactor, so it is refilled for free on their next turn and is the
+ *   spent, so it is switched back on for free on their next turn and is the
  *   single tile standing between us and their hull. Break it and every later
  *   shot lands in full until they reach a station.
  *
@@ -233,8 +239,14 @@ export function chooseCriticalTarget(
     if (suspected) return suspected.slot.slot.id;
   }
 
-  const firing = working.find((w) => w.isPowered);
-  if (firing) return firing.slotId;
+  // The gun we have seen, biggest first: an unbroken one fires whenever its
+  // owner likes, so being dark right now is no reason to leave it alone.
+  const biggest = [...working].sort(
+    (a, b) =>
+      (getSubsystemConfig(b.type).weaponStats?.damage ?? 0) -
+      (getSubsystemConfig(a.type).weaponStats?.damage ?? 0)
+  )[0];
+  if (biggest) return biggest.slotId;
 
   const loaded = [...target.unknownSlots]
     .filter((s) => s.slot.allocatedEnergy > 0)
@@ -251,7 +263,6 @@ export function chooseCriticalTarget(
   );
   if (powered) return powered.id;
 
-  if (working[0]) return working[0].slotId;
   return fallbackCriticalTarget(target);
 }
 

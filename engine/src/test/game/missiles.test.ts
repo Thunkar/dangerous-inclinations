@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { OPENING_ROUNDS, FIRST_TURN } from "../../models/game.ts";
 import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game/missiles.ts";
 import { processActions } from "../../game/actionProcessors.ts";
-import { SUBSYSTEM_CONFIGS, getMissileStats } from "../../models/subsystems.ts";
+import {
+  SUBSYSTEM_CONFIGS,
+  getMissileStats,
+  interceptsPerRack,
+} from "../../models/subsystems.ts";
+import { resetSubsystemUsage } from "../../game/ship.ts";
 import type { GameState, Missile, PlayerAction, ShipLoadout } from "../../models/game.ts";
 import {
   ALPHA,
@@ -40,14 +45,9 @@ const LASER_ONLY: ShipLoadout = {
   sideSlots: ["laser", null, null, null],
 };
 
-/** p1 at R3 S0 with powered missiles; p2 at the given spot. */
+/** p1 at R3 S0 with a launcher aboard; p2 at the given spot. The launch powers it. */
 function launcher(target = { ring: 5, sector: 0 }, targetLoadout?: ShipLoadout) {
-  return withPower(
-    makeTwoPlayerGame({ ring: 3, sector: 0 }, { ...target, loadout: targetLoadout }),
-    "p1",
-    "side-3",
-    2
-  );
+  return makeTwoPlayerGame({ ring: 3, sector: 0 }, { ...target, loadout: targetLoadout });
 }
 
 function missileAt(
@@ -194,8 +194,9 @@ describe("missiles: launch", () => {
       expect(missile).toMatchObject({ targetId: "p2", criticalTarget: "side-1" });
     }
     expect(getSub(processed.state, "p1", "side-3").ammo).toBe(1);
-    // Three rounds off the rail, the tile's two cubes charged once.
-    expect(getShip(processed.state, "p1").heat.currentHeat).toBe(2);
+    // Three rounds off the rail, and the tile is carrying its two cubes once:
+    // two heat at the check, whatever the size of the salvo.
+    expect(getSub(processed.state, "p1", "side-3").allocatedEnergy).toBe(2);
     expect(eventsOf(processed.events as never, "weapon_fired")[0]).toMatchObject({
       count: 3,
       heat: 2,
@@ -405,17 +406,21 @@ describe("missiles: on the target's sector", () => {
     ]);
   });
 
-  it("a powered ballistic rack intercepts on 2+: rack used, heated and revealed, target unharmed", () => {
+  it("a rack that is up intercepts on 2+: used and revealed, and it adds no heat of its own", () => {
     const state = withPower(onTarget(RACK), "p2", "side-0", 2);
     const result = processOwnerMissiles(state, "p1");
+    // Heat 0: the rack's two cubes are already on its owner's bill for being
+    // up, so shooting a missile down costs nothing more.
     expect(eventsOf(result.events as never, "missile_intercepted")).toEqual([
-      expect.objectContaining({ missileId: "m-1", targetId: "p2", roll: 5, heat: 2 }),
+      expect.objectContaining({ missileId: "m-1", targetId: "p2", roll: 5, heat: 0 }),
     ]);
     expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
     expect(result.state.missiles).toEqual([]);
     const rack = getSub(result.state, "p2", "side-0");
-    expect(rack).toMatchObject({ usedThisTurn: true, isRevealed: true });
-    expect(getShip(result.state, "p2")).toMatchObject({ hitPoints: 10, heat: { currentHeat: 2 } });
+    expect(rack).toMatchObject({ usedThisTurn: true, isRevealed: true, allocatedEnergy: 2 });
+    // Interception adds nothing to the track: the rack pays by being up, at
+    // its owner's own check, whether it rolls or not.
+    expect(getShip(result.state, "p2")).toMatchObject({ hitPoints: 10, heat: { currentHeat: 0 } });
     expect(eventsOf(result.events as never, "subsystem_revealed")[0]).toMatchObject({
       subsystemId: "side-0",
       reason: "intercepted",
@@ -455,14 +460,16 @@ describe("missiles: on the target's sector", () => {
     const result = processOwnerMissiles({ ...state, forcedRollValue: 5 }, "p1");
     const intercepts = eventsOf(result.events as never, "missile_intercepted");
     expect(intercepts).toHaveLength(3);
-    // The rack's cubes are charged on its first roll of the turn; the rest ride free.
-    expect(intercepts.map((e) => e.heat)).toEqual([2, 0, 0]);
+    // Nothing is charged for any of them: the rack is up, so its cubes are
+    // already on the bill and a turn of rolling adds nothing.
+    expect(intercepts.map((e) => e.heat)).toEqual([0, 0, 0]);
     expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
     expect(result.state.missiles).toEqual([]);
     expect(getShip(result.state, "p2")).toMatchObject({
       hitPoints: 10,
-      heat: { currentHeat: 2 },
+      heat: { currentHeat: 0 },
     });
+    expect(getSub(result.state, "p2", "side-0").allocatedEnergy).toBe(2);
   });
 
   it("a rack that keeps rolling 1 keeps rolling and every missile attacks", () => {
@@ -473,7 +480,7 @@ describe("missiles: on the target's sector", () => {
     const result = processOwnerMissiles({ ...state, forcedRollValue: 1 }, "p1");
     expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(3);
     expect(eventsOf(result.events as never, "attack_resolved")).toHaveLength(3);
-    expect(getShip(result.state, "p2").heat.currentHeat).toBe(2);
+    expect(getSub(result.state, "p2", "side-0").allocatedEnergy).toBe(2);
   });
 
   it("an unpowered rack lets the whole salvo through", () => {
@@ -485,7 +492,40 @@ describe("missiles: on the target's sector", () => {
     expect(getShip(result.state, "p2").hitPoints).toBe(4);
   });
 
-  it("only one of two powered racks does the rolling", () => {
+  it("one rack answers four and the fifth gets through", () => {
+    // Two cubes throw four missiles, so two cubes shoot four down: the rule is
+    // the same number read from either end (RULES §Weapons -> Ballistic rack).
+    const state = withPower(salvoOf(onTarget(RACK), 5), "p2", "side-0", 2);
+    const result = processOwnerMissiles({ ...state, forcedRollValue: 5 }, "p1");
+    expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(
+      interceptsPerRack()
+    );
+    expect(getSub(result.state, "p2", "side-0").rollsThisTurn).toBe(interceptsPerRack());
+    // The one it could not roll at attacks.
+    expect(eventsOf(result.events as never, "attack_resolved")).toHaveLength(1);
+    expect(getShip(result.state, "p2").hitPoints).toBe(8);
+  });
+
+  it("a second rack answers the next four, and pays its own cubes", () => {
+    const two = withPower(
+      withPower(salvoOf(onTarget(TWO_RACKS), 5), "p2", "side-0", 2),
+      "p2",
+      "side-2",
+      2
+    );
+    const result = processOwnerMissiles({ ...two, forcedRollValue: 5 }, "p1");
+    expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(5);
+    expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
+    expect(getShip(result.state, "p2").hitPoints).toBe(10);
+    // The first rack spent its four, the second took the fifth and turned over.
+    expect(getSub(result.state, "p2", "side-0").rollsThisTurn).toBe(interceptsPerRack());
+    expect(getSub(result.state, "p2", "side-2")).toMatchObject({
+      rollsThisTurn: 1,
+      isRevealed: true,
+    });
+  });
+
+  it("one rack is enough for a salvo of two, and the second stays a secret", () => {
     const two = withPower(
       withPower(salvoOf(onTarget(TWO_RACKS), 2), "p2", "side-0", 2),
       "p2",
@@ -494,8 +534,20 @@ describe("missiles: on the target's sector", () => {
     );
     const result = processOwnerMissiles({ ...two, forcedRollValue: 5 }, "p1");
     expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(2);
-    expect(getShip(result.state, "p2")).toMatchObject({ hitPoints: 10, heat: { currentHeat: 2 } });
+    expect(getShip(result.state, "p2").hitPoints).toBe(10);
     expect(getSub(result.state, "p2", "side-2").isRevealed).toBe(false);
+  });
+
+  it("the count is per player-turn: a rack that spent its four answers again next turn", () => {
+    const state = withPower(salvoOf(onTarget(RACK), 4), "p2", "side-0", 2);
+    const spent = processOwnerMissiles({ ...state, forcedRollValue: 5 }, "p1");
+    expect(getSub(spent.state, "p2", "side-0").rollsThisTurn).toBe(interceptsPerRack());
+    // `finish` clears it for everyone when play passes (game/turns.ts).
+    const fresh = {
+      ...spent.state,
+      players: spent.state.players.map((p) => ({ ...p, ship: resetSubsystemUsage(p.ship) })),
+    };
+    expect(getSub(fresh, "p2", "side-0").rollsThisTurn).toBe(0);
   });
 
   /**
@@ -567,7 +619,7 @@ describe("missiles: a salvo and a turn of interceptions are one use of a tile", 
     ]);
     expect(processed.success).toBe(true);
     expect(processed.state.missiles).toHaveLength(3);
-    expect(getShip(processed.state, "p1").heat.currentHeat).toBe(
+    expect(getSub(processed.state, "p1", "side-3").allocatedEnergy).toBe(
       SUBSYSTEM_CONFIGS.missiles.minEnergy
     );
     expect(eventsOf(processed.events as never, "weapon_fired")[0]).toMatchObject({
@@ -594,10 +646,10 @@ describe("missiles: a salvo and a turn of interceptions are one use of a tile", 
     expect(intercepts.every((e) => e.destroyed)).toBe(true);
     expect(result.state.missiles).toEqual([]);
     expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
-    expect(getShip(result.state, "p2")).toMatchObject({
-      hitPoints: 10,
-      heat: { currentHeat: expected },
-    });
-    expect(intercepts.reduce((sum, e) => sum + e.heat, 0)).toBe(expected);
+    expect(getShip(result.state, "p2").hitPoints).toBe(10);
+    // The rack carries its cubes once however many it rolled at, and that is
+    // what it costs at the check.
+    expect(getSub(result.state, "p2", "side-0").allocatedEnergy).toBe(expected);
+    expect(intercepts.reduce((sum, e) => sum + e.heat, 0)).toBe(0);
   });
 });

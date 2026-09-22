@@ -4,7 +4,7 @@
  *   left   · the rivals' loadouts stacked one above the other, with the turn log
  *            and table talk sharing whatever is left
  *   middle · the board, the full height of the window
- *   right  · your cards, then your turn: status first, then the reactor, the
+ *   right  · your cards, then your turn: status first, then the ship, the
  *            move, the guns, the sequence, and the button that ends it
  *
  * Perspective is always the logged-in player: the active player is

@@ -29,7 +29,7 @@ import { advanceStations, isMooredAt } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
 import { applyOrbitalMovement } from "./movement.ts";
 import { positionOf } from "./geometry.ts";
-import { isDestroyed, resetSubsystemUsage } from "./ship.ts";
+import { clearDerivedPower, isDestroyed, resetSubsystemUsage } from "./ship.ts";
 
 export interface TurnResult {
   gameState: GameState;
@@ -188,9 +188,17 @@ function finish(
   const newRound = nextIndex === 0;
   // "Once per turn" means once per player-turn for everyone: a rack that
   // intercepted during this turn is ready again when the next player acts.
+  //
+  // The cubes an action put on a tile go back at the same moment, so the only
+  // energy on the board between turns is what somebody switched on and left
+  // on. Only the player who just acted can have any, but clearing every ship
+  // costs nothing and keeps the rule one line.
   let next: GameState = {
     ...state,
-    players: state.players.map((p) => ({ ...p, ship: resetSubsystemUsage(p.ship) })),
+    players: state.players.map((p) => ({
+      ...p,
+      ship: clearDerivedPower(resetSubsystemUsage(p.ship)),
+    })),
     activePlayerIndex: nextIndex,
     turn: newRound ? turn + 1 : turn,
   };

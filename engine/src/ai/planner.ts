@@ -12,9 +12,9 @@
  *   3. the movement (coast / burn / jump)
  *   4. shots and scans that are in range from the projected position
  *
- * Energy allocations precede all of that (the engine applies them first);
- * the reactor holds 10 and heat over the redline at the end of the turn costs
- * hull, so both are budgeted while the sequence is built. Heat is a track:
+ * Standing switches precede all of that (the engine applies them first);
+ * heat over the redline at the end of the turn costs hull, and every cube is
+ * heat, so the sequence is built against that one budget. Heat is a track:
  * what is left after the dissipation is carried, not forgiven.
  */
 import type {
@@ -28,7 +28,11 @@ import { MAX_HEAT } from "../models/game.ts";
 import { SURVEY_RING } from "../models/missions.ts";
 import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { getSubsystemConfig } from "../models/subsystems.ts";
+import {
+  getMissileStats,
+  getSubsystemConfig,
+  interceptsPerRack,
+} from "../models/subsystems.ts";
 import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
 import { getStationAt } from "../game/stations.ts";
@@ -50,7 +54,7 @@ import {
 import type { FireIntent } from "./behaviors/combat.ts";
 import { scanOption } from "./behaviors/scanning.ts";
 import type { ScanIntent } from "./behaviors/scanning.ts";
-import { assignDefensiveEnergy, energyActions, totalEnergy } from "./behaviors/survival.ts";
+import { assignDefensiveEnergy, standingActions } from "./behaviors/survival.ts";
 import type { EnergyTargets } from "./behaviors/survival.ts";
 import { castOffChoice, coastChoice, movementFromPlan } from "./behaviors/positioning.ts";
 import type { MovementChoice } from "./behaviors/positioning.ts";
@@ -107,28 +111,18 @@ export function buildCandidate(
   // station carries the ship at the end of the round (RULES §Stations).
   const moored = status.moored;
 
-  const capacity = me.ship.reactor.totalCapacity;
-  const rotationEnergy = getSubsystemConfig("rotation").minEnergy;
 
   // A movement whose heat alone would gut the hull is not worth it.
   const movementHeatDamage = Math.max(0, status.heat + movement.engineEnergy - status.dissipation);
   if (movementHeatDamage > 0 && status.hull - movementHeatDamage < MIN_HULL_AFTER_OVERHEAT) {
     movement = coastChoice(false);
   }
-  // Nor is one the reactor cannot power (engines plus the turn it needs).
-  const movementRotation =
-    movement.requiredFacing !== null && movement.requiredFacing !== ship.facing
-      ? rotationEnergy
-      : 0;
-  if (movement.engineEnergy + movementRotation > capacity) {
-    movement = coastChoice(false);
-  }
+  // The move and the rotation it needs used to have to fit in a reactor
+  // together; nothing caps them now but the heat, which `fits` weighs below
+  // and `movementHeatDamage` has already refused if it would gut the hull.
 
   // Facing: the burn direction, or whatever gives the railgun a shot.
-  const canRotate =
-    !status.rotation.isBroken &&
-    !status.rotation.usedThisTurn &&
-    movement.engineEnergy + rotationEnergy <= capacity;
+  const canRotate = !status.rotation.isBroken && !status.rotation.usedThisTurn;
   const preview =
     movement.kind === "coast" && moored ? { ...movement.preview, moored: true } : movement.preview;
   let facing: Facing = movement.requiredFacing ?? ship.facing;
@@ -181,8 +175,10 @@ export function buildCandidate(
     heatUsed += getSubsystemConfig("rotation").minEnergy;
   }
   const heatBudget = status.heatBudget;
-  const fits = (energy: number, heat: number, overflow = 0) =>
-    totalEnergy(targets) + energy <= capacity && heatUsed + heat <= heatBudget + overflow;
+  // Heat is the only budget now: a tile's cubes are its heat at the check, so
+  // asking whether a cube fits and whether its heat fits is one question.
+  const fits = (_energy: number, heat: number, overflow = 0) =>
+    heatUsed + heat <= heatBudget + overflow;
 
   // Scoop the plan relies on comes before weapons; low-fuel scooping after.
   const scoopEnergy = getSubsystemConfig("scoop").minEnergy;
@@ -360,26 +356,58 @@ export function buildCandidate(
   // missiles are on the board is waiting one turn too long. Anyone in the well
   // with a launcher we know about (or a slot whose cubes read like one) is
   // reason enough to keep the rack up.
-  const launcherAimedAtUs = situation.opponents.some(
-    (o) =>
-      o.sameWell &&
-      (o.knownWeapons.some((w) => w.type === "missiles" && !w.isBroken && w.inRange) ||
-        o.unknownSlots.some((s) => s.inRange && s.suspected?.type === "missiles"))
+  const launchersAimedAtUs = situation.opponents.reduce(
+    (count, o) =>
+      count +
+      (o.sameWell
+        ? o.knownWeapons.filter((w) => w.type === "missiles" && !w.isBroken && w.inRange).length +
+          o.unknownSlots.filter((s) => s.inRange && s.suspected?.type === "missiles").length
+        : 0),
+    0
   );
-  assignDefensiveEnergy(
-    targets,
-    status.shields,
-    status.racks.filter((r) => !shots.some((s) => s.intent.weapon.id === r.id)),
-    enemiesNear || situation.incomingMissiles > 0,
-    situation.incomingMissiles > 0 || launcherAimedAtUs,
-    getSubsystemConfig("shields").maxEnergy,
-    capacity,
-    Math.max(0, heatBudget - heatUsed)
+  /**
+   * Racks worth the heat: one per four missiles that could reach us this round,
+   * because a rack rolls at four and the fifth gets through. Missiles already
+   * in the air are counted, and every launcher that bears is priced at a full
+   * magazine, which is what one action can put up.
+   */
+  const wantRacks = Math.ceil(
+    (situation.incomingMissiles + launchersAimedAtUs * getMissileStats().maxAmmo) /
+      interceptsPerRack()
   );
-  const standingHeat = status.shields.reduce((sum, sh) => sum + (targets.get(sh.id) ?? 0), 0);
+  // A sensor left up makes every gun aboard critical on an 8, which is worth
+  // its two heat on a turn that means to shoot and nothing at all on a turn
+  // that does not. Worth it on the turn of the shot too, since a scan or a
+  // shot pays for the cubes either way and leaving it up only adds the checks
+  // after.
+  const wantSensor = shots.length > 0 && status.sensors.some((s) => !s.isBroken);
+  /**
+   * What to leave switched on, kept apart from the turn's own draws: a tile an
+   * action lit goes dark again at the end of the turn, so putting it in here
+   * is the difference between using a rack once and holding point defence up.
+   */
+  const standingWants: EnergyTargets = new Map();
+  assignDefensiveEnergy(standingWants, {
+    shields: status.shields,
+    racks: status.racks,
+    sensors: status.sensors,
+    derived: targets,
+    wantShields: enemiesNear || situation.incomingMissiles > 0,
+    wantRacks,
+    wantSensor,
+    heatRoom: Math.max(0, heatBudget - heatUsed),
+  });
+  /**
+   * Heat the check will bill beyond the turn's own draws. A tile holds its
+   * cubes once, so a rack that fires and stays up costs two, not four.
+   */
+  const standingHeat = [...standingWants].reduce(
+    (sum, [id, cubes]) => sum + Math.max(0, cubes - (targets.get(id) ?? 0)),
+    0
+  );
 
   // Assemble.
-  const { deallocations, allocations } = energyActions(me, targets);
+  const standing = standingActions(me, standingWants);
   const tactical: TacticalAction[] = [];
   let sequence = 1;
   const fire = (shot: { opponent: Opponent; intent: FireIntent }): FireWeaponAction => ({
@@ -465,7 +493,7 @@ export function buildCandidate(
     tactical.push(scanAction(scanChosen));
   for (const s of inPhase("post")) tactical.push(fire(s));
 
-  const actions: PlayerAction[] = [...deallocations, ...allocations, ...tactical];
+  const actions: PlayerAction[] = [...standing, ...tactical];
   const killsTarget = target !== null && hullOn(target) >= target.hull;
   const scansForMission = scanChosen !== null && (scanChosen as ScanIntent).forMission;
 
@@ -512,9 +540,9 @@ function coldRepairCandidate(situation: TacticalSituation): ActionPlan | null {
     broken[0].id;
 
   // Everything off: a powered shield is heat at the check even unused.
-  const { deallocations } = energyActions(me, new Map());
+  const standing = standingActions(me, new Map());
   const actions: PlayerAction[] = [
-    ...deallocations,
+    ...standing,
     { type: "coast", playerId: me.id, sequence: 1, data: { activateScoop: false } },
     { type: "repair", playerId: me.id, data: { subsystemId: target } },
   ];

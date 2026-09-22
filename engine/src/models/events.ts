@@ -27,7 +27,6 @@ export type RevealReason =
   | "intercepted"
   | "absorbed"
   | "scanned"
-  | "critical_bonus"
   | "prevented_heat_damage"
   | "compressed_jump"
   | "broken";
@@ -35,16 +34,13 @@ export type RevealReason =
 export type GameEvent =
   | (Base & { type: "respawned"; playerId: string; position: Position })
   | (Base & {
-      type: "energy_allocated";
+      type: "standing_power_set";
       playerId: string;
       subsystemId: SubsystemId;
+      /** Cubes the tile now holds; 0 is off. */
       amount: number;
-    })
-  | (Base & {
-      type: "energy_deallocated";
-      playerId: string;
-      subsystemId: SubsystemId;
-      amount: number;
+      /** What it held before, so the log can say which way the switch went. */
+      previous: number;
     })
   | (Base & { type: "rotated"; playerId: string; facing: Facing })
   | (Base & {
@@ -180,10 +176,11 @@ export type GameEvent =
   | (Base & {
       type: "heat_check";
       playerId: string;
-      /** Heat on the track when the check ran, standing shield heat included. */
+      /** Heat on the track when the check ran, the loadout's cubes included. */
       heat: number;
       /** Of that, the cubes powered shields charged for being on. */
-      standing: number;
+      /** The part of `heat` that is cubes sitting on the loadout. */
+      cubes: number;
       dissipation: number;
       /** Hull taken for the part of `heat` above MAX_HEAT. */
       damage: number;

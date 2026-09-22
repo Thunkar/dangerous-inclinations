@@ -109,18 +109,10 @@ const RotateActionSchema = z
   })
   .strict();
 
-const AllocateEnergyActionSchema = z
+const SetStandingPowerActionSchema = z
   .object({
     ...base,
-    type: z.literal("allocate_energy"),
-    data: z.object({ subsystemId: id, amount: int }).strict(),
-  })
-  .strict();
-
-const DeallocateEnergyActionSchema = z
-  .object({
-    ...base,
-    type: z.literal("deallocate_energy"),
+    type: z.literal("set_standing_power"),
     data: z.object({ subsystemId: id, amount: int }).strict(),
   })
   .strict();
@@ -164,8 +156,7 @@ export const PlayerActionSchema = z.discriminatedUnion("type", [
   CoastActionSchema,
   BurnActionSchema,
   RotateActionSchema,
-  AllocateEnergyActionSchema,
-  DeallocateEnergyActionSchema,
+  SetStandingPowerActionSchema,
   FireWeaponActionSchema,
   ScanActionSchema,
   WellTransferActionSchema,

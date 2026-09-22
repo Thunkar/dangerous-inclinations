@@ -5,7 +5,7 @@
  * lowers the critical threshold by two (8-10 with one array).
  *
  * Shields absorb one point of damage per SHIELD_ENERGY_PER_POINT cubes on the
- * tile; absorbed damage becomes heat and the spent cubes return to the reactor,
+ * tile; absorbed damage becomes heat and the spent cubes are gone,
  * leaving the tile dark until it is re-powered. A critical breaks the slot the
  * attacker named whether or not the shot reached the hull.
  */
@@ -58,7 +58,6 @@ export function resolveAttack(
 ): AttackOutcome {
   const critChance = getEffectiveCriticalChance(attacker.subsystems);
   const result = rollToResult(roll, critChance);
-  const sensorAssistedCritical = result === "critical" && rollToResult(roll) !== "critical";
 
   if (result === "miss") {
     return {
@@ -70,7 +69,6 @@ export function resolveAttack(
         damage: 0,
         damageToHull: 0,
         damageToHeat: 0,
-        sensorAssistedCritical: false,
       },
     };
   }
@@ -91,15 +89,14 @@ export function resolveAttack(
     if (take <= 0) continue;
     const spent = take * SHIELD_ENERGY_PER_POINT;
     const left = shield.allocatedEnergy - spent;
-    // The cubes that absorbed go back to the reactor: the shield refills for free.
-    ship = {
-      ...ship,
-      reactor: {
-        ...ship.reactor,
-        availableEnergy: Math.min(ship.reactor.totalCapacity, ship.reactor.availableEnergy + spent),
-      },
-    };
-    ship = updateSubsystem(ship, shield.id, { allocatedEnergy: left, isPowered: left > 0 });
+    // The cubes that absorbed are spent: the tile goes dark by as much as it
+    // soaked, and costs that much less at its owner's next check. Bringing it
+    // back up is free and is their decision.
+    ship = updateSubsystem(ship, shield.id, {
+      allocatedEnergy: left,
+      isPowered: left > 0,
+      isStanding: left > 0,
+    });
     ship = addHeat(ship, take * SHIELD_HEAT_PER_POINT);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
     ship = r.ship;
@@ -115,8 +112,8 @@ export function resolveAttack(
   // hull. It used to need `toHull > 0`, which meant shields that held ate the
   // critical aimed at it: the fattest, most public slot on the loadout was also
   // the one best protected from being named. Absorbing first still blunts it
-  // (the tile that soaked the shot spent its cubes back to the reactor, so
-  // breaking it dumps little or no heat), but the tile is gone until a dock.
+  // (the tile that soaked the shot spent its cubes, so breaking it dumps
+  // little or no heat), but the tile is gone until a dock.
   let criticalEffect: WeaponHitResult["criticalEffect"];
   if (result === "critical") {
     const sub = findSubsystem(ship, criticalTarget);
@@ -146,7 +143,6 @@ export function resolveAttack(
       damageToHull: toHull,
       damageToHeat: absorbed,
       criticalEffect,
-      sensorAssistedCritical,
     },
   };
 }

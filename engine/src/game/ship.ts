@@ -9,7 +9,6 @@ import {
   BASE_CRITICAL_CHANCE,
   DEFAULT_DISSIPATION_CAPACITY,
   DEFAULT_LOADOUT,
-  REACTOR_CAPACITY,
   STARTING_HIT_POINTS,
 } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
@@ -32,7 +31,6 @@ export function createInitialShipState(
     hitPoints: STARTING_HIT_POINTS,
     maxHitPoints: STARTING_HIT_POINTS,
     subsystems: createSubsystemsFromLoadout(loadout),
-    reactor: { totalCapacity: REACTOR_CAPACITY, availableEnergy: REACTOR_CAPACITY },
     heat: { currentHeat: 0 },
     loadout,
     ...overrides,
@@ -70,21 +68,23 @@ export function getDissipationCapacity(
 }
 
 /**
- * Heat powered shields make just by being on: their cubes, added at the
- * owner's heat check.
+ * **The whole energy rule: a tile's cubes are heat at its owner's check.**
  *
- * Every other tile costs its cubes in heat when it is used; shields are used
- * the whole time they are powered, so they are charged every check. Powering
- * them used to be free until something hit you, which is why bots held four
- * cubes on 73% of turns and paid on 2% of them.
+ * It does not matter how the cubes got there. An action puts them on the tile
+ * it uses and they are still there when the check runs, so firing a railgun
+ * costs its four. A standing tile carries them the whole time, so a wall, a
+ * rack or a sensor pays at every check for as long as it is up. There is
+ * nothing else to know and nothing a tile can do that is free.
  *
- * A tile that absorbed has already spent its cubes back to the reactor and is
- * at zero when the check comes, so it costs nothing that turn: shields are
- * expensive idle and free when they work.
+ * A tile that absorbed has already spent its cubes and is at zero when the
+ * check comes, so it costs nothing that turn: shields are expensive idle and
+ * free when they work.
  */
-export function getStandingHeat(subsystems: ReadonlyArray<Subsystem>): number {
+export function heatFromCubes(subsystems: ReadonlyArray<Subsystem>): number {
+  // The cubes themselves, not `isPowered`: a tile is hot because it is carrying
+  // them, and a broken one dumped its as heat when it broke.
   return subsystems
-    .filter((s) => s.type === "shields" && s.isPowered && !s.isBroken)
+    .filter((s) => !s.isBroken)
     .reduce((sum, s) => sum + s.allocatedEnergy, 0);
 }
 
@@ -140,28 +140,84 @@ export function revealSubsystem(
 }
 
 /**
- * Use a subsystem: mark it used this turn, add heat equal to its allocated
- * energy (if it generates heat on use) and reveal it. Returns the heat added.
+ * The cubes an action puts on the tile it uses. Every tile but the engines has
+ * one legal figure, which is why nobody places cubes: the engines take the
+ * burn's, and the caller passes it.
+ */
+export function drawFor(type: Subsystem["type"], requested?: number): number {
+  const config = getSubsystemConfig(type);
+  if (config.maxEnergy === 0) return 0;
+  return Math.min(config.maxEnergy, Math.max(config.minEnergy, requested ?? config.minEnergy));
+}
+
+/**
+ * Power a tile for the action about to use it. Nothing can refuse it: there is
+ * no reactor to run dry, only the heat the cubes will cost at the check, so a
+ * ship may light everything it owns and pay in hull for it.
+ *
+ * A standing tile already holding its cubes is left where its owner set it, so
+ * a rack that intercepts and a scan on a sensor already up add nothing.
+ */
+export function powerForUse(ship: ShipState, id: SubsystemId, draw: number): ShipState {
+  const sub = findSubsystem(ship, id);
+  if (!sub || sub.allocatedEnergy >= draw) return ship;
+  // Not `isStanding`: these cubes belong to the action and come off with it.
+  return updateSubsystem(ship, id, { allocatedEnergy: draw, isPowered: true });
+}
+
+/**
+ * Use a subsystem: power it for the action, mark it used this turn and reveal
+ * it.
+ *
+ * Returns the cubes this use **added**, which is what it costs its owner and
+ * what the event reports. Heat is not charged here: a tile's cubes are its
+ * heat at the check wherever they came from (see `heat.ts`), so an action that
+ * lights a dark tile is billed its draw and one that uses a tile already
+ * switched on is billed nothing, because those cubes are already on the bill.
+ *
+ * `draw` is for the engines, whose cubes are the burn's. Everything else has
+ * one legal figure and takes it from its tile.
  */
 export function useSubsystem(
   ship: ShipState,
   playerId: string,
   id: SubsystemId,
-  reason: RevealReason = "fired"
+  reason: RevealReason = "fired",
+  draw?: number
 ): ShipChange & { heat: number } {
   const sub = findSubsystem(ship, id);
   if (!sub) return { ship, events: [], heat: 0 };
-  const config = getSubsystemConfig(sub.type);
-  const heat = config.generatesHeatOnUse ? sub.allocatedEnergy : 0;
-  let next = updateSubsystem(ship, id, { usedThisTurn: true });
-  next = addHeat(next, heat);
+  let next = powerForUse(ship, id, drawFor(sub.type, draw));
+  const heat = findSubsystem(next, id)!.allocatedEnergy - sub.allocatedEnergy;
+  next = updateSubsystem(next, id, { usedThisTurn: true });
   const revealed = revealSubsystem(next, playerId, id, reason);
   return { ship: revealed.ship, events: revealed.events, heat };
 }
 
 /**
- * Break a subsystem (critical hit). Its energy returns to the reactor and
- * becomes heat; the tile is revealed. No-op if already broken or missing.
+ * End of the turn: every tile an action powered goes dark, so the only cubes
+ * on the board between turns are the ones somebody switched on and left on.
+ * That is what makes a loaded slot worth reading (RULES §Hidden Information),
+ * what a critical finds when it names one, and what a ship is billed for at
+ * every check rather than once.
+ *
+ * A rack that fired as a gun, or a sensor that scanned, goes dark with the
+ * rest: using a standing tile is not the same as holding it up, and nobody
+ * pays a standing bill for a tile they used once.
+ */
+export function clearDerivedPower(ship: ShipState): ShipState {
+  let changed = false;
+  const subsystems = ship.subsystems.map((s) => {
+    if (s.allocatedEnergy === 0 || s.isStanding) return s;
+    changed = true;
+    return { ...s, allocatedEnergy: 0, isPowered: false };
+  });
+  return changed ? { ...ship, subsystems } : ship;
+}
+
+/**
+ * Break a subsystem (critical hit). Its cubes are dumped into its owner's heat
+ * and the tile goes dark and face-up. No-op if already broken or missing.
  */
 export function breakSubsystem(
   ship: ShipState,
@@ -171,17 +227,7 @@ export function breakSubsystem(
   const sub = findSubsystem(ship, id);
   if (!sub || sub.isBroken) return { ship, events: [], energyLost: 0 };
   const energyLost = sub.allocatedEnergy;
-  let next: ShipState = {
-    ...ship,
-    reactor: {
-      ...ship.reactor,
-      availableEnergy: Math.min(
-        ship.reactor.totalCapacity,
-        ship.reactor.availableEnergy + energyLost
-      ),
-    },
-  };
-  next = updateSubsystem(next, id, {
+  let next: ShipState = updateSubsystem(ship, id, {
     allocatedEnergy: 0,
     isPowered: false,
     isBroken: true,
@@ -238,7 +284,9 @@ export function reloadMissiles(ship: ShipState): { ship: ShipState; reloaded: bo
 export function resetSubsystemUsage(ship: ShipState): ShipState {
   return {
     ...ship,
-    subsystems: ship.subsystems.map((s) => (s.usedThisTurn ? { ...s, usedThisTurn: false } : s)),
+    subsystems: ship.subsystems.map((s) =>
+      s.usedThisTurn || s.rollsThisTurn > 0 ? { ...s, usedThisTurn: false, rollsThisTurn: 0 } : s
+    ),
   };
 }
 

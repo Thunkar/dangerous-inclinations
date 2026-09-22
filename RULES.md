@@ -9,7 +9,7 @@ A game of orbital manoeuvre, heat management and hidden objectives for 2–6 pla
 ## Components
 
 - The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 4 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
-- Per player: a ship token, a Home marker, a loadout with 1 forward slot and 4 side slots, a small screen for your cards, 10 energy cubes, a hull track (10) and a heat track (10).
+- Per player: a ship token, a Home marker, a loadout with 1 forward slot and 4 side slots, a small screen for your cards, a supply of energy cubes, a hull track (10) and a heat track (10).
 - Subsystem tiles: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles. Take as many copies of a tile as you have slots it fits: two shields, four lasers, anything goes. Tiles are double-sided: face-down shows only the slot type.
 - One deck of mission cards, crate tokens, data chits, missile tokens, station tokens, one d10.
 
@@ -63,25 +63,25 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then every player takes **one Survey, one Piracy and one Tanker** and keeps **two**. Kept cards go face-down behind the screen; the card you leave goes face-down onto one shared discard pile. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
 2. **Loadout.** Each player fills their loadout: 1 forward tile (railgun, sensor array, fuel compressor or missiles) and 4 side tiles (laser, shields, radiator, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 3 or Ring 4**, **at least three sectors from every ship already placed** (if no sector qualifies, the one farthest from them), and puts their Home marker there. Everyone starts around the hole and scatters from there; missions are secret, so pick your ring and sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring; Ring 3 drifts 4 and is two burns from the lane ring).
-4. Fill the hull track to 10, reaction mass to 10 and heat to 0. All three are tracks on your loadout, in the open. Energy cubes stay in the reactor. Only your cards and the ammo in a face-down missiles tile sit behind the screen.
+4. Fill the hull track to 10, reaction mass to 10 and heat to 0. All three are tracks on your loadout, in the open. Energy cubes sit in the supply until something calls for them. Only your cards and the ammo in a face-down missiles tile sit behind the screen.
 
 ---
 
 ## A Turn
 
-If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy allocated, and drift with the ring like any ship that coasts. Face-up tiles stay face-up. Play passes. **Until your next turn is over nobody can touch you**: no weapon fires at you, no missile attacks you and nobody scans you. That next turn is **a first round of your own**: you allocate energy, rotate and move as usual, but no weapon of yours fires and you scan nobody. From the turn after it you are live again, and so is everyone's aim at you.
+If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, everything switched off, and drift with the ring like any ship that coasts. Face-up tiles stay face-up. Play passes. **Until your next turn is over nobody can touch you**: no weapon fires at you, no missile attacks you and nobody scans you. That next turn is **a first round of your own**: you switch your standing systems on, rotate and move as usual, but no weapon of yours fires and you scan nobody. From the turn after it you are live again, and so is everyone's aim at you.
 
 Otherwise:
 
-1. **Energy.** Move cubes freely between the reactor and your tiles, in the open. A tile is either off (0 cubes) or on (at least its minimum). Allocations persist between turns. Everyone can see how many cubes sit on each of your slots; they can't see what a face-down slot is.
+1. **Standing systems.** Switch your shields, ballistic racks and sensor array on or off, in the open. They cost their cubes in heat at every check they are up, so this is the one place a turn is decided before it is flown. Everything else is powered by the action that uses it, so there is nothing else to do here. Everyone can see how many cubes sit on each of your slots; they can't see what a face-down slot is.
 2. **Actions,** in any order you choose. Each tile may act once per turn (a ballistic rack also intercepts during other players' turns):
    - **Rotate.** Flip facing (prograde ↔ retrograde). Thrusters need 1 cube.
    - **Move.** Exactly one of: _coast_, _burn_ or _jump_. If you take no move, you coast.
-   - **Fire.** Any number of powered weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
-   - **Scan.** With a powered sensor array (see Hidden Information).
+   - **Fire.** Any number of weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
+   - **Scan.** With a sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
 4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: cargo is loaded and delivered, broken tiles are repaired, hull is restored to full, missiles reloaded. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival.
-5. **Heat check.** Add the cubes on every powered shields tile. **If your heat is now 0**, repair one broken tile of your choice. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
+5. **Heat check.** Add every cube sitting on your loadout, whatever put it there. **If your heat is now 0**, repair one broken tile of your choice. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
 6. **Missions.** Check your cards; completed cards are turned face-up.
 7. Pass play. When the last player has acted, move every station 4 sectors, carrying any ship moored to it.
 
@@ -91,13 +91,19 @@ Otherwise:
 
 ## Energy and Heat
 
-- The reactor holds **10 energy**. Allocating and removing cubes is free and unlimited.
-- **Using** a tile costs heat equal to the cubes on it: firing, burning, rotating, scooping, scanning, jumping, intercepting. Powered but unused tiles cost nothing, **except shields**. A salvo is **one use of the missiles tile** and a turn of interceptions is **one use of the ballistic rack**, whatever the count.
+**Every cube on a tile is a point of heat at your heat check.** That is the whole of energy, and there is nothing else to learn.
+
+- **Nobody places cubes for something they are about to do.** Taking an action powers the tile it uses, to the only figure that tile has: 4 on a railgun, 2 on a laser, 1 on the thrusters, the burn's own number on the engines. They are still on the tile when your check comes, so the action costs them; then they come off.
+- **Three tiles you switch on instead**, because they work while you are not acting: **shields**, a **ballistic rack** (it intercepts on everyone else's turn) and a **sensor array** (it widens your critical range while it is up). Those stay on until you switch them off, so they are carrying cubes at **every** check and pay at every one. That is the price of holding a wall, a point defence or a firing solution up between turns, and it is the only energy decision in the game.
+- **There is no reactor.** Nothing caps what you may light at once: a ship can run a full wall, a hard burn and the railgun in the same turn, and the check will bill it nineteen heat and take the hull. Burn yourself to a crisp if the turn is worth it.
+- A salvo is **one use of the missiles tile** and a turn of interceptions is **one use of the ballistic rack**, whatever the count: a tile holds its cubes once, so it costs them once.
+- **Using a standing tile is not holding it up.** Fire a rack you never switched on, or scan with a sensor you never switched on, and it takes its cubes for that turn like any other tile and goes dark at the end of it. You pay every check only for what you left on, which is also the only way a rack is up when somebody else's missiles arrive.
 - **Heat is a track. It does not reset.** At your heat check, heat above **10** is hull damage and the track drops to 10. Then **dissipate** (5, plus 2 per working radiator) and carry the rest into your next turn.
 - So a hot turn is a debt, not a wound: take one, then cool off. Make more heat than you dissipate for long enough and you reach the **redline** at 10, where it costs hull every turn until you stop.
-- **A cold ship repairs itself.** If your heat is **0** at your heat check (nothing used, no shields powered, nothing absorbed since your last check), repair **one** broken tile of your choice. Everything is off and the crew is outside. It is the only repair away from a station, and it is slower: a station fixes everything at once, refills your hull and reloads your missiles, all on arrival.
+- **A cold ship repairs itself.** If your heat is **0** at your heat check (not a cube anywhere on the loadout and nothing absorbed since your last check), repair **one** broken tile of your choice. Everything is off and the crew is outside. It is the only repair away from a station, and it is slower: a station fixes everything at once, refills your hull and reloads your missiles, all on arrival.
 - **Shields turn the damage they stop into heat.** Two cubes absorb one point, so a tile takes 2 cubes or 4 and never an odd one. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds and missiles, **not lasers**.
-- Two tiles at four cubes absorb 4 damage. They are also 8 of your 10 cubes and **8 heat every turn**, against a dissipation of 5. Full shields, a full burn and a scoop do not fit in one turn, and full shields do not fit three turns running.
+- Two tiles at four cubes absorb 4 damage. They are also **8 heat every turn** against a dissipation of 5, so a full wall costs three hull a turn once the track saturates, before the ship does anything else. Nothing forbids it; the arithmetic does.
+- No action is ever refused for energy. What a turn costs you is hull, and that is your decision to make.
 
 | Tile                       | Energy | Effect                                                                               |
 | -------------------------- | ------ | ------------------------------------------------------------------------------------ |
@@ -105,13 +111,13 @@ Otherwise:
 | Thrusters (fixed)          | 1      | Rotate                                                                               |
 | Fuel scoop (fixed)         | 3      | While coasting, recover fuel equal to your ring's velocity                           |
 | Railgun (forward)          | 4      | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil                               |
-| Sensor array (forward)     | 2      | Scan; criticals on 8–10 while powered                                                |
+| Sensor array (forward)     | 2      | Scan; while it is up, criticals on 8–10; 2 heat at every check                      |
 | Fuel compressor (forward)  | none   | A jump costs 1 fuel instead of 3                                                     |
 | Missiles (forward or side) | 2      | Launch any number of your guided missiles at one ship in your well (4 aboard)        |
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only               |
-| Shields (side)             | 2 or 4 | 2 cubes absorb 1 damage, as 2 heat; costs its cubes in heat every check              |
+| Shields (side)             | 2 or 4 | While up: 2 cubes absorb 1 damage, as 2 heat; its cubes are heat at every check     |
 | Radiator (side)            | none   | +2 dissipation                                                                       |
-| Ballistic rack (side)      | 2      | 2 damage, ±1 ring or same ring, ±1 sector; intercepts every missile that reaches you |
+| Ballistic rack (side)      | 2      | 2 damage, ±1 ring/same ring, ±1 sector; while up: rolls at 4 missiles a turn; 2 heat at every check |
 
 ---
 
@@ -119,11 +125,11 @@ Otherwise:
 
 ### Coast
 
-Drift only, or hold your berth if you are moored at a station (see Stations). If your scoop is powered you may activate it: gain fuel equal to your ring's velocity (heat 3); a berth is as good a place to skim from as any.
+Drift only, or hold your berth if you are moored at a station (see Stations). You may run the scoop with it: gain fuel equal to your ring's velocity (heat 3); a berth is as good a place to skim from as any.
 
 ### Burn
 
-Drift, then change ring. Prograde facing burns **outward**, retrograde burns **inward**. Engines must hold at least the burn's energy. A burn changes exactly its number of rings: if there aren't enough rings left in that direction, you can't make that burn.
+Drift, then change ring. Prograde facing burns **outward**, retrograde burns **inward**. The burn powers the engines to its own number, and that number is its heat. A burn changes exactly its number of rings: if there aren't enough rings left in that direction, you can't make that burn.
 
 | Burn   | Engines | Fuel | Rings |
 | ------ | ------- | ---- | ----- |
@@ -149,7 +155,7 @@ Costs 1 energy on the thrusters and 1 heat. Rotate before your burn to choose it
 
 ### Hitting
 
-Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A powered sensor array on the attacker makes 8–10 critical.
+Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A sensor array with cubes on it makes 8–10 critical: one the attacker has up, or one a scan powered earlier in the same turn. A critical on an 8 or a 9 does not turn the sensor over; only scanning does.
 
 ### Damage
 
@@ -157,9 +163,9 @@ Shields absorb first (every 2 cubes absorb 1 damage and give its owner **2 heat*
 
 ### Critical hits
 
-When you fire, name one slot on the target: forward, side 1–4, engines or thrusters. **Not the fuel scoop**: it is the one tile a critical cannot name, because a dry ship with no scoop has no move that reaches a station to repair it. If the shot is a critical, that tile is **turned face-up and broken**, **whether or not the shot got through the shields**: its cubes return to the reactor **as heat**, and it cannot be used until repaired at a station.
+When you fire, name one slot on the target: forward, side 1–4, engines or thrusters. **Not the fuel scoop**: it is the one tile a critical cannot name, because a dry ship with no scoop has no move that reaches a station to repair it. If the shot is a critical, that tile is **turned face-up and broken**, **whether or not the shot got through the shields**: its cubes are dumped into their owner's heat on the spot, and it cannot be used until repaired at a station.
 
-A wall that holds is no protection against being named. **The cubes on every slot are public**, even face-down, so a fat slot is a target you can see: four cubes on a side slot is four heat dumped onto its owner the moment a 10 comes up. A broken tile is repaired at a station, or one at a time by running cold (see Energy and Heat), which is how a ship whose engines were shot out still gets home. Naming a face-down slot is a gamble; naming a face-up one is a plan. A tile that has just absorbed has already spent its cubes, so breaking it dumps little or nothing, but it is gone until they dock.
+A wall that holds is no protection against being named. **The cubes on every slot are public**, even face-down, so a fat slot is a target you can see: four cubes on a side slot is four heat dumped onto its owner the moment a 10 comes up. A tile that is merely used has no cubes on it when anyone else shoots, so the heat a critical dumps is the heat of whatever was standing. A broken tile is repaired at a station, or one at a time by running cold (see Energy and Heat), which is how a ship whose engines were shot out still gets home. Naming a face-down slot is a gamble; naming a face-up one is a plan. A tile that has just absorbed has already spent its cubes, so breaking it dumps little or nothing, but it is gone until they dock.
 
 ### Weapons
 
@@ -167,7 +173,9 @@ A wall that holds is no protection against being named. **The cubes on every slo
 
 - **Railgun.** Spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
 - **Broadside laser.** Targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port tiles (side 1–2) fire outward and starboard tiles (side 3–4) fire inward; facing retrograde swaps them.
-- **Ballistic rack.** 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away (the only broadside that can join a railgun shot on your own ring). While powered it **intercepts every missile that reaches you**: roll a d10 against each one, on 2+ that missile is destroyed, and **the rack is used once for the turn** however many it rolls at. One rack does all the rolling however many you carry.
+- **Ballistic rack.** 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away (the only broadside that can join a railgun shot on your own ring). Firing it powers it like any gun, but it intercepts only if you have it **up**, because a salvo launched after the enemy's move reaches you before your next turn comes round.
+
+  While up it **rolls at up to 4 missiles a turn**: a d10 against each one, on 2+ that missile is destroyed, and **the rack is used once for the turn** however many it rolls at. Four is what its two cubes could have thrown as a launcher, which is the whole of the symmetry: two cubes put four missiles in the air, two cubes shoot four down, and the fifth gets through. A ship expecting more than four at once carries a second rack and pays its cubes at every check like the first.
 - **Missiles.** Target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. One action launches **as many of your remaining missiles as you like at one ship**, all naming the same critical slot, for **one use of the tile**: the magazine is the limit, not the heat. Place a token on your sector for each. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first). If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
 
   _Riding the orbit:_ a missile drifts with its ring like everything else. The one exception is the turn you launch it: if you launch **after** moving, the missile has already ridden along with your ship, so it does not drift again that turn. It just flies its 3 steps from where you dropped it. Launch before moving and it drifts with the ring like your ship did. (The app draws the path either way.)
@@ -182,23 +190,30 @@ Your tiles start face-down. **A tile is turned face-up the first time it does so
 
 | Tile            | Face-up when                                                                       |
 | --------------- | ---------------------------------------------------------------------------------- |
-| Any weapon      | it fires (or a ballistic rack intercepts); a missiles tile then shows what is left |
+| Any weapon      | it fires (or a ballistic rack rolls at a missile); a missiles tile then shows what is left |
 | Shields         | they absorb damage                                                                 |
-| Sensor array    | it scans, or a critical lands on an 8 or 9                                         |
+| Sensor array    | it scans                                                                           |
 | Radiator        | your heat goes above 5 at a heat check (it is visibly shedding)                    |
 | Fuel compressor | a jump costs 1 fuel instead of 3                                                   |
 | Any tile        | it is broken by a critical                                                         |
+
+**Switching a tile on does not turn it over.** The cubes go on the slot where
+everyone can count them, and the tile stays face-down: a wall you never needed,
+a rack nothing came at and a sensor you never scanned with are all still
+secrets at the end of the game. What gives a tile away is doing its job.
 
 Face-up tiles stay face-up, even after respawn.
 
 **Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and data chits you carry, face-up tiles and **the missiles left in a face-up missiles tile**, broken fixed systems, completed missions.
 **Private:** what a face-down tile is, the ammo in a face-down missiles tile, missions in hand, where your cargo is going.
 
-Energy is the tell. Four cubes on a face-down forward slot can only be a railgun; two side slots each holding two cubes suggest lasers or a rack; a slot that never gets a cube may be a radiator or compressor. You learn about a rival from how they power up, before anything is fired.
+Energy is the tell, and it tells you exactly one thing: what a ship is **holding up**. Only a switched-on tile carries cubes between turns, so cubes on a face-down forward slot can only be a sensor array, four on a side slot can only be a full shield, and two on a side slot is a half shield or a ballistic rack. That is a deduction from the cubes, not a reveal: the tile is still face-down and a scan still costs you a turn to be sure.
+
+A gun is dark whatever it is about to do, which is why a silent slot is the dangerous one.
 
 ### Scanning
 
-With a powered sensor array, target a ship on your ring within 3 sectors. The sensor is used (2 heat) and turned face-up. The target shows you **one face-down tile of your choice**, privately (name one you already know and you get the next face-down one; if you know them all, the scan still counts). If you hold an Intercept mission on that player, you also take their transmission (a data chit). Being scanned is visible to everyone.
+With a sensor array aboard and unbroken, target a ship on your ring within 3 sectors. The scan powers it; switching it on is for the critical range it gives every weapon aboard while it is up, and that is what puts cubes on your bow for everyone to read. The sensor is used and turned face-up, and its 2 cubes stay on for the rest of your turn: shoot after you scan and that shot has the wider critical range too, for the same 2 heat. The target shows you **one face-down tile of your choice**, privately (name one you already know and you get the next face-down one; if you know them all, the scan still counts). If you hold an Intercept mission on that player, you also take their transmission (a data chit). Being scanned is visible to everyone.
 
 ---
 
@@ -258,7 +273,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 
 |                  |                                                                                                                                                                       |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reactor          | 10 energy                                                                                                                                                             |
+| Energy           | **every cube on a tile is a point of heat at your check**; an action powers the tile it uses and the cubes come off after, shields/racks/sensors stay on until switched off |
 | Heat track       | 10 (the redline). Above it at a check: hull damage, then dissipate and carry the rest                                                                                 |
 | Dissipation      | 5 (+2 per radiator), at every check. Heat does not reset                                                                                                              |
 | Hull             | 10                                                                                                                                                                    |
@@ -270,10 +285,10 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid                                                                      |
 | Jump             | engines 3, 3 fuel (1 with a compressor), no drift                                                                                                                     |
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                                                                                          |
-| Shields          | 2 or 4 cubes; 2 cubes a point absorbed, 2 heat a point; **its cubes are heat every turn it is up**; lasers ignore them                                                |
-| Critical         | names any slot; breaks it through shields, and dumps its cubes as heat                                                                                                |
+| Shields          | up at 2 or 4 cubes; 2 cubes a point absorbed, 2 heat a point; **its cubes are heat at every check it is up**; lasers ignore them                                      |
+| Critical         | names any slot; breaks it through shields, and dumps its cubes as heat (which only a standing tile is carrying)                                                        |
 | Repair           | a station, on arrival, fixes everything; or one tile a turn at 0 heat                                                                                                 |
-| Scan             | same ring, within 3 sectors, sensor powered                                                                                                                           |
+| Scan             | same ring, within 3 sectors, sensor aboard and unbroken                                                                                                               |
 | First round      | no weapon fires and nobody scans                                                                                                                                      |
 | Respawn          | next turn: back at Home, full hull and tank, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody      |
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                                 |
@@ -282,16 +297,16 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Keeping cards    | 3 primaries keep 1, one of each secondary keep 2, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon                                    |
 | Hold             | one crate; data chits ride free                                                                                                                                       |
 | Ammo             | private while the missiles tile is face-down; public once it has fired                                                                                                |
-| Salvo            | one action launches any number of your missiles at one ship for the tile's 2 heat; a powered rack rolls at every missile that reaches it in a turn for its 2 heat     |
+| Salvo            | one action launches any number of your missiles at one ship, and the tile holds its 2 cubes once; a rack that is up rolls at 4 of them a turn, one rack per 4          |
 | Win              | 3 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel                                                                            |
 | Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries. Five points held, three win: the primary and either secondary                                                           |
 
 ### Turn cheat sheet
 
 1. Destroyed? Respawn at Home and drift. Turn over. Your next turn is a first round of your own: untouchable until it ends, no weapon of yours fires and you scan nobody.
-2. Energy: move cubes.
+2. Standing systems: shields, racks and sensors on or off.
 3. Actions in your order: rotate · move (coast / burn / jump) · fire · scan.
 4. Your missiles move.
 5. Just arrived at a station? Load, deliver, repair, full hull, reload. Moored until you burn away.
-6. Heat check: add your powered shields' cubes; at 0 heat repair one tile; over 10 is hull damage; dissipate and carry the rest.
+6. Heat check: add every cube on your loadout; at 0 heat repair one tile; over 10 is hull damage; dissipate and carry the rest.
 7. Flip completed missions. Pass. (Last player: stations move, with whoever is moored.)

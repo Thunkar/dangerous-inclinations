@@ -1,10 +1,16 @@
 /**
  * PlanContext: the turn you are putting together.
  *
- * Energy cubes moved on your loadout, plus an ordered list of steps (rotate, one
- * move, any number of weapons, a scan). Every number here is a preview
+ * An ordered list of steps (rotate, one move, any number of weapons, a scan),
+ * plus the standing tiles you are holding up. Every number here is a preview
  * computed with pure engine functions: range, projected position, costs. The
  * server is the referee; nothing here advances state.
+ *
+ * **Energy is shown, not set.** A tile that acts is powered by the step that
+ * uses it, to the one draw that step has, so the cubes on the loadout are a
+ * readout of the plan rather than a thing to arrange. The only cubes anyone
+ * places are on the three tiles that work while you are not acting: shields, a
+ * ballistic rack and a sensor array (`isStandingType`).
  */
 import {
   createContext,
@@ -36,6 +42,7 @@ import {
   calculateBurnMassCost,
   calculateJumpMassCost,
   canSubsystemFunction,
+  drawFor,
   getAdjustmentRange,
   getJumpAdjustmentRange,
   getJumpOptions,
@@ -47,6 +54,7 @@ import {
   canEngage,
   isInWeaponRange,
   isMooredAt,
+  isStandingType,
   isWeaponType,
   opponentPositions,
   phasedJumpDestination,
@@ -123,10 +131,12 @@ interface PlanContextValue {
   steps: PlanStep[]
   /** The single move step; there is always exactly one. */
   moveStep: MoveStep
-  energy: Record<SubsystemId, number>
-  /** My subsystems with the planned energy applied. */
+  /** Cubes on the standing tiles; every other tile is powered by its step. */
+  standing: Record<SubsystemId, number>
+  /** My subsystems as the plan leaves them: standing cubes plus the steps' draws. */
   pendingSubsystems: Subsystem[]
-  availableEnergy: number
+  /** Cubes the plan leaves on the loadout: what it costs in heat at the check. */
+  cubesOnLoadout: number
   /** Ship position and facing at the start of each step (index-aligned with `steps`). */
   stepStart: StepContext[]
   finalPosition: StepContext
@@ -165,11 +175,11 @@ interface PlanContextValue {
    * legal way to throw one away.
    */
   targetsOutOfReach: (step: PlanStep) => Target[]
-  allocate: (subsystemId: SubsystemId, delta: number) => void
   setEnergyTo: (subsystemId: SubsystemId, value: number) => void
   /**
-   * One click on a tile: up powers it on to its minimum (then a cube at a
-   * time), down takes a cube back and switches it off at the minimum.
+   * One click on a standing tile: up switches it on at its minimum (then a
+   * step at a time), down comes back down and switches it off at the minimum.
+   * Every other tile ignores it.
    */
   power: (subsystemId: SubsystemId, direction: 1 | -1) => void
   setMove: (move: MoveChoice) => void
@@ -243,7 +253,6 @@ export interface MoveReadiness {
 
 const READY: MoveReadiness = { ok: true, reason: '' }
 const blocked = (reason: string): MoveReadiness => ({ ok: false, reason })
-const cubes = (n: number) => `${n} cube${n === 1 ? '' : 's'}`
 
 const BURN_INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
 
@@ -260,54 +269,89 @@ function burnFitsInWell(position: Position, facing: Facing, intensity: BurnInten
 const bySlotOrder = (a: SlotView, b: SlotView) =>
   a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1
 
-function committedEnergy(player: Player): Record<SubsystemId, number> {
-  return Object.fromEntries(player.ship.subsystems.map(s => [s.id, s.allocatedEnergy]))
+/** What the ship is already holding up, which is the plan's starting point. */
+function committedStanding(player: Player): Record<SubsystemId, number> {
+  return Object.fromEntries(
+    player.ship.subsystems.filter(s => isStandingType(s.type)).map(s => [s.id, s.allocatedEnergy])
+  )
 }
 
 /**
- * A turn opens on a coast, and on a scoop if the scoop is already holding its
- * cubes: leaving them on the tile is the decision, and a coast past a well
- * with a live scoop and nobody touching it was only ever an oversight. The
- * chip still turns it off.
+ * A turn opens on a plain coast. It used to open on a scoop when the scoop was
+ * already holding its cubes, because leaving them on the tile was the
+ * decision; nothing holds cubes between turns now, so the scoop is a chip you
+ * tick on the turns you want it.
  */
-function defaultSteps(scooping = false): PlanStep[] {
-  return [{ id: stepId(), kind: 'move', move: { kind: 'coast', scoop: scooping } }]
+function defaultSteps(): PlanStep[] {
+  return [{ id: stepId(), kind: 'move', move: { kind: 'coast', scoop: false } }]
 }
 
 /**
- * One click on a tile: up powers it on to its minimum (then a cube at a
- * time), down takes a cube off and switches it off below the minimum. Returns
- * the tile's new energy, or null when the click can do nothing.
+ * One click on a standing tile: up switches it on at its minimum (then a step
+ * at a time), down comes down a step and switches it off below the minimum.
+ * Returns the tile's new setting, or null when the click can do nothing, which
+ * includes every tile a step powers.
  */
 function poweredTo(
   player: Player,
-  energy: Record<SubsystemId, number>,
+  standing: Record<SubsystemId, number>,
   subsystemId: SubsystemId,
   direction: 1 | -1
 ): number | null {
   const sub = player.ship.subsystems.find(s => s.id === subsystemId)
-  if (!sub || sub.isBroken) return null
+  if (!sub || sub.isBroken || !isStandingType(sub.type)) return null
   const config = getSubsystemConfig(sub.type)
-  if (config.maxEnergy === 0) return null
-  const current = energy[subsystemId] ?? sub.allocatedEnergy
-  const total = player.ship.subsystems.reduce((sum, s) => sum + (energy[s.id] ?? s.allocatedEnergy), 0)
-  const free = player.ship.reactor.totalCapacity - total
+  const current = standing[subsystemId] ?? sub.allocatedEnergy
   const step = energyStepOf(sub.type)
   if (direction > 0) {
-    // Powering on costs the whole minimum at once, or nothing.
-    if (current === 0) return free < config.minEnergy ? null : config.minEnergy
-    if (current >= config.maxEnergy || free < step) return null
+    // Powering on costs the whole minimum at once, or nothing. Nothing else
+    // stops it: what a tile costs is heat at the check, not a share of a
+    // share of anything, and spending more heat than the ship can shed is the
+    // player's decision to make.
+    if (current === 0) return config.minEnergy
+    if (current >= config.maxEnergy) return null
     return current + step
   }
   if (current === 0) return null
   return current <= config.minEnergy ? 0 : current - step
 }
 
-/** Whether a coast this turn would scoop without anyone asking. */
-function scoopRuns(player: Player): boolean {
-  const scoop = player.ship.subsystems.find(s => s.id === 'scoop')
-  if (!scoop || scoop.isBroken) return false
-  return scoop.allocatedEnergy >= getSubsystemConfig('scoop').minEnergy
+/**
+ * The cubes each step puts on the tile it uses. This is the whole of the old
+ * energy step: there was never a choice in any of these numbers, only one
+ * legal figure per tile and the chance of typing it wrong.
+ */
+function drawsFor(player: Player, steps: PlanStep[]): Record<SubsystemId, number> {
+  const draws: Record<SubsystemId, number> = {}
+  const take = (id: SubsystemId, cubes: number) => {
+    const sub = player.ship.subsystems.find(s => s.id === id)
+    if (!sub || sub.isBroken) return
+    draws[id] = Math.max(draws[id] ?? 0, cubes)
+  }
+  for (const step of steps) {
+    switch (step.kind) {
+      case 'rotate':
+        take('rotation', drawFor('rotation'))
+        break
+      case 'move':
+        if (step.move.kind === 'burn') take('engines', drawFor('engines', BURN_COSTS[step.move.intensity].energy))
+        else if (step.move.kind === 'jump') take('engines', drawFor('engines', WELL_TRANSFER_COSTS.energy))
+        else if (step.move.scoop) take('scoop', drawFor('scoop'))
+        break
+      case 'fire': {
+        const weapon = player.ship.subsystems.find(s => s.id === step.subsystemId)
+        if (weapon) take(weapon.id, drawFor(weapon.type))
+        if (step.compensateRecoil) take('engines', drawFor('engines', BURN_COSTS.soft.energy))
+        break
+      }
+      case 'scan': {
+        const sensor = player.ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken)
+        if (sensor) take(sensor.id, drawFor('sensor_array'))
+        break
+      }
+    }
+  }
+  return draws
 }
 
 export function PlanProvider({ children }: { children: ReactNode }) {
@@ -319,8 +363,8 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
 function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode }) {
   const { view, readOnly } = useGame()
-  const [energy, setEnergy] = useState<Record<SubsystemId, number>>(() => committedEnergy(me))
-  const [steps, setSteps] = useState<PlanStep[]>(() => defaultSteps(scoopRuns(me)))
+  const [standing, setStanding] = useState<Record<SubsystemId, number>>(() => committedStanding(me))
+  const [steps, setSteps] = useState<PlanStep[]>(() => defaultSteps())
   const [picking, setPicking] = useState<Picking>(null)
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
   const [repairChoice, setRepairChoiceState] = useState<SubsystemId | null>(null)
@@ -332,8 +376,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const isMyTurn = !readOnly && view.activePlayerId === me.id && view.phase === 'active'
 
   const reset = useCallback(() => {
-    setEnergy(committedEnergy(me))
-    setSteps(defaultSteps(scoopRuns(me)))
+    setStanding(committedStanding(me))
+    setSteps(defaultSteps())
     setPicking(null)
     setFocusWeaponId(null)
   }, [me])
@@ -346,21 +390,30 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.turn, view.activePlayerId, readOnly])
 
+  /**
+   * The loadout as the plan leaves it: a standing tile holds what you set it
+   * to, and every other tile holds what this turn's steps draw. Nothing shows
+   * a cube it has no use for, which is the readout the old energy step was
+   * standing in for.
+   */
+  const draws = useMemo(() => drawsFor(me, steps), [me, steps])
   const pendingSubsystems = useMemo<Subsystem[]>(
     () =>
       me.ship.subsystems.map(s => {
-        const allocatedEnergy = energy[s.id] ?? s.allocatedEnergy
+        const allocatedEnergy = isStandingType(s.type)
+          ? (standing[s.id] ?? s.allocatedEnergy)
+          : (draws[s.id] ?? 0)
         const next = { ...s, allocatedEnergy }
         return { ...next, isPowered: canSubsystemFunction(next) }
       }),
-    [me.ship.subsystems, energy]
+    [me.ship.subsystems, standing, draws]
   )
 
-  const allocatedTotal = useMemo(
+  /** Cubes the plan leaves on the loadout: the heat it will cost at the check. */
+  const cubesOnLoadout = useMemo(
     () => pendingSubsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0),
     [pendingSubsystems]
   )
-  const availableEnergy = me.ship.reactor.totalCapacity - allocatedTotal
   const pendingShip = useMemo(
     () => ({ ...me.ship, subsystems: pendingSubsystems }),
     [me.ship, pendingSubsystems]
@@ -461,11 +514,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   )
   const rotateReady = useMemo<MoveReadiness>(() => {
     const thrusters = pendingSubsystems.find(s => s.id === 'rotation')
-    const need = getSubsystemConfig('rotation').minEnergy
     if (!thrusters || thrusters.isBroken) return blocked('the thrusters are broken')
     if (thrusters.usedThisTurn) return blocked('the thrusters have already turned the ship')
-    if (thrusters.allocatedEnergy < need)
-      return blocked(`the thrusters hold ${thrusters.allocatedEnergy} of the ${cubes(need)} a turn needs`)
     return READY
   }, [pendingSubsystems])
 
@@ -486,9 +536,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           ? blocked(`there are not ${rings} from ring ${moveFrom.position.ring}: rotate to burn the other way`)
           : engines.usedThisTurn
             ? blocked('the engines have already burned this turn')
-            : engines.allocatedEnergy < cost.energy
-              ? blocked(`the engines hold ${engines.allocatedEnergy} of the ${cubes(cost.energy)} a ${intensity} burn needs`)
-              : me.ship.reactionMass < mass
+            : me.ship.reactionMass < mass
                 ? blocked(`it costs ${mass} fuel and ${me.ship.reactionMass} is aboard`)
                 : READY
       return [intensity, state]
@@ -502,10 +550,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     const engines = pendingSubsystems.find(s => s.id === 'engines')
     if (!engines || engines.isBroken) return blocked('the engines are broken')
     if (engines.usedThisTurn) return blocked('the engines have already burned this turn')
-    if (engines.allocatedEnergy < WELL_TRANSFER_COSTS.energy)
-      return blocked(
-        `the engines hold ${engines.allocatedEnergy} of the ${cubes(WELL_TRANSFER_COSTS.energy)} a jump needs`
-      )
     const adjustment = moveStep.move.kind === 'jump' ? moveStep.move.adjustment : 0
     const compressor = hasWorkingCompressor({ ...me.ship, subsystems: pendingSubsystems })
     const mass = calculateJumpMassCost(adjustment, compressor)
@@ -657,7 +701,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         case 'rotate': {
           const thrusters = pendingSubsystems.find(s => s.id === 'rotation')
           if (!thrusters || thrusters.isBroken) problems.push('Thrusters are broken: no rotation')
-          else if (!thrusters.isPowered) problems.push('Rotating needs 1 energy on the thrusters')
           else heat += thrusters.allocatedEnergy
           break
         }
@@ -668,8 +711,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
             const range = getAdjustmentRange(ringVelocity(at.position.wellId, at.position.ring))
             engineUses++
             if (!engines || engines.isBroken) problems.push('Engines are broken: no burn')
-            else if (engines.allocatedEnergy < cost.energy)
-              problems.push(`A ${move.intensity} burn needs ${cost.energy} energy on the engines`)
             else heat += engines.allocatedEnergy
             if (move.adjustment < range.min || move.adjustment > range.max)
               problems.push(`Phasing must be between ${range.min} and +${range.max} from this ring`)
@@ -695,17 +736,11 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
                 )
             }
             if (!engines || engines.isBroken) problems.push('Engines are broken: no jump')
-            else if (engines.allocatedEnergy < WELL_TRANSFER_COSTS.energy)
-              problems.push(`A jump needs ${WELL_TRANSFER_COSTS.energy} energy on the engines`)
             else heat += engines.allocatedEnergy
             spend(calculateJumpMassCost(move.adjustment, compressor), 'a jump')
           } else if (move.scoop) {
             const scoop = pendingSubsystems.find(s => s.id === 'scoop')
             if (!scoop || scoop.isBroken) problems.push('Fuel scoop is broken')
-            else if (!scoop.isPowered)
-              problems.push(
-                `Scooping needs ${getSubsystemConfig('scoop').minEnergy} energy on the scoop`
-              )
             else {
               heat += scoop.allocatedEnergy
               // Recover fuel equal to this ring's velocity, up to the tank's capacity.
@@ -721,8 +756,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           // A salvo is one use of the tile, charged its cubes once however big
           // the launch (RULES §Weapons → Missiles).
           if (weapon.isBroken) problems.push(`${config.name} is broken`)
-          else if (!weapon.isPowered)
-            problems.push(`${config.name} needs ${config.minEnergy} energy to fire`)
           else heat += weapon.allocatedEnergy
           if (weapon.type === 'missiles') {
             const ammo = weapon.ammo ?? 0
@@ -740,8 +773,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           if (config.weaponStats?.hasRecoil) {
             if (step.compensateRecoil) {
               engineUses++
-              if (!engines || engines.isBroken || engines.allocatedEnergy < BURN_COSTS.soft.energy)
-                problems.push('Compensating recoil needs 1 energy on the engines')
+              if (!engines || engines.isBroken)
+                problems.push('Engines are broken: nothing to cancel the recoil with')
               else heat += engines.allocatedEnergy
               spend(BURN_COSTS.soft.mass, 'recoil compensation')
             } else {
@@ -758,10 +791,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           const sensor = pendingSubsystems.find(s => s.type === 'sensor_array')
           if (!sensor) problems.push('No sensor array aboard')
           else if (sensor.isBroken) problems.push('Sensor array is broken')
-          else if (!sensor.isPowered)
-            problems.push(
-              `Scanning needs ${getSubsystemConfig('sensor_array').minEnergy} energy on the sensors`
-            )
           else heat += sensor.allocatedEnergy
           if (!step.targetId) problems.push('Scan: pick a target on your ring within 3 sectors')
           else if (untouchable(step.targetId))
@@ -776,7 +805,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
     if (engineUses > 1)
       problems.push('Engines act once per turn: burn/jump or recoil compensation, not both')
-    if (availableEnergy < 0) problems.push('More cubes allocated than the reactor holds')
+    // Energy refuses nothing: a turn that lights more than the ship can cool is
+    // legal and costs hull, which the heat readout already shows.
     return { projectedHeat: heat, massCost: spent, projectedFuel: fuel, issues: problems }
   }, [
     steps,
@@ -786,26 +816,25 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     compressor,
     me.ship,
     targetsInRange,
-    availableEnergy,
     view.players,
   ])
 
   const actions = useMemo<PlayerAction[]>(() => {
     const list: PlayerAction[] = []
-    for (const s of me.ship.subsystems) {
-      const diff = (energy[s.id] ?? s.allocatedEnergy) - s.allocatedEnergy
-      if (diff > 0)
-        list.push({
-          playerId: me.id,
-          type: 'allocate_energy',
-          data: { subsystemId: s.id, amount: diff },
-        })
-      if (diff < 0)
-        list.push({
-          playerId: me.id,
-          type: 'deallocate_energy',
-          data: { subsystemId: s.id, amount: -diff },
-        })
+    // Only the standing tiles, and only the ones that moved: the rest of the
+    // loadout is powered by the steps below.
+    const switches = me.ship.subsystems
+      .filter(s => isStandingType(s.type))
+      .map(s => ({ id: s.id, amount: standing[s.id] ?? s.allocatedEnergy, was: s.allocatedEnergy }))
+      .filter(s => s.amount !== s.was)
+      // Darkest first: a tile going out pays for the one coming up.
+      .sort((a, b) => a.amount - b.amount)
+    for (const s of switches) {
+      list.push({
+        playerId: me.id,
+        type: 'set_standing_power',
+        data: { subsystemId: s.id, amount: s.amount },
+      })
     }
     let sequence = 0
     steps.forEach((step, index) => {
@@ -879,23 +908,20 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     if (repairChoice !== null)
       list.push({ playerId: me.id, type: 'repair', data: { subsystemId: repairChoice } })
     return list
-  }, [me, energy, steps, stepStart, repairChoice])
+  }, [me, standing, steps, stepStart, repairChoice])
 
   /**
-   * A repair needs the ship cold at its check: no heat carried in, none made by
-   * the turn, and no shields powered. A powered shield is heat at the check
-   * even unused. A choice the turn can no longer earn is dropped rather than
-   * refused, so editing the move never leaves an illegal action on the sheet.
+   * A repair needs the ship cold at its check: nothing carried in and not a
+   * cube anywhere on the loadout, which is the same sentence as the heat rule.
+   * A choice the turn can no longer earn is dropped rather than refused, so
+   * editing the move never leaves an illegal action on the sheet.
    */
-  const standingHeat = pendingSubsystems
-    .filter(s => s.type === 'shields' && s.isPowered && !s.isBroken)
-    .reduce((sum, s) => sum + s.allocatedEnergy, 0)
   const repairable = useMemo(
     () =>
-      projectedHeat === 0 && standingHeat === 0
+      me.ship.heat.currentHeat === 0 && cubesOnLoadout === 0
         ? me.ship.subsystems.filter(s => s.isBroken).map(s => s.id)
         : [],
-    [projectedHeat, standingHeat, me.ship.subsystems]
+    [cubesOnLoadout, me.ship.heat.currentHeat, me.ship.subsystems]
   )
   useEffect(() => {
     if (repairChoice !== null && !repairable.includes(repairChoice)) setRepairChoiceState(null)
@@ -904,85 +930,30 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   // --- mutators ------------------------------------------------------------
 
-  const allocate = useCallback(
-    (subsystemId: SubsystemId, delta: number) => {
-      setEnergy(prev => {
-        const sub = me.ship.subsystems.find(s => s.id === subsystemId)
-        if (!sub || sub.isBroken) return prev
-        const config = getSubsystemConfig(sub.type)
-        if (config.maxEnergy === 0) return prev
-        const current = prev[subsystemId] ?? sub.allocatedEnergy
-        const total = me.ship.subsystems.reduce(
-          (sum, s) => sum + (prev[s.id] ?? s.allocatedEnergy),
-          0
-        )
-        const free = me.ship.reactor.totalCapacity - total
-        // A tile that takes its energy in steps moves a whole step at a time,
-        // so a shield reads 0, 2 or 4 and never the odd cube that buys nothing.
-        const step = energyStepOf(sub.type)
-        let next = current
-        if (delta > 0) {
-          // From off, a tile powers up straight to its minimum.
-          const bump = Math.max(delta, step)
-          const target = current === 0 ? Math.max(config.minEnergy, bump) : current + bump
-          next = Math.min(config.maxEnergy, target)
-          if (next - current > free) next = current + Math.floor(free / step) * step
-          if (next < config.minEnergy) return prev
-        } else if (delta < 0) {
-          const target = current - Math.max(-delta, step)
-          next = target < config.minEnergy ? 0 : target
-        }
-        if (next === current) return prev
-        if (subsystemId === 'scoop') {
-          // The cubes are the decision: putting them on the scoop while
-          // coasting means you want it run, taking them off means you don't.
-          const runs = next >= config.minEnergy && !isMooredAt(view.stations, me.ship)
-          setSteps(steps =>
-            steps.map(step =>
-              step.kind === 'move' && step.move.kind === 'coast'
-                ? { ...step, move: { kind: 'coast', scoop: runs } }
-                : step
-            )
-          )
-        }
-        return { ...prev, [subsystemId]: next }
-      })
+  /**
+   * The tile click model, which now only reaches the standing tiles: one is
+   * off or at least at its minimum, never in between. A tile a step powers
+   * refuses the click, because there is nothing to decide about it.
+   */
+  const power = useCallback(
+    (subsystemId: SubsystemId, direction: 1 | -1) => {
+      const next = poweredTo(me, standing, subsystemId, direction)
+      if (next === null) return
+      setStanding(prev => ({ ...prev, [subsystemId]: next }))
     },
-    [me, view.stations]
+    [me, standing]
   )
 
   const setEnergyTo = useCallback(
     (subsystemId: SubsystemId, value: number) => {
-      const current = energy[subsystemId] ?? 0
-      allocate(subsystemId, value - current)
+      const sub = me.ship.subsystems.find(s => s.id === subsystemId)
+      if (!sub || sub.isBroken || !isStandingType(sub.type)) return
+      const config = getSubsystemConfig(sub.type)
+      const step = energyStepOf(sub.type)
+      const wanted = value < config.minEnergy ? 0 : Math.min(config.maxEnergy, Math.floor(value / step) * step)
+      setStanding(prev => ({ ...prev, [subsystemId]: wanted }))
     },
-    [energy, allocate]
-  )
-
-  /**
-   * The tile click model: a tile is off or at least at its minimum, never in
-   * between. Everything is decided inside the updater, so a burst of clicks
-   * lands one cube at a time even before the loadout has re-rendered.
-   */
-  const power = useCallback(
-    (subsystemId: SubsystemId, direction: 1 | -1) => {
-      const next = poweredTo(me, energy, subsystemId, direction)
-      if (next === null) return
-      setEnergy(prev => ({ ...prev, [subsystemId]: next }))
-      if (subsystemId === 'scoop') {
-        // The cubes are the decision: putting them on the scoop while coasting
-        // means you want it run, taking them off means you do not.
-        const runs = next >= getSubsystemConfig('scoop').minEnergy
-        setSteps(steps =>
-          steps.map(step =>
-            step.kind === 'move' && step.move.kind === 'coast'
-              ? { ...step, move: { kind: 'coast', scoop: runs } }
-              : step
-          )
-        )
-      }
-    },
-    [me, energy]
+    [me]
   )
 
   const setRouteDestination = useCallback(
@@ -1030,15 +1001,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       }
       return next.map(s => (s.kind === 'move' ? { ...s, move } : s))
     })
-    // Cubes the step needs, never taking any back.
-    const raise = (id: SubsystemId, wanted: number) => {
-      if ((energy[id] ?? 0) < wanted) setEnergyTo(id, wanted)
-    }
-    if (move.kind === 'burn') raise('engines', BURN_COSTS[move.intensity].energy)
-    if (move.kind === 'jump') raise('engines', WELL_TRANSFER_COSTS.energy)
-    if (move.kind === 'coast' && move.scoop) raise('scoop', getSubsystemConfig('scoop').minEnergy)
-    if (rotate) raise('rotation', getSubsystemConfig('rotation').minEnergy)
-  }, [route, energy, setEnergyTo, me.ship.facing])
+    // No cubes to raise: the steps carry their own draws.
+  }, [route, me.ship.facing])
 
   const setMove = useCallback((move: MoveChoice) => {
     setSteps(prev => prev.map(s => (s.kind === 'move' ? { ...s, move } : s)))
@@ -1182,9 +1146,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       isMyTurn,
       steps,
       moveStep,
-      energy,
+      standing,
       pendingSubsystems,
-      availableEnergy,
+      cubesOnLoadout,
       stepStart,
       finalPosition,
       moveFrom,
@@ -1209,7 +1173,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targets,
       targetsInRange,
       targetsOutOfReach,
-      allocate,
       setEnergyTo,
       power,
       setMove,
@@ -1243,9 +1206,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       isMyTurn,
       steps,
       moveStep,
-      energy,
+      standing,
       pendingSubsystems,
-      availableEnergy,
+      cubesOnLoadout,
       stepStart,
       finalPosition,
       moveFrom,
@@ -1267,7 +1230,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targets,
       targetsInRange,
       targetsOutOfReach,
-      allocate,
       setEnergyTo,
       power,
       setMove,

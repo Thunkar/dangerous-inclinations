@@ -61,13 +61,17 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const pending = plan?.pendingSubsystems ?? me.ship.subsystems
   const poweredShields = pending.filter(s => s.type === 'shields' && s.isPowered && !s.isBroken)
   /**
-   * A raised screen runs hot: every powered shield tile adds its cubes at the
-   * check whether or not it absorbed anything (RULES §Heat). Read off the
-   * cubes as they are being moved, so the standing cost of the wall shows
-   * before you commit to it.
+   * The whole heat rule: every cube on the loadout is a point of heat at the
+   * check, however it got there (RULES §Energy and Heat). Read off the tiles as
+   * the turn is built, so a wall's standing cost and a burn's draw show in the
+   * same number before anything is committed.
    */
+  const cubes = pending.reduce(
+    (sum, s) => sum + (s.isPowered && !s.isBroken ? s.allocatedEnergy : 0),
+    0
+  )
   const standingHeat = poweredShields.reduce((sum, s) => sum + s.allocatedEnergy, 0)
-  const heatAfter = (plan ? plan.projectedHeat : heatNow) + standingHeat
+  const heatAfter = heatNow + cubes
   /**
    * Worst case on top of that: every powered shield spends its cubes and every
    * point absorbed becomes SHIELD_HEAT_PER_POINT heat. A tile buys one point
@@ -79,24 +83,11 @@ export function StatusBlock({ accent }: { accent?: string }) {
     (sum, s) => sum + Math.floor(s.allocatedEnergy / SHIELD_ENERGY_PER_POINT),
     0
   )
-  /**
-   * A powered rack rolls at every missile that reaches you and pays its cubes
-   * once for the turn however many it rolls at (RULES §Weapons → Ballistic
-   * rack), so the worst case is that one use. Counted unless the plan already
-   * fires the rack this turn, in which case its heat is in `heatAfter`.
-   */
-  const rackHeat = pending
-    .filter(
-      s =>
-        s.type === 'ballistic_rack' &&
-        s.isPowered &&
-        !s.isBroken &&
-        !plan?.steps.some(step => step.kind === 'fire' && step.subsystemId === s.id)
-    )
-    .reduce((sum, s) => sum + s.allocatedEnergy, 0)
-  // A tile that absorbs spends its cubes back to the reactor and goes dark, so
-  // it trades its standing cost for the absorption heat rather than paying both.
-  const shieldHeat = Math.max(0, shieldsOnly * SHIELD_HEAT_PER_POINT - standingHeat) + rackHeat
+  // A tile that absorbs spends its cubes and goes dark, so it trades its
+  // standing cost for the absorption heat rather than paying both. A rack
+  // needs no line of its own any more: it is up, so its cubes are in `cubes`
+  // whether it rolls or not.
+  const shieldHeat = Math.max(0, shieldsOnly * SHIELD_HEAT_PER_POINT - standingHeat)
   const worstHeat = heatAfter + shieldHeat
   const heatMax = MAX_HEAT
   const overHeat = Math.max(0, heatAfter - MAX_HEAT)
@@ -317,9 +308,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         </Tooltip>
         {shieldHull > 0 && (
           <Tooltip
-            title={`Absorbing ${shieldsOnly} costs ${shieldsOnly * SHIELD_HEAT_PER_POINT} heat${
-              rackHeat > 0 ? `, an intercept ${rackHeat} more` : ''
-            }: ${worstHeat} at the check, ${worstOverHeat} hull.`}
+            title={`Absorbing ${shieldsOnly} costs ${shieldsOnly * SHIELD_HEAT_PER_POINT} heat: ${worstHeat} at the check, ${worstOverHeat} hull.`}
           >
             <Typography
               data-testid="shield-heat-warning"
@@ -332,7 +321,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
                 lineHeight: 1.2,
               }}
             >
-              −{shieldHull} hull if {rackHeat > 0 ? 'they absorb or intercept' : 'shields absorb'}
+              −{shieldHull} hull if shields absorb
             </Typography>
           </Tooltip>
         )}

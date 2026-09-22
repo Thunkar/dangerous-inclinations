@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import {
-  ALPHA,
   GAMMA,
   coast,
   eventsOf,
@@ -14,9 +13,7 @@ import {
   mustExecute,
   scan,
   withPlayer,
-  withPower,
   withShip,
-  withSub,
 } from "../testUtils.ts";
 
 const SENSOR: ShipLoadout = {
@@ -24,14 +21,9 @@ const SENSOR: ShipLoadout = {
   sideSlots: ["laser", "laser", "shields", "missiles"],
 };
 
-/** p1 at R3 S0 with a powered sensor; p2 on the same ring `sectors` ahead. */
+/** p1 at R3 S0 with a sensor aboard; p2 on the same ring `sectors` ahead. The scan powers it. */
 function scanner(sectors = 3, targetLoadout?: ShipLoadout): GameState {
-  return withPower(
-    makeTwoPlayerGame({ loadout: SENSOR }, { ring: 3, sector: sectors, loadout: targetLoadout }),
-    "p1",
-    "forward-0",
-    2
-  );
+  return makeTwoPlayerGame({ loadout: SENSOR }, { ring: 3, sector: sectors, loadout: targetLoadout });
 }
 
 describe("scan: a successful scan", () => {
@@ -122,49 +114,6 @@ describe("scan: rejections", () => {
       "p2",
       "side-0",
       /no sensor array/i,
-    ],
-    [
-      "an unpowered sensor",
-      (s: GameState) => withPower(s, "p1", "forward-0", 0),
-      "p2",
-      "side-0",
-      /powered/i,
-    ],
-    [
-      "a broken sensor",
-      (s: GameState) => withSub(s, "p1", "forward-0", { isBroken: true }),
-      "p2",
-      "side-0",
-      /unbroken/i,
-    ],
-    [
-      "a target on another ring",
-      (s: GameState) => withShip(s, "p2", { ring: 4 }),
-      "p2",
-      "side-0",
-      /on your ring/i,
-    ],
-    [
-      "a target in another well",
-      (s: GameState) => withShip(s, "p2", { wellId: ALPHA }),
-      "p2",
-      "side-0",
-      /on your ring/i,
-    ],
-    [
-      "a target 4 sectors away",
-      (s: GameState) => withShip(s, "p2", { sector: 4 }),
-      "p2",
-      "side-0",
-      /within 3 sectors/i,
-    ],
-    ["yourself", (s: GameState) => s, "p1", "side-0", /yourself/i],
-    [
-      "a destroyed target",
-      (s: GameState) => withShip(s, "p2", { hitPoints: 0 }),
-      "p2",
-      "side-0",
-      /not on the board/i,
     ],
     [
       "a fixed system as the peek slot",

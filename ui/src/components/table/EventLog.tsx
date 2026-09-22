@@ -12,7 +12,7 @@ import { Box, Typography } from '@mui/material'
 
 import { describeEvent } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
-import { actorOf, concerns, foldEnergy } from './eventLogModel'
+import { actorOf, concerns } from './eventLogModel'
 import { getPlayerColor } from '../../utils/playerColors'
 import { TABLE } from '../../theme'
 import { Panel } from '../common/Panel'
@@ -21,7 +21,7 @@ export function EventLog() {
   const { log, view, nameOf } = useGame()
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const mine = view.me?.id
-  const lines = useMemo(() => foldEnergy(log, mine), [log, mine])
+  const lines = log
 
   const colorOf = useMemo(() => {
     const index = new Map(view.players.map((p, i) => [p.id, i]))
@@ -51,7 +51,7 @@ export function EventLog() {
             Nothing has happened yet.
           </Typography>
         )}
-        {lines.map(({ event, folded, net }, i) => {
+        {lines.map((event, i) => {
           const showTurn = event.turn !== lastTurn
           lastTurn = event.turn
           const actor = actorOf(event)
@@ -100,11 +100,7 @@ export function EventLog() {
                     overflowWrap: 'anywhere',
                   }}
                 >
-                  {folded > 1 && 'playerId' in event
-                    ? `${nameOf(event.playerId)} re-routes energy across ${folded} tiles (${
-                        net === 0 ? 'no net change' : net > 0 ? `+${net} on the loadout` : `${net} on the loadout`
-                      })`
-                    : describeEvent(event, nameOf)}
+                  {describeEvent(event, nameOf)}
                 </Typography>
               </Box>
             </Box>

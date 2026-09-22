@@ -1,8 +1,14 @@
 /**
- * What the turn log draws, with no React in it: which lines are about you, and
- * how the bots' cube shuffling folds down. Pure so it can be checked against a
- * real game's events. The board keeps its model out of the renderer for the
- * same reason (`components/board/model.ts`).
+ * What the turn log draws, with no React in it: whose line each one is and
+ * whether it is about you. Pure so it can be checked against a real game's
+ * events. The board keeps its model out of the renderer for the same reason
+ * (`components/board/model.ts`).
+ *
+ * It used to fold the bots' cube shuffling down to a line a turn, because
+ * allocations were a third of the log and none of it was news. Nobody
+ * allocates now: a tile is powered by the action that uses it, and the only
+ * energy line left is somebody switching a wall, a rack or a sensor on or off,
+ * which is worth a line of its own.
  */
 import type { GameEvent } from '@dangerous-inclinations/engine'
 
@@ -43,49 +49,3 @@ export function concerns(event: GameEvent, playerId: string | undefined): boolea
   const e = event as unknown as Record<string, unknown>
   return SUBJECT_KEYS.some(k => e[k] === playerId)
 }
-
-/**
- * Cube shuffling is a third of the log and none of it is news: a round of four
- * seats routinely spends eight lines saying who moved energy where, between
- * the lines that say what happened. One line per player per turn instead,
- * unless it is your own loadout, where the cubes are the decision you just made.
- */
-export interface Line {
-  event: GameEvent
-  /** Energy moves this line stands for. 1 is an ordinary line. */
-  folded: number
-  /** Net cubes routed out to tiles across the run, for the summary. */
-  net: number
-}
-
-export function foldEnergy(events: GameEvent[], mine: string | undefined): Line[] {
-  const out: Line[] = []
-  for (const event of events) {
-    const isEnergy = event.type === 'energy_allocated' || event.type === 'energy_deallocated'
-    const delta =
-      event.type === 'energy_allocated'
-        ? event.amount
-        : event.type === 'energy_deallocated'
-          ? -event.amount
-          : 0
-    if (!isEnergy || event.playerId === mine) {
-      out.push({ event, folded: 1, net: 0 })
-      continue
-    }
-    const last = out[out.length - 1]
-    const sameRun =
-      last !== undefined &&
-      (last.event.type === 'energy_allocated' || last.event.type === 'energy_deallocated') &&
-      'playerId' in last.event &&
-      last.event.playerId === event.playerId &&
-      last.event.turn === event.turn
-    if (sameRun) {
-      last.folded += 1
-      last.net += delta
-    } else {
-      out.push({ event, folded: 1, net: delta })
-    }
-  }
-  return out
-}
-

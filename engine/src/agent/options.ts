@@ -56,7 +56,6 @@ export interface WeaponOption {
 export interface SeatOptions {
   position: Position & { facing: Facing };
   velocity: number;
-  reactorFree: number;
   fuel: number;
   /** Heat the turn may still make before the track redlines, shields' standing cost already deducted. */
   heatBudget: number;
@@ -232,10 +231,9 @@ export function seatOptions(view: GameView): SeatOptions {
   return {
     position: here,
     velocity,
-    reactorFree: ship.reactor.availableEnergy,
     fuel: ship.reactionMass,
-    // Room before the track redlines, with the shields' standing cost already
-    // taken off, not room to the dissipation, which heat no longer resets to.
+    // Room before the track redlines, with what is already switched on taken
+    // off, not room to the dissipation, which heat no longer resets to.
     heatBudget: Math.max(0, ceiling - ship.heat.currentHeat - standingHeat),
     heatCarried: ship.heat.currentHeat,
     standingHeat,

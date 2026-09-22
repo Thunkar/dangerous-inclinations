@@ -398,10 +398,10 @@ const goodBurn = { playerId: HUMAN, type: "burn", sequence: 1, data: { burnInten
 check(accepts([goodBurn]), "a well-formed burn is accepted");
 check(
   accepts([
-    { playerId: HUMAN, type: "allocate_energy", data: { subsystemId: "engines", amount: 2 } },
+    { playerId: HUMAN, type: "set_standing_power", data: { subsystemId: "side-2", amount: 2 } },
     { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: true } },
   ]),
-  "a well-formed energy + coast turn is accepted",
+  "a well-formed standing-power + coast turn is accepted",
 );
 check(
   !accepts([{ ...goodBurn, data: { burnIntensity: "soft", sectorAdjustment: "0" } }]),
@@ -419,8 +419,8 @@ check(
   "an unknown facing is rejected",
 );
 check(
-  !accepts([{ playerId: HUMAN, type: "allocate_energy", data: { subsystemId: "engines", amount: 1.5 } }]),
-  "a fractional energy amount is rejected",
+  !accepts([{ playerId: HUMAN, type: "set_standing_power", data: { subsystemId: "side-2", amount: 1.5 } }]),
+  "a fractional standing-power amount is rejected",
 );
 check(
   !accepts([{ playerId: HUMAN, type: "deploy_ship", data: { wellId: "planet-alpha", sector: 3 } }]),

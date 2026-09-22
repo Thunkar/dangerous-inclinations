@@ -45,19 +45,18 @@ const RACK_SHIP: ShipLoadout = {
   sideSlots: ["ballistic_rack", "laser", "shields", "shields"],
 };
 
-describe("heat: subsystems heat up by their allocated energy when used", () => {
+describe("heat: a tile's cubes are its heat, and an action puts them there", () => {
   it.each([
-    ["engines (burn)", "engines", 3, burn(1, "soft"), "burned"],
+    ["engines (burn)", "engines", 1, burn(1, "soft"), "burned"],
     ["scoop (coast)", "scoop", 3, coast(1, true), "coasted"],
     ["laser (fire)", "side-0", 2, fire(1, "side-0", "p2"), "weapon_fired"],
     ["railgun (fire)", "forward-0", 4, fire(1, "forward-0", "p2"), "weapon_fired"],
   ] as const)(
-    "%s adds heat equal to its energy",
+    "%s costs exactly the cubes the action puts on it",
     (_label, subsystemId, energy, action, eventType) => {
       // p2 sits one sector ahead of p1 (R3 S0): the railgun needs it on the same ring, the port laser one ring out.
       const targetRing = subsystemId === "forward-0" ? 3 : 4;
       let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: targetRing, sector: 1 });
-      state = withPower(state, "p1", subsystemId, energy);
       const result = executeTurnAs(state, action);
       expect(result.errors).toBeUndefined();
       const [event] = eventsOf(result.events, eventType);
@@ -68,7 +67,6 @@ describe("heat: subsystems heat up by their allocated energy when used", () => {
 
   it("scanning heats the sensor array", () => {
     let state = makeTwoPlayerGame({ loadout: SENSOR_LOADOUT }, { ring: 3, sector: 2 });
-    state = withPower(state, "p1", "forward-0", 2);
     const result = executeTurnAs(state, scan(1, "p2", "side-0"));
     expect(eventsOf(result.events, "scanned")[0].heat).toBe(2);
   });
@@ -76,16 +74,12 @@ describe("heat: subsystems heat up by their allocated energy when used", () => {
   it("jumping heats the engines", () => {
     // BH R5 S17 is on Alpha's outbound lane.
     let state = makeTwoPlayerGame({ ring: 5, sector: 17 });
-    state = withPower(state, "p1", "engines", 3);
     const result = executeTurnAs(state, jump(1, "planet-alpha"));
     expect(eventsOf(result.events, "jumped")[0].heat).toBe(3);
   });
 
-  it("powered but unused subsystems generate no heat", () => {
+  it("a tile nobody lit generates no heat", () => {
     let state = makeTwoPlayerGame();
-    state = withPower(state, "p1", "forward-0", 4);
-    state = withPower(state, "p1", "engines", 3);
-    state = withPower(state, "p1", "scoop", 3);
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "coasted")[0].heat).toBe(0);
     expect(eventsOf(result.events, "heat_damage")).toEqual([]);
@@ -93,17 +87,16 @@ describe("heat: subsystems heat up by their allocated energy when used", () => {
   });
 
   it("heat from several actions accumulates, is shed down to the dissipation and carries the rest", () => {
-    // laser 2 + rotation 1 + engines 3 = 6 heat against dissipation 5: one point
-    // rides into the next turn, and nothing is damage until the track tops out.
-    let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 });
-    state = withPower(state, "p1", "side-0", 2);
-    state = withPower(state, "p1", "rotation", 1);
-    state = withPower(state, "p1", "engines", 3);
+    // laser 2 + rotation 1 + a hard burn's engines 3 = 6 heat against a
+    // dissipation of 5: one point rides into the next turn, and nothing is
+    // damage until the track tops out. The port laser fires outward while the
+    // ship is still prograde, then it turns and dives three rings.
+    const state = makeTwoPlayerGame({ ring: 4, sector: 0 }, { ring: 5, sector: 0 });
     const result = executeTurnAs(
       state,
       fire(1, "side-0", "p2"),
       rotate(2, "retrograde"),
-      burn(3, "soft")
+      burn(3, "hard")
     );
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "heat_damage")).toEqual([]);
@@ -212,7 +205,7 @@ describe("heat: a cold ship repairs one tile", () => {
   it("does nothing while a shield is powered, because a raised screen is heat", () => {
     const state = withPower(stranded(), "p1", "side-2", 2);
     const result = executeTurnAs(state, coast(1), repair("engines"));
-    expect(eventsOf(result.events, "heat_check")[0].standing).toBe(2);
+    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(2);
     expect(eventsOf(result.events, "subsystem_repaired")).toEqual([]);
   });
 
@@ -310,7 +303,7 @@ describe("heat: radiators", () => {
         type: "heat_check",
         playerId: "p1",
         heat: 13,
-        standing: 0,
+        cubes: 0,
         dissipation: 5,
         damage: 3,
         carried: 5,

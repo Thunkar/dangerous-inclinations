@@ -9,7 +9,7 @@ import {
   AGENT_INTENT_GUIDE,
 } from "../../agent/index.ts";
 import { botDecideActions } from "../../ai/index.ts";
-import { ALPHA, BH, makeTwoPlayerGame, withPower, getShip } from "../testUtils.ts";
+import { ALPHA, BH, eventsOf, makeTwoPlayerGame, withPower, getShip } from "../testUtils.ts";
 
 describe("agent seat tooling", () => {
   const start = () =>
@@ -43,14 +43,13 @@ describe("agent seat tooling", () => {
     });
     const shot = built.actions.find((a) => a.type === "fire_weapon");
     expect(shot).toMatchObject({ data: { subsystemId: "side-3", count: 3 } });
-    // A salvo of any size is one use of the tile: it stays at its minimum cubes.
-    const allocated = built.actions.find(
-      (a) => a.type === "allocate_energy" && a.data.subsystemId === "side-3"
-    );
-    expect(allocated).toMatchObject({ data: { amount: 2 } });
+    // A salvo of any size is one use of the tile, and the launch powers it:
+    // the builder has no cubes to place.
+    expect(built.actions.some((a) => a.type === "set_standing_power")).toBe(false);
     const result = executeTurn(state, built.actions);
     expect(result.errors).toBeUndefined();
     expect(result.gameState.missiles).toHaveLength(3);
+    expect(eventsOf(result.events, "weapon_fired")[0].heat).toBe(2);
   });
 
   it.each([
@@ -88,23 +87,26 @@ describe("agent seat tooling", () => {
     expect(result.errors).toBeUndefined();
   });
 
-  it("raises the cubes an action needs and reports it", () => {
+  it("places no cubes for a burn: the action powers the engines", () => {
     const built = buildTurn(viewFor(start(), "p1"), { move: { kind: "burn", intensity: "hard" } });
-    expect(built.notes.some((n) => n.includes("engines set to 3"))).toBe(true);
-    expect(
-      built.actions.some((a) => a.type === "allocate_energy" && a.data.subsystemId === "engines")
-    ).toBe(true);
+    expect(built.actions.some((a) => a.type === "set_standing_power")).toBe(false);
   });
 
-  it("keeps cubes already on tiles unless told otherwise", () => {
+  it("tells an agent that asks to power a tile an action would power anyway", () => {
+    const built = buildTurn(viewFor(start(), "p1"), { power: { engines: 3 } });
+    expect(built.notes.some((n) => n.includes("powered by the action that uses it"))).toBe(true);
+    expect(built.actions.some((a) => a.type === "set_standing_power")).toBe(false);
+  });
+
+  it("keeps a standing tile where it is unless told otherwise", () => {
     const state = withPower(start(), "p1", "side-2", 2);
     const built = buildTurn(viewFor(state, "p1"), { move: { kind: "coast" } });
-    expect(built.actions.some((a) => a.type === "deallocate_energy")).toBe(false);
+    expect(built.actions.some((a) => a.type === "set_standing_power")).toBe(false);
     const off = buildTurn(viewFor(state, "p1"), { unpower: ["side-2"] });
     expect(off.actions).toContainEqual(
       expect.objectContaining({
-        type: "deallocate_energy",
-        data: { subsystemId: "side-2", amount: 2 },
+        type: "set_standing_power",
+        data: { subsystemId: "side-2", amount: 0 },
       })
     );
   });

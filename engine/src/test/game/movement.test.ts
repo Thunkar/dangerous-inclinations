@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { BURN_COSTS } from "../../models/rings.ts";
 import { MAX_HEAT } from "../../models/game.ts";
 import { burnDestinationRing, projectPosition } from "../../game/movement.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -84,8 +85,6 @@ describe("movement: action sequencing", () => {
     ],
   ])("rejects %s", (_label, actions) => {
     let state = makeTwoPlayerGame();
-    state = withPower(state, "p1", "engines", 3);
-    state = withPower(state, "p1", "rotation", 1);
     const result = executeTurnAs(state, ...actions);
     expect(result.errors?.length).toBeGreaterThan(0);
     expect(result.gameState).toBe(state);
@@ -108,7 +107,9 @@ describe("movement: burns", () => {
   ] as const)(
     "a %s burn facing %s from BH ring 3 ends on ring %i for %i mass",
     (intensity, facing, ring, mass) => {
-      const state = withPower(shipAt(BH, 3, 0, facing), "p1", "engines", 3);
+      // Nothing pre-powered: the burn puts its own cubes on the engines, so
+      // its heat is the burn's number and never more.
+      const state = shipAt(BH, 3, 0, facing);
       const result = executeTurnAs(state, burn(1, intensity));
       expect(result.errors).toBeUndefined();
       const ship = getShip(result.gameState, "p1");
@@ -120,7 +121,7 @@ describe("movement: burns", () => {
         from: { wellId: BH, ring: 3, sector: 0 },
         to: { wellId: BH, ring, sector: 4 },
         massSpent: mass,
-        heat: 3,
+        heat: BURN_COSTS[intensity].energy,
       });
     }
   );
@@ -157,21 +158,32 @@ describe("movement: burns", () => {
     expect(burnDestinationRing({ wellId: ALPHA, ring: 3, facing: "prograde" }, "hard")).toBe(4);
   });
 
-  it("burn heat equals the engines' allocated energy, not the burn cost", () => {
-    const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
-    const result = executeTurnAs(state, burn(1, "soft"));
-    expect(eventsOf(result.events, "burned")[0].heat).toBe(3);
+  it.each([
+    ["soft", 1],
+    ["medium", 2],
+    ["hard", 3],
+  ] as const)("a %s burn costs its own cubes in heat", (intensity, expected) => {
+    // The burn powers the engines to exactly what it needs, so the heat is the
+    // burn's, and a ship cannot be caught carrying more than it asked for.
+    const result = executeTurnAs(makeTwoPlayerGame({ ring: 2 }), burn(1, intensity));
+    expect(eventsOf(result.events, "burned")[0].heat).toBe(expected);
   });
 
   it.each([
-    ["engines unpowered", 0, "soft", 10],
-    ["engines below the burn's energy", 1, "medium", 10],
-    ["not enough mass", 3, "hard", 2],
-  ])("rejects a burn with %s", (_label, energy, intensity, mass) => {
-    let state = makeTwoPlayerGame();
-    if (energy > 0) state = withPower(state, "p1", "engines", energy);
+    ["not enough mass", 0, "hard", 2],
+    // Eight cubes of wall leave two, and a hard burn wants three: a full wall
+    // and a full burn do not fit in one reactor.
+    ["a wall taking the cubes the burn needs", 8, "hard", 10],
+  ] as const)("rejects a burn with %s", (_label, wall, intensity, mass) => {
+    let state = makeTwoPlayerGame({
+      loadout: { forwardSlots: ["railgun"], sideSlots: ["shields", "shields", "laser", "laser"] },
+    });
+    if (wall > 0) {
+      state = withPower(state, "p1", "side-0", 4);
+      state = withPower(state, "p1", "side-1", 4);
+    }
     state = withShip(state, "p1", { reactionMass: mass });
-    const result = executeTurnAs(state, burn(1, intensity as never));
+    const result = executeTurnAs(state, burn(1, intensity));
     expect(result.errors?.length).toBeGreaterThan(0);
     expect(getShip(result.gameState, "p1").ring).toBe(3);
   });
@@ -259,7 +271,6 @@ describe("movement: rotation", () => {
       (s: ReturnType<typeof makeTwoPlayerGame>) => withPower(s, "p1", "rotation", 1),
       "prograde",
     ],
-    ["thrusters unpowered", (s: ReturnType<typeof makeTwoPlayerGame>) => s, "retrograde"],
     [
       "thrusters broken",
       (s: ReturnType<typeof makeTwoPlayerGame>) =>
@@ -279,7 +290,6 @@ describe("movement: rotation", () => {
 
   it("rotating before a burn changes its direction; rotating after does not", () => {
     let state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
-    state = withPower(state, "p1", "engines", 3);
     const before = mustExecute(state, rotate(1, "retrograde"), burn(2, "soft"));
     expect(getShip(before, "p1")).toMatchObject({ ring: 2, facing: "retrograde" });
     const after = mustExecute(state, burn(1, "soft"), rotate(2, "retrograde"));
@@ -296,7 +306,7 @@ describe("movement: fuel scoop", () => {
   ])("scooping on %s ring %i from %i mass gives %i", (wellId, ring, mass, expected) => {
     // Sector 6: a planet ring can carry a station, and the scoop cannot be
     // run in port (RULES §Stations): every station starts on sector 0.
-    let state = withPower(shipAt(wellId, ring, 6), "p1", "scoop", 3);
+    let state = shipAt(wellId, ring, 6);
     state = withShip(state, "p1", { reactionMass: mass });
     const result = executeTurnAs(state, coast(1, true));
     expect(result.errors).toBeUndefined();
@@ -309,28 +319,20 @@ describe("movement: fuel scoop", () => {
   });
 
   it("the scoop takes the headroom, never more: the tank holds 10 on every loadout", () => {
-    let state = withPower(makeTwoPlayerGame({ ring: 1 }), "p1", "scoop", 3);
+    let state = makeTwoPlayerGame({ ring: 1 });
     expect(getShip(state, "p1").reactionMass).toBe(10);
     // Black hole ring 1 offers eight; only the four that fit are taken.
     state = withShip(state, "p1", { reactionMass: 6 });
     expect(getShip(mustExecute(state, coast(1, true)), "p1").reactionMass).toBe(10);
   });
 
-  it.each([
-    ["unpowered", (s: ReturnType<typeof makeTwoPlayerGame>) => s],
-    [
-      "broken",
-      (s: ReturnType<typeof makeTwoPlayerGame>) =>
-        withSub(withPower(s, "p1", "scoop", 3), "p1", "scoop", { isBroken: true }),
-    ],
-  ])("rejects scooping with the scoop %s", (_label, setup) => {
-    const result = executeTurnAs(setup(makeTwoPlayerGame()), coast(1, true));
-    expect(result.errors?.length).toBeGreaterThan(0);
+  it("rejects scooping with a broken scoop", () => {
+    const state = withSub(makeTwoPlayerGame(), "p1", "scoop", { isBroken: true });
+    expect(executeTurnAs(state, coast(1, true)).errors?.length).toBeGreaterThan(0);
   });
 
   it("the scoop only runs while coasting, never during a burn", () => {
     let state = withPower(makeTwoPlayerGame(), "p1", "scoop", 3);
-    state = withPower(state, "p1", "engines", 1);
     state = withShip(state, "p1", { reactionMass: 5 });
     const result = executeTurnAs(state, burn(1, "soft"));
     expect(getShip(result.gameState, "p1").reactionMass).toBe(4);

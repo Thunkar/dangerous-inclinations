@@ -1,9 +1,10 @@
 /**
- * Your turn, in the order a turn is actually played: read the ship, route the
- * reactor, then decide what to do with it.
+ * Your turn, in the order a turn is actually played: read the ship, decide
+ * what to hold up, then decide what to do.
  *
  *   status          · hull, heat, fuel, ammo, where you are: always on screen
- *   1. Ship & energy · cubes on the tiles, and what is left in the reactor
+ *   1. Ship         · the tiles, lit by what the turn draws; shields, a rack
+ *                     and a sensor are the three you switch on yourself
  *   2. Orientation  · which way the nose points
  *   3. Move         · coast, burn or jump; exactly one per turn
  *      Route planner · its own plate under the move row: a navigation aid
@@ -161,7 +162,7 @@ export function ActionPanel() {
           </Alert>
         )}
 
-        <Step n={1} label="Ship & energy">
+        <Step n={1} label="Ship">
           <ShipEnergyLoadout disabled={disabled} />
         </Step>
 
@@ -480,9 +481,13 @@ function MoveControls({ disabled }: { disabled: boolean }) {
   const move = plan.moveStep.move
   const compressor = hasWorkingCompressor({ ...plan.me.ship, subsystems: plan.pendingSubsystems })
   const scoop = plan.pendingSubsystems.find(s => s.id === 'scoop')
-  /** Cubes on the scoop: a coast runs it unless told not to. */
+  /**
+   * Whether coming back to a coast keeps the scoop running. Nothing holds
+   * cubes between turns any more, so there is no standing scoop to read: a
+   * coast keeps whatever the scoop chip was last set to, and starts off.
+   */
   const scoopReady = Boolean(
-    scoop && !scoop.isBroken && scoop.allocatedEnergy >= getSubsystemConfig('scoop').minEnergy
+    scoop && !scoop.isBroken && move.kind === 'coast' && move.scoop
   )
   const burnDirection = plan.moveFrom.facing === 'prograde' ? 'outward' : 'inward'
   const jumpFuel =
@@ -512,8 +517,6 @@ function MoveControls({ disabled }: { disabled: boolean }) {
           }
           selected={move.kind === 'coast'}
           disabled={disabled}
-          // A powered scoop runs on a coast unless you say otherwise: the
-          // cubes on the tile are the decision.
           onClick={() => plan.setMove({ kind: 'coast', scoop: scoopReady })}
         />
         <Segment
@@ -681,9 +684,9 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
         return (
           <Tooltip
             key={weapon.id}
-            title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · ${config.minEnergy} energy${
-              weapon.isPowered ? '' : ' (not powered: put cubes on it above)'
-            }${weapon.isBroken ? ' · broken' : ''}${noAmmo ? ' · no ammo' : ''}${
+            title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · the shot powers it for ${config.minEnergy} cubes, and every cube is heat at your check${
+              weapon.isBroken ? ' · broken' : ''
+            }${noAmmo ? ' · no ammo' : ''}${
               quiet
                 ? back
                   ? ' · nothing of yours fires on your turn back from Home'

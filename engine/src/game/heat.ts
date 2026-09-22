@@ -1,12 +1,17 @@
 /**
- * Heat, which is a track and not a budget.
+ * Heat, which is a track and not a budget, and the only limit on a ship.
  *
- * A subsystem adds its allocated energy as heat when it is used (see
- * `ship.ts` `useSubsystem`), powered shields add their cubes at every check
- * (`getStandingHeat`), and absorbed damage adds two per point
- * (`damage.ts`). At the owner's heat check the ship pays for anything above
- * `MAX_HEAT` in hull, then dissipates and **carries the rest into
- * the next turn**.
+ * **One rule: at the owner's heat check, every cube on the loadout is a point
+ * of heat** (`heatFromCubes`). A tile an action powered is still carrying its
+ * cubes when the check runs, so firing costs its four and a burn costs the
+ * burn's; a standing tile carries them the whole time, so a wall, a rack or a
+ * sensor pays at every check. Absorbed damage adds two per point on top
+ * (`damage.ts`), because that heat is the shot, not the cubes.
+ *
+ * There is no reactor cap any more: a ship may light everything it owns in one
+ * turn, and what stops it is this check. At it the ship pays for anything above
+ * `MAX_HEAT` in hull, then dissipates and **carries the rest into the next
+ * turn**.
  *
  * Heat used to reset to zero here, which made dissipation a spend limit: under
  * it nothing cost anything, over it a point absorbed cost more hull than it
@@ -24,7 +29,7 @@ import type { SubsystemId } from "../models/subsystems.ts";
 import {
   findSubsystem,
   getDissipationCapacity,
-  getStandingHeat,
+  heatFromCubes,
   revealSubsystem,
   updateSubsystem,
 } from "./ship.ts";
@@ -33,7 +38,7 @@ export { addHeat } from "./ship.ts";
 
 /** The heat a ship would be carrying at a check, before it dissipates. */
 export function heatAtCheck(ship: ShipState): number {
-  return ship.heat.currentHeat + getStandingHeat(ship.subsystems);
+  return ship.heat.currentHeat + heatFromCubes(ship.subsystems);
 }
 
 /** Hull the next heat check would cost: whatever is over the top of the track. */
@@ -49,14 +54,13 @@ export function heatAfterCheck(heat: number, dissipation: number): number {
 /**
  * End-of-turn heat check.
  *
- * 1. Powered shields add their cubes: what they cost just for being on.
+ * 1. Every cube on the loadout is a point of heat, however it got there.
  * 2. A ship that made no heat at all repairs the tile its owner named.
  * 3. Anything over `MAX_HEAT` is hull damage, and the track stops at the top.
  * 4. The ship dissipates; what is left carries to the next turn.
  *
- * **Cold repair.** Heat 0 at the check means nothing on the loadout was used, no
- * shield was powered and nothing was absorbed since the last check: everything
- * off and the crew outside. It is the only repair that does not need a station,
+ * **Cold repair.** Heat 0 at the check means not a cube on the loadout and
+ * nothing absorbed since the last check: everything off and the crew outside. It is the only repair that does not need a station,
  * and it is what stops a critical on the engines or the thrusters being a
  * soft-lock: every station is in a planet well, reaching one needs a jump, and
  * a jump needs engines, so a ship without them could otherwise never be fixed.
@@ -74,8 +78,8 @@ export function resolveEndOfTurnHeat(
   /** Tile the owner named for a cold repair, if any. */
   repairChoice?: SubsystemId
 ): { ship: ShipState; damage: number; events: EventDraft[] } {
-  const standing = getStandingHeat(ship.subsystems);
-  const heat = ship.heat.currentHeat + standing;
+  const cubes = heatFromCubes(ship.subsystems);
+  const heat = ship.heat.currentHeat + cubes;
   const dissipation = getDissipationCapacity(ship.subsystems);
   const damage = Math.max(0, heat - MAX_HEAT);
   const carried = heatAfterCheck(heat, dissipation);
@@ -104,7 +108,7 @@ export function resolveEndOfTurnHeat(
     }
   }
 
-  events.push({ type: "heat_check", playerId, heat, standing, dissipation, damage, carried });
+  events.push({ type: "heat_check", playerId, heat, cubes, dissipation, damage, carried });
   if (damage > 0) {
     next = { ...next, hitPoints: Math.max(0, next.hitPoints - damage) };
     events.push({ type: "heat_damage", playerId, heat, dissipation, damage });

@@ -234,7 +234,7 @@ export function SystemControls({
         <Typography variant="caption" sx={{ display: 'block', mt: 1, color: TABLE.accent }}>
           {detail.maxEnergy === 0
             ? 'Passive · no energy required'
-            : `Energy ${detail.minEnergy}–${detail.maxEnergy} · ${detail.generatesHeatOnUse ? 'generates heat when used' : 'no heat on use'}`}
+            : `Energy ${detail.minEnergy}–${detail.maxEnergy} · its cubes are heat at every check`}
         </Typography>
       )}
       <Typography

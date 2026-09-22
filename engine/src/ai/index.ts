@@ -114,7 +114,6 @@ function emptyLog(reason: string): BotDecisionLog {
     situation: {
       health: "-",
       heat: "-",
-      energy: "-",
       fuel: "-",
       position: "-",
       threatCount: 0,
@@ -130,10 +129,10 @@ function emptyLog(reason: string): BotDecisionLog {
 
 function summarizeAction(action: PlayerAction): string {
   switch (action.type) {
-    case "allocate_energy":
-      return `Allocate ${action.data.amount} to ${action.data.subsystemId}`;
-    case "deallocate_energy":
-      return `Deallocate ${action.data.amount} from ${action.data.subsystemId}`;
+    case "set_standing_power":
+      return action.data.amount === 0
+        ? `Shut down ${action.data.subsystemId}`
+        : `Hold ${action.data.subsystemId} at ${action.data.amount}`;
     case "rotate":
       return `Rotate to ${action.data.targetFacing}`;
     case "coast":
@@ -194,7 +193,6 @@ function buildDecisionLog(
     situation: {
       health: `${status.hull}/${status.maxHull}`,
       heat: `${status.heat}/${status.dissipation}`,
-      energy: `${status.availableEnergy} free`,
       fuel: `${status.reactionMass}/${status.maxReactionMass}`,
       position: `${status.position.wellId} R${status.position.ring} S${status.position.sector} (${status.facing})`,
       threatCount: threats.length,

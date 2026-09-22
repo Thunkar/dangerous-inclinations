@@ -174,7 +174,6 @@ export interface BotStatus {
    * the next turn, and `ScoredActionPlan.heatCarried` is what prices it.
    */
   heatBudget: number;
-  availableEnergy: number;
   reactionMass: number;
   maxReactionMass: number;
   position: Position;
@@ -299,7 +298,6 @@ export interface BotDecisionLog {
   situation: {
     health: string;
     heat: string;
-    energy: string;
     fuel: string;
     position: string;
     threatCount: number;

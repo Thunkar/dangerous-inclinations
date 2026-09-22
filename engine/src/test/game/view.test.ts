@@ -10,10 +10,9 @@ import {
   destroyMission,
   ALPHA,
   BH,
-  allocate,
+  standing,
   burn,
   coast,
-  deallocate,
   mustExecute,
   eventTypes,
   executeTurnAs,
@@ -126,7 +125,6 @@ describe("view: what an opponent's loadout shows", () => {
       hitPoints: 7,
       maxHitPoints: 10,
       heat: 3,
-      reactorAvailable: 6,
       fuel: STARTING_REACTION_MASS,
       isDestroyed: false,
     });
@@ -166,7 +164,6 @@ describe("view: what an opponent's loadout shows", () => {
     const state = withPower(knownGame(), "p2", subsystemId, energy);
     const view = viewFor(state, "p1");
     expect(slot(view, 1, subsystemId).allocatedEnergy).toBe(energy);
-    expect(view.players[1].ship!.reactorAvailable).toBe(10 - energy);
     expect(slot(viewFor(state, null), 1, subsystemId).allocatedEnergy).toBe(energy);
   });
 
@@ -245,13 +242,15 @@ describe("view: the viewer's own side", () => {
     expect(view.players[1].isMe).toBe(false);
   });
 
-  it("myStats reflect my loadout and power", () => {
+  it("myStats reflect my loadout and what I am holding up", () => {
     let state = makeTwoPlayerGame({ loadout: SENSOR }, { loadout: COMPRESSOR });
     state = withPower(state, "p1", "forward-0", 2);
+    // A sensor left up is two cubes, so it is two heat at the next check and
+    // widens every critical while it burns them.
     expect(viewFor(state, "p1").myStats).toEqual({
       dissipationCapacity: 7,
       maxHeat: MAX_HEAT,
-      standingHeat: 0,
+      standingHeat: 2,
       maxReactionMass: 10,
       criticalChance: 30,
     });
@@ -337,15 +336,15 @@ describe("view: event visibility", () => {
     expect(eventTypes(filterEventsFor(result.events, null))).not.toContain("scan_result");
   });
 
-  it("energy changes are announced to the whole table", () => {
+  it("a standing tile going up or down is announced to the whole table", () => {
     const result = executeTurnAs(
-      withPower(makeTwoPlayerGame(), "p1", "scoop", 3),
-      allocate("engines", 2),
-      deallocate("scoop", 3)
+      withPower(makeTwoPlayerGame(), "p1", "side-2", 4),
+      standing("side-2", 2),
+      coast(1)
     );
     for (const viewer of ["p1", "p2", null]) {
       expect(eventTypes(filterEventsFor(result.events, viewer))).toEqual(
-        expect.arrayContaining(["energy_allocated", "energy_deallocated", "coasted"])
+        expect.arrayContaining(["standing_power_set", "coasted"])
       );
     }
   });

@@ -30,7 +30,6 @@ import {
   makeGameState,
   makePlayer,
   makeTwoPlayerGame,
-  withPower,
   withShip,
   withSub,
 } from "../testUtils.ts";
@@ -47,11 +46,11 @@ function readyToJump(
   facing: "prograde" | "retrograde" = "prograde",
   loadout?: ShipLoadout
 ) {
-  const state = makeGameState([
+  // Nothing pre-powered: a jump powers the engines to its three itself.
+  return makeGameState([
     makePlayer("p1", { wellId, ring, sector, facing }, loadout),
     makePlayer("p2", { wellId: BH, ring: 4, sector: 12 }),
   ]);
-  return withPower(state, "p1", "engines", 3);
 }
 
 describe("jumps: lane geometry", () => {
@@ -222,18 +221,6 @@ describe("jumps: executing a well transfer", () => {
     ["wrong destination for this arc", readyToJump(BH, 5, 17), BETA, /no transfer lane/i],
     ["an arrival arc", readyToJump(BH, 5, 5), ALPHA, /no transfer lane/i],
     [
-      "engines at 2",
-      withPower(readyToJump(BH, 5, 17), "p1", "engines", 2),
-      ALPHA,
-      /energy in engines/i,
-    ],
-    [
-      "engines unpowered",
-      withPower(readyToJump(BH, 5, 17), "p1", "engines", 0),
-      ALPHA,
-      /energy in engines/i,
-    ],
-    [
       "only 2 mass",
       withShip(readyToJump(BH, 5, 17), "p1", { reactionMass: 2 }),
       ALPHA,
@@ -292,7 +279,7 @@ describe("jumps: executing a well transfer", () => {
   it("jumping is a movement: the ship does not drift afterwards even on a fast ring", () => {
     // Beta's lane ring S17 is on Beta's inbound lane (16–19 → BH 12–15).
     const state = makeTwoPlayerGame({ wellId: BETA, ring: PLANET_OUTER_RING, sector: 17 });
-    const result = executeTurnAs(withPower(state, "p1", "engines", 3), jump(1, BH));
+    const result = executeTurnAs(state, jump(1, BH));
     expect(getShip(result.gameState, "p1").sector).toBe(13);
   });
 });

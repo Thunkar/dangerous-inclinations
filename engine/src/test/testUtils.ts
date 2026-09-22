@@ -6,11 +6,10 @@
  * `forcedRollValue`. Override anything you need per test.
  */
 import type {
-  AllocateEnergyAction,
   BurnAction,
   BurnIntensity,
   CoastAction,
-  DeallocateEnergyAction,
+  SetStandingPowerAction,
   Facing,
   FireWeaponAction,
   GameState,
@@ -27,6 +26,7 @@ import type {
 } from "../models/game.ts";
 import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
+import { isStandingType } from "../models/subsystems.ts";
 import type { GameEvent, GameEventType } from "../models/events.ts";
 import type {
   SecondaryMission,
@@ -138,18 +138,14 @@ export function withPower(
     ...state,
     players: state.players.map((p) => {
       if (p.id !== playerId) return p;
-      const current = p.ship.subsystems.find((s) => s.id === subsystemId)?.allocatedEnergy ?? 0;
-      let ship = updateSubsystem(p.ship, subsystemId, {
+      const sub = p.ship.subsystems.find((x) => x.id === subsystemId);
+      const ship = updateSubsystem(p.ship, subsystemId, {
         allocatedEnergy: energy,
         isPowered: energy > 0,
+        // A test that powers a standing tile means it to stay up, the way a
+        // switch would; anything else is cubes an action would have put there.
+        isStanding: energy > 0 && sub !== undefined && isStandingType(sub.type),
       });
-      ship = {
-        ...ship,
-        reactor: {
-          ...ship.reactor,
-          availableEnergy: ship.reactor.availableEnergy + current - energy,
-        },
-      };
       return { ...p, ship };
     }),
   };
@@ -186,11 +182,9 @@ export function withMissions(state: GameState, playerId: string, missions: Missi
   return withPlayer(state, playerId, { missions, cargo: cratesForMissions(missions) });
 }
 
-/** Reactor energy plus everything allocated: must always equal the reactor capacity. */
-export function totalEnergy(ship: ShipState): number {
-  return (
-    ship.reactor.availableEnergy + ship.subsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0)
-  );
+/** Cubes sitting on the loadout: what the ship will pay in heat at its check. */
+export function cubesOnLoadout(ship: ShipState): number {
+  return ship.subsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0);
 }
 
 export function eventsOf<T extends GameEventType>(
@@ -308,18 +302,12 @@ export const tankerMission = (id = "tanker-1"): TankerMission => ({
 
 type Draft<A extends PlayerAction> = Omit<A, "playerId">;
 
-export const allocate = (
+/** Switch a standing tile (shields, rack, sensor) to `amount` cubes; 0 is off. */
+export const standing = (
   subsystemId: SubsystemId,
   amount: number
-): Draft<AllocateEnergyAction> => ({
-  type: "allocate_energy",
-  data: { subsystemId, amount },
-});
-export const deallocate = (
-  subsystemId: SubsystemId,
-  amount: number
-): Draft<DeallocateEnergyAction> => ({
-  type: "deallocate_energy",
+): Draft<SetStandingPowerAction> => ({
+  type: "set_standing_power",
   data: { subsystemId, amount },
 });
 export const coast = (sequence: number, activateScoop = false): Draft<CoastAction> => ({
@@ -436,10 +424,8 @@ export function scriptedGameStart(seed: number): GameState {
     ...createDeterminismFields(seed),
     forcedRollValue: undefined,
   });
-  for (const id of ["p1", "p2"]) {
-    state = withPower(state, id, "forward-0", 4);
-    state = withPower(state, id, "engines", 1);
-  }
+  // Nothing to pre-power: the shot powers the railgun and the compensation
+  // powers the engines, and both are dark again by the next turn.
   return state;
 }
 
@@ -448,7 +434,6 @@ export function scriptedActions(state: GameState): PlayerAction[] {
   const target = state.players.find((p) => p.id !== active.id)!;
   const railgun = active.ship.subsystems.find((s) => s.id === "forward-0")!;
   const canFire =
-    railgun.isPowered &&
     !railgun.isBroken &&
     target.ship.hitPoints > 0 &&
     active.ship.reactionMass >= 1 &&

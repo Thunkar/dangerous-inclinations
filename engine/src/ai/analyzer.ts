@@ -2,10 +2,12 @@
  * Situation analysis from a GameView.
  *
  * Everything the bot knows about opponents comes from their PlayerView:
- * public ship info plus face-up and scanned tiles. Ammo and fuel of
- * opponents are unknown, but the cubes on every slot are public, so threat
- * assessment counts the weapons that are both known and powered and reads
- * face-down slots through their energy (see {@link suspectedWeapon}).
+ * public ship info plus face-up and scanned tiles. Ammo and fuel of opponents
+ * are unknown, and the cubes on every slot are public but no longer say
+ * anything about a gun: a weapon is powered by the action that fires it and is
+ * dark again by the time anyone looks at it. So a known weapon threatens us
+ * while it is unbroken, full stop, and the cubes read face-down slots for the
+ * three tiles that stand powered between turns (see {@link suspectedWeapon}).
  */
 import type { Player, Position, Station } from "../models/game.ts";
 import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
@@ -30,8 +32,6 @@ import { computeGoals, selectCurrentGoal, attachPlanToGoal } from "./behaviors/m
 
 /** Known in-range damage that counts as a full (1.0) threat. */
 const FULL_THREAT_DAMAGE = 6;
-/** The cube count leaves exactly one weapon it can be. */
-const CERTAIN = 1;
 /** The cube count fits a weapon and a harmless tile equally well. */
 const POSSIBLE = 0.5;
 /** Weight of a face-down side slot that might be shields, when estimating absorption. */
@@ -49,22 +49,23 @@ function visibleWeaponDamage(slot: SlotView): number {
 }
 
 /**
- * What a slot can be, read through the cubes sitting on it. Allocation is
- * public and a tile is either off or at least at its minimum, so the cube
- * count narrows the tile down:
+ * What a slot can be, read through the cubes sitting on it.
  *
- * | Slot    | Cubes | Could be                                | Read as                    |
- * |---------|-------|-----------------------------------------|----------------------------|
- * | forward | 4     | railgun                                 | railgun, certain           |
- * | forward | 2     | sensor array, missiles                  | missiles, maybe            |
- * | side    | 2     | laser, ballistic rack, missiles, shields| missiles, maybe            |
- * | side    | 1,3,4 | shields                                 | harmless (see shields)     |
- * | either  | 0     | anything, but it cannot fire this turn  | harmless                   |
+ * Only a standing tile carries cubes between turns (shields, a ballistic rack,
+ * a sensor array), so the read is narrow and sharp rather than broad and
+ * vague: the cubes no longer point at a gun, they point at what the ship is
+ * holding up while it waits.
  *
- * Where several weapons share a cube count the widest envelope wins
- * (missiles: a turret reaching ±2 rings and ±3 sectors), so the bot
- * assumes the worst about where it can be hit from, and `confidence`
- * discounts that assumption when a harmless tile fits the cubes too.
+ * | Slot    | Cubes | Could be                       | Read as                 |
+ * |---------|-------|--------------------------------|-------------------------|
+ * | forward | 2     | sensor array                   | no weapon, but a sensor |
+ * | side    | 4     | shields                        | no weapon               |
+ * | side    | 2     | shields, ballistic rack        | rack, maybe             |
+ * | either  | 0     | anything not switched on       | nothing                 |
+ *
+ * A dark slot is not a safe slot: it is where every gun on the board sits
+ * between shots. That is what `knownWeapons` and a scan are for, and it is why
+ * this function's silence is worth less than it used to be.
  *
  * This is the only place slot energy is turned into an opinion; threat
  * assessment, critical-hit targeting and scan choice all read it from here.
@@ -78,18 +79,13 @@ export function suspectedWeapon(
     confidence,
   });
   if (slot.allocatedEnergy === 0) return null;
-  if (slot.group === "forward") {
-    if (slot.allocatedEnergy >= getSubsystemConfig("railgun").minEnergy) {
-      return weapon("railgun", CERTAIN);
-    }
-    // Two cubes forward is a sensor array or a missile launcher.
-    return slot.allocatedEnergy === getSubsystemConfig("missiles").minEnergy
-      ? weapon("missiles", POSSIBLE)
-      : null;
-  }
-  // Two cubes on a side slot is a laser, a rack, missiles, or shields.
-  return slot.allocatedEnergy === getSubsystemConfig("missiles").minEnergy
-    ? weapon("missiles", POSSIBLE)
+  // The only standing tile that fits the bow is the sensor array, and it is
+  // not a weapon. It makes their criticals land on an 8, which is danger of a
+  // different kind and priced by `assessDanger`, not here.
+  if (slot.group === "forward") return null;
+  // Two cubes on a side slot is a half wall or a rack; four can only be a wall.
+  return slot.allocatedEnergy === getSubsystemConfig("ballistic_rack").minEnergy
+    ? weapon("ballistic_rack", POSSIBLE)
     : null;
 }
 
@@ -98,10 +94,11 @@ export function suspectedWeapon(
  * shield cube absorbs one damage and is then spent, so a tile with N cubes
  * is worth N for the whole sequence.
  *
- * Face-down side slots holding 1-4 cubes that have never fired (firing
- * would have flipped them face-up) may be shields; they count at
- * {@link SUSPECTED_SHIELD_WEIGHT} so the bot neither ignores them nor
- * treats a guess as a fact.
+ * A face-down side slot at four cubes can only be a full wall, since the rack
+ * is the only other standing side tile and it holds two: that one counts
+ * whole. At two it is a wall or a rack and counts at
+ * {@link SUSPECTED_SHIELD_WEIGHT}, so the bot neither ignores the guess nor
+ * treats it as a fact.
  */
 export function shieldAbsorption(slots: ReadonlyArray<SlotView>): number {
   const maxCubes = getSubsystemConfig("shields").maxEnergy;
@@ -114,12 +111,19 @@ export function shieldAbsorption(slots: ReadonlyArray<SlotView>): number {
     }
     if (slot.type !== null || slot.group !== "side") continue;
     if (slot.allocatedEnergy < 1 || slot.allocatedEnergy > maxCubes) continue;
-    absorbed += (slot.allocatedEnergy / SHIELD_ENERGY_PER_POINT) * SUSPECTED_SHIELD_WEIGHT;
+    const certain = slot.allocatedEnergy > getSubsystemConfig("ballistic_rack").maxEnergy;
+    absorbed +=
+      (slot.allocatedEnergy / SHIELD_ENERGY_PER_POINT) * (certain ? 1 : SUSPECTED_SHIELD_WEIGHT);
   }
   return absorbed;
 }
 
-/** A weapon tile is only dangerous while it holds at least its minimum energy. */
+/**
+ * Whether a tile is standing powered right now. It is no longer what makes a
+ * gun dangerous (the action that fires one powers it), so it answers a
+ * narrower question: whether a rack is up and will therefore intercept, and
+ * which slots a critical would find loaded.
+ */
 function isSlotPowered(slot: SlotView, type: SubsystemType): boolean {
   return slot.allocatedEnergy >= getSubsystemConfig(type).minEnergy;
 }
@@ -134,7 +138,9 @@ export function slotAsSubsystem(slot: SlotView, type: SubsystemType = slot.type!
     type,
     allocatedEnergy: 0,
     isPowered: false,
+    isStanding: false,
     usedThisTurn: false,
+    rollsThisTurn: 0,
     isBroken: slot.isBroken ?? false,
     isRevealed: true,
     slotGroup: slot.group,
@@ -152,7 +158,6 @@ export function analyzeStatus(me: Player, stations: Station[] = []): BotStatus {
     heat: ship.heat.currentHeat,
     dissipation,
     heatBudget: Math.max(0, MAX_HEAT - ship.heat.currentHeat),
-    availableEnergy: ship.reactor.availableEnergy,
     reactionMass: ship.reactionMass,
     maxReactionMass: MAX_REACTION_MASS,
     position: positionOf(ship),
@@ -201,11 +206,12 @@ function analyzeOpponent(
       continue;
     }
     if (!isWeaponType(slot.type)) continue;
-    // Face-up: we know what it is, and whether it has the cubes to fire.
+    // Face-up: we know what it is, and an unbroken one will find its own
+    // cubes the moment its owner decides to fire it. Whether it is lit now
+    // says nothing about next turn, so it is not part of the range question.
     const weapon = slotAsSubsystem(slot);
     const isPowered = isSlotPowered(slot, slot.type);
-    const inRange =
-      !weapon.isBroken && isPowered && sameWell && canEngage(weapon, attacker, myPosition);
+    const inRange = !weapon.isBroken && sameWell && canEngage(weapon, attacker, myPosition);
     knownWeapons.push({
       slotId: slot.id,
       type: slot.type,

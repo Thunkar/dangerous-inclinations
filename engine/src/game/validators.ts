@@ -8,8 +8,7 @@ import type {
   GameState,
   Player,
   PlayerAction,
-  AllocateEnergyAction,
-  DeallocateEnergyAction,
+  SetStandingPowerAction,
   RotateAction,
   CoastAction,
   BurnAction,
@@ -23,6 +22,7 @@ import {
   energyStepOf,
   getSubsystemConfig,
   isCriticalTarget,
+  isStandingType,
   isWeaponType,
 } from "../models/subsystems.ts";
 import {
@@ -49,8 +49,7 @@ const ACTIVE_ACTION_TYPES = new Set<string>([
   "well_transfer",
   "fire_weapon",
   "scan",
-  "allocate_energy",
-  "deallocate_energy",
+  "set_standing_power",
   "repair",
 ]);
 
@@ -102,66 +101,37 @@ function requirePlayer(state: GameState, playerId: string): Player {
   return player;
 }
 
-export function validateAllocateEnergyAction(
+/**
+ * Switching a standing tile on or off (RULES §Energy and Heat). `amount` is
+ * the setting, not a delta: what the tile holds when the action is done.
+ */
+export function validateSetStandingPowerAction(
   state: GameState,
-  action: AllocateEnergyAction
+  action: SetStandingPowerAction
 ): string[] {
   const player = requirePlayer(state, action.playerId);
   const sub = findSubsystem(player.ship, action.data.subsystemId);
   if (!sub) return [`Subsystem ${action.data.subsystemId} not found`];
-  if (sub.isBroken) return [`${sub.id} is broken and cannot receive energy`];
   const config = getSubsystemConfig(sub.type);
-  const errors: string[] = [];
-  if (config.maxEnergy === 0) return [`${config.name} is passive and takes no energy`];
-  if (!Number.isInteger(action.data.amount) || action.data.amount <= 0)
-    errors.push("Allocation amount must be a positive integer");
-  if (player.ship.reactor.availableEnergy < action.data.amount) {
-    errors.push(
-      `Not enough energy available (need ${action.data.amount}, have ${player.ship.reactor.availableEnergy})`
-    );
-  }
-  const total = sub.allocatedEnergy + action.data.amount;
-  if (total > config.maxEnergy)
-    errors.push(`Would exceed ${config.name} maximum (${total}/${config.maxEnergy})`);
-  if (sub.allocatedEnergy === 0 && total < config.minEnergy) {
-    errors.push(`Must allocate at least ${config.minEnergy} energy to power ${config.name}`);
-  }
-  const step = energyStepOf(sub.type);
-  if (total % step !== 0) {
-    errors.push(
-      `${config.name} takes energy ${step} cubes at a time (${total} would be left on it)`
-    );
-  }
-  return errors;
-}
+  if (!isStandingType(sub.type))
+    return [`${config.name} is powered by the action that uses it, not switched on`];
+  if (sub.isBroken) return [`${config.name} is broken and cannot be powered`];
 
-export function validateDeallocateEnergyAction(
-  state: GameState,
-  action: DeallocateEnergyAction
-): string[] {
-  const player = requirePlayer(state, action.playerId);
-  const sub = findSubsystem(player.ship, action.data.subsystemId);
-  if (!sub) return [`Subsystem ${action.data.subsystemId} not found`];
-  if (!Number.isInteger(action.data.amount) || action.data.amount <= 0)
-    return ["Deallocation amount must be a positive integer"];
-  if (sub.allocatedEnergy === 0) return [`${sub.id} has no energy to deallocate`];
-  if (action.data.amount > sub.allocatedEnergy) {
-    return [
-      `Cannot deallocate ${action.data.amount} from ${sub.id} (only ${sub.allocatedEnergy} allocated)`,
-    ];
-  }
-  const config = getSubsystemConfig(sub.type);
-  const remaining = sub.allocatedEnergy - action.data.amount;
-  if (remaining > 0 && remaining < config.minEnergy) {
-    return [
-      `Cannot leave ${config.name} partially powered (${remaining}); deallocate all or stay at ${config.minEnergy}+`,
-    ];
-  }
+  const amount = action.data.amount;
+  const errors: string[] = [];
+  if (!Number.isInteger(amount) || amount < 0)
+    return ["A standing tile is set to a whole number of cubes, or 0 for off"];
+  if (amount === 0) return errors;
+  if (amount < config.minEnergy)
+    errors.push(`${config.name} needs at least ${config.minEnergy} cubes to work`);
+  if (amount > config.maxEnergy)
+    errors.push(`${config.name} holds at most ${config.maxEnergy} cubes`);
   const step = energyStepOf(sub.type);
-  if (remaining % step !== 0) {
-    return [`${config.name} takes energy ${step} cubes at a time (${remaining} would be left on it)`];
-  }
-  return [];
+  if (amount % step !== 0)
+    errors.push(`${config.name} takes energy ${step} cubes at a time`);
+  // Nothing else to check: nothing caps what a ship lights, and what the tile
+  // costs is heat at the owner's check, which is their business.
+  return errors;
 }
 
 export function validateRotateAction(state: GameState, action: RotateAction): string[] {
@@ -174,7 +144,6 @@ export function validateRotateAction(state: GameState, action: RotateAction): st
   if (!rotation) return ["Rotation subsystem not found"];
   if (rotation.isBroken) return ["Maneuvering thrusters are broken"];
   const errors: string[] = [];
-  if (!rotation.isPowered) errors.push("Maneuvering thrusters not powered");
   if (rotation.usedThisTurn) errors.push("Maneuvering thrusters already used this turn");
   return errors;
 }
@@ -183,35 +152,25 @@ export function validateCoastAction(state: GameState, action: CoastAction): stri
   const player = requirePlayer(state, action.playerId);
   if (!action.data.activateScoop) return [];
   const scoop = findSubsystem(player.ship, "scoop");
-  const config = getSubsystemConfig("scoop");
   if (!scoop || scoop.isBroken) return ["Fuel scoop is broken"];
-  if (scoop.allocatedEnergy < config.minEnergy) {
-    return [
-      `Need ${config.minEnergy} energy in the scoop to activate it (have ${scoop.allocatedEnergy})`,
-    ];
-  }
   if (scoop.usedThisTurn) return ["Fuel scoop already used this turn"];
   return [];
 }
 
-function validateEnginesReady(player: Player, energyNeeded: number, what: string): string[] {
+function validateEnginesReady(player: Player, what: string): string[] {
   const engines = findSubsystem(player.ship, "engines");
   if (!engines || engines.isBroken) return ["Engines are broken"];
-  const errors: string[] = [];
-  if (engines.allocatedEnergy < energyNeeded) {
-    errors.push(
-      `Need ${energyNeeded} energy in engines for ${what} (have ${engines.allocatedEnergy})`
-    );
-  }
-  if (engines.usedThisTurn) errors.push("Engines already used this turn");
-  return errors;
+  // The burn powers them itself, so all that is left to ask is whether they
+  // have already gone once this turn.
+  if (engines.usedThisTurn) return [`Engines already used this turn (${what})`];
+  return [];
 }
 
 export function validateBurnAction(state: GameState, action: BurnAction): string[] {
   const player = requirePlayer(state, action.playerId);
   const cost = BURN_COSTS[action.data.burnIntensity];
   const adjustment = action.data.sectorAdjustment ?? 0;
-  const errors = validateEnginesReady(player, cost.energy, `a ${action.data.burnIntensity} burn`);
+  const errors = validateEnginesReady(player, `a ${action.data.burnIntensity} burn`);
 
   if (!Number.isInteger(adjustment)) {
     errors.push("Sector adjustment must be an integer");
@@ -282,8 +241,6 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
   if (weapon.isBroken) return [`${config.name} is broken`];
 
   const errors: string[] = [];
-  if (!weapon.isPowered || weapon.allocatedEnergy < config.minEnergy)
-    errors.push(`${config.name} not powered`);
   if (weapon.usedThisTurn) errors.push(`${config.name} already fired this turn`);
   // A salvo is any number of the tile's remaining rounds in one action; every
   // other weapon fires once, so a count on one is a mistake worth refusing.
@@ -322,7 +279,7 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
 
   if (config.weaponStats?.hasRecoil) {
     if (action.data.compensateRecoil) {
-      errors.push(...validateEnginesReady(player, BURN_COSTS.soft.energy, "recoil compensation"));
+      errors.push(...validateEnginesReady(player, "recoil compensation"));
       if (player.ship.reactionMass < BURN_COSTS.soft.mass)
         errors.push("Not enough reaction mass to compensate recoil (need 1)");
     } else {
@@ -361,7 +318,7 @@ export function validateScanAction(state: GameState, action: ScanAction): string
   if (!player.ship.subsystems.some((s) => s.type === "sensor_array"))
     return ["No sensor array installed"];
   const sensor = findReadySensor(player.ship);
-  if (!sensor) return ["Sensor array must be powered, unbroken and unused this turn to scan"];
+  if (!sensor) return ["Sensor array must be unbroken and unused this turn to scan"];
   const { errors, target } = validateTarget(state, player, action.data.targetPlayerId);
   if (!target) return errors;
   if (target.ship.wellId !== player.ship.wellId || target.ship.ring !== player.ship.ring) {
@@ -383,7 +340,7 @@ export function validateWellTransferAction(state: GameState, action: WellTransfe
   const jump = findJump(positionOf(player.ship), action.data.destinationWellId);
   if (!jump) return ["No transfer lane from this position to that destination"];
   const adjustment = action.data.sectorAdjustment ?? 0;
-  const errors = validateEnginesReady(player, WELL_TRANSFER_COSTS.energy, "a jump");
+  const errors = validateEnginesReady(player, "a jump");
 
   // Phasing a jump is bounded by the arrival arc, not by the ring's velocity:
   // a jump has no drift to brake against (RULES §Jump).

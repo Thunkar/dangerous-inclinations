@@ -2,14 +2,12 @@ import { viewFor } from "../../game/view.ts";
 import { describe, it, expect } from "vitest";
 import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
 import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from "../../game/respawn.ts";
-import { REACTOR_CAPACITY } from "../../models/game.ts";
 import type { GameState, Player, Position, ShipLoadout } from "../../models/game.ts";
 import type { Cargo } from "../../models/missions.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
-import { BURN_COSTS, WELL_TRANSFER_COSTS } from "../../models/rings.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import {
-  allocate,
+  standing,
   ALPHA,
   BETA,
   BH,
@@ -167,7 +165,7 @@ describe("respawn: the turn after dying", () => {
       reactionMass: 10,
       heat: { currentHeat: 0 },
     });
-    expect(ship.reactor.availableEnergy).toBe(REACTOR_CAPACITY);
+    expect(ship.subsystems.every((s) => s.allocatedEnergy === 0)).toBe(true);
     expect(
       ship.subsystems.every((s) => s.allocatedEnergy === 0 && !s.isPowered && !s.isBroken)
     ).toBe(true);
@@ -220,7 +218,7 @@ describe("respawn: the turn after dying", () => {
     expect(getPlayer(state, "p2").recovering).toBe(true);
     // Scooping is something only a crew at the helm can do: a lost turn drifts
     // and nothing else.
-    const acting = executeTurnAs(state, allocate("scoop", 3), coast(1, true));
+    const acting = executeTurnAs(state, coast(1, true));
     expect(acting.errors).toBeUndefined();
     expect(eventTypes(acting.events)).toContain("fuel_scooped");
     expect(eventTypes(acting.events)).not.toContain("turn_skipped");
@@ -298,25 +296,10 @@ describe("respawn: the turn back is a first round of its own", () => {
   });
 
   it.each([
-    ["puts cubes on a tile", "energy_allocated", returning, [allocate("engines", 1)]],
-    [
-      "rotates",
-      "rotated",
-      returning,
-      [allocate("rotation", 1), rotate(1, "retrograde")],
-    ],
-    [
-      "burns",
-      "burned",
-      returning,
-      [allocate("engines", BURN_COSTS.soft.energy), burn(1, "soft")],
-    ],
-    [
-      "jumps",
-      "jumped",
-      () => returning({ ring: 5, sector: 17 }),
-      [allocate("engines", WELL_TRANSFER_COSTS.energy), jump(1, ALPHA)],
-    ],
+    ["puts cubes on a tile", "standing_power_set", returning, [standing("side-2", 2)]],
+    ["rotates", "rotated", returning, [rotate(1, "retrograde")]],
+    ["burns", "burned", returning, [burn(1, "soft")]],
+    ["jumps", "jumped", () => returning({ ring: 5, sector: 17 }), [jump(1, ALPHA)]],
   ])("still %s on it", (_what, event, build, actions) => {
     const result = executeTurnAs(build(), ...actions);
     expect(result.errors ?? []).toEqual([]);
@@ -429,7 +412,7 @@ describe("respawn: an old recording's lost turn", () => {
       "p2",
       { skipTurns: 1 }
     );
-    const skipped = executeTurnAs(state, allocate("engines", 3), burn(1, "soft"));
+    const skipped = executeTurnAs(state, burn(1, "soft"));
     expect(skipped.errors).toBeUndefined();
     expect(eventTypes(skipped.events)).toContain("turn_skipped");
     expect(eventTypes(skipped.events)).not.toContain("burned");

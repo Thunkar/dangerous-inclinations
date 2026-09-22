@@ -6,9 +6,20 @@
  * stable id derived from its slot ("engines", "forward-0", "side-2"), and all
  * actions refer to subsystems by that id.
  *
- * Energy and heat:
- * - Energy allocated to a subsystem persists across turns.
- * - Using a subsystem generates heat equal to its allocated energy.
+ * Energy and heat, which are one rule:
+ * - **A tile's cubes are heat at its owner's heat check.** That is all of it.
+ * - Nobody places cubes. A tile that acts is powered by the action that uses
+ *   it, to exactly the draw that action needs, and goes dark at the end of the
+ *   turn: it is still carrying them when the check runs, so acting costs its
+ *   cubes and nothing else does.
+ * - The exceptions are the tiles that work while their owner is not acting:
+ *   shields absorb, a ballistic rack intercepts and a sensor array widens the
+ *   critical range. Those are switched on and stay on until switched off
+ *   (`STANDING_SUBSYSTEM_TYPES`), so they are carrying cubes at every check
+ *   and pay at every one. That is what prices holding a wall, a point-defence
+ *   turret or a firing solution up between turns.
+ * - There is no reactor limit. Heat is the only limit: a ship may light
+ *   everything it owns at once and take the hull damage for it.
  * - Heat is a track that does not reset: at the owner's heat check anything
  *   over the redline is hull damage, and what survives the dissipation is
  *   carried into the next turn.
@@ -18,8 +29,10 @@
  *   the first time it does something visible (fires, absorbs, scans, discounts,
  *   prevents heat damage) or when it is broken by a critical hit.
  * - Fixed systems are always revealed.
- * - Energy on a tile is public even while the tile is face-down: everyone can
- *   see how much a rival routes to each slot, not what the slot holds.
+ * - Energy on a tile is public even while the tile is face-down, and because
+ *   only a standing tile carries cubes between turns, cubes sitting on a
+ *   face-down slot say which of the three it is: a loaded forward slot can
+ *   only be a sensor array, and a side slot at 4 can only be a full shield.
  */
 
 export type SubsystemType =
@@ -83,6 +96,30 @@ export function isCriticalTarget(id: SubsystemId): boolean {
 }
 
 /**
+ * The tiles a player switches on rather than a tile an action powers.
+ *
+ * Every other tile is powered by the action that uses it and is dark the rest
+ * of the time, because it only does anything at the moment it is used: there
+ * was never a decision in placing its cubes, only one legal number and the
+ * chance of getting it wrong. These three work while their owner is not
+ * acting, so their cubes have to be on the board before the thing they answer
+ * happens: shields absorb a shot fired on somebody else's turn, a rack
+ * intercepts a missile arriving on somebody else's turn, and a sensor array
+ * widens the critical range of every weapon aboard while it is up.
+ */
+export const STANDING_SUBSYSTEM_TYPES: readonly SubsystemType[] = [
+  "shields",
+  "ballistic_rack",
+  "sensor_array",
+];
+
+/** True for a tile its owner switches on, false for one an action powers. */
+export function isStandingType(type: SubsystemType): boolean {
+  return STANDING_SUBSYSTEM_TYPES.includes(type);
+}
+
+
+/**
  * Energy a shield spends per point of damage it absorbs: the same two as the
  * heat (SHIELD_HEAT_PER_POINT), so a point costs two cubes and two heat.
  *
@@ -91,7 +128,7 @@ export function isCriticalTarget(id: SubsystemId): boolean {
  * against two tiles) permanently unable to reach a hull: 66% of the shots a
  * bot declined to take at a Destroy target were declined because they would
  * have been absorbed whole. The cubes are not destroyed: they return to the
- * reactor and the tile goes dark until it is re-powered.
+ * cubes are spent and the tile goes dark until it is switched on again.
  */
 export const SHIELD_ENERGY_PER_POINT = 2;
 
@@ -127,7 +164,6 @@ export interface SubsystemConfig {
    * absorption in whole points at SHIELD_ENERGY_PER_POINT cubes each.
    */
   energyStep?: number;
-  generatesHeatOnUse: boolean;
   slotType: SlotType;
   isPassive?: boolean;
   passiveEffect?: PassiveEffect;
@@ -139,18 +175,27 @@ export interface Subsystem {
   type: SubsystemType;
   allocatedEnergy: number;
   isPowered: boolean;
+  /**
+   * True when the owner switched this tile on and means to leave it on. False
+   * when an action powered it for its own use, which is every other tile and
+   * also a standing one that fired or scanned while it was dark: those cubes
+   * come off at the end of the turn (`clearDerivedPower`), so nobody is billed
+   * at every check for a rack they fired once.
+   */
+  isStanding: boolean;
   usedThisTurn: boolean;
+  /**
+   * Interception rolls a ballistic rack has made this player-turn. A rack's
+   * two cubes answer as many missiles as two cubes can throw
+   * ({@link INTERCEPTS_PER_RACK}) and no more; 0 on every other tile.
+   */
+  rollsThisTurn: number;
   isBroken: boolean;
   /** Face-up for everyone at the table. Fixed systems start revealed. */
   isRevealed: boolean;
   ammo?: number;
   slotGroup?: SlotGroup;
   slotIndex?: number;
-}
-
-export interface ReactorState {
-  totalCapacity: number;
-  availableEnergy: number;
 }
 
 export interface HeatState {
@@ -163,7 +208,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Engines",
     minEnergy: 1,
     maxEnergy: 3,
-    generatesHeatOnUse: true,
     slotType: "fixed",
   },
   rotation: {
@@ -171,7 +215,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Maneuvering Thrusters",
     minEnergy: 1,
     maxEnergy: 1,
-    generatesHeatOnUse: true,
     slotType: "fixed",
   },
   scoop: {
@@ -179,7 +222,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Fuel Scoop",
     minEnergy: 3,
     maxEnergy: 3,
-    generatesHeatOnUse: true,
     slotType: "fixed",
   },
 
@@ -188,7 +230,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Railgun",
     minEnergy: 4,
     maxEnergy: 4,
-    generatesHeatOnUse: true,
     slotType: "forward",
     weaponStats: {
       damage: 4,
@@ -203,7 +244,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Sensor Array",
     minEnergy: 2,
     maxEnergy: 2,
-    generatesHeatOnUse: true, // scanning generates heat
     slotType: "forward",
     passiveEffect: { criticalChanceBonus: 20 },
   },
@@ -213,7 +253,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Broadside Laser",
     minEnergy: 2,
     maxEnergy: 2,
-    generatesHeatOnUse: true,
     slotType: "side",
     weaponStats: {
       damage: 2,
@@ -230,15 +269,14 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     /**
      * Two cubes or four, never one or three: a tile buys absorption in whole
      * points at SHIELD_ENERGY_PER_POINT cubes each, so an odd cube would sit
-     * on a promise the rules do not keep. Four is most of a reactor for a
-     * single tile (two tiles at full wall are eight of ten cubes and eight
-     * heat if they absorb), which is what makes powering them a decision each
-     * turn rather than a setting.
+     * on a promise the rules do not keep. Four cubes is four heat at every
+     * check the tile is up, and two tiles at a full wall is eight against a
+     * dissipation of five, which is what makes a wall a decision each turn
+     * rather than a setting.
      */
     minEnergy: SHIELD_ENERGY_PER_POINT,
     maxEnergy: 2 * SHIELD_ENERGY_PER_POINT,
     energyStep: SHIELD_ENERGY_PER_POINT,
-    generatesHeatOnUse: false,
     slotType: "side",
   },
   radiator: {
@@ -246,7 +284,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Radiator",
     minEnergy: 0,
     maxEnergy: 0,
-    generatesHeatOnUse: false,
     slotType: "side",
     isPassive: true,
     passiveEffect: { dissipationBonus: 2 },
@@ -256,7 +293,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Fuel Compressor",
     minEnergy: 0,
     maxEnergy: 0,
-    generatesHeatOnUse: false,
     slotType: "forward",
     isPassive: true,
     passiveEffect: { refuelOnWellTransfer: true },
@@ -267,7 +303,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Missiles",
     minEnergy: 2,
     maxEnergy: 2,
-    generatesHeatOnUse: true,
     slotType: "either",
     weaponStats: {
       damage: 2,
@@ -285,7 +320,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Ballistic Rack",
     minEnergy: 2,
     maxEnergy: 2,
-    generatesHeatOnUse: true,
     slotType: "side",
     weaponStats: {
       damage: 2,
@@ -323,6 +357,23 @@ export const WEAPON_SUBSYSTEM_TYPES: readonly WeaponType[] = (
 export function canSubsystemFunction(subsystem: Subsystem): boolean {
   if (subsystem.isBroken) return false;
   return subsystem.allocatedEnergy >= SUBSYSTEM_CONFIGS[subsystem.type].minEnergy;
+}
+
+/**
+ * Missiles a rack's cubes can answer in one player-turn.
+ *
+ * It is the missiles tile's magazine, deliberately: two cubes on a launcher
+ * throw four rounds in one action, so two cubes on a rack shoot four of them
+ * down and the fifth gets through. Point defence that rolled at *every*
+ * missile made one rack the answer to any number of launchers, which is the
+ * same asymmetry the other way round.
+ *
+ * A ship that expects more than four at once carries a second rack, pays its
+ * cubes in heat at every check like the first, and answers eight. Read off the
+ * magazine so an experiment that changes one changes both.
+ */
+export function interceptsPerRack(): number {
+  return SUBSYSTEM_CONFIGS.missiles.weaponStats!.maxAmmo!;
 }
 
 export function getMissileStats(): Required<

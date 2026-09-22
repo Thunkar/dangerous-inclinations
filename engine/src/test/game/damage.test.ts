@@ -3,7 +3,6 @@ import { SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
 import { SHIELD_ENERGY_PER_POINT } from "../../models/subsystems.ts";
 import { resolveAttack, rollToResult } from "../../game/damage.ts";
 import { getEffectiveCriticalChance } from "../../game/ship.ts";
-import { REACTOR_CAPACITY } from "../../models/game.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import {
   eventsOf,
@@ -12,7 +11,7 @@ import {
   getShip,
   getSub,
   makeTwoPlayerGame,
-  totalEnergy,
+  cubesOnLoadout,
   withPower,
   withSub,
 } from "../testUtils.ts";
@@ -125,10 +124,11 @@ describe("damage: resolveAttack", () => {
     const shield = outcome.ship.subsystems.find((s) => s.id === "side-2")!;
     expect(shield.allocatedEnergy).toBe(shieldLeft);
     expect(shield.isPowered).toBe(shieldLeft > 0);
-    expect(outcome.ship.reactor.availableEnergy).toBe(
-      target.reactor.availableEnergy + toHeat * SHIELD_ENERGY_PER_POINT
+    // The cubes that absorbed are spent, so the tile costs that much less at
+    // the owner's next check.
+    expect(cubesOnLoadout(outcome.ship)).toBe(
+      cubesOnLoadout(target) - toHeat * SHIELD_ENERGY_PER_POINT
     );
-    expect(totalEnergy(outcome.ship)).toBe(REACTOR_CAPACITY);
   });
 
   it("absorbing reveals the shield tile", () => {
@@ -189,8 +189,8 @@ describe("damage: resolveAttack", () => {
       isRevealed: true,
     });
     expect(outcome.ship.heat.currentHeat).toBe(3);
-    expect(outcome.ship.reactor.availableEnergy).toBe(target.reactor.availableEnergy + 3);
-    expect(totalEnergy(outcome.ship)).toBe(REACTOR_CAPACITY);
+    // A broken tile's cubes are dumped as heat and are gone from the loadout.
+    expect(cubesOnLoadout(outcome.ship)).toBe(cubesOnLoadout(target) - 3);
     expect(outcome.events).toEqual([
       {
         type: "subsystem_broken",
@@ -255,7 +255,7 @@ describe("damage: resolveAttack", () => {
     expect(getSub(legal.gameState, "p2", "scoop").isBroken).toBe(false);
   });
 
-  it("flags sensor-assisted criticals (8 or 9 with a powered sensor) but not natural 10s", () => {
+  it("a sensor that is up makes an 8 critical, and a bare ship's 8 a plain hit", () => {
     const sensorState = withPower(
       makeTwoPlayerGame({ loadout: SENSOR_LOADOUT }),
       "p1",
@@ -263,16 +263,9 @@ describe("damage: resolveAttack", () => {
       2
     );
     const sensors = getShip(sensorState, "p1");
-    expect(
-      resolveAttack(getShip(base, "p2"), "p2", 2, "engines", 8, sensors).hitResult
-    ).toMatchObject({
-      result: "critical",
-      sensorAssistedCritical: true,
-    });
-    expect(
-      resolveAttack(getShip(base, "p2"), "p2", 2, "engines", 10, sensors).hitResult
-        .sensorAssistedCritical
-    ).toBe(false);
+    expect(resolveAttack(getShip(base, "p2"), "p2", 2, "engines", 8, sensors).hitResult.result).toBe(
+      "critical"
+    );
     expect(
       resolveAttack(getShip(base, "p2"), "p2", 2, "engines", 8, attacker).hitResult.result
     ).toBe("hit");
@@ -324,7 +317,10 @@ describe("damage: through executeTurn", () => {
     expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(2);
   });
 
-  it("a sensor-assisted critical reveals the attacker's sensor array", () => {
+  it("a sensor-assisted critical leaves the sensor face-down: only scanning turns it over", () => {
+    // The cubes on the bow are public and say what the tile is to anyone
+    // counting, but the tile itself is a secret until it does its own job
+    // (RULES §Hidden Information).
     let state = laserDuel(undefined, SENSOR_LOADOUT);
     state = withPower(state, "p1", "forward-0", 2);
     const result = executeTurnAs(
@@ -332,15 +328,10 @@ describe("damage: through executeTurn", () => {
       fire(1, "side-0", "p2", "engines")
     );
     expect(eventsOf(result.events, "attack_resolved")[0].result).toBe("critical");
-    expect(eventsOf(result.events, "subsystem_revealed")).toContainEqual(
-      expect.objectContaining({
-        playerId: "p1",
-        subsystemId: "forward-0",
-        subsystemType: "sensor_array",
-        reason: "critical_bonus",
-      })
-    );
-    expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(true);
+    expect(
+      eventsOf(result.events, "subsystem_revealed").some((e) => e.subsystemId === "forward-0")
+    ).toBe(false);
+    expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(false);
   });
 
   it("a natural 10 without sensors keeps the sensor slot face-down", () => {
@@ -366,8 +357,8 @@ describe("damage: through executeTurn", () => {
     });
     expect(getShip(result.gameState, "p2").hitPoints).toBe(9);
     expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(SHIELD_HEAT_PER_POINT);
-    expect(totalEnergy(getShip(result.gameState, "p2"))).toBe(REACTOR_CAPACITY);
-    expect(getShip(result.gameState, "p2").reactor.availableEnergy).toBe(REACTOR_CAPACITY);
+    // The wall spent its last two cubes soaking, so nothing is left lit.
+    expect(cubesOnLoadout(getShip(result.gameState, "p2"))).toBe(0);
   });
 
   it("laser damage skips the shields: hull takes it all, the cubes stay, no heat", () => {

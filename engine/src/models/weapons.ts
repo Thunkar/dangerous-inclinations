@@ -16,6 +16,4 @@ export interface WeaponHitResult {
   damageToHull: number;
   damageToHeat: number;
   criticalEffect?: CriticalHitEffect;
-  /** True when the critical only happened because of a sensor array (roll below 10). */
-  sensorAssistedCritical: boolean;
 }

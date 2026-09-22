@@ -20,7 +20,7 @@ import type { Mission } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import {
   getDissipationCapacity,
-  getStandingHeat,
+  heatFromCubes,
   getEffectiveCriticalChance,
   isDestroyed,
 } from "./ship.ts";
@@ -34,8 +34,6 @@ export interface PublicShipView {
   hitPoints: number;
   maxHitPoints: number;
   heat: number;
-  /** Energy not routed to any tile (public: 10 minus the cubes on the loadout). */
-  reactorAvailable: number;
   /** Fuel aboard: cubes on the loadout, in the open like the hull and the heat. */
   fuel: number;
   isDestroyed: boolean;
@@ -104,7 +102,10 @@ export interface OwnShipStats {
   criticalChance: number;
   /** Top of the heat track: above this, the excess is hull damage. */
   maxHeat: number;
-  /** Heat powered shields will add at the next check, just for being on. */
+  /**
+   * Heat the cubes already on the loadout will add at the next check: between
+   * turns that is the standing tiles, since nothing else is carrying any.
+   */
   standingHeat: number;
 }
 
@@ -140,7 +141,6 @@ function shipView(player: Player): PublicShipView | null {
     hitPoints: s.hitPoints,
     maxHitPoints: s.maxHitPoints,
     heat: s.heat.currentHeat,
-    reactorAvailable: s.reactor.availableEnergy,
     fuel: s.reactionMass,
     isDestroyed: isDestroyed(s),
   };
@@ -225,7 +225,7 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
           maxReactionMass: MAX_REACTION_MASS,
           criticalChance: getEffectiveCriticalChance(me.ship.subsystems),
           maxHeat: MAX_HEAT,
-          standingHeat: getStandingHeat(me.ship.subsystems),
+          standingHeat: heatFromCubes(me.ship.subsystems),
         }
       : null,
   };

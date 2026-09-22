@@ -55,15 +55,6 @@ function jumpCandidate(state: GameState): ActionPlan {
   return candidate;
 }
 
-function allocations(candidate: ActionPlan): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const action of candidate.actions) {
-    if (action.type !== "allocate_energy") continue;
-    out[action.data.subsystemId] = (out[action.data.subsystemId] ?? 0) + action.data.amount;
-  }
-  return out;
-}
-
 /**
  * Play the candidate and read back what the lane cost. Phasing is never
  * cheapened, so the fuel a jump spends is the lane's own cost (one with a
@@ -89,8 +80,13 @@ describe("a bot jumping with a fuel compressor", () => {
     const state = onAlphasLane();
     const candidate = jumpCandidate(state);
 
-    expect(allocations(candidate)["forward-0"]).toBeUndefined();
-    expect(allocations(candidate).engines).toBe(WELL_TRANSFER_COSTS.energy);
+    // Nothing to switch on for the lane itself: the jump powers the engines,
+    // and the compressor is passive, so no cubes are ever routed to its slot.
+    expect(
+      candidate.actions.some(
+        (a) => a.type === "set_standing_power" && a.data.subsystemId === "forward-0"
+      )
+    ).toBe(false);
 
     const { jumped, laneFuel } = takeTheLane(state, candidate);
     expect(jumped).toMatchObject({ compressed: true, heat: WELL_TRANSFER_COSTS.energy });

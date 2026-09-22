@@ -52,7 +52,13 @@ loaded, ships are repaired and data is delivered.
 
 Loadout tiles (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
-Scanning peeks at one tile privately. Completed missions are face-up. Reaching
+**Every cube on a tile is a point of heat at its owner's check**, and that is
+the whole of energy: there is no reactor and nothing caps what a ship lights at
+once. Nobody places cubes for an action, which powers the tile it uses and
+takes them off again at the end of the turn; the three tiles that work while
+their owner is not acting (shields, ballistic rack, sensor array) are switched
+on instead and pay at every check until switched off. Scanning peeks at one
+tile privately. Completed missions are face-up. Reaching
 the table's points (3; the value rides on `GameState.pointsToWin` and the
 view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
 played out, then highest score wins (hull, then fuel, break ties). Six card types in two kinds: primaries
@@ -76,7 +82,7 @@ at **every** missile that reaches it, also for one use of the rack, and the two
 halves stay together: a rack that answers a whole salvo is what keeps a salvo
 that costs one tile's heat honest.
 
-Turn: (respawn turn if destroyed) → energy → actions in chosen order (rotate,
+Turn: (respawn turn if destroyed) → standing systems → actions in chosen order (rotate,
 one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
 arrival only) → heat
 check (excess over dissipation = hull damage, reset) → missions → pass.
@@ -259,8 +265,23 @@ not an argument:
   that works and leave the part that does not.
 - **A rack that intercepts once a turn.** Three launchers firing one missile
   each were already a salvo it could not answer: a sensor bow with missiles×3
-  won 66% of three-seat games against a 37% Destroy bar. Point defence rolls at
-  every missile now, salvos are one action, and that hull sits at 40%.
+  won 66% of three-seat games against a 37% Destroy bar. Salvos became one
+  action and point defence rolled at *every* missile, which fixed it and
+  overshot: one rack then answered any number of launchers. Since 22 Sept a
+  rack rolls at `interceptsPerRack()` missiles a turn, which is the missiles
+  tile's magazine read off the config, so two cubes shoot down exactly what two
+  cubes can throw and the fifth gets through. Racks stack: a ship expecting
+  eight carries two and pays both at every check.
+
+  **It is a symmetry fix, not a lever.** Measured at 200 games a row against
+  the uncapped rack: mean row move +0.1pp, nothing moved 5pp or more, the
+  benchmark is unchanged at every seat count and the failing flag set is the
+  same one row. That follows from the shape of it: a salvo is one tile's
+  magazine, so a single launcher can never put more than four on a ship at
+  once and one rack answers it exactly. The cap only bites when two launchers'
+  missiles arrive in the same turn, which the bots rarely arrange. The number
+  to watch if that changes is `offbook:sensor_missiles3`, the one hull that
+  can land twelve.
 - **The compressor as a side tile** (`fuel_compressor.slotType=side`). Measured
   on the balance seeds with the hauler templates moved to a sensor bow: the
   weaponless pacifist wins 48% with the compressor on its side as it does with
@@ -284,7 +305,10 @@ not an argument:
   use on both sides: no row moved outside noise and missiles launched per game
   were identical (10.5), because the four-round magazine is the limit. Flat
   adopted and the switch removed. Charging only the attacker flat shifts power
-  to the launcher hulls (+4 to +7), so the halves stay together.
+  to the launcher hulls (+4 to +7), so the halves stayed together until the
+  rack moved onto standing heat (21 Sept, above): the launcher pays when it
+  fires and the rack pays at every check it is up, which is that asymmetry
+  taken on purpose. Watch the launcher hulls if point defence looks thin.
 - **Four points to win with three mandatory cards.** 41–49 rounds by seat
   count; three points with the same hand runs 27–31 and every game finishes.
   Keeping all three secondaries (any three points) let Deliver holders win 44%
@@ -303,7 +327,7 @@ not an argument:
   One lost turn now, and untouchable (no shot, missile or scan) until the ship
   acts again. Not a measurement: a table would have found it in an evening.
   Amended 20 Sept 2026: coming back is deploying again, so the turn after the
-  respawn is a first round of the ship's own. It allocates energy, rotates and
+  respawn is a first round of the ship's own. It sets its standing systems, rotates and
   moves, and stays untouchable until that turn ends, but no weapon of its fires
   and it scans nobody. The old shape gave a returning ship a round of immunity
   and then the first shot out of a sector everyone already knew, which reads
@@ -332,6 +356,80 @@ not an argument:
   rounds by seat count against three points' 27, and the designer pulled it
   as too long. The value still rides on the state and `--rules=missionsToWin=4`
   still measures it.
+- **A sensor that reveals itself on a sensor-assisted critical.** It used to
+  flip face-up the first time a critical landed on an 8 or a 9, since only a
+  sensor could have done that. Cut 22 Sept: switching a tile on is not doing
+  its job, and the reveal table now reads the same way for all three standing
+  tiles (a wall reveals when it absorbs, a rack when it rolls, a sensor when it
+  scans). `sensorAssistedCritical` and the `critical_bonus` reveal reason are
+  gone with it. The cubes still give a held-up sensor away by deduction, which
+  is the tell doing its job and not a reveal.
+
+- **The reactor, and heat charged on use.** Two halves of one simplification,
+  taken together because the cap was what priced *readiness* and removing it
+  without pricing readiness some other way makes every standing tile free.
+  Now: a tile's cubes are heat at its owner's check, however they got there.
+  An action powers the tile it uses and the cubes come off at the end of the
+  turn, so acting costs its cubes once; a switched-on tile carries them the
+  whole time and pays at every check. `generatesHeatOnUse` and `ReactorState`
+  are gone, `getStandingHeat` became `heatFromCubes` over every tile, and no
+  action is refused for energy any more. The rack and the sensor moved onto
+  standing heat with the shields, which is the asymmetry the salvo note below
+  warns about, taken deliberately: point defence is now bought a turn ahead and
+  a sensor bow can hold its 8–10 critical range up for two heat a check.
+  `Subsystem.isStanding` is what keeps the two apart: firing a dark rack or
+  scanning with a dark sensor is one use of a tile, not a decision to hold it
+  up, so those cubes clear with everything else and nobody is billed at every
+  check for a rack they fired once. An action's reported heat is the cubes it
+  *adds*, so a rack already up reports nothing when it fires or intercepts,
+  and what the actions report plus what stands is what the check bills (there
+  is a test for that invariant).
+
+  Measured against the pre-rewrite code on the same seeds, 200 games a row,
+  42 comparable rows: **the mean row moves +0.9pp and the median +1.0pp, and
+  only 8 rows move 5pp or more.** Natural three-seat play is 27 rounds, 2.5
+  kills and the flattest seat spread yet (34 / 33 / 34 against 35 / 31 / 34);
+  dealt Destroy 31 → 31, Deliver 45 → 46, Intercept 31 → 29. Failing flags
+  fall from two to one (`offbook:rail_lasers2`'s outlier goes,
+  `illogical:hauler_aggressive+destroy` stays unpunished), and
+  `baselines:destroy` loses its `glass`. The 300-game sim has destructions
+  2.8 → 2.5 and hull damage 41.5 → 39.9.
+
+  **The salvo note's warning did not land the way it reads.** Charging the
+  rack at every check and the launcher only when it fires should have moved
+  power to the launchers; instead both rose a little, because dropping the cap
+  helps every hull that wants several tiles up at once more than the standing
+  bill hurts the one that wants a rack. Racks: railgun + racks×2 20 → 26,
+  compressor + racks×2 35 → 41, rack hunter 31 → 35, railgun + racks×4 24 →
+  25, tanky hunter 24 → 22. Launchers: sensor bow + missile hunter 31 → 38,
+  missiles×3 34 → 39, missiles×5 32 → 34, missile boat 34 → 33. What actually
+  fell is the interceptors, which pay two a check for a sensor they used to
+  hold for nothing: the aggressive preset 25 → 22 and the tanky one with a
+  Destroy card 21 → 11, the latter an `illogical` row that is supposed to be
+  punished. Both rack hulls still sit well under their bar, so point defence
+  is no healthier than it was; it is just no worse.
+
+- **Manual energy allocation.** Every tile but the engines and the shields has
+  exactly one legal non-zero setting, so placing its cubes was transcription,
+  not a decision, and the bots' `energyActions` was 45 lines translating intent
+  into allocations nobody chose. An action powers the tile it uses now, and the
+  three tiles that act while their owner is not acting are switched on instead
+  (`STANDING_SUBSYSTEM_TYPES`). The 10-cap stays and still forbids a full wall
+  beside a full burn. Not behaviour-neutral, and the reason is the second half:
+  cubes no longer say anything about a gun, so `suspectedWeapon` reads a loaded
+  slot as defence (bow = sensor, side 4 = full wall, side 2 = wall or rack) and
+  a known gun is a threat while it is unbroken rather than while it is lit. That
+  last one was a bug the old rules hid: a rival's dark gun was never safe, its
+  owner simply powered it on their own turn, and the bots believed otherwise.
+  Measured at 200 games a row: the three primaries move by a point (Destroy 31
+  → 32, Deliver 45 → 46, Intercept 31 → 30), natural three-seat length is
+  unchanged at 27 rounds, the seat spread flattens (35/31/34 → 35/33/33) and
+  `baselines:destroy` loses its `glass` flag. The one real move is that the
+  game gets quieter: natural kills 3.0 → 2.3 at three seats and 5.7 → 5.3 at
+  four (300-game sim: destructions 2.8 → 2.6), because a bot that respects
+  every unbroken gun walks into fewer of them; `docs/benchmark.md`, re-run at
+  its own 240 games, has the same fall at every seat count.
+
 - **Criticals naming the forward tile first**, to break compressors: within
   noise, and the compressor hulls gained if anything (a broken compressor is
   repaired at the next dock, where that hull was going). **Shields stopping
@@ -361,7 +459,14 @@ Known open problems:
   play. In natural three-seat games the sensor bow wins 24% against the
   railgun's 36 and the compressor's 36: a scan is a chit and a chit is loot,
   three seizures in four are chits, and the benchmark has Intercept at 21 and
-  Survey at 23 completed per 100 kept.
+  Survey at 23 completed per 100 kept. The sensor's standing cost (21 Sept)
+  gave the bow something to do on a turn it does not scan, and the bots now
+  hold it up whenever they mean to shoot: the forced sensor-bow rows rose most
+  of any hull in the suite (missile hunter 31 → 38, missiles×3 34 → 39). It
+  cuts the other way for a hull that only scans, though: the interceptor
+  presets pay two a check for a sensor they used to hold for nothing and fell
+  2–3 points. Whether any of this reaches the *natural* sensor bow is
+  unmeasured, because the bots' hull templates still put the bow on a hauler.
 - **The compressor runner sits on the line, and Tanker put it there.**
   Under Piracy and Tanker, 400 games a row against 33%: compressor +
   shields×2 + radiators×2 44% (one point under the `outlier` line; 46% and
@@ -389,16 +494,20 @@ Known open problems:
   Piracy 12%. Half of all Survey dives now complete in round one, because
   ring 3 is one turn from ring 1; the chit is not the point, the filing is,
   and a round-one chit is round-one loot for a pirate from ring 3.
-- **Point defence lives on one preset.** Bots holding Destroy always fly the
-  aggressive hunter, so the aggressive hunter's rack is the only rack in
-  natural play, and no hull a bot can reach carries a launcher (the aggressive
-  hauler's missiles want a Destroy card a hauler never holds), so no missile
-  is fired in natural play at all. The salvo rule is exercised only by
-  forced hulls; when the hunter briefly carried two lasers instead, missiles
-  went unanswered and the compressor with two launchers reached 52%. The tanky
-  hunter (rack + shields×2) reads 24% against 32 and is the poorest predator
-  among the gun hulls (the prey wins 67% of duels against it); if both presets are
-  to hunt, it wants a second gun.
+- **Point defence lives on one preset, and now it costs more to keep.** Bots
+  holding Destroy always fly the aggressive hunter, so the aggressive hunter's
+  rack is the only rack in natural play, and no hull a bot can reach carries a
+  launcher (the aggressive hauler's missiles want a Destroy card a hauler never
+  holds), so no missile is fired in natural play at all. The salvo rule is
+  exercised only by forced hulls; when the hunter briefly carried two lasers
+  instead, missiles went unanswered and the compressor with two launchers
+  reached 52%. The rack moved onto standing heat on 21 Sept, so it is two heat
+  at every check whether anything comes or not; that did not sink the rack
+  hulls (railgun + racks×2 went 20 → 26 on the same seeds, because losing the
+  cap let them run the rack beside a gun and a wall), but it did not lift them
+  over their bar either: they read 26% and 25% against 34. The tanky hunter
+  (rack + shields×2) reads 22% against 31 and is still the poorest predator
+  among the gun hulls; if both presets are to hunt, it wants a second gun.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A loadout that can hold a gun is a
   loadout that gets dealt into Destroy (44% of games) whether or not that gun can
@@ -415,17 +524,22 @@ Known open problems:
   that is the hunt for the leader, not the crate.
 - **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: 27 / 25 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats under three
-  points, 1h21 to 2h42 at a minute a turn, 98–100% of games decided, five
-  cards completed a game at three seats; kills 3.0 / 5.6 / 10.4 / 14.8, well
+- **Length**: 25 / 23 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats under three
+  points, 1h15 to 2h42 at a minute a turn, 99–100% of games decided, five
+  cards completed a game at three seats; kills 2.9 / 5.0 / 9.3 / 14.5, well
   above the old cards' 1.9 / 3.9 / 7.7 / 11.0, because a chit aboard is a
   reason to fight. The quiet returning turn (20 Sept) took kills down from
   3.3 / 6.5 / 10.8 / 17.8 and the six-seat game from 33 rounds to 27: a ship
-  back from Home no longer opens with a revenge shot. The bots' fuel husbandry decides the length: with the
+  back from Home no longer opens with a revenge shot. The energy rewrite
+  (21 Sept) took another 0.1–1.1 off every seat count and a couple of rounds
+  off the short games, because a bot that respects every unbroken gun walks
+  into fewer of them; at three seats it is no longer a kill per seat per game.
+  The bots' fuel husbandry decides the length: with the
   Tanker holder's reserve unlimited games ran 19 rounds, with none 39; the
   standing bots keep a one-fuel margin and detour up to three turns. Four
   points not re-measured since the secondaries changed. The benchmark's seat
-  spread is 33 / 31 / 35 at three seats.
+  spread is 33 / 32 / 35 at three seats, and the balance suite's natural row
+  reads 34 / 33 / 34.
 
 ## Adding a rule
 

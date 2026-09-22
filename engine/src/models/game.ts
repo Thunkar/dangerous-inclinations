@@ -3,7 +3,6 @@ import type {
   Subsystem,
   SubsystemId,
   SubsystemType,
-  ReactorState,
   HeatState,
 } from "./subsystems.ts";
 import type { Mission, Cargo } from "./missions.ts";
@@ -45,7 +44,6 @@ export const MAX_PLAYERS = 6;
 /** Base critical hit chance in percentage points (10 = d10 roll of 10). */
 export const BASE_CRITICAL_CHANCE = 10;
 
-export const REACTOR_CAPACITY = 10;
 export const MAX_REACTION_MASS = 10;
 export const STARTING_REACTION_MASS = 10;
 export const DEFAULT_DISSIPATION_CAPACITY = 5;
@@ -204,7 +202,6 @@ export interface ShipState {
   hitPoints: number;
   maxHitPoints: number;
   subsystems: Subsystem[];
-  reactor: ReactorState;
   heat: HeatState;
   loadout: ShipLoadout;
 }
@@ -230,13 +227,18 @@ export interface RotateAction extends BaseAction {
   data: { targetFacing: Facing };
 }
 
-export interface AllocateEnergyAction extends BaseAction {
-  type: "allocate_energy";
-  data: { subsystemId: SubsystemId; amount: number };
-}
-
-export interface DeallocateEnergyAction extends BaseAction {
-  type: "deallocate_energy";
+/**
+ * Switch a standing tile on or off: shields, a ballistic rack or a sensor
+ * array (`STANDING_SUBSYSTEM_TYPES`). `amount` is what the tile should hold
+ * when the turn starts, not a delta, because the choice is a setting and not
+ * arithmetic: 0 is off, and for shields 2 or 4 is how wide the wall is.
+ *
+ * No other tile takes one of these. Everything else is powered by the action
+ * that uses it, to the only draw that action has, and is dark again by the end
+ * of the turn.
+ */
+export interface SetStandingPowerAction extends BaseAction {
+  type: "set_standing_power";
   data: { subsystemId: SubsystemId; amount: number };
 }
 
@@ -308,8 +310,7 @@ export type TacticalAction =
 
 export type PlayerAction =
   | TacticalAction
-  | AllocateEnergyAction
-  | DeallocateEnergyAction
+  | SetStandingPowerAction
   | RepairAction
   | DeployShipAction;
 

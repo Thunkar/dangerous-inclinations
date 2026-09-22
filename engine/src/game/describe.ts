@@ -52,10 +52,10 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
   switch (e.type) {
     case "respawned":
       return `${name(e.playerId)} returns to port at ${pos(e.position)}`;
-    case "energy_allocated":
-      return `${name(e.playerId)} routes ${e.amount} energy to ${e.subsystemId}`;
-    case "energy_deallocated":
-      return `${name(e.playerId)} pulls ${e.amount} energy from ${e.subsystemId}`;
+    case "standing_power_set":
+      if (e.amount === 0) return `${name(e.playerId)} shuts down ${e.subsystemId}`;
+      if (e.previous === 0) return `${name(e.playerId)} brings ${e.subsystemId} up at ${e.amount}`;
+      return `${name(e.playerId)} holds ${e.subsystemId} at ${e.amount}`;
     case "rotated":
       return `${name(e.playerId)} rotates to ${e.facing}`;
     case "coasted":

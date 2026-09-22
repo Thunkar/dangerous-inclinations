@@ -1,8 +1,13 @@
 /**
- * Scan action. Requires a powered sensor array and a target on the same ring
- * within SCAN_SECTOR_RANGE sectors. Reveals the sensor, generates heat, lets
- * the scanner look at one face-down slot of the target (private knowledge)
- * and acquires the transmission for any Intercept mission on that target.
+ * Scan action. Requires an unbroken sensor array and a target on the same
+ * ring within SCAN_SECTOR_RANGE sectors. Reveals the
+ * sensor, generates heat, lets the scanner look at one face-down slot of the
+ * target (private knowledge) and acquires the transmission for any Intercept
+ * mission on that target.
+ *
+ * The scan powers the sensor itself, like any other action. Switching one on
+ * is for the critical range it gives every weapon aboard while it is up, which
+ * is worth cubes on a turn with no scan in it (RULES §Energy and Heat).
  */
 import type { GameState, Player, ScanAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
@@ -18,7 +23,7 @@ export interface ScanResult {
 
 export function findReadySensor(ship: GameState["players"][number]["ship"]) {
   return ship.subsystems.find(
-    (s) => s.type === "sensor_array" && s.isPowered && !s.isBroken && !s.usedThisTurn
+    (s) => s.type === "sensor_array" && !s.isBroken && !s.usedThisTurn
   );
 }
 

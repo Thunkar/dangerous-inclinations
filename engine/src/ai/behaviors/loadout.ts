@@ -55,7 +55,7 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * **Why neither hunter carries missiles.** Measured in duels against the
  * strongest off-book hull (a compressor bow with two ballistic racks, a
  * shield tile and a radiator), the missile-carrying hunter completed its
- * Destroy 34% of the time: a powered rack rolls at every missile that reaches
+ * Destroy 34% of the time: a rack that is up rolls at the missiles that reach
  * it, so a salvo aimed at the one loadout built to answer it arrives as dice. The
  * tanky hunter takes the rack instead and keeps both shield tiles, which also
  * buys it the roll against somebody else's missiles; the aggressive one sells

@@ -33,15 +33,21 @@ export function canScanFrom(from: Position, target: Position): boolean {
 }
 
 /**
- * Slot to look at: the face-down tile whose energy cubes make it the most
- * interesting (a powered slot is doing something), else any face-down one,
- * else the first slot: a scan of a known tile is legal and still acquires
- * an Intercept transmission.
+ * Slot to look at: a **dark** face-down tile first, and the bow before a side.
+ *
+ * The cubes read a loaded slot most of the way already (only a wall, a rack or
+ * a sensor stands powered between turns), so paying a scan for one buys the
+ * last quarter of an answer. A dark slot is where every gun on the board sits,
+ * and a dark bow is the widest unknown there is: a railgun, a launcher, a
+ * compressor or a sensor that is switched off. Failing that, any face-down
+ * one, else the first slot, since a scan of a known tile is still legal and
+ * still acquires an Intercept transmission.
  */
 export function choosePeekSlot(target: Opponent): SubsystemId {
   const ranked = [...target.unknownSlots].sort(
     (a, b) =>
-      b.slot.allocatedEnergy - a.slot.allocatedEnergy ||
+      a.slot.allocatedEnergy - b.slot.allocatedEnergy ||
+      Number(b.slot.group === "forward") - Number(a.slot.group === "forward") ||
       (b.suspected?.damage ?? 0) - (a.suspected?.damage ?? 0)
   );
   return ranked[0]?.slot.id ?? target.player.slots[0]?.id ?? "forward-0";
