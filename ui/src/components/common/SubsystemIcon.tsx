@@ -1,28 +1,25 @@
 /**
- * One subsystem glyph, rendered the same way everywhere: the source artwork
- * flattened to a light silhouette. Nothing else is allowed to tint it.
+ * One subsystem glyph, rendered the same way everywhere: the icon set's own
+ * artwork, traced to vector (`art/glyphs.tsx`), which the printed card draws
+ * from too. Nothing tints the mark; a tile's category shows as an edge or a
+ * badge, never as the glyph's fill. It is decorative (no title, hidden from
+ * screen readers): the tooltip or label around it names the tile, and a native
+ * SVG title inside a tooltip is only a second tooltip.
  */
-import { Box } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { getSubsystemConfig } from '@dangerous-inclinations/engine'
-import { ICON_FILTER, SUBSYSTEM_ICONS } from '../../utils/icons'
+import { TileIcon } from '../../art/glyphs'
+import { TABLE } from '../../theme'
 
 export function SubsystemIcon({
   type,
   size,
   opacity = 0.92,
+  color = TABLE.ink,
 }: {
   type: SubsystemType
   size: number
   opacity?: number
+  color?: string
 }) {
-  return (
-    <Box
-      component="img"
-      src={SUBSYSTEM_ICONS[type]}
-      alt={getSubsystemConfig(type).name}
-      draggable={false}
-      sx={{ width: size, height: size, objectFit: 'contain', filter: ICON_FILTER, opacity }}
-    />
-  )
+  return <TileIcon type={type} size={size} color={color} opacity={opacity} title={null} />
 }

@@ -52,12 +52,13 @@ loaded, ships are repaired and data is delivered.
 
 Loadout tiles (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
-**Every cube on a tile is a point of heat at its owner's check**, and that is
-the whole of energy: there is no reactor and nothing caps what a ship lights at
-once. Nobody places cubes for an action, which powers the tile it uses and
-takes them off again at the end of the turn; the three tiles that work while
-their owner is not acting (shields, ballistic rack, sensor array) are switched
-on instead and pay at every check until switched off. Scanning peeks at one
+**Every action puts energy on the tile it uses, and every energy cube on a
+loadout is a point of heat at its owner's check**: that is the whole of energy,
+there is no reactor and nothing caps what a ship powers at once. The energy
+stays on the tile until its owner's next turn, when the loadout is cleared, so
+the three tiles that work on other players' turns (shields, ballistic rack,
+sensor array) are powered by an action every turn like anything else, and a
+rack that fired is up as well. Each tile does one thing a turn. Scanning peeks at one
 tile privately. Completed missions are face-up. Reaching
 the table's points (3; the value rides on `GameState.pointsToWin` and the
 view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
@@ -82,8 +83,8 @@ at **every** missile that reaches it, also for one use of the rack, and the two
 halves stay together: a rack that answers a whole salvo is what keeps a salvo
 that costs one tile's heat honest.
 
-Turn: (respawn turn if destroyed) → standing systems → actions in chosen order (rotate,
-one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
+Turn: (respawn turn if destroyed) → clear the loadout → actions in chosen order (power,
+rotate, one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
 arrival only) → heat
 check (excess over dissipation = hull damage, reset) → missions → pass.
 Stations advance at round end. The first round reaches nobody (no weapon
@@ -105,7 +106,12 @@ engine/src/ai/          botDecideActions(view), botChooseLoadout, botChooseDeplo
 engine/src/sim/         runGame, runBatch (workers), stats (from events), cli
 engine/src/test/        vitest; helpers in testUtils.ts
 server/src/             services/gameService.ts, websocket/roomHandler.ts, routes/
-ui/src/                 context/ (game, animation, plan, boardMode), components/table/
+ui/src/                 context/ (game, animation, plan, boardMode, navigation),
+                        components/table/, art/glyphs.tsx (the one drawn icon set)
+ui/src/site/            routes.ts (the four sections), Landing, Tools, Cheatsheet,
+                        turn.ts (the turn, stated once), numbers.ts, poster.tsx,
+                        guide/ (the cheatsheet's sections), tools/, card/ (the printed card)
+ui/src/design/          tokens.ts (the dark table), press.ts (paper, ink, red: all printed matter)
 ui/src/components/board/  model.ts (useBoardModel: all either renderer draws),
                         geometry.ts (board coordinates), GameBoard.tsx (the 2D/3D switch),
                         svg/ (the flat board), three/ (the WebGL board)
@@ -210,6 +216,75 @@ log. `?game=<id>` with `localStorage.playerId` set renders a real seat; there
 is no server-less table page any more, so a screenshot means running the
 stack (docker compose, server, Vite) and creating a game over REST.
 
+## The site is four sections
+
+The video game is one of them. `ui/src/site/routes.ts` is the whole router (a
+path, no dependency): `/` the landing page, `/play` everything the app was
+before, `/tools` the things a real table wants and `/card` the cheatsheet with
+the card it prints. The three query flags still decide the route **from any
+path**, so `?game=<id>` from a fork, from `yarn seat` and from
+`scripts/shot.mjs` keeps working. Every `/play` screen before a table exists
+(connecting, a failure, the name, the lobby list) keeps the site's bar, so
+nobody who arrives there is stranded; a table brings its own chrome.
+
+Only `/play` needs a player, a socket or a server. The tools and the cheatsheet
+call pure engine functions (`planMovementAlternatives`, `heatAfterCheck`,
+`rollToResult`, the tile and ring configs) and render from a browser with
+nothing else running, which is the point: they are used standing over a real
+table. Every number on them is read from the engine; `site/numbers.ts` works
+out the derived ones once (critical faces, slot contents, cube labels) and
+`site/turn.ts` states the turn once for the cheatsheet, the card and the
+in-game rules dialog.
+
+**Two looks, on purpose.** The table is the dark instrument panel
+(`design/tokens.ts`). Everything that would come out of a box is printed
+matter, **modern Soviet-poster flat** (`design/press.ts`): cream paper, black
+ink and one red, the mission families' teal, violet and ochre only where a family is
+meant, condensed capitals in Oswald (bundled by `@fontsource-variable/oswald`,
+so the tools work offline) for every label and number, solid blocks and heavy
+rules, and no radius, shadow or gradient anywhere. The mission cards, the
+site's pages and the printed card are all set from it, and the red diagonal at
+`BAND_ANGLE` is the one motif they share (the cards' band, the landing page's
+wedge through the black hole, the mark). `site/poster.tsx` holds the pieces
+(display type, slabs, the mark) and `site/guide/parts.tsx` the cheatsheet's
+(numbered sections, points, chips, the ledger a heat check is written in).
+
+**One icon set** (`ui/src/art/`): the artwork is the PNGs in
+`public/assets/icons`, traced to vector once by `scripts/trace-icons.py` into
+the generated `art/paths.ts`. Drawn from the vector rather than the bitmap for
+two reasons: a bitmap flattened by a CSS filter can be made white but not
+black, and the card needs black ink; and a 400px bitmap at 6mm is not what you
+want on paper. `SubsystemIcon` draws from it, so a tile is the same mark on the
+board, in the loadout and on the card, and nothing in it carries a colour.
+Re-run the script after changing an icon. The site's nav is type, not icons;
+the rest of the app's chrome stays on MUI icons.
+
+**The cheatsheet** (`site/Cheatsheet.tsx`, `site/guide/`) teaches the game in
+the order a first table meets it, eight numbered sections: the goal (the six
+mission cards drawn by the game's own `MissionCard`, and 2 + 1 = 3), setup
+with the loadout's slots, the turn, moving (the ring ladder with its landmarks
+and the three moves drawn), heat (with a check worked by `heatAfterCheck`),
+fighting (the roll strip asks `rollToResult` about every face), what is hidden,
+and destruction. It compresses RULES.md and says so; the manual wins.
+
+**The tools** call pure engine functions and nothing else, so they work with
+the server down. The route planner is not a second interface: it builds a
+`BoardModel` by hand and hands it to the game's own `GameBoardSvg`, the way
+`three/dev/fixtureModel.ts` does, so clicking a sector on it is clicking a
+sector on the board.
+
+**The card** (`ui/src/site/card/`) is two 70x120mm faces: **your turn** (the
+goal, the seven steps, the three moves drawn and what they cost) and **the
+fight** (the roll, the guns, what a hit does, what is held up, the heat check,
+what gives a tile away). Black and one red on white stock, which survives a
+black-and-white printer as ink and a mid grey. It is drawn at true size with
+the preview scaled by a transform, so what is seen is the geometry that
+reaches the printer, and printing puts both faces on one A4 sheet with
+nothing else. It does not repeat the board or the missions: ring speeds, lane
+sectors and card text are printed in front of you. About 105mm of column per
+face; content that does not fit is content to cut, and nothing in the card
+shrinks to hide that (`.di-card > *` never shrinks, so overflow shows).
+
 ## The board has two renderers
 
 `GameBoard.tsx` derives one `BoardModel` (`components/board/model.ts`) from the
@@ -253,12 +328,12 @@ not an argument:
   22 Sept for a reason the first pass was not looking for: after the energy
   rewrite the bow held exactly one tile that could stand powered, so cubes on a
   face-down forward slot were a certain sensor array and the only certain tell
-  on the board. Shields and the ballistic rack are `either` now. Measured as
+  on the board. Shields are `either` now (the rack stays side-only, below). Measured as
   builds on forced hulls: a bow shield is never the best bow and never a bad
   one (16% on a Deliver hauler against the sensor's 15% and the compressor's
   49%; 32% on a Destroy brawler against the railgun's 32%), which is the
   profile of an option worth having rather than a lever. The bots still never
-  take one, so `offbook:bow_rack` and `offbook:bow_shield` carry the coverage.
+  take one, so `offbook:bow_shield` carries the coverage.
 - **A ballistic rack in the bow.** Tried on 22 Sept for the same reason
   shields went there, and the arc costs nothing (`sideRestricted` is false, so
   a forward rack fires exactly as a side one does). It fails on balance: rack
@@ -281,11 +356,19 @@ not an argument:
   worth it: the bow is the only thing stopping a railgun carrying a sensor, and
   a railgun that criticals on an 8 is the best Destroy weapon in the game with
   its best failure mode removed. Not measured; refused on the shape of it.
-- **Making the engines and thrusters critical-proof** like the scoop, to stop a
-  broken one stranding a ship. Solved instead by the cold repair (RULES §Energy
-  and Heat), which keeps them as targets: measured on identical seeds, it fires
-  on 2% of breaks, every one of them the engines, and leaves destructions and
-  the share of damage reaching hulls unchanged.
+- **Critical-proof slots.** The engines and thrusters were never protected, and
+  the fuel scoop stopped being on 22 Sept: **nothing is critical-proof now** and
+  a critical may name any slot. The scoop was the exception because a break is
+  repaired at a station, a dry ship cannot burn or jump to one, and a coast only
+  carries it along the ring it is already on, so a critical on the scoop of an
+  empty ship away from a planet could end that player's game outright. The cold
+  repair is the answer to all of it: a ship that lights nothing reaches 0 heat
+  and fixes one tile a turn wherever it is, so no break strands anyone and the
+  exception was paying for a problem that no longer exists. Measured on 300
+  games at three seats against the same seeds, **the output is byte-identical**,
+  and that is the finding rather than the balance: the bots never name the scoop
+  (see the open problems), so the change is invisible to the simulator and
+  matters only at a table.
 - **New mission types** are proposed to the designer, never added unasked.
   Ambush, Salvage, Breach and Grand Tour were tried and cut.
 - **Two decks dealing a forced hand shape**, to stop the deal being a lottery.
@@ -350,15 +433,15 @@ not an argument:
 - **A missile-carrying hunter preset.** In a duel against the compressor with
   racks×2 the old preset (railgun, missiles, rack, shields, radiator) completed
   Destroy 34% of the time and the prey won 69%: a powered rack rolls at every
-  missile. The presets carry a laser and a rack (aggressive) or a rack and two
-  shields (tanky) now; two lasers on the hunter left the field with no rack at
-  all and the compressor with two launchers at 52%.
+  missile. The presets carry a laser and a rack (aggressive) or a rack, a
+  shield and two radiators (tanky) now; two lasers on the hunter left the
+  field with no rack at all and the compressor with two launchers at 52%.
 - **Two lost turns on death.** A respawned ship sat at a known sector with no
   cubes allocated for two rounds: a free kill on repeat, with no counter-play.
   One lost turn now, and untouchable (no shot, missile or scan) until the ship
   acts again. Not a measurement: a table would have found it in an evening.
   Amended 20 Sept 2026: coming back is deploying again, so the turn after the
-  respawn is a first round of the ship's own. It sets its standing systems, rotates and
+  respawn is a first round of the ship's own. It powers, rotates and
   moves, and stays untouchable until that turn ends, but no weapon of its fires
   and it scans nobody. The old shape gave a returning ship a round of immunity
   and then the first shot out of a sector everyone already knew, which reads
@@ -414,7 +497,32 @@ not an argument:
   check for a rack they fired once. An action's reported heat is the cubes it
   *adds*, so a rack already up reports nothing when it fires or intercepts,
   and what the actions report plus what stands is what the check bills (there
-  is a test for that invariant).
+  is a test for that invariant). The switches themselves went on 22 Sept
+  (next entry).
+
+- **Standing tiles that stay on until switched off.** Replaced 22 Sept by one
+  kind of tile: every action puts energy on the tile it uses and it stays
+  until its owner's next turn, when the loadout is cleared; shields, racks and
+  sensors are powered by an action each turn like everything else, and nothing
+  is switched off. The designer's reason: at a table there is no difference
+  between a standing system and a powered one, everything is an action and most
+  actions make heat. The heat economy is the same (a wall was billed at every
+  check it was up, and is billed at every check it is powered); what changes is
+  that a used tile carries its energy through everyone else's turn, so a
+  critical on a railgun that just fired dumps its 4, and a rack that fired is
+  up and intercepts. Measured against the switch rules on the same seeds, 200
+  games a row, 43 rows: **mean row +0.6pp, median +0.5pp, nothing moved 5pp**;
+  natural three-seat play unchanged at 27 rounds and 2.5 kills; the one failing
+  flag (`illogical:hauler_aggressive+destroy` unpunished, 35 → 33.5 against 34)
+  cleared, though at 1000 games it sits exactly on its bar under both rules
+  (33.2 → 32.4 against 33.4 → 32.6), so it is a coin flip rather than a fix.
+  The same 1000 games show nothing moved on the hunters: dealt Destroy 33.4 →
+  32.6, the tanky hunter 23.8 → 23.7, the rack hunter 30.8 → 31.7; the `weak`
+  flag the 200-game run gave the tanky hunter was the bar's noise. The 300-game sim: destructions 2.5 → 2.7,
+  hull damage 39.9 → 41.3, heat at the check 7.09 both. `Subsystem.isStanding`,
+  `set_standing_power` and `standing_power_set` are gone; the action is `power`
+  and the event `subsystem_powered`, which names the tile only once it is
+  face-up. Recordings are schema v3.
 
   Measured against the pre-rewrite code on the same seeds, 200 games a row,
   42 comparable rows: **the mean row moves +0.9pp and the median +1.0pp, and
@@ -537,8 +645,14 @@ Known open problems:
   hulls (railgun + racks×2 went 20 → 26 on the same seeds, because losing the
   cap let them run the rack beside a gun and a wall), but it did not lift them
   over their bar either: they read 26% and 25% against 34. The tanky hunter
-  (rack + shields×2) reads 22% against 31 and is still the poorest predator
-  among the gun hulls; if both presets are to hunt, it wants a second gun.
+  was the poorest predator among the gun hulls with two shields (23% against
+  32 at 1000 games) and a second gun was not the answer: racks×2 or lasers×2
+  in place of a shield read 33% and 35% but died as often as the aggressive
+  hunter or more, a second aggressive preset. The second wall was the problem
+  (eight heat a turn stops a hunter firing): since 22 Sept it is railgun +
+  rack + shields + radiators×2, 28% at 600 games with the fewest deaths of any
+  hunter (1.09 a game against the aggressive preset's 1.32). Bots holding
+  Destroy still fly the aggressive preset, so natural play does not see it.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A loadout that can hold a gun is a
   loadout that gets dealt into Destroy (44% of games) whether or not that gun can
@@ -553,6 +667,17 @@ Known open problems:
   holding a crate than while empty. Kills still fall on carriers (72% of
   destroyed ships were carrying something, nearly all of it data chits), but
   that is the hunt for the leader, not the crate.
+- **The bots never name the scoop, so the simulator cannot price the slot that
+  was just opened.** `chooseCriticalTarget` (`ai/behaviors/combat.ts`) ranks a
+  known gun, then a loaded unknown slot, then any powered slot, then the
+  engines, and only then anything else fixed: the scoop is reachable only once
+  the engines and thrusters are both already broken, which is why removing its
+  protection moved nothing across 300 games. The play the rule opens is a human
+  one, and a specific one: name the scoop of a ship that is low on fuel and far
+  from a station, and it spends its turns running cold instead of playing.
+  Teaching that is a change to the bot's preference order, not to a rule, and it
+  wants measuring before it is adopted, because a hunter that strands its prey
+  is a different hunter.
 - **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
 - **Length**: 25 / 23 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats under three

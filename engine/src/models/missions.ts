@@ -119,12 +119,17 @@ export type MissionType =
 export type SecondaryMissionType = "survey";
 export const SECONDARY_MISSION_TYPES: readonly SecondaryMissionType[] = ["survey"];
 
-export type MissionFamily = "combat" | "trade" | "secondary";
+/**
+ * What a card is printed as: its title strip and its colour. The three
+ * primaries are three ways of playing (the kill, the cargo run, the stolen
+ * transmission), so each is its own family; the secondaries share one.
+ */
+export type MissionFamily = "combat" | "trade" | "intel" | "secondary";
 
 export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
   destroy_ship: "combat",
   deliver_cargo: "trade",
-  intercept_transmission: "trade",
+  intercept_transmission: "intel",
   survey: "secondary",
   piracy: "secondary",
   tanker: "secondary",

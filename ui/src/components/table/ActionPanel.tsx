@@ -1,10 +1,11 @@
 /**
  * Your turn, in the order a turn is actually played: read the ship, decide
- * what to hold up, then decide what to do.
+ * what to power, then decide what to do.
  *
  *   status          · hull, heat, fuel, ammo, where you are: always on screen
- *   1. Ship         · the tiles, lit by what the turn draws; shields, a rack
- *                     and a sensor are the three you switch on yourself
+ *   1. Power        · the tiles, lit by what the turn puts on them; shields, a
+ *                     rack and a sensor are the three you power yourself, and
+ *                     their power actions run before everything else
  *   2. Orientation  · which way the nose points
  *   3. Move         · coast, burn or jump; exactly one per turn
  *      Route planner · its own plate under the move row: a navigation aid
@@ -162,7 +163,7 @@ export function ActionPanel() {
           </Alert>
         )}
 
-        <Step n={1} label="Ship">
+        <Step n={1} label="Power">
           <ShipEnergyLoadout disabled={disabled} />
         </Step>
 
@@ -292,8 +293,8 @@ function RepairControl({ disabled }: { disabled: boolean }) {
         <SectionLabel>Repair · one a turn, and only cold</SectionLabel>
         {offered.length === 0 ? (
           <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: TABLE.inkSoft }}>
-            This turn makes heat. A repair needs everything off: a plain coast, no
-            scoop, no shot, no scan, shields down.
+            This turn makes heat. A repair needs no energy on any tile: a plain
+            coast, no scoop, no shot, no scan, nothing powered.
           </Typography>
         ) : (
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
@@ -411,7 +412,7 @@ function OrientationControls({ disabled }: { disabled: boolean }) {
       <Tooltip
         title={
           ready.ok || rotating
-            ? 'Flip facing. Needs 1 cube on the thrusters; costs that much heat.'
+            ? 'Flip facing: 1 energy on the thrusters, 1 heat at your check.'
             : `No rotation: ${ready.reason}.`
         }
       >
@@ -482,9 +483,9 @@ function MoveControls({ disabled }: { disabled: boolean }) {
   const compressor = hasWorkingCompressor({ ...plan.me.ship, subsystems: plan.pendingSubsystems })
   const scoop = plan.pendingSubsystems.find(s => s.id === 'scoop')
   /**
-   * Whether coming back to a coast keeps the scoop running. Nothing holds
-   * cubes between turns any more, so there is no standing scoop to read: a
-   * coast keeps whatever the scoop chip was last set to, and starts off.
+   * Whether coming back to a coast keeps the scoop running. The loadout is
+   * cleared every turn, so there is no running scoop to read: a coast keeps
+   * whatever the scoop chip was last set to, and starts off.
    */
   const scoopReady = Boolean(
     scoop && !scoop.isBroken && move.kind === 'coast' && move.scoop
@@ -561,9 +562,9 @@ function MoveControls({ disabled }: { disabled: boolean }) {
 
       {move.kind === 'coast' && (
         <Tooltip
-          title={`Recover fuel equal to this ring's velocity (${plan.scoopGain}). Needs ${
+          title={`Recover fuel equal to this ring's velocity (${plan.scoopGain}). Puts ${
             getSubsystemConfig('scoop').minEnergy
-          } cubes on the scoop. A berth is as good a place to skim from as any.`}
+          } energy on the scoop. A berth is as good a place to skim from as any.`}
         >
           <Box component="span" sx={{ display: 'flex' }}>
             <Chip
@@ -684,7 +685,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
         return (
           <Tooltip
             key={weapon.id}
-            title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · the shot powers it for ${config.minEnergy} cubes, and every cube is heat at your check${
+            title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · the shot puts ${config.minEnergy} energy on it, heat at your check${
               weapon.isBroken ? ' · broken' : ''
             }${noAmmo ? ' · no ammo' : ''}${
               quiet

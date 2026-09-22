@@ -1,13 +1,17 @@
 /**
  * App root: theme, identity, sockets, and which screen is on the table.
  *
- * Routing is three query flags rather than a router dependency:
+ * The video game is one section of a site now (`site/routes.ts`): `/` is the
+ * landing page, `/tools` the things a real table wants and `/card` the card it
+ * prints, and none of those three need a player, a socket or a server. `/play`
+ * is everything that was here before, and the three query flags still decide
+ * the route from any path, because a fork, a seat printed by `yarn seat` and
+ * `scripts/shot.mjs` all hand out `?game=<id>`:
  *   ?recordings=1   the list of finished games
  *   ?replay=<id>    replay one of them
  *   ?game=<id>      drop straight into a live game (forks land here)
- *   (none)          lobby browser → lobby → game
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { Box, Button, CircularProgress, Paper, TextField, Typography } from '@mui/material'
@@ -26,58 +30,40 @@ import { ReplayScreen } from './components/screens/ReplayScreen'
 import { RecordingsBrowser } from './components/screens/RecordingsBrowser'
 import { TableRoot } from './components/table/TableRoot'
 import { AbandonGameButton } from './components/AbandonGameButton'
-
-// ---------------------------------------------------------------------------
-// Routing
-// ---------------------------------------------------------------------------
-
-type Route =
-  | { kind: 'app' }
-  | { kind: 'recordings' }
-  | { kind: 'replay'; id: string }
-  | { kind: 'game'; gameId: string }
-
-function parseRoute(search: string): Route {
-  const params = new URLSearchParams(search)
-  const replay = params.get('replay')
-  if (replay) return { kind: 'replay', id: replay }
-  if (params.get('recordings') === '1') return { kind: 'recordings' }
-  const game = params.get('game') ?? params.get('fork')
-  if (game) return { kind: 'game', gameId: game }
-  return { kind: 'app' }
-}
-
-function useRoute(): { route: Route; goTo: (next: Route) => void } {
-  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.search))
-
-  useEffect(() => {
-    const onPop = () => setRoute(parseRoute(window.location.search))
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [])
-
-  const goTo = useCallback((next: Route) => {
-    const params = new URLSearchParams()
-    if (next.kind === 'replay') params.set('replay', next.id)
-    if (next.kind === 'recordings') params.set('recordings', '1')
-    if (next.kind === 'game') params.set('game', next.gameId)
-    const search = params.toString()
-    window.history.pushState(null, '', search ? `?${search}` : window.location.pathname)
-    setRoute(next)
-  }, [])
-
-  return { route, goTo }
-}
+import { NavigationProvider, useNavigation } from './context/NavigationContext'
+import { SiteHeader } from './site/SiteChrome'
+import { Landing } from './site/Landing'
+import { Tools } from './site/Tools'
+import { Cheatsheet } from './site/Cheatsheet'
 
 // ---------------------------------------------------------------------------
 // Shared chrome
 // ---------------------------------------------------------------------------
 
+/**
+ * A screen of /play before there is a table: the site's bar stays over it, so
+ * somebody who arrived at /play can always get back out, whatever the server
+ * is doing. A table brings its own chrome and takes the whole window.
+ */
+function SiteFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <SiteHeader />
+      {children}
+    </Box>
+  )
+}
+
+/** The whole window, for the moments around a table. */
+function FullScreen({ children }: { children: React.ReactNode }) {
+  return <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>{children}</Box>
+}
+
 function Loading({ message }: { message: string }) {
   return (
     <Box
       sx={{
-        height: '100vh',
+        flex: 1,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -93,7 +79,7 @@ function Loading({ message }: { message: string }) {
 
 function Failure({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <Box sx={{ height: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
+    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 3 }}>
       <Paper sx={{ p: 3, maxWidth: 440 }}>
         <Typography variant="h6" color="error" gutterBottom>
           Something went wrong
@@ -125,7 +111,7 @@ function PlayerNameSetup() {
   }
 
   return (
-    <Box sx={{ height: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
+    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 3 }}>
       <Paper sx={{ p: 4, maxWidth: 420, width: '100%', textAlign: 'center' }}>
         <Typography variant="h4" gutterBottom>
           Dangerous Inclinations
@@ -201,8 +187,16 @@ function LiveGame({
   return (
     <GameProvider
       gameId={gameId}
-      fallback={<Loading message="Setting up the table…" />}
-      renderError={message => <Failure message={message} />}
+      fallback={
+        <FullScreen>
+          <Loading message="Setting up the table…" />
+        </FullScreen>
+      }
+      renderError={message => (
+        <SiteFrame>
+          <Failure message={message} />
+        </SiteFrame>
+      )}
     >
       <GameScreens headerRight={headerRight} onLeave={onLeave} />
     </GameProvider>
@@ -216,15 +210,31 @@ function LiveGame({
 function LobbyFlow({ onOpenRecordings }: { onOpenRecordings: () => void }) {
   const { phase, gameId, joinLobby, isRestoringSession, returnToLobby } = useLobby()
 
-  if (isRestoringSession) return <Loading message="Finding your seat…" />
+  if (isRestoringSession) {
+    return (
+      <SiteFrame>
+        <Loading message="Finding your seat…" />
+      </SiteFrame>
+    )
+  }
 
   switch (phase) {
     case 'browser':
-      return <LobbyBrowser onLobbyJoined={joinLobby} onOpenRecordings={onOpenRecordings} />
+      return (
+        <SiteFrame>
+          <LobbyBrowser onLobbyJoined={joinLobby} onOpenRecordings={onOpenRecordings} />
+        </SiteFrame>
+      )
     case 'lobby':
       return <LobbyScreen />
     case 'game':
-      if (!gameId) return <Loading message="Waiting for the game to start…" />
+      if (!gameId) {
+        return (
+          <FullScreen>
+            <Loading message="Waiting for the game to start…" />
+          </FullScreen>
+        )
+      }
       return (
         <LiveGame gameId={gameId} headerRight={<AbandonGameButton />} onLeave={returnToLobby} />
       )
@@ -234,12 +244,29 @@ function LobbyFlow({ onOpenRecordings }: { onOpenRecordings: () => void }) {
 function AuthenticatedApp({ onOpenRecordings }: { onOpenRecordings: () => void }) {
   const { isLoading, error, isAuthenticated, isNewPlayer, canRetry, retry } = usePlayer()
 
-  if (isLoading) return <Loading message="Connecting to the server…" />
+  if (isLoading) {
+    return (
+      <SiteFrame>
+        <Loading message="Connecting to the server…" />
+      </SiteFrame>
+    )
+  }
   // A transient failure keeps the saved seat: retry in place rather than reloading.
-  if (error)
-    return <Failure message={error} onRetry={canRetry ? retry : () => window.location.reload()} />
+  if (error) {
+    return (
+      <SiteFrame>
+        <Failure message={error} onRetry={canRetry ? retry : () => window.location.reload()} />
+      </SiteFrame>
+    )
+  }
   if (!isAuthenticated) return null
-  if (isNewPlayer) return <PlayerNameSetup />
+  if (isNewPlayer) {
+    return (
+      <SiteFrame>
+        <PlayerNameSetup />
+      </SiteFrame>
+    )
+  }
 
   return (
     <LobbyProvider>
@@ -251,38 +278,47 @@ function AuthenticatedApp({ onOpenRecordings }: { onOpenRecordings: () => void }
 // ---------------------------------------------------------------------------
 
 function RootRouter() {
-  const { route, goTo } = useRoute()
+  const { route, goTo } = useNavigation()
 
-  if (route.kind === 'replay') {
-    return <ReplayScreen recordingId={route.id} onExit={() => goTo({ kind: 'recordings' })} />
+  switch (route.kind) {
+    case 'landing':
+      return <Landing />
+
+    case 'tools':
+      return <Tools tool={route.tool} />
+
+    case 'card':
+      return <Cheatsheet />
+
+    case 'replay':
+      return <ReplayScreen recordingId={route.id} onExit={() => goTo({ kind: 'recordings' })} />
+
+    case 'recordings':
+      return (
+        <RecordingsBrowser
+          onOpen={id => goTo({ kind: 'replay', id })}
+          onExit={() => goTo({ kind: 'play' })}
+        />
+      )
+
+    case 'game':
+      return (
+        <PlayerProvider>
+          <WebSocketProvider>
+            <LiveGame gameId={route.gameId} onLeave={() => goTo({ kind: 'play' })} />
+          </WebSocketProvider>
+        </PlayerProvider>
+      )
+
+    case 'play':
+      return (
+        <PlayerProvider>
+          <WebSocketProvider>
+            <AuthenticatedApp onOpenRecordings={() => goTo({ kind: 'recordings' })} />
+          </WebSocketProvider>
+        </PlayerProvider>
+      )
   }
-
-  if (route.kind === 'recordings') {
-    return (
-      <RecordingsBrowser
-        onOpen={id => goTo({ kind: 'replay', id })}
-        onExit={() => goTo({ kind: 'app' })}
-      />
-    )
-  }
-
-  if (route.kind === 'game') {
-    return (
-      <PlayerProvider>
-        <WebSocketProvider>
-          <LiveGame gameId={route.gameId} onLeave={() => goTo({ kind: 'app' })} />
-        </WebSocketProvider>
-      </PlayerProvider>
-    )
-  }
-
-  return (
-    <PlayerProvider>
-      <WebSocketProvider>
-        <AuthenticatedApp onOpenRecordings={() => goTo({ kind: 'recordings' })} />
-      </WebSocketProvider>
-    </PlayerProvider>
-  )
 }
 
 export default function App() {
@@ -292,7 +328,9 @@ export default function App() {
       {/* Which renderer draws the board is a preference of the whole app: a
           replay and a live table both read it. */}
       <BoardModeProvider>
-        <RootRouter />
+        <NavigationProvider>
+          <RootRouter />
+        </NavigationProvider>
       </BoardModeProvider>
     </ThemeProvider>
   )

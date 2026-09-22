@@ -45,7 +45,7 @@ describe("agent seat tooling", () => {
     expect(shot).toMatchObject({ data: { subsystemId: "side-3", count: 3 } });
     // A salvo of any size is one use of the tile, and the launch powers it:
     // the builder has no cubes to place.
-    expect(built.actions.some((a) => a.type === "set_standing_power")).toBe(false);
+    expect(built.actions.some((a) => a.type === "power")).toBe(false);
     const result = executeTurn(state, built.actions);
     expect(result.errors).toBeUndefined();
     expect(result.gameState.missiles).toHaveLength(3);
@@ -89,26 +89,33 @@ describe("agent seat tooling", () => {
 
   it("places no cubes for a burn: the action powers the engines", () => {
     const built = buildTurn(viewFor(start(), "p1"), { move: { kind: "burn", intensity: "hard" } });
-    expect(built.actions.some((a) => a.type === "set_standing_power")).toBe(false);
+    expect(built.actions.some((a) => a.type === "power")).toBe(false);
   });
 
   it("tells an agent that asks to power a tile an action would power anyway", () => {
     const built = buildTurn(viewFor(start(), "p1"), { power: { engines: 3 } });
     expect(built.notes.some((n) => n.includes("powered by the action that uses it"))).toBe(true);
-    expect(built.actions.some((a) => a.type === "set_standing_power")).toBe(false);
+    expect(built.actions.some((a) => a.type === "power")).toBe(false);
   });
 
-  it("keeps a standing tile where it is unless told otherwise", () => {
+  it("powers only what the intent names: last turn's cubes come off at the start", () => {
     const state = withPower(start(), "p1", "side-2", 2);
-    const built = buildTurn(viewFor(state, "p1"), { move: { kind: "coast" } });
-    expect(built.actions.some((a) => a.type === "set_standing_power")).toBe(false);
-    const off = buildTurn(viewFor(state, "p1"), { unpower: ["side-2"] });
-    expect(off.actions).toContainEqual(
-      expect.objectContaining({
-        type: "set_standing_power",
-        data: { subsystemId: "side-2", amount: 0 },
-      })
-    );
+    const coasting = buildTurn(viewFor(state, "p1"), { move: { kind: "coast" } });
+    expect(coasting.actions.some((a) => a.type === "power")).toBe(false);
+    const walled = buildTurn(viewFor(state, "p1"), {
+      power: { "side-2": 4 },
+      move: { kind: "burn", intensity: "soft" },
+    });
+    // Power runs first, then the move.
+    expect(walled.actions[0]).toMatchObject({
+      type: "power",
+      sequence: 1,
+      data: { subsystemId: "side-2", amount: 4 },
+    });
+    expect(walled.actions.find((a) => a.type === "burn")?.sequence).toBe(2);
+    const result = executeTurn(state, walled.actions);
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(4 + 1);
   });
 
   it("the engine's bot also decides legally from the same view", () => {

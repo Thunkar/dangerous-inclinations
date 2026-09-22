@@ -1,9 +1,9 @@
 /**
  * Action processing for one turn.
  *
- * Order: deallocations, allocations, then tactical actions in the sequence
- * the player chose. Each action is validated against the state as it stands
- * when its turn comes, then applied. Any failure aborts the whole turn.
+ * Order: the tactical actions (power, rotate, one move, fire, scan) in the
+ * sequence the player chose. Each action is validated against the state as it
+ * stands when its turn comes, then applied. Any failure aborts the whole turn.
  */
 import type {
   GameState,
@@ -11,7 +11,7 @@ import type {
   CoastAction,
   BurnAction,
   RotateAction,
-  SetStandingPowerAction,
+  PowerAction,
   FireWeaponAction,
   WellTransferAction,
   ScanAction,
@@ -41,7 +41,7 @@ import {
 } from "./ship.ts";
 import {
   validateActionSequence,
-  validateSetStandingPowerAction,
+  validatePowerAction,
   validateRotateAction,
   validateCoastAction,
   validateBurnAction,
@@ -95,9 +95,6 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
     return null;
   };
 
-  const standing = actions.filter(
-    (a): a is SetStandingPowerAction => a.type === "set_standing_power"
-  );
   const repairs = actions.filter((a): a is RepairAction => a.type === "repair");
   const tactical = actions
     .filter(isTacticalAction)
@@ -117,11 +114,6 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
 
-  // Switches first, before anything is flown.
-  for (const a of standing) {
-    const err = run(a, validateSetStandingPowerAction, processSetStandingPower);
-    if (err) return { success: false, state, events: [], errors: err };
-  }
   // Ships alive when the turn began: shots at one of these that dies mid-turn are skipped, not errors.
   const aliveAtStart = new Set(
     state.players.filter((p) => p.hasDeployed && !isDestroyed(p.ship)).map((p) => p.id)
@@ -130,6 +122,9 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
   for (const a of tactical) {
     let err: string[] | null = null;
     switch (a.type) {
+      case "power":
+        err = run(a, validatePowerAction, processPower);
+        break;
       case "rotate":
         err = run(a, validateRotateAction, processRotation);
         break;
@@ -203,28 +198,28 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
 // ---------------------------------------------------------------------------
 
 /**
- * Switch a standing tile on or off. `amount` is the setting, not a delta: a
- * shield dropping from 4 to 2 will cost two at the check instead of four, and
- * one going dark costs nothing.
+ * Put energy on a shield, a rack or a sensor. It works from here until its
+ * owner's next turn and costs its cubes at this turn's check. Powering is not
+ * using: the tile stays face-down, but it has done its one thing this turn, so
+ * a rack powered now cannot also fire and a sensor cannot also scan. A sensor
+ * widens the critical range of the shots sequenced after it, not before.
  */
-function processSetStandingPower(state: GameState, action: SetStandingPowerAction): Step {
+function processPower(state: GameState, action: PowerAction): Step {
   const events: EventDraft[] = [];
   const next = withPlayer(state, action.playerId, (p) => {
     const sub = findSubsystem(p.ship, action.data.subsystemId)!;
-    const previous = sub.allocatedEnergy;
-    const amount = action.data.amount;
-    if (amount === previous) return p;
-    const ship = updateSubsystem(p.ship, action.data.subsystemId, {
+    const amount = action.data.amount ?? getSubsystemConfig(sub.type).minEnergy;
+    const ship = updateSubsystem(p.ship, sub.id, {
       allocatedEnergy: amount,
-      isPowered: amount > 0,
-      isStanding: amount > 0,
+      isPowered: true,
+      usedThisTurn: true,
     });
     events.push({
-      type: "standing_power_set",
+      type: "subsystem_powered",
       playerId: action.playerId,
-      subsystemId: action.data.subsystemId,
+      subsystemId: sub.id,
+      ...(sub.isRevealed ? { subsystemType: sub.type } : {}),
       amount,
-      previous,
     });
     return { ...p, ship };
   });
@@ -293,7 +288,7 @@ function processBurn(state: GameState, action: BurnAction): Step {
   let heat = 0;
   const next = withPlayer(state, action.playerId, (p) => {
     const drifted = applyOrbitalMovement(p.ship);
-    const burned = applyBurn(drifted, action.data.burnIntensity, action.data.sectorAdjustment ?? 0);
+    const burned = applyBurn(drifted, action.data.burnIntensity, action.data.sectorAdjustment);
     massSpent = burned.massSpent;
     const used = useSubsystem(
       burned.ship,
@@ -324,7 +319,7 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
   const player = state.players.find((p) => p.id === action.playerId)!;
   const from = positionOf(player.ship);
   const jump = findJump(from, action.data.destinationWellId)!;
-  const sectorAdjustment = action.data.sectorAdjustment ?? 0;
+  const sectorAdjustment = action.data.sectorAdjustment;
   // Validated above: the phased landing is inside the arrival arc.
   const destination = phasedJumpDestination(jump, sectorAdjustment)!;
   let heat = 0;

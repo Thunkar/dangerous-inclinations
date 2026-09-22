@@ -2,11 +2,12 @@
  * Your ship: hull, heat, fuel, the hold, and missile ammo, which is private
  * and so lives here rather than under a tile.
  *
- * Each track shows three things: where you are (solid), where this turn leaves
- * you (ghost), and the worst a rival could make of it (hatched). Heat carries
- * between turns, so its divider marks the dissipation: left of it goes, right
- * of it stays. Without a plan (a replay, someone else's turn) the ghosts
- * disappear.
+ * Each track shows where you are (solid) and where this turn leaves you
+ * (ghost). Heat carries between turns, so its divider marks the dissipation:
+ * left of it goes, right of it stays. Without a plan (a replay, someone else's
+ * turn) the ghosts disappear, and the heat track hatches the worst a rival can
+ * still make of it: the heat your shields would take on absorbing before your
+ * next turn.
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import {
@@ -15,6 +16,7 @@ import {
   SHIELD_HEAT_PER_POINT,
   getMissileStats,
   getWellName,
+  heatAfterCheck,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { CargoChits, PipTrack } from '../common/Tokens'
@@ -58,44 +60,45 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const maxFuel = stats?.maxReactionMass ?? 10
 
   const heatNow = me.ship.heat.currentHeat
-  const pending = plan?.pendingSubsystems ?? me.ship.subsystems
-  const poweredShields = pending.filter(s => s.type === 'shields' && s.isPowered && !s.isBroken)
   /**
-   * The whole heat rule: every cube on the loadout is a point of heat at the
-   * check, however it got there (RULES §Energy and Heat). Read off the tiles as
-   * the turn is built, so a wall's standing cost and a burn's draw show in the
-   * same number before anything is committed.
+   * The whole heat rule: every point of energy on the loadout is a point of
+   * heat at the check (RULES §Energy and Heat). While you plan, the loadout is
+   * the plan's, and it starts empty: your turn clears last turn's energy, so
+   * what the view still shows on your tiles is never counted again. Any other
+   * time the check has already billed what your tiles hold, so there is no
+   * ghost.
    */
-  const cubes = pending.reduce(
-    (sum, s) => sum + (s.isPowered && !s.isBroken ? s.allocatedEnergy : 0),
-    0
+  const planning = plan?.isMyTurn === true
+  const heatAfter = planning ? plan.projectedHeat : heatNow
+  /**
+   * Shields that are up can still add heat before your next turn: each point
+   * they absorb spends SHIELD_ENERGY_PER_POINT energy and puts
+   * SHIELD_HEAT_PER_POINT heat on the track, after this check, so it is billed
+   * at the next one. While you plan they are the shields the plan powers; any
+   * other time they are the ones your last turn left up.
+   */
+  const shieldTiles = (planning ? plan.pendingSubsystems : me.ship.subsystems).filter(
+    s => s.type === 'shields' && s.isPowered && !s.isBroken
   )
-  const standingHeat = poweredShields.reduce((sum, s) => sum + s.allocatedEnergy, 0)
-  const heatAfter = heatNow + cubes
-  /**
-   * Worst case on top of that: every powered shield spends its cubes and every
-   * point absorbed becomes SHIELD_HEAT_PER_POINT heat. A tile buys one point
-   * per SHIELD_ENERGY_PER_POINT cubes, so the cubes are not the damage, and a
-   * tile that absorbs goes dark, so it stops charging its standing cost, which
-   * is why only the difference is hatched.
-   */
-  const shieldsOnly = poweredShields.reduce(
+  const shieldsOnly = shieldTiles.reduce(
     (sum, s) => sum + Math.floor(s.allocatedEnergy / SHIELD_ENERGY_PER_POINT),
     0
   )
-  // A tile that absorbs spends its cubes and goes dark, so it trades its
-  // standing cost for the absorption heat rather than paying both. A rack
-  // needs no line of its own any more: it is up, so its cubes are in `cubes`
-  // whether it rolls or not.
-  const shieldHeat = Math.max(0, shieldsOnly * SHIELD_HEAT_PER_POINT - standingHeat)
-  const worstHeat = heatAfter + shieldHeat
+  const shieldHeat = shieldsOnly * SHIELD_HEAT_PER_POINT
   const heatMax = MAX_HEAT
   const overHeat = Math.max(0, heatAfter - MAX_HEAT)
-  const worstOverHeat = Math.max(0, worstHeat - MAX_HEAT)
-  /** Hull the shields themselves would cost, over and above the planned turn. */
-  const shieldHull = worstOverHeat - overHeat
   /** What is still on the track when the next turn starts. */
-  const carried = Math.max(0, Math.min(heatAfter, MAX_HEAT) - dissipation)
+  const carried = heatAfterCheck(heatAfter, dissipation)
+  /**
+   * The worst your next turn can start from: the track as this check leaves it
+   * (or as it stands, between your turns) plus everything the shields could
+   * absorb. Past the redline that is hull at your next check before you do
+   * anything at all.
+   */
+  const nextTurnWorst = (planning ? carried : heatNow) + shieldHeat
+  const shieldHull = shieldHeat > 0 ? Math.max(0, nextTurnWorst - MAX_HEAT) : 0
+  /** Hatched only between your turns, when the track is where absorption lands. */
+  const worstHeat = planning ? undefined : heatNow + shieldHeat
 
   const fuelNow = me.ship.reactionMass
   const fuelAfter = plan ? plan.projectedFuel : fuelNow
@@ -230,10 +233,10 @@ export function StatusBlock({ accent }: { accent?: string }) {
         <Tooltip
           title={
             [
-              standingHeat > 0 ? `${standingHeat} from shields.` : '',
+              planning && heatAfter > heatNow ? `${heatAfter - heatNow} energy on your tiles.` : '',
               `Dissipates ${dissipation}, carries ${carried}.`,
               overHeat > 0 ? `−${overHeat} hull.` : `Over ${MAX_HEAT} costs hull.`,
-              shieldHeat > 0 ? `+${shieldHeat} if shields absorb.` : '',
+              shieldHeat > 0 ? `+${shieldHeat} by your next turn if shields absorb.` : '',
             ]
               .filter(Boolean)
               .join(' ')
@@ -257,11 +260,12 @@ export function StatusBlock({ accent }: { accent?: string }) {
                       →{heatAfter}
                     </Box>
                   )}
-                  {shieldHeat > 0 && (
+                  {/* Between turns only, beside the hatch it reads: while you plan it is the next turn's, and the tooltip says so. */}
+                  {!planning && shieldHeat > 0 && (
                     <Box
                       component="span"
                       sx={{
-                        color: worstOverHeat > overHeat ? TABLE.danger : TABLE.inkSoft,
+                        color: shieldHull > 0 ? TABLE.danger : TABLE.inkSoft,
                         fontWeight: 400,
                       }}
                     >
@@ -308,7 +312,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         </Tooltip>
         {shieldHull > 0 && (
           <Tooltip
-            title={`Absorbing ${shieldsOnly} costs ${shieldsOnly * SHIELD_HEAT_PER_POINT} heat: ${worstHeat} at the check, ${worstOverHeat} hull.`}
+            title={`Absorbing ${shieldsOnly} puts ${shieldHeat} heat on the track before your next turn: it would start at ${nextTurnWorst}, and your next check would cost ${shieldHull} hull before you power or use anything.`}
           >
             <Typography
               data-testid="shield-heat-warning"
@@ -321,7 +325,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
                 lineHeight: 1.2,
               }}
             >
-              −{shieldHull} hull if shields absorb
+              −{shieldHull} hull next check if shields absorb
             </Typography>
           </Tooltip>
         )}

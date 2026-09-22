@@ -412,6 +412,7 @@ __metadata:
     "@emotion/react": "npm:^11.14.0"
     "@emotion/styled": "npm:^11.14.1"
     "@eslint/js": "npm:^9.36.0"
+    "@fontsource-variable/oswald": "npm:^5.3.0"
     "@mui/icons-material": "npm:^7.3.5"
     "@mui/material": "npm:^7.3.4"
     "@react-three/drei": "npm:10.7.8"
@@ -977,6 +978,13 @@ __metadata:
     fastify-plugin: "npm:^5.0.0"
     ws: "npm:^8.16.0"
   checksum: 10c0/c0bad9e4d34e69fb08b3899e25e18ca85a7474f94c252126b91b0518a17061158d724cfc5a2467e3183e220a9f10830219058f6e176f876df25f28b3f8b231c9
+  languageName: node
+  linkType: hard
+
+"@fontsource-variable/oswald@npm:^5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/oswald@npm:5.3.0"
+  checksum: 10c0/5cdbcac71cbbae26f6eefd25b8970e5e533d22f30b8e5100c05b42d7ae0290fc9163c9384ed2b80bf9a2a324b972cf714767d9bd1c43632b0c4e6cdbcb2b2eff
   languageName: node
   linkType: hard
 

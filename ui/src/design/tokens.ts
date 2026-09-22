@@ -11,13 +11,7 @@ export const TABLE = {
   plateEdge: 'rgba(132,150,142,0.20)',
   line: 'rgba(132,150,142,0.12)',
 
-  /**
-   * Legacy names kept so every screen keeps compiling. On a dark table both
-   * "ink" and "card" mean text: bone white on the plates.
-   */
-  card: '#e0e3db',
-  cardDark: '#252e30',
-  cardEdge: 'rgba(132,150,142,0.20)',
+  /** Text: bone white on the plates. */
   ink: '#e0e3db',
   inkSoft: '#a4b2aa',
   inkFaint: '#8d9f95',
@@ -26,9 +20,6 @@ export const TABLE = {
   accent: '#ddaa78',
   accentDim: '#ad8057',
   accentGlow: 'rgba(221,170,120,0.35)',
-  /** Older aliases for the accent. */
-  brick: '#ddaa78',
-  gold: '#ddaa78',
 
   /** Data colours. */
   hull: '#46d191',

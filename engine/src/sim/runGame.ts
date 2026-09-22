@@ -28,6 +28,7 @@ import {
 import { createGame, submitLoadout } from "../game/setup.ts";
 import { assignMissionId, buildPrimaryDeck, cardForPlayer } from "../game/missions/missionDeck.ts";
 import { isPrimaryType } from "../models/missions.ts";
+import { isPowerableType } from "../models/subsystems.ts";
 import { rankPlayers } from "../game/missions/missionChecks.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
@@ -77,14 +78,14 @@ export interface TurnStat {
   jumped: boolean;
   scooped: boolean;
   shotsFired: number;
-  /** Cubes on shields at the end of the turn (after any refunds). */
+  /** Cubes on shields at the end of the turn: the wall the others will face. */
   shieldCubes: number;
-  /** Cubes allocated to any subsystem at the end of the turn. */
   /**
-   * Cubes left standing at the end of the turn: a wall, a rack, a sensor. This
-   * is what the ship pays at every check for as long as it leaves them up.
+   * Cubes on shields, racks and sensors at the end of the turn, powered or
+   * left up by firing or scanning: what works on the other players' turns until
+   * this player's next one, and what they paid at this turn's check to have it.
    */
-  standingEnergy: number;
+  upEnergy: number;
   heatAtCheck: number;
   dissipation: number;
   heatDamage: number;
@@ -333,7 +334,9 @@ function turnStat(turn: number, playerId: string, events: GameEvent[], after: Ga
     scooped: events.some((e) => e.type === "coasted" && e.playerId === playerId && e.scooped),
     shotsFired: events.filter((e) => e.type === "weapon_fired" && e.attackerId === playerId).length,
     shieldCubes: shields.reduce((sum, s) => sum + s.allocatedEnergy, 0),
-    standingEnergy: player.ship.subsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0),
+    upEnergy: player.ship.subsystems
+      .filter((s) => isPowerableType(s.type))
+      .reduce((sum, s) => sum + s.allocatedEnergy, 0),
     heatAtCheck: heat ? heat.heat : 0,
     dissipation: heat ? heat.dissipation : getDissipationCapacity(player.ship.subsystems),
     heatDamage: heat ? heat.damage : 0,

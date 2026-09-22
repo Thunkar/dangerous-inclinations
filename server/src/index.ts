@@ -59,9 +59,6 @@ fastify.get("/api/health", async () => {
   };
 });
 
-// Legacy path kept for existing probes.
-fastify.get("/health", async () => ({ status: "ok" }));
-
 const signals = ["SIGINT", "SIGTERM"];
 signals.forEach((signal) => {
   process.on(signal, async () => {

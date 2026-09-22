@@ -34,13 +34,18 @@ export type RevealReason =
 export type GameEvent =
   | (Base & { type: "respawned"; playerId: string; position: Position })
   | (Base & {
-      type: "standing_power_set";
+      /**
+       * A `power` action put energy on a shield, a rack or a sensor. Public, as
+       * the cubes are. Powering reveals nothing, so `subsystemType` is only
+       * present when the tile is already face-up: on a face-down tile it would
+       * tell the table what the cubes only hint at.
+       */
+      type: "subsystem_powered";
       playerId: string;
       subsystemId: SubsystemId;
-      /** Cubes the tile now holds; 0 is off. */
+      subsystemType?: SubsystemType;
+      /** Cubes the tile now holds. */
       amount: number;
-      /** What it held before, so the log can say which way the switch went. */
-      previous: number;
     })
   | (Base & { type: "rotated"; playerId: string; facing: Facing })
   | (Base & {
@@ -178,7 +183,6 @@ export type GameEvent =
       playerId: string;
       /** Heat on the track when the check ran, the loadout's cubes included. */
       heat: number;
-      /** Of that, the cubes powered shields charged for being on. */
       /** The part of `heat` that is cubes sitting on the loadout. */
       cubes: number;
       dissipation: number;
@@ -187,7 +191,6 @@ export type GameEvent =
       /** Heat that rides into the next turn: min(heat, MAX_HEAT) - dissipation. */
       carried: number;
     })
-  | (Base & { type: "turn_skipped"; playerId: string; remaining: number })
   | (Base & {
       type: "scanned";
       scannerId: string;

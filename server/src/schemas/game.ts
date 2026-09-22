@@ -109,11 +109,12 @@ const RotateActionSchema = z
   })
   .strict();
 
-const SetStandingPowerActionSchema = z
+/** Power a shield, a rack or a sensor; `amount` absent is the tile's minimum. */
+const PowerActionSchema = z
   .object({
     ...base,
-    type: z.literal("set_standing_power"),
-    data: z.object({ subsystemId: id, amount: int }).strict(),
+    type: z.literal("power"),
+    data: z.object({ subsystemId: id, amount: int.optional() }).strict(),
   })
   .strict();
 
@@ -147,8 +148,19 @@ const WellTransferActionSchema = z
   .object({
     ...base,
     type: z.literal("well_transfer"),
-    /** Phasing is optional: an older client that omits it lands on the matching sector. */
-    data: z.object({ destinationWellId: id, sectorAdjustment: int.optional() }).strict(),
+    data: z.object({ destinationWellId: id, sectorAdjustment: int }).strict(),
+  })
+  .strict();
+
+/**
+ * Name the tile a cold ship repairs at its heat check (RULES §Energy and Heat).
+ * It has no sequence: it happens at the check, and only if the ship is at 0.
+ */
+const RepairActionSchema = z
+  .object({
+    ...base,
+    type: z.literal("repair"),
+    data: z.object({ subsystemId: id }).strict(),
   })
   .strict();
 
@@ -156,10 +168,11 @@ export const PlayerActionSchema = z.discriminatedUnion("type", [
   CoastActionSchema,
   BurnActionSchema,
   RotateActionSchema,
-  SetStandingPowerActionSchema,
+  PowerActionSchema,
   FireWeaponActionSchema,
   ScanActionSchema,
   WellTransferActionSchema,
+  RepairActionSchema,
 ]);
 
 export const SubmitTurnSchema = z

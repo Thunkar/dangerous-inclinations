@@ -64,14 +64,11 @@ function defense(plan: ActionPlan, situation: TacticalSituation): number {
   if (plan.repairs !== undefined)
     score += MOBILITY.has(plan.repairs) ? MOBILITY_REPAIR_VALUE : REPAIR_VALUE;
   const threatened = situation.threats.length > 0 || situation.incomingMissiles > 0;
-  // A wall the plan raises, or one already up that the plan does not lower.
-  const switched = new Map(
-    plan.actions
-      .filter((a) => a.type === "set_standing_power")
-      .map((a) => [a.data.subsystemId, a.data.amount])
-  );
-  const shieldsPowered = situation.status.shields.some(
-    (s) => (switched.get(s.id) ?? s.allocatedEnergy) > 0
+  // A wall the plan powers. The loadout is cleared at the start of the turn,
+  // so what a shield held last turn does not count: only this turn's power.
+  const shieldIds = new Set(situation.status.shields.map((s) => s.id));
+  const shieldsPowered = plan.actions.some(
+    (a) => a.type === "power" && shieldIds.has(a.data.subsystemId)
   );
   if (threatened) score += shieldsPowered ? 15 : -15;
   // Heading for repairs when the hull is low is defence too.

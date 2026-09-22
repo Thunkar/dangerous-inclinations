@@ -7,17 +7,21 @@
  * actions refer to subsystems by that id.
  *
  * Energy and heat, which are one rule:
- * - **A tile's cubes are heat at its owner's heat check.** That is all of it.
- * - Nobody places cubes. A tile that acts is powered by the action that uses
- *   it, to exactly the draw that action needs, and goes dark at the end of the
- *   turn: it is still carrying them when the check runs, so acting costs its
- *   cubes and nothing else does.
- * - The exceptions are the tiles that work while their owner is not acting:
- *   shields absorb, a ballistic rack intercepts and a sensor array widens the
- *   critical range. Those are switched on and stay on until switched off
- *   (`STANDING_SUBSYSTEM_TYPES`), so they are carrying cubes at every check
- *   and pay at every one. That is what prices holding a wall, a point-defence
- *   turret or a firing solution up between turns.
+ * - **Every cube on the loadout is a point of heat at its owner's check.**
+ *   That is all of it.
+ * - Every action puts energy on the tile it uses, to exactly the draw that
+ *   action needs. Nobody places cubes for an action.
+ * - Powering is an action too, for the three tiles that work on other
+ *   players' turns (`POWERABLE_TYPES`): shields (2 or 4), a ballistic rack (2)
+ *   and a sensor array (2). A tile with energy on it works until its owner's
+ *   next turn: shields absorb, a rack shoots down missiles, a sensor widens the
+ *   critical range. So a rack that fired is also up, and a sensor that scanned
+ *   widens the range of every shot taken after the scan.
+ * - Each tile does one thing a turn: it is powered or it is used.
+ * - The energy stays on the tile until the start of its owner's next turn,
+ *   when the loadout is cleared. Nothing is ever switched off: a tile is off
+ *   unless something put energy on it this turn, so a wall, a rack or a sensor
+ *   held up turn after turn is powered, and paid for, turn after turn.
  * - There is no reactor limit. Heat is the only limit: a ship may light
  *   everything it owns at once and take the hull damage for it.
  * - Heat is a track that does not reset: at the owner's heat check anything
@@ -27,12 +31,13 @@
  * Hidden information:
  * - Loadout tiles start face-down (`isRevealed: false`). A tile flips face-up
  *   the first time it does something visible (fires, absorbs, scans, discounts,
- *   prevents heat damage) or when it is broken by a critical hit.
+ *   prevents heat damage) or when it is broken by a critical hit. Powering a
+ *   tile is not using it and reveals nothing.
  * - Fixed systems are always revealed.
- * - Energy on a tile is public even while the tile is face-down, and because
- *   only a standing tile carries cubes between turns, cubes sitting on a
- *   face-down slot say which of the three it is: a loaded forward slot can
- *   only be a sensor array, and a side slot at 4 can only be a full shield.
+ * - Energy on a tile is public even while the tile is face-down. Using a tile
+ *   turns it face-up, so a face-down slot carrying cubes between turns was
+ *   powered, and the cubes say which of three it can be: 2 is a half shield,
+ *   a rack or a sensor, and 4 only a full shield.
  */
 
 export type SubsystemType =
@@ -79,45 +84,26 @@ export const SLOT_IDS: readonly SubsystemId[] = [
 ];
 
 /**
- * Slots no critical may name, and since a critical is the only thing that
- * breaks a tile, slots that cannot break at all.
+ * The tiles a `power` action may put energy on.
  *
- * The fuel scoop is the way home. Broken tiles are only repaired at a station,
- * a dry ship cannot burn or jump, and a coast moves it along the ring it is
- * already on, so a critical on the scoop of a ship with an empty tank, away
- * from a planet's station ring, takes that player out of the game with no move
- * that leads back. Every other tile a critical can break costs a capability;
- * this one costs the rest of the evening.
+ * Every other tile only does anything at the moment an action uses it, and
+ * that action powers it. These three work on other players' turns, so their
+ * cubes have to be on the board before the thing they answer happens: shields
+ * absorb a shot fired on somebody else's turn, a rack intercepts a missile
+ * arriving on somebody else's turn, and a sensor array widens the critical
+ * range of every shot taken after it is up. A rack that fires and a sensor
+ * that scans are up anyway, since the action left its cubes on the tile.
  */
-export const CRITICAL_PROOF_IDS: readonly SubsystemId[] = ["scoop"];
-
-export function isCriticalTarget(id: SubsystemId): boolean {
-  return !CRITICAL_PROOF_IDS.includes(id);
-}
-
-/**
- * The tiles a player switches on rather than a tile an action powers.
- *
- * Every other tile is powered by the action that uses it and is dark the rest
- * of the time, because it only does anything at the moment it is used: there
- * was never a decision in placing its cubes, only one legal number and the
- * chance of getting it wrong. These three work while their owner is not
- * acting, so their cubes have to be on the board before the thing they answer
- * happens: shields absorb a shot fired on somebody else's turn, a rack
- * intercepts a missile arriving on somebody else's turn, and a sensor array
- * widens the critical range of every weapon aboard while it is up.
- */
-export const STANDING_SUBSYSTEM_TYPES: readonly SubsystemType[] = [
+export const POWERABLE_TYPES: readonly SubsystemType[] = [
   "shields",
   "ballistic_rack",
   "sensor_array",
 ];
 
-/** True for a tile its owner switches on, false for one an action powers. */
-export function isStandingType(type: SubsystemType): boolean {
-  return STANDING_SUBSYSTEM_TYPES.includes(type);
+/** True for a tile a `power` action may put energy on. */
+export function isPowerableType(type: SubsystemType): boolean {
+  return POWERABLE_TYPES.includes(type);
 }
-
 
 /**
  * Energy a shield spends per point of damage it absorbs: the same two as the
@@ -127,8 +113,8 @@ export function isStandingType(type: SubsystemType): boolean {
  * which made every 2-damage weapon (missiles, the rack, and the railgun
  * against two tiles) permanently unable to reach a hull: 66% of the shots a
  * bot declined to take at a Destroy target were declined because they would
- * have been absorbed whole. The cubes are not destroyed: they return to the
- * cubes are spent and the tile goes dark until it is switched on again.
+ * have been absorbed whole. The cubes that absorb are spent: the tile is down
+ * by that much until its owner powers it again on their next turn.
  */
 export const SHIELD_ENERGY_PER_POINT = 2;
 
@@ -175,14 +161,6 @@ export interface Subsystem {
   type: SubsystemType;
   allocatedEnergy: number;
   isPowered: boolean;
-  /**
-   * True when the owner switched this tile on and means to leave it on. False
-   * when an action powered it for its own use, which is every other tile and
-   * also a standing one that fired or scanned while it was dark: those cubes
-   * come off at the end of the turn (`clearDerivedPower`), so nobody is billed
-   * at every check for a rack they fired once.
-   */
-  isStanding: boolean;
   usedThisTurn: boolean;
   /**
    * Interception rolls a ballistic rack has made this player-turn. A rack's
@@ -279,7 +257,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     energyStep: SHIELD_ENERGY_PER_POINT,
     /**
      * Forward or side. A screen does not care which way the ship points, and
-     * the bow needs more than one tile that can stand powered or a loaded
+     * the bow needs more than one tile that can be powered or a loaded
      * forward slot is a certain sensor array. Measured as a build it is never
      * the best bow and never a bad one, which is the profile of an option
      * worth having rather than a lever.
@@ -380,8 +358,8 @@ export function canSubsystemFunction(subsystem: Subsystem): boolean {
  * missile made one rack the answer to any number of launchers, which is the
  * same asymmetry the other way round.
  *
- * A ship that expects more than four at once carries a second rack, pays its
- * cubes in heat at every check like the first, and answers eight. Read off the
+ * A ship that expects more than four at once carries a second rack, powers it
+ * every turn like the first, and answers eight. Read off the
  * magazine so an experiment that changes one changes both.
  */
 export function interceptsPerRack(): number {

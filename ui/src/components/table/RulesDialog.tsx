@@ -34,19 +34,17 @@ import {
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { useGame } from '../../context/GameContext'
+// The turn is stated once. The cheatsheet and the printed card read the same
+// list, so none of them can disagree about what order a turn runs in.
+import { QUIET_TURN, TURN_STEPS } from '../../site/turn'
 
-/** What one radiator sheds, read from the tile so this card cannot drift. */
+/** What one radiator dissipates, read from the tile so this card cannot drift. */
 const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
-
-const TURN_STEPS = [
-  'Destroyed? Respawn at Home, turn over. Next turn is a first round of your own: untouchable until it ends, no firing, no scanning.',
-  'Energy: move cubes.',
-  'Actions in your order: rotate · move (coast / burn / jump) · fire · scan.',
-  'Your missiles move.',
-  'Just arrived at a station? Load, deliver, repair, +hull, reload. Moored until you burn away.',
-  'Heat check: add your powered shields\' cubes; over the top of the track is hull damage; shed your dissipation and carry the rest.',
-  'Flip completed missions. Pass. (Last player: stations drift.)',
-]
+/** A half shield, a rack and a sensor all take this much; a full shield twice it. */
+const HALF_SHIELD = SUBSYSTEM_CONFIGS.shields.minEnergy
+const FULL_SHIELD = SUBSYSTEM_CONFIGS.shields.maxEnergy
+const RACK_ENERGY = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy
+const SENSOR_ENERGY = SUBSYSTEM_CONFIGS.sensor_array.minEnergy
 
 /** The button that lives in the top bar, and the card it opens. */
 export function RulesButton() {
@@ -76,21 +74,33 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
   // The number this game is played to, read off the view.
   const { view } = useGame()
   const quick: Array<[string, string]> = [
-    ['Energy', 'an action powers the tile it uses; shields, racks and sensors you switch on'],
-    ['Heat', "every cube on a tile is a point of heat at your check, however it got there"],
+    [
+      'Energy',
+      'every action puts energy on the tile it uses; it stays there until your next turn, when you clear your loadout',
+    ],
+    [
+      'Power',
+      `an action too: shields (${HALF_SHIELD} or ${FULL_SHIELD}), a ballistic rack (${RACK_ENERGY}) or a sensor array (${SENSOR_ENERGY}) work until your next turn. Each tile does one thing a turn: power it or use it`,
+    ],
+    ['Heat', 'every point of energy on your loadout is 1 heat at your check'],
     ['Heat track', `${MAX_HEAT} · above it is hull damage; heat does not reset`],
     [
       'Dissipation',
-      `${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator), shed at every check`,
+      `dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator) at every check`,
     ],
     [
       'Shields',
-      `${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point, and its cubes as heat at every check it is up`,
+      `power at ${HALF_SHIELD} or ${FULL_SHIELD}; ${SHIELD_ENERGY_PER_POINT} energy a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point; power them every turn you want them up; lasers ignore them`,
     ],
     [
       'Ballistic rack',
-      `while up it rolls at ${interceptsPerRack()} missiles a turn, the same number its cubes could have thrown`,
+      `with energy on it (powered, or it fired) it rolls at ${interceptsPerRack()} missiles a turn, the same number its energy could have thrown`,
     ],
+    [
+      'Critical',
+      "names any slot; breaks it through shields, and dumps its energy as heat (a tile holds its energy until its owner's next turn)",
+    ],
+    ['Repair', 'a station, on arrival, fixes everything; or one tile a turn at 0 heat'],
     ['Hull', `${STARTING_HIT_POINTS}`],
     ['Fuel', `${MAX_REACTION_MASS}`],
     ['Sectors per ring', `${SECTORS_PER_RING}`],
@@ -106,9 +116,12 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['Hit roll', '1 miss, 2–9 hit, 10 crit (8–10 with sensors)'],
     [
       'Salvo',
-      `one action launches any number of a tile's missiles at one ship, all naming the same slot, and the tile holds its ${SUBSYSTEM_CONFIGS.missiles.minEnergy} cubes once; a rack that is up rolls at ${interceptsPerRack()} of them a turn, so it takes a second rack to answer a second launcher`,
+      `one action launches any number of a tile's missiles at one ship, all naming the same slot, for the tile's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} energy once; a rack with energy on it rolls at ${interceptsPerRack()} of them a turn, so it takes a second rack to answer a second launcher`,
     ],
-    ['Scan', `same ring, within ${SCAN_SECTOR_RANGE} sectors, sensor powered`],
+    [
+      'Scan',
+      `same ring, within ${SCAN_SECTOR_RANGE} sectors, sensor aboard and unbroken; the scan puts ${SENSOR_ENERGY} energy on it, so every shot after it has the wider range`,
+    ],
     [
       'Docking',
       'on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away',
@@ -160,15 +173,26 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
         <Table rows={quick} />
 
         <Heading>Turn cheat sheet</Heading>
-        <Box component="ol" sx={{ m: 0, pl: 2.25 }}>
-          {TURN_STEPS.map(step => (
-            <Box component="li" key={step} sx={{ mb: 0.4 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {TURN_STEPS.map((step, index) => (
+            <Box key={step.title} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+              <Typography
+                sx={{ fontFamily: FONT_MONO, fontSize: '0.75rem', color: TABLE.inkFaint, width: 12 }}
+              >
+                {index + 1}
+              </Typography>
               <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.35 }}>
-                {step}
+                <Box component="strong" sx={{ color: TABLE.ink }}>
+                  {step.title}.
+                </Box>{' '}
+                {step.blurb}
               </Typography>
             </Box>
           ))}
         </Box>
+        <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.35, mt: 0.75 }}>
+          {QUIET_TURN}
+        </Typography>
 
         <Heading>Ring velocity</Heading>
         <Table
@@ -180,8 +204,8 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
 
         <Heading>Hidden information</Heading>
         <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
-          Public: positions, facing, hull, heat, fuel, the cubes on every slot, Home markers, cargo
-          counts, face-up tiles, completed missions.
+          Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo
+          counts, face-up tiles and the missiles left in a face-up missiles tile, completed missions.
           <br />
           Private: what a face-down tile is, the ammo in a face-down missiles tile, missions in hand, where your cargo
           is going.
@@ -189,14 +213,22 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
           <Box component="span" sx={{ color: TABLE.accent }}>
             Energy is the tell.
           </Box>{' '}
-          Four cubes on a face-down forward slot can only be a railgun.
+          Using a tile turns it face-up, so energy on a face-down slot between turns means it was
+          powered, not used: {HALF_SHIELD} is a half shield, a ballistic rack or a sensor array, and{' '}
+          {FULL_SHIELD} can only be a full shield. That is a deduction, not a reveal: the tile stays
+          face-down and only a scan makes sure. A gun is dark until it fires, which is why a silent
+          slot is the dangerous one.
         </Typography>
 
         <Heading>Reveals</Heading>
         <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
-          A tile flips face-up the first time it does something: a weapon fires, shields absorb,
-          sensors scan, a radiator saves you hull, a compressor cheapens a jump, or a critical
-          breaks it.
+          A tile flips face-up the first time it does something: a weapon fires (or a ballistic rack
+          rolls at a missile), and a missiles tile then shows what is left; shields absorb damage; a
+          sensor array scans; a radiator when your heat goes above {DEFAULT_DISSIPATION_CAPACITY} at
+          a heat check; a compressor when a jump costs {COMPRESSED_JUMP_MASS} fuel instead of{' '}
+          {WELL_TRANSFER_COSTS.mass}; any tile when a critical breaks it. Powering a tile does not
+          turn it over: a wall you never needed, a rack nothing came at and a sensor you never
+          scanned with are still secrets at the end of the game.
         </Typography>
       </DialogContent>
     </Dialog>

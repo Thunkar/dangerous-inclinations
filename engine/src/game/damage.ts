@@ -89,13 +89,12 @@ export function resolveAttack(
     if (take <= 0) continue;
     const spent = take * SHIELD_ENERGY_PER_POINT;
     const left = shield.allocatedEnergy - spent;
-    // The cubes that absorbed are spent: the tile goes dark by as much as it
-    // soaked, and costs that much less at its owner's next check. Bringing it
-    // back up is free and is their decision.
+    // The cubes that absorbed are spent: the tile is down by as much as it
+    // soaked until its owner powers it again on their next turn, and a
+    // critical that finds it now dumps only what is left.
     ship = updateSubsystem(ship, shield.id, {
       allocatedEnergy: left,
       isPowered: left > 0,
-      isStanding: left > 0,
     });
     ship = addHeat(ship, take * SHIELD_HEAT_PER_POINT);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");

@@ -6,18 +6,23 @@
  *     its owner plays next, which is a first round of its own: energy and a
  *     move, but no weapon fires and nobody is scanned. The last act of that
  *     turn is clearing the flag.
- *  2. Energy changes, then tactical actions in the chosen order.
- *  3. The player's missiles move and resolve.
- *  4. Docking (if the ship ended on a station).
- *  5. Heat check: heat over the redline becomes hull damage, then the ship
- *     dissipates and carries what is left into its next turn.
- *  6. Missions are updated from everything that happened.
- *  7. Play passes on; at the end of every round stations move, carrying the
+ *  2. The player clears their loadout: every cube they used or powered last
+ *     turn comes off, having worked on everyone else's turns since.
+ *  3. Actions in the order the player chose: power, rotate, one move, fire,
+ *     scan. Every action puts energy on the tile it uses, and it stays there
+ *     until this player's next turn.
+ *  4. The player's missiles move and resolve.
+ *  5. Docking (if the ship ended on a station).
+ *  6. Heat check: every cube on the loadout is a point of heat, heat over the
+ *     redline becomes hull damage, then the ship dissipates and carries what
+ *     is left into its next turn.
+ *  7. Missions are updated from everything that happened.
+ *  8. Play passes on; at the end of every round stations move, carrying the
  *     ships moored to them.
  *
  * The returned state carries no log; the turn's events are returned alongside.
  */
-import type { GameState, PlayerAction } from "../models/game.ts";
+import type { GameState, Player, PlayerAction } from "../models/game.ts";
 import type { GameEvent, EventDraft } from "../models/events.ts";
 import { stampEvents } from "../models/events.ts";
 import { processActions } from "./actionProcessors.ts";
@@ -27,9 +32,8 @@ import { resolveEndOfTurnHeat } from "./heat.ts";
 import { processMissionEvents, checkForWinner, rankPlayers } from "./missions/missionChecks.ts";
 import { advanceStations, isMooredAt } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
-import { applyOrbitalMovement } from "./movement.ts";
 import { positionOf } from "./geometry.ts";
-import { clearDerivedPower, isDestroyed, resetSubsystemUsage } from "./ship.ts";
+import { clearLoadout, isDestroyed, resetSubsystemUsage } from "./ship.ts";
 
 export interface TurnResult {
   gameState: GameState;
@@ -61,40 +65,15 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     return finish(gameState, state, events, turn);
   }
 
-  // Only old recordings reach here: they were made when the turn after the
-  // respawn was lost as well, and they still replay. Submitted actions are
-  // ignored, but the ship is in orbit, so it drifts with its ring like
-  // anything else on it. It cannot be moored (Home is on one of the black
-  // hole's deployment rings and stations orbit a planet), so no berth to hold and
-  // nothing for `advanceStations` to carry. A turn held counts as the turn
-  // back, so the untouchable flag is spent here too.
-  if (active.skipTurns > 0) {
-    const ship = applyOrbitalMovement(active.ship);
-    const players = [...state.players];
-    players[activeIndex] = {
-      ...players[activeIndex],
-      ship,
-      skipTurns: active.skipTurns - 1,
-      recovering: false,
-    };
-    state = { ...state, players };
-    events.push({ type: "turn_skipped", playerId: active.id, remaining: active.skipTurns - 1 });
-    // The board moves the token on a `coasted` like any other drift; the flag
-    // says the helm was empty, so the log does not claim the player coasted.
-    events.push({
-      type: "coasted",
-      playerId: active.id,
-      to: positionOf(ship),
-      scooped: false,
-      heat: 0,
-      recovering: true,
-    });
-    return finish(gameState, state, events, turn);
-  }
-
   if (actions.some((a) => a.playerId !== active.id)) {
     return { gameState, events: [], errors: ["All actions must belong to the active player"] };
   }
+
+  // The start of the turn: the energy this player used or powered last turn
+  // has been working on everyone else's turns and comes off now (RULES
+  // §Energy and Heat). Only the active player's loadout is cleared; everyone
+  // else's is still up until their own turn comes round.
+  state = withActiveShip(state, activeIndex, clearLoadout(active.ship));
 
   const processed = processActions(state, actions);
   if (!processed.success) {
@@ -151,6 +130,13 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   return finish(gameState, state, events, turn);
 }
 
+function withActiveShip(state: GameState, index: number, ship: Player["ship"]): GameState {
+  if (ship === state.players[index].ship) return state;
+  const players = [...state.players];
+  players[index] = { ...players[index], ship };
+  return { ...state, players };
+}
+
 /** Spend the untouchable flag: the returning turn has been played out. */
 function clearRecovering(state: GameState, index: number): GameState {
   if (!state.players[index].recovering) return state;
@@ -188,16 +174,14 @@ function finish(
   const newRound = nextIndex === 0;
   // "Once per turn" means once per player-turn for everyone: a rack that
   // intercepted during this turn is ready again when the next player acts.
-  //
-  // The cubes an action put on a tile go back at the same moment, so the only
-  // energy on the board between turns is what somebody switched on and left
-  // on. Only the player who just acted can have any, but clearing every ship
-  // costs nothing and keeps the rule one line.
+  // Energy is not touched here: it stays on every tile until its owner's next
+  // turn starts, which is what makes a wall, a rack or a sensor work while its
+  // owner is not acting.
   let next: GameState = {
     ...state,
     players: state.players.map((p) => ({
       ...p,
-      ship: clearDerivedPower(resetSubsystemUsage(p.ship)),
+      ship: resetSubsystemUsage(p.ship),
     })),
     activePlayerIndex: nextIndex,
     turn: newRound ? turn + 1 : turn,

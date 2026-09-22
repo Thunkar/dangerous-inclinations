@@ -9,7 +9,7 @@ import type {
   BurnAction,
   BurnIntensity,
   CoastAction,
-  SetStandingPowerAction,
+  PowerAction,
   Facing,
   FireWeaponAction,
   GameState,
@@ -26,7 +26,6 @@ import type {
 } from "../models/game.ts";
 import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
-import { isStandingType } from "../models/subsystems.ts";
 import type { GameEvent, GameEventType } from "../models/events.ts";
 import type {
   SecondaryMission,
@@ -72,7 +71,6 @@ export function makePlayer(
     hasDeployed: true,
     hasSubmittedLoadout: true,
     home: { wellId: BH, ring: 4, sector: 0 },
-    skipTurns: 0,
     recovering: false,
     intel: {},
     ...overrides,
@@ -127,7 +125,12 @@ export function getSub(state: GameState, playerId: string, subsystemId: Subsyste
   return sub;
 }
 
-/** Directly power a subsystem (test setup shortcut; bypasses actions). */
+/**
+ * Directly put energy on a subsystem (test setup shortcut; bypasses actions).
+ * It is what the tile would carry between turns: the active player's own
+ * loadout is cleared when their turn starts, so this is for a player who is
+ * not about to act (a target's shields, a rack that will intercept).
+ */
 export function withPower(
   state: GameState,
   playerId: string,
@@ -138,13 +141,9 @@ export function withPower(
     ...state,
     players: state.players.map((p) => {
       if (p.id !== playerId) return p;
-      const sub = p.ship.subsystems.find((x) => x.id === subsystemId);
       const ship = updateSubsystem(p.ship, subsystemId, {
         allocatedEnergy: energy,
         isPowered: energy > 0,
-        // A test that powers a standing tile means it to stay up, the way a
-        // switch would; anything else is cubes an action would have put there.
-        isStanding: energy > 0 && sub !== undefined && isStandingType(sub.type),
       });
       return { ...p, ship };
     }),
@@ -302,13 +301,15 @@ export const tankerMission = (id = "tanker-1"): TankerMission => ({
 
 type Draft<A extends PlayerAction> = Omit<A, "playerId">;
 
-/** Switch a standing tile (shields, rack, sensor) to `amount` cubes; 0 is off. */
-export const standing = (
+/** Power a shield, rack or sensor with `amount` cubes (absent: the tile's minimum). */
+export const power = (
+  sequence: number,
   subsystemId: SubsystemId,
-  amount: number
-): Draft<SetStandingPowerAction> => ({
-  type: "set_standing_power",
-  data: { subsystemId, amount },
+  amount?: number
+): Draft<PowerAction> => ({
+  type: "power",
+  sequence,
+  data: amount === undefined ? { subsystemId } : { subsystemId, amount },
 });
 export const coast = (sequence: number, activateScoop = false): Draft<CoastAction> => ({
   type: "coast",
@@ -409,7 +410,6 @@ export function scriptedGameStart(seed: number): GameState {
     DEFAULT_LOADOUT,
     {
       home: { wellId: BH, ring: 4, sector: 0 },
-      skipTurns: 0,
     }
   );
   const p2 = makePlayer(

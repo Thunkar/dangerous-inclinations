@@ -35,11 +35,11 @@ export function canScanFrom(from: Position, target: Position): boolean {
 /**
  * Slot to look at: a **dark** face-down tile first, and the bow before a side.
  *
- * The cubes read a loaded slot most of the way already (only a wall, a rack or
- * a sensor stands powered between turns), so paying a scan for one buys the
- * last quarter of an answer. A dark slot is where every gun on the board sits,
- * and a dark bow is the widest unknown there is: a railgun, a launcher, a
- * compressor or a sensor that is switched off. Failing that, any face-down
+ * The cubes read a loaded slot most of the way already (a face-down slot with
+ * cubes was powered, so it is a wall, a rack or a sensor), so paying a scan
+ * for one buys the last quarter of an answer. A dark slot is where every
+ * unfired gun on the board sits, and a dark bow is the widest unknown there
+ * is: a railgun, a launcher, a compressor or a sensor that is not powered. Failing that, any face-down
  * one, else the first slot, since a scan of a known tile is still legal and
  * still acquires an Intercept transmission.
  */

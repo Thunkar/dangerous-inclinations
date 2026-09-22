@@ -80,12 +80,10 @@ describe("a bot jumping with a fuel compressor", () => {
     const state = onAlphasLane();
     const candidate = jumpCandidate(state);
 
-    // Nothing to switch on for the lane itself: the jump powers the engines,
-    // and the compressor is passive, so no cubes are ever routed to its slot.
+    // Nothing to power for the lane itself: the jump powers the engines, and
+    // the compressor is passive, so no cubes are ever routed to its slot.
     expect(
-      candidate.actions.some(
-        (a) => a.type === "set_standing_power" && a.data.subsystemId === "forward-0"
-      )
+      candidate.actions.some((a) => a.type === "power" && a.data.subsystemId === "forward-0")
     ).toBe(false);
 
     const { jumped, laneFuel } = takeTheLane(state, candidate);

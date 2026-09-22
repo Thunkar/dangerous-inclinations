@@ -5,9 +5,11 @@
  * target (private knowledge) and acquires the transmission for any Intercept
  * mission on that target.
  *
- * The scan powers the sensor itself, like any other action. Switching one on
- * is for the critical range it gives every weapon aboard while it is up, which
- * is worth cubes on a turn with no scan in it (RULES §Energy and Heat).
+ * The scan powers the sensor itself, like any other action, and the cubes stay
+ * on it until its owner's next turn, so every shot taken after the scan has the
+ * sensor's critical range. Powering it instead gives that range without a scan,
+ * but a tile does one thing a turn: a sensor powered this turn cannot scan
+ * (RULES §Energy and Heat).
  */
 import type { GameState, Player, ScanAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";

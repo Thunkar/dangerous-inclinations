@@ -37,7 +37,7 @@ import {
   isDestroyed,
   missionTargetsPlayer,
   pickIndex,
-  restoreRecordedState,
+  staleRecordingReason,
   stampEvents,
   submitLoadout as engineSubmitLoadout,
   transitionToActivePhase,
@@ -741,6 +741,8 @@ export function createGameService(deps: GameServiceDeps) {
         }
         const recording = await recordings.load(gameId);
         if (!recording) return { ok: false, error: "No recording for this game" };
+        const stale = staleRecordingReason(recording);
+        if (stale) return { ok: false, error: stale };
         if (turnIndex < -1 || turnIndex >= recording.turns.length) {
           return {
             ok: false,
@@ -754,13 +756,7 @@ export function createGameService(deps: GameServiceDeps) {
         if (snapshot.phase !== "active" && snapshot.phase !== "ended") {
           return { ok: false, error: `Cannot rewind into a "${snapshot.phase}" snapshot` };
         }
-        // A snapshot recorded before `pointsToWin` rode on the state was
-        // played to the default; give it back the field so the game reads it.
-        const restored: GameState = restoreRecordedState({
-          ...snapshot,
-          phase: "active",
-          winnerId: undefined,
-        });
+        const restored: GameState = { ...snapshot, phase: "active", winnerId: undefined };
 
         await recordings.truncate(gameId, turnIndex);
         await saveState(gameId, restored);
@@ -806,6 +802,8 @@ export function createGameService(deps: GameServiceDeps) {
           error: "That recording is not finished; only finished recordings can be forked",
         };
       }
+      const stale = staleRecordingReason(recording);
+      if (stale) return { ok: false, error: stale };
       if (turnIndex < -1 || turnIndex >= recording.turns.length) {
         return {
           ok: false,
@@ -852,9 +850,7 @@ export function createGameService(deps: GameServiceDeps) {
       }
 
       const forked = renamePlayerEverywhere(
-        // As in `rewind`: a recording from before `pointsToWin` existed was
-        // played to the default, so that is what the fork carries on with.
-        restoreRecordedState({ ...snapshot, phase: "active", winnerId: undefined }),
+        { ...snapshot, phase: "active", winnerId: undefined },
         seat,
         options.humanPlayerId,
         options.humanPlayerName

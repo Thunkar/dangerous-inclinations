@@ -160,7 +160,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     // is over (RULES §Destruction and Respawn), so a missile that catches it
     // neither attacks nor is shot down: it stays in the air with one more move
     // behind it and burns out on schedule.
-    const untouchable = target.recovering === true;
+    const untouchable = target.recovering;
 
     if (untouchable || !samePosition(moved, targetPos)) {
       const movesMade = missile.movesMade + 1;
@@ -179,10 +179,11 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       continue;
     }
 
-    // On target. Point defence first: a rack that is up rolls at the missiles
-    // reaching its ship until its cubes are spoken for, which is as many as
-    // those cubes could have thrown (`interceptsPerRack`). A ship expecting
-    // more than that carries a second rack and pays for it at every check.
+    // On target. Point defence first: a rack that is up (powered, or fired, on
+    // its owner's last turn) rolls at the missiles reaching its ship until its
+    // cubes are spoken for, which is as many as those cubes could have thrown
+    // (`interceptsPerRack`). A ship expecting more than that carries a second
+    // rack and powers both.
     //
     // The racks are read off the target as it stands now, because an earlier
     // missile of the same salvo may already have broken one or heated the ship.

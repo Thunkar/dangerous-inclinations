@@ -12,6 +12,7 @@ import {
   getSub,
   makeTwoPlayerGame,
   cubesOnLoadout,
+  power,
   withPower,
   withSub,
 } from "../testUtils.ts";
@@ -244,16 +245,18 @@ describe("damage: resolveAttack", () => {
     expect(unknown.ship.hitPoints).toBe(8);
   });
 
-  it("refuses a shot that names the fuel scoop, whatever the roll", () => {
-    // The scoop is the only way back to a station, and a station is the only
-    // place a break is repaired: naming it could end a player's game outright.
-    const state = { ...laserDuel(), forcedRollValue: 10 };
-    expect(executeTurnAs(state, fire(1, "side-0", "p2", "scoop")).errors?.[0]).toMatch(/scoop/i);
-    const legal = executeTurnAs(state, fire(1, "side-0", "p2", "engines"));
-    expect(legal.errors).toBeUndefined();
-    expect(getSub(legal.gameState, "p2", "engines").isBroken).toBe(true);
-    expect(getSub(legal.gameState, "p2", "scoop").isBroken).toBe(false);
-  });
+  // Nothing is critical-proof: the cold repair (RULES §Energy and Heat) fixes
+  // one tile a turn wherever the ship is, so no break can strand it, and the
+  // three tiles printed on every loadout are targets like any other.
+  it.each(["engines", "rotation", "scoop", "forward-0", "side-0"])(
+    "a critical breaks %s like any other slot",
+    (named) => {
+      const state = { ...laserDuel(), forcedRollValue: 10 };
+      const result = executeTurnAs(state, fire(1, "side-0", "p2", named));
+      expect(result.errors).toBeUndefined();
+      expect(getSub(result.gameState, "p2", named).isBroken).toBe(true);
+    }
+  );
 
   it("a sensor that is up makes an 8 critical, and a bare ship's 8 a plain hit", () => {
     const sensorState = withPower(
@@ -321,11 +324,11 @@ describe("damage: through executeTurn", () => {
     // The cubes on the bow are public and say what the tile is to anyone
     // counting, but the tile itself is a secret until it does its own job
     // (RULES §Hidden Information).
-    let state = laserDuel(undefined, SENSOR_LOADOUT);
-    state = withPower(state, "p1", "forward-0", 2);
+    const state = laserDuel(undefined, SENSOR_LOADOUT);
     const result = executeTurnAs(
       { ...state, forcedRollValue: 8 },
-      fire(1, "side-0", "p2", "engines")
+      power(1, "forward-0"),
+      fire(2, "side-0", "p2", "engines")
     );
     expect(eventsOf(result.events, "attack_resolved")[0].result).toBe("critical");
     expect(
@@ -335,8 +338,7 @@ describe("damage: through executeTurn", () => {
   });
 
   it("a natural 10 without sensors keeps the sensor slot face-down", () => {
-    let state = laserDuel(undefined, SENSOR_LOADOUT);
-    state = withPower(state, "p1", "forward-0", 2);
+    const state = laserDuel(undefined, SENSOR_LOADOUT);
     const result = executeTurnAs(
       { ...state, forcedRollValue: 10 },
       fire(1, "side-0", "p2", "engines")

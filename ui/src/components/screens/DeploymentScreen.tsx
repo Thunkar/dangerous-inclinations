@@ -201,7 +201,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                       sx={{ fontSize: '0.78rem', height: 20 }}
                     />
                   ) : player.id === view.activePlayerId ? (
-                    <Typography variant="overline" sx={{ color: TABLE.brick, lineHeight: 1 }}>
+                    <Typography variant="overline" sx={{ color: TABLE.accent, lineHeight: 1 }}>
                       placing
                     </Typography>
                   ) : (

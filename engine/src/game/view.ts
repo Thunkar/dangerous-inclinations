@@ -18,12 +18,7 @@ import type { GameState, Missile, Player, Position, Station, GamePhase } from ".
 import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import type { Mission } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
-import {
-  getDissipationCapacity,
-  heatFromCubes,
-  getEffectiveCriticalChance,
-  isDestroyed,
-} from "./ship.ts";
+import { getDissipationCapacity, getEffectiveCriticalChance, isDestroyed } from "./ship.ts";
 import { completedMissions } from "./missions/missionChecks.ts";
 
 export interface PublicShipView {
@@ -49,7 +44,11 @@ export interface SlotView {
   type: SubsystemType | null;
   isBroken: boolean | null;
   knownVia: SlotKnowledge;
-  /** Energy cubes on the tile. Public: a hint about what the tile is. */
+  /**
+   * Energy cubes on the tile. Public: a hint about what the tile is. It stays
+   * until its owner's next turn starts, so between turns it is what they used
+   * or powered on their last one.
+   */
   allocatedEnergy: number;
   /**
    * Missiles left in a missiles tile, or null when the viewer cannot read the
@@ -76,8 +75,6 @@ export interface PlayerView {
   hasSubmittedLoadout: boolean;
   hasDeployed: boolean;
   home: Position | null;
-  /** Only ever 0 in a live game; still on the view so old recordings render. */
-  skipTurns: number;
   /**
    * Back at Home from a respawn and untouchable until the end of the turn
    * they play next: no shot, no missile and no scan reaches them, and they
@@ -100,13 +97,13 @@ export interface OwnShipStats {
   dissipationCapacity: number;
   maxReactionMass: number;
   criticalChance: number;
-  /** Top of the heat track: above this, the excess is hull damage. */
-  maxHeat: number;
   /**
-   * Heat the cubes already on the loadout will add at the next check: between
-   * turns that is the standing tiles, since nothing else is carrying any.
+   * Top of the heat track: above this, the excess is hull damage. Nothing on
+   * the loadout carries into the owner's check: the energy on it now is last
+   * turn's, and it comes off when their turn starts, so the check bills only
+   * what this turn's actions put on.
    */
-  standingHeat: number;
+  maxHeat: number;
 }
 
 export interface GameView {
@@ -183,8 +180,7 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     appearance: resolveShipAppearance(player.hasSubmittedLoadout ? player.appearance : undefined),
     hasDeployed: player.hasDeployed,
     home: player.home,
-    skipTurns: player.skipTurns,
-    recovering: player.recovering === true,
+    recovering: player.recovering,
     ship: shipView(player),
     fixed: player.ship.subsystems
       .filter((s) => s.slotGroup === undefined)
@@ -225,7 +221,6 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
           maxReactionMass: MAX_REACTION_MASS,
           criticalChance: getEffectiveCriticalChance(me.ship.subsystems),
           maxHeat: MAX_HEAT,
-          standingHeat: heatFromCubes(me.ship.subsystems),
         }
       : null,
   };

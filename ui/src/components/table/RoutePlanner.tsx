@@ -42,6 +42,7 @@ import type {
 import { getWellName } from '@dangerous-inclinations/engine'
 import type { MoveChoice, RouteMode } from '../../context/PlanContext'
 import { usePlan } from '../../context/PlanContext'
+import { describeStep, facingFor, placeLabel, routeLegs, routeName } from '../../utils/route'
 import { SectionLabel } from '../common/Panel'
 import { FONT_MONO, TABLE } from '../../theme'
 
@@ -53,49 +54,6 @@ const HOVER_TINT = 'rgba(126,165,205,0.07)'
 
 /** Turns of a route shown before the list folds into "+n more". */
 const ITINERARY_LIMIT = 6
-
-const placeLabel = (p: Position) => `${getWellName(p.wellId)} R${p.ring} S${p.sector}`
-
-/** Facing a burn needs: prograde burns outward, retrograde inward. Coasts and jumps keep the facing. */
-function facingFor(step: MovementStep, before: Facing): Facing {
-  if (step.actionType === 'burn_prograde') return 'prograde'
-  if (step.actionType === 'burn_retrograde') return 'retrograde'
-  return before
-}
-
-/** One leg of a route: what it does, and whether the nose has to come round first. */
-interface Leg {
-  text: string
-  rotate: boolean
-}
-
-/** One step of a planned route, in the words of the move row. */
-function legText(step: MovementStep, facingAfter: Facing): string {
-  if (step.actionType === 'coast') return `coast${step.massCost < 0 ? ' + scoop' : ''}`
-  if (step.actionType === 'well_transfer') return `jump → ${getWellName(step.to.wellId)}`
-  const phase = step.sectorAdjustment
-    ? ` ${step.sectorAdjustment > 0 ? '+' : ''}${step.sectorAdjustment}`
-    : ''
-  return `${step.burnIntensity ?? 'soft'} burn ${facingAfter === 'prograde' ? 'out' : 'in'}${phase}`
-}
-
-/** The same step spelled out in full, for a tooltip that has the room. */
-function describeStep(step: MovementStep, facingBefore: Facing): string {
-  const needed = facingFor(step, facingBefore)
-  return `${legText(step, needed)}${needed !== facingBefore ? ' (rotate first)' : ''}`
-}
-
-/** Every step described, with the facing carried from one to the next. */
-function routeLegs(steps: MovementStep[], facing: Facing): Leg[] {
-  const out: Leg[] = []
-  let current = facing
-  for (const step of steps) {
-    const needed = facingFor(step, current)
-    out.push({ text: legText(step, needed), rotate: needed !== current })
-    current = needed
-  }
-  return out
-}
 
 /** The move the planner would set from a route step: the same one `applyRouteStep` builds. */
 function moveForStep(step: MovementStep): MoveChoice {
@@ -118,10 +76,6 @@ function sameMove(a: MoveChoice, b: MoveChoice): boolean {
     return a.destinationWellId === b.destinationWellId && a.adjustment === b.adjustment
   return false
 }
-
-/** "⚡ Fastest" → "fastest": the engine labels for people, we label for the plate. */
-const routeName = (route: MovementPlan, index: number) =>
-  (route.label ?? `route ${index + 1}`).replace(/^[^\p{L}]+/u, '').toLowerCase()
 
 export function RoutePlanner({ disabled }: { disabled: boolean }) {
   const plan = usePlan()

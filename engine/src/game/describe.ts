@@ -52,10 +52,8 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
   switch (e.type) {
     case "respawned":
       return `${name(e.playerId)} returns to port at ${pos(e.position)}`;
-    case "standing_power_set":
-      if (e.amount === 0) return `${name(e.playerId)} shuts down ${e.subsystemId}`;
-      if (e.previous === 0) return `${name(e.playerId)} brings ${e.subsystemId} up at ${e.amount}`;
-      return `${name(e.playerId)} holds ${e.subsystemId} at ${e.amount}`;
+    case "subsystem_powered":
+      return `${name(e.playerId)} powers ${e.subsystemType ? sub(e.subsystemType) : e.subsystemId} at ${e.amount}`;
     case "rotated":
       return `${name(e.playerId)} rotates to ${e.facing}`;
     case "coasted":
@@ -113,8 +111,6 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
         : `${name(e.victimId)} is destroyed by heat`;
     case "heat_check":
       return `${name(e.playerId)} runs ${e.heat} heat, dissipates ${e.dissipation}, carries ${e.carried}`;
-    case "turn_skipped":
-      return `${name(e.playerId)} is recovering and sits this turn out`;
     case "heat_damage":
       return `${name(e.playerId)} redlines at ${e.heat} heat: ${e.damage} hull`;
     case "scanned":

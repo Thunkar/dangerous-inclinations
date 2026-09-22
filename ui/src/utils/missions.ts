@@ -17,9 +17,11 @@ import {
 } from '@dangerous-inclinations/engine'
 import { TABLE } from '../theme'
 
-export const FAMILY_COLOR: Partial<Record<MissionFamily, string>> = {
+export const FAMILY_COLOR: Record<MissionFamily, string> = {
   combat: TABLE.danger,
   trade: TABLE.teal,
+  /** The table has no violet of its own: this is the family's, mixed for the dark felt. */
+  intel: '#b48cf0',
   secondary: TABLE.accent,
 }
 
@@ -28,7 +30,7 @@ export function missionFamily(mission: Mission): MissionFamily {
 }
 
 export function missionFamilyColor(mission: Mission): string {
-  return FAMILY_COLOR[missionFamily(mission)] ?? TABLE.inkSoft
+  return FAMILY_COLOR[missionFamily(mission)]
 }
 
 /**

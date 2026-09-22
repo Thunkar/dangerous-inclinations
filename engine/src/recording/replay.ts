@@ -1,44 +1,39 @@
 /**
  * Replay: reconstruct any turn of a recording, from the cached snapshot when
- * present or by re-executing actions from the initial state.
+ * present or by re-executing actions from the initial state. A recording made
+ * under other rules is refused (`staleRecordingReason`).
  */
 import type { GameState } from "../models/game.ts";
-import { DEFAULT_POINTS_TO_WIN } from "../models/missions.ts";
-import type { GameRecording } from "./types.ts";
+import { staleRecordingReason, type GameRecording } from "./types.ts";
 import { executeTurn } from "../game/turns.ts";
 
 export function cloneState(state: GameState): GameState {
   return JSON.parse(JSON.stringify(state)) as GameState;
 }
 
-/**
- * A state read back out of a recording. A file written before `pointsToWin`
- * was carried on the state has no such field, and that game was played to the
- * default, so an old recording still opens, and still replays to the same
- * ending.
- */
-export function restoreRecordedState(state: GameState): GameState {
-  const restored = cloneState(state);
-  if (restored.pointsToWin === undefined) restored.pointsToWin = DEFAULT_POINTS_TO_WIN;
-  return restored;
+function assertCurrent(recording: GameRecording): void {
+  const stale = staleRecordingReason(recording);
+  if (stale) throw new Error(stale);
 }
 
 /** State after `turnIndex` turns; -1 (or less) returns the initial state. */
 export function reconstructStateAtTurn(recording: GameRecording, turnIndex: number): GameState {
-  if (turnIndex < 0) return restoreRecordedState(recording.initialState);
+  assertCurrent(recording);
+  if (turnIndex < 0) return cloneState(recording.initialState);
   const index = Math.min(turnIndex, recording.turns.length - 1);
   const cached = recording.turns[index]?.resultingStateSnapshot;
-  if (cached) return restoreRecordedState(cached);
+  if (cached) return cloneState(cached);
   return reExecute(recording, index);
 }
 
 /** Re-execute the whole recording from its initial state. */
 export function replayRecording(recording: GameRecording): GameState {
+  assertCurrent(recording);
   return reExecute(recording, recording.turns.length - 1);
 }
 
 function reExecute(recording: GameRecording, upToIndex: number): GameState {
-  let state = restoreRecordedState(recording.initialState);
+  let state = cloneState(recording.initialState);
   for (let i = 0; i <= upToIndex && i < recording.turns.length; i++) {
     const turn = recording.turns[i];
     const result = executeTurn(state, turn.actions);

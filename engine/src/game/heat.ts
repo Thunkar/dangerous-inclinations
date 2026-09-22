@@ -2,11 +2,13 @@
  * Heat, which is a track and not a budget, and the only limit on a ship.
  *
  * **One rule: at the owner's heat check, every cube on the loadout is a point
- * of heat** (`heatFromCubes`). A tile an action powered is still carrying its
- * cubes when the check runs, so firing costs its four and a burn costs the
- * burn's; a standing tile carries them the whole time, so a wall, a rack or a
- * sensor pays at every check. Absorbed damage adds two per point on top
- * (`damage.ts`), because that heat is the shot, not the cubes.
+ * of heat** (`heatFromCubes`). Every action puts energy on the tile it uses and
+ * a `power` action puts it on a shield, a rack or a sensor; either way it is
+ * still there when the check runs, so firing costs its four, a burn costs the
+ * burn's and a wall costs the wall. The energy stays on until its owner's next
+ * turn clears the loadout, so each turn's cubes are billed at one check.
+ * Absorbed damage adds two per point on top (`damage.ts`), because that heat is
+ * the shot, not the cubes.
  *
  * There is no reactor cap any more: a ship may light everything it owns in one
  * turn, and what stops it is this check. At it the ship pays for anything above
@@ -60,10 +62,11 @@ export function heatAfterCheck(heat: number, dissipation: number): number {
  * 4. The ship dissipates; what is left carries to the next turn.
  *
  * **Cold repair.** Heat 0 at the check means not a cube on the loadout and
- * nothing absorbed since the last check: everything off and the crew outside. It is the only repair that does not need a station,
- * and it is what stops a critical on the engines or the thrusters being a
- * soft-lock: every station is in a planet well, reaching one needs a jump, and
- * a jump needs engines, so a ship without them could otherwise never be fixed.
+ * nothing absorbed since the last check: nothing used or powered this turn and the crew outside. It is the only repair that does not need a station,
+ * and it is what stops a critical on the engines, the thrusters or the scoop
+ * being a soft-lock: every station is in a planet well, reaching one needs a
+ * jump, and a jump needs engines and fuel, so a ship without them, or dry with
+ * no scoop to refill, could otherwise never be fixed.
  * One tile a turn, named by its owner with the turn.
  *
  * Working radiators are revealed whenever the ship dissipated more than a bare hull

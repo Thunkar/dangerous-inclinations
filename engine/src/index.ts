@@ -26,15 +26,11 @@ export {
 
 // Recording / Replay
 export * from "./recording/types.ts";
-export {
-  reconstructStateAtTurn,
-  replayRecording,
-  restoreRecordedState,
-} from "./recording/replay.ts";
+export { reconstructStateAtTurn, replayRecording } from "./recording/replay.ts";
 
 // Headless bot game. The batch runner and the CLI stay out of this barrel
 // (they use worker threads); `runGame` itself is pure and runs in a browser,
-// which is what the UI's showcase page builds its canned game with.
+// so a page can build a canned game with it.
 export { runGame, setupBotGame, botIds, formatFailure } from "./sim/runGame.ts";
 export type {
   GameConfig,

@@ -128,7 +128,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3, gap: 2 }}>
+    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3, gap: 2 }}>
       <Typography variant="h3" sx={{ color: TABLE.ink, mt: 3 }}>
         Dangerous Inclinations
       </Typography>

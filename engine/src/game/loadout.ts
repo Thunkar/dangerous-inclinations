@@ -69,7 +69,6 @@ function createSubsystemInstance(
     type,
     allocatedEnergy: 0,
     isPowered: false,
-    isStanding: false,
     usedThisTurn: false,
     rollsThisTurn: 0,
     isBroken: false,

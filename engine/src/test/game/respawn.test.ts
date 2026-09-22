@@ -7,7 +7,7 @@ import type { Cargo } from "../../models/missions.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import {
-  standing,
+  power,
   ALPHA,
   BETA,
   BH,
@@ -209,7 +209,7 @@ describe("respawn: the turn after dying", () => {
    */
   it("only the respawn turn is lost: the ship flies the next one and the flag ends with it", () => {
     let state = mustExecute(wreck()); // p2 back at Beta R4, drifted to S8; p1 to act
-    expect(getPlayer(state, "p2")).toMatchObject({ recovering: true, skipTurns: 0 });
+    expect(getPlayer(state, "p2")).toMatchObject({ recovering: true });
     expect(viewFor(state, "p1").players[1].recovering).toBe(true);
 
     state = mustExecute(state, coast(1));
@@ -221,7 +221,6 @@ describe("respawn: the turn after dying", () => {
     const acting = executeTurnAs(state, coast(1, true));
     expect(acting.errors).toBeUndefined();
     expect(eventTypes(acting.events)).toContain("fuel_scooped");
-    expect(eventTypes(acting.events)).not.toContain("turn_skipped");
     expect(getPlayer(acting.gameState, "p2").recovering).toBe(false);
     expect(viewFor(acting.gameState, "p1").players[1].recovering).toBe(false);
   });
@@ -296,7 +295,7 @@ describe("respawn: the turn back is a first round of its own", () => {
   });
 
   it.each([
-    ["puts cubes on a tile", "standing_power_set", returning, [standing("side-2", 2)]],
+    ["powers a tile", "subsystem_powered", returning, [power(1, "side-2", 2)]],
     ["rotates", "rotated", returning, [rotate(1, "retrograde")]],
     ["burns", "burned", returning, [burn(1, "soft")]],
     ["jumps", "jumped", () => returning({ ring: 5, sector: 17 }), [jump(1, ALPHA)]],
@@ -395,29 +394,6 @@ describe("respawn: the returning ship drifts", () => {
       expect.objectContaining({ riders: [] }),
     ]);
     expect(getShip(result.gameState, "p2").sector).toBe(wrapSector(5 + ringVelocity(BH, 4)));
-  });
-});
-
-/**
- * Nothing sets `skipTurns` any more, but recordings made when the turn after
- * the respawn was lost as well still replay: that turn drifts and counts down
- * like it always did.
- */
-describe("respawn: an old recording's lost turn", () => {
-  it("drifts, ignores the actions submitted with it, and clears", () => {
-    const state = withPlayer(
-      makeGameState([makePlayer("p1", { wellId: BH, ring: 5, sector: 0 }), makePlayer("p2")], {
-        activePlayerIndex: 1,
-      }),
-      "p2",
-      { skipTurns: 1 }
-    );
-    const skipped = executeTurnAs(state, burn(1, "soft"));
-    expect(skipped.errors).toBeUndefined();
-    expect(eventTypes(skipped.events)).toContain("turn_skipped");
-    expect(eventTypes(skipped.events)).not.toContain("burned");
-    expect(getShip(skipped.gameState, "p2").sector).toBe(ringVelocity(BH, 3));
-    expect(getPlayer(skipped.gameState, "p2").skipTurns).toBe(0);
   });
 });
 

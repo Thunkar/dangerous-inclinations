@@ -41,9 +41,16 @@ const SMOKE_LOADOUT: ShipLoadout = {
   forwardSlots: ["sensor_array"],
   sideSlots: ["laser", "laser", "shields", "missiles"],
 };
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { WebSocket } from "@fastify/websocket";
 import { memoryKv } from "../src/services/kv.ts";
-import { createRecordingService, type RecordingArchive } from "../src/services/recordingService.ts";
+import {
+  createRecordingArchive,
+  createRecordingService,
+  type RecordingArchive,
+} from "../src/services/recordingService.ts";
 import { createGameService, type GameTransport } from "../src/services/gameService.ts";
 import { checkStatusAccess } from "../src/services/playerService.ts";
 import { LoadoutSubmissionSchema, SubmitTurnSchema } from "../src/schemas/game.ts";
@@ -240,7 +247,7 @@ check(
 );
 check(
   LoadoutSubmissionSchema.safeParse({ loadout: SMOKE_LOADOUT, missionIds: ["x"] }).success,
-  "older submissions without appearance still work"
+  "a submission without appearance passes (seat agents paint nothing)"
 );
 const loadoutResult = await games.submitLoadout(GAME_ID, HUMAN, {
   loadout: SMOKE_LOADOUT,
@@ -367,7 +374,7 @@ check(ownSlotsSeen > 0, "the human's own tiles were checked at least once");
 // --- Recording ---------------------------------------------------------------
 const recording = await recordings.load(GAME_ID);
 check(recording !== null, "a recording was started when the game became active");
-check(recording !== null && recording.schemaVersion === 2, "the recording uses schema v2");
+check(recording !== null && recording.schemaVersion === 3, "the recording uses schema v3");
 check(
   recording !== null && recording.turns.every((t) => Array.isArray(t.events)),
   "every recorded turn carries its events",
@@ -398,10 +405,22 @@ const goodBurn = { playerId: HUMAN, type: "burn", sequence: 1, data: { burnInten
 check(accepts([goodBurn]), "a well-formed burn is accepted");
 check(
   accepts([
-    { playerId: HUMAN, type: "set_standing_power", data: { subsystemId: "side-2", amount: 2 } },
-    { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: true } },
+    { playerId: HUMAN, type: "power", sequence: 1, data: { subsystemId: "side-2", amount: 2 } },
+    { playerId: HUMAN, type: "power", sequence: 2, data: { subsystemId: "forward-0" } },
+    { playerId: HUMAN, type: "coast", sequence: 3, data: { activateScoop: true } },
   ]),
-  "a well-formed standing-power + coast turn is accepted",
+  "a well-formed power + coast turn is accepted, with or without an amount",
+);
+check(
+  accepts([
+    { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: false } },
+    { playerId: HUMAN, type: "repair", data: { subsystemId: "engines" } },
+  ]),
+  "a cold repair is accepted beside the turn (the table sends one whenever it plans a cold turn)",
+);
+check(
+  !accepts([{ playerId: HUMAN, type: "repair", data: {} }]),
+  "a repair that names no tile is rejected",
 );
 check(
   !accepts([{ ...goodBurn, data: { burnIntensity: "soft", sectorAdjustment: "0" } }]),
@@ -419,8 +438,12 @@ check(
   "an unknown facing is rejected",
 );
 check(
-  !accepts([{ playerId: HUMAN, type: "set_standing_power", data: { subsystemId: "side-2", amount: 1.5 } }]),
-  "a fractional standing-power amount is rejected",
+  !accepts([{ playerId: HUMAN, type: "power", sequence: 1, data: { subsystemId: "side-2", amount: 1.5 } }]),
+  "a fractional power amount is rejected",
+);
+check(
+  !accepts([{ playerId: HUMAN, type: "well_transfer", data: { destinationWellId: "planet-alpha" } }]),
+  "a well_transfer without its sectorAdjustment is rejected",
 );
 check(
   !accepts([{ playerId: HUMAN, type: "deploy_ship", data: { wellId: "planet-alpha", sector: 3 } }]),
@@ -484,9 +507,11 @@ if (recording) {
       ],
     },
   };
+  // The same finished game written under older rules: refused, never migrated.
+  const stale = { ...archived, recordingId: "smoke-stale", schemaVersion: 2 } as unknown as GameRecording;
   const archive: RecordingArchive = {
     list: async () => [],
-    load: async (id) => (id === archived.recordingId ? archived : null),
+    load: async (id) => [archived, stale].find((r) => r.recordingId === id) ?? null,
     write: async () => {},
   };
   const forkKv = memoryKv();
@@ -539,6 +564,28 @@ if (recording) {
     humanPlayerName: "Grace",
   });
   check(!missingRecording.ok, "forking an unknown recording is refused");
+
+  const staleFork = await forkGames.forkGameFromRecording("smoke-stale", -1, {
+    impersonateOriginalPlayerId: BOT_A,
+    humanPlayerId: outsider,
+    humanPlayerName: "Grace",
+  });
+  check(!staleFork.ok, "forking a recording made under older rules is refused");
+
+  // The archive on disk leaves a recording made under older rules out of its list.
+  const shelf = await mkdtemp(join(tmpdir(), "di-smoke-"));
+  try {
+    const disk = createRecordingArchive(shelf);
+    await disk.write(archived);
+    await disk.write(stale);
+    const listed = await disk.list();
+    check(
+      listed.length === 1 && listed[0].recordingId === archived.recordingId,
+      "the recordings list leaves out a recording made under older rules",
+    );
+  } finally {
+    await rm(shelf, { recursive: true, force: true });
+  }
 }
 
 // --- Room membership (one player, several tabs) ------------------------------

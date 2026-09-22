@@ -7,10 +7,12 @@
  * struck through and go dark.
  *
  * Energy cells are drawn under every tile for every player, face-down or not:
- * at the table the cubes sit on top of the module in the open. Four cells lit
- * on a face-down forward slot can only be a railgun. A tile that takes no
- * energy at all prints no cells, and nothing else is ever written under a
- * tile.
+ * at the table the cubes sit on top of the module in the open, and they stay
+ * there until their owner's next turn. Using a tile turns it face-up, so
+ * energy on a face-down slot means it was powered, not used: two is a half
+ * shield, a ballistic rack or a sensor array, four is a full shield, and a gun
+ * is dark until it fires. A tile that takes no energy at all prints no cells,
+ * and nothing else is ever written under a tile.
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import type { SlotKnowledge, SubsystemId, SubsystemType } from '@dangerous-inclinations/engine'

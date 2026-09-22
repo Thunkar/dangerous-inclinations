@@ -68,17 +68,20 @@ export function getDissipationCapacity(
 }
 
 /**
- * **The whole energy rule: a tile's cubes are heat at its owner's check.**
+ * **The whole energy rule: every cube on the loadout is a point of heat at its
+ * owner's check.**
  *
  * It does not matter how the cubes got there. An action puts them on the tile
- * it uses and they are still there when the check runs, so firing a railgun
- * costs its four. A standing tile carries them the whole time, so a wall, a
- * rack or a sensor pays at every check for as long as it is up. There is
- * nothing else to know and nothing a tile can do that is free.
+ * it uses, and a `power` action puts them on a shield, a rack or a sensor; both
+ * are still there when the check runs, so firing a railgun costs its four and
+ * holding a wall up costs the wall. They stay on until the owner's next turn
+ * clears the loadout (`clearLoadout`), so each turn's energy is billed at
+ * exactly one check. There is nothing else to know and nothing a tile can do
+ * that is free.
  *
- * A tile that absorbed has already spent its cubes and is at zero when the
- * check comes, so it costs nothing that turn: shields are expensive idle and
- * free when they work.
+ * A shield that absorbs spends its cubes, so a wall hit on somebody else's turn
+ * has less on it when a critical finds it, and the heat of what it absorbed
+ * lands on the track directly (`damage.ts`).
  */
 export function heatFromCubes(subsystems: ReadonlyArray<Subsystem>): number {
   // The cubes themselves, not `isPowered`: a tile is hot because it is carrying
@@ -155,25 +158,24 @@ export function drawFor(type: Subsystem["type"], requested?: number): number {
  * no reactor to run dry, only the heat the cubes will cost at the check, so a
  * ship may light everything it owns and pay in hull for it.
  *
- * A standing tile already holding its cubes is left where its owner set it, so
- * a rack that intercepts and a scan on a sensor already up add nothing.
+ * The loadout is clear when its owner's turn starts, so on that turn this
+ * always adds the draw. A rack intercepting on somebody else's turn is already
+ * holding its cubes (it was powered, or it fired), and it adds nothing.
  */
 export function powerForUse(ship: ShipState, id: SubsystemId, draw: number): ShipState {
   const sub = findSubsystem(ship, id);
   if (!sub || sub.allocatedEnergy >= draw) return ship;
-  // Not `isStanding`: these cubes belong to the action and come off with it.
   return updateSubsystem(ship, id, { allocatedEnergy: draw, isPowered: true });
 }
 
 /**
  * Use a subsystem: power it for the action, mark it used this turn and reveal
- * it.
+ * it. The cubes stay on the tile until its owner's next turn, so a rack that
+ * fired is up and a sensor that scanned widens the range of every shot after.
  *
  * Returns the cubes this use **added**, which is what it costs its owner and
  * what the event reports. Heat is not charged here: a tile's cubes are its
- * heat at the check wherever they came from (see `heat.ts`), so an action that
- * lights a dark tile is billed its draw and one that uses a tile already
- * switched on is billed nothing, because those cubes are already on the bill.
+ * heat at the check wherever they came from (see `heat.ts`).
  *
  * `draw` is for the engines, whose cubes are the burn's. Everything else has
  * one legal figure and takes it from its tile.
@@ -195,24 +197,19 @@ export function useSubsystem(
 }
 
 /**
- * End of the turn: every tile an action powered goes dark, so the only cubes
- * on the board between turns are the ones somebody switched on and left on.
- * That is what makes a loaded slot worth reading (RULES §Hidden Information),
- * what a critical finds when it names one, and what a ship is billed for at
- * every check rather than once.
- *
- * A rack that fired as a gun, or a sensor that scanned, goes dark with the
- * rest: using a standing tile is not the same as holding it up, and nobody
- * pays a standing bill for a tile they used once.
+ * The start of a player's own turn: every tile on their loadout goes back to
+ * no energy. What they used or powered last turn has been working on everyone
+ * else's turns since, and was billed at their last check; this turn's energy
+ * is whatever this turn's actions put on (RULES §Energy and Heat).
  */
-export function clearDerivedPower(ship: ShipState): ShipState {
-  let changed = false;
-  const subsystems = ship.subsystems.map((s) => {
-    if (s.allocatedEnergy === 0 || s.isStanding) return s;
-    changed = true;
-    return { ...s, allocatedEnergy: 0, isPowered: false };
-  });
-  return changed ? { ...ship, subsystems } : ship;
+export function clearLoadout(ship: ShipState): ShipState {
+  if (!ship.subsystems.some((s) => s.allocatedEnergy !== 0 || s.isPowered)) return ship;
+  return {
+    ...ship,
+    subsystems: ship.subsystems.map((s) =>
+      s.allocatedEnergy !== 0 || s.isPowered ? { ...s, allocatedEnergy: 0, isPowered: false } : s
+    ),
+  };
 }
 
 /**

@@ -2,14 +2,15 @@
  * From what an agent wants to do to the actions the engine accepts. Cubes for
  * a burn, a rotation or a shot are not the agent's business at all: the engine
  * powers a tile from the action that uses it. What the builder does carry is
- * `power` and `unpower`, the standing tiles the agent wants up while it is not
- * acting, and the order a turn is played in.
+ * `power`, the shields, racks and sensor the agent wants up until its next
+ * turn, and the order a turn is played in. The loadout is cleared at the start
+ * of every turn, so a tile not named in `power` (and not used) is off.
  */
 import type { BurnIntensity, Facing, GravityWellId, Player, PlayerAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { getSubsystemConfig, isStandingType } from "../models/subsystems.ts";
+import { getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
 import type { GameView } from "../game/view.ts";
-import { standingActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
+import { powerActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, type MovementPreview } from "../game/movement.ts";
 import { isMooredAt } from "../game/stations.ts";
@@ -37,14 +38,16 @@ export interface FireIntent {
 
 export interface TurnIntent {
   /**
-   * Cubes wanted on standing tiles (shields, a ballistic rack, a sensor
-   * array); ones not named keep what they hold. Nothing else takes cubes here:
-   * the engines, the thrusters, the scoop and every weapon are powered by the
-   * action that uses them.
+   * Tiles to power this turn and the cubes to put on each: shields 2 or 4, a
+   * ballistic rack 2, a sensor array 2. They work until your next turn, and
+   * they run first, so a sensor widens every shot this turn. Ones not named
+   * are off: the loadout is cleared at the start of the turn. Nothing else
+   * takes cubes here: the engines, the thrusters, the scoop and every weapon
+   * are powered by the action that uses them, and a rack that fires or a
+   * sensor that scans is left up by it (a tile does one thing a turn, so do
+   * not also power it).
    */
   power?: Partial<Record<SubsystemId, number>>;
-  /** Standing tiles to switch off (take every cube back). */
-  unpower?: SubsystemId[];
   rotate?: boolean;
   move?:
     | { kind: "coast"; scoop?: boolean }
@@ -74,36 +77,45 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   const notes: string[] = [];
   const find = (id: SubsystemId) => ship.subsystems.find((s) => s.id === id);
 
-  // Standing tiles only: what is up now, then what the intent asks for. A
-  // tile an action powers is not named here and never needs to be.
+  // Only what the intent asks for: the loadout starts the turn clear, so
+  // nothing is up unless this turn powers it. A tile an action powers is not
+  // named here and never needs to be.
   const targets: EnergyTargets = new Map();
-  for (const st of ship.subsystems) {
-    if (isStandingType(st.type)) targets.set(st.id, st.allocatedEnergy);
-  }
-  const notStanding = (id: SubsystemId) => {
-    notes.push(`${id} is powered by the action that uses it; it takes no cubes here`);
-  };
-  for (const id of intent.unpower ?? []) {
-    const sub = find(id);
-    if (sub && !isStandingType(sub.type)) notStanding(id);
-    else targets.set(id, 0);
-  }
   for (const [id, cubes] of Object.entries(intent.power ?? {}) as Array<[SubsystemId, number]>) {
     const sub = find(id);
     if (!sub) {
       notes.push(`no tile ${id} aboard; ignored`);
       continue;
     }
-    if (!isStandingType(sub.type)) {
-      notStanding(id);
+    if (!isPowerableType(sub.type)) {
+      notes.push(`${id} is powered by the action that uses it; it takes no cubes here`);
+      continue;
+    }
+    if (sub.isBroken) {
+      notes.push(`${id} is broken and cannot be powered; ignored`);
       continue;
     }
     const c = getSubsystemConfig(sub.type);
     const wanted = Math.max(0, Math.min(c.maxEnergy, Math.round(cubes)));
-    if (wanted > 0 && wanted < c.minEnergy) {
+    if (wanted === 0) continue;
+    if (wanted < c.minEnergy) {
       notes.push(`${id} needs at least ${c.minEnergy} cubes to work; set to ${c.minEnergy}`);
       targets.set(id, c.minEnergy);
     } else targets.set(id, wanted);
+  }
+  // A tile does one thing a turn. The engine refuses the pair, and says so;
+  // this note is only the reason, in advance.
+  const used = new Set<SubsystemId>([
+    ...(intent.fire ?? []).map((f) => f.weapon),
+    ...(intent.scan
+      ? ship.subsystems.filter((s) => s.type === "sensor_array").map((s) => s.id)
+      : []),
+  ]);
+  for (const id of targets.keys()) {
+    if (used.has(id))
+      notes.push(
+        `${id} is powered and also used this turn; a tile does one thing a turn, and using it leaves it up anyway`
+      );
   }
 
   let facing: Facing = ship.facing;
@@ -126,8 +138,9 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
     }
   }
 
-  const actions: PlayerAction[] = standingActions(me as Player, targets);
-  let sequence = 0;
+  // Power first: a sensor widens only the shots after it.
+  const actions: PlayerAction[] = powerActions(me as Player, targets);
+  let sequence = actions.length;
   const seq = () => ++sequence;
 
   // Where the ship stands before and after the move, for choosing when a shot fires.

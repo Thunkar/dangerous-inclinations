@@ -9,9 +9,13 @@
  * sectors are a lot of board to search by eye.
  *
  * The slots are the interesting part. A face-down tile shows only which slot
- * it is, but the energy cubes on it are public, so four cubes on a face-down
- * forward slot can only be a railgun. A tile you have seen through a scan
- * carries an eye badge; it is face-up for you alone.
+ * it is, but the energy on it is public and stays until its owner's next turn.
+ * Using a tile turns it face-up, so energy on a face-down slot was powered,
+ * not used: two is a half shield, a ballistic rack or a sensor array, four is
+ * a full shield, and a gun is dark until it fires. A face-up tile shows what
+ * its last turn left on it (a railgun that fired still holds its four). A
+ * tile you have seen through a scan carries an eye badge; it is face-up for
+ * you alone.
  *
  * Clicking a slot names it: the slot a critical hit would break, or the tile a
  * scan will look at. A scan wants a face-down tile, but once you know them
@@ -24,7 +28,6 @@ import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
 import {
   MAX_HEAT,
   CARGO_HOLD_CRATES,
-  isCriticalTarget,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { Panel } from '../common/Panel'
@@ -296,37 +299,32 @@ export function OpponentCard({
 
         {/* The fixed systems, as small badges */}
         <Box sx={{ display: 'flex', gap: '5px', alignItems: 'flex-start', minWidth: 0 }}>
-          {player.fixed.map(fixed => {
-            const targetable = isCriticalTarget(fixed.id)
-            return (
-              <Tooltip
-                key={fixed.id}
-                title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' · broken' : ''}${
-                  targetable ? '' : ' · a critical cannot name it'
-                }`}
-              >
-                <Box>
-                  <SubsystemTile
-                    id={fixed.id}
-                    type={fixed.type}
-                    knownVia="revealed"
-                    isBroken={fixed.isBroken}
-                    allocatedEnergy={fixed.allocatedEnergy}
-                    size={FIXED_TILE}
-                    cubeSize={5}
-                    pulse={Boolean(pulses[`${player.id}:${fixed.id}`])}
-                    onClick={
-                      picking === 'crit' && targetable && onPickSlot !== undefined
-                        ? () => onPickSlot(player.id, fixed.id)
-                        : undefined
-                    }
-                    selected={selectedSlotId === fixed.id}
-                    highlighted={picking === 'crit' && targetable}
-                  />
-                </Box>
-              </Tooltip>
-            )
-          })}
+          {player.fixed.map(fixed => (
+            <Tooltip
+              key={fixed.id}
+              title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' · broken' : ''}`}
+            >
+              <Box>
+                <SubsystemTile
+                  id={fixed.id}
+                  type={fixed.type}
+                  knownVia="revealed"
+                  isBroken={fixed.isBroken}
+                  allocatedEnergy={fixed.allocatedEnergy}
+                  size={FIXED_TILE}
+                  cubeSize={5}
+                  pulse={Boolean(pulses[`${player.id}:${fixed.id}`])}
+                  onClick={
+                    picking === 'crit' && onPickSlot !== undefined
+                      ? () => onPickSlot(player.id, fixed.id)
+                      : undefined
+                  }
+                  selected={selectedSlotId === fixed.id}
+                  highlighted={picking === 'crit'}
+                />
+              </Box>
+            </Tooltip>
+          ))}
         </Box>
 
         {/* Completed missions, face-up for everyone */}

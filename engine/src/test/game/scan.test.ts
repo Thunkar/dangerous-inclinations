@@ -89,7 +89,8 @@ describe("scan: a successful scan", () => {
 
   it("the sensor scans once per turn", () => {
     const result = executeTurnAs(scanner(), scan(1, "p2", "side-0"), scan(2, "p2", "side-1"));
-    expect(result.errors?.[0]).toMatch(/unused this turn/i);
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(executeTurnAs(scanner(), scan(1, "p2", "side-0")).errors).toBeUndefined();
   });
 
   it("range is measured when the scan executes", () => {

@@ -208,7 +208,7 @@ export interface ShipState {
 
 interface BaseAction {
   playerId: string;
-  /** Tactical actions (rotate/move/fire/scan/jump) execute in sequence order. */
+  /** Tactical actions (power/rotate/move/fire/scan/jump) execute in sequence order. */
   sequence?: number;
 }
 
@@ -227,19 +227,10 @@ export interface RotateAction extends BaseAction {
   data: { targetFacing: Facing };
 }
 
-/**
- * Switch a standing tile on or off: shields, a ballistic rack or a sensor
- * array (`STANDING_SUBSYSTEM_TYPES`). `amount` is what the tile should hold
- * when the turn starts, not a delta, because the choice is a setting and not
- * arithmetic: 0 is off, and for shields 2 or 4 is how wide the wall is.
- *
- * No other tile takes one of these. Everything else is powered by the action
- * that uses it, to the only draw that action has, and is dark again by the end
- * of the turn.
- */
-export interface SetStandingPowerAction extends BaseAction {
-  type: "set_standing_power";
-  data: { subsystemId: SubsystemId; amount: number };
+/** Power one of the tiles that work on other players' turns (POWERABLE_TYPES). `amount` is shields' 2 or 4; absent means the tile's minimum. */
+export interface PowerAction extends BaseAction {
+  type: "power";
+  data: { subsystemId: SubsystemId; amount?: number };
 }
 
 export interface FireWeaponAction extends BaseAction {
@@ -277,9 +268,9 @@ export interface WellTransferAction extends BaseAction {
     destinationWellId: GravityWellId;
     /**
      * Phasing, as on a burn: sectors to shift the arrival for 1 fuel each,
-     * bounded by the arrival arc. Absent = land on the matching sector.
+     * bounded by the arrival arc. 0 lands on the matching sector.
      */
-    sectorAdjustment?: number;
+    sectorAdjustment: number;
   };
 }
 
@@ -306,13 +297,10 @@ export type TacticalAction =
   | BurnAction
   | WellTransferAction
   | FireWeaponAction
-  | ScanAction;
+  | ScanAction
+  | PowerAction;
 
-export type PlayerAction =
-  | TacticalAction
-  | SetStandingPowerAction
-  | RepairAction
-  | DeployShipAction;
+export type PlayerAction = TacticalAction | RepairAction | DeployShipAction;
 
 export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "rotate",
@@ -321,6 +309,7 @@ export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set(
   "well_transfer",
   "fire_weapon",
   "scan",
+  "power",
 ]);
 
 export function isTacticalAction(action: PlayerAction): action is TacticalAction {
@@ -328,7 +317,10 @@ export function isTacticalAction(action: PlayerAction): action is TacticalAction
 }
 
 export interface Player {
-  /** Optional for compatibility with historical recordings. */
+  /**
+   * Set by a loadout submission that paints the ship. Bots and seat agents
+   * submit none, and a ship nobody painted flies the reference corvette.
+   */
   appearance?: ShipAppearance;
   id: string;
   name: string;
@@ -342,13 +334,6 @@ export interface Player {
   hasSubmittedLoadout: boolean;
   /** Where the ship deployed; destroyed ships return here. */
   home: Position | null;
-  /**
-   * Turns still to sit out after respawning. Nothing sets it any more (a
-   * destroyed ship loses the respawn turn and nothing else), but old
-   * recordings were made when the turn after was lost too, and they still
-   * replay (see `executeTurn`).
-   */
-  skipTurns: number;
   /**
    * Back from the dead and untouchable: set when the ship is placed at Home
    * on its respawn turn, cleared at the end of the turn its owner plays next.

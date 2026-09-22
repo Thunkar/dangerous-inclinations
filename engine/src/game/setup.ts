@@ -35,7 +35,6 @@ export function createPlayer(spec: PlayerSpec): Player {
     hasDeployed: false,
     hasSubmittedLoadout: false,
     home: null,
-    skipTurns: 0,
     recovering: false,
     intel: {},
   };

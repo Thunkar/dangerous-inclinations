@@ -6,7 +6,7 @@
 import type { BurnIntensity, Facing, Position } from "../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, isOpeningRound, isQuietTurn } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { getSubsystemConfig } from "../models/subsystems.ts";
+import { energyStepOf, getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
 import {
   BURN_COSTS,
   SECTOR_ADJUSTMENT_COST_PER_SECTOR,
@@ -57,12 +57,14 @@ export interface SeatOptions {
   position: Position & { facing: Facing };
   velocity: number;
   fuel: number;
-  /** Heat the turn may still make before the track redlines, shields' standing cost already deducted. */
+  /**
+   * Heat the turn may still make before the track redlines. The loadout starts
+   * the turn clear, so every cube this turn puts on, powered or used, comes
+   * out of this.
+   */
   heatBudget: number;
   /** Heat already on the track, carried in from last turn. */
   heatCarried: number;
-  /** Heat powered shields will add at the check, whether or not they absorb. */
-  standingHeat: number;
   /** Dissipated at every check. What is not dissipated carries to the next turn. */
   dissipation: number;
   /**
@@ -84,16 +86,24 @@ export interface SeatOptions {
   } | null;
   /** Docked at a station: a coast holds the berth, only a burn casts off. */
   moored: boolean;
-  /** Fuel a scoop would gain this turn. */
+  /** Fuel a scoop would gain this turn: 0 when the scoop is broken. */
   scoopGain: number;
   weapons: WeaponOption[];
   scanTargets: string[];
+  /**
+   * Tiles a `power` action may put energy on this turn (unbroken shields,
+   * racks and sensors) and the amounts it may put. Each works until your next
+   * turn, and a tile does one thing a turn: a rack powered cannot fire and a
+   * sensor powered cannot scan, while firing or scanning leaves them up anyway.
+   */
+  power: Array<{ id: SubsystemId; type: string; amounts: number[] }>;
   /** Minimum cubes each of the ship's tiles needs to work. */
   tileMinimums: Array<{
     id: SubsystemId;
     type: string;
     min: number;
     max: number;
+    /** What it holds from your last turn: it comes off when this turn starts. */
     now: number;
     broken: boolean;
   }>;
@@ -120,6 +130,7 @@ export function seatOptions(view: GameView): SeatOptions {
   };
   const enginesWork = working("engines");
   const thrustersWork = working("rotation");
+  const scoopWorks = working("scoop");
 
   const burns: BurnOption[] = [];
   for (const facing of enginesWork ? (["prograde", "retrograde"] as Facing[]) : []) {
@@ -226,31 +237,37 @@ export function seatOptions(view: GameView): SeatOptions {
       : [];
 
   const dissipation = view.myStats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY;
-  const standingHeat = view.myStats?.standingHeat ?? 0;
   const ceiling = view.myStats?.maxHeat ?? MAX_HEAT;
+  const power = ship.subsystems
+    .filter((s) => isPowerableType(s.type) && !s.isBroken)
+    .map((s) => {
+      const c = getSubsystemConfig(s.type);
+      const step = energyStepOf(s.type);
+      const amounts: number[] = [];
+      for (let a = c.minEnergy; a <= c.maxEnergy; a += step) amounts.push(a);
+      return { id: s.id, type: s.type, amounts };
+    });
   return {
     position: here,
     velocity,
     fuel: ship.reactionMass,
-    // Room before the track redlines, with what is already switched on taken
-    // off, not room to the dissipation, which heat no longer resets to.
-    heatBudget: Math.max(0, ceiling - ship.heat.currentHeat - standingHeat),
+    // Room before the track redlines, not room to the dissipation, which heat
+    // no longer resets to. Nothing on the loadout carries into this turn's
+    // check: it is cleared when the turn starts.
+    heatBudget: Math.max(0, ceiling - ship.heat.currentHeat),
     heatCarried: ship.heat.currentHeat,
-    standingHeat,
     dissipation,
     repair: {
       broken: ship.subsystems.filter((s) => s.isBroken).map((s) => s.id),
-      possibleThisTurn:
-        ship.heat.currentHeat === 0 &&
-        standingHeat === 0 &&
-        ship.subsystems.some((s) => s.isBroken),
+      possibleThisTurn: ship.heat.currentHeat === 0 && ship.subsystems.some((s) => s.isBroken),
     },
     burns,
     jump,
     moored,
-    scoopGain: velocity,
+    scoopGain: scoopWorks ? velocity : 0,
     weapons,
     scanTargets,
+    power,
     tileMinimums: ship.subsystems.map((s) => {
       const c = getSubsystemConfig(s.type);
       return {

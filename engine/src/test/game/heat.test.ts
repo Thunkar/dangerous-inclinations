@@ -3,6 +3,7 @@ import { MAX_HEAT, SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY } from "../../models/game.ts";
 import { calculateHeatDamage, resolveEndOfTurnHeat } from "../../game/heat.ts";
 import { getDissipationCapacity } from "../../game/ship.ts";
+import { ringVelocity } from "../../game/geometry.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import {
   BH,
@@ -17,6 +18,7 @@ import {
   jump,
   makeTwoPlayerGame,
   mustExecute,
+  power,
   repair,
   rotate,
   scan,
@@ -140,8 +142,9 @@ describe("heat: end-of-turn resolution", () => {
     // Two cubes buy one point of the rack's two damage, at two heat.
     expect(getShip(afterP1, "p2").heat.currentHeat).toBe(SHIELD_HEAT_PER_POINT);
     const afterP2 = mustExecute(afterP1, coast(1));
-    // Two heat from the absorption, and the tile spent its cubes absorbing so
-    // it adds no standing heat: two against a dissipation of 5 carries nothing.
+    // Two heat from the absorption, and the tile spent its cubes absorbing
+    // (p2's loadout is cleared when its turn starts in any case): two against
+    // a dissipation of 5 carries nothing.
     // The hull is 9 because a 2-damage round through a 1-point wall still lands
     // a point; the heat check took none of it.
     expect(getShip(afterP2, "p2").heat.currentHeat).toBe(0);
@@ -203,8 +206,7 @@ describe("heat: a cold ship repairs one tile", () => {
   });
 
   it("does nothing while a shield is powered, because a raised screen is heat", () => {
-    const state = withPower(stranded(), "p1", "side-2", 2);
-    const result = executeTurnAs(state, coast(1), repair("engines"));
+    const result = executeTurnAs(stranded(), power(1, "side-2", 2), coast(2), repair("engines"));
     expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(2);
     expect(eventsOf(result.events, "subsystem_repaired")).toEqual([]);
   });
@@ -235,6 +237,26 @@ describe("heat: a cold ship repairs one tile", () => {
     const after = executeTurnAs(backToP1, burn(1, "soft"));
     expect(after.errors).toBeUndefined();
     expect(eventsOf(after.events, "burned")).toHaveLength(1);
+  });
+
+  it("refuels a dry ship whose scoop was shot out: one cold turn, then a coast that scoops", () => {
+    const dry = withSub(withShip(makeTwoPlayerGame(), "p1", { reactionMass: 0 }), "p1", "scoop", {
+      isBroken: true,
+    });
+    expect(executeTurnAs(dry, coast(1, true)).errors).toBeDefined();
+
+    // p1 lights nothing, reaches 0 at the check and names the scoop.
+    const cold = executeTurnAs(dry, coast(1), repair("scoop"));
+    expect(cold.errors).toBeUndefined();
+    expect(eventsOf(cold.events, "heat_check")[0].heat).toBe(0);
+    expect(getSub(cold.gameState, "p1", "scoop").isBroken).toBe(false);
+
+    // p2 takes its turn, and p1's next coast skims its ring's velocity in fuel.
+    const backToP1 = mustExecute(cold.gameState, coast(1));
+    const { wellId, ring } = getShip(backToP1, "p1");
+    const after = executeTurnAs(backToP1, coast(1, true));
+    expect(after.errors).toBeUndefined();
+    expect(getShip(after.gameState, "p1").reactionMass).toBe(ringVelocity(wellId, ring));
   });
 });
 

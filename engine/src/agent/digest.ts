@@ -51,23 +51,23 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
 export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): string {
   return `RULES IN BRIEF
 - Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Piracy and Tanker ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
-- Turn: standing systems (switch shields/racks/sensors on or off) -> actions in any order (rotate, ONE move: coast|burn|jump, fire any weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
+- Turn: clear your loadout (every cube you put on last turn comes off) -> actions in the order you choose (power, rotate, ONE move: coast|burn|jump, fire any weapons, scan) -> your missiles fly -> docking -> heat check -> missions.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop costs 3 cubes and 3 heat: +velocity fuel; it runs in port too).
-- ENERGY, in one rule: EVERY CUBE ON A TILE IS A POINT OF HEAT AT YOUR CHECK, however it got there. You never place cubes for an action: taking one powers the tile it uses to its one figure (railgun 4, laser 2, rack 2, missiles 2, sensor 2, scoop 3, thrusters 1, engines = the burn's number), they are still there when the check runs, and they come off after. The ONLY cubes you set are on the three tiles that work while you are not acting: shields, a ballistic rack (it intercepts on other players' turns) and a sensor array (criticals on 8-10 while it is up). Those stay on, so they pay at EVERY check until you switch them off. THERE IS NO REACTOR: nothing caps what you light at once, so a huge turn is legal and simply costs hull.
+- ENERGY, in one rule: EVERY CUBE ON YOUR LOADOUT IS A POINT OF HEAT AT YOUR CHECK. Every action puts energy on the tile it uses, to its one figure (railgun 4, laser 2, rack 2, missiles 2, sensor 2, scoop 3, thrusters 1, engines = the burn's number). The energy stays on the tile until the START OF YOUR NEXT TURN, when you clear your loadout. POWERING IS AN ACTION TOO, for the three tiles that work on other players' turns: shields (2 or 4), a ballistic rack (2) and a sensor array (2). A tile with energy on it works until your next turn: shields absorb, a rack shoots down missiles, a sensor widens your critical range. So a rack you fired is also up, and a sensor you scanned with widens the range of every shot you take AFTER the scan. EACH TILE DOES ONE THING A TURN: you power it or you use it, so a rack you power cannot fire and a sensor you power cannot scan. Nothing is ever switched off: a tile is off unless something put energy on it this turn, so a wall you want up you power again every turn. THERE IS NO REACTOR: nothing caps what you light at once, so a huge turn is legal and simply costs hull.
 - Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data chits (scan, survey) ride free.
 - Burn: drift, then change ring. Prograde facing burns OUTWARD, retrograde INWARD. soft 1 ring / 1 fuel / 1 cube on engines; medium 2/2/2; hard 3/3/3. Phasing: adjust arrival sector, 1 fuel per sector, from -(velocity-1) to +3.
 - Jump: only from a lane's departure arc, engines at 3, 3 fuel (1 with a compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way. Phasing: shift the landing 1 fuel a sector, never out of the arrival arc, so any departure sector reaches any of the arc's 4 sectors. A compressor pays two of the jump's three fuel, never the phasing.
 - Heat is a TRACK and does NOT reset. A tile's cubes are its heat. At your heat check: anything above ${MAX_HEAT} is hull damage and the track stops at ${MAX_HEAT}, then you dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_BONUS} per working radiator) and CARRY THE REST into next turn. So a hot turn is a debt, not a wound, but generate more than you dissipate for long enough and you redline.
-- Shields: every ${SHIELD_ENERGY_PER_POINT} cubes on a tile absorb 1 point of damage, so a tile takes ${SHIELD_ENERGY_PER_POINT} cubes or ${2 * SHIELD_ENERGY_PER_POINT} and never an odd one; every point absorbed is ${SHIELD_HEAT_PER_POINT} heat to YOU. SHIELDS YOU LEAVE UP RUN HOT: each adds its cubes at EVERY check, absorbing or not. A tile that did absorb has spent its cubes and is dark, so it costs nothing that turn and you must switch it back on. Lasers ignore shields.
-- Weapons: railgun ${dmg("railgun")} dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser ${dmg("laser")} dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack ${dmg("ballistic_rack")} dmg, +-1 ring/+-1 sector or same ring 1 sector; it only intercepts if you SWITCHED IT ON, which costs its 2 cubes at every check whether anything comes or not, and then it rolls at UP TO ${interceptsPerRack()} missiles a turn (the same number its cubes could have thrown as a launcher) and destroys each on 2+; the whole turn of rolling is ONE use of the rack. A fifth missile in the same turn gets through unless you have a second rack up. Missiles ${dmg("missiles")} dmg at ANY ship in your well, any distance, any facing: ${MISSILE.maxAmmo} aboard, each flies ${MISSILE.fuelPerTurn} steps a turn (a step is one ring or one sector) for ${MISSILE.maxMoves} turns, then is gone. One action launches AS MANY as you like at ONE ship for ONE use of the tile, so the magazine is the limit, not the heat.
+- Shields: every ${SHIELD_ENERGY_PER_POINT} cubes on a tile absorb 1 point of damage, so a tile takes ${SHIELD_ENERGY_PER_POINT} cubes or ${2 * SHIELD_ENERGY_PER_POINT} and never an odd one; every point absorbed is ${SHIELD_HEAT_PER_POINT} heat to YOU. A powered shield's cubes are heat at the check of the turn you power it, absorbing or not, and it absorbs on everyone else's turns until your next one; the cubes it absorbs with are spent. Lasers ignore shields.
+- Weapons: railgun ${dmg("railgun")} dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser ${dmg("laser")} dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack ${dmg("ballistic_rack")} dmg, +-1 ring/+-1 sector or same ring 1 sector; it only intercepts while it has energy on it (you POWERED it, or FIRED it, on your last turn), which costs its 2 cubes at that turn's check whether anything comes or not, and then it rolls at UP TO ${interceptsPerRack()} missiles a turn (the same number its cubes could have thrown as a launcher) and destroys each on 2+; the whole turn of rolling is ONE use of the rack. A fifth missile in the same turn gets through unless you have a second rack up. Missiles ${dmg("missiles")} dmg at ANY ship in your well, any distance, any facing: ${MISSILE.maxAmmo} aboard, each flies ${MISSILE.fuelPerTurn} steps a turn (a step is one ring or one sector) for ${MISSILE.maxMoves} turns, then is gone. One action launches AS MANY as you like at ONE ship for ONE use of the tile, so the magazine is the limit, not the heat.
 - POINT BLANK: a ship in YOUR OWN sector (same ring, same sector) is in range of every weapon you carry, whatever its arc.
 - THE FIRST ROUND REACHES NOBODY: no weapon fires and nobody scans. Deploy on Black Hole ring 3 or 4, at least three sectors from every placed ship; if no sector qualifies, the farthest one.
-- Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 if you have a sensor array switched on). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat. Cubes on every slot are public even while the tile is face-down, but only a STANDING tile carries any between turns: cubes on a face-down bow can only be a sensor, 4 on a side slot only a full shield, 2 a half shield or a rack. A gun is always dark, so a loaded slot is defence and a silent one may be anything. (A tile that just absorbed has spent its cubes, so breaking it dumps little, but it is gone until they dock.)
-- Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name: that means no move but a plain coast, no scoop, no shot, no scan and nothing switched on. It is the only way back for a ship whose engines or thrusters were shot out, because every station needs a jump to reach.
+- Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 for shots after your sensor array was powered or scanned this turn). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken tile dumps its cubes into its owner's heat: a railgun that fired last turn still holds its 4 on your turn. Cubes on every slot are public even while the tile is face-down. Using a tile turns it face-up, so cubes on a FACE-DOWN slot were powered: 2 is a half shield, a rack or a sensor, 4 only a full shield, and a silent face-down slot may be anything. (A tile that just absorbed has spent its cubes, so breaking it dumps little, but it is gone until they dock.)
+- Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken tile you name: that means no move but a plain coast, no scoop, no shot, no scan and nothing powered. It is the only way back for a ship whose engines, thrusters or scoop were shot out, because every station needs a jump to reach and a dry ship with no scoop has no fuel for one.
 - Docking (end your turn on a station's sector, planet ring 2): load/deliver cargo, repair, FULL hull, reload. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it: a coast does not drift, and the station carries you when it advances. Burn to cast off.
 - Secondary cards (1 pt, no tile needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the chit, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or a data chit and it is yours, then sell the loot at ANY station: a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and it is pumped in automatically: hand in ${TANKER_FUEL}, the card is done.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
-- Destroyed: you drop your cargo and lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. The turn after that is A FIRST ROUND OF YOUR OWN: standing systems, rotation and a move are yours, but no weapon of yours fires and you scan nobody, and nobody can fire at, missile or scan you until that turn is over.`;
+- Destroyed: you drop your cargo and lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. The turn after that is A FIRST ROUND OF YOUR OWN: power, rotation and a move are yours, but no weapon of yours fires and you scan nobody, and nobody can fire at, missile or scan you until that turn is over.`;
 }
 
 /** What each chit-paying secondary card still asks of you. */
@@ -137,9 +137,7 @@ export function describeViewForAgent(
   const stats = view.myStats;
   out.push("");
   out.push(
-    `YOUR SHIP: ${pos(ship)}, facing ${ship.facing}. Hull ${ship.hitPoints}/${ship.maxHitPoints}. Heat ${ship.heat.currentHeat}/${stats?.maxHeat ?? MAX_HEAT} carried${
-      stats?.standingHeat ? ` +${stats.standingHeat} at the check from what you have up` : ""
-    }, dissipates ${stats?.dissipationCapacity ?? "?"}. Fuel ${ship.reactionMass}/${stats?.maxReactionMass ?? "?"}.${
+    `YOUR SHIP: ${pos(ship)}, facing ${ship.facing}. Hull ${ship.hitPoints}/${ship.maxHitPoints}. Heat ${ship.heat.currentHeat}/${stats?.maxHeat ?? MAX_HEAT} carried, dissipates ${stats?.dissipationCapacity ?? "?"}. Fuel ${ship.reactionMass}/${stats?.maxReactionMass ?? "?"}.${
       me.recovering
         ? " UNTOUCHABLE: you came back at Home last turn, and this turn is a first round of your own. Nobody touches you until it is over, and you fire at nobody and scan nobody on it."
         : ""
@@ -150,9 +148,9 @@ export function describeViewForAgent(
       .map((s) => {
         const c = getSubsystemConfig(s.type);
         const extra = s.type === "missiles" ? ` ammo ${s.ammo ?? 0}` : "";
-        return `${s.id}=${s.type}${s.isBroken ? " BROKEN" : ""} [${s.allocatedEnergy}/${c.maxEnergy}, min ${c.minEnergy}]${extra}${s.isRevealed ? " (face-up)" : ""}`;
+        return `${s.id}=${s.type}${s.isBroken ? " BROKEN" : ""} [min ${c.minEnergy}, max ${c.maxEnergy}${s.allocatedEnergy ? `, holding ${s.allocatedEnergy} from last turn` : ""}]${extra}${s.isRevealed ? " (face-up)" : ""}`;
       })
-      .join("; ")}`
+      .join("; ")}. Cubes held from last turn come off when your turn starts.`
   );
   out.push(`YOUR POINTS: ${me.completedMissionCount}/${view.pointsToWin}. CARDS:`);
   for (const m of me.missions) out.push(`  - ${missionLine(m, name)}`);
@@ -226,12 +224,18 @@ export function describeViewForAgent(
     out.push(
       `  Scan targets (sensor array aboard, same ring within 3): [${o.scanTargets.map(name).join(", ") || "-"}].`
     );
+    out.push(
+      `  Power (works until your next turn; a tile you power cannot also fire or scan): ${
+        o.power.map((p) => `${p.id} (${p.type}) ${p.amounts.join(" or ")}`).join("; ") ||
+        "nothing aboard"
+      }.`
+    );
     if (o.repair.broken.length > 0)
       out.push(
         `  Broken: ${o.repair.broken.join(", ")}. ${
           o.repair.possibleThisTurn
-            ? 'Repair one with {"repair":"<id>"} IF this turn makes no heat at all (plain coast, no scoop, no shot, no scan, shields off).'
-            : "No repair this turn: you are already carrying heat or your shields are up."
+            ? 'Repair one with {"repair":"<id>"} IF this turn makes no heat at all (plain coast, no scoop, no shot, no scan, nothing powered).'
+            : "No repair this turn: you are already carrying heat."
         }`
       );
     out.push(`  Heat budget before damage: ${o.heatBudget}.`);
@@ -239,7 +243,7 @@ export function describeViewForAgent(
 
   const recent = options.recentTurns ?? 1;
   const since = view.turn - recent;
-  const shown = events.filter((e) => e.turn >= since && e.type !== "standing_power_set");
+  const shown = events.filter((e) => e.turn >= since && e.type !== "subsystem_powered");
   if (shown.length) {
     out.push("", `RECENT EVENTS (turn ${Math.max(1, since)}+):`);
     for (const e of shown.slice(-40)) out.push(`  T${e.turn} ${describeEvent(e, name)}`);
@@ -248,10 +252,9 @@ export function describeViewForAgent(
 }
 
 /** How an agent describes a turn: the intent JSON the builder accepts. */
-export const AGENT_INTENT_GUIDE = `INTENT FORMAT (JSON). Everything optional; omitted = leave the standing systems as they are and coast.
+export const AGENT_INTENT_GUIDE = `INTENT FORMAT (JSON). Everything optional; omitted = nothing powered and a coast.
 {
-  "power": { "side-2": 4 },                    // STANDING tiles only (shields/rack/sensor): cubes to hold; 0 is off, others keep theirs
-  "unpower": ["side-3"],                       // standing tiles to switch off
+  "power": { "side-2": 4, "forward-0": 2 },    // shields 2|4, rack 2, sensor 2: up until your next turn; not named = off
   "rotate": false,                             // flip facing (1 cube on the thrusters, 1 heat)
   "move": { "kind": "coast", "scoop": false }  // or { "kind": "burn", "intensity": "soft|medium|hard", "adjustment": 0, "facing": "prograde|retrograde" }
                                                // or { "kind": "jump", "destinationWellId": "planet-alpha", "adjustment": 0 }
@@ -259,4 +262,4 @@ export const AGENT_INTENT_GUIDE = `INTENT FORMAT (JSON). Everything optional; om
   "scan": { "target": "<playerId>", "slot": "side-1" },
   "repair": "engines"                          // a broken tile to fix at the heat check; only lands if the turn makes NO heat
 }
-A burn, rotation, shot or scan needs no cubes from you: the engine powers its tile. The builder just orders the actions (rotate, shots marked "before", the move, other shots, scan). Preview it before submitting; if the preview reports errors, fix the intent or fall back to a coast.`;
+A burn, rotation, shot or scan needs no cubes from you: the engine powers its tile. Do not also power a rack you fire or a sensor you scan with: a tile does one thing a turn, and using it leaves it up. The builder just orders the actions (power, rotate, shots marked "before", the move, other shots, scan). Preview it before submitting; if the preview reports errors, fix the intent or fall back to a coast.`;

@@ -1,5 +1,5 @@
 /**
- * Recording capture and persistence (schema v2: events per turn).
+ * Recording capture and persistence (schema v3: events per turn, `power` actions).
  *
  * Lifecycle:
  * - `init` when a game enters the active phase: the post-deployment state
@@ -24,6 +24,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   RECORDING_SCHEMA_VERSION,
+  staleRecordingReason,
   type GameEvent,
   type GameRecording,
   type GameState,
@@ -85,7 +86,9 @@ export function createRecordingArchive(dir: string): RecordingArchive {
       const summaries = await Promise.all(
         files.map(async (file): Promise<RecordingSummary | null> => {
           const rec = await readRecording(join(dir, file));
-          if (!rec) return null;
+          // A recording made under other rules is not a game this build can
+          // show: it is left out, never migrated (`staleRecordingReason`).
+          if (!rec || staleRecordingReason(rec) !== null) return null;
           return {
             recordingId: rec.recordingId,
             createdAt: rec.createdAt,

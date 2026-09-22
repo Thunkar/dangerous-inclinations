@@ -7,15 +7,18 @@
  * from that movement so that every action in the sequence is valid for the
  * engine at the moment it executes:
  *
- *   1. rotate (if the movement or the railgun needs a facing)
- *   2. shots and scans that are in range from the current position
- *   3. the movement (coast / burn / jump)
- *   4. shots and scans that are in range from the projected position
+ *   1. power the shields, racks and sensor the plan wants up
+ *   2. rotate (if the movement or the railgun needs a facing)
+ *   3. shots and scans that are in range from the current position
+ *   4. the movement (coast / burn / jump)
+ *   5. shots and scans that are in range from the projected position
  *
- * Standing switches precede all of that (the engine applies them first);
- * heat over the redline at the end of the turn costs hull, and every cube is
- * heat, so the sequence is built against that one budget. Heat is a track:
- * what is left after the dissipation is carried, not forgiven.
+ * The power actions come first because a sensor widens only the shots after
+ * it. The loadout is cleared at the start of the turn, so anything the bot
+ * wants up is powered again every turn. Heat over the redline at the end of
+ * the turn costs hull, and every cube is heat, so the sequence is built
+ * against that one budget. Heat is a track: what is left after the
+ * dissipation is carried, not forgiven.
  */
 import type {
   Facing,
@@ -54,7 +57,7 @@ import {
 import type { FireIntent } from "./behaviors/combat.ts";
 import { scanOption } from "./behaviors/scanning.ts";
 import type { ScanIntent } from "./behaviors/scanning.ts";
-import { assignDefensiveEnergy, standingActions } from "./behaviors/survival.ts";
+import { assignDefensiveEnergy, powerActions } from "./behaviors/survival.ts";
 import type { EnergyTargets } from "./behaviors/survival.ts";
 import { castOffChoice, coastChoice, movementFromPlan } from "./behaviors/positioning.ts";
 import type { MovementChoice } from "./behaviors/positioning.ts";
@@ -214,8 +217,8 @@ export function buildCandidate(
     massAfterMovement: status.reactionMass - movement.massCost,
     postPositionMatters,
   };
-  // A shield tile absorbs damage up to the cubes on it and is refilled for
-  // free on its owner's next turn, so a volley that cannot beat the cubes we
+  // A shield tile absorbs damage up to the cubes on it and is powered again
+  // on its owner's next turn, so a volley that cannot beat the cubes we
   // can see never reaches a hull, never lands a critical (a critical only
   // breaks a tile if the shot reaches the hull) and buys nothing but our own
   // heat, a missile off the rack and a tile turned face-up. A ship whose
@@ -351,11 +354,11 @@ export function buildCandidate(
   // heat at the check, so they come out of the same budget as the volley, and
   // what is left of the track after that is all they may cost.
   const enemiesNear = situation.opponents.some((o) => o.sameWell);
-  // A rack is only point defence while it is already powered: a salvo launched
-  // after the enemy's move can reach us on the same turn, so waiting until the
-  // missiles are on the board is waiting one turn too long. Anyone in the well
-  // with a launcher we know about (or a slot whose cubes read like one) is
-  // reason enough to keep the rack up.
+  // A rack is only point defence while it is up, powered or fired on our own
+  // turn: a salvo launched after the enemy's move can reach us on the same
+  // turn, so waiting until the missiles are on the board is waiting one turn
+  // too long. Anyone in the well with a launcher we know about (or a slot
+  // whose cubes read like one) is reason enough to have the rack up.
   const launchersAimedAtUs = situation.opponents.reduce(
     (count, o) =>
       count +
@@ -375,19 +378,20 @@ export function buildCandidate(
     (situation.incomingMissiles + launchersAimedAtUs * getMissileStats().maxAmmo) /
       interceptsPerRack()
   );
-  // A sensor left up makes every gun aboard critical on an 8, which is worth
-  // its two heat on a turn that means to shoot and nothing at all on a turn
-  // that does not. Worth it on the turn of the shot too, since a scan or a
-  // shot pays for the cubes either way and leaving it up only adds the checks
-  // after.
+  // A powered sensor makes every shot sequenced after it critical on an 8
+  // (missiles resolving at the end of the turn included), which is worth its
+  // two heat on a turn that means to shoot and nothing at all on a turn that
+  // does not: the bot only shoots on its own turn.
   const wantSensor = shots.length > 0 && status.sensors.some((s) => !s.isBroken);
   /**
-   * What to leave switched on, kept apart from the turn's own draws: a tile an
-   * action lit goes dark again at the end of the turn, so putting it in here
-   * is the difference between using a rack once and holding point defence up.
+   * What to have up until the bot's next turn, kept apart from the turn's own
+   * draws. A rack that fires or a sensor that scans is up anyway, so it is
+   * priced here at nothing and left out of the power actions: a tile does one
+   * thing a turn, and powering it first would make the shot or the scan
+   * illegal.
    */
-  const standingWants: EnergyTargets = new Map();
-  assignDefensiveEnergy(standingWants, {
+  const upWants: EnergyTargets = new Map();
+  assignDefensiveEnergy(upWants, {
     shields: status.shields,
     racks: status.racks,
     sensors: status.sensors,
@@ -397,19 +401,17 @@ export function buildCandidate(
     wantSensor,
     heatRoom: Math.max(0, heatBudget - heatUsed),
   });
+  const powered: EnergyTargets = new Map([...upWants].filter(([id]) => !targets.has(id)));
   /**
-   * Heat the check will bill beyond the turn's own draws. A tile holds its
-   * cubes once, so a rack that fires and stays up costs two, not four.
+   * Heat the check will bill beyond the turn's own draws: the power actions'
+   * cubes. A tile holds its cubes once, so a rack that fires and stays up
+   * costs two, not four.
    */
-  const standingHeat = [...standingWants].reduce(
-    (sum, [id, cubes]) => sum + Math.max(0, cubes - (targets.get(id) ?? 0)),
-    0
-  );
+  const poweredHeat = [...powered].reduce((sum, [, cubes]) => sum + cubes, 0);
 
-  // Assemble.
-  const standing = standingActions(me, standingWants);
-  const tactical: TacticalAction[] = [];
-  let sequence = 1;
+  // Assemble. Power first: a sensor widens only the shots after it.
+  const tactical: TacticalAction[] = powerActions(me, powered);
+  let sequence = tactical.length + 1;
   const fire = (shot: { opponent: Opponent; intent: FireIntent }): FireWeaponAction => ({
     type: "fire_weapon",
     playerId: me.id,
@@ -493,7 +495,7 @@ export function buildCandidate(
     tactical.push(scanAction(scanChosen));
   for (const s of inPhase("post")) tactical.push(fire(s));
 
-  const actions: PlayerAction[] = [...standing, ...tactical];
+  const actions: PlayerAction[] = tactical;
   const killsTarget = target !== null && hullOn(target) >= target.hull;
   const scansForMission = scanChosen !== null && (scanChosen as ScanIntent).forMission;
 
@@ -506,8 +508,8 @@ export function buildCandidate(
     targetId: target?.player.id,
     followsGoal,
     scans: scanChosen !== null,
-    heatDamage: Math.max(0, status.heat + heatUsed + standingHeat - MAX_HEAT),
-    heatCarried: heatAfterCheck(status.heat + heatUsed + standingHeat, status.dissipation),
+    heatDamage: Math.max(0, status.heat + heatUsed + poweredHeat - MAX_HEAT),
+    heatCarried: heatAfterCheck(status.heat + heatUsed + poweredHeat, status.dissipation),
     massSpent:
       movement.massCost + (shots.some((s) => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0),
     // Only a burn takes a ship off a berth; a coast holds it and a compensated
@@ -524,8 +526,9 @@ export function buildCandidate(
  */
 /**
  * The tile to fix first: what stops the ship being a ship before what stops it
- * being dangerous. A broken engine or thruster cannot be repaired anywhere but
- * a station, and every station needs a jump to reach, so those come first.
+ * being dangerous. A broken engine, thruster or scoop can strand a ship short
+ * of a station (every station needs a jump, and a jump needs engines and fuel),
+ * so running cold is its only way back and those come first.
  */
 const REPAIR_ORDER: readonly SubsystemId[] = ["engines", "rotation", "scoop"];
 
@@ -539,10 +542,9 @@ function coldRepairCandidate(situation: TacticalSituation): ActionPlan | null {
     broken.find((s) => s.type === "shields")?.id ??
     broken[0].id;
 
-  // Everything off: a powered shield is heat at the check even unused.
-  const standing = standingActions(me, new Map());
+  // Nothing powered: the loadout was cleared at the start of the turn, and a
+  // plain coast and the repair put nothing back on it.
   const actions: PlayerAction[] = [
-    ...standing,
     { type: "coast", playerId: me.id, sequence: 1, data: { activateScoop: false } },
     { type: "repair", playerId: me.id, data: { subsystemId: target } },
   ];

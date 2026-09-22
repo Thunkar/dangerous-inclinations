@@ -44,9 +44,9 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * (RULES §Missions): the two roles that spend their forward slot on eyes or
  * legs buy theirs with a side slot.
  *
- * **Why the guns are paired.** A shield tile holds two cubes, absorbs two
- * damage a turn and is refilled for free next turn, so a lone 2-damage shot
- * never reaches a hull. The railgun's four is exactly two shield tiles, so it
+ * **Why the guns are paired.** A full shield tile holds four energy and absorbs
+ * two damage, and its owner powers it again every turn, so a lone 2-damage
+ * shot never reaches a hull. The railgun's four is exactly two shield tiles, so it
  * wants a partner, and which partner depends on where the fight is: a laser
  * ignores shields (they are electromagnetic) and reaches two rings out, one
  * further than a rack, while a ballistic rack is the only broadside that fires
@@ -56,10 +56,19 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * strongest off-book hull (a compressor bow with two ballistic racks, a
  * shield tile and a radiator), the missile-carrying hunter completed its
  * Destroy 34% of the time: a rack that is up rolls at the missiles that reach
- * it, so a salvo aimed at the one loadout built to answer it arrives as dice. The
- * tanky hunter takes the rack instead and keeps both shield tiles, which also
- * buys it the roll against somebody else's missiles; the aggressive one sells
- * a shield tile for a second gun.
+ * it, so a salvo aimed at the one loadout built to answer it arrives as dice.
+ * Both hunters take the rack instead, which also buys them the roll against
+ * somebody else's missiles; the aggressive one adds a laser, the tanky one a
+ * second radiator.
+ *
+ * **Why the tanky hunter's fourth tile is a radiator, not a shield.** Measured
+ * 22 Sept on the balance seeds, 600 games a row with Destroy dealt: with two
+ * shields it won 23% against a Destroy bar of 32 and died 1.20 times a game,
+ * because two walls are eight heat a turn and a hunter that cooks cannot fire.
+ * With a second radiator it wins 28%, dies 1.09 times (the fewest of any
+ * hunter) and takes the least damage, which is what tanky is meant to buy.
+ * Two racks or two lasers read 33% and 35% but die as often as the aggressive
+ * hunter or more, which makes them a second aggressive preset, not a tanky one.
  *
  * **Why the aggressive hunter's second gun is a rack and not a laser.** Every
  * bot holding a Destroy flies this loadout, and the interceptor and hauler presets
@@ -89,7 +98,7 @@ export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   },
   "hunter-tanky": {
     forwardSlots: ["railgun"],
-    sideSlots: ["ballistic_rack", "shields", "shields", "radiator"],
+    sideSlots: ["ballistic_rack", "shields", "radiator", "radiator"],
   },
   "hunter-aggressive": {
     forwardSlots: ["railgun"],

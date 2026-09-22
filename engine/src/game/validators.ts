@@ -8,7 +8,7 @@ import type {
   GameState,
   Player,
   PlayerAction,
-  SetStandingPowerAction,
+  PowerAction,
   RotateAction,
   CoastAction,
   BurnAction,
@@ -21,8 +21,7 @@ import { isOpeningRound, isQuietTurn, isTacticalAction } from "../models/game.ts
 import {
   energyStepOf,
   getSubsystemConfig,
-  isCriticalTarget,
-  isStandingType,
+  isPowerableType,
   isWeaponType,
 } from "../models/subsystems.ts";
 import {
@@ -49,7 +48,7 @@ const ACTIVE_ACTION_TYPES = new Set<string>([
   "well_transfer",
   "fire_weapon",
   "scan",
-  "set_standing_power",
+  "power",
   "repair",
 ]);
 
@@ -102,33 +101,38 @@ function requirePlayer(state: GameState, playerId: string): Player {
 }
 
 /**
- * Switching a standing tile on or off (RULES §Energy and Heat). `amount` is
- * the setting, not a delta: what the tile holds when the action is done.
+ * Powering one of the tiles that work on other players' turns (RULES §Energy
+ * and Heat). `amount` is what the tile holds once powered; absent is its
+ * minimum. Allowed on a quiet turn: a wall or a rack answers other players,
+ * and nobody is reached by it.
+ *
+ * Each tile does one thing a turn, so a tile already used or powered this turn
+ * is refused, and the other way round a rack powered this turn cannot fire and
+ * a sensor powered this turn cannot scan (both are `usedThisTurn`). Firing the
+ * rack or scanning with the sensor leaves it up anyway.
  */
-export function validateSetStandingPowerAction(
-  state: GameState,
-  action: SetStandingPowerAction
-): string[] {
+export function validatePowerAction(state: GameState, action: PowerAction): string[] {
   const player = requirePlayer(state, action.playerId);
   const sub = findSubsystem(player.ship, action.data.subsystemId);
   if (!sub) return [`Subsystem ${action.data.subsystemId} not found`];
   const config = getSubsystemConfig(sub.type);
-  if (!isStandingType(sub.type))
-    return [`${config.name} is powered by the action that uses it, not switched on`];
+  if (!isPowerableType(sub.type))
+    return [`${config.name} is powered by the action that uses it, not by a power action`];
   if (sub.isBroken) return [`${config.name} is broken and cannot be powered`];
+  if (sub.usedThisTurn)
+    return [
+      `${config.name} has already been used or powered this turn: a tile does one thing a turn`,
+    ];
 
-  const amount = action.data.amount;
+  const amount = action.data.amount ?? config.minEnergy;
+  if (!Number.isInteger(amount)) return [`${config.name} is powered with a whole number of cubes`];
   const errors: string[] = [];
-  if (!Number.isInteger(amount) || amount < 0)
-    return ["A standing tile is set to a whole number of cubes, or 0 for off"];
-  if (amount === 0) return errors;
   if (amount < config.minEnergy)
     errors.push(`${config.name} needs at least ${config.minEnergy} cubes to work`);
   if (amount > config.maxEnergy)
     errors.push(`${config.name} holds at most ${config.maxEnergy} cubes`);
   const step = energyStepOf(sub.type);
-  if (amount % step !== 0)
-    errors.push(`${config.name} takes energy ${step} cubes at a time`);
+  if (amount % step !== 0) errors.push(`${config.name} takes energy ${step} cubes at a time`);
   // Nothing else to check: nothing caps what a ship lights, and what the tile
   // costs is heat at the owner's check, which is their business.
   return errors;
@@ -169,7 +173,7 @@ function validateEnginesReady(player: Player, what: string): string[] {
 export function validateBurnAction(state: GameState, action: BurnAction): string[] {
   const player = requirePlayer(state, action.playerId);
   const cost = BURN_COSTS[action.data.burnIntensity];
-  const adjustment = action.data.sectorAdjustment ?? 0;
+  const adjustment = action.data.sectorAdjustment;
   const errors = validateEnginesReady(player, `a ${action.data.burnIntensity} burn`);
 
   if (!Number.isInteger(adjustment)) {
@@ -241,7 +245,12 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
   if (weapon.isBroken) return [`${config.name} is broken`];
 
   const errors: string[] = [];
-  if (weapon.usedThisTurn) errors.push(`${config.name} already fired this turn`);
+  if (weapon.usedThisTurn)
+    errors.push(
+      isPowerableType(weapon.type)
+        ? `${config.name} has already been used or powered this turn: a tile does one thing a turn`
+        : `${config.name} already fired this turn`
+    );
   // A salvo is any number of the tile's remaining rounds in one action; every
   // other weapon fires once, so a count on one is a mistake worth refusing.
   const count = action.data.count;
@@ -267,13 +276,10 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
     if (!isInWeaponRange(weapon, player.ship, positionOf(target.ship))) {
       errors.push(`${target.name} is out of range for ${config.name}`);
     }
-    const named = findSubsystem(target.ship, action.data.criticalTarget);
-    if (!named) {
+    if (!findSubsystem(target.ship, action.data.criticalTarget)) {
       errors.push(
         `Critical target ${action.data.criticalTarget} is not a slot on ${target.name}'s ship`
       );
-    } else if (!isCriticalTarget(named.id)) {
-      errors.push(`${getSubsystemConfig(named.type).name} cannot be named by a critical`);
     }
   }
 
@@ -318,7 +324,10 @@ export function validateScanAction(state: GameState, action: ScanAction): string
   if (!player.ship.subsystems.some((s) => s.type === "sensor_array"))
     return ["No sensor array installed"];
   const sensor = findReadySensor(player.ship);
-  if (!sensor) return ["Sensor array must be unbroken and unused this turn to scan"];
+  if (!sensor)
+    return [
+      "Sensor array must be unbroken and not yet used or powered this turn to scan: a tile does one thing a turn",
+    ];
   const { errors, target } = validateTarget(state, player, action.data.targetPlayerId);
   if (!target) return errors;
   if (target.ship.wellId !== player.ship.wellId || target.ship.ring !== player.ship.ring) {
@@ -339,7 +348,7 @@ export function validateWellTransferAction(state: GameState, action: WellTransfe
   const player = requirePlayer(state, action.playerId);
   const jump = findJump(positionOf(player.ship), action.data.destinationWellId);
   if (!jump) return ["No transfer lane from this position to that destination"];
-  const adjustment = action.data.sectorAdjustment ?? 0;
+  const adjustment = action.data.sectorAdjustment;
   const errors = validateEnginesReady(player, "a jump");
 
   // Phasing a jump is bounded by the arrival arc, not by the ring's velocity:

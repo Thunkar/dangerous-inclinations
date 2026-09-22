@@ -2,21 +2,23 @@
  * Energy, which is now only a question about heat.
  *
  * Nothing the bot does needs an allocation: a tile that acts is powered by the
- * action that uses it. What the bot still decides is which standing tiles to
- * hold up between turns (shields, a rack, a sensor) and how wide, which is
- * what `assignDefensiveEnergy` prices and `standingActions` emits.
+ * action that uses it. What the bot still decides is which of the tiles that
+ * work on other players' turns to power (shields, a rack, a sensor) and how
+ * wide, which is what `assignDefensiveEnergy` prices and `powerActions` emits.
+ * The loadout is cleared at the start of every turn, so anything the bot wants
+ * up it powers again, every turn.
  *
  * Every cube is a point of heat at the check wherever it came from, so the
- * plan's draws and its standing tiles come out of one budget: `heatRoom` is
+ * plan's draws and its powered tiles come out of one budget: `heatRoom` is
  * what is left of the track after the turn's own actions. There is no reactor
  * to run out of, so a bot that ignored the heat would light its whole loadout
  * and cook itself in two turns.
  */
-import type { Player, SetStandingPowerAction } from "../../models/game.ts";
+import type { Player, PowerAction } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
-import { energyStepOf, getSubsystemConfig, isStandingType } from "../../models/subsystems.ts";
+import { energyStepOf, getSubsystemConfig, isPowerableType } from "../../models/subsystems.ts";
 
-/** Cubes a plan wants on each subsystem id: the turn's draws plus what stands. */
+/** Cubes a plan wants on each subsystem id: the turn's draws, or what it powers. */
 export type EnergyTargets = Map<SubsystemId, number>;
 
 export function totalEnergy(targets: EnergyTargets): number {
@@ -25,15 +27,15 @@ export function totalEnergy(targets: EnergyTargets): number {
   return sum;
 }
 
-/** What a plan wants standing, and the heat it has left to buy it with. */
+/** What a plan wants powered, and the heat it has left to buy it with. */
 export interface DefensiveWants {
   shields: Subsystem[];
   racks: Subsystem[];
   sensors: Subsystem[];
   /**
-   * Cubes this turn's own actions already put on each tile. A tile that is
-   * drawing anyway is cheaper to leave up: it holds its cubes once, so only
-   * the difference costs anything.
+   * Cubes this turn's own actions already put on each tile. A rack that fires
+   * or a sensor that scans is up anyway: its cubes stay on the tile, so it
+   * costs nothing more and needs no power action (it could not take one).
    */
   derived: EnergyTargets;
   /** Somebody can reach us: a wall is worth its heat. */
@@ -45,20 +47,21 @@ export interface DefensiveWants {
   wantRacks: number;
   /** We mean to shoot, so the wider critical range is worth its heat. */
   wantSensor: boolean;
-  /** Heat the standing tiles may still add at the check without redlining. */
+  /** Heat the powered tiles may still add at the check without redlining. */
   heatRoom: number;
   shieldMax?: number;
 }
 
 /**
- * Decide what to leave switched on, cheapest and most answerable first.
+ * Decide what to have up until the bot's next turn, cheapest and most
+ * answerable first.
  *
  * Point defence is counted in racks, not as a yes or no: each one answers four
  * missiles a turn, so a ship expecting eight wants two up and pays for both.
  *
- * Everything here is bought with the same currency: a standing tile's cubes
- * are heat at every check until it comes down, so `heatRoom` is the whole
- * limit and the order is the priority. Point defence first, because a rack
+ * Everything here is bought with the same currency: a powered tile's cubes
+ * are heat at this turn's check, so `heatRoom` is the whole limit and the
+ * order is the priority. Point defence first, because a rack
  * that is down when the salvo arrives is a rack that did nothing; then the
  * sensor, which is two heat for a wider critical on every gun aboard; then the
  * wall, which takes whatever is left in whole points.
@@ -67,8 +70,8 @@ export function assignDefensiveEnergy(targets: EnergyTargets, wants: DefensiveWa
   let room = wants.heatRoom;
   const take = (sub: Subsystem | undefined, amount: number) => {
     if (!sub || sub.isBroken || targets.has(sub.id)) return;
-    // The tile holds its cubes once: a rack that is firing this turn is free
-    // to leave up, and a wall going from nothing to four costs all four.
+    // The tile holds its cubes once: a rack that is firing this turn is up for
+    // free, and a wall going from nothing to four costs all four.
     const extra = Math.max(0, amount - (wants.derived.get(sub.id) ?? 0));
     if (room < extra) return;
     targets.set(sub.id, amount);
@@ -109,24 +112,29 @@ export function assignDefensiveEnergy(targets: EnergyTargets, wants: DefensiveWa
 }
 
 /**
- * The switches that move the ship's standing tiles to `targets`. Tiles an
- * action will power are ignored: they are not switched on, they are used.
+ * The `power` actions that put `targets` on the ship's shields, racks and
+ * sensors, numbered from `firstSequence` so they run before anything else in
+ * the turn: a sensor widens only the shots sequenced after it.
  *
- * A tile already holding what the plan wants gets no action, so a bot that
- * leaves its wall where it was says nothing on the wire and nothing in the
- * log.
+ * The loadout is clear when the turn starts, so what a tile holds now (last
+ * turn's cubes) is ignored: every tile the plan wants up is powered, every
+ * turn. A tile the turn's own actions use (a rack that fires, a sensor that
+ * scans) must not be in `targets`: using it leaves it up, and a tile does one
+ * thing a turn, so powering it first would make the shot or the scan illegal.
  */
-export function standingActions(me: Player, targets: EnergyTargets): SetStandingPowerAction[] {
-  const actions: SetStandingPowerAction[] = [];
+export function powerActions(me: Player, targets: EnergyTargets, firstSequence = 1): PowerAction[] {
+  const actions: PowerAction[] = [];
   for (const sub of me.ship.subsystems) {
-    if (!isStandingType(sub.type)) continue;
+    if (!isPowerableType(sub.type) || sub.isBroken) continue;
     const config = getSubsystemConfig(sub.type);
-    const wanted = sub.isBroken ? 0 : Math.min(config.maxEnergy, targets.get(sub.id) ?? 0);
-    const amount = wanted >= config.minEnergy ? wanted : 0;
-    if (amount === sub.allocatedEnergy) continue;
+    const step = energyStepOf(sub.type);
+    const wanted = Math.min(config.maxEnergy, targets.get(sub.id) ?? 0);
+    const amount = Math.floor(wanted / step) * step;
+    if (amount < config.minEnergy) continue;
     actions.push({
-      type: "set_standing_power",
+      type: "power",
       playerId: me.id,
+      sequence: firstSequence + actions.length,
       data: { subsystemId: sub.id, amount },
     });
   }

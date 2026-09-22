@@ -13,17 +13,12 @@
  * are 5:7. The `compact` card is the size a hand fans (see `MissionHand.tsx`).
  */
 import { Box, Typography } from '@mui/material'
-import type {
-  Cargo,
-  Mission,
-  MissionFamily,
-  MissionRequirementStatus,
-} from '@dangerous-inclinations/engine'
+import type { Cargo, Mission, MissionRequirementStatus } from '@dangerous-inclinations/engine'
 import { describeMission } from '@dangerous-inclinations/engine'
 import { FONT_MONO, FONT_SANS, TABLE } from '../../theme'
+import { BAND_ANGLE, FAMILY_INK, PRESS } from '../../design/press'
 import {
   missionFamily,
-  missionFamilyColor,
   missionFamilyLabel,
   missionPoints,
   missionProgress,
@@ -31,20 +26,11 @@ import {
 import { MISSION_CODE, MissionGlyph } from './MissionGlyph'
 import { SubsystemIcon } from './SubsystemIcon'
 
-/** Paper, and the ink printed on it. */
-const PAPER = '#e9dfc7'
-const INK = '#14161a'
+/** Paper, and the ink printed on it: the press's, which the site shares. */
+const PAPER = PRESS.paper
+const INK = PRESS.ink
 const INK_SOFT = 'rgba(20,22,26,0.66)'
 const PAPER_SOFT = 'rgba(233,223,199,0.6)'
-/**
- * The family colour as it prints. The table's screen colours are mixed for a
- * dark felt and have no bite on cream: same three hues, pressed harder.
- */
-const FAMILY_INK: Record<MissionFamily, string> = {
-  combat: '#d21b33',
-  trade: '#0e7c94',
-  secondary: '#c07a14',
-}
 
 /**
  * The cut of the card. Width and height are 5:7; the title strip, description
@@ -133,7 +119,6 @@ const artHeight = (cut: Cut) => cut.height - 2 - cut.title - cut.desc - cut.foot
  * `g·(cos+sin)` thick, so the glyph is what sizes it, plus a margin of colour
  * round the mark. Same sum at both card sizes.
  */
-const BAND_ANGLE = 32
 const bandThickness = (cut: Cut) =>
   Math.round(
     cut.glyph * (Math.cos((BAND_ANGLE * Math.PI) / 180) + Math.sin((BAND_ANGLE * Math.PI) / 180)) +
@@ -182,7 +167,7 @@ export function MissionCard({
   requires,
 }: MissionCardProps) {
   const cut = compact ? FAN : FULL
-  const band = FAMILY_INK[missionFamily(mission)] ?? missionFamilyColor(mission)
+  const band = FAMILY_INK[missionFamily(mission)]
   const points = missionPoints(mission)
   const done = mission.isCompleted || faceUpToTable
   const progress = cargo ? missionProgress(mission, cargo, fuel) : null

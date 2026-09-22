@@ -114,7 +114,7 @@ export function respawnPlayer(
   const ship = applyOrbitalMovement(createRespawnedShip(player.ship, placed));
   const position = positionOf(ship);
   const players = [...state.players];
-  players[playerIndex] = { ...player, ship, recovering: true, skipTurns: 0 };
+  players[playerIndex] = { ...player, ship, recovering: true };
   return {
     state: { ...state, players },
     events: [

@@ -7,7 +7,7 @@
 import type { Facing, Player, Position } from "../../models/game.ts";
 import { isQuietTurn } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
-import { getSubsystemConfig, isCriticalTarget } from "../../models/subsystems.ts";
+import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { getMaxRing } from "../../models/gravityWells.ts";
 import { ringVelocity } from "../../game/geometry.ts";
@@ -173,7 +173,7 @@ export function weaponRangeTarget(weapons: Subsystem[], start: Position): Planne
 function fallbackCriticalTarget(target: Opponent): SubsystemId {
   const engines = target.player.fixed.find((f) => f.type === "engines" && !f.isBroken);
   if (engines) return engines.id;
-  const fixed = target.player.fixed.find((f) => !f.isBroken && isCriticalTarget(f.id));
+  const fixed = target.player.fixed.find((f) => !f.isBroken);
   if (fixed) return fixed.id;
   const slot = target.player.slots.find((s) => s.isBroken !== true);
   return slot?.id ?? "engines";
@@ -184,7 +184,7 @@ function fallbackCriticalTarget(target: Opponent): SubsystemId {
  * one to four cubes that no weapon's cube count explains. Bigger is better
  * to break: those are the cubes soaking our volley.
  *
- * A side slot at four can only be a wall, since the rack is the other standing
+ * A side slot at four can only be a wall, since the rack is the other powerable
  * side tile and holds two. At two it may be either, which `suspectedWeapon`
  * has already read as a possible rack: that is a slot worth breaking too, so
  * it is not excluded here, only ranked below the certainty.
@@ -199,10 +199,10 @@ function suspectedShieldCubes(slot: SuspectedSlot): number {
  * Slot to break on a critical. Every candidate must be a tile that is still
  * intact (breaking a broken tile does nothing).
  *
- * Cubes are still evidence, but of a narrower thing than they were: only a
- * standing tile carries any between turns, so a loaded slot is a wall, a rack
- * or a sensor, and a gun is dark whatever it is about to do. Breaking a loaded
- * slot also dumps its cubes on its owner as heat, which a dark one cannot do.
+ * Cubes are evidence, of a narrow thing: using a tile turns it face-up, so a
+ * loaded face-down slot was powered and is a wall, a rack or a sensor. Every
+ * tile keeps its cubes until its owner's next turn, and breaking a loaded one
+ * dumps them on its owner as heat, which a dark one cannot do.
  *
  * `intent` decides what "best" means:
  *
@@ -212,7 +212,7 @@ function suspectedShieldCubes(slot: SuspectedSlot): number {
  *   else of theirs we know, then the engines.
  * - **kill**: get through to the hull. A shield tile holds up to four cubes and
  *   absorbs a point per two of them, and the cubes it spends come straight back
- *   spent, so it is switched back on for free on their next turn and is the
+ *   spent, so it is powered again on their next turn and is the
  *   single tile standing between us and their hull. Break it and every later
  *   shot lands in full until they reach a station.
  *

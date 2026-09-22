@@ -4,8 +4,21 @@ import type { GameEvent } from "../models/events.ts";
 /**
  * Bumped whenever the recording schema changes incompatibly.
  * v2: events replace log strings; states carry no log; new action shapes.
+ * v3: `power` replaces `set_standing_power`; energy stays on a tile until its owner's next turn.
  */
-export const RECORDING_SCHEMA_VERSION = 2;
+export const RECORDING_SCHEMA_VERSION = 3;
+
+/**
+ * Why a recording cannot be replayed, or null when it can. A recording made
+ * under other rules is refused, never migrated: its states and actions mean
+ * what the engine meant when it was written.
+ */
+export function staleRecordingReason(recording: { schemaVersion?: unknown }): string | null {
+  if (recording.schemaVersion === RECORDING_SCHEMA_VERSION) return null;
+  const version =
+    recording.schemaVersion === undefined ? "no schema version" : `schema v${String(recording.schemaVersion)}`;
+  return `This recording predates the current rules (${version}, the rules are at v${RECORDING_SCHEMA_VERSION}) and cannot be replayed`;
+}
 
 /**
  * One turn. `actions` is the source of truth for replay; the snapshot is a

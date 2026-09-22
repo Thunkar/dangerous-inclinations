@@ -26,7 +26,7 @@ import type {
   Station,
   WeaponType,
 } from '@dangerous-inclinations/engine'
-import { HOME_RING, getSubsystemConfig } from '@dangerous-inclinations/engine'
+import { HOME_RING } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
 import { getPlayerColor } from '../utils/playerColors'
 
@@ -238,22 +238,24 @@ function snapshotOf(view: GameView): BoardOverlay {
 
 /**
  * Where the critical band starts for a shot by `attackerId`, as far as this
- * seat can tell. The bonus is real only for a sensor array that is powered
- * (RULES: criticals on 8–10 *while powered*) and unbroken, and we may only
- * draw it when the tile is face-up at the table, or is our own. A tile we
- * learned through a scan is face-down to everyone else, so it never widens
- * the band we print for the table to read.
+ * seat can tell. The bonus is real only for a sensor array with energy on it
+ * (RULES: a sensor with energy on it widens your critical range) and
+ * unbroken, and only from the moment it got that energy: powered, or scanned
+ * with, earlier in the same turn (`sensing`). A shot fired before the scan
+ * had the plain range, though the sensor holds its energy by the end of the
+ * turn. We may only draw it when the tile is face-up at the table, or is our
+ * own. A tile we learned through a scan is face-down to everyone else, so it
+ * never widens the band we print for the table to read.
  */
-function critThresholdFor(view: GameView, attackerId: string): number {
+function critThresholdFor(view: GameView, attackerId: string, sensing: boolean): number {
+  if (!sensing) return 10
   const attacker = view.players.find(p => p.id === attackerId)
   if (!attacker) return 10
-  const minEnergy = getSubsystemConfig('sensor_array').minEnergy
   const visiblySensing = attacker.slots.some(
     slot =>
       slot.type === 'sensor_array' &&
       (attacker.isMe ? slot.knownVia === 'own' : slot.knownVia === 'revealed') &&
-      slot.isBroken !== true &&
-      slot.allocatedEnergy >= minEnergy
+      slot.isBroken !== true
   )
   return visiblySensing ? 8 : 10
 }
@@ -452,6 +454,13 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
 
       const queue = [...events]
       let cancelled = false
+      /**
+       * Whose sensor has energy on it so far this turn, keyed by turn and
+       * player: the active loadout is cleared when the turn starts, so only a
+       * power or a scan earlier in the same turn widens a shot's range.
+       */
+      const sensing = new Set<string>()
+      const sensorKey = (turn: number, playerId: string) => `${turn}:${playerId}`
 
       const apply = (event: GameEvent): number => {
         switch (event.type) {
@@ -546,7 +555,11 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           }
           case 'attack_resolved': {
             const at = positionOf(event.targetId)
-            const threshold = critThresholdFor(next, event.attackerId)
+            const threshold = critThresholdFor(
+              next,
+              event.attackerId,
+              sensing.has(sensorKey(event.turn, event.attackerId))
+            )
             setDice(d => [
               ...d,
               {
@@ -736,7 +749,20 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               [`${event.playerId}:${event.subsystemId}`]: performance.now(),
             }))
             return 0
+          case 'subsystem_powered': {
+            // Powering reveals nothing, so only a sensor this seat can already
+            // see counts: our own, or one face-up at the table.
+            const slot = next.players
+              .find(p => p.id === event.playerId)
+              ?.slots.find(s => s.id === event.subsystemId)
+            if ((event.subsystemType ?? slot?.type) === 'sensor_array')
+              sensing.add(sensorKey(event.turn, event.playerId))
+            return 0
+          }
           case 'scanned': {
+            // The scan leaves the sensor's energy on it: every shot after it
+            // has the wider range.
+            sensing.add(sensorKey(event.turn, event.scannerId))
             pushEffect({
               id: nextId('beam'),
               kind: 'beam',

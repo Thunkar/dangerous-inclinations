@@ -6,9 +6,9 @@
  *
  * It used to fold the bots' cube shuffling down to a line a turn, because
  * allocations were a third of the log and none of it was news. Nobody
- * allocates now: a tile is powered by the action that uses it, and the only
- * energy line left is somebody switching a wall, a rack or a sensor on or off,
- * which is worth a line of its own.
+ * allocates now: every action puts energy on the tile it uses, and the only
+ * energy line left is somebody powering a wall, a rack or a sensor
+ * (`subsystem_powered`), which is worth a line of its own.
  */
 import type { GameEvent } from '@dangerous-inclinations/engine'
 

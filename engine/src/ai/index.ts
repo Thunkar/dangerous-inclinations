@@ -129,10 +129,8 @@ function emptyLog(reason: string): BotDecisionLog {
 
 function summarizeAction(action: PlayerAction): string {
   switch (action.type) {
-    case "set_standing_power":
-      return action.data.amount === 0
-        ? `Shut down ${action.data.subsystemId}`
-        : `Hold ${action.data.subsystemId} at ${action.data.amount}`;
+    case "power":
+      return `Power ${action.data.subsystemId}${action.data.amount !== undefined ? ` at ${action.data.amount}` : ""}`;
     case "rotate":
       return `Rotate to ${action.data.targetFacing}`;
     case "coast":
@@ -144,7 +142,7 @@ function summarizeAction(action: PlayerAction): string {
     case "scan":
       return `Scan ${action.data.targetPlayerId} (${action.data.peekSlot})`;
     case "well_transfer": {
-      const phase = action.data.sectorAdjustment ?? 0;
+      const phase = action.data.sectorAdjustment;
       return `Jump to ${action.data.destinationWellId}${phase ? ` (${phase > 0 ? "+" : ""}${phase})` : ""}`;
     }
     case "repair":

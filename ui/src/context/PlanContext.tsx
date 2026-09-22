@@ -2,15 +2,20 @@
  * PlanContext: the turn you are putting together.
  *
  * An ordered list of steps (rotate, one move, any number of weapons, a scan),
- * plus the standing tiles you are holding up. Every number here is a preview
- * computed with pure engine functions: range, projected position, costs. The
- * server is the referee; nothing here advances state.
+ * plus the tiles you power. Every number here is a preview computed with pure
+ * engine functions: range, projected position, costs. The server is the
+ * referee; nothing here advances state.
  *
- * **Energy is shown, not set.** A tile that acts is powered by the step that
- * uses it, to the one draw that step has, so the cubes on the loadout are a
- * readout of the plan rather than a thing to arrange. The only cubes anyone
- * places are on the three tiles that work while you are not acting: shields, a
- * ballistic rack and a sensor array (`isStandingType`).
+ * **Energy is shown, not set.** Every action puts energy on the tile it uses,
+ * to the one draw that action has, so the energy on the loadout is a readout
+ * of the plan rather than a thing to arrange. Powering is an action too, for
+ * the three tiles that work on other players' turns: shields (2 or 4), a
+ * ballistic rack and a sensor array (`isPowerableType`). Those are the plan's
+ * power choices, and they start empty every turn.
+ *
+ * **The plan starts from an empty loadout.** Your loadout is cleared when your
+ * turn executes, so the energy the view still shows on your own tiles while
+ * you plan is last turn's: none of it is carried into the preview.
  */
 import {
   createContext,
@@ -49,13 +54,16 @@ import {
   MAX_REACTION_MASS,
   getMaxRing,
   energyStepOf,
+  getEffectiveCriticalChance,
   getSubsystemConfig,
   hasWorkingCompressor,
+  heatFromCubes,
   canEngage,
   isInWeaponRange,
   isMooredAt,
-  isStandingType,
+  isPowerableType,
   isWeaponType,
+  rollToResult,
   opponentPositions,
   phasedJumpDestination,
   projectPosition,
@@ -131,12 +139,27 @@ interface PlanContextValue {
   steps: PlanStep[]
   /** The single move step; there is always exactly one. */
   moveStep: MoveStep
-  /** Cubes on the standing tiles; every other tile is powered by its step. */
-  standing: Record<SubsystemId, number>
-  /** My subsystems as the plan leaves them: standing cubes plus the steps' draws. */
+  /**
+   * The plan's power actions: the energy it puts on shields, a rack or a
+   * sensor, by tile. Empty at the start of every turn, and never holds a tile
+   * the plan also fires or scans with (each tile does one thing a turn).
+   */
+  powers: Record<SubsystemId, number>
+  /** Whether a click can power this tile: powerable, unbroken, and not used by a step. */
+  canPower: (subsystemId: SubsystemId) => boolean
+  /** The step that uses a tile, if one does: a fired rack or a scanning sensor is up anyway. */
+  usedBy: (subsystemId: SubsystemId) => 'fire' | 'scan' | null
+  /** My subsystems as the plan leaves them: an empty loadout plus the powers and the steps' draws. */
   pendingSubsystems: Subsystem[]
-  /** Cubes the plan leaves on the loadout: what it costs in heat at the check. */
+  /** Energy the plan leaves on the loadout: what it costs in heat at the check. */
   cubesOnLoadout: number
+  /**
+   * The lowest d10 face that is a critical for this fire step. A sensor with
+   * energy on it widens the range: a powered one for every shot (power runs
+   * first), a scan for the shots after it, and a missile rolls after all your
+   * actions, so it gets whatever the turn left on the sensor.
+   */
+  criticalFrom: (step: PlanStep) => number
   /** Ship position and facing at the start of each step (index-aligned with `steps`). */
   stepStart: StepContext[]
   finalPosition: StepContext
@@ -156,6 +179,7 @@ interface PlanContextValue {
   burnReady: Record<BurnIntensity, MoveReadiness>
   jumpReady: MoveReadiness
   scoopGain: number
+  /** Heat at the check: the track as it stands plus every point of energy the plan puts on a tile. */
   projectedHeat: number
   /** Total fuel the plan spends. */
   massCost: number
@@ -177,9 +201,9 @@ interface PlanContextValue {
   targetsOutOfReach: (step: PlanStep) => Target[]
   setEnergyTo: (subsystemId: SubsystemId, value: number) => void
   /**
-   * One click on a standing tile: up switches it on at its minimum (then a
-   * step at a time), down comes back down and switches it off at the minimum.
-   * Every other tile ignores it.
+   * One click on a powerable tile: up powers it at its minimum, then a step at
+   * a time, and past the top takes it off again (shields 2, 4, off; a rack or
+   * a sensor 2, off); down comes back a step. Every other tile ignores it.
    */
   power: (subsystemId: SubsystemId, direction: 1 | -1) => void
   setMove: (move: MoveChoice) => void
@@ -269,11 +293,56 @@ function burnFitsInWell(position: Position, facing: Facing, intensity: BurnInten
 const bySlotOrder = (a: SlotView, b: SlotView) =>
   a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1
 
-/** What the ship is already holding up, which is the plan's starting point. */
-function committedStanding(player: Player): Record<SubsystemId, number> {
-  return Object.fromEntries(
-    player.ship.subsystems.filter(s => isStandingType(s.type)).map(s => [s.id, s.allocatedEnergy])
-  )
+const D10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+/** The lowest face the engine calls a critical at this chance. */
+function lowestCritical(chance: number): number {
+  return D10.find(face => rollToResult(face, chance) === 'critical') ?? 10
+}
+
+/**
+ * The tile each step uses. Each tile does one thing a turn, so a tile a step
+ * fires or scans with is not powered as well: the action leaves its energy on
+ * it, so a rack that fired is up and a sensor that scanned widens the range.
+ */
+function tilesUsedBy(player: Player, steps: PlanStep[]): Record<SubsystemId, 'fire' | 'scan'> {
+  const used: Record<SubsystemId, 'fire' | 'scan'> = {}
+  for (const step of steps) {
+    if (step.kind === 'fire') used[step.subsystemId] = 'fire'
+    else if (step.kind === 'scan') {
+      const sensor = player.ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken)
+      if (sensor) used[sensor.id] = 'scan'
+    }
+  }
+  return used
+}
+
+/** The tile a power action may go on, or null: powerable, unbroken and not used by a step. */
+function powerableTile(
+  player: Player,
+  used: Record<SubsystemId, 'fire' | 'scan'>,
+  subsystemId: SubsystemId
+): Subsystem | null {
+  const sub = player.ship.subsystems.find(s => s.id === subsystemId)
+  if (!sub || sub.isBroken || !isPowerableType(sub.type) || used[subsystemId]) return null
+  return sub
+}
+
+/**
+ * The loadout a plan leaves: every tile starts empty, because the loadout is
+ * cleared when the turn executes, then takes the plan's power or its step's
+ * draw.
+ */
+function loadoutFor(
+  player: Player,
+  powers: Record<SubsystemId, number>,
+  draws: Record<SubsystemId, number>
+): Subsystem[] {
+  return player.ship.subsystems.map(s => {
+    const allocatedEnergy = s.isBroken ? 0 : (powers[s.id] ?? draws[s.id] ?? 0)
+    const next = { ...s, allocatedEnergy }
+    return { ...next, isPowered: canSubsystemFunction(next) }
+  })
 }
 
 /**
@@ -287,30 +356,29 @@ function defaultSteps(): PlanStep[] {
 }
 
 /**
- * One click on a standing tile: up switches it on at its minimum (then a step
- * at a time), down comes down a step and switches it off below the minimum.
- * Returns the tile's new setting, or null when the click can do nothing, which
- * includes every tile a step powers.
+ * One click on a powerable tile: up powers it at its minimum, then a step at a
+ * time, and past the top takes it off again; down comes back a step and off
+ * below the minimum. Returns the tile's new setting, or null when the click
+ * can do nothing, which includes every tile a step uses.
  */
 function poweredTo(
   player: Player,
-  standing: Record<SubsystemId, number>,
+  powers: Record<SubsystemId, number>,
+  used: Record<SubsystemId, 'fire' | 'scan'>,
   subsystemId: SubsystemId,
   direction: 1 | -1
 ): number | null {
-  const sub = player.ship.subsystems.find(s => s.id === subsystemId)
-  if (!sub || sub.isBroken || !isStandingType(sub.type)) return null
+  const sub = powerableTile(player, used, subsystemId)
+  if (!sub) return null
   const config = getSubsystemConfig(sub.type)
-  const current = standing[subsystemId] ?? sub.allocatedEnergy
+  const current = powers[subsystemId] ?? 0
   const step = energyStepOf(sub.type)
   if (direction > 0) {
-    // Powering on costs the whole minimum at once, or nothing. Nothing else
-    // stops it: what a tile costs is heat at the check, not a share of a
-    // share of anything, and spending more heat than the ship can shed is the
-    // player's decision to make.
+    // Powering costs the whole minimum at once, or nothing. Nothing else
+    // stops it: what a tile costs is heat at the check, and spending more
+    // heat than the ship can dissipate is the player's decision to make.
     if (current === 0) return config.minEnergy
-    if (current >= config.maxEnergy) return null
-    return current + step
+    return current >= config.maxEnergy ? 0 : current + step
   }
   if (current === 0) return null
   return current <= config.minEnergy ? 0 : current - step
@@ -363,7 +431,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
 function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode }) {
   const { view, readOnly } = useGame()
-  const [standing, setStanding] = useState<Record<SubsystemId, number>>(() => committedStanding(me))
+  // Nothing is powered until the plan powers it: last turn's energy is cleared
+  // when this turn executes, so it is never the starting point.
+  const [powers, setPowers] = useState<Record<SubsystemId, number>>({})
   const [steps, setSteps] = useState<PlanStep[]>(() => defaultSteps())
   const [picking, setPicking] = useState<Picking>(null)
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
@@ -376,43 +446,69 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const isMyTurn = !readOnly && view.activePlayerId === me.id && view.phase === 'active'
 
   const reset = useCallback(() => {
-    setStanding(committedStanding(me))
+    setPowers({})
     setSteps(defaultSteps())
     setPicking(null)
     setFocusWeaponId(null)
-  }, [me])
+  }, [])
 
   // A new turn (or a fresh state after our own turn) starts a fresh plan.
   useEffect(() => {
     reset()
-    // `reset` closes over `me`, which changes with every view; keying on the
-    // turn and the active seat is what actually means "new turn".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.turn, view.activePlayerId, readOnly])
+    // Keying on the turn and the active seat is what actually means "new turn".
+  }, [view.turn, view.activePlayerId, readOnly, reset])
+
+  /** The tile each step uses, which is therefore not powerable this turn. */
+  const used = useMemo(() => tilesUsedBy(me, steps), [me, steps])
+  /**
+   * The powers that stand: a choice on a tile a step now uses (or that broke)
+   * is dropped rather than refused, since the step leaves its energy there.
+   */
+  const planPowers = useMemo(() => {
+    const out: Record<SubsystemId, number> = {}
+    for (const [id, amount] of Object.entries(powers) as Array<[SubsystemId, number]>) {
+      if (amount > 0 && powerableTile(me, used, id)) out[id] = amount
+    }
+    return out
+  }, [me, powers, used])
 
   /**
-   * The loadout as the plan leaves it: a standing tile holds what you set it
-   * to, and every other tile holds what this turn's steps draw. Nothing shows
-   * a cube it has no use for, which is the readout the old energy step was
-   * standing in for.
+   * The loadout as the plan leaves it: empty, then the plan's powers and the
+   * energy each step's action puts on the tile it uses. Nothing shows energy
+   * it has no use for, and nothing of last turn's shows at all.
    */
   const draws = useMemo(() => drawsFor(me, steps), [me, steps])
   const pendingSubsystems = useMemo<Subsystem[]>(
-    () =>
-      me.ship.subsystems.map(s => {
-        const allocatedEnergy = isStandingType(s.type)
-          ? (standing[s.id] ?? s.allocatedEnergy)
-          : (draws[s.id] ?? 0)
-        const next = { ...s, allocatedEnergy }
-        return { ...next, isPowered: canSubsystemFunction(next) }
-      }),
-    [me.ship.subsystems, standing, draws]
+    () => loadoutFor(me, planPowers, draws),
+    [me, planPowers, draws]
   )
 
-  /** Cubes the plan leaves on the loadout: the heat it will cost at the check. */
-  const cubesOnLoadout = useMemo(
-    () => pendingSubsystems.reduce((sum, s) => sum + s.allocatedEnergy, 0),
-    [pendingSubsystems]
+  /** Energy the plan leaves on the loadout: the heat it will cost at the check. */
+  const cubesOnLoadout = useMemo(() => heatFromCubes(pendingSubsystems), [pendingSubsystems])
+  const projectedHeat = me.ship.heat.currentHeat + cubesOnLoadout
+
+  const criticalFrom = useCallback(
+    (step: PlanStep): number => {
+      if (step.kind !== 'fire') return lowestCritical(getEffectiveCriticalChance([]))
+      const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
+      // Power actions run before every step, so only the steps are cut at the
+      // shot. A missile rolls when it arrives, after the whole turn's actions.
+      const index = steps.findIndex(s => s.id === step.id)
+      const before =
+        weapon?.type === 'missiles' || index < 0 ? steps : steps.slice(0, index)
+      const loadout = loadoutFor(me, planPowers, drawsFor(me, before))
+      return lowestCritical(getEffectiveCriticalChance(loadout))
+    },
+    [me, planPowers, steps]
+  )
+
+  const canPower = useCallback(
+    (subsystemId: SubsystemId) => powerableTile(me, used, subsystemId) !== null,
+    [me, used]
+  )
+  const usedBy = useCallback(
+    (subsystemId: SubsystemId) => used[subsystemId] ?? null,
+    [used]
   )
   const pendingShip = useMemo(
     () => ({ ...me.ship, subsystems: pendingSubsystems }),
@@ -668,12 +764,13 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   }, [routeDestination, routeStation, routeMode, me.ship])
 
   /**
-   * Walk the sequence in order. Heat accumulates, fuel is spent *and earned*
-   * as the turn plays out, so a scoop earlier in the sequence pays for a burn
-   * or a recoil compensation later in it, exactly as the engine sees it.
+   * Walk the sequence in order. Fuel is spent *and earned* as the turn plays
+   * out, so a scoop earlier in the sequence pays for a burn or a recoil
+   * compensation later in it, exactly as the engine sees it. Heat is not
+   * walked: it is every point of energy on the loadout, whatever order it
+   * went on in (`projectedHeat`).
    */
-  const { projectedHeat, massCost, projectedFuel, issues } = useMemo(() => {
-    let heat = me.ship.heat.currentHeat
+  const { massCost, projectedFuel, issues } = useMemo(() => {
     let spent = 0
     let fuel = me.ship.reactionMass
     const maxFuel = MAX_REACTION_MASS
@@ -701,7 +798,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         case 'rotate': {
           const thrusters = pendingSubsystems.find(s => s.id === 'rotation')
           if (!thrusters || thrusters.isBroken) problems.push('Thrusters are broken: no rotation')
-          else heat += thrusters.allocatedEnergy
           break
         }
         case 'move': {
@@ -711,7 +807,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
             const range = getAdjustmentRange(ringVelocity(at.position.wellId, at.position.ring))
             engineUses++
             if (!engines || engines.isBroken) problems.push('Engines are broken: no burn')
-            else heat += engines.allocatedEnergy
             if (move.adjustment < range.min || move.adjustment > range.max)
               problems.push(`Phasing must be between ${range.min} and +${range.max} from this ring`)
             if (!burnFitsInWell(at.position, at.facing, move.intensity)) {
@@ -736,16 +831,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
                 )
             }
             if (!engines || engines.isBroken) problems.push('Engines are broken: no jump')
-            else heat += engines.allocatedEnergy
             spend(calculateJumpMassCost(move.adjustment, compressor), 'a jump')
           } else if (move.scoop) {
             const scoop = pendingSubsystems.find(s => s.id === 'scoop')
             if (!scoop || scoop.isBroken) problems.push('Fuel scoop is broken')
-            else {
-              heat += scoop.allocatedEnergy
-              // Recover fuel equal to this ring's velocity, up to the tank's capacity.
-              fuel = Math.min(maxFuel, fuel + ringVelocity(at.position.wellId, at.position.ring))
-            }
+            // Recover fuel equal to this ring's velocity, up to the tank's capacity.
+            else fuel = Math.min(maxFuel, fuel + ringVelocity(at.position.wellId, at.position.ring))
           }
           break
         }
@@ -753,10 +844,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
           if (!weapon || !isWeaponType(weapon.type)) break
           const config = getSubsystemConfig(weapon.type)
-          // A salvo is one use of the tile, charged its cubes once however big
-          // the launch (RULES §Weapons → Missiles).
+          // A salvo is one use of the tile, its energy once however big the
+          // launch (RULES §Weapons → Missiles).
           if (weapon.isBroken) problems.push(`${config.name} is broken`)
-          else heat += weapon.allocatedEnergy
           if (weapon.type === 'missiles') {
             const ammo = weapon.ammo ?? 0
             if (ammo <= 0) problems.push('No missiles left aboard')
@@ -775,7 +865,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
               engineUses++
               if (!engines || engines.isBroken)
                 problems.push('Engines are broken: nothing to cancel the recoil with')
-              else heat += engines.allocatedEnergy
               spend(BURN_COSTS.soft.mass, 'recoil compensation')
             } else {
               const ring = at.position.ring + (at.facing === 'prograde' ? 1 : -1)
@@ -791,7 +880,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           const sensor = pendingSubsystems.find(s => s.type === 'sensor_array')
           if (!sensor) problems.push('No sensor array aboard')
           else if (sensor.isBroken) problems.push('Sensor array is broken')
-          else heat += sensor.allocatedEnergy
           if (!step.targetId) problems.push('Scan: pick a target on your ring within 3 sectors')
           else if (untouchable(step.targetId))
             problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
@@ -807,7 +895,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       problems.push('Engines act once per turn: burn/jump or recoil compensation, not both')
     // Energy refuses nothing: a turn that lights more than the ship can cool is
     // legal and costs hull, which the heat readout already shows.
-    return { projectedHeat: heat, massCost: spent, projectedFuel: fuel, issues: problems }
+    return { massCost: spent, projectedFuel: fuel, issues: problems }
   }, [
     steps,
     stepStart,
@@ -821,22 +909,20 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   const actions = useMemo<PlayerAction[]>(() => {
     const list: PlayerAction[] = []
-    // Only the standing tiles, and only the ones that moved: the rest of the
-    // loadout is powered by the steps below.
-    const switches = me.ship.subsystems
-      .filter(s => isStandingType(s.type))
-      .map(s => ({ id: s.id, amount: standing[s.id] ?? s.allocatedEnergy, was: s.allocatedEnergy }))
-      .filter(s => s.amount !== s.was)
-      // Darkest first: a tile going out pays for the one coming up.
-      .sort((a, b) => a.amount - b.amount)
-    for (const s of switches) {
+    let sequence = 0
+    // Power comes first, in loadout order: a sensor powered now widens every
+    // shot the turn takes, and a wall or a rack is up whatever else happens.
+    // The rest of the loadout is powered by the steps below.
+    for (const sub of me.ship.subsystems) {
+      const amount = planPowers[sub.id]
+      if (!amount) continue
       list.push({
         playerId: me.id,
-        type: 'set_standing_power',
-        data: { subsystemId: s.id, amount: s.amount },
+        type: 'power',
+        sequence: ++sequence,
+        data: { subsystemId: sub.id, amount },
       })
     }
-    let sequence = 0
     steps.forEach((step, index) => {
       const at = stepStart[index]
       switch (step.kind) {
@@ -908,11 +994,11 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     if (repairChoice !== null)
       list.push({ playerId: me.id, type: 'repair', data: { subsystemId: repairChoice } })
     return list
-  }, [me, standing, steps, stepStart, repairChoice])
+  }, [me, planPowers, steps, stepStart, repairChoice])
 
   /**
-   * A repair needs the ship cold at its check: nothing carried in and not a
-   * cube anywhere on the loadout, which is the same sentence as the heat rule.
+   * A repair needs the ship cold at its check: nothing carried in and no
+   * energy anywhere on the loadout, which is the same sentence as the heat rule.
    * A choice the turn can no longer earn is dropped rather than refused, so
    * editing the move never leaves an illegal action on the sheet.
    */
@@ -931,30 +1017,41 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   // --- mutators ------------------------------------------------------------
 
   /**
-   * The tile click model, which now only reaches the standing tiles: one is
-   * off or at least at its minimum, never in between. A tile a step powers
-   * refuses the click, because there is nothing to decide about it.
+   * The tile click model, which only reaches the powerable tiles: one is off
+   * or at least at its minimum, never in between. A tile a step uses refuses
+   * the click, because the step already leaves its energy there.
    */
   const power = useCallback(
     (subsystemId: SubsystemId, direction: 1 | -1) => {
-      const next = poweredTo(me, standing, subsystemId, direction)
+      const next = poweredTo(me, planPowers, used, subsystemId, direction)
       if (next === null) return
-      setStanding(prev => ({ ...prev, [subsystemId]: next }))
+      setPowers(prev => ({ ...prev, [subsystemId]: next }))
     },
-    [me, standing]
+    [me, planPowers, used]
   )
 
   const setEnergyTo = useCallback(
     (subsystemId: SubsystemId, value: number) => {
-      const sub = me.ship.subsystems.find(s => s.id === subsystemId)
-      if (!sub || sub.isBroken || !isStandingType(sub.type)) return
+      const sub = powerableTile(me, used, subsystemId)
+      if (!sub) return
       const config = getSubsystemConfig(sub.type)
       const step = energyStepOf(sub.type)
       const wanted = value < config.minEnergy ? 0 : Math.min(config.maxEnergy, Math.floor(value / step) * step)
-      setStanding(prev => ({ ...prev, [subsystemId]: wanted }))
+      setPowers(prev => ({ ...prev, [subsystemId]: wanted }))
     },
-    [me]
+    [me, used]
   )
+
+  /** A tile a step starts using stops being a power choice: the step leaves its energy on it. */
+  const dropPower = useCallback((subsystemId: SubsystemId | undefined) => {
+    if (!subsystemId) return
+    setPowers(prev => {
+      if (!(subsystemId in prev)) return prev
+      const next = { ...prev }
+      delete next[subsystemId]
+      return next
+    })
+  }, [])
 
   const setRouteDestination = useCallback(
     (position: Position | null) => {
@@ -1036,8 +1133,10 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         ]
       })
       setFocusWeaponId(subsystemId)
+      // A rack that fires is up anyway: the shot is its one thing this turn.
+      dropPower(subsystemId)
     },
-    [targets]
+    [targets, dropPower]
   )
 
   const addScan = useCallback(() => {
@@ -1046,7 +1145,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         ? prev
         : [...prev, { id: stepId(), kind: 'scan', targetId: null, peekSlot: null }]
     )
-  }, [])
+    // A sensor that scans widens the range anyway, for every shot after the scan.
+    dropPower(me.ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken)?.id)
+  }, [dropPower, me.ship.subsystems])
 
   /**
    * Which tile a scan should look at by default: the first face-down one, in
@@ -1146,9 +1247,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       isMyTurn,
       steps,
       moveStep,
-      standing,
+      powers: planPowers,
+      canPower,
+      usedBy,
       pendingSubsystems,
       cubesOnLoadout,
+      criticalFrom,
       stepStart,
       finalPosition,
       moveFrom,
@@ -1206,9 +1310,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       isMyTurn,
       steps,
       moveStep,
-      standing,
+      planPowers,
+      canPower,
+      usedBy,
       pendingSubsystems,
       cubesOnLoadout,
+      criticalFrom,
       stepStart,
       finalPosition,
       moveFrom,

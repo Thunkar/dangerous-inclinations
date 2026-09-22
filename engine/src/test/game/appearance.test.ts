@@ -37,7 +37,7 @@ const choice = (state: ReturnType<typeof fresh>) =>
   botChooseLoadout(state.players[0].missionOffers, { playerCount: 2 });
 
 describe("match appearance", () => {
-  it("validates bounds and refuses identity colors, arbitrary assets and retired dials", () => {
+  it("validates bounds and refuses identity colors, arbitrary assets and unknown fields", () => {
     expect(ShipAppearanceSchema.safeParse(appearance).success).toBe(true);
     for (const bad of [
       { ...appearance, armorRelief: 3 },
@@ -45,7 +45,6 @@ describe("match appearance", () => {
       { ...appearance, paint: "url(x)" },
       { ...appearance, accent: "#ffffff" },
       { ...appearance, asset: "https://example.test/ship.glb" },
-      { ...appearance, livery: "bands", wear: 0.4 },
       { paint: appearance.paint },
     ])
       expect(ShipAppearanceSchema.safeParse(bad).success).toBe(false);

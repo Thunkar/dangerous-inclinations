@@ -42,10 +42,10 @@ information) and the simulator can still play a batch at another number
 | GET | `/api/games/:gameId/chat` | none | `{ messages: ChatMessage[] }` (table talk, oldest first) |
 | POST | `/api/games/:gameId/chat` | `{ text, kind?: "say" \| "think" }` | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning, shown to humans, not fed to other agents |
 | POST | `/api/games/:gameId/rewind` | `{ turnIndex: number }` | `{ view }` (dev tool; live games only, refused once a game is finalized) |
-| POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` | `{ gameId, view }` (archived recordings only; the seat must be your own original seat or a bot's) |
+| POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` | `{ gameId, view }` (archived recordings of the current schema only; the seat must be your own original seat or a bot's) |
 | GET | `/api/health` | none | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }` |
-| GET | `/api/recordings` | none | list of **finished** recordings only |
-| GET | `/api/recordings/:id` | none | a finished recording (full states; the game is over) |
+| GET | `/api/recordings` | none | list of **finished** recordings made under the current recording schema |
+| GET | `/api/recordings/:id` | none | a finished recording (full states; the game is over), or `410 { error }` for a stale one |
 
 Loadout and deployment submissions for bots happen server-side through the AI
 (`botChooseLoadout`, `botChooseDeployment` with the game's seeded RNG via
@@ -77,6 +77,18 @@ Client → server:
   // actions are schema-checked (strict discriminated union, finite integers); one malformed action rejects the submission
 ```
 
+A turn's `PlayerAction[]` is tactical actions numbered from 1 in the order
+they run: `power` (`{ subsystemId, amount? }`: shields 2 or 4, a ballistic
+rack 2, a sensor array 2; absent is the tile's minimum), `rotate`, one of
+`coast` / `burn` / `well_transfer`, `fire_weapon` and `scan`. Every action
+puts energy on the tile it uses and it stays there until its owner's next
+turn, when the loadout is cleared, so `allocatedEnergy` on a slot between
+turns is what its owner used or powered last turn. A `power` emits the public
+`subsystem_powered` event, which names the tile's type only if it is already
+face-up: powering reveals nothing. Beside them a turn may carry one `repair`
+(`{ subsystemId }`, no sequence): the tile a cold ship fixes if its heat is 0
+at the check.
+
 Per-recipient sending: `sendToPlayer(room, roomId, playerId, message)` and
 `broadcastViews(room, roomId, (playerId) => message)`; the old single-string
 `broadcastToRoom` remains only for lobby messages that carry no game state.
@@ -96,19 +108,22 @@ Per-recipient sending: `sendToPlayer(room, roomId, playerId, message)` and
 ## Recordings
 
 Live recordings hold full states and stay private until the game ends. The
-recordings API only lists and serves finalized recordings.
+recordings API only lists and serves finalized recordings. A recording whose
+`schemaVersion` is not the engine's `RECORDING_SCHEMA_VERSION` was made under
+other rules: it is left out of the list and refused by replay, fork and
+rewind, never migrated.
 
 ### Ship appearance
 
 Loadout submission optionally includes a `ShipAppearance`: `paint` and
 `secondaryPaint` (six-digit hex), `finish` (`matte`, `metal`), and `armorRelief`,
-`spineHeight` (finite 0–1). The strict shared schema rejects extra fields,
-including custom player identification colors and the retired `livery` and `wear`
-dials. There is no versioning and nothing is migrated: an appearance the schema
-refuses renders as the reference corvette.
+`spineHeight` (finite 0–1). Those five fields are all it accepts: the strict
+shared schema rejects any other, custom player identification colors included,
+and a submission carrying an appearance it rejects is refused whole.
 It is validated and saved atomically with loadout and mission choices, then locked
 for the match. Appearance is public through `PlayerView.appearance` after submission;
 slot identities remain filtered independently. Seat order still determines player
-color. Clients, saves and recordings with no appearance use the reference corvette.
+color. A player who submits no appearance (bots and seat agents do not) flies the
+reference corvette.
 Appearance lives on `Player`, survives respawn and recording/fork, and never changes
 gameplay rules or consumes gameplay RNG.
