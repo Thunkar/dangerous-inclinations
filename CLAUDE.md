@@ -247,9 +247,40 @@ not an argument:
   to every 2-damage weapon; 66% of declined shots were declined as unabsorbable.
 - **Radiator at +1 or +3.** Measured after heat became a track: +1 widens the
   hull spread and lengthens games, +3 pushes the wall back up. +2 stays.
-- **A bigger shield tile** (`shields.maxEnergy=6`) and **shields in the forward
-  slot**. The first makes the game quieter (destructions 3.2 → 2.7), the second
-  changes nothing: bots never spend the bow on a shield.
+- **A bigger shield tile** (`shields.maxEnergy=6`). It makes the game quieter
+  (destructions 3.2 → 2.7). **Shields in the forward slot** was rejected with
+  it, on the grounds that bots never spend the bow on a shield, and adopted on
+  22 Sept for a reason the first pass was not looking for: after the energy
+  rewrite the bow held exactly one tile that could stand powered, so cubes on a
+  face-down forward slot were a certain sensor array and the only certain tell
+  on the board. Shields and the ballistic rack are `either` now. Measured as
+  builds on forced hulls: a bow shield is never the best bow and never a bad
+  one (16% on a Deliver hauler against the sensor's 15% and the compressor's
+  49%; 32% on a Destroy brawler against the railgun's 32%), which is the
+  profile of an option worth having rather than a lever. The bots still never
+  take one, so `offbook:bow_rack` and `offbook:bow_shield` carry the coverage.
+- **A ballistic rack in the bow.** Tried on 22 Sept for the same reason
+  shields went there, and the arc costs nothing (`sideRestricted` is false, so
+  a forward rack fires exactly as a side one does). It fails on balance: rack
+  bow + lasers×2 + shields + radiator reads 46% against a 31% Destroy bar, an
+  `outlier` at 200 games. Controlled on that hull with only the bow changing,
+  rack 42% / sensor 38% / missiles 37% / railgun 33%, so the brawler is strong
+  with any bow and the rack adds the four to nine that tip it over. **No hull
+  preys on it.** In 200-game duels with both hands forced to Destroy, against
+  a mirror baseline of 98–86: hunter-aggressive 89–95, railgun + lasers×2 +
+  radiators×2 87–94, railgun + radiators×3 85–100, railgun + laser +
+  radiators×3 83–101, missile boat 86–109, sensor bow with missiles×3 68–120.
+  The only thing that edges it is railgun + lasers×4 at 102–86, which is what
+  a copy of the prey itself manages. The lesson is not about the rack: **the
+  bow's expense is load-bearing.** Railgun-or-nothing up front is what had
+  been stopping three-cheap-guns-and-a-wall from existing, and the reason it
+  took a duel to see is that clearing the rack as a *sole* gun (6% against the
+  railgun's 25%) answers the wrong question.
+- **A sensor array on a side slot.** It would finish the rule (every tile that
+  stands powered fits any slot) and deepen the side-slot guess, and it is not
+  worth it: the bow is the only thing stopping a railgun carrying a sensor, and
+  a railgun that criticals on an 8 is the best Destroy weapon in the game with
+  its best failure mode removed. Not measured; refused on the shape of it.
 - **Making the engines and thrusters critical-proof** like the scoop, to stop a
   broken one stranding a ship. Solved instead by the cold repair (RULES §Energy
   and Heat), which keeps them as targets: measured on identical seeds, it fires

@@ -370,18 +370,34 @@ describe("setup: a kept card the loadout can never fly", () => {
 
 describe("loadout: validation and instantiation", () => {
   it("canInstallInSlot follows the slot types", () => {
+    // The guns care where they point: a railgun is spinal and a laser fires to
+    // one side, so neither travels. Everything else is free to.
     expect(canInstallInSlot("railgun", "forward")).toBe(true);
     expect(canInstallInSlot("railgun", "side")).toBe(false);
-    expect(canInstallInSlot("shields", "forward")).toBe(false);
-    expect(canInstallInSlot("missiles", "forward")).toBe(true);
-    expect(canInstallInSlot("missiles", "side")).toBe(true);
+    expect(canInstallInSlot("laser", "forward")).toBe(false);
     expect(canInstallInSlot("engines", "side")).toBe(false);
-    // The forward slot is the ship's identity: a gun, eyes, or legs.
+    // The bow is the ship's identity, but it is not the only thing that can
+    // stand powered there: a loaded forward slot has to be a guess.
     expect(canInstallInSlot("fuel_compressor", "forward")).toBe(true);
     expect(canInstallInSlot("fuel_compressor", "side")).toBe(false);
+    expect(canInstallInSlot("sensor_array", "forward")).toBe(true);
+    expect(canInstallInSlot("sensor_array", "side")).toBe(false);
   });
 
-  it("offers exactly three tiles for the forward slot: a gun, eyes, and legs", () => {
+  it.each(["missiles", "shields"] as const)(
+    "%s fits either slot, so a loaded bow is never a certain sensor array",
+    (type) => {
+      expect(canInstallInSlot(type, "forward")).toBe(true);
+      expect(canInstallInSlot(type, "side")).toBe(true);
+    }
+  );
+
+  it("keeps the ballistic rack to the sides: a cheap bow gun has no predator", () => {
+    expect(canInstallInSlot("ballistic_rack", "forward")).toBe(false);
+    expect(canInstallInSlot("ballistic_rack", "side")).toBe(true);
+  });
+
+  it("keeps the bow-only tiles to the three that make a ship's identity", () => {
     expect(new Set(FORWARD_SLOT_SUBSYSTEMS)).toEqual(
       new Set(["railgun", "sensor_array", "fuel_compressor"])
     );

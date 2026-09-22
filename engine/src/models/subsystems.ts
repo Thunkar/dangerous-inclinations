@@ -277,7 +277,14 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     minEnergy: SHIELD_ENERGY_PER_POINT,
     maxEnergy: 2 * SHIELD_ENERGY_PER_POINT,
     energyStep: SHIELD_ENERGY_PER_POINT,
-    slotType: "side",
+    /**
+     * Forward or side. A screen does not care which way the ship points, and
+     * the bow needs more than one tile that can stand powered or a loaded
+     * forward slot is a certain sensor array. Measured as a build it is never
+     * the best bow and never a bad one, which is the profile of an option
+     * worth having rather than a lever.
+     */
+    slotType: "either",
   },
   radiator: {
     id: "radiator",
@@ -320,6 +327,11 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     name: "Ballistic Rack",
     minEnergy: 2,
     maxEnergy: 2,
+    /**
+     * Side only, though its arc would not mind the bow: a rack forward makes a
+     * hull with three cheap guns and a wall that nothing in the game preys on
+     * (see the settled list in CLAUDE.md). The bow's expense is load-bearing.
+     */
     slotType: "side",
     weaponStats: {
       damage: 2,

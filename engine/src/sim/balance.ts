@@ -210,6 +210,15 @@ const offbookRows: RowSpec[] = (
       hull("fuel_compressor", "ballistic_rack,ballistic_rack,shields,radiator"),
       "deliver",
     ],
+    // Shields opened the bow on 22 Sept and no bot will ever choose it, so
+    // without this row nothing in the suite flies a loaded forward slot that
+    // is not a sensor array.
+    [
+      "bow_shield",
+      "a fifth wall in the bow",
+      hull("shields", "shields,shields,radiator,laser"),
+      "deliver",
+    ],
     [
       "interceptor_hunting",
       "aggressive interceptor, hunting",

@@ -61,7 +61,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 ## Setup
 
 1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then every player takes **one Survey, one Piracy and one Tanker** and keeps **two**. Kept cards go face-down behind the screen; the card you leave goes face-down onto one shared discard pile. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
-2. **Loadout.** Each player fills their loadout: 1 forward tile (railgun, sensor array, fuel compressor or missiles) and 4 side tiles (laser, shields, radiator, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
+2. **Loadout.** Each player fills their loadout: 1 forward tile (railgun, sensor array, fuel compressor, shields or missiles) and 4 side tiles (laser, radiator, shields, ballistic rack or missiles); repeats are allowed. All tiles are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 3 or Ring 4**, **at least three sectors from every ship already placed** (if no sector qualifies, the one farthest from them), and puts their Home marker there. Everyone starts around the hole and scatters from there; missions are secret, so pick your ring and sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring; Ring 3 drifts 4 and is two burns from the lane ring).
 4. Fill the hull track to 10, reaction mass to 10 and heat to 0. All three are tracks on your loadout, in the open. Energy cubes sit in the supply until something calls for them. Only your cards and the ammo in a face-down missiles tile sit behind the screen.
 
@@ -115,7 +115,7 @@ Otherwise:
 | Fuel compressor (forward)  | none   | A jump costs 1 fuel instead of 3                                                     |
 | Missiles (forward or side) | 2      | Launch any number of your guided missiles at one ship in your well (4 aboard)        |
 | Broadside laser (side)     | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only               |
-| Shields (side)             | 2 or 4 | While up: 2 cubes absorb 1 damage, as 2 heat; its cubes are heat at every check     |
+| Shields (either)           | 2 or 4 | While up: 2 cubes absorb 1 damage, as 2 heat; its cubes are heat at every check     |
 | Radiator (side)            | none   | +2 dissipation                                                                       |
 | Ballistic rack (side)      | 2      | 2 damage, ±1 ring/same ring, ±1 sector; while up: rolls at 4 missiles a turn; 2 heat at every check |
 
@@ -207,7 +207,7 @@ Face-up tiles stay face-up, even after respawn.
 **Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and data chits you carry, face-up tiles and **the missiles left in a face-up missiles tile**, broken fixed systems, completed missions.
 **Private:** what a face-down tile is, the ammo in a face-down missiles tile, missions in hand, where your cargo is going.
 
-Energy is the tell, and it tells you exactly one thing: what a ship is **holding up**. Only a switched-on tile carries cubes between turns, so cubes on a face-down forward slot can only be a sensor array, four on a side slot can only be a full shield, and two on a side slot is a half shield or a ballistic rack. That is a deduction from the cubes, not a reveal: the tile is still face-down and a scan still costs you a turn to be sure.
+Energy is the tell, and it tells you exactly one thing: what a ship is **holding up**. Only a switched-on tile carries cubes between turns, so two cubes on any face-down slot is a half shield, a ballistic rack or a sensor array, and four can only be a full shield. That is a deduction from the cubes, not a reveal: the tile is still face-down and a scan still costs you a turn to be sure. Shields go in the bow or on a side precisely so that a loaded bow is a guess and not a certain sensor array.
 
 A gun is dark whatever it is about to do, which is why a silent slot is the dangerous one.
 
