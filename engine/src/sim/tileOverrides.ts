@@ -59,13 +59,13 @@ export function parseTileOverrides(text: string): TileOverrides {
   for (const pair of text.split(",")) {
     if (!pair.trim()) continue;
     const eq = pair.indexOf("=");
-    if (eq === -1) throw new Error(`Tile override "${pair}" needs tile.field=value`);
+    if (eq === -1) throw new Error(`Subsystem override "${pair}" needs subsystem.field=value`);
     const [tile, field] = pair.slice(0, eq).trim().split(".");
     if (!tile || !Object.hasOwn(SUBSYSTEM_CONFIGS, tile))
       throw new Error(
-        `Unknown tile "${tile}". Known: ${Object.keys(SUBSYSTEM_CONFIGS).join(", ")}`
+        `Unknown subsystem "${tile}". Known: ${Object.keys(SUBSYSTEM_CONFIGS).join(", ")}`
       );
-    if (!field) throw new Error(`Tile override "${pair}" needs a field`);
+    if (!field) throw new Error(`Subsystem override "${pair}" needs a field`);
     if (!PASSIVE_FIELDS.has(field) && !WEAPON_FIELDS.has(field) && !CONFIG_FIELDS.has(field))
       throw new Error(
         `Unknown field "${field}". Known: ${[...CONFIG_FIELDS, ...PASSIVE_FIELDS, ...WEAPON_FIELDS].join(", ")}`

@@ -340,10 +340,10 @@ function loadoutPrompt(view: GameView): string {
       }${needs ? `, needs ${needs}` : ""})`;
     })
     .join("\n");
-  return `LOADOUT PHASE. Keep 3 of your ${me.missionOffers.length} mission cards and build a hull: exactly 1 forward tile and exactly 4 side tiles, repeats allowed.
+  return `LOADOUT PHASE. Keep 3 of your ${me.missionOffers.length} mission cards and build a hull: exactly 1 forward subsystem and exactly 4 side subsystems, repeats allowed.
   forward slot: ${FORWARD_TILES.join(" | ")}
   side slots:   ${SIDE_TILES.join(" | ")}
-Nothing else fits, and a tile is never moved once the game starts: a station repairs, it never refits.
+Nothing else fits, and a subsystem is never moved once the game starts: a station repairs, it never refits.
 Your offers:
 ${offers}
 Loadouts that are known to fly (you are not limited to these):
@@ -600,7 +600,7 @@ async function driveLoadout(payload: ViewPayload, drv: Driver, quietThink: boole
     const rules = attempt >= 2 ? `\n\nTHE FULL RULES:\n${fullRules()}` : "";
     const prompt = `${agentRulesDigest()}${rules}\n\n${loadoutPrompt(view)}${
       error
-        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every tile must fit its slot (forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")}) and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids: one primary and two different secondaries.`
+        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every subsystem must fit its slot (forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")}) and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids: one primary and two different secondaries.`
         : ""
     }`;
     const { answer, timedOut } = askModel(prompt, drv);

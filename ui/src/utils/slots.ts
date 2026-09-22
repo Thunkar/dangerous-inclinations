@@ -7,7 +7,7 @@ import type { SubsystemId } from '@dangerous-inclinations/engine'
 
 export function slotLabel(id: SubsystemId): string {
   if (id === 'engines') return 'Engines'
-  if (id === 'rotation') return 'Thrusters'
+  if (id === 'rotation') return 'Maneuvering thrusters'
   if (id === 'scoop') return 'Scoop'
   return MOUNTS.find(mount => mount.id === id)?.label ?? id
 }

@@ -254,7 +254,7 @@ export type GameEvent =
   | (Base & {
       type: "data_acquired";
       playerId: string;
-      /** Which card took a chit: a scan, or one of the secondary cards. */
+      /** Which card took data: a scan, or one of the secondary cards. */
       kind: "scan" | "survey" | "grand_tour";
       missionId: string;
     })

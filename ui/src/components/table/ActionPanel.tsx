@@ -293,7 +293,7 @@ function RepairControl({ disabled }: { disabled: boolean }) {
         <SectionLabel>Repair · one a turn, and only cold</SectionLabel>
         {offered.length === 0 ? (
           <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: TABLE.inkSoft }}>
-            This turn makes heat. A repair needs no energy on any tile: a plain
+            This turn makes heat. A repair needs no energy on any subsystem: a plain
             coast, no scoop, no shot, no scan, nothing powered.
           </Typography>
         ) : (
@@ -712,7 +712,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
         )
       })}
       <Tooltip
-        title={`Scan a ship on your ring within 3 sectors and look at one of their face-down tiles.${
+        title={`Scan a ship on your ring within 3 sectors and look at one of their face-down subsystems.${
           quiet
             ? back
               ? ' You scan nobody on your turn back from Home.'

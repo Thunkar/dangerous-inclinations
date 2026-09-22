@@ -79,14 +79,14 @@ Client → server:
 
 A turn's `PlayerAction[]` is tactical actions numbered from 1 in the order
 they run: `power` (`{ subsystemId, amount? }`: shields 2 or 4, a ballistic
-rack 2, a sensor array 2; absent is the tile's minimum), `rotate`, one of
+rack 2, a sensor array 2; absent is the subsystem's minimum), `rotate`, one of
 `coast` / `burn` / `well_transfer`, `fire_weapon` and `scan`. Every action
-puts energy on the tile it uses and it stays there until its owner's next
+puts energy on the subsystem it uses and it stays there until its owner's next
 turn, when the loadout is cleared, so `allocatedEnergy` on a slot between
 turns is what its owner used or powered last turn. A `power` emits the public
-`subsystem_powered` event, which names the tile's type only if it is already
+`subsystem_powered` event, which names the subsystem's type only if it is already
 face-up: powering reveals nothing. Beside them a turn may carry one `repair`
-(`{ subsystemId }`, no sequence): the tile a cold ship fixes if its heat is 0
+(`{ subsystemId }`, no sequence): the subsystem a cold ship fixes if its heat is 0
 at the check.
 
 Per-recipient sending: `sendToPlayer(room, roomId, playerId, message)` and

@@ -410,10 +410,10 @@ describe("missions: trade", () => {
     expect(eventTypes(atOrigin.events)).not.toContain("mission_completed");
   });
 
-  /** An Intercept already scanned, its chit aboard, filed at `filedAt`. */
+  /** An Intercept already scanned, its data aboard, filed at `filedAt`. */
   const carryingTransmission = (filedAt: string) => {
     const card = { ...interceptMission("p2", "intercept-p2", filedAt), scanAcquired: true };
-    const withChit = (s: GameState) =>
+    const withData = (s: GameState) =>
       withPlayer(s, "p1", {
         cargo: [
           {
@@ -425,21 +425,21 @@ describe("missions: trade", () => {
           },
         ],
       });
-    return { card, withChit };
+    return { card, withData };
   };
 
   it("intercept completes at the station the card names", () => {
-    const { card, withChit } = carryingTransmission(GAMMA);
-    const result = executeTurnAs(docking(GAMMA, [card], withChit), coast(1));
+    const { card, withData } = carryingTransmission(GAMMA);
+    const result = executeTurnAs(docking(GAMMA, [card], withData), coast(1));
     expect(eventsOf(result.events, "mission_completed")[0].mission.id).toBe(card.id);
   });
 
   it("intercept files nothing at any other station", () => {
-    const { card, withChit } = carryingTransmission(GAMMA);
-    const result = executeTurnAs(docking(BETA, [card], withChit), coast(1));
+    const { card, withData } = carryingTransmission(GAMMA);
+    const result = executeTurnAs(docking(BETA, [card], withData), coast(1));
     expect(eventTypes(result.events)).toContain("docked");
     expect(eventTypes(result.events)).not.toContain("mission_completed");
-    // The chit stays aboard for the trip to the right station.
+    // The data stays aboard for the trip to the right station.
     expect(getPlayer(result.gameState, "p1").cargo).toHaveLength(1);
   });
 
@@ -493,7 +493,7 @@ describe("missions: secondary", () => {
     expect(eventTypes(result.events)).not.toContain("data_acquired");
   });
 
-  it("a chit files at any station; Piracy and Tanker name no station at all", () => {
+  it("data files at any station; Piracy and Tanker name no station at all", () => {
     const deck = buildSecondaryDeck();
     const secondary = deck.filter((m) => MISSION_FAMILY[m.type] === "secondary");
     expect(secondary).toHaveLength(SECONDARY_CARDS_PER_DECK);
@@ -686,7 +686,7 @@ describe("missions: piracy", () => {
 
   it.each([
     [
-      "a survey's chit, which has to be dived for again",
+      "a survey's data, which has to be dived for again",
       () => {
         const card = { ...surveyMission("survey-p2"), acquired: true };
         return { card, cargoId: card.dataCargoId, to: "any", undone: { acquired: false } };
@@ -726,16 +726,16 @@ describe("missions: piracy", () => {
     expect(getPlayer(result.gameState, "p2").missions[0]).toMatchObject(undone);
   });
 
-  it("takes the crate first from a ship carrying both, and leaves the chit", () => {
-    const chit = { ...surveyMission("survey-p2"), acquired: true };
+  it("takes the crate first from a ship carrying both, and leaves the data", () => {
+    const data = { ...surveyMission("survey-p2"), acquired: true };
     let state = alongside([piracyMission()], [CRATE]);
     state = withPlayer(state, "p2", {
-      missions: [...getPlayer(state, "p2").missions, chit],
+      missions: [...getPlayer(state, "p2").missions, data],
       cargo: [
         ...getPlayer(state, "p2").cargo,
         {
-          id: chit.dataCargoId,
-          missionId: chit.id,
+          id: data.dataCargoId,
+          missionId: data.id,
           kind: "data",
           deliveryPlanetId: "any",
           isPickedUp: true,
@@ -748,7 +748,7 @@ describe("missions: piracy", () => {
       expect.objectContaining({ kind: "crate", cargoId: CRATE.cargoId }),
     ]);
     const victim = getPlayer(result.gameState, "p2");
-    expect(victim.cargo.find((c) => c.id === chit.dataCargoId)).toMatchObject({ isPickedUp: true });
+    expect(victim.cargo.find((c) => c.id === data.dataCargoId)).toMatchObject({ isPickedUp: true });
     expect(victim.missions.find((m) => m.type === "survey")).toMatchObject({ acquired: true });
   });
 
@@ -820,7 +820,7 @@ describe("missions: tanker", () => {
 describe("missions: winning", () => {
   it("a primary on top of one secondary starts the final round; the game ends when the round does", () => {
     // Three points win, and a hand holds five: the primary and either
-    // secondary is the win, so a seat with one chit filed wins on the kill.
+    // secondary is the win, so a seat with its data filed wins on the kill.
     const done = [{ ...surveyMission("s"), acquired: true, isCompleted: true }];
     let state = withShip(gunline(), "p2", { hitPoints: 4 });
     state = withPlayer(state, "p1", {
@@ -929,7 +929,7 @@ describe("missions: the points the table plays to", () => {
   );
 
   it("plays the fourth point out at a four-point table where three would have ended it", () => {
-    // p1 holds a filed chit and a Destroy: the kill takes it to three, which
+    // p1 holds filed data and a Destroy: the kill takes it to three, which
     // ends a three-point game and is one short of a four-point one.
     const done = [{ ...surveyMission("s"), acquired: true, isCompleted: true }];
     const setUp = (pointsToWin: number) =>

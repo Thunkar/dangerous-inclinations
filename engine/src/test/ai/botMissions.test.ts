@@ -203,7 +203,7 @@ describe("bot missions", () => {
   });
 
   it("stops surveying once the data is aboard and files it at the station the circuit reaches first", () => {
-    // A survey chit is filed anywhere (the deck deals every survey card with
+    // Survey data is filed anywhere (the deck deals every survey card with
     // "any" for its station) so the bot takes the door it is
     // already standing under. From black hole ring 1 sector 0 that is Beta's
     // outbound lane at ring 5 sectors 0-3, not Alpha's at 16-19.
@@ -260,13 +260,13 @@ describe("bot goals: piracy and tanker", () => {
     });
   });
 
-  it("counts a chit as loot: a ship carrying only data is prey", () => {
+  it("counts data as loot: a ship carrying only data is prey", () => {
     const card = piracyMission();
     const state = table([card]);
-    const chitOnly = withPlayer(state, "p2", {
+    const dataOnly = withPlayer(state, "p2", {
       cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, kind: "data" as const })),
     });
-    expect(goalFor(chitOnly, card.id)).toMatchObject({ type: "pirate", targetPlayerId: "p2" });
+    expect(goalFor(dataOnly, card.id)).toMatchObject({ type: "pirate", targetPlayerId: "p2" });
   });
 
   it("has nobody to chase while every hold at the table is empty", () => {

@@ -46,7 +46,7 @@ export function dropCargo(player: Player): { player: Player; events: EventDraft[
       lostData.has(m.id)
     )
       return { ...m, scanAcquired: false };
-    // A secondary chit goes down with the ship: the dive has to be made again.
+    // Secondary data goes down with the ship: the dive has to be made again.
     if (isSecondaryMission(m) && !m.isCompleted && m.acquired && lostData.has(m.id))
       return { ...m, acquired: false };
     return m;

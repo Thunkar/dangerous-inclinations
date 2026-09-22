@@ -6,7 +6,7 @@
  *   destroy_ship               → hunt: get weapons on the target
  *   deliver_cargo              → dock at pickup, then at delivery
  *   intercept_transmission     → shadow (scan range), then dock at the card's station
- *   survey                     → dive to black hole ring 1, then dock anywhere to file the chit
+ *   survey                     → dive to black hole ring 1, then dock anywhere to file the data
  *   piracy                     → match orbits with a carrier in this well (or wait
  *                                on the lane arc they arrive through), then dock to sell
  *   tanker                     → no trip of its own: the fuel held back on every dock
@@ -347,7 +347,7 @@ export function computeGoals(
         break;
       }
       case "piracy": {
-        // The seized crate sells at any station, like a chit that happens to
+        // The seized crate sells at any station, like data that happens to
         // fill the hold.
         const loot = me.cargo.find((c) => c.missionId === mission.id);
         if (loot?.isPickedUp) {
@@ -358,7 +358,7 @@ export function computeGoals(
         // The hold takes one crate: a pirate carrying freight of its own
         // seizes nothing, so there is no trip to make yet.
         if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
-        // Who is carrying is public (`PlayerView.cargoAboard`): a chit counts,
+        // Who is carrying is public (`PlayerView.cargoAboard`): data counts,
         // it is loot like any other, and a moored ship neither loses cargo nor
         // takes any.
         const carriers = opponents.filter(
@@ -383,7 +383,7 @@ export function computeGoals(
             description: `Take ${prey.player.name}'s cargo`,
             targetPlayerId: prey.player.id,
             estimatedTurns: turns,
-            // Ranked with the chit's filing while the seizure is a turn or two
+            // Ranked with the data's filing while the seizure is a turn or two
             // off (the window shuts the moment the carrier docks) and at no
             // urgency past that, so a crate on the far side of the well never
             // drags the bot off the card it has to finish.
@@ -447,8 +447,8 @@ export function computeGoals(
       }
       case "survey": {
         if (mission.acquired) {
-          // A chit is filed at whatever station comes next.
-          const goal = dockAnywhereGoal(view, from, mission, "File the chit", 2);
+          // Data is filed at whatever station comes next.
+          const goal = dockAnywhereGoal(view, from, mission, "File the data", 2);
           if (goal) goals.push(goal);
           break;
         }

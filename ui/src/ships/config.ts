@@ -48,7 +48,7 @@ export const DEFAULT_CONFIG: ShipConfig = {
 export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
   railgun: 'Bow gun, 4 damage up to 5 sectors ahead. For Sir Isaac Newton fans.',
   sensor_array:
-    'Scans a rival tile on your ring within 3 sectors; crits on 8+. We know what you did. From really far away.',
+    'Scans a rival subsystem on your ring within 3 sectors; crits on 8+. We know what you did. From really far away.',
   missiles: 'Salvo any number at one ship in the well; 4 aboard. 4 times the fun.',
   laser: 'Side gun, 2 damage, ignores shields. Warning: do not point at cats. Or people in ships.',
   shields: "Absorbs 1 damage per 2 cubes. For people who don't like to be touched.",

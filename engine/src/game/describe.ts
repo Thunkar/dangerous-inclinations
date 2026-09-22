@@ -129,9 +129,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "cargo_delivered":
       return `${name(e.playerId)} delivers ${e.kind} at ${getWellName(e.planetId)}`;
     case "cargo_seized":
-      return `${name(e.pirateId)} seizes ${name(e.victimId)}'s ${
-        e.kind === "data" ? "data chit" : "crate"
-      } at ${pos(e.at)}`;
+      return `${name(e.pirateId)} seizes ${name(e.victimId)}'s ${e.kind} at ${pos(e.at)}`;
     case "fuel_sold":
       return `${name(e.playerId)} pumps ${e.amount} fuel into ${getWellName(e.planetId)}'s station`;
     case "cargo_dropped": {

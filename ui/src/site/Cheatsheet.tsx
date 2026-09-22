@@ -152,16 +152,16 @@ function PrintCard() {
             </Display>
           </Box>
           <Body size={{ xs: '1.02rem', sm: '1.12rem' }} sx={{ mt: 1.5 }}>
-            Two faces of a {CARD_WIDTH_MM}&times;{CARD_HEIGHT_MM}mm card (tarot size): your turn on
-            the front, the fight on the back.
+            Two faces of a {CARD_WIDTH_MM}&times;{CARD_HEIGHT_MM}mm card: your turn on the front,
+            the fight on the back.
           </Body>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mt: 3 }}>
             <Slab tone="red" onClick={() => window.print()}>
               <PrintIcon sx={{ fontSize: 20 }} />
-              Print both faces
+              Print faces
             </Slab>
             <Body size="0.92rem" color={PRESS.inkSoft} sx={{ maxWidth: '52ch' }}>
-              One A4 sheet at true size. Cut them out and glue them back to back.
+              One A4 sheet at true size.
             </Body>
           </Box>
         </Box>

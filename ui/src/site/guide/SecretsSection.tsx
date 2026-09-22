@@ -30,7 +30,7 @@ const REVEALS: Array<{ types: SubsystemType[]; when: ReactNode }> = [
     types: ['fuel_compressor'],
     when: `A compressor, when a jump costs ${COMPRESSED_JUMP_MASS} fuel.`,
   },
-  { types: [], when: 'Any tile, when a critical breaks it.' },
+  { types: [], when: 'Any subsystem, when a critical breaks it.' },
 ]
 
 function Reveals() {
@@ -74,7 +74,7 @@ function Reveals() {
       ))}
       <Box sx={{ bgcolor: PRESS.red, color: PRESS.paper, px: 2, py: 1.25 }}>
         <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.96rem', fontWeight: 700 }}>
-          Powering a tile does not turn it face-up.
+          Powering a subsystem does not turn it face-up.
         </Box>
       </Box>
     </Box>
@@ -87,8 +87,8 @@ export function SecretsSection() {
       id="secrets"
       n={7}
       kicker="Hidden information"
-      title="A tile shows itself when it works"
-      lede="Tiles go down face-down. Each turns face-up the first time it does its job."
+      title="Secret until powered"
+      lede="Subsystems turn face-up the first time they do their job."
       tone="deep"
     >
       <Box
@@ -106,8 +106,8 @@ export function SecretsSection() {
             <Points
               items={[
                 <>
-                  Energy on every tile is <b>public</b>. On a face-down tile it means powered, not
-                  used: 2 is a half shield, a rack or a sensor; 4 is a full shield.
+                  Energy on every subsystem is <b>public</b>. On a face-down subsystem it means
+                  powered, not used.
                 </>,
                 <>A gun is dark until it fires.</>,
               ]}
@@ -119,7 +119,7 @@ export function SecretsSection() {
               items={[
                 <>
                   With a sensor, scan a ship on your ring within {SCAN_SECTOR_RANGE} sectors: look
-                  at one of its face-down tiles. Intercept holders take its chit.
+                  at one of its face-down subsystems. Intercept holders take its data.
                 </>,
               ]}
             />
@@ -134,7 +134,7 @@ const DEATH: Array<{ when: string; title: string; text: string }> = [
   {
     when: 'At 0 hull',
     title: 'Off the board',
-    text: `Crates go back to their station, chits are lost. Your Destroy holder scores ${MISSION_POINTS.destroy_ship}.`,
+    text: `Crates go back to their station, data is lost. Your Destroy holder scores ${MISSION_POINTS.destroy_ship}.`,
   },
   {
     when: 'Your next turn',

@@ -141,17 +141,6 @@ export function SiteFooter() {
       }}
     >
       <Mark size={20} />
-      <Box
-        component="span"
-        sx={{
-          fontFamily: FONT_DISPLAY,
-          fontSize: '0.9rem',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-        }}
-      >
-        Every number on this site is read from the engine that referees the video game
-      </Box>
     </Box>
   )
 }

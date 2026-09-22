@@ -274,9 +274,9 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
   const note = !target
     ? null
     : faceDown.length === 0
-      ? 'You already know every tile on that loadout. The scan still takes their transmission.'
+      ? 'You already know every subsystem on that loadout. The scan still takes their transmission.'
       : chosen && chosen.type !== null
-        ? 'You already know that tile: the scan will look at the first face-down one instead.'
+        ? 'You already know that subsystem: the scan will look at the first face-down one instead.'
         : null
 
   return (
@@ -298,7 +298,7 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         ))}
       </Select>
 
-      <Tooltip title="Choose which face-down tile to look at: click it on their loadout">
+      <Tooltip title="Choose which face-down subsystem to look at: click it on their loadout">
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}

@@ -147,11 +147,32 @@ function reconstructPlan(
     current = next;
   }
 
+  // The search ran backwards and could not know the tank at each coast, so it
+  // booked every coast as a full scoop. Replayed forwards against the real
+  // tank, a coast scoops only what fits: nothing when the tank is full, which
+  // is a plain coast and no scoop heat. Scooping all that fits is the most
+  // fuel any plan could hold at each step, so a route the search found
+  // affordable stays affordable.
+  let totalMassCost = endNode.massCost;
+  if (options.hasFuelScoop) {
+    let fuel = options.availableMass;
+    totalMassCost = 0;
+    for (const step of steps) {
+      if (step.actionType === "coast") {
+        const room = Math.max(0, options.maxFuelCapacity - fuel);
+        const gain = Math.min(ringVelocity(step.from.wellId, step.from.ring), room);
+        step.massCost = gain > 0 ? -gain : 0;
+      }
+      fuel -= step.massCost;
+      totalMassCost += step.massCost;
+    }
+  }
+
   return {
     origin,
     destination,
     steps,
-    totalMassCost: endNode.massCost,
+    totalMassCost,
     totalTurns: endNode.turns,
     crossesWells,
     mode: options.mode,

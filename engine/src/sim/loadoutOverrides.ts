@@ -60,7 +60,7 @@ function parseHull(entry: string, spec: string): ShipLoadout {
   const [forward, sides] = spec.split("/");
   const sideSlots = (sides ?? "").split(",").map((s) => s.trim()) as SubsystemType[];
   if (!forward || sideSlots.length !== 4)
-    throw new Error(`Loadout override "${entry}" needs one forward tile and four side tiles`);
+    throw new Error(`Loadout override "${entry}" needs one forward subsystem and four side subsystems`);
   return {
     forwardSlots: [forward.trim() as SubsystemType],
     sideSlots: sideSlots as ShipLoadout["sideSlots"],

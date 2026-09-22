@@ -63,7 +63,7 @@ export interface OpponentDanger {
   completedMissions: number;
   /** Crates aboard: a Deliver in progress, and it ends at a station. */
   crates: number;
-  /** Data chits aboard: an Intercept or Survey, deliverable at any station. */
+  /** Data aboard: an Intercept or Survey, deliverable at any station. */
   data: number;
   /** Stations the cargo could be going to, nearest first. Empty when the hold is. */
   predictedPlanets: string[];

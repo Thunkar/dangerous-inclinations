@@ -37,7 +37,7 @@ function crateAboard(cargo: readonly Cargo[]): boolean {
 
 /**
  * Piracy: a pirate that ends its turn in a loaded ship's sector takes what it
- * carries: a crate or a data chit (RULES §Missions).
+ * carries: a crate or data (RULES §Missions).
  *
  * The hold is the whole constraint ({@link CARGO_HOLD_CRATES} is one, so a
  * pirate with freight of its own takes nothing), and a moored ship is out of
@@ -181,7 +181,7 @@ export function processMissionEvents(
         if (deliveredCargoIds.has(mission.cargoId)) next = { ...mission, isCompleted: true };
         break;
       case "tanker":
-        // Paid on arrival, no choice and no chit: the pumping is the card.
+        // Paid on arrival, no choice and no data: the pumping is the card.
         if (pumpedFuel) next = { ...mission, isCompleted: true };
         break;
       case "survey": {
@@ -189,18 +189,18 @@ export function processMissionEvents(
         if (!m.acquired) {
           if (secondaryDone(m, player)) {
             m = { ...m, acquired: true };
-            // A chit a pirate took is still in the hold, un-picked: the dive
-            // that takes it again puts the same chit back aboard.
-            const chit: Cargo = {
+            // Data a pirate took is still in the hold, un-picked: the dive
+            // that takes it again puts the same data back aboard.
+            const data: Cargo = {
               id: m.dataCargoId,
               missionId: m.id,
               kind: "data",
               deliveryPlanetId: m.deliveryPlanetId,
               isPickedUp: true,
             };
-            cargo = cargo.some((c) => c.id === chit.id)
-              ? cargo.map((c) => (c.id === chit.id ? chit : c))
-              : [...cargo, chit];
+            cargo = cargo.some((c) => c.id === data.id)
+              ? cargo.map((c) => (c.id === data.id ? data : c))
+              : [...cargo, data];
             events.push({
               type: "data_acquired",
               playerId,

@@ -266,7 +266,7 @@ export const interceptMission = (
   scanAcquired: false,
   dataCargoId: `data-${id}`,
 });
-/** A chit-paying secondary card (Survey is the only one). */
+/** Data-paying secondary card (Survey is the only one). */
 export const secondaryMission = (
   type: SecondaryMissionType = "survey",
   id = `${type}-1`,

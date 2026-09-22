@@ -387,7 +387,7 @@ describe("docking: moored ships ride their station", () => {
     expect(eventsOf(result.events, "cargo_picked_up")).toHaveLength(1);
   });
 
-  it("carries a data chit alongside a full hold: numbers are not freight", () => {
+  it("carries data alongside a full hold: numbers are not freight", () => {
     const state = withMissions(approaching(ALPHA), "p1", [deliverMission(ALPHA, BETA)]);
     const withData = withPlayer(state, "p1", {
       cargo: [
@@ -402,14 +402,14 @@ describe("docking: moored ships ride their station", () => {
       ],
     });
     const result = executeTurnAs(withData, coast(1));
-    // The chit is filed here and the crate still loads.
+    // The data is filed here and the crate still loads.
     expect(eventsOf(result.events, "cargo_delivered").map((e) => e.kind)).toEqual(["data"]);
     expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.kind)).toEqual(["crate"]);
   });
 
   it("loads one crate and leaves the second on the dock", () => {
     // Two routes out of the same station: the hold takes one crate, so the
-    // second is two trips away, not a second chit in the same hold.
+    // second is two trips away, not more data in the same hold.
     const state = withMissions(approaching(ALPHA), "p1", [
       deliverMission(ALPHA, BETA),
       deliverMission(ALPHA, GAMMA),
@@ -441,7 +441,7 @@ describe("docking: moored ships ride their station", () => {
     ]);
   });
 
-  it("data rides free: a chit aboard never keeps a crate off the ship", () => {
+  it("data rides free: data aboard never keeps a crate off the ship", () => {
     const mission = deliverMission(ALPHA, BETA);
     let state = withMissions(approaching(ALPHA), "p1", [mission]);
     state = withPlayer(state, "p1", {

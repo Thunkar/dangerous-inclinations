@@ -27,9 +27,19 @@ const ROLE_NOTE: Record<BotRole, string> = {
   hauler: 'Fuel compressor: jumps cost 1 fuel, but you can never scan',
 }
 const VARIANT_NOTE: Record<HullVariant, string> = {
-  tanky: 'A second shield tile, and the one gun a Destroy card needs',
+  tanky: 'A second shield, and the one gun a Destroy card needs',
   aggressive: 'A second gun, and the radiator that volley needs',
 }
+
+/**
+ * The hunter is the one tanky hull that is not two walls: two powered shields
+ * are eight heat a turn and a hunter that cooks cannot fire, so its fourth
+ * subsystem is a second radiator (see `ai/behaviors/loadout.ts`).
+ */
+const variantNote = (role: BotRole, variant: HullVariant): string =>
+  role === 'hunter' && variant === 'tanky'
+    ? 'A second radiator: one shield you can keep up beside the railgun'
+    : VARIANT_NOTE[variant]
 
 const templateFor = (role: BotRole, variant: HullVariant): ShipLoadout =>
   structuredClone(BOT_LOADOUT_TEMPLATES[`${role}-${variant}`])
@@ -129,7 +139,7 @@ export function SystemControls({
         label="Secondary role"
         options={HULL_VARIANTS}
         value={archetype?.variant ?? null}
-        describe={variant => VARIANT_NOTE[variant]}
+        describe={variant => variantNote(archetype?.role ?? DEFAULT_ROLE, variant)}
         onChange={variant => onChange(templateFor(archetype?.role ?? DEFAULT_ROLE, variant))}
         disabled={disabled}
       />

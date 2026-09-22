@@ -95,7 +95,7 @@ export function missionPoints(type: MissionType): number {
  * route waits until the first is delivered, and two cards that load at the
  * same station are two trips rather than one.
  *
- * Data chits ride free (a scan's transmission and a survey's readings are
+ * Data rides free (a scan's transmission and a survey's readings are
  * numbers, not freight), so an Intercept or a Survey can always be carried
  * alongside whatever is in the hold.
  */
@@ -112,9 +112,9 @@ export type MissionType =
   | "tanker";
 
 /**
- * The one-point cards that pay a chit: do the thing, take the chit, file it at
+ * The one-point cards that pay data: do the thing, take the data, file it at
  * any station. Survey is the only one left: Piracy pays a crate somebody else
- * loaded and Tanker pays nothing at all, so neither has a chit to file.
+ * loaded and Tanker pays nothing at all, so neither has data to file.
  */
 export type SecondaryMissionType = "survey";
 export const SECONDARY_MISSION_TYPES: readonly SecondaryMissionType[] = ["survey"];
@@ -227,7 +227,7 @@ export interface InterceptTransmissionMission extends BaseMission {
 }
 
 /**
- * A secondary card that pays a chit: do the thing, take the chit, file it at
+ * A secondary card that pays data: do the thing, take the data, file it at
  * any station.
  *
  * Survey is the one card of this shape: end a turn on the black hole's
@@ -238,16 +238,16 @@ export interface InterceptTransmissionMission extends BaseMission {
  */
 export interface SecondaryMission extends BaseMission {
   type: SecondaryMissionType;
-  /** Always "any": a chit is filed wherever the ship next docks. */
+  /** Always "any": data is filed wherever the ship next docks. */
   deliveryPlanetId: string;
-  /** The thing has been done and the chit is aboard. */
+  /** The thing has been done and the data is aboard. */
   acquired: boolean;
   dataCargoId: string;
 }
 
 /**
  * Piracy: end a turn in the same sector as a ship carrying a crate or a data
- * chit and the loot is yours; sell it at any station.
+ * data and the loot is yours; sell it at any station.
  *
  * The only secondary card that uses the hold, and the only one somebody else
  * pays for. A pirate needs room ({@link CARGO_HOLD_CRATES} is one, so a
@@ -317,7 +317,7 @@ export function missionTargetsPlayer(
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
   return m.type === "intercept_transmission";
 }
-/** The secondary cards that pay a chit (not Piracy or Tanker, which pay neither). */
+/** The secondary cards that pay data (not Piracy or Tanker, which pay neither). */
 export function isSecondaryMission(m: Mission): m is SecondaryMission {
   return m.type === "survey";
 }

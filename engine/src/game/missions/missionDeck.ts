@@ -125,7 +125,7 @@ export function buildSecondaryDeck(): DeckCard[] {
     deck.push({ type: "piracy" });
     deck.push({ type: "tanker" });
     for (const type of SECONDARY_MISSION_TYPES) {
-      // A chit is filed at whatever station the ship next docks at.
+      // Data is filed at whatever station the ship next docks at.
       deck.push({ type, deliveryPlanetId: "any" });
     }
   }
@@ -211,7 +211,7 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
  * only reach one hand, so a route somebody else is flying is a route you were
  * not offered. Primaries first, then secondaries, so a seat's offers arrive in
  * the order the loadout screen reads them. Ids are handed out as the cards
- * land, so an id says nothing about what the card is: crates and chits are
+ * land, so an id says nothing about what the card is: crates and data are
  * named after their mission and sit on the table for everyone to see.
  */
 export function dealMissionOffers(

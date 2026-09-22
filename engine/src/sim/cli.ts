@@ -175,7 +175,7 @@ function printSummary(a: AggregateStats): void {
     `First jump (turn): median ${a.firstJumpRound.median} (${a.firstJumpRound.count} players jumped)`
   );
   console.log(
-    `Scans/game: mean ${a.scansPerGame.mean}; hidden tiles per player at end: mean ${a.hiddenTilesAtEnd.mean} of 5`
+    `Scans/game: mean ${a.scansPerGame.mean}; hidden subsystems per player at end: mean ${a.hiddenTilesAtEnd.mean} of 5`
   );
   console.log(`Wins by seat: ${JSON.stringify(a.winsByPlayer)}`);
   const b = a.behaviour;

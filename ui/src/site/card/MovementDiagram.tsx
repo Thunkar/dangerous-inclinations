@@ -147,7 +147,7 @@ export function MovementDiagram() {
       </defs>
 
       {/* coast: the drift, which happens whatever else the turn does */}
-      <Label y={8} title="COAST" note={['drift only']} />
+      <Label y={8} title="COAST" note={['Drift only']} />
       <Ring y={9} />
       <Ship x={TRACK_X + 6} y={9} />
       <path
@@ -163,7 +163,7 @@ export function MovementDiagram() {
       </Tag>
 
       {/* burn: drift first, ring second, and the facing picks the way */}
-      <Label y={31} title="BURN" note={['drift, then', `1\u2013${hard} rings`]} />
+      <Label y={31} title="BURN" note={['Drift, then', `1\u2013${hard} rings`]} />
       <Ring y={24} />
       <Ring y={36} />
       <Ring y={48} />
@@ -198,7 +198,7 @@ export function MovementDiagram() {
       </Tag>
 
       {/* jump: a lane between two wells, and no drift */}
-      <Label y={68} title="JUMP" note={['lane, no drift']} />
+      <Label y={68} title="JUMP" note={['Transfer sectors']} />
       <circle cx={TRACK_X + 5} cy={70} r={5} fill={INK} />
       {[0, 1, 2, 3].map(i => (
         <Cell key={`d${i}`} x={TRACK_X + 14 + i * 10} y={65.5} on={i === 1} />

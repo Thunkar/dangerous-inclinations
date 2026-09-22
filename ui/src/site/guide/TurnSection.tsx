@@ -15,8 +15,8 @@ export function TurnSection() {
       id="turn"
       n={3}
       kicker="Your turn"
-      title="Seven steps, in this order"
-      lede="Whole turns, one player at a time, going left. You choose the order of your actions; the rest is fixed."
+      title="Seven steps, then the stations"
+      lede="You choose the order of your actions; the rest is fixed."
       tone="ink"
     >
       <Box
@@ -29,7 +29,7 @@ export function TurnSection() {
           gap: '4px',
           bgcolor: PRESS.paperSoft,
           border: `4px solid ${PRESS.paperSoft}`,
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
         }}
       >
         {TURN_STEPS.map((step, index) => (
@@ -37,7 +37,8 @@ export function TurnSection() {
             component="li"
             key={step.title}
             sx={{
-              bgcolor: PRESS.ink,
+              // The round's step is not anyone's turn: it is set on paper.
+              bgcolor: step.roundEnd ? PRESS.paper : PRESS.ink,
               p: { xs: 2.5, sm: 3 },
               display: 'flex',
               flexDirection: 'column',
@@ -55,11 +56,12 @@ export function TurnSection() {
               <Numeral size="3.6rem">{index + 1}</Numeral>
               {index === 0 && <Kicker color={PRESS.paperSoft}>If destroyed</Kicker>}
               {index === 2 && <Kicker color={PRESS.paperSoft}>Any order</Kicker>}
+              {step.roundEnd && <Kicker>Once a round</Kicker>}
             </Box>
-            <Display size="1.75rem" color={PRESS.paper} component="h3">
+            <Display size="1.75rem" color={step.roundEnd ? PRESS.ink : PRESS.paper} component="h3">
               {step.title}
             </Display>
-            <Body size="0.96rem" color={PRESS.paperSoft}>
+            <Body size="0.96rem" color={step.roundEnd ? PRESS.ink : PRESS.paperSoft}>
               {step.blurb}
             </Body>
           </Box>

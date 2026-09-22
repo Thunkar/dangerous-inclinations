@@ -7,6 +7,7 @@
  * number is changed by pressing a button rather than by typing into a field
  * that the browser will then try to autocomplete.
  */
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
 import type { SxProps, Theme } from '@mui/material'
@@ -51,7 +52,9 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 
 /**
  * A number with a button either side. `wrap` is for a sector, which is on a
- * ring and therefore has no ends.
+ * ring and therefore has no ends. `editable` makes the number a field that
+ * opens the phone's number pad, for jumping straight to a sector rather than
+ * pressing + a dozen times.
  */
 export function Stepper({
   value,
@@ -61,6 +64,7 @@ export function Stepper({
   wrap = false,
   width = 64,
   label,
+  editable = false,
 }: {
   value: number
   min: number
@@ -70,6 +74,7 @@ export function Stepper({
   width?: number
   /** What the number is, for a screen reader. */
   label?: string
+  editable?: boolean
 }) {
   const step = (delta: number) => {
     const span = max - min + 1
@@ -83,28 +88,95 @@ export function Stepper({
   return (
     <Box sx={{ display: 'flex', alignItems: 'stretch', height: TAP }}>
       <StepButton sign="−" what={label} onClick={() => step(-1)} disabled={atMin} />
-      <Box
-        aria-live="polite"
-        sx={{
-          minWidth: width,
-          px: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderTop: `3px solid ${PRESS.ink}`,
-          borderBottom: `3px solid ${PRESS.ink}`,
-          fontFamily: FONT_DISPLAY,
-          fontWeight: 700,
-          fontSize: '1.6rem',
-          lineHeight: 1,
-          fontVariantNumeric: 'tabular-nums',
-          color: PRESS.ink,
-        }}
-      >
-        {value}
-      </Box>
+      {editable ? (
+        <NumberField
+          value={value}
+          min={min}
+          max={max}
+          onChange={onChange}
+          label={label}
+          width={width}
+        />
+      ) : (
+        <Box
+          aria-live="polite"
+          sx={{
+            minWidth: width,
+            px: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderTop: `3px solid ${PRESS.ink}`,
+            borderBottom: `3px solid ${PRESS.ink}`,
+            fontFamily: FONT_DISPLAY,
+            fontWeight: 700,
+            fontSize: '1.6rem',
+            lineHeight: 1,
+            fontVariantNumeric: 'tabular-nums',
+            color: PRESS.ink,
+          }}
+        >
+          {value}
+        </Box>
+      )}
       <StepButton sign="+" what={label} onClick={() => step(1)} disabled={atMax} />
     </Box>
+  )
+}
+
+/** The number in the middle of a stepper, typed rather than stepped. */
+function NumberField({
+  value,
+  min,
+  max,
+  onChange,
+  label,
+  width,
+}: {
+  value: number
+  min: number
+  max: number
+  onChange: (next: number) => void
+  label?: string
+  width: number
+}) {
+  const [text, setText] = useState(String(value))
+  useEffect(() => setText(String(value)), [value])
+  return (
+    <Box
+      component="input"
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      aria-label={label}
+      value={text}
+      onFocus={event => event.currentTarget.select()}
+      onChange={event => {
+        const raw = event.currentTarget.value.replace(/[^0-9]/g, '').slice(0, 2)
+        setText(raw)
+        const n = Number(raw)
+        if (raw !== '' && n >= min && n <= max) onChange(n)
+      }}
+      onBlur={() => setText(String(value))}
+      sx={{
+        width,
+        minWidth: width,
+        px: 1,
+        border: 'none',
+        borderTop: `3px solid ${PRESS.ink}`,
+        borderBottom: `3px solid ${PRESS.ink}`,
+        borderRadius: 0,
+        bgcolor: PRESS.paper,
+        textAlign: 'center',
+        fontFamily: FONT_DISPLAY,
+        fontWeight: 700,
+        fontSize: '1.6rem',
+        lineHeight: 1,
+        color: PRESS.ink,
+        outline: 'none',
+        '&:focus': { bgcolor: '#fff' },
+      }}
+    />
   )
 }
 

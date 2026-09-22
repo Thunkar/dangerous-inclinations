@@ -837,7 +837,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           case 'cargo_seized':
             mark(
               event.victimId,
-              event.kind === 'data' ? 'CHIT SEIZED' : 'CRATE SEIZED',
+              event.kind === 'data' ? 'DATA SEIZED' : 'CRATE SEIZED',
               'heat',
               { at: event.at }
             )

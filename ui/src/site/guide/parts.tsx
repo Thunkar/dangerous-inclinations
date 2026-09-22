@@ -177,18 +177,21 @@ export function TileChip({
   label,
   value,
   tone = 'paper',
+  stretch = false,
 }: {
   type: SubsystemType
   label: string
   value: ReactNode
   tone?: 'paper' | 'ink' | 'red'
+  /** Fill its grid cell, with the figure pushed to the right edge. */
+  stretch?: boolean
 }) {
   const bg = tone === 'ink' ? PRESS.ink : tone === 'red' ? PRESS.red : 'transparent'
   const fg = tone === 'paper' ? PRESS.ink : PRESS.paper
   return (
     <Box
       sx={{
-        display: 'inline-flex',
+        display: stretch ? 'flex' : 'inline-flex',
         alignItems: 'center',
         gap: 1,
         minHeight: 40,
@@ -202,7 +205,13 @@ export function TileChip({
       <TileIcon type={type} size={20} />
       <Box
         component="span"
-        sx={{ fontFamily: FONT_SANS, fontSize: '0.92rem', fontWeight: 600, whiteSpace: 'nowrap' }}
+        sx={{
+          fontFamily: FONT_SANS,
+          fontSize: '0.92rem',
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          flex: stretch ? 1 : 'none',
+        }}
       >
         {label}
       </Box>
@@ -212,6 +221,8 @@ export function TileChip({
           alignSelf: 'stretch',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'center',
+          minWidth: stretch ? 44 : 0,
           px: 1.1,
           bgcolor: tone === 'paper' ? PRESS.ink : PRESS.paper,
           color: tone === 'paper' ? PRESS.paper : tone === 'red' ? PRESS.red : PRESS.ink,

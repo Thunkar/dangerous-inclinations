@@ -148,7 +148,7 @@ describe("scan: intercept missions", () => {
         id: "data-intercept-p2",
         missionId: "intercept-p2",
         kind: "data",
-        // The chit is filed where the card says, not at the nearest station.
+        // The data is filed where the card says, not at the nearest station.
         deliveryPlanetId: GAMMA,
         isPickedUp: true,
       },

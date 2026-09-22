@@ -170,7 +170,7 @@ function buildDecisionLog(
     reasoning.push(
       known.length > 0
         ? `${threats[0].player.name} has ${known.join(", ")} in range`
-        : `${threats[0].player.name} is close with ${threats[0].unknownSlots.length} unknown tiles`
+        : `${threats[0].player.name} is close with ${threats[0].unknownSlots.length} unknown subsystems`
     );
   }
   const leader = [...opponents].sort((a, b) => b.danger.score - a.danger.score)[0];

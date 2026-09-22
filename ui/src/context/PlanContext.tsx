@@ -402,8 +402,10 @@ function drawsFor(player: Player, steps: PlanStep[]): Record<SubsystemId, number
         take('rotation', drawFor('rotation'))
         break
       case 'move':
-        if (step.move.kind === 'burn') take('engines', drawFor('engines', BURN_COSTS[step.move.intensity].energy))
-        else if (step.move.kind === 'jump') take('engines', drawFor('engines', WELL_TRANSFER_COSTS.energy))
+        if (step.move.kind === 'burn')
+          take('engines', drawFor('engines', BURN_COSTS[step.move.intensity].energy))
+        else if (step.move.kind === 'jump')
+          take('engines', drawFor('engines', WELL_TRANSFER_COSTS.energy))
         else if (step.move.scoop) take('scoop', drawFor('scoop'))
         break
       case 'fire': {
@@ -494,8 +496,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       // Power actions run before every step, so only the steps are cut at the
       // shot. A missile rolls when it arrives, after the whole turn's actions.
       const index = steps.findIndex(s => s.id === step.id)
-      const before =
-        weapon?.type === 'missiles' || index < 0 ? steps : steps.slice(0, index)
+      const before = weapon?.type === 'missiles' || index < 0 ? steps : steps.slice(0, index)
       const loadout = loadoutFor(me, planPowers, drawsFor(me, before))
       return lowestCritical(getEffectiveCriticalChance(loadout))
     },
@@ -506,10 +507,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     (subsystemId: SubsystemId) => powerableTile(me, used, subsystemId) !== null,
     [me, used]
   )
-  const usedBy = useCallback(
-    (subsystemId: SubsystemId) => used[subsystemId] ?? null,
-    [used]
-  )
+  const usedBy = useCallback((subsystemId: SubsystemId) => used[subsystemId] ?? null, [used])
   const pendingShip = useMemo(
     () => ({ ...me.ship, subsystems: pendingSubsystems }),
     [me.ship, pendingSubsystems]
@@ -626,13 +624,16 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       const cost = BURN_COSTS[intensity]
       const rings = `${cost.rings} ring${cost.rings === 1 ? '' : 's'} ${outward}`
       const mass = calculateBurnMassCost(cost.mass, adjustment)
-      const state = !engines || engines.isBroken
-        ? blocked('the engines are broken')
-        : !burnFitsInWell(moveFrom.position, moveFrom.facing, intensity)
-          ? blocked(`there are not ${rings} from ring ${moveFrom.position.ring}: rotate to burn the other way`)
-          : engines.usedThisTurn
-            ? blocked('the engines have already burned this turn')
-            : me.ship.reactionMass < mass
+      const state =
+        !engines || engines.isBroken
+          ? blocked('the engines are broken')
+          : !burnFitsInWell(moveFrom.position, moveFrom.facing, intensity)
+            ? blocked(
+                `there are not ${rings} from ring ${moveFrom.position.ring}: rotate to burn the other way`
+              )
+            : engines.usedThisTurn
+              ? blocked('the engines have already burned this turn')
+              : me.ship.reactionMass < mass
                 ? blocked(`it costs ${mass} fuel and ${me.ship.reactionMass} is aboard`)
                 : READY
       return [intensity, state]
@@ -747,7 +748,15 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       }
     )
     return result?.alternatives ?? []
-  }, [routeDestination, routeStation, routeMode, me.ship, pendingSubsystems, compressor, view.myStats])
+  }, [
+    routeDestination,
+    routeStation,
+    routeMode,
+    me.ship,
+    pendingSubsystems,
+    compressor,
+    view.myStats,
+  ])
   const route = routes[Math.min(routeIndex, Math.max(0, routes.length - 1))] ?? null
 
   // Arrived: the route has done its job. Meeting a station ends when the ship
@@ -797,7 +806,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       switch (step.kind) {
         case 'rotate': {
           const thrusters = pendingSubsystems.find(s => s.id === 'rotation')
-          if (!thrusters || thrusters.isBroken) problems.push('Thrusters are broken: no rotation')
+          if (!thrusters || thrusters.isBroken)
+            problems.push('Maneuvering thrusters are broken: no rotation')
           break
         }
         case 'move': {
@@ -885,7 +895,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
             problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
           else if (!targetsInRange(step).some(t => t.id === step.targetId))
             problems.push('Scan: the target must be on your ring within 3 sectors')
-          if (!step.peekSlot) problems.push('Scan: choose which tile to look at')
+          if (!step.peekSlot) problems.push('Scan: choose which subsystem to look at')
           break
         }
       }
@@ -1036,7 +1046,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       if (!sub) return
       const config = getSubsystemConfig(sub.type)
       const step = energyStepOf(sub.type)
-      const wanted = value < config.minEnergy ? 0 : Math.min(config.maxEnergy, Math.floor(value / step) * step)
+      const wanted =
+        value < config.minEnergy ? 0 : Math.min(config.maxEnergy, Math.floor(value / step) * step)
       setPowers(prev => ({ ...prev, [subsystemId]: wanted }))
     },
     [me, used]

@@ -34,7 +34,7 @@ const TOOLS: Record<ToolName, Tool> = {
     name: 'heat',
     title: 'Heat check',
     blurb:
-      'Heat carried in, the energy your turn spent, radiators. It bills the hull for anything over 10, dissipates and carries the rest.',
+      'Your loadout on a mat: click a subsystem to power it, right click to take it off. The check bills the hull for anything over 10, dissipates and carries the rest.',
   },
   dice: {
     name: 'dice',
@@ -93,7 +93,7 @@ function ToolsIndex() {
       <PageTitle
         kicker="Table tools"
         title="The sums, done for you"
-        blurb="For a game with real tiles and cubes. Each tool does the arithmetic of a turn with the engine that runs the video game, so the two always agree."
+        blurb="For a game at a real table. Each tool does the arithmetic of a turn with the engine that runs the video game, so the two always agree."
       />
       <Box
         sx={{

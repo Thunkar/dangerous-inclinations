@@ -1,6 +1,6 @@
 /**
- * 01 · The goal. What a first game most needs to know and the old card never
- * said: you are here for three points, and where they come from.
+ * 01 · The goal: you are here for three points, and this is where they come
+ * from.
  *
  * The six cards are the game's own `MissionCard`, dealt from sample missions,
  * so the cheatsheet shows the card a player is holding at the table rather
@@ -19,7 +19,7 @@ import {
 import { MissionCard } from '../../components/common/MissionCard'
 import { PRESS } from '../../design/press'
 import { Body } from '../poster'
-import { GuideSection, Op, SubHead, SumBlock } from './parts'
+import { GuideSection, SubHead } from './parts'
 
 /** Seat counts, the way a card names a rival. */
 const SEATS: Record<string, string> = {
@@ -45,7 +45,7 @@ const PRIMARIES: Mission[] = [
     targetPlayerId: 'left-1',
     deliveryPlanetId: 'planet-beta',
     scanAcquired: false,
-    dataCargoId: 'g-chit',
+    dataCargoId: 'g-data',
   },
 ]
 
@@ -56,7 +56,7 @@ const SECONDARIES: Mission[] = [
     isCompleted: false,
     deliveryPlanetId: 'any',
     acquired: false,
-    dataCargoId: 'g-survey-chit',
+    dataCargoId: 'g-survey-data',
   },
   { id: 'g-piracy', type: 'piracy', isCompleted: false, cargoId: 'g-loot' },
   { id: 'g-tanker', type: 'tanker', isCompleted: false },
@@ -135,7 +135,7 @@ export function GoalSection() {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         <CardRow
           title={`Primaries · ${primaryPoints} points`}
-          detail={`Dealt ${PRIMARY_OFFERS_PER_PLAYER}, keep ${PRIMARIES_PER_PLAYER}. Cards count seats ("2nd to your left"), so none names its holder.`}
+          detail={`Dealt ${PRIMARY_OFFERS_PER_PLAYER}, keep ${PRIMARIES_PER_PLAYER}`}
           missions={PRIMARIES}
         />
         <CardRow

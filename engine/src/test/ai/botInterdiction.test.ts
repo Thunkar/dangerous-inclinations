@@ -2,7 +2,7 @@
  * Denial: reading who is about to win, and doing something about it.
  *
  * A race for three secret cards has a second source of value besides your
- * own progress. What a rival carries is public (crates and data chits sit on
+ * own progress. What a rival carries is public (crates and data sit on
  * the ship), their score is public (completed cards are face-up), stations
  * are the only place cargo can be handed over and the lanes are the only way
  * between wells, so the whole table can tell who is one dock from winning
@@ -81,7 +81,7 @@ function crate(pickupPlanetId: string, deliveryPlanetId: string): Cargo {
   };
 }
 
-function dataChit(): Cargo {
+function dataCargo(): Cargo {
   return {
     id: "data-1",
     kind: "data",
@@ -228,7 +228,7 @@ describe("danger: reading the scoreboard and the hold", () => {
     expect(planets.sort()).toEqual([BETA, GAMMA].sort());
   });
 
-  it("keeps every station on the list for a data chit, including the one overhead", () => {
+  it("keeps every station on the list for data, including the one overhead", () => {
     // Scan and survey data is handed over at any station at all.
     const stations = makeGameState([]).stations;
     const planets = predictedDeliveryPlanets(
@@ -294,10 +294,10 @@ describe("interdiction goals", () => {
       ring: STATION_RING,
       sector: getShip(state, "p1").sector + 1,
     });
-    // p3 has a chit aboard and a station under it, but nothing face-up: every
+    // p3 has data aboard and a station under it, but nothing face-up: every
     // card is worth two now, so a rival one card short is a rival about to
     // win however close the other one happens to be sitting.
-    state = withPlayer(state, "p3", { completedMissionCount: 0, cargo: [dataChit()] });
+    state = withPlayer(state, "p3", { completedMissionCount: 0, cargo: [dataCargo()] });
     state = aboutToWin(state, "p2", [crate(BETA, ALPHA)]);
     const situation = situationOf(state, "p1");
 
@@ -449,7 +449,7 @@ describe("denial valuation", () => {
     // A destroyed ship drops everything it carries and loses its next turn.
     const loaded = aboutToWin(withShip(duel(), "p2", { hitPoints: 2 }), "p2", [
       crate(BETA, GAMMA),
-      dataChit(),
+      dataCargo(),
     ]);
     const empty = withPlayer(withShip(duel(), "p2", { hitPoints: 2 }), "p2", {
       completedMissionCount: ONE_FROM_WINNING,

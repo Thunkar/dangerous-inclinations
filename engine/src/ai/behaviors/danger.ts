@@ -4,7 +4,7 @@
  *
  * A race for three secret objectives has a second source of value besides
  * your own progress: **denial**. What a player is carrying is public (crates
- * and data chits sit on the ship) and so is their score (completed cards are
+ * and data sit on the ship) and so is their score (completed cards are
  * face-up), so the table can always tell who is about to win and roughly
  * where they have to go:
  *
@@ -12,7 +12,7 @@
  * |------------------------------|------------------------------------------------|
  * | `completedMissionCount` = 2  | one card from the win, whichever card it is    |
  * | `cargoAboard.crates` > 0     | a Deliver is in progress; it ends at a station  |
- * | `cargoAboard.data` > 0       | an Intercept or Survey chit, deliverable at any station |
+ * | `cargoAboard.data` > 0       | Intercept or Survey data, deliverable at any station |
  * | the well they are in         | a crate cannot be delivered where it was loaded |
  *
  * Stations sit on planet ring 2 and drift 4 sectors a round, and the lanes
@@ -167,11 +167,11 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 /**
  * Planets a carrier could be docking at, nearest first.
  *
- * A data chit (a scan or a survey) is delivered at *any* station, so every
+ * Data (a scan or a survey) is delivered at *any* station, so every
  * planet is a candidate. A crate was loaded at one station and its route
  * ends at a different planet, so the well they are orbiting right now is the
  * one place that crate cannot be going: the pickup is excluded. (A ship
- * carrying both is heading somewhere it can drop the chit, which includes
+ * carrying both is heading somewhere it can drop the data, which includes
  * where it is.)
  */
 export function predictedDeliveryPlanets(

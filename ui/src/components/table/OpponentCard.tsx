@@ -32,7 +32,7 @@ import {
 import { FONT_MONO, TABLE } from '../../theme'
 import { Panel } from '../common/Panel'
 import { SubsystemTile } from '../common/SubsystemTile'
-import { CargoChits, PipTrack } from '../common/Tokens'
+import { CargoTokens, PipTrack } from '../common/Tokens'
 import { missionFamilyColor, missionFamilyLabel } from '../../utils/missions'
 import { slotLabel } from '../../utils/slots'
 import { agentLabel } from '../../utils/agents'
@@ -263,7 +263,7 @@ export function OpponentCard({
             title={`Cargo aboard. The hold takes ${CARGO_HOLD_CRATES} crate; data rides free. Destinations are private.`}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-              <CargoChits
+              <CargoTokens
                 crates={player.cargoAboard.crates}
                 data={player.cargoAboard.data}
                 size={8}

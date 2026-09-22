@@ -131,7 +131,7 @@ function inspectHumanMessage(message: ServerGameMessage, index: number): void {
         ownSlotsSeen += player.slots.length;
         check(
           player.slots.every((s) => s.type !== null && s.knownVia === "own"),
-          `${where}: the human sees all of its own tiles`,
+          `${where}: the human sees all of its own subsystems`,
         );
       }
       continue;
@@ -369,7 +369,7 @@ for (let i = 0; i < TURNS; i++) {
   played++;
 }
 check(played > 0, "the human played at least one turn");
-check(ownSlotsSeen > 0, "the human's own tiles were checked at least once");
+check(ownSlotsSeen > 0, "the human's own subsystems were checked at least once");
 
 // --- Recording ---------------------------------------------------------------
 const recording = await recordings.load(GAME_ID);
@@ -420,7 +420,7 @@ check(
 );
 check(
   !accepts([{ playerId: HUMAN, type: "repair", data: {} }]),
-  "a repair that names no tile is rejected",
+  "a repair that names no subsystem is rejected",
 );
 check(
   !accepts([{ ...goodBurn, data: { burnIntensity: "soft", sectorAdjustment: "0" } }]),

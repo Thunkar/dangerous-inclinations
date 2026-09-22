@@ -9,7 +9,6 @@ import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
   BASE_CRITICAL_CHANCE,
   SHIELD_ENERGY_PER_POINT,
-  SHIELD_HEAT_PER_POINT,
   SUBSYSTEM_CONFIGS,
   interceptsPerRack,
   rollToResult,
@@ -29,7 +28,8 @@ import {
   tileName,
   weaponStats,
 } from '../numbers'
-import { GuideSection, Points } from './parts'
+import { GuideSection, Points, SubHead } from './parts'
+import { MissileFlight } from './missileDiagram'
 
 function RollStrip() {
   return (
@@ -211,7 +211,7 @@ export function FightSection() {
       id="fight"
       n={6}
       kicker="Combat"
-      title="Name a slot, roll one d10"
+      title="Roll one d10"
       lede="Each weapon fires once a turn. Name a slot on the target, then roll."
     >
       <Box sx={{ mb: 5 }}>
@@ -231,6 +231,11 @@ export function FightSection() {
         ))}
       </Box>
 
+      <Box sx={{ mb: 5 }}>
+        <SubHead>Missiles in flight</SubHead>
+        <MissileFlight />
+      </Box>
+
       <Box
         sx={{
           display: 'grid',
@@ -241,8 +246,8 @@ export function FightSection() {
         <Points
           items={[
             <>
-              <b>Shields absorb first</b>: {SHIELD_ENERGY_PER_POINT} energy stop 1 damage and become{' '}
-              {SHIELD_HEAT_PER_POINT} heat. Lasers ignore them.
+              <b>Shields absorb first</b>: {SHIELD_ENERGY_PER_POINT} energy stop 1 damage. Lasers
+              ignore them.
             </>,
             <>The rest is hull. At 0 the ship is destroyed (see 08).</>,
           ]}

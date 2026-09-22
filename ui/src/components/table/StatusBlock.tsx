@@ -19,7 +19,7 @@ import {
   heatAfterCheck,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
-import { CargoChits, PipTrack } from '../common/Tokens'
+import { CargoTokens, PipTrack } from '../common/Tokens'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { slotLabel, slotShortLabel } from '../../utils/slots'
@@ -208,7 +208,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         <Box sx={{ flex: 1, minWidth: 0 }} />
         <Tooltip title="Cargo aboard">
           <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            <CargoChits crates={crates} data={data} size={9} />
+            <CargoTokens crates={crates} data={data} size={9} />
           </Box>
         </Tooltip>
       </Box>
@@ -233,7 +233,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
         <Tooltip
           title={
             [
-              planning && heatAfter > heatNow ? `${heatAfter - heatNow} energy on your tiles.` : '',
+              planning && heatAfter > heatNow ? `${heatAfter - heatNow} energy on your subsystems.` : '',
               `Dissipates ${dissipation}, carries ${carried}.`,
               overHeat > 0 ? `−${overHeat} hull.` : `Over ${MAX_HEAT} costs hull.`,
               shieldHeat > 0 ? `+${shieldHeat} by your next turn if shields absorb.` : '',

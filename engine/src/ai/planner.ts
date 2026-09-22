@@ -81,7 +81,7 @@ const CARGO_DENIAL = 4;
  * How much a hit on a *loaded* ship is worth denying, whatever the scoreboard
  * says about them.
  *
- * A crate or a chit aboard is a card halfway done, and a kill sends it back to
+ * A crate or data aboard is a card halfway done, and a kill sends it back to
  * the dock along with two of their turns. That loss is the same whether they
  * are winning or last. Denial used to be multiplied by a danger score that
  * stays near zero until a player is two points up, and measured 17 Sept 2026

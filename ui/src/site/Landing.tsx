@@ -119,7 +119,7 @@ const DOORS: Array<{ route: Route; tone: DoorTone; title: string; blurb: string;
     tone: 'red',
     title: 'Table tools',
     blurb:
-      'For a game with real tiles and cubes: the board as a route planner, a heat check that does the sums, and a fistful of d10s for a salvo.',
+      'For a game at a real table: the board as a route planner, a heat check that does the sums, and a fistful of d10s for a salvo.',
     cta: 'Open the tools',
   },
   {
@@ -281,7 +281,7 @@ const LINES: Array<{ key: keyof typeof PICTOGRAMS; title: string; text: string }
   {
     key: 'fight',
     title: 'Roll one d10',
-    text: 'A 1 misses and a 10 breaks the slot you named. Tiles stay face-down until they do their job.',
+    text: 'A 1 misses and a 10 breaks the slot you named. Subsystems stay face-down until they do their job.',
   },
   {
     key: 'score',

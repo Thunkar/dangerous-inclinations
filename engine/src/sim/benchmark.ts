@@ -325,7 +325,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push(
     `| Shields | ${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point, and its cubes as heat every turn it is powered |`
   );
-  out.push("| Repair | a station on arrival fixes everything; away from one, one tile a turn at 0 heat |");
+  out.push("| Repair | a station on arrival fixes everything; away from one, one subsystem a turn at 0 heat |");
   out.push(`| Table time assumes | ${args.minutesPerTurn} min per player-turn |`);
   // A page run under `--rules=` is not the standing benchmark: say so where
   // the reader looks first, or two pages get diffed as if they were.

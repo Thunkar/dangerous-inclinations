@@ -1134,3 +1134,34 @@ describe("movementPlanner: planFromShip falls back to the forward search", () =>
     expect(planFromShip(ship, { wellId: "no-such-well", ring: 1, sector: 0 }, "fastest", 4)).toBeNull();
   });
 });
+
+describe("movementPlanner: a scoop only takes what the tank has room for", () => {
+  // The reverse search cannot see the tank at each coast; the plan it returns
+  // is replayed forwards, so a coast on a full tank is a plain coast (no scoop
+  // heat for nothing) and no coast ever fills the tank past its capacity.
+  const origin: OrientedPosition = { wellId: "blackhole", ring: 3, sector: 0, facing: "prograde" };
+  it.each([
+    { fuel: 10, to: { wellId: "planet-alpha", ring: STATION_RING, sector: 12 } },
+    { fuel: 10, to: { wellId: "blackhole", ring: 1, sector: 5 } },
+    { fuel: 6, to: { wellId: "planet-gamma", ring: PLANET_OUTER_RING, sector: 9 } },
+  ])("from $fuel fuel to $to.wellId R$to.ring S$to.sector", ({ fuel, to }) => {
+    const result = planMovementAlternatives(origin, to as OrbitalPosition, {
+      availableMass: fuel,
+      maxFuelCapacity: 10,
+      hasFuelScoop: true,
+      allowWellTransfers: true,
+      maxTurns: 20,
+    });
+    expect(result).not.toBeNull();
+    for (const plan of result!.alternatives) {
+      let tank = fuel;
+      for (const step of plan.steps) {
+        if (step.actionType === "coast" && tank === 10) expect(step.massCost).toBe(0);
+        tank -= step.massCost;
+        expect(tank).toBeLessThanOrEqual(10);
+        expect(tank).toBeGreaterThanOrEqual(0);
+      }
+      expect(plan.totalMassCost).toBe(fuel - tank);
+    }
+  });
+});

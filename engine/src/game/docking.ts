@@ -68,7 +68,7 @@ export function processDocking(
     }
   }
 
-  // The hold takes one crate; data chits are numbers and ride free.
+  // The hold takes one crate; data is numbers and rides free.
   let cratesAboard = cargo.filter((c) => c.kind === "crate").length;
   for (const item of waiting) {
     // A seized crate has no dock of its own, so nothing reloads it.
@@ -109,7 +109,7 @@ export function processDocking(
 
   // Tanker: arrive with the card's fuel in the tank and it goes into the drums
   // (RULES §Missions). Automatic, like every other thing a dock does to you:
-  // there is no chit and nothing to decide, only a tank that had enough in it.
+  // there is no data and nothing to decide, only a tank that had enough in it.
   const tanking = player.missions.some((m) => m.type === "tanker" && !m.isCompleted);
   if (tanking && ship.reactionMass >= TANKER_FUEL) {
     ship = { ...ship, reactionMass: ship.reactionMass - TANKER_FUEL };

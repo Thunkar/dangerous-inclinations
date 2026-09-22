@@ -15,7 +15,7 @@
 | Starting hull | 10 |
 | Heat track | 10; above it is hull damage, then shed 5 (+2 per radiator) and carry the rest |
 | Shields | 2 cubes a point absorbed, 2 heat a point, and its cubes as heat every turn it is powered |
-| Repair | a station on arrival fixes everything; away from one, one tile a turn at 0 heat |
+| Repair | a station on arrival fixes everything; away from one, one subsystem a turn at 0 heat |
 | Table time assumes | 1 min per player-turn |
 
 ## By seat count

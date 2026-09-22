@@ -121,7 +121,7 @@ export function validatePowerAction(state: GameState, action: PowerAction): stri
   if (sub.isBroken) return [`${config.name} is broken and cannot be powered`];
   if (sub.usedThisTurn)
     return [
-      `${config.name} has already been used or powered this turn: a tile does one thing a turn`,
+      `${config.name} has already been used or powered this turn: a subsystem does one thing a turn`,
     ];
 
   const amount = action.data.amount ?? config.minEnergy;
@@ -248,7 +248,7 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
   if (weapon.usedThisTurn)
     errors.push(
       isPowerableType(weapon.type)
-        ? `${config.name} has already been used or powered this turn: a tile does one thing a turn`
+        ? `${config.name} has already been used or powered this turn: a subsystem does one thing a turn`
         : `${config.name} already fired this turn`
     );
   // A salvo is any number of the tile's remaining rounds in one action; every
@@ -263,7 +263,7 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
       else if (count > ammo) errors.push(`Only ${ammo} missiles remaining`);
     }
   } else if (count !== undefined && count !== 1) {
-    errors.push(`${config.name} fires once: only a missiles tile launches a salvo`);
+    errors.push(`${config.name} fires once: only a missiles subsystem launches a salvo`);
   }
 
   const { errors: targetErrors, target } = validateTarget(
@@ -326,7 +326,7 @@ export function validateScanAction(state: GameState, action: ScanAction): string
   const sensor = findReadySensor(player.ship);
   if (!sensor)
     return [
-      "Sensor array must be unbroken and not yet used or powered this turn to scan: a tile does one thing a turn",
+      "Sensor array must be unbroken and not yet used or powered this turn to scan: a subsystem does one thing a turn",
     ];
   const { errors, target } = validateTarget(state, player, action.data.targetPlayerId);
   if (!target) return errors;

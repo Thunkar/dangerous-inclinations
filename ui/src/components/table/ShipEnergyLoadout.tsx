@@ -184,7 +184,7 @@ function TileTip({ sub, usedBy }: { sub: Subsystem; usedBy: 'fire' | 'scan' | nu
           {usedBy === 'fire'
             ? 'It fires this turn, and its energy stays on until your next turn, so it is up anyway.'
             : 'It scans this turn, and its energy stays on until your next turn, so every shot after the scan has the wider range.'}{' '}
-          Each tile does one thing a turn: nothing to power.
+          Each subsystem does one thing a turn: nothing to power.
         </Typography>
       ) : powerable ? (
         <>

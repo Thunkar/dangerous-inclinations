@@ -1,25 +1,17 @@
 /**
- * 02 · Setting up: the cards, the ship built for them, where it starts.
+ * 02 · Setting up: the ship, built for the missions you keep.
  *
- * The loadout is drawn as the slots a player fills, with the tiles each slot
- * takes read off the tiles' own slot types, so a tile moving slot moves here.
+ * The loadout is drawn as the slots a player fills, with the subsystems each
+ * slot takes read off their own slot types, so a subsystem that changes slot
+ * moves here too.
  */
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import {
-  DEPLOYMENT_GAP,
-  FORWARD_SLOT_COUNT,
-  HOME_RINGS,
-  MAX_HEAT,
-  SIDE_SLOT_COUNT,
-  STARTING_HIT_POINTS,
-  STARTING_REACTION_MASS,
-} from '@dangerous-inclinations/engine'
+import { FORWARD_SLOT_COUNT, SIDE_SLOT_COUNT } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
-import { Body, Display, Numeral } from '../poster'
 import { FIXED_TILES, FORWARD_TILES, SIDE_TILES, tileName } from '../numbers'
 import { GuideSection } from './parts'
 
@@ -125,7 +117,7 @@ function Loadout() {
         </Box>
         <Options types={SIDE_TILES} />
       </Group>
-      <Group title="Printed on every ship">
+      <Group title="Mandatory on every ship">
         <Box sx={{ display: 'flex', gap: 1 }}>
           {FIXED_TILES.map(type => (
             <Printed key={type} type={type} />
@@ -137,65 +129,16 @@ function Loadout() {
   )
 }
 
-const STEPS: Array<{ title: string; text: ReactNode }> = [
-  {
-    title: 'Cards',
-    text: 'Keep one primary of three and two of the three secondaries (see 01).',
-  },
-  {
-    title: 'Ship',
-    text: (
-      <>
-        Fill every slot <b>face-down</b>; repeats are fine. Keep only cards it can fly: Intercept
-        needs a sensor, Destroy a weapon.
-      </>
-    ),
-  },
-  {
-    title: 'Deploy',
-    text: (
-      <>
-        Last seat first: black hole ring {HOME_RINGS.join(' or ')}, facing prograde,{' '}
-        {DEPLOYMENT_GAP}+ sectors from every ship. That sector is your <b>Home</b>.
-      </>
-    ),
-  },
-  {
-    title: 'Tracks',
-    text: `Hull ${STARTING_HIT_POINTS}, fuel ${STARTING_REACTION_MASS}, heat 0 of ${MAX_HEAT}.`,
-  },
-]
-
 export function SetupSection() {
   return (
     <GuideSection
       id="setup"
       n={2}
       kicker="Before the first turn"
-      title="Build the ship for the cards"
-      lede="Four steps. After this, your cards and your face-down tiles are your only secrets."
+      title="Build the ship"
+      lede="Make it yours, keep your eye on the missions"
       tone="deep"
     >
-      <Box
-        sx={{
-          display: 'grid',
-          gap: { xs: 3, sm: 3.5 },
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
-          mb: 5,
-        }}
-      >
-        {STEPS.map((step, index) => (
-          <Box key={step.title} sx={{ borderTop: `6px solid ${PRESS.ink}`, pt: 1.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, mb: 1.25 }}>
-              <Numeral size="2.2rem">{index + 1}</Numeral>
-              <Display size="1.7rem" component="h3">
-                {step.title}
-              </Display>
-            </Box>
-            <Body size="0.98rem">{step.text}</Body>
-          </Box>
-        ))}
-      </Box>
       <Loadout />
     </GuideSection>
   )

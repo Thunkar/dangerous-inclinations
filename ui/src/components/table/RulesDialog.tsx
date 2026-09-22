@@ -76,11 +76,11 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const quick: Array<[string, string]> = [
     [
       'Energy',
-      'every action puts energy on the tile it uses; it stays there until your next turn, when you clear your loadout',
+      'every action puts energy on the subsystem it uses; it stays there until your next turn, when you clear your loadout',
     ],
     [
       'Power',
-      `an action too: shields (${HALF_SHIELD} or ${FULL_SHIELD}), a ballistic rack (${RACK_ENERGY}) or a sensor array (${SENSOR_ENERGY}) work until your next turn. Each tile does one thing a turn: power it or use it`,
+      `an action too: shields (${HALF_SHIELD} or ${FULL_SHIELD}), a ballistic rack (${RACK_ENERGY}) or a sensor array (${SENSOR_ENERGY}) work until your next turn. Each subsystem does one thing a turn: power it or use it`,
     ],
     ['Heat', 'every point of energy on your loadout is 1 heat at your check'],
     ['Heat track', `${MAX_HEAT} · above it is hull damage; heat does not reset`],
@@ -98,9 +98,9 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Critical',
-      "names any slot; breaks it through shields, and dumps its energy as heat (a tile holds its energy until its owner's next turn)",
+      "names any slot; breaks it through shields, and dumps its energy as heat (a subsystem holds its energy until its owner's next turn)",
     ],
-    ['Repair', 'a station, on arrival, fixes everything; or one tile a turn at 0 heat'],
+    ['Repair', 'a station, on arrival, fixes everything; or one subsystem a turn at 0 heat'],
     ['Hull', `${STARTING_HIT_POINTS}`],
     ['Fuel', `${MAX_REACTION_MASS}`],
     ['Sectors per ring', `${SECTORS_PER_RING}`],
@@ -116,7 +116,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['Hit roll', '1 miss, 2–9 hit, 10 crit (8–10 with sensors)'],
     [
       'Salvo',
-      `one action launches any number of a tile's missiles at one ship, all naming the same slot, for the tile's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} energy once; a rack with energy on it rolls at ${interceptsPerRack()} of them a turn, so it takes a second rack to answer a second launcher`,
+      `one action launches any number of a subsystem's missiles at one ship, all naming the same slot, for the subsystem's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} energy once; a rack with energy on it rolls at ${interceptsPerRack()} of them a turn, so it takes a second rack to answer a second launcher`,
     ],
     [
       'Scan',
@@ -126,10 +126,10 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
       'Docking',
       'on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away',
     ],
-    ['Survey', 'end a turn on Black Hole Ring 1 (take the chit) then dock at any station'],
+    ['Survey', 'end a turn on Black Hole Ring 1 (take the data) then dock at any station'],
     [
       'Piracy',
-      'end a turn in the same sector as an undocked ship carrying a crate or a data chit: it is yours. The loot fills your hold and sells at any station, and their card goes back to undone',
+      'end a turn in the same sector as an undocked ship carrying a crate or data: it is yours. The loot fills your hold and sells at any station, and their card goes back to undone',
     ],
     [
       'Tanker',
@@ -205,28 +205,28 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
         <Heading>Hidden information</Heading>
         <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
           Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo
-          counts, face-up tiles and the missiles left in a face-up missiles tile, completed missions.
+          counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed missions.
           <br />
-          Private: what a face-down tile is, the ammo in a face-down missiles tile, missions in hand, where your cargo
+          Private: what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo
           is going.
           <br />
           <Box component="span" sx={{ color: TABLE.accent }}>
             Energy is the tell.
           </Box>{' '}
-          Using a tile turns it face-up, so energy on a face-down slot between turns means it was
+          Using a subsystem turns it face-up, so energy on a face-down slot between turns means it was
           powered, not used: {HALF_SHIELD} is a half shield, a ballistic rack or a sensor array, and{' '}
-          {FULL_SHIELD} can only be a full shield. That is a deduction, not a reveal: the tile stays
+          {FULL_SHIELD} can only be a full shield. That is a deduction, not a reveal: the subsystem stays
           face-down and only a scan makes sure. A gun is dark until it fires, which is why a silent
           slot is the dangerous one.
         </Typography>
 
         <Heading>Reveals</Heading>
         <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
-          A tile flips face-up the first time it does something: a weapon fires (or a ballistic rack
-          rolls at a missile), and a missiles tile then shows what is left; shields absorb damage; a
+          A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack
+          rolls at a missile), and a missiles subsystem then shows what is left; shields absorb damage; a
           sensor array scans; a radiator when your heat goes above {DEFAULT_DISSIPATION_CAPACITY} at
           a heat check; a compressor when a jump costs {COMPRESSED_JUMP_MASS} fuel instead of{' '}
-          {WELL_TRANSFER_COSTS.mass}; any tile when a critical breaks it. Powering a tile does not
+          {WELL_TRANSFER_COSTS.mass}; any subsystem when a critical breaks it. Powering a subsystem does not
           turn it over: a wall you never needed, a rack nothing came at and a sensor you never
           scanned with are still secrets at the end of the game.
         </Typography>

@@ -1,6 +1,6 @@
 /**
  * The readouts on a loadout: energy cells, segmented hull/heat/fuel bars and the
- * cargo chits in the hold. Everything is a plain lit shape: no icons, so it
+ * cargo tokens in the hold. Everything is a plain lit shape: no icons, so it
  * reads at a glance from across the table.
  */
 import type { ReactNode } from 'react'
@@ -201,7 +201,7 @@ export function PipTrack({
 }
 
 // ---------------------------------------------------------------------------
-// Cargo chits
+// Cargo tokens
 // ---------------------------------------------------------------------------
 
 const CARGO_COLORS = {
@@ -209,7 +209,7 @@ const CARGO_COLORS = {
   data: TABLE.teal,
 } as const
 
-export function CargoChits({ crates, data, size = 11 }: { crates: number; data: number; size?: number }) {
+export function CargoTokens({ crates, data, size = 11 }: { crates: number; data: number; size?: number }) {
   const groups: Array<[keyof typeof CARGO_COLORS, number]> = [
     ['crate', crates],
     ['data', data],

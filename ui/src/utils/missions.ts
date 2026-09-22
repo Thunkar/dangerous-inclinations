@@ -64,7 +64,7 @@ export function missionProgress(
         : `Scan them first, then file at ${getWellName(mission.deliveryPlanetId)}`
     case 'survey':
       return mission.acquired
-        ? 'Chit aboard · dock anywhere to file it'
+        ? 'Data aboard · dock anywhere to file it'
         : 'End a turn on Black Hole R1'
     case 'piracy': {
       // The loot rides as the card's own crate (engine `seizeLoot`), so the
@@ -72,7 +72,7 @@ export function missionProgress(
       const loot = cargo.find(c => c.missionId === mission.id)
       return loot?.isPickedUp
         ? 'Sell the loot at any station'
-        : 'Find an undocked ship carrying a crate or a chit'
+        : 'Find an undocked ship carrying a crate or data'
     }
     case 'tanker':
       return fuel === undefined

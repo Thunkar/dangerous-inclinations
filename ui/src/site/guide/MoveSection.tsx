@@ -1,137 +1,27 @@
 /**
  * 04 · Moving: the drift, the one move a turn, and what each costs.
  *
- * The ring ladder is the board's speeds read off the engine's ring configs,
- * with the rings the rules single out named under them, so a player learns
- * the map's landmarks along with its numbers.
+ * Each move is drawn, with its fuel and energy read off the engine's burn,
+ * jump and scoop configs, and phasing is drawn across the two rings a burn
+ * goes between. Ring speeds are printed on the board and not repeated here.
  */
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
-import type { RingConfig } from '@dangerous-inclinations/engine'
 import {
   BLACKHOLE_RINGS,
-  BLACK_HOLE_OUTER_RING,
   BURN_COSTS,
   COMPRESSED_JUMP_MASS,
-  HOME_RINGS,
   MAX_SECTOR_ADJUSTMENT,
-  PLANET_OUTER_RING,
-  PLANET_RINGS,
-  STATION_RING,
   SUBSYSTEM_CONFIGS,
-  SURVEY_RING,
   WELL_TRANSFER_COSTS,
 } from '@dangerous-inclinations/engine'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body, Display, Slab } from '../poster'
-import { STATION_DRIFT } from '../turn'
 import { phasingStrip } from '../numbers'
-import { GuideSection, Points, SubHead } from './parts'
+import { GuideSection, SubHead } from './parts'
 import { BurnDiagram, CoastDiagram, JumpDiagram } from './moveDiagrams'
 
 const range = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`)
-
-function landmarks(well: 'hole' | 'planet', ring: number): string | null {
-  if (well === 'hole') {
-    if (ring === SURVEY_RING) return 'Survey'
-    if ((HOME_RINGS as readonly number[]).includes(ring)) return 'Home'
-    if (ring === BLACK_HOLE_OUTER_RING) return 'Lanes'
-    return null
-  }
-  if (ring === STATION_RING) return 'Station'
-  if (ring === STATION_RING - 1) return 'Catch it'
-  if (ring === PLANET_OUTER_RING) return 'Lanes'
-  return null
-}
-
-function Ladder({
-  title,
-  rings,
-  well,
-}: {
-  title: string
-  rings: RingConfig[]
-  well: 'hole' | 'planet'
-}) {
-  return (
-    <Box>
-      <Box
-        sx={{
-          fontFamily: FONT_DISPLAY,
-          fontWeight: 600,
-          fontSize: '0.95rem',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          mb: 0.75,
-        }}
-      >
-        {title}
-      </Box>
-      <Box sx={{ display: 'flex', gap: '4px' }}>
-        {rings.map(ring => {
-          const mark = landmarks(well, ring.ring)
-          return (
-            <Box key={ring.ring} sx={{ width: 62, flexShrink: 0 }}>
-              <Box
-                sx={{
-                  height: 62,
-                  bgcolor: PRESS.ink,
-                  color: PRESS.paper,
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Box
-                  component="span"
-                  sx={{
-                    position: 'absolute',
-                    top: 4,
-                    left: 6,
-                    fontFamily: FONT_DISPLAY,
-                    fontSize: '0.75rem',
-                    letterSpacing: '0.08em',
-                    color: PRESS.paperSoft,
-                  }}
-                >
-                  R{ring.ring}
-                </Box>
-                <Box
-                  component="span"
-                  sx={{
-                    fontFamily: FONT_DISPLAY,
-                    fontWeight: 700,
-                    fontSize: '2rem',
-                    lineHeight: 1,
-                    mt: 1,
-                  }}
-                >
-                  {ring.velocity}
-                </Box>
-              </Box>
-              <Box
-                sx={{
-                  minHeight: 20,
-                  mt: 0.5,
-                  fontFamily: FONT_DISPLAY,
-                  fontWeight: 600,
-                  fontSize: '0.78rem',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: PRESS.redText,
-                  textAlign: 'center',
-                }}
-              >
-                {mark}
-              </Box>
-            </Box>
-          )
-        })}
-      </Box>
-    </Box>
-  )
-}
 
 /** What a move costs, as two stamped figures. */
 function Cost({ fuel, energy }: { fuel: string; energy: string }) {
@@ -190,65 +80,183 @@ function Move({
   )
 }
 
-/** The ring a phasing example is drawn on: the black hole's ring 3, whose speed is 4. */
-const PHASE_EXAMPLE = BLACKHOLE_RINGS[2]
+/** The phasing example: a soft burn out from the black hole's ring 3 (speed 4) to ring 4. */
+const PHASE_FROM = BLACKHOLE_RINGS[2]
+const PHASE_TO = PHASE_FROM.ring + BURN_COSTS.soft.rings
 
 /**
- * Phasing, drawn instead of stated: the sectors a burn can land on, counted
- * from where the ship started, with the fuel each one costs. The formula in
- * the rules is exactly this strip.
+ * Phasing, drawn instead of stated. The bottom row is the ring the burn
+ * starts on: the ship, and the drift its speed carries it. The top row is the
+ * ring it burns to: straight out from the drift is free, and every sector short
+ * of it or past it costs a fuel. The window is the engine's
+ * (`getAdjustmentRange`, through `phasingStrip`): it never reaches back onto the
+ * start, and it runs at most MAX_SECTOR_ADJUSTMENT past the drift.
  */
 function PhaseStrip() {
-  const strip = phasingStrip(PHASE_EXAMPLE.velocity)
-  const cellSx = {
-    height: 64,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 0.25,
-    fontFamily: FONT_DISPLAY,
-    textTransform: 'uppercase',
-  } as const
+  const strip = phasingStrip(PHASE_FROM.velocity)
+  const columns = strip.length + 1
+  const cellW = 64
+  const step = 70
+  const left = 104
+  const x = (sector: number) => left + sector * step
+  const mid = (sector: number) => x(sector) + cellW / 2
+  const top = 8
+  const bottom = 118
+  const cellH = 60
+  const width = x(columns - 1) + cellW + 4
+  const label = (y: number, title: string, note?: string) => (
+    <>
+      <text x={0} y={y} fontFamily={FONT_DISPLAY} fontWeight={700} fontSize={20} fill={PRESS.ink}>
+        {title}
+      </text>
+      {note && (
+        <text
+          x={0}
+          y={y + 20}
+          fontFamily={FONT_DISPLAY}
+          fontSize={14}
+          letterSpacing="0.06em"
+          fill={PRESS.ink}
+        >
+          {note}
+        </text>
+      )}
+    </>
+  )
+  const drift = PHASE_FROM.velocity
   return (
     <Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${strip.length + 1}, minmax(0, 1fr))`,
-          gap: '4px',
-          maxWidth: 620,
-        }}
-      >
-        <Box sx={{ ...cellSx, border: `3px dashed ${PRESS.ink}` }}>
-          <svg width={26} height={20} viewBox="0 0 26 20" aria-hidden focusable="false">
-            <path d="M26 10L0 0v20z" fill={PRESS.ink} />
-          </svg>
-          <Box component="span" sx={{ fontSize: '0.72rem', letterSpacing: '0.08em' }}>
-            start
-          </Box>
-        </Box>
-        {strip.map(({ sector, fuel }) => (
-          <Box
-            key={sector}
-            sx={{
-              ...cellSx,
-              bgcolor: fuel === 0 ? PRESS.ink : PRESS.red,
-              color: PRESS.paper,
-            }}
+      <Box sx={{ maxWidth: 680, overflowX: 'auto' }}>
+        <svg
+          viewBox={`0 0 ${width} ${bottom + cellH + 4}`}
+          role="img"
+          aria-label={`A soft burn out from ring ${PHASE_FROM.ring} to ring ${PHASE_TO}: the ship drifts ${drift} sectors, then lands on ring ${PHASE_TO} straight out for free, or up to ${MAX_SECTOR_ADJUSTMENT} sectors either side for 1 fuel each`}
+          style={{ width: '100%', minWidth: 520, height: 'auto', display: 'block' }}
+        >
+          <defs>
+            <marker
+              id="phase-head"
+              viewBox="0 0 10 10"
+              refX="6"
+              refY="5"
+              markerWidth="3.2"
+              markerHeight="3.2"
+              orient="auto"
+            >
+              <path d="M0 0L10 5L0 10z" fill={PRESS.red} />
+            </marker>
+            <marker
+              id="phase-drift"
+              viewBox="0 0 10 10"
+              refX="6"
+              refY="5"
+              markerWidth="4"
+              markerHeight="4"
+              orient="auto"
+            >
+              <path d="M0 0L10 5L0 10z" fill={PRESS.ink} />
+            </marker>
+          </defs>
+
+          {label(top + 38, `RING ${PHASE_TO}`)}
+          {label(bottom + 30, `RING ${PHASE_FROM.ring}`, `SPEED ${PHASE_FROM.velocity}`)}
+
+          {/* The ring the burn lands on: what each landing sector costs. */}
+          {strip.map(({ sector, fuel }) => (
+            <g key={sector}>
+              <rect
+                x={x(sector)}
+                y={top}
+                width={cellW}
+                height={cellH}
+                fill={fuel === 0 ? PRESS.ink : PRESS.red}
+              />
+              <text
+                x={mid(sector)}
+                y={top + 36}
+                textAnchor="middle"
+                fontFamily={FONT_DISPLAY}
+                fontWeight={700}
+                fontSize={28}
+                fill={PRESS.paper}
+              >
+                {fuel}
+              </text>
+              <text
+                x={mid(sector)}
+                y={top + 53}
+                textAnchor="middle"
+                fontFamily={FONT_DISPLAY}
+                fontSize={12}
+                letterSpacing="0.08em"
+                fill={PRESS.paper}
+              >
+                {fuel === 0 ? 'FREE' : 'FUEL'}
+              </text>
+            </g>
+          ))}
+
+          {/* The ring the burn starts on: the ship and its drift. */}
+          {Array.from({ length: columns }, (_, sector) => (
+            <rect
+              key={sector}
+              x={x(sector)}
+              y={bottom}
+              width={cellW}
+              height={cellH}
+              fill="none"
+              stroke={PRESS.ink}
+              strokeWidth={3}
+            />
+          ))}
+          <path
+            d={`M${mid(0) + 16} ${bottom + 30}L${mid(0) - 12} ${bottom + 16}V${bottom + 44}z`}
+            fill={PRESS.ink}
+          />
+          <path
+            d={`M${mid(0) + 22} ${bottom + 30}H${mid(drift) - 8}`}
+            stroke={PRESS.ink}
+            strokeWidth={5}
+            strokeDasharray="10 6"
+            fill="none"
+            markerEnd="url(#phase-drift)"
+          />
+          <text
+            x={mid(drift / 2)}
+            y={bottom + 54}
+            textAnchor="middle"
+            fontFamily={FONT_DISPLAY}
+            fontSize={13}
+            letterSpacing="0.08em"
+            fill={PRESS.ink}
           >
-            <Box component="span" sx={{ fontSize: '1.6rem', fontWeight: 700, lineHeight: 1 }}>
-              {fuel}
-            </Box>
-            <Box component="span" sx={{ fontSize: '0.7rem', letterSpacing: '0.08em' }}>
-              {fuel === 0 ? 'drift' : 'fuel'}
-            </Box>
-          </Box>
-        ))}
+            DRIFT {drift}
+          </text>
+
+          {/* The burn: out from the drift to the ring above. */}
+          <path
+            d={`M${mid(drift)} ${bottom - 2}V${top + cellH + 8}`}
+            stroke={PRESS.red}
+            strokeWidth={8}
+            fill="none"
+            markerEnd="url(#phase-head)"
+          />
+          <text
+            x={mid(drift) + 12}
+            y={(top + cellH + bottom) / 2 + 5}
+            fontFamily={FONT_DISPLAY}
+            fontWeight={600}
+            fontSize={14}
+            letterSpacing="0.08em"
+            fill={PRESS.redText}
+          >
+            BURN OUT
+          </text>
+        </svg>
       </Box>
       <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1 }}>
-        A burn on a ring of speed {PHASE_EXAMPLE.velocity}. The drift is free; each sector short or
-        long is 1 fuel, up to {MAX_SECTOR_ADJUSTMENT} long and never back onto your start.
+        A soft burn out from ring {PHASE_FROM.ring}. Each sector short or long is 1 fuel, up to{' '}
+        {MAX_SECTOR_ADJUSTMENT} long and never back onto your start.
       </Body>
     </Box>
   )
@@ -257,8 +265,6 @@ function PhaseStrip() {
 const soft = BURN_COSTS.soft
 const hard = BURN_COSTS.hard
 const scoopEnergy = SUBSYSTEM_CONFIGS.scoop.minEnergy
-const rotateEnergy = SUBSYSTEM_CONFIGS.rotation.minEnergy
-const [catchUp, station] = [PLANET_RINGS[STATION_RING - 2], PLANET_RINGS[STATION_RING - 1]]
 
 export function MoveSection() {
   return (
@@ -266,37 +272,9 @@ export function MoveSection() {
       id="move"
       n={4}
       kicker="Getting somewhere"
-      title="Drift first, then burn"
+      title="Coast, burn or jump"
       lede="Every turn your ring carries you forward. Your one move is what you do about it."
     >
-      <Box
-        sx={{
-          display: 'grid',
-          gap: { xs: 3, md: 5 },
-          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-          mb: 5,
-          alignItems: 'start',
-        }}
-      >
-        <Points
-          items={[
-            <>
-              Every ship <b>drifts</b> forward by its ring&rsquo;s speed. Inner rings are faster.
-            </>,
-            <>
-              <b>One move</b> a turn: coast, burn or jump. No move is a coast.
-            </>,
-            <>
-              <b>Rotate</b> to flip your facing: {rotateEnergy} energy, and it is not your move.
-            </>,
-          ]}
-        />
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, overflowX: 'auto' }}>
-          <Ladder title="Black hole · ring speeds" rings={BLACKHOLE_RINGS} well="hole" />
-          <Ladder title="Each planet · ring speeds" rings={PLANET_RINGS} well="planet" />
-        </Box>
-      </Box>
-
       <Box
         sx={{
           display: 'grid',
@@ -330,7 +308,7 @@ export function MoveSection() {
       </Box>
 
       <Box sx={{ mb: 5 }}>
-        <SubHead>Phasing: land short or long</SubHead>
+        <SubHead>Phasing: land short or long (example)</SubHead>
         <PhaseStrip />
         <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 0.5 }}>
           A jump can land on any sector of the arrival arc, 1 fuel for each away from the matching
@@ -338,27 +316,10 @@ export function MoveSection() {
         </Body>
       </Box>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 3,
-          gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' },
-          alignItems: 'end',
-        }}
-      >
-        <Box>
-          <SubHead color={PRESS.red}>Catching a station</SubHead>
-          <Body>
-            Stations ride planet ring {STATION_RING}, {STATION_DRIFT} sectors a round. Ring{' '}
-            {catchUp.ring} is faster ({catchUp.velocity} against {station.velocity}): dive, catch
-            up, burn out onto it. Docking happens when you <b>arrive</b>.
-          </Body>
-        </Box>
-        <Box>
-          <Slab to={{ kind: 'tools', tool: 'route' }} tone="ink">
-            Plot a route on the board &rarr;
-          </Slab>
-        </Box>
+      <Box>
+        <Slab to={{ kind: 'tools', tool: 'route' }} tone="ink">
+          Plot a route on the board &rarr;
+        </Slab>
       </Box>
     </GuideSection>
   )

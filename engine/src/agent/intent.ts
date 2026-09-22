@@ -84,7 +84,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   for (const [id, cubes] of Object.entries(intent.power ?? {}) as Array<[SubsystemId, number]>) {
     const sub = find(id);
     if (!sub) {
-      notes.push(`no tile ${id} aboard; ignored`);
+      notes.push(`no subsystem ${id} aboard; ignored`);
       continue;
     }
     if (!isPowerableType(sub.type)) {
@@ -114,7 +114,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   for (const id of targets.keys()) {
     if (used.has(id))
       notes.push(
-        `${id} is powered and also used this turn; a tile does one thing a turn, and using it leaves it up anyway`
+        `${id} is powered and also used this turn; a subsystem does one thing a turn, and using it leaves it up anyway`
       );
   }
 

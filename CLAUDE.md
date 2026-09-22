@@ -2,7 +2,7 @@
 
 ## This is a tabletop game first
 
-**Every rule must be playable at a table** with tiles, cubes, a d10, cards and a
+**Every rule must be playable at a table** with subsystems, cubes, a d10, cards and a
 pencil. The digital version exists to playtest the tabletop rules with bots.
 Before adding or changing a mechanic ask: can it be tracked on paper, computed
 with simple arithmetic, and explained in one sentence?
@@ -50,21 +50,21 @@ firing at and scanning nobody on it). Transfer lanes are one-way 4-sector arcs: 
 from black hole ring 5 to its ring 4 and an inbound lane back. Stations orbit planet ring 2, with a faster ring 1 inside them, and are where cargo is
 loaded, ships are repaired and data is delivered.
 
-Loadout tiles (1 forward + 4 side slots) are **face-down** and revealed the
+Loadout subsystems (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
-**Every action puts energy on the tile it uses, and every energy cube on a
+**Every action puts energy on the subsystem it uses, and every energy cube on a
 loadout is a point of heat at its owner's check**: that is the whole of energy,
 there is no reactor and nothing caps what a ship powers at once. The energy
-stays on the tile until its owner's next turn, when the loadout is cleared, so
-the three tiles that work on other players' turns (shields, ballistic rack,
+stays on the subsystem until its owner's next turn, when the loadout is cleared, so
+the three subsystems that work on other players' turns (shields, ballistic rack,
 sensor array) are powered by an action every turn like anything else, and a
-rack that fired is up as well. Each tile does one thing a turn. Scanning peeks at one
-tile privately. Completed missions are face-up. Reaching
+rack that fired is up as well. Each subsystem does one thing a turn. Scanning peeks at one
+subsystem privately. Completed missions are face-up. Reaching
 the table's points (3; the value rides on `GameState.pointsToWin` and the
 view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
 played out, then highest score wins (hull, then fuel, break ties). Six card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy
-(seize an undocked rival's crate or data chit, loot that fills the hold and
+(seize an undocked rival's crate or data, loot that fills the hold and
 sells anywhere, their card back to undone) and tanker (arrive at a station
 with eight fuel and pump it in)). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
@@ -76,18 +76,19 @@ and needs no shuffle, so those three have to be worth roughly the same or the
 choice is fake.
 New mission types are proposed to the designer, never added unasked.
 
-Missiles fire in **salvos**: one action launches any number of a tile's missiles
-at one ship, and that is **one use of the tile**: the 4-round magazine, refilled
+Missiles fire in **salvos**: one action launches any number of a subsystem's missiles
+at one ship, and that is **one use of the subsystem**: the 4-round magazine, refilled
 at a station, is what limits missiles, not heat. A powered ballistic rack rolls
 at **every** missile that reaches it, also for one use of the rack, and the two
 halves stay together: a rack that answers a whole salvo is what keeps a salvo
-that costs one tile's heat honest.
+that costs one subsystem's heat honest.
 
 Turn: (respawn turn if destroyed) → clear the loadout → actions in chosen order (power,
 rotate, one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
 arrival only) → heat
-check (excess over dissipation = hull damage, reset) → missions → pass.
-Stations advance at round end. The first round reaches nobody (no weapon
+check (over 10 is hull damage, then dissipate and carry the rest) → missions →
+pass. Once a round, after the last seat's turn, the stations advance (their own
+step, carrying moored ships). The first round reaches nobody (no weapon
 fires and nobody scans) because everyone deploys around one hole, so the opening
 round is for getting off the line.
 
@@ -191,7 +192,7 @@ the state. A game is played under RULES.md and nothing else. A proposed change
 is measured before it is adopted with the simulator's experiment-only override
 channels, which mutate the configuration of the process running the batch:
 `--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
-any tile), `--weapons=laser.damage=3` (firing stats),
+any subsystem), `--weapons=laser.damage=3` (firing stats),
 `--rules=missionsToWin=4` (the table's points to win, a real game option,
 passed to `createGame`; `yarn bench --rules=` takes it too and stamps it on
 the page), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'
@@ -229,7 +230,7 @@ nobody who arrives there is stranded; a table brings its own chrome.
 
 Only `/play` needs a player, a socket or a server. The tools and the cheatsheet
 call pure engine functions (`planMovementAlternatives`, `heatAfterCheck`,
-`rollToResult`, the tile and ring configs) and render from a browser with
+`rollToResult`, the subsystem and ring configs) and render from a browser with
 nothing else running, which is the point: they are used standing over a real
 table. Every number on them is read from the engine; `site/numbers.ts` works
 out the derived ones once (critical faces, slot contents, cube labels) and
@@ -254,29 +255,36 @@ wedge through the black hole, the mark). `site/poster.tsx` holds the pieces
 the generated `art/paths.ts`. Drawn from the vector rather than the bitmap for
 two reasons: a bitmap flattened by a CSS filter can be made white but not
 black, and the card needs black ink; and a 400px bitmap at 6mm is not what you
-want on paper. `SubsystemIcon` draws from it, so a tile is the same mark on the
+want on paper. `SubsystemIcon` draws from it, so a subsystem is the same mark on the
 board, in the loadout and on the card, and nothing in it carries a colour.
 Re-run the script after changing an icon. The site's nav is type, not icons;
 the rest of the app's chrome stays on MUI icons.
 
 **The cheatsheet** (`site/Cheatsheet.tsx`, `site/guide/`) teaches the game in
 the order a first table meets it, eight numbered sections: the goal (the six
-mission cards drawn by the game's own `MissionCard`, and 2 + 1 = 3), setup
-with the loadout's slots, the turn, moving (the ring ladder with its landmarks
-and the three moves drawn), heat (with a check worked by `heatAfterCheck`),
-fighting (the roll strip asks `rollToResult` about every face), what is hidden,
-and destruction. It compresses RULES.md and says so; the manual wins.
+mission cards drawn by the game's own `MissionCard`), setup with the loadout's
+slots, the turn (seven steps, then the stations once a round), moving (the
+three moves drawn, and phasing across two rings), heat (with a check worked by
+`heatAfterCheck`), fighting (the roll strip asks `rollToResult` about every
+face, and a missile's two turns drawn fired before and after the drift), what
+is hidden, and destruction. It compresses RULES.md and says so; the manual wins.
 
 **The tools** call pure engine functions and nothing else, so they work with
 the server down. The route planner is not a second interface: it builds a
 `BoardModel` by hand and hands it to the game's own `GameBoardSvg`, the way
 `three/dev/fixtureModel.ts` does, so clicking a sector on it is clicking a
-sector on the board.
+sector on the board. Body, ring and sector can also be typed (a phone's number
+pad), and a station is a destination of its own: the route is planned against
+where it will be (`planMovementToTarget` with `orbitingTarget`), not where it
+is. The heat check is a mat of the player's loadout that follows the turn: a
+click powers a subsystem a step, a right click takes one off, the check bills
+the energy and leaves it on until "start my turn" clears it, and absorbing or
+breaking moves energy onto the track the way the engine does.
 
 **The card** (`ui/src/site/card/`) is two 70x120mm faces: **your turn** (the
 goal, the seven steps, the three moves drawn and what they cost) and **the
 fight** (the roll, the guns, what a hit does, what is held up, the heat check,
-what gives a tile away). Black and one red on white stock, which survives a
+what gives a subsystem away). Black and one red on white stock, which survives a
 black-and-white printer as ink and a mid grey. It is drawn at true size with
 the preview scaled by a transform, so what is seen is the geometry that
 reaches the printer, and printing puts both faces on one A4 sheet with
@@ -318,15 +326,15 @@ not an argument:
 - **An expensive Survey** (a named planet, two turns held on ring 1 with sensors).
   It worked, and the bots stopped keeping the card: a card nobody keeps is a
   missing card, not a priced one.
-- **Shields absorbing a point per cube.** One powered tile was permanent immunity
+- **Shields absorbing a point per cube.** One powered subsystem was permanent immunity
   to every 2-damage weapon; 66% of declined shots were declined as unabsorbable.
 - **Radiator at +1 or +3.** Measured after heat became a track: +1 widens the
   hull spread and lengthens games, +3 pushes the wall back up. +2 stays.
-- **A bigger shield tile** (`shields.maxEnergy=6`). It makes the game quieter
+- **A bigger shield subsystem** (`shields.maxEnergy=6`). It makes the game quieter
   (destructions 3.2 → 2.7). **Shields in the forward slot** was rejected with
   it, on the grounds that bots never spend the bow on a shield, and adopted on
   22 Sept for a reason the first pass was not looking for: after the energy
-  rewrite the bow held exactly one tile that could stand powered, so cubes on a
+  rewrite the bow held exactly one subsystem that could stand powered, so cubes on a
   face-down forward slot were a certain sensor array and the only certain tell
   on the board. Shields are `either` now (the rack stays side-only, below). Measured as
   builds on forced hulls: a bow shield is never the best bow and never a bad
@@ -351,7 +359,7 @@ not an argument:
   been stopping three-cheap-guns-and-a-wall from existing, and the reason it
   took a duel to see is that clearing the rack as a *sole* gun (6% against the
   railgun's 25%) answers the wrong question.
-- **A sensor array on a side slot.** It would finish the rule (every tile that
+- **A sensor array on a side slot.** It would finish the rule (every subsystem that
   stands powered fits any slot) and deepen the side-slot guess, and it is not
   worth it: the bow is the only thing stopping a railgun carrying a sensor, and
   a railgun that criticals on an 8 is the best Destroy weapon in the game with
@@ -363,7 +371,7 @@ not an argument:
   carries it along the ring it is already on, so a critical on the scoop of an
   empty ship away from a planet could end that player's game outright. The cold
   repair is the answer to all of it: a ship that lights nothing reaches 0 heat
-  and fixes one tile a turn wherever it is, so no break strands anyone and the
+  and fixes one subsystem a turn wherever it is, so no break strands anyone and the
   exception was paying for a problem that no longer exists. Measured on 300
   games at three seats against the same seeds, **the output is byte-identical**,
   and that is the finding rather than the balance: the bots never name the scoop
@@ -383,20 +391,20 @@ not an argument:
   action and point defence rolled at *every* missile, which fixed it and
   overshot: one rack then answered any number of launchers. Since 22 Sept a
   rack rolls at `interceptsPerRack()` missiles a turn, which is the missiles
-  tile's magazine read off the config, so two cubes shoot down exactly what two
+  subsystem's magazine read off the config, so two cubes shoot down exactly what two
   cubes can throw and the fifth gets through. Racks stack: a ship expecting
   eight carries two and pays both at every check.
 
   **It is a symmetry fix, not a lever.** Measured at 200 games a row against
   the uncapped rack: mean row move +0.1pp, nothing moved 5pp or more, the
   benchmark is unchanged at every seat count and the failing flag set is the
-  same one row. That follows from the shape of it: a salvo is one tile's
+  same one row. That follows from the shape of it: a salvo is one subsystem's
   magazine, so a single launcher can never put more than four on a ship at
   once and one rack answers it exactly. The cap only bites when two launchers'
   missiles arrive in the same turn, which the bots rarely arrange. The number
   to watch if that changes is `offbook:sensor_missiles3`, the one hull that
   can land twelve.
-- **The compressor as a side tile** (`fuel_compressor.slotType=side`). Measured
+- **The compressor as a side subsystem** (`fuel_compressor.slotType=side`). Measured
   on the balance seeds with the hauler templates moved to a sensor bow: the
   weaponless pacifist wins 48% with the compressor on its side as it does with
   it forward. The value is the refund, not the slot.
@@ -415,7 +423,7 @@ not an argument:
   2026: the price is a constant, the powered compressor and the
   `compressedJumpFuel` switch are gone. The cost is three rounds a game and
   Deliver's hulls paying too (hauler-aggressive + Deliver 47% → 37%).
-- **Heat per missile, and per interception roll.** Measured against one tile
+- **Heat per missile, and per interception roll.** Measured against one subsystem
   use on both sides: no row moved outside noise and missiles launched per game
   were identical (10.5), because the four-round magazine is the limit. Flat
   adopted and the switch removed. Charging only the attacker flat shifts power
@@ -459,7 +467,7 @@ not an argument:
   **Tanker at six fuel** (once the bots held fuel back for the run in it
   read 47 per 100 kept and sat in three winners' hands out of four: the
   free point the "efficiency" secondary was cut for); **Piracy on crates
-  only** (one carrier on the board at a time, 9 per 100 kept). A chit is
+  only** (one carrier on the board at a time, 9 per 100 kept). Data is
   cargo now, the victim's card goes back to undone, and the card reads 22–31
   per 100.
 - **A same-ring deployment gap of four.** Measured against the three-sector
@@ -472,27 +480,27 @@ not an argument:
   still measures it.
 - **A sensor that reveals itself on a sensor-assisted critical.** It used to
   flip face-up the first time a critical landed on an 8 or a 9, since only a
-  sensor could have done that. Cut 22 Sept: switching a tile on is not doing
+  sensor could have done that. Cut 22 Sept: switching a subsystem on is not doing
   its job, and the reveal table now reads the same way for all three standing
-  tiles (a wall reveals when it absorbs, a rack when it rolls, a sensor when it
+  subsystems (a wall reveals when it absorbs, a rack when it rolls, a sensor when it
   scans). `sensorAssistedCritical` and the `critical_bonus` reveal reason are
   gone with it. The cubes still give a held-up sensor away by deduction, which
   is the tell doing its job and not a reveal.
 
 - **The reactor, and heat charged on use.** Two halves of one simplification,
   taken together because the cap was what priced *readiness* and removing it
-  without pricing readiness some other way makes every standing tile free.
-  Now: a tile's cubes are heat at its owner's check, however they got there.
-  An action powers the tile it uses and the cubes come off at the end of the
-  turn, so acting costs its cubes once; a switched-on tile carries them the
+  without pricing readiness some other way makes every standing subsystem free.
+  Now: a subsystem's cubes are heat at its owner's check, however they got there.
+  An action powers the subsystem it uses and the cubes come off at the end of the
+  turn, so acting costs its cubes once; a switched-on subsystem carries them the
   whole time and pays at every check. `generatesHeatOnUse` and `ReactorState`
-  are gone, `getStandingHeat` became `heatFromCubes` over every tile, and no
+  are gone, `getStandingHeat` became `heatFromCubes` over every subsystem, and no
   action is refused for energy any more. The rack and the sensor moved onto
   standing heat with the shields, which is the asymmetry the salvo note below
   warns about, taken deliberately: point defence is now bought a turn ahead and
   a sensor bow can hold its 8–10 critical range up for two heat a check.
   `Subsystem.isStanding` is what keeps the two apart: firing a dark rack or
-  scanning with a dark sensor is one use of a tile, not a decision to hold it
+  scanning with a dark sensor is one use of a subsystem, not a decision to hold it
   up, so those cubes clear with everything else and nobody is billed at every
   check for a rack they fired once. An action's reported heat is the cubes it
   *adds*, so a rack already up reports nothing when it fires or intercepts,
@@ -500,15 +508,15 @@ not an argument:
   is a test for that invariant). The switches themselves went on 22 Sept
   (next entry).
 
-- **Standing tiles that stay on until switched off.** Replaced 22 Sept by one
-  kind of tile: every action puts energy on the tile it uses and it stays
+- **Standing subsystems that stay on until switched off.** Replaced 22 Sept by one
+  kind of subsystem: every action puts energy on the subsystem it uses and it stays
   until its owner's next turn, when the loadout is cleared; shields, racks and
   sensors are powered by an action each turn like everything else, and nothing
   is switched off. The designer's reason: at a table there is no difference
   between a standing system and a powered one, everything is an action and most
   actions make heat. The heat economy is the same (a wall was billed at every
   check it was up, and is billed at every check it is powered); what changes is
-  that a used tile carries its energy through everyone else's turn, so a
+  that a used subsystem carries its energy through everyone else's turn, so a
   critical on a railgun that just fired dumps its 4, and a rack that fired is
   up and intercepts. Measured against the switch rules on the same seeds, 200
   games a row, 43 rows: **mean row +0.6pp, median +0.5pp, nothing moved 5pp**;
@@ -521,7 +529,7 @@ not an argument:
   flag the 200-game run gave the tanky hunter was the bar's noise. The 300-game sim: destructions 2.5 → 2.7,
   hull damage 39.9 → 41.3, heat at the check 7.09 both. `Subsystem.isStanding`,
   `set_standing_power` and `standing_power_set` are gone; the action is `power`
-  and the event `subsystem_powered`, which names the tile only once it is
+  and the event `subsystem_powered`, which names the subsystem only once it is
   face-up. Recordings are schema v3.
 
   Measured against the pre-rewrite code on the same seeds, 200 games a row,
@@ -537,7 +545,7 @@ not an argument:
   **The salvo note's warning did not land the way it reads.** Charging the
   rack at every check and the launcher only when it fires should have moved
   power to the launchers; instead both rose a little, because dropping the cap
-  helps every hull that wants several tiles up at once more than the standing
+  helps every hull that wants several subsystems up at once more than the standing
   bill hurts the one that wants a rack. Racks: railgun + racks×2 20 → 26,
   compressor + racks×2 35 → 41, rack hunter 31 → 35, railgun + racks×4 24 →
   25, tanky hunter 24 → 22. Launchers: sensor bow + missile hunter 31 → 38,
@@ -548,11 +556,11 @@ not an argument:
   punished. Both rack hulls still sit well under their bar, so point defence
   is no healthier than it was; it is just no worse.
 
-- **Manual energy allocation.** Every tile but the engines and the shields has
+- **Manual energy allocation.** Every subsystem but the engines and the shields has
   exactly one legal non-zero setting, so placing its cubes was transcription,
   not a decision, and the bots' `energyActions` was 45 lines translating intent
-  into allocations nobody chose. An action powers the tile it uses now, and the
-  three tiles that act while their owner is not acting are switched on instead
+  into allocations nobody chose. An action powers the subsystem it uses now, and the
+  three subsystems that act while their owner is not acting are switched on instead
   (`STANDING_SUBSYSTEM_TYPES`). The 10-cap stays and still forbids a full wall
   beside a full burn. Not behaviour-neutral, and the reason is the second half:
   cubes no longer say anything about a gun, so `suspectedWeapon` reads a loaded
@@ -569,12 +577,12 @@ not an argument:
   every unbroken gun walks into fewer of them; `docs/benchmark.md`, re-run at
   its own 240 games, has the same fall at every seat count.
 
-- **Criticals naming the forward tile first**, to break compressors: within
+- **Criticals naming the forward subsystem first**, to break compressors: within
   noise, and the compressor hulls gained if anything (a broken compressor is
   repaired at the next dock, where that hull was going). **Shields stopping
   lasers**: halves kills a game and costs the hunter preset six points to get
   the compressor-with-a-laser hunter from 32% to 15%. Both left alone; the
-  critical-order switch is gone, and shields-stop-lasers is a tile field
+  critical-order switch is gone, and shields-stop-lasers is a subsystem field
   (`--tiles=laser.ignoresShields=false`), not a switch.
 
 Known open problems:
@@ -588,7 +596,7 @@ Known open problems:
   each card is played, which humans will differ on too. Levers not yet
   measured: Intercept's scan range or filing station, a Deliver that pays on
   pickup, the primary's value.
-- **Deliver is the strong dealt card, and a chit aboard makes every Intercept
+- **Deliver is the strong dealt card, and data aboard makes every Intercept
   and Survey holder prey.** Dealt Deliver 42% against 33 (31 before Piracy
   and Tanker): the hauler presets read 42% and 39% against 42, and Deliver +
   Tanker is a fight-free road to three for the hull that arrives with fuel
@@ -596,8 +604,8 @@ Known open problems:
   deploy on ring 3 with their targets and 40% of scans come on the first
   legal turn: the interceptor moving into range, which the designer calls
   play. In natural three-seat games the sensor bow wins 24% against the
-  railgun's 36 and the compressor's 36: a scan is a chit and a chit is loot,
-  three seizures in four are chits, and the benchmark has Intercept at 21 and
+  railgun's 36 and the compressor's 36: a scan is data and data is loot,
+  three seizures in four are data, and the benchmark has Intercept at 21 and
   Survey at 23 completed per 100 kept. The sensor's standing cost (21 Sept)
   gave the bow something to do on a turn it does not scan, and the bots now
   hold it up whenever they mean to shoot: the forced sensor-bow rows rose most
@@ -631,8 +639,8 @@ Known open problems:
   benchmark: Survey 23, Piracy 25, Tanker 26 (the same card within noise,
   which the deal wanted). Tanker is in 27% of winners' cards, Survey 15%,
   Piracy 12%. Half of all Survey dives now complete in round one, because
-  ring 3 is one turn from ring 1; the chit is not the point, the filing is,
-  and a round-one chit is round-one loot for a pirate from ring 3.
+  ring 3 is one turn from ring 1; the data is not the point, the filing is,
+  and round-one data is round-one loot for a pirate from ring 3.
 - **Point defence lives on one preset, and now it costs more to keep.** Bots
   holding Destroy always fly the aggressive hunter, so the aggressive hunter's
   rack is the only rack in natural play, and no hull a bot can reach carries a
@@ -665,7 +673,7 @@ Known open problems:
 - **Carrying cargo does not draw fire**, though the table says it does. Over 200
   games on each of four hulls, every one took *less* hull damage per turn while
   holding a crate than while empty. Kills still fall on carriers (72% of
-  destroyed ships were carrying something, nearly all of it data chits), but
+  destroyed ships were carrying something, nearly all of it data), but
   that is the hunt for the leader, not the crate.
 - **The bots never name the scoop, so the simulator cannot price the slot that
   was just opened.** `chooseCriticalTarget` (`ai/behaviors/combat.ts`) ranks a
@@ -683,7 +691,7 @@ Known open problems:
 - **Length**: 25 / 23 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats under three
   points, 1h15 to 2h42 at a minute a turn, 99–100% of games decided, five
   cards completed a game at three seats; kills 2.9 / 5.0 / 9.3 / 14.5, well
-  above the old cards' 1.9 / 3.9 / 7.7 / 11.0, because a chit aboard is a
+  above the old cards' 1.9 / 3.9 / 7.7 / 11.0, because data aboard is a
   reason to fight. The quiet returning turn (20 Sept) took kills down from
   3.3 / 6.5 / 10.8 / 17.8 and the six-seat game from 33 rounds to 27: a ship
   back from Home no longer opens with a revenge shot. The energy rewrite

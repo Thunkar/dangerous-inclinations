@@ -99,18 +99,19 @@ export const CARD_CSS = `
 .di-sec { display: flex; flex-direction: column; }
 
 /* The turn, as numbered rows. */
-.di-steps { display: grid; grid-template-columns: 3.4mm 14.5mm 1fr; column-gap: 1.2mm; row-gap: 0.6mm; }
+.di-steps { display: grid; grid-template-columns: 3.4mm 14.5mm 1fr; column-gap: 1.2mm; row-gap: 0.45mm; }
 .di-steps i {
   font-style: normal; background: ${INK}; color: #fff; text-align: center;
   font-family: var(--di-display); font-weight: 700; font-size: 6.2pt; line-height: 3.2mm; height: 3.2mm;
 }
+.di-steps i.e { background: ${RED}; }
 .di-steps u {
   text-decoration: none; font-family: var(--di-display); font-weight: 600; font-size: 6pt;
   text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.05; padding-top: 0.3mm;
 }
 .di-steps span { font-size: 5.3pt; line-height: 1.2; padding-top: 0.2mm; }
 .di-quiet {
-  margin-top: 0.7mm; font-family: var(--di-display); font-weight: 600; font-size: 5.8pt;
+  margin-top: 0.5mm; font-family: var(--di-display); font-weight: 600; font-size: 5.8pt;
   letter-spacing: 0.04em; text-transform: uppercase; color: ${RED};
 }
 
@@ -143,16 +144,7 @@ export const CARD_CSS = `
   font-family: var(--di-display); font-weight: 600; font-size: 5.4pt; letter-spacing: 0.04em;
   text-transform: uppercase; flex: none; width: 10.5mm;
 }
-.di-phase-strip { display: grid; gap: 0.45mm; flex: none; }
-.di-phase-strip span {
-  height: 3.4mm; line-height: 3.4mm; text-align: center; background: ${RED}; color: #fff;
-  font-family: var(--di-display); font-weight: 700; font-size: 5.8pt;
-}
-.di-phase-strip span.d { background: ${INK}; }
-.di-phase-strip span.s {
-  background: #fff; color: ${INK}; box-sizing: border-box; border: 0.25mm dashed ${INK};
-  line-height: 2.9mm; font-size: 4.2pt;
-}
+.di-phase-strip { flex: none; display: block; }
 .di-phase-note { font-size: 4.8pt; line-height: 1.2; }
 
 /* A line of qualification under a table, where the table cannot hold it. */
@@ -178,23 +170,35 @@ export const CARD_CSS = `
 }
 .di-notes span { flex: 1; }
 
-/* The heat check, as the blocks it is done in. */
-.di-flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.6mm; }
-.di-flow span {
-  border: 0.3mm solid ${INK}; padding: 0.5mm 0.9mm; font-size: 5pt; line-height: 1.15;
-  display: flex; align-items: center;
+/* The heat check, as a tree: the sum forks three ways and every branch joins
+   again for the dissipation and the carry. The fork's bars run from the middle
+   of its first row to the middle of its last, which is why a row has a fixed
+   height. */
+.di-tree { display: flex; align-items: center; }
+.di-tree span {
+  border: 0.3mm solid ${INK}; padding: 0.4mm 0.8mm; font-size: 5pt; line-height: 1.15;
+  flex: none;
 }
-.di-flow span.x { background: ${RED}; border-color: ${RED}; color: #fff; }
-.di-flow span.k { background: ${INK}; color: #fff; }
-.di-flow i { font-style: normal; font-family: var(--di-display); font-weight: 700; font-size: 6pt; align-self: center; }
-
-/* The foot, full bleed: the three tracks, and the one rule that is everywhere. */
-.di-foot {
-  margin: auto -3mm 0; padding: 1mm 3mm 1.1mm; background: ${INK}; color: #fff;
-  font-family: var(--di-display); font-size: 5.2pt; letter-spacing: 0.08em; text-transform: uppercase;
-  display: flex; gap: 2mm;
+.di-tree span.x { background: ${RED}; border-color: ${RED}; color: #fff; }
+.di-tree span.k { background: ${INK}; color: #fff; }
+.di-tree i { font-style: normal; flex: none; }
+.di-tree i.l { width: 1.4mm; border-top: 0.3mm solid ${INK}; }
+.di-tree i.a { font-family: var(--di-display); font-weight: 700; font-size: 6pt; padding: 0 0.6mm; }
+.di-fork { position: relative; display: flex; flex-direction: column; gap: 0.6mm; padding: 0 1.4mm; flex: none; }
+.di-fork::before, .di-fork::after {
+  content: ''; position: absolute; top: 1.55mm; bottom: 1.55mm; border-left: 0.3mm solid ${INK};
 }
-.di-foot span:last-child { margin-left: auto; text-align: right; }
+.di-fork::before { left: 0; }
+.di-fork::after { right: 0; }
+.di-fork span {
+  position: relative; box-sizing: border-box; height: 3.4mm;
+  display: flex; align-items: center; white-space: nowrap;
+}
+.di-fork span::before, .di-fork span::after {
+  content: ''; position: absolute; top: calc(50% - 0.15mm); width: 1.4mm; border-top: 0.3mm solid ${INK};
+}
+.di-fork span::before { left: calc(-1.4mm - 0.3mm); }
+.di-fork span::after { right: calc(-1.4mm - 0.3mm); }
 
 @media print {
   .di-cards { --card-zoom: 1; gap: 6mm; justify-content: center; }
