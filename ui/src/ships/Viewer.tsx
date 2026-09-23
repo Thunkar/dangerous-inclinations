@@ -1,7 +1,9 @@
-import { Component, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
-import { Vector3, type Group, type PerspectiveCamera, type WebGLRenderer } from 'three'
+import { PMREMGenerator, Vector3, type Group, type PerspectiveCamera, type WebGLRenderer } from 'three'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { TABLE } from '../design/tokens'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { MOUNTS, mountTransform, type MountId, type ShipConfig } from './config'
 import { poseShip } from './model'
@@ -41,6 +43,26 @@ class ViewBoundary extends Component<{ children: ReactNode }, { failed: boolean 
     )
   }
 }
+
+/**
+ * A studio for reflections: the room three.js ships with, blurred, so the
+ * enamel and the bare steel have something to catch besides the three lamps.
+ * Built once from geometry, so the yard works with no network.
+ */
+function Studio() {
+  const gl = useThree(state => state.gl)
+  const environment = useMemo(() => {
+    const pmrem = new PMREMGenerator(gl)
+    const texture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    pmrem.dispose()
+    return texture
+  }, [gl])
+  useEffect(() => () => environment.dispose(), [environment])
+  return <primitive attach="environment" object={environment} />
+}
+
+/** The slip's floor ring: the board's own, 24 sectors, sector 0 in red. */
+const SLIP_TICKS = Array.from({ length: 24 }, (_, i) => (i / 24) * Math.PI * 2)
 
 function Scene(props: ViewerProps) {
   const {
@@ -118,13 +140,14 @@ function Scene(props: ViewerProps) {
 
   return (
     <>
-      <color attach="background" args={['#20292d']} />
-      <fog attach="fog" args={['#20292d', 38, 85]} />
-      <hemisphereLight args={['#dee7eb', '#3d4542', 1.65]} />
+      <color attach="background" args={[TABLE.felt]} />
+      <fog attach="fog" args={[TABLE.felt, 30, 70]} />
+      <Studio />
+      <hemisphereLight args={['#c9ccd3', '#16181c', 0.55]} />
       <directionalLight
-        position={[2, 10, 5]}
-        color="#fff2da"
-        intensity={3.5}
+        position={[4, 10, 6]}
+        color="#fff0dc"
+        intensity={3.1}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-13}
@@ -133,8 +156,10 @@ function Scene(props: ViewerProps) {
         shadow-camera-bottom={-13}
         shadow-normalBias={0.03}
       />
-      <directionalLight position={[-7, 4, -6]} color="#87b8cf" intensity={3} />
-      <directionalLight position={[7, -1, 4]} color="#b7cbd5" intensity={0.8} />
+      {/* A cold rim from behind to cut the silhouette out of the ink, and the
+          table's red low on the other side, the way the posters light a hull. */}
+      <directionalLight position={[-7, 4, -6]} color="#a9bddf" intensity={2.6} />
+      <directionalLight position={[6, -2, -5]} color="#d21b33" intensity={0.9} />
       <primitive object={model.root} onClick={select} />
       {labels &&
         MOUNTS.map(mount => {
@@ -161,13 +186,28 @@ function Scene(props: ViewerProps) {
         })}
       <mesh position={[0, -3.3, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[200, 200]} />
-        <meshStandardMaterial color="#202a2e" roughness={0.95} metalness={0.1} />
+        <meshStandardMaterial color="#141619" roughness={0.9} metalness={0.15} />
       </mesh>
-      <gridHelper args={[40, 40, '#3c4b4e', '#2d3b3e']} position={[0, -3.285, 0]} />
-      <mesh position={[0, -3.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[6.87, 6.89, 128]} />
-        <meshBasicMaterial color="#607070" transparent opacity={0.25} />
-      </mesh>
+      {[4.6, 6.88, 9.2].map(radius => (
+        <mesh key={radius} position={[0, -3.28, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[radius - 0.015, radius + 0.015, 160]} />
+          <meshBasicMaterial color={TABLE.ink} transparent opacity={0.16} />
+        </mesh>
+      ))}
+      {SLIP_TICKS.map((angle, i) => (
+        <mesh
+          key={angle}
+          position={[Math.cos(angle) * 6.88, -3.278, Math.sin(angle) * 6.88]}
+          rotation={[-Math.PI / 2, 0, -angle]}
+        >
+          <planeGeometry args={[i % 6 === 0 ? 0.7 : 0.4, i === 0 ? 0.07 : 0.04]} />
+          <meshBasicMaterial
+            color={i === 0 ? TABLE.accent : TABLE.ink}
+            transparent
+            opacity={i === 0 ? 1 : 0.3}
+          />
+        </mesh>
+      ))}
       <OrbitControls
         ref={controls}
         makeDefault
@@ -190,6 +230,7 @@ export function Viewer(props: ViewerProps) {
         dpr={[1, 1.5]}
         frameloop={props.turntable ? 'always' : 'demand'}
         camera={{ position: [15, 12, 18], fov: 36, near: 0.1, far: 150 }}
+        scene={{ environmentIntensity: 0.38 }}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
         fallback={
           <div className="webgl-fallback">

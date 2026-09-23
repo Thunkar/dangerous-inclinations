@@ -1,7 +1,8 @@
 import { lazy, Suspense, useRef, useState } from 'react'
 import { Box, Button, CircularProgress } from '@mui/material'
 import { useBoardMode } from '../context/BoardModeContext'
-import { TABLE, FONT_MONO } from '../theme'
+import { TABLE } from '../theme'
+import { FONT_DISPLAY } from '../design/press'
 import type { MountId, ShipConfig } from './config'
 import type { CameraView, ViewerHandle } from './Viewer'
 
@@ -28,24 +29,26 @@ export function ShipStage({
       aria-label="Ship preview"
       sx={{
         position: 'relative',
-        bgcolor: '#20292d',
+        bgcolor: TABLE.felt,
         minHeight: { xs: 390, md: 420 },
         height: '100%',
         overflow: 'hidden',
         '& .mount-tag': {
-          fontFamily: FONT_MONO,
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 600,
+          letterSpacing: '0.1em',
           fontSize: 12,
-          border: '1px solid #71817e',
-          borderRadius: '4px',
+          border: `1px solid ${TABLE.plateEdge}`,
+          borderRadius: 0,
           p: '6px 9px',
-          bgcolor: '#192023ee',
+          bgcolor: 'rgba(10,11,13,0.82)',
           color: TABLE.ink,
           cursor: 'pointer',
         },
         '& .mount-tag.active': {
-          borderColor: TABLE.accent,
-          color: TABLE.accent,
-          bgcolor: '#40372c',
+          borderColor: TABLE.accentBlock,
+          color: TABLE.onAccent,
+          bgcolor: TABLE.accentBlock,
         },
         '& .webgl-fallback': {
           position: 'absolute',
@@ -92,9 +95,9 @@ export function ShipStage({
             display: 'flex',
             flexWrap: 'wrap',
             gap: 0.5,
-            bgcolor: '#192023ed',
+            bgcolor: 'rgba(10,11,13,0.82)',
             border: `1px solid ${TABLE.plateEdge}`,
-            borderRadius: 1,
+            borderRadius: 0,
             p: 0.75,
           }}
         >

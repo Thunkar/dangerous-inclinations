@@ -16,16 +16,14 @@ export type VisibleSlots = Record<MountId, VisibleModule>
 export interface ShipVisual {
   appearance: ShipAppearance
   slots: VisibleSlots
-  identity: string
   driveBroken: boolean
 }
 
 /** Only consume an observer's filtered slots. Unknown modules have no type. */
-export function visualForPlayer(player: PlayerView, seat: number): ShipVisual {
+export function visualForPlayer(player: PlayerView): ShipVisual {
   return {
     appearance: resolveShipAppearance(player.appearance),
     driveBroken: player.fixed.some(s => s.type === 'engines' && s.isBroken),
-    identity: `K-${String(seat + 1).padStart(2, '0')}`,
     slots: Object.fromEntries(
       MOUNTS.map(mount => {
         const slot = player.slots.find(s => s.id === mount.id)
@@ -45,10 +43,9 @@ export function visualForPlayer(player: PlayerView, seat: number): ShipVisual {
 export function editorConfig(
   loadout: ShipLoadout,
   appearance: ShipAppearance,
-  accent: string,
-  identity?: string
+  accent: string
 ): ShipConfig {
-  return { ...DEFAULT_CONFIG, loadout, paint: appearance.paint, accent, appearance, identity }
+  return { ...DEFAULT_CONFIG, loadout, paint: appearance.paint, accent, appearance }
 }
 
 export function boardConfig(visual: ShipVisual | undefined, accent: string): ShipConfig {
@@ -61,8 +58,7 @@ export function boardConfig(visual: ShipVisual | undefined, accent: string): Shi
       ) as ShipLoadout['sideSlots'],
     },
     appearance,
-    accent,
-    visual?.identity
+    accent
   )
 }
 

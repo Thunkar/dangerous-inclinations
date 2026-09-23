@@ -15,7 +15,6 @@ export type Finish = 'paint' | 'resin'
 export interface ShipConfig {
   /** Optional production cosmetics; authoring controls stay independent. */
   appearance?: ShipAppearance
-  identity?: string
   version: 1
   loadout: ShipLoadout
   length: number

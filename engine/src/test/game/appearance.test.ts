@@ -23,7 +23,7 @@ const appearance: ShipAppearance = {
   ...DEFAULT_SHIP_APPEARANCE,
   paint: "#344149",
   secondaryPaint: "#b6a27b",
-  spineHeight: 0.9,
+  livery: "chevron",
 };
 const fresh = () =>
   createGame(
@@ -40,8 +40,10 @@ describe("match appearance", () => {
   it("validates bounds and refuses identity colors, arbitrary assets and unknown fields", () => {
     expect(ShipAppearanceSchema.safeParse(appearance).success).toBe(true);
     for (const bad of [
-      { ...appearance, armorRelief: 3 },
-      { ...appearance, spineHeight: NaN },
+      { ...appearance, secondaryPaint: "red" },
+      { ...appearance, livery: "flames" },
+      { ...appearance, livery: "plain" },
+      { ...appearance, liveryInk: "#d21b33" },
       { ...appearance, paint: "url(x)" },
       { ...appearance, accent: "#ffffff" },
       { ...appearance, asset: "https://example.test/ship.glb" },
@@ -67,7 +69,7 @@ describe("match appearance", () => {
     const state = fresh();
     const result = submitLoadout(state, "p1", {
       ...choice(state),
-      appearance: { ...appearance, armorRelief: -1 },
+      appearance: { ...appearance, paint: "red" },
     });
     expect(result.error).toMatch(/appearance/i);
     expect(result.state).toBe(state);

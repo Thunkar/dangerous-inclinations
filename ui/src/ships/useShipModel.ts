@@ -3,7 +3,7 @@ import { createShip } from './model'
 import type { ShipConfig } from './config'
 import { visibleSlots } from './visual'
 
-/** Rebuild only the structural hull; paint and individual slots update in place. */
+/** Rebuild only the structural hull; paint, the seat's livery and individual slots update in place. */
 export function useShipModel(config: ShipConfig, concealed = false) {
   const structural = JSON.stringify({
     ...config,
@@ -15,7 +15,7 @@ export function useShipModel(config: ShipConfig, concealed = false) {
           ...config.appearance,
           paint: '#aab4b2',
           secondaryPaint: '#647776',
-          finish: 'matte',
+          livery: 'band',
         }
       : undefined,
   })

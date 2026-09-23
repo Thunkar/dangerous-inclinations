@@ -185,7 +185,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           playerId: player.id,
           name: player.name,
           color: getPlayerColor(index),
-          visual: visualForPlayer(player, index),
+          visual: visualForPlayer(player),
           position,
           facing: live?.facing ?? publicShip!.facing,
           motion: live?.motion,

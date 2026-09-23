@@ -121,8 +121,8 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   const seat = view.players.findIndex(p => p.id === me.id)
   const accent = getPlayerColor(seat)
   const config = useMemo(
-    () => editorConfig(loadout, appearance, accent, `CV-${String(seat + 1).padStart(2, '0')}`),
-    [loadout, appearance, accent, seat]
+    () => editorConfig(loadout, appearance, accent),
+    [loadout, appearance, accent]
   )
   const validation = validateLoadout(loadout)
   const stats = calculateShipStatsFromLoadout(loadout)
@@ -386,6 +386,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
             {tab === 'appearance' && (
               <AppearanceControls
                 value={appearance}
+                seatColor={accent}
                 onChange={appearance => patch({ appearance })}
                 disabled={disabled}
               />

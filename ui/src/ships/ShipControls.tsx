@@ -1,4 +1,5 @@
-import { Box, Button, Slider, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import type { ReactNode } from 'react'
+import { Box, Button, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 
 import {
   BOT_LOADOUT_TEMPLATES,
@@ -6,10 +7,12 @@ import {
   HULL_VARIANTS,
   DEFAULT_SHIP_APPEARANCE,
   INSTALLABLE_SUBSYSTEMS,
+  LIVERIES,
   canInstallInSlot,
   getSubsystemConfig,
   type BotRole,
   type HullVariant,
+  type Livery,
   type ShipAppearance,
   type ShipLoadout,
 } from '@dangerous-inclinations/engine'
@@ -259,15 +262,16 @@ export function SystemControls({
 }
 
 /** Industrial swatches, light to dark. Both defaults are on the row. */
-const PAINTS = ['#aab4b2', '#dad7c8', '#b6a27b', '#926b51', '#647776', '#4c5b56', '#344149']
+/** Primers and enamels for the hull and its trim. */
+const PAINTS = ['#d6cfbd', '#ece4d0', '#9aa2a2', '#6b6a66', '#3b4046', '#8f6d4a', '#2f4a52']
 
 const CHIP = {
   minWidth: 28,
   width: 28,
   height: 28,
   p: 0,
-  borderRadius: '50%',
-  border: '3px solid #1b2225',
+  borderRadius: 0,
+  border: `3px solid ${TABLE.plate}`,
 }
 
 /**
@@ -279,14 +283,16 @@ function PaintRow({
   value,
   onChange,
   disabled,
+  swatches = PAINTS,
 }: {
   label: string
   value: string
   onChange: (color: string) => void
   disabled: boolean
+  swatches?: string[]
 }) {
-  const custom = !PAINTS.includes(value.toLowerCase())
-  const ring = (selected: boolean) => (selected ? `2px solid ${TABLE.accent}` : '1px solid #53605b')
+  const custom = !swatches.includes(value.toLowerCase())
+  const ring = (selected: boolean) => (selected ? `2px solid ${TABLE.ink}` : `1px solid ${TABLE.plateEdge}`)
   return (
     <Box sx={{ mt: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -296,7 +302,7 @@ function PaintRow({
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.1, mt: 1 }}>
-        {PAINTS.map(paint => (
+        {swatches.map(paint => (
           <Button
             key={paint}
             disabled={disabled}
@@ -307,7 +313,7 @@ function PaintRow({
               ...CHIP,
               bgcolor: paint,
               outline: ring(value.toLowerCase() === paint),
-              '&:hover': { bgcolor: paint, outline: `2px solid ${TABLE.accent}` },
+              '&:hover': { bgcolor: paint, outline: `2px solid ${TABLE.ink}` },
             }}
           />
         ))}
@@ -348,14 +354,63 @@ function PaintRow({
   )
 }
 
+const LIVERY_NAME: Record<Livery, string> = {
+  band: 'Band',
+  split: 'Split',
+  chevron: 'Chevron',
+  stern: 'Stern',
+  spine: 'Spine',
+}
+
+/** The hull's profile, masked the way `model.ts` masks it, in the paints chosen. */
+const LIVERY_MASK: Record<Livery, ReactNode> = {
+  band: (
+    <>
+      <path d="M24 23 L35 7 L44 7 L33 23 Z" />
+      <path d="M36 23 L47 7 L48.5 7 L37.5 23 Z" />
+    </>
+  ),
+  split: <path d="M4 16 L62 16 L58 18 L46 23 L10 23 L4 17 Z" />,
+  chevron: <path d="M44 7 L50 7 L56 15 L50 23 L44 23 L50 15 Z" />,
+  stern: (
+    <>
+      <path d="M7 10 L11 7 L14 7 L14 23 L11 23 L7 20 Z" />
+      <rect x="16" y="7" width="2" height="16" />
+    </>
+  ),
+  spine: <rect x="10" y="7" width="36" height="3" />,
+}
+const HULL_PROFILE = 'M4 13 L10 7 L46 7 L58 12 L62 15 L58 18 L46 23 L10 23 L4 17 Z'
+
+function LiveryMark({ livery, paint, ink }: { livery: Livery; paint: string; ink: string }) {
+  const clip = `livery-${livery}`
+  return (
+    <Box component="svg" viewBox="0 0 66 30" aria-hidden sx={{ width: '100%', display: 'block' }}>
+      <defs>
+        <clipPath id={clip}>
+          <path d={HULL_PROFILE} />
+        </clipPath>
+      </defs>
+      <path d={HULL_PROFILE} fill={paint} />
+      <g clipPath={`url(#${clip})`} fill={ink}>
+        {LIVERY_MASK[livery]}
+      </g>
+      <path d={HULL_PROFILE} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth={0.8} />
+    </Box>
+  )
+}
+
 export function AppearanceControls({
   value,
   onChange,
   disabled,
+  seatColor,
 }: {
   value: ShipAppearance
   onChange: (a: ShipAppearance) => void
   disabled: boolean
+  /** The livery's ink: never chosen, always the seat's. */
+  seatColor: string
 }) {
   const patch = (p: Partial<ShipAppearance>) => onChange({ ...value, ...p })
   return (
@@ -376,49 +431,45 @@ export function AppearanceControls({
         onChange={secondaryPaint => patch({ secondaryPaint })}
       />
       <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-        02 / Finish
+        02 / Livery
       </Typography>
-      <ToggleButtonGroup
-        fullWidth
-        exclusive
-        value={value.finish}
-        onChange={(_, finish) => finish && patch({ finish })}
-        sx={{ mt: 1 }}
+      <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
+        Sprayed in your seat's colour, the same as your token on the board.
+      </Typography>
+      <Box
+        role="radiogroup"
+        aria-label="Livery"
+        sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 0.75, mt: 1 }}
       >
-        <ToggleButton value="matte" disabled={disabled}>
-          Matte paint
-        </ToggleButton>
-        <ToggleButton value="metal" disabled={disabled}>
-          Exposed metal
-        </ToggleButton>
-      </ToggleButtonGroup>
-      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-        03 / Hull profile
-      </Typography>
-      {(
-        [
-          ['armorRelief', 'Armor relief'],
-          ['spineHeight', 'Dorsal profile'],
-        ] as const
-      ).map(([key, label]) => (
-        <Box key={key} sx={{ mt: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2">{label}</Typography>
-            <Typography variant="caption" color="primary">
-              {Math.round(value[key] * 100)}%
-            </Typography>
-          </Box>
-          <Slider
-            aria-label={label}
-            min={0}
-            max={1}
-            step={0.05}
-            disabled={disabled}
-            value={value[key]}
-            onChange={(_, n) => patch({ [key]: n as number })}
-          />
-        </Box>
-      ))}
+        {LIVERIES.map(livery => {
+          const on = value.livery === livery
+          return (
+            <Button
+              key={livery}
+              role="radio"
+              aria-checked={on}
+              disabled={disabled}
+              onClick={() => patch({ livery })}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'stretch',
+                gap: 0.5,
+                p: 0.75,
+                border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
+                bgcolor: on ? TABLE.selected : TABLE.felt,
+                color: on ? TABLE.onSelected : TABLE.inkSoft,
+                '&:hover': { bgcolor: on ? TABLE.selected : TABLE.plateHi },
+              }}
+            >
+              <LiveryMark livery={livery} paint={value.paint} ink={seatColor} />
+              <Box component="span" sx={{ fontSize: '0.75rem' }}>
+                {LIVERY_NAME[livery]}
+              </Box>
+            </Button>
+          )
+        })}
+      </Box>
       <Button
         fullWidth
         disabled={disabled}

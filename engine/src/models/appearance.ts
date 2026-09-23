@@ -2,24 +2,29 @@
 import { z } from "zod";
 
 const paint = z.string().regex(/^#[0-9a-f]{6}$/i);
-const dial = z.number().finite().min(0).max(1);
+
+/**
+ * The livery: a pattern sprayed over the hull paint, the way a model is masked
+ * and painted. The player picks its shape; its colour is always the seat's,
+ * like the ship's token, so a stripe says whose ship it is at a glance. There
+ * is no plain hull: every shape carries the seat's colour somewhere it shows.
+ */
+export const LIVERIES = ["band", "split", "chevron", "stern", "spine"] as const;
+export type Livery = (typeof LIVERIES)[number];
+
 export const ShipAppearanceSchema = z
   .object({
     paint,
     secondaryPaint: paint,
-    finish: z.enum(["matte", "metal"]),
-    armorRelief: dial,
-    spineHeight: dial,
+    livery: z.enum(LIVERIES),
   })
   .strict();
 
 export type ShipAppearance = z.infer<typeof ShipAppearanceSchema>;
 export const DEFAULT_SHIP_APPEARANCE: Readonly<ShipAppearance> = Object.freeze({
-  paint: "#aab4b2",
-  secondaryPaint: "#647776",
-  finish: "matte",
-  armorRelief: 0.5,
-  spineHeight: 0.5,
+  paint: "#d6cfbd",
+  secondaryPaint: "#6b6a66",
+  livery: "band",
 });
 
 /**
