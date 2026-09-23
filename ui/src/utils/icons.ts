@@ -19,9 +19,9 @@ export function subsystemCategory(type: SubsystemType): SubsystemCategory {
 
 /** Category colours are for edges and badges only, never for the glyph. */
 export const CATEGORY_COLOR: Record<SubsystemCategory, string> = {
-  weapon: '#ff9a63',
+  weapon: TABLE.accent,
   defence: TABLE.energy,
-  passive: TABLE.hull,
+  passive: TABLE.inkFaint,
   utility: TABLE.fuel,
 }
 

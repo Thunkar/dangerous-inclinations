@@ -5,7 +5,7 @@
  * getting in the way of the numbers printed around it. Four layers, outward:
  *
  *  1. **The horizon**: a sphere darker than the felt, so it reads as a hole
- *     cut in the table rather than a ball resting on it, with one hard amber
+ *     cut in the table rather than a ball resting on it, with one hard red
  *     line at the silhouette. Without that line it is not visible at all.
  *  2. **The photon ring and the lensed arc**: camera-facing annuli just
  *     outside the silhouette. The ring is the cheapest true statement about a
@@ -180,8 +180,7 @@ export function BlackHole({
   const rimUniforms = useMemo(
     () => ({
       uRim: { value: inkColor(DISC_INK.rim) },
-      // Darker than the felt, so the hole is the blackest thing on the table.
-      uVoid: { value: inkColor('#000000') },
+      uVoid: { value: inkColor(DISC_INK.void) },
       uPower: { value: 13.0 },
       uIntensity: { value: 1.6 },
     }),

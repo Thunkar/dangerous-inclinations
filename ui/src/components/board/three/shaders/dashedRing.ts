@@ -1,7 +1,7 @@
 /**
  * The pulsing dashed ring the SVG board draws around a targetable ship.
  *
- * Same mark, same reading: amber, dashed, breathing. The dashes and the pulse
+ * Same mark, same reading: the table's red, dashed, breathing. The dashes and the pulse
  * are both computed from the shared scene clock, so no ship costs the CPU
  * anything per frame.
  */

@@ -3,10 +3,10 @@
  *
  * The board needs the planets told apart at a glance and it needs them told
  * apart at a glance *in their printed colours*, which is the hard part: three
- * spheres tinted blue, red and green all look like the same sphere. So the
+ * spheres tinted in three flat inks all look like the same sphere. So the
  * difference is carried by the surface rather than by the hue (a banded gas
  * giant, a cratered rock, an ocean world under cloud) and the hue stays
- * exactly the one on the rules sheet.
+ * exactly the one printed on the paper board.
  *
  * The surface pattern is sampled on the *object-space* normal, so it turns with
  * the body; the light is computed from the *world* normal, so the terminator

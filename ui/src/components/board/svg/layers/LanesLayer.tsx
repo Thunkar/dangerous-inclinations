@@ -4,13 +4,13 @@
  * at both ends, so you can read which arc comes out where without a line
  * cutting across the map. Lanes are one-way: the departure arc is solid with a
  * filled letter, the arrival arc dashed with a hollow one. The arc you could
- * jump from right now is lit.
+ * jump from right now is lit: printed wider and at full strength, never glowing.
  */
 import { memo } from 'react'
 import type { TransferLane } from '@dangerous-inclinations/engine'
 import { TRANSFER_LANES, getWellName, laneDepartureArc } from '@dangerous-inclinations/engine'
-import { FONT_MONO } from '../../../../theme'
-import { PRINT_SCALE, arcMidPoint, arcPathFor, wellColor } from '../../geometry'
+import { BOARD, FONT_DISPLAY } from '../palette'
+import { PRINT_SCALE, arcMidPoint, arcPathFor, wellLineColor } from '../../geometry'
 
 /** "beta-a" → "A". The two lanes to a planet are told apart by their letter. */
 function laneLetter(laneId: string): string {
@@ -38,7 +38,7 @@ export const LanesLayer = memo(function LanesLayer({
   return (
     <g className="lanes">
       {TRANSFER_LANES.map(lane => {
-        const color = wellColor(lane.planetId)
+        const color = wellLineColor(lane.planetId)
         const active = highlightIds.includes(lane.id)
         const letter = laneLetter(lane.id)
         const title = laneTitle(lane)
@@ -60,27 +60,25 @@ export const LanesLayer = memo(function LanesLayer({
                     strokeDasharray={
                       departure ? undefined : `${6 * PRINT_SCALE} ${5 * PRINT_SCALE}`
                     }
-                    opacity={active ? 1 : departure ? 0.6 : 0.4}
-                    style={active ? { filter: `drop-shadow(0 0 8px ${color})` } : undefined}
+                    opacity={active ? 1 : departure ? 0.85 : 0.6}
                   />
                   <circle
                     cx={mid.x}
                     cy={mid.y}
                     r={8.5 * PRINT_SCALE}
-                    fill={departure ? color : '#080b11'}
-                    stroke={color}
+                    fill={departure ? color : BOARD.deep}
+                    stroke={active ? BOARD.ink : color}
                     strokeWidth={(active ? 2 : 1.2) * PRINT_SCALE}
-                    opacity={active ? 1 : 0.85}
                   />
                   <text
                     x={mid.x}
                     y={mid.y}
                     textAnchor="middle"
                     dominantBaseline="central"
-                    fontSize={10 * PRINT_SCALE}
-                    fontFamily={FONT_MONO}
-                    fontWeight={700}
-                    fill={departure ? '#080b11' : color}
+                    fontSize={11 * PRINT_SCALE}
+                    fontFamily={FONT_DISPLAY}
+                    fontWeight={600}
+                    fill={departure ? BOARD.ink : color}
                   >
                     {letter}
                   </text>

@@ -30,7 +30,7 @@ import { slotLabel, slotShortLabel } from '../../utils/slots'
  * glance and a number does not.
  */
 function MissilePip({ spent, broken }: { spent: boolean; broken: boolean }) {
-  const color = broken ? TABLE.inkFaint : spent ? 'rgba(126,165,205,0.30)' : TABLE.ink
+  const color = broken ? TABLE.inkFaint : spent ? TABLE.inkFaint : TABLE.ink
   return (
     <Box
       component="svg"
@@ -140,10 +140,9 @@ export function StatusBlock({ accent }: { accent?: string }) {
         gap: 0.35,
         px: 0.75,
         py: 0.6,
-        borderRadius: 1,
         border: `1px solid ${TABLE.line}`,
-        borderLeft: `2px solid ${accent ?? TABLE.plateEdge}`,
-        background: `linear-gradient(180deg, rgba(132,150,142,0.05) 0%, rgba(0,0,0,0) 100%)`,
+        borderLeft: `3px solid ${accent ?? TABLE.plateEdge}`,
+        bgcolor: TABLE.plateSunk,
         minWidth: 0,
       }}
     >
@@ -195,7 +194,6 @@ export function StatusBlock({ accent }: { accent?: string }) {
                 letterSpacing: '0.06em',
                 color: TABLE.danger,
                 border: `1px solid ${TABLE.danger}`,
-                borderRadius: '3px',
                 px: 0.5,
                 lineHeight: 1.4,
                 flexShrink: 0,

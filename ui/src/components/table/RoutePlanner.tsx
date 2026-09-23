@@ -46,11 +46,12 @@ import { describeStep, facingFor, placeLabel, routeLegs, routeName } from '../..
 import { SectionLabel } from '../common/Panel'
 import { FONT_MONO, TABLE } from '../../theme'
 
-/** The board draws routes and their destination in the energy blue; so do we. */
+/** The board draws routes and their destination in the energy colour; so do we. */
 const ROUTE = TABLE.energy
-const ROUTE_FAINT = 'rgba(73,195,255,0.30)'
-const AMBER_TINT = 'rgba(221,170,120,0.12)'
-const HOVER_TINT = 'rgba(126,165,205,0.07)'
+const ROUTE_FAINT = TABLE.inkFaint
+/** Behind red type: the pick in progress, the step taken. */
+const RED_TINT = TABLE.accentWash
+const HOVER_TINT = TABLE.hover
 
 /** Turns of a route shown before the list folds into "+n more". */
 const ITINERARY_LIMIT = 6
@@ -114,13 +115,9 @@ export function RoutePlanner({ disabled }: { disabled: boolean }) {
         // `overflow: hidden` zeroes a flex item's automatic minimum size, and
         // the turn column is a flex column: without this the plate is squashed.
         flexShrink: 0,
-        borderRadius: 1,
         border: `1px solid ${picking ? TABLE.accent : TABLE.line}`,
-        borderLeft: `2px solid ${edge}`,
+        borderLeft: `3px solid ${edge}`,
         bgcolor: TABLE.plateSunk,
-        boxShadow: picking
-          ? `0 0 0 1px ${TABLE.accentGlow}`
-          : 'inset 0 1px 0 rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.03)',
         overflow: 'hidden',
       }}
     >
@@ -359,11 +356,11 @@ function StationAim({
                 fontWeight: 700,
                 px: 0.6,
                 py: '1px',
-                borderRadius: 1,
+                borderRadius: 0,
                 cursor: disabled ? 'default' : 'pointer',
-                color: on ? TABLE.accent : TABLE.inkSoft,
-                border: `1px solid ${on ? TABLE.accent : TABLE.line}`,
-                bgcolor: on ? AMBER_TINT : 'transparent',
+                color: on ? TABLE.onSelected : TABLE.inkSoft,
+                border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
+                bgcolor: on ? TABLE.selected : 'transparent',
                 opacity: disabled ? 0.5 : 1,
               }}
             >
@@ -398,9 +395,8 @@ function DestinationRow({
           gap: 0.6,
           px: 0.75,
           py: 0.5,
-          borderRadius: 1,
           border: `1px solid ${TABLE.accent}`,
-          bgcolor: AMBER_TINT,
+          bgcolor: RED_TINT,
           minWidth: 0,
         }}
       >
@@ -553,15 +549,14 @@ function RouteTable({
                 width: '100%',
                 px: 0.6,
                 py: 0.3,
-                border: `1px solid ${on ? TABLE.accentDim : 'transparent'}`,
-                borderRadius: 1,
-                bgcolor: on ? AMBER_TINT : 'transparent',
-                boxShadow: on ? `inset 2px 0 0 ${TABLE.accent}` : 'none',
+                border: `1px solid ${on ? TABLE.selected : 'transparent'}`,
+                borderRadius: 0,
+                bgcolor: on ? TABLE.selected : 'transparent',
                 cursor: 'pointer',
                 font: 'inherit',
                 color: 'inherit',
                 textAlign: 'left',
-                '&:hover': { bgcolor: on ? AMBER_TINT : HOVER_TINT },
+                '&:hover': { bgcolor: on ? TABLE.selected : HOVER_TINT },
               }}
             >
               <Typography
@@ -569,7 +564,7 @@ function RouteTable({
                   fontFamily: FONT_MONO,
                   fontSize: '0.76rem',
                   fontWeight: on ? 700 : 400,
-                  color: on ? TABLE.accent : TABLE.inkSoft,
+                  color: on ? TABLE.onSelected : TABLE.inkSoft,
                   minWidth: 0,
                 }}
                 noWrap
@@ -594,7 +589,7 @@ function Readout({ value, on, tint }: { value: number; on: boolean; tint?: strin
         fontSize: '0.78rem',
         fontWeight: 700,
         textAlign: 'right',
-        color: on ? TABLE.accent : (tint ?? TABLE.ink),
+        color: on ? TABLE.onSelected : (tint ?? TABLE.ink),
       }}
     >
       {value}
@@ -689,11 +684,10 @@ function LegRow({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderRadius: '50%',
           border:
             index === null || arrival ? 'none' : `1px solid ${now ? TABLE.accent : ROUTE_FAINT}`,
-          bgcolor: taken ? TABLE.accent : arrival ? 'transparent' : TABLE.plateSunk,
-          color: taken ? '#12181f' : now ? TABLE.accent : arrival ? ROUTE : TABLE.inkFaint,
+          bgcolor: taken ? TABLE.selected : arrival ? 'transparent' : TABLE.plateSunk,
+          color: taken ? TABLE.onSelected : now ? TABLE.accent : arrival ? ROUTE : TABLE.inkFaint,
           fontFamily: FONT_MONO,
           fontSize: arrival ? '0.85rem' : '0.72rem',
           fontWeight: 700,
@@ -770,9 +764,8 @@ function FirstStep({
           px: 0.75,
           py: 0.4,
           mt: 0.1,
-          borderRadius: 1,
           border: `1px solid ${TABLE.accentDim}`,
-          bgcolor: AMBER_TINT,
+          bgcolor: RED_TINT,
           minWidth: 0,
         }}
       >
@@ -815,7 +808,7 @@ function FirstStep({
             fontSize: '0.74rem',
             borderColor: TABLE.accentDim,
             color: TABLE.accent,
-            '&:hover': { borderColor: TABLE.accent, bgcolor: AMBER_TINT },
+            '&:hover': { borderColor: TABLE.accent, bgcolor: RED_TINT },
           }}
         >
           take step 1 as this turn&apos;s move

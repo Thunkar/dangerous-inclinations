@@ -1,7 +1,13 @@
-/** Shipyard theme: matte graphite, warm interactions, and clear gameplay colors. */
+/**
+ * The table's theme: the press's inks at night (`design/tokens.ts`). Headings,
+ * labels, buttons and chips are set in the poster face in capitals; numbers
+ * stay monospaced, because a column of them has to line up. Square corners,
+ * no shadow, no glow.
+ */
 import { createTheme } from '@mui/material/styles'
 
 import { TABLE } from './design/tokens'
+import { FONT_DISPLAY } from './design/press'
 export { TABLE } from './design/tokens'
 
 export const FONT_SANS =
@@ -9,11 +15,11 @@ export const FONT_SANS =
 export const FONT_MONO =
   'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
 
-const DISPLAY = { fontFamily: FONT_SANS, letterSpacing: '-0.025em' } as const
-
-const MONO_LABEL = {
-  fontFamily: FONT_MONO,
-  letterSpacing: '0.06em',
+/** The poster face in capitals: every heading, label, button and chip. */
+const DISPLAY = {
+  fontFamily: FONT_DISPLAY,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
 } as const
 
 export const theme = createTheme({
@@ -29,16 +35,14 @@ export const theme = createTheme({
       disabled: TABLE.inkFaint,
     },
     primary: {
-      main: TABLE.accent,
-      light: '#efbf91',
+      main: TABLE.accentBlock,
+      light: TABLE.accent,
       dark: TABLE.accentDim,
-      contrastText: '#12181f',
+      contrastText: TABLE.onAccent,
     },
     secondary: {
       main: TABLE.teal,
-      light: '#7fd8e8',
-      dark: '#256b7c',
-      contrastText: '#0b1117',
+      contrastText: TABLE.felt,
     },
     error: { main: TABLE.danger },
     warning: { main: TABLE.heat },
@@ -46,26 +50,21 @@ export const theme = createTheme({
     info: { main: TABLE.energy },
     divider: TABLE.line,
   },
-  shape: { borderRadius: 6 },
+  shape: { borderRadius: 0 },
   typography: {
     fontFamily: FONT_SANS,
     fontSize: 14,
     h1: { ...DISPLAY, fontWeight: 600 },
     h2: { ...DISPLAY, fontWeight: 600 },
-    h3: { ...DISPLAY, fontWeight: 600, letterSpacing: '-0.025em' },
-    h4: { ...DISPLAY, fontWeight: 600, letterSpacing: '-0.025em' },
+    h3: { ...DISPLAY, fontWeight: 600 },
+    h4: { ...DISPLAY, fontWeight: 600 },
     h5: { ...DISPLAY, fontWeight: 600 },
     h6: { ...DISPLAY, fontWeight: 600 },
     subtitle1: { ...DISPLAY, fontWeight: 600 },
     subtitle2: { ...DISPLAY, fontWeight: 600 },
     caption: { fontFamily: FONT_SANS, fontSize: '0.8rem' },
-    overline: { ...MONO_LABEL, letterSpacing: '0.14em', fontWeight: 600, fontSize: '0.75rem' },
-    button: {
-      fontFamily: FONT_SANS,
-      textTransform: 'none',
-      letterSpacing: '0.01em',
-      fontWeight: 600,
-    },
+    overline: { ...DISPLAY, letterSpacing: '0.12em', fontWeight: 600, fontSize: '0.8rem' },
+    button: { ...DISPLAY, letterSpacing: '0.08em', fontWeight: 600 },
   },
   components: {
     MuiCssBaseline: {
@@ -83,44 +82,99 @@ export const theme = createTheme({
           backgroundImage: 'none',
           backgroundColor: TABLE.plate,
           border: `1px solid ${TABLE.plateEdge}`,
-          boxShadow: '0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 16px rgba(0,0,0,0.18)',
+          boxShadow: 'none',
         },
       },
     },
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: 4,
+          borderRadius: 0,
           boxShadow: 'none',
-          fontSize: '0.8rem',
-          '&[aria-pressed="true"]': { backgroundColor: '#ddaa7814', borderColor: TABLE.accent },
+          fontSize: '0.85rem',
+          '&[aria-pressed="true"]': {
+            backgroundColor: TABLE.selected,
+            borderColor: TABLE.selected,
+            color: TABLE.onSelected,
+          },
         },
         contained: {
-          boxShadow: `0 0 0 1px ${TABLE.accentGlow}`,
+          boxShadow: 'none',
           '&:hover': { boxShadow: 'none' },
+          '&.Mui-disabled': { backgroundColor: TABLE.plateHi, color: TABLE.inkFaint },
         },
         outlined: { borderColor: TABLE.plateEdge, '&:hover': { borderColor: TABLE.accent } },
       },
+      // The poster red is a block colour: as type on the ink it is the lifted
+      // red, and a plain text button is cream print that reddens under the pointer.
+      variants: [
+        {
+          props: { variant: 'text', color: 'primary' },
+          style: {
+            color: TABLE.ink,
+            '&:hover': { color: TABLE.accent, backgroundColor: TABLE.hover },
+          },
+        },
+        {
+          props: { variant: 'outlined', color: 'primary' },
+          style: { color: TABLE.ink },
+        },
+      ],
     },
+    MuiTabs: {
+      styleOverrides: { indicator: { height: 3, backgroundColor: TABLE.accentBlock } },
+    },
+    // A picked option is a cream block with ink type; red is kept for the
+    // action that ends the turn.
     MuiToggleButton: {
       styleOverrides: {
         root: {
           borderColor: TABLE.plateEdge,
           color: TABLE.inkSoft,
-          fontFamily: FONT_MONO,
-          textTransform: 'none',
+          ...DISPLAY,
+          borderRadius: 0,
+          '&:hover': { backgroundColor: TABLE.hover },
           '&.Mui-selected': {
-            color: TABLE.accent,
-            backgroundColor: 'rgba(221,170,120,0.12)',
-            '&:hover': { backgroundColor: 'rgba(221,170,120,0.2)' },
+            color: TABLE.onSelected,
+            backgroundColor: TABLE.selected,
+            borderColor: TABLE.selected,
+            '&:hover': { backgroundColor: TABLE.inkSoft },
           },
         },
       },
     },
     MuiChip: {
       styleOverrides: {
-        root: { fontFamily: FONT_MONO, fontWeight: 600, borderRadius: 4, fontSize: '0.8rem' },
+        root: { ...DISPLAY, fontWeight: 600, borderRadius: 0, fontSize: '0.8rem' },
         outlined: { borderColor: TABLE.plateEdge },
+      },
+      variants: [
+        {
+          props: { variant: 'filled', color: 'primary' },
+          style: {
+            backgroundColor: TABLE.selected,
+            color: TABLE.onSelected,
+            '&.MuiChip-clickable:hover': { backgroundColor: TABLE.inkSoft },
+            '& .MuiChip-icon': { color: TABLE.onSelected },
+          },
+        },
+      ],
+    },
+    MuiSlider: {
+      styleOverrides: {
+        thumb: { borderRadius: 0, boxShadow: 'none', '&:hover, &.Mui-focusVisible': { boxShadow: 'none' } },
+        rail: { borderRadius: 0 },
+        track: { borderRadius: 0 },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          ...DISPLAY,
+          fontWeight: 600,
+          color: TABLE.inkSoft,
+          '&.Mui-selected': { color: TABLE.ink },
+        },
       },
     },
     MuiTooltip: {
@@ -128,13 +182,13 @@ export const theme = createTheme({
       defaultProps: { disableInteractive: true, enterDelay: 350, enterNextDelay: 200 },
       styleOverrides: {
         tooltip: {
-          backgroundColor: '#141b1e',
+          backgroundColor: TABLE.bar,
           color: TABLE.ink,
           fontSize: '0.8rem',
           border: `1px solid ${TABLE.plateEdge}`,
-          borderRadius: 4,
+          borderRadius: 0,
         },
-        arrow: { color: '#141b1e' },
+        arrow: { color: TABLE.bar },
       },
     },
     MuiTextField: { defaultProps: { size: 'small' } },
@@ -145,11 +199,12 @@ export const theme = createTheme({
     },
     MuiAlert: {
       styleOverrides: {
-        root: { borderRadius: 4, border: `1px solid ${TABLE.plateEdge}`, backgroundImage: 'none' },
-        standardError: { backgroundColor: 'rgba(255,90,114,0.10)', color: '#ffc2cc' },
-        standardWarning: { backgroundColor: 'rgba(255,122,69,0.10)', color: '#ffd0ba' },
-        standardSuccess: { backgroundColor: 'rgba(70,209,145,0.10)', color: '#b6f0d6' },
-        standardInfo: { backgroundColor: 'rgba(73,195,255,0.10)', color: '#bfe6ff' },
+        root: { borderRadius: 0, border: `1px solid ${TABLE.plateEdge}`, backgroundImage: 'none' },
+        // Cream type on a tint of the one colour that says what kind of news it is.
+        standardError: { backgroundColor: TABLE.accentWash, color: TABLE.ink },
+        standardWarning: { backgroundColor: TABLE.accentWash, color: TABLE.ink },
+        standardSuccess: { backgroundColor: TABLE.successWash, color: TABLE.ink },
+        standardInfo: { backgroundColor: TABLE.fuelWash, color: TABLE.ink },
       },
     },
     MuiDivider: {

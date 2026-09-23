@@ -22,7 +22,9 @@ import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { useAnimation } from '../../context/AnimationContext'
-import { FONT_MONO, TABLE } from '../../theme'
+import { TABLE } from '../../theme'
+import { FONT_DISPLAY } from '../../design/press'
+import { Mark } from '../../site/poster'
 import { FoldHeader, useCollapsed } from '../common/Panel'
 import { GameBoard } from '../board/GameBoard'
 import { BoardModeToggle } from '../board/BoardModeToggle'
@@ -40,6 +42,7 @@ import { TurnTransport } from './TurnTransport'
 const LEFT_WIDTH = 252
 /** Your own column: the loadout sets the floor at 252 + the plate's padding. */
 const RIGHT_WIDTH = 348
+
 
 export function TableScreen({
   headerRight,
@@ -89,35 +92,41 @@ export function TableScreen({
           display: 'flex',
           alignItems: 'center',
           gap: 1.5,
-          px: 1.5,
-          py: 0.4,
+          pl: 0,
+          pr: 1.5,
           flexShrink: 0,
           minWidth: 0,
-          borderBottom: `1px solid ${TABLE.line}`,
-          background: `linear-gradient(180deg, ${TABLE.feltLight} 0%, rgba(0,0,0,0) 100%)`,
+          height: 40,
+          bgcolor: TABLE.bar,
+          // The press's heavy rule: the bar is ruled off from the table in red.
+          borderBottom: `3px solid ${TABLE.accentBlock}`,
         }}
       >
-        <Typography
-          sx={{
-            fontFamily: FONT_MONO,
-            fontWeight: 600,
-            fontSize: '0.88rem',
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            color: TABLE.ink,
-            flexShrink: 0,
-          }}
-          noWrap
-        >
-          Dangerous Inclinations
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexShrink: 0, pl: 0.5 }}>
+          <Mark size={32} />
+          <Typography
+            sx={{
+              fontFamily: FONT_DISPLAY,
+              fontWeight: 700,
+              fontSize: '1.05rem',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: TABLE.ink,
+              lineHeight: 1,
+            }}
+            noWrap
+          >
+            Dangerous Inclinations
+          </Typography>
+        </Box>
         <Chip
           size="small"
           label={`Turn ${view.turn}`}
+          variant="outlined"
           sx={{
             bgcolor: 'transparent',
-            border: `1px solid ${TABLE.plateEdge}`,
-            color: TABLE.inkSoft,
+            borderColor: TABLE.inkFaint,
+            color: TABLE.ink,
             flexShrink: 0,
           }}
         />
@@ -127,24 +136,37 @@ export function TableScreen({
               size="small"
               label="FINAL ROUND"
               sx={{
-                bgcolor: TABLE.accent,
-                color: '#1a1206',
+                bgcolor: TABLE.selected,
+                color: TABLE.onSelected,
                 fontWeight: 700,
-                letterSpacing: '0.06em',
                 flexShrink: 0,
-                boxShadow: `0 0 12px ${TABLE.accentGlow}`,
               }}
             />
           </Tooltip>
         )}
+        {/*
+          Who is acting: a red block, with the seat's colour as a square
+          beside the name so the chip still says whose turn it is.
+        */}
         <Chip
           size="small"
+          icon={
+            <Box
+              component="span"
+              sx={{
+                width: 9,
+                height: 9,
+                ml: '8px !important',
+                bgcolor: getPlayerColor(view.activePlayerIndex),
+                outline: `1px solid ${TABLE.onAccent}`,
+              }}
+            />
+          }
           label={`${view.players.find(p => p.id === view.activePlayerId)?.name ?? 'Nobody'} to act`}
           sx={{
-            bgcolor: 'transparent',
-            border: `1px solid ${getPlayerColor(view.activePlayerIndex)}`,
-            color: getPlayerColor(view.activePlayerIndex),
-            boxShadow: `0 0 10px ${getPlayerColor(view.activePlayerIndex)}55`,
+            bgcolor: TABLE.accentBlock,
+            color: TABLE.onAccent,
+            fontWeight: 700,
             flexShrink: 0,
           }}
         />
@@ -160,9 +182,10 @@ export function TableScreen({
               size="small"
               icon={<VisibilityIcon sx={{ fontSize: 15 }} />}
               label={view.me ? `Watching · ${view.me.name}'s seat` : 'Watching'}
+              variant="outlined"
               sx={{
                 bgcolor: 'transparent',
-                border: `1px solid ${TABLE.plateEdge}`,
+                borderColor: TABLE.inkFaint,
                 color: TABLE.inkSoft,
                 flexShrink: 0,
               }}
@@ -176,9 +199,10 @@ export function TableScreen({
               icon={<FastForwardIcon sx={{ fontSize: 15 }} />}
               label="skip"
               onClick={skip}
+              variant="outlined"
               sx={{
                 bgcolor: 'transparent',
-                border: `1px solid ${TABLE.accent}`,
+                borderColor: TABLE.accent,
                 color: TABLE.accent,
                 flexShrink: 0,
               }}

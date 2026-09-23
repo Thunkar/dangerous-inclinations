@@ -193,9 +193,8 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
                   gap: 1,
                   px: 1.25,
                   py: 0.75,
-                  borderRadius: 1,
                   border: `1px solid ${TABLE.plateEdge}`,
-                  bgcolor: 'rgba(126,165,205,0.04)',
+                  bgcolor: TABLE.plateSunk,
                 }}
               >
                 <Typography sx={{ fontWeight: 700, color: TABLE.ink }}>{lobby.lobbyName}</Typography>

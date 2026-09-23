@@ -22,19 +22,20 @@ import type { BoardModel } from '../../../model'
 import { positionPoint } from '../../../geometry'
 import { BOARD_FONT } from '../../fonts'
 import { LAYER, elevationAt, toWorld } from '../../world'
+import { BOARD_INK, FX_INK } from '../../palette'
 import { reportImpact, type ImpactKind } from './impacts'
 import { NO_RAYCAST } from './resources'
 
 type FloatEffect = Extract<TableEffect, { kind: 'float' }>
 
-/** The flat board's tones, unchanged. */
+/** The flat board's tones, in the board's inks. */
 const TONE_COLORS: Record<FloatTone, string> = {
-  damage: '#ff5a72',
-  shield: '#49c3ff',
-  heat: '#ff7a45',
-  miss: '#93a6bc',
-  crit: '#ffb445',
-  good: '#46d191',
+  damage: FX_INK.damage,
+  shield: FX_INK.shield,
+  heat: FX_INK.heat,
+  miss: FX_INK.miss,
+  crit: FX_INK.crit,
+  good: FX_INK.good,
 }
 
 /** A miss is the one tone that does not touch the hull it is written over. */
@@ -156,7 +157,7 @@ export function Float({
         anchorX="center"
         anchorY="middle"
         outlineWidth={SIZE * 0.14}
-        outlineColor="#05070b"
+        outlineColor={BOARD_INK.floatOutline}
         outlineOpacity={1}
         depthOffset={-4}
         renderOrder={12}

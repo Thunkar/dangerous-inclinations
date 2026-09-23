@@ -36,9 +36,9 @@ export function DieFace({ roll, outcome, size = 34 }: { roll: number; outcome: D
         fill={TABLE.plateSunk}
         stroke={color}
         strokeWidth={5}
-        strokeLinejoin="round"
+        strokeLinejoin="miter"
       />
-      <polygon points="50,4 78,94 22,94" fill="rgba(126,165,205,0.06)" />
+      <polygon points="50,4 78,94 22,94" fill={TABLE.hover} />
       <text
         x="50"
         y="66"
@@ -110,10 +110,9 @@ function ThresholdBand({ critFrom, roll }: { critFrom: number; roll: number }) {
             sx={{
               width: 7,
               height: 5,
-              borderRadius: '1px',
               bgcolor:
                 kind === 'miss'
-                  ? 'rgba(126,165,205,0.16)'
+                  ? TABLE.unlitEdge
                   : kind === 'crit'
                     ? `${TABLE.accent}cc`
                     : `${TABLE.hull}88`,

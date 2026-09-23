@@ -106,7 +106,7 @@ function fbm(x: number, y: number, z: number, octaves: number, ridged = false): 
 export interface NebulaPalette {
   /** The darkest the sky ever gets: the table's own felt. */
   base: string
-  /** The navy the clouds are made of. */
+  /** The ink the clouds are made of, a step off the felt. */
   cloud: string
   /** A colder second lobe, so the sky is not one flat wash. */
   cold: string

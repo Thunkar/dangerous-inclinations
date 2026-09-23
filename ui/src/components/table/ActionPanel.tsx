@@ -30,12 +30,10 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import RotateRightIcon from '@mui/icons-material/RotateRight'
 import SendIcon from '@mui/icons-material/Send'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
-import SensorsIcon from '@mui/icons-material/Sensors'
 import type { ReactNode } from 'react'
-import type { BurnIntensity } from '@dangerous-inclinations/engine'
+import type { BurnIntensity, SubsystemType } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
@@ -51,6 +49,7 @@ import {
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
+import { SubsystemIcon } from '../common/SubsystemIcon'
 import { FONT_MONO, TABLE } from '../../theme'
 import { slotLabel } from '../../utils/slots'
 import { RoutePlanner } from './RoutePlanner'
@@ -91,7 +90,7 @@ export function ActionPanel() {
             ? 'Your turn'
             : 'The table'
     return (
-      <TurnShell title={title} accent={sittingOut ? TABLE.danger : undefined}>
+      <TurnShell title={title} slab={sittingOut}>
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pt: 0.75 }}>
           <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
             {view.phase === 'ended'
@@ -130,14 +129,19 @@ export function ActionPanel() {
   return (
     <TurnShell
       title="Your turn"
-      accent={TABLE.accent}
+      slab
       action={
         <Tooltip title="Clear the plan and start again">
           <Button
             size="small"
             startIcon={<RestartAltIcon />}
             onClick={plan.reset}
-            sx={{ minWidth: 0 }}
+            sx={{
+              minWidth: 0,
+              py: 0,
+              color: TABLE.onAccent,
+              '&:hover': { bgcolor: TABLE.shade },
+            }}
           >
             reset
           </Button>
@@ -243,23 +247,24 @@ export function ActionPanel() {
 
 /**
  * The column itself: the plate, your status pinned to the top of it, and
- * whatever the turn needs under that.
+ * whatever the turn needs under that. A turn that is yours to take wears its
+ * title on the red slab; waiting for someone else, it is a plain plate.
  */
 function TurnShell({
   title,
-  accent,
+  slab = false,
   action,
   children,
 }: {
   title: string
-  accent?: string
+  slab?: boolean
   action?: ReactNode
   children: ReactNode
 }) {
   return (
     <Panel
       title={title}
-      accent={accent}
+      slab={slab}
       dense
       action={action}
       sx={{ flex: 1, minWidth: 0, minHeight: 0 }}
@@ -267,7 +272,7 @@ function TurnShell({
       <Box
         sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 0.5 }}
       >
-        <StatusBlock accent={accent ?? TABLE.accent} />
+        <StatusBlock accent={slab ? TABLE.accentBlock : TABLE.plateEdge} />
         {children}
       </Box>
     </Panel>
@@ -313,15 +318,15 @@ function RepairControl({ disabled }: { disabled: boolean }) {
                     onClick={() => plan.setRepairChoice(on ? null : sub.id)}
                     sx={{
                       fontFamily: FONT_MONO,
-                      fontSize: '0.72rem',
+                      fontSize: '0.75rem',
                       fontWeight: 700,
                       px: 0.7,
                       py: '2px',
-                      borderRadius: 1,
+                      borderRadius: 0,
                       cursor: disabled || !can ? 'default' : 'pointer',
-                      color: on ? TABLE.accent : TABLE.inkSoft,
-                      border: `1px solid ${on ? TABLE.accent : TABLE.line}`,
-                      bgcolor: on ? 'rgba(255,180,69,0.12)' : 'transparent',
+                      color: on ? TABLE.onSelected : TABLE.inkSoft,
+                      border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
+                      bgcolor: on ? TABLE.selected : 'transparent',
                       opacity: can ? 1 : 0.45,
                     }}
                   >
@@ -337,16 +342,34 @@ function RepairControl({ disabled }: { disabled: boolean }) {
   )
 }
 
-/** One numbered block of the turn, so the column reads top to bottom. */
+/**
+ * One numbered block of the turn, so the column reads top to bottom. The
+ * numeral is printed in the red, the way the cheatsheet numbers its sections.
+ */
 function Step({ n, label, children }: { n: number; label: string; children: ReactNode }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-      <SectionLabel sx={{ lineHeight: 1.35 }}>
-        {n}. {label}
+      <SectionLabel sx={{ lineHeight: 1.35, color: TABLE.ink }}>
+        <Box
+          component="span"
+          sx={{ color: TABLE.accent, fontWeight: 700, fontSize: '0.95rem', mr: 0.6 }}
+        >
+          {n}.
+        </Box>
+        {label}
       </SectionLabel>
       {children}
     </Box>
   )
+}
+
+/**
+ * The mark of the subsystem an action puts its energy on, in the colour of the
+ * type beside it: the same silhouette the power mat above draws on that tile,
+ * so a button and the tile it will light read as one thing.
+ */
+function ActionIcon({ type }: { type: SubsystemType }) {
+  return <SubsystemIcon type={type} size={14} color="currentColor" opacity={1} />
 }
 
 /**
@@ -359,12 +382,15 @@ function Segment({
   title,
   selected,
   disabled,
+  icon,
   onClick,
 }: {
   label: string
   title: ReactNode
   selected: boolean
   disabled?: boolean
+  /** The subsystem this choice uses, when it uses one. */
+  icon?: SubsystemType
   onClick: () => void
 }) {
   return (
@@ -384,8 +410,10 @@ function Segment({
             fontSize: '0.78rem',
             lineHeight: 1.2,
             whiteSpace: 'nowrap',
+            gap: 0.6,
           }}
         >
+          {icon && <ActionIcon type={icon} />}
           {label}
         </ToggleButton>
       </Box>
@@ -419,7 +447,7 @@ function OrientationControls({ disabled }: { disabled: boolean }) {
         <Box component="span" sx={{ display: 'flex' }}>
           <Chip
             size="small"
-            icon={<RotateRightIcon sx={{ fontSize: 15 }} />}
+            icon={<ActionIcon type="rotation" />}
             label={rotating ? 'rotating' : 'rotate'}
             color={rotating ? 'primary' : 'default'}
             variant={rotating ? 'filled' : 'outlined'}
@@ -528,6 +556,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
               : `No burn: ${plan.burnReady.soft.reason}.`
           }
           selected={move.kind === 'burn'}
+          icon="engines"
           disabled={disabled || !anyBurn}
           onClick={() =>
             anyBurn && plan.setMove({ kind: 'burn', intensity: anyBurn, adjustment: 0 })
@@ -541,6 +570,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
               : `No jump: ${plan.jumpReady.reason}.`
           }
           selected={move.kind === 'jump'}
+          icon={compressor ? 'fuel_compressor' : 'engines'}
           disabled={disabled || !plan.jumpReady.ok}
           onClick={() =>
             plan.jumpOptions[0] &&
@@ -560,25 +590,32 @@ function MoveControls({ disabled }: { disabled: boolean }) {
         </Typography>
       )}
 
+      {/* A coast's own choice, the way a burn's is its intensity: drift, or
+          skim the ring for fuel with the scoop. */}
       {move.kind === 'coast' && (
-        <Tooltip
-          title={`Recover fuel equal to this ring's velocity (${plan.scoopGain}). Puts ${
-            getSubsystemConfig('scoop').minEnergy
-          } energy on the scoop. A berth is as good a place to skim from as any.`}
-        >
-          <Box component="span" sx={{ display: 'flex' }}>
-            <Chip
-              size="small"
-              label={
-                move.scoop ? `scooping +${plan.scoopGain} fuel` : `scoop +${plan.scoopGain} fuel`
-              }
-              color={move.scoop ? 'primary' : 'default'}
-              variant={move.scoop ? 'filled' : 'outlined'}
-              onClick={() => plan.setMove({ kind: 'coast', scoop: !move.scoop })}
-              disabled={disabled || !scoop || scoop.isBroken}
-            />
-          </Box>
-        </Tooltip>
+        <SegmentedRow testId="coast-options">
+          <Segment
+            label="Drift"
+            title="Ride the ring and nothing more: no energy, no heat."
+            selected={!move.scoop}
+            disabled={disabled}
+            onClick={() => plan.setMove({ kind: 'coast', scoop: false })}
+          />
+          <Segment
+            label={`Scoop +${plan.scoopGain} fuel`}
+            title={
+              !scoop || scoop.isBroken
+                ? 'No scoop: it is broken.'
+                : `Recover fuel equal to this ring's velocity (${plan.scoopGain}). Puts ${
+                    getSubsystemConfig('scoop').minEnergy
+                  } energy on the scoop. A berth is as good a place to skim from as any.`
+            }
+            selected={Boolean(move.scoop)}
+            icon="scoop"
+            disabled={disabled || !scoop || scoop.isBroken}
+            onClick={() => plan.setMove({ kind: 'coast', scoop: true })}
+          />
+        </SegmentedRow>
       )}
 
       {move.kind === 'burn' && (
@@ -698,6 +735,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
             <Box component="span" sx={{ display: 'flex' }}>
               <Chip
                 size="small"
+                icon={<ActionIcon type={weapon.type} />}
                 label={`${slotLabel(weapon.id)}: ${config.name}`}
                 color={queued ? 'primary' : 'default'}
                 variant={queued ? 'filled' : 'outlined'}
@@ -723,7 +761,7 @@ function WeaponControls({ disabled }: { disabled: boolean }) {
         <Box component="span" sx={{ display: 'flex' }}>
           <Chip
             size="small"
-            icon={<SensorsIcon sx={{ fontSize: 15 }} />}
+            icon={<ActionIcon type="sensor_array" />}
             label="scan"
             variant="outlined"
             onClick={plan.addScan}

@@ -4,9 +4,9 @@
  * about to pick and the sectors you may deploy into.
  *
  * Every answer is already in the model; this only draws it. Five marks, each
- * the one the paper board prints (amber for a weapon's reach and for anything
- * you are being asked to click, your own colour for your move, a cool cyan for
- * the planner) laid on the surface at the layer that keeps them off the rings
+ * the one the paper board prints (red for a weapon's reach and for anything
+ * you are being asked to click, your own colour for your move, cream for the
+ * planner) laid on the surface at the layer that keeps them off the rings
  * and out of the way of the tokens.
  */
 import { memo, useMemo } from 'react'
@@ -26,7 +26,7 @@ import { DEPLOY_BAND, WEDGE_BAND } from './overlays/wedges'
 
 /** The one accent for a weapon's reach and for anything you may click. */
 const ACCENT = TABLE.accent
-/** The planner's cool cyan, so a route never reads as a lane or a weapon. */
+/** The planner's cream, so a route never reads as a lane or a weapon. */
 const ROUTE = TABLE.energy
 
 /** Dash drift, in board units a second. Slow enough to read as direction. */

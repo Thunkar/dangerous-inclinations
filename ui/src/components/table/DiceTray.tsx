@@ -24,10 +24,9 @@ export function DiceTray() {
         maxWidth: 230,
         px: 1,
         py: 0.75,
-        borderRadius: 1.5,
-        background: `linear-gradient(180deg, ${TABLE.plateHi} 0%, ${TABLE.plate} 100%)`,
+        bgcolor: TABLE.plate,
         border: `1px solid ${TABLE.plateEdge}`,
-        boxShadow: '0 10px 26px rgba(0,0,0,0.6)',
+        borderTop: `3px solid ${TABLE.accentBlock}`,
         display: 'flex',
         flexDirection: 'column',
         gap: 0.75,
@@ -35,7 +34,7 @@ export function DiceTray() {
         pointerEvents: 'none',
       }}
     >
-      <Typography variant="overline" sx={{ color: TABLE.inkFaint, lineHeight: 1.4 }}>
+      <Typography variant="overline" sx={{ color: TABLE.ink, lineHeight: 1.4 }}>
         Dice
       </Typography>
       {dice.slice(-4).map((die) => (

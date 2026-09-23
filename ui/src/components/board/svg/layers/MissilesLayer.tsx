@@ -20,6 +20,7 @@ import type { Missile, Position } from '@dangerous-inclinations/engine'
 import { samePosition } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../theme'
 import type { MissilePreview } from '../../model'
+import { BOARD } from '../palette'
 import { positionPoint } from '../../geometry'
 import { trackAttr, trackPoints } from '../../trajectory'
 import { Track } from './OverlaysLayer'
@@ -138,11 +139,11 @@ export const MissilesLayer = memo(function MissilesLayer({
               })()}
 
             <g transform={`translate(${here.x} ${here.y})`}>
-              <circle r={6} fill="#05070b" opacity={0.6} />
+              <circle r={6} fill={BOARD.deep} opacity={0.6} />
               <path
                 d="M 0 -6 L 3.4 4 L 0 2 L -3.4 4 Z"
                 fill={color}
-                stroke="#05070b"
+                stroke={BOARD.ink}
                 strokeWidth={1.2}
               />
             </g>

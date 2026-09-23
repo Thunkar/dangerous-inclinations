@@ -27,7 +27,7 @@ import {
 import { useGame } from '../../context/GameContext'
 import { GameBoard } from '../board/GameBoard'
 import { BoardModeToggle } from '../board/BoardModeToggle'
-import { Panel, SectionLabel } from '../common/Panel'
+import { Panel } from '../common/Panel'
 import { MissionHand } from '../common/MissionHand'
 import { getPlayerColor } from '../../utils/playerColors'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -100,10 +100,10 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           }}
         >
           <Panel title="Ring and sector" dense sx={{ flexShrink: 0 }}>
-            <SectionLabel>
+            <Typography variant="body2" sx={{ color: TABLE.inkSoft, lineHeight: 1.4 }}>
               Black Hole Ring {HOME_RINGS.join(' or ')}, at least {DEPLOYMENT_GAP} sectors from
               every ship already placed. That position becomes your Home.
-            </SectionLabel>
+            </Typography>
             <Box sx={{ display: 'flex', gap: 0.75, mt: 0.75 }}>
               {HOME_RINGS.map(r => (
                 <Chip
@@ -114,12 +114,12 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                   aria-pressed={r === ring}
                   sx={{
                     fontSize: '0.78rem',
-                    bgcolor: r === ring ? TABLE.accent : 'transparent',
-                    color: r === ring ? TABLE.plate : TABLE.inkSoft,
-                    border: `1px solid ${r === ring ? TABLE.accent : TABLE.plateEdge}`,
+                    bgcolor: r === ring ? TABLE.selected : 'transparent',
+                    color: r === ring ? TABLE.onSelected : TABLE.inkSoft,
+                    border: `1px solid ${r === ring ? TABLE.selected : TABLE.plateEdge}`,
                     // The pointer sits on the chip that was just clicked; MUI's
                     // hover colour would take the chosen ring's fill away.
-                    '&:hover': { bgcolor: r === ring ? TABLE.accent : 'transparent' },
+                    '&:hover': { bgcolor: r === ring ? TABLE.selected : TABLE.hover },
                   }}
                 />
               ))}
@@ -150,7 +150,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                       fontSize: '0.74rem',
                       color: open ? TABLE.ink : TABLE.inkFaint,
                       border: `1px solid ${open ? TABLE.plateEdge : 'transparent'}`,
-                      bgcolor: open ? 'transparent' : 'rgba(255,255,255,0.03)',
+                      bgcolor: open ? 'transparent' : TABLE.hover,
                       opacity: open ? 1 : 0.5,
                       cursor: open && myTurn ? 'pointer' : 'not-allowed',
                       '&:hover': open && myTurn ? { borderColor: TABLE.accent } : undefined,
@@ -178,7 +178,6 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                     sx={{
                       width: 10,
                       height: 10,
-                      borderRadius: '50%',
                       bgcolor: getPlayerColor(index),
                       flexShrink: 0,
                     }}
@@ -198,7 +197,14 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                     <Chip
                       size="small"
                       label={`${getWellName(player.home.wellId)} R${player.home.ring} S${player.home.sector}`}
-                      sx={{ fontSize: '0.78rem', height: 20 }}
+                      variant="outlined"
+                      sx={{
+                        fontFamily: FONT_MONO,
+                        textTransform: 'none',
+                        letterSpacing: 0,
+                        fontSize: '0.78rem',
+                        height: 20,
+                      }}
                     />
                   ) : player.id === view.activePlayerId ? (
                     <Typography variant="overline" sx={{ color: TABLE.accent, lineHeight: 1 }}>
@@ -217,7 +223,9 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           {/* The hand is one card tall and no shorter: a column that squeezed
               it would cut the cards off again. */}
           <Panel title="Your missions" dense sx={{ flexShrink: 0 }}>
-            <SectionLabel>They should decide which ring and sector Home goes in.</SectionLabel>
+            <Typography variant="body2" sx={{ color: TABLE.inkSoft, lineHeight: 1.4 }}>
+              They should decide which ring and sector Home goes in.
+            </Typography>
             {/* The same hand you will hold at the table: one card tall, no
                 column of cards to scroll past the board. */}
             <Box sx={{ mt: 0.5 }}>

@@ -1,8 +1,8 @@
 /**
- * A subsystem tile: a backlit hardware module seated in a slot.
+ * A subsystem tile: a flat printed square seated in a slot.
  *
- * Face-down it shows only the slot it sits in and a "?"; face-up it shows the
- * system's icon behind a thin luminous edge. A tile learned through a scan
+ * Face-down it is hatched and shows only the slot it sits in and a "?";
+ * face-up it shows the system's icon on a plain plate with a hairline edge. A tile learned through a scan
  * carries a small eye badge: it is face-up for you alone. Broken tiles are
  * struck through and go dark.
  *
@@ -87,7 +87,15 @@ export function SubsystemTile({
           ammo === null || ammo === undefined ? '' : ` · ${ammo} left`
         }${isBroken ? ' · BROKEN' : ''}`)
 
-  const edge = selected ? TABLE.accent : highlighted ? TABLE.accent : isBroken ? TABLE.danger : TABLE.plateEdge
+  // A powered tile is ruled in cream, a named or pickable one in red: edges, never glows.
+  const edge =
+    selected || highlighted
+      ? TABLE.accent
+      : isBroken
+        ? TABLE.danger
+        : live
+          ? TABLE.inkSoft
+          : TABLE.plateEdge
 
   // Below this the tile is a badge, not a module: the slot stamp is dropped
   // and the glyph fills it.
@@ -106,7 +114,8 @@ export function SubsystemTile({
             position: 'relative',
             width: size,
             height: size,
-            borderRadius: '4px',
+            borderRadius: 0,
+            boxSizing: 'border-box',
             cursor: onClick ? 'pointer' : 'default',
             display: 'flex',
             alignItems: 'center',
@@ -114,19 +123,17 @@ export function SubsystemTile({
             pt: stamped ? '12px' : 0,
             pb: stamped ? '4px' : 0,
             flexShrink: 0,
-            background: faceDown
-              ? `repeating-linear-gradient(135deg, ${TABLE.faceDown} 0 5px, #1b2532 5px 10px)`
-              : `linear-gradient(180deg, ${TABLE.plateHi} 0%, ${TABLE.plateSunk} 100%)`,
-            border: `1px solid ${edge}`,
-            boxShadow:
-              selected || highlighted
-                ? `0 0 0 1px ${TABLE.accentGlow}, 0 0 12px ${TABLE.accentGlow}`
-                : live
-                  ? '0 0 8px rgba(73,195,255,0.22), 0 1px 0 rgba(255,255,255,0.05) inset'
-                  : '0 1px 0 rgba(255,255,255,0.04) inset',
+            // Face-down is hatched flat, two tones and a hard edge, the way a
+            // printed card marks a blank.
+            bgcolor: faceDown ? TABLE.faceDown : TABLE.plateHi,
+            backgroundImage: faceDown
+              ? `repeating-linear-gradient(135deg, ${TABLE.hatch} 0 2px, transparent 2px 6px)`
+              : 'none',
+            border: `${selected ? 2 : 1}px solid ${edge}`,
+            boxShadow: 'none',
             opacity: isBroken ? 0.55 : 1,
             animation: pulse ? 'di-pulse 600ms ease 2' : undefined,
-            transition: 'box-shadow 140ms ease, border-color 140ms ease',
+            transition: 'border-color 140ms ease',
             '&:hover': onClick ? { borderColor: TABLE.accent } : undefined,
           }}
         >
@@ -170,7 +177,6 @@ export function SubsystemTile({
                 right: 3,
                 bottom: 2,
                 height: 2,
-                borderRadius: 1,
                 bgcolor: subsystemCategoryColor(type),
                 opacity: isBroken ? 0.3 : 0.75,
               }}
@@ -186,7 +192,6 @@ export function SubsystemTile({
                 right: -5,
                 width: 15,
                 height: 15,
-                borderRadius: '50%',
                 bgcolor: TABLE.felt,
                 color: TABLE.teal,
                 fontSize: 11,
@@ -194,7 +199,6 @@ export function SubsystemTile({
                 alignItems: 'center',
                 justifyContent: 'center',
                 border: `1px solid ${TABLE.teal}`,
-                boxShadow: `0 0 6px ${TABLE.teal}77`,
               }}
             >
               ◉
@@ -208,7 +212,7 @@ export function SubsystemTile({
               viewBox="0 0 100 100"
               sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
             >
-              <path d="M14 14 L86 86 M86 14 L14 86" stroke={TABLE.danger} strokeWidth={8} strokeLinecap="round" />
+              <path d="M14 14 L86 86 M86 14 L14 86" stroke={TABLE.danger} strokeWidth={8} strokeLinecap="square" />
             </Box>
           )}
         </Box>

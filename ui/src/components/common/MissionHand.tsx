@@ -23,6 +23,7 @@ import { Box, Tooltip, Typography } from '@mui/material'
 import type { Cargo, Mission } from '@dangerous-inclinations/engine'
 import { describeMission } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
+import { PRESS } from '../../design/press'
 import { FAN_CARD_HEIGHT, FAN_CARD_WIDTH, MissionCard } from './MissionCard'
 import { missionFamilyColor, missionPoints } from '../../utils/missions'
 
@@ -101,8 +102,8 @@ function FaceUpRow({
               height: 20,
               px: 0.5,
               bgcolor: missionFamilyColor(mission),
-              border: '1px solid #14161a',
-              color: '#14161a',
+              border: `1px solid ${PRESS.ink}`,
+              color: PRESS.ink,
             }}
           >
             <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: '0.72rem' }}>

@@ -24,6 +24,7 @@ import { TABLE } from '../../../../theme'
 import type { ShipToken } from '../../model'
 import { crowdOffset, headingAtPoint, positionPoint, radialPoint } from '../../geometry'
 import { sceneTime } from '../clock'
+import { FX_INK } from '../palette'
 import { DASHED_RING_FRAGMENT, DASHED_RING_VERTEX } from '../shaders/dashedRing'
 import { usePointerDrag } from '../usePointerDrag'
 import {
@@ -162,7 +163,7 @@ function Hull({
       >
         <coneGeometry args={[0.5, 1, 8, 1, true]} />
         <meshBasicMaterial
-          color="#98e8ff"
+          color={FX_INK.plume}
           transparent
           opacity={0}
           blending={AdditiveBlending}
@@ -217,7 +218,7 @@ function JumpFlash({ color, nodeRef }: { color: string; nodeRef: { current: Grou
       <mesh position={[0, 0.3, 0]} raycast={NO_RAYCAST} renderOrder={6}>
         <sphereGeometry args={[0.36, 14, 10]} />
         <meshBasicMaterial
-          color="#ffffff"
+          color={FX_INK.core}
           transparent
           opacity={0}
           blending={AdditiveBlending}

@@ -8,7 +8,8 @@
  */
 import { Box, ButtonBase, Tooltip } from '@mui/material'
 import { useBoardMode, type BoardMode } from '../../context/BoardModeContext'
-import { FONT_MONO, TABLE } from '../../theme'
+import { TABLE } from '../../theme'
+import { FONT_DISPLAY } from '../../design/press'
 
 const MODES: Array<{ mode: BoardMode; label: string }> = [
   { mode: '2d', label: '2D' },
@@ -30,7 +31,6 @@ export function BoardModeToggle() {
         sx={{
           display: 'flex',
           flexShrink: 0,
-          borderRadius: 4,
           overflow: 'hidden',
           border: `1px solid ${TABLE.plateEdge}`,
           opacity: canRender3d ? 1 : 0.45,
@@ -46,14 +46,15 @@ export function BoardModeToggle() {
               sx={{
                 px: 0.9,
                 py: 0.15,
-                fontFamily: FONT_MONO,
-                fontSize: '0.75rem',
+                fontFamily: FONT_DISPLAY,
+                fontSize: '0.8rem',
                 fontWeight: 600,
                 letterSpacing: '0.08em',
-                bgcolor: 'transparent',
-                color: selected ? TABLE.accent : TABLE.inkFaint,
+                // The board you are looking at is a red block, the other plain type.
+                bgcolor: selected ? TABLE.accentBlock : 'transparent',
+                color: selected ? TABLE.onAccent : TABLE.inkSoft,
                 borderLeft: value === '2d' ? 'none' : `1px solid ${TABLE.plateEdge}`,
-                '&:hover': { color: canRender3d ? TABLE.accent : undefined },
+                '&:hover': { color: canRender3d && !selected ? TABLE.ink : undefined },
               }}
             >
               {label}

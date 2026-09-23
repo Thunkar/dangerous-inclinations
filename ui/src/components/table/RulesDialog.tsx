@@ -8,7 +8,7 @@
  * table any width.
  */
 import { useState } from 'react'
-import { Box, Chip, Dialog, DialogContent, IconButton, Tooltip, Typography } from '@mui/material'
+import { Box, Button, Dialog, DialogContent, IconButton, Tooltip, Typography } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import MenuBookIcon from '@mui/icons-material/MenuBook'
 import {
@@ -32,7 +32,8 @@ import {
   TANKER_FUEL,
   WELL_TRANSFER_COSTS,
 } from '@dangerous-inclinations/engine'
-import { FONT_MONO, TABLE } from '../../theme'
+import { TABLE } from '../../theme'
+import { FONT_DISPLAY } from '../../design/press'
 import { useGame } from '../../context/GameContext'
 // The turn is stated once. The cheatsheet and the printed card read the same
 // list, so none of them can disagree about what order a turn runs in.
@@ -53,17 +54,14 @@ export function RulesButton() {
   return (
     <>
       <Tooltip title="Quick reference">
-        <Chip
+        <Button
           size="small"
-          icon={<MenuBookIcon sx={{ fontSize: 15 }} />}
-          label="rules"
+          startIcon={<MenuBookIcon sx={{ fontSize: 15 }} />}
           onClick={() => setOpen(true)}
-          sx={{
-            bgcolor: 'transparent',
-            border: `1px solid ${TABLE.plateEdge}`,
-            color: TABLE.inkSoft,
-          }}
-        />
+          sx={{ color: TABLE.ink, minWidth: 0, px: 1, flexShrink: 0, '&:hover': { color: TABLE.accent, bgcolor: 'transparent' } }}
+        >
+          Rules
+        </Button>
       </Tooltip>
       <RulesCard open={open} onClose={() => setOpen(false)} />
     </>
@@ -161,7 +159,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
           borderBottom: `1px solid ${TABLE.line}`,
         }}
       >
-        <Typography variant="overline" sx={{ color: TABLE.inkSoft }}>
+        <Typography variant="overline" sx={{ color: TABLE.ink, fontSize: '0.95rem', fontWeight: 700 }}>
           Quick reference
         </Typography>
         <IconButton size="small" onClick={onClose} sx={{ color: TABLE.inkSoft }}>
@@ -177,11 +175,18 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
           {TURN_STEPS.map((step, index) => (
             <Box key={step.title} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
               <Typography
-                sx={{ fontFamily: FONT_MONO, fontSize: '0.75rem', color: TABLE.inkFaint, width: 12 }}
+                sx={{
+                  fontFamily: FONT_DISPLAY,
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  color: TABLE.accent,
+                  width: 14,
+                  flexShrink: 0,
+                }}
               >
                 {index + 1}
               </Typography>
-              <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.35 }}>
+              <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.35 }}>
                 <Box component="strong" sx={{ color: TABLE.ink }}>
                   {step.title}.
                 </Box>{' '}
@@ -190,7 +195,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
             </Box>
           ))}
         </Box>
-        <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.35, mt: 0.75 }}>
+        <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.35, mt: 0.75 }}>
           {QUIET_TURN}
         </Typography>
 
@@ -203,7 +208,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
         />
 
         <Heading>Hidden information</Heading>
-        <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
+        <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
           Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo
           counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed missions.
           <br />
@@ -221,7 +226,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
         </Typography>
 
         <Heading>Reveals</Heading>
-        <Typography sx={{ fontSize: '0.82rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
+        <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
           A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack
           rolls at a missile), and a missiles subsystem then shows what is left; shields absorb damage; a
           sensor array scans; a radiator when your heat goes above {DEFAULT_DISSIPATION_CAPACITY} at
@@ -253,15 +258,17 @@ function Table({ rows }: { rows: Array<[string, string]> }) {
         <Box key={label} sx={{ display: 'contents' }}>
           <Typography
             sx={{
-              fontFamily: FONT_MONO,
-              fontSize: '0.78rem',
-              color: TABLE.inkFaint,
+              fontFamily: FONT_DISPLAY,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              fontSize: '0.8rem',
+              color: TABLE.inkSoft,
               whiteSpace: 'nowrap',
             }}
           >
             {label}
           </Typography>
-          <Typography sx={{ fontSize: '0.78rem', color: TABLE.ink }}>{value}</Typography>
+          <Typography sx={{ fontSize: '0.875rem', color: TABLE.ink }}>{value}</Typography>
         </Box>
       ))}
     </Box>

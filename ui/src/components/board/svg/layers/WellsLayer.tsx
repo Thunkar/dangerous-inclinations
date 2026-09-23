@@ -9,6 +9,7 @@
 import { memo } from 'react'
 import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
 import { FONT_MONO } from '../../../../theme'
+import { BOARD, FONT_DISPLAY, cream } from '../palette'
 import {
   PLATE_MARGIN,
   PRINT_SCALE,
@@ -32,11 +33,12 @@ import {
  * visibly finer) and the ink comes up to hold it at the default, where the
  * screen has nothing thinner to offer.
  */
-const RING_STROKE = 'rgba(126,165,205,0.26)'
+const RING_STROKE = cream(0.26)
 const RING_WIDTH = 0.85 * PRINT_SCALE
-const TICK_STROKE = 'rgba(126,165,205,0.26)'
-const LABEL_FILL = 'rgba(186,210,234,0.78)'
-const ZERO_FILL = '#ffb445'
+const TICK_STROKE = cream(0.26)
+const LABEL_FILL = cream(0.78)
+/** Sector 0 of every ring, where the count starts: the board's one red mark. */
+const ZERO_FILL = BOARD.red
 
 /**
  * Sector numbers shrink with the ring they sit on: a ring 1 sector is a
@@ -68,59 +70,42 @@ export const WellsLayer = memo(function WellsLayer() {
               cx={center.x}
               cy={center.y}
               r={outer + PLATE_MARGIN}
-              fill="rgba(10,15,22,0.55)"
+              fill={BOARD.deep}
+              fillOpacity={0.55}
             />
             <circle
               cx={center.x}
               cy={center.y}
               r={outer + PLATE_MARGIN}
               fill="none"
-              stroke="rgba(126,165,205,0.14)"
+              stroke={cream(0.14)}
               strokeWidth={1 * PRINT_SCALE}
             />
 
-            {/* The body */}
+            {/* The body: a flat disc. The hole is the blackest ink ringed in
+                its accretion disc's orange, the colour the 3D board shades it
+                in; a planet is its well's ink, solid. */}
             {well.type === 'blackhole' ? (
-              <>
-                <circle
-                  cx={center.x}
-                  cy={center.y}
-                  r={visual.bodyRadius + 18 * PRINT_SCALE}
-                  fill="url(#bh-halo)"
-                />
-                <circle cx={center.x} cy={center.y} r={visual.bodyRadius} fill="#04060a" />
-                <circle
-                  cx={center.x}
-                  cy={center.y}
-                  r={visual.bodyRadius}
-                  fill="none"
-                  stroke="#ffb445"
-                  strokeWidth={2 * PRINT_SCALE}
-                  opacity={0.75}
-                />
-              </>
+              <circle
+                cx={center.x}
+                cy={center.y}
+                r={visual.bodyRadius}
+                fill={visual.color}
+                stroke={BOARD.disc}
+                strokeWidth={3 * PRINT_SCALE}
+              />
             ) : (
-              <>
-                <circle cx={center.x} cy={center.y} r={visual.bodyRadius} fill={visual.color} />
-                <circle
-                  cx={center.x}
-                  cy={center.y}
-                  r={visual.bodyRadius}
-                  fill="url(#planet-shade)"
-                  opacity={0.55}
-                />
-              </>
+              <circle cx={center.x} cy={center.y} r={visual.bodyRadius} fill={visual.color} />
             )}
             <text
               x={center.x}
-              y={center.y + visual.bodyRadius + 20 * PRINT_SCALE}
+              y={center.y + visual.bodyRadius + 24 * PRINT_SCALE}
               textAnchor="middle"
-              fontSize={16 * PRINT_SCALE}
-              fontFamily={FONT_MONO}
+              fontSize={18 * PRINT_SCALE}
+              fontFamily={FONT_DISPLAY}
               fontWeight={600}
-              letterSpacing={2 * PRINT_SCALE}
-              fill="#e7eef6"
-              opacity={0.85}
+              letterSpacing={2.5 * PRINT_SCALE}
+              fill={BOARD.ink}
             >
               {well.name.toUpperCase()}
             </text>
@@ -146,11 +131,13 @@ export const WellsLayer = memo(function WellsLayer() {
                     x={center.x}
                     y={center.y - radius - 5 * PRINT_SCALE}
                     textAnchor="middle"
-                    fontSize={9 * PRINT_SCALE}
-                    fontFamily={FONT_MONO}
+                    fontSize={12 * PRINT_SCALE}
+                    fontFamily={FONT_DISPLAY}
+                    fontWeight={500}
+                    letterSpacing={1 * PRINT_SCALE}
                     fill={LABEL_FILL}
                   >
-                    R{ring.ring} · v{ring.velocity}
+                    R{ring.ring} · V{ring.velocity}
                   </text>
                   {Array.from({ length: SECTORS_PER_RING }, (_, sector) => {
                     const edge = sectorEdgeAngle(well.id, sector)

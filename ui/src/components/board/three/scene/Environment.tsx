@@ -2,11 +2,11 @@
  * Deep space, lit for reading, and the one place that decides how much of it
  * this machine can afford.
  *
- * The room: a baked navy sky so the board never sits on flat black, three
+ * The room: a baked ink sky so the board never sits on flat black, three
  * shells of stars turning at different rates so orbiting the board parallaxes
  * them against each other, one cool key from above, a dim back light so a hull
- * has an edge against the void, a navy hemisphere fill so nothing goes solid
- * black, and one amber lamp down in the pit: the only warm light on the table.
+ * has an edge against the void, a cold ink hemisphere fill so nothing goes
+ * solid black, and one red lamp down in the pit: the only warm light on the table.
  * All of it is subordinate to the board: the sky stays at the luminance of the
  * felt, and nothing glows anywhere near a sector number.
  *
@@ -226,7 +226,7 @@ function StarShell({ shell, density, seed }: { shell: Shell; density: number; se
       sizes[i] = shell.sizeScale * (1.0 + magnitude * 2.2)
       phases[i] = random() * Math.PI * 2
 
-      // Blue-white through white to amber, the warm end deliberately rare.
+      // Cold white through white and cream to a pale red, the warm end deliberately rare.
       const pick = Math.floor(random() ** 1.7 * tintColors.length)
       const tint = tintColors[Math.min(tintColors.length - 1, pick)]
       const brightness = 0.52 + magnitude * 0.48
@@ -336,7 +336,7 @@ export function Environment({ postprocessing = true }: { postprocessing?: boolea
       <Nebula quality={quality} />
       <Starfield quality={quality} />
 
-      <hemisphereLight args={[SCENE_LIGHT.fill, '#04060a', 0.5]} />
+      <hemisphereLight args={[SCENE_LIGHT.fill, SCENE_LIGHT.ground, 0.5]} />
       <directionalLight
         position={key}
         intensity={SCENE_LIGHT.keyIntensity}
@@ -349,7 +349,7 @@ export function Environment({ postprocessing = true }: { postprocessing?: boolea
         intensity={SCENE_LIGHT.rimIntensity}
         color={SCENE_LIGHT.rim}
       />
-      {/* The lamp in the pit. Its range stops inside ring 5: the amber belongs
+      {/* The lamp in the pit. Its range stops inside ring 5: the red belongs
           to the black hole, not to the whole plate. */}
       <pointLight
         position={[0, body.centerY, 0]}

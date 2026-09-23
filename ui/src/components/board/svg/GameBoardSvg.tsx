@@ -80,8 +80,11 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
   // A sliding token keeps a 'tween' effect alive, so this covers moves too.
   const now = useBoardClock(model.effects.length > 0)
 
-  /** Your own colour: the only thing drawn in it is your own plan. */
-  const planColor = model.myColor ?? TABLE.accent
+  /**
+   * Your plan is printed in the table's cream: a projection, not a ship, so it
+   * never wears a seat colour and never reads as somebody's token.
+   */
+  const planColor = TABLE.ink
   const deploying = model.deployment !== null
 
   // --- pan / zoom ----------------------------------------------------------
@@ -161,17 +164,6 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
           '&:active': { cursor: deploying ? 'default' : 'grabbing' },
         }}
       >
-        <defs>
-          <radialGradient id="bh-halo">
-            <stop offset="40%" stopColor="#ffb445" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#ffb445" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="planet-shade" cx="35%" cy="30%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.32" />
-            <stop offset="100%" stopColor="#000000" stopOpacity="0.62" />
-          </radialGradient>
-        </defs>
-
         <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
           <WellsLayer />
           <LanesLayer highlightIds={model.activeLaneIds} />
@@ -246,11 +238,11 @@ function BoardButton({
         size="small"
         onClick={onClick}
         sx={{
-          bgcolor: 'rgba(18,25,36,0.8)',
-          color: '#93a6bc',
-          borderRadius: 1,
-          border: '1px solid rgba(126,165,205,0.2)',
-          '&:hover': { color: '#ffb445', borderColor: '#ffb445' },
+          bgcolor: TABLE.plate,
+          color: TABLE.inkSoft,
+          borderRadius: 0,
+          border: `1px solid ${TABLE.plateEdge}`,
+          '&:hover': { bgcolor: TABLE.plate, color: TABLE.accent, borderColor: TABLE.accent },
         }}
       >
         {children}

@@ -1,8 +1,9 @@
 /**
  * A planet: a world, not a ball.
  *
- * Three spheres tinted blue, red and green read as the same sphere three times,
- * and the colours are not negotiable: they are the ones on the rules sheet, so
+ * Three spheres tinted in the press's teal, ochre and violet read as the same
+ * sphere three times, and the colours are not negotiable: they are the ones
+ * printed on the paper board, so
  * a planet is recognisable from the paper board. The difference has to be
  * carried by the surface instead, so each well gets its own kind: Alpha is a
  * banded gas giant, Beta a cratered rock, Gamma an ocean world under cloud. At
@@ -22,7 +23,7 @@ import type { GravityWellId } from '@dangerous-inclinations/engine'
 import { wellCenter, wellVisual } from '../../geometry'
 import { sceneTime } from '../clock'
 import { PLANET_AIR } from '../bodies'
-import { BODY_KEY_DIRECTION, SCENE_LIGHT, bodyRamp, inkColor } from '../palette'
+import { AIR_INK, BODY_KEY_DIRECTION, SCENE_LIGHT, bodyRamp, inkColor } from '../palette'
 import { ATMOSPHERE_FRAGMENT, ATMOSPHERE_VERTEX } from '../shaders/atmosphere'
 import { withOctaves } from '../shaders/noise'
 import {
@@ -35,8 +36,8 @@ import { surfaceElevation } from '../world'
 import { useSceneQuality } from '../shaders/quality'
 
 /**
- * Which world is which. Blue takes the bands (a blue gas giant is the most
- * legible of the three at a glance), red the craters, green the ocean.
+ * Which world is which. Alpha takes the bands (a gas giant is the most
+ * legible of the three at a glance), Beta the craters, Gamma the ocean.
  */
 const PLANET_KIND: Record<string, PlanetKind> = {
   'planet-alpha': 'gas',
@@ -103,7 +104,7 @@ export function Planet({
 
   const cloudUniforms = useMemo(
     () => ({
-      uColor: { value: new Color('#e8f1fb') },
+      uColor: { value: new Color(AIR_INK.cloud) },
       uKeyColor: { value: new Color(SCENE_LIGHT.key) },
       uFillColor: { value: new Color(SCENE_LIGHT.fill) },
       uKeyDirection: { value: KEY },
@@ -121,7 +122,7 @@ export function Planet({
     () => ({
       uColor: { value: inkColor(visual.color) },
       uDayColor: {
-        value: inkColor(visual.color).lerp(new Color().setRGB(1, 0.93, 0.82), 0.55),
+        value: inkColor(visual.color).lerp(inkColor(AIR_INK.day), 0.55),
       },
       uKeyDirection: { value: KEY },
       uBodyRadius: { value: visual.bodyRadius },

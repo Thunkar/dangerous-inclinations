@@ -12,6 +12,8 @@
  * and a shot can push its target out of the sector its own numbers are
  * anchored to; either would flinch the wrong hull.
  */
+import { FX_INK } from '../../palette'
+
 export type ImpactKind = 'damage' | 'crit' | 'heat' | 'shield' | 'good'
 
 /** A flinch, not a state: shorter than the float that caused it. */
@@ -19,11 +21,11 @@ const IMPACT_MS = 440
 
 /** How hard a hull takes each kind, and what colour it flashes. */
 const REACTION: Record<ImpactKind, { color: string; shake: number; flash: number }> = {
-  damage: { color: '#ff5a72', shake: 1, flash: 0.95 },
-  crit: { color: '#fff2d6', shake: 1.35, flash: 1.2 },
-  heat: { color: '#ff7a45', shake: 0.3, flash: 0.75 },
-  shield: { color: '#49c3ff', shake: 0.35, flash: 0.85 },
-  good: { color: '#46d191', shake: 0, flash: 0.6 },
+  damage: { color: FX_INK.damage, shake: 1, flash: 0.95 },
+  crit: { color: FX_INK.crit, shake: 1.35, flash: 1.2 },
+  heat: { color: FX_INK.heat, shake: 0.3, flash: 0.75 },
+  shield: { color: FX_INK.shield, shake: 0.35, flash: 0.85 },
+  good: { color: FX_INK.good, shake: 0, flash: 0.6 },
 }
 
 interface Impact {

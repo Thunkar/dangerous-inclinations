@@ -6,7 +6,7 @@
  *
  *  - `HORIZON_*` paints the sphere itself. It is genuinely black in the middle
  *    (darker than the felt, so it reads as a hole cut in the table) with one
- *    hard amber line at the silhouette. The line is a high power of the Fresnel
+ *    hard red line at the silhouette. The line is a high power of the Fresnel
  *    term, which makes it a rim and not a halo; a halo would fog the numbers.
  *  - `PHOTON_RING_*` is a camera-facing annulus a hair outside the silhouette:
  *    the light that went round. It carries two rings, the bright photon ring

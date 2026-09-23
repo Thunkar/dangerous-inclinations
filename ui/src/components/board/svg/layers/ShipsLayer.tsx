@@ -1,6 +1,7 @@
 /**
  * Ship tokens. A ship is a wedge pointing the way it faces, in its player's
- * colour; the active player's token wears a ring. Hull and heat are printed
+ * colour and edged in cream so it reads on the ink; the active player's token
+ * wears a ring, and a ship you may target wears the red. Hull and heat are printed
  * on the loadouts, not here: the board stays readable.
  *
  * A token carrying a `motion` is mid-slide: this layer eases it along the
@@ -14,6 +15,7 @@
  */
 import { memo } from 'react'
 import type { ShipToken } from '../../model'
+import { BOARD } from '../palette'
 import {
   crowdOffset,
   facingAngle,
@@ -85,7 +87,7 @@ export const ShipsLayer = memo(function ShipsLayer({
                 cy={p.y}
                 r={22}
                 fill="none"
-                stroke="#ffb445"
+                stroke={BOARD.red}
                 strokeWidth={2}
                 strokeDasharray="4 3"
               >
@@ -112,13 +114,13 @@ export const ShipsLayer = memo(function ShipsLayer({
               <path
                 d="M 15 0 L -9 8 L -9 -8 Z"
                 fill={ship.color}
-                stroke="#05070b"
+                stroke={BOARD.ink}
                 strokeWidth={1.5}
                 strokeLinejoin="miter"
               />
-              {/* Engine glow at the stern: reads as "this end is the back". */}
-              <rect x={-10.5} y={-4} width={2} height={8} fill="#e7eef6" opacity={0.8} />
-              {ship.isMe && <circle cx={-1} cy={0} r={2.4} fill="#05070b" />}
+              {/* A bar across the stern: reads as "this end is the back". */}
+              <rect x={-10.5} y={-4} width={2} height={8} fill={BOARD.ink} />
+              {ship.isMe && <circle cx={-1} cy={0} r={2.4} fill={BOARD.deep} />}
             </g>
           </g>
         )

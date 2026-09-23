@@ -1,11 +1,13 @@
 /**
  * One of the four slot rails bolted to the hull: aft (engines and thrusters),
  * port and starboard (two side slots each) and forward (scoop + the forward
- * slot). Each rail is a dark instrument plate whose inner edge glows toward
- * the hull, so the loadout reads as hardware rather than as a form.
+ * slot). Each rail is a flat plate with a hairline edge; the edge that faces
+ * the hull is ruled in red while the rail takes a drop, so the loadout reads
+ * as a fitting board rather than as a form.
  */
 import { Box } from '@mui/material'
-import { FONT_MONO, TABLE } from '../../theme'
+import { TABLE } from '../../theme'
+import { FONT_DISPLAY } from '../../design/press'
 import type { SlotRegionProps, SlotRegionPosition } from './types'
 
 const GAP = 6
@@ -33,7 +35,7 @@ function railBox(position: SlotRegionPosition, { width, height, band }: SlotRegi
   }
 }
 
-/** Which edge of the rail faces the hull, and so carries the glow. */
+/** Which edge of the rail faces the hull, and so carries the red rule. */
 const INNER_EDGE: Record<SlotRegionPosition, string> = {
   aft: 'borderRight',
   forward: 'borderLeft',
@@ -55,14 +57,10 @@ export function SlotRegion({ position, children, metrics, active }: SlotRegionPr
         alignItems: 'center',
         justifyContent: 'space-evenly',
         gap: 0.5,
-        borderRadius: '3px',
-        background: `linear-gradient(${vertical ? '90deg' : '180deg'}, ${TABLE.plateHi} 0%, ${TABLE.plateSunk} 100%)`,
+        bgcolor: TABLE.plateSunk,
         border: `1px solid ${TABLE.plateEdge}`,
-        [INNER_EDGE[position]]: `1px solid ${edgeColor}`,
-        boxShadow: active
-          ? `inset 0 0 14px ${TABLE.accentGlow}, 0 0 10px ${TABLE.accentGlow}`
-          : 'inset 0 0 12px rgba(0,0,0,0.5)',
-        transition: 'box-shadow 160ms ease, border-color 160ms ease',
+        [INNER_EDGE[position]]: `${active ? 3 : 1}px solid ${edgeColor}`,
+        transition: 'border-color 160ms ease',
         overflow: 'visible',
       }}
     >
@@ -71,8 +69,9 @@ export function SlotRegion({ position, children, metrics, active }: SlotRegionPr
           component="span"
           sx={{
             position: 'absolute',
-            fontFamily: FONT_MONO,
+            fontFamily: FONT_DISPLAY,
             fontSize: 11,
+            fontWeight: 600,
             letterSpacing: '0.18em',
             color: TABLE.inkFaint,
             pointerEvents: 'none',

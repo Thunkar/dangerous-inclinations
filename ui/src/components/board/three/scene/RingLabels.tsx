@@ -37,7 +37,7 @@ import {
 } from '../world'
 
 /**
- * Ticks: faint and short, sector 0 twice as long and amber, as on paper. Like
+ * Ticks: faint and short, sector 0 twice as long and red, as on paper. Like
  * every other printed mark they are written at the weight they were tuned to
  * and carried across the wider board, so they land on screen unchanged.
  */

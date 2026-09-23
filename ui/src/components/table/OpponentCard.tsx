@@ -30,6 +30,7 @@ import {
   CARGO_HOLD_CRATES,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_DISPLAY } from '../../design/press'
 import { Panel } from '../common/Panel'
 import { SubsystemTile } from '../common/SubsystemTile'
 import { CargoTokens, PipTrack } from '../common/Tokens'
@@ -89,17 +90,13 @@ export function OpponentCard({
       sx={{
         flexShrink: 0,
         minWidth: 0,
+        // Flat, like everything else: a target is ruled in red, the seat acting in its colour.
         outline: isTargeted
-          ? `1px solid ${TABLE.accent}`
+          ? `2px solid ${TABLE.accent}`
           : player.isActive
             ? `1px solid ${color}`
             : 'none',
-        outlineOffset: -1,
-        boxShadow: isTargeted
-          ? `0 0 16px ${TABLE.accentGlow}`
-          : player.isActive
-            ? `0 0 14px ${color}55`
-            : undefined,
+        outlineOffset: isTargeted ? -2 : -1,
         opacity: destroyed ? 0.6 : recovering ? 0.8 : 1,
       }}
       title={
@@ -116,14 +113,20 @@ export function OpponentCard({
           <Box sx={{ width: 42, height: 20, flexShrink: 0, alignSelf: 'center' }}>
             <ShipMark appearance={player.appearance} accent={color} />
           </Box>
+          {/* The name on a block of the seat's colour: the chip the board's token matches. */}
           <Typography
             sx={{
-              fontFamily: FONT_MONO,
+              fontFamily: FONT_DISPLAY,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
               fontWeight: 600,
               fontSize: '0.86rem',
-              color: TABLE.ink,
-              lineHeight: 1.2,
+              color: TABLE.onSelected,
+              bgcolor: color,
+              px: 0.6,
+              lineHeight: 1.45,
               flexShrink: 0,
+              alignSelf: 'center',
             }}
             noWrap
           >
@@ -136,7 +139,7 @@ export function OpponentCard({
                 noWrap
                 sx={{
                   fontFamily: FONT_MONO,
-                  fontSize: '0.62rem',
+                  fontSize: '0.7rem',
                   color: TABLE.inkSoft,
                   lineHeight: 1.2,
                   minWidth: 0,
@@ -168,14 +171,14 @@ export function OpponentCard({
             </Box>
           </Tooltip>
           {player.isActive && (
-            <Typography variant="overline" sx={{ color, lineHeight: 1, fontSize: '0.68rem' }}>
+            <Typography variant="overline" sx={{ color, lineHeight: 1, fontSize: '0.7rem' }}>
               acting
             </Typography>
           )}
           {destroyed && (
             <Typography
               variant="overline"
-              sx={{ color: TABLE.danger, lineHeight: 1, fontSize: '0.68rem' }}
+              sx={{ color: TABLE.danger, lineHeight: 1, fontSize: '0.7rem' }}
             >
               lost
             </Typography>
@@ -185,7 +188,7 @@ export function OpponentCard({
               <Typography
                 variant="overline"
                 noWrap
-                sx={{ color: TABLE.accent, lineHeight: 1, fontSize: '0.68rem', flexShrink: 0 }}
+                sx={{ color: TABLE.accent, lineHeight: 1, fontSize: '0.7rem', flexShrink: 0 }}
               >
                 respawned, untouchable until their turn ends
               </Typography>
@@ -204,11 +207,8 @@ export function OpponentCard({
                 sx={{
                   width: 8,
                   height: 12,
-                  borderRadius: '1px',
-                  bgcolor: i < player.completedMissionCount ? TABLE.accent : 'transparent',
-                  border: `1px solid ${i < player.completedMissionCount ? TABLE.accent : TABLE.plateEdge}`,
-                  boxShadow:
-                    i < player.completedMissionCount ? `0 0 7px ${TABLE.accentGlow}` : 'none',
+                  bgcolor: i < player.completedMissionCount ? TABLE.accentBlock : 'transparent',
+                  border: `1px solid ${i < player.completedMissionCount ? TABLE.accentBlock : TABLE.unlitEdge}`,
                 }}
               />
             ))}
@@ -334,16 +334,15 @@ export function OpponentCard({
               <Tooltip key={mission.id} title={missionFamilyLabel(mission)}>
                 <Typography
                   sx={{
-                    fontFamily: FONT_MONO,
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
+                    fontFamily: FONT_DISPLAY,
+                    textTransform: 'uppercase',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
                     letterSpacing: '0.08em',
                     lineHeight: 1.6,
                     px: 0.5,
-                    borderRadius: '2px',
                     color: missionFamilyColor(mission),
-                    border: `1px solid ${missionFamilyColor(mission)}66`,
-                    background: `${missionFamilyColor(mission)}14`,
+                    border: `1px solid ${missionFamilyColor(mission)}`,
                   }}
                 >
                   {missionFamilyLabel(mission)}

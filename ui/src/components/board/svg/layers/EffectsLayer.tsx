@@ -13,15 +13,21 @@ import { memo } from 'react'
 import type { TableEffect } from '../../../../context/AnimationContext'
 import { FONT_MONO } from '../../../../theme'
 import { positionPoint } from '../../geometry'
+import { BOARD } from '../palette'
 import type { BoardModel } from '../../model'
 
+/**
+ * The floats' inks. Red is what hurts and the heat track's own red is heat; a
+ * critical is printed in full cream, so it reads as the loudest number without
+ * a third red; a shield is the table's one cool ink.
+ */
 const TONE_COLORS = {
-  damage: '#ff5a72',
-  shield: '#49c3ff',
-  heat: '#ff7a45',
-  miss: '#93a6bc',
-  crit: '#ffb445',
-  good: '#46d191',
+  damage: BOARD.red,
+  shield: BOARD.teal,
+  heat: BOARD.heat,
+  miss: BOARD.inkFaint,
+  crit: BOARD.ink,
+  good: BOARD.good,
 } as const
 
 export const EffectsLayer = memo(function EffectsLayer({
@@ -102,7 +108,7 @@ export const EffectsLayer = memo(function EffectsLayer({
               fontSize={15}
               fontWeight={800}
               fontFamily={FONT_MONO}
-              stroke="#05070b"
+              stroke={BOARD.ground}
               strokeWidth={4}
               strokeLinejoin="round"
             >

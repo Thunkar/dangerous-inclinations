@@ -89,11 +89,10 @@ export function RecordingsBrowser({
                   gap: 1,
                   px: 1.25,
                   py: 0.85,
-                  borderRadius: 1,
                   cursor: 'pointer',
                   border: `1px solid ${TABLE.plateEdge}`,
-                  bgcolor: 'rgba(126,165,205,0.04)',
-                  '&:hover': { bgcolor: 'rgba(126,165,205,0.10)' },
+                  bgcolor: TABLE.plateSunk,
+                  '&:hover': { bgcolor: TABLE.plateHi, borderColor: TABLE.inkFaint },
                 }}
               >
                 <Box sx={{ minWidth: 0 }}>

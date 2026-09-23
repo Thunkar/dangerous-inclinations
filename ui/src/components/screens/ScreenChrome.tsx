@@ -1,6 +1,6 @@
 /**
- * Chrome shared by the full-screen setup screens: the felt-level title bar and
- * a centred message for the states where there is nothing to do.
+ * Chrome shared by the full-screen setup screens: the table's black bar, ruled
+ * off in red, and a centred message for the states where there is nothing to do.
  */
 import type { ReactNode } from 'react'
 import { Box, Typography } from '@mui/material'
@@ -25,15 +25,15 @@ export function Header({
         flexWrap: 'wrap',
         py: 1.5,
         flexShrink: 0,
-        borderBottom: `1px solid ${TABLE.line}`,
-        background: TABLE.feltLight,
+        borderBottom: `3px solid ${TABLE.accentBlock}`,
+        bgcolor: TABLE.bar,
       }}
     >
-      <Typography variant="h6" sx={{ color: TABLE.ink, letterSpacing: '-0.02em' }}>
+      <Typography variant="h6" sx={{ color: TABLE.ink, fontWeight: 700, lineHeight: 1.2 }}>
         {title}
       </Typography>
       {subtitle && (
-        <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
+        <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
           {subtitle}
         </Typography>
       )}

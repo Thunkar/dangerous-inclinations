@@ -1,14 +1,15 @@
 /**
  * Player colours: a UI concern, assigned by seat order. The single source for
- * every screen (lobby, loadouts, board tokens, log).
+ * every screen (lobby, loadouts, board tokens, log). Red is never a seat: on
+ * the table red means danger and the thing you can act on.
  */
 export const PLAYER_COLORS = [
-  '#2f6fb3', // blue
-  '#c0392b', // red
-  '#3d8b57', // green
-  '#d98c1f', // orange
-  '#7d4fa8', // purple
-  '#1f9aa8', // teal
+  '#3f7fd0', // cobalt
+  '#3d9a5c', // green
+  '#d08a1e', // ochre
+  '#9a62c8', // violet
+  '#1fa3b3', // teal
+  '#c8b89a', // sand
 ] as const
 
 export const NEUTRAL_PLAYER_COLOR = '#7a7a7a'

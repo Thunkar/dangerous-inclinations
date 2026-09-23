@@ -18,18 +18,24 @@ import { memo, useState } from 'react'
 import type { MovementPlan, Position } from '@dangerous-inclinations/engine'
 import { SECTORS_PER_RING, getWellName } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../../../theme'
+import { BOARD, cream } from '../palette'
 import { allWells, positionPoint, ringRadius, ringsOf, sectorWedgePath } from '../../geometry'
 import { trackAttr, trackPoints } from '../../trajectory'
 
 /**
- * The one accent used for anything you may click. Every deployment sector is
+ * The table's red, which is what you can act on. Every deployment sector is
  * on the same ring of the same well now, so the wedges carry no well colour.
  * They are simply the thing on the board you are being asked to click, and the
  * black hole's own colour is all but black.
  */
-const DEPLOY_ACCENT = '#ffb445'
-/** Route planner colour: a cool cyan, so it never reads as a lane or a weapon. */
-const ROUTE_ACCENT = '#5fd3ff'
+const DEPLOY_ACCENT = BOARD.red
+/**
+ * Route planner colour: the cream, printed softer than the plan you are
+ * building, so it never reads as a lane, a weapon or a ship.
+ */
+const ROUTE_ACCENT = BOARD.inkSoft
+/** A weapon's reach: the red, because a shaded sector is where it hurts. */
+const THREAT = BOARD.red
 
 /**
  * Every track on the board is drawn twice: once in the table's felt, a little
@@ -102,7 +108,7 @@ export const SectorPicker = memo(function SectorPicker({
               <path
                 key={key}
                 d={sectorWedgePath(well.id, sector, radius - 13, radius + 13)}
-                fill={lit ? ROUTE_ACCENT : 'rgba(126,165,205,0.04)'}
+                fill={lit ? ROUTE_ACCENT : cream(0.04)}
                 fillOpacity={lit ? 0.5 : 1}
                 stroke={lit ? ROUTE_ACCENT : 'none'}
                 strokeWidth={1}
@@ -128,12 +134,11 @@ export const SectorPicker = memo(function SectorPicker({
  * The turns of a planned route: dotted path, a numbered pip per turn, a diamond
  * on the destination.
  *
- * All of it in the route accent, never the player's colour. A route is a
- * proposal the planner found, several turns long; the planned path beside it is
- * the move you are actually committing this turn, and that one is yours. Drawing
- * both in your colour made two different things look like one, and this board
- * already printed the route's destination diamond in the accent, so the legs
- * were the half that was out of step. The 3D board has always drawn it this way.
+ * All of it in the route accent, the softer cream. A route is a proposal the
+ * planner found, several turns long; the planned path beside it is the move you
+ * are actually committing this turn, printed in full cream and heavier. Drawing
+ * both alike made two different things look like one, so the route is the
+ * thinner, paler, dotted one with a numbered pip on every turn.
  */
 export const RouteOverlay = memo(function RouteOverlay({ route }: { route: MovementPlan }) {
   const dest = positionPoint(route.destination)
@@ -158,7 +163,7 @@ export const RouteOverlay = memo(function RouteOverlay({ route }: { route: Movem
               cx={end.x}
               cy={end.y}
               r={7}
-              fill="#080b11"
+              fill={BOARD.deep}
               stroke={ROUTE_ACCENT}
               strokeWidth={1.2}
               opacity={0.9}
@@ -205,9 +210,9 @@ export const RangeOverlay = memo(function RangeOverlay({ cells }: { cells: Posit
           <path
             key={`${ring}-${sector}`}
             d={sectorWedgePath(wellId, sector, radius - 13, radius + 13)}
-            fill="#ffb445"
-            opacity={0.14}
-            stroke="#ffb445"
+            fill={THREAT}
+            fillOpacity={0.14}
+            stroke={THREAT}
             strokeWidth={0.6}
             strokeOpacity={0.4}
           />
@@ -304,7 +309,6 @@ export const DeploymentSectors = memo(function DeploymentSectors({
               stroke={DEPLOY_ACCENT}
               strokeWidth={isHovered ? 2 : 1}
               style={{
-                filter: isHovered ? `drop-shadow(0 0 10px ${DEPLOY_ACCENT})` : undefined,
                 animation: isHovered ? undefined : 'di-breathe 2.6s ease-in-out infinite',
               }}
             />

@@ -144,7 +144,7 @@ export function funnelPlateGeometry(
 
 /**
  * The sector ticks of one well's ring, as thin quads on the surface. Sector 0
- * is drawn separately (longer, amber) so it can carry its own material.
+ * is drawn separately (longer, red) so it can carry its own material.
  */
 export function sectorTicksGeometry(
   wellId: GravityWellId,

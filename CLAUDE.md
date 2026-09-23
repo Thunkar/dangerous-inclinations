@@ -237,8 +237,12 @@ out the derived ones once (critical faces, slot contents, cube labels) and
 `site/turn.ts` states the turn once for the cheatsheet, the card and the
 in-game rules dialog.
 
-**Two looks, on purpose.** The table is the dark instrument panel
-(`design/tokens.ts`). Everything that would come out of a box is printed
+**One press, two sheets.** The table (`design/tokens.ts`) is the poster's
+inks at night: an ink ground, cream print, one red (a lifted `accent` for type
+and lines, the poster `accentBlock` for solid blocks), Oswald capitals for
+labels and mono for numbers, square corners, nothing glowing. The one thing
+drawn as physics rather than ink is the black hole's accretion disc
+(`ACCRETION_ORANGE`). Everything that would come out of a box is printed
 matter, **modern Soviet-poster flat** (`design/press.ts`): cream paper, black
 ink and one red, the mission families' teal, violet and ochre only where a family is
 meant, condensed capitals in Oswald (bundled by `@fontsource-variable/oswald`,

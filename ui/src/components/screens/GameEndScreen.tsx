@@ -7,7 +7,8 @@ import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { MissionCard } from '../common/MissionCard'
 import { getPlayerColor } from '../../utils/playerColors'
-import { FONT_MONO, TABLE } from '../../theme'
+import { TABLE } from '../../theme'
+import { FONT_DISPLAY } from '../../design/press'
 
 export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
   const { view, nameOf } = useGame()
@@ -44,7 +45,15 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
               accent={getPlayerColor(index)}
               sx={{ width: 300 }}
               title={
-                <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, color: TABLE.ink }}>
+                <Typography
+                  sx={{
+                    fontFamily: FONT_DISPLAY,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    fontWeight: 600,
+                    color: TABLE.ink,
+                  }}
+                >
                   {player.name}
                   {player.isMe ? ' (you)' : ''}
                   {player.id === view.winnerId ? ' 🏆' : ''}

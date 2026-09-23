@@ -11,6 +11,8 @@
  */
 import type { GravityWellId, Position, TransferArc } from '@dangerous-inclinations/engine'
 import { GRAVITY_WELLS, SECTORS_PER_RING, getGravityWell } from '@dangerous-inclinations/engine'
+import { PRESS } from '../../design/press'
+import { TABLE } from '../../design/tokens'
 
 export interface Point {
   x: number
@@ -137,7 +139,19 @@ export interface WellVisual {
   id: GravityWellId
   /** Radius of the body itself. */
   bodyRadius: number
+  /**
+   * The body's ink, which is also its lanes' and its station's. The planets are
+   * the press's three family inks other than the red (red on the table is
+   * danger and what you can act on, so no place on the map wears it); the
+   * black hole is the blackest ink the table has, a step under the felt.
+   */
   color: string
+  /**
+   * The same ink lifted for a line on the dark table, the way `TABLE.accent`
+   * is the red lifted from `accentBlock`: a pressed ink is a fine solid disc
+   * and too dim as a lane two units wide.
+   */
+  line: string
   /** Degrees clockwise from "up"; undefined for the black hole. */
   orbitAngle?: number
 }
@@ -169,28 +183,39 @@ const BODY_SHARE = {
   'planet-gamma': 34 / 120,
 } as const
 
+/**
+ * The black hole's accretion disc: the colour hot gas is, not an ink. The one
+ * thing on the table drawn as physics rather than printed, so the 3D board
+ * shades its disc in it and the flat board rims the hole in it.
+ */
+export const ACCRETION_ORANGE = '#ddaa78'
+
 export const WELL_VISUALS: Record<GravityWellId, WellVisual> = {
   blackhole: {
     id: 'blackhole',
     bodyRadius: BLACKHOLE_RING_RADII[0] * BODY_SHARE.blackhole,
-    color: '#120d0a',
+    color: TABLE.bar,
+    line: TABLE.inkSoft,
   },
   'planet-alpha': {
     id: 'planet-alpha',
     bodyRadius: PLANET_RING_RADII[0] * BODY_SHARE['planet-alpha'],
-    color: '#3f7fc4',
+    color: PRESS.teal,
+    line: TABLE.teal,
     orbitAngle: 0,
   },
   'planet-beta': {
     id: 'planet-beta',
     bodyRadius: PLANET_RING_RADII[0] * BODY_SHARE['planet-beta'],
-    color: '#c4523f',
+    color: PRESS.ochre,
+    line: TABLE.ochre,
     orbitAngle: 120,
   },
   'planet-gamma': {
     id: 'planet-gamma',
     bodyRadius: PLANET_RING_RADII[0] * BODY_SHARE['planet-gamma'],
-    color: '#3f9d6b',
+    color: PRESS.violet,
+    line: TABLE.violet,
     orbitAngle: 240,
   },
 }
@@ -201,6 +226,11 @@ export function wellVisual(wellId: GravityWellId): WellVisual {
 
 export function wellColor(wellId: GravityWellId): string {
   return wellVisual(wellId).color
+}
+
+/** A well's ink as a line: its lanes. */
+export function wellLineColor(wellId: GravityWellId): string {
+  return wellVisual(wellId).line
 }
 
 const DEG = Math.PI / 180

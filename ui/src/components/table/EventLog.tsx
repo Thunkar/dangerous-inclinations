@@ -66,7 +66,7 @@ export function EventLog() {
                       borderLeft: `2px solid ${colorOf(mine)}`,
                       pl: 0.5,
                       ml: '-2px',
-                      background: 'rgba(255,255,255,0.03)',
+                      bgcolor: TABLE.hover,
                     }
                   : {}),
               }}
@@ -82,17 +82,16 @@ export function EventLog() {
               <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start', minWidth: 0 }}>
                 <Box
                   sx={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
+                    width: 7,
+                    height: 7,
                     bgcolor: colorOf(actor),
-                    mt: '5px',
+                    mt: '7px',
                     flexShrink: 0,
                   }}
                 />
                 <Typography
                   sx={{
-                    fontSize: '0.8rem',
+                    fontSize: '0.875rem',
                     color: mineLine ? TABLE.ink : TABLE.inkSoft,
                     fontWeight: mineLine ? 600 : 400,
                     lineHeight: 1.35,

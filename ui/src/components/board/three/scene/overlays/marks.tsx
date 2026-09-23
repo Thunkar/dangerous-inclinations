@@ -90,7 +90,7 @@ export function BoardTooltip({
 /**
  * The dark edge carried under a track and under the marks at its ends.
  *
- * A coloured line over a lit ring, an amber wedge or the rim of the accretion
+ * A coloured line over a lit ring, a red wedge or the rim of the accretion
  * disc is the same brightness as what it crosses, and reads as part of it. A
  * slightly wider run of the table's own felt underneath separates the two. The
  * line's width is in pixels, so the edge is too: it is ink, not board, and it

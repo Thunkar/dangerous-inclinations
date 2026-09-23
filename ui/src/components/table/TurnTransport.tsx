@@ -17,6 +17,7 @@ import { useGame } from '../../context/GameContext'
 import { PLAYBACK_SPEEDS, useAnimation, type PlaybackSpeed } from '../../context/AnimationContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_DISPLAY } from '../../design/press'
 
 /** What one tick says when you hover it. */
 function tickTitle(name: string, turn: number, lines: number): string {
@@ -39,18 +40,19 @@ export function TurnTransport() {
         py: 0.4,
         flexShrink: 0,
         minWidth: 0,
-        borderTop: `1px solid ${TABLE.line}`,
-        background: `linear-gradient(0deg, ${TABLE.feltLight} 0%, rgba(0,0,0,0) 100%)`,
+        borderTop: `1px solid ${TABLE.plateEdge}`,
+        bgcolor: TABLE.bar,
       }}
     >
       <ReplayIcon sx={{ fontSize: 15, color: TABLE.inkFaint, flexShrink: 0 }} />
       <Typography
         variant="caption"
         sx={{
-          fontFamily: FONT_MONO,
+          fontFamily: FONT_DISPLAY,
+          fontSize: '0.8rem',
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
-          color: TABLE.inkFaint,
+          color: TABLE.inkSoft,
           flexShrink: 0,
         }}
       >
@@ -77,16 +79,16 @@ export function TurnTransport() {
                   flexShrink: 0,
                   width: 26,
                   height: 16,
-                  borderRadius: 0.5,
                   border: `1px solid ${color}`,
-                  bgcolor: `${color}22`,
+                  bgcolor: 'transparent',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontFamily: FONT_MONO,
-                  fontSize: '0.62rem',
+                  fontSize: '0.7rem',
                   color,
-                  '&:hover': isAnimating ? {} : { bgcolor: `${color}55`, boxShadow: `0 0 8px ${color}55` },
+                  // Hovered, the tick fills with the seat's colour: flat, like the name chips.
+                  '&:hover': isAnimating ? {} : { bgcolor: color, color: TABLE.onSelected },
                   '&:focus-visible': { outline: `2px solid ${TABLE.accent}`, outlineOffset: 2 },
                 }}
               >
@@ -102,10 +104,11 @@ export function TurnTransport() {
       <Typography
         variant="caption"
         sx={{
-          fontFamily: FONT_MONO,
+          fontFamily: FONT_DISPLAY,
+          fontSize: '0.8rem',
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
-          color: TABLE.inkFaint,
+          color: TABLE.inkSoft,
           flexShrink: 0,
         }}
       >
@@ -129,13 +132,12 @@ export function TurnTransport() {
                   cursor: 'pointer',
                   px: 0.75,
                   py: 0.1,
-                  borderRadius: 0.5,
                   fontFamily: FONT_MONO,
-                  fontSize: '0.7rem',
-                  border: `1px solid ${on ? TABLE.accent : TABLE.plateEdge}`,
-                  color: on ? TABLE.accent : TABLE.inkSoft,
-                  bgcolor: on ? '#ddaa7814' : 'transparent',
-                  '&:hover': { borderColor: TABLE.accent },
+                  fontSize: '0.75rem',
+                  border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
+                  color: on ? TABLE.onSelected : TABLE.inkSoft,
+                  bgcolor: on ? TABLE.selected : 'transparent',
+                  '&:hover': { borderColor: TABLE.ink },
                   '&:focus-visible': { outline: `2px solid ${TABLE.accent}`, outlineOffset: 2 },
                 }}
               >

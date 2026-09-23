@@ -6,6 +6,7 @@ import type { Station } from '@dangerous-inclinations/engine'
 import { getWellName } from '@dangerous-inclinations/engine'
 import type { HomeMarker } from '../../model'
 import { positionPoint, wellColor } from '../../geometry'
+import { BOARD } from '../palette'
 
 interface MarkersLayerProps {
   stations: ReadonlyArray<Station>
@@ -47,7 +48,7 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
         return (
           <g key={station.id}>
             <title>{`${getWellName(station.planetId)} Station · dock here to load, deliver, repair and reload`}</title>
-            <circle cx={p.x} cy={p.y} r={10} fill="#080b11" stroke={color} strokeWidth={2.5} />
+            <circle cx={p.x} cy={p.y} r={10} fill={BOARD.deep} stroke={color} strokeWidth={2.5} />
             <circle cx={p.x} cy={p.y} r={3.5} fill={color} />
             <line x1={p.x - 15} y1={p.y} x2={p.x + 15} y2={p.y} stroke={color} strokeWidth={1.6} />
             <line x1={p.x} y1={p.y - 15} x2={p.x} y2={p.y + 15} stroke={color} strokeWidth={1.6} />

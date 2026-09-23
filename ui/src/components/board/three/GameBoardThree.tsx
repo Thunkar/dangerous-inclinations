@@ -222,10 +222,10 @@ function BoardButton({
         size="small"
         onClick={onClick}
         sx={{
-          bgcolor: 'rgba(18,25,36,0.8)',
+          bgcolor: TABLE.plate,
           color: selected ? TABLE.accent : TABLE.inkSoft,
-          borderRadius: 1,
-          border: `1px solid ${selected ? TABLE.accent : 'rgba(126,165,205,0.2)'}`,
+          borderRadius: 0,
+          border: `1px solid ${selected ? TABLE.accent : TABLE.plateEdge}`,
           '&:hover': { color: TABLE.accent, borderColor: TABLE.accent },
         }}
       >

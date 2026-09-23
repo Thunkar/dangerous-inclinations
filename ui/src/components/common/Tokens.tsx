@@ -1,7 +1,7 @@
 /**
  * The readouts on a loadout: energy cells, segmented hull/heat/fuel bars and the
- * cargo tokens in the hold. Everything is a plain lit shape: no icons, so it
- * reads at a glance from across the table.
+ * cargo tokens in the hold. Everything is a plain flat shape, printed rather
+ * than lit: no icons and no glow, so it reads at a glance from across the table.
  */
 import type { ReactNode } from 'react'
 import { Box, Tooltip, Typography } from '@mui/material'
@@ -56,13 +56,11 @@ export function EnergyCubes({
             sx={{
               width: size,
               height: size,
-              borderRadius: '1px',
               flexShrink: 0,
               cursor: onSet && !disabled ? 'pointer' : 'default',
-              bgcolor: filled ? TABLE.energy : 'rgba(126,165,205,0.08)',
-              border: `1px solid ${filled ? TABLE.energy : 'rgba(126,165,205,0.22)'}`,
-              boxShadow: filled ? `0 0 ${Math.max(3, size * 0.7)}px rgba(73,195,255,0.65)` : 'none',
-              transition: 'background-color 120ms ease, box-shadow 120ms ease',
+              bgcolor: filled ? TABLE.energy : TABLE.unlit,
+              border: `1px solid ${filled ? TABLE.energy : TABLE.unlitEdge}`,
+              transition: 'background-color 120ms ease',
               ...(tick !== undefined && i + 1 === tick
                 ? { mr: '3px', borderRight: `2px solid ${TABLE.accent}` }
                 : null),
@@ -154,13 +152,11 @@ export function PipTrack({
               sx={{
                 width: Math.max(4, Math.round(size * 0.55)),
                 height: size,
-                borderRadius: '1px',
                 flexShrink: 0,
                 boxSizing: 'border-box',
-                bgcolor: on || ghost ? color : 'rgba(126,165,205,0.09)',
+                bgcolor: on || ghost ? color : TABLE.unlit,
                 opacity: ghost ? 0.38 : 1,
-                boxShadow: on ? `0 0 5px ${color}66` : 'none',
-                // Alpha on the colours rather than on the box, so the amber
+                // Alpha on the colours rather than on the box, so the red
                 // dissipation tick below keeps its own full strength.
                 ...(hatched
                   ? {
@@ -204,8 +200,9 @@ export function PipTrack({
 // Cargo tokens
 // ---------------------------------------------------------------------------
 
+/** A crate is a cream square and data a teal ring: the shape tells them apart, the ink confirms it. */
 const CARGO_COLORS = {
-  crate: '#c79a4e',
+  crate: TABLE.ink,
   data: TABLE.teal,
 } as const
 
@@ -235,8 +232,7 @@ export function CargoTokens({ crates, data, size = 11 }: { crates: number; data:
                     height: size,
                     bgcolor: 'transparent',
                     border: `1.5px solid ${CARGO_COLORS[kind]}`,
-                    boxShadow: `0 0 6px ${CARGO_COLORS[kind]}55`,
-                    borderRadius: kind === 'data' ? '50%' : '1px',
+                    borderRadius: kind === 'data' ? '50%' : 0,
                   }}
                 />
               ))}

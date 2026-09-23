@@ -209,7 +209,7 @@ function Well({ well, onFocus }: { well: GravityWell; onFocus?: (wellId: Gravity
         <meshBasicMaterial
           color={BOARD_INK.plateEdge}
           transparent
-          opacity={0.16}
+          opacity={BOARD_INK.plateEdgeOpacity}
           depthWrite={false}
           side={DoubleSide}
           toneMapped={false}

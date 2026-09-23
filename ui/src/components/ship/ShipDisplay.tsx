@@ -29,13 +29,11 @@ export function ShipDisplay({
 
   return (
     <Box sx={{ position: 'relative', width: m.width, height: m.height, flexShrink: 0 }}>
-      {/* The hull itself, lit from above */}
+      {/* The hull itself, on the bare plate */}
       <Box
         sx={{
           position: 'absolute',
           inset: `${inset}px`,
-          borderRadius: '6px',
-          background: 'radial-gradient(ellipse, #71817e15, transparent 70%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

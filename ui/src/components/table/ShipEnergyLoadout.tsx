@@ -122,7 +122,6 @@ export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
             alignSelf: 'stretch',
             color: TABLE.inkSoft,
             lineHeight: 1.3,
-            fontFamily: FONT_MONO,
           }}
         >
           {up.length === 0

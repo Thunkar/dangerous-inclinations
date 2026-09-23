@@ -23,6 +23,7 @@ import type { ChatKind, ChatMessage } from '../../api/types'
 import { useGame } from '../../context/GameContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_DISPLAY } from '../../design/press'
 import { Panel } from '../common/Panel'
 
 /** Within this many pixels of the foot counts as "reading the newest line". */
@@ -40,15 +41,13 @@ function Line({ message, color }: { message: ChatMessage; color: string }) {
         mt: 0.6,
         pl: 0.75,
         borderLeft: `2px ${think ? 'dashed' : 'solid'} ${think ? TABLE.line : color}`,
-        bgcolor: think ? 'rgba(132,150,142,0.045)' : 'transparent',
-        borderRadius: '0 3px 3px 0',
+        bgcolor: think ? TABLE.hover : 'transparent',
       }}
     >
       <Box
         sx={{
           width: 7,
           height: 7,
-          borderRadius: '50%',
           bgcolor: color,
           opacity: think ? 0.5 : 1,
           mt: '6px',
@@ -59,9 +58,9 @@ function Line({ message, color }: { message: ChatMessage; color: string }) {
         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, minWidth: 0 }}>
           <Typography
             sx={{
-              fontFamily: FONT_MONO,
-              fontSize: '0.75rem',
-              fontWeight: 700,
+              fontFamily: FONT_DISPLAY,
+              fontSize: '0.8rem',
+              fontWeight: 600,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               color: think ? TABLE.inkFaint : color,
@@ -86,13 +85,12 @@ function Line({ message, color }: { message: ChatMessage; color: string }) {
           {think && (
             <Typography
               sx={{
-                fontFamily: FONT_MONO,
-                fontSize: '0.65rem',
+                fontFamily: FONT_DISPLAY,
+                fontSize: '0.7rem',
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 color: TABLE.inkFaint,
-                border: `1px solid ${TABLE.line}`,
-                borderRadius: 0.5,
+                border: `1px solid ${TABLE.plateEdge}`,
                 px: 0.4,
                 lineHeight: 1.5,
                 flexShrink: 0,
@@ -222,6 +220,7 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
                 sx={{
                   minWidth: 0,
                   '& .MuiOutlinedInput-root': {
+                    borderRadius: 0,
                     bgcolor: TABLE.plateSunk,
                     fontSize: '0.875rem',
                   },
@@ -234,7 +233,7 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
                 size="small"
                 onClick={() => void send(thinkOutLoud ? 'think' : 'say')}
                 disabled={!draft.trim() || sending}
-                sx={{ flexShrink: 0, minWidth: 54, px: 1, py: 0.55, color: TABLE.accent }}
+                sx={{ flexShrink: 0, minWidth: 54, px: 1, py: 0.55, color: TABLE.ink }}
               >
                 Send
               </Button>
@@ -254,17 +253,18 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
                     px: 0.75,
                     py: 0.2,
                     minWidth: 0,
-                    fontSize: '0.68rem',
+                    fontSize: '0.72rem',
                     letterSpacing: '0.1em',
-                    color: thinkOutLoud ? TABLE.accent : TABLE.inkFaint,
-                    border: `1px solid ${thinkOutLoud ? TABLE.accent : TABLE.plateEdge}`,
-                    bgcolor: thinkOutLoud ? 'rgba(221,170,120,0.12)' : 'transparent',
+                    color: thinkOutLoud ? TABLE.onSelected : TABLE.inkSoft,
+                    border: `1px solid ${thinkOutLoud ? TABLE.selected : TABLE.plateEdge}`,
+                    bgcolor: thinkOutLoud ? TABLE.selected : 'transparent',
+                    '&:hover': { bgcolor: thinkOutLoud ? TABLE.inkSoft : TABLE.hover },
                   }}
                 >
                   think out loud
                 </Button>
               </Tooltip>
-              <Typography sx={{ fontSize: '0.7rem', color: TABLE.inkFaint }} noWrap>
+              <Typography sx={{ fontSize: '0.75rem', color: TABLE.inkFaint }} noWrap>
                 Enter sends
               </Typography>
             </Box>

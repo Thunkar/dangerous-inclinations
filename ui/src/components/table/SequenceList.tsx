@@ -40,8 +40,7 @@ const ROW_SX = {
   gap: 0.5,
   px: 0.75,
   py: 0.5,
-  borderRadius: 1,
-  bgcolor: 'rgba(126,165,205,0.04)',
+  bgcolor: TABLE.plateSunk,
   border: `1px solid ${TABLE.line}`,
 } as const
 

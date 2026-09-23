@@ -20,9 +20,8 @@ import { TABLE } from '../theme'
 export const FAMILY_COLOR: Record<MissionFamily, string> = {
   combat: TABLE.danger,
   trade: TABLE.teal,
-  /** The table has no violet of its own: this is the family's, mixed for the dark felt. */
-  intel: '#b48cf0',
-  secondary: TABLE.accent,
+  intel: TABLE.violet,
+  secondary: TABLE.ochre,
 }
 
 export function missionFamily(mission: Mission): MissionFamily {

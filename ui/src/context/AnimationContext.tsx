@@ -29,6 +29,7 @@ import type {
 import { HOME_RING } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
 import { getPlayerColor } from '../utils/playerColors'
+import { TABLE } from '../design/tokens'
 
 // ---------------------------------------------------------------------------
 // Effects
@@ -160,12 +161,16 @@ export interface Ping {
 
 const AnimationContext = createContext<AnimationContextValue | null>(null)
 
+/**
+ * The table's inks, not a second palette: a railgun slug is violet, a laser
+ * the red, a missile the heat red, and point defence the teal.
+ */
 const BEAM_COLORS: Record<WeaponType | 'pdc', string> = {
-  railgun: '#ffb445',
-  laser: '#ff6b5e',
-  missiles: '#ff9a63',
-  ballistic_rack: '#49c3ff',
-  pdc: '#49c3ff',
+  railgun: TABLE.violet,
+  laser: TABLE.accent,
+  missiles: TABLE.heat,
+  ballistic_rack: TABLE.teal,
+  pdc: TABLE.teal,
 }
 
 /**
@@ -496,7 +501,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               kind: 'burst',
               at: event.to,
               playerId: event.playerId,
-              color: '#ffb445',
+              color: TABLE.ink,
               radius: 30,
               duration: 600,
             })
@@ -528,7 +533,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               kind: 'burst',
               at: position,
               playerId: event.playerId,
-              color: '#46d191',
+              color: TABLE.success,
               radius: 26,
               duration: 600,
             })
@@ -598,7 +603,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                   kind: 'burst',
                   at,
                   playerId: event.targetId,
-                  color: '#ffb445',
+                  color: TABLE.ink,
                   radius: 34,
                   duration: 700,
                 })
@@ -771,7 +776,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               to: positionOf(event.targetId),
               fromId: event.scannerId,
               toId: event.targetId,
-              color: '#49c3ff',
+              color: TABLE.teal,
               duration: 700,
             })
             pushEffect({
@@ -794,7 +799,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               kind: 'burst',
               at,
               playerId: event.victimId,
-              color: '#ff5a72',
+              color: TABLE.danger,
               radius: 46,
               duration: 900,
             })
@@ -816,7 +821,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
               kind: 'burst',
               at,
               playerId: event.playerId,
-              color: '#46d191',
+              color: TABLE.success,
               radius: 28,
               duration: 700,
             })

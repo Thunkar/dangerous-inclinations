@@ -195,7 +195,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
               {hint}
             </Typography>
           </Box>
-          <Typography variant="overline" color="primary">
+          <Typography variant="overline" sx={{ color: TABLE.accent }}>
             {chosen.length}/{keep}
           </Typography>
         </Box>
@@ -407,10 +407,10 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
               ['Systems', `${filled}/5`],
             ].map(([label, value]) => (
               <Box key={label} sx={{ textAlign: 'center' }}>
-                <Typography sx={{ fontFamily: FONT_MONO, fontSize: 21, color: TABLE.accent }}>
+                <Typography sx={{ fontFamily: FONT_MONO, fontSize: 21, color: TABLE.ink }}>
                   {value}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="overline" sx={{ color: TABLE.inkSoft, lineHeight: 1.4 }}>
                   {label}
                 </Typography>
               </Box>
@@ -426,7 +426,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
           zIndex: 30,
           p: 1.5,
           px: { xs: 2, md: 3 },
-          bgcolor: TABLE.feltLight,
+          bgcolor: TABLE.bar,
           borderTop: `1px solid ${TABLE.plateEdge}`,
           flexShrink: 0,
         }}

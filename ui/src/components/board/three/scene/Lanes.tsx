@@ -15,7 +15,7 @@ import { BOARD_FONT } from '../fonts'
 import type { TransferArc, TransferLane } from '@dangerous-inclinations/engine'
 import { TRANSFER_LANES, laneDepartureArc } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../theme'
-import { PRINT_SCALE, arcMidPoint, wellColor } from '../../geometry'
+import { PRINT_SCALE, arcMidPoint, wellLineColor } from '../../geometry'
 import { sceneTime } from '../clock'
 import { RIBBON_FRAGMENT, RIBBON_VERTEX } from '../shaders/ribbon'
 import { arcRibbonGeometry, cachedSurface } from '../surfaces'
@@ -135,7 +135,7 @@ function LaneBadge({
 }
 
 function Lane({ lane, active }: { lane: TransferLane; active: boolean }) {
-  const color = wellColor(lane.planetId)
+  const color = wellLineColor(lane.planetId)
   const letter = laneLetter(lane.id)
   const departureArc = laneDepartureArc(lane)
   return (

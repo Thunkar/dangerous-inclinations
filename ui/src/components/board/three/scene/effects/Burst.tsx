@@ -6,9 +6,10 @@
  * and a puff of sparks thrown off the sector: the same event with enough life
  * that a detonation reads as a detonation and a dock does not.
  *
- * Colour and radius are the effect's; the animator already decides what a
- * burst means (red for a kill, amber for a critical or a jump arrival, green
- * for a dock, a respawn or a deployment).
+ * Radius is the effect's, and so is the meaning: the animator decides what a
+ * burst is (a kill, a critical or a jump arrival, a dock, a respawn or a
+ * deployment) and names it in the table's inks: red for a kill, cream for a
+ * critical or an arrival, green for the rest.
  */
 import { useEffect, useMemo, useRef } from 'react'
 import type { Group, Mesh, Points } from 'three'
@@ -17,6 +18,7 @@ import type { TableEffect } from '../../../../../context/AnimationContext'
 import type { BoardModel } from '../../../model'
 import { positionPoint } from '../../../geometry'
 import { LAYER, elevationAt, toWorld } from '../../world'
+import { TABLE } from '../../../../../design/tokens'
 import { reportImpact, type ImpactKind } from './impacts'
 import {
   FLAT,
@@ -37,9 +39,9 @@ const SPREAD = 1.2
 
 /** What a burst of each colour does to the hull standing in it. */
 const MEANING: Record<string, ImpactKind> = {
-  '#ff5a72': 'damage',
-  '#ffb445': 'crit',
-  '#46d191': 'good',
+  [TABLE.danger]: 'damage',
+  [TABLE.ink]: 'crit',
+  [TABLE.success]: 'good',
 }
 
 export function Burst({
@@ -71,7 +73,7 @@ export function Burst({
   // A burst is the cue that something happened to the ship it names: the hull
   // reads it back out of here rather than out of an event of its own.
   useEffect(() => {
-    const kind = MEANING[effect.color.toLowerCase()]
+    const kind = MEANING[effect.color]
     if (kind) reportImpact(effect.playerId, kind, effect.start)
   }, [effect.playerId, effect.color, effect.start])
 

@@ -5,7 +5,7 @@
  * over the first 30% of the effect and the whole thing fades in for a quarter
  * and out for three. Only the character is new: a railgun is a thick bright
  * bolt, a laser a thin continuous line, a rack and a missile launch dashed
- * tracers, point defence a fine cyan one.
+ * tracers, point defence a fine teal one.
  *
  * The bolt bows a little over its span. That is not decoration: a straight
  * chord between two sectors of the same well would fly over the funnel, and a
@@ -54,7 +54,7 @@ const STYLE: Record<WeaponType | 'pdc', BeamStyle> = {
   // A tracer: the rounds are visible one by one.
   missiles: { core: 3, glow: 7.5, dashes: 13, duty: 0.55, base: 0.5, tail: 0.3 },
   ballistic_rack: { core: 2.6, glow: 7, dashes: 22, duty: 0.42, base: 0.45, tail: 0.3 },
-  // Point defence: fast, fine, cyan.
+  // Point defence: fast, fine, teal.
   pdc: { core: 1.7, glow: 4.5, dashes: 26, duty: 0.34, base: 0.4, tail: 0.22 },
 }
 

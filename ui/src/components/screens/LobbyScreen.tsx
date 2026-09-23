@@ -68,9 +68,8 @@ export function LobbyScreen() {
                 gap: 1,
                 px: 1.25,
                 py: 0.85,
-                borderRadius: 1,
                 border: `1px solid ${TABLE.plateEdge}`,
-                bgcolor: seat ? 'rgba(126,165,205,0.05)' : 'transparent',
+                bgcolor: seat ? TABLE.plateSunk : 'transparent',
                 borderStyle: seat ? 'solid' : 'dashed',
               }}
             >
@@ -78,7 +77,6 @@ export function LobbyScreen() {
                 sx={{
                   width: 14,
                   height: 14,
-                  borderRadius: '50%',
                   bgcolor: seat ? getPlayerColor(index) : 'transparent',
                   border: seat ? 'none' : `1px dashed ${TABLE.plateEdge}`,
                 }}
