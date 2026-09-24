@@ -118,7 +118,6 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
   const aliveAtStart = new Set(
     state.players.filter((p) => p.hasDeployed && !isDestroyed(p.ship)).map((p) => p.id)
   );
-  let movedThisTurn = false;
   for (const a of tactical) {
     let err: string[] | null = null;
     switch (a.type) {
@@ -130,15 +129,12 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
         break;
       case "coast":
         err = run(a, validateCoastAction, processCoast);
-        movedThisTurn = true;
         break;
       case "burn":
         err = run(a, validateBurnAction, processBurn);
-        movedThisTurn = true;
         break;
       case "well_transfer":
         err = run(a, validateWellTransferAction, processWellTransfer);
-        movedThisTurn = true;
         break;
       case "fire_weapon":
         if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
@@ -151,9 +147,7 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
           });
           break;
         }
-        err = run(a, validateFireWeaponAction, (s, fa: FireWeaponAction) =>
-          processFireWeapon(s, fa, movedThisTurn)
-        );
+        err = run(a, validateFireWeaponAction, processFireWeapon);
         break;
       case "scan":
         if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
@@ -364,11 +358,7 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
 // Weapons
 // ---------------------------------------------------------------------------
 
-function processFireWeapon(
-  state: GameState,
-  action: FireWeaponAction,
-  movedThisTurn: boolean
-): Step {
+function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
   const events: EventDraft[] = [];
   const players = [...state.players];
   const attackerIndex = players.findIndex((p) => p.id === action.playerId);
@@ -408,8 +398,7 @@ function processFireWeapon(
           working,
           attacker,
           action.data.targetPlayerId,
-          action.data.criticalTarget,
-          movedThisTurn
+          action.data.criticalTarget
         )
       );
     }

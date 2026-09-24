@@ -657,16 +657,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   const scoopGain = ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
 
-  /** Where the shot is fired from, and whether the ship has already moved. */
+  /** Where the shot is fired from. */
   const firingFrom = useCallback(
     (step: PlanStep) => {
       const index = steps.findIndex(s => s.id === step.id)
       const at = index >= 0 ? stepStart[index] : { position: me.ship, facing: me.ship.facing }
-      const moveIndex = steps.findIndex(s => s.kind === 'move')
-      return {
-        attacker: { ...at.position, facing: at.facing },
-        afterMoving: index >= 0 && moveIndex >= 0 && index > moveIndex,
-      }
+      return { attacker: { ...at.position, facing: at.facing } }
     },
     [steps, stepStart, me.ship]
   )
@@ -676,11 +672,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       if (step.kind !== 'fire') return []
       const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
       if (!weapon) return []
-      const { attacker, afterMoving } = firingFrom(step)
+      const { attacker } = firingFrom(step)
       return targets.filter(
-        t =>
-          isInWeaponRange(weapon, attacker, t.position) &&
-          !canEngage(weapon, attacker, t.position, afterMoving)
+        t => isInWeaponRange(weapon, attacker, t.position) && !canEngage(weapon, attacker, t.position)
       )
     },
     [firingFrom, pendingSubsystems, targets]

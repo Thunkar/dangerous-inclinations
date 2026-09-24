@@ -48,7 +48,7 @@ describe("agent seat tooling", () => {
     expect(built.actions.some((a) => a.type === "power")).toBe(false);
     const result = executeTurn(state, built.actions);
     expect(result.errors).toBeUndefined();
-    expect(result.gameState.missiles).toHaveLength(3);
+    expect(eventsOf(result.events, "missile_launched")).toHaveLength(3);
     expect(eventsOf(result.events, "weapon_fired")[0].heat).toBe(2);
   });
 

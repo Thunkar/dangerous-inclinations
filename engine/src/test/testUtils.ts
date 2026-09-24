@@ -219,7 +219,6 @@ export function makeMissile(overrides: Partial<Missile> = {}): Missile {
     turnFired: 1,
     movesMade: 0,
     criticalTarget: "engines",
-    launchedAfterMove: false,
     ...overrides,
   };
 }

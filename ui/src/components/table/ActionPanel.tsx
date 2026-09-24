@@ -368,8 +368,17 @@ function Step({ n, label, children }: { n: number; label: string; children: Reac
  * type beside it: the same silhouette the power mat above draws on that tile,
  * so a button and the tile it will light read as one thing.
  */
-function ActionIcon({ type }: { type: SubsystemType }) {
-  return <SubsystemIcon type={type} size={14} color="currentColor" opacity={1} />
+function ActionIcon({ type, className }: { type: SubsystemType; className?: string }) {
+  // A Chip positions its icon by the class it clones in, so the class has to reach the SVG.
+  return (
+    <SubsystemIcon
+      type={type}
+      size={14}
+      color="currentColor"
+      opacity={1}
+      className={className}
+    />
+  )
 }
 
 /**

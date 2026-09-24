@@ -172,26 +172,27 @@ export function SystemControls({
                 py: 1,
                 minHeight: 56,
                 color: TABLE.ink,
-                borderColor: selected === m.id ? TABLE.accent : TABLE.plateEdge,
-                bgcolor: selected === m.id ? '#ddaa7810' : TABLE.plateHi,
+                borderColor: TABLE.plateEdge,
+                bgcolor: TABLE.plateHi,
               }}
             >
+              {/* Pressed, the theme inverts the button; everything inside follows its colour. */}
               <Box
                 component="span"
                 sx={{
                   fontFamily: FONT_MONO,
-                  color: selected === m.id ? TABLE.accent : TABLE.inkSoft,
+                  color: selected === m.id ? 'inherit' : TABLE.inkSoft,
                 }}
               >
                 {m.short}
               </Box>
-              {type && <SubsystemIcon type={type} size={25} />}
+              {type && <SubsystemIcon type={type} size={25} color="currentColor" />}
               <Box sx={{ textAlign: 'left' }}>
                 <Typography
                   component="span"
                   display="block"
                   variant="caption"
-                  color="text.secondary"
+                  sx={{ color: selected === m.id ? 'inherit' : 'text.secondary', opacity: 0.8 }}
                 >
                   {m.label}
                 </Typography>
@@ -232,10 +233,10 @@ export function SystemControls({
               lineHeight: 1.3,
               minHeight: 84,
               p: 1,
-              borderColor: type === current ? TABLE.accent : TABLE.plateEdge,
+              borderColor: TABLE.plateEdge,
             }}
           >
-            <SubsystemIcon type={type} size={27} />
+            <SubsystemIcon type={type} size={27} color="currentColor" />
             {getSubsystemConfig(type).name}
           </Button>
         ))}

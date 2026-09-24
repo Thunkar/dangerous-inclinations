@@ -55,7 +55,6 @@ const p2MissileOnP1 = (state: GameState, criticalTarget = "engines") => {
     ring,
     sector,
     criticalTarget,
-    launchedAfterMove: true,
   });
 };
 

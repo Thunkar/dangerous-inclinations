@@ -215,16 +215,18 @@ describe("weapons: missile range (turret)", () => {
   });
 
   // The flight is the range: three moves of three steps, with the missile
-  // drifting before each move and the target after it. From R3 S0 that reaches
-  // most of the way round the ring but not the far side.
+  // drifting before every move but the first, and the target after each one.
+  // From R3 S0 that reaches nine sectors either way round the ring, not the far side.
   it.each([
     ["two sectors away", at(3, 2), true],
-    ["eleven sectors ahead", at(3, 11), true],
-    ["the far side of the ring", at(3, 16), false],
+    ["nine sectors ahead", at(3, 9), true],
+    ["ten sectors ahead", at(3, 10), false],
+    ["the far side of the ring", at(3, 12), false],
+    ["nine sectors behind", at(3, 15), true],
     ["two rings in, three sectors", at(1, 3), true],
-    ["two rings in, half the ring away", at(1, 15), false],
+    ["two rings in, half the ring away", at(1, 12), false],
   ])("a missile launched at R3 S0 at a target %s: reaches %s", (_label, target, expected) => {
-    expect(missileCanReach(at(3, 0), target, false)).toBe(expected);
+    expect(missileCanReach(at(3, 0), target)).toBe(expected);
   });
 
   it("no weapon fires across gravity wells", () => {

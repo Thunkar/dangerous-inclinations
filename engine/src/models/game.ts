@@ -180,11 +180,6 @@ export interface Missile {
   movesMade: number;
   /** Slot the warhead breaks on a critical hit. */
   criticalTarget: SubsystemId;
-  /**
-   * Launched after the ship had already moved this turn: it rode along with
-   * the ship, so it does not drift again at the end of this turn.
-   */
-  launchedAfterMove: boolean;
 }
 
 export interface ShipState {

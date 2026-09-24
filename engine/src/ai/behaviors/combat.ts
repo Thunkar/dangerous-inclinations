@@ -154,9 +154,7 @@ export function weaponRangeTarget(weapons: Subsystem[], start: Position): Planne
       if (pos.wellId !== target.wellId) return false;
       for (const facing of ["prograde", "retrograde"] as const) {
         const attacker = { ...pos, facing };
-        // The bot moves to this position and fires from it: a missile launched
-        // there rode along with the ship.
-        if (weapons.some((w) => canEngage(w, attacker, target, true))) return true;
+        if (weapons.some((w) => canEngage(w, attacker, target))) return true;
       }
       return false;
     },
@@ -307,8 +305,8 @@ export function firingOptions(
     const damage = weaponDamage(weapon);
     const energy = weaponEnergy(weapon);
     const shielded = shieldsStop(weapon);
-    const inPre = canEngage(weapon, ctx.pre, targetPos, false);
-    const inPost = canEngage(weapon, ctx.post, targetPos, true);
+    const inPre = canEngage(weapon, ctx.pre, targetPos);
+    const inPost = canEngage(weapon, ctx.post, targetPos);
 
     if (weapon.type === "railgun") {
       // Recoil moves the ship a ring, which would derail a burn or jump

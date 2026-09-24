@@ -49,8 +49,8 @@ export const TURN_STEPS: TurnStep[] = [
   },
   {
     title: 'Missiles',
-    blurb: `Each of yours drifts in orbit, flies ${MISSILE_STEPS} steps and hits if it reaches its target's sector.`,
-    terse: `Ride the orbit, fly ${MISSILE_STEPS}, hit on the target's sector`,
+    blurb: `Each of yours rides its orbit (not on the turn you launched it), flies ${MISSILE_STEPS} steps and hits if it reaches its target's sector.`,
+    terse: `Ride the orbit (not on launch), fly ${MISSILE_STEPS}, hit on its sector`,
   },
   {
     title: 'Docking',

@@ -5,11 +5,11 @@
  * same well can be fired at, however far away: a guided missile has no firing
  * box, and {@link missileCanReach} is how a bot or a preview asks whether this
  * one will actually catch up.
- * At the end of the owner's turn each of their missiles drifts with its ring
- * (unless it was launched after the ship had already moved this turn: it rode
- * along, so it starts from where it was dropped), then moves up to
- * `fuelPerTurn` steps toward its target (a step is one ring or one sector;
- * rings close first). If it ends on the target's sector it
+ * At the end of the owner's turn each of their missiles drifts with its ring,
+ * except on the turn it was launched (it flies from the sector it was dropped
+ * on, whenever in the turn that was), then moves up to `fuelPerTurn` steps
+ * toward its target (a step is one ring or one sector; rings close first).
+ * If it ends on the target's sector it
  * attacks: a powered ballistic rack rolls against it and destroys it on a 2+,
  * otherwise it rolls to hit like any weapon. The rack rolls at every missile
  * that reaches the ship (a salvo is not stopped by one round of point defence),
@@ -40,8 +40,7 @@ export function createMissile(
   state: GameState,
   owner: Player,
   targetId: string,
-  criticalTarget: SubsystemId,
-  launchedAfterMove: boolean
+  criticalTarget: SubsystemId
 ): Missile {
   return {
     id: nextEntityId(state, `missile-${owner.id}`),
@@ -51,7 +50,6 @@ export function createMissile(
     turnFired: state.turn,
     movesMade: 0,
     criticalTarget,
-    launchedAfterMove,
   };
 }
 
@@ -72,16 +70,25 @@ export function stepToward(from: Position, target: Position, steps: number): Pos
 }
 
 /**
+ * The launch turn is the one turn a missile does not ride its orbit: it flies
+ * from the sector it was dropped on, whether that was before or after its
+ * ship moved. From then on it drifts with its ring like everything else.
+ */
+function rideStart(missile: Position & { movesMade: number }): Position {
+  return missile.movesMade === 0 ? positionOf(missile) : driftPosition(positionOf(missile));
+}
+
+/**
  * Where a missile will be after its next move, plus the intermediate points
- * (for drawing the path): [position after drift (or start, if it skips the
- * drift), ...each step].
+ * (for drawing the path): [position after drift (or the launch sector, on
+ * the launch turn), ...each step].
  */
 export function projectMissilePath(
-  missile: Position & { launchedAfterMove?: boolean },
+  missile: Position & { movesMade: number },
   target: Position
 ): Position[] {
   const path: Position[] = [];
-  const drifted = missile.launchedAfterMove ? positionOf(missile) : driftPosition(missile);
+  const drifted = rideStart(missile);
   path.push(drifted);
   if (missile.wellId !== target.wellId) return path;
   let current = drifted;
@@ -96,25 +103,20 @@ export function projectMissilePath(
  * Best case: can a missile launched from `from` land on a target at `target`
  * before it expires, if that target simply coasts?
  *
- * Replays the flight with {@link projectMissilePath}, so the launch-after-move
- * exception (a missile launched once the ship has moved rode along and does
- * not drift again that turn) is counted exactly as the engine will replay it.
- * The target is assumed to coast: it is a best case, not a promise, which is
- * all a launcher can know: the target moves after the missile is away.
+ * Replays the flight with {@link projectMissilePath}, so the launch turn's
+ * missing ride is counted exactly as the engine will replay it. The target is
+ * assumed to coast: it is a best case, not a promise, which is all a launcher
+ * can know: the target moves after the missile is away.
  */
-export function missileCanReach(
-  from: Position,
-  target: Position,
-  launchedAfterMove: boolean
-): boolean {
+export function missileCanReach(from: Position, target: Position): boolean {
   if (from.wellId !== target.wellId) return false;
-  let missile: Position & { launchedAfterMove: boolean } = { ...from, launchedAfterMove };
+  let missile: Position & { movesMade: number } = { ...from, movesMade: 0 };
   let victim = target;
   for (let move = 0; move < MISSILE.maxMoves; move++) {
     const path = projectMissilePath(missile, victim);
     const end = path[path.length - 1];
     if (samePosition(end, victim)) return true;
-    missile = { ...end, launchedAfterMove: false };
+    missile = { ...end, movesMade: move + 1 };
     victim = driftPosition(victim);
   }
   return false;
@@ -152,8 +154,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     }
 
     const targetPos = positionOf(target.ship);
-    // A missile launched after the ship moved already rode along with it.
-    const start = missile.launchedAfterMove ? at : driftPosition(at);
+    const start = rideStart(missile);
     const moved = stepToward(start, targetPos, MISSILE.fuelPerTurn);
 
     // A ship that just came back cannot be touched until its returning turn
@@ -167,7 +168,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       if (movesMade >= MISSILE.maxMoves) {
         events.push({ type: "missile_expired", missileId: missile.id, ownerId, at: moved });
       } else {
-        survivors.push({ ...missile, ...moved, movesMade, launchedAfterMove: false });
+        survivors.push({ ...missile, ...moved, movesMade });
         events.push({
           type: "missile_moved",
           missileId: missile.id,

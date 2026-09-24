@@ -29,7 +29,7 @@ import { NO_RAYCAST, arcPoints, chordPoints } from './overlays/paths'
 /** Word for word the reminder the SVG board's tooltip carries. */
 const MISSILE_TOOLTIP =
   'Rides its orbit, then flies up to 3 steps toward the target (rings first). ' +
-  'Launched after moving? It already rode along: no drift this turn. 3 flights max.'
+  'On its launch turn it only flies, from where it was launched. 3 flights max.'
 
 /**
  * Missile dimensions in board units: unmistakably smaller than a hull. The

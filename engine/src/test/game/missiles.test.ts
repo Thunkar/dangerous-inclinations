@@ -83,29 +83,35 @@ describe("missiles: pathing", () => {
     ).toEqual({ wellId: BH, ring: 3, sector: 0 });
   });
 
-  it("projectMissilePath starts with the drift and ends on the target when reachable", () => {
+  it("projectMissilePath starts with the drift once the missile has moved, and ends on the target", () => {
     expect(
-      projectMissilePath({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 5, sector: 4 })
+      projectMissilePath(
+        { wellId: BH, ring: 3, sector: 0, movesMade: 1 },
+        { wellId: BH, ring: 5, sector: 4 }
+      )
     ).toEqual([
       { wellId: BH, ring: 3, sector: 4 },
       { wellId: BH, ring: 4, sector: 4 },
       { wellId: BH, ring: 5, sector: 4 },
     ]);
     expect(
-      projectMissilePath({ wellId: BH, ring: 5, sector: 0 }, { wellId: ALPHA, ring: 3, sector: 4 })
+      projectMissilePath(
+        { wellId: BH, ring: 5, sector: 0, movesMade: 1 },
+        { wellId: ALPHA, ring: 3, sector: 4 }
+      )
     ).toEqual([{ wellId: BH, ring: 5, sector: 1 }]);
   });
 
-  it("projectMissilePath skips the drift segment for a missile launched after the ship moved", () => {
+  it("projectMissilePath has no drift on the launch turn", () => {
     const from = { wellId: BH, ring: 3, sector: 0 };
     const target = { wellId: BH, ring: 3, sector: 10 };
-    expect(projectMissilePath({ ...from, launchedAfterMove: true }, target)[0]).toEqual(from);
-    expect(projectMissilePath(from, target)[0]).toEqual({ ...from, sector: 4 });
+    expect(projectMissilePath({ ...from, movesMade: 0 }, target)[0]).toEqual(from);
+    expect(projectMissilePath({ ...from, movesMade: 1 }, target)[0]).toEqual({ ...from, sector: 4 });
   });
 
   it("never plans more than the missile's fuel allowance", () => {
     const path = projectMissilePath(
-      { wellId: BH, ring: 5, sector: 0 },
+      { wellId: BH, ring: 5, sector: 0, movesMade: 0 },
       { wellId: BH, ring: 1, sector: 12 }
     );
     expect(path).toHaveLength(getMissileStats().fuelPerTurn + 1);
@@ -114,17 +120,13 @@ describe("missiles: pathing", () => {
   const pathCases: Array<
     [
       string,
-      { ring: number; sector: number; launchedAfterMove?: boolean },
+      { ring: number; sector: number; movesMade: number },
       { ring: number; sector: number },
     ]
   > = [
-    ["a target it reaches", { ring: 5, sector: 0 }, { ring: 5, sector: 13 }],
-    ["a target it falls short of", { ring: 1, sector: 0 }, { ring: 5, sector: 12 }],
-    [
-      "a missile launched after moving",
-      { ring: 3, sector: 6, launchedAfterMove: true },
-      { ring: 4, sector: 20 },
-    ],
+    ["a target it reaches", { ring: 5, sector: 0, movesMade: 1 }, { ring: 5, sector: 4 }],
+    ["a target it falls short of", { ring: 1, sector: 0, movesMade: 1 }, { ring: 5, sector: 12 }],
+    ["a missile on its launch turn", { ring: 3, sector: 6, movesMade: 0 }, { ring: 4, sector: 20 }],
   ];
 
   it.each(pathCases)(
@@ -134,9 +136,7 @@ describe("missiles: pathing", () => {
         withShip(makeTwoPlayerGame(), "p2", { wellId: BH, ...target }),
         missile.ring,
         missile.sector,
-        {
-          launchedAfterMove: missile.launchedAfterMove ?? false,
-        }
+        { movesMade: missile.movesMade }
       );
       const path = projectMissilePath(state.missiles[0], { wellId: BH, ...target });
       const result = processOwnerMissiles(state, "p1");
@@ -154,7 +154,12 @@ describe("missiles: pathing", () => {
 
 describe("missiles: launch", () => {
   it("places a missile at the ship's position and spends one round of ammo", () => {
-    const result = executeTurnAs(launcher(), fire(1, "side-3", "p2", "side-1"), coast(2));
+    // p2 is out of reach of the launch turn's flight (R3 S0 -> R5 S1).
+    const result = executeTurnAs(
+      launcher({ ring: 5, sector: 8 }),
+      fire(1, "side-3", "p2", "side-1"),
+      coast(2)
+    );
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "missile_launched")).toEqual([
       expect.objectContaining({
@@ -266,60 +271,59 @@ describe("missiles: launch", () => {
   });
 
   it.each([
-    ["false when nothing has moved yet", [fire(1, "side-3", "p2")], false],
-    ["false when the move comes after the shot", [fire(1, "side-3", "p2"), coast(2)], false],
-    ["true when a coast came first", [coast(1), fire(2, "side-3", "p2")], true],
-    ["true when a burn came first", [burn(1, "soft"), fire(2, "side-3", "p2")], true],
-  ])("launchedAfterMove is %s", (_label, actions, expected) => {
-    const state = withPower(launcher({ ring: 5, sector: 2 }), "p1", "engines", 1);
-    const stamped = actions.map((a) => ({ ...a, playerId: "p1" }) as PlayerAction);
-    const processed = processActions(state, stamped);
-    expect(processed.success).toBe(true);
-    expect(processed.state.missiles).toHaveLength(1);
-    expect(processed.state.missiles[0].launchedAfterMove).toBe(expected);
+    ["before its ship moves", [fire(1, "side-3", "p2"), coast(2)]],
+    ["before a burn", [fire(1, "side-3", "p2"), burn(2, "soft")]],
+    ["with no move at all", [fire(1, "side-3", "p2")]],
+  ])("a point-blank launch %s attacks that turn: no ride on the launch turn", (_label, actions) => {
+    // Ring 3 drifts 4 a turn: a missile that rode it would land 4 sectors past
+    // the target and fly only 3 back.
+    const state = withPower(launcher({ ring: 3, sector: 0 }), "p1", "engines", 1);
+    const result = executeTurnAs(state, ...actions);
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "attack_resolved")).toEqual([
+      expect.objectContaining({ attackerId: "p1", targetId: "p2", weaponType: "missiles" }),
+    ]);
+    expect(result.gameState.missiles).toEqual([]);
   });
 });
 
 describe("missiles: movement at the end of the owner's turn", () => {
   it.each([
-    ["drifts first when it was launched before the ship moved", false, 1],
-    ["starts where it was dropped when it was launched after the ship moved", true, 0],
-  ])("a missile %s", (_label, launchedAfterMove, driftedSectors) => {
+    ["starts where it was dropped on its launch turn", 0, 0],
+    ["rides its orbit first on every turn after that", 1, 1],
+  ])("a missile %s", (_label, movesMade, driftedSectors) => {
     // The target sits in another well, so the missile can only ride its orbit.
     const state = missileAt(
       withShip(makeTwoPlayerGame(), "p2", { wellId: ALPHA, ring: 3, sector: 0 }),
       5,
       0,
-      {
-        launchedAfterMove,
-      }
+      { movesMade }
     );
     const result = processOwnerMissiles(state, "p1");
     expect(result.state.missiles[0]).toMatchObject({
       ring: 5,
       sector: driftedSectors,
-      movesMade: 1,
+      movesMade: movesMade + 1,
     });
-    expect(result.state.missiles[0].launchedAfterMove).toBe(false);
   });
 
-  it("drifts with its ring, then moves up to 3 steps (rings first)", () => {
-    const result = executeTurnAs(launcher(), fire(1, "side-3", "p2"));
-    // Launched R3 S0 -> drift to S4 -> R4, R5 -> one sector toward S0 -> R5 S3.
+  it("on its launch turn flies up to 3 steps from where it was dropped (rings first)", () => {
+    const result = executeTurnAs(launcher({ ring: 5, sector: 4 }), fire(1, "side-3", "p2"));
+    // Launched R3 S0, no ride -> R4, R5 -> one sector toward S4 -> R5 S1.
     expect(eventsOf(result.events, "missile_moved")).toEqual([
       expect.objectContaining({
         ownerId: "p1",
-        to: { wellId: BH, ring: 5, sector: 3 },
+        to: { wellId: BH, ring: 5, sector: 1 },
         movesLeft: 2,
       }),
     ]);
-    expect(result.gameState.missiles[0]).toMatchObject({ ring: 5, sector: 3, movesMade: 1 });
+    expect(result.gameState.missiles[0]).toMatchObject({ ring: 5, sector: 1, movesMade: 1 });
   });
 
-  it("keeps tracking across turns and attacks when it reaches the target", () => {
-    let state = mustExecute(launcher(), fire(1, "side-3", "p2")); // missile R5 S3, p2 R5 S0
-    state = mustExecute(state, coast(1)); // p2 drifts to S1
-    const result = executeTurnAs(state, coast(1)); // missile drifts to S4 then steps 4->3->2->1
+  it("keeps tracking across turns, riding its orbit, and attacks when it reaches the target", () => {
+    let state = mustExecute(launcher({ ring: 5, sector: 4 }), fire(1, "side-3", "p2")); // missile R5 S1, p2 R5 S4
+    state = mustExecute(state, coast(1)); // p2 drifts to S5
+    const result = executeTurnAs(state, coast(1)); // missile drifts to S2 then steps 2->3->4->5
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "attack_resolved")).toEqual([
       expect.objectContaining({
@@ -358,14 +362,15 @@ describe("missiles: movement at the end of the owner's turn", () => {
     const state = missileAt(
       withShip(makeTwoPlayerGame(), "p2", { wellId: ALPHA, ring: 3, sector: 0 }),
       5,
-      0
+      0,
+      { movesMade: 1 }
     );
     const result = processOwnerMissiles(state, "p1");
     expect(result.state.missiles[0]).toMatchObject({
       wellId: BH,
       ring: 5,
       sector: 1,
-      movesMade: 1,
+      movesMade: 2,
     });
   });
 

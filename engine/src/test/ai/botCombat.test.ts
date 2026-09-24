@@ -94,7 +94,7 @@ describe("bot targeting", () => {
     const state = grounded(
       makeTwoPlayerGame(
         { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
-        { wellId: BH, ring: 3, sector: 16 }
+        { wellId: BH, ring: 3, sector: 14 }
       ),
       "p1"
     );

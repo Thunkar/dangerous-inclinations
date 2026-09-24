@@ -100,20 +100,16 @@ function checkRange(
  * a guided one has to run its target down, so it is asked
  * {@link missileCanReach}. Bots plan with this, and so does the board's range
  * preview; the engine still validates with the range rule alone.
- *
- * @param afterMoving the shot is taken once the ship has moved this turn, so a
- *   missile rides along and skips its first drift.
  */
 export function canEngage(
   weapon: Subsystem,
   attacker: Pick<ShipState, "wellId" | "ring" | "sector" | "facing">,
-  target: Position,
-  afterMoving = false
+  target: Position
 ): boolean {
   if (!isInWeaponRange(weapon, attacker, target)) return false;
   const stats = getSubsystemConfig(weapon.type).weaponStats;
   if (stats?.arc !== "turret") return true;
-  return missileCanReach(attacker, target, afterMoving);
+  return missileCanReach(attacker, target);
 }
 
 export function calculateFiringSolutions(

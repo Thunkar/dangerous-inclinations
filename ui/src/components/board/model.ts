@@ -73,8 +73,6 @@ export interface MissilePreview {
   id: string
   from: Position
   target: Position
-  /** Launched after the ship's move: it rode along, so it does not drift again. */
-  launchedAfterMove: boolean
   color: string
   label: string
 }
@@ -84,8 +82,6 @@ export interface FocusWeapon {
   weapon: Subsystem
   from: Position
   facing: Facing
-  /** The shot comes after this turn's move: a missile rides along and skips a drift. */
-  afterMoving: boolean
 }
 
 export interface BoardModelOptions {
@@ -257,13 +253,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       s => s.kind === 'fire' && s.subsystemId === plan.focusWeaponId
     )
     const at = stepIndex >= 0 ? plan.stepStart[stepIndex] : plan.finalPosition
-    const moveIndex = plan.steps.findIndex(s => s.kind === 'move')
-    return {
-      weapon,
-      from: at.position,
-      facing: at.facing,
-      afterMoving: stepIndex < 0 || (moveIndex >= 0 && stepIndex > moveIndex),
-    }
+    return { weapon, from: at.position, facing: at.facing }
   }, [plan, overlay])
 
   /**
@@ -277,14 +267,14 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
    */
   const rangeCells = useMemo<Position[]>(() => {
     if (!focusWeapon) return []
-    const { weapon, from, facing, afterMoving } = focusWeapon
+    const { weapon, from, facing } = focusWeapon
     if (!getSubsystemConfig(weapon.type).weaponStats) return []
     const attacker = { wellId: from.wellId, ring: from.ring, sector: from.sector, facing }
     const cells: Position[] = []
     for (const ring of ringsOf(from.wellId)) {
       for (let sector = 0; sector < SECTORS_PER_RING; sector++) {
         const cell: Position = { wellId: from.wellId, ring: ring.ring, sector }
-        if (canEngage(weapon, attacker, cell, afterMoving)) cells.push(cell)
+        if (canEngage(weapon, attacker, cell)) cells.push(cell)
       }
     }
     return cells
@@ -302,12 +292,10 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
 
   /**
    * A launch you have queued but not yet sent, drawn from where it would be
-   * fired. Order matters: a missile launched after the move rode along with
-   * the ship, so it does not drift again this turn.
+   * fired: on its launch turn a missile flies from there with no ride.
    */
   const missilePreviews = useMemo<MissilePreview[]>(() => {
     if (!plan || !plan.isMyTurn || overlay) return []
-    const moveIndex = plan.steps.findIndex(s => s.kind === 'move')
     return plan.steps.flatMap((step, index) => {
       if (step.kind !== 'fire' || !step.targetId) return []
       const weapon = plan.pendingSubsystems.find(s => s.id === step.subsystemId)
@@ -319,12 +307,11 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           id: step.id,
           from: plan.stepStart[index]?.position ?? plan.finalPosition.position,
           target: target.position,
-          launchedAfterMove: moveIndex >= 0 && index > moveIndex,
           color: colorOf(plan.me.id),
           label:
             step.count > 1
-              ? `Planned salvo of ${step.count} at ${nameOf(target.id)} · each rides its orbit, then flies up to 3 steps`
-              : `Planned missile at ${nameOf(target.id)} · rides its orbit, then flies up to 3 steps`,
+              ? `Planned salvo of ${step.count} at ${nameOf(target.id)} · each flies up to 3 steps this turn`
+              : `Planned missile at ${nameOf(target.id)} · flies up to 3 steps this turn`,
         },
       ]
     })
@@ -332,9 +319,9 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
 
   /**
    * A missile in flight rides its orbit and then flies at its target; a
-   * planned launch does the same from where it would be fired, minus the
-   * drift if it rode along with the ship. Missiles whose target has left the
-   * board have no path at all.
+   * planned launch only flies, from where it would be fired, because the
+   * launch turn has no ride. Missiles whose target has left the board have no
+   * path at all.
    */
   const missilePaths = useMemo<Record<string, Position[]>>(() => {
     const paths: Record<string, Position[]> = {}
@@ -343,10 +330,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       if (target) paths[missile.id] = projectMissilePath(missile, target)
     }
     for (const preview of missilePreviews) {
-      paths[preview.id] = projectMissilePath(
-        { ...preview.from, launchedAfterMove: preview.launchedAfterMove },
-        preview.target
-      )
+      paths[preview.id] = projectMissilePath({ ...preview.from, movesMade: 0 }, preview.target)
     }
     return paths
   }, [missiles, missilePreviews, positionOf])

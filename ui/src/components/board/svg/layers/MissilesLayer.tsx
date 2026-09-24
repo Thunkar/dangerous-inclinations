@@ -3,9 +3,9 @@
  * owner's next turn: the orbital drift first (a solid arc), then up to three
  * flight steps toward the target (dashed, rings closed first).
  *
- * A missile launched after its ship had already moved rode along with the
- * ship, so it has no drift segment this turn: the model asks the engine for
- * the path, and this layer draws exactly what comes back.
+ * A missile on its launch turn does not ride its orbit, so it has no drift
+ * segment: the model asks the engine for the path, and this layer draws
+ * exactly what comes back.
  *
  * A launch you have queued but not yet sent is drawn the same way, from the
  * position it would be fired at, so you can see where it lands before you
@@ -27,7 +27,7 @@ import { Track } from './OverlaysLayer'
 
 const MISSILE_TOOLTIP =
   'Rides its orbit, then flies up to 3 steps toward the target (rings first). ' +
-  'Launched after moving? It already rode along: no drift this turn. 3 flights max.'
+  'On its launch turn it only flies, from where it was launched. 3 flights max.'
 
 interface MissilesLayerProps {
   missiles: ReadonlyArray<Missile>

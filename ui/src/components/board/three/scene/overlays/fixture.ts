@@ -113,9 +113,8 @@ const MISSILES: Missile[] = [
     turnFired: 4,
     movesMade: 1,
     criticalTarget: 'engines',
-    launchedAfterMove: false,
   },
-  // Launched after its ship had moved: it rode along, so there is no drift.
+  // Launched this turn: no ride on the launch turn, so there is no drift.
   {
     id: 'missile-p2-1',
     ownerId: 'p2',
@@ -126,7 +125,6 @@ const MISSILES: Missile[] = [
     turnFired: 5,
     movesMade: 0,
     criticalTarget: 'rotation',
-    launchedAfterMove: true,
   },
   // Its target has left the board: no path at all, just a dart.
   {
@@ -139,7 +137,6 @@ const MISSILES: Missile[] = [
     turnFired: 3,
     movesMade: 2,
     criticalTarget: 'scoop',
-    launchedAfterMove: false,
   },
 ]
 
@@ -190,9 +187,8 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
       id: 'plan-fire-0',
       from: me.position,
       target: target.position,
-      launchedAfterMove: false,
       color: colorOf(me.playerId),
-      label: `Planned missile at ${target.name} · rides its orbit, then flies up to 3 steps`,
+      label: `Planned missile at ${target.name} · flies up to 3 steps this turn`,
     },
   ]
 
@@ -202,10 +198,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     if (at) missilePaths[missile.id] = projectMissilePath(missile, at)
   }
   for (const preview of missilePreviews) {
-    missilePaths[preview.id] = projectMissilePath(
-      { ...preview.from, launchedAfterMove: preview.launchedAfterMove },
-      preview.target
-    )
+    missilePaths[preview.id] = projectMissilePath({ ...preview.from, movesMade: 0 }, preview.target)
   }
 
   // A real jump out of the lane the route ends on, so the transfer step lands
@@ -260,7 +253,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     missilePreviews,
     plannedPoints,
     route,
-    focusWeapon: { weapon: FOCUS_WEAPON, from: me.position, facing: 'prograde', afterMoving: false },
+    focusWeapon: { weapon: FOCUS_WEAPON, from: me.position, facing: 'prograde' },
     rangeCells: rangeCellsFrom(me.position),
     missilePaths,
     selectableIds: [target.playerId],

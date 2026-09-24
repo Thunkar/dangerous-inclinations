@@ -1,11 +1,11 @@
 /**
  * How a missile flies, drawn: the one weapon whose shot takes turns to land.
  *
- * Two cases, each followed for two turns: a missile fired before its ship
- * moves stays behind and rides its ring before it flies; one fired after the
- * move has already ridden along with the ship, so it skips the ride on its
- * first turn. Between the two turns the target drifts on its own turn, and the
- * second flight goes where the target is then.
+ * One missile followed for two turns. On the launch turn it only flies, from
+ * the sector it was dropped on, whatever its ship does next; from the second
+ * turn on it rides its ring first, then flies. Between the two turns the
+ * target drifts on its own turn, and the second flight goes where the target
+ * is then.
  *
  * Every position is the engine's: `driftPosition` for a ride and `stepToward`
  * one step at a time for a flight (rings first, then sectors), so the picture
@@ -34,7 +34,7 @@ const RINGS = [INNER, OUTER]
 const at = (ring: number, sector: number): Position => ({ wellId: BLACK_HOLE_ID, ring, sector })
 
 /** Where the target is when each flight is flown: it drifts on its own turn in between. */
-const TARGET_1 = at(INNER, 6)
+const TARGET_1 = at(INNER, 4)
 const TARGET_2 = driftPosition(TARGET_1)
 
 interface Turn {
@@ -60,9 +60,9 @@ function flyTurn(from: Position, target: Position, ride: boolean): Turn {
   return { from, rode, steps, hit: same(here, target) }
 }
 
-/** Two turns of one missile, launched at `launch`, riding on its first turn or not. */
-function twoTurns(launch: Position, launchedAfterMove: boolean): Turn[] {
-  const first = flyTurn(launch, TARGET_1, !launchedAfterMove)
+/** Two turns of one missile launched at `launch`: no ride on the launch turn, a ride after it. */
+function twoTurns(launch: Position): Turn[] {
+  const first = flyTurn(launch, TARGET_1, false)
   const end = first.steps[first.steps.length - 1] ?? first.rode
   return [first, flyTurn(end, TARGET_2, true)]
 }
@@ -172,39 +172,12 @@ function Ship({ at: where, hollow = false }: { at: Position; hollow?: boolean })
   )
 }
 
-function Case({
-  title,
-  launch,
-  afterMove,
-  shipFrom,
-}: {
-  title: string
-  launch: Position
-  afterMove: boolean
-  /** Where the ship made its move from, when the missile is fired after it. */
-  shipFrom?: Position
-}) {
-  const turns = twoTurns(launch, afterMove)
+function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
+  const turns = twoTurns(launch)
   const hitTurn = turns.findIndex(t => t.hit)
-  const label = `${title}: the missile ${
-    afterMove
-      ? 'starts where the move left the ship and skips the ride on its first turn'
-      : 'stays behind, rides its ring, then flies'
-  }, and reaches the target on turn ${hitTurn + 1}`
+  const label = `Launched, then the ship moves on: the missile flies from where it was dropped with no ride on its first turn, rides its ring then flies on its second, and reaches the target on turn ${hitTurn + 1}`
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Box
-        sx={{
-          fontFamily: FONT_DISPLAY,
-          fontWeight: 700,
-          fontSize: '1.15rem',
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          mb: 0.5,
-        }}
-      >
-        {title}
-      </Box>
       <Box sx={{ overflowX: 'auto' }}>
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -277,22 +250,19 @@ function Case({
             target drifts
           </Tag>
 
-          {/* The ship's own move, when the shot comes after it. */}
-          {shipFrom && (
-            <>
-              <path
-                d={`M${cx(shipFrom.sector) + 12} ${cy(shipFrom.ring)}H${cx(launch.sector)}V${cy(launch.ring) + 12}`}
-                stroke={PRESS.ink}
-                strokeWidth={2}
-                strokeDasharray="3 4"
-                fill="none"
-              />
-              <Ship at={shipFrom} hollow />
-              <Tag x={cx(shipFrom.sector)} y={y(shipFrom.ring) + CELL + 13}>
-                your move
-              </Tag>
-            </>
-          )}
+          {/* The ship fires, then moves on: the missile does not go with it. */}
+          <Ship at={launch} hollow />
+          <path
+            d={`M${cx(launch.sector) + 12} ${cy(launch.ring) + 14}H${cx(shipTo.sector) - 10}`}
+            stroke={PRESS.ink}
+            strokeWidth={2}
+            strokeDasharray="3 4"
+            fill="none"
+          />
+          <Ship at={shipTo} />
+          <Tag x={cx(shipTo.sector) + 18} y={y(shipTo.ring) + CELL + 13}>
+            your move
+          </Tag>
 
           {turns.map((turn, index) => (
             <TurnPath key={`l${index}`} turn={turn} index={index} layer="lines" />
@@ -364,22 +334,20 @@ function Key() {
 }
 
 export function MissileFlight() {
-  const shipFrom = at(OUTER, 0)
-  // Move, then fire: a soft burn inward from the outer ring (the ship drifts
-  // with it, then drops a ring) and the missile is dropped where it ended.
-  const afterBurn = { ...driftPosition(shipFrom), ring: INNER }
+  const launch = at(OUTER, 0)
+  // Fire, then coast: the ship rides on and leaves the missile where it was dropped.
   return (
     <Box>
       <Key />
-      <Box sx={{ display: 'grid', gap: 3, maxWidth: 760 }}>
-        <Case title="Fire, then move" launch={shipFrom} afterMove={false} />
-        <Case title="Move, then fire" launch={afterBurn} afterMove shipFrom={shipFrom} />
+      <Box sx={{ maxWidth: 760 }}>
+        <Flight launch={launch} shipTo={driftPosition(launch)} />
       </Box>
       <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1.5 }}>
-        At the end of each of your turns a missile rides its orbit, then flies {MISSILE.fuelPerTurn}{' '}
-        steps. Fired after you move, it has already ridden with you: no ride that turn. On the
-        target&rsquo;s sector it attacks like a weapon ({MISSILE.damage} damage), unless a rack with
-        energy on it shoots it down on {INTERCEPT_ON}+. It lasts {MISSILE.maxMoves} turns.
+        The turn you launch it, a missile flies {MISSILE.fuelPerTurn} steps from the sector you
+        dropped it on, whether you fired before your move or after it. At the end of every turn
+        after that it rides its orbit, then flies {MISSILE.fuelPerTurn}. On the target&rsquo;s
+        sector it attacks like a weapon ({MISSILE.damage} damage), unless a rack with energy on it
+        shoots it down on {INTERCEPT_ON}+. It lasts {MISSILE.maxMoves} turns.
       </Body>
     </Box>
   )

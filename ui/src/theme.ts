@@ -145,7 +145,15 @@ export const theme = createTheme({
     },
     MuiChip: {
       styleOverrides: {
-        root: { ...DISPLAY, fontWeight: 600, borderRadius: 0, fontSize: '0.8rem' },
+        root: {
+          ...DISPLAY,
+          fontWeight: 600,
+          borderRadius: 0,
+          fontSize: '0.8rem',
+          // MUI tucks the icon into a pill's round end (2px on an outlined small
+          // chip); a square chip has no round end, so give it a real margin.
+          '&& .MuiChip-icon': { marginLeft: 8, marginRight: -2 },
+        },
         outlined: { borderColor: TABLE.plateEdge },
       },
       variants: [

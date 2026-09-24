@@ -15,11 +15,22 @@ export function SubsystemIcon({
   size,
   opacity = 0.92,
   color = TABLE.ink,
+  className,
 }: {
   type: SubsystemType
   size: number
   opacity?: number
   color?: string
+  className?: string
 }) {
-  return <TileIcon type={type} size={size} color={color} opacity={opacity} title={null} />
+  return (
+    <TileIcon
+      type={type}
+      size={size}
+      color={color}
+      opacity={opacity}
+      title={null}
+      className={className}
+    />
+  )
 }

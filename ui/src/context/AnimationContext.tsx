@@ -452,11 +452,6 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         if (motion) pushEffect({ id: nextId('tween'), kind: 'tween', duration })
       }
 
-      // Ships that have already taken their move this turn: a missile launched
-      // after its owner moved rode along with the ship, so it does not drift
-      // again at the end of the turn (RULES §Weapons → Missiles).
-      const movedThisTurn = new Set<string>()
-
       const queue = [...events]
       let cancelled = false
       /**
@@ -477,13 +472,11 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.small
           case 'coasted':
             moveShip(event.playerId, event.to, 'coast')
-            movedThisTurn.add(event.playerId)
             if (!event.recovering)
               mark(event.playerId, event.moored ? 'MOORED' : 'COAST', 'good', { at: event.to })
             return BEAT.move
           case 'burned': {
             moveShip(event.playerId, event.to, 'burn')
-            movedThisTurn.add(event.playerId)
             const phase = event.massSpent - BURN_MASS[event.intensity]
             mark(
               event.playerId,
@@ -495,7 +488,6 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           }
           case 'jumped':
             moveShip(event.playerId, event.to, 'jump', undefined, BEAT.jump)
-            movedThisTurn.add(event.playerId)
             pushEffect({
               id: nextId('burst'),
               kind: 'burst',
@@ -648,7 +640,6 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                 turnFired: event.turn,
                 movesMade: 0,
                 criticalTarget: event.criticalTarget,
-                launchedAfterMove: movedThisTurn.has(event.ownerId),
               },
             ]
             return BEAT.small
@@ -661,7 +652,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                     wellId: event.to.wellId,
                     ring: event.to.ring,
                     sector: event.to.sector,
-                    launchedAfterMove: false,
+                    movesMade: m.movesMade + 1,
                   }
                 : m
             )

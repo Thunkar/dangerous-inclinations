@@ -23,9 +23,11 @@ interface IconProps {
   opacity?: number
   /** Screen-reader name. Without one the icon is decorative and hidden. */
   title?: string
+  /** For a parent that styles its icon by class (a MUI Chip clones one in). */
+  className?: string
 }
 
-export function Icon({ name, size, color, opacity, title }: IconProps & { name: IconName }) {
+export function Icon({ name, size, color, opacity, title, className }: IconProps & { name: IconName }) {
   return (
     <svg
       width={size}
@@ -35,6 +37,7 @@ export function Icon({ name, size, color, opacity, title }: IconProps & { name: 
       role={title ? 'img' : undefined}
       aria-hidden={title ? undefined : true}
       focusable="false"
+      className={className}
       style={{ color, opacity, display: 'block', flexShrink: 0 }}
     >
       {title && <title>{title}</title>}
