@@ -23,9 +23,18 @@ import {
 } from 'react'
 import type { GameEvent, GameRecording, GameView, PlayerAction, ShipLoadout, ShipAppearance } from '@dangerous-inclinations/engine'
 import { filterEventsFor, reconstructStateAtTurn, viewFor } from '@dangerous-inclinations/engine'
-import type { ChatKind, ChatMessage, GameSocketMessage, SubmitTurnMessage, Seat } from '../api/types'
+import type {
+  ChatKind,
+  ChatMessage,
+  GameSocketMessage,
+  SubmitTurnMessage,
+  Seat,
+  TurnSummary,
+} from '../api/types'
 import {
   getGame,
+  getTurnFrames,
+  getTurns,
   getChat,
   postChat,
   submitLoadout as submitLoadoutAPI,
@@ -46,29 +55,42 @@ export type Animator = (
   done: () => void,
 ) => void | (() => void)
 
-/**
- * One player-turn, kept so it can be played again.
- *
- * A turn at this table is a minute of somebody else's plan resolving on a
- * board you were not watching, and the log tells you what happened without
- * showing you where. So the last {@link TURN_HISTORY} of them are held as the
- * pair of views they ran between plus their events, which is exactly what the
- * animator needs. A replay is the same animation over the same inputs, and
- * it commits nothing.
- */
-export interface TurnRecord {
-  id: number
-  /** The round it belongs to (`view.turn`), for the tick's label. */
-  turn: number
-  /** Whose turn it was. */
-  actorId: string
+/** A turn's pair of views and its events: exactly what the animator needs. */
+export interface TurnFrames {
   from: GameView
   to: GameView
   events: GameEvent[]
 }
 
-/** How many player-turns the transport keeps. */
-export const TURN_HISTORY = 10
+/**
+ * One player-turn on the timeline, which can be played again.
+ *
+ * A turn at this table is a minute of somebody else's plan resolving on a
+ * board you were not watching, and the log tells you what happened without
+ * showing you where. So every turn of the game is listed, back to the first,
+ * and replaying one runs the animator over the pair of views it ran between.
+ * A replay is the same animation over the same inputs, and it commits nothing.
+ *
+ * A turn seen live carries its frames already. The rest come from the server's
+ * list (`GET /api/games/:gameId/turns`), which is cheap because it has no
+ * views, and a turn's frames are fetched the first time it is replayed.
+ */
+export interface TurnRecord {
+  /** One seat acts once a round, so round and seat name a player-turn on both lists. */
+  key: string
+  /** The round it belongs to (`view.turn`), for the tick's label. */
+  turn: number
+  /** Whose turn it was. */
+  actorId: string
+  /** Events of it this seat may see. */
+  eventCount: number
+  /** Where it sits in the server's recording, when the server listed it. */
+  index?: number
+  /** Known once the turn was seen live or replayed once. */
+  frames?: TurnFrames
+}
+
+const turnKey = (turn: number, actorId: string) => `${turn}:${actorId}`
 
 export interface GameContextValue {
   /** Live game id, or null for a replay. */
@@ -92,10 +114,10 @@ export interface GameContextValue {
   submitLoadout: (loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance) => Promise<void>
   deploy: (sector: number, ring: number) => Promise<void>
   registerAnimator: (animator: Animator | null) => void
-  /** The last {@link TURN_HISTORY} player-turns, oldest first. */
+  /** Every player-turn of the game this seat saw something of, oldest first. */
   history: TurnRecord[]
-  /** Play a recorded turn again over the live board. Commits nothing. */
-  replayTurn: (id: number) => void
+  /** Play a turn again over the live board, by its `key`. Commits nothing. */
+  replayTurn: (key: string) => void
 }
 
 export const GameContext = createContext<GameContextValue | undefined>(undefined)
@@ -131,7 +153,6 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
   const [log, setLog] = useState<GameEvent[]>(initialLog)
   const [isAnimating, setIsAnimating] = useState(false)
   const [history, setHistory] = useState<TurnRecord[]>([])
-  const historySeqRef = useRef(0)
   const animatorRef = useRef<Animator | null>(null)
   const cancelAnimationRef = useRef<(() => void) | null>(null)
   const queueRef = useRef<QueuedUpdate[]>([])
@@ -162,14 +183,39 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
     // and a turn with nothing in it is not one either.
     if (update.replaceLog || update.events.length === 0) return
     const record: TurnRecord = {
-      id: ++historySeqRef.current,
+      key: turnKey(from.turn, from.activePlayerId),
       turn: from.turn,
       actorId: from.activePlayerId,
-      from,
-      to: update.view,
-      events: update.events,
+      eventCount: update.events.length,
+      frames: { from, to: update.view, events: update.events },
     }
-    setHistory((prev) => [...prev, record].slice(-TURN_HISTORY))
+    setHistory((prev) =>
+      prev.some((r) => r.key === record.key)
+        ? prev.map((r) => (r.key === record.key ? { ...r, frames: record.frames } : r))
+        : [...prev, record],
+    )
+  }, [])
+
+  /**
+   * Take the server's list of the game's turns. Turns already seen live keep
+   * their frames; with `replace` false, live turns the list does not have yet
+   * (it was fetched while they arrived) stay on the end. A rewind replaces.
+   */
+  const mergeListed = useCallback((listed: TurnSummary[], replace: boolean) => {
+    setHistory((prev) => {
+      const byKey = new Map(prev.map((r) => [r.key, r]))
+      const fromServer: TurnRecord[] = listed.map((t) => {
+        const key = turnKey(t.turn, t.actorId)
+        return { key, turn: t.turn, actorId: t.actorId, eventCount: t.eventCount, index: t.index, frames: byKey.get(key)?.frames }
+      })
+      if (replace) return fromServer
+      const known = new Set(fromServer.map((r) => r.key))
+      return [...fromServer, ...prev.filter((r) => !known.has(r.key))]
+    })
+  }, [])
+
+  const cacheFrames = useCallback((key: string, frames: TurnFrames) => {
+    setHistory((prev) => prev.map((r) => (r.key === key ? { ...r, frames } : r)))
   }, [])
 
   const pump = useCallback(() => {
@@ -228,7 +274,7 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
     animatorRef.current = animator
   }, [])
 
-  return { view, log, isAnimating, enqueue, reset, registerAnimator, latestRef, history }
+  return { view, log, isAnimating, enqueue, reset, registerAnimator, latestRef, history, mergeListed, cacheFrames }
 }
 
 function makeNameOf(view: GameView) {
@@ -309,16 +355,26 @@ interface LiveGameProps {
 function LiveGameProvider({ gameId, initialView, initialEvents, seats, children }: LiveGameProps) {
   const { client, connect } = useWebSocket()
   const { playerId } = usePlayer()
-  const { view, log, isAnimating, enqueue, registerAnimator, latestRef, history } = useViewQueue(
-    initialView,
-    initialEvents,
-  )
+  const { view, log, isAnimating, enqueue, registerAnimator, latestRef, history, mergeListed, cacheFrames } =
+    useViewQueue(initialView, initialEvents)
   const [turnErrors, setTurnErrors] = useState<string[]>([])
   const { chat, merge: mergeChat, sendChat } = useChat(gameId)
 
   useEffect(() => {
     if (!client) return
     let cancelled = false
+
+    // The whole game back to its first turn: on joining, on a resync, and
+    // after a rewind (which takes turns away).
+    const refreshTimeline = (replace: boolean) => {
+      getTurns(gameId)
+        .then((response) => {
+          if (!cancelled) mergeListed(response.turns, replace)
+        })
+        .catch(() => {
+          // No list (a spectator, a server without it): the timeline shows the turns seen live.
+        })
+    }
 
     const unsubscribe = client.onMessage(
       'game',
@@ -327,9 +383,11 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
         switch (data.type) {
           case 'GAME_VIEW':
             enqueue({ view: data.payload.view, events: data.payload.events, animate: false, replaceLog: true })
+            refreshTimeline(false)
             break
           case 'TURN_EXECUTED':
             enqueue({ view: data.payload.view, events: data.payload.events, animate: !data.payload.rewind })
+            if (data.payload.rewind) refreshTimeline(true)
             break
           case 'TURN_ERROR':
             setTurnErrors(data.payload.errors ?? (data.payload.error ? [data.payload.error] : ['Turn rejected']))
@@ -352,7 +410,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
       cancelled = true
       unsubscribe()
     }
-  }, [client, connect, gameId, enqueue, mergeChat])
+  }, [client, connect, gameId, enqueue, mergeChat, mergeListed])
 
   const submitTurn = useCallback(
     (actions: PlayerAction[]) => {
@@ -388,13 +446,26 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
   const nameOf = useMemo(() => makeNameOf(view), [view])
   const clearTurnErrors = useCallback(() => setTurnErrors([]), [])
 
+  /** Frames being fetched, so a double click replays a turn once. */
+  const fetchingRef = useRef(new Set<string>())
   const replayTurn = useCallback(
-    (id: number) => {
-      const record = history.find((r) => r.id === id)
+    (key: string) => {
+      const record = history.find((r) => r.key === key)
       if (!record) return
-      enqueue({ view: record.to, events: record.events, animate: true, replayFrom: record.from })
+      const play = (frames: TurnFrames) =>
+        enqueue({ view: frames.to, events: frames.events, animate: true, replayFrom: frames.from })
+      if (record.frames) return play(record.frames)
+      if (record.index === undefined || fetchingRef.current.has(key)) return
+      fetchingRef.current.add(key)
+      getTurnFrames(gameId, record.index)
+        .then((frames) => {
+          cacheFrames(key, frames)
+          play(frames)
+        })
+        .catch(() => setTurnErrors(['Could not load that turn']))
+        .finally(() => fetchingRef.current.delete(key))
     },
-    [enqueue, history],
+    [enqueue, history, gameId, cacheFrames],
   )
 
   const value = useMemo<GameContextValue>(

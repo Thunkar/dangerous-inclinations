@@ -36,6 +36,8 @@ information) and the simulator can still play a batch at another number
 | Method | Path | Body | Response |
 |--------|------|------|----------|
 | GET | `/api/games/:gameId` | none | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat) |
+| GET | `/api/games/:gameId/turns` | none | `{ turns: { index, turn, actorId, eventCount }[] }`: every player-turn so far the caller saw an event of, oldest first, with no views (the timeline) |
+| GET | `/api/games/:gameId/turns/:index` | none | `{ from: GameView, to: GameView, events: GameEvent[] }`: that turn as the caller saw it, to replay over the board; `404` past the end |
 | POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance }` | `{ view }` or `400 { error }` |
 | POST | `/api/games/:gameId/deploy` | `{ ring: 3 \| 4, sector: number }` | `{ view }` or `400 { error }`. Black Hole ring 3 or ring 4, at least three sectors from every ship already placed (if no position is that clear, the clearest ones are legal instead); the position becomes the player's Home |
 | POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` | `{ ok, errors?, events? }` (dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn) |

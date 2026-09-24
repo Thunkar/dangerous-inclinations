@@ -62,6 +62,30 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return reply.send({ ...payload, seats });
   });
 
+  // The timeline: every turn so far the caller saw something of, without views.
+  fastify.get<GameRequest>("/api/games/:gameId/turns", async (request, reply) => {
+    const member = await requireMember(request, reply);
+    if (!member) return;
+    const turns = await gameService.listTurns(member.gameId, member.playerId);
+    if (!turns) return reply.code(404).send({ error: "Game not found" });
+    return reply.send({ turns });
+  });
+
+  // One turn's frames, as the caller saw it, to replay over the board.
+  fastify.get<GameRequest & { Params: { index: string } }>(
+    "/api/games/:gameId/turns/:index",
+    async (request, reply) => {
+      const member = await requireMember(request, reply);
+      if (!member) return;
+      const index = Number(request.params.index);
+      if (!Number.isInteger(index) || index < 0)
+        return reply.code(400).send({ error: "Invalid turn index" });
+      const frames = await gameService.turnFrames(member.gameId, member.playerId, index);
+      if (!frames) return reply.code(404).send({ error: "Turn not found" });
+      return reply.send(frames);
+    }
+  );
+
   // Dry run of a turn: validation and the events it would produce, nothing committed.
   fastify.post<GameRequest>("/api/games/:gameId/preview", async (request, reply) => {
     const member = await requireMember(request, reply);

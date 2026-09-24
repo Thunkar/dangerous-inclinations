@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+**/recordings
+.git
+.claude
+.yarn/cache
+.yarn/install-state.gz
+*.log
+docs
+server/recordings
+sim-out

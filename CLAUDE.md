@@ -147,6 +147,7 @@ yarn workspace @dangerous-inclinations/engine balance --quick   # balance regres
 yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
 node scripts/shot.mjs '/' shot.png                    # photograph the running UI (needs `yarn dev`; PLAYER_ID + ?game=<id> for a seat)
+DOCKERHUB_USER=<you> scripts/deploy.sh               # build + push both images, restart the stack on the NAS (Dockerfile, deploy/)
 ```
 
 Arena (`yarn seat help`, and the header of `server/scripts/seat.ts`): agents

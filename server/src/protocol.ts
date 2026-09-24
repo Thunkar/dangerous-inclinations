@@ -10,6 +10,28 @@ export interface ViewPayload {
   events: GameEvent[];
 }
 
+/**
+ * One player-turn of a live game as the timeline lists it: no views, so the
+ * whole game can be listed cheaply. `index` addresses the turn's frames.
+ */
+export interface TurnSummary {
+  /** Position in the game's recording, for `GET /api/games/:gameId/turns/:index`. */
+  index: number;
+  /** The round (`GameState.turn`) the turn was played in. */
+  turn: number;
+  /** Whose turn it was. */
+  actorId: string;
+  /** Events of the turn the caller may see. */
+  eventCount: number;
+}
+
+/** A turn as the caller saw it: the views it ran between and its events. */
+export interface TurnFrames {
+  from: GameView;
+  to: GameView;
+  events: GameEvent[];
+}
+
 export interface TurnExecutedPayload extends ViewPayload {
   /** Who acted. */
   playerId: string;

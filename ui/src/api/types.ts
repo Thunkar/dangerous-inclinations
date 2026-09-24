@@ -122,6 +122,25 @@ export interface GameViewResponse {
   seats?: Seat[]
 }
 
+/** One player-turn on the timeline (`GET /api/games/:gameId/turns`): no views. */
+export interface TurnSummary {
+  index: number
+  turn: number
+  actorId: string
+  eventCount: number
+}
+
+export interface TurnsResponse {
+  turns: TurnSummary[]
+}
+
+/** One turn as this seat saw it (`GET /api/games/:gameId/turns/:index`). */
+export interface TurnFramesResponse {
+  from: GameView
+  to: GameView
+  events: GameEvent[]
+}
+
 export interface ViewResponse {
   view: GameView
 }

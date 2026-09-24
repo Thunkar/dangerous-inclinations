@@ -391,6 +391,26 @@ check(
   "the event history is filtered for the human",
 );
 
+// The timeline: the list carries no views, and every turn's frames pass the
+// same checks as a socket message to the human.
+const timeline = await games.listTurns(GAME_ID, HUMAN);
+check(timeline !== null && timeline.length > 0, "the timeline lists the game's turns");
+check(
+  timeline !== null && timeline.every((t, i) => i === 0 || t.index > timeline[i - 1].index),
+  "the timeline is oldest first",
+);
+for (const { path, key } of walk(timeline)) {
+  if (key === "view" || SECRET_KEYS.includes(key)) failures.push(`timeline: carries "${key}" at ${path}`);
+}
+for (const [n, summary] of (timeline ?? []).entries()) {
+  const frames = await games.turnFrames(GAME_ID, HUMAN, summary.index);
+  check(frames !== null && frames.events.length === summary.eventCount, `timeline turn ${n}: frames match the list`);
+  if (!frames) continue;
+  inspectHumanMessage({ type: "GAME_VIEW", payload: { view: frames.from, events: frames.events } }, 10_000 + 2 * n);
+  inspectHumanMessage({ type: "GAME_VIEW", payload: { view: frames.to, events: [] } }, 10_001 + 2 * n);
+}
+check((await games.turnFrames(GAME_ID, HUMAN, 1_000_000)) === null, "a turn past the end has no frames");
+
 // --- Action validation (malformed payloads never reach the engine) -----------
 // The socket handler answers TURN_ERROR whenever this parse fails, so a
 // malformed action fails the whole submission instead of becoming a coast.

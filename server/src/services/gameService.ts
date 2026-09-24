@@ -47,7 +47,14 @@ import type { Kv } from "./kv.ts";
 import { createKeyedLock } from "./lock.ts";
 import type { RecordingService } from "./recordingService.ts";
 import { log as defaultLog, type ServiceLogger } from "./logger.ts";
-import type { ChatMessage, PreviewPayload, ServerGameMessage, ViewPayload } from "../protocol.ts";
+import type {
+  ChatMessage,
+  PreviewPayload,
+  ServerGameMessage,
+  TurnFrames,
+  TurnSummary,
+  ViewPayload,
+} from "../protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Dependencies
@@ -612,6 +619,39 @@ export function createGameService(deps: GameServiceDeps) {
         await ensureFinalized(gameId, state);
         return payload;
       });
+    },
+
+    /**
+     * Every turn of the game so far that the caller saw anything of, oldest
+     * first, for the timeline. Built from the recording, which holds every
+     * turn's resulting state; nothing hidden leaves here but the count of the
+     * caller's own visible events.
+     */
+    async listTurns(gameId: string, playerId: string): Promise<TurnSummary[] | null> {
+      const recording = await recordings.load(gameId);
+      if (!recording) return null;
+      return recording.turns.flatMap((turn, index) => {
+        const eventCount = filterEventsFor(turn.events, playerId).length;
+        return eventCount === 0
+          ? []
+          : [{ index, turn: turn.turnNumber, actorId: turn.playerId, eventCount }];
+      });
+    },
+
+    /**
+     * One recorded turn as the caller saw it: their view of the state before
+     * it and after it, and the events of it they may see.
+     */
+    async turnFrames(gameId: string, playerId: string, index: number): Promise<TurnFrames | null> {
+      const recording = await recordings.load(gameId);
+      const turn = recording?.turns[index];
+      if (!recording || !turn) return null;
+      const before = index === 0 ? recording.initialState : recording.turns[index - 1].resultingStateSnapshot;
+      return {
+        from: viewFor(before, playerId),
+        to: viewFor(turn.resultingStateSnapshot, playerId),
+        events: filterEventsFor(turn.events, playerId),
+      };
     },
 
     submitLoadout(

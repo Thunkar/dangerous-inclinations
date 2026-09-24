@@ -1,0 +1,40 @@
+# Production stack. scripts/deploy.sh uploads this file and a .env next to it
+# (IMAGE_PREFIX, TAG, PORT) and runs `docker compose up -d`.
+name: dangerous-inclinations
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    image: ${IMAGE_PREFIX}/dangerous-inclinations-server:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    volumes:
+      - recordings:/data/recordings
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  web:
+    image: ${IMAGE_PREFIX}/dangerous-inclinations-web:${TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8088}:80"
+    depends_on:
+      - server
+
+volumes:
+  redis-data:
+  recordings:

@@ -10,12 +10,24 @@ import type {
   ChatPostResponse,
   ForkResponse,
   GameViewResponse,
+  TurnFramesResponse,
+  TurnsResponse,
   ViewResponse,
 } from './types'
 
 /** The current view plus the full filtered event history. */
 export async function getGame(gameId: string): Promise<GameViewResponse> {
   return api.get<GameViewResponse>(`/api/games/${gameId}`)
+}
+
+/** Every turn of the game so far that this seat saw something of, oldest first. */
+export async function getTurns(gameId: string): Promise<TurnsResponse> {
+  return api.get<TurnsResponse>(`/api/games/${gameId}/turns`)
+}
+
+/** One turn's pair of views and events, as this seat saw it. */
+export async function getTurnFrames(gameId: string, index: number): Promise<TurnFramesResponse> {
+  return api.get<TurnFramesResponse>(`/api/games/${gameId}/turns/${index}`)
 }
 
 /** Deployment: place your ship and Home marker on a Black Hole Ring 3 or Ring 4 sector. */
