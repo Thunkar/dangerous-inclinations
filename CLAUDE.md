@@ -319,8 +319,8 @@ the animator names each moment worth a shot (`CameraShot` in
 `AnimationContext`) and, while Auto is on, plays turns slower with a lead-in
 before each new shot. It cuts between shots that are far apart or face
 another way and glides on a spring otherwise, and it pulls back to the
-player's own well when their turn comes (or after the table is quiet), never
-between two bots. Only the board reads `useAnimation()`, which changes on
+player's own well when their turn comes, or after 1.6 s of quiet, so not
+between two bots that follow each other quickly. Only the board reads `useAnimation()`, which changes on
 every beat; the rest of the table reads `useAnimationControls`, `useDice` and
 `usePulses`, so a long game's log and transport are not re-rendered on each.
 
