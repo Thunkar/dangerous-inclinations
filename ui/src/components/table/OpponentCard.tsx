@@ -38,7 +38,7 @@ import { missionFamilyColor, missionFamilyLabel } from '../../utils/missions'
 import { slotLabel } from '../../utils/slots'
 import { agentLabel } from '../../utils/agents'
 import { useGame } from '../../context/GameContext'
-import { useAnimation } from '../../context/AnimationContext'
+import { useAnimationControls } from '../../context/AnimationContext'
 
 const SLOT_TILE = 36
 const FIXED_TILE = 22
@@ -67,7 +67,7 @@ export function OpponentCard({
 }: OpponentCardProps) {
   const ship = player.ship
   const destroyed = ship?.isDestroyed ?? false
-  const { ping } = useAnimation()
+  const { ping } = useAnimationControls()
   /** Who plays this seat: an agent's driver and model, or nothing for people and bots. */
   const { seats, view } = useGame()
   const agent = agentLabel(seats.find(s => s.playerId === player.id)?.agent)

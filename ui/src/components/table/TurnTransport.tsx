@@ -17,10 +17,37 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Box, Tooltip, Typography } from '@mui/material'
 import ReplayIcon from '@mui/icons-material/Replay'
 import { useGame } from '../../context/GameContext'
-import { PLAYBACK_SPEEDS, useAnimation, type PlaybackSpeed } from '../../context/AnimationContext'
+import {
+  PLAYBACK_SPEEDS,
+  useAnimationControls,
+  type PlaybackSpeed,
+} from '../../context/AnimationContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { FONT_MONO, TABLE } from '../../theme'
 import { FONT_DISPLAY } from '../../design/press'
+
+/**
+ * One style for every tick, so the styling is resolved twice rather than once
+ * per turn of the game; the seat's colour rides on a CSS variable.
+ */
+const TICK = {
+  all: 'unset',
+  cursor: 'pointer',
+  flexShrink: 0,
+  width: 26,
+  height: 16,
+  border: '1px solid',
+  bgcolor: 'transparent',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontFamily: FONT_MONO,
+  fontSize: '0.7rem',
+  // Hovered, the tick fills with the seat's colour: flat, like the name chips.
+  '&:hover': { bgcolor: 'var(--tick)', color: `${TABLE.onSelected} !important` },
+  '&:focus-visible': { outline: `2px solid ${TABLE.accent}`, outlineOffset: 2 },
+} as const
+const TICK_IDLE = { ...TICK, cursor: 'default', opacity: 0.4, '&:hover': {} } as const
 
 /** What one tick says when you hover it. */
 function tickTitle(name: string, turn: number, lines: number): string {
@@ -29,7 +56,7 @@ function tickTitle(name: string, turn: number, lines: number): string {
 
 export function TurnTransport() {
   const { history, replayTurn, isAnimating, view } = useGame()
-  const { speed, setSpeed } = useAnimation()
+  const { speed, setSpeed } = useAnimationControls()
   const rowRef = useRef<HTMLDivElement | null>(null)
   /** Whether the row is scrolled to its newest tick, so a new turn keeps it there. */
   const pinnedRef = useRef(true)
@@ -107,36 +134,21 @@ export function TurnTransport() {
           const color = getPlayerColor(index)
           const name = view.players[index]?.name ?? record.actorId
           return (
-            <Tooltip key={record.key} title={tickTitle(name, record.turn, record.eventCount)}>
-              <Box
-                component="button"
-                type="button"
-                aria-label={tickTitle(name, record.turn, record.eventCount)}
-                disabled={isAnimating}
-                onClick={() => replayTurn(record.key)}
-                sx={{
-                  all: 'unset',
-                  cursor: isAnimating ? 'default' : 'pointer',
-                  opacity: isAnimating ? 0.4 : 1,
-                  flexShrink: 0,
-                  width: 26,
-                  height: 16,
-                  border: `1px solid ${color}`,
-                  bgcolor: 'transparent',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontFamily: FONT_MONO,
-                  fontSize: '0.7rem',
-                  color,
-                  // Hovered, the tick fills with the seat's colour: flat, like the name chips.
-                  '&:hover': isAnimating ? {} : { bgcolor: color, color: TABLE.onSelected },
-                  '&:focus-visible': { outline: `2px solid ${TABLE.accent}`, outlineOffset: 2 },
-                }}
-              >
-                {record.turn}
-              </Box>
-            </Tooltip>
+            // A native title, not a MUI tooltip: this row holds every turn of the
+            // game, and a tooltip per tick is a component tree per tick.
+            <Box
+              key={record.key}
+              component="button"
+              type="button"
+              title={tickTitle(name, record.turn, record.eventCount)}
+              aria-label={tickTitle(name, record.turn, record.eventCount)}
+              disabled={isAnimating}
+              onClick={() => replayTurn(record.key)}
+              style={{ borderColor: color, color, ['--tick' as string]: color }}
+              sx={isAnimating ? TICK_IDLE : TICK}
+            >
+              {record.turn}
+            </Box>
           )
         })}
       </Box>

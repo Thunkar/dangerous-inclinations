@@ -21,7 +21,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
-import { useAnimation } from '../../context/AnimationContext'
+import { useAnimationControls, usePulses } from '../../context/AnimationContext'
 import { TABLE } from '../../theme'
 import { FONT_DISPLAY } from '../../design/press'
 import { Mark } from '../../site/poster'
@@ -43,7 +43,6 @@ const LEFT_WIDTH = 252
 /** Your own column: the loadout sets the floor at 252 + the plate's padding. */
 const RIGHT_WIDTH = 348
 
-
 export function TableScreen({
   headerRight,
   footer,
@@ -52,7 +51,8 @@ export function TableScreen({
   footer?: React.ReactNode
 }) {
   const { view, isAnimating, readOnly } = useGame()
-  const { pulses, skip } = useAnimation()
+  const { skip } = useAnimationControls()
+  const pulses = usePulses()
   const plan = usePlanOptional()
 
   const meIndex = view.players.findIndex(p => p.isMe)
@@ -131,7 +131,9 @@ export function TableScreen({
           }}
         />
         {view.finalRound && view.phase === 'active' && (
-          <Tooltip title={`Someone reached ${view.pointsToWin} points. The round is played out, then highest score wins (hull breaks ties).`}>
+          <Tooltip
+            title={`Someone reached ${view.pointsToWin} points. The round is played out, then highest score wins (hull breaks ties).`}
+          >
             <Chip
               size="small"
               label="FINAL ROUND"

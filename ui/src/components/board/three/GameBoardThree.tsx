@@ -22,7 +22,7 @@ import MovieIcon from '@mui/icons-material/Movie'
 import { Canvas } from '@react-three/fiber'
 import type { GravityWellId } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../theme'
-import { useAnimation } from '../../../context/AnimationContext'
+import { useAnimationControls } from '../../../context/AnimationContext'
 import type { BoardModel } from '../model'
 import { CameraRig, CameraRigProvider } from './CameraRig'
 import { CAMERA_PRESETS, useCameraRig, type CameraPreset } from './cameraRigContext'
@@ -138,7 +138,7 @@ function Board({
    * Auto slows the turn down and cues its shots; every other preset leaves the
    * animator at the pace turns are written at.
    */
-  const { setCinematic } = useAnimation()
+  const { setCinematic } = useAnimationControls()
   const auto = rig.preset === 'auto'
   useEffect(() => {
     setCinematic(auto)
@@ -213,6 +213,7 @@ function Board({
             animating: model.animating,
             actWells,
             missiles: model.missiles,
+            myTurn: model.ships.some(ship => ship.isMe && ship.isActive),
           }}
         />
         {/* The label is the request: the scene's adaptive ladder may have since

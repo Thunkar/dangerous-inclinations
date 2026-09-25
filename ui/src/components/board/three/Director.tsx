@@ -16,9 +16,18 @@
  * controls for a fresh transition sixty times a second is not what they are
  * for.
  *
+ * Two things keep it from being seasick. Between shots of different ships it
+ * cuts rather than swinging across the board: a whip-pan the length of the
+ * table is what makes a camera nauseating, and a cut is what film does
+ * instead. Within a shot, and between shots close enough to glide, it moves
+ * on a critically damped spring, which starts from rest instead of lunging.
+ * And it only pulls back to your well when it is your turn to plan (or after
+ * the table has been quiet for a moment): pulling out between two bots' turns
+ * only to dive straight back in was the pumping that made the first version
+ * hard to watch.
+ *
  * A hand wins. Touching the camera while a turn plays leaves the rest of that
- * turn to the hand; the next turn is filmed again, and the end of every turn
- * pulls back to the player's own well.
+ * turn to the hand; the next turn is filmed again.
  */
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { MathUtils, PerspectiveCamera, Vector3, type Object3D } from 'three'
@@ -44,8 +53,16 @@ import {
 
 /** How close a shot may stand to what it films: about four hull lengths. */
 const CLOSE = 150
-/** Seconds for the eased camera to cover most of the way to where the shot wants it. */
-const EASE = 0.42
+/** The spring's smoothing time, in seconds: roughly how long a glide takes to settle. */
+const GLIDE = 0.8
+/** A new shot further than this from where the camera is looking is a cut, not a glide. */
+const CUT_DISTANCE = 320
+/** So is one that faces further round than this: turning the camera half round is a whip-pan too. */
+const CUT_TURN = 100
+/** How long the table must be quiet on somebody else's turn before the camera pulls back. */
+const PULL_BACK_DELAY = 1600
+/** The controls' own transition time while the director drives them: the pull-back is slow. */
+const PULL_BACK_SMOOTH = 0.9
 /** The share of the frame a shot fills: tighter than a preset, it is a close-up. */
 const SHOT_FILL = 0.78
 /** Never closer to the surface under it than this. */
@@ -79,6 +96,8 @@ export interface DirectorProps {
   missiles: readonly Missile[]
   /** When a hand last touched the camera (performance.now()), 0 if never. */
   handAt: RefObject<number>
+  /** True while it is this seat's turn to plan: the pull-back comes at once. */
+  myTurn: boolean
 }
 
 /** A little cloud of points around a hull, so a framing leaves room for it. */
@@ -103,17 +122,51 @@ function rotateY(v: Vector3, degrees: number): Vector3 {
 }
 
 /**
- * Stand `turn` degrees off a line, on whichever side looks in toward the
- * middle of the well: the black hole behind the action is the better picture,
- * and a camera outside the pit is never looking up through its wall.
+ * Stand `turn` degrees off a line. Of the two sides, the one nearer the way
+ * the camera already faces wins, so a new shot does not swing the camera
+ * round the table; between two that are about as near, the one looking in
+ * toward the middle of the well (the black hole behind the action is the
+ * better picture, and a camera outside the pit never looks up through its
+ * wall).
  */
-function offLine(line: Vector3, turn: number, subject: Vector3, wellId: GravityWellId): Vector3 {
+function offLine(
+  line: Vector3,
+  turn: number,
+  subject: Vector3,
+  wellId: GravityWellId,
+  facing: Vector3
+): Vector3 {
   if (turn === 0) return line
   const centre = wellCenter(wellId)
   const inward = new Vector3(centre.x - subject.x, 0, centre.y - subject.z)
+  if (inward.lengthSq() > 0) inward.normalize()
   const left = rotateY(line, turn)
   const right = rotateY(line, -turn)
-  return left.dot(inward) >= right.dot(inward) ? left : right
+  const score = (side: Vector3) => side.dot(facing) + 0.35 * side.dot(inward)
+  return score(left) >= score(right) ? left : right
+}
+
+/**
+ * A critically damped spring toward `goal` (Unity's SmoothDamp), per axis:
+ * it leaves from rest and arrives without overshoot, where an exponential
+ * ease leaves at full speed.
+ */
+function smoothDamp(
+  current: Vector3,
+  goal: Vector3,
+  velocity: Vector3,
+  smoothTime: number,
+  delta: number
+) {
+  const omega = 2 / smoothTime
+  const x = omega * delta
+  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
+  for (const axis of ['x', 'y', 'z'] as const) {
+    const change = current[axis] - goal[axis]
+    const temp = (velocity[axis] + omega * change) * delta
+    velocity[axis] = (velocity[axis] - omega * temp) * decay
+    current[axis] = goal[axis] + (change + temp) * decay
+  }
 }
 
 /** The surface under a point: the floor of whichever well's plate it is over, else the table. */
@@ -126,13 +179,32 @@ function floorUnder(point: Vector3): number {
   return 0
 }
 
-export function Director({ controls, shot, animating, actWells, missiles, handAt }: DirectorProps) {
+export function Director({
+  controls,
+  shot,
+  animating,
+  actWells,
+  missiles,
+  handAt,
+  myTurn,
+}: DirectorProps) {
   const camera = useThree(state => state.camera)
   const scene = useThree(state => state.scene)
   const size = useThree(state => state.size)
 
-  /** The eased camera, and whether it has been seeded from where the camera really is. */
-  const eased = useRef({ eye: new Vector3(), target: new Vector3(), live: false })
+  /**
+   * The sprung camera: where it is, how fast it is going, whether it has been
+   * seeded from where the camera really is, and whether the shot has not yet
+   * decided if it opens with a cut.
+   */
+  const eased = useRef({
+    eye: new Vector3(),
+    target: new Vector3(),
+    eyeVelocity: new Vector3(),
+    targetVelocity: new Vector3(),
+    live: false,
+    opening: false,
+  })
   /** When the turn being played started: a touch after it hands that turn over. */
   const playbackAt = useRef(0)
   /** The way the camera faced when the current shot started, for the shots that circle. */
@@ -141,11 +213,15 @@ export function Director({ controls, shot, animating, actWells, missiles, handAt
   const hulls = useRef(new Map<string, Object3D | null>())
 
   // The controls' floor is a hand's; a close-up goes under it, and it goes back
-  // when the director leaves.
+  // when the director leaves. So does the transition time the pull-back uses.
   useEffect(() => {
     const rig = controls.current
+    if (!rig) return
+    const smoothTime = rig.smoothTime
+    rig.smoothTime = PULL_BACK_SMOOTH
     return () => {
-      if (rig) rig.minDistance = MIN_DISTANCE
+      rig.minDistance = MIN_DISTANCE
+      rig.smoothTime = smoothTime
     }
   }, [controls])
 
@@ -158,6 +234,7 @@ export function Director({ controls, shot, animating, actWells, missiles, handAt
   const shotId = shot?.id
   useEffect(() => {
     hulls.current.clear()
+    eased.current.opening = true
     const rig = controls.current
     if (!rig || !shotId) return
     const target = rig.getTarget(new Vector3())
@@ -174,16 +251,26 @@ export function Director({ controls, shot, animating, actWells, missiles, handAt
   const actKey = actWells.join(',')
   useEffect(() => {
     if (!idle) return
-    const rig = controls.current
-    if (!rig) return
-    eased.current.live = false
-    rig.minDistance = MIN_DISTANCE
-    const wells = actKey ? (actKey.split(',') as GravityWellId[]) : ['blackhole' as const]
-    const points = wells.flatMap(well =>
-      well === 'blackhole' ? homeHullPoints() : wellHullPoints(well, WELL_MARGIN)
-    )
-    framePoints(rig, points, TABLE_PITCHES, true)
-  }, [idle, actKey, controls, size.width, size.height])
+    const pullBack = () => {
+      const rig = controls.current
+      if (!rig) return
+      eased.current.live = false
+      rig.minDistance = MIN_DISTANCE
+      const wells = actKey ? (actKey.split(',') as GravityWellId[]) : ['blackhole' as const]
+      const points = wells.flatMap(well =>
+        well === 'blackhole' ? homeHullPoints() : wellHullPoints(well, WELL_MARGIN)
+      )
+      framePoints(rig, points, TABLE_PITCHES, true)
+    }
+    // On your turn you need the board now. On somebody else's the next bot
+    // is usually a moment away, and the camera holds its last shot for it.
+    if (myTurn) {
+      pullBack()
+      return
+    }
+    const timer = setTimeout(pullBack, PULL_BACK_DELAY)
+    return () => clearTimeout(timer)
+  }, [idle, myTurn, actKey, controls, size.width, size.height])
 
   const scratch = useMemo(
     () => ({ goalEye: new Vector3(), goalTarget: new Vector3(), points: [] as Vector3[] }),
@@ -220,7 +307,7 @@ export function Director({ controls, shot, animating, actWells, missiles, handAt
         const from = positionWorld(shot.from)
         const to = positionWorld(shot.to)
         const line = heading(from, to) ?? shotLook.current
-        look = offLine(line, style.turn, hull, shot.to.wellId)
+        look = offLine(line, style.turn, hull, shot.to.wellId, shotLook.current)
         pitch = style.pitch
         around(hull, style.margin, points)
         // A jump is filmed from behind, with room ahead of the nose; the other
@@ -235,7 +322,7 @@ export function Director({ controls, shot, animating, actWells, missiles, handAt
         const attacker = hullAt(shot.attackerId, shot.from)
         const target = hullAt(shot.targetId, shot.to)
         const line = heading(attacker, target) ?? shotLook.current
-        look = offLine(line, style.turn, attacker, shot.from.wellId)
+        look = offLine(line, style.turn, attacker, shot.from.wellId, shotLook.current)
         // Two ships far apart make a long thin frame; a higher camera fits it closer.
         pitch = MathUtils.clamp(style.pitch + attacker.distanceTo(target) / 45, style.pitch, 42)
         // Two hulls side by side in one sector would frame as a wall of hull and
@@ -260,7 +347,7 @@ export function Director({ controls, shot, animating, actWells, missiles, handAt
           incoming.length > 0
             ? (heading(centroid.divideScalar(incoming.length), target) ?? shotLook.current)
             : shotLook.current
-        look = offLine(line, style.turn, target, shot.at.wellId)
+        look = offLine(line, style.turn, target, shot.at.wellId, shotLook.current)
         pitch = style.pitch
         break
       }
@@ -286,11 +373,27 @@ export function Director({ controls, shot, animating, actWells, missiles, handAt
     if (!state.live) {
       state.eye.copy(camera.position)
       rig.getTarget(state.target)
+      state.eyeVelocity.set(0, 0, 0)
+      state.targetVelocity.set(0, 0, 0)
       state.live = true
     }
-    const k = 1 - Math.exp(-delta / EASE)
-    state.eye.lerp(goalEye, k)
-    state.target.lerp(goalTarget, k)
+    if (state.opening) {
+      state.opening = false
+      // Somewhere else on the table, or facing another way: cut rather than fly.
+      const was = heading(state.eye, state.target)
+      const will = heading(goalEye, goalTarget)
+      const turn = was && will ? MathUtils.radToDeg(was.angleTo(will)) : 0
+      if (state.target.distanceTo(goalTarget) > CUT_DISTANCE || turn > CUT_TURN) {
+        state.eye.copy(goalEye)
+        state.target.copy(goalTarget)
+        state.eyeVelocity.set(0, 0, 0)
+        state.targetVelocity.set(0, 0, 0)
+      }
+    }
+    // A frame that took a long time (a tab brought back, a hitch) must not fling the spring.
+    const step = Math.min(delta, 0.05)
+    smoothDamp(state.eye, goalEye, state.eyeVelocity, GLIDE, step)
+    smoothDamp(state.target, goalTarget, state.targetVelocity, GLIDE, step)
     rig.minDistance = CLOSE * 0.5
     void rig.setLookAt(
       state.eye.x,

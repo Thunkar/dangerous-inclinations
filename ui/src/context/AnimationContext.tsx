@@ -203,6 +203,25 @@ export interface Ping {
 const AnimationContext = createContext<AnimationContextValue | null>(null)
 
 /**
+ * The verbs, the speed and nothing that moves.
+ *
+ * The full context changes on every beat of a turn (the overlay and the
+ * effects are rewritten dozens of times a playback), and everything that read
+ * it re-rendered with it: the whole table, its log of every event so far and
+ * its row of every turn so far, seventy-odd times a turn and a little more
+ * every turn. Only the board needs the beats. The rest of the table reads
+ * these three narrow contexts, which change when the speed does, when a die
+ * lands and when a tile breaks.
+ */
+export type AnimationControls = Pick<
+  AnimationContextValue,
+  'skip' | 'ping' | 'speed' | 'setSpeed' | 'setCinematic'
+>
+const ControlsContext = createContext<AnimationControls | null>(null)
+const DiceContext = createContext<DieRoll[]>([])
+const PulsesContext = createContext<Record<string, number>>({})
+
+/**
  * The table's inks, not a second palette: a railgun slug is violet, a laser
  * the red, a missile the heat red, and point defence the teal.
  */
@@ -1142,7 +1161,20 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
     [overlay, onTable, dice, pulses, skip, ping, pinged, speed, setSpeed, shot, setCinematic]
   )
 
-  return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>
+  const controls = useMemo<AnimationControls>(
+    () => ({ skip, ping, speed, setSpeed, setCinematic }),
+    [skip, ping, speed, setSpeed, setCinematic]
+  )
+
+  return (
+    <AnimationContext.Provider value={value}>
+      <ControlsContext.Provider value={controls}>
+        <DiceContext.Provider value={dice}>
+          <PulsesContext.Provider value={pulses}>{children}</PulsesContext.Provider>
+        </DiceContext.Provider>
+      </ControlsContext.Provider>
+    </AnimationContext.Provider>
+  )
 }
 
 const EMPTY: AnimationContextValue = {
@@ -1159,6 +1191,21 @@ const EMPTY: AnimationContextValue = {
   setCinematic: () => {},
 }
 
+/** Everything, beat by beat. For the board model; the rest of the table wants a narrower hook. */
 export function useAnimation(): AnimationContextValue {
   return useContext(AnimationContext) ?? EMPTY
+}
+
+export function useAnimationControls(): AnimationControls {
+  return useContext(ControlsContext) ?? EMPTY
+}
+
+/** Dice rolled during the turn just played, newest last. */
+export function useDice(): DieRoll[] {
+  return useContext(DiceContext)
+}
+
+/** Loadout ids that should flash, stamped with when. */
+export function usePulses(): Record<string, number> {
+  return useContext(PulsesContext)
 }

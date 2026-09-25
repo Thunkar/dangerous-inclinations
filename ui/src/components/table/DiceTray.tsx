@@ -4,13 +4,13 @@
  * the attacker's sensor array is face-up).
  */
 import { Box, Typography } from '@mui/material'
-import { useAnimation } from '../../context/AnimationContext'
+import { useDice } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { DieResult } from '../common/DieFace'
 import { TABLE } from '../../theme'
 
 export function DiceTray() {
-  const { dice } = useAnimation()
+  const dice = useDice()
   const { nameOf } = useGame()
 
   if (dice.length === 0) return null

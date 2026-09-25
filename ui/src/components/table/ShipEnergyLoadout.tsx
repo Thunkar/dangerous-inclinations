@@ -34,7 +34,7 @@ import { ShipDisplay } from '../ship'
 import { useGame } from '../../context/GameContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { usePlan } from '../../context/PlanContext'
-import { useAnimation } from '../../context/AnimationContext'
+import { usePulses } from '../../context/AnimationContext'
 import { slotLabel } from '../../utils/slots'
 
 const MAT_METRICS = { width: 252, height: 196, band: 44 }
@@ -46,7 +46,7 @@ const SLOT_IDS: SubsystemId[] = ['forward-0', 'side-0', 'side-1', 'side-2', 'sid
 export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
   const plan = usePlan()
   const { view } = useGame()
-  const { pulses } = useAnimation()
+  const pulses = usePulses()
   const me = plan.me
 
   const subsystem = (id: SubsystemId): Subsystem | undefined =>

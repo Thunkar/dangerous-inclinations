@@ -336,6 +336,11 @@ export function CameraRig({
         triangles: gl.info.render.triangles,
       }
     }
+    /** Where the camera is and what it looks at, for the camera-motion checks. */
+    ;(host as { __boardCamera?: () => number[] }).__boardCamera = () => {
+      const target = controls.current?.getTarget(new Vector3()) ?? new Vector3()
+      return [...camera.position.toArray(), ...target.toArray()]
+    }
     host.__boardFrame = () => {
       let minX = Infinity
       let minY = Infinity
