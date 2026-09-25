@@ -53,6 +53,14 @@ const REACTION: Partial<Record<FloatTone, ImpactKind>> = {
  * table.
  */
 const SIZE = 24
+/**
+ * Inside this camera distance a float stops growing on screen. The size above
+ * is tuned for the presets, which stand well back; the auto camera's close-ups
+ * stand a few hull lengths off, and a word sized for the table would fill the
+ * frame there.
+ */
+const CLOSE_READING = 650
+
 /** Clear of the hull, under the rise. */
 const HEIGHT = 34
 /** The flat board's rise, to the unit. */
@@ -125,7 +133,7 @@ export function Float({
     if (kind) reportImpact(effect.playerId, kind, effect.start)
   }, [effect.playerId, effect.tone, effect.start])
 
-  useFrame(() => {
+  useFrame(({ camera }) => {
     const node = group.current
     const glyphs = text.current
     if (!node || !glyphs) return
@@ -142,7 +150,8 @@ export function Float({
       progress < 0.18
         ? 0.6 + (progress / 0.18) * 0.55
         : 1.15 - Math.min(1, (progress - 0.18) / 0.2) * 0.15
-    node.scale.setScalar(scale)
+    const near = Math.min(1, camera.position.distanceTo(node.position) / CLOSE_READING)
+    node.scale.setScalar(scale * near)
     glyphs.fillOpacity = Math.max(0, opacity)
     glyphs.outlineOpacity = Math.max(0, opacity)
   })

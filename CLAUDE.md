@@ -314,6 +314,11 @@ its `start`/`duration`, and each renderer reads its own clock (`useBoardClock`
 for the flat board, `useFrame` for the 3D one). Nothing in the 3D scene may
 re-render per frame.
 
+The 3D board's Auto camera (`three/Director.tsx`) films a turn as it plays:
+the animator names each moment worth a shot (`CameraShot` in
+`AnimationContext`) and, while Auto is on, plays turns slower with a lead-in
+before each new shot; between turns it pulls back to the player's own well.
+
 `ui/dev-three.html` mounts the 3D board on a fixture with no server
 (`board/three/dev/fixtureModel.ts`), which is how board work is checked.
 

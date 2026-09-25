@@ -266,6 +266,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     animating: false,
     effects: [],
     ping: null,
+    shot: null,
     myColor: colorOf(me.playerId),
     colorOf,
     nameOf,

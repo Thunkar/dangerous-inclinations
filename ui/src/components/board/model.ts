@@ -29,7 +29,7 @@ import {
   projectMissilePath,
   samePosition,
 } from '@dangerous-inclinations/engine'
-import type { Ping, ShipMotion, TableEffect } from '../../context/AnimationContext'
+import type { CameraShot, Ping, ShipMotion, TableEffect } from '../../context/AnimationContext'
 import { useAnimation } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
@@ -130,6 +130,8 @@ export interface BoardModel {
    * ship twice answers twice.
    */
   ping: Ping | null
+  /** What the 3D board's auto camera should frame while a turn plays; the flat board ignores it. */
+  shot: CameraShot | null
   /** This seat's colour, or null for a spectator. */
   myColor: string | null
   colorOf: (playerId: string) => string
@@ -148,7 +150,7 @@ export interface BoardModel {
 
 export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions): BoardModel {
   const { view, nameOf } = useGame()
-  const { overlay, effects, pinged } = useAnimation()
+  const { overlay, effects, pinged, shot } = useAnimation()
   const plan = usePlanOptional()
 
   const colorOf = useCallback(
@@ -383,6 +385,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       animating: overlay !== null,
       effects,
       ping: pinged,
+      shot,
       myColor,
       colorOf,
       nameOf,
@@ -408,6 +411,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       overlay,
       effects,
       pinged,
+      shot,
       myColor,
       colorOf,
       nameOf,

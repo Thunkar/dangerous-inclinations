@@ -23,7 +23,8 @@ const IMPACT_MS = 440
 const REACTION: Record<ImpactKind, { color: string; shake: number; flash: number }> = {
   damage: { color: FX_INK.damage, shake: 1, flash: 0.95 },
   crit: { color: FX_INK.crit, shake: 1.35, flash: 1.2 },
-  heat: { color: FX_INK.heat, shake: 0.3, flash: 0.75 },
+  // Heat is the ship's own check, not something that hit it: a glow, no flinch.
+  heat: { color: FX_INK.heat, shake: 0, flash: 0.75 },
   shield: { color: FX_INK.shield, shake: 0.35, flash: 0.85 },
   good: { color: FX_INK.good, shake: 0, flash: 0.6 },
 }

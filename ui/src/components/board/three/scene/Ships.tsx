@@ -504,7 +504,8 @@ function ShipMesh({
 
   return (
     <>
-      <group ref={group} position={resting}>
+      {/* Named so the auto camera can follow the hull wherever its slide has it. */}
+      <group ref={group} position={resting} name={`ship:${ship.playerId}`}>
         {ship.isActive && (
           <SurfaceRing radii={ACTIVE_RING} color={ship.color} dashes={1} pulse={0} opacity={0.8} />
         )}

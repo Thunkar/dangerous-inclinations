@@ -8,10 +8,14 @@
 import { createContext, useContext, type RefObject } from 'react'
 import type { GravityWellId } from '@dangerous-inclinations/engine'
 
-/** Table: three-quarter view of the black hole. Top: the 2D board, lit. Follow: your well. */
-export type CameraPreset = 'table' | 'top' | 'follow'
+/**
+ * Table: three-quarter view of the black hole. Top: the 2D board, lit. Follow:
+ * your well. Auto: a director that films each turn as it plays and pulls back
+ * to what you need to see when it is yours to play.
+ */
+export type CameraPreset = 'table' | 'top' | 'follow' | 'auto'
 
-export const CAMERA_PRESETS: readonly CameraPreset[] = ['table', 'top', 'follow']
+export const CAMERA_PRESETS: readonly CameraPreset[] = ['table', 'top', 'follow', 'auto']
 
 export interface CameraRigApi {
   /** The preset last asked for; the camera may have been dragged since. */

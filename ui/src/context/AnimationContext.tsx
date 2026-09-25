@@ -123,6 +123,40 @@ export interface ShipMotion {
   duration: number
 }
 
+/**
+ * What the auto camera should be looking at while a turn plays. The animator
+ * names the moment (a ship moving, one ship shooting at another, missiles
+ * closing, a ship blowing up) and the 3D board decides where to stand for it.
+ * Every ship carries a fallback position, because a ship that has just been
+ * destroyed has already left the table by the time the camera frames it.
+ */
+export type CameraShot = { id: string; start: number } & (
+  | { kind: 'move'; move: ShipMotion['kind']; playerId: string; from: Position; to: Position }
+  | { kind: 'duel'; attackerId: string; targetId: string; from: Position; to: Position }
+  | { kind: 'missiles'; targetId: string; at: Position }
+  | { kind: 'ship'; mood: 'destroyed' | 'docked' | 'arrived'; playerId: string; at: Position }
+)
+
+type ShotDraft = CameraShot extends infer T
+  ? T extends CameraShot
+    ? Omit<T, 'id' | 'start'>
+    : never
+  : never
+
+/** Two cues are the same shot when they film the same thing: no lead-in between them. */
+function shotKey(shot: ShotDraft): string {
+  switch (shot.kind) {
+    case 'move':
+      return `move:${shot.playerId}:${shot.move}`
+    case 'duel':
+      return `duel:${shot.attackerId}:${shot.targetId}`
+    case 'missiles':
+      return `missiles:${shot.targetId}`
+    case 'ship':
+      return `ship:${shot.playerId}:${shot.mood}`
+  }
+}
+
 export interface BoardOverlay {
   ships: Record<string, { position: Position; facing: Facing; alive: boolean; motion?: ShipMotion }>
   missiles: Missile[]
@@ -150,6 +184,13 @@ interface AnimationContextValue {
   /** Divides every beat and every mark's life: 1x is the pace turns are written at. */
   speed: PlaybackSpeed
   setSpeed: (speed: PlaybackSpeed) => void
+  /** The moment the auto camera should frame, while a turn plays; null otherwise. */
+  shot: CameraShot | null
+  /**
+   * Set by the 3D board while its auto camera is on: every turn plays slower
+   * and each new shot gets a lead-in, so the camera has time to get there.
+   */
+  setCinematic: (on: boolean) => void
 }
 
 /** A ping: who was asked for, where they were, and which ping this is. */
@@ -221,6 +262,13 @@ function storedSpeed(): PlaybackSpeed {
   return 1
 }
 
+/**
+ * The cinematic pace. `slow` divides the playback speed while the auto camera
+ * is on, and `lead` is how long the table waits, at 1x, for the camera to fly
+ * to a new shot before the event it frames plays out.
+ */
+const CINEMA = { slow: 1.6, lead: 750 } as const
+
 let effectSeq = 0
 /** Ring counts in RULES §Movement, used to name a burn by what it actually did. */
 const BURN_RINGS = { soft: 1, medium: 2, hard: 3 } as const
@@ -290,6 +338,13 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
       /* the speed just does not survive a reload */
     }
   }, [])
+  const [shot, setShot] = useState<CameraShot | null>(null)
+  const cinematicRef = useRef(false)
+  const setCinematic = useCallback((on: boolean) => {
+    cinematicRef.current = on
+  }, [])
+  /** What every beat divides by: the chosen speed, slowed while the camera is directing. */
+  const tempo = useCallback(() => speedRef.current / (cinematicRef.current ? CINEMA.slow : 1), [])
   /** One expiry timer per effect: the board's clock is no longer this context's business. */
   const expiryRef = useRef(new Set<ReturnType<typeof setTimeout>>())
 
@@ -303,16 +358,19 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
    * off the table on a timer. Nothing here ticks per frame: the renderer that
    * draws the effect runs its own clock (`useBoardClock`).
    */
-  const pushEffect = useCallback((effect: EffectDraft) => {
-    const life = effect.duration / speedRef.current
-    const started = { ...effect, duration: life, start: performance.now() } as TableEffect
-    setEffects(prev => [...prev, started])
-    const timer = setTimeout(() => {
-      expiryRef.current.delete(timer)
-      setEffects(prev => prev.filter(e => e !== started))
-    }, life)
-    expiryRef.current.add(timer)
-  }, [])
+  const pushEffect = useCallback(
+    (effect: EffectDraft) => {
+      const life = effect.duration / tempo()
+      const started = { ...effect, duration: life, start: performance.now() } as TableEffect
+      setEffects(prev => [...prev, started])
+      const timer = setTimeout(() => {
+        expiryRef.current.delete(timer)
+        setEffects(prev => prev.filter(e => e !== started))
+      }, life)
+      expiryRef.current.add(timer)
+    },
+    [tempo]
+  )
 
   /**
    * Pings are kept apart from the turn's own effects. A turn's animation
@@ -438,7 +496,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         duration: number = BEAT.move
       ) => {
         const current = snap.ships[playerId]
-        const slide = duration / speedRef.current
+        const slide = duration / tempo()
         const motion: ShipMotion | undefined =
           kind !== null && current && current.alive
             ? { from: current.position, kind, start: performance.now(), duration: slide }
@@ -505,7 +563,9 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             )
             return BEAT.jump
           case 'fuel_scooped':
-            mark(event.playerId, `SCOOP +${event.amount} fuel`, 'good', { offset: { x: 0, y: -14 } })
+            mark(event.playerId, `SCOOP +${event.amount} fuel`, 'good', {
+              offset: { x: 0, y: -14 },
+            })
             return BEAT.small
           case 'recoil':
             if (event.to) moveShip(event.playerId, event.to, 'recoil', undefined, BEAT.small)
@@ -831,12 +891,9 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           case 'cargo_delivered':
             return BEAT.small
           case 'cargo_seized':
-            mark(
-              event.victimId,
-              event.kind === 'data' ? 'DATA SEIZED' : 'CRATE SEIZED',
-              'heat',
-              { at: event.at }
-            )
+            mark(event.victimId, event.kind === 'data' ? 'DATA SEIZED' : 'CRATE SEIZED', 'heat', {
+              at: event.at,
+            })
             mark(event.pirateId, '+LOOT', 'good', { at: event.at })
             return BEAT.resolve
           case 'fuel_sold':
@@ -890,6 +947,89 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      /**
+       * The shot an event deserves, or null when it deserves none and the
+       * camera should stay on whatever it is already filming (a rotation, a
+       * die being read, a heat check).
+       */
+      const shotFor = (event: GameEvent): ShotDraft | null => {
+        switch (event.type) {
+          case 'coasted':
+          case 'burned':
+          case 'jumped': {
+            const move =
+              event.type === 'coasted' ? 'coast' : event.type === 'burned' ? 'burn' : 'jump'
+            return {
+              kind: 'move',
+              move,
+              playerId: event.playerId,
+              from: positionOf(event.playerId),
+              to: event.to,
+            }
+          }
+          case 'weapon_fired':
+          case 'attack_resolved':
+            return {
+              kind: 'duel',
+              attackerId: event.attackerId,
+              targetId: event.targetId,
+              from: positionOf(event.attackerId),
+              to: positionOf(event.targetId),
+            }
+          case 'scanned':
+            return {
+              kind: 'duel',
+              attackerId: event.scannerId,
+              targetId: event.targetId,
+              from: positionOf(event.scannerId),
+              to: positionOf(event.targetId),
+            }
+          case 'missile_launched':
+            return {
+              kind: 'duel',
+              attackerId: event.ownerId,
+              targetId: event.targetId,
+              from: positionOf(event.ownerId),
+              to: positionOf(event.targetId),
+            }
+          case 'cargo_seized':
+            return {
+              kind: 'duel',
+              attackerId: event.pirateId,
+              targetId: event.victimId,
+              from: positionOf(event.pirateId),
+              to: positionOf(event.victimId),
+            }
+          case 'missile_moved': {
+            const missile = snap.missiles.find(m => m.id === event.missileId)
+            return missile
+              ? { kind: 'missiles', targetId: missile.targetId, at: positionOf(missile.targetId) }
+              : null
+          }
+          case 'missile_intercepted':
+            return { kind: 'missiles', targetId: event.targetId, at: positionOf(event.targetId) }
+          case 'ship_destroyed':
+            return {
+              kind: 'ship',
+              mood: 'destroyed',
+              playerId: event.victimId,
+              at: positionOf(event.victimId),
+            }
+          case 'docked':
+            return {
+              kind: 'ship',
+              mood: 'docked',
+              playerId: event.playerId,
+              at: positionOf(event.playerId),
+            }
+          case 'respawned':
+            return { kind: 'ship', mood: 'arrived', playerId: event.playerId, at: event.position }
+          default:
+            return null
+        }
+      }
+      let filming: string | null = null
+
       const finish = () => {
         if (cancelled) return
         cancelled = true
@@ -897,10 +1037,11 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         if (timerRef.current) clearTimeout(timerRef.current)
         timerRef.current = null
         setOverlay(null)
+        setShot(null)
         done()
       }
 
-      const step = () => {
+      const play = () => {
         if (cancelled) return
         const event = queue.shift()
         if (!event) {
@@ -913,7 +1054,29 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           step()
           return
         }
-        timerRef.current = setTimeout(step, hold / speedRef.current)
+        timerRef.current = setTimeout(step, hold / tempo())
+      }
+
+      /**
+       * Look at the next event before playing it: while the camera is
+       * directing, a new shot is cued first and the event waits for the
+       * camera to arrive.
+       */
+      const step = () => {
+        if (cancelled) return
+        const event = queue[0]
+        if (!event) {
+          finish()
+          return
+        }
+        const cue = cinematicRef.current ? shotFor(event) : null
+        if (cue && shotKey(cue) !== filming) {
+          filming = shotKey(cue)
+          setShot({ ...cue, id: nextId('shot'), start: performance.now() } as CameraShot)
+          timerRef.current = setTimeout(play, CINEMA.lead / speedRef.current)
+          return
+        }
+        play()
       }
 
       skipRef.current = () => {
@@ -932,11 +1095,12 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         timerRef.current = null
         clearExpiries()
         setOverlay(null)
+        setShot(null)
         setEffects([])
         setDice([])
       }
     },
-    [pushEffect, clearExpiries]
+    [pushEffect, clearExpiries, tempo]
   )
 
   useEffect(() => {
@@ -962,8 +1126,20 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<AnimationContextValue>(
-    () => ({ overlay, effects: onTable, dice, pulses, skip, ping, pinged, speed, setSpeed }),
-    [overlay, onTable, dice, pulses, skip, ping, pinged, speed, setSpeed]
+    () => ({
+      overlay,
+      effects: onTable,
+      dice,
+      pulses,
+      skip,
+      ping,
+      pinged,
+      speed,
+      setSpeed,
+      shot,
+      setCinematic,
+    }),
+    [overlay, onTable, dice, pulses, skip, ping, pinged, speed, setSpeed, shot, setCinematic]
   )
 
   return <AnimationContext.Provider value={value}>{children}</AnimationContext.Provider>
@@ -979,6 +1155,8 @@ const EMPTY: AnimationContextValue = {
   pinged: null,
   speed: 1,
   setSpeed: () => {},
+  shot: null,
+  setCinematic: () => {},
 }
 
 export function useAnimation(): AnimationContextValue {

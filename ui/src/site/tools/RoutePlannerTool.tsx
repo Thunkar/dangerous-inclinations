@@ -211,6 +211,7 @@ export function RoutePlannerTool() {
       animating: false,
       effects: [],
       ping: null,
+      shot: null,
       myColor: SHIP_COLOR,
       colorOf: () => SHIP_COLOR,
       nameOf: () => 'your ship',

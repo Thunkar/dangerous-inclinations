@@ -18,9 +18,11 @@ import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong'
 import ViewInArIcon from '@mui/icons-material/ViewInAr'
 import VerticalAlignTopIcon from '@mui/icons-material/VerticalAlignTop'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
+import MovieIcon from '@mui/icons-material/Movie'
 import { Canvas } from '@react-three/fiber'
 import type { GravityWellId } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../theme'
+import { useAnimation } from '../../../context/AnimationContext'
 import type { BoardModel } from '../model'
 import { CameraRig, CameraRigProvider } from './CameraRig'
 import { CAMERA_PRESETS, useCameraRig, type CameraPreset } from './cameraRigContext'
@@ -41,15 +43,36 @@ const PRESET_LABEL: Record<CameraPreset, string> = {
   table: 'Table view',
   top: 'Top view',
   follow: 'Follow your ship',
+  auto: 'Auto camera: films each turn, then pulls back for yours',
 }
 
 /** The presets that get a button. 'table' is Recentre's job; see the column below. */
-const BUTTON_PRESETS: readonly CameraPreset[] = ['top', 'follow']
+const BUTTON_PRESETS: readonly CameraPreset[] = ['top', 'follow', 'auto']
 
 const PRESET_ICON: Record<CameraPreset, React.ReactNode> = {
   table: <ViewInArIcon fontSize="small" />,
   top: <VerticalAlignTopIcon fontSize="small" />,
   follow: <MyLocationIcon fontSize="small" />,
+  auto: <MovieIcon fontSize="small" />,
+}
+
+/** Auto is remembered, the way the board mode is: it is how this player likes to watch. */
+const AUTO_KEY = 'di.cameraAuto'
+
+function storedAuto(): boolean {
+  try {
+    return localStorage.getItem(AUTO_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function storeAuto(on: boolean) {
+  try {
+    localStorage.setItem(AUTO_KEY, on ? '1' : '0')
+  } catch {
+    /* it just is not remembered */
+  }
 }
 
 /**
@@ -74,7 +97,11 @@ const POSTPROCESSING_DEFAULT = false
 function readFlags() {
   const params = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)
   const asked = params.get('preset')
-  const preset = CAMERA_PRESETS.includes(asked as CameraPreset) ? (asked as CameraPreset) : 'table'
+  const preset = CAMERA_PRESETS.includes(asked as CameraPreset)
+    ? (asked as CameraPreset)
+    : storedAuto()
+      ? 'auto'
+      : 'table'
   const fx = params.get('fx')
   return {
     preset,
@@ -106,6 +133,26 @@ function Board({
 }) {
   const rig = useCameraRig()
   const followWellId = model.ships.find(ship => ship.isMe)?.position.wellId
+
+  /*
+   * Auto slows the turn down and cues its shots; every other preset leaves the
+   * animator at the pace turns are written at.
+   */
+  const { setCinematic } = useAnimation()
+  const auto = rig.preset === 'auto'
+  useEffect(() => {
+    setCinematic(auto)
+    storeAuto(auto)
+    return () => setCinematic(false)
+  }, [auto, setCinematic])
+
+  /** What you need in view to play: your ship's well, and every well your plan reaches. */
+  const actWells = useMemo(() => {
+    const wells = new Set<GravityWellId>()
+    if (followWellId) wells.add(followWellId)
+    for (const point of model.plannedPoints) wells.add(point.wellId)
+    return [...wells].sort()
+  }, [followWellId, model.plannedPoints])
 
   /**
    * A ping asks "where are they?", and on this board the honest answer is to
@@ -158,7 +205,16 @@ function Board({
           />
           <Effects effects={model.effects} pointOf={model.pointOf} />
         </Suspense>
-        <CameraRig rig={rig} followWellId={followWellId} />
+        <CameraRig
+          rig={rig}
+          followWellId={followWellId}
+          director={{
+            shot: model.shot,
+            animating: model.animating,
+            actWells,
+            missiles: model.missiles,
+          }}
+        />
         {/* The label is the request: the scene's adaptive ladder may have since
             dropped the composer, so this says "asked for", not "running". */}
         {stats && <FrameStats label={postprocessing ? 'composer asked' : 'no composer'} />}
