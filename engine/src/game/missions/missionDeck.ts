@@ -49,7 +49,8 @@ import {
   isPrimaryType,
 } from "../../models/missions.ts";
 import { MAX_PLAYERS } from "../../models/game.ts";
-import { PLANETS } from "../../models/gravityWells.ts";
+import { PLANETS, TRANSFER_LANES } from "../../models/gravityWells.ts";
+import { SECTORS_PER_RING } from "../../models/rings.ts";
 import type { Rng } from "../../utils/rng.ts";
 
 /** Copies of each distinct card in the printed primary deck. */
@@ -108,7 +109,7 @@ export function buildPrimaryDeck(
         deliveryPlanetId: planetIds[(targetOffset + copy) % planetIds.length],
       });
     }
-    for (const [pickupPlanetId, deliveryPlanetId] of allRoutes(planetIds)) {
+    for (const [pickupPlanetId, deliveryPlanetId] of circuitRoutes(planetIds)) {
       deck.push({ type: "deliver_cargo", pickupPlanetId, deliveryPlanetId });
     }
   }
@@ -180,9 +181,34 @@ export function cardForPlayer(
 }
 
 /** Every ordered pair of distinct planets. */
-export function allRoutes(planetIds: readonly string[]): Array<[string, string]> {
+/**
+ * The Deliver routes: from each planet to the next one round the circuit.
+ *
+ * The black hole's ring 5 is all lanes, and every arrival arc is followed
+ * clockwise by the next planet's departure arc, so a crate carried from a
+ * planet to that next planet is a short coast between two lanes, and a crate
+ * carried the other way is most of the ring. Both directions used to be dealt,
+ * and which one a seat drew decided the card: measured on 26 Sept 2026 over
+ * 600 games, a dealt Deliver won 58% with the circuit and 18% against it. A
+ * primary that is a coin flip is not a primary, so the deck prints only the
+ * three routes that ride it.
+ */
+export function circuitRoutes(planetIds: readonly string[]): Array<[string, string]> {
   const routes: Array<[string, string]> = [];
-  for (const a of planetIds) for (const b of planetIds) if (a !== b) routes.push([a, b]);
+  for (const pickup of planetIds) {
+    const inbound = TRANSFER_LANES.find(
+      (lane) => lane.planetId === pickup && lane.direction === "inbound"
+    );
+    if (!inbound) continue;
+    const next = (inbound.blackHoleArc.startSector + inbound.blackHoleArc.length) % SECTORS_PER_RING;
+    const outbound = TRANSFER_LANES.find(
+      (lane) =>
+        lane.direction === "outbound" &&
+        lane.blackHoleArc.startSector === next &&
+        planetIds.includes(lane.planetId)
+    );
+    if (outbound) routes.push([pickup, outbound.planetId]);
+  }
   return routes;
 }
 

@@ -110,8 +110,17 @@ export function processDocking(
   // Tanker: arrive with the card's fuel in the tank and it goes into the drums
   // (RULES §Missions). Automatic, like every other thing a dock does to you:
   // there is no data and nothing to decide, only a tank that had enough in it.
+  //
+  // Not on a visit that loads or unloads a crate: the station works the crate
+  // or the drums, not both. Picking up or dropping off a Deliver crate and
+  // pumping the Tanker's fuel on one stop was the fastest road to three points
+  // in the game, and the compressor hauler took it every time. Data is numbers,
+  // not freight, so filing it leaves the drums free.
   const tanking = player.missions.some((m) => m.type === "tanker" && !m.isCompleted);
-  if (tanking && ship.reactionMass >= TANKER_FUEL) {
+  const workedCrate = events.some(
+    (e) => (e.type === "cargo_delivered" || e.type === "cargo_picked_up") && e.kind === "crate"
+  );
+  if (tanking && !workedCrate && ship.reactionMass >= TANKER_FUEL) {
     ship = { ...ship, reactionMass: ship.reactionMass - TANKER_FUEL };
     events.push({ type: "fuel_sold", playerId: player.id, amount: TANKER_FUEL, planetId });
   }

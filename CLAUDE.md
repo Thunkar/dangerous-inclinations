@@ -66,7 +66,9 @@ played out, then highest score wins (hull, then fuel, break ties). Six card type
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy
 (seize an undocked rival's crate or data, loot that fills the hold and
 sells anywhere, their card back to undone) and tanker (arrive at a station
-with eight fuel and pump it in)). Two physical decks for the table: rival cards count seats
+with seven fuel and pump it in, on a visit that works no crate)). Deliver
+routes run only round the circuit (Alpha → Gamma → Beta → Alpha, the short
+way through the black hole's lanes). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
 is hunting whom; setup removes offsets the table is too small for. Deal 3
 primaries and keep 1; take one of each secondary and keep 2. Five points
@@ -266,13 +268,17 @@ Re-run the script after changing an icon. The site's nav is type, not icons;
 the rest of the app's chrome stays on MUI icons.
 
 **The cheatsheet** (`site/Cheatsheet.tsx`, `site/guide/`) teaches the game in
-the order a first table meets it, eight numbered sections: the goal (the six
+the order a first table meets it, nine numbered sections: the goal (the six
 mission cards drawn by the game's own `MissionCard`), setup with the loadout's
 slots, the turn (seven steps, then the stations once a round), moving (the
 three moves drawn, and phasing across two rings), heat (with a check worked by
 `heatAfterCheck`), fighting (the roll strip asks `rollToResult` about every
 face, and a missile's two turns drawn fired before and after the drift), what
-is hidden, and destruction. It compresses RULES.md and says so; the manual wins.
+is hidden, destruction, and the orbital windows (`guide/WindowsSection.tsx`:
+when to reach a lane mouth, arrive with a Tanker's fuel or leave a pickup,
+read off the station clock every station shares; the tables are the route
+planner's answers, worked out in the browser after first paint). It
+compresses RULES.md and says so; the manual wins.
 
 **The tools** call pure engine functions and nothing else, so they work with
 the server down. The route planner is not a second interface: it builds a
@@ -603,22 +609,47 @@ not an argument:
   critical-order switch is gone, and shields-stop-lasers is a subsystem field
   (`--tiles=laser.ignoresShields=false`), not a switch.
 
+- **Deliver in both directions, and the one-stop Deliver + Tanker.** Adopted
+  26 Sept 2026 as three rules together: the Deliver deck prints only the
+  circuit routes (`circuitRoutes`), a dock visit that loads or unloads a crate
+  pumps no Tanker fuel, and Tanker needs 7 fuel, not 8. Before, the route
+  decided the card: over 600 dealt games a Deliver won 58% with the circuit and
+  18% against it, 74% and 31% completed. Neither direction alone works: easy
+  routes only made a dealt Deliver 52.5% in 14-round games, hard only 22% in
+  33, and in the easy-only games every seat dealt Deliver kept Survey + Tanker
+  on the compressor hauler and won almost only when Deliver and Tanker landed
+  on one stop. The fixes tried on top of easy-only, 200 games a row: "a visit
+  is one deal" for data too 31% / 38 rounds (it slowed every Survey + Tanker
+  hand); for crates only 28% with natural games at 33 / 37 / 39 rounds (the
+  one-stop had been the game's clock); "a compressor cannot be a Tanker" 36.5%
+  with the tightest primaries (29.5 to 37) but 35-round four-seat games and the
+  aggressive hauler unpunished with Destroy; a 2-fuel compressed jump 35.5% at
+  natural length, rejected because it prices the compressor out. Crates-only
+  with Tanker at 7 is the one adopted, and at 1000 games a row: dealt Destroy
+  37.9%, Deliver 32.9%, Intercept 31.4%; natural play 28 / 31 / 33 rounds at
+  3 / 4 / 2 seats with a 33 / 33 / 33 seat spread; no failing flag. The cost is
+  length (below) and a few more kills.
+- **Piracy on either turn.** "Whenever a turn ends with you in the same sector
+  as an undocked carrier, you take it", measured 26 Sept against the pirate's
+  own turn only: mean row −0.6pp, dealt Deliver 48.5% → 45.5%, one new
+  `outlier` from a bar that moved rather than a hull. It needs a second clause
+  (one seizure per turn end, or two pirates trade the loot for ever) and buys
+  nothing; the designer kept the simpler rule.
+
 Known open problems:
 
-- **The primary you are dealt is worth about ten points, and which way flips
-  with the bots.** At 400 games a row: dealt Destroy 32%, Deliver 42%,
-  Intercept 32%, against 33% with a hand of its own choosing (three points;
-  four points not re-measured since the secondaries changed). Before Piracy
-  and Tanker the same cards read 37 / 31 / 26, with the jump free 32 / 36 /
-  23, and with bots that scanned last 55 / 34 / 33. The swing says the rules are sensitive to how well
-  each card is played, which humans will differ on too. Levers not yet
-  measured: Intercept's scan range or filing station, a Deliver that pays on
-  pickup, the primary's value.
-- **Deliver is the strong dealt card, and data aboard makes every Intercept
-  and Survey holder prey.** Dealt Deliver 42% against 33 (31 before Piracy
-  and Tanker): the hauler presets read 42% and 39% against 42, and Deliver +
-  Tanker is a fight-free road to three for the hull that arrives with fuel
-  (the compressor, below). Dealt Intercept 32% (26 before): the hunting hands
+- **The primary you are dealt still moves a seat, now by about five points.**
+  At 1000 games a row since the circuit routes (26 Sept): dealt Destroy 37.9%,
+  Deliver 32.9%, Intercept 31.4%, against a 33% share. Before, at 400 games,
+  32 / 42 / 32, and earlier readings swung with the bots (37 / 31 / 26 before
+  Piracy and Tanker, 32 / 36 / 23 with the jump free, 55 / 34 / 33 with bots
+  that scanned last), so the rules are sensitive to how well each card is
+  played. Destroy is the strong one now. Levers not yet measured: Intercept's
+  scan range or filing station, the primary's value.
+- **Data aboard makes every Intercept and Survey holder prey.** Deliver is no
+  longer the strong dealt card (settled above: 32.9% at 1000 games), though
+  the two hauler presets have drifted apart (tanky 32.9%, aggressive 28.4%).
+  Dealt Intercept 31.4%: the hunting hands
   deploy on ring 3 with their targets and 40% of scans come on the first
   legal turn: the interceptor moving into range, which the designer calls
   play. In natural three-seat games the sensor bow wins 24% against the
@@ -632,7 +663,14 @@ Known open problems:
   presets pay two a check for a sensor they used to hold for nothing and fell
   2–3 points. Whether any of this reaches the *natural* sensor bow is
   unmeasured, because the bots' hull templates still put the bow on a hauler.
-- **The compressor runner sits on the line, and Tanker put it there.**
+- **The compressor runner's shortcut is closed; watch whether it stays shut.**
+  Everything below is from before 26 Sept, when a crate visit could also pump
+  the Tanker's fuel. With the circuit routes, crates-only visits and Tanker at
+  7 (settled above), the hauler preset holding Deliver reads 32.9% at 1000
+  games, but the benchmark's compressor hull still wins most often: 29% of its
+  seats across 3–6 seats, against 24% for the railgun hull and 18% for the
+  sensor bow. It is flown by half as many seats as before, so read it as the
+  hull to watch rather than a settled question.
   Under Piracy and Tanker, 400 games a row against 33%: compressor +
   shields×2 + radiators×2 44% (one point under the `outlier` line; 46% and
   flagged before the quiet returning turn), racks×2 38%, launchers×2 35%,
@@ -652,11 +690,11 @@ Known open problems:
   crate aboard is Piracy's prey, and the designer's line is that a hull may
   dominate a game but not every game.
 - **The secondary offer is still lopsided, but the cards are level.**
-  Everyone is offered all three; Piracy is the one left out now (kept 47%
-  against 76–77% for Survey and Tanker). Completed per 100 kept in the
-  benchmark: Survey 23, Piracy 25, Tanker 26 (the same card within noise,
-  which the deal wanted). Tanker is in 27% of winners' cards, Survey 15%,
-  Piracy 12%. Half of all Survey dives now complete in round one, because
+  Everyone is offered all three; Piracy is the one left out (kept 57%
+  against 71–72% for Survey and Tanker). Completed per 100 kept in the
+  benchmark since the circuit routes: Survey 27, Piracy 29, Tanker 22, and
+  each sits in 16–21% of winners' cards (Tanker was 27% while it shared a stop
+  with Deliver's crate). Half of all Survey dives now complete in round one, because
   ring 3 is one turn from ring 1; the data is not the point, the filing is,
   and round-one data is round-one loot for a pirate from ring 3.
 - **Point defence lives on one preset, and now it costs more to keep.** Bots
@@ -706,8 +744,13 @@ Known open problems:
   is a different hunter.
 - **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: 25 / 23 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats under three
-  points, 1h15 to 2h42 at a minute a turn, 99–100% of games decided, five
+- **Length**: 31 / 32 / 33 / 34 rounds at 3 / 4 / 5 / 6 seats in the benchmark
+  since the circuit routes (26 Sept), 1h33 to 3h24 at a minute a turn, 100% of
+  games decided; kills 3.7 / 7.1 / 12.6 / 14.3. Before it was 27 / 21 / 25 / 27
+  and 1h21 to 2h42: the one-stop Deliver + Tanker had been the game's clock,
+  and Tanker at 7 gave back about half of what closing it cost. The balance
+  suite's natural rows at 1000 games read 28 / 31 / 33 rounds at 3 / 4 / 2
+  seats. Earlier history: 25 / 23 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats, five
   cards completed a game at three seats; kills 2.9 / 5.0 / 9.3 / 14.5, well
   above the old cards' 1.9 / 3.9 / 7.7 / 11.0, because data aboard is a
   reason to fight. The quiet returning turn (20 Sept) took kills down from
@@ -720,8 +763,8 @@ Known open problems:
   Tanker holder's reserve unlimited games ran 19 rounds, with none 39; the
   standing bots keep a one-fuel margin and detour up to three turns. Four
   points not re-measured since the secondaries changed. The benchmark's seat
-  spread is 33 / 32 / 35 at three seats, and the balance suite's natural row
-  reads 34 / 33 / 34.
+  spread is 34 / 34 / 32 at three seats, and the balance suite's natural row
+  reads 33 / 33 / 33 at 1000 games.
 
 ## Adding a rule
 

@@ -73,7 +73,8 @@ const ids = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}
 describe("missions: deck", () => {
   /** Rival cards per offset per copy: one Destroy and one Intercept. */
   const RIVAL_CARDS = 2;
-  const ROUTES = 6;
+  /** One Deliver per planet: to the next planet round the circuit. */
+  const ROUTES = 3;
 
   it.each([2, 3, 4, 5, 6])("a %i-player primary deck drops the offsets that would wrap", (players) => {
     const deck = buildPrimaryDeck(players, PLANET_IDS);
@@ -182,12 +183,13 @@ describe("missions: deck", () => {
     );
   });
 
-  it("covers every ordered planet pair, and no route to itself", () => {
+  it("prints only the routes that ride the circuit, Alpha to Gamma to Beta to Alpha", () => {
     const routes = buildPrimaryDeck(3, PLANET_IDS).flatMap((c) =>
       c.type === "deliver_cargo" ? [`${c.pickupPlanetId}>${c.deliveryPlanetId}`] : []
     );
-    expect(new Set(routes).size).toBe(6);
-    expect(routes.some((r) => r.split(">")[0] === r.split(">")[1])).toBe(false);
+    expect(new Set(routes)).toEqual(
+      new Set(["planet-alpha>planet-gamma", "planet-gamma>planet-beta", "planet-beta>planet-alpha"])
+    );
   });
 
   it("ids are assigned after shuffling, so a crate id says nothing about its route", () => {
@@ -800,6 +802,42 @@ describe("missions: tanker", () => {
       amount: TANKER_FUEL,
       planetId: ALPHA,
     });
+  });
+
+  /** Aboard, and taken off at whatever this visit's station is. */
+  const aboard = (s: GameState) =>
+    withPlayer(s, "p1", {
+      cargo: getPlayer(s, "p1").cargo.map((c) => ({ ...c, isPickedUp: true })),
+    });
+
+  it.each([
+    ["loads a Deliver crate", () => docking(ALPHA, [tankerMission(), deliverMission(ALPHA, BETA)]), false],
+    ["drops off a Deliver crate", () => docking(ALPHA, [tankerMission(), deliverMission(BETA, ALPHA)], aboard), false],
+    [
+      "files survey data",
+      () => {
+        const survey = { ...surveyMission(), acquired: true };
+        return docking(ALPHA, [tankerMission(), survey], (s) =>
+          withPlayer(s, "p1", {
+            cargo: [
+              {
+                id: survey.dataCargoId,
+                missionId: survey.id,
+                kind: "data" as const,
+                deliveryPlanetId: "any",
+                isPickedUp: true,
+              },
+            ],
+          })
+        );
+      },
+      true,
+    ],
+  ])("a visit that %s pumps fuel: %s", (_label, build, pumped) => {
+    // The station works a crate or the drums, not both; data is not freight.
+    const state = withShip(build(), "p1", { reactionMass: 10 });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventsOf(result.events, "fuel_sold")).toHaveLength(pumped ? 1 : 0);
   });
 
   it("pumps nothing while it holds a berth it already held: an arrival is the trigger", () => {

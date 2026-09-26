@@ -81,7 +81,7 @@ Otherwise:
    - **Fire.** Any number of weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan.** With a sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
-4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: cargo is loaded and delivered, broken subsystems are repaired, hull is restored to full, missiles reloaded. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival.
+4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: cargo is loaded and delivered, broken subsystems are repaired, hull is restored to full, missiles reloaded, and a Tanker pumps its fuel, unless a crate was loaded or unloaded on this visit. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival.
 5. **Heat check.** Every energy cube on your loadout is 1 heat. **If your heat is now 0**, repair one broken subsystem of your choice. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
 6. **Missions.** Check your cards; completed cards are turned face-up. Pass play.
 
@@ -238,11 +238,11 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 | **Intercept [Nth to your left] → file at [planet]** | 2      | you scan them (take their data), then dock at **that planet's** station                                                                                                                                           |
 | **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1, take the data, then dock at **any** station to file it                                                                                                                       |
 | **Piracy**                                          | 1      | you end a turn in the **same sector** as an undocked ship carrying a crate or data: it is yours (your hold must be empty; loot fills it), then dock at **any** station to sell it. Their card goes back to undone |
-| **Tanker**                                          | 1      | you **arrive** at **any** station with **8 or more fuel**: hand in 8, and the card is done                                                                                                                        |
+| **Tanker**                                          | 1      | you **arrive** at **any** station with **7 or more fuel**: hand in 7, and the card is done. Not on a visit that loads or unloads a crate: the station works the crate or the drums, not both |
 
 **The decks.** Two piles for the table, dealt separately.
 
-The **primary pile** is two copies of every primary mission: each Destroy and Intercept offset (below), and all six Deliver routes. **Setup:** take out every Destroy and Intercept whose number is the player count or higher. At three players that leaves offsets 1 and 2. More seats leave more of it pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
+The **primary pile** is two copies of every primary mission: each Destroy and Intercept offset (below), and the three Deliver routes, each from a planet to the next one round the circuit: **Alpha → Gamma, Gamma → Beta, Beta → Alpha**. That is the short way round the black hole's lanes (every lane you land on is followed by the next planet's lane out); a route the other way would be most of the ring, and a card nobody can finish. **Setup:** take out every Destroy and Intercept whose number is the player count or higher. At three players that leaves offsets 1 and 2. More seats leave more of it pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
 
 The **secondaries** are six copies each of Survey, Piracy and Tanker, one set per seat. They name no rival and no route, so there is nothing to shuffle: every player is handed one of each.
 

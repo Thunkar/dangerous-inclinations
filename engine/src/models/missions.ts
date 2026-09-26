@@ -65,8 +65,12 @@ export const MISSION_OFFERS_PER_PLAYER =
 /** Black hole ring a ship must end its turn on to complete a Survey. */
 export const SURVEY_RING = 1;
 
-/** Fuel a Tanker hands in, in one go, on arrival at a station. */
-export const TANKER_FUEL = 8;
+/**
+ * Fuel a Tanker hands in, in one go, on arrival at a station. It was 8 while a
+ * Deliver crate and the fuel could change hands on the same visit; with the
+ * two on separate visits, 7 gives back about half the length that cost.
+ */
+export const TANKER_FUEL = 7;
 
 /**
  * What a completed card scores.
