@@ -282,6 +282,7 @@ export {
   planFromShip,
   planShipToTarget,
   planStationMeetUp,
+  stationTarget,
   getFirstAction,
   estimateTurnsToTarget,
 } from "./movementPlanner/index.ts";

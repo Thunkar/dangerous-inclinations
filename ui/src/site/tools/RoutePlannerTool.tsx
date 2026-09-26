@@ -32,6 +32,7 @@ import {
   getWellName,
   isPlanet,
   orbitingTarget,
+  staticTarget,
   planMovementAlternatives,
   planMovementToTarget,
   wrapSector,
@@ -125,6 +126,12 @@ export function RoutePlannerTool() {
   const [stations, setStations] = useState<Station[]>(() => createInitialStations())
   const [facing, setFacing] = useState<Facing>('prograde')
   const [fuel, setFuel] = useState(MAX_REACTION_MASS)
+  /**
+   * Fuel the route must still have aboard on arrival: a Tanker's card, say.
+   * It may run lower on the way and scoop back up.
+   */
+  const [reserve, setReserve] = useState(0)
+  const keep = Math.min(reserve, fuel)
   const [compressor, setCompressor] = useState(false)
   const [picking, setPicking] = useState<Picking>('destination')
   const [chosen, setChosen] = useState(0)
@@ -146,6 +153,7 @@ export function RoutePlannerTool() {
     hasFuelCompressor: compressor,
     allowWellTransfers: true,
     maxTurns: MAX_TURNS,
+    arrivalMass: keep,
   }
 
   const routes = useMemo<MovementPlan[]>(() => {
@@ -160,10 +168,16 @@ export function RoutePlannerTool() {
       return plan ? [{ ...plan, label: 'fastest' }] : []
     }
     if (same(from, destination.at)) return []
+    // Only the forward search knows the fuel at every step, so a route that has
+    // to arrive with some is one plan from it rather than a set of alternatives.
+    if (keep > 0) {
+      const plan = planMovementToTarget(origin, staticTarget(destination.at), options)
+      return plan ? [{ ...plan, label: 'fastest' }] : []
+    }
     return planMovementAlternatives(origin, destination.at, options)?.alternatives ?? []
     // `options` is rebuilt from these every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, facing, destination, station, fuel, compressor])
+  }, [from, facing, destination, station, fuel, keep, compressor])
 
   const current = Math.min(chosen, Math.max(0, routes.length - 1))
   const route = routes[current] ?? null
@@ -260,6 +274,15 @@ export function RoutePlannerTool() {
                   max={MAX_REACTION_MASS}
                   onChange={setFuel}
                   label="fuel"
+                />
+              </Field>
+              <Field label="Arrive with">
+                <Stepper
+                  value={keep}
+                  min={0}
+                  max={fuel}
+                  onChange={setReserve}
+                  label="fuel left on arrival"
                 />
               </Field>
               <Toggle on={compressor} label="Compressor" onChange={setCompressor} />
@@ -381,7 +404,9 @@ export function RoutePlannerTool() {
             <Box sx={{ fontFamily: FONT_SANS, fontSize: '1rem' }}>
               {destination.kind === 'sector' && same(from, destination.at)
                 ? 'The ship is already there.'
-                : `No route there within ${MAX_TURNS} turns on ${fuel} fuel.`}
+                : keep > 0
+                  ? `No route there within ${MAX_TURNS} turns on ${fuel} fuel that arrives with ${keep}.`
+                  : `No route there within ${MAX_TURNS} turns on ${fuel} fuel.`}
             </Box>
           ) : (
             <>

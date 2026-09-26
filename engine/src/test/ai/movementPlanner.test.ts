@@ -15,6 +15,7 @@ import {
 import type { OrientedPosition, OrbitalPosition } from "../../ai/movementPlanner/types.ts";
 import type { ShipState, Facing } from "../../models/game.ts";
 import { createInitialShipState } from "../../game/ship.ts";
+import { createInitialStations } from "../../game/stations.ts";
 import { calculateShipStatsFromLoadout, createSubsystemsFromLoadout } from "../../game/loadout.ts";
 
 describe("Movement Planner", () => {
@@ -947,6 +948,37 @@ describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
     );
     expect(last.to.sector).toBe(expected.sector);
     expect(last.to.ring).toBe(STATION_RING);
+  });
+
+  describe("arrivalMass: fuel that must be aboard on arrival", () => {
+    // From the black hole to Alpha's station: the jump alone costs more than two
+    // fuel, so only a route that dips and scoops back up arrives with eight.
+    const origin: OrientedPosition = { wellId: "blackhole", ring: 3, sector: 0, facing: "prograde" };
+    const station = createInitialStations().find((s) => s.planetId === "planet-alpha")!;
+    const target = orbitingTarget(
+      { wellId: station.planetId, ring: station.ring, sector: station.sector },
+      4
+    );
+    const tank = { availableMass: 10, maxFuelCapacity: 10, hasFuelScoop: true, maxTurns: 20 };
+
+    it("finds a route that runs low on the way and arrives with the fuel asked for", () => {
+      const plan = planMovementToTarget(origin, target, { ...tank, arrivalMass: 8 });
+      expect(plan).not.toBeNull();
+      expect(10 - plan!.totalMassCost).toBeGreaterThanOrEqual(8);
+    });
+
+    it("is not a floor: the same eight as a reserve the route may never touch finds nothing", () => {
+      const floor = planMovementToTarget(origin, target, {
+        ...tank,
+        availableMass: 2,
+        maxFuelCapacity: 2,
+      });
+      expect(floor).toBeNull();
+    });
+
+    it("finds nothing when more is asked for than the tank holds", () => {
+      expect(planMovementToTarget(origin, target, { ...tank, arrivalMass: 11 })).toBeNull();
+    });
   });
 
   it("returns null when the bot cannot intercept within the turn budget", () => {

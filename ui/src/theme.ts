@@ -205,6 +205,14 @@ export const theme = createTheme({
         paper: { backgroundColor: TABLE.plate, backgroundImage: 'none' },
       },
     },
+    MuiDialogContent: {
+      styleOverrides: {
+        // MUI takes the top padding off content that follows a title, and the
+        // content box scrolls, so a field's label clipped the moment it rose
+        // out of the input to sit on the outline. Leave it room.
+        root: { '.MuiDialogTitle-root + &': { paddingTop: 8 } },
+      },
+    },
     MuiAlert: {
       styleOverrides: {
         root: { borderRadius: 0, border: `1px solid ${TABLE.plateEdge}`, backgroundImage: 'none' },

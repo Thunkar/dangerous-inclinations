@@ -45,7 +45,7 @@ export const TOP_PITCH = 89.9
  * the frame as margin reads as breathing room; much less and the near corner of
  * the board touches the edge of the pane.
  */
-const FRAME_FILL = 0.9
+export const FRAME_FILL = 0.9
 
 /**
  * Room left around one well when it is framed on its own: empty board, so it

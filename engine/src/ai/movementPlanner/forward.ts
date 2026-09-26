@@ -138,7 +138,10 @@ export function planMovementToTarget(
         const matched = target.isMatch
           ? target.isMatch(child.position, nextTurn)
           : samePosition(child.position, target.positionAt(nextTurn));
-        if (matched) return reconstructForwardPlan(child, origin, target, opts);
+        // Arriving light is not arriving: the search carries on for a path
+        // that gets there with the fuel asked for.
+        const enough = availableMass - newMassCost >= (opts.arrivalMass ?? 0);
+        if (matched && enough) return reconstructForwardPlan(child, origin, target, opts);
       }
     }
 

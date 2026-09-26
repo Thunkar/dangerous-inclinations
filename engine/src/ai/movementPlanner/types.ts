@@ -82,6 +82,14 @@ export interface PlannerOptions {
   maxFuelCapacity: number;
   /** A working fuel compressor cheapens a jump's own fuel (never its phasing). */
   hasFuelCompressor: boolean;
+  /**
+   * Fuel that must be aboard on arrival, however low the tank runs on the way
+   * (a Tanker jumping in on seven and scooping back up to eight). Only the
+   * forward search ({@link planMovementToTarget}) reads it: it is the one that
+   * knows the fuel at every step. A reserve the route may never touch is
+   * `availableMass` and `maxFuelCapacity` shrunk instead.
+   */
+  arrivalMass?: number;
 }
 
 export const DEFAULT_PLANNER_OPTIONS: PlannerOptions = {

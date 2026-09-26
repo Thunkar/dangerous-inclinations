@@ -339,7 +339,10 @@ export function CameraRig({
     /** Where the camera is and what it looks at, for the camera-motion checks. */
     ;(host as { __boardCamera?: () => number[] }).__boardCamera = () => {
       const target = controls.current?.getTarget(new Vector3()) ?? new Vector3()
-      return [...camera.position.toArray(), ...target.toArray()]
+      // The camera's own facing, read off its matrix, so the figure is the view
+      // as drawn rather than a target the controls have not applied yet.
+      const facing = camera.getWorldDirection(new Vector3())
+      return [...camera.position.toArray(), ...target.toArray(), ...facing.toArray()]
     }
     host.__boardFrame = () => {
       let minX = Infinity

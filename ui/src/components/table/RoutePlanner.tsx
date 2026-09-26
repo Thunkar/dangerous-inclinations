@@ -168,6 +168,15 @@ export function RoutePlanner({ disabled }: { disabled: boolean }) {
             }}
           />
 
+          {dest && (
+            <ReserveRow
+              reserve={Math.min(plan.routeReserve, plan.me.ship.reactionMass)}
+              max={plan.me.ship.reactionMass}
+              disabled={disabled}
+              onSet={plan.setRouteReserve}
+            />
+          )}
+
           {dest && plan.routes.length === 0 && (
             <Typography
               sx={{
@@ -177,7 +186,9 @@ export function RoutePlanner({ disabled }: { disabled: boolean }) {
                 lineHeight: 1.4,
               }}
             >
-              No route there within 20 turns on the fuel aboard.
+              {plan.routeReserve > 0
+                ? `No route there within 20 turns that arrives with ${Math.min(plan.routeReserve, plan.me.ship.reactionMass)} fuel.`
+                : 'No route there within 20 turns on the fuel aboard.'}
             </Typography>
           )}
 
@@ -265,7 +276,12 @@ function PlannerHeader({
         )}
         {!open && taken && (
           <Typography
-            sx={{ fontFamily: FONT_MONO, fontSize: '0.72rem', fontWeight: 700, color: TABLE.accent }}
+            sx={{
+              fontFamily: FONT_MONO,
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              color: TABLE.accent,
+            }}
             noWrap
           >
             step 1 taken
@@ -369,6 +385,75 @@ function StationAim({
           </Tooltip>
         )
       })}
+    </Box>
+  )
+}
+
+/**
+ * Fuel to arrive with: a Tanker's card, or a margin for the trip after. The
+ * route is planned as if that fuel were not aboard, so it coasts where it
+ * would otherwise burn.
+ */
+function ReserveRow({
+  reserve,
+  max,
+  disabled,
+  onSet,
+}: {
+  reserve: number
+  max: number
+  disabled: boolean
+  onSet: (fuel: number) => void
+}) {
+  const step = (by: number) => onSet(Math.max(0, Math.min(max, reserve + by)))
+  const button = (by: number, label: string, tip: string) => (
+    <Tooltip title={tip}>
+      <span>
+        <Box
+          component="button"
+          type="button"
+          aria-label={tip}
+          disabled={disabled || reserve + by < 0 || reserve + by > max}
+          onClick={() => step(by)}
+          sx={{
+            fontFamily: FONT_MONO,
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            width: 20,
+            py: '1px',
+            borderRadius: 0,
+            cursor: 'pointer',
+            color: TABLE.inkSoft,
+            border: `1px solid ${TABLE.plateEdge}`,
+            bgcolor: 'transparent',
+            '&:disabled': { opacity: 0.4, cursor: 'default' },
+          }}
+        >
+          {label}
+        </Box>
+      </span>
+    </Tooltip>
+  )
+  return (
+    <Box
+      data-testid="route-reserve"
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}
+    >
+      <SectionLabel sx={{ flexShrink: 0, mr: 0.25 }}>arrive with</SectionLabel>
+      {button(-1, '−', 'one less fuel on arrival')}
+      <Typography
+        sx={{
+          fontFamily: FONT_MONO,
+          fontSize: '0.8rem',
+          fontWeight: 700,
+          color: reserve > 0 ? TABLE.ink : TABLE.inkFaint,
+          minWidth: 44,
+          textAlign: 'center',
+        }}
+      >
+        {reserve} fuel
+      </Typography>
+      {button(1, '+', 'one more fuel on arrival')}
     </Box>
   )
 }

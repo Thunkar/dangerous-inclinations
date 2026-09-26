@@ -71,6 +71,9 @@ import {
   sectorDistance,
   getStationAt,
   planMovementAlternatives,
+  planMovementToTarget,
+  staticTarget,
+  stationTarget,
   planStationMeetUp,
   samePosition,
   stationPosition,
@@ -242,6 +245,12 @@ interface PlanContextValue {
    */
   routeMode: RouteMode
   setRouteMode: (mode: RouteMode) => void
+  /**
+   * Fuel the route must still have aboard when it arrives: a Tanker's card,
+   * or a margin for the trip after. The route may not spend it.
+   */
+  routeReserve: number
+  setRouteReserve: (fuel: number) => void
   routes: MovementPlan[]
   route: MovementPlan | null
   routeIndex: number
@@ -443,6 +452,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [routeDestination, setRouteDestinationState] = useState<Position | null>(null)
   const [routeStationId, setRouteStationId] = useState<string | null>(null)
   const [routeMode, setRouteMode] = useState<RouteMode>('meet')
+  const [routeReserve, setRouteReserve] = useState(0)
   const [routeIndex, setRouteIndex] = useState(0)
 
   const isMyTurn = !readOnly && view.activePlayerId === me.id && view.phase === 'active'
@@ -674,7 +684,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       if (!weapon) return []
       const { attacker } = firingFrom(step)
       return targets.filter(
-        t => isInWeaponRange(weapon, attacker, t.position) && !canEngage(weapon, attacker, t.position)
+        t =>
+          isInWeaponRange(weapon, attacker, t.position) && !canEngage(weapon, attacker, t.position)
       )
     },
     [firingFrom, pendingSubsystems, targets]
@@ -717,35 +728,46 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     // Meeting a station is a forward search against a moving target, so it
     // yields the one plan that arrives when the station does, not a set of
     // alternatives to a fixed sector.
+    // Fuel to arrive with. The route may run lower on the way and scoop back
+    // up; only the forward search knows the fuel at every step, so a route
+    // that has to arrive with some is one plan from it.
+    const reserve = Math.min(routeReserve, me.ship.reactionMass)
+    const scoop = pendingSubsystems.find(s => s.id === 'scoop')
+    const origin = {
+      wellId: me.ship.wellId,
+      ring: me.ship.ring,
+      sector: me.ship.sector,
+      facing: me.ship.facing,
+    }
+    const options = {
+      availableMass: me.ship.reactionMass,
+      hasFuelScoop: Boolean(scoop && !scoop.isBroken),
+      maxFuelCapacity: view.myStats?.maxReactionMass ?? me.ship.reactionMass,
+      hasFuelCompressor: compressor,
+      allowWellTransfers: true,
+      maxTurns: 20,
+      arrivalMass: reserve,
+    }
     if (routeStation && routeMode === 'meet') {
       if (samePosition(me.ship, stationPosition(routeStation))) return []
+      if (reserve > 0) {
+        const plan = planMovementToTarget(origin, stationTarget(routeStation), options)
+        return plan ? [plan] : []
+      }
       const meet = planStationMeetUp(me.ship, routeStation, 20)
       return meet ? [meet.plan] : []
     }
     if (!routeDestination || samePosition(me.ship, routeDestination)) return []
-    const scoop = pendingSubsystems.find(s => s.id === 'scoop')
-    const result = planMovementAlternatives(
-      {
-        wellId: me.ship.wellId,
-        ring: me.ship.ring,
-        sector: me.ship.sector,
-        facing: me.ship.facing,
-      },
-      routeDestination,
-      {
-        availableMass: me.ship.reactionMass,
-        hasFuelScoop: Boolean(scoop && !scoop.isBroken),
-        maxFuelCapacity: view.myStats?.maxReactionMass ?? me.ship.reactionMass,
-        hasFuelCompressor: compressor,
-        allowWellTransfers: true,
-        maxTurns: 20,
-      }
-    )
-    return result?.alternatives ?? []
+    if (reserve > 0) {
+      const plan = planMovementToTarget(origin, staticTarget(routeDestination), options)
+      return plan ? [plan] : []
+    }
+    return planMovementAlternatives(origin, routeDestination, options)?.alternatives ?? []
   }, [
     routeDestination,
     routeStation,
     routeMode,
+    routeReserve,
     me.ship,
     pendingSubsystems,
     compressor,
@@ -1303,6 +1325,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       routeStation,
       routeMode,
       setRouteMode,
+      routeReserve,
+      setRouteReserve,
       routes,
       route,
       routeIndex,
@@ -1358,6 +1382,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       routeStation,
       routeMode,
       setRouteMode,
+      routeReserve,
+      setRouteReserve,
       routes,
       route,
       routeIndex,

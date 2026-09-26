@@ -220,7 +220,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
       {/* Create */}
       <Dialog open={createOpen} onClose={() => !busy && setCreateOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>New table</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <TextField
             label="Table name"
             value={newName}
@@ -256,7 +256,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
       {/* Join with password */}
       <Dialog open={joinTarget !== null} onClose={() => !busy && setJoinTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Join {joinTarget?.lobbyName}</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
+        <DialogContent>
           <TextField
             label="Password"
             type="password"
@@ -283,7 +283,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
       {/* Rename */}
       <Dialog open={nameOpen} onClose={() => setNameOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Your name</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
+        <DialogContent>
           <TextField value={draftName} onChange={(e) => setDraftName(e.target.value)} autoFocus fullWidth />
         </DialogContent>
         <DialogActions>
