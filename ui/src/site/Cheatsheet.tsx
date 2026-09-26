@@ -2,9 +2,9 @@
  * The cheatsheet: how to play, in the order a first game meets it, and the
  * player card to print.
  *
- * Eight sections, each one thing a table has to know: what you are playing
- * for, how to set up, the turn, moving, heat, fighting, what is hidden, and
- * what death costs. Every number in them is read from the engine that
+ * Nine sections, each one thing a table has to know: what you are playing
+ * for, how to set up, the turn, moving, heat, fighting, what is hidden, what
+ * death costs, and when to travel. Every number in them is read from the engine that
  * referees the video game; the wording compresses RULES.md, which wins
  * wherever the two seem to disagree.
  *
@@ -12,6 +12,7 @@
  * what is on screen is the geometry that reaches the printer; printing lays
  * both faces on one A4 sheet to cut out, and nothing else on the page prints.
  */
+import { useEffect } from 'react'
 import { Box } from '@mui/material'
 import PrintIcon from '@mui/icons-material/Print'
 import { FONT_MONO, FONT_SANS } from '../theme'
@@ -26,6 +27,7 @@ import { MoveSection } from './guide/MoveSection'
 import { HeatSection } from './guide/HeatSection'
 import { FightSection } from './guide/FightSection'
 import { DeathSection, SecretsSection } from './guide/SecretsSection'
+import { WindowsSection } from './guide/WindowsSection'
 import { CardBack, CardFront } from './card/CardFaces'
 import { CARD_CSS, CARD_HEIGHT_MM, CARD_PAGE_CSS, CARD_WIDTH_MM } from './card/cardStyles'
 
@@ -50,6 +52,7 @@ const CONTENTS: Array<{ id: string; label: string }> = [
   { id: 'fight', label: 'Fighting' },
   { id: 'secrets', label: 'Secrets' },
   { id: 'death', label: 'Destruction' },
+  { id: 'windows', label: 'Orbital windows' },
 ]
 
 function Contents() {
@@ -59,7 +62,7 @@ function Contents() {
       aria-label="Sections"
       sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', lg: 'repeat(9, 1fr)' },
+        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)', lg: 'repeat(10, 1fr)' },
         gap: '4px',
         mt: { xs: 4, sm: 5 },
       }}
@@ -103,7 +106,6 @@ function Contents() {
         component="a"
         href="#card"
         sx={{
-          gridColumn: { xs: 'span 2', sm: 'span 4', lg: 'span 1' },
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -176,6 +178,13 @@ function PrintCard() {
 }
 
 export function Cheatsheet() {
+  // A link from elsewhere (the rules dialog's "/card#windows") arrives before
+  // the page has rendered, so the browser has nothing to scroll to yet.
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1))
+    if (id) document.getElementById(id)?.scrollIntoView()
+  }, [])
+
   return (
     <Box
       className="site-page"
@@ -208,6 +217,7 @@ export function Cheatsheet() {
         <FightSection />
         <SecretsSection />
         <DeathSection />
+        <WindowsSection />
       </Box>
 
       <PrintCard />

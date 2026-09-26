@@ -206,6 +206,19 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
             ['Planets', PLANET_RINGS.map(r => r.velocity).join(' · ')],
           ]}
         />
+        <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.4, mt: 0.75 }}>
+          When to set off for a station, read off the station clock:{' '}
+          <Box
+            component="a"
+            href="/card#windows"
+            target="_blank"
+            rel="noopener"
+            sx={{ color: TABLE.accent, '&:hover': { color: TABLE.ink } }}
+          >
+            orbital windows
+          </Box>
+          .
+        </Typography>
 
         <Heading>Hidden information</Heading>
         <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
