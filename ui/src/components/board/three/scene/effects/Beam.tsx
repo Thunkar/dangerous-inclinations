@@ -3,18 +3,20 @@
  *
  * The timing is the flat board's, to the millisecond: the head travels out
  * over the first 30% of the effect and the whole thing fades in for a quarter
- * and out for three. Only the character is new: a railgun is a thick bright
- * bolt, a laser a thin continuous line, a missile launch a dashed tracer and a
- * scan a fine teal one. A ballistic rack is not a beam at all: it throws a
- * stream of rounds, each a short streak you can count, whether it is firing at
- * a ship or at a missile (point defence).
+ * and out for three. Only the character is new: a laser is a thin continuous
+ * line, a missile launch a dashed tracer and a scan a fine teal one. The two
+ * kinetic weapons are not beams at all. A railgun fires one heavy slug, a long
+ * bright streak that crosses fast and flashes where it lands; a ballistic rack
+ * throws a stream of rounds, each a short streak you can count, whether it is
+ * firing at a ship or at a missile (point defence).
  *
  * The bolt bows a little over its span. That is not decoration: a straight
  * chord between two sectors of the same well would fly over the funnel, and a
- * shot across the gap between two wells has to clear the black hole. A laser
- * is the exception, because light that curves reads as wrong at once: it is
- * dead straight, and drawn over the surface rather than into it, so a shot
- * across a terrace is never swallowed by the step between.
+ * shot across the gap between two wells has to clear the black hole. Rounds
+ * and the laser are the exceptions, because a slug or light that curves reads
+ * as wrong at once: they fly dead straight, and the laser is drawn over the
+ * surface rather than into it, so a shot across a terrace is never swallowed
+ * by the step between.
  */
 import { useMemo, useRef } from 'react'
 import { Quaternion, Vector3, type Group, type Mesh } from 'three'
@@ -53,11 +55,30 @@ interface BeamStyle {
   overlay?: boolean
   /** A stream of this many rounds instead of a beam. */
   rounds?: number
+  /** A round's streak, in board units. */
+  roundLength?: number
+  /** Share of the effect's life a round takes to arrive. */
+  roundFlight?: number
+  /** A flash where the round lands. */
+  impact?: boolean
 }
 
 const STYLE: Record<WeaponType | 'pdc' | 'scan', BeamStyle> = {
   // A slug: thick, bright all the way, a hard head.
-  railgun: { core: 4.6, glow: 10, dashes: 0, duty: 0.5, base: 0.55, tail: 0.28 },
+  // A slug: one heavy streak, fast and straight, flashing where it lands.
+  railgun: {
+    core: 3.4,
+    glow: 0,
+    dashes: 0,
+    duty: 0,
+    base: 0,
+    tail: 0,
+    bow: 0,
+    rounds: 1,
+    roundLength: 34,
+    roundFlight: 0.2,
+    impact: true,
+  },
   // A line of light: thin, even, straight, no travelling head to speak of.
   laser: {
     core: 1.9,
@@ -103,6 +124,7 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
   const group = useRef<Group>(null)
   const head = useRef<Mesh>(null)
   const muzzle = useRef<Mesh>(null)
+  const hit = useRef<Mesh>(null)
   const rounds = useRef<(Mesh | null)[]>([])
 
   const core = useEffectMaterial('bolt')
@@ -157,10 +179,11 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
       // Each round flies its own straight line; the muzzle flickers once per round.
       spark.color.set(effect.color)
       spark.opacity = 1
+      const flight = style.roundFlight ?? ROUND_FLIGHT
       let firing = false
       rounds.current.forEach((round, i) => {
         if (!round) return
-        const t = (progress - i * ROUND_GAP) / ROUND_FLIGHT
+        const t = (progress - i * ROUND_GAP) / flight
         round.visible = t >= 0 && t <= 1
         if (!round.visible) return
         firing ||= t < 0.25
@@ -170,6 +193,13 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
       if (flash) {
         const cycle = (progress / ROUND_GAP) % 1
         flash.scale.setScalar(firing ? style.core * 3 * (1 - cycle) : 0.001)
+      }
+      // The landing: a flash that swells and goes out just after the last round arrives.
+      const landing = hit.current
+      if (landing) {
+        const after = (progress - ((style.rounds - 1) * ROUND_GAP + flight)) / 0.18
+        landing.visible = after >= 0 && after < 1
+        if (landing.visible) landing.scale.setScalar(style.core * (2 + 4 * after) * (1 - after))
       }
       return
     }
@@ -223,7 +253,7 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
             geometry={ballGeometry()}
             material={spark}
             quaternion={shot.aim}
-            scale={[style.core, ROUND_LENGTH, style.core]}
+            scale={[style.core, style.roundLength ?? ROUND_LENGTH, style.core]}
             visible={false}
             renderOrder={7}
             raycast={NO_RAYCAST}
@@ -237,6 +267,17 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
           renderOrder={7}
           raycast={NO_RAYCAST}
         />
+        {style.impact && (
+          <mesh
+            ref={hit}
+            geometry={ballGeometry()}
+            material={spark}
+            position={shot.to}
+            visible={false}
+            renderOrder={7}
+            raycast={NO_RAYCAST}
+          />
+        )}
       </group>
     )
   }
