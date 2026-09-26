@@ -81,7 +81,7 @@ Otherwise:
    - **Fire.** Any number of weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan.** With a sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
-4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: cargo is loaded and delivered, broken subsystems are repaired, hull is restored to full, missiles reloaded, and a Tanker pumps its fuel, unless a crate was loaded or unloaded on this visit. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival.
+4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: broken subsystems are repaired, hull is restored to full and missiles reloaded, and the station does **one job**: your crates (unload and load), your data (file it all), or your fuel (a Tanker pumps). If you could do more than one, you choose; what you leave waits for the next visit. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival.
 5. **Heat check.** Every energy cube on your loadout is 1 heat. **If your heat is now 0**, repair one broken subsystem of your choice. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
 6. **Missions.** Check your cards; completed cards are turned face-up. Pass play.
 
@@ -238,7 +238,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 | **Intercept [Nth to your left] → file at [planet]** | 2      | you scan them (take their data), then dock at **that planet's** station                                                                                                                                           |
 | **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1, take the data, then dock at **any** station to file it                                                                                                                       |
 | **Piracy**                                          | 1      | you end a turn in the **same sector** as an undocked ship carrying a crate or data: it is yours (your hold must be empty; loot fills it), then dock at **any** station to sell it. Their card goes back to undone |
-| **Tanker**                                          | 1      | you **arrive** at **any** station with **7 or more fuel**: hand in 7, and the card is done. Not on a visit that loads or unloads a crate: the station works the crate or the drums, not both |
+| **Tanker**                                          | 1      | you **arrive** at **any** station with **7 or more fuel**: hand in 7, and the card is done. Pumping is that visit's one job (see Docking) |
 
 **The decks.** Two piles for the table, dealt separately.
 
@@ -296,7 +296,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | First round      | no weapon fires and nobody scans                                                                                                                                  |
 | Respawn          | next turn: back at Home, full hull and tank, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody |
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                             |
-| Docking          | on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away                                                  |
+| Docking          | on arrival only: full hull, repair all, reload missiles, and one job (crates, data or fuel); you stay moored until you burn away                                                  |
 | Survey           | a turn ended on Black Hole Ring 1, take the data, then any station                                                                                                |
 | Keeping cards    | 3 primaries keep 1, one of each secondary keep 2, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon                                |
 | Hold             | one crate; data rides free                                                                                                                                        |
@@ -311,7 +311,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 2. Clear your loadout: every energy cube back to the supply.
 3. Actions in your order: power (shields, racks, sensors) · rotate · move (coast / burn / jump) · fire · scan. Each subsystem does one thing.
 4. Your missiles move.
-5. Just arrived at a station? Load, deliver, repair, full hull, reload. Moored until you burn away.
+5. Just arrived at a station? Repair, full hull, reload, and one job: crates, data or fuel. Moored until you burn away.
 6. Heat check: every energy cube on your loadout is 1 heat; at 0 heat repair one subsystem; over 10 is hull damage; dissipate and carry the rest.
 7. Flip completed missions. Pass.
 8. Once a round, after the last player: every station moves 4 sectors, with whoever is moored.

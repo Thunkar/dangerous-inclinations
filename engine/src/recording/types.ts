@@ -5,8 +5,9 @@ import type { GameEvent } from "../models/events.ts";
  * Bumped whenever the recording schema changes incompatibly.
  * v2: events replace log strings; states carry no log; new action shapes.
  * v3: `power` replaces `set_standing_power`; energy stays on a tile until its owner's next turn.
+ * v4: a visit does one job: the `dock_job` action, and `docked` carries the job done.
  */
-export const RECORDING_SCHEMA_VERSION = 3;
+export const RECORDING_SCHEMA_VERSION = 4;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

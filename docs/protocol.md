@@ -89,7 +89,13 @@ turns is what its owner used or powered last turn. A `power` emits the public
 `subsystem_powered` event, which names the subsystem's type only if it is already
 face-up: powering reveals nothing. Beside them a turn may carry one `repair`
 (`{ subsystemId }`, no sequence): the subsystem a cold ship fixes if its heat is 0
-at the check.
+at the check, and one `dock_job` (`{ job: "crates" | "data" | "fuel" }`, no
+sequence): the one job the visit does if the turn arrives at a station. A job
+the visit cannot do is not refused; without a `dock_job`, or with one the
+visit cannot do, the visit does the job that completes the most mission
+points, ties going to crates, then data, then fuel. The engine's
+`dockJobsOnArrival` gives the jobs on offer and that default, and the public
+`docked` event carries the `job` done (null when there was none).
 
 Per-recipient sending: `sendToPlayer(room, roomId, playerId, message)` and
 `broadcastViews(room, roomId, (playerId) => message)`; the old single-string

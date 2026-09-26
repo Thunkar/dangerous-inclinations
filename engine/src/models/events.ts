@@ -13,7 +13,7 @@
 
 import type { Position, Facing, BurnIntensity } from "./game.ts";
 import type { SubsystemId, SubsystemType, WeaponType } from "./subsystems.ts";
-import type { CargoKind, Mission } from "./missions.ts";
+import type { CargoKind, DockJob, Mission } from "./missions.ts";
 import type { HitRollResult } from "./weapons.ts";
 
 interface Base {
@@ -212,6 +212,8 @@ export type GameEvent =
       hullRestored: number;
       repaired: SubsystemId[];
       missilesReloaded: boolean;
+      /** The one job the visit did, or null when there was none to do. */
+      job: DockJob | null;
     })
   | (Base & {
       type: "cargo_picked_up";

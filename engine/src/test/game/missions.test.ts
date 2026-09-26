@@ -811,8 +811,11 @@ describe("missions: tanker", () => {
     });
 
   it.each([
-    ["loads a Deliver crate", () => docking(ALPHA, [tankerMission(), deliverMission(ALPHA, BETA)]), false],
+    // Loading scores nothing and the fuel scores its point, so the crate waits.
+    ["loads a Deliver crate", () => docking(ALPHA, [tankerMission(), deliverMission(ALPHA, BETA)]), true],
+    // A delivered crate is two points against the fuel's one.
     ["drops off a Deliver crate", () => docking(ALPHA, [tankerMission(), deliverMission(BETA, ALPHA)], aboard), false],
+    // A point each, and a tie goes to the data.
     [
       "files survey data",
       () => {
@@ -831,13 +834,14 @@ describe("missions: tanker", () => {
           })
         );
       },
-      true,
+      false,
     ],
-  ])("a visit that %s pumps fuel: %s", (_label, build, pumped) => {
-    // The station works a crate or the drums, not both; data is not freight.
+  ])("a visit that could also have %s pumps fuel by default: %s", (_label, build, pumped) => {
+    // One job a visit: named by the player, or the one that scores most.
     const state = withShip(build(), "p1", { reactionMass: 10 });
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "fuel_sold")).toHaveLength(pumped ? 1 : 0);
+    expect(eventsOf(result.events, "docked")[0].job === "fuel").toBe(pumped);
   });
 
   it("pumps nothing while it holds a berth it already held: an arrival is the trigger", () => {

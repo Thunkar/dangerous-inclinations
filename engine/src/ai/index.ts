@@ -147,6 +147,8 @@ function summarizeAction(action: PlayerAction): string {
     }
     case "repair":
       return `Repair ${action.data.subsystemId} if cold`;
+    case "dock_job":
+      return `At the dock: ${action.data.job}`;
     case "deploy_ship":
       return `Deploy at ${action.data.wellId} S${action.data.sector}`;
   }

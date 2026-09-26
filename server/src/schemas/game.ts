@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  DOCK_JOBS,
   HOME_RINGS,
   SECTORS_PER_RING,
   ShipAppearanceSchema,
@@ -164,6 +165,18 @@ const RepairActionSchema = z
   })
   .strict();
 
+/**
+ * Name the job a visit to a station does if the turn arrives at one (RULES
+ * §Stations). No sequence either: it is read at docking, after every action.
+ */
+const DockJobActionSchema = z
+  .object({
+    ...base,
+    type: z.literal("dock_job"),
+    data: z.object({ job: z.enum(DOCK_JOBS) }).strict(),
+  })
+  .strict();
+
 export const PlayerActionSchema = z.discriminatedUnion("type", [
   CoastActionSchema,
   BurnActionSchema,
@@ -173,6 +186,7 @@ export const PlayerActionSchema = z.discriminatedUnion("type", [
   ScanActionSchema,
   WellTransferActionSchema,
   RepairActionSchema,
+  DockJobActionSchema,
 ]);
 
 export const SubmitTurnSchema = z

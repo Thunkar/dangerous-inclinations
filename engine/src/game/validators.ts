@@ -14,6 +14,7 @@ import type {
   BurnAction,
   FireWeaponAction,
   RepairAction,
+  DockJobAction,
   ScanAction,
   WellTransferAction,
 } from "../models/game.ts";
@@ -33,7 +34,7 @@ import {
   calculateJumpMassCost,
 } from "../models/rings.ts";
 import { findJump, getJumpAdjustmentRange, getMaxRing } from "../models/gravityWells.ts";
-import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
+import { DOCK_JOBS, SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity, sectorDistance } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, isDestroyed } from "./ship.ts";
 import { isInWeaponRange } from "./targeting.ts";
@@ -50,6 +51,7 @@ const ACTIVE_ACTION_TYPES = new Set<string>([
   "scan",
   "power",
   "repair",
+  "dock_job",
 ]);
 
 export function validateActionSequence(actions: PlayerAction[]): string[] {
@@ -314,6 +316,17 @@ export function validateRepairAction(state: GameState, action: RepairAction): st
       `Carrying ${player.ship.heat.currentHeat} heat: a repair needs the ship cold at its heat check`,
     ];
   }
+  return [];
+}
+
+/**
+ * Naming the job a visit does. Only the name is checked: whether the turn
+ * arrives anywhere, and what the visit could do there, is known when it docks,
+ * and a job it cannot do falls back to the default (game/docking.ts).
+ */
+export function validateDockJobAction(_state: GameState, action: DockJobAction): string[] {
+  if (!(DOCK_JOBS as readonly string[]).includes(action.data.job))
+    return [`A visit's job is one of ${DOCK_JOBS.join(", ")}, not ${String(action.data.job)}`];
   return [];
 }
 

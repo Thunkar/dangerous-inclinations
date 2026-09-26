@@ -9,6 +9,7 @@ import {
   AGENT_INTENT_GUIDE,
 } from "../../agent/index.ts";
 import { botDecideActions } from "../../ai/index.ts";
+import type { DockJob } from "../../models/missions.ts";
 import { ALPHA, BH, eventsOf, makeTwoPlayerGame, withPower, getShip } from "../testUtils.ts";
 
 describe("agent seat tooling", () => {
@@ -85,6 +86,18 @@ describe("agent seat tooling", () => {
     const built = buildTurn(viewFor(state, "p1"), intent);
     const result = executeTurn(state, built.actions);
     expect(result.errors).toBeUndefined();
+  });
+
+  it.each([
+    ["a job", "fuel", [{ type: "dock_job", data: { job: "fuel" } }], 0],
+    ["something that is not a job", "repairs", [], 1],
+  ])("passes %s for the visit through as a dock_job action", (_label, dock, expected, notes) => {
+    const built = buildTurn(viewFor(start(), "p1"), { dock: dock as DockJob });
+    expect(built.actions.filter((a) => a.type === "dock_job")).toEqual(
+      expected.map((e) => expect.objectContaining(e))
+    );
+    expect(built.notes).toHaveLength(notes);
+    expect(executeTurn(start(), built.actions).errors).toBeUndefined();
   });
 
   it("places no cubes for a burn: the action powers the engines", () => {

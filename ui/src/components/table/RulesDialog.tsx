@@ -122,7 +122,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Docking',
-      'on arrival only: full hull, repair all, reload missiles, load/deliver cargo; you stay moored until you burn away',
+      'on arrival only: full hull, repair all, reload missiles, and one job: your crates (deliver, then load), your data (file it all) or your fuel. You choose; by default the job worth the most points, ties to crates, then data. You stay moored until you burn away',
     ],
     ['Survey', 'end a turn on Black Hole Ring 1 (take the data) then dock at any station'],
     [
@@ -131,7 +131,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Tanker',
-      `arrive at a station with ${TANKER_FUEL} or more fuel and pump it in: the card is done`,
+      `arrive at a station with ${TANKER_FUEL} or more fuel and make the fuel that visit's job: pump it in and the card is done`,
     ],
     [
       'Deployment',

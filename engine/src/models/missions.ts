@@ -104,6 +104,15 @@ export function missionPoints(type: MissionType): number {
  * alongside whatever is in the hold.
  */
 export const CARGO_HOLD_CRATES = 1;
+/**
+ * A visit to a station does one job (RULES §Stations): your crates (unload
+ * what is bound here, then load what waits here), your data (file all of it)
+ * or your fuel (a Tanker pumps its load). In this order, which is also the
+ * order a tie goes to when the player names none.
+ */
+export const DOCK_JOBS = ["crates", "data", "fuel"] as const;
+export type DockJob = (typeof DOCK_JOBS)[number];
+
 /** Scan range for the scan action (same ring, ±sectors). */
 export const SCAN_SECTOR_RANGE = 3;
 
@@ -275,10 +284,9 @@ export interface PiracyMission extends BaseMission {
  * Tanker: arrive at a station with {@link TANKER_FUEL} or more in the tank and
  * pump it in; the card is done.
  *
- * Nothing is carried and nothing is chosen: a full tank is the whole cost,
- * and the card is paid the moment the ship makes port with one. It is the
- * secondary that competes with the hold for nothing at all and with every
- * burn for everything.
+ * Nothing is carried: a full tank is the whole cost, and the card is paid on
+ * a visit whose one job is the fuel ({@link DockJob}). It competes with the
+ * hold for the visit, not for space, and with every burn for everything.
  */
 export interface TankerMission extends BaseMission {
   type: "tanker";

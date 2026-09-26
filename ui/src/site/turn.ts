@@ -54,8 +54,8 @@ export const TURN_STEPS: TurnStep[] = [
   },
   {
     title: 'Docking',
-    blurb: 'Arrived on a station? Load, deliver, repair everything, full hull, reload.',
-    terse: 'Arrived? Move cargo, repair, rearm',
+    blurb: 'Arrived on a station? Repair everything, full hull, reload, and one job: your crates, your data or your fuel.',
+    terse: 'Arrived? Repair, rearm, one job',
   },
   {
     title: 'Heat check',

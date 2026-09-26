@@ -129,6 +129,6 @@ describe("recording: serialisation", () => {
     expect(recording.turns.map((t) => t.playerId)).toEqual(
       recording.turns.map((_, i) => (i % 2 === 0 ? "p1" : "p2"))
     );
-    expect(recording.schemaVersion).toBe(3);
+    expect(recording.schemaVersion).toBe(4);
   });
 });

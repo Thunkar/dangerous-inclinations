@@ -122,7 +122,8 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       if (e.hullRestored > 0) parts.push(`+${e.hullRestored} hull`);
       if (e.repaired.length > 0) parts.push(`repaired ${e.repaired.join(", ")}`);
       if (e.missilesReloaded) parts.push("missiles reloaded");
-      return `${name(e.playerId)} docks at ${getWellName(e.planetId)}${parts.length ? ` (${parts.join(", ")})` : ""}`;
+      const job = e.job ? `, and does the ${e.job} job` : "";
+      return `${name(e.playerId)} docks at ${getWellName(e.planetId)}${parts.length ? ` (${parts.join(", ")})` : ""}${job}`;
     }
     case "cargo_picked_up":
       return `${name(e.playerId)} loads a crate at ${getWellName(e.planetId)}`;

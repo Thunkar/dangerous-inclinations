@@ -66,7 +66,9 @@ played out, then highest score wins (hull, then fuel, break ties). Six card type
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy
 (seize an undocked rival's crate or data, loot that fills the hold and
 sells anywhere, their card back to undone) and tanker (arrive at a station
-with seven fuel and pump it in, on a visit that works no crate)). Deliver
+with seven fuel and pump it in)). A dock visit does one job, crates, data or
+fuel, the player's choice (`dock_job`; the default is the job that scores
+most, and it is what the bots take). Deliver
 routes run only round the circuit (Alpha → Gamma → Beta → Alpha, the short
 way through the black hole's lanes). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
@@ -554,7 +556,7 @@ not an argument:
   hull damage 39.9 → 41.3, heat at the check 7.09 both. `Subsystem.isStanding`,
   `set_standing_power` and `standing_power_set` are gone; the action is `power`
   and the event `subsystem_powered`, which names the subsystem only once it is
-  face-up. Recordings are schema v3.
+  face-up. Recordings were schema v3 then; v4 since `dock_job` (26 Sept).
 
   Measured against the pre-rewrite code on the same seeds, 200 games a row,
   42 comparable rows: **the mean row moves +0.9pp and the median +1.0pp, and
@@ -612,7 +614,14 @@ not an argument:
 - **Deliver in both directions, and the one-stop Deliver + Tanker.** Adopted
   26 Sept 2026 as three rules together: the Deliver deck prints only the
   circuit routes (`circuitRoutes`), a dock visit that loads or unloads a crate
-  pumps no Tanker fuel, and Tanker needs 7 fuel, not 8. Before, the route
+  pumps no Tanker fuel, and Tanker needs 7 fuel, not 8. The same day the
+  second rule became **one job per visit** (crates, data or fuel, the
+  player's choice), which is one sentence with no exception for data. At 1000
+  games against the crates-only rule it moved little: Destroy 37.9 → 39.3%,
+  Deliver 32.9 → 33.4%, Intercept 31.4 → 29.6% (its filing now competes with
+  fuel), natural 3-seat games 28 → 30 rounds, Tanker completed 22 → 18 per
+  100 kept, no failing flag. The bots take the default, the job that scores
+  most on the visit (ties: crates, data, fuel). Before, the route
   decided the card: over 600 dealt games a Deliver won 58% with the circuit and
   18% against it, 74% and 31% completed. Neither direction alone works: easy
   routes only made a dealt Deliver 52.5% in 14-round games, hard only 22% in
@@ -692,8 +701,8 @@ Known open problems:
 - **The secondary offer is still lopsided, but the cards are level.**
   Everyone is offered all three; Piracy is the one left out (kept 57%
   against 71–72% for Survey and Tanker). Completed per 100 kept in the
-  benchmark since the circuit routes: Survey 27, Piracy 29, Tanker 22, and
-  each sits in 16–21% of winners' cards (Tanker was 27% while it shared a stop
+  benchmark under one job per visit: Survey 26, Piracy 28, Tanker 18, and
+  each sits in 17–18% of winners' cards (Tanker was 27% while it shared a stop
   with Deliver's crate). Half of all Survey dives now complete in round one, because
   ring 3 is one turn from ring 1; the data is not the point, the filing is,
   and round-one data is round-one loot for a pirate from ring 3.
@@ -744,13 +753,13 @@ Known open problems:
   is a different hunter.
 - **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: 31 / 32 / 33 / 34 rounds at 3 / 4 / 5 / 6 seats in the benchmark
-  since the circuit routes (26 Sept), 1h33 to 3h24 at a minute a turn, 100% of
-  games decided; kills 3.7 / 7.1 / 12.6 / 14.3. Before it was 27 / 21 / 25 / 27
-  and 1h21 to 2h42: the one-stop Deliver + Tanker had been the game's clock,
-  and Tanker at 7 gave back about half of what closing it cost. The balance
-  suite's natural rows at 1000 games read 28 / 31 / 33 rounds at 3 / 4 / 2
-  seats. Earlier history: 25 / 23 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats, five
+- **Length**: 33 rounds at every seat count from 3 to 6 in the benchmark
+  under one job per visit (26 Sept), 1h39 to 3h18 at a minute a turn, 100% of
+  games decided; kills 4.0 / 7.5 / 12.8 / 14.9. Before the circuit routes it
+  was 27 / 21 / 25 / 27 and 1h21 to 2h42: the one-stop Deliver + Tanker had
+  been the game's clock, and Tanker at 7 gave back about half of what closing
+  it cost. The balance suite's natural rows at 1000 games read 30 / 32 / 33
+  rounds at 3 / 4 / 2 seats. Earlier history: 25 / 23 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats, five
   cards completed a game at three seats; kills 2.9 / 5.0 / 9.3 / 14.5, well
   above the old cards' 1.9 / 3.9 / 7.7 / 11.0, because data aboard is a
   reason to fight. The quiet returning turn (20 Sept) took kills down from
@@ -763,8 +772,8 @@ Known open problems:
   Tanker holder's reserve unlimited games ran 19 rounds, with none 39; the
   standing bots keep a one-fuel margin and detour up to three turns. Four
   points not re-measured since the secondaries changed. The benchmark's seat
-  spread is 34 / 34 / 32 at three seats, and the balance suite's natural row
-  reads 33 / 33 / 33 at 1000 games.
+  spread is 37 / 33 / 31 at three seats, and the balance suite's natural row
+  reads 34 / 34 / 33 at 1000 games.
 
 ## Adding a rule
 

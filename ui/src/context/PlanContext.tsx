@@ -28,6 +28,8 @@ import {
 } from 'react'
 import type {
   BurnIntensity,
+  DockJob,
+  DockJobs,
   Facing,
   JumpOption,
   Player,
@@ -47,6 +49,8 @@ import {
   calculateBurnMassCost,
   calculateJumpMassCost,
   canSubsystemFunction,
+  chosenDockJob,
+  dockJobsOnArrival,
   drawFor,
   getAdjustmentRange,
   getJumpAdjustmentRange,
@@ -60,6 +64,7 @@ import {
   heatFromCubes,
   canEngage,
   isInWeaponRange,
+  isDestroyed,
   isMooredAt,
   isPowerableType,
   isWeaponType,
@@ -231,6 +236,16 @@ interface PlanContextValue {
   setRepairChoice: (id: SubsystemId | null) => void
   /** Tiles that could be named this turn: broken, and the ship can still end cold. */
   repairable: SubsystemId[]
+  /**
+   * The jobs on offer when the planned turn arrives at a station (not a berth
+   * already held) with more than one job the visit could do, as the engine
+   * reads them with the fuel the plan leaves aboard; null otherwise, which is
+   * when there is nothing to choose.
+   */
+  dockOffer: DockJobs | null
+  /** The job the visit will do: the one picked, if on offer, or the engine's default. */
+  dockJob: DockJob | null
+  setDockJob: (job: DockJob | null) => void
   /** Route planner: a destination sector, the routes the engine finds, and the one in view. */
   routeDestination: Position | null
   /**
@@ -449,6 +464,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [picking, setPicking] = useState<Picking>(null)
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
   const [repairChoice, setRepairChoiceState] = useState<SubsystemId | null>(null)
+  const [dockChoice, setDockChoice] = useState<DockJob | null>(null)
   const [routeDestination, setRouteDestinationState] = useState<Position | null>(null)
   const [routeStationId, setRouteStationId] = useState<string | null>(null)
   const [routeMode, setRouteMode] = useState<RouteMode>('meet')
@@ -462,6 +478,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     setSteps(defaultSteps())
     setPicking(null)
     setFocusWeaponId(null)
+    setDockChoice(null)
   }, [])
 
   // A new turn (or a fresh state after our own turn) starts a fresh plan.
@@ -933,6 +950,30 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     view.players,
   ])
 
+  /**
+   * A visit does one job (RULES §Stations). Docking happens on arrival only,
+   * so a ship that began the turn moored is holding its berth, not visiting.
+   * Stations do not move during a turn, so where they are now is where the
+   * plan meets them. The engine says what the visit could do and what it
+   * does by default; the choice is only worth showing when there is one.
+   */
+  const dockOffer = useMemo<DockJobs | null>(() => {
+    if (isDestroyed(me.ship) || isMooredAt(view.stations, me.ship)) return null
+    const station = getStationAt(view.stations, finalPosition.position)
+    if (!station) return null
+    const offer = dockJobsOnArrival(
+      { cargo: me.cargo, missions: me.missions, reactionMass: projectedFuel },
+      station.planetId
+    )
+    return offer.jobs.length > 1 ? offer : null
+  }, [me, view.stations, finalPosition, projectedFuel])
+  const dockJob = dockOffer ? chosenDockJob(dockOffer, dockChoice ?? undefined) : null
+  // A pick the plan no longer offers is dropped, as a repair is.
+  useEffect(() => {
+    if (dockChoice !== null && !dockOffer?.jobs.some(o => o.job === dockChoice))
+      setDockChoice(null)
+  }, [dockChoice, dockOffer])
+
   const actions = useMemo<PlayerAction[]>(() => {
     const list: PlayerAction[] = []
     let sequence = 0
@@ -1019,8 +1060,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     })
     if (repairChoice !== null)
       list.push({ playerId: me.id, type: 'repair', data: { subsystemId: repairChoice } })
+    // Only a pick the visit can make is sent; without one the engine does the
+    // default, which is what the control shows preselected.
+    if (dockChoice !== null && dockOffer?.jobs.some(o => o.job === dockChoice))
+      list.push({ playerId: me.id, type: 'dock_job', data: { job: dockChoice } })
     return list
-  }, [me, planPowers, steps, stepStart, repairChoice])
+  }, [me, planPowers, steps, stepStart, repairChoice, dockChoice, dockOffer])
 
   /**
    * A repair needs the ship cold at its check: nothing carried in and no
@@ -1321,6 +1366,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       repairChoice,
       setRepairChoice,
       repairable,
+      dockOffer,
+      dockJob,
+      setDockJob: setDockChoice,
       routeDestination,
       routeStation,
       routeMode,
@@ -1378,6 +1426,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       repairChoice,
       setRepairChoice,
       repairable,
+      dockOffer,
+      dockJob,
       routeDestination,
       routeStation,
       routeMode,

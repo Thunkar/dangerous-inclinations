@@ -22,10 +22,10 @@
 
 | seats | decided | rounds (median) | rounds (p75) | table time | kills/game | cards/game | burn | scoop | firing | lost | wins by seat | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 3 | 100% | 31 | 45 | 1h33 | 3.7 | 5.2 | 54% | 34% | 24% | 3% | 34% / 34% / 32% | a kill per seat per game |
-| 4 | 100% | 32 | 46 | 2h08 | 7.1 | 5.9 | 55% | 33% | 28% | 4% | 30% / 21% / 31% / 18% | a kill per seat per game |
-| 5 | 100% | 33 | 49 | 2h45 | 12.6 | 6.8 | 56% | 31% | 34% | 6% | 19% / 23% / 19% / 24% / 14% | a kill per seat per game |
-| 6 | 100% | 34 | 49 | 3h24 | 14.3 | 7.5 | 56% | 31% | 37% | 6% | 18% / 15% / 20% / 18% / 14% / 15% | a kill per seat per game |
+| 3 | 100% | 33 | 48 | 1h39 | 4 | 5.2 | 54% | 34% | 24% | 3% | 37% / 33% / 31% | a kill per seat per game |
+| 4 | 100% | 33 | 46 | 2h12 | 7.5 | 5.8 | 55% | 33% | 28% | 4% | 26% / 22% / 33% / 19% | a kill per seat per game |
+| 5 | 100% | 33 | 54 | 2h45 | 12.8 | 7.1 | 56% | 31% | 33% | 6% | 14% / 20% / 26% / 23% / 17% | a kill per seat per game |
+| 6 | 100% | 33 | 51 | 3h18 | 14.9 | 7.4 | 56% | 31% | 37% | 6% | 17% / 18% / 22% / 19% / 13% / 12% | a kill per seat per game |
 
 _Table time is the median game at the stated pace: rounds x seats player-turns. `lost` is the share of turns spent respawning. `wins by seat` is turn order, first seat first._
 
@@ -33,13 +33,13 @@ _Table time is the median game at the stated pace: rounds x seats player-turns. 
 
 | hand | seats | share of seats | win rate | points scored |
 |---|---|---|---|---|
-| Deliver + Survey/Tanker | 326 | 15% | 29% | 1.8 |
+| Deliver + Survey/Tanker | 326 | 15% | 30% | 1.9 |
 | Intercept + Piracy/Survey | 325 | 15% | 14% | 0.9 |
-| Destroy + Survey/Tanker | 312 | 14% | 22% | 1.6 |
-| Destroy + Piracy/Tanker | 306 | 14% | 25% | 1.7 |
-| Intercept + Piracy/Tanker | 303 | 14% | 21% | 1.1 |
-| Destroy + Piracy/Survey | 302 | 14% | 25% | 1.8 |
-| Intercept + Survey/Tanker | 286 | 13% | 19% | 1 |
+| Destroy + Survey/Tanker | 312 | 14% | 23% | 1.5 |
+| Destroy + Piracy/Tanker | 306 | 14% | 27% | 1.8 |
+| Intercept + Piracy/Tanker | 303 | 14% | 19% | 1.1 |
+| Destroy + Piracy/Survey | 302 | 14% | 23% | 1.7 |
+| Intercept + Survey/Tanker | 286 | 13% | 18% | 1 |
 
 _Every hand is one primary and two secondaries, which is five points held for the 3 that win, so the row is the primary a seat took and what it took beside it. A hand nobody keeps is a plan the table never tested._
 
@@ -47,9 +47,9 @@ _Every hand is one primary and two secondaries, which is five points held for th
 
 | hull | seats | share of seats | win rate |
 |---|---|---|---|
-| railgun,laser,ballistic_rack,shields,radiator | 920 | 43% | 24% |
-| sensor_array,shields,shields,radiator,laser | 914 | 42% | 18% |
-| fuel_compressor,shields,shields,radiator,laser | 326 | 15% | 29% |
+| railgun,laser,ballistic_rack,shields,radiator | 920 | 43% | 25% |
+| sensor_array,shields,shields,radiator,laser | 914 | 42% | 17% |
+| fuel_compressor,shields,shields,radiator,laser | 326 | 15% | 30% |
 
 _A hull's win rate is against the field, so the fair share is 1/seats, about 25% across a 3–6 seat mix._
 
@@ -57,12 +57,12 @@ _A hull's win rate is against the field, so the fair share is 1/seats, about 25%
 
 | card | offered | kept | pick rate | completed per 100 kept | share of winning cards |
 |---|---|---|---|---|---|
-| Deliver | 1881 | 326 | 17% | 60 | 9% |
-| Destroy | 2314 | 920 | 40% | 63 | 21% |
-| Intercept | 2285 | 914 | 40% | 21 | 16% |
-| Survey | 2160 | 1551 | 72% | 27 | 16% |
-| Piracy | 2160 | 1236 | 57% | 29 | 16% |
-| Tanker | 2160 | 1533 | 71% | 22 | 21% |
+| Deliver | 1881 | 326 | 17% | 64 | 10% |
+| Destroy | 2314 | 920 | 40% | 65 | 23% |
+| Intercept | 2285 | 914 | 40% | 23 | 16% |
+| Survey | 2160 | 1551 | 72% | 26 | 17% |
+| Piracy | 2160 | 1236 | 57% | 28 | 17% |
+| Tanker | 2160 | 1533 | 71% | 18 | 18% |
 
 _Pick rate is the read on a card: one nobody keeps does not exist, whatever it would score. Two piles serve the table and each is dealt against its own choice, so pick rates inside a pile compare and the two piles do not; setup takes out the rival cards a table this size cannot use, so the offered column is not flat across seat counts._
 

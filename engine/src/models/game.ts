@@ -5,7 +5,7 @@ import type {
   SubsystemType,
   HeatState,
 } from "./subsystems.ts";
-import type { Mission, Cargo } from "./missions.ts";
+import type { Mission, Cargo, DockJob } from "./missions.ts";
 
 /**
  * Ship loadout: one forward slot and four side slots.
@@ -286,6 +286,17 @@ export interface RepairAction extends BaseAction {
   data: { subsystemId: SubsystemId };
 }
 
+/**
+ * A standing order for the turn, like a repair: the job the ship's visit does
+ * if the turn ends by arriving at a station (RULES §Stations). No sequence,
+ * because docking happens after every action. A job the visit cannot do is
+ * not refused: the visit does the default instead (`dockJobsOnArrival`).
+ */
+export interface DockJobAction extends BaseAction {
+  type: "dock_job";
+  data: { job: DockJob };
+}
+
 export type TacticalAction =
   | RotateAction
   | CoastAction
@@ -295,7 +306,7 @@ export type TacticalAction =
   | ScanAction
   | PowerAction;
 
-export type PlayerAction = TacticalAction | RepairAction | DeployShipAction;
+export type PlayerAction = TacticalAction | RepairAction | DockJobAction | DeployShipAction;
 
 export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "rotate",

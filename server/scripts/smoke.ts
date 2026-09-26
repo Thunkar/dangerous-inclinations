@@ -374,7 +374,7 @@ check(ownSlotsSeen > 0, "the human's own subsystems were checked at least once")
 // --- Recording ---------------------------------------------------------------
 const recording = await recordings.load(GAME_ID);
 check(recording !== null, "a recording was started when the game became active");
-check(recording !== null && recording.schemaVersion === 3, "the recording uses schema v3");
+check(recording !== null && recording.schemaVersion === 4, "the recording uses schema v4");
 check(
   recording !== null && recording.turns.every((t) => Array.isArray(t.events)),
   "every recorded turn carries its events",
@@ -441,6 +441,17 @@ check(
 check(
   !accepts([{ playerId: HUMAN, type: "repair", data: {} }]),
   "a repair that names no subsystem is rejected",
+);
+check(
+  accepts([
+    { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: false } },
+    { playerId: HUMAN, type: "dock_job", data: { job: "fuel" } },
+  ]),
+  "a dock job is accepted beside the turn",
+);
+check(
+  !accepts([{ playerId: HUMAN, type: "dock_job", data: { job: "repairs" } }]),
+  "a dock job that is not crates, data or fuel is rejected",
 );
 check(
   !accepts([{ ...goodBurn, data: { burnIntensity: "soft", sectorAdjustment: "0" } }]),

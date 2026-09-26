@@ -23,6 +23,7 @@ import type {
   ShipState,
   WellTransferAction,
   RepairAction,
+  DockJobAction,
 } from "../models/game.ts";
 import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
@@ -37,7 +38,7 @@ import type {
   InterceptTransmissionMission,
   Mission,
 } from "../models/missions.ts";
-import { DEFAULT_POINTS_TO_WIN } from "../models/missions.ts";
+import { DEFAULT_POINTS_TO_WIN, type DockJob } from "../models/missions.ts";
 import { createInitialShipState, updateSubsystem } from "../game/ship.ts";
 import { createInitialStations, getStationForPlanet } from "../game/stations.ts";
 import { PLANET_OUTER_RING } from "../models/gravityWells.ts";
@@ -346,6 +347,11 @@ export const fire = (
 export const repair = (subsystemId: SubsystemId): Draft<RepairAction> => ({
   type: "repair",
   data: { subsystemId },
+});
+/** Name the job a visit does if the turn arrives at a station (no sequence either). */
+export const dockJob = (job: DockJob): Draft<DockJobAction> => ({
+  type: "dock_job",
+  data: { job },
 });
 export const scan = (
   sequence: number,

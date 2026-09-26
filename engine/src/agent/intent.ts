@@ -8,6 +8,7 @@
  */
 import type { BurnIntensity, Facing, GravityWellId, Player, PlayerAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
+import { DOCK_JOBS, type DockJob } from "../models/missions.ts";
 import { getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
 import type { GameView } from "../game/view.ts";
 import { powerActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
@@ -61,6 +62,13 @@ export interface TurnIntent {
    * and no shields powered.
    */
   repair?: SubsystemId;
+  /**
+   * The one job the visit does if this turn arrives at a station: crates,
+   * data or fuel. Left out, or one the visit cannot do, and the visit does
+   * the job that completes the most mission points (ties to crates, then
+   * data, then fuel).
+   */
+  dock?: DockJob;
 }
 
 export interface BuiltTurn {
@@ -248,6 +256,11 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
     if (!sub) notes.push(`no subsystem ${intent.repair}; repair dropped`);
     else if (!sub.isBroken) notes.push(`${intent.repair} is not broken; repair dropped`);
     else actions.push({ type: "repair", playerId: me.id, data: { subsystemId: intent.repair } });
+  }
+  if (intent.dock !== undefined) {
+    if (!(DOCK_JOBS as readonly string[]).includes(intent.dock))
+      notes.push(`${String(intent.dock)} is not a dock job (${DOCK_JOBS.join(", ")}); dropped`);
+    else actions.push({ type: "dock_job", playerId: me.id, data: { job: intent.dock } });
   }
   return { actions, notes };
 }

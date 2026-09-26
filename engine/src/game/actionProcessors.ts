@@ -17,6 +17,7 @@ import type {
   ScanAction,
   Player,
   RepairAction,
+  DockJobAction,
   Missile,
 } from "../models/game.ts";
 import { isTacticalAction, MAX_REACTION_MASS } from "../models/game.ts";
@@ -47,6 +48,7 @@ import {
   validateBurnAction,
   validateFireWeaponAction,
   validateRepairAction,
+  validateDockJobAction,
   validateScanAction,
   validateWellTransferAction,
 } from "./validators.ts";
@@ -111,6 +113,20 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
   }
   for (const a of repairs) {
     const errors = validateRepairAction(current, a);
+    if (errors.length > 0) return { success: false, state, events: [], errors };
+  }
+  // One visit, one job: the job is named once and read at docking (turns.ts).
+  const dockJobs = actions.filter((a): a is DockJobAction => a.type === "dock_job");
+  if (dockJobs.length > 1) {
+    return {
+      success: false,
+      state,
+      events: [],
+      errors: ["Only one job may be named for a visit"],
+    };
+  }
+  for (const a of dockJobs) {
+    const errors = validateDockJobAction(current, a);
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
 

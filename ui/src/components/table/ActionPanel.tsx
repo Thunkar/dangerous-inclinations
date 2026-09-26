@@ -189,6 +189,7 @@ export function ActionPanel() {
         </Step>
 
         <RepairControl disabled={disabled} />
+        <DockJobControl disabled={disabled} />
 
         <Divider />
         <Step n={5} label="Sequence">
@@ -337,6 +338,60 @@ function RepairControl({ disabled }: { disabled: boolean }) {
             })}
           </Box>
         )}
+      </Box>
+    </>
+  )
+}
+
+/**
+ * The one job a visit does (RULES §Stations). It appears only when the turn as
+ * built arrives at a station and the visit could do more than one job; the
+ * jobs, their points and the default all come from the engine, and the
+ * default is lit until another is picked.
+ */
+function DockJobControl({ disabled }: { disabled: boolean }) {
+  const plan = usePlan()
+  const offer = plan.dockOffer
+  if (!offer) return null
+  return (
+    <>
+      <Divider />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
+        <SectionLabel>At the dock · one job a visit</SectionLabel>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+          {offer.jobs.map(({ job, points }) => {
+            const on = plan.dockJob === job
+            return (
+              <Tooltip
+                key={job}
+                title={`${points} point${points === 1 ? '' : 's'} this visit${
+                  job === offer.default ? ' · the default' : ''
+                }`}
+              >
+                <Box
+                  component="button"
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => plan.setDockJob(job)}
+                  sx={{
+                    fontFamily: FONT_MONO,
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    px: 0.7,
+                    py: '2px',
+                    borderRadius: 0,
+                    cursor: disabled ? 'default' : 'pointer',
+                    color: on ? TABLE.onSelected : TABLE.inkSoft,
+                    border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
+                    bgcolor: on ? TABLE.selected : 'transparent',
+                  }}
+                >
+                  {job} · {points}
+                </Box>
+              </Tooltip>
+            )
+          })}
+        </Box>
       </Box>
     </>
   )

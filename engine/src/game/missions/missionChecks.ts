@@ -181,7 +181,7 @@ export function processMissionEvents(
         if (deliveredCargoIds.has(mission.cargoId)) next = { ...mission, isCompleted: true };
         break;
       case "tanker":
-        // Paid on arrival, no choice and no data: the pumping is the card.
+        // Paid by a visit that does the fuel job: the pumping is the card.
         if (pumpedFuel) next = { ...mission, isCompleted: true };
         break;
       case "survey": {

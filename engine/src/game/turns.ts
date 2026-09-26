@@ -12,7 +12,7 @@
  *     scan. Every action puts energy on the tile it uses, and it stays there
  *     until this player's next turn.
  *  4. The player's missiles move and resolve.
- *  5. Docking (if the ship ended on a station).
+ *  5. Docking (if the ship arrived on a station): repairs, and one job.
  *  6. Heat check: every cube on the loadout is a point of heat, heat over the
  *     redline becomes hull damage, then the ship dissipates and carries what
  *     is left into its next turn.
@@ -91,7 +91,9 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   // Making port, or holding a berth held since last turn? Only an arrival is
   // staked courtesy fuel (RULES §Stations).
   const wasMoored = isMooredAt(gameState.stations, positionOf(active.ship));
-  const docking = processDocking(state, activeIndex, !wasMoored);
+  // The job named for the visit, if any; without one the visit does the default.
+  const dockJob = actions.find((a) => a.type === "dock_job")?.data.job;
+  const docking = processDocking(state, activeIndex, !wasMoored, dockJob);
   state = docking.state;
   events.push(...docking.events);
 
