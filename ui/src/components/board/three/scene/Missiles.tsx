@@ -22,7 +22,7 @@ import { createMissile } from '../../../../ships/missile'
 import { facingAngle, positionPoint } from '../../geometry'
 import type { BoardModel, MissilePreview } from '../../model'
 import { sceneTime } from '../clock'
-import { LAYER, positionWorld, yawFromHeading } from '../world'
+import { LAYER, elevationAt, positionWorld, toWorld, yawFromHeading } from '../world'
 import { BoardTooltip, SurfaceDot, SurfaceLine, SurfaceRing } from './overlays/marks'
 import { NO_RAYCAST, arcPoints, chordPoints } from './overlays/paths'
 
@@ -32,14 +32,23 @@ const MISSILE_TOOLTIP =
   'On its launch turn it only flies, from where it was launched. 3 flights max.'
 
 /**
- * Missile dimensions in board units: unmistakably smaller than a hull. The
- * model in `ships/missile.ts` is built to this envelope, so it drops straight
- * into the place the old cone held and the wake still sits behind its tail.
+ * Missile dimensions in board units, as `ships/missile.ts` models it. It is
+ * drawn at `SCALE` of that: at full size a missile was two thirds of a hull
+ * and read as a toy next to one; at 0.6 it is ordnance, about 16 units to a
+ * hull's 40. The wake and the hover shrink with it.
  */
 const LENGTH = 26
 const WIDTH = 9
-/** How far the dart floats over the track it is drawing. */
+const SCALE = 0.6
+/** How far the dart floats over the track it is drawing, before scaling. */
 const HOVER = 5
+/**
+ * How far apart missiles sharing a sector stand: a salvo of four is four darts
+ * abreast, not one dart drawn four times. Abreast means across each dart's own
+ * heading, which may be along the ring or across it, so a salvo diving inward
+ * does not line up nose to tail.
+ */
+const SPREAD = 9
 /** A generous invisible sphere, so a dart two pixels wide can still be hovered. */
 const HOVER_RADIUS = 16
 
@@ -77,17 +86,17 @@ function Dart({ color, phase }: { color: string; phase: number }) {
 
   useFrame(() => {
     const material = wake.current
-    if (material) material.opacity = 0.22 + 0.12 * Math.sin(sceneTime.value * 5 + phase)
+    if (material) material.opacity = 0.14 + 0.07 * Math.sin(sceneTime.value * 5 + phase)
   })
 
   return (
-    <group position={[0, HOVER, 0]}>
+    <group position={[0, HOVER * SCALE, 0]} scale={SCALE}>
       <primitive object={model.root} dispose={null} />
 
       <mesh
-        position={[-LENGTH * 0.78, 0, 0]}
+        position={[-LENGTH * 0.68, 0, 0]}
         rotation={[0, 0, Math.PI / 2]}
-        scale={[WIDTH * 0.62, LENGTH * 1.6, WIDTH * 0.62]}
+        scale={[WIDTH * 0.45, LENGTH * 0.9, WIDTH * 0.45]}
         raycast={NO_RAYCAST}
       >
         <coneGeometry args={[0.5, 1, 8, 1, true]} />
@@ -111,11 +120,14 @@ function MissileInFlight({
   path,
   color,
   tooltip,
+  offset,
 }: {
   missile: Missile
   path: readonly Position[]
   color: string
   tooltip: string
+  /** Its step abreast among the missiles sharing its sector. */
+  offset: number
 }) {
   const [hovered, setHovered] = useState(false)
 
@@ -141,9 +153,18 @@ function MissileInFlight({
     [flight]
   )
 
-  const anchor = useMemo(() => positionWorld(at, LAYER.token), [at])
-  const shadow = useMemo(() => positionWorld(at, LAYER.path), [at])
-  const yaw = useMemo(() => yawFromHeading(headingOf(at, path)), [at, path])
+  const heading = useMemo(() => headingOf(at, path), [at, path])
+  const yaw = yawFromHeading(heading)
+  // Abreast: the step is taken square to the way the dart points.
+  const abreast = useMemo(() => {
+    const centre = positionPoint(at)
+    return {
+      x: centre.x + Math.cos(heading + Math.PI / 2) * offset,
+      y: centre.y + Math.sin(heading + Math.PI / 2) * offset,
+    }
+  }, [at, heading, offset])
+  const anchor = useMemo(() => toWorld(abreast, elevationAt(at) + LAYER.token), [abreast, at])
+  const shadow = useMemo(() => toWorld(abreast, elevationAt(at) + LAYER.path), [abreast, at])
 
   const over = useCallback((event: { stopPropagation: () => void }) => {
     event.stopPropagation()
@@ -168,15 +189,15 @@ function MissileInFlight({
       {impact && <SurfaceDot position={impact} color={color} radius={3.5} opacity={0.85} />}
 
       {/* The dark disc the SVG board sets its dart on, so it reads over a ring. */}
-      <SurfaceDot position={shadow} color={TABLE.felt} radius={6.5} opacity={0.6} edge={false} />
+      <SurfaceDot position={shadow} color={TABLE.felt} radius={4.5} opacity={0.6} edge={false} />
 
       <group position={anchor} rotation={[0, yaw, 0]}>
         <Dart color={color} phase={phaseOf(missile.id)} />
-        <mesh position={[0, HOVER, 0]} onPointerOver={over} onPointerOut={out}>
+        <mesh position={[0, HOVER * SCALE, 0]} onPointerOver={over} onPointerOut={out}>
           <sphereGeometry args={[HOVER_RADIUS, 8, 6]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
-        {hovered && <BoardTooltip position={[0, HOVER + 34, 0]}>{tooltip}</BoardTooltip>}
+        {hovered && <BoardTooltip position={[0, HOVER * SCALE + 30, 0]}>{tooltip}</BoardTooltip>}
       </group>
     </group>
   )
@@ -263,6 +284,17 @@ export const Missiles = memo(function Missiles({
   colorOf: BoardModel['colorOf']
   nameOf: BoardModel['nameOf']
 }) {
+  /** Each missile's step out from its sector's centre, in the order they are listed. */
+  const offsets = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const missile of missiles) {
+      const sharing = missiles.filter(other => samePosition(other, missile))
+      const index = sharing.indexOf(missile)
+      out[missile.id] = (index - (sharing.length - 1) / 2) * SPREAD
+    }
+    return out
+  }, [missiles])
+
   return (
     <>
       {previews.map(preview => (
@@ -278,6 +310,7 @@ export const Missiles = memo(function Missiles({
           missile={missile}
           path={paths[missile.id] ?? NO_PATH}
           color={colorOf(missile.ownerId)}
+          offset={offsets[missile.id] ?? 0}
           tooltip={`${nameOf(missile.ownerId)}'s missile → ${nameOf(missile.targetId)} · ${
             3 - missile.movesMade
           } flight(s) left. ${MISSILE_TOOLTIP}`}

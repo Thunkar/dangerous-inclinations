@@ -4,14 +4,17 @@
  * The timing is the flat board's, to the millisecond: the head travels out
  * over the first 30% of the effect and the whole thing fades in for a quarter
  * and out for three. Only the character is new: a railgun is a thick bright
- * bolt, a laser a thin continuous line, a rack and a missile launch dashed
- * tracers, point defence a fine teal one.
+ * bolt, a laser a thin continuous line, a missile launch a dashed tracer and a
+ * scan a fine teal one. A ballistic rack is not a beam at all: it throws a
+ * stream of rounds, each a short streak you can count, whether it is firing at
+ * a ship or at a missile (point defence).
  *
  * The bolt bows a little over its span. That is not decoration: a straight
  * chord between two sectors of the same well would fly over the funnel, and a
- * shot across the gap between two wells has to clear the black hole; a few
- * board units of lift keeps every beam above the surface it was fired over
- * without ever reading as anything but straight.
+ * shot across the gap between two wells has to clear the black hole. A laser
+ * is the exception, because light that curves reads as wrong at once: it is
+ * dead straight, and drawn over the surface rather than into it, so a shot
+ * across a terrace is never swallowed by the step between.
  */
 import { useMemo, useRef } from 'react'
 import { Quaternion, Vector3, type Group, type Mesh } from 'three'
@@ -44,19 +47,55 @@ interface BeamStyle {
   base: number
   /** How much of the span the bright head spreads over. */
   tail: number
+  /** Lift over the span, as a share of it; the laser's is zero. */
+  bow?: number
+  /** Drawn over the surface rather than depth-tested against it. */
+  overlay?: boolean
+  /** A stream of this many rounds instead of a beam. */
+  rounds?: number
 }
 
-const STYLE: Record<WeaponType | 'pdc', BeamStyle> = {
+const STYLE: Record<WeaponType | 'pdc' | 'scan', BeamStyle> = {
   // A slug: thick, bright all the way, a hard head.
   railgun: { core: 4.6, glow: 10, dashes: 0, duty: 0.5, base: 0.55, tail: 0.28 },
-  // A line of light: thin, even, no travelling head to speak of.
-  laser: { core: 1.9, glow: 5.5, dashes: 0, duty: 0.5, base: 0.92, tail: 0.18 },
+  // A line of light: thin, even, straight, no travelling head to speak of.
+  laser: {
+    core: 1.9,
+    glow: 5.5,
+    dashes: 0,
+    duty: 0.5,
+    base: 0.92,
+    tail: 0.18,
+    bow: 0,
+    overlay: true,
+  },
   // A tracer: the rounds are visible one by one.
   missiles: { core: 3, glow: 7.5, dashes: 13, duty: 0.55, base: 0.5, tail: 0.3 },
-  ballistic_rack: { core: 2.6, glow: 7, dashes: 22, duty: 0.42, base: 0.45, tail: 0.3 },
-  // Point defence: fast, fine, teal.
-  pdc: { core: 1.7, glow: 4.5, dashes: 26, duty: 0.34, base: 0.4, tail: 0.22 },
+  // Rounds, not a beam: a burst of short streaks down a straight line.
+  ballistic_rack: {
+    core: 1.5,
+    glow: 0,
+    dashes: 0,
+    duty: 0,
+    base: 0,
+    tail: 0,
+    bow: 0,
+    rounds: 7,
+  },
+  pdc: { core: 1.2, glow: 0, dashes: 0, duty: 0, base: 0, tail: 0, bow: 0, rounds: 6 },
+  // A sensor sweep: fast, fine, teal.
+  scan: { core: 1.7, glow: 4.5, dashes: 26, duty: 0.34, base: 0.4, tail: 0.22 },
 }
+
+/**
+ * The stream of rounds, as shares of the effect's life: each leaves the muzzle
+ * `ROUND_GAP` after the last and takes `ROUND_FLIGHT` to arrive, so the last of
+ * seven lands at 0.23 + 6 × 0.075 ≈ 0.68, before the fade has gone too far.
+ */
+const ROUND_GAP = 0.075
+const ROUND_FLIGHT = 0.23
+/** How long a round's streak is, in board units. */
+const ROUND_LENGTH = 9
 
 const UP = new Vector3(0, 1, 0)
 
@@ -64,6 +103,7 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
   const group = useRef<Group>(null)
   const head = useRef<Mesh>(null)
   const muzzle = useRef<Mesh>(null)
+  const rounds = useRef<(Mesh | null)[]>([])
 
   const core = useEffectMaterial('bolt')
   const glow = useEffectMaterial('bolt')
@@ -91,11 +131,11 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
       from,
       to,
       length,
-      bow: Math.min(MAX_BOW, length * BOW),
+      bow: Math.min(MAX_BOW, length * (style.bow ?? BOW)),
       mid: new Vector3().addVectors(from, to).multiplyScalar(0.5),
       aim: new Quaternion().setFromUnitVectors(UP, span.clone().divideScalar(length)),
     }
-  }, [effect.from, effect.to, effect.fromId, effect.toId, pointOf])
+  }, [effect.from, effect.to, effect.fromId, effect.toId, pointOf, style.bow])
 
   const point = useMemo(() => new Vector3(), [])
 
@@ -113,7 +153,31 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
     const fade = progress < 0.25 ? progress / 0.25 : 1 - (progress - 0.25) / 0.75
     const reach = Math.min(1, progress / 0.3)
 
+    if (style.rounds) {
+      // Each round flies its own straight line; the muzzle flickers once per round.
+      spark.color.set(effect.color)
+      spark.opacity = 1
+      let firing = false
+      rounds.current.forEach((round, i) => {
+        if (!round) return
+        const t = (progress - i * ROUND_GAP) / ROUND_FLIGHT
+        round.visible = t >= 0 && t <= 1
+        if (!round.visible) return
+        firing ||= t < 0.25
+        round.position.lerpVectors(shot.from, shot.to, t)
+      })
+      const flash = muzzle.current
+      if (flash) {
+        const cycle = (progress / ROUND_GAP) % 1
+        flash.scale.setScalar(firing ? style.core * 3 * (1 - cycle) : 0.001)
+      }
+      return
+    }
+
     for (const material of [core, glow]) {
+      // Pooled materials are shared between kinds of shot, so this is set
+      // every frame rather than once.
+      material.depthTest = !style.overlay
       const uniforms = material.uniforms
       uniforms.uColor.value.set(effect.color)
       uniforms.uHead.value = reach
@@ -146,6 +210,36 @@ export function Beam({ effect, pointOf }: { effect: BeamEffect; pointOf: BoardMo
     spark.color.set(effect.color)
     spark.opacity = Math.max(0, fade)
   })
+
+  if (style.rounds) {
+    return (
+      <group ref={group} visible={false}>
+        {Array.from({ length: style.rounds }, (_, i) => (
+          <mesh
+            key={i}
+            ref={node => {
+              rounds.current[i] = node
+            }}
+            geometry={ballGeometry()}
+            material={spark}
+            quaternion={shot.aim}
+            scale={[style.core, ROUND_LENGTH, style.core]}
+            visible={false}
+            renderOrder={7}
+            raycast={NO_RAYCAST}
+          />
+        ))}
+        <mesh
+          ref={muzzle}
+          geometry={ballGeometry()}
+          material={spark}
+          position={shot.from}
+          renderOrder={7}
+          raycast={NO_RAYCAST}
+        />
+      </group>
+    )
+  }
 
   return (
     <group ref={group} visible={false}>

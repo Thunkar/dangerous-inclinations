@@ -11,9 +11,12 @@
  *
  * **Built in board units, not concept units.** A corvette is modelled small and
  * the board scales it by four; a missile exists nowhere but the board, so it is
- * modelled at the size it is drawn: nose at +X to match the heading the board
- * yaws it to, LENGTH along X, WIDTH across, centred on the origin so it drops
- * straight into the place the old cone held.
+ * modelled in board units: nose at +X to match the heading the board yaws it
+ * to, LENGTH along X, WIDTH across, centred on the origin. The board draws it
+ * at 0.6 of this (`SCALE` in `three/scene/Missiles.tsx`).
+ *
+ * The lit parts are lit gently. They used to glow hard enough to carry across
+ * the table at full size, and at close range that made the missile a toy.
  */
 import type { BufferGeometry } from 'three'
 import {
@@ -27,7 +30,7 @@ import {
 } from 'three'
 import { HULL_INK } from './palette'
 
-/** The envelope the board gives a missile token, in board units. */
+/** The envelope the model is built to, before the board's scale. */
 const LENGTH = 26
 const WIDTH = 9
 
@@ -81,14 +84,13 @@ export function createMissile(color: string): MissileModel {
   const steel = material(HULL_INK.steel, 0.3)
   const dark = material(HULL_INK.dark, 0.65)
   const copper = material(HULL_INK.copper, 0.72)
-  const cyan = material(HULL_INK.cyan, 0.3, 1.6)
-  const glow = material(HULL_INK.glow, 0.2, 3.2)
+  const cyan = material(HULL_INK.cyan, 0.3, 0.8)
+  const glow = material(HULL_INK.glow, 0.2, 1.8)
   /**
-   * The owner's colour, lit a little harder than a station's identity band: a
-   * station is 34 units across and this is 9, and whose missile it is has to
-   * carry from the far side of the table.
+   * The owner's colour, lit just enough to read whose missile it is. The
+   * colour carries on the fins' area; lighting them harder made them neon.
    */
-  const identity = material(color, 0.3, 1.1)
+  const identity = material(color, 0.3, 0.45)
 
   const add = (
     geometry: BufferGeometry,

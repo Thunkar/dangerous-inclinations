@@ -14,6 +14,7 @@ import { useBoardMode } from '../../context/BoardModeContext'
 import { TABLE } from '../../theme'
 import { useBoardModel } from './model'
 import { GameBoardSvg } from './svg/GameBoardSvg'
+import { TurnBanner } from './TurnBanner'
 
 const GameBoardThree = lazy(() => import('./three/GameBoardThree'))
 
@@ -27,15 +28,18 @@ export function GameBoard({ onDeploy, deploymentEnabled }: GameBoardProps) {
   const model = useBoardModel({ onDeploy, deploymentEnabled })
   const { mode } = useBoardMode()
 
-  if (mode === '3d') {
-    return (
-      <Suspense fallback={<LoadingPlate />}>
-        <GameBoardThree model={model} />
-      </Suspense>
-    )
-  }
-
-  return <GameBoardSvg model={model} />
+  return (
+    <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+      {mode === '3d' ? (
+        <Suspense fallback={<LoadingPlate />}>
+          <GameBoardThree model={model} />
+        </Suspense>
+      ) : (
+        <GameBoardSvg model={model} />
+      )}
+      <TurnBanner />
+    </Box>
+  )
 }
 
 function LoadingPlate() {

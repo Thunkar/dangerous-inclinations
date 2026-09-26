@@ -34,7 +34,8 @@ import { MathUtils, PerspectiveCamera, Vector3, type Object3D } from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { GravityWellId, Missile, Position } from '@dangerous-inclinations/engine'
 import type { CameraShot } from '../../../context/AnimationContext'
-import { allWells, wellCenter } from '../geometry'
+import { allWells, wellCenter, wellVisual } from '../geometry'
+import { blackHoleBody, bodyExtent } from './bodies'
 import {
   MIN_DISTANCE,
   TABLE_PITCHES,
@@ -169,6 +170,72 @@ function smoothDamp(
   }
 }
 
+/**
+ * Where each body is and how much room it takes. A shot composed to hold two
+ * ships on either side of the black hole can put the eye inside the horizon or
+ * in the disc, which is a screen of black or of glare; the eye is kept out of
+ * this sphere round every body.
+ */
+function bodySpheres(): { centre: Vector3; radius: number }[] {
+  return allWells().map(well => {
+    const centre = wellCenter(well.id)
+    if (well.id === 'blackhole') {
+      const hole = blackHoleBody()
+      return {
+        centre: new Vector3(centre.x, hole.centerY, centre.y),
+        radius: Math.max(hole.radius * 1.8, hole.discBright),
+      }
+    }
+    const radius = wellVisual(well.id).bodyRadius
+    return {
+      centre: new Vector3(centre.x, surfaceElevation(well.id, 0) + radius, centre.y),
+      radius: bodyExtent(well.id) * 1.25,
+    }
+  })
+}
+
+let spheres: ReturnType<typeof bodySpheres> | null = null
+
+/**
+ * Whether the black hole stands between the eye and what it is looking at.
+ * Only the horizon counts: the disc is light, and seeing a ship through it is
+ * a good picture, but a ship behind the horizon is not in the picture at all.
+ */
+function hiddenByHole(eye: Vector3, target: Vector3): boolean {
+  const hole = blackHoleBody()
+  const centre = wellCenter('blackhole')
+  const c = new Vector3(centre.x, hole.centerY, centre.y)
+  const line = target.clone().sub(eye)
+  const t = MathUtils.clamp(c.clone().sub(eye).dot(line) / line.lengthSq(), 0, 1)
+  return eye.clone().addScaledVector(line, t).distanceTo(c) < hole.radius * 1.15
+}
+
+/**
+ * Ways to stand if the shot's own angle has the hole in the way, tried in
+ * order: a little round either side, higher, the other side, straight down
+ * on it. Degrees of turn and of extra pitch.
+ */
+const DETOURS: readonly [number, number][] = [
+  [0, 0],
+  [-55, 0],
+  [55, 0],
+  [0, 22],
+  [180, 0],
+  [0, 40],
+]
+
+/** Push a point out of every body's sphere, along the line from its centre. */
+function keepClearOfBodies(point: Vector3) {
+  spheres ??= bodySpheres()
+  for (const { centre, radius } of spheres) {
+    const away = point.clone().sub(centre)
+    const distance = away.length()
+    if (distance >= radius) continue
+    if (distance < 1) away.set(0, 1, 0)
+    point.copy(centre).addScaledVector(away.normalize(), radius)
+  }
+}
+
 /** The surface under a point: the floor of whichever well's plate it is over, else the table. */
 function floorUnder(point: Vector3): number {
   for (const well of allWells()) {
@@ -204,6 +271,8 @@ export function Director({
     targetVelocity: new Vector3(),
     live: false,
     opening: false,
+    /** The detour this shot settled on, chosen once so the camera does not hop between them. */
+    detour: null as readonly [number, number] | null,
   })
   /** When the turn being played started: a touch after it hands that turn over. */
   const playbackAt = useRef(0)
@@ -235,6 +304,7 @@ export function Director({
   useEffect(() => {
     hulls.current.clear()
     eased.current.opening = true
+    eased.current.detour = null
     const rig = controls.current
     if (!rig || !shotId) return
     const target = rig.getTarget(new Vector3())
@@ -362,11 +432,29 @@ export function Director({
       }
     }
 
-    const solved = solveEye(camera, points, pitch, SHOT_FILL, { look, minDistance: CLOSE })
+    const solveWith = ([turn, lift]: readonly [number, number]) =>
+      solveEye(camera, points, Math.min(80, pitch + lift), SHOT_FILL, {
+        look: turn === 0 ? look : rotateY(look, turn),
+        minDistance: CLOSE,
+      })
+    let detour = eased.current.detour
+    if (!detour) {
+      detour = DETOURS[0]
+      for (const candidate of DETOURS) {
+        const trial = solveWith(candidate)
+        if (trial && !hiddenByHole(trial.eye, trial.target)) {
+          detour = candidate
+          break
+        }
+      }
+      eased.current.detour = detour
+    }
+    const solved = solveWith(detour)
     if (!solved) return
     const { goalEye, goalTarget } = scratch
     goalEye.copy(solved.eye)
     goalTarget.copy(solved.target)
+    keepClearOfBodies(goalEye)
     goalEye.y = Math.max(goalEye.y, floorUnder(goalEye) + EYE_CLEARANCE)
 
     const state = eased.current
@@ -394,6 +482,8 @@ export function Director({
     const step = Math.min(delta, 0.05)
     smoothDamp(state.eye, goalEye, state.eyeVelocity, GLIDE, step)
     smoothDamp(state.target, goalTarget, state.targetVelocity, GLIDE, step)
+    // A glide between two clear places can still pass through a body on the way.
+    keepClearOfBodies(state.eye)
     rig.minDistance = CLOSE * 0.5
     void rig.setLookAt(
       state.eye.x,

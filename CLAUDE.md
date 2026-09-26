@@ -317,12 +317,15 @@ re-render per frame.
 The 3D board's Auto camera (`three/Director.tsx`) films a turn as it plays:
 the animator names each moment worth a shot (`CameraShot` in
 `AnimationContext`) and, while Auto is on, plays turns slower with a lead-in
-before each new shot. It cuts between shots that are far apart or face
-another way and glides on a spring otherwise, and it pulls back to the
+before each new shot (longer for a turn's first) and a hold on its last. It
+cuts between shots that are far apart or face another way, glides on a spring
+otherwise, and keeps the black hole out of the eye and out of the line of
+sight, and it pulls back to the
 player's own well when their turn comes, or after 1.6 s of quiet, so not
 between two bots that follow each other quickly. Only the board reads `useAnimation()`, which changes on
 every beat; the rest of the table reads `useAnimationControls`, `useDice` and
 `usePulses`, so a long game's log and transport are not re-rendered on each.
+`TurnBanner` (over both boards) names whose turn is playing from `usePlayback`.
 
 `ui/dev-three.html` mounts the 3D board on a fixture with no server
 (`board/three/dev/fixtureModel.ts`), which is how board work is checked.

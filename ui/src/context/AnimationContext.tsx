@@ -41,7 +41,8 @@ export type TableEffect =
   | {
       id: string
       kind: 'beam'
-      weapon: WeaponType | 'pdc'
+      /** `pdc` is a rack shooting at a missile; `scan` is a sensor sweep, not a shot. */
+      weapon: WeaponType | 'pdc' | 'scan'
       from: Position
       to: Position
       /**
@@ -221,6 +222,13 @@ const ControlsContext = createContext<AnimationControls | null>(null)
 const DiceContext = createContext<DieRoll[]>([])
 const PulsesContext = createContext<Record<string, number>>({})
 
+/** Whose turn is playing over the board, and which playback this is. */
+export interface Playback {
+  id: string
+  actorId: string
+}
+const PlaybackContext = createContext<Playback | null>(null)
+
 /**
  * The table's inks, not a second palette: a railgun slug is violet, a laser
  * the red, a missile the heat red, and point defence the teal.
@@ -284,9 +292,12 @@ function storedSpeed(): PlaybackSpeed {
 /**
  * The cinematic pace. `slow` divides the playback speed while the auto camera
  * is on, and `lead` is how long the table waits, at 1x, for the camera to fly
- * to a new shot before the event it frames plays out.
+ * to a new shot before the event it frames plays out. The first shot of a
+ * turn waits `firstLead`, long enough to read the banner naming whose turn it
+ * is, and the last one is held `tail` after the turn's final event, so the
+ * outcome is on screen for a moment before the camera cuts to the next ship.
  */
-const CINEMA = { slow: 1.6, lead: 750 } as const
+const CINEMA = { slow: 1.6, lead: 750, firstLead: 1300, tail: 1200 } as const
 
 let effectSeq = 0
 /** Ring counts in RULES §Movement, used to name a burn by what it actually did. */
@@ -358,6 +369,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
     }
   }, [])
   const [shot, setShot] = useState<CameraShot | null>(null)
+  const [playback, setPlayback] = useState<Playback | null>(null)
   const cinematicRef = useRef(false)
   const setCinematic = useCallback((on: boolean) => {
     cinematicRef.current = on
@@ -459,6 +471,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
       const snap = snapshotOf(prev)
       setDice([])
       setOverlay({ ...snap })
+      setPlayback({ id: nextId('playback'), actorId: prev.activePlayerId })
 
       /**
        * Where to hang an effect for a player: the board as it stands mid-turn
@@ -841,7 +854,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             pushEffect({
               id: nextId('beam'),
               kind: 'beam',
-              weapon: 'pdc',
+              weapon: 'scan',
               from: positionOf(event.scannerId),
               to: positionOf(event.targetId),
               fromId: event.scannerId,
@@ -1048,6 +1061,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         }
       }
       let filming: string | null = null
+      let held = false
 
       const finish = () => {
         if (cancelled) return
@@ -1057,6 +1071,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         timerRef.current = null
         setOverlay(null)
         setShot(null)
+        setPlayback(null)
         done()
       }
 
@@ -1085,14 +1100,21 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         const event = queue[0]
         if (!event) {
+          // Hold the last shot on the outcome before letting the next turn in.
+          if (cinematicRef.current && filming !== null && !held) {
+            held = true
+            timerRef.current = setTimeout(step, CINEMA.tail / speedRef.current)
+            return
+          }
           finish()
           return
         }
         const cue = cinematicRef.current ? shotFor(event) : null
         if (cue && shotKey(cue) !== filming) {
+          const lead = filming === null ? CINEMA.firstLead : CINEMA.lead
           filming = shotKey(cue)
           setShot({ ...cue, id: nextId('shot'), start: performance.now() } as CameraShot)
-          timerRef.current = setTimeout(play, CINEMA.lead / speedRef.current)
+          timerRef.current = setTimeout(play, lead / speedRef.current)
           return
         }
         play()
@@ -1115,6 +1137,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         clearExpiries()
         setOverlay(null)
         setShot(null)
+        setPlayback(null)
         setEffects([])
         setDice([])
       }
@@ -1170,7 +1193,9 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
     <AnimationContext.Provider value={value}>
       <ControlsContext.Provider value={controls}>
         <DiceContext.Provider value={dice}>
-          <PulsesContext.Provider value={pulses}>{children}</PulsesContext.Provider>
+          <PulsesContext.Provider value={pulses}>
+            <PlaybackContext.Provider value={playback}>{children}</PlaybackContext.Provider>
+          </PulsesContext.Provider>
         </DiceContext.Provider>
       </ControlsContext.Provider>
     </AnimationContext.Provider>
@@ -1206,6 +1231,11 @@ export function useDice(): DieRoll[] {
 }
 
 /** Loadout ids that should flash, stamped with when. */
+/** The turn playing over the board, or null between turns. Changes twice a turn. */
+export function usePlayback(): Playback | null {
+  return useContext(PlaybackContext)
+}
+
 export function usePulses(): Record<string, number> {
   return useContext(PulsesContext)
 }
