@@ -11,7 +11,6 @@ import type {
   EscortMission,
   PiracyMission,
   SalvageMission,
-  SecondaryMission,
   Mission,
 } from "../../models/missions.ts";
 import { SURVEY_RING, aboard, crateAboard, missionPoints } from "../../models/missions.ts";
@@ -20,23 +19,6 @@ import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
 import { isMooredAt } from "../stations.ts";
 import { escortCandidatesAtEndOfTurn, unplacedEscorts } from "../escort.ts";
-
-/**
- * Whether a secondary card's thing has been done, read off the board at the end
- * of the turn.
- *
- * A destroyed ship does nothing: it is off the board until it is
- * rebuilt at Home.
- */
-function secondaryDone(mission: SecondaryMission, player: Player): boolean {
-  const ship = player.ship;
-  if (isDestroyed(ship)) return false;
-  switch (mission.type) {
-    case "survey":
-      // The dive: the innermost ring of the black hole, held to the end of a turn.
-      return ship.wellId === BLACK_HOLE_ID && ship.ring === SURVEY_RING;
-  }
-}
 
 /**
  * Piracy: a pirate that ends its turn in a loaded ship's sector takes what it
@@ -286,6 +268,12 @@ export function processMissionEvents(
   // visit pays one Tanker, the first undone card of the kind in hand order.
   let dived = false;
   let pumped = false;
+  // The dive: the black hole's innermost ring, held to the end of a turn. A
+  // destroyed ship is off the board until it is rebuilt at Home.
+  const onSurveyRing =
+    !isDestroyed(player.ship) &&
+    player.ship.wellId === BLACK_HOLE_ID &&
+    player.ship.ring === SURVEY_RING;
 
   const missions: Mission[] = player.missions.map((mission) => {
     if (mission.isCompleted) return mission;
@@ -326,7 +314,7 @@ export function processMissionEvents(
       case "survey": {
         let m = mission;
         if (!m.acquired && !dived) {
-          if (secondaryDone(m, player)) {
+          if (onSurveyRing) {
             dived = true;
             m = { ...m, acquired: true };
             // Data a pirate took is still in the hold, un-picked: the dive
@@ -335,7 +323,7 @@ export function processMissionEvents(
               id: m.dataCargoId,
               missionId: m.id,
               kind: "data",
-              deliveryPlanetId: m.deliveryPlanetId,
+              deliveryPlanetId: "any",
               isPickedUp: true,
             };
             cargo = cargo.some((c) => c.id === data.id)

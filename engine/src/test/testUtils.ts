@@ -31,8 +31,7 @@ import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
 import type { GameEvent, GameEventType } from "../models/events.ts";
 import type {
-  SecondaryMission,
-  SecondaryMissionType,
+  SurveyMission,
   DeliverCargoMission,
   DestroyShipMission,
   PiracyMission,
@@ -272,21 +271,13 @@ export const interceptMission = (
   scanAcquired: false,
   dataCargoId: `data-${id}`,
 });
-/** Data-paying secondary card (Survey is the only one). */
-const secondaryMission = (
-  type: SecondaryMissionType = "survey",
-  id = `${type}-1`,
-  deliveryPlanetId = "any"
-): SecondaryMission => ({
+export const surveyMission = (id = "survey-1"): SurveyMission => ({
   id,
-  type,
+  type: "survey",
   isCompleted: false,
-  deliveryPlanetId,
   acquired: false,
   dataCargoId: `data-${id}`,
 });
-export const surveyMission = (id = "survey-1", deliveryPlanetId = "any"): SecondaryMission =>
-  secondaryMission("survey", id, deliveryPlanetId);
 
 export const piracyMission = (id = "piracy-1"): PiracyMission => ({
   id,

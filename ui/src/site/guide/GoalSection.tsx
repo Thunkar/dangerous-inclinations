@@ -55,7 +55,6 @@ const SECONDARIES: Mission[] = [
     id: 'g-survey',
     type: 'survey',
     isCompleted: false,
-    deliveryPlanetId: 'any',
     acquired: false,
     dataCargoId: 'g-survey-data',
   },

@@ -137,13 +137,6 @@ export const SECONDARY_KINDS_PRINTED: readonly SecondaryKind[] = [
 export type SecondaryKind = "survey" | "piracy" | "tanker" | "escort" | "salvage";
 
 /**
- * The secondary card that makes its own data: Survey. Piracy's loot and
- * Salvage's black box are carried under their own cards, and Tanker and
- * Escort carry nothing.
- */
-export type SecondaryMissionType = "survey";
-
-/**
  * What a card is printed as: its title strip and its colour. The three
  * primaries are three ways of playing (the kill, the cargo run, the stolen
  * transmission), so each is its own family; the secondaries share one.
@@ -255,19 +248,15 @@ export interface InterceptTransmissionMission extends BaseMission {
 }
 
 /**
- * A secondary card that pays data: do the thing, take the data, file it at
- * any station.
+ * Survey: end a turn on the black hole's innermost ring, take the data, then
+ * file it at any station.
  *
- * Survey is the one card of this shape: end a turn on the black hole's
- * innermost ring, then dock anywhere. It asks for no tile and cannot be
- * blocked, which is why it is worth a point rather than two: the two
- * secondaries a hand keeps are two points, one short of the win, so the
- * primary is the card that has to come in.
+ * It asks for no tile and cannot be blocked, which is why it is worth a point
+ * rather than two: the two secondaries a hand keeps are two points, one short
+ * of the win, so the primary is the card that has to come in.
  */
-export interface SecondaryMission extends BaseMission {
-  type: SecondaryMissionType;
-  /** Always "any": data is filed wherever the ship next docks. */
-  deliveryPlanetId: string;
+export interface SurveyMission extends BaseMission {
+  type: "survey";
   /** The thing has been done and the data is aboard. */
   acquired: boolean;
   dataCargoId: string;
@@ -340,7 +329,7 @@ export type Mission =
   | DestroyShipMission
   | DeliverCargoMission
   | InterceptTransmissionMission
-  | SecondaryMission
+  | SurveyMission
   | PiracyMission
   | TankerMission
   | EscortMission
@@ -388,7 +377,6 @@ export function missionTargetsPlayer(
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
   return m.type === "intercept_transmission";
 }
-/** A Survey: the secondary card that makes its own data. */
-export function isSecondaryMission(m: Mission): m is SecondaryMission {
+export function isSurveyMission(m: Mission): m is SurveyMission {
   return m.type === "survey";
 }

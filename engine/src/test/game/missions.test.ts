@@ -542,14 +542,11 @@ describe("missions: secondary", () => {
     expect(eventTypes(result.events)).not.toContain("data_acquired");
   });
 
-  it("data files at any station; no other secondary names a station at all", () => {
+  it("no secondary card names a station", () => {
     const deck = buildSecondaryDeck();
     const secondary = deck.filter((m) => MISSION_FAMILY[m.type] === "secondary");
     expect(secondary).toHaveLength(deck.length);
-    for (const m of secondary) {
-      if (m.type === "survey") expect("deliveryPlanetId" in m && m.deliveryPlanetId).toBe("any");
-      else expect("deliveryPlanetId" in m).toBe(false);
-    }
+    expect(secondary.filter((m) => "deliveryPlanetId" in m)).toEqual([]);
   });
 
   it("a ship that burns up on ring 1 acquires nothing", () => {

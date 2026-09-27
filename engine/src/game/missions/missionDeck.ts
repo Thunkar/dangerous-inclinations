@@ -36,7 +36,7 @@
  * (`missionChecks.ts`).
  */
 import type { Player } from "../../models/game.ts";
-import type { Cargo, SecondaryMission, Mission } from "../../models/missions.ts";
+import type { Cargo, SurveyMission, Mission } from "../../models/missions.ts";
 import {
   MISSIONS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
@@ -63,7 +63,7 @@ export type DeckCard =
   | { type: "destroy_ship"; targetOffset: number }
   | { type: "intercept_transmission"; targetOffset: number; deliveryPlanetId: string }
   | { type: "deliver_cargo"; pickupPlanetId: string; deliveryPlanetId: string }
-  | { type: "survey"; deliveryPlanetId: string }
+  | { type: "survey" }
   | { type: "piracy" }
   | { type: "tanker" }
   | { type: "escort" }
@@ -115,8 +115,7 @@ export function buildSecondaryDeck(): DeckCard[] {
   const deck: DeckCard[] = [];
   for (let copy = 0; copy < SECONDARY_COPIES_PER_KIND; copy++) {
     for (const type of SECONDARY_KINDS_PRINTED) {
-      // Survey data is filed at whatever station the ship next docks at.
-      deck.push(type === "survey" ? { type, deliveryPlanetId: "any" } : { type });
+      deck.push({ type });
     }
   }
   return deck;
@@ -161,14 +160,13 @@ export function cardForPlayer(
     case "salvage":
       return { type: card.type, isCompleted: false, cargoId: "" };
     case "survey": {
-      const secondary: Omit<SecondaryMission, "id"> = {
+      const survey: Omit<SurveyMission, "id"> = {
         type: card.type,
         isCompleted: false,
-        deliveryPlanetId: card.deliveryPlanetId,
         acquired: false,
         dataCargoId: "",
       };
-      return secondary;
+      return survey;
     }
   }
 }

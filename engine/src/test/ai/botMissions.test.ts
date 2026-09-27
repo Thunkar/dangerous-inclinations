@@ -6,7 +6,7 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, PlayerAction, Position, ShipLoadout, Wreck } from "../../models/game.ts";
 import { MAX_REACTION_MASS, STARTING_HIT_POINTS } from "../../models/game.ts";
-import type { Cargo, Mission, SecondaryMission } from "../../models/missions.ts";
+import type { Cargo, Mission, SurveyMission } from "../../models/missions.ts";
 import { SURVEY_RING, TANKER_FUEL } from "../../models/missions.ts";
 import { BLACK_HOLE_ID, BLACK_HOLE_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -157,7 +157,7 @@ describe("bot missions", () => {
     );
 
     const acquired = (s: GameState) =>
-      (getPlayer(s, "p1").missions[0] as SecondaryMission).acquired;
+      (getPlayer(s, "p1").missions[0] as SurveyMission).acquired;
     const state = playUntil(start, "p1", acquired, 60);
 
     expect(acquired(state)).toBe(true);

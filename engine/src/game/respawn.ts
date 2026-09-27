@@ -19,7 +19,7 @@
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { aboard, isSecondaryMission } from "../models/missions.ts";
+import { aboard, isSurveyMission } from "../models/missions.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { wrapSector, samePosition, positionOf } from "./geometry.ts";
 import { applyOrbitalMovement } from "./movement.ts";
@@ -46,8 +46,8 @@ export function dropCargo(player: Player): { player: Player; events: EventDraft[
       lostData.has(m.id)
     )
       return { ...m, scanAcquired: false };
-    // Secondary data goes down with the ship: the dive has to be made again.
-    if (isSecondaryMission(m) && !m.isCompleted && m.acquired && lostData.has(m.id))
+    // Survey data goes down with the ship: the dive has to be made again.
+    if (isSurveyMission(m) && !m.isCompleted && m.acquired && lostData.has(m.id))
       return { ...m, acquired: false };
     return m;
   });
