@@ -436,7 +436,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   }
   out.push("");
   out.push(
-    "_Every hand is one primary and two secondaries, which is five points held for the " +
+    "_Every hand is one primary and two secondaries, which is four points held for the " +
       `${pointsToWin(args)} that win, so the row is the primary a seat took and what it took beside ` +
       "it. A hand nobody keeps is a plan the table never tested._"
   );
