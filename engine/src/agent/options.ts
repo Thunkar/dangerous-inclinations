@@ -16,12 +16,12 @@ import {
 } from "../models/rings.ts";
 
 const BURN_INTENSITIES: BurnIntensity[] = ["soft", "medium", "hard"];
-import { getJumpAdjustmentRange, getJumpOptions, getMaxRing } from "../models/gravityWells.ts";
-import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
+import { getJumpAdjustmentRange, getJumpOptions } from "../models/gravityWells.ts";
 import type { GameView } from "../game/view.ts";
-import { ringVelocity, sectorDistance } from "../game/geometry.ts";
+import { positionOf, ringVelocity } from "../game/geometry.ts";
+import { inScanRange } from "../game/scan.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
-import { projectPosition, type MovementPreview } from "../game/movement.ts";
+import { projectPosition, ringAfter, type MovementPreview } from "../game/movement.ts";
 import { isMooredAt, isSafeAtBerth } from "../game/stations.ts";
 import { hasWorkingCompressor } from "../game/ship.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
@@ -44,7 +44,7 @@ export interface WeaponOption {
   type: string;
   damage: number;
   energy: number;
-  /** Missiles only: rounds left, and so the biggest salvo this tile can fire. */
+  /** Missiles only: rounds left, and so the biggest salvo this subsystem can fire. */
   ammo: number | null;
   /** Opponents in range from where the ship is now (before any move). */
   targetsNow: string[];
@@ -69,7 +69,7 @@ export interface SeatOptions {
   /** Dissipated at every check. What is not dissipated carries to the next turn. */
   dissipation: number;
   /**
-   * Broken tiles, and whether a repair could land this turn: only a ship that
+   * Broken subsystems, and whether a repair could land this turn: only a ship that
    * carries no heat in and makes none can name one (RULES §Heat check).
    */
   repair: { broken: SubsystemId[]; possibleThisTurn: boolean };
@@ -100,22 +100,12 @@ export interface SeatOptions {
    */
   escort: { markersInHand: number; carriersAfterCoast: string[] } | null;
   /**
-   * Tiles a `power` action may put energy on this turn (unbroken shields,
+   * Subsystems a `power` action may put energy on this turn (unbroken shields,
    * racks and sensors) and the amounts it may put. Each works until your next
-   * turn, and a tile does one thing a turn: a rack powered cannot fire and a
+   * turn, and a subsystem does one thing a turn: a rack powered cannot fire and a
    * sensor powered cannot scan, while firing or scanning leaves them up anyway.
    */
   power: Array<{ id: SubsystemId; type: string; amounts: number[] }>;
-  /** Minimum cubes each of the ship's tiles needs to work. */
-  tileMinimums: Array<{
-    id: SubsystemId;
-    type: string;
-    min: number;
-    max: number;
-    /** What it holds from your last turn: it comes off when this turn starts. */
-    now: number;
-    broken: boolean;
-  }>;
 }
 
 /** Everything the active seat may legally do this turn. */
@@ -147,8 +137,8 @@ export function seatOptions(view: GameView): SeatOptions {
     if (needsRotation && !thrustersWork) continue;
     for (const intensity of BURN_INTENSITIES) {
       const cost = BURN_COSTS[intensity];
-      const toRing = ship.ring + (facing === "prograde" ? 1 : -1) * cost.rings;
-      if (toRing < 1 || toRing > getMaxRing(ship.wellId)) continue;
+      const toRing = ringAfter({ ...ship, facing }, cost.rings);
+      if (toRing === null) continue;
       if (cost.mass > ship.reactionMass) continue;
       burns.push({
         intensity,
@@ -206,8 +196,7 @@ export function seatOptions(view: GameView): SeatOptions {
         if (isSafeAtBerth(view.stations, from)) return [];
         return opponents
           .filter((o) => {
-            const s = o.ship!;
-            const at = { wellId: s.wellId, ring: s.ring, sector: s.sector };
+            const at = positionOf(o.ship!);
             return !isSafeAtBerth(view.stations, at) && isInWeaponRange(weapon, from, at);
           })
           .map((o) => o.id);
@@ -234,16 +223,7 @@ export function seatOptions(view: GameView): SeatOptions {
   const sensor = ship.subsystems.find((s) => s.type === "sensor_array" && !s.isBroken);
   const scanTargets =
     sensor && !quiet
-      ? opponents
-          .filter((o) => {
-            const s = o.ship!;
-            return (
-              s.wellId === ship.wellId &&
-              s.ring === ship.ring &&
-              sectorDistance(s.sector, ship.sector) <= SCAN_SECTOR_RANGE
-            );
-          })
-          .map((o) => o.id)
+      ? opponents.filter((o) => inScanRange(here, positionOf(o.ship!))).map((o) => o.id)
       : [];
 
   const markersInHand = unplacedEscorts(me.missions).length;
@@ -285,16 +265,5 @@ export function seatOptions(view: GameView): SeatOptions {
     scanTargets,
     escort,
     power,
-    tileMinimums: ship.subsystems.map((s) => {
-      const c = getSubsystemConfig(s.type);
-      return {
-        id: s.id,
-        type: s.type,
-        min: c.minEnergy,
-        max: c.maxEnergy,
-        now: s.allocatedEnergy,
-        broken: s.isBroken,
-      };
-    }),
   };
 }

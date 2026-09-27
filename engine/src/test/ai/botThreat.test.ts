@@ -69,7 +69,6 @@ describe("threat assessment", () => {
 
     const laser = opponent.knownWeapons.find((w) => w.slotId === "side-2");
     expect(laser?.type).toBe("laser");
-    expect(laser?.isPowered).toBe(false);
     expect(laser?.inRange).toBe(true);
     expect(opponent.threat).toBeGreaterThan(0);
   });

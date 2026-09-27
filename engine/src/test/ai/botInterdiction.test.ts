@@ -186,7 +186,6 @@ describe("danger: reading the scoreboard and the hold", () => {
 
     expect(danger.completedMissions).toBe(ONE_FROM_WINNING);
     expect(danger.crates).toBe(1);
-    expect(danger.oneDeliveryFromWinning).toBe(true);
     expect(danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER);
   });
 
@@ -195,7 +194,6 @@ describe("danger: reading the scoreboard and the hold", () => {
     const danger = opponent(state, "p1", "p2").danger;
 
     expect(danger.completedMissions).toBe(0);
-    expect(danger.oneDeliveryFromWinning).toBe(false);
     expect(danger.score).toBeLessThan(0.2);
   });
 

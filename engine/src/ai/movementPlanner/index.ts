@@ -71,7 +71,7 @@ import type {
   PlannerOptions,
 } from "./types.ts";
 
-export function shipOrigin(ship: ShipState): OrientedPosition {
+function shipOrigin(ship: ShipState): OrientedPosition {
   return { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing: ship.facing };
 }
 
@@ -85,7 +85,7 @@ export function shipOrigin(ship: ShipState): OrientedPosition {
  * arrival, so its dock trips are planned with that reserved and the search
  * coasts in where it would otherwise burn.
  */
-export function shipPlannerOptions(
+function shipPlannerOptions(
   ship: ShipState,
   maxTurns: number,
   reserveMass = 0
@@ -182,13 +182,6 @@ export function getFirstAction(plan: MovementPlan): {
     };
   }
   return { actionType: "coast", sectorAdjustment: 0, massCost: step.massCost };
-}
-
-/**
- * Turns to reach a static target, or Infinity if unreachable.
- */
-export function estimateTurnsToTarget(ship: ShipState, target: OrbitalPosition): number {
-  return planFromShip(ship, target, "fastest")?.totalTurns ?? Infinity;
 }
 
 /**

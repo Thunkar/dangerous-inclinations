@@ -6,23 +6,48 @@
  * same pure helpers the UI uses.
  */
 import type { GameEvent } from "../models/events.ts";
-import type { SecondaryMissionType, Mission } from "../models/missions.ts";
+import type { Mission } from "../models/missions.ts";
 import {
   DEFAULT_POINTS_TO_WIN,
   MISSION_POINTS,
+  SCAN_SECTOR_RANGE,
   SURVEY_RING,
   TANKER_FUEL,
 } from "../models/missions.ts";
+import type { SubsystemType } from "../models/subsystems.ts";
 import {
   SHIELD_ENERGY_PER_POINT,
   SUBSYSTEM_CONFIGS,
   getSubsystemConfig,
   interceptsPerRack,
 } from "../models/subsystems.ts";
-import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, SHIELD_HEAT_PER_POINT } from "../models/game.ts";
-import { getWellName } from "../models/gravityWells.ts";
+import {
+  BASE_CRITICAL_CHANCE,
+  DEFAULT_DISSIPATION_CAPACITY,
+  MAX_HEAT,
+  SHIELD_HEAT_PER_POINT,
+} from "../models/game.ts";
+import type { RingConfig } from "../models/game.ts";
+import {
+  BLACKHOLE_RINGS,
+  HOME_RINGS,
+  PLANET_RINGS,
+  STATION_RING,
+  TRANSFER_ARC_LENGTH,
+  getWellName,
+} from "../models/gravityWells.ts";
+import { DEPLOYMENT_GAP } from "../game/deployment.ts";
+import {
+  BURN_COSTS,
+  COMPRESSED_JUMP_MASS,
+  MAX_SECTOR_ADJUSTMENT,
+  MIN_FORWARD_MOVEMENT,
+  SECTOR_ADJUSTMENT_COST_PER_SECTOR,
+  WELL_TRANSFER_COSTS,
+} from "../models/rings.ts";
 import type { GameView, PlayerView } from "../game/view.ts";
 import { describeEvent, describeMission } from "../game/describe.ts";
+import { rollToResult } from "../game/damage.ts";
 import { seatOptions } from "./options.ts";
 import { isSafeAtBerth } from "../game/stations.ts";
 
@@ -30,15 +55,32 @@ const pos = (p: { wellId: string; ring: number; sector: number }) =>
   `${getWellName(p.wellId as never)} R${p.ring} S${p.sector}`;
 
 /**
- * Numbers a weapon or a tile owns, read from the configs rather than written
+ * Numbers a weapon or a subsystem owns, read from the configs rather than written
  * out again: a digest that quotes a damage value by hand goes stale the first
  * time the value moves, and an agent that plans on a stale number submits a
  * turn the engine refuses.
  */
-const dmg = (t: "railgun" | "laser" | "ballistic_rack" | "missiles") =>
-  SUBSYSTEM_CONFIGS[t].weaponStats!.damage;
+const weapon = (t: "railgun" | "laser" | "ballistic_rack" | "missiles") =>
+  SUBSYSTEM_CONFIGS[t].weaponStats!;
+const dmg = (t: "railgun" | "laser" | "ballistic_rack" | "missiles") => weapon(t).damage;
+const cubes = (t: SubsystemType) => SUBSYSTEM_CONFIGS[t].minEnergy;
 const RADIATOR_BONUS = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
 const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
+const SHIELD_MIN = SUBSYSTEM_CONFIGS.shields.minEnergy;
+const SHIELD_MAX = SUBSYSTEM_CONFIGS.shields.maxEnergy;
+const velocities = (rings: readonly RingConfig[]) => rings.map((r) => r.velocity).join("/");
+/** Sectors a station advances at the end of every round: its ring's velocity. */
+const STATION_DRIFT = PLANET_RINGS.find((r) => r.ring === STATION_RING)?.velocity ?? 0;
+/** The lowest d10 face that is a critical at this critical chance. */
+const critFrom = (bonus: number) => {
+  for (let face = 2; face <= 10; face++)
+    if (rollToResult(face, BASE_CRITICAL_CHANCE + bonus) === "critical") return face;
+  return 10;
+};
+const CRIT = critFrom(0);
+const SENSOR_CRIT = critFrom(SUBSYSTEM_CONFIGS.sensor_array.passiveEffect?.criticalChanceBonus ?? 0);
+const burnLine = (i: keyof typeof BURN_COSTS) =>
+  `${i} ${BURN_COSTS[i].rings}/${BURN_COSTS[i].mass}/${BURN_COSTS[i].energy}`;
 
 /**
  * The rules an agent needs at hand, in the words of RULES.md, kept short.
@@ -53,28 +95,23 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
   return `RULES IN BRIEF
 - Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; the secondaries (Survey, Piracy, Tanker, Escort, Salvage) ${MISSION_POINTS.survey}. A hand is ONE primary and TWO secondaries (two of a kind is allowed: they are two jobs, and nothing you do completes both at once), which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
 - Turn: clear your loadout (every cube you put on last turn comes off) -> actions in the order you choose (power, rotate, ONE move: coast|burn|jump, fire any weapons, scan) -> your missiles fly -> docking -> heat check -> missions, pass. Once a round, after the last seat's turn, every station advances along its ring, carrying whoever is moored.
-- Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop costs 3 cubes and 3 heat: +velocity fuel; it runs in port too).
-- ENERGY, in one rule: EVERY CUBE ON YOUR LOADOUT IS A POINT OF HEAT AT YOUR CHECK. Every action puts energy on the subsystem it uses, to its one figure (railgun 4, laser 2, rack 2, missiles 2, sensor 2, scoop 3, thrusters 1, engines = the burn's number). The energy stays on the subsystem until the START OF YOUR NEXT TURN, when you clear your loadout. POWERING IS AN ACTION TOO, for the three subsystems that work on other players' turns: shields (2 or 4), a ballistic rack (2) and a sensor array (2). A subsystem with energy on it works until your next turn: shields absorb, a rack shoots down missiles, a sensor widens your critical range. So a rack you fired is also up, and a sensor you scanned with widens the range of every shot you take AFTER the scan. EACH SUBSYSTEM DOES ONE THING A TURN: you power it or you use it, so a rack you power cannot fire and a sensor you power cannot scan. Nothing is ever switched off: a subsystem is off unless something put energy on it this turn, so a wall you want up you power again every turn. THERE IS NO REACTOR: nothing caps what you light at once, so a huge turn is legal and simply costs hull.
-- Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data (scan, survey) rides free.
-- Burn: drift, then change ring. Prograde facing burns OUTWARD, retrograde INWARD. soft 1 ring / 1 fuel / 1 cube on engines; medium 2/2/2; hard 3/3/3. Phasing: adjust arrival sector, 1 fuel per sector, from -(velocity-1) to +3.
-- Jump: only from a lane's departure arc, engines at 3, 3 fuel (1 with a compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way. Phasing: shift the landing 1 fuel a sector, never out of the arrival arc, so any departure sector reaches any of the arc's 4 sectors. A compressor pays two of the jump's three fuel, never the phasing.
+- Drift: every turn you move forward by your ring's velocity (BH rings ${velocities(BLACKHOLE_RINGS)}, planet rings ${velocities(PLANET_RINGS)}). Coast = drift only (scoop costs ${cubes("scoop")} cubes and ${cubes("scoop")} heat: +velocity fuel; it runs in port too).
+- ENERGY, in one rule: EVERY CUBE ON YOUR LOADOUT IS A POINT OF HEAT AT YOUR CHECK. Every action puts energy on the subsystem it uses, to its one figure (railgun ${cubes("railgun")}, laser ${cubes("laser")}, rack ${cubes("ballistic_rack")}, missiles ${cubes("missiles")}, sensor ${cubes("sensor_array")}, scoop ${cubes("scoop")}, thrusters ${cubes("rotation")}, engines = the burn's number or ${WELL_TRANSFER_COSTS.energy} for a jump). The energy stays on the subsystem until the START OF YOUR NEXT TURN, when you clear your loadout. POWERING IS AN ACTION TOO, for the three subsystems that work on other players' turns: shields (${SHIELD_MIN} or ${SHIELD_MAX}), a ballistic rack (${cubes("ballistic_rack")}) and a sensor array (${cubes("sensor_array")}). A subsystem with energy on it works until your next turn: shields absorb, a rack shoots down missiles, a sensor widens your critical range. So a rack you fired is also up, and a sensor you scanned with widens the range of every shot you take AFTER the scan. EACH SUBSYSTEM DOES ONE THING A TURN: you power it or you use it, so a rack you power cannot fire and a sensor you power cannot scan. Nothing is ever switched off: a subsystem is off unless something put energy on it this turn, so a wall you want up you power again every turn. THERE IS NO REACTOR: nothing caps what you light at once, so a huge turn is legal and simply costs hull.
+- Your hold takes ONE crate: a second Deliver cannot be loaded until the first is delivered. Data (a scan, a survey, a black box) rides free.
+- Burn: drift, then change ring. Prograde facing burns OUTWARD, retrograde INWARD. Rings/fuel/cubes on engines: ${burnLine("soft")}; ${burnLine("medium")}; ${burnLine("hard")}. Phasing: adjust arrival sector, ${SECTOR_ADJUSTMENT_COST_PER_SECTOR} fuel per sector, from -(velocity-${MIN_FORWARD_MOVEMENT}) to +${MAX_SECTOR_ADJUSTMENT}.
+- Jump: only from a lane's departure arc, engines at ${WELL_TRANSFER_COSTS.energy}, ${WELL_TRANSFER_COSTS.mass} fuel (${COMPRESSED_JUMP_MASS} with a compressor), lands on the matching sector of the arrival arc; no drift that turn. Lanes are one-way. Phasing: shift the landing ${SECTOR_ADJUSTMENT_COST_PER_SECTOR} fuel a sector, never out of the arrival arc, so any departure sector reaches any of the arc's ${TRANSFER_ARC_LENGTH} sectors. A compressor pays ${WELL_TRANSFER_COSTS.mass - COMPRESSED_JUMP_MASS} of the jump's ${WELL_TRANSFER_COSTS.mass} fuel, never the phasing.
 - Heat is a TRACK and does NOT reset. A subsystem's cubes are its heat. At your heat check: anything above ${MAX_HEAT} is hull damage and the track stops at ${MAX_HEAT}, then you dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_BONUS} per working radiator) and CARRY THE REST into next turn. So a hot turn is a debt, not a wound, but generate more than you dissipate for long enough and you redline.
 - Shields: every ${SHIELD_ENERGY_PER_POINT} cubes on a subsystem absorb 1 point of damage, so a subsystem takes ${SHIELD_ENERGY_PER_POINT} cubes or ${2 * SHIELD_ENERGY_PER_POINT} and never an odd one; every point absorbed is ${SHIELD_HEAT_PER_POINT} heat to YOU. A powered shield's cubes are heat at the check of the turn you power it, absorbing or not, and it absorbs on everyone else's turns until your next one; the cubes it absorbs with are spent. Lasers ignore shields.
-- Weapons: railgun ${dmg("railgun")} dmg, same ring, 1-5 sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (1 fuel, engines). Laser ${dmg("laser")} dmg through shields, +-2 rings, +-1 sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack ${dmg("ballistic_rack")} dmg, +-1 ring/+-1 sector or same ring 1 sector; it only intercepts while it has energy on it (you POWERED it, or FIRED it, on your last turn), which costs its 2 cubes at that turn's check whether anything comes or not, and then it rolls at UP TO ${interceptsPerRack()} missiles a turn (the same number its cubes could have thrown as a launcher) and destroys each on 2+; the whole turn of rolling is ONE use of the rack. A fifth missile in the same turn gets through unless you have a second rack up. Missiles ${dmg("missiles")} dmg at ANY ship in your well, any distance, any facing: ${MISSILE.maxAmmo} aboard, each flies ${MISSILE.fuelPerTurn} steps a turn (a step is one ring or one sector) for ${MISSILE.maxMoves} turns, then is gone. On its launch turn it flies from the sector you launched it on, before or after your move alike; from then on it rides its orbit first, then flies. One action launches AS MANY as you like at ONE ship for ONE use of the subsystem, so the magazine is the limit, not the heat.
+- Weapons: railgun ${dmg("railgun")} dmg, same ring, 1-${weapon("railgun").sectorRange} sectors AHEAD in your facing, recoil pushes you a ring in your facing unless compensated (${BURN_COSTS.soft.mass} fuel, engines); an uncompensated shot whose recoil would push you off the rings is refused. Laser ${dmg("laser")} dmg through shields, +-${weapon("laser").ringRange} rings, +-${weapon("laser").sectorRange} sector, ONE side only (prograde: port=side-0/1 fires outward, starboard=side-2/3 inward; retrograde swaps). Rack ${dmg("ballistic_rack")} dmg, +-${weapon("ballistic_rack").ringRange} ring/+-${weapon("ballistic_rack").sectorRange} sector or same ring ${weapon("ballistic_rack").sectorRange} sector; it only intercepts while it has energy on it (you POWERED it, or FIRED it, on your last turn), which costs its ${cubes("ballistic_rack")} cubes at that turn's check whether anything comes or not, and then it rolls at UP TO ${interceptsPerRack()} missiles a turn (the same number its cubes could have thrown as a launcher) and destroys each on 2+; the whole turn of rolling is ONE use of the rack. A fifth missile in the same turn gets through unless you have a second rack up. Missiles ${dmg("missiles")} dmg at ANY ship in your well, any distance, any facing: ${MISSILE.maxAmmo} aboard, each flies ${MISSILE.fuelPerTurn} steps a turn (a step is one ring or one sector) for ${MISSILE.maxMoves} turns, then is gone. On its launch turn it flies from the sector you launched it on, before or after your move alike; from then on it rides its orbit first, then flies. One action launches AS MANY as you like at ONE ship for ONE use of the subsystem, so the magazine is the limit, not the heat.
 - POINT BLANK: a ship in YOUR OWN sector (same ring, same sector) is in range of every weapon you carry, whatever its arc.
-- THE FIRST ROUND REACHES NOBODY: no weapon fires and nobody scans. Deploy on Black Hole ring 3 or 4, at least three sectors from every placed ship; if no sector qualifies, the farthest one.
-- Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 for shots after your sensor array was powered or scanned this turn). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken subsystem dumps its cubes into its owner's heat: a railgun that fired last turn still holds its 4 on your turn. Cubes on every slot are public even while the subsystem is face-down. Using a subsystem turns it face-up, so cubes on a FACE-DOWN slot were powered: 2 is a half shield, a rack or a sensor, 4 only a full shield, and a silent face-down slot may be anything. (A subsystem that just absorbed has spent its cubes, so breaking it dumps little, but it is gone until they dock.)
-- Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken subsystem you name: that means no move but a plain coast, no scoop, no shot, no scan and nothing powered. It is the only way back for a ship whose engines, thrusters or scoop were shot out, because every station needs a jump to reach and a dry ship with no scoop has no fuel for one.
-- Docking (end your turn on a station's sector, planet ring 2): repair, FULL hull, reload, and ONE job a visit: your crates (deliver the ones bound here, then load the one waiting here), your data (file all that can be filed here) or your fuel (Tanker). Name it with "dock"; left out, the visit does the job worth the most points, ties to crates, then data, then fuel. What the other jobs would have moved stays put. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it: a coast does not drift, and the station carries you when it advances. Burn to cast off. A moored ship can neither fire nor be fired at, missiles included (a missile that reaches one flies on); burn off the berth first and fire after the move.
-- Secondary cards (1 pt, no subsystem needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the data, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or data and it is yours, then sell the loot at ANY station: a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and do the fuel job: hand in ${TANKER_FUEL}, the card is done. Salvage = a destroyed ship leaves a wreck where it died, and wrecks drift with the stations once a round by their ring's speed; end a turn on a wreck's sector (moored or not) and take its black box: it is data, it rides free beside whatever is in your hold, a pirate can seize it and it is lost if you are destroyed; file it at ANY station (the data job). The killer may salvage its own kill; one wreck a turn. Escort = end a turn, not moored, in the sector of an undocked rival carrying cargo (crate or data, loot and salvage included) and you MAY put your marker on them, face-up (name them with "escort" in your intent); the next time that ship delivers, sells or files anything at a station, your card is done, on their turn. If they are destroyed first, the marker comes back to you. A second Escort marks a different ship.
-- Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
-- Destroyed: you drop your cargo and lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. The turn after that is A FIRST ROUND OF YOUR OWN: power, rotation and a move are yours, but no weapon of yours fires and you scan nobody, and nobody can fire at, missile or scan you until that turn is over.`;
+- THE FIRST ROUND REACHES NOBODY: no weapon fires and nobody scans. Deploy on Black Hole ring ${HOME_RINGS.join(" or ")}, at least ${DEPLOYMENT_GAP} sectors from every placed ship; if no sector qualifies, the farthest one.
+- Hit roll d10: 1 miss, 2-${CRIT - 1} hit, ${CRIT}${CRIT < 10 ? "-10" : ""} crit (${SENSOR_CRIT}-10 for shots after your sensor array was powered or scanned this turn). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken subsystem dumps its cubes into its owner's heat: a railgun that fired last turn still holds its ${cubes("railgun")} on your turn. Cubes on every slot are public even while the subsystem is face-down. Using a subsystem turns it face-up, so cubes on a FACE-DOWN slot were powered: ${SHIELD_MIN} is a half shield, a rack or a sensor, ${SHIELD_MAX} only a full shield, and a silent face-down slot may be anything. (A subsystem that just absorbed has spent its cubes, so breaking it dumps little, but it is gone until they dock.)
+- Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken subsystem you name: that means no move but a plain coast, no scoop, no shot, no scan and nothing powered. It is the only way back for a ship whose engines, thrusters or scoop were shot out: reaching a station takes burns and jumps, and a dry ship with no scoop has no fuel for them.
+- Docking (end your turn on a station's sector, planet ring ${STATION_RING}): repair, FULL hull, reload, and ONE job a visit: your crates (deliver the ones bound here, then load the one waiting here), your data (file all that can be filed here) or your fuel (Tanker). Name it with "dock"; left out, the visit does the job worth the most points, ties to crates, then data, then fuel. What the other jobs would have moved stays put. Docking happens only on arrival: holding a berth you already hold is no visit. Stations drift ${STATION_DRIFT} sectors at the end of each round. Moored: while you sit on a station you ride it: a coast does not drift, and the station carries you when it advances. Burn to cast off. A moored ship can neither fire nor be fired at, missiles included (a missile that reaches one flies on); burn off the berth first and fire after the move.
+- Secondary cards (1 pt, no subsystem needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the data, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or data and it is yours, then sell the loot at ANY station: a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and do the fuel job: hand in ${TANKER_FUEL}, the card is done. Salvage = a destroyed ship leaves a wreck where it died, and wrecks drift with the stations once a round by their ring's speed; end a turn on a wreck's sector (moored or not) and take its black box: it is data, it rides free beside whatever is in your hold, a pirate can seize it and it is lost if you are destroyed; file it at ANY station (the data job). The killer may salvage its own kill; one wreck a turn. Escort = end a turn, not moored, in the sector of an undocked rival carrying cargo (crate or data, loot and salvage included) and you MAY put your marker on them, face-up (name them with "escort" in your intent); the next time that ship delivers, sells or files anything, or pumps fuel, at a station, your card is done, on their turn. If they are destroyed first, the marker comes back to you. A second Escort marks a different ship.
+- Intercept: scan the target (same ring, within ${SCAN_SECTOR_RANGE} sectors), then file at the station the card names.
+- Destroyed: a wreck is left on your sector; you drop your cargo (a Deliver crate goes back to its pickup station, loot and data are lost), every Escort marker on you goes back to its owner and your missiles in flight are removed. You lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. The turn after that is A FIRST ROUND OF YOUR OWN: power, rotation and a move are yours, but no weapon of yours fires and you scan nobody, and nobody can fire at, missile or scan you until that turn is over.`;
 }
-
-/** What each data-paying secondary card still asks of you. */
-const SECONDARY_HOW: Record<SecondaryMissionType, string> = {
-  survey: `end a turn on BH R${SURVEY_RING}`,
-};
 
 function missionLine(m: Mission, name: (id: string) => string): string {
   const head = describeMission(m, name);
@@ -86,26 +123,26 @@ function missionLine(m: Mission, name: (id: string) => string): string {
       return `${head} · ${
         m.scanAcquired
           ? `data aboard: file it at ${getWellName(m.deliveryPlanetId as never)}'s station`
-          : `scan them first (same ring, within 3 sectors, with a sensor array aboard), then file at ${getWellName(m.deliveryPlanetId as never)}'s station`
+          : `scan them first (same ring, within ${SCAN_SECTOR_RANGE} sectors, with a sensor array aboard), then file at ${getWellName(m.deliveryPlanetId as never)}'s station`
       }`;
     case "survey":
-      return `${head} · ${m.acquired ? "data aboard: dock at any station" : SECONDARY_HOW[m.type]}`;
+      return `${head} · ${m.acquired ? "data aboard: dock at any station" : `end a turn on BH R${SURVEY_RING}`}`;
     case "piracy":
       return `${head} · end a turn in the sector of a ship carrying a crate or data (hold empty, neither of you moored), then sell the loot at ANY station`;
     case "tanker":
       return `${head} · arrive at any station with ${TANKER_FUEL}+ fuel and it is pumped in`;
     case "escort":
       return m.markedPlayerId
-        ? `${head} · your marker is on ${name(m.markedPlayerId)}: done the next time they deliver, sell or file anything`
+        ? `${head} · your marker is on ${name(m.markedPlayerId)}: done the next time they deliver, sell or file anything, or pump fuel`
         : `${head} · marker in hand: you MAY put it on an undocked rival carrying a crate or data whose sector you end your turn in (you not moored either); name it with "escort", or no marker goes on`;
     case "salvage":
       return `${head} · end a turn on a wreck's sector to take its black box (data), then file it at ANY station`;
     case "destroy_ship":
-      return `${head} · worth 2 points`;
+      return `${head} · worth ${MISSION_POINTS.destroy_ship} points`;
   }
 }
 
-function tileLine(p: PlayerView): string {
+function subsystemLine(p: PlayerView): string {
   const slots = p.slots.map((s) => {
     const what = s.type ? `${s.type}${s.knownVia === "scanned" ? " (scanned)" : ""}` : "face-down";
     const broken = s.isBroken ? " BROKEN" : "";
@@ -180,14 +217,14 @@ export function describeViewForAgent(
       continue;
     }
     out.push(
-      `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.completedMissionCount} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Subsystems: ${tileLine(p)}. Completed: ${
+      `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.completedMissionCount} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Subsystems: ${subsystemLine(p)}. Completed: ${
         p.completedMissions.map((m) => describeMission(m, name)).join("; ") || "none"
       }.${p.escortedBy.length ? ` Escort markers on them: ${p.escortedBy.map(name).join(", ")}.` : ""}${p.recovering ? " UNTOUCHABLE until their next turn is over: no shot, missile or scan reaches them, and they fire at nobody on it." : ""}${!s.isDestroyed && isSafeAtBerth(view.stations, s) ? " MOORED: no shot or missile reaches them, and they fire at nobody while they hold the berth." : ""}`
     );
   }
   out.push(
     "",
-    `STATIONS (planet ring 2, drift 4/round): ${view.stations.map((s) => `${getWellName(s.planetId as never)} S${s.sector}`).join(", ")}.`
+    `STATIONS (planet ring ${STATION_RING}, drift ${STATION_DRIFT}/round): ${view.stations.map((s) => `${getWellName(s.planetId as never)} S${s.sector}`).join(", ")}.`
   );
   const mine = view.players.find((p) => p.isMe);
   if (mine?.escortedBy.length)
@@ -210,8 +247,8 @@ export function describeViewForAgent(
     out.push("", "LEGAL THIS TURN:");
     out.push(
       o.moored
-        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off. You docked on arrival: holding the berth repairs nothing more${o.scoopGain ? `, though the scoop would still gain ${o.scoopGain} fuel for 3 cubes` : ""}.`
-        : `  Drift: coast moves you ${o.velocity} sectors forward${o.scoopGain ? ` (scoop would gain ${o.scoopGain} fuel for 3 cubes)` : ""}.`
+        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off. You docked on arrival: holding the berth repairs nothing more${o.scoopGain ? `, though the scoop would still gain ${o.scoopGain} fuel for ${cubes("scoop")} cubes` : ""}.`
+        : `  Drift: coast moves you ${o.velocity} sectors forward${o.scoopGain ? ` (scoop would gain ${o.scoopGain} fuel for ${cubes("scoop")} cubes)` : ""}.`
     );
     out.push(
       `  Burns: ${
@@ -226,7 +263,7 @@ export function describeViewForAgent(
     out.push(
       `  Jump: ${
         o.jump
-          ? `to ${pos(o.jump.destination)} (engines 3, ${o.jump.fuel} fuel; phase ${o.jump.adjustment.min}..${o.jump.adjustment.max > 0 ? "+" : ""}${o.jump.adjustment.max} sectors inside the arrival arc, ${o.jump.phasingFuel} fuel each)`
+          ? `to ${pos(o.jump.destination)} (engines ${o.jump.energy}, ${o.jump.fuel} fuel; phase ${o.jump.adjustment.min}..${o.jump.adjustment.max > 0 ? "+" : ""}${o.jump.adjustment.max} sectors inside the arrival arc, ${o.jump.phasingFuel} fuel each)`
           : "no lane departs from this sector"
       }.`
     );
@@ -235,7 +272,7 @@ export function describeViewForAgent(
         `  ${w.weapon} (${w.type}, ${w.damage} dmg, ${w.energy} cubes)${w.ready ? "" : ` NOT READY: ${w.reason}`}: in range now [${w.targetsNow.map(name).join(", ") || "-"}], after a coast [${w.targetsAfterCoast.map(name).join(", ") || "-"}].`
       );
     out.push(
-      `  Scan targets (sensor array aboard, same ring within 3): [${o.scanTargets.map(name).join(", ") || "-"}].`
+      `  Scan targets (sensor array aboard, same ring within ${SCAN_SECTOR_RANGE}): [${o.scanTargets.map(name).join(", ") || "-"}].`
     );
     out.push(
       `  Power (works until your next turn; a subsystem you power cannot also fire or scan): ${
@@ -271,8 +308,8 @@ export function describeViewForAgent(
 /** How an agent describes a turn: the intent JSON the builder accepts. */
 export const AGENT_INTENT_GUIDE = `INTENT FORMAT (JSON). Everything optional; omitted = nothing powered and a coast.
 {
-  "power": { "side-2": 4, "forward-0": 2 },    // shields 2|4, rack 2, sensor 2: up until your next turn; not named = off
-  "rotate": false,                             // flip facing (1 cube on the thrusters, 1 heat)
+  "power": { "side-2": 4, "forward-0": 2 },    // shields ${SHIELD_MIN}|${SHIELD_MAX}, rack ${cubes("ballistic_rack")}, sensor ${cubes("sensor_array")}: up until your next turn; not named = off
+  "rotate": false,                             // flip facing (${cubes("rotation")} cube on the thrusters, ${cubes("rotation")} heat)
   "move": { "kind": "coast", "scoop": false }  // or { "kind": "burn", "intensity": "soft|medium|hard", "adjustment": 0, "facing": "prograde|retrograde" }
                                                // or { "kind": "jump", "destinationWellId": "planet-alpha", "adjustment": 0 }
   "fire": [ { "weapon": "forward-0", "target": "<playerId>", "critical": "engines", "compensateRecoil": false, "when": "after" } ],

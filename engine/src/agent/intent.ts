@@ -1,10 +1,10 @@
 /**
  * From what an agent wants to do to the actions the engine accepts. Cubes for
  * a burn, a rotation or a shot are not the agent's business at all: the engine
- * powers a tile from the action that uses it. What the builder does carry is
+ * powers a subsystem from the action that uses it. What the builder does carry is
  * `power`, the shields, racks and sensor the agent wants up until its next
  * turn, and the order a turn is played in. The loadout is cleared at the start
- * of every turn, so a tile not named in `power` (and not used) is off.
+ * of every turn, so a subsystem not named in `power` (and not used) is off.
  */
 import type { BurnIntensity, Facing, GravityWellId, Player, PlayerAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
@@ -14,6 +14,7 @@ import type { GameView } from "../game/view.ts";
 import { powerActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, type MovementPreview } from "../game/movement.ts";
+import { positionOf } from "../game/geometry.ts";
 import { isMooredAt } from "../game/stations.ts";
 import { unplacedEscorts } from "../game/escort.ts";
 import { getJumpOptions, phasedJumpDestination } from "../models/gravityWells.ts";
@@ -26,7 +27,7 @@ export interface FireIntent {
   compensateRecoil?: boolean;
   /**
    * Missiles only: how many rounds go up in this one launch. A salvo of any
-   * size is one use of the tile: no extra cubes and no extra heat, so the
+   * size is one use of the subsystem: no extra cubes and no extra heat, so the
    * magazine is what limits it.
    */
   count?: number;
@@ -40,13 +41,13 @@ export interface FireIntent {
 
 export interface TurnIntent {
   /**
-   * Tiles to power this turn and the cubes to put on each: shields 2 or 4, a
+   * Subsystems to power this turn and the cubes to put on each: shields 2 or 4, a
    * ballistic rack 2, a sensor array 2. They work until your next turn, and
    * they run first, so a sensor widens every shot this turn. Ones not named
    * are off: the loadout is cleared at the start of the turn. Nothing else
    * takes cubes here: the engines, the thrusters, the scoop and every weapon
    * are powered by the action that uses them, and a rack that fires or a
-   * sensor that scans is left up by it (a tile does one thing a turn, so do
+   * sensor that scans is left up by it (a subsystem does one thing a turn, so do
    * not also power it).
    */
   power?: Partial<Record<SubsystemId, number>>;
@@ -58,7 +59,7 @@ export interface TurnIntent {
   fire?: FireIntent[];
   scan?: { target: string; slot?: SubsystemId };
   /**
-   * A broken tile to repair at the heat check. It only lands if the turn makes
+   * A broken subsystem to repair at the heat check. It only lands if the turn makes
    * no heat at all: no move but a coast without the scoop, no shot, no scan,
    * and no shields powered.
    */
@@ -95,7 +96,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   const find = (id: SubsystemId) => ship.subsystems.find((s) => s.id === id);
 
   // Only what the intent asks for: the loadout starts the turn clear, so
-  // nothing is up unless this turn powers it. A tile an action powers is not
+  // nothing is up unless this turn powers it. A subsystem an action powers is not
   // named here and never needs to be.
   const targets: EnergyTargets = new Map();
   for (const [id, cubes] of Object.entries(intent.power ?? {}) as Array<[SubsystemId, number]>) {
@@ -120,7 +121,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       targets.set(id, c.minEnergy);
     } else targets.set(id, wanted);
   }
-  // A tile does one thing a turn. The engine refuses the pair, and says so;
+  // A subsystem does one thing a turn. The engine refuses the pair, and says so;
   // this note is only the reason, in advance.
   const used = new Set<SubsystemId>([
     ...(intent.fire ?? []).map((f) => f.weapon),
@@ -180,7 +181,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   const post = projectPosition(ship, facing, preview);
   const targetPosition = (id: string) => {
     const s = view.players.find((p) => p.id === id)?.ship;
-    return s ? { wellId: s.wellId, ring: s.ring, sector: s.sector } : null;
+    return s ? positionOf(s) : null;
   };
   const phaseOf = (f: FireIntent): "before" | "after" => {
     if (f.when) return f.when;
@@ -245,12 +246,9 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   for (const f of shots.filter((s) => s.when !== "before")) actions.push(fireAction(f));
   if (intent.scan) {
     const sensor = ship.subsystems.find((s) => s.type === "sensor_array");
-    const target = view.players.find((p) => p.id === intent.scan!.target);
-    const slot =
-      intent.scan.slot ??
-      target?.slots.find((s) => s.type === null)?.id ??
-      target?.slots[0]?.id ??
-      "side-0";
+    // The engine turns a peek at a slot the scanner already knows into a peek
+    // at the first one it does not, so the bow is a safe default.
+    const slot = intent.scan.slot ?? "forward-0";
     if (!sensor) notes.push("no sensor array aboard; scan dropped");
     else
       actions.push({

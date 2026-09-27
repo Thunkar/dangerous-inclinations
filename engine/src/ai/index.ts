@@ -11,6 +11,7 @@
  * function the caller wires to the game's seeded RNG.
  */
 import type { PlayerAction, ShipLoadout } from "../models/game.ts";
+import { MAX_HEAT } from "../models/game.ts";
 import type { Mission, MissionType } from "../models/missions.ts";
 import type { GameView } from "../game/view.ts";
 import { missionsMissingRequirements } from "../game/loadout.ts";
@@ -76,13 +77,7 @@ export function botChooseLoadout(
     pick?: (n: number) => number;
   }
 ): { missionIds: string[]; loadout: ShipLoadout } {
-  const missions = selectBotMissions(
-    offers,
-    context.playerCount,
-    context.hull,
-    context.primary,
-    context.pick
-  );
+  const missions = selectBotMissions(offers, context.hull, context.primary, context.pick);
   // A hand and a loadout are one choice: a kept Intercept needs the sensor array
   // and a kept Destroy needs a gun. `hull` is a loadout the simulator is measuring
   // on this seat; it is kept only if the hand the bot ended up with can
@@ -192,7 +187,7 @@ function buildDecisionLog(
   return {
     situation: {
       health: `${status.hull}/${status.maxHull}`,
-      heat: `${status.heat}/${status.dissipation}`,
+      heat: `${status.heat}/${MAX_HEAT}, dissipates ${status.dissipation}`,
       fuel: `${status.reactionMass}/${status.maxReactionMass}`,
       position: `${status.position.wellId} R${status.position.ring} S${status.position.sector} (${status.facing})`,
       threatCount: threats.length,
@@ -225,39 +220,13 @@ function buildDecisionLog(
   };
 }
 
-export { DEFAULT_BOT_PARAMETERS } from "./types.ts";
-export type {
-  BotParameters,
-  BotDecision,
-  BotDecisionLog,
-  TacticalSituation,
-  ActionPlan,
-  ScoredActionPlan,
-  BotGoal,
-  BotGoalType,
-  BotStatus,
-  Opponent,
-  OpponentDanger,
-  KnownWeapon,
-  SuspectedSlot,
-  SuspectedWeapon,
-} from "./types.ts";
-export { INTERDICT_DANGER, CRITICAL_DANGER } from "./types.ts";
+// What the UI, the server, the simulator and the tests read. The rest of the
+// bot is internal.
+export { DEFAULT_BOT_PARAMETERS, INTERDICT_DANGER } from "./types.ts";
+export type { BotParameters, ActionPlan, Opponent } from "./types.ts";
+export { assessDanger, cheapTurnEstimate, predictedDeliveryPlanets } from "./behaviors/danger.ts";
 export {
-  assessDanger,
-  cheapTurnEstimate,
-  laneArrivalTarget,
-  planInterception,
-  predictedDeliveryPlanets,
-} from "./behaviors/danger.ts";
-export type { InterceptionPlan } from "./behaviors/danger.ts";
-export { computeGoals, interdictionTarget, INTERDICT_GOAL_ID } from "./behaviors/missions.ts";
-export {
-  selectBotLoadout,
-  selectBotMissions,
   classifyArchetype,
-  classifyRole,
-  classifyVariant,
   BOT_LOADOUT_TEMPLATES,
   BOT_ROLES,
   HULL_VARIANTS,
@@ -275,29 +244,15 @@ export {
   isReachable,
   getReachablePositions,
   getPredecessors,
-  getSuccessors,
   staticTarget,
   orbitingTarget,
-  nearDriftingShip,
-  anySectorOnRing,
-  positionKey,
   planFromShip,
-  planShipToTarget,
   planStationMeetUp,
   stationTarget,
-  getFirstAction,
-  estimateTurnsToTarget,
 } from "./movementPlanner/index.ts";
 export type {
   OrbitalPosition,
   OrientedPosition,
   MovementStep,
   MovementPlan,
-  MovementAlternatives,
-  PlannerOptions,
-  PlannerMode,
-  MovementActionType,
-  PredecessorInfo,
-  PlannerTarget,
-  StationMeetPlan,
 } from "./movementPlanner/index.ts";

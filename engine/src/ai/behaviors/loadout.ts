@@ -1,8 +1,9 @@
 /**
- * Loadout phase: pick 3 of the offered missions by synergy, then a hull
- * that fits them. Positions are unknown at this point (deployment comes
- * after loadout), so the choice is made from the cards alone and is
- * deterministic.
+ * Loadout phase: keep one primary and two secondaries of the cards dealt,
+ * then a hull that fits them. Positions are unknown at this point (deployment
+ * comes after loadout), so the choice is made from the cards alone: the hand
+ * is picked by the game's seeded RNG among the flyable ones (a hold shared by
+ * Deliver and Piracy is avoided), and the hull follows from the hand.
  */
 import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission, MissionType } from "../../models/missions.ts";
@@ -14,7 +15,7 @@ import {
 } from "../../models/missions.ts";
 
 /**
- * A hull is two decisions. **The role** is the forward tile, and the cards
+ * A hull is two decisions. **The role** is the forward subsystem, and the cards
  * choose it: a gun, eyes, or legs. **The variant** is how the four side slots
  * are spent, and that is taste: the same role played safe or played hard.
  *
@@ -26,8 +27,8 @@ import {
  *
  * | Variant    | Spends its side slots on                                  |
  * |------------|-----------------------------------------------------------|
- * | tanky      | two shield tiles, a radiator, and the one gun it needs for Destroy |
- * | aggressive | a second gun (not always another of the same) in place of one of those shield tiles |
+ * | tanky      | two shield subsystems, a radiator, and the one gun it needs for Destroy |
+ * | aggressive | a second gun (not always another of the same) in place of one of those shield subsystems |
  */
 export type BotRole = "interceptor" | "hunter" | "hauler";
 export type HullVariant = "tanky" | "aggressive";
@@ -38,15 +39,15 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
 
 /**
  * The six loadouts, which are also the presets offered to a human on the loadout
- * screen, so the table above, the tiles below and the UI must agree.
+ * screen, so the table above, the subsystems below and the UI must agree.
  *
  * **Every loadout carries a weapon**, which is what a kept Destroy card needs
  * (RULES §Missions): the two roles that spend their forward slot on eyes or
  * legs buy theirs with a side slot.
  *
- * **Why the guns are paired.** A full shield tile holds four energy and absorbs
+ * **Why the guns are paired.** A full shield subsystem holds four energy and absorbs
  * two damage, and its owner powers it again every turn, so a lone 2-damage
- * shot never reaches a hull. The railgun's four is exactly two shield tiles, so it
+ * shot never reaches a hull. The railgun's four is exactly two shield subsystems, so it
  * wants a partner, and which partner depends on where the fight is: a laser
  * ignores shields (they are electromagnetic) and reaches two rings out, one
  * further than a rack, while a ballistic rack is the only broadside that fires
@@ -54,14 +55,14 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  *
  * **Why neither hunter carries missiles.** Measured in duels against the
  * strongest off-book hull (a compressor bow with two ballistic racks, a
- * shield tile and a radiator), the missile-carrying hunter completed its
+ * shield subsystem and a radiator), the missile-carrying hunter completed its
  * Destroy 34% of the time: a rack that is up rolls at the missiles that reach
  * it, so a salvo aimed at the one loadout built to answer it arrives as dice.
  * Both hunters take the rack instead, which also buys them the roll against
  * somebody else's missiles; the aggressive one adds a laser, the tanky one a
  * second radiator.
  *
- * **Why the tanky hunter's fourth tile is a radiator, not a shield.** Measured
+ * **Why the tanky hunter's fourth subsystem is a radiator, not a shield.** Measured
  * 22 Sept on the balance seeds, 600 games a row with Destroy dealt: with two
  * shields it won 23% against a Destroy bar of 32 and died 1.20 times a game,
  * because two walls are eight heat a turn and a hunter that cooks cannot fire.
@@ -80,7 +81,7 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * the field and is the one broadside that fires on the railgun's own ring,
  * which is where the spinal shot puts the fight.
  *
- * **Why every loadout carries a radiator.** Using a tile costs its energy in heat,
+ * **Why every loadout carries a radiator.** Using a subsystem costs its energy in heat,
  * and heat the ship cannot dissipate is carried, so a hull that makes more than
  * it sheds walks up to the redline and pays there. The railgun plus one
  * broadside is six against a dissipation of five; the radiator's +2 makes that
@@ -119,17 +120,17 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
 }
 
 /**
- * The role is the forward tile, and the cards decide it. Intercept cannot
+ * The role is the forward subsystem, and the cards decide it. Intercept cannot
  * start without a scan, so that card takes the eyes and rules out the other
  * two. With nothing to scan the choice is the gun or the legs: a Destroy card
  * has to catch someone
  * and get through their shields, which is what the railgun's four damage is
  * for, while a hand of cargo runs would rather not pay three fuel a jump.
  */
-export function classifyRole(missions: Mission[]): BotRole {
+function classifyRole(missions: Mission[]): BotRole {
   const active = missions.filter((m) => !m.isCompleted);
   // Only Intercept asks for the eyes now: a Survey is a dive any loadout can make,
-  // so holding one says nothing about which forward tile to bolt on.
+  // so holding one says nothing about which forward subsystem to bolt on.
   if (count(active, "intercept_transmission") > 0) return "interceptor";
   if (count(active, "destroy_ship") > 0) return "hunter";
   return "hauler";
@@ -144,7 +145,7 @@ export function classifyRole(missions: Mission[]): BotRole {
  * holds a Destroy, a hauler never does), so bots fly four of the six. The
  * other two are measured by forcing them in the balance suite.
  */
-export function classifyVariant(missions: Mission[]): HullVariant {
+function classifyVariant(missions: Mission[]): HullVariant {
   const active = missions.filter((m) => !m.isCompleted);
   return count(active, "destroy_ship") > 0 ? "aggressive" : "tanky";
 }
@@ -191,12 +192,10 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  */
 export function selectBotMissions(
   offers: Mission[],
-  playerCount: number,
   hull?: ShipLoadout,
   primary?: MissionType,
   pick?: (n: number) => number
 ): Mission[] {
-  void playerCount;
   if (offers.length <= MISSIONS_PER_PLAYER) return offers;
   // Give up the experiment's constraints one at a time rather than all at
   // once: the forced primary first, then the forced loadout. The last resort is a

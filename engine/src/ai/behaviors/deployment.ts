@@ -17,16 +17,11 @@
  *      (spread out, don't start in someone's railgun arc).
  * Ties are broken by the game's seeded RNG through `pick`.
  */
-import {
-  HOME_RING,
-  HOME_RINGS,
-  BLACK_HOLE_ID,
-  TRANSFER_LANES,
-  arcSectors,
-} from "../../models/gravityWells.ts";
+import { HOME_RING, HOME_RINGS, BLACK_HOLE_ID, arcSectors } from "../../models/gravityWells.ts";
 import type { Position } from "../../models/game.ts";
 import type { MissionType } from "../../models/missions.ts";
-import { sectorDistance, wrapSector } from "../../game/geometry.ts";
+import { positionOf, sectorDistance, wrapSector } from "../../game/geometry.ts";
+import { planetLane } from "./danger.ts";
 import { legalDeploymentsAgainst } from "../../game/deployment.ts";
 import type { GameView } from "../../game/view.ts";
 
@@ -48,16 +43,13 @@ const HUNTING_MISSIONS = new Set<MissionType>([
 
 /** Where the ships already placed sit, as the view shows them. */
 export function placedShipPositions(view: GameView): Position[] {
-  return view.players
-    .filter((p) => p.hasDeployed && p.ship)
-    .map((p) => ({ wellId: p.ship!.wellId, ring: p.ship!.ring, sector: p.ship!.sector }));
+  return view.players.filter((p) => p.hasDeployed && p.ship).map((p) => positionOf(p.ship!));
 }
 
 /** Ring-5 sectors from which a jump to `planetId` is possible: its outbound lane. */
 function laneSectorsTo(planetId: string): number[] {
-  return TRANSFER_LANES.filter(
-    (l) => l.planetId === planetId && l.direction === "outbound"
-  ).flatMap((l) => arcSectors(l.blackHoleArc));
+  const lane = planetLane(planetId, "outbound");
+  return lane ? arcSectors(lane.blackHoleArc) : [];
 }
 
 export function chooseDeployment(view: GameView, pick: (n: number) => number): DeploymentChoice {

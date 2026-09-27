@@ -852,7 +852,7 @@ describe("bot turn handling", () => {
 
     const decision = botDecideActions(viewFor(state, "p1"));
     expect(decision.actions).toEqual([]);
-    expect(decision.log.reasoning[0]).toMatch(/respawn/i);
+    expect(decision.log.candidates).toEqual([]);
 
     const result = executeTurn(state, decision.actions);
     expect(result.errors).toBeUndefined();

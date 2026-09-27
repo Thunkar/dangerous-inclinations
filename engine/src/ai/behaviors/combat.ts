@@ -6,14 +6,16 @@
  */
 import type { Facing, Player, Position } from "../../models/game.ts";
 import { isQuietTurn } from "../../models/game.ts";
-import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
+import type { Subsystem, SubsystemId, SubsystemType } from "../../models/subsystems.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
-import { getMaxRing } from "../../models/gravityWells.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import { canEngage } from "../../game/targeting.ts";
+import { markedBy } from "../../game/escort.ts";
+import { ringAfter } from "../../game/movement.ts";
 import { isSafeAtBerth } from "../../game/stations.ts";
-import type { BotParameters, Opponent, SuspectedSlot, TacticalSituation } from "../types.ts";
+import type { BotParameters, Opponent, TacticalSituation } from "../types.ts";
+import { suspectedShieldCubes } from "../analyzer.ts";
 import { INTERDICT_DANGER } from "../types.ts";
 import type { PlannerTarget } from "../movementPlanner/index.ts";
 import { driftPeriod, orbitSectorAt } from "../movementPlanner/index.ts";
@@ -30,18 +32,26 @@ export function destroyTargetIds(me: Player): Set<string> {
 }
 
 /**
- * Players this seat's own Escort markers sit on. A bot never shoots a ship it
- * is escorting: the marker pays only when that ship delivers, and a kill
- * sends the marker home with nothing to show for it. A marker is placed by
- * choice, and the bot never places one on its Destroy target (a kill is worth
- * two to the marker's one), so no marker ever shields its prey.
+ * Worth killing, not just suppressing: a Destroy card names them, or they are
+ * close enough to the win to interdict. Criticals aim at their shields and
+ * leaving the route to reach them is worth a turn.
  */
-export function escortingIds(me: Player): Set<string> {
-  return new Set(
-    me.missions.flatMap((m) =>
-      !m.isCompleted && m.type === "escort" && m.markedPlayerId !== null ? [m.markedPlayerId] : []
-    )
-  );
+export function isKillTarget(me: Player, opponent: Opponent): boolean {
+  return destroyTargetIds(me).has(opponent.player.id) || opponent.danger.score >= INTERDICT_DANGER;
+}
+
+/**
+ * Ships this seat does not shoot at: those its own Escort markers sit on (the
+ * marker pays only when that ship delivers, and a kill sends it home with
+ * nothing to show for it) and the carrier its Escort goal is on its way to
+ * mark. The bot never marks its own Destroy target, so no marker ever shields
+ * its prey.
+ */
+export function holdFireIds(situation: TacticalSituation): Set<string> {
+  const ids = markedBy(situation.me);
+  const goal = situation.currentGoal;
+  if (goal?.type === "escort" && goal.targetPlayerId) ids.add(goal.targetPlayerId);
+  return ids;
 }
 
 /**
@@ -56,14 +66,24 @@ export function denialTokens(opponent: Opponent, myId: string): number {
   return cargo + opponent.player.escortedBy.filter((id) => id !== myId).length;
 }
 
-export interface FirePosition extends Position {
+/**
+ * Whether anything may be aimed at this opponent: not back from Home this
+ * round and not moored (RULES §Destruction and Respawn, §Stations). The
+ * engine's `canBeFiredAt` asks the same of a `Player`; this asks it of what
+ * the view shows.
+ */
+export function canShootAt(opponent: Opponent): boolean {
+  return !opponent.recovering && !opponent.safeAtBerth;
+}
+
+interface FirePosition extends Position {
   facing: Facing;
 }
 
 /**
  * One feasible shot: which weapon, when in the turn, at whom.
  */
-export interface FireIntent {
+export interface ShotOption {
   /** False for lasers: shields do not absorb the damage. */
   shielded: boolean;
   weapon: Subsystem;
@@ -72,43 +92,42 @@ export interface FireIntent {
   /** Damage of the whole action: for a salvo, one missile's damage times `count`. */
   damage: number;
   /**
-   * Heat the action adds: the tile's cubes once, whatever the size of a salvo,
-   * plus engine energy when compensating recoil.
+   * Heat the action adds: the weapon's cubes once, whatever the size of a
+   * salvo, plus the engines' cube when compensating recoil.
    */
   heat: number;
-  /** Cubes the weapon takes, and so its heat. A salvo needs no more than one shot. */
-  energy: number;
   /** Rounds this action puts in the air. 1 for everything but a missiles salvo. */
   count: number;
   /** Railgun only. */
   compensateRecoil?: boolean;
 }
 
-export function weaponDamage(weapon: Subsystem): number {
+function weaponDamage(weapon: Subsystem): number {
   return getSubsystemConfig(weapon.type).weaponStats?.damage ?? 0;
 }
 
+/**
+ * Cubes a weapon takes to fire, and so its heat. A salvo is one use of the
+ * launcher: its cubes once, however many rounds leave the rail (RULES §Weapons).
+ */
 export function weaponEnergy(weapon: Subsystem): number {
   return getSubsystemConfig(weapon.type).minEnergy;
 }
 
 /**
- * Heat a salvo of `count` rounds off `weapon` costs: the tile's cubes once for
- * the whole launch, however many rounds leave the rail (RULES §Weapons).
+ * Everything one weapon of `type` could put on a ship in a single action. A
+ * launcher may empty its magazine at one target in one launch, so its
+ * potential is the whole magazine: a bot that priced it at one round would
+ * never see that its launcher can finish a ship. The analyzer prices a
+ * rival's face-up launcher with the same formula.
  */
-export function salvoHeat(weapon: Subsystem): number {
-  return weaponEnergy(weapon);
+export function potentialDamage(type: SubsystemType, ammo: number | null | undefined): number {
+  const damage = getSubsystemConfig(type).weaponStats?.damage ?? 0;
+  return type === "missiles" ? damage * Math.max(0, ammo ?? 0) : damage;
 }
 
-/**
- * Everything one tile could put on a ship in a single action. A missiles tile
- * may empty its magazine at one target in one launch, so its potential is the
- * whole magazine: a bot that priced it at one round would never see that its
- * launcher can finish a ship.
- */
-export function weaponPotential(weapon: Subsystem): number {
-  const damage = weaponDamage(weapon);
-  return weapon.type === "missiles" ? damage * Math.max(0, weapon.ammo ?? 0) : damage;
+function weaponPotential(weapon: Subsystem): number {
+  return potentialDamage(weapon.type, weapon.ammo);
 }
 
 /**
@@ -120,14 +139,14 @@ export function volleyPotential(weapons: Subsystem[]): number {
 }
 
 /** Whether shields can soak this weapon's damage (lasers go straight through). */
-export function shieldsStop(weapon: Subsystem): boolean {
+function shieldsStop(weapon: Subsystem): boolean {
   return getSubsystemConfig(weapon.type).weaponStats?.ignoresShields !== true;
 }
 
 /**
  * Hull damage a volley puts through `shieldAbsorption` visible cubes: laser
  * damage skips the shields, everything else has to beat them first. A
- * shield tile is refilled for free, so shielded damage short of the cubes
+ * shield subsystem is refilled for free, so shielded damage short of the cubes
  * never reaches a hull.
  */
 export function hullThrough(
@@ -194,7 +213,7 @@ export function weaponRangeTarget(weapons: Subsystem[], start: Position): Planne
 /**
  * Last resort for a critical: a system every ship carries and that we can
  * see is not broken already (broken fixed systems are public). Naming a
- * tile that is already broken wastes the critical entirely.
+ * subsystem that is already broken wastes the critical entirely.
  */
 function fallbackCriticalTarget(target: Opponent): SubsystemId {
   const engines = target.player.fixed.find((f) => f.type === "engines" && !f.isBroken);
@@ -206,28 +225,12 @@ function fallbackCriticalTarget(target: Opponent): SubsystemId {
 }
 
 /**
- * What a slot's cubes say about it being a shield tile: a side slot holding
- * one to four cubes that no weapon's cube count explains. Bigger is better
- * to break: those are the cubes soaking our volley.
+ * Slot to break on a critical. Every candidate must be a subsystem that is still
+ * intact (breaking a broken subsystem does nothing).
  *
- * A side slot at four can only be a wall, since the rack is the other powerable
- * side tile and holds two. At two it may be either, which `suspectedWeapon`
- * has already read as a possible rack: that is a slot worth breaking too, so
- * it is not excluded here, only ranked below the certainty.
- */
-function suspectedShieldCubes(slot: SuspectedSlot): number {
-  if (slot.slot.group !== "side") return 0;
-  const cubes = slot.slot.allocatedEnergy;
-  return cubes >= 1 && cubes <= getSubsystemConfig("shields").maxEnergy ? cubes : 0;
-}
-
-/**
- * Slot to break on a critical. Every candidate must be a tile that is still
- * intact (breaking a broken tile does nothing).
- *
- * Cubes are evidence, of a narrow thing: using a tile turns it face-up, so a
+ * Cubes are evidence, of a narrow thing: using a subsystem turns it face-up, so a
  * loaded face-down slot was powered and is a wall, a rack or a sensor. Every
- * tile keeps its cubes until its owner's next turn, and breaking a loaded one
+ * subsystem keeps its cubes until its owner's next turn, and breaking a loaded one
  * dumps them on its owner as heat, which a dark one cannot do.
  *
  * `intent` decides what "best" means:
@@ -236,16 +239,16 @@ function suspectedShieldCubes(slot: SuspectedSlot): number {
  *   actually seen, then a loaded face-down slot (a rack is a gun and a sensor
  *   is their critical range, and either way the cubes burn), then anything
  *   else of theirs we know, then the engines.
- * - **kill**: get through to the hull. A shield tile holds up to four cubes and
+ * - **kill**: get through to the hull. A shield subsystem holds up to four cubes and
  *   absorbs a point per two of them, and the cubes it spends come straight back
  *   spent, so it is powered again on their next turn and is the
- *   single tile standing between us and their hull. Break it and every later
+ *   single subsystem standing between us and their hull. Break it and every later
  *   shot lands in full until they reach a station.
  *
  *   Naming it is a gamble the other way, though: a critical only breaks
  *   anything if the shot reaches the hull (`game/damage.ts`), so shields that
  *   still hold eat the very critical meant to bring them down. Against a full
- *   tile the shot has to be big enough to get through first.
+ *   subsystem the shot has to be big enough to get through first.
  */
 export function chooseCriticalTarget(
   target: Opponent,
@@ -259,7 +262,7 @@ export function chooseCriticalTarget(
       .sort((a, b) => b.allocatedEnergy - a.allocatedEnergy)[0];
     if (shield) return shield.id;
     const suspected = [...target.unknownSlots]
-      .map((s) => ({ slot: s, cubes: suspectedShieldCubes(s) }))
+      .map((s) => ({ slot: s, cubes: suspectedShieldCubes(s.slot) }))
       .filter((s) => s.cubes > 0)
       .sort((a, b) => b.cubes - a.cubes)[0];
     if (suspected) return suspected.slot.slot.id;
@@ -292,7 +295,7 @@ export function chooseCriticalTarget(
   return fallbackCriticalTarget(target);
 }
 
-export interface FiringContext {
+interface FiringContext {
   /** Position and facing when pre-movement shots execute. */
   pre: FirePosition;
   /** Position and facing when post-movement shots execute. */
@@ -314,8 +317,8 @@ export function firingOptions(
   target: Opponent,
   ctx: FiringContext,
   parameters: BotParameters
-): FireIntent[] {
-  const intents: FireIntent[] = [];
+): ShotOption[] {
+  const intents: ShotOption[] = [];
   const { status } = situation;
   const targetPos = target.position;
 
@@ -324,9 +327,8 @@ export function firingOptions(
   // and so is the bot's own turn back from Home, which is a first round of
   // its own (RULES §Destruction and Respawn).
   if (isQuietTurn(situation.view.turn, situation.me)) return intents;
-  // Nor does anything reach a ship that just came back: it is untouchable
-  // until its returning turn is over. Nor one at a berth (RULES §Stations).
-  if (target.recovering || target.safeAtBerth) return intents;
+  // Nor does anything reach a ship that just came back, or one at a berth.
+  if (!canShootAt(target)) return intents;
   // And a ship at a berth fires at nobody: a phase that finds the bot moored
   // (before the move while it still holds its berth, or after a move that
   // ends on a station) has no shots.
@@ -337,7 +339,7 @@ export function firingOptions(
   for (const weapon of status.weapons) {
     if (!isWeaponReady(weapon)) continue;
     const damage = weaponDamage(weapon);
-    const energy = weaponEnergy(weapon);
+    const cubes = weaponEnergy(weapon);
     const shielded = shieldsStop(weapon);
     const inPre = firesPre && canEngage(weapon, ctx.pre, targetPos);
     const inPost = firesPost && canEngage(weapon, ctx.post, targetPos);
@@ -346,8 +348,7 @@ export function firingOptions(
       // Recoil moves the ship a ring, which would derail a burn or jump
       // planned after the shot, so the railgun fires after moving.
       if (!inPost) continue;
-      const recoilRing = ctx.post.ring + (ctx.post.facing === "prograde" ? 1 : -1);
-      const recoilValid = recoilRing >= 1 && recoilRing <= getMaxRing(ctx.post.wellId);
+      const recoilValid = ringAfter(ctx.post, 1) !== null;
       const canCompensate =
         !ctx.enginesUsedByMovement &&
         !status.engines.isBroken &&
@@ -362,8 +363,7 @@ export function firingOptions(
         phase: "post",
         damage,
         shielded,
-        heat: energy + (compensate ? BURN_COSTS.soft.energy : 0),
-        energy,
+        heat: cubes + (compensate ? BURN_COSTS.soft.energy : 0),
         count: 1,
         compensateRecoil: compensate,
       });
@@ -383,8 +383,7 @@ export function firingOptions(
         phase,
         damage: damage * ammo,
         shielded,
-        heat: salvoHeat(weapon),
-        energy,
+        heat: cubes,
         count: ammo,
       });
       continue;
@@ -400,8 +399,7 @@ export function firingOptions(
       phase,
       damage,
       shielded,
-      heat: energy,
-      energy,
+      heat: cubes,
       count: 1,
     });
   }
@@ -409,8 +407,14 @@ export function firingOptions(
   return intents;
 }
 
+/** An opponent and the shots the bot could take at it this turn. */
+export interface TargetOption {
+  opponent: Opponent;
+  intents: ShotOption[];
+}
+
 /**
- * Pick which opponent to shoot among those with at least one option.
+ * Pick which opponent to shoot among those with at least one shot.
  *
  * Under the "mission" preference the order is: a ship a Destroy card names,
  * then the ship closest to winning the game (a hit on a player one dock from
@@ -419,49 +423,46 @@ export function firingOptions(
  */
 export function selectTarget(
   situation: TacticalSituation,
-  candidates: Array<{ opponent: Opponent; intents: FireIntent[] }>,
+  candidates: TargetOption[],
   parameters: BotParameters
-): { opponent: Opponent; intents: FireIntent[] } | null {
-  const withShots = candidates.filter((c) => c.intents.length > 0);
-  if (withShots.length === 0) return null;
+): TargetOption | null {
+  if (candidates.length === 0) return null;
 
   const missionTargets = destroyTargetIds(situation.me);
-  const potential = (c: { intents: FireIntent[] }) =>
-    c.intents.reduce((sum, i) => sum + i.damage, 0);
+  const potential = (c: TargetOption) => c.intents.reduce((sum, i) => sum + i.damage, 0);
   // A volley that cannot beat the shield cubes on a ship never reaches its
   // hull (laser damage excepted), so a ship we can actually hurt outranks a
   // weaker one we cannot.
-  const canHurt = (c: (typeof withShots)[number]) =>
-    hullThrough(c.intents, c.opponent.shieldAbsorption) > 0;
+  const canHurt = (c: TargetOption) => hullThrough(c.intents, c.opponent.shieldAbsorption) > 0;
   // Between two ships we can hurt equally, the one with more to lose: cargo
   // aboard and rival Escort markers are what a kill takes off the table.
-  const tokens = (c: (typeof withShots)[number]) => denialTokens(c.opponent, situation.me.id);
-  const byWeakest = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
+  const tokens = (c: TargetOption) => denialTokens(c.opponent, situation.me.id);
+  const byWeakest = (a: TargetOption, b: TargetOption) =>
     Number(canHurt(b)) - Number(canHurt(a)) ||
     a.opponent.hull - b.opponent.hull ||
     tokens(b) - tokens(a) ||
     potential(b) - potential(a);
-  const byClosest = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
+  const byClosest = (a: TargetOption, b: TargetOption) =>
     a.opponent.ringDistance +
     a.opponent.sectorDistance -
     (b.opponent.ringDistance + b.opponent.sectorDistance);
-  const byDanger = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
+  const byDanger = (a: TargetOption, b: TargetOption) =>
     b.opponent.danger.score - a.opponent.danger.score || byWeakest(a, b);
 
   switch (parameters.targetPreference) {
     case "closest":
-      return [...withShots].sort(byClosest)[0];
+      return [...candidates].sort(byClosest)[0];
     case "weakest":
-      return [...withShots].sort(byWeakest)[0];
+      return [...candidates].sort(byWeakest)[0];
     case "mission": {
-      const mission = withShots
+      const mission = candidates
         .filter((c) => missionTargets.has(c.opponent.player.id))
         .sort(byWeakest);
       if (mission[0]) return mission[0];
-      const dangerous = withShots
+      const dangerous = candidates
         .filter((c) => c.opponent.danger.score >= INTERDICT_DANGER)
         .sort(byDanger);
-      return dangerous[0] ?? [...withShots].sort(byWeakest)[0];
+      return dangerous[0] ?? [...candidates].sort(byWeakest)[0];
     }
   }
 }

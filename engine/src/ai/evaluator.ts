@@ -10,6 +10,8 @@ import type {
   ScoredActionPlan,
   TacticalSituation,
 } from "./types.ts";
+import { destroyTargetIds } from "./behaviors/combat.ts";
+import { REPAIR_GOAL_ID } from "./behaviors/missions.ts";
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 
@@ -25,10 +27,7 @@ function offense(plan: ActionPlan, situation: TacticalSituation): number {
   let score = plan.expectedHullDamage * 15 + soaked * 5;
   if (plan.targetId) {
     if (plan.killsTarget) score += 40;
-    const missionTarget = situation.me.missions.some(
-      (m) => !m.isCompleted && m.type === "destroy_ship" && m.targetPlayerId === plan.targetId
-    );
-    if (missionTarget) score += 15;
+    if (destroyTargetIds(situation.me).has(plan.targetId)) score += 15;
   }
   // Denial. A hit on a player one dock from the win costs them the
   // cargo and the tempo, which is worth more than the same hit on someone
@@ -72,7 +71,7 @@ function defense(plan: ActionPlan, situation: TacticalSituation): number {
   );
   if (threatened) score += shieldsPowered ? 15 : -15;
   // Heading for repairs when the hull is low is defence too.
-  if (situation.currentGoal?.missionId === "repair" && plan.followsGoal) score += 20;
+  if (situation.currentGoal?.missionId === REPAIR_GOAL_ID && plan.followsGoal) score += 20;
   return clamp(score);
 }
 

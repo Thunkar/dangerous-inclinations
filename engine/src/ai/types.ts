@@ -2,7 +2,7 @@
  * Bot AI types.
  *
  * The bot decides from a {@link GameView}: its own player record in full,
- * opponents as public information (position, hull, heat, face-up tiles and
+ * opponents as public information (position, hull, heat, face-up subsystems and
  * whatever its scans revealed). Nothing here reads a GameState.
  */
 import type { Facing, Player, PlayerAction, Position, ShipState } from "../models/game.ts";
@@ -18,30 +18,24 @@ export interface KnownWeapon {
   slotId: SubsystemId;
   type: SubsystemType;
   isBroken: boolean;
-  /** The tile holds at least the cubes it needs to fire. */
-  isPowered: boolean;
   /** Whether it could hit the bot, right now, from the opponent's position. */
   inRange: boolean;
 }
 
-/**
- * What a slot's energy cubes suggest it holds. Produced by
- * `analyzer.suspectedWeapon`, which is the only place cube counts are
- * turned into an opinion.
- */
+/** The weapon a face-down slot's energy cubes suggest it holds (`analyzer.suspectedWeapon`). */
 export interface SuspectedWeapon {
   type: SubsystemType;
   /** Damage it would do if it is that weapon. */
   damage: number;
-  /** 0-1: how much of a harmless tile the cube count also fits. */
+  /** 0-1: how much of a harmless subsystem the cube count also fits. */
   confidence: number;
 }
 
 /**
- * A face-down slot, read through the cubes sitting on it. Energy allocation
- * is public, so the number of cubes narrows down what the tile can be:
- * 4 on the forward slot is a railgun, 2 anywhere could be missiles, and an
- * unpowered slot cannot fire at all this turn.
+ * A face-down slot, read through the cubes sitting on it. The cubes are
+ * public, and using a subsystem turns it face-up, so cubes on a face-down
+ * slot were powered: 2 on a side slot may be a rack, 4 only a wall, and a
+ * dark slot may be anything.
  */
 export interface SuspectedSlot {
   slot: SlotView;
@@ -63,7 +57,7 @@ export interface OpponentDanger {
   completedMissions: number;
   /** Crates aboard: a Deliver in progress, and it ends at a station. */
   crates: number;
-  /** Data aboard: an Intercept or Survey, deliverable at any station. */
+  /** Data aboard: an Intercept's, a Survey's or a Salvage black box. */
   data: number;
   /** Stations the cargo could be going to, nearest first. Empty when the hold is. */
   predictedPlanets: string[];
@@ -73,8 +67,6 @@ export interface OpponentDanger {
   turnsToDelivery: number;
   /** Turns we think they need to win the game. */
   turnsToWin: number;
-  /** Two cards down and carrying the third: the one to stop. */
-  oneDeliveryFromWinning: boolean;
 }
 
 /**
@@ -112,13 +104,13 @@ export interface Opponent {
    * round, so this holds for the whole of the bot's turn.
    */
   safeAtBerth: boolean;
-  /** Weapon tiles the bot has seen (face-up or scanned). */
+  /** Weapon subsystems the bot has seen (face-up or scanned). */
   knownWeapons: KnownWeapon[];
-  /** Face-down tiles the bot has not seen, read through their energy cubes. */
+  /** Face-down subsystems the bot has not seen, read through their energy cubes. */
   unknownSlots: SuspectedSlot[];
   /**
    * Damage this ship's shields are expected to soak out of one turn's
-   * volley: cubes on shield tiles the bot can see, plus a fraction of the
+   * volley: cubes on shield subsystems the bot can see, plus a fraction of the
    * cubes on face-down side slots that might be shields.
    */
   shieldAbsorption: number;
@@ -142,10 +134,9 @@ export type BotGoalType =
   | "dock" // deliver, deliver data, repair: end a turn on a station
   | "survey" // end a turn on black hole ring SURVEY_RING
   | "pirate" // piracy: end a turn in a loaded ship's exact sector
-  | "tanker" // fill the tank at the black hole's fast rings
+  | "tanker" // tanker, short of fuel: scoop it up on a fast black hole ring
   | "salvage" // salvage: end a turn on a wreck's sector (it drifts like a station)
-  | "escort" // escort: end a turn in an undocked carrier's exact sector
-  | "tour"; // grand tour: be in the planet well this goal names
+  | "escort"; // escort: end a turn in an undocked carrier's exact sector
 
 /**
  * A goal derived from a mission (or from the need to repair). The bot
@@ -244,12 +235,10 @@ export interface ActionPlan {
    * spent, so a plan that banks heat is worse than an equal one that does not.
    */
   heatCarried: number;
-  /** A broken tile this plan repairs by running cold, if any. */
+  /** A broken subsystem this plan repairs by running cold, if any. */
   repairs?: SubsystemId;
   /** Reaction mass spent. */
   massSpent: number;
-  /** The plan leaves a station berth (only a burn can). */
-  castsOff: boolean;
   /** Whether the plan finishes a mission step (dock, survey, salvage, mark, scan, kill). */
   completesStep: boolean;
   /**
@@ -274,7 +263,8 @@ export interface ScoredActionPlan extends ActionPlan {
 }
 
 /**
- * Bot decision-making parameters (tuned per difficulty).
+ * Bot decision-making parameters. The defaults are what every bot plays with;
+ * the simulator's `--bot=` flag overrides them for an experiment.
  */
 export interface BotParameters {
   /** 0-1: weight of dealing damage versus mission progress and safety. */
@@ -287,7 +277,7 @@ export interface BotParameters {
   lowFuelThreshold: number;
   /** Hold missiles unless the shot is likely to land or matters for a mission. */
   conserveAmmo: boolean;
-  /** Spend heat and energy on scanning unknown enemy tiles when adjacent. */
+  /** Spend heat and energy on scanning unknown enemy subsystems when adjacent. */
   scanUnknowns: boolean;
 }
 

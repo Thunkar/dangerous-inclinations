@@ -11,8 +11,8 @@
  * | Public fact                  | What it says                                   |
  * |------------------------------|------------------------------------------------|
  * | `completedMissionCount` = 2  | one card from the win, whichever card it is    |
- * | `cargoAboard.crates` > 0     | a Deliver is in progress; it ends at a station  |
- * | `cargoAboard.data` > 0       | Intercept or Survey data, deliverable at any station |
+ * | `cargoAboard.crates` > 0     | a Deliver crate or Piracy loot; it ends at a station |
+ * | `cargoAboard.data` > 0       | Intercept, Survey or Salvage data; it ends at a station |
  * | the well they are in         | a crate cannot be delivered where it was loaded |
  *
  * Stations sit on planet ring 2 and drift 4 sectors a round, and the lanes
@@ -31,6 +31,7 @@ import type {
   ShipState,
   Station,
   TransferArc,
+  TransferLane,
 } from "../../models/game.ts";
 import type { Subsystem } from "../../models/subsystems.ts";
 import { MISSION_POINTS } from "../../models/missions.ts";
@@ -45,15 +46,12 @@ import {
   laneDepartureArc,
 } from "../../models/gravityWells.ts";
 import { forwardDistance, sectorDistance } from "../../game/geometry.ts";
-import { getStationForPlanet } from "../../game/stations.ts";
+import { getStationForPlanet, stationPosition } from "../../game/stations.ts";
 import type { PlayerView } from "../../game/view.ts";
 import type { OpponentDanger } from "../types.ts";
 import type { MovementPlan, PlannerTarget } from "../movementPlanner/index.ts";
 import { nearDriftingShip, planFromShip, planShipToTarget } from "../movementPlanner/index.ts";
 import { weaponRangeTarget } from "./combat.ts";
-
-/** The thresholds live with the types so combat scoring can read them too. */
-export { CRITICAL_DANGER, INTERDICT_DANGER } from "../types.ts";
 
 // ---------------------------------------------------------------------------
 // Cheap distances
@@ -61,6 +59,14 @@ export { CRITICAL_DANGER, INTERDICT_DANGER } from "../types.ts";
 
 /** Average sectors per turn used by the cheap estimate. */
 const AVERAGE_VELOCITY = 3;
+
+/** A planet's lane in one direction: outbound from the black hole, or inbound back to it. */
+export function planetLane(
+  planetId: string,
+  direction: TransferLane["direction"]
+): TransferLane | undefined {
+  return TRANSFER_LANES.find((l) => l.planetId === planetId && l.direction === direction);
+}
 
 interface PlanetLanes {
   /** Black hole ring 5 arc the jump *to* this planet leaves from. */
@@ -74,8 +80,8 @@ interface PlanetLanes {
 /** The two doors of every planet, read off the lane table once. */
 const PLANET_LANES: Record<string, PlanetLanes> = {};
 for (const planet of PLANETS) {
-  const out = TRANSFER_LANES.find((l) => l.planetId === planet.id && l.direction === "outbound");
-  const back = TRANSFER_LANES.find((l) => l.planetId === planet.id && l.direction === "inbound");
+  const out = planetLane(planet.id, "outbound");
+  const back = planetLane(planet.id, "inbound");
   if (!out || !back) continue;
   PLANET_LANES[planet.id] = {
     departure: laneDepartureArc(out),
@@ -142,7 +148,7 @@ export function cheapTurnEstimate(from: Position, to: Position): number {
 
 export function stationPositionFor(stations: Station[], planetId: string): Position | null {
   const station = getStationForPlanet(stations, planetId);
-  return station ? { wellId: station.planetId, ring: station.ring, sector: station.sector } : null;
+  return station ? stationPosition(station) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +156,7 @@ export function stationPositionFor(stations: Station[], planetId: string): Posit
 // ---------------------------------------------------------------------------
 
 /** Turns a player typically needs for one card, start to finish (sim median). */
-export const TYPICAL_MISSION_TURNS = 12;
+const TYPICAL_MISSION_TURNS = 12;
 /**
  * Points a card in progress is assumed to be worth. Every card but Survey
  * scores two, so counting cards by points rather than one-a-piece is what
@@ -158,9 +164,9 @@ export const TYPICAL_MISSION_TURNS = 12;
  */
 const POINTS_PER_CARD = Math.max(...Object.values(MISSION_POINTS));
 /** Turns of a delivery run left after a pickup, for a player not carrying yet. */
-export const PICKUP_TO_DELIVERY_TURNS = 8;
+const PICKUP_TO_DELIVERY_TURNS = 8;
 /** A turns-to-win of this many turns or more reads as no danger at all. */
-export const DANGER_HORIZON = 30;
+const DANGER_HORIZON = 30;
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
@@ -251,8 +257,6 @@ export function assessDanger(
     deliveryPosition,
     turnsToDelivery,
     turnsToWin,
-    // One dock from the win: what is in the hold finishes the game.
-    oneDeliveryFromWinning: completed + POINTS_PER_CARD >= pointsToWin && carrying,
   };
 }
 
@@ -266,11 +270,8 @@ export function assessDanger(
  * on its outer ring, the only door into the well.
  */
 export function laneArrivalTarget(planetId: string): PlannerTarget {
-  const sectors = new Set<number>();
-  for (const lane of TRANSFER_LANES) {
-    if (lane.planetId !== planetId || lane.direction !== "outbound") continue;
-    for (const sector of arcSectors(lane.planetArc)) sectors.add(sector);
-  }
+  const lane = planetLane(planetId, "outbound");
+  const sectors = new Set<number>(lane ? arcSectors(lane.planetArc) : []);
   const first = [...sectors].sort((a, b) => a - b)[0] ?? 0;
   return {
     positionAt: () => ({ wellId: planetId, ring: PLANET_OUTER_RING, sector: first }),

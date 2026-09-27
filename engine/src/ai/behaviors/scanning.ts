@@ -1,46 +1,39 @@
 /**
- * Scans. A scan needs a powered, unused sensor array and a target on the
- * bot's ring within SCAN_SECTOR_RANGE sectors. It acquires the transmission
- * for an Intercept mission on that target and reveals one of their
- * face-down tiles to the bot.
+ * Scans. A scan needs an unbroken sensor array that has done nothing else
+ * this turn (the scan powers it) and a target on the bot's ring within
+ * SCAN_SECTOR_RANGE sectors. It acquires the transmission for an Intercept
+ * mission on that target and reveals one of their face-down subsystems to the
+ * bot.
  */
 import type { Position } from "../../models/game.ts";
 import { isQuietTurn } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
-import { SCAN_SECTOR_RANGE } from "../../models/missions.ts";
-import { sectorDistance } from "../../game/geometry.ts";
+import { inScanRange } from "../../game/scan.ts";
 import type { BotParameters, Opponent, TacticalSituation } from "../types.ts";
 import type { FiringPhase } from "./combat.ts";
+import { interceptTargetIds } from "./missions.ts";
 
 export interface ScanIntent {
   sensor: Subsystem;
   targetId: string;
   peekSlot: SubsystemId;
   phase: FiringPhase;
+  /** The sensor's cubes, and so the scan's heat. */
   heat: number;
-  energy: number;
   /** The scan acquires an Intercept transmission. */
   forMission: boolean;
 }
 
-export function canScanFrom(from: Position, target: Position): boolean {
-  return (
-    from.wellId === target.wellId &&
-    from.ring === target.ring &&
-    sectorDistance(from.sector, target.sector) <= SCAN_SECTOR_RANGE
-  );
-}
-
 /**
- * Slot to look at: a **dark** face-down tile first, and the bow before a side.
+ * Slot to look at: a **dark** face-down subsystem first, and the bow before a side.
  *
  * The cubes read a loaded slot most of the way already (a face-down slot with
  * cubes was powered, so it is a wall, a rack or a sensor), so paying a scan
  * for one buys the last quarter of an answer. A dark slot is where every
  * unfired gun on the board sits, and a dark bow is the widest unknown there
  * is: a railgun, a launcher, a compressor or a sensor that is not powered. Failing that, any face-down
- * one, else the first slot, since a scan of a known tile is still legal and
+ * one, else the first slot, since a scan of a known subsystem is still legal and
  * still acquires an Intercept transmission.
  */
 export function choosePeekSlot(target: Opponent): SubsystemId {
@@ -69,15 +62,9 @@ export function scanOption(
   if (isQuietTurn(situation.view.turn, situation.me)) return null;
   const sensor = situation.status.sensors.find((s) => !s.isBroken && !s.usedThisTurn);
   if (!sensor) return null;
-  const energy = getSubsystemConfig("sensor_array").minEnergy;
+  const heat = getSubsystemConfig("sensor_array").minEnergy;
 
-  const interceptTargets = new Set(
-    situation.me.missions.flatMap((m) =>
-      m.type === "intercept_transmission" && !m.isCompleted && !m.scanAcquired
-        ? [m.targetPlayerId]
-        : []
-    )
-  );
+  const interceptTargets = interceptTargetIds(situation.me);
 
   let best: ScanIntent | null = null;
   for (const opponent of situation.opponents) {
@@ -85,9 +72,9 @@ export function scanOption(
     // Untouchable until their returning turn is over: the engine refuses the
     // scan (RULES §Destruction and Respawn).
     if (opponent.recovering) continue;
-    const phase: FiringPhase | null = canScanFrom(post, opponent.position)
+    const phase: FiringPhase | null = inScanRange(post, opponent.position)
       ? "post"
-      : canScanFrom(pre, opponent.position)
+      : inScanRange(pre, opponent.position)
         ? "pre"
         : null;
     if (!phase) continue;
@@ -98,8 +85,7 @@ export function scanOption(
       targetId: opponent.player.id,
       peekSlot: choosePeekSlot(opponent),
       phase,
-      heat: energy,
-      energy,
+      heat,
       forMission,
     };
     if (!best || (intent.forMission && !best.forMission)) best = intent;

@@ -12,13 +12,9 @@ import {
   calculateJumpMassCost,
   getAdjustmentRange,
 } from "../../models/rings.ts";
-import {
-  findJump,
-  getJumpAdjustmentRange,
-  getMaxRing,
-  phasedJumpDestination,
-} from "../../models/gravityWells.ts";
+import { findJump, getJumpAdjustmentRange, phasedJumpDestination } from "../../models/gravityWells.ts";
 import { ringVelocity } from "../../game/geometry.ts";
+import { ringAfter } from "../../game/movement.ts";
 import type { MovementPreview } from "../../game/movement.ts";
 import type { MovementPlan } from "../movementPlanner/index.ts";
 import { getFirstAction } from "../movementPlanner/index.ts";
@@ -65,8 +61,7 @@ export function coastChoice(wantsScoop: boolean): MovementChoice {
 export function castOffChoice(ship: ShipState, status: BotStatus): MovementChoice | null {
   if (!burnIsValid(ship, status, "soft", 0)) return null;
   for (const facing of ["prograde", "retrograde"] as const) {
-    const ring = ship.ring + (facing === "prograde" ? 1 : -1);
-    if (ring < 1 || ring > getMaxRing(ship.wellId)) continue;
+    if (ringAfter({ ...ship, facing }, BURN_COSTS.soft.rings) === null) continue;
     if (facing !== ship.facing && (status.rotation.isBroken || status.rotation.usedThisTurn))
       continue;
     return {
@@ -86,7 +81,7 @@ export function castOffChoice(ship: ShipState, status: BotStatus): MovementChoic
 /**
  * Whether a burn from `ship` (current ring) is legal for the engine.
  */
-export function burnIsValid(
+function burnIsValid(
   ship: ShipState,
   status: BotStatus,
   intensity: BurnIntensity,
@@ -98,7 +93,7 @@ export function burnIsValid(
   return ship.reactionMass >= calculateBurnMassCost(BURN_COSTS[intensity].mass, adjustment);
 }
 
-export function jumpIsValid(
+function jumpIsValid(
   ship: ShipState,
   status: BotStatus,
   destinationWellId: string,
