@@ -15,7 +15,7 @@ import type { GameRecording, RecordedTurn, RecordingMetadata } from "../recordin
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
 import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
-import type { RuleOverrides } from "./ruleOverrides.ts";
+import { applyRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import { applyBotOverrides, type BotOverrides } from "./botOverrides.ts";
 import {
   applyLoadoutOverrides,
@@ -214,6 +214,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
   applyTileOverrides(config.tiles);
+  applyRuleOverrides(config.rules);
   applyBotOverrides(config.bots);
   applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;

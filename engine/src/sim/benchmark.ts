@@ -59,7 +59,12 @@ import {
   parseTileOverrides,
   type TileOverrides,
 } from "./tileOverrides.ts";
-import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
+import {
+  applyRuleOverrides,
+  describeRuleOverrides,
+  parseRuleOverrides,
+  type RuleOverrides,
+} from "./ruleOverrides.ts";
 import {
   applyBotOverrides,
   describeBotOverrides,
@@ -483,6 +488,7 @@ async function main() {
   // games get the same overrides with every job.
   applyBotOverrides(args.bot);
   applyTileOverrides(args.tiles);
+  applyRuleOverrides(args.rules);
   const rows: SeatRow[] = [];
   const batches: BatchResult[] = [];
 

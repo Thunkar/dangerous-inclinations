@@ -42,7 +42,7 @@ import type {
   Mission,
   Cargo,
 } from "../models/missions.ts";
-import { DEFAULT_POINTS_TO_WIN, type DockJob } from "../models/missions.ts";
+import { DEFAULT_POINTS_TO_WIN, type DockChoice } from "../models/missions.ts";
 import { createInitialShipState, updateSubsystem } from "../game/ship.ts";
 import { createInitialStations, getStationForPlanet } from "../game/stations.ts";
 import { PLANET_OUTER_RING } from "../models/gravityWells.ts";
@@ -77,6 +77,7 @@ export function makePlayer(
     hasSubmittedLoadout: true,
     home: { wellId: BH, ring: 4, sector: 0 },
     recovering: false,
+    soldAt: [],
     intel: {},
     ...overrides,
     ...(overrides.ship ? { ship: { ...ship, ...overrides.ship } } : {}),
@@ -346,10 +347,15 @@ export const takenData = (mission: InterceptTransmissionMission | SurveyMission)
   isPickedUp: true,
 });
 
-/** What a station reads off an arriving ship: its hold, its hand and its tank. */
+/** What a station reads off an arriving ship: its hold, its hand, its tank and where it has sold. */
 export function dockingShip(state: GameState, playerId: string) {
   const p = getPlayer(state, playerId);
-  return { cargo: p.cargo, missions: p.missions, reactionMass: p.ship.reactionMass };
+  return {
+    cargo: p.cargo,
+    missions: p.missions,
+    reactionMass: p.ship.reactionMass,
+    soldAt: p.soldAt,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -406,9 +412,9 @@ export const repair = (subsystemId: SubsystemId): Draft<RepairAction> => ({
   data: { subsystemId },
 });
 /** Name the job a visit does if the turn arrives at a station (no sequence either). */
-export const dockJob = (job: DockJob): Draft<DockJobAction> => ({
+export const dockJob = (job: DockChoice, cargoId?: string): Draft<DockJobAction> => ({
   type: "dock_job",
-  data: { job },
+  data: cargoId === undefined ? { job } : { job, cargoId },
 });
 /** Put an Escort marker on a carrier if the turn ends in its sector (no sequence either). */
 export const escortMark = (carrierId: string): Draft<EscortMarkAction> => ({

@@ -15,8 +15,10 @@ import type { GameEvent } from "../models/events.ts";
  *     `heat_check`; the radiator's reveal reason is `shed_heat`;
  *     `missile_intercepted` has no heat and a missile's `attack_resolved` names
  *     it; a kill removes loot instead of leaving it un-picked.
+ * v8: `Player.soldAt`; `dock_job` may name the item sold (`cargoId`) and, under
+ *     the one-sale experiment, "none".
  */
-export const RECORDING_SCHEMA_VERSION = 7;
+export const RECORDING_SCHEMA_VERSION = 8;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

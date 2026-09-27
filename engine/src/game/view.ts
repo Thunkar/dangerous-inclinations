@@ -106,6 +106,11 @@ export interface PlayerView {
    * hand.
    */
   escortedBy: string[];
+  /**
+   * Planets whose station this player has sold at (the one-sale experiment,
+   * `SALE_RULES`). Public: a marker on the station.
+   */
+  soldAt: string[];
 }
 
 interface OwnShipStats {
@@ -216,6 +221,7 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     cargoCount: aboard(player.cargo).length,
     points: player.points,
     completedMissions: completedMissions(player),
+    soldAt: [...player.soldAt],
     escortedBy: state.players
       .filter((p) =>
         p.missions.some(

@@ -115,7 +115,8 @@ function planOf(player: Player, actions: PlayerAction[]): Plan {
         extras.repair = action.data.subsystemId
         break
       case 'dock_job':
-        extras.dockJob = action.data.job
+        // "none" belongs to the one-sale experiment, which the table never plays.
+        if (action.data.job !== 'none') extras.dockJob = action.data.job
         break
       case 'escort_mark':
         extras.escorts = [...extras.escorts, action.data.carrierId]

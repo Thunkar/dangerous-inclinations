@@ -19,12 +19,20 @@
  * repair shop for anyone content to park in one. A visit is an event now: the
  * berth afterwards is worth the ride the station gives you and the fuel your
  * scoop skims, and nothing else. Come back for more and it is a trip.
+ *
+ * Experiment only (`SALE_RULES.oneSalePerStation`, off at every table): a
+ * station buys one item from each player, once. A visit to a station the
+ * player has not sold at makes at most one sale, one crate delivered, one
+ * piece of data filed or a Tanker's fuel pumped, and a station they have sold
+ * at buys nothing more. Loading a crate is not a sale and happens on every
+ * visit the hold has room for.
  */
 import type { GameState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import type { Cargo, DockJob, Mission } from "../models/missions.ts";
+import type { Cargo, DockChoice, DockJob, Mission } from "../models/missions.ts";
 import {
   CARGO_HOLD_CRATES,
+  SALE_RULES,
   TANKER_FUEL,
   aboard,
   missionPoints,
@@ -38,12 +46,22 @@ interface DockingShip {
   cargo: readonly Cargo[];
   missions: readonly Mission[];
   reactionMass: number;
+  /** Planets whose station this player has sold at (the one-sale experiment). */
+  soldAt?: readonly string[];
 }
 
 interface DockJobOption {
   job: DockJob;
   /** Mission points the job completes on this visit. Loading a crate scores nothing. */
   points: number;
+  /** Under the one-sale experiment: the one item this sale hands in (none for fuel). */
+  cargoId?: string;
+}
+
+/** What a `dock_job` action names. */
+export interface DockNaming {
+  job: DockChoice;
+  cargoId?: string;
 }
 
 export interface DockJobs {
@@ -115,18 +133,79 @@ function jobsFor(work: VisitWork, missions: readonly Mission[]): DockJobs {
 }
 
 /**
+ * One-sale experiment: every item the visit could sell, one option each, in
+ * {@link DOCK_JOBS} order and then the order carried. None at a station the
+ * player has sold at.
+ */
+function salesFor(work: VisitWork, missions: readonly Mission[], soldHere: boolean): DockJobs {
+  if (soldHere) return { jobs: [], default: null };
+  const jobs: DockJobOption[] = [
+    ...work.unloaded.map((c) => ({ job: "crates" as const, points: pointsFor([c], missions), cargoId: c.id })),
+    ...work.filed.map((c) => ({ job: "data" as const, points: pointsFor([c], missions), cargoId: c.id })),
+    ...(work.pumps ? [{ job: "fuel" as const, points: missionPoints("tanker") }] : []),
+  ];
+  return { jobs, default: bestOf(jobs)?.job ?? null };
+}
+
+/** The option scoring most, the first of equals. */
+function bestOf(options: readonly DockJobOption[]): DockJobOption | null {
+  let best: DockJobOption | null = null;
+  for (const option of options) if (!best || option.points > best.points) best = option;
+  return best;
+}
+
+/**
  * The jobs a visit to `planetId`'s station would offer a ship arriving with
  * this hold, hand and tank, with what each scores and the one done by default.
- * Pure: the referee docks by it and the table previews the choice with it.
+ * Under the one-sale experiment each option is one item and loading is not an
+ * option (see {@link cratesLoadedOnArrival}). Pure: the referee docks by it
+ * and the table previews the choice with it.
  */
 export function dockJobsOnArrival(ship: DockingShip, planetId: string): DockJobs {
-  return jobsFor(visitWork(ship, planetId), ship.missions);
+  const work = visitWork(ship, planetId);
+  if (SALE_RULES.oneSalePerStation)
+    return salesFor(work, ship.missions, (ship.soldAt ?? []).includes(planetId));
+  return jobsFor(work, ship.missions);
+}
+
+/**
+ * One-sale experiment: the crates a visit loads if it sells no crate. Loading
+ * is not a sale, so this is the pickup a sold-at station still gives.
+ */
+export function cratesLoadedOnArrival(ship: DockingShip, planetId: string): number {
+  return loadedAfterSale(ship.cargo, planetId, null).length;
 }
 
 /** The job the visit does: the one named, if the visit can do it, or the default. */
 export function chosenDockJob(offer: DockJobs, named?: DockJob): DockJob | null {
   if (named && offer.jobs.some((o) => o.job === named)) return named;
   return offer.default;
+}
+
+/**
+ * One-sale experiment: the item the visit sells. "none" sells nothing; a
+ * named job sells the named item if it is one of the job's, else the job's
+ * best; a job the visit cannot do, or no name, gets the default.
+ */
+export function chosenSale(offer: DockJobs, named?: DockNaming): DockJobOption | null {
+  if (named?.job === "none") return null;
+  const ofJob = named ? offer.jobs.filter((o) => o.job === named.job) : [];
+  if (ofJob.length > 0) return ofJob.find((o) => o.cargoId === named?.cargoId) ?? bestOf(ofJob);
+  return bestOf(offer.jobs);
+}
+
+/** Crates waiting at `planetId` that the hold has room for once `sold` is off it. */
+function loadedAfterSale(cargo: readonly Cargo[], planetId: string, sold: Cargo | null): Cargo[] {
+  const crates = aboard(cargo).filter((c) => c.kind === "crate" && c !== sold).length;
+  let room = CARGO_HOLD_CRATES - crates;
+  const loaded: Cargo[] = [];
+  for (const item of cargo) {
+    if (item.isPickedUp || item.kind !== "crate" || room <= 0) continue;
+    if (item.pickupPlanetId !== planetId) continue;
+    loaded.push(item);
+    room--;
+  }
+  return loaded;
 }
 
 interface DockingResult {
@@ -146,7 +225,7 @@ export function processDocking(
   state: GameState,
   playerIndex: number,
   arriving = true,
-  named?: DockJob
+  named?: DockNaming
 ): DockingResult {
   const player = state.players[playerIndex];
   if (isDestroyed(player.ship)) return { state, events: [] };
@@ -161,7 +240,9 @@ export function processDocking(
     reactionMass: player.ship.reactionMass,
   };
   const work = visitWork(shipOnArrival, planetId);
-  const job = chosenDockJob(jobsFor(work, player.missions), named);
+  if (SALE_RULES.oneSalePerStation) return dockForOneSale(state, playerIndex, planetId, work, named);
+  // Validation refuses "none" while the experiment is off.
+  const job = chosenDockJob(jobsFor(work, player.missions), named?.job as DockJob | undefined);
   const events: EventDraft[] = [];
 
   const cargo = cargoAfter(player.cargo, work, job);
@@ -188,6 +269,22 @@ export function processDocking(
     }
   }
 
+  const ship = serviced(player, planetId, job, events);
+  const players = [...state.players];
+  players[playerIndex] = { ...player, ship, cargo };
+  return { state: { ...state, players }, events, planetId };
+}
+
+/**
+ * What every visit does whatever it sells: repairs, a reload and full hull,
+ * then the `docked` event, and the Tanker's fuel if that is the job.
+ */
+function serviced(
+  player: GameState["players"][number],
+  planetId: string,
+  job: DockJob | null,
+  events: EventDraft[]
+): GameState["players"][number]["ship"] {
   // Repairs, whatever the job.
   const repaired = repairAllSubsystems(player.ship);
   const reloaded = reloadMissiles(repaired.ship);
@@ -212,9 +309,53 @@ export function processDocking(
     ship = { ...ship, reactionMass: ship.reactionMass - TANKER_FUEL };
     events.push({ type: "fuel_pumped", playerId: player.id, amount: TANKER_FUEL, planetId });
   }
+  return ship;
+}
 
+/**
+ * One-sale experiment: at most one item sold, and only at a station this
+ * player has not sold at; the sale marks the station. Then whatever crate
+ * waits here loads if the hold has room, sale or no sale.
+ */
+function dockForOneSale(
+  state: GameState,
+  playerIndex: number,
+  planetId: string,
+  work: VisitWork,
+  named?: DockNaming
+): DockingResult {
+  const player = state.players[playerIndex];
+  const sale = chosenSale(salesFor(work, player.missions, player.soldAt.includes(planetId)), named);
+  const sold = sale?.cargoId ? (player.cargo.find((c) => c.id === sale.cargoId) ?? null) : null;
+  const loaded = loadedAfterSale(player.cargo, planetId, sold);
+  const events: EventDraft[] = [];
+
+  if (sold) {
+    events.push({
+      type: "cargo_delivered",
+      playerId: player.id,
+      cargoId: sold.id,
+      kind: sold.kind,
+      planetId,
+    });
+  }
+  for (const item of loaded) {
+    events.push({
+      type: "cargo_picked_up",
+      playerId: player.id,
+      cargoId: item.id,
+      kind: item.kind,
+      planetId,
+    });
+  }
+  const cargo = player.cargo
+    .filter((c) => c !== sold)
+    .map((c) => (loaded.includes(c) ? { ...c, isPickedUp: true } : c));
+
+  const ship = serviced(player, planetId, sale?.job ?? null, events);
+  const soldAt = sale ? [...player.soldAt, planetId] : player.soldAt;
   const players = [...state.players];
-  players[playerIndex] = { ...player, ship, cargo };
+  players[playerIndex] = { ...player, ship, cargo, soldAt };
   return { state: { ...state, players }, events, planetId };
 }
 

@@ -5,7 +5,7 @@ import type {
   SubsystemType,
   HeatState,
 } from "./subsystems.ts";
-import type { Mission, Cargo, DockJob } from "./missions.ts";
+import type { Mission, Cargo, DockChoice } from "./missions.ts";
 
 /**
  * Ship loadout: one forward slot and four side slots.
@@ -287,7 +287,12 @@ export interface RepairAction extends BaseAction {
  */
 export interface DockJobAction extends BaseAction {
   type: "dock_job";
-  data: { job: DockJob };
+  /**
+   * `cargoId` names the item sold when the one-sale experiment is on
+   * (`SALE_RULES`) and the job could sell more than one; it is ignored
+   * otherwise. "none" is refused unless that experiment is on.
+   */
+  data: { job: DockChoice; cargoId?: string };
 }
 
 /**
@@ -378,6 +383,12 @@ export interface Player {
    * and Respawn).
    */
   recovering: boolean;
+  /**
+   * Planets whose station this player has sold at. Only filled under the
+   * one-sale experiment (`SALE_RULES`), where such a station buys nothing more
+   * from them. Public: a marker on the station.
+   */
+  soldAt: string[];
   /**
    * Face-down slots of other players this player has seen through scans.
    * Private knowledge; the table only sees face-up tiles.

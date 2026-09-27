@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createInitialStations, getStationForPlanet, isMooredAt } from "../../game/stations.ts";
 import { dockJobsOnArrival } from "../../game/docking.ts";
+import { viewFor } from "../../game/view.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import type { Cargo, DockJob, Mission } from "../../models/missions.ts";
 import { STATION_RING } from "../../models/gravityWells.ts";
-import { CARGO_HOLD_CRATES, MISSION_POINTS, TANKER_FUEL } from "../../models/missions.ts";
+import { CARGO_HOLD_CRATES, MISSION_POINTS, SALE_RULES, TANKER_FUEL } from "../../models/missions.ts";
 import {
   ALPHA,
   BETA,
@@ -563,5 +564,149 @@ describe("docking: the default job", () => {
     expect(offer.default).toBe(expected);
     // And the referee docks by the same answer.
     expect(eventsOf(arrive(state).events, "docked")[0].job).toBe(expected);
+  });
+});
+
+// --- Experiment: a station buys one item from you, once ---------------------
+
+/** p1 one coast short of `planet`'s station with this hand, hold, tank and sales record. */
+function revisit(planet: string, from: GameState): GameState {
+  const p1 = getPlayer(from, "p1");
+  const state = withPlayer(approaching(planet), "p1", {
+    missions: p1.missions,
+    cargo: p1.cargo,
+    soldAt: p1.soldAt,
+    points: p1.points,
+  });
+  return withShip(state, "p1", { reactionMass: p1.ship.reactionMass });
+}
+
+describe("docking: one sale per station (experiment)", () => {
+  beforeEach(() => {
+    SALE_RULES.oneSalePerStation = true;
+  });
+  afterEach(() => {
+    SALE_RULES.oneSalePerStation = false;
+  });
+
+  const [deliver, deliverCrate] = deliverCard(BETA, ALPHA, true);
+  const [survey, surveyItem] = surveyCard();
+
+  it("a sale is one item and marks the station for this player, publicly", () => {
+    const result = arrive(visit(ALPHA, [[deliver, deliverCrate], [survey, surveyItem], TANKER]));
+    expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual([deliverCrate.id]);
+    expect(eventsOf(result.events, "fuel_pumped")).toEqual([]);
+    expect(aboard(result.gameState, surveyItem.id)).toBe(true);
+    expect(getPlayer(result.gameState, "p1").soldAt).toEqual([ALPHA]);
+    expect(viewFor(result.gameState, "p2").players.find((p) => p.id === "p1")!.soldAt).toEqual([ALPHA]);
+  });
+
+  it("fuel sold at a station, it buys no cargo from that player on the next visit", () => {
+    const first = arrive(visit(ALPHA, [[deliver, deliverCrate], TANKER]), "fuel");
+    expect(eventsOf(first.events, "fuel_pumped")).toHaveLength(1);
+    const again = arrive(revisit(ALPHA, first.gameState), "crates");
+    expect(again.errors).toBeUndefined();
+    expect(eventsOf(again.events, "cargo_delivered")).toEqual([]);
+    expect(eventsOf(again.events, "docked")[0].job).toBeNull();
+    expect(aboard(again.gameState, deliverCrate.id)).toBe(true);
+    expect(getPlayer(again.gameState, "p1").points).toBe(MISSION_POINTS.tanker);
+  });
+
+  it.each<[DockJob, Array<[Mission, Cargo | null]>]>([
+    ["crates", [[deliver, deliverCrate]]],
+    ["data", [[survey, surveyItem]]],
+    ["fuel", [TANKER]],
+  ])("a station sold at buys nothing more, %s included", (job, cards) => {
+    const state = withPlayer(visit(ALPHA, cards), "p1", { soldAt: [ALPHA] });
+    expect(dockJobsOnArrival(dockingShip(state, "p1"), ALPHA)).toEqual({ jobs: [], default: null });
+    const result = arrive(state, job);
+    expect(eventsOf(result.events, "cargo_delivered")).toEqual([]);
+    expect(eventsOf(result.events, "fuel_pumped")).toEqual([]);
+    expect(getPlayer(result.gameState, "p1").points).toBe(0);
+    expect(getPlayer(result.gameState, "p1").soldAt).toEqual([ALPHA]);
+  });
+
+  it.each<[string, ReturnType<typeof dockJob>[], string]>([
+    ["the one scoring most by default", [], "intercept"],
+    ["the one named", [dockJob("data", "data-survey-1")], "survey"],
+  ])("two data aboard file one: %s", (_label, named, filed) => {
+    const [intercept, interceptItem] = interceptCard(ALPHA);
+    const state = visit(ALPHA, [[survey, surveyItem], [intercept, interceptItem]]);
+    const result = executeTurnAs(state, coast(1), ...named);
+    const sold = filed === "survey" ? surveyItem : interceptItem;
+    const kept = filed === "survey" ? interceptItem : surveyItem;
+    expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual([sold.id]);
+    expect(aboard(result.gameState, kept.id)).toBe(true);
+  });
+
+  it("loading at a station sold at still loads, and the visit still repairs", () => {
+    const [onward, onwardCrate] = deliverCard(BETA, GAMMA, false);
+    let state = withPlayer(visit(BETA, [[onward, onwardCrate]]), "p1", { soldAt: [BETA] });
+    state = withShip(state, "p1", { hitPoints: 4 });
+    state = withSub(state, "p1", "engines", { isBroken: true });
+    const result = arrive(state);
+    expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.cargoId)).toEqual([onwardCrate.id]);
+    expect(aboard(result.gameState, onwardCrate.id)).toBe(true);
+    expect(eventsOf(result.events, "docked")[0]).toMatchObject({
+      job: null,
+      hullRestored: 6,
+      repaired: ["engines"],
+    });
+  });
+
+  it("another station still buys", () => {
+    const state = withPlayer(visit(BETA, [[survey, surveyItem]]), "p1", { soldAt: [ALPHA] });
+    const result = arrive(state);
+    expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual([surveyItem.id]);
+    expect(getPlayer(result.gameState, "p1").soldAt).toEqual([ALPHA, BETA]);
+  });
+
+  it.each<[string, ReturnType<typeof dockJob>[], string[], boolean]>([
+    // named, sold, next crate loaded
+    ["the crate sold frees the hold for the next", [], ["inbound"], true],
+    ["data sold leaves the crate aboard and the next on the dock", [dockJob("data")], ["survey"], false],
+    ["naming none sells nothing, and the full hold loads nothing", [dockJob("none")], [], false],
+  ])("a chain: %s", (_label, named, sold, loadsNext) => {
+    const [inbound, inboundCrate] = deliverCard(ALPHA, BETA, true);
+    const [onward, onwardCrate] = deliverCard(BETA, GAMMA, false);
+    const ids: Record<string, string> = { inbound: inboundCrate.id, survey: surveyItem.id };
+    const state = visit(BETA, [[inbound, inboundCrate], [onward, onwardCrate], [survey, surveyItem]]);
+    const result = executeTurnAs(state, coast(1), ...named);
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual(sold.map((k) => ids[k]));
+    expect(aboard(result.gameState, onwardCrate.id)).toBe(loadsNext);
+    expect(getPlayer(result.gameState, "p1").soldAt).toEqual(sold.length > 0 ? [BETA] : []);
+  });
+
+  it("naming none sells nothing and keeps the station unsold, and a waiting crate still loads", () => {
+    const [onward, onwardCrate] = deliverCard(ALPHA, GAMMA, false);
+    const result = executeTurnAs(
+      visit(ALPHA, [[onward, onwardCrate], [survey, surveyItem], TANKER]),
+      coast(1),
+      dockJob("none")
+    );
+    expect(eventsOf(result.events, "cargo_delivered")).toEqual([]);
+    expect(eventsOf(result.events, "fuel_pumped")).toEqual([]);
+    expect(aboard(result.gameState, onwardCrate.id)).toBe(true);
+    expect(getPlayer(result.gameState, "p1").soldAt).toEqual([]);
+  });
+});
+
+describe("docking: one sale per station, switched off", () => {
+  it("a sales record changes nothing and is not written", () => {
+    const [survey, surveyItem] = surveyCard();
+    const state = withPlayer(visit(ALPHA, [[survey, surveyItem], TANKER]), "p1", { soldAt: [ALPHA] });
+    const result = arrive(state);
+    expect(eventsOf(result.events, "docked")[0].job).toBe("data");
+    expect(getPlayer(result.gameState, "p1").soldAt).toEqual([ALPHA]);
+    const fresh = arrive(visit(ALPHA, [[survey, surveyItem]]));
+    expect(getPlayer(fresh.gameState, "p1").soldAt).toEqual([]);
+  });
+
+  it("refuses naming none", () => {
+    const state = visit(ALPHA, [surveyCard()]);
+    const result = executeTurnAs(state, coast(1), dockJob("none"));
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(state, coast(1), dockJob("data")));
   });
 });

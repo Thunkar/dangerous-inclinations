@@ -1,10 +1,15 @@
 /**
  * The simulator's rule channel: `--rules=` carries the table's points to win
- * into every game the batch creates, and nothing else.
+ * into every game the batch creates, and sets the one-sale experiment's switch.
  */
-import { describe, it, expect } from "vitest";
-import { parseRuleOverrides, type RuleOverrides } from "../../sim/ruleOverrides.ts";
-import { DEFAULT_POINTS_TO_WIN } from "../../models/missions.ts";
+import { describe, it, expect, afterEach } from "vitest";
+import {
+  applyRuleOverrides,
+  describeRuleOverrides,
+  parseRuleOverrides,
+  type RuleOverrides,
+} from "../../sim/ruleOverrides.ts";
+import { DEFAULT_POINTS_TO_WIN, SALE_RULES } from "../../models/missions.ts";
 import { checkForWinner } from "../../game/missions/missionChecks.ts";
 import { createGame } from "../../game/setup.ts";
 import { setupBotGame } from "../../sim/runGame.ts";
@@ -46,5 +51,26 @@ describe("missionsToWin", () => {
         { id: "b", name: "B" },
       ]).pointsToWin
     ).toBe(DEFAULT_POINTS_TO_WIN);
+  });
+});
+
+describe("oneSalePerStation", () => {
+  afterEach(() => {
+    SALE_RULES.oneSalePerStation = false;
+  });
+
+  it.each<[string, string, boolean]>([
+    ["1 switches it on", "oneSalePerStation=1", true],
+    ["0 leaves it off", "oneSalePerStation=0", false],
+    ["another key leaves it alone", "missionsToWin=4", false],
+  ])("%s", (_case, text, expected) => {
+    applyRuleOverrides(parseRuleOverrides(text));
+    expect(SALE_RULES.oneSalePerStation).toBe(expected);
+  });
+
+  it("is stamped on the pages", () => {
+    expect(describeRuleOverrides(parseRuleOverrides("oneSalePerStation=1"))).toBe(
+      "oneSalePerStation=1"
+    );
   });
 });

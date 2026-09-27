@@ -113,6 +113,23 @@ export const CARGO_HOLD_CRATES = 1;
 export const DOCK_JOBS = ["crates", "data", "fuel"] as const;
 export type DockJob = (typeof DOCK_JOBS)[number];
 
+/**
+ * Experiment only: "a station buys one item from you, once". Off, a visit does
+ * one job as RULES.md says. On, each player makes one sale at each station per
+ * game, a sale is one item (a crate delivered, one piece of data filed, loot
+ * sold or a Tanker's fuel pumped), and loading a crate is not a sale. Set by
+ * the simulator's `--rules=oneSalePerStation=1` (sim/ruleOverrides.ts); the
+ * server and the UI never touch it.
+ */
+export const SALE_RULES: { oneSalePerStation: boolean } = { oneSalePerStation: false };
+
+/**
+ * What a `dock_job` action may name: a job, or, under the one-sale experiment
+ * only, "none" for a visit that sells nothing (the crate waiting there still
+ * loads).
+ */
+export type DockChoice = DockJob | "none";
+
 /** Scan range for the scan action (same ring, ±sectors). */
 export const SCAN_SECTOR_RANGE = 3;
 

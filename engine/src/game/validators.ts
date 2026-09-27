@@ -41,7 +41,7 @@ import {
   calculateJumpMassCost,
 } from "../models/rings.ts";
 import { findJump, getJumpAdjustmentRange } from "../models/gravityWells.ts";
-import { DOCK_JOBS, SCAN_SECTOR_RANGE } from "../models/missions.ts";
+import { DOCK_JOBS, SALE_RULES, SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, requestedDraw } from "./ship.ts";
 import { ringAfter } from "./movement.ts";
@@ -324,8 +324,13 @@ export function validateRepairAction(state: GameState, action: RepairAction): st
  * and a job it cannot do falls back to the default (game/docking.ts).
  */
 export function validateDockJobAction(_state: GameState, action: DockJobAction): string[] {
-  if (!(DOCK_JOBS as readonly string[]).includes(action.data.job))
-    return [`A visit's job is one of ${DOCK_JOBS.join(", ")}, not ${String(action.data.job)}`];
+  // "none" (sell nothing) exists only under the one-sale experiment.
+  const jobs: readonly string[] = SALE_RULES.oneSalePerStation ? [...DOCK_JOBS, "none"] : DOCK_JOBS;
+  if (!jobs.includes(action.data.job))
+    return [`A visit's job is one of ${jobs.join(", ")}, not ${String(action.data.job)}`];
+  const cargoId = action.data.cargoId;
+  if (cargoId !== undefined && typeof cargoId !== "string")
+    return [`The item a visit sells is named by its cargo id, not ${String(cargoId)}`];
   return [];
 }
 

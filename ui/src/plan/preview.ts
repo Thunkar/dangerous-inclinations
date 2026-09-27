@@ -628,7 +628,7 @@ export function dockOfferFor(
   const station = getStationAt(view.stations, finalPosition)
   if (!station) return null
   const offer = dockJobsOnArrival(
-    { cargo: me.cargo, missions: me.missions, reactionMass: projectedFuel },
+    { cargo: me.cargo, missions: me.missions, reactionMass: projectedFuel, soldAt: me.soldAt },
     station.planetId
   )
   return offer.jobs.length > 1 ? offer : null

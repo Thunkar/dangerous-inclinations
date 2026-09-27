@@ -167,7 +167,11 @@ const DockJobActionSchema = z
   .object({
     ...base,
     type: z.literal("dock_job"),
-    data: z.object({ job: z.enum(DOCK_JOBS) }).strict(),
+    // "none" and `cargoId` belong to the one-sale experiment; the engine
+    // refuses "none" while it is off.
+    data: z
+      .object({ job: z.enum([...DOCK_JOBS, "none"]), cargoId: z.string().optional() })
+      .strict(),
   })
   .strict();
 

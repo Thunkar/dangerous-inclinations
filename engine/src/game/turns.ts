@@ -94,7 +94,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   // arrival is a visit (RULES §Stations).
   const wasMoored = isMooredAt(gameState.stations, positionOf(active.ship));
   // The job named for the visit, if any; without one the visit does the default.
-  const dockJob = actions.find((a) => a.type === "dock_job")?.data.job;
+  const dockJob = actions.find((a) => a.type === "dock_job")?.data;
   const docking = processDocking(state, activeIndex, !wasMoored, dockJob);
   state = docking.state;
   events.push(...docking.events);
