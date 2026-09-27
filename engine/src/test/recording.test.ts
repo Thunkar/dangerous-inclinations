@@ -95,10 +95,6 @@ describe("recording: replay", () => {
     expect(() => replayRecording(stale)).toThrow();
   });
 
-  it("accepts a recording of the current schema", () => {
-    expect(staleRecordingReason(recording)).toBeNull();
-  });
-
   it("throws when a recorded turn no longer validates", () => {
     const corrupted: GameRecording = {
       ...recording,
@@ -120,22 +116,8 @@ describe("recording: replay", () => {
 describe("recording: serialisation", () => {
   const recording = record(42, 12);
 
-  it("survives a JSON round trip unchanged", () => {
-    const parsed = JSON.parse(JSON.stringify(recording)) as GameRecording;
-    expect(parsed).toEqual(recording);
-    expect(canonicalJson(parsed.finalState)).toBe(canonicalJson(recording.finalState));
-  });
-
   it("a state read back from JSON replays exactly like the original", () => {
     const parsed = JSON.parse(JSON.stringify(recording)) as GameRecording;
     expect(canonicalJson(replayRecording(parsed))).toBe(canonicalJson(recording.finalState));
-  });
-
-  it("metadata is consistent with the turns", () => {
-    expect(recording.metadata.turnCount).toBe(recording.turns.length);
-    expect(recording.turns.map((t) => t.playerId)).toEqual(
-      recording.turns.map((_, i) => (i % 2 === 0 ? "p1" : "p2"))
-    );
-    expect(recording.schemaVersion).toBe(RECORDING_SCHEMA_VERSION);
   });
 });

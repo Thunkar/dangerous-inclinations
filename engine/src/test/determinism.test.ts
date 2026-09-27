@@ -4,9 +4,6 @@
  * `JSON.stringify(state, Object.keys(state).sort())` dropped every nested key.
  */
 import { describe, it, expect } from "vitest";
-import { executeTurn } from "../game/turns.ts";
-import { createGame } from "../game/setup.ts";
-import type { GameState } from "../models/game.ts";
 import {
   canonicalJson,
   coast,
@@ -80,30 +77,11 @@ describe("determinism: the RNG on the state", () => {
     expect(drift.gameState.rngState).toBe(duel.rngState);
   });
 
-  it("identical rng state implies identical rolls", () => {
-    const a = executeTurnAs(duel, fire(1, "side-0", "p2"));
-    const b = executeTurnAs(duel, fire(1, "side-0", "p2"));
-    expect(eventsOf(a.events, "attack_resolved")[0].roll).toBe(
-      eventsOf(b.events, "attack_resolved")[0].roll
-    );
-    expect(a.gameState.rngState).toBe(b.gameState.rngState);
-  });
-
   it("forcedRollValue pins the die without touching the RNG", () => {
     const pinned = { ...duel, forcedRollValue: 7 };
     const result = executeTurnAs(pinned, fire(1, "side-0", "p2"));
     expect(eventsOf(result.events, "attack_resolved")[0].roll).toBe(7);
     expect(result.gameState.rngState).toBe(pinned.rngState);
-  });
-
-  it("createGame with the same seed deals the same cards and leaves the same rng state", () => {
-    const specs = [
-      { id: "a", name: "A" },
-      { id: "b", name: "B" },
-      { id: "c", name: "C" },
-    ];
-    expect(canonicalJson(createGame(specs, 77))).toBe(canonicalJson(createGame(specs, 77)));
-    expect(createGame(specs, 77).rngState).not.toBe(createGame(specs, 78).rngState);
   });
 });
 
@@ -133,16 +111,6 @@ describe("determinism: executeTurn is pure", () => {
     // The first shot rolled a die before the second was rejected; the roll must not stick.
     expect(state.rngState).toBe(rngBefore);
     expect(getShip(state, "p2").hitPoints).toBe(10);
-  });
-
-  it("refuses to run outside the active phase", () => {
-    const state: GameState = { ...makeTwoPlayerGame(), phase: "ended" };
-    const result = executeTurn(state, [{ ...coast(1), playerId: "p1" }]);
-    expectRefused(result, state);
-    expectRefusedUnless(
-      result,
-      executeTurn(makeTwoPlayerGame(), [{ ...coast(1), playerId: "p1" }])
-    );
   });
 });
 

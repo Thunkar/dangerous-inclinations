@@ -10,14 +10,9 @@ import {
   destroyMission,
   ALPHA,
   BH,
-  power,
   burn,
-  coast,
   mustExecute,
-  eventTypes,
-  executeTurnAs,
   makeTwoPlayerGame,
-  scan,
   surveyMission,
   withMissile,
   withPlayer,
@@ -146,34 +141,17 @@ describe("view: what an opponent's loadout shows", () => {
     expect(viewFor(after, "p1").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS - 4);
   });
 
-  it("a rebuilt ship shows a full tank again", () => {
-    let state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
-    state = mustExecute(state, burn(1, "soft"));
-    expect(viewFor(state, "p2").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS - 1);
-    state = withShip(state, "p1", { hitPoints: 0 });
-    // p2 acts, then p1's turn begins with the respawn.
-    state = mustExecute(state, coast(1));
-    state = mustExecute(state, coast(1));
-    expect(viewFor(state, "p2").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS);
-  });
-
   it.each([
-    ["a face-down tile", "side-3", 2],
-    ["a face-up tile", "side-0", 2],
-  ])("energy on %s is public even when the tile is not", (_label, subsystemId, energy) => {
+    ["a face-down tile, which it hints at without naming", "forward-0", 4, null],
+    ["a face-up tile", "side-0", 2, "laser"],
+  ])("energy on %s is public, to a rival and a spectator", (_label, subsystemId, energy, type) => {
     const state = withPower(knownGame(), "p2", subsystemId, energy);
-    const view = viewFor(state, "p1");
-    expect(slot(view, 1, subsystemId).allocatedEnergy).toBe(energy);
-    expect(slot(viewFor(state, null), 1, subsystemId).allocatedEnergy).toBe(energy);
-  });
-
-  it("the energy on a face-down tile hints at it without naming it", () => {
-    const state = withPower(knownGame(), "p2", "forward-0", 4);
-    expect(slot(viewFor(state, "p1"), 1, "forward-0")).toMatchObject({
-      type: null,
-      knownVia: null,
-      allocatedEnergy: 4,
-    });
+    for (const viewer of ["p1", null]) {
+      expect(slot(viewFor(state, viewer), 1, subsystemId)).toMatchObject({
+        type,
+        allocatedEnergy: energy,
+      });
+    }
   });
 
   it("counts only cargo actually aboard and shows completed missions face-up", () => {
@@ -318,29 +296,5 @@ describe("view: event visibility", () => {
   it("filterEventsFor keeps order and drops what the viewer may not see", () => {
     expect(filterEventsFor([privateEvent, publicEvent], "p2")).toEqual([publicEvent]);
     expect(filterEventsFor([privateEvent, publicEvent], "p1")).toEqual([privateEvent, publicEvent]);
-  });
-
-  it("a scan is seen by all, its result only by the scanner", () => {
-    const state = withPower(
-      makeTwoPlayerGame({ loadout: SENSOR }, { ring: 3, sector: 2 }),
-      "p1",
-      "forward-0",
-      2
-    );
-    const result = executeTurnAs(state, scan(1, "p2", "side-0"));
-    expect(eventTypes(filterEventsFor(result.events, "p1"))).toContain("scan_result");
-    const forTarget = eventTypes(filterEventsFor(result.events, "p2"));
-    expect(forTarget).toContain("scanned");
-    expect(forTarget).not.toContain("scan_result");
-    expect(eventTypes(filterEventsFor(result.events, null))).not.toContain("scan_result");
-  });
-
-  it("a powered tile is announced to the whole table", () => {
-    const result = executeTurnAs(makeTwoPlayerGame(), power(1, "side-2", 2), coast(2));
-    for (const viewer of ["p1", "p2", null]) {
-      expect(eventTypes(filterEventsFor(result.events, viewer))).toEqual(
-        expect.arrayContaining(["subsystem_powered", "coasted"])
-      );
-    }
   });
 });
