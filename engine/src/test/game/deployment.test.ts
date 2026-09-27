@@ -52,13 +52,12 @@ const SPECS = [
   { id: "p2", name: "Bo" },
 ];
 
-/** A legal hand: one primary, and two secondaries of different kinds. */
+/** A legal hand: one primary, and any two secondaries. */
 const pickHand = (state: GameState, playerId: string) => {
   const offers = getPlayer(state, playerId).missionOffers;
   const primary = offers.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER);
-  const seen = new Set<string>();
   const secondaries = offers
-    .filter((m) => !isPrimaryType(m.type) && !seen.has(m.type) && seen.add(m.type))
+    .filter((m) => !isPrimaryType(m.type))
     .slice(0, SECONDARIES_PER_PLAYER);
   return [...primary, ...secondaries].map((m) => m.id);
 };
@@ -110,6 +109,7 @@ describe("setup: createGame", () => {
       activePlayerIndex: 0,
       rngSeed: 99,
       missiles: [],
+      wrecks: [],
     });
     expect(state.stations).toHaveLength(3);
     for (const p of state.players) {

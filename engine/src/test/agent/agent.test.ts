@@ -10,7 +10,20 @@ import {
 } from "../../agent/index.ts";
 import { botDecideActions } from "../../ai/index.ts";
 import type { DockJob } from "../../models/missions.ts";
-import { ALPHA, BH, eventsOf, makeTwoPlayerGame, withPower, getShip } from "../testUtils.ts";
+import {
+  ALPHA,
+  BETA,
+  BH,
+  deliverMission,
+  escortMission,
+  eventsOf,
+  getPlayer,
+  makeTwoPlayerGame,
+  withMissions,
+  withPlayer,
+  withPower,
+  getShip,
+} from "../testUtils.ts";
 
 describe("agent seat tooling", () => {
   const start = () =>
@@ -98,6 +111,43 @@ describe("agent seat tooling", () => {
     );
     expect(built.notes).toHaveLength(notes);
     expect(executeTurn(start(), built.actions).errors).toBeUndefined();
+  });
+
+  /** p1 holds an Escort and drifts from S0 onto S4, where p2 sits with a crate aboard. */
+  const escortTable = (withCard = true) => {
+    let state = makeTwoPlayerGame(
+      { wellId: BH, ring: 3, sector: 0 },
+      { wellId: BH, ring: 3, sector: 4 }
+    );
+    if (withCard) state = withMissions(state, "p1", [escortMission()]);
+    state = withMissions(state, "p2", [deliverMission(ALPHA, BETA)]);
+    return withPlayer(state, "p2", {
+      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+    });
+  };
+
+  it.each([
+    ["with an Escort in hand", true, { markersInHand: 1, carriersAfterCoast: ["p2"] }],
+    ["without one", false, null],
+  ])("offers the Escort choice after a coast %s", (_label, withCard, expected) => {
+    expect(seatOptions(viewFor(escortTable(withCard), "p1")).escort).toEqual(expected);
+  });
+
+  it.each<[string, string[], string[], number]>([
+    ["a carrier", ["p2"], ["p2"], 0],
+    ["the same carrier twice", ["p2", "p2"], ["p2"], 1],
+    ["its own ship", ["p1"], [], 1],
+    ["a player not at the table", ["p9"], [], 1],
+  ])("builds escort_mark actions from %s", (_label, escort, expected, notes) => {
+    const state = escortTable();
+    const built = buildTurn(viewFor(state, "p1"), { escort });
+    expect(
+      built.actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []))
+    ).toEqual(expected);
+    expect(built.notes).toHaveLength(notes);
+    const result = executeTurn(state, built.actions);
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "escort_marked").map((e) => e.carrierId)).toEqual(expected);
   });
 
   it("places no cubes for a burn: the action powers the engines", () => {

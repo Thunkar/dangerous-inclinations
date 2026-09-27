@@ -309,6 +309,79 @@ export function crowdOffset(crowd: { index: number; count: number }): number {
   return (crowd.index - (crowd.count - 1) / 2) * CROWD_STEP
 }
 
+/**
+ * Where the wrecks in a sector stand, so that neither the ships nor each other
+ * are covered.
+ *
+ * Wrecks take a band of their own rather than a place in the ships' spread:
+ * adding them to it would move the ships, and a ship moored under a station
+ * must stay under its deck (a ship destroyed at a berth leaves its wreck there,
+ * and the wreck drifts at the station's own speed, so it never leaves). The
+ * band is outward, because the sector numbers print on the inside of the ring:
+ * on the ring itself when no ship is there, and past the outer edge of the
+ * ships' spread when some are (half a hull's beam, 13, and air). Several
+ * wrecks in one sector part along the ring, `WRECK_STEP` apart, because three
+ * of them stacked radially at any legible step would reach the next ring. The
+ * step closes up where the sector's arc is too short to hold them (a planet's
+ * ring 1 is 32 units round a sector), so a wreck is never drawn in the sector
+ * beside its own; there they overlap, and still read as several.
+ */
+const WRECK_STEP = 24
+/** How much of a sector's arc a wreck's mark takes, for the close-up above. */
+const WRECK_SPAN = 16
+const WRECK_CLEARANCE = 13 + 12
+
+export interface WreckCrowd {
+  /** This wreck's place among the wrecks on its sector, in the order the view lists them. */
+  index: number
+  count: number
+  /** How many living ships stand on the same sector. */
+  ships: number
+}
+
+export function wreckOffset(
+  position: Position,
+  crowd: WreckCrowd
+): { radial: number; along: number } {
+  const radial = crowd.ships > 0 ? ((crowd.ships - 1) / 2) * CROWD_STEP + WRECK_CLEARANCE : 0
+  const arc =
+    (2 * Math.PI * (ringRadius(position.wellId, position.ring) + radial)) / SECTORS_PER_RING
+  const step =
+    crowd.count > 1 ? Math.min(WRECK_STEP, Math.max(0, arc - WRECK_SPAN) / (crowd.count - 1)) : 0
+  return { radial, along: (crowd.index - (crowd.count - 1) / 2) * step }
+}
+
+/**
+ * Board coordinates of a wreck, `t` of the way through a drift from `from`
+ * (1, or no `from`, is where it rests): the point on the ring the drift has
+ * reached, moved into the wrecks' band. A drift never leaves its well.
+ */
+export function wreckPoint(position: Position, crowd: WreckCrowd, from?: Position, t = 1): Point {
+  const center = wellCenter(position.wellId)
+  const onRing = from && t < 1 ? interpolatePositions(from, position, t) : positionPoint(position)
+  const angle = Math.atan2(onRing.y - center.y, onRing.x - center.x)
+  const { radial, along } = wreckOffset(position, crowd)
+  const radius = Math.hypot(onRing.x - center.x, onRing.y - center.y) + radial
+  return polar(center, radius, angle + along / radius)
+}
+
+/**
+ * Which way a wreck's broken hull lies, in board radians: along its ring, then
+ * turned by an amount read off its id, so three wrecks in one sector do not
+ * look like one mark printed three times. Both boards read it, so a wreck lies
+ * the same way on either.
+ */
+export function wreckHeading(point: Point, wellId: GravityWellId, id: string): number {
+  const hash = [...id].reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) % 997, 7)
+  const twist = ((hash % 120) - 60) * DEG + (hash % 2 === 0 ? 0 : Math.PI)
+  return headingAtPoint(wellId, point, 'prograde') + twist
+}
+
+/** How far a wreck stands from its well's centre, for a board that lifts it onto the surface. */
+export function wreckRadius(position: Position, crowd: WreckCrowd): number {
+  return ringRadius(position.wellId, position.ring) + wreckOffset(position, crowd).radial
+}
+
 /** Board coordinates of a game position, moved `offset` units out along the radius. */
 export function radialPoint(position: Position, offset: number): Point {
   return polar(

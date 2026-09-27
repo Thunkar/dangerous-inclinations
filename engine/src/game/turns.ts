@@ -16,13 +16,14 @@
  *  6. Heat check: every cube on the loadout is a point of heat, heat over the
  *     redline becomes hull damage, then the ship dissipates and carries what
  *     is left into its next turn.
- *  7. Missions are updated from everything that happened.
+ *  7. Missions are updated from everything that happened, and any Escort
+ *     marker the player chose to place goes on its carrier.
  *  8. Play passes on; at the end of every round stations move, carrying the
- *     ships moored to them.
+ *     ships moored to them, and wrecks drift with them.
  *
  * The returned state carries no log; the turn's events are returned alongside.
  */
-import type { GameState, Player, PlayerAction } from "../models/game.ts";
+import type { GameState, Player, PlayerAction, Wreck } from "../models/game.ts";
 import type { GameEvent, EventDraft } from "../models/events.ts";
 import { stampEvents } from "../models/events.ts";
 import { processActions } from "./actionProcessors.ts";
@@ -34,6 +35,7 @@ import { advanceStations, isMooredAt } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
 import { positionOf } from "./geometry.ts";
 import { clearLoadout, isDestroyed, resetSubsystemUsage } from "./ship.ts";
+import { nextEntityId } from "../utils/rng.ts";
 
 export interface TurnResult {
   gameState: GameState;
@@ -120,7 +122,10 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
     }
   }
 
-  const missions = processMissionEvents(state, active.id, events);
+  // The carriers the player chose to put an Escort marker on, if any: each is
+  // settled against where the turn ended (RULES §Missions, Escort).
+  const escortMarks = actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []));
+  const missions = processMissionEvents(state, active.id, events, escortMarks);
   state = missions.state;
   events.push(...missions.events);
 
@@ -147,22 +152,69 @@ function clearRecovering(state: GameState, index: number): GameState {
   return { ...state, players };
 }
 
-/** For every ship destroyed in `source` events: drop its cargo. */
+/**
+ * The one place a destruction is settled, whatever did it (a weapon, a
+ * missile, the heat check): for every ship destroyed in `source` events it
+ * drops its cargo, leaves a wreck where it died and hands back every Escort
+ * marker on it (RULES §Missions). `sink` is the turn's events so far, which
+ * the new ones are appended to.
+ */
 function applyDestructions(state: GameState, source: EventDraft[], sink: EventDraft[]): GameState {
   let next = state;
   for (const e of source) {
     if (e.type !== "ship_destroyed") continue;
     const index = next.players.findIndex((p) => p.id === e.victimId);
     if (index === -1) continue;
-    const dropped = dropCargo(next.players[index]);
-    if (dropped.events.length > 0) {
-      const players = [...next.players];
-      players[index] = dropped.player;
-      next = { ...next, players };
-      sink.push(...dropped.events);
-    }
+    const victim = next.players[index];
+    const dropped = dropCargo(victim);
+    const players = [...next.players];
+    players[index] = dropped.player;
+    sink.push(...dropped.events);
+
+    // The wreck: where the ship was when it died. A destroyed ship stays on
+    // its sector until it respawns, so its position is the place.
+    next = { ...next, players };
+    const wreck: Wreck = { id: nextEntityId(next, "wreck"), ...positionOf(victim.ship) };
+    next = { ...next, wrecks: [...next.wrecks, wreck] };
+    sink.push({
+      type: "wreck_left",
+      wreckId: wreck.id,
+      victimId: victim.id,
+      at: positionOf(victim.ship),
+    });
+
+    // Escort markers on the dead ship come back to their holders. A ship that
+    // delivered earlier this same turn (and then died at its heat check) did
+    // deliver first: those markers stay put for the mission check to pay.
+    const deliveredFirst = sink.some(
+      (d) => d.type === "cargo_delivered" && d.playerId === victim.id
+    );
+    if (!deliveredFirst) next = releaseEscorts(next, victim.id, sink);
   }
   return next;
+}
+
+/** Every undone Escort marking `carrierId` goes back to its holder's hand. */
+function releaseEscorts(state: GameState, carrierId: string, sink: EventDraft[]): GameState {
+  let changed = false;
+  const players = state.players.map((player) => {
+    let touched = false;
+    const missions = player.missions.map((m) => {
+      if (m.type !== "escort" || m.isCompleted || m.markedPlayerId !== carrierId) return m;
+      touched = true;
+      sink.push({
+        type: "escort_released",
+        escortId: player.id,
+        carrierId,
+        missionId: m.id,
+      });
+      return { ...m, markedPlayerId: null };
+    });
+    if (!touched) return player;
+    changed = true;
+    return { ...player, missions };
+  });
+  return changed ? { ...state, players } : state;
 }
 
 /** Pass play to the next player, move stations at round end, check for a winner. */
@@ -190,7 +242,7 @@ function finish(
   };
 
   if (newRound) {
-    // Stations advance and take their moored ships with them.
+    // Stations advance and take their moored ships with them; wrecks drift.
     const advanced = advanceStations(next);
     next = advanced.state;
     events.push(...advanced.events);

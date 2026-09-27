@@ -17,7 +17,9 @@ import {
   ALPHA,
   BH,
   destroyMission,
+  escortMission,
   getShip,
+  makePlayer,
   makeTwoPlayerGame,
   withMissions,
   withPlayer,
@@ -521,6 +523,84 @@ describe("bot leaves a recovering ship alone", () => {
     expect(
       executeTurn(state, botDecideActions(viewFor(state, "p1")).actions).errors
     ).toBeUndefined();
+  });
+});
+
+/**
+ * Escort markers are public (`PlayerView.escortedBy`). A rival's marker on a
+ * ship is a point that dies with it, so it counts like cargo aboard; the
+ * bot's own marker is a point that pays when the ship delivers, so the bot
+ * never fires on it.
+ */
+describe("bot reads the Escort markers", () => {
+  /** p2 and p3 identical and in the same arc; p4, far away, may hold an Escort. */
+  const pair = (): GameState => {
+    const base = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
+        { wellId: BH, ring: 4, sector: 0 }
+      ),
+      "p1"
+    );
+    return {
+      ...base,
+      players: [
+        ...base.players,
+        { ...base.players[1], id: "p3", name: "p3", ship: { ...getShip(base, "p2"), sector: 1 } },
+        makePlayer("p4", { wellId: ALPHA, ring: 3, sector: 0 }),
+      ],
+    };
+  };
+
+  /** The ship every candidate that fires at anyone fires at first. */
+  const chosenTargets = (state: GameState) => {
+    const situation = analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS);
+    return new Set(
+      generateCandidates(situation, DEFAULT_BOT_PARAMETERS)
+        .map((c) => c.targetId)
+        .filter((id): id is string => id !== undefined)
+    );
+  };
+
+  it.each(["p2", "p3"])("a hunter picks the carrier a rival escorts, %s", (escorted) => {
+    const state = withMissions(pair(), "p4", [escortMission("escort-p4", escorted)]);
+    expect(chosenTargets(state)).toEqual(new Set([escorted]));
+    const shots = shotsOf(state, "p1");
+    expect(shots[0]?.data.targetPlayerId).toBe(escorted);
+    expect(
+      executeTurn(state, botDecideActions(viewFor(state, "p1")).actions).errors
+    ).toBeUndefined();
+  });
+
+  it("weighs a rival's marker as denial, like a token aboard", () => {
+    // The same volley at the same ship, with and without the marker on it.
+    const alone = (state: GameState) => ({
+      ...state,
+      players: state.players.filter((p) => p.id !== "p3"),
+    });
+    const plain = planAgainst(
+      alone(withMissions(pair(), "p4", [escortMission("escort-p4", null)])),
+      "p1",
+      "p2"
+    );
+    const marked = planAgainst(
+      alone(withMissions(pair(), "p4", [escortMission("escort-p4", "p2")])),
+      "p1",
+      "p2"
+    );
+    expect(marked.expectedHullDamage).toBe(plain.expectedHullDamage);
+    expect(marked.denialValue).toBeGreaterThan(plain.denialValue);
+  });
+
+  it.each([
+    ["the only ship in range", ["p3"]],
+    ["one of two in range", []],
+  ])("never fires on a ship it escorts itself, %s", (_label, removed) => {
+    const base = withMissions(pair(), "p1", [escortMission("escort-p1", "p2")]);
+    const state = { ...base, players: base.players.filter((p) => !removed.includes(p.id)) };
+    const shots = shotsOf(state, "p1");
+    expect(shots.some((s) => s.data.targetPlayerId === "p2")).toBe(false);
+    if (removed.length === 0) expect(shots.length).toBeGreaterThan(0);
   });
 });
 

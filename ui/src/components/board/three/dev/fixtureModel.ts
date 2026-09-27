@@ -5,8 +5,9 @@
  * without a server, a game or a seat: this fixture stands five ships on two
  * wells, hands one of them a long slide so a screenshot can catch it mid-arc,
  * doubles up two of the sectors so the crowd spread has something to spread,
- * and fills in the rest of the contract with the empty values a quiet board
- * has. Positions and stations come from the engine: nothing here is a rule.
+ * leaves three wrecks on the doubled black hole sector and one on its own,
+ * hangs two Escort markers on the player's own ship, and fills in the rest of
+ * the contract with the empty values a quiet board has. Positions and stations come from the engine: nothing here is a rule.
  */
 import type { Position, Station } from '@dangerous-inclinations/engine'
 import {
@@ -20,7 +21,7 @@ import {
   samePosition,
   viewFor,
 } from '@dangerous-inclinations/engine'
-import type { BoardModel, HomeMarker, ShipToken } from '../../model'
+import type { BoardModel, HomeMarker, ShipToken, WreckToken } from '../../model'
 import { crowdOffset, radialPoint } from '../../geometry'
 import { visualForPlayer } from '../../../../ships/visual'
 import { getPlayerColor } from '../../../../utils/playerColors'
@@ -113,7 +114,12 @@ export function createFixtureModel(now = performance.now()): BoardModel {
   state.players[1].ship.subsystems.find(s => s.id === 'forward-0')!.isRevealed = true
   state.players[0].intel.p3 = ['side-2']
   const views = viewFor(state, 'p1').players
-  const tokens: Omit<ShipToken, 'crowd'>[] = [
+  /** Two markers on Aurora: Kestrel's and Tender's. */
+  const escortsOn = (playerId: string): ShipToken['escorts'] =>
+    playerId === 'p1'
+      ? ['p2', 'p5'].map(id => ({ playerId: id, name: nameOf(id), color: colorOf(id) }))
+      : []
+  const tokens: Omit<ShipToken, 'crowd' | 'escorts'>[] = [
     {
       playerId: 'p1',
       name: 'Aurora',
@@ -193,7 +199,31 @@ export function createFixtureModel(now = performance.now()): BoardModel {
   // table does.
   const ships: ShipToken[] = tokens.map(token => {
     const sharing = tokens.filter(other => samePosition(other.position, token.position))
-    return { ...token, crowd: { index: sharing.indexOf(token), count: sharing.length } }
+    return {
+      ...token,
+      escorts: escortsOn(token.playerId),
+      crowd: { index: sharing.indexOf(token), count: sharing.length },
+    }
+  })
+
+  // Three wrecks under Aurora and Lumen, which must part from each other and
+  // stand clear of both hulls, and one alone on a quiet sector.
+  const wreckSites: { id: string; position: Position }[] = [
+    { id: 'wreck-1', position: SEATS[0].position },
+    { id: 'wreck-2', position: SEATS[0].position },
+    { id: 'wreck-3', position: SEATS[0].position },
+    { id: 'wreck-4', position: { wellId: 'blackhole', ring: 3, sector: 2 } },
+  ]
+  const wrecks: WreckToken[] = wreckSites.map(wreck => {
+    const sharing = wreckSites.filter(other => samePosition(other.position, wreck.position))
+    return {
+      ...wreck,
+      crowd: {
+        index: sharing.indexOf(wreck),
+        count: sharing.length,
+        ships: ships.filter(ship => samePosition(ship.position, wreck.position)).length,
+      },
+    }
   })
 
   const homes: HomeMarker[] = SEATS.map(seat => ({
@@ -207,6 +237,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
 
   return {
     ships,
+    wrecks,
     homes,
     stations,
     missiles: [],

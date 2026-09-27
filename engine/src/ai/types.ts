@@ -106,6 +106,12 @@ export interface Opponent {
    * dropped its crate anyway, so there is nothing aboard to take).
    */
   recovering: boolean;
+  /**
+   * Moored at a station while moored ships are safe (RULES §Stations): no
+   * shot or missile may be aimed at them. Stations move only at the end of the
+   * round, so this holds for the whole of the bot's turn.
+   */
+  safeAtBerth: boolean;
   /** Weapon tiles the bot has seen (face-up or scanned). */
   knownWeapons: KnownWeapon[];
   /** Face-down tiles the bot has not seen, read through their energy cubes. */
@@ -137,6 +143,8 @@ export type BotGoalType =
   | "survey" // end a turn on black hole ring SURVEY_RING
   | "pirate" // piracy: end a turn in a loaded ship's exact sector
   | "tanker" // fill the tank at the black hole's fast rings
+  | "salvage" // salvage: end a turn on a wreck's sector (it drifts like a station)
+  | "escort" // escort: end a turn in an undocked carrier's exact sector
   | "tour"; // grand tour: be in the planet well this goal names
 
 /**
@@ -152,6 +160,8 @@ export interface BotGoal {
   targetPlayerId?: string;
   /** For dock goals: the planet whose station to reach. */
   planetId?: string;
+  /** For salvage goals: the wreck to end a turn on (looked up in `view.wrecks`). */
+  wreckId?: string;
   /** Cheap estimate used for ranking; the chosen goal gets a real plan. */
   estimatedTurns: number;
   /** Ranking bonus for goals that finish a mission step this trip. */
@@ -240,7 +250,7 @@ export interface ActionPlan {
   massSpent: number;
   /** The plan leaves a station berth (only a burn can). */
   castsOff: boolean;
-  /** Whether the plan finishes a mission step (dock, survey, scan, kill). */
+  /** Whether the plan finishes a mission step (dock, survey, salvage, mark, scan, kill). */
   completesStep: boolean;
   /**
    * Denial: hull damage weighted by how close each victim is to winning,

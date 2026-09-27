@@ -12,6 +12,7 @@ import { BURN_COSTS } from "../../models/rings.ts";
 import { getMaxRing } from "../../models/gravityWells.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import { canEngage } from "../../game/targeting.ts";
+import { isSafeAtBerth } from "../../game/stations.ts";
 import type { BotParameters, Opponent, SuspectedSlot, TacticalSituation } from "../types.ts";
 import { INTERDICT_DANGER } from "../types.ts";
 import type { PlannerTarget } from "../movementPlanner/index.ts";
@@ -26,6 +27,33 @@ export function destroyTargetIds(me: Player): Set<string> {
       !m.isCompleted && m.type === "destroy_ship" ? [m.targetPlayerId] : []
     )
   );
+}
+
+/**
+ * Players this seat's own Escort markers sit on. A bot never shoots a ship it
+ * is escorting: the marker pays only when that ship delivers, and a kill
+ * sends the marker home with nothing to show for it. A marker is placed by
+ * choice, and the bot never places one on its Destroy target (a kill is worth
+ * two to the marker's one), so no marker ever shields its prey.
+ */
+export function escortingIds(me: Player): Set<string> {
+  return new Set(
+    me.missions.flatMap((m) =>
+      !m.isCompleted && m.type === "escort" && m.markedPlayerId !== null ? [m.markedPlayerId] : []
+    )
+  );
+}
+
+/**
+ * What a kill on `opponent` takes off the table besides hull, counted in
+ * tokens: every crate and every piece of data aboard (it goes over the side),
+ * and every rival's Escort marker on the ship (public, `PlayerView.escortedBy`:
+ * the marker goes home and that rival's point with it). The deciding seat's
+ * own marker is not a rival's, and a ship carrying one is not fired on at all.
+ */
+export function denialTokens(opponent: Opponent, myId: string): number {
+  const cargo = opponent.player.cargoAboard.crates + opponent.player.cargoAboard.data;
+  return cargo + opponent.player.escortedBy.filter((id) => id !== myId).length;
 }
 
 export interface FirePosition extends Position {
@@ -297,16 +325,22 @@ export function firingOptions(
   // its own (RULES §Destruction and Respawn).
   if (isQuietTurn(situation.view.turn, situation.me)) return intents;
   // Nor does anything reach a ship that just came back: it is untouchable
-  // until its returning turn is over.
-  if (target.recovering) return intents;
+  // until its returning turn is over. Nor one at a berth (RULES §Stations).
+  if (target.recovering || target.safeAtBerth) return intents;
+  // And a ship at a berth fires at nobody: a phase that finds the bot moored
+  // (before the move while it still holds its berth, or after a move that
+  // ends on a station) has no shots.
+  const stations = situation.view.stations;
+  const firesPre = !isSafeAtBerth(stations, ctx.pre);
+  const firesPost = !isSafeAtBerth(stations, ctx.post);
 
   for (const weapon of status.weapons) {
     if (!isWeaponReady(weapon)) continue;
     const damage = weaponDamage(weapon);
     const energy = weaponEnergy(weapon);
     const shielded = shieldsStop(weapon);
-    const inPre = canEngage(weapon, ctx.pre, targetPos);
-    const inPost = canEngage(weapon, ctx.post, targetPos);
+    const inPre = firesPre && canEngage(weapon, ctx.pre, targetPos);
+    const inPost = firesPost && canEngage(weapon, ctx.post, targetPos);
 
     if (weapon.type === "railgun") {
       // Recoil moves the ship a ring, which would derail a burn or jump
@@ -399,9 +433,13 @@ export function selectTarget(
   // weaker one we cannot.
   const canHurt = (c: (typeof withShots)[number]) =>
     hullThrough(c.intents, c.opponent.shieldAbsorption) > 0;
+  // Between two ships we can hurt equally, the one with more to lose: cargo
+  // aboard and rival Escort markers are what a kill takes off the table.
+  const tokens = (c: (typeof withShots)[number]) => denialTokens(c.opponent, situation.me.id);
   const byWeakest = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
     Number(canHurt(b)) - Number(canHurt(a)) ||
     a.opponent.hull - b.opponent.hull ||
+    tokens(b) - tokens(a) ||
     potential(b) - potential(a);
   const byClosest = (a: (typeof withShots)[number], b: (typeof withShots)[number]) =>
     a.opponent.ringDistance +

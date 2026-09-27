@@ -158,10 +158,20 @@ function shotKey(shot: ShotDraft): string {
   }
 }
 
+/** A wreck drifting with the stations' step: it slides along its ring from `from`. */
+export interface WreckMotion {
+  from: Position
+  start: number
+  duration: number
+}
+
 export interface BoardOverlay {
   ships: Record<string, { position: Position; facing: Facing; alive: boolean; motion?: ShipMotion }>
   missiles: Missile[]
   stations: Station[]
+  wrecks: { id: string; position: Position; motion?: WreckMotion }[]
+  /** Carrier id to the ids of the players whose Escort markers sit on it. */
+  escorts: Record<string, string[]>
 }
 
 interface AnimationContextValue {
@@ -316,7 +326,18 @@ function snapshotOf(view: GameView): BoardOverlay {
       alive: !player.ship.isDestroyed,
     }
   }
-  return { ships, missiles: view.missiles, stations: view.stations }
+  const escorts: BoardOverlay['escorts'] = {}
+  for (const player of view.players) escorts[player.id] = player.escortedBy
+  return {
+    ships,
+    missiles: view.missiles,
+    stations: view.stations,
+    wrecks: view.wrecks.map(w => ({
+      id: w.id,
+      position: { wellId: w.wellId, ring: w.ring, sector: w.sector },
+    })),
+    escorts,
+  }
 }
 
 /**
@@ -540,6 +561,12 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           motion,
         }
         if (motion) pushEffect({ id: nextId('tween'), kind: 'tween', duration })
+      }
+
+      /** Put a marker on a carrier, or take one off: the board draws a badge per marker. */
+      const setEscort = (carrierId: string, escortId: string, on: boolean) => {
+        const held = (snap.escorts[carrierId] ?? []).filter(id => id !== escortId)
+        snap.escorts = { ...snap.escorts, [carrierId]: on ? [...held, escortId] : held }
       }
 
       const queue = [...events]
@@ -931,7 +958,30 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           case 'fuel_sold':
             mark(event.playerId, `SOLD ${event.amount} FUEL`, 'good')
             return BEAT.small
+          case 'wreck_left':
+            // The DESTROYED burst is already on the sector; the wreck just
+            // appears where the ship died.
+            snap.wrecks = [...snap.wrecks, { id: event.wreckId, position: event.at }]
+            return BEAT.small
+          case 'wreck_salvaged':
+            snap.wrecks = snap.wrecks.filter(w => w.id !== event.wreckId)
+            mark(event.playerId, 'SALVAGED · BLACK BOX', 'good', { at: event.at })
+            return BEAT.resolve
+          case 'escort_marked': {
+            setEscort(event.carrierId, event.escortId, true)
+            const carrier = next.players.find(p => p.id === event.carrierId)?.name ?? 'carrier'
+            mark(event.escortId, `ESCORTING ${carrier.toUpperCase()}`, 'good')
+            return BEAT.resolve
+          }
+          case 'escort_released':
+            setEscort(event.carrierId, event.escortId, false)
+            mark(event.escortId, 'ESCORT MARKER BACK', 'miss')
+            return BEAT.small
           case 'mission_completed': {
+            // Anybody's card can pay on anybody's turn: an Escort pays when
+            // the ship it marks delivers, and its marker comes off with it.
+            if (event.mission.type === 'escort' && event.mission.markedPlayerId)
+              setEscort(event.mission.markedPlayerId, event.playerId, false)
             const at = positionOf(event.playerId)
             pushEffect({
               id: nextId('f'),
@@ -959,6 +1009,24 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           }
           case 'stations_moved': {
             snap.stations = next.stations
+            // Wrecks drift in the same step, each by its own ring's speed:
+            // they slide along the ring to where the event says they are.
+            const drifted = new Map(event.wrecks.map(w => [w.id, w]))
+            const slide = BEAT.move / tempo()
+            let drifting = false
+            snap.wrecks = snap.wrecks.map(wreck => {
+              const to = drifted.get(wreck.id)
+              if (!to) return wreck
+              const position: Position = { wellId: to.wellId, ring: to.ring, sector: to.sector }
+              if (position.sector === wreck.position.sector) return { id: wreck.id, position }
+              drifting = true
+              return {
+                id: wreck.id,
+                position,
+                motion: { from: wreck.position, start: performance.now(), duration: slide },
+              }
+            })
+            if (drifting) pushEffect({ id: nextId('tween'), kind: 'tween', duration: BEAT.move })
             // Moored ships ride their station round (RULES §Moored): slide them
             // along with it rather than letting them snap at the end.
             for (const riderId of event.riders) {
@@ -970,7 +1038,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
                   'coast'
                 )
             }
-            return event.riders.length > 0 ? BEAT.move : BEAT.small
+            return event.riders.length > 0 || drifting ? BEAT.move : BEAT.small
           }
           default:
             // Unknown event types are ignored, never thrown on: an engine that

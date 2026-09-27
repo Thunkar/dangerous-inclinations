@@ -47,7 +47,7 @@ const SIGNAL_BARS = [0, 1, 2]
 const BONE = 'M7 50l4-3h42l4 3-4 3H11z'
 const BONE_TURNS = [18, -18]
 
-const ART: Record<MissionType, ReactElement> = {
+const DRAWN: Record<Exclude<MissionType, 'escort' | 'salvage'>, ReactElement> = {
   // A gunsight, and a hull sitting in it.
   destroy_ship: (
     <>
@@ -118,6 +118,14 @@ const ART: Record<MissionType, ReactElement> = {
   ),
 }
 
+// Placeholders until the cards are drawn: the Tanker's drum and wall for
+// Escort, the Piracy flag for Salvage.
+const ART: Record<MissionType, ReactElement> = {
+  ...DRAWN,
+  escort: DRAWN.tanker,
+  salvage: DRAWN.piracy,
+}
+
 /** The three-letter code stamped in the card's corner. */
 export const MISSION_CODE: Record<MissionType, string> = {
   destroy_ship: 'DSY',
@@ -126,6 +134,8 @@ export const MISSION_CODE: Record<MissionType, string> = {
   survey: 'SVY',
   piracy: 'PRC',
   tanker: 'TNK',
+  escort: 'ESC',
+  salvage: 'SLV',
 }
 
 /**

@@ -297,7 +297,7 @@ describe("view: the viewer's own side", () => {
 });
 
 describe("view: event visibility", () => {
-  const publicEvent: GameEvent = { type: "stations_moved", turn: 1, riders: [] };
+  const publicEvent: GameEvent = { type: "stations_moved", turn: 1, riders: [], wrecks: [] };
   const privateEvent: GameEvent = {
     type: "data_acquired",
     turn: 1,

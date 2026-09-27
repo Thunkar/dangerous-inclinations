@@ -25,6 +25,7 @@ import { WellsLayer } from './layers/WellsLayer'
 import { LanesLayer } from './layers/LanesLayer'
 import { MarkersLayer } from './layers/MarkersLayer'
 import { ShipsLayer } from './layers/ShipsLayer'
+import { WrecksLayer } from './layers/WrecksLayer'
 import { MissilesLayer } from './layers/MissilesLayer'
 import {
   DeploymentSectors,
@@ -169,6 +170,7 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
           <LanesLayer highlightIds={model.activeLaneIds} />
           <RangeOverlay cells={model.rangeCells} />
           <MarkersLayer stations={model.stations} homes={model.homes} />
+          <WrecksLayer wrecks={model.wrecks} now={now} />
           {model.route && <RouteOverlay route={model.route} />}
           {model.plannedPoints.length > 1 && (
             <PlannedPath points={model.plannedPoints} color={planColor} />

@@ -11,7 +11,7 @@
  * is yours alone.
  */
 
-import type { Position, Facing, BurnIntensity } from "./game.ts";
+import type { Position, Facing, BurnIntensity, Wreck } from "./game.ts";
 import type { SubsystemId, SubsystemType, WeaponType } from "./subsystems.ts";
 import type { CargoKind, DockJob, Mission } from "./missions.ts";
 import type { HitRollResult } from "./weapons.ts";
@@ -241,6 +241,35 @@ export type GameEvent =
       at: Position;
     })
   | (Base & {
+      /** A destroyed ship leaves a wreck where it died (RULES §Missions, Salvage). */
+      type: "wreck_left";
+      wreckId: string;
+      victimId: string;
+      at: Position;
+    })
+  | (Base & {
+      /** Salvage: a wreck's black box taken aboard; it rides as the card's data. */
+      type: "wreck_salvaged";
+      playerId: string;
+      wreckId: string;
+      cargoId: string;
+      at: Position;
+    })
+  | (Base & {
+      /** Escort: a marker put on a carrier. Public: the marker is face-up. */
+      type: "escort_marked";
+      escortId: string;
+      carrierId: string;
+      missionId: string;
+    })
+  | (Base & {
+      /** Escort: the marked ship was destroyed and the marker came back. */
+      type: "escort_released";
+      escortId: string;
+      carrierId: string;
+      missionId: string;
+    })
+  | (Base & {
       /** Tanker: fuel pumped into a station's drums on arrival. */
       type: "fuel_sold";
       playerId: string;
@@ -270,6 +299,8 @@ export type GameEvent =
       type: "stations_moved";
       /** Docked ships that rode their station round with it. */
       riders: string[];
+      /** Wrecks drift with the stations, once a round, by their ring's speed. */
+      wrecks: Wreck[];
     })
   | (Base & {
       type: "action_skipped";

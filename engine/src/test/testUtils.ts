@@ -24,6 +24,7 @@ import type {
   WellTransferAction,
   RepairAction,
   DockJobAction,
+  EscortMarkAction,
 } from "../models/game.ts";
 import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
@@ -35,6 +36,8 @@ import type {
   DestroyShipMission,
   PiracyMission,
   TankerMission,
+  EscortMission,
+  SalvageMission,
   InterceptTransmissionMission,
   Mission,
 } from "../models/missions.ts";
@@ -91,6 +94,7 @@ export function makeGameState(players: Player[], overrides: Partial<GameState> =
     activePlayerIndex: 0,
     players,
     missiles: [],
+    wrecks: [],
     stations: createInitialStations(),
     phase: "active",
     pointsToWin: DEFAULT_POINTS_TO_WIN,
@@ -295,6 +299,23 @@ export const tankerMission = (id = "tanker-1"): TankerMission => ({
   isCompleted: false,
 });
 
+export const escortMission = (
+  id = "escort-1",
+  markedPlayerId: string | null = null
+): EscortMission => ({
+  id,
+  type: "escort",
+  isCompleted: false,
+  markedPlayerId,
+});
+
+export const salvageMission = (id = "salvage-1"): SalvageMission => ({
+  id,
+  type: "salvage",
+  isCompleted: false,
+  cargoId: `salvage-${id}`,
+});
+
 // ---------------------------------------------------------------------------
 // Actions (playerId is filled in by executeTurnAs)
 // ---------------------------------------------------------------------------
@@ -352,6 +373,11 @@ export const repair = (subsystemId: SubsystemId): Draft<RepairAction> => ({
 export const dockJob = (job: DockJob): Draft<DockJobAction> => ({
   type: "dock_job",
   data: { job },
+});
+/** Put an Escort marker on a carrier if the turn ends in its sector (no sequence either). */
+export const escortMark = (carrierId: string): Draft<EscortMarkAction> => ({
+  type: "escort_mark",
+  data: { carrierId },
 });
 export const scan = (
   sequence: number,

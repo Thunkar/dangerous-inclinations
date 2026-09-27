@@ -32,6 +32,12 @@ export function describeMission(m: Mission, name: NameResolver): string {
       return "Seize cargo and sell it";
     case "tanker":
       return `Pump ${TANKER_FUEL} fuel into a station`;
+    case "escort":
+      return m.markedPlayerId
+        ? `Escort ${name(m.markedPlayerId)} until it delivers`
+        : "Escort a carrier until it delivers";
+    case "salvage":
+      return "Salvage a wreck's black box and file it";
   }
 }
 
@@ -131,6 +137,14 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.playerId)} delivers ${e.kind} at ${getWellName(e.planetId)}`;
     case "cargo_seized":
       return `${name(e.pirateId)} seizes ${name(e.victimId)}'s ${e.kind} at ${pos(e.at)}`;
+    case "wreck_left":
+      return `${name(e.victimId)} leaves a wreck at ${pos(e.at)}`;
+    case "wreck_salvaged":
+      return `${name(e.playerId)} salvages a wreck's black box at ${pos(e.at)}`;
+    case "escort_marked":
+      return `${name(e.escortId)} puts an escort marker on ${name(e.carrierId)}`;
+    case "escort_released":
+      return `${name(e.escortId)}'s escort marker comes back from ${name(e.carrierId)}`;
     case "fuel_sold":
       return `${name(e.playerId)} pumps ${e.amount} fuel into ${getWellName(e.planetId)}'s station`;
     case "cargo_dropped": {
@@ -145,10 +159,11 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.playerId)} completes ${describeMission(e.mission, name)} (${e.completedCount} done)`;
     case "action_skipped":
       return `${name(e.playerId)}'s ${e.action === "scan" ? "scan" : "shot"} at ${name(e.targetId)} is not taken: the ship is already gone`;
-    case "stations_moved":
-      return e.riders.length > 0
-        ? `Stations advance in their orbits, carrying ${e.riders.map(name).join(", ")}`
-        : "Stations advance in their orbits";
+    case "stations_moved": {
+      const carrying = e.riders.length > 0 ? `, carrying ${e.riders.map(name).join(", ")}` : "";
+      const wrecks = e.wrecks.length > 0 ? `; ${e.wrecks.length} wreck(s) drift` : "";
+      return `Stations advance in their orbits${carrying}${wrecks}`;
+    }
     case "deployed":
       return `${name(e.playerId)} deploys at ${pos(e.position)}`;
     case "final_round":

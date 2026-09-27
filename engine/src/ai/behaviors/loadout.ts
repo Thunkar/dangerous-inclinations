@@ -169,14 +169,16 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  * primary is exactly the one a scorer would drop and the one the designer needs
  * numbers for. So the spread stays.
  *
- * **The secondaries are not chosen at random.** Two of them have to be
- * different cards, which the deal guarantees is possible, and one surviving
- * pairing is refused by a rule rather than by taste: a seized crate fills the
- * hold and so does a delivery crate ({@link CARGO_HOLD_CRATES} is 1), and a
- * pirate with freight of its own seizes nothing, so Deliver with Piracy is two
- * trips where the other pairings are one. That is the engine's own arithmetic,
- * not an opinion about balance, so the bot avoids it when the deal offers
- * anything else.
+ * **The secondaries are not chosen at random.** One pairing is refused by a
+ * rule rather than by taste: a seized crate fills the hold and so does a
+ * delivery crate ({@link CARGO_HOLD_CRATES} is 1), and a pirate with freight
+ * of its own seizes nothing, so Deliver with Piracy is two trips where the
+ * other pairings are one. That is the engine's own arithmetic, not an opinion
+ * about balance, so the bot avoids it when the deal offers anything else. A
+ * salvaged black box is data and rides free beside a crate, so Deliver with
+ * Salvage shares nothing. Two Piracy cards share the hold too, but neither
+ * has a crate waiting at a station: they take turns in it, which is what two
+ * of a kind already means.
  *
  * @param pick chooses among the hands on offer; wire it to the game's seeded
  *   RNG so a seed replays exactly. Without one the first hand is taken, which
@@ -236,7 +238,7 @@ export function validHands(
   const hands: Mission[][] = [];
   for (const lead of primaries) {
     if (primary !== undefined && lead.type !== primary) continue;
-    for (const kept of distinctSecondaries(secondaries, SECONDARIES_PER_PLAYER)) {
+    for (const kept of secondaryCombinations(secondaries, SECONDARIES_PER_PLAYER)) {
       const hand = [lead, ...kept];
       if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) continue;
       hands.push(hand);
@@ -246,18 +248,16 @@ export function validHands(
 }
 
 /**
- * Every way of taking `count` of the offered secondaries, no two of a kind:
- * the kept cards have to be that many different things to do (RULES
- * §Missions), in the order they were dealt, so a seed keeps replaying the
- * same hand. The deal is one card of each kind and a hand keeps two, so this
- * is the three pairs.
+ * Every way of taking `count` of the offered secondaries, in the order they
+ * were dealt, so a seed keeps replaying the same hand. Two of a kind are
+ * allowed (RULES §Missions): the pile is shuffled, so a seat can be dealt
+ * three of one kind, and a hand keeps any two.
  */
-function distinctSecondaries(offers: Mission[], count: number): Mission[][] {
+function secondaryCombinations(offers: Mission[], count: number): Mission[][] {
   if (count <= 0) return [[]];
   const hands: Mission[][] = [];
   for (let i = 0; i <= offers.length - count; i++) {
-    for (const rest of distinctSecondaries(offers.slice(i + 1), count - 1)) {
-      if (rest.some((m) => m.type === offers[i].type)) continue;
+    for (const rest of secondaryCombinations(offers.slice(i + 1), count - 1)) {
       hands.push([offers[i], ...rest]);
     }
   }

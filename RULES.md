@@ -2,7 +2,7 @@
 
 A game of orbital manoeuvre, heat management and hidden objectives for 2–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
 
-**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the three secondary cards are worth 1. So your primary and either of your secondary cards wins, and two secondary cards on their own do not.
+**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the secondary cards are worth 1. So your primary and either of your secondary cards wins, and two secondary cards on their own do not.
 
 ---
 
@@ -11,7 +11,7 @@ A game of orbital manoeuvre, heat management and hidden objectives for 2–6 pla
 - The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 4 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
 - Per player: a ship token, a Home marker, a loadout with 1 forward slot and 4 side slots, a small screen for your cards, a supply of energy cubes, a hull track (10) and a heat track (10).
 - Subsystems: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles. Take as many copies of a subsystem as you have slots it fits: two shields, four lasers, anything goes. Subsystems are double-sided: face-down shows only the slot type.
-- One deck of mission cards, crate tokens, data tokens, missile tokens, station tokens, one d10.
+- Two decks of mission cards (primaries and secondaries), crate tokens, data tokens, wreck tokens, Escort markers, missile tokens, station tokens, one d10.
 
 ---
 
@@ -54,13 +54,15 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 **Moored.** A docked ship rides its station: it does not drift on its own, and it moves with the station when stations advance. Burn to cast off.
 
+**A berth is safe.** A moored ship can neither fire nor be fired at, missiles included: a missile that reaches a moored ship does not attack and flies on. Scans still reach it. Burn off the berth to fight.
+
 **A dock is a visit, not a state.** Everything docking gives you (cargo, repairs, full hull, missiles) happens the turn you **arrive**. Holding the berth afterwards is worth the ride the station gives you and whatever your scoop skims, and nothing else. Come back for more and it is a trip.
 
 ---
 
 ## Setup
 
-1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then every player takes **one Survey, one Piracy and one Tanker** and keeps **two**. Kept cards go face-down behind the screen; the card you leave goes face-down onto one shared discard pile. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
+1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then shuffle the secondary pile, deal **three** to each player, and each keeps **any two**. Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
 2. **Loadout.** Each player fills their loadout: 1 forward subsystem (railgun, sensor array, fuel compressor, shields or missiles) and 4 side subsystems (laser, radiator, shields, ballistic rack or missiles); repeats are allowed. All subsystems are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 3 or Ring 4**, **at least three sectors from every ship already placed** (if no sector qualifies, the one farthest from them), and puts their Home marker there. Everyone starts around the hole and scatters from there; missions are secret, so pick your ring and sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring; Ring 3 drifts 4 and is two burns from the lane ring).
 4. Fill the hull track to 10, reaction mass to 10 and heat to 0. All three are tracks on your loadout, in the open. Energy cubes sit in the supply until something calls for them. Only your cards and the ammo in a face-down missiles subsystem sit behind the screen.
@@ -83,11 +85,11 @@ Otherwise:
 3. **Missiles.** Each of your missiles in flight moves and may attack.
 4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: broken subsystems are repaired, hull is restored to full and missiles reloaded, and the station does **one job**: your crates (unload and load), your data (file it all), or your fuel (a Tanker pumps). If you could do more than one, you choose; what you leave waits for the next visit. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival.
 5. **Heat check.** Every energy cube on your loadout is 1 heat. **If your heat is now 0**, repair one broken subsystem of your choice. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
-6. **Missions.** Check your cards; completed cards are turned face-up. Pass play.
+6. **Missions.** Check your cards: take a wreck's black box, seize loot, put down an Escort marker if you choose to; completed cards are turned face-up. Pass play.
 
 Once a round, after the last player's turn:
 
-7. **Stations.** Move every station 4 sectors, carrying any ship moored to it.
+7. **Stations.** Move every station 4 sectors, carrying any ship moored to it, and move every wreck by its ring's drift.
 
 **The first round reaches nobody: no weapon fires and nobody scans.** Everyone deploys around the same hole, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting (or reading the loadout of) whoever you were placed next to. Everything else is allowed. From the second round on, both are live. Coming back from Home is deploying again, so a returning ship's first turn is quiet the same way (see Destruction and Respawn).
 
@@ -208,7 +210,7 @@ secrets at the end of the game. What gives a subsystem away is doing its job.
 
 Face-up subsystems stay face-up, even after respawn.
 
-**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and how much data you carry, face-up subsystems and **the missiles left in a face-up missiles subsystem**, broken fixed systems, completed missions.
+**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and how much data you carry, face-up subsystems and **the missiles left in a face-up missiles subsystem**, broken fixed systems, completed missions, wrecks and Escort markers.
 **Private:** what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo is going.
 
 Energy is the tell. Using a subsystem turns it face-up, so energy on a **face-down** slot between turns means it was powered, not used: two is a half shield, a ballistic rack or a sensor array, and four can only be a full shield. That is a deduction from the energy, not a reveal: the subsystem is still face-down and a scan still costs you a turn to be sure. Shields go in the bow or on a side precisely so that a loaded bow is a guess and not a certain sensor array.
@@ -227,7 +229,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 
 **Primaries score two.** Destroy, Deliver, Intercept: the kill, the cargo run, the stolen transmission, one for each way of playing. Each names what it wants: a victim, a route, a station to file at. Yours is two thirds of the win on its own.
 
-**Secondary cards score one.** Survey, Piracy, Tanker. Each is a thing you do rather than a primary someone sets you: no subsystem aboard can do it for you. Survey pays in data: take it the moment you dive, then file it at **any** station. Piracy pays in loot: the crate or data you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card.
+**Secondary cards score one.** Survey, Piracy, Tanker, Escort, Salvage. Each is a thing you do rather than a primary someone sets you: no subsystem aboard can do it for you. Survey pays in data: take it the moment you dive, then file it at **any** station. Piracy pays in loot: the crate or data you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card. Escort pays when somebody else delivers: you bet on their run, in the open. Salvage pays in data too: the black box of somebody's wreck.
 
 **A hand is one primary and two secondaries**: two points and one and one, five on the table for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
 
@@ -239,20 +241,24 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 | **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1, take the data, then dock at **any** station to file it                                                                                                                       |
 | **Piracy**                                          | 1      | you end a turn in the **same sector** as an undocked ship carrying a crate or data: it is yours (your hold must be empty; loot fills it), then dock at **any** station to sell it. Their card goes back to undone |
 | **Tanker**                                          | 1      | you **arrive** at **any** station with **7 or more fuel**: hand in 7, and the card is done. Pumping is that visit's one job (see Docking) |
+| **Escort**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked rival carrying a crate or data, and **choose** to put your marker on that ship, face-up. The next time that ship delivers, sells or files anything at a station, the card is done. If it is destroyed first, the marker comes back to you |
+| **Salvage**                                         | 1      | you end a turn on a **wreck** (moored or not) and take its black box: it is data, it rides free, and a pirate can seize it. File it at **any** station |
 
 **The decks.** Two piles for the table, dealt separately.
 
 The **primary pile** is two copies of every primary mission: each Destroy and Intercept offset (below), and the three Deliver routes, each from a planet to the next one round the circuit: **Alpha → Gamma, Gamma → Beta, Beta → Alpha**. That is the short way round the black hole's lanes (every lane you land on is followed by the next planet's lane out); a route the other way would be most of the ring, and a card nobody can finish. **Setup:** take out every Destroy and Intercept whose number is the player count or higher. At three players that leaves offsets 1 and 2. More seats leave more of it pointed at people: at six players two cards in three name a rival, and the table is a fight rather than a trade route.
 
-The **secondaries** are six copies each of Survey, Piracy and Tanker, one set per seat. They name no rival and no route, so there is nothing to shuffle: every player is handed one of each.
+The **secondary pile** is four copies each of Survey, Piracy, Tanker, Escort and Salvage: twenty cards, enough for three to every seat at a full table. They name no rival and no route, so the pile is the same at every table size.
 
-**The deal.** Shuffle the primary pile and deal **three** to each player, who keeps **one**. Then every player takes **one of each secondary** and keeps **two** of the three. The card you leave goes face-down onto one shared discard pile, never back with its kind, which would tell the table exactly which secondary you kept out.
+**The deal.** Shuffle the primary pile and deal **three** to each player, who keeps **one**. Then shuffle the secondary pile and deal **three** to each player, who keeps **any two**. The cards you leave go face-down onto one shared discard pile.
 
-So the primary mission is the luck of the draw and the two things you do yourself are a straight choice: everyone is offered all three, and what you decide is which one to leave. Neither decision is the shape of your hand (every hand is one primary and two of your own), and what changes is which.
+**Two of a kind are two jobs**: nothing you do completes both at once. One dive takes one Survey's data, one fuel visit pays one Tanker, one wreck is one Salvage, the one-crate hold takes one seizure at a time, and your second Escort marks a different ship.
+
+So both piles are the luck of the draw and the choice inside them is yours: the primary somebody set you, and the two things you do yourself. Every hand is one primary and two secondaries; what changes is which, and nobody knows which you kept.
 
 **Cards count seats, they do not name them.** A Destroy card reads _the 2nd player to your left_ (counting left around the table in turn order), so the same card is a different target in every hand, no card can ever name the player holding it, and holding one tells the table nothing. The count only becomes a name when you complete the card and turn it face-up.
 
-**Your hold takes one crate.** Loot (a seized crate or seized data) fills the hold like a crate, so a pirate carrying its own cargo route seizes nothing until the hold is empty, which is why Piracy suits a ship with nothing else to carry, and loot can be seized in turn. A moored ship neither takes nor loses anything. Destroyed with a crate aboard, it is lost: the Deliver holder loads another at the pickup planet, the pirate seizes another.
+**Your hold takes one crate.** Loot (a seized crate or seized data) fills the hold like a crate, so a pirate carrying its own cargo route seizes nothing until the hold is empty, which is why Piracy suits a ship with nothing else to carry, and loot can be seized in turn. A moored ship neither seizes nor is seized from. Destroyed with a crate aboard, it is lost: the Deliver holder loads another at the pickup planet, the pirate seizes another.
 
 A crate fills it, so a second Deliver waits until the first is delivered. Two routes that load at the same station are two trips, and the only pair that is one trip is a chain, where you drop at the station you collect the next one from. Data is numbers, not freight: a scan's transmission and a survey's readings ride free alongside whatever is in the hold, however much you carry.
 
@@ -266,7 +272,7 @@ When you complete a mission, turn the card face-up for everyone to see.
 
 When your hull reaches 0:
 
-- remove your ship; drop your cargo: crates go back to their pickup station (you must load them again), data is lost;
+- remove your ship and put a **wreck** token on its sector (wrecks stay until a Salvage takes one, and drift with the stations once a round by their ring's speed); drop your cargo: crates go back to their pickup station (you must load them again), data is lost; any Escort marker on your ship goes back to its owner;
 - on your next turn you respawn at Home and drift, and the turn after that is a first round of your own: untouchable until it is over, and on it no weapon of yours fires and you scan nobody (see A Turn). One turn gone.
 
 Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card. Nobody collects it twice over: a ship coming back cannot be shot at the sector everyone knows it returns to, and it does not get to fire first for the privilege.
@@ -297,13 +303,15 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Respawn          | next turn: back at Home, full hull and tank, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody |
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                             |
 | Docking          | on arrival only: full hull, repair all, reload missiles, and one job (crates, data or fuel); you stay moored until you burn away                                                  |
+| Berth            | a moored ship neither fires nor is fired at, missiles included; scans still reach it                                                                              |
+| Wrecks           | left where a ship dies, drift with the stations; a Salvage takes the black box (data)                                                                             |
 | Survey           | a turn ended on Black Hole Ring 1, take the data, then any station                                                                                                |
-| Keeping cards    | 3 primaries keep 1, one of each secondary keep 2, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon                                |
+| Keeping cards    | 3 primaries keep 1, 3 secondaries keep any 2, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon                                   |
 | Hold             | one crate; data rides free                                                                                                                                        |
 | Ammo             | private while the missiles subsystem is face-down; public once it has fired                                                                                            |
 | Salvo            | one action launches any number of your missiles at one ship, for the subsystem's 2 energy once; a rack with energy on it rolls at 4 of them a turn, one rack per 4     |
 | Win              | 3 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel                                                                          |
-| Hand             | 1 primary of 3 dealt, 2 of the 3 secondaries. Five points held, three win: the primary and either secondary                                                       |
+| Hand             | 1 primary of 3 dealt, 2 of 3 secondaries dealt. Five points held, three win: the primary and either secondary                                                     |
 
 ### Turn cheat sheet
 
@@ -313,5 +321,5 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 4. Your missiles move.
 5. Just arrived at a station? Repair, full hull, reload, and one job: crates, data or fuel. Moored until you burn away.
 6. Heat check: every energy cube on your loadout is 1 heat; at 0 heat repair one subsystem; over 10 is hull damage; dissipate and carry the rest.
-7. Flip completed missions. Pass.
-8. Once a round, after the last player: every station moves 4 sectors, with whoever is moored.
+7. Missions: black box, loot, an Escort marker if you choose. Flip completed missions. Pass.
+8. Once a round, after the last player: every station moves 4 sectors, with whoever is moored; every wreck drifts with its ring.

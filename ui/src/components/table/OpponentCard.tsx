@@ -39,6 +39,7 @@ import { slotLabel } from '../../utils/slots'
 import { agentLabel } from '../../utils/agents'
 import { useGame } from '../../context/GameContext'
 import { useAnimationControls } from '../../context/AnimationContext'
+import { EscortedBy } from './EscortedBy'
 
 const SLOT_TILE = 36
 const FIXED_TILE = 22
@@ -270,6 +271,7 @@ export function OpponentCard({
               />
             </Box>
           </Tooltip>
+          <EscortedBy player={player} />
         </Box>
 
         {/* The five slots, on one row */}

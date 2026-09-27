@@ -4,9 +4,9 @@
  * the turn.
  */
 import { describe, it, expect } from "vitest";
-import type { GameState, PlayerAction, Position, ShipLoadout } from "../../models/game.ts";
+import type { GameState, PlayerAction, Position, ShipLoadout, Wreck } from "../../models/game.ts";
 import { MAX_REACTION_MASS, STARTING_HIT_POINTS } from "../../models/game.ts";
-import type { Mission, SecondaryMission } from "../../models/missions.ts";
+import type { Cargo, Mission, SecondaryMission } from "../../models/missions.ts";
 import { SURVEY_RING, TANKER_FUEL } from "../../models/missions.ts";
 import { BLACK_HOLE_ID, BLACK_HOLE_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -15,6 +15,7 @@ import { viewFor } from "../../game/view.ts";
 import { getStationForPlanet } from "../../game/stations.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
 import { predictedDeliveryPlanets } from "../../ai/behaviors/danger.ts";
+import { orbitSectorAt } from "../../ai/movementPlanner/index.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import {
   ALPHA,
@@ -23,6 +24,8 @@ import {
   GAMMA,
   approachSector,
   deliverMission,
+  destroyMission,
+  escortMission,
   getPlayer,
   getShip,
   interceptMission,
@@ -30,12 +33,14 @@ import {
   makePlayer,
   makeTwoPlayerGame,
   piracyMission,
+  salvageMission,
   surveyMission,
   tankerMission,
   withMissions,
   withPlayer,
   withPower,
   withShip,
+  withSub,
 } from "../testUtils.ts";
 
 /** Sensor array forward: the hull the bot picks for Intercept work. */
@@ -400,6 +405,291 @@ describe("bot goals: piracy and tanker", () => {
       const goal = goalFor(state, card.id);
       expect(goal).toMatchObject({ type: "pirate", planetId: predicted });
       expect(goal?.targetPlayerId).toBeUndefined();
+    });
+  });
+});
+
+describe("bot goals: salvage and escort", () => {
+  const goalFor = (state: GameState, missionId: string) =>
+    analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).goals.find(
+      (g) => g.missionId === missionId
+    );
+  const currentGoal = (state: GameState) =>
+    analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).currentGoal;
+
+  const PRIMARY = deliverMission(GAMMA, BETA, "primary-p1");
+  const PRIMARY_DONE: Mission = { ...PRIMARY, isCompleted: true };
+
+  /** A ring out and six sectors ahead of p1: a few turns off. */
+  const NEAR_WRECK: Wreck = { id: "wreck-1", wellId: BH, ring: 4, sector: 6 };
+  /** Across the hole on the fastest ring: more than a turn off, and it drifts eight a round. */
+  const FAST_WRECK: Wreck = { id: "wreck-fast", wellId: BH, ring: 1, sector: 12 };
+
+  const salvageTable = (missions: Mission[], wrecks: Wreck[] = [NEAR_WRECK]): GameState => {
+    const state = makeGameState(
+      [
+        makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }),
+        makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 12 }),
+      ],
+      { wrecks }
+    );
+    return withMissions(state, "p1", missions);
+  };
+
+  const crateAboard = (id: string, missionId: string): Cargo => ({
+    id,
+    missionId,
+    kind: "crate",
+    deliveryPlanetId: "any",
+    isPickedUp: true,
+  });
+  const blackBoxAboard = (id: string, missionId: string): Cargo => ({
+    ...crateAboard(id, missionId),
+    kind: "data",
+  });
+
+  describe("salvage", () => {
+    it("plans for where the wreck will have drifted to, not where it lies", () => {
+      const card = salvageMission();
+      const goal = currentGoal(salvageTable([card, PRIMARY_DONE], [FAST_WRECK]));
+      expect(goal).toMatchObject({ type: "salvage", missionId: card.id, wreckId: FAST_WRECK.id });
+      const plan = goal!.plan!;
+      // One turn would not tell a moving target from a still one.
+      expect(plan.totalTurns).toBeGreaterThanOrEqual(2);
+      expect(plan.destination).toMatchObject({
+        wellId: FAST_WRECK.wellId,
+        ring: FAST_WRECK.ring,
+        sector: orbitSectorAt(
+          FAST_WRECK,
+          ringVelocity(FAST_WRECK.wellId, FAST_WRECK.ring),
+          plan.totalTurns
+        ),
+      });
+      expect(plan.destination.sector).not.toBe(FAST_WRECK.sector);
+    });
+
+    it("takes the wreck's black box aboard and files it at a station", () => {
+      const card = salvageMission();
+      const start = withShip(salvageTable([card, PRIMARY_DONE]), "p1", {
+        reactionMass: MAX_REACTION_MASS,
+      });
+      const salvaged = playUntil(start, "p1", (s) =>
+        getPlayer(s, "p1").cargo.some((c) => c.id === card.cargoId && c.isPickedUp)
+      );
+      expect(salvaged.wrecks).toEqual([]);
+      expect(getPlayer(salvaged, "p1").cargo.find((c) => c.id === card.cargoId)?.kind).toBe("data");
+      const sold = playUntil(salvaged, "p1", (s) =>
+        getPlayer(s, "p1").missions.some((m) => m.id === card.id && m.isCompleted)
+      );
+      expect(getPlayer(sold, "p1").missions.find((m) => m.id === card.id)?.isCompleted).toBe(true);
+    });
+
+    it("turns for a station once the black box is aboard", () => {
+      const card = salvageMission();
+      const state = withPlayer(salvageTable([card, PRIMARY]), "p1", {
+        cargo: [blackBoxAboard(card.cargoId, card.id)],
+      });
+      expect(goalFor(state, card.id)).toMatchObject({ type: "dock" });
+    });
+
+    it("files a black box taken at a berth at another station: docking is arrival only", () => {
+      const card = salvageMission();
+      const base = salvageTable([card, PRIMARY], []);
+      const station = getStationForPlanet(base.stations, ALPHA)!;
+      const state = withPlayer(
+        withShip(base, "p1", { wellId: ALPHA, ring: station.ring, sector: station.sector }),
+        "p1",
+        { cargo: [blackBoxAboard(card.cargoId, card.id)] }
+      );
+      const goal = goalFor(state, card.id);
+      expect(goal).toMatchObject({ type: "dock" });
+      expect(goal?.planetId).not.toBe(ALPHA);
+    });
+
+    it.each([
+      ["a delivery crate", crateAboard("deliver-crate", "deliver-x")],
+      ["another Salvage card's black box", blackBoxAboard("salvage-other", "salvage-other")],
+    ])("goes for a wreck while the hold carries %s: the box rides free", (_label, cargo) => {
+      const card = salvageMission();
+      const state = withPlayer(salvageTable([card, PRIMARY_DONE]), "p1", { cargo: [cargo] });
+      expect(goalFor(state, card.id)).toMatchObject({ type: "salvage", wreckId: NEAR_WRECK.id });
+    });
+
+    // Before the primary is in, a wreck is worth the pirate's half a well and
+    // no more; after it, anywhere on the board.
+    it.each([
+      { where: "near", wreck: NEAR_WRECK, primary: PRIMARY, goal: true },
+      {
+        where: "in another well",
+        wreck: { id: "wreck-far", wellId: ALPHA, ring: 3, sector: 12 },
+        primary: PRIMARY,
+        goal: false,
+      },
+      {
+        where: "in another well",
+        wreck: { id: "wreck-far", wellId: ALPHA, ring: 3, sector: 12 },
+        primary: PRIMARY_DONE,
+        goal: true,
+      },
+    ])(
+      "a wreck $where with the primary done: $primary.isCompleted, goal: $goal",
+      ({ wreck, primary, goal }) => {
+        const card = salvageMission();
+        const found = goalFor(salvageTable([card, primary], [wreck]), card.id);
+        if (goal) expect(found).toMatchObject({ type: "salvage", wreckId: wreck.id });
+        else expect(found).toBeUndefined();
+      }
+    );
+
+    it("goes for a wreck under a station: a moored ship salvages", () => {
+      const card = salvageMission();
+      const base = salvageTable([card, PRIMARY_DONE], []);
+      const station = getStationForPlanet(base.stations, ALPHA)!;
+      const state = {
+        ...base,
+        wrecks: [{ id: "wreck-berth", wellId: ALPHA, ring: station.ring, sector: station.sector }],
+      };
+      expect(goalFor(state, card.id)).toMatchObject({ type: "salvage", wreckId: "wreck-berth" });
+    });
+
+    it("is no pirate's prey: a wreck is not a carrier", () => {
+      const card = piracyMission();
+      expect(goalFor(salvageTable([card, PRIMARY_DONE]), card.id)).toBeUndefined();
+    });
+  });
+
+  describe("escort", () => {
+    /** p1 holds `missions`; p3 is nearer than p2, and p2 is the one carrying. */
+    const table = (
+      missions: Mission[],
+      carrier: Position = { wellId: BH, ring: 3, sector: 8 }
+    ): GameState => {
+      let state = makeGameState([
+        makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }),
+        makePlayer("p2", carrier),
+        makePlayer("p3", { wellId: BH, ring: 3, sector: 1 }),
+      ]);
+      state = withMissions(state, "p1", missions);
+      state = withMissions(state, "p2", [deliverMission(ALPHA, BETA)]);
+      return withPlayer(state, "p2", {
+        cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+      });
+    };
+
+    it("goes after the ship that is carrying, not the ship that is closest", () => {
+      const card = escortMission();
+      expect(goalFor(table([card]), card.id)).toMatchObject({
+        type: "escort",
+        targetPlayerId: "p2",
+      });
+    });
+
+    it.each([
+      { where: "two turns off", carrier: { wellId: BH, ring: 3, sector: 6 }, urgency: 2 },
+      { where: "six turns off", carrier: { wellId: BH, ring: 1, sector: 12 }, urgency: 0 },
+    ])(
+      "chases a carrier $where at urgency $urgency, as the pirate does",
+      ({ carrier, urgency }) => {
+        const escort = escortMission();
+        const pirate = piracyMission();
+        const escortGoal = goalFor(table([escort, PRIMARY], carrier as Position), escort.id);
+        const pirateGoal = goalFor(table([pirate, PRIMARY], carrier as Position), pirate.id);
+        expect(escortGoal).toMatchObject({ type: "escort", targetPlayerId: "p2", urgency });
+        expect(escortGoal?.estimatedTurns).toBe(pirateGoal?.estimatedTurns);
+      }
+    );
+
+    it.each([
+      ["its marker is already out", [escortMission("escort-1", "p3")], "escort-1"],
+      [
+        "its other Escort already marks the only carrier",
+        [escortMission("escort-1", "p2"), escortMission("escort-2")],
+        "escort-2",
+      ],
+      [
+        "the only carrier is its Destroy target",
+        [escortMission(), destroyMission("p2")],
+        "escort-1",
+      ],
+    ])("has nobody to escort when %s", (_label, missions, missionId) => {
+      expect(goalFor(table(missions), missionId)).toBeUndefined();
+    });
+
+    it("waits where a carrier in another well must arrive, once the primary is in", () => {
+      const card = escortMission();
+      const carrier: Position = { wellId: ALPHA, ring: 3, sector: 0 };
+      const predicted = predictedDeliveryPlanets(carrier, 1, 0, makeGameState([]).stations)[0];
+      expect(goalFor(table([card, PRIMARY], carrier), card.id)).toBeUndefined();
+      const goal = goalFor(table([card, PRIMARY_DONE], carrier), card.id);
+      expect(goal).toMatchObject({ type: "escort", planetId: predicted });
+      expect(goal?.targetPlayerId).toBeUndefined();
+    });
+
+    it("puts its marker on a carrier drifting in the same well", () => {
+      const card = escortMission();
+      const start = withShip(table([card]), "p1", { reactionMass: MAX_REACTION_MASS });
+      const markedBy = (state: GameState) =>
+        viewFor(state, "p3").players.find((p) => p.id === "p2")?.escortedBy ?? [];
+      const marked = playUntil(start, "p1", (state) => markedBy(state).length > 0, 30);
+      expect(markedBy(marked)).toEqual(["p1"]);
+    });
+
+    /**
+     * p1 can only coast (engines broken): BH ring 3 drifts it from S0 to S4,
+     * where every ship in `carriers` sits with a crate aboard.
+     */
+    const besideCarriers = (missions: Mission[], carriers: string[]): GameState => {
+      let state = makeGameState([
+        makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }),
+        makePlayer("p2", { wellId: BH, ring: 3, sector: 4 }),
+        makePlayer("p3", { wellId: BH, ring: 3, sector: 4 }),
+      ]);
+      state = withMissions(state, "p1", missions);
+      state = withSub(state, "p1", "engines", { isBroken: true });
+      for (const id of carriers) {
+        state = withMissions(state, id, [deliverMission(ALPHA, BETA, `deliver-${id}`)]);
+        state = withPlayer(state, id, {
+          cargo: getPlayer(state, id).cargo.map((c) => ({ ...c, isPickedUp: true })),
+        });
+      }
+      return state;
+    };
+
+    it.each<[string, Mission[], string[], string[]]>([
+      ["a carrier it ends its turn beside", [escortMission()], ["p2"], ["p2"]],
+      [
+        "nobody when that carrier is its Destroy target",
+        [escortMission(), destroyMission("p2")],
+        ["p2"],
+        [],
+      ],
+      [
+        "the other carrier beside its Destroy target",
+        [escortMission(), destroyMission("p2")],
+        ["p2", "p3"],
+        ["p3"],
+      ],
+      [
+        "one carrier per marker in hand",
+        [escortMission("escort-a"), escortMission("escort-b")],
+        ["p2", "p3"],
+        ["p2", "p3"],
+      ],
+      ["nobody with its marker already out", [escortMission("escort-1", "p3")], ["p2"], []],
+    ])("declares an Escort marker for %s", (_label, missions, carriers, marked) => {
+      const state = besideCarriers(missions, carriers);
+      const actions = botDecideActions(viewFor(state, "p1")).actions;
+      expect(actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []))).toEqual(
+        marked
+      );
+      const result = executeTurn(state, actions);
+      expect(result.errors).toBeUndefined();
+    });
+
+    it("the marker it declares goes on", () => {
+      const state = besideCarriers([escortMission()], ["p2"]);
+      const result = executeTurn(state, botDecideActions(viewFor(state, "p1")).actions);
+      expect(getPlayer(result.gameState, "p1").missions[0]).toMatchObject({ markedPlayerId: "p2" });
     });
   });
 });

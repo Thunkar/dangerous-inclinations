@@ -83,15 +83,7 @@ function legalHand(
       const card = offers.find(m => m.id === id)
       return card !== undefined && isPrimaryType(card.type) === primary
     })
-  const seen = new Set<string>()
-  const secondaries = of(false).filter(id => {
-    const type = offers.find(m => m.id === id)!.type
-    return !seen.has(type) && seen.add(type)
-  })
-  return [
-    ...of(true).slice(0, PRIMARIES_PER_PLAYER),
-    ...secondaries.slice(0, SECONDARIES_PER_PLAYER),
-  ]
+  return [...of(true).slice(0, PRIMARIES_PER_PLAYER), ...of(false).slice(0, SECONDARIES_PER_PLAYER)]
 }
 
 export function LoadoutScreen({ headerRight }: { headerRight?: ReactNode }) {
@@ -223,13 +215,6 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
                       let next: string[]
                       if (ids.includes(m.id)) next = ids.filter(id => id !== m.id)
                       else if (keep === 1) next = [m.id]
-                      // Two of the same secondary is one plan done twice: the
-                      // new card takes the place of the one of its own kind.
-                      else if (mine.some(c => c.type === m.type))
-                        next = [
-                          ...ids.filter(id => id !== mine.find(c => c.type === m.type)!.id),
-                          m.id,
-                        ]
                       else if (ids.length < keep) next = [...ids, m.id]
                       else return
                       patch({ missionIds: [...others, ...next] })
@@ -254,7 +239,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         offers.filter(m => !isPrimaryType(m.type)),
         SECONDARIES_PER_PLAYER,
         'Secondary missions',
-        'Worth 1 each, and they must be of different kinds: the second is your spare.'
+        'Worth 1 each, any two, two of a kind included: the second is your spare.'
       )}
       {offers.length === 0 && (
         <Typography color="text.secondary">Waiting for the mission deal…</Typography>

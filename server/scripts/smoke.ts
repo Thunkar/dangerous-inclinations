@@ -22,6 +22,7 @@ import {
   MISSIONS_PER_PLAYER,
   MISSION_OFFERS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
+  RECORDING_SCHEMA_VERSION,
   SECONDARIES_PER_PLAYER,
   isPrimaryType,
   legalDeploymentsAgainst,
@@ -212,12 +213,11 @@ await games.createGame(GAME_ID, SPECS, [HUMAN], SEED);
 const loadoutView = await games.getView(GAME_ID, HUMAN);
 if (!loadoutView?.me) fail("no view for the human after createGame");
 check(loadoutView.phase === "loadout", "game starts in the loadout phase");
-/** One primary and two secondaries of different kinds: a legal hand. */
+/** One primary and any two secondaries: a legal hand. */
 function handFrom(cards: ReadonlyArray<{ id: string; type: MissionType }>): string[] {
   const primary = cards.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER);
-  const seen = new Set<string>();
   const secondaries = cards
-    .filter((m) => !isPrimaryType(m.type) && !seen.has(m.type) && seen.add(m.type))
+    .filter((m) => !isPrimaryType(m.type))
     .slice(0, SECONDARIES_PER_PLAYER);
   return [...primary, ...secondaries].map((m) => m.id);
 }
@@ -374,7 +374,10 @@ check(ownSlotsSeen > 0, "the human's own subsystems were checked at least once")
 // --- Recording ---------------------------------------------------------------
 const recording = await recordings.load(GAME_ID);
 check(recording !== null, "a recording was started when the game became active");
-check(recording !== null && recording.schemaVersion === 4, "the recording uses schema v4");
+check(
+  recording !== null && recording.schemaVersion === RECORDING_SCHEMA_VERSION,
+  `the recording uses schema v${RECORDING_SCHEMA_VERSION}`
+);
 check(
   recording !== null && recording.turns.every((t) => Array.isArray(t.events)),
   "every recorded turn carries its events",
@@ -452,6 +455,17 @@ check(
 check(
   !accepts([{ playerId: HUMAN, type: "dock_job", data: { job: "repairs" } }]),
   "a dock job that is not crates, data or fuel is rejected",
+);
+check(
+  accepts([
+    { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: false } },
+    { playerId: HUMAN, type: "escort_mark", data: { carrierId: "bot-1" } },
+  ]),
+  "an Escort marker is accepted beside the turn",
+);
+check(
+  !accepts([{ playerId: HUMAN, type: "escort_mark", data: {} }]),
+  "an Escort marker that names no carrier is rejected",
 );
 check(
   !accepts([{ ...goodBurn, data: { burnIntensity: "soft", sectorAdjustment: "0" } }]),

@@ -98,6 +98,8 @@ const CARD_LABEL: Record<MissionType, string> = {
   survey: "Survey",
   piracy: "Piracy",
   tanker: "Tanker",
+  escort: "Escort",
+  salvage: "Salvage",
 };
 
 /** "Destroy + Piracy/Survey": the primary a seat took, and what it took beside it. */

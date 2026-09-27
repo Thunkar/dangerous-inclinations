@@ -18,6 +18,7 @@ import type {
   Player,
   RepairAction,
   DockJobAction,
+  EscortMarkAction,
   Missile,
 } from "../models/game.ts";
 import { isTacticalAction, MAX_REACTION_MASS } from "../models/game.ts";
@@ -32,6 +33,7 @@ import { resolveAttack } from "./damage.ts";
 import { createMissile } from "./missiles.ts";
 import { processScan } from "./scan.ts";
 import { isMooredAt } from "./stations.ts";
+import { unplacedEscorts } from "./escort.ts";
 import {
   findSubsystem,
   hasWorkingCompressor,
@@ -49,6 +51,7 @@ import {
   validateFireWeaponAction,
   validateRepairAction,
   validateDockJobAction,
+  validateEscortMarkAction,
   validateScanAction,
   validateWellTransferAction,
 } from "./validators.ts";
@@ -127,6 +130,24 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
   }
   for (const a of dockJobs) {
     const errors = validateDockJobAction(current, a);
+    if (errors.length > 0) return { success: false, state, events: [], errors };
+  }
+
+  // One marker per name and one name per marker still in hand: each is
+  // settled at the end of the turn (missions/missionChecks.ts).
+  const escortMarks = actions.filter((a): a is EscortMarkAction => a.type === "escort_mark");
+  if (escortMarks.length > 0) {
+    const actor = state.players.find((p) => p.id === escortMarks[0].playerId);
+    const inHand = actor ? unplacedEscorts(actor.missions).length : 0;
+    const errors: string[] = [];
+    if (escortMarks.length > inHand)
+      errors.push(
+        `${escortMarks.length} Escort marker(s) named, but only ${inHand} undone Escort marker(s) in hand`
+      );
+    const named = escortMarks.map((a) => a.data.carrierId);
+    if (new Set(named).size !== named.length)
+      errors.push("Each Escort marker goes on a different ship");
+    for (const a of escortMarks) errors.push(...validateEscortMarkAction(current, a));
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
 

@@ -24,6 +24,7 @@ import type {
   Facing,
   FireWeaponAction,
   PlayerAction,
+  Position,
   ScanAction,
   TacticalAction,
 } from "../models/game.ts";
@@ -39,13 +40,17 @@ import {
 import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
 import { getStationAt } from "../game/stations.ts";
+import { samePosition } from "../game/geometry.ts";
+import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { heatAfterCheck } from "../game/heat.ts";
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
 import { INTERDICT_DANGER } from "./types.ts";
 import {
   chooseCriticalTarget,
+  denialTokens,
   destroyTargetIds,
+  escortingIds,
   firingOptions,
   isWeaponReady,
   salvoHeat,
@@ -135,7 +140,7 @@ export function buildCandidate(
       const shotsWith = (f: Facing) => {
         const post = projectPosition(ship, f, preview);
         return situation.opponents.filter(
-          (o) => o.sameWell && isInWeaponRange(railgun, post, o.position)
+          (o) => o.sameWell && !o.safeAtBerth && isInWeaponRange(railgun, post, o.position)
         ).length;
       };
       if (shotsWith(ship.facing) === 0 && shotsWith(flip(ship.facing)) > 0)
@@ -161,10 +166,35 @@ export function buildCandidate(
     post.wellId === BLACK_HOLE_ID &&
     post.ring === SURVEY_RING &&
     me.missions.some((m) => m.type === "survey" && !m.isCompleted && !m.acquired);
-  // Docking and the survey are both resolved from where the ship ends its
-  // turn, so an uncompensated railgun recoil must not move it, and a moored
-  // ship pushed off its berth loses the berth.
-  const postPositionMatters = endsOnStation || surveying;
+  // Salvage and Escort are read off the same place: a wreck's black box taken
+  // by ending a turn on its sector (a berth included, and whatever is in the
+  // hold), a marker put on an undocked carrier by ending a turn in its sector
+  // (never from a berth, `escortCandidates`). Nothing moves between the move
+  // and the end of the turn (wrecks drift with the stations, at the end of
+  // the round).
+  const salvaging =
+    me.missions.some(
+      (m) =>
+        m.type === "salvage" &&
+        !m.isCompleted &&
+        !me.cargo.some((c) => c.id === m.cargoId && c.isPickedUp)
+    ) && view.wrecks.some((w) => samePosition(w, post));
+  // A marker is a choice ("you may"): the bot puts one on every carrier it
+  // ends the turn with, one per marker in hand, except the ship its Destroy
+  // card names (a kill is worth two to the marker's one).
+  const escortMarks = escortMarksAt(situation, post);
+  const marking = escortMarks.length > 0;
+  // Ships not to fire on: those carrying our own Escort marker (it pays when
+  // they deliver), the carrier an Escort is on its way to mark and the ones
+  // it marks this turn (a kill empties the hold, and an empty ship takes no
+  // marker).
+  const holdFire = new Set([...escortingIds(me), ...escortMarks]);
+  if (situation.currentGoal?.type === "escort" && situation.currentGoal.targetPlayerId)
+    holdFire.add(situation.currentGoal.targetPlayerId);
+  // Docking, the survey, a salvage and a mark are all resolved from where the
+  // ship ends its turn, so an uncompensated railgun recoil must not move it,
+  // and a moored ship pushed off its berth loses the berth.
+  const postPositionMatters = endsOnStation || surveying || salvaging || marking;
 
   // Budgets.
   const targets: EnergyTargets = new Map();
@@ -224,7 +254,7 @@ export function buildCandidate(
   // heat, a missile off the rack and a tile turned face-up. A ship whose
   // whole volley falls inside the visible shields is not fired on at all.
   const options = situation.opponents
-    .filter((o) => o.sameWell)
+    .filter((o) => o.sameWell && !holdFire.has(o.player.id))
     .map((opponent) => ({
       opponent,
       intents: firingOptions(situation, opponent, ctx, parameters),
@@ -339,10 +369,13 @@ export function buildCandidate(
     // What the hit costs them (hull, and on a kill their hold and their next
     // turn) weighted by how close they are to winning, or by the fact that
     // they are carrying something, whichever says more.
+    // A rival's Escort marker on the ship counts as a token aboard: the kill
+    // sends it home and that rival's point with it.
     const { danger } = option.opponent;
     const kills = hull >= option.opponent.hull;
-    const loss = hull + (kills ? KILL_DENIAL + (danger.crates + danger.data) * CARGO_DENIAL : 0);
-    const loaded = danger.crates + danger.data > 0;
+    const tokens = denialTokens(option.opponent, me.id);
+    const loss = hull + (kills ? KILL_DENIAL + tokens * CARGO_DENIAL : 0);
+    const loaded = tokens > 0;
     denialValue += loss * Math.max(danger.score, loaded ? LOADED_DENIAL : 0);
   }
 
@@ -495,7 +528,12 @@ export function buildCandidate(
     tactical.push(scanAction(scanChosen));
   for (const s of inPhase("post")) tactical.push(fire(s));
 
-  const actions: PlayerAction[] = tactical;
+  const actions: PlayerAction[] = [
+    ...tactical,
+    ...escortMarks.map(
+      (carrierId): PlayerAction => ({ type: "escort_mark", playerId: me.id, data: { carrierId } })
+    ),
+  ];
   const killsTarget = target !== null && hullOn(target) >= target.hull;
   const scansForMission = scanChosen !== null && (scanChosen as ScanIntent).forMission;
 
@@ -515,15 +553,25 @@ export function buildCandidate(
     // Only a burn takes a ship off a berth; a coast holds it and a compensated
     // recoil spends fuel without moving.
     castsOff: moored && movement.kind !== "coast",
-    completesStep: landsOnStation || surveying || scansForMission || killsTarget,
+    completesStep:
+      landsOnStation || surveying || salvaging || marking || scansForMission || killsTarget,
     denialValue,
   };
 }
 
 /**
- * Distinct candidates for this turn: follow the goal, close on a target,
- * hold position. Identical action sequences are merged.
+ * The carriers this seat puts an Escort marker on if its turn ends at `post`:
+ * every one the engine would accept there, one per marker in hand, never its
+ * own Destroy target.
  */
+function escortMarksAt(situation: TacticalSituation, post: Position): string[] {
+  const { me, view } = situation;
+  const prey = destroyTargetIds(me);
+  return escortCandidates(view, me.id, post)
+    .filter((id) => !prey.has(id))
+    .slice(0, unplacedEscorts(me.missions).length);
+}
+
 /**
  * The tile to fix first: what stops the ship being a ship before what stops it
  * being dangerous. A broken engine, thruster or scoop can strand a ship short
@@ -543,10 +591,18 @@ function coldRepairCandidate(situation: TacticalSituation): ActionPlan | null {
     broken[0].id;
 
   // Nothing powered: the loadout was cleared at the start of the turn, and a
-  // plain coast and the repair put nothing back on it.
+  // plain coast and the repair put nothing back on it. A marker makes no heat,
+  // so a carrier the coast ends beside is marked as on any other turn.
+  const post = projectPosition(ship, ship.facing, {
+    kind: "coast",
+    moored: status.moored,
+  });
   const actions: PlayerAction[] = [
     { type: "coast", playerId: me.id, sequence: 1, data: { activateScoop: false } },
     { type: "repair", playerId: me.id, data: { subsystemId: target } },
+    ...escortMarksAt(situation, post).map(
+      (carrierId): PlayerAction => ({ type: "escort_mark", playerId: me.id, data: { carrierId } })
+    ),
   ];
   return {
     actions,
@@ -597,13 +653,20 @@ export function generateCandidates(
     // outright. Trading a turn of a cargo run for two points of hull on a
     // bystander who will repair at their next station is not a trade.
     const missionTargets = destroyTargetIds(situation.me);
+    // Never toward a ship we escort or are about to (see `buildCandidate`).
+    const escorting = escortingIds(situation.me);
+    if (currentGoal?.type === "escort" && currentGoal.targetPlayerId)
+      escorting.add(currentGoal.targetPlayerId);
     const prey = situation.opponents
       .filter(
         (o) =>
           o.sameWell &&
+          !escorting.has(o.player.id) &&
           // Nothing can be done to a ship still recovering from a respawn,
-          // so leaving the route to reach it buys nothing.
+          // or to one at a berth, so leaving the route to reach it buys
+          // nothing.
           !o.recovering &&
+          !o.safeAtBerth &&
           o.ringDistance <= 3 &&
           (missionTargets.has(o.player.id) ||
             o.danger.score >= INTERDICT_DANGER ||

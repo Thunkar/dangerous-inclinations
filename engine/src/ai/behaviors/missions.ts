@@ -1,7 +1,7 @@
 /**
  * Goals. Each incomplete mission becomes a goal with a cheap turn estimate;
  * the cheapest (after urgency) is pursued and gets a real movement plan.
- * Six mission types, plus three standing goals that no card names:
+ * Eight mission types, plus three standing goals that no card names:
  *
  *   destroy_ship               → hunt: get weapons on the target
  *   deliver_cargo              → dock at pickup, then at delivery
@@ -11,6 +11,10 @@
  *                                on the lane arc they arrive through), then dock to sell
  *   tanker                     → no trip of its own: the fuel held back on every dock
  *                                plan, and the fast rings once the primary is in
+ *   salvage                    → end a turn on a wreck (planned where it will have
+ *                                drifted to) for its black box, then dock anywhere to file it
+ *   escort                     → match orbits with a carrier in this well, as the
+ *                                pirate does, and let them deliver
  *   an opponent about to win    → interdict: meet them where their cargo must go
  *   broken systems / low hull  → dock at the nearest station (repairs)
  *   nothing at all             → dock at the nearest station (repairs, cargo)
@@ -21,7 +25,7 @@
  * is public (see `danger.ts`). Shooting them there costs them the crate and
  * a turn whether or not anyone holds their Destroy card.
  */
-import type { Player, Position } from "../../models/game.ts";
+import type { Player, Position, Wreck } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
 import {
   SCAN_SECTOR_RANGE,
@@ -40,10 +44,12 @@ import {
 } from "../../models/gravityWells.ts";
 import type { GameView } from "../../game/view.ts";
 import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
+import { ringVelocity } from "../../game/geometry.ts";
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
 import {
   anySectorOnRing,
   nearDriftingShip,
+  orbitingTarget,
   planFromShip,
   planShipToTarget,
   planStationMeetUp,
@@ -56,7 +62,13 @@ import {
   planInterception,
   stationPositionFor,
 } from "./danger.ts";
-import { hullPotential, volleyPotential, weaponRangeTarget } from "./combat.ts";
+import {
+  destroyTargetIds,
+  escortingIds,
+  hullPotential,
+  volleyPotential,
+  weaponRangeTarget,
+} from "./combat.ts";
 
 export { cheapTurnEstimate } from "./danger.ts";
 
@@ -125,6 +137,15 @@ const PIRACY_CHASE_TURNS = 5;
  * reserve and becomes a trip of its own.
  */
 const TANKER_DETOUR_TURNS = 3;
+/**
+ * Turns within which a wreck is worth a trip while the primary is open. The
+ * pirate's number: a secondary may borrow half a well from the card the seat
+ * cannot win without, and no more. Past the primary any wreck on the board
+ * is a goal. Unlike a carrier a wreck does not run for a station, so it is
+ * ranked at no urgency: the window only shuts if another salvager gets there
+ * first.
+ */
+const SALVAGE_CHASE_TURNS = PIRACY_CHASE_TURNS;
 
 export const REPAIR_GOAL_ID = "repair";
 /** Goal of last resort: a station is always worth something (fuel, repairs, cargo). */
@@ -201,13 +222,10 @@ function dockAnywhereGoal(
   from: Position,
   mission: Mission,
   description: string,
-  urgency: number
+  urgency: number,
+  candidates: string[] = PLANETS.map((p) => p.id)
 ): BotGoal | null {
-  const nearest = nearestPlanet(
-    view,
-    from,
-    PLANETS.map((p) => p.id)
-  );
+  const nearest = nearestPlanet(view, from, candidates);
   if (!nearest) return null;
   return {
     type: "dock",
@@ -217,6 +235,90 @@ function dockAnywhereGoal(
     estimatedTurns: nearest.turns,
     urgency,
   };
+}
+
+/** Undocked opponents with anything aboard: prey for a pirate, a mark for an escort. */
+function undockedCarriers(view: GameView, opponents: Opponent[]): Opponent[] {
+  // Who is carrying is public (`PlayerView.cargoAboard`), and a moored ship
+  // neither loses cargo nor takes a marker.
+  return opponents.filter(
+    (o) =>
+      o.player.cargoAboard.crates + o.player.cargoAboard.data > 0 &&
+      !isMooredAt(view.stations, o.position)
+  );
+}
+
+/**
+ * Matched orbits with a carrier: the pirate's chase, which the escort flies
+ * too. A carrier in this well is chased (at urgency while it is close enough
+ * to catch, see {@link PIRACY_CHASE_TURNS}); with nobody in the well and the
+ * primary in, the bot waits on the lane arc the nearest carrier's cargo has
+ * to come through. `order` breaks ties between carriers the same distance
+ * off; the nearest is always first.
+ */
+function carrierChaseGoal(
+  view: GameView,
+  from: Position,
+  me: Player,
+  mission: Mission,
+  type: "pirate" | "escort",
+  carriers: Opponent[],
+  describe: (name: string) => string,
+  order: (a: Opponent, b: Opponent) => number = () => 0
+): BotGoal | null {
+  // Only a carrier in the same well is a chase. The lanes are one-way
+  // and the crate is already running for a station, so a chase that
+  // starts a jump away arrives where somebody used to be: aimed at a
+  // carrier's current sector anywhere on the map, it never closed.
+  const prey = carriers
+    .filter((o) => o.sameWell)
+    .sort(
+      (a, b) =>
+        cheapTurnEstimate(from, a.position) - cheapTurnEstimate(from, b.position) || order(a, b)
+    )[0];
+  if (prey) {
+    const turns = cheapTurnEstimate(from, prey.position) + 1;
+    return {
+      type,
+      missionId: mission.id,
+      description: describe(prey.player.name),
+      targetPlayerId: prey.player.id,
+      estimatedTurns: turns,
+      // Ranked with the data's filing while the meeting is a turn or two
+      // off (the window shuts the moment the carrier docks) and at no
+      // urgency past that, so a crate on the far side of the well never
+      // drags the bot off the card it has to finish.
+      urgency: turns <= PIRACY_CHASE_TURNS ? 2 : 0,
+    };
+  }
+  // Nobody in this well to chase. Once the primary is in, the bot goes and
+  // stands where the cargo has to arrive: a planet's outbound lane lands on
+  // one four-sector arc and there is no other door.
+  if (primaryOutstanding(me)) return null;
+  const ambush = nearestPlanet(
+    view,
+    from,
+    carriers
+      .map(
+        (o) =>
+          o.danger.predictedPlanets[0] ?? (isPlanet(o.position.wellId) ? o.position.wellId : null)
+      )
+      .filter((id): id is string => id !== null)
+  );
+  if (!ambush) return null;
+  return {
+    type,
+    missionId: mission.id,
+    description: `Wait for a carrier at ${ambush.planetId}`,
+    planetId: ambush.planetId,
+    estimatedTurns: ambush.turns,
+    urgency: 0,
+  };
+}
+
+/** Where a wreck is now. */
+function wreckPosition(wreck: Wreck): Position {
+  return { wellId: wreck.wellId, ring: wreck.ring, sector: wreck.sector };
 }
 
 /**
@@ -239,12 +341,17 @@ export function interdictionTarget(
   opponents: Opponent[],
   from: Position,
   status: BotStatus,
-  myDanger: OpponentDanger
+  myDanger: OpponentDanger,
+  /** Ships carrying this seat's own Escort markers: never shot at. */
+  escorting: ReadonlySet<string> = new Set()
 ): Opponent | null {
   const weapons = usableWeapons(status);
   if (volleyPotential(weapons) <= 0) return null;
   let best: Opponent | null = null;
   for (const opponent of opponents) {
+    if (escorting.has(opponent.player.id)) continue;
+    // At a berth with nowhere it has to go next: nothing to meet or shoot.
+    if (opponent.safeAtBerth && opponent.danger.deliveryPosition === null) continue;
     if (opponent.danger.score < INTERDICT_DANGER) continue;
     if (myDanger.turnsToWin <= opponent.danger.turnsToWin) continue;
     if (hullPotential(weapons, opponent.shieldAbsorption) <= 0) continue;
@@ -290,13 +397,22 @@ export function computeGoals(
         // the hunt is a wait at a known place rather than a search.
         const meet = target.danger.deliveryPosition ?? target.position;
         const predictable = target.danger.deliveryPosition !== null;
+        // A ship at a berth cannot be fired at (RULES §Stations): with nowhere
+        // it has to go next, the hunt is no hurry until it casts off.
+        const sheltered = target.safeAtBerth && !predictable;
         goals.push({
           type: "hunt",
           missionId: mission.id,
           description: `Destroy ${target.player.name}`,
           targetPlayerId: target.player.id,
           estimatedTurns: cheapTurnEstimate(from, meet) + (predictable ? 2 : 4),
-          urgency: target.danger.score >= INTERDICT_DANGER ? 3 : predictable ? 1 : 0,
+          urgency: sheltered
+            ? 0
+            : target.danger.score >= INTERDICT_DANGER
+              ? 3
+              : predictable
+                ? 1
+                : 0,
         });
         break;
       }
@@ -358,63 +474,17 @@ export function computeGoals(
         // The hold takes one crate: a pirate carrying freight of its own
         // seizes nothing, so there is no trip to make yet.
         if (me.cargo.some((c) => c.kind === "crate" && c.isPickedUp)) break;
-        // Who is carrying is public (`PlayerView.cargoAboard`): data counts,
-        // it is loot like any other, and a moored ship neither loses cargo nor
-        // takes any.
-        const carriers = opponents.filter(
-          (o) =>
-            o.player.cargoAboard.crates + o.player.cargoAboard.data > 0 &&
-            !isMooredAt(view.stations, o.position)
-        );
-        // Only a carrier in the same well is a chase. The lanes are one-way
-        // and the crate is already running for a station, so a chase that
-        // starts a jump away arrives where somebody used to be: aimed at a
-        // carrier's current sector anywhere on the map, it never closed.
-        const prey = carriers
-          .filter((o) => o.sameWell)
-          .sort(
-            (a, b) => cheapTurnEstimate(from, a.position) - cheapTurnEstimate(from, b.position)
-          )[0];
-        if (prey) {
-          const turns = cheapTurnEstimate(from, prey.position) + 1;
-          goals.push({
-            type: "pirate",
-            missionId: mission.id,
-            description: `Take ${prey.player.name}'s cargo`,
-            targetPlayerId: prey.player.id,
-            estimatedTurns: turns,
-            // Ranked with the data's filing while the seizure is a turn or two
-            // off (the window shuts the moment the carrier docks) and at no
-            // urgency past that, so a crate on the far side of the well never
-            // drags the bot off the card it has to finish.
-            urgency: turns <= PIRACY_CHASE_TURNS ? 2 : 0,
-          });
-          break;
-        }
-        // Nobody in this well to chase. Once the primary is in, the pirate
-        // goes and stands where the cargo has to arrive: a planet's outbound
-        // lane lands on one four-sector arc and there is no other door.
-        if (primaryOutstanding(me)) break;
-        const ambush = nearestPlanet(
+        // Data counts: it is loot like any other.
+        const goal = carrierChaseGoal(
           view,
           from,
-          carriers
-            .map(
-              (o) =>
-                o.danger.predictedPlanets[0] ??
-                (isPlanet(o.position.wellId) ? o.position.wellId : null)
-            )
-            .filter((id): id is string => id !== null)
+          me,
+          mission,
+          "pirate",
+          undockedCarriers(view, opponents),
+          (name) => `Take ${name}'s cargo`
         );
-        if (!ambush) break;
-        goals.push({
-          type: "pirate",
-          missionId: mission.id,
-          description: `Wait for a carrier at ${ambush.planetId}`,
-          planetId: ambush.planetId,
-          estimatedTurns: ambush.turns,
-          urgency: 0,
-        });
+        if (goal) goals.push(goal);
         break;
       }
       case "tanker": {
@@ -465,6 +535,65 @@ export function computeGoals(
         });
         break;
       }
+      case "salvage": {
+        // The black box is data for any station, filed like a Survey's. A
+        // box taken aboard in port is filed on the next arrival, and docking
+        // is arrival only, so the berth the ship already holds is no filing
+        // station.
+        const blackBox = me.cargo.find((c) => c.missionId === mission.id);
+        if (blackBox?.isPickedUp) {
+          const berthFree = PLANETS.map((p) => p.id).filter(
+            (id) => !(status.moored && id === from.wellId)
+          );
+          const goal = dockAnywhereGoal(view, from, mission, "File the black box", 2, berthFree);
+          if (goal) goals.push(goal);
+          break;
+        }
+        // Any wreck will do, a moored ship's included: the box rides free
+        // beside whatever is in the hold.
+        const wreck = view.wrecks
+          .map((w) => ({ wreck: w, turns: cheapTurnEstimate(from, wreckPosition(w)) }))
+          .filter((w) => !primaryOutstanding(me) || w.turns <= SALVAGE_CHASE_TURNS)
+          .sort((a, b) => a.turns - b.turns || (a.wreck.id < b.wreck.id ? -1 : 1))[0];
+        if (!wreck) break;
+        goals.push({
+          type: "salvage",
+          missionId: mission.id,
+          description: `Salvage the wreck at ${wreck.wreck.wellId} R${wreck.wreck.ring}`,
+          wreckId: wreck.wreck.id,
+          estimatedTurns: wreck.turns,
+          urgency: 0,
+        });
+        break;
+      }
+      case "escort": {
+        // A marker on a ship stays until that ship delivers or dies: nothing
+        // to do while it is out.
+        if (mission.markedPlayerId !== null) break;
+        // Each Escort marks a different ship, and a ship this seat means to
+        // destroy is no escort: the bot never shoots a ship it escorts.
+        const escorting = escortingIds(me);
+        const prey = destroyTargetIds(me);
+        const carriers = undockedCarriers(view, opponents).filter(
+          (o) => !escorting.has(o.player.id) && !prey.has(o.player.id)
+        );
+        // Nearest first, as the pirate; between two as near, the one whose
+        // cargo is closer to its station, since that is when the card pays.
+        const goal = carrierChaseGoal(
+          view,
+          from,
+          me,
+          mission,
+          "escort",
+          carriers,
+          (name) => `Escort ${name}`,
+          (a, b) =>
+            a.danger.turnsToDelivery - b.danger.turnsToDelivery ||
+            (a.player.id < b.player.id ? -1 : 1)
+        );
+        if (goal) goals.push(goal);
+        break;
+      }
     }
   }
 
@@ -473,7 +602,7 @@ export function computeGoals(
   // meets them there. It is only worth the detour while the detour is no
   // longer than the bot's own next card: a turn spent away from a delivery
   // that was about to land is a turn given to everyone else at the table.
-  const prey = interdictionTarget(opponents, from, status, myDanger);
+  const prey = interdictionTarget(opponents, from, status, myDanger, escortingIds(me));
   const hunting = me.missions.some(
     (m) => !m.isCompleted && m.type === "destroy_ship" && m.targetPlayerId === prey?.player.id
   );
@@ -603,10 +732,25 @@ export function attachPlanToGoal(
           PLAN_TURNS
         )
       );
-    case "pirate": {
+    case "salvage": {
+      // Wrecks drift once a round with the stations, by their ring's speed,
+      // so the wreck is planned for as a station is: where it will be.
+      const wreck = view.wrecks.find((w) => w.id === goal.wreckId);
+      if (!wreck) return goal;
+      const start = wreckPosition(wreck);
+      return planned(
+        planShipToTarget(
+          ship,
+          orbitingTarget(start, ringVelocity(start.wellId, start.ring)),
+          PLAN_TURNS
+        ) ?? planShipToTarget(ship, anySectorOnRing(start.wellId, start.ring), PLAN_TURNS)
+      );
+    }
+    case "pirate":
+    case "escort": {
       // No carrier in the well: wait on the arrival arc every crate bound for
       // this planet has to come through. A coast, not a berth: a moored ship
-      // seizes nothing.
+      // seizes nothing and marks nothing.
       if (!goal.targetPlayerId && goal.planetId) {
         return planned(planShipToTarget(ship, laneArrivalTarget(goal.planetId), PLAN_TURNS));
       }

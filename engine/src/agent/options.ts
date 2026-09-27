@@ -22,8 +22,9 @@ import type { GameView } from "../game/view.ts";
 import { ringVelocity, sectorDistance } from "../game/geometry.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, type MovementPreview } from "../game/movement.ts";
-import { isMooredAt } from "../game/stations.ts";
+import { isMooredAt, isSafeAtBerth } from "../game/stations.ts";
 import { hasWorkingCompressor } from "../game/ship.ts";
+import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
 
 export interface BurnOption {
   intensity: BurnIntensity;
@@ -90,6 +91,14 @@ export interface SeatOptions {
   scoopGain: number;
   weapons: WeaponOption[];
   scanTargets: string[];
+  /**
+   * Escort markers still in hand, and the carriers one could go on if the
+   * turn ends after a plain coast. Placing one is a choice ("you may"),
+   * declared with the turn and settled against where it ends, so after any
+   * other move the question is asked again of that sector; null when no
+   * marker is in hand.
+   */
+  escort: { markersInHand: number; carriersAfterCoast: string[] } | null;
   /**
    * Tiles a `power` action may put energy on this turn (unbroken shields,
    * racks and sensors) and the amounts it may put. Each works until your next
@@ -191,17 +200,18 @@ export function seatOptions(view: GameView): SeatOptions {
       const stats = config.weaponStats!;
       const noAmmo = weapon.type === "missiles" && (weapon.ammo ?? 0) <= 0;
       const cold = quiet;
-      const inRange = (from: Position & { facing: Facing }) =>
-        opponents
+      // A moored ship neither fires nor is fired at (RULES §Stations): nobody
+      // is a target from a berth, and nobody at one is a target.
+      const inRange = (from: Position & { facing: Facing }) => {
+        if (isSafeAtBerth(view.stations, from)) return [];
+        return opponents
           .filter((o) => {
             const s = o.ship!;
-            return isInWeaponRange(weapon, from, {
-              wellId: s.wellId,
-              ring: s.ring,
-              sector: s.sector,
-            });
+            const at = { wellId: s.wellId, ring: s.ring, sector: s.sector };
+            return !isSafeAtBerth(view.stations, at) && isInWeaponRange(weapon, from, at);
           })
           .map((o) => o.id);
+      };
       return {
         weapon: weapon.id,
         type: weapon.type,
@@ -236,6 +246,12 @@ export function seatOptions(view: GameView): SeatOptions {
           .map((o) => o.id)
       : [];
 
+  const markersInHand = unplacedEscorts(me.missions).length;
+  const escort =
+    markersInHand > 0
+      ? { markersInHand, carriersAfterCoast: escortCandidates(view, me.id, afterCoast) }
+      : null;
+
   const dissipation = view.myStats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY;
   const ceiling = view.myStats?.maxHeat ?? MAX_HEAT;
   const power = ship.subsystems
@@ -267,6 +283,7 @@ export function seatOptions(view: GameView): SeatOptions {
     scoopGain: scoopWorks ? velocity : 0,
     weapons,
     scanTargets,
+    escort,
     power,
     tileMinimums: ship.subsystems.map((s) => {
       const c = getSubsystemConfig(s.type);

@@ -79,6 +79,7 @@ export function createGame(
     activePlayerIndex: 0,
     players: players.map((p) => ({ ...p, missionOffers: offers.get(p.id) ?? [] })),
     missiles: [],
+    wrecks: [],
     stations: createInitialStations(),
     phase: "loadout",
     rngSeed: determinism.rngSeed,

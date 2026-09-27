@@ -50,12 +50,13 @@ export const DEFAULT_POINTS_TO_WIN = 3;
 /** Dealt from the primary deck, and kept from that deal. */
 export const PRIMARY_OFFERS_PER_PLAYER = 3;
 export const PRIMARIES_PER_PLAYER = 1;
-/**
- * One of each kind for every seat, and kept from that offer. This is the
- * number of kinds. Keep it in step with what {@link buildSecondaryDeck}
- * prints.
- */
+/** Dealt from the shuffled secondary pile, a card at a time round the table. */
 export const SECONDARY_OFFERS_PER_PLAYER = 3;
+/**
+ * Copies of each secondary kind in the printed pile. A full table is dealt
+ * three a seat (eighteen), and five kinds of four is twenty.
+ */
+export const SECONDARY_COPIES_PER_KIND = 4;
 export const SECONDARIES_PER_PLAYER = 2;
 
 export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
@@ -88,6 +89,8 @@ export const MISSION_POINTS: Readonly<Record<MissionType, number>> = {
   survey: 1,
   piracy: 1,
   tanker: 1,
+  escort: 1,
+  salvage: 1,
 };
 
 export function missionPoints(type: MissionType): number {
@@ -122,7 +125,24 @@ export type MissionType =
   | "intercept_transmission"
   | "survey"
   | "piracy"
-  | "tanker";
+  | "tanker"
+  | "escort"
+  | "salvage";
+
+/**
+ * The secondary kinds, in the order the printed pile lists them. Experiment
+ * only: `--secondaries=` (sim) replaces the kinds the pile is printed with, so
+ * the deal can be measured with and without the new cards. A table plays the
+ * full list.
+ */
+export const SECONDARY_KINDS_PRINTED: SecondaryKind[] = [
+  "survey",
+  "piracy",
+  "tanker",
+  "escort",
+  "salvage",
+];
+export type SecondaryKind = "survey" | "piracy" | "tanker" | "escort" | "salvage";
 
 /**
  * The one-point cards that pay data: do the thing, take the data, file it at
@@ -146,6 +166,8 @@ export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
   survey: "secondary",
   piracy: "secondary",
   tanker: "secondary",
+  escort: "secondary",
+  salvage: "secondary",
 };
 
 /** A card that scores two: the primary mission somebody else set you. */
@@ -190,6 +212,8 @@ export const MISSION_REQUIREMENTS: Readonly<Record<MissionType, readonly Mission
   // is what lets any hand carry one as its third.
   piracy: [],
   tanker: [],
+  escort: [],
+  salvage: [],
   // Nothing. A Survey is flown, not instrumented: the dive to the innermost
   // ring is the reading. It asked for a sensor array until 17 Sept 2026, which
   // made the one card any hand could use as filler a card only the sensor loadouts
@@ -292,13 +316,43 @@ export interface TankerMission extends BaseMission {
   type: "tanker";
 }
 
+/**
+ * Escort: end a turn, not moored, in the same sector as an undocked rival
+ * carrying cargo (a crate or data, loot included) with the marker in hand,
+ * and you may put it on that ship, face-up for the table (the `escort_mark`
+ * action). The next time that ship delivers, sells or files anything at
+ * a station, the card is done. If the marked ship is destroyed first, the
+ * marker comes back and the card is undone. A second Escort marks a
+ * different ship.
+ */
+export interface EscortMission extends BaseMission {
+  type: "escort";
+  /** The ship carrying this card's marker, or null while the marker is in hand. */
+  markedPlayerId: string | null;
+}
+
+/**
+ * Salvage: end a turn on a wreck's sector holding an undone Salvage: take its
+ * black box. It is data: it rides free beside whatever is in the hold, and a
+ * pirate can seize it. File it at any station (the data job) and the card is
+ * done. One wreck a turn. Rides as {@link cargoId}, data filed at "any"
+ * station.
+ */
+export interface SalvageMission extends BaseMission {
+  type: "salvage";
+  /** Id the wreck's black box takes aboard. */
+  cargoId: string;
+}
+
 export type Mission =
   | DestroyShipMission
   | DeliverCargoMission
   | InterceptTransmissionMission
   | SecondaryMission
   | PiracyMission
-  | TankerMission;
+  | TankerMission
+  | EscortMission
+  | SalvageMission;
 
 export type CargoKind = "crate" | "data";
 

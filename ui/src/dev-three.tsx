@@ -8,22 +8,25 @@
  *
  * Query flags (read by the board itself): `?preset=table|top|follow`,
  * `?fx=off` to drop the effect composer, `?stats=1` to log frame times.
+ * `?board=svg` draws the same fixture with the flat renderer instead.
  */
 import { createRoot } from 'react-dom/client'
 import { Box, CssBaseline, ThemeProvider } from '@mui/material'
 import './index.css'
 import { theme } from './theme'
 import GameBoardThree from './components/board/three/GameBoardThree'
+import { GameBoardSvg } from './components/board/svg/GameBoardSvg'
 import { createFixtureModel } from './components/board/three/dev/fixtureModel'
 
 const model = createFixtureModel()
+const flat = new URLSearchParams(window.location.search).get('board') === 'svg'
 
 createRoot(document.getElementById('root')!).render(
   <ThemeProvider theme={theme}>
     <CssBaseline />
     <Box sx={{ position: 'fixed', inset: 0 }}>
       <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
-        <GameBoardThree model={model} />
+        {flat ? <GameBoardSvg model={model} /> : <GameBoardThree model={model} />}
       </Box>
     </Box>
   </ThemeProvider>

@@ -30,6 +30,8 @@ import {
   piracyMission,
   tankerMission,
   surveyMission,
+  salvageMission,
+  escortMission,
 } from "../testUtils.ts";
 
 /**
@@ -129,18 +131,17 @@ describe("botChooseLoadout", () => {
     expect(seen.size).toBe(hands.length);
   });
 
-  it("never pairs a secondary with another of its own kind", () => {
+  it("may keep two of a kind: a seat dealt three Surveys still has a hand", () => {
     const offers: Mission[] = [
-      deliverMission(ALPHA, BETA),
+      destroyMission("p2"),
       surveyMission("survey-a"),
       surveyMission("survey-b"),
-      piracyMission("piracy-a"),
+      surveyMission("survey-c"),
     ];
     const hands = validHands(offers);
-    expect(hands.length).toBeGreaterThan(0);
+    expect(hands).toHaveLength(3);
     for (const hand of hands) {
-      const kinds = hand.filter((m) => !isPrimaryType(m.type)).map((m) => m.type);
-      expect(new Set(kinds).size).toBe(kinds.length);
+      expect(hand.filter((m) => m.type === "survey")).toHaveLength(SECONDARIES_PER_PLAYER);
     }
   });
 
@@ -159,20 +160,55 @@ describe("botChooseLoadout", () => {
     }
   });
 
-  it("does not take a Piracy card into the hold a delivery crate needs", () => {
+  it("never keeps Piracy beside a Deliver while any other hand is offered", () => {
     // Both want the one crate the hold takes, so that pairing is two trips.
-    // Every other pairing is on the table, so the bot takes one of those.
     const offers: Mission[] = [
       deliverMission(ALPHA, BETA),
-      surveyMission("survey-a"),
-      piracyMission("piracy-a"),
+      piracyMission("clash"),
+      escortMission("escort-a"),
       tankerMission("tanker-a"),
     ];
     for (let i = 0; i < 3; i++) {
       const kept = botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n }).missionIds;
-      expect(kept).not.toContain("piracy-a");
+      expect(kept).not.toContain("clash");
     }
   });
+
+  it("keeps Salvage beside a Deliver: the black box is data and rides free", () => {
+    const offers: Mission[] = [
+      deliverMission(ALPHA, BETA),
+      salvageMission("salvage-a"),
+      escortMission("escort-a"),
+      tankerMission("tanker-a"),
+    ];
+    const kept = [0, 1, 2].map(
+      (i) => botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n }).missionIds
+    );
+    // Three hands on offer, none refused: two of the three carry the Salvage.
+    expect(kept.filter((ids) => ids.includes("salvage-a"))).toHaveLength(2);
+  });
+
+  it.each([
+    ["Piracy and Salvage", [piracyMission("a"), salvageMission("b"), salvageMission("c")]],
+    ["two Salvage", [salvageMission("a"), salvageMission("b"), salvageMission("c")]],
+    ["two Escorts", [escortMission("a"), escortMission("b"), escortMission("c")]],
+  ])(
+    "keeps %s behind a primary that carries no crate, whichever hand is picked",
+    (_label, secondaries) => {
+      const offers: Mission[] = [destroyMission("p2"), ...secondaries];
+      const hands = validHands(offers);
+      expect(hands).toHaveLength(3);
+      const seen = new Set(
+        hands.map((_, i) =>
+          botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n })
+            .missionIds.slice()
+            .sort()
+            .join(",")
+        )
+      );
+      expect(seen.size).toBe(hands.length);
+    }
+  );
 
   it("takes the Piracy card anyway when the deal leaves nothing else", () => {
     // Only a clashing pair is on the table, and a hand of two is not a hand.
@@ -287,7 +323,6 @@ describe("botChooseLoadout", () => {
       ).toBe(true);
     }
   });
-
 
   it("produces submissions the engine accepts for a real deal", () => {
     let state = createGame(

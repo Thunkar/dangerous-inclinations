@@ -2,7 +2,7 @@
  * 01 · The goal: you are here for three points, and this is where they come
  * from.
  *
- * The six cards are the game's own `MissionCard`, dealt from sample missions,
+ * The eight cards are the game's own `MissionCard`, dealt from sample missions,
  * so the cheatsheet shows the card a player is holding at the table rather
  * than a description of one.
  */
@@ -60,6 +60,8 @@ const SECONDARIES: Mission[] = [
   },
   { id: 'g-piracy', type: 'piracy', isCompleted: false, cargoId: 'g-loot' },
   { id: 'g-tanker', type: 'tanker', isCompleted: false },
+  { id: 'g-escort', type: 'escort', isCompleted: false, markedPlayerId: null },
+  { id: 'g-salvage', type: 'salvage', isCompleted: false, cargoId: 'g-salvage-box' },
 ]
 
 /** What the card does not print: the one thing a hand must be able to do. */
@@ -70,6 +72,8 @@ const NOTE: Partial<Record<MissionType, string>> = {
   survey: 'End a turn on black hole ring 1, then dock anywhere.',
   piracy: 'Share a sector with an undocked carrier; sell anywhere.',
   tanker: 'Arrive at a station with the fuel.',
+  escort: 'You may mark a carrier in your sector; it delivers, you score.',
+  salvage: 'End a turn on a wreck, take its black box; file anywhere.',
 }
 
 const primaryPoints = MISSION_POINTS.destroy_ship
@@ -140,7 +144,7 @@ export function GoalSection() {
         />
         <CardRow
           title={`Secondaries · ${secondaryPoints} point`}
-          detail={`Everyone gets all ${SECONDARY_OFFERS_PER_PLAYER} and keeps ${SECONDARIES_PER_PLAYER}; the third goes face-down on a shared discard.`}
+          detail={`Dealt ${SECONDARY_OFFERS_PER_PLAYER} from a shuffled pile, keep any ${SECONDARIES_PER_PLAYER}; two of a kind are two jobs.`}
           missions={SECONDARIES}
         />
       </Box>

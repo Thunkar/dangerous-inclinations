@@ -9,6 +9,8 @@ import {
   Color,
   DoubleSide,
   MathUtils,
+  Shape,
+  ShapeGeometry,
   Vector3,
   type Group,
   type Mesh,
@@ -16,6 +18,7 @@ import {
   type MeshStandardMaterial,
 } from 'three'
 import { useFrame } from '@react-three/fiber'
+import { Billboard } from '@react-three/drei'
 import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
 import { createShip } from '../../../../ships/model'
 import { boardConfig, type ShipVisual } from '../../../../ships/visual'
@@ -85,6 +88,46 @@ const BORN_MS = 340
 /** Nozzle glow at rest, and how much more of it the engines make under way. */
 const IDLE_GLOW = 2.4
 const THRUST_GLOW = 5.5
+
+/**
+ * An Escort marker: the flat board's shield, standing over the hull and
+ * turned to the camera, one per marker in the marking player's colour. Built
+ * once: the fill and a larger cream outline behind it.
+ */
+function shieldGeometry(scale: number): ShapeGeometry {
+  const shape = new Shape()
+  shape.moveTo(-4.5 * scale, 5.5 * scale)
+  shape.lineTo(4.5 * scale, 5.5 * scale)
+  shape.lineTo(4.5 * scale, -0.5 * scale)
+  shape.lineTo(0, -5.5 * scale)
+  shape.lineTo(-4.5 * scale, -0.5 * scale)
+  shape.closePath()
+  return new ShapeGeometry(shape)
+}
+const BADGE_SIZE = 1.1
+const BADGE_FILL = shieldGeometry(BADGE_SIZE)
+const BADGE_EDGE = shieldGeometry(BADGE_SIZE * 1.22)
+const BADGE_STEP = 13 * BADGE_SIZE
+/** Above the hull and its tooltip-free headroom, below the board's relief. */
+const BADGE_RISE = HOVER + HEIGHT + 16
+
+function EscortBadges({ escorts }: { escorts: ShipToken['escorts'] }) {
+  if (escorts.length === 0) return null
+  return (
+    <Billboard position={[0, BADGE_RISE, 0]}>
+      {escorts.map((escort, i) => (
+        <group key={escort.playerId} position={[(i - (escorts.length - 1) / 2) * BADGE_STEP, 0, 0]}>
+          <mesh geometry={BADGE_EDGE} raycast={NO_RAYCAST} position={[0, -0.4, -0.1]}>
+            <meshBasicMaterial color={TABLE.ink} toneMapped={false} />
+          </mesh>
+          <mesh geometry={BADGE_FILL} raycast={NO_RAYCAST}>
+            <meshBasicMaterial color={escort.color} toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+    </Billboard>
+  )
+}
 
 type MoveKind = NonNullable<ShipToken['motion']>['kind']
 
@@ -537,9 +580,16 @@ function ShipMesh({
           </group>
         </group>
 
+        {/* Outside the yaw: a marker stands upright however the hull points. */}
+        <EscortBadges escorts={ship.escorts} />
+
         {hovered && (
           <BoardTooltip position={[0, HOVER + HEIGHT + 26, 0]}>
-            {`${ship.name} · hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}`}
+            {`${ship.name} · hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}${
+              ship.escorts.length > 0
+                ? ` · escorted by ${ship.escorts.map(e => e.name).join(', ')}`
+                : ''
+            }`}
           </BoardTooltip>
         )}
       </group>

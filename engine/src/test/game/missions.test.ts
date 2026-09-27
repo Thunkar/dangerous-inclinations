@@ -13,10 +13,7 @@ import { checkForWinner, completedMissions } from "../../game/missions/missionCh
 import { describeMission } from "../../game/describe.ts";
 import { createGame } from "../../game/setup.ts";
 import { viewFor } from "../../game/view.ts";
-import {
-  SECONDARY_CARDS_PER_DECK,
-  SECONDARY_COPIES_PER_CARD,
-} from "../../game/missions/missionDeck.ts";
+import { secondaryCopiesPerKind } from "../../game/missions/missionDeck.ts";
 import {
   DEFAULT_POINTS_TO_WIN,
   MISSION_FAMILY,
@@ -29,9 +26,10 @@ import {
   SECONDARIES_PER_PLAYER,
   isPrimaryType,
   SECONDARY_OFFERS_PER_PLAYER,
+  SECONDARY_KINDS_PRINTED,
   TANKER_FUEL,
 } from "../../models/missions.ts";
-import type { Mission } from "../../models/missions.ts";
+import type { Mission, SecondaryKind } from "../../models/missions.ts";
 import type { GameState } from "../../models/game.ts";
 import { PLANETS, STATION_RING } from "../../models/gravityWells.ts";
 import { createInitialStations, getStationForPlanet } from "../../game/stations.ts";
@@ -47,6 +45,8 @@ import {
   deliverMission,
   piracyMission,
   tankerMission,
+  escortMission,
+  salvageMission,
   destroyMission,
   eventsOf,
   eventTypes,
@@ -94,13 +94,58 @@ describe("missions: deck", () => {
     );
   });
 
-  it("the secondary deck is the same pile at every table size", () => {
-    const deck = buildSecondaryDeck();
-    expect(deck).toHaveLength(SECONDARY_CARDS_PER_DECK);
+  // Four of each of five kinds is twenty; three kinds would not go round six
+  // seats at four each, so a three-kind pile prints six of each.
+  it.each<[string, SecondaryKind[], number]>([
+    ["the printed five", ["survey", "piracy", "tanker", "escort", "salvage"], 4],
+    ["an experiment's three", ["survey", "piracy", "tanker"], 6],
+    ["an experiment's two", ["escort", "salvage"], 9],
+  ])("the secondary pile of %s is the same pile at every table size", (_label, kinds, copies) => {
+    expect(secondaryCopiesPerKind(kinds.length)).toBe(copies);
+    const deck = buildSecondaryDeck(kinds);
+    expect(deck).toHaveLength(kinds.length * copies);
     expect(deck.every((c) => MISSION_FAMILY[c.type] === "secondary")).toBe(true);
-    for (const type of ["survey", "piracy", "tanker"] as const) {
-      expect(deck.filter((c) => c.type === type), type).toHaveLength(SECONDARY_COPIES_PER_CARD);
+    for (const type of kinds) {
+      expect(deck.filter((c) => c.type === type), type).toHaveLength(copies);
     }
+  });
+
+  it("prints the five secondaries by default", () => {
+    expect(SECONDARY_KINDS_PRINTED).toEqual(["survey", "piracy", "tanker", "escort", "salvage"]);
+    expect(new Set(buildSecondaryDeck().map((c) => c.type))).toEqual(
+      new Set(["survey", "piracy", "tanker", "escort", "salvage"])
+    );
+    expect(buildSecondaryDeck()).toHaveLength(20);
+  });
+
+  it.each([2, 3, 4, 5, 6])(
+    "deals each of %i seats three secondaries off one shuffled pile",
+    (players) => {
+      const pile = buildSecondaryDeck();
+      for (let seed = 1; seed <= 20; seed++) {
+        const offers = dealMissionOffers(ids(players), new Rng(seed));
+        const dealt: Record<string, number> = {};
+        for (const hand of offers.values()) {
+          const secondaries = hand.filter((m) => !isPrimaryType(m.type));
+          expect(secondaries).toHaveLength(SECONDARY_OFFERS_PER_PLAYER);
+          for (const m of secondaries) dealt[m.type] = (dealt[m.type] ?? 0) + 1;
+        }
+        // Off one pile: no kind is dealt more often than it is printed.
+        for (const [type, n] of Object.entries(dealt))
+          expect(n, type).toBeLessThanOrEqual(pile.filter((c) => c.type === type).length);
+      }
+    }
+  );
+
+  it("the secondary deal is a shuffle: some seat is dealt two of a kind across seeds", () => {
+    let pairs = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      for (const hand of dealMissionOffers(ids(3), new Rng(seed)).values()) {
+        const kinds = hand.filter((m) => !isPrimaryType(m.type)).map((m) => m.type);
+        if (new Set(kinds).size < kinds.length) pairs++;
+      }
+    }
+    expect(pairs).toBeGreaterThan(0);
   });
 
   it.each([2, 3, 4, 5, 6])("both %i-player piles hold enough to deal the table", (players) => {
@@ -151,8 +196,7 @@ describe("missions: deck", () => {
     const offers = dealMissionOffers(players, new Rng(11));
     // Cards are only distinguishable by what they say, and the primary pile
     // holds COPIES_PER_CARD of each, so no card off it may appear more often
-    // than that. Every seat is handed one of each secondary instead of cutting
-    // into a pile, which is the secondary deal's own test.
+    // than that. The secondary pile has its own test.
     const seen = new Map<string, number>();
     for (const [holder, hand] of offers) {
       const seat = players.findIndex((p) => p.id === holder);
@@ -236,6 +280,17 @@ describe("missions: deck", () => {
     expect(picked.error).toBeUndefined();
     expect(picked.missions).toEqual(hand);
     expect(picked.cargo).toEqual(cratesForMissions(hand));
+  });
+
+  it.each<[string, Mission[]]>([
+    ["two Surveys", [surveyMission("s-a"), surveyMission("s-b")]],
+    ["two Escorts", [escortMission("e-a"), escortMission("e-b")]],
+    ["two Salvages", [salvageMission("v-a"), salvageMission("v-b")]],
+  ])("keeps %s beside a primary: two of a kind is a legal hand", (_label, pair) => {
+    const offers = [destroyMission("p2"), interceptMission("p2"), ...pair, tankerMission()];
+    const picked = selectMissionsFromOffers(offers, [offers[0].id, pair[0].id, pair[1].id]);
+    expect(picked.error).toBeUndefined();
+    expect(picked.missions.map((m) => m.id)).toEqual([offers[0].id, pair[0].id, pair[1].id]);
   });
 
   // Sized off the rule, not off a number: the hand has already changed once.
@@ -495,10 +550,10 @@ describe("missions: secondary", () => {
     expect(eventTypes(result.events)).not.toContain("data_acquired");
   });
 
-  it("data files at any station; Piracy and Tanker name no station at all", () => {
+  it("data files at any station; no other secondary names a station at all", () => {
     const deck = buildSecondaryDeck();
     const secondary = deck.filter((m) => MISSION_FAMILY[m.type] === "secondary");
-    expect(secondary).toHaveLength(SECONDARY_CARDS_PER_DECK);
+    expect(secondary).toHaveLength(deck.length);
     for (const m of secondary) {
       if (m.type === "survey") expect("deliveryPlanetId" in m && m.deliveryPlanetId).toBe("any");
       else expect("deliveryPlanetId" in m).toBe(false);

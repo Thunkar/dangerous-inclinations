@@ -1,5 +1,5 @@
 /**
- * Recording capture and persistence (schema v4: events per turn, `power` and `dock_job` actions).
+ * Recording capture and persistence (schema v5: events per turn, `power`, `dock_job` and `escort_mark` actions, wrecks on the state).
  *
  * Lifecycle:
  * - `init` when a game enters the active phase: the post-deployment state

@@ -6,18 +6,26 @@
  */
 import type { GameState, Player } from "../../models/game.ts";
 import type { EventDraft } from "../../models/events.ts";
-import type { Cargo, PiracyMission, SecondaryMission, Mission } from "../../models/missions.ts";
+import type {
+  Cargo,
+  EscortMission,
+  PiracyMission,
+  SalvageMission,
+  SecondaryMission,
+  Mission,
+} from "../../models/missions.ts";
 import { SURVEY_RING, missionPoints } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
 import { isMooredAt } from "../stations.ts";
+import { escortCandidatesAtEndOfTurn, unplacedEscorts } from "../escort.ts";
 
 /**
  * Whether a secondary card's thing has been done, read off the board at the end
  * of the turn.
  *
- * A wreck does nothing: a destroyed ship is off the board until it is
+ * A destroyed ship does nothing: it is off the board until it is
  * rebuilt at Home.
  */
 function secondaryDone(mission: SecondaryMission, player: Player): boolean {
@@ -113,6 +121,85 @@ function seizeLoot(
   return null;
 }
 
+/**
+ * Salvage: a ship that ends its turn on a wreck's sector takes its black box
+ * (RULES §Missions). It is data: it rides free beside whatever is in the hold,
+ * a pirate can seize it, and it is filed at any station by the data job. A
+ * moored ship salvages like any other. A card whose black box is already
+ * aboard takes nothing; the caller stops at the first card that takes one
+ * (one wreck a turn). The killer may take its own kill.
+ */
+function salvageWreck(
+  player: Player,
+  mission: SalvageMission,
+  cargo: Cargo[],
+  state: GameState
+): { cargo: Cargo[]; wreckId: string; event: EventDraft } | null {
+  const ship = player.ship;
+  if (isDestroyed(ship)) return null;
+  if (cargo.some((c) => c.id === mission.cargoId && c.isPickedUp)) return null;
+  const wreck = state.wrecks.find((w) => samePosition(w, positionOf(ship)));
+  if (!wreck) return null;
+  // The same black box id as last time if a pirate took it or it went down
+  // with the ship: one card, one cargo id.
+  const blackBox: Cargo = {
+    id: mission.cargoId,
+    missionId: mission.id,
+    kind: "data",
+    deliveryPlanetId: "any",
+    isPickedUp: true,
+  };
+  const next = cargo.some((c) => c.id === blackBox.id)
+    ? cargo.map((c) => (c.id === blackBox.id ? blackBox : c))
+    : [...cargo, blackBox];
+  return {
+    cargo: next,
+    wreckId: wreck.id,
+    event: {
+      type: "wreck_salvaged",
+      playerId: player.id,
+      wreckId: wreck.id,
+      cargoId: blackBox.id,
+      at: positionOf(ship),
+    },
+  };
+}
+
+/**
+ * Escort completion: every other player's undone Escort marking a ship that
+ * delivered, sold or filed anything this turn is done. Deliveries happen on
+ * the carrier's own turn, so this pays players who are not the active one.
+ * `players` is written in place; the events come back.
+ */
+function payEscorts(players: Player[], deliveredBy: ReadonlySet<string>): EventDraft[] {
+  const events: EventDraft[] = [];
+  if (deliveredBy.size === 0) return events;
+  players.forEach((player, index) => {
+    let points = 0;
+    const done: Mission[] = [];
+    const missions = player.missions.map((m) => {
+      if (m.type !== "escort" || m.isCompleted || m.markedPlayerId === null) return m;
+      if (m.markedPlayerId === player.id || !deliveredBy.has(m.markedPlayerId)) return m;
+      const completed: EscortMission = { ...m, isCompleted: true };
+      points += missionPoints(completed.type);
+      done.push(completed);
+      return completed;
+    });
+    if (done.length === 0) return;
+    const completedMissionCount = player.completedMissionCount + points;
+    players[index] = { ...player, missions, completedMissionCount };
+    for (const mission of done) {
+      events.push({
+        type: "mission_completed",
+        playerId: player.id,
+        mission,
+        completedCount: completedMissionCount,
+      });
+    }
+  });
+  return events;
+}
+
 export interface MissionCheckResult {
   state: GameState;
   events: EventDraft[];
@@ -121,11 +208,14 @@ export interface MissionCheckResult {
 /**
  * Apply the turn's events to the active player's missions.
  * @param turnEvents everything emitted so far this turn (actions, missiles, docking)
+ * @param escortMarks the carriers the player's `escort_mark` actions named,
+ *   in the order submitted; one that does not qualify now is passed over
  */
 export function processMissionEvents(
   state: GameState,
   playerId: string,
-  turnEvents: EventDraft[]
+  turnEvents: EventDraft[],
+  escortMarks: readonly string[] = []
 ): MissionCheckResult {
   const index = state.players.findIndex((p) => p.id === playerId);
   if (index === -1) return { state, events: [] };
@@ -134,17 +224,21 @@ export function processMissionEvents(
 
   const kills = new Set<string>();
   const deliveredCargoIds = new Set<string>();
+  /** Every ship that delivered, sold or filed anything this turn (Escort). */
+  const deliveredBy = new Set<string>();
   let pumpedFuel = false;
 
   for (const e of turnEvents) {
     if (e.type === "ship_destroyed" && e.killerId === playerId) kills.add(e.victimId);
-    if (e.type === "cargo_delivered" && e.playerId === playerId) {
-      deliveredCargoIds.add(e.cargoId);
+    if (e.type === "cargo_delivered") {
+      deliveredBy.add(e.playerId);
+      if (e.playerId === playerId) deliveredCargoIds.add(e.cargoId);
     }
     if (e.type === "fuel_sold" && e.playerId === playerId) pumpedFuel = true;
   }
 
   const players = [...state.players];
+  let wrecks = state.wrecks;
   let cargo = player.cargo;
   let completed = 0;
 
@@ -159,6 +253,41 @@ export function processMissionEvents(
     events.push(taken.event);
     seized = true;
   }
+
+  // Salvage next. The black box is data and takes no room in the hold, so
+  // nothing a pirate just seized stands in its way. One wreck a turn: the
+  // first undone card in hand order without its black box aboard takes it.
+  for (const mission of player.missions) {
+    if (mission.type !== "salvage" || mission.isCompleted) continue;
+    const salvaged = salvageWreck(player, mission, cargo, { ...state, wrecks });
+    if (!salvaged) continue;
+    cargo = salvaged.cargo;
+    wrecks = wrecks.filter((w) => w.id !== salvaged.wreckId);
+    events.push(salvaged.event);
+    break;
+  }
+
+  // Escort markers last, and only where the player put one: against the
+  // table as it stands now (a carrier a pirate has just emptied is no longer
+  // a carrier). Each named ship that qualifies takes the first marker still
+  // in hand; one that does not is passed over, and the marker stays put.
+  const marks = new Map<string, string>();
+  if (escortMarks.length > 0) {
+    const eligible = new Set(escortCandidatesAtEndOfTurn(players, state.stations, playerId));
+    const free = unplacedEscorts(player.missions);
+    for (const carrierId of escortMarks) {
+      const mission = free.find((m) => !marks.has(m.id));
+      if (!mission) break;
+      if (!eligible.has(carrierId) || [...marks.values()].includes(carrierId)) continue;
+      marks.set(mission.id, carrierId);
+      events.push({ type: "escort_marked", escortId: playerId, carrierId, missionId: mission.id });
+    }
+  }
+
+  // Two of a kind are two jobs: one dive takes one Survey's data and one fuel
+  // visit pays one Tanker, the first undone card of the kind in hand order.
+  let dived = false;
+  let pumped = false;
 
   const missions: Mission[] = player.missions.map((mission) => {
     if (mission.isCompleted) return mission;
@@ -180,14 +309,27 @@ export function processMissionEvents(
         // station is delivered on arrival (game/docking.ts).
         if (deliveredCargoIds.has(mission.cargoId)) next = { ...mission, isCompleted: true };
         break;
+      case "salvage":
+        // The black box is data for "any" station, filed by the data job.
+        if (deliveredCargoIds.has(mission.cargoId)) next = { ...mission, isCompleted: true };
+        break;
       case "tanker":
         // Paid by a visit that does the fuel job: the pumping is the card.
-        if (pumpedFuel) next = { ...mission, isCompleted: true };
+        if (pumpedFuel && !pumped) {
+          pumped = true;
+          next = { ...mission, isCompleted: true };
+        }
         break;
+      case "escort": {
+        const carrierId = marks.get(mission.id);
+        if (carrierId) next = { ...mission, markedPlayerId: carrierId };
+        break;
+      }
       case "survey": {
         let m = mission;
-        if (!m.acquired) {
+        if (!m.acquired && !dived) {
           if (secondaryDone(m, player)) {
+            dived = true;
             m = { ...m, acquired: true };
             // Data a pirate took is still in the hold, un-picked: the dive
             // that takes it again puts the same data back aboard.
@@ -220,15 +362,6 @@ export function processMissionEvents(
     return next;
   });
 
-  if (
-    completed === 0 &&
-    !seized &&
-    cargo === player.cargo &&
-    missions.every((m, i) => m === player.missions[i])
-  ) {
-    return { state, events };
-  }
-
   const completedMissionCount = player.completedMissionCount + completed;
   for (const m of missions) {
     const before = player.missions.find((pm) => pm.id === m.id);
@@ -242,8 +375,21 @@ export function processMissionEvents(
     }
   }
 
-  players[index] = { ...player, missions, cargo, completedMissionCount };
-  return { state: { ...state, players }, events };
+  const changed =
+    completed > 0 ||
+    seized ||
+    cargo !== player.cargo ||
+    missions.some((m, i) => m !== player.missions[i]);
+  if (changed) players[index] = { ...player, missions, cargo, completedMissionCount };
+  // Everyone else's Escorts on a ship that delivered this turn: the carrier is
+  // the active player, so this pays a card held at another seat.
+  const escortEvents = payEscorts(players, deliveredBy);
+  events.push(...escortEvents);
+
+  if (!changed && escortEvents.length === 0 && wrecks === state.wrecks) {
+    return { state, events };
+  }
+  return { state: { ...state, players, wrecks }, events };
 }
 
 /** The first seat, in turn order, that has reached the points needed to trigger the final round. */

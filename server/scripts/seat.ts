@@ -13,7 +13,7 @@
  *   yarn seat try --as Codex --intent '{...}'     build + dry-run a turn: errors or the events it would cause
  *   yarn seat act --as Codex --intent '{...}'    build, dry-run, submit (an illegal turn is refused, nothing is sent)
  *   yarn seat loadout --as Codex --forward railgun --sides missiles,radiator,laser,shields --missions m1,m2,m3
- *                                                 (the three are one primary and two different secondaries)
+ *                                                 (the three are one primary and any two secondaries)
  *   yarn seat deploy --as Codex --sector 6 [--ring 3|4]   (ring 4 unless asked; no --sector prints the rule and the legal positions)
  *   yarn seat rules                               the full RULES.md
  *   yarn seat say --as Codex "text" / think "text" / chat
@@ -348,7 +348,7 @@ Your offers:
 ${offers}
 Loadouts that are known to fly (you are not limited to these):
 ${presetLines()}
-Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO DIFFERENT 1-point secondaries (Survey, Piracy, Tanker), which is five points held: your primary and either secondary wins, and the third card you are offered is the one you leave.
+Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO 1-point secondaries (Survey, Piracy, Tanker, Escort, Salvage; two of a kind is allowed, and they are two jobs), which is five points held: your primary and either secondary wins, and the third card you are offered is the one you leave.
 Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "missionIds": ["id","id","id"], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","radiator"]}}`;
 }
 
@@ -600,7 +600,7 @@ async function driveLoadout(payload: ViewPayload, drv: Driver, quietThink: boole
     const rules = attempt >= 2 ? `\n\nTHE FULL RULES:\n${fullRules()}` : "";
     const prompt = `${agentRulesDigest()}${rules}\n\n${loadoutPrompt(view)}${
       error
-        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every subsystem must fit its slot (forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")}) and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids: one primary and two different secondaries.`
+        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every subsystem must fit its slot (forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")}) and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids: one primary and any two secondaries.`
         : ""
     }`;
     const { answer, timedOut } = askModel(prompt, drv);

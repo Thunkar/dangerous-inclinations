@@ -16,8 +16,9 @@
  * and the whole turn of rolling is one use of the rack: the first roll costs
  * its cubes in heat and the rest are free. A missile that has moved
  * `maxMoves` times without hitting is removed. A missile that catches a ship
- * still recovering from a respawn does neither: it slides past untouchable
- * prey and stays in flight. Missiles never cross gravity wells.
+ * still recovering from a respawn, or one moored at a station (RULES
+ * §Stations), does neither: it slides past untouchable prey and stays in
+ * flight, and no rack rolls at it. Missiles never cross gravity wells.
  */
 import type { GameState, Missile, Player, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
@@ -33,6 +34,7 @@ import {
 } from "./geometry.ts";
 import { resolveAttack } from "./damage.ts";
 import { isDestroyed, updateSubsystem, useSubsystem } from "./ship.ts";
+import { isSafeAtBerth } from "./stations.ts";
 
 const MISSILE = getMissileStats();
 
@@ -158,10 +160,11 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     const moved = stepToward(start, targetPos, MISSILE.fuelPerTurn);
 
     // A ship that just came back cannot be touched until its returning turn
-    // is over (RULES §Destruction and Respawn), so a missile that catches it
-    // neither attacks nor is shot down: it stays in the air with one more move
-    // behind it and burns out on schedule.
-    const untouchable = target.recovering;
+    // is over (RULES §Destruction and Respawn), and a moored one cannot be
+    // fired at (RULES §Stations), so a missile that catches either neither
+    // attacks nor is shot down: it stays in the air with one more move behind
+    // it and burns out on schedule.
+    const untouchable = target.recovering || isSafeAtBerth(state.stations, targetPos);
 
     if (untouchable || !samePosition(moved, targetPos)) {
       const movesMade = missile.movesMade + 1;

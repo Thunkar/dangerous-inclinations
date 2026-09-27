@@ -9,6 +9,7 @@ import { freshSeed } from "../utils/rng.ts";
 import type { WeaponOverrides } from "./weaponOverrides.ts";
 import type { TileOverrides } from "./tileOverrides.ts";
 import type { RuleOverrides } from "./ruleOverrides.ts";
+import type { SecondaryKind } from "../models/missions.ts";
 import type { BotOverrides } from "./botOverrides.ts";
 import type { LoadoutOverrides, SeatHands, SeatLoadouts } from "./loadoutOverrides.ts";
 import {
@@ -32,6 +33,8 @@ export interface BatchConfig {
   tiebreak?: boolean;
   tiles?: TileOverrides;
   rules?: RuleOverrides;
+  /** Experiment-only: the kinds the secondary pile is printed with (see sim/secondaryOverrides.ts). */
+  secondaries?: SecondaryKind[];
   weapons?: WeaponOverrides;
   bots?: BotOverrides;
   loadouts?: LoadoutOverrides;
@@ -57,6 +60,8 @@ export interface WorkerJob {
   tiebreak?: boolean;
   tiles?: TileOverrides;
   rules?: RuleOverrides;
+  /** Experiment-only: the kinds the secondary pile is printed with (see sim/secondaryOverrides.ts). */
+  secondaries?: SecondaryKind[];
   weapons?: WeaponOverrides;
   bots?: BotOverrides;
   loadouts?: LoadoutOverrides;
@@ -89,6 +94,7 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
     tiebreak: config.tiebreak,
     tiles: config.tiles,
     rules: config.rules,
+    secondaries: config.secondaries,
     weapons: config.weapons,
     bots: config.bots,
     loadouts: config.loadouts,

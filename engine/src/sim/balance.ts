@@ -71,6 +71,8 @@ import { DEFAULT_POINTS_TO_WIN, type MissionType } from "../models/missions.ts";
 import { BOT_LOADOUT_TEMPLATES, type BotArchetype } from "../ai/behaviors/loadout.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
 import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
+import { describeSecondaryKinds, parseSecondaryOverrides } from "./secondaryOverrides.ts";
+import type { SecondaryKind } from "../models/missions.ts";
 import { handShapeOf, type PerGameStats, type PerPlayerStats } from "./stats.ts";
 
 const OUTLIER_MARGIN = 0.12;
@@ -343,6 +345,8 @@ interface Args {
   noFail: boolean;
   /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
   rules?: RuleOverrides;
+  /** Experiment-only: the kinds the secondary pile is printed with (see sim/secondaryOverrides.ts). */
+  secondaries?: SecondaryKind[];
 }
 
 function parseArgs(argv: string[]): Args {
@@ -378,6 +382,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "rules":
         args.rules = parseRuleOverrides(value);
+        break;
+      case "secondaries":
+        args.secondaries = parseSecondaryOverrides(value);
         break;
       case "no-fail":
         args.noFail = true;
@@ -568,6 +575,7 @@ async function main() {
     workers: args.workers,
     tiebreak: true,
     rules: args.rules,
+    secondaries: args.secondaries,
   };
   const started = Date.now();
   const log = (s: string) =>
@@ -626,6 +634,10 @@ async function main() {
   if (describeRuleOverrides(args.rules)) {
     lines.push("");
     lines.push(`Experiment overrides: ${describeRuleOverrides(args.rules)}`);
+  }
+  if (args.secondaries) {
+    lines.push("");
+    lines.push(`Secondary pile: ${describeSecondaryKinds(args.secondaries)}`);
   }
   lines.push("");
   lines.push(

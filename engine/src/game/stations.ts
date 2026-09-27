@@ -54,8 +54,18 @@ export function isMooredAt(stations: Station[], position: Position): boolean {
 }
 
 /**
+ * Safe at a berth: a moored ship can neither fire nor be fired at, missiles
+ * included (RULES §Stations). The referee, the bots and the previews all ask
+ * this one question, of the attacker's position and of the target's.
+ */
+export function isSafeAtBerth(stations: Station[], position: Position): boolean {
+  return isMooredAt(stations, position);
+}
+
+/**
  * End of the round: every station advances, and the ships moored to them go
- * with it. A destroyed ship is off the board and rides nothing.
+ * with it. A destroyed ship is off the board and rides nothing. Wrecks drift
+ * in the same step, each by its own ring's speed (RULES §Missions, Salvage).
  */
 export function advanceStations(state: GameState): { state: GameState; events: EventDraft[] } {
   const stations = updateStationPositions(state.stations);
@@ -68,8 +78,9 @@ export function advanceStations(state: GameState): { state: GameState; events: E
     riders.push(player.id);
     return { ...player, ship: { ...player.ship, sector: moved.sector } };
   });
+  const wrecks = state.wrecks.map((wreck) => ({ ...wreck, ...driftPosition(wreck) }));
   return {
-    state: { ...state, stations, players },
-    events: [{ type: "stations_moved", riders }],
+    state: { ...state, stations, players, wrecks },
+    events: [{ type: "stations_moved", riders, wrecks }],
   };
 }

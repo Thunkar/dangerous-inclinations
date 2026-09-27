@@ -15,6 +15,7 @@ import type {
   FireWeaponAction,
   RepairAction,
   DockJobAction,
+  EscortMarkAction,
   ScanAction,
   WellTransferAction,
 } from "../models/game.ts";
@@ -38,6 +39,7 @@ import { DOCK_JOBS, SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity, sectorDistance } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, isDestroyed } from "./ship.ts";
 import { isInWeaponRange } from "./targeting.ts";
+import { isSafeAtBerth } from "./stations.ts";
 import { findReadySensor } from "./scan.ts";
 
 const MOVE_TYPES = new Set<PlayerAction["type"]>(["coast", "burn", "well_transfer"]);
@@ -52,6 +54,7 @@ const ACTIVE_ACTION_TYPES = new Set<string>([
   "power",
   "repair",
   "dock_job",
+  "escort_mark",
 ]);
 
 export function validateActionSequence(actions: PlayerAction[]): string[] {
@@ -240,6 +243,11 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
   const player = requirePlayer(state, action.playerId);
   const quiet = quietTurnRefusal(state, player, "fire");
   if (quiet) return [quiet];
+  // A moored ship neither fires nor is fired at (RULES §Stations). Where the
+  // ship is when the action comes up is what counts: burn off the berth first
+  // and the shot after the move is fine.
+  if (isSafeAtBerth(state.stations, positionOf(player.ship)))
+    return ["A moored ship fires at nobody: burn off the berth first"];
   const weapon = findSubsystem(player.ship, action.data.subsystemId);
   if (!weapon) return [`Weapon ${action.data.subsystemId} not found`];
   if (!isWeaponType(weapon.type)) return [`${weapon.id} is not a weapon`];
@@ -274,6 +282,9 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
     action.data.targetPlayerId
   );
   errors.push(...targetErrors);
+  // Scans still reach a berth; only weapons are refused, missiles included.
+  if (target && isSafeAtBerth(state.stations, positionOf(target.ship)))
+    errors.push(`${target.name} is moored: nobody fires at a ship at a berth`);
   if (target) {
     if (!isInWeaponRange(weapon, player.ship, positionOf(target.ship))) {
       errors.push(`${target.name} is out of range for ${config.name}`);
@@ -327,6 +338,20 @@ export function validateRepairAction(state: GameState, action: RepairAction): st
 export function validateDockJobAction(_state: GameState, action: DockJobAction): string[] {
   if (!(DOCK_JOBS as readonly string[]).includes(action.data.job))
     return [`A visit's job is one of ${DOCK_JOBS.join(", ")}, not ${String(action.data.job)}`];
+  return [];
+}
+
+/**
+ * An Escort marker named for the turn: only malformed input is refused. Where
+ * the ships are, what they carry and whether either is moored are read at the
+ * end of the turn, after the move; a ship that does not qualify then takes no
+ * marker and the turn stands (RULES §Missions, Escort).
+ */
+export function validateEscortMarkAction(state: GameState, action: EscortMarkAction): string[] {
+  const carrierId = action.data.carrierId;
+  if (typeof carrierId !== "string" || !findPlayer(state, carrierId))
+    return [`An Escort marker goes on a player at the table, not ${String(carrierId)}`];
+  if (carrierId === action.playerId) return ["An Escort marker goes on a rival, not your own ship"];
   return [];
 }
 

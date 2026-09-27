@@ -3,8 +3,8 @@
  * (`describeMission`); everything here is the little line of progress printed
  * under it, and the family colour of the card.
  *
- * Six kinds of card: the primaries Destroy, Deliver and Intercept, and the
- * secondaries Survey, Piracy and Tanker.
+ * Eight kinds of card: the primaries Destroy, Deliver and Intercept, and the
+ * secondaries Survey, Piracy, Tanker, Escort and Salvage.
  */
 import type { Cargo, Mission, MissionFamily } from '@dangerous-inclinations/engine'
 import {
@@ -77,6 +77,18 @@ export function missionProgress(
       return fuel === undefined
         ? `Arrive at a station with ${TANKER_FUEL} fuel`
         : `Arrive at a station with ${TANKER_FUEL} fuel (tank ${fuel}/${MAX_REACTION_MASS})`
+    case 'escort':
+      return mission.markedPlayerId
+        ? 'Marker placed · done when that ship next delivers'
+        : 'Share a sector with an undocked carrier'
+    case 'salvage': {
+      // The wreck's black box rides as the card's own data: free, like any
+      // data, and filed at any station.
+      const box = cargo.find(c => c.missionId === mission.id)
+      return box?.isPickedUp
+        ? 'File the black box at any station'
+        : 'End a turn on a wreck and take its black box'
+    }
     default:
       // Destroy has nothing to track: you either put their hull to 0 or you don't.
       return null

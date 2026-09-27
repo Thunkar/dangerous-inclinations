@@ -297,6 +297,18 @@ export interface DockJobAction extends BaseAction {
   data: { job: DockJob };
 }
 
+/**
+ * A standing order for the turn, like a dock job: put an Escort marker on
+ * this carrier if the turn ends in its sector (RULES §Missions, Escort: "you
+ * may"). No sequence, because it is settled at the end of the turn, after the
+ * move. A ship that does not qualify then is not refused: nothing is placed.
+ * One per marker in hand, each naming a different ship.
+ */
+export interface EscortMarkAction extends BaseAction {
+  type: "escort_mark";
+  data: { carrierId: string };
+}
+
 export type TacticalAction =
   | RotateAction
   | CoastAction
@@ -306,7 +318,12 @@ export type TacticalAction =
   | ScanAction
   | PowerAction;
 
-export type PlayerAction = TacticalAction | RepairAction | DockJobAction | DeployShipAction;
+export type PlayerAction =
+  | TacticalAction
+  | RepairAction
+  | DockJobAction
+  | EscortMarkAction
+  | DeployShipAction;
 
 export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "rotate",
@@ -366,6 +383,18 @@ export interface Station {
 }
 
 /**
+ * What a destroyed ship leaves behind (RULES §Missions, Salvage). Public. It
+ * stays until a Salvage holder takes it, and drifts once a round with the
+ * stations by its ring's speed.
+ */
+export interface Wreck {
+  id: string;
+  wellId: GravityWellId;
+  ring: number;
+  sector: number;
+}
+
+/**
  * Dynamic game state. Static data (wells, lanes, configs) lives in constants.
  * The state carries no log: `executeTurn` returns the events of each turn and
  * callers (server, sim, recording) keep the history.
@@ -376,6 +405,7 @@ export interface GameState {
   players: Player[];
   missiles: Missile[];
   stations: Station[];
+  wrecks: Wreck[];
   phase: GamePhase;
   winnerId?: string;
   /**

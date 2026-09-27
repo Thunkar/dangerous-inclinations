@@ -26,7 +26,7 @@ export const LoadoutSubmissionSchema = z
     // The engine checks the count against MISSIONS_PER_PLAYER, that the ids
     // were actually offered, and that the loadout can complete every card kept
     // (Intercept needs a sensor array, Destroy a weapon), and that the hand is
-    // one primary and two different secondaries; this only bounds the payload.
+    // one primary and two secondaries; this only bounds the payload.
     missionIds: z.array(z.string().min(1)).min(1).max(16),
   })
   .strict();
@@ -177,6 +177,18 @@ const DockJobActionSchema = z
   })
   .strict();
 
+/**
+ * Put an Escort marker on this carrier if the turn ends in its sector (RULES
+ * §Missions, Escort). No sequence: it is settled at the end of the turn.
+ */
+const EscortMarkActionSchema = z
+  .object({
+    ...base,
+    type: z.literal("escort_mark"),
+    data: z.object({ carrierId: id }).strict(),
+  })
+  .strict();
+
 export const PlayerActionSchema = z.discriminatedUnion("type", [
   CoastActionSchema,
   BurnActionSchema,
@@ -187,6 +199,7 @@ export const PlayerActionSchema = z.discriminatedUnion("type", [
   WellTransferActionSchema,
   RepairActionSchema,
   DockJobActionSchema,
+  EscortMarkActionSchema,
 ]);
 
 export const SubmitTurnSchema = z

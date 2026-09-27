@@ -6,8 +6,10 @@ import type { GameEvent } from "../models/events.ts";
  * v2: events replace log strings; states carry no log; new action shapes.
  * v3: `power` replaces `set_standing_power`; energy stays on a tile until its owner's next turn.
  * v4: a visit does one job: the `dock_job` action, and `docked` carries the job done.
+ * v5: a shuffled secondary pile with Escort and Salvage; the state carries `wrecks`,
+ *     and an Escort marker is placed by choice with the `escort_mark` action.
  */
-export const RECORDING_SCHEMA_VERSION = 4;
+export const RECORDING_SCHEMA_VERSION = 5;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

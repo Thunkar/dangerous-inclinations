@@ -11,6 +11,7 @@ export * from "./targeting.ts";
 export * from "./missiles.ts";
 export * from "./scan.ts";
 export * from "./docking.ts";
+export * from "./escort.ts";
 export * from "./stations.ts";
 export * from "./missions/missionDeck.ts";
 export * from "./missions/missionChecks.ts";

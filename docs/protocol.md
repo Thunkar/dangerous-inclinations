@@ -97,6 +97,23 @@ points, ties going to crates, then data, then fuel. The engine's
 `dockJobsOnArrival` gives the jobs on offer and that default, and the public
 `docked` event carries the `job` done (null when there was none).
 
+A turn may also carry `escort_mark` actions (`{ carrierId }`, no sequence),
+one per Escort card whose marker is in hand, each naming a different rival:
+the marker goes on that ship at the end of the turn if the player then shares
+its sector, neither ship is moored and it carries a crate or data; a name
+that does not qualify by then is passed over, not refused. Without one, no
+marker is placed. The engine's `escortCandidates(view, playerId, position)`
+lists who qualifies. A moored ship can neither fire nor be fired at, so a
+`fire_weapon` from a berth or at a moored target is refused.
+
+The view carries the public board state these cards add: `GameView.wrecks`
+(`{ id, wellId, ring, sector }[]`, left where a ship is destroyed, drifting
+with the stations) and `PlayerView.escortedBy` (the ids of the players whose
+Escort markers are on that ship). The events `wreck_left`, `wreck_salvaged`,
+`escort_marked` and `escort_released` are public, `stations_moved` carries
+the drifted `wrecks`, and `mission_completed` can arrive for a player who is
+not the one taking the turn (an Escort pays on the carrier's delivery).
+
 Per-recipient sending: `sendToPlayer(room, roomId, playerId, message)` and
 `broadcastViews(room, roomId, (playerId) => message)`; the old single-string
 `broadcastToRoom` remains only for lobby messages that carry no game state.

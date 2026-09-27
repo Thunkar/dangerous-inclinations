@@ -1,7 +1,6 @@
 /**
- * The mission decks: a primary pile shuffled once and dealt round the table,
- * and a secondary pile that is simply handed out, one card of each kind to
- * every seat.
+ * The mission decks: a primary pile and a secondary pile, each shuffled once
+ * and dealt round the table.
  *
  * They are physical decks, so they are built the way physical decks have to be.
  * There is no per-player deck and no card that knows who is holding it:
@@ -30,21 +29,21 @@
  * card, each cargo route), which keeps the same share of it pointed at people
  * as the old per-player decks had (31% at three seats, 53% at six).
  *
- * The secondary pile is {@link SECONDARY_COPIES_PER_CARD} of each, which is
- * {@link MAX_PLAYERS}: one of each kind to every seat means a full table needs
- * eighteen, so the printed pile is sized by the biggest table rather than by
- * symmetry with the other one. It is never cut into: every player is handed
- * one Survey, one Piracy and one Tanker and keeps two of the three, so no
- * hand can hold two of a kind and there is nothing to redraw.
+ * The secondary pile is {@link SECONDARY_COPIES_PER_KIND} copies of each kind
+ * (more if a full table would run it dry), shuffled and dealt three to a seat
+ * like the primaries. A hand keeps any two, two of a kind included: two of a
+ * kind are two jobs, and nothing a ship does completes both at once
+ * (`missionChecks.ts`).
  */
 import type { Player } from "../../models/game.ts";
-import type { Cargo, SecondaryMission, Mission } from "../../models/missions.ts";
+import type { Cargo, SecondaryKind, SecondaryMission, Mission } from "../../models/missions.ts";
 import {
-  SECONDARY_MISSION_TYPES,
   MISSIONS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
   PRIMARY_OFFERS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
+  SECONDARY_COPIES_PER_KIND,
+  SECONDARY_KINDS_PRINTED,
   SECONDARY_OFFERS_PER_PLAYER,
   isPrimaryType,
 } from "../../models/missions.ts";
@@ -57,16 +56,6 @@ import type { Rng } from "../../utils/rng.ts";
 export const COPIES_PER_CARD = 2;
 
 /**
- * Copies of each secondary. Three are dealt to every seat, so a full table
- * needs {@link MAX_PLAYERS} of each for the pile to go round.
- */
-export const SECONDARY_COPIES_PER_CARD = MAX_PLAYERS;
-
-/** Survey, Piracy, Tanker: one of each for every seat. */
-export const SECONDARY_KINDS = 3;
-export const SECONDARY_CARDS_PER_DECK = SECONDARY_KINDS * SECONDARY_COPIES_PER_CARD;
-
-/**
  * A card as it is printed: a rival card counts seats rather than naming one,
  * and the deal turns that count into the player sitting there.
  */
@@ -76,7 +65,9 @@ export type DeckCard =
   | { type: "deliver_cargo"; pickupPlanetId: string; deliveryPlanetId: string }
   | { type: "survey"; deliveryPlanetId: string }
   | { type: "piracy" }
-  | { type: "tanker" };
+  | { type: "tanker" }
+  | { type: "escort" }
+  | { type: "salvage" };
 
 /** A card before it gets an id (distributive over the mission union). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -117,17 +108,33 @@ export function buildPrimaryDeck(
 }
 
 /**
- * The printed secondary pile. It names no rival and no route, so it is the
- * same pile at every table size.
+ * Copies of each secondary kind printed: {@link SECONDARY_COPIES_PER_KIND},
+ * or more when that few kinds would not go round a full table three cards a
+ * seat (three kinds print six of each).
  */
-export function buildSecondaryDeck(): DeckCard[] {
+export function secondaryCopiesPerKind(kinds: number): number {
+  return Math.max(
+    SECONDARY_COPIES_PER_KIND,
+    Math.ceil((MAX_PLAYERS * SECONDARY_OFFERS_PER_PLAYER) / Math.max(1, kinds))
+  );
+}
+
+/**
+ * The printed secondary pile, in a fixed order. It names no rival and no
+ * route, so it is the same pile at every table size.
+ *
+ * @param kinds the kinds printed; the table plays {@link SECONDARY_KINDS_PRINTED}
+ *   (the simulator's `--secondaries=` rewrites that list for an experiment).
+ */
+export function buildSecondaryDeck(
+  kinds: readonly SecondaryKind[] = SECONDARY_KINDS_PRINTED
+): DeckCard[] {
   const deck: DeckCard[] = [];
-  for (let copy = 0; copy < SECONDARY_COPIES_PER_CARD; copy++) {
-    deck.push({ type: "piracy" });
-    deck.push({ type: "tanker" });
-    for (const type of SECONDARY_MISSION_TYPES) {
-      // Data is filed at whatever station the ship next docks at.
-      deck.push({ type, deliveryPlanetId: "any" });
+  const copies = secondaryCopiesPerKind(kinds.length);
+  for (let copy = 0; copy < copies; copy++) {
+    for (const type of kinds) {
+      // Survey data is filed at whatever station the ship next docks at.
+      deck.push(type === "survey" ? { type, deliveryPlanetId: "any" } : { type });
     }
   }
   return deck;
@@ -167,7 +174,11 @@ export function cardForPlayer(
       return { type: card.type, isCompleted: false, cargoId: "" };
     case "tanker":
       return { type: card.type, isCompleted: false };
-    default: {
+    case "escort":
+      return { type: card.type, isCompleted: false, markedPlayerId: null };
+    case "salvage":
+      return { type: card.type, isCompleted: false, cargoId: "" };
+    case "survey": {
       const secondary: Omit<SecondaryMission, "id"> = {
         type: card.type,
         isCompleted: false,
@@ -180,7 +191,6 @@ export function cardForPlayer(
   }
 }
 
-/** Every ordered pair of distinct planets. */
 /**
  * The Deliver routes: from each planet to the next one round the circuit.
  *
@@ -223,14 +233,17 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
       return { ...card, id, dataCargoId: `data-${id}` };
     case "piracy":
       return { ...card, id, cargoId: `loot-${id}` };
+    case "salvage":
+      return { ...card, id, cargoId: `salvage-${id}` };
     case "tanker":
+    case "escort":
     case "destroy_ship":
       return { ...card, id };
   }
 }
 
 /**
- * Shuffle both piles and deal round the table, advancing `rng`. Deterministic
+ * Shuffle both piles and deal each round the table, advancing `rng`. Deterministic
  * for a seed.
  *
  * Each pile is dealt a card at a time the way a dealer would: the same card can
@@ -266,39 +279,7 @@ export function dealMissionOffers(
   };
 
   deal(rng.shuffle(buildPrimaryDeck(players.length, planetIds)), PRIMARY_OFFERS_PER_PLAYER);
-
-  /**
-   * The secondaries are not a pile you cut into: every player is handed one
-   * of each kind. A hand keeps two of them and they have to differ, so a
-   * shuffled pile would sometimes deal a seat no choice at all, and at six
-   * seats a 24-card pile is exactly consumed, so a "draw again" rule has a
-   * hole in it precisely where the table is fullest (measured 20 Sept 2026:
-   * one seat in fifty dealt four of a kind, a redeal in a tenth of six-seat
-   * games). The cards of a kind are identical, so there is nothing to shuffle
-   * and nothing a player could tell apart.
-   *
-   * Taking one of each closes that by construction, needs no redraw and no
-   * deck sized to the player count, and is one sentence at the table. The
-   * price is that everybody is offered the same three, so the choice is which
-   * one to leave rather than what turned up, and the three had better be
-   * worth roughly the same, or it is not a choice.
-   */
-  const byKind = new Map<string, DeckCard[]>();
-  for (const card of buildSecondaryDeck()) {
-    const ofKind = byKind.get(card.type) ?? [];
-    ofKind.push(card);
-    byKind.set(card.type, ofKind);
-  }
-  // One of each kind for every seat: the cards of a kind are identical, so
-  // the shuffle below orders nothing a player could tell apart.
-  for (const ofKind of [...byKind.values()].slice(0, SECONDARY_OFFERS_PER_PLAYER)) {
-    const shuffled = rng.shuffle(ofKind);
-    players.forEach((player, seat) => {
-      const card = shuffled[seat];
-      if (!card) return;
-      offers.get(player.id)!.push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
-    });
-  }
+  deal(rng.shuffle(buildSecondaryDeck()), SECONDARY_OFFERS_PER_PLAYER);
   return offers;
 }
 
@@ -326,12 +307,6 @@ export function selectMissionsFromOffers(
     return fail(
       `A hand is ${PRIMARIES_PER_PLAYER} primary and ${SECONDARIES_PER_PLAYER} secondaries (got ${primaries} primary)`
     );
-  }
-  // Two of the same secondary is one plan done twice: the pair has to differ,
-  // so the second choice is a different thing to go and do.
-  const secondaries = missions.filter((m) => !isPrimaryType(m.type));
-  if (new Set(secondaries.map((m) => m.type)).size !== secondaries.length) {
-    return fail("Your two secondaries must be different cards");
   }
   return { missions, cargo: cratesForMissions(missions) };
 }

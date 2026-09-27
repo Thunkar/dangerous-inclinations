@@ -29,13 +29,19 @@ import {
   projectMissilePath,
   samePosition,
 } from '@dangerous-inclinations/engine'
-import type { CameraShot, Ping, ShipMotion, TableEffect } from '../../context/AnimationContext'
+import type {
+  CameraShot,
+  Ping,
+  ShipMotion,
+  TableEffect,
+  WreckMotion,
+} from '../../context/AnimationContext'
 import { useAnimation } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
-import { crowdOffset, radialPoint, ringsOf, type Point } from './geometry'
+import { crowdOffset, radialPoint, ringsOf, type Point, type WreckCrowd } from './geometry'
 
 export interface ShipToken {
   visual?: ShipVisual
@@ -54,11 +60,35 @@ export interface ShipToken {
    * `geometry.crowdOffset` turns it into the radial nudge each board applies.
    */
   crowd: { index: number; count: number }
+  /**
+   * The Escort markers sitting on this ship, one per marking player, in seat
+   * order: public, face-up on the table (RULES §Missions, Escort).
+   */
+  escorts: EscortBadge[]
   isActive: boolean
   isMe: boolean
   hitPoints: number
   maxHitPoints: number
   heat: number
+}
+
+export interface EscortBadge {
+  playerId: string
+  name: string
+  color: string
+}
+
+/**
+ * What a destroyed ship left behind, until a Salvage holder takes it. Public.
+ * Several can share a sector, and share it with ships: `crowd` numbers them
+ * and `geometry.wreckPoint` turns that into the place each board draws it.
+ */
+export interface WreckToken {
+  id: string
+  position: Position
+  /** Set while the wreck drifts with the stations' step; renderers interpolate. */
+  motion?: WreckMotion
+  crowd: WreckCrowd
 }
 
 export interface HomeMarker {
@@ -92,6 +122,7 @@ export interface BoardModelOptions {
 
 export interface BoardModel {
   ships: ShipToken[]
+  wrecks: WreckToken[]
   homes: HomeMarker[]
   stations: Station[]
   missiles: Missile[]
@@ -169,6 +200,13 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
    * renderer reads its own clock against `motion`.
    */
   const ships = useMemo<ShipToken[]>(() => {
+    const escortsOf = (playerId: string): EscortBadge[] => {
+      const ids =
+        overlay?.escorts[playerId] ?? view.players.find(p => p.id === playerId)?.escortedBy ?? []
+      return view.players.flatMap((p, index) =>
+        ids.includes(p.id) ? [{ playerId: p.id, name: p.name, color: getPlayerColor(index) }] : []
+      )
+    }
     const tokens = view.players.flatMap<Omit<ShipToken, 'crowd'>>((player, index) => {
       const live = overlay?.ships[player.id]
       const publicShip = player.ship
@@ -187,6 +225,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           position,
           facing: live?.facing ?? publicShip!.facing,
           motion: live?.motion,
+          escorts: escortsOf(player.id),
           isActive: player.isActive,
           isMe: player.isMe,
           hitPoints: publicShip?.hitPoints ?? 0,
@@ -202,6 +241,31 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       return { ...token, crowd: { index: sharing.indexOf(token), count: sharing.length } }
     })
   }, [view.players, overlay])
+
+  /**
+   * A token per wreck, numbered among the wrecks on its sector and told how
+   * many ships stand there, so the wrecks take their own band and never sit on
+   * a hull. Read off resting positions, like the ships' crowd.
+   */
+  const wrecks = useMemo<WreckToken[]>(() => {
+    const live =
+      overlay?.wrecks ??
+      view.wrecks.map(w => ({
+        id: w.id,
+        position: { wellId: w.wellId, ring: w.ring, sector: w.sector },
+      }))
+    return live.map(wreck => {
+      const sharing = live.filter(other => samePosition(other.position, wreck.position))
+      return {
+        ...wreck,
+        crowd: {
+          index: sharing.indexOf(wreck),
+          count: sharing.length,
+          ships: ships.filter(ship => samePosition(ship.position, wreck.position)).length,
+        },
+      }
+    })
+  }, [view.wrecks, overlay, ships])
 
   const homes = useMemo<HomeMarker[]>(
     () =>
@@ -368,6 +432,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
   return useMemo(
     () => ({
       ships,
+      wrecks,
       homes,
       stations,
       missiles,
@@ -394,6 +459,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     }),
     [
       ships,
+      wrecks,
       homes,
       stations,
       missiles,

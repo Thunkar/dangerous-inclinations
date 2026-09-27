@@ -37,6 +37,7 @@ import { Missiles } from './scene/Missiles'
 import { Overlays } from './scene/Overlays'
 import { Ships } from './scene/Ships'
 import { Wells } from './scene/Wells'
+import { Wrecks } from './scene/Wrecks'
 import { CAMERA_FAR, CAMERA_NEAR } from './world'
 
 const PRESET_LABEL: Record<CameraPreset, string> = {
@@ -190,6 +191,7 @@ function Board({
           <Wells onFocusWell={rig.flyTo} />
           <Lanes activeLaneIds={model.activeLaneIds} />
           <Markers stations={model.stations} homes={model.homes} />
+          <Wrecks wrecks={model.wrecks} />
           <Overlays model={model} />
           <Missiles
             missiles={model.missiles}

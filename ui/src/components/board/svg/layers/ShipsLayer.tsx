@@ -12,6 +12,10 @@
  * Where several ships share a sector the model has already numbered them, and
  * `crowdOffset` turns that number into the radial nudge that keeps them apart;
  * the 3D board applies the same one, so the two boards crowd alike.
+ *
+ * A ship carrying Escort markers wears a small shield per marker in the
+ * marking player's colour, in a row over the hull, upright however the hull
+ * points, and clear of the active and target rings.
  */
 import { memo } from 'react'
 import type { ShipToken } from '../../model'
@@ -25,6 +29,11 @@ import {
   radialPoint,
   type Point,
 } from '../../geometry'
+
+/** An Escort marker: a shield, 11 units tall, set above the hull. */
+const BADGE = 'M -4.5 -5.5 H 4.5 V 0.5 L 0 5.5 L -4.5 0.5 Z'
+const BADGE_STEP = 12
+const BADGE_RISE = 30
 
 interface ShipsLayerProps {
   ships: ReadonlyArray<ShipToken>
@@ -80,7 +89,11 @@ export const ShipsLayer = memo(function ShipsLayer({
             style={{ cursor: onSelect && selectable ? 'pointer' : 'default' }}
             onClick={onSelect && selectable ? () => onSelect(ship.playerId) : undefined}
           >
-            <title>{`${ship.name} · hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}`}</title>
+            <title>{`${ship.name} · hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}${
+              ship.escorts.length > 0
+                ? ` · escorted by ${ship.escorts.map(e => e.name).join(', ')}`
+                : ''
+            }`}</title>
             {selectable && (
               <circle
                 cx={p.x}
@@ -122,6 +135,15 @@ export const ShipsLayer = memo(function ShipsLayer({
               <rect x={-10.5} y={-4} width={2} height={8} fill={BOARD.ink} />
               {ship.isMe && <circle cx={-1} cy={0} r={2.4} fill={BOARD.deep} />}
             </g>
+            {ship.escorts.map((escort, i) => (
+              <g
+                key={escort.playerId}
+                transform={`translate(${p.x + (i - (ship.escorts.length - 1) / 2) * BADGE_STEP} ${p.y - BADGE_RISE})`}
+              >
+                <title>{`${escort.name}'s Escort marker is on ${ship.name}`}</title>
+                <path d={BADGE} fill={escort.color} stroke={BOARD.ink} strokeWidth={1.1} />
+              </g>
+            ))}
           </g>
         )
       })}

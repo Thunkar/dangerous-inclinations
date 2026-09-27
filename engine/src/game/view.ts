@@ -9,12 +9,20 @@ import { resolveShipAppearance, type ShipAppearance } from "../models/appearance
  * Public: positions, facing, hull, heat, energy on every slot (cubes sit on
  * the tiles in the open, even face-down ones), home markers, crates carried,
  * face-up tiles, broken fixed systems, completed missions, missiles, stations,
- * and the fuel aboard.
+ * wrecks, the Escort markers sitting on a ship, and the fuel aboard.
  * Private: face-down tile identities, the ammo in a face-down missiles tile,
  * missions in hand, cargo
  * destinations, mission offers, what a scan showed you.
  */
-import type { GameState, Missile, Player, Position, Station, GamePhase } from "../models/game.ts";
+import type {
+  GameState,
+  Missile,
+  Player,
+  Position,
+  Station,
+  GamePhase,
+  Wreck,
+} from "../models/game.ts";
 import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import type { Mission } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
@@ -91,6 +99,12 @@ export interface PlayerView {
   cargoCount: number;
   completedMissionCount: number;
   completedMissions: Mission[];
+  /**
+   * The players whose Escort markers sit on this ship. Public: the marker is
+   * on the table face-up, though the card it came from stays in its holder's
+   * hand.
+   */
+  escortedBy: string[];
 }
 
 export interface OwnShipStats {
@@ -114,6 +128,8 @@ export interface GameView {
   players: PlayerView[];
   stations: Station[];
   missiles: Missile[];
+  /** What destroyed ships left behind, until a Salvage holder takes it. Public. */
+  wrecks: Wreck[];
   winnerId?: string;
   /** Someone has reached the points needed; the game ends when this round does. */
   finalRound: boolean;
@@ -198,6 +214,13 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     cargoCount: player.cargo.filter((c) => c.isPickedUp).length,
     completedMissionCount: player.completedMissionCount,
     completedMissions: completedMissions(player),
+    escortedBy: state.players
+      .filter((p) =>
+        p.missions.some(
+          (m) => m.type === "escort" && !m.isCompleted && m.markedPlayerId === player.id
+        )
+      )
+      .map((p) => p.id),
   };
 }
 
@@ -211,6 +234,7 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     players: state.players.map((p) => playerViewFor(state, p, me)),
     stations: state.stations,
     missiles: state.missiles,
+    wrecks: state.wrecks,
     winnerId: state.winnerId,
     finalRound: state.finalRound === true,
     pointsToWin: state.pointsToWin,

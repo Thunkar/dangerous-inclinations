@@ -165,6 +165,8 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     heat: [2, 0, 4][index],
     // Three seats, three sectors: nobody here is in anybody's way.
     crowd: { index: 0, count: 1 },
+    // Vagrant's Escort marker rides on Kestrel.
+    escorts: index === 1 ? [{ playerId: 'p3', name: SEATS[2].name, color: getPlayerColor(2) }] : [],
   }))
 
   const homes: HomeMarker[] = SEATS.map((seat, index) => ({
@@ -247,6 +249,8 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
 
   return {
     ships,
+    // A wreck on Aurora's sector: one ship and one wreck, the common case.
+    wrecks: [{ id: 'wreck-1', position: me.position, crowd: { index: 0, count: 1, ships: 1 } }],
     homes,
     stations,
     missiles: MISSILES,

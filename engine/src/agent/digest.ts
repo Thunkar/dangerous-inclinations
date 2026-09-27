@@ -24,6 +24,7 @@ import { getWellName } from "../models/gravityWells.ts";
 import type { GameView, PlayerView } from "../game/view.ts";
 import { describeEvent, describeMission } from "../game/describe.ts";
 import { seatOptions } from "./options.ts";
+import { isSafeAtBerth } from "../game/stations.ts";
 
 const pos = (p: { wellId: string; ring: number; sector: number }) =>
   `${getWellName(p.wellId as never)} R${p.ring} S${p.sector}`;
@@ -50,7 +51,7 @@ const MISSILE = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
  */
 export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): string {
   return `RULES IN BRIEF
-- Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; Survey, Piracy and Tanker ${MISSION_POINTS.survey}. A hand is ONE primary and TWO DIFFERENT secondaries, which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
+- Win: the round in which someone reaches ${pointsToWin} points is played out; then highest score, then hull, then fuel. Destroy, Deliver and Intercept are worth ${MISSION_POINTS.destroy_ship} points each; the secondaries (Survey, Piracy, Tanker, Escort, Salvage) ${MISSION_POINTS.survey}. A hand is ONE primary and TWO secondaries (two of a kind is allowed: they are two jobs, and nothing you do completes both at once), which is five points held for the ${pointsToWin} that win: your primary and either secondary wins, the other secondary is a spare, and two secondaries on their own are not enough.
 - Turn: clear your loadout (every cube you put on last turn comes off) -> actions in the order you choose (power, rotate, ONE move: coast|burn|jump, fire any weapons, scan) -> your missiles fly -> docking -> heat check -> missions, pass. Once a round, after the last seat's turn, every station advances along its ring, carrying whoever is moored.
 - Drift: every turn you move forward by your ring's velocity (BH rings 8/6/4/2/1, planet rings 6/4/2/1). Coast = drift only (scoop costs 3 cubes and 3 heat: +velocity fuel; it runs in port too).
 - ENERGY, in one rule: EVERY CUBE ON YOUR LOADOUT IS A POINT OF HEAT AT YOUR CHECK. Every action puts energy on the subsystem it uses, to its one figure (railgun 4, laser 2, rack 2, missiles 2, sensor 2, scoop 3, thrusters 1, engines = the burn's number). The energy stays on the subsystem until the START OF YOUR NEXT TURN, when you clear your loadout. POWERING IS AN ACTION TOO, for the three subsystems that work on other players' turns: shields (2 or 4), a ballistic rack (2) and a sensor array (2). A subsystem with energy on it works until your next turn: shields absorb, a rack shoots down missiles, a sensor widens your critical range. So a rack you fired is also up, and a sensor you scanned with widens the range of every shot you take AFTER the scan. EACH SUBSYSTEM DOES ONE THING A TURN: you power it or you use it, so a rack you power cannot fire and a sensor you power cannot scan. Nothing is ever switched off: a subsystem is off unless something put energy on it this turn, so a wall you want up you power again every turn. THERE IS NO REACTOR: nothing caps what you light at once, so a huge turn is legal and simply costs hull.
@@ -64,8 +65,8 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
 - THE FIRST ROUND REACHES NOBODY: no weapon fires and nobody scans. Deploy on Black Hole ring 3 or 4, at least three sectors from every placed ship; if no sector qualifies, the farthest one.
 - Hit roll d10: 1 miss, 2-9 hit, 10 crit (8-10 for shots after your sensor array was powered or scanned this turn). A crit BREAKS THE NAMED SLOT whether or not the shot got through the shields, and the broken subsystem dumps its cubes into its owner's heat: a railgun that fired last turn still holds its 4 on your turn. Cubes on every slot are public even while the subsystem is face-down. Using a subsystem turns it face-up, so cubes on a FACE-DOWN slot were powered: 2 is a half shield, a rack or a sensor, 4 only a full shield, and a silent face-down slot may be anything. (A subsystem that just absorbed has spent its cubes, so breaking it dumps little, but it is gone until they dock.)
 - Repair: a station (on arrival) fixes everything; away from one, if your heat is 0 at the check you repair ONE broken subsystem you name: that means no move but a plain coast, no scoop, no shot, no scan and nothing powered. It is the only way back for a ship whose engines, thrusters or scoop were shot out, because every station needs a jump to reach and a dry ship with no scoop has no fuel for one.
-- Docking (end your turn on a station's sector, planet ring 2): repair, FULL hull, reload, and ONE job a visit: your crates (deliver the ones bound here, then load the one waiting here), your data (file all that can be filed here) or your fuel (Tanker). Name it with "dock"; left out, the visit does the job worth the most points, ties to crates, then data, then fuel. What the other jobs would have moved stays put. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it: a coast does not drift, and the station carries you when it advances. Burn to cast off.
-- Secondary cards (1 pt, no subsystem needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the data, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or data and it is yours, then sell the loot at ANY station: a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and do the fuel job: hand in ${TANKER_FUEL}, the card is done.
+- Docking (end your turn on a station's sector, planet ring 2): repair, FULL hull, reload, and ONE job a visit: your crates (deliver the ones bound here, then load the one waiting here), your data (file all that can be filed here) or your fuel (Tanker). Name it with "dock"; left out, the visit does the job worth the most points, ties to crates, then data, then fuel. What the other jobs would have moved stays put. Stations drift 4 sectors at the end of each round. Moored: while you sit on a station you ride it: a coast does not drift, and the station carries you when it advances. Burn to cast off. A moored ship can neither fire nor be fired at, missiles included (a missile that reaches one flies on); burn off the berth first and fire after the move.
+- Secondary cards (1 pt, no subsystem needed). Survey = end a turn on BH ring ${SURVEY_RING}: take the data, then dock anywhere to file it. Piracy = end a turn in the exact sector of a ship carrying a crate or data and it is yours, then sell the loot at ANY station: a crate first if they carry both, their card goes back to undone, your hold must be empty (a crate of your own and you take nothing) and neither ship may be moored. Tanker = arrive at a station with ${TANKER_FUEL}+ fuel and do the fuel job: hand in ${TANKER_FUEL}, the card is done. Salvage = a destroyed ship leaves a wreck where it died, and wrecks drift with the stations once a round by their ring's speed; end a turn on a wreck's sector (moored or not) and take its black box: it is data, it rides free beside whatever is in your hold, a pirate can seize it and it is lost if you are destroyed; file it at ANY station (the data job). The killer may salvage its own kill; one wreck a turn. Escort = end a turn, not moored, in the sector of an undocked rival carrying cargo (crate or data, loot and salvage included) and you MAY put your marker on them, face-up (name them with "escort" in your intent); the next time that ship delivers, sells or files anything at a station, your card is done, on their turn. If they are destroyed first, the marker comes back to you. A second Escort marks a different ship.
 - Intercept: scan the target (same ring, within 3 sectors), then file at the station the card names.
 - Destroyed: you drop your cargo and lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. The turn after that is A FIRST ROUND OF YOUR OWN: power, rotation and a move are yours, but no weapon of yours fires and you scan nobody, and nobody can fire at, missile or scan you until that turn is over.`;
 }
@@ -93,6 +94,12 @@ function missionLine(m: Mission, name: (id: string) => string): string {
       return `${head} · end a turn in the sector of a ship carrying a crate or data (hold empty, neither of you moored), then sell the loot at ANY station`;
     case "tanker":
       return `${head} · arrive at any station with ${TANKER_FUEL}+ fuel and it is pumped in`;
+    case "escort":
+      return m.markedPlayerId
+        ? `${head} · your marker is on ${name(m.markedPlayerId)}: done the next time they deliver, sell or file anything`
+        : `${head} · marker in hand: you MAY put it on an undocked rival carrying a crate or data whose sector you end your turn in (you not moored either); name it with "escort", or no marker goes on`;
+    case "salvage":
+      return `${head} · end a turn on a wreck's sector to take its black box (data), then file it at ANY station`;
     case "destroy_ship":
       return `${head} · worth 2 points`;
   }
@@ -175,12 +182,18 @@ export function describeViewForAgent(
     out.push(
       `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.completedMissionCount} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Subsystems: ${tileLine(p)}. Completed: ${
         p.completedMissions.map((m) => describeMission(m, name)).join("; ") || "none"
-      }.${p.recovering ? " UNTOUCHABLE until their next turn is over: no shot, missile or scan reaches them, and they fire at nobody on it." : ""}`
+      }.${p.escortedBy.length ? ` Escort markers on them: ${p.escortedBy.map(name).join(", ")}.` : ""}${p.recovering ? " UNTOUCHABLE until their next turn is over: no shot, missile or scan reaches them, and they fire at nobody on it." : ""}${!s.isDestroyed && isSafeAtBerth(view.stations, s) ? " MOORED: no shot or missile reaches them, and they fire at nobody while they hold the berth." : ""}`
     );
   }
   out.push(
     "",
     `STATIONS (planet ring 2, drift 4/round): ${view.stations.map((s) => `${getWellName(s.planetId as never)} S${s.sector}`).join(", ")}.`
+  );
+  const mine = view.players.find((p) => p.isMe);
+  if (mine?.escortedBy.length)
+    out.push(`ESCORT MARKERS ON YOU: ${mine.escortedBy.map(name).join(", ")}.`);
+  out.push(
+    `WRECKS (drift with the stations once a round): ${view.wrecks.map((w) => pos(w)).join(", ") || "none"}.`
   );
   if (view.missiles.length)
     out.push(
@@ -238,6 +251,10 @@ export function describeViewForAgent(
             : "No repair this turn: you are already carrying heat."
         }`
       );
+    if (o.escort)
+      out.push(
+        `  Escort: ${o.escort.markersInHand} marker(s) in hand. Add {"escort":["<playerId>"]} to put one on a carrier whose sector you END this turn in (undocked, carrying a crate or data); a ship that does not qualify then takes nothing. After a plain coast: [${o.escort.carriersAfterCoast.map(name).join(", ") || "-"}].`
+      );
     out.push(`  Heat budget before damage: ${o.heatBudget}.`);
   }
 
@@ -261,6 +278,7 @@ export const AGENT_INTENT_GUIDE = `INTENT FORMAT (JSON). Everything optional; om
   "fire": [ { "weapon": "forward-0", "target": "<playerId>", "critical": "engines", "compensateRecoil": false, "when": "after" } ],
   "scan": { "target": "<playerId>", "slot": "side-1" },
   "repair": "engines",                         // a broken subsystem to fix at the heat check; only lands if the turn makes NO heat
-  "dock": "fuel"                               // crates|data|fuel: the one job if this turn arrives at a station; omitted = the one worth most points
+  "dock": "fuel",                              // crates|data|fuel: the one job if this turn arrives at a station; omitted = the one worth most points
+  "escort": ["<playerId>"]                     // put an Escort marker on each (one per marker in hand) if the turn ends in its sector; omitted = no marker
 }
 A burn, rotation, shot or scan needs no cubes from you: the engine powers its subsystem. Do not also power a rack you fire or a sensor you scan with: a subsystem does one thing a turn, and using it leaves it up. The builder just orders the actions (power, rotate, shots marked "before", the move, other shots, scan). Preview it before submitting; if the preview reports errors, fix the intent or fall back to a coast.`;

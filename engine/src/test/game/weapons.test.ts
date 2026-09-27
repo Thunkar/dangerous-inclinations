@@ -487,10 +487,11 @@ describe("weapons: railgun recoil", () => {
   ] as const)(
     "the well's own ring count decides: firing %s is allowed = %s",
     (_label, facing, ring, allowed) => {
+      // Sector 6, clear of the station (sector 0 of ring 2 at the start).
       const state = withPower(
         makeTwoPlayerGame(
-          { wellId: ALPHA, ring, sector: 0, facing },
-          { wellId: ALPHA, ring, sector: facing === "prograde" ? 2 : 22 }
+          { wellId: ALPHA, ring, sector: 6, facing },
+          { wellId: ALPHA, ring, sector: facing === "prograde" ? 8 : 4 }
         ),
         "p1",
         "forward-0",

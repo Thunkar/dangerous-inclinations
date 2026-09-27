@@ -15,6 +15,7 @@ import { powerActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, type MovementPreview } from "../game/movement.ts";
 import { isMooredAt } from "../game/stations.ts";
+import { unplacedEscorts } from "../game/escort.ts";
 import { getJumpOptions, phasedJumpDestination } from "../models/gravityWells.ts";
 
 export interface FireIntent {
@@ -69,6 +70,14 @@ export interface TurnIntent {
    * data, then fuel).
    */
   dock?: DockJob;
+  /**
+   * Rivals to put an Escort marker on, one per marker in hand, each a
+   * different ship. A "you may": nothing is placed unless named here. Each is
+   * settled against where the turn ends; a ship that does not qualify then
+   * (not in your sector, carrying nothing, either of you moored) takes no
+   * marker and costs nothing.
+   */
+  escort?: string[];
 }
 
 export interface BuiltTurn {
@@ -261,6 +270,22 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
     if (!(DOCK_JOBS as readonly string[]).includes(intent.dock))
       notes.push(`${String(intent.dock)} is not a dock job (${DOCK_JOBS.join(", ")}); dropped`);
     else actions.push({ type: "dock_job", playerId: me.id, data: { job: intent.dock } });
+  }
+  if (intent.escort !== undefined) {
+    const inHand = unplacedEscorts(me.missions).length;
+    const named = new Set<string>();
+    for (const carrierId of intent.escort) {
+      if (carrierId === me.id) notes.push("an Escort marker goes on a rival, not you; dropped");
+      else if (!view.players.some((p) => p.id === carrierId))
+        notes.push(`no player ${String(carrierId)} to escort; dropped`);
+      else if (named.has(carrierId)) notes.push(`${carrierId} named twice for Escort; once kept`);
+      else if (named.size >= inHand)
+        notes.push(`only ${inHand} Escort marker(s) in hand; ${carrierId} dropped`);
+      else {
+        named.add(carrierId);
+        actions.push({ type: "escort_mark", playerId: me.id, data: { carrierId } });
+      }
+    }
   }
   return { actions, notes };
 }
