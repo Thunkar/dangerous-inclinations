@@ -124,6 +124,22 @@ export type DockJob = (typeof DOCK_JOBS)[number];
 export const SALE_RULES: { oneSalePerStation: boolean } = { oneSalePerStation: false };
 
 /**
+ * Experiment only: "your hold has no limit, and the pirate picks the item".
+ * Off, the hold takes {@link CARGO_HOLD_CRATES} crate, loot fills it and a
+ * seizure is automatic (a crate first, the pirate's hold empty). On, crates,
+ * loot and data all ride together, and a pirate takes one item of its choice
+ * per undone Piracy card, named with the turn as a `seize` action. Set by the
+ * simulator's `--rules=unlimitedHold=1` (sim/ruleOverrides.ts); the server and
+ * the UI never touch it.
+ */
+export const HOLD_RULES: { unlimited: boolean } = { unlimited: false };
+
+/** Crates the hold has room for beside `crates` already aboard. */
+export function holdRoom(crates: number): number {
+  return HOLD_RULES.unlimited ? Infinity : CARGO_HOLD_CRATES - crates;
+}
+
+/**
  * What a `dock_job` action may name: a job, or, under the one-sale experiment
  * only, "none" for a visit that sells nothing (the crate waiting there still
  * loads).
@@ -389,6 +405,17 @@ export function dataAboard(
   mission: InterceptTransmissionMission | SurveyMission
 ): boolean {
   return player.cargo.some((c) => c.id === mission.dataCargoId && c.isPickedUp);
+}
+
+/**
+ * What an item aboard is to the table: a Deliver crate, loot (a seized item,
+ * which rides as a crate with no pickup station), or data.
+ */
+export type HoldItemKind = "crate" | "loot" | "data";
+
+export function holdItemKind(item: Cargo): HoldItemKind {
+  if (item.kind === "data") return "data";
+  return item.pickupPlanetId === undefined ? "loot" : "crate";
 }
 
 /** Whether a crate is in the hold (the hold takes {@link CARGO_HOLD_CRATES}). */

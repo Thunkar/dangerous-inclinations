@@ -16,6 +16,7 @@ import type {
   RepairAction,
   DockJobAction,
   EscortMarkAction,
+  SeizeAction,
   ScanAction,
   WellTransferAction,
 } from "../models/game.ts";
@@ -41,7 +42,7 @@ import {
   calculateJumpMassCost,
 } from "../models/rings.ts";
 import { findJump, getJumpAdjustmentRange } from "../models/gravityWells.ts";
-import { DOCK_JOBS, SALE_RULES, SCAN_SECTOR_RANGE } from "../models/missions.ts";
+import { DOCK_JOBS, HOLD_RULES, SALE_RULES, SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, requestedDraw } from "./ship.ts";
 import { ringAfter } from "./movement.ts";
@@ -345,6 +346,24 @@ export function validateEscortMarkAction(state: GameState, action: EscortMarkAct
   if (typeof carrierId !== "string" || !findPlayer(state, carrierId))
     return [`An Escort marker goes on a player at the table, not ${String(carrierId)}`];
   if (carrierId === action.playerId) return ["An Escort marker goes on a rival, not your own ship"];
+  return [];
+}
+
+/**
+ * An item named for a seizure (the unlimited-hold experiment only): only
+ * malformed input is refused. Where the ships are and what they carry are
+ * read at the end of the turn, after the move; an item that is not there to
+ * take then is passed over and the turn stands.
+ */
+export function validateSeizeAction(state: GameState, action: SeizeAction): string[] {
+  if (!HOLD_RULES.unlimited)
+    return ["A seizure is named only under the unlimited-hold experiment; Piracy seizes by itself"];
+  const { victimId, cargoId } = action.data;
+  if (typeof victimId !== "string" || !findPlayer(state, victimId))
+    return [`A seizure is made from a player at the table, not ${String(victimId)}`];
+  if (victimId === action.playerId) return ["A seizure is made from a rival, not your own ship"];
+  if (typeof cargoId !== "string")
+    return [`The item seized is named by its cargo id, not ${String(cargoId)}`];
   return [];
 }
 

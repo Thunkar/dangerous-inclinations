@@ -17,6 +17,7 @@
  *   --tiles=ballistic_rack.damage=3,fuel_compressor.slotType=side  experiment-only tile overrides (any field of any tile)
  *   --rules=missionsToWin=4  the table's points to win, dealt into every game of the batch
  *   --rules=oneSalePerStation=1  experiment: a station buys one item from each player, once
+ *   --rules=unlimitedHold=1  experiment: the hold has no limit, and the pirate names what it seizes
  *   --bot=aggressiveness=0.8,targetPreference=weakest  experiment-only bot parameter overrides
  *                 (note the singular: --bots=N is how many bots play, --bot= is how they think)
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)

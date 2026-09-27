@@ -147,6 +147,8 @@ function summarizeAction(action: PlayerAction): string {
       return `At the dock: ${action.data.job}`;
     case "escort_mark":
       return `Escort marker on ${action.data.carrierId}`;
+    case "seize":
+      return `Seize ${action.data.cargoId} from ${action.data.victimId}`;
   }
 }
 

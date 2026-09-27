@@ -13,6 +13,8 @@
  *
  * The hold takes one crate (RULES §Missions), so a second route waits: a
  * crate whose station this is stays on the dock until the hold is free.
+ * Under the unlimited-hold experiment (`HOLD_RULES.unlimited`) there is no
+ * limit and every crate waiting here loads.
  *
  * Arriving, not sitting. A docked ship stays moored until it burns away, and
  * for a while the whole dock re-resolved every turn it held the berth: a free
@@ -31,10 +33,10 @@ import type { GameState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo, DockChoice, DockJob, Mission } from "../models/missions.ts";
 import {
-  CARGO_HOLD_CRATES,
   SALE_RULES,
   TANKER_FUEL,
   aboard,
+  holdRoom,
   missionPoints,
 } from "../models/missions.ts";
 import { positionOf } from "./geometry.ts";
@@ -95,7 +97,7 @@ function visitWork(ship: DockingShip, planetId: string): VisitWork {
   // waiting at the same station, which is what makes a chained route one trip
   // instead of two. A seized crate has no dock of its own, so nothing
   // reloads it.
-  let room = CARGO_HOLD_CRATES - held.filter((c) => c.kind === "crate").length + unloaded.length;
+  let room = holdRoom(held.filter((c) => c.kind === "crate").length - unloaded.length);
   const loaded: Cargo[] = [];
   for (const item of ship.cargo) {
     if (item.isPickedUp || item.kind !== "crate" || room <= 0) continue;
@@ -197,7 +199,7 @@ export function chosenSale(offer: DockJobs, named?: DockNaming): DockJobOption |
 /** Crates waiting at `planetId` that the hold has room for once `sold` is off it. */
 function loadedAfterSale(cargo: readonly Cargo[], planetId: string, sold: Cargo | null): Cargo[] {
   const crates = aboard(cargo).filter((c) => c.kind === "crate" && c !== sold).length;
-  let room = CARGO_HOLD_CRATES - crates;
+  let room = holdRoom(crates);
   const loaded: Cargo[] = [];
   for (const item of cargo) {
     if (item.isPickedUp || item.kind !== "crate" || room <= 0) continue;

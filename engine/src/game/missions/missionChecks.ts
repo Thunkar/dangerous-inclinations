@@ -15,6 +15,7 @@ import type {
   Mission,
 } from "../../models/missions.ts";
 import {
+  HOLD_RULES,
   SURVEY_RING,
   aboard,
   crateAboard,
@@ -26,10 +27,12 @@ import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
 import { isMooredAt } from "../stations.ts";
 import { escortCandidatesAtEndOfTurn, unplacedEscorts } from "../escort.ts";
+import { freePiracyCards, seizableItemsAtEndOfTurn } from "../piracy.ts";
 
 /**
  * Piracy: a pirate that ends its turn in a loaded ship's sector takes what it
- * carries: a crate or data (RULES §Missions).
+ * carries: a crate or data (RULES §Missions). Under the unlimited-hold
+ * experiment the pirate names the item instead ({@link seizeNamed}).
  *
  * The hold is the whole constraint ({@link CARGO_HOLD_CRATES} is one, so a
  * pirate with freight of its own takes nothing), and a moored ship is out of
@@ -64,38 +67,92 @@ function seizeLoot(
     const held = aboard(victim.cargo);
     const taken = held.find((c) => c.kind === "crate") ?? held.find((c) => c.kind === "data");
     if (!taken) continue;
-    players[victimIndex] = {
-      ...victim,
-      // The card the item was doing goes back to undone with it: a Deliver
-      // reloads its crate, a Survey or an Intercept has no data aboard.
-      cargo: victim.cargo.map((c) => (c.id === taken.id ? { ...c, isPickedUp: false } : c)),
-    };
-    // The loot rides as the card's own crate whatever was taken: it fills the
-    // hold and everyone can see it. Seized before and lost since, it is the
-    // same crate coming back aboard.
-    const loot: Cargo = {
-      id: mission.cargoId,
-      missionId: mission.id,
-      kind: "crate",
-      deliveryPlanetId: "any",
-      isPickedUp: true,
-    };
-    const next = cargo.some((c) => c.id === loot.id)
-      ? cargo.map((c) => (c.id === loot.id ? loot : c))
-      : [...cargo, loot];
-    return {
-      cargo: next,
-      event: {
-        type: "cargo_seized",
-        pirateId: pirate.id,
-        victimId: victim.id,
-        kind: taken.kind,
-        cargoId: taken.id,
-        at: positionOf(ship),
-      },
-    };
+    return takeItem(players, pirateIndex, victimIndex, taken, mission, cargo);
   }
   return null;
+}
+
+/**
+ * The seizure itself: `taken` comes off the victim's hold and the pirate's
+ * card's loot goes aboard. `players` is written in place (the victim); the
+ * pirate's hold comes back as `cargo`.
+ */
+function takeItem(
+  players: Player[],
+  pirateIndex: number,
+  victimIndex: number,
+  taken: Cargo,
+  mission: PiracyMission,
+  cargo: Cargo[]
+): { cargo: Cargo[]; event: EventDraft } {
+  const pirate = players[pirateIndex];
+  const victim = players[victimIndex];
+  players[victimIndex] = {
+    ...victim,
+    // The card the item was doing goes back to undone with it: a Deliver
+    // reloads its crate, a Survey or an Intercept has no data aboard.
+    cargo: victim.cargo.map((c) => (c.id === taken.id ? { ...c, isPickedUp: false } : c)),
+  };
+  // The loot rides as the card's own crate whatever was taken: it fills the
+  // hold and everyone can see it. Seized before and lost since, it is the
+  // same crate coming back aboard.
+  const loot: Cargo = {
+    id: mission.cargoId,
+    missionId: mission.id,
+    kind: "crate",
+    deliveryPlanetId: "any",
+    isPickedUp: true,
+  };
+  const next = cargo.some((c) => c.id === loot.id)
+    ? cargo.map((c) => (c.id === loot.id ? loot : c))
+    : [...cargo, loot];
+  return {
+    cargo: next,
+    event: {
+      type: "cargo_seized",
+      pirateId: pirate.id,
+      victimId: victim.id,
+      kind: taken.kind,
+      cargoId: taken.id,
+      at: positionOf(pirate.ship),
+    },
+  };
+}
+
+/**
+ * Unlimited-hold experiment (`HOLD_RULES.unlimited`): the items the pirate
+ * named with its `seize` actions, in the order submitted, one per free Piracy
+ * card in hand order. Each is checked against the table as it stands now,
+ * the seizures before it included; one that is not there to take (the ship
+ * moved on, docked, died or no longer carries it) is passed over and the card
+ * waits for the next name. `players` is written in place (the victims).
+ */
+function seizeNamed(
+  players: Player[],
+  pirateIndex: number,
+  missions: readonly Mission[],
+  cargo: Cargo[],
+  stations: GameState["stations"],
+  named: readonly SeizeOrder[]
+): { cargo: Cargo[]; events: EventDraft[] } {
+  const events: EventDraft[] = [];
+  const pirateId = players[pirateIndex].id;
+  const used = new Set<string>();
+  for (const order of named) {
+    const mission = freePiracyCards(missions, cargo).find((m) => !used.has(m.id));
+    if (!mission) break;
+    const eligible = seizableItemsAtEndOfTurn(players, stations, pirateId).some(
+      (i) => i.victimId === order.victimId && i.cargoId === order.cargoId
+    );
+    if (!eligible) continue;
+    const victimIndex = players.findIndex((p) => p.id === order.victimId);
+    const taken = players[victimIndex].cargo.find((c) => c.id === order.cargoId && c.isPickedUp)!;
+    const result = takeItem(players, pirateIndex, victimIndex, taken, mission, cargo);
+    used.add(mission.id);
+    cargo = result.cargo;
+    events.push(result.event);
+  }
+  return { cargo, events };
 }
 
 /**
@@ -177,6 +234,12 @@ function payEscorts(players: Player[], deliveredBy: ReadonlySet<string>): EventD
   return events;
 }
 
+/** An item a `seize` action names. */
+export interface SeizeOrder {
+  victimId: string;
+  cargoId: string;
+}
+
 interface MissionCheckResult {
   state: GameState;
   events: EventDraft[];
@@ -187,12 +250,15 @@ interface MissionCheckResult {
  * @param turnEvents everything emitted so far this turn (actions, missiles, docking)
  * @param escortMarks the carriers the player's `escort_mark` actions named,
  *   in the order submitted; one that does not qualify now is passed over
+ * @param seizes the items the player's `seize` actions named, in the order
+ *   submitted (the unlimited-hold experiment only; ignored otherwise)
  */
 export function processMissionEvents(
   state: GameState,
   playerId: string,
   turnEvents: EventDraft[],
-  escortMarks: readonly string[] = []
+  escortMarks: readonly string[] = [],
+  seizes: readonly SeizeOrder[] = []
 ): MissionCheckResult {
   const index = state.players.findIndex((p) => p.id === playerId);
   if (index === -1) return { state, events: [] };
@@ -225,13 +291,21 @@ export function processMissionEvents(
   // Seizures first: loot taken this turn is aboard for the rest of it, so
   // a second Piracy card in the same hand finds the hold full.
   let seized = false;
-  for (const mission of player.missions) {
-    if (mission.type !== "piracy" || mission.isCompleted) continue;
-    const taken = seizeLoot(players, index, mission, cargo, state);
-    if (!taken) continue;
+  if (HOLD_RULES.unlimited) {
+    // The pirate picks the item, and no name is no seizure.
+    const taken = seizeNamed(players, index, player.missions, cargo, state.stations, seizes);
     cargo = taken.cargo;
-    events.push(taken.event);
-    seized = true;
+    events.push(...taken.events);
+    seized = taken.events.length > 0;
+  } else {
+    for (const mission of player.missions) {
+      if (mission.type !== "piracy" || mission.isCompleted) continue;
+      const taken = seizeLoot(players, index, mission, cargo, state);
+      if (!taken) continue;
+      cargo = taken.cargo;
+      events.push(taken.event);
+      seized = true;
+    }
   }
 
   // Salvage next. The black box is data and takes no room in the hold, so

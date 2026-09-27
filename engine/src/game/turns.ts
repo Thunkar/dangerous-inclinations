@@ -125,7 +125,10 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   // The carriers the player chose to put an Escort marker on, if any: each is
   // settled against where the turn ended (RULES §Missions, Escort).
   const escortMarks = actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []));
-  const missions = processMissionEvents(state, active.id, events, escortMarks);
+  // The items the player chose to seize, under the unlimited-hold experiment
+  // (validation refuses a `seize` otherwise): settled the same way.
+  const seizes = actions.flatMap((a) => (a.type === "seize" ? [a.data] : []));
+  const missions = processMissionEvents(state, active.id, events, escortMarks, seizes);
   state = missions.state;
   events.push(...missions.events);
 

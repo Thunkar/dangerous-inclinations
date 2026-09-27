@@ -187,6 +187,19 @@ const EscortMarkActionSchema = z
   })
   .strict();
 
+/**
+ * Take this item off this ship if the turn ends in its sector (the
+ * unlimited-hold experiment only; the engine refuses it otherwise). No
+ * sequence: it is settled at the end of the turn.
+ */
+const SeizeActionSchema = z
+  .object({
+    ...base,
+    type: z.literal("seize"),
+    data: z.object({ victimId: id, cargoId: z.string() }).strict(),
+  })
+  .strict();
+
 export const PlayerActionSchema = z.discriminatedUnion("type", [
   CoastActionSchema,
   BurnActionSchema,
@@ -198,6 +211,7 @@ export const PlayerActionSchema = z.discriminatedUnion("type", [
   RepairActionSchema,
   DockJobActionSchema,
   EscortMarkActionSchema,
+  SeizeActionSchema,
 ]);
 
 export const SubmitTurnSchema = z

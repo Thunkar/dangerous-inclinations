@@ -19,6 +19,7 @@ import type {
   RepairAction,
   DockJobAction,
   EscortMarkAction,
+  SeizeAction,
   Missile,
 } from "../models/game.ts";
 import { MAX_REACTION_MASS, MOVE_ACTION_TYPES, isTacticalAction } from "../models/game.ts";
@@ -53,6 +54,7 @@ import {
   validateRepairAction,
   validateDockJobAction,
   validateEscortMarkAction,
+  validateSeizeAction,
   validateScanAction,
   validateWellTransferAction,
 } from "./validators.ts";
@@ -149,6 +151,25 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
     if (new Set(named).size !== named.length)
       errors.push("Each Escort marker goes on a different ship");
     for (const a of escortMarks) errors.push(...validateEscortMarkAction(current, a));
+    if (errors.length > 0) return { success: false, state, events: [], errors };
+  }
+
+  // Unlimited-hold experiment: one seizure per undone Piracy card, each a
+  // different item, settled at the end of the turn (missions/missionChecks.ts).
+  const seizes = actions.filter((a): a is SeizeAction => a.type === "seize");
+  if (seizes.length > 0) {
+    const errors: string[] = [];
+    for (const a of seizes) errors.push(...validateSeizeAction(current, a));
+    if (errors.length === 0) {
+      const actor = state.players.find((p) => p.id === seizes[0].playerId);
+      const cards = actor
+        ? actor.missions.filter((m) => m.type === "piracy" && !m.isCompleted).length
+        : 0;
+      if (seizes.length > cards)
+        errors.push(`${seizes.length} seizure(s) named, but only ${cards} undone Piracy card(s) in hand`);
+      const named = seizes.map((a) => `${a.data.victimId}/${a.data.cargoId}`);
+      if (new Set(named).size !== named.length) errors.push("Each seizure names a different item");
+    }
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
 

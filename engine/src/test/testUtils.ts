@@ -26,6 +26,7 @@ import type {
   RepairAction,
   DockJobAction,
   EscortMarkAction,
+  SeizeAction,
 } from "../models/game.ts";
 import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
@@ -420,6 +421,11 @@ export const dockJob = (job: DockChoice, cargoId?: string): Draft<DockJobAction>
 export const escortMark = (carrierId: string): Draft<EscortMarkAction> => ({
   type: "escort_mark",
   data: { carrierId },
+});
+/** Name an item to seize if the turn ends beside it (the unlimited-hold experiment; no sequence). */
+export const seize = (victimId: string, cargoId: string): Draft<SeizeAction> => ({
+  type: "seize",
+  data: { victimId, cargoId },
 });
 export const scan = (
   sequence: number,

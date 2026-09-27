@@ -1,6 +1,6 @@
 /**
  * The simulator's rule channel: `--rules=` carries the table's points to win
- * into every game the batch creates, and sets the one-sale experiment's switch.
+ * into every game the batch creates, and sets the experiments' switches.
  */
 import { describe, it, expect, afterEach } from "vitest";
 import {
@@ -9,7 +9,7 @@ import {
   parseRuleOverrides,
   type RuleOverrides,
 } from "../../sim/ruleOverrides.ts";
-import { DEFAULT_POINTS_TO_WIN, SALE_RULES } from "../../models/missions.ts";
+import { DEFAULT_POINTS_TO_WIN, HOLD_RULES, SALE_RULES } from "../../models/missions.ts";
 import { checkForWinner } from "../../game/missions/missionChecks.ts";
 import { createGame } from "../../game/setup.ts";
 import { setupBotGame } from "../../sim/runGame.ts";
@@ -72,5 +72,23 @@ describe("oneSalePerStation", () => {
     expect(describeRuleOverrides(parseRuleOverrides("oneSalePerStation=1"))).toBe(
       "oneSalePerStation=1"
     );
+  });
+});
+
+describe("unlimitedHold", () => {
+  afterEach(() => {
+    SALE_RULES.oneSalePerStation = false;
+    HOLD_RULES.unlimited = false;
+  });
+
+  it.each<[string, string, boolean, boolean]>([
+    ["1 switches it on", "unlimitedHold=1", true, false],
+    ["0 leaves it off", "unlimitedHold=0", false, false],
+    ["it combines with one sale", "oneSalePerStation=1,unlimitedHold=1", true, true],
+    ["one sale alone leaves it alone", "oneSalePerStation=1", false, true],
+  ])("%s", (_case, text, hold, sale) => {
+    applyRuleOverrides(parseRuleOverrides(text));
+    expect(HOLD_RULES.unlimited).toBe(hold);
+    expect(SALE_RULES.oneSalePerStation).toBe(sale);
   });
 });

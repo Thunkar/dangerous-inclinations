@@ -24,8 +24,8 @@ import type {
   Wreck,
 } from "../models/game.ts";
 import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
-import type { Mission } from "../models/missions.ts";
-import { aboard } from "../models/missions.ts";
+import type { HoldItemKind, Mission } from "../models/missions.ts";
+import { HOLD_RULES, aboard, holdItemKind } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import { getDissipationCapacity, isDestroyed, lowestCriticalFace } from "./ship.ts";
 import { completedMissions } from "./missions/missionChecks.ts";
@@ -111,6 +111,15 @@ export interface PlayerView {
    * `SALE_RULES`). Public: a marker on the station.
    */
   soldAt: string[];
+  /**
+   * The items aboard, one token each, under the unlimited-hold experiment
+   * only (`HOLD_RULES`), so a pirate can name the one it takes; empty
+   * otherwise. The kind is public (a crate, loot or data on the ship). The id
+   * is the engine's cargo id, which for data still tells an Intercept's from
+   * a Survey's; nothing that decides from a view may read it for more than a
+   * name.
+   */
+  hold: { cargoId: string; kind: HoldItemKind }[];
 }
 
 interface OwnShipStats {
@@ -222,6 +231,9 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     points: player.points,
     completedMissions: completedMissions(player),
     soldAt: [...player.soldAt],
+    hold: HOLD_RULES.unlimited
+      ? aboard(player.cargo).map((c) => ({ cargoId: c.id, kind: holdItemKind(c) }))
+      : [],
     escortedBy: state.players
       .filter((p) =>
         p.missions.some(

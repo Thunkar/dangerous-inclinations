@@ -17,8 +17,9 @@ import type { GameEvent } from "../models/events.ts";
  *     it; a kill removes loot instead of leaving it un-picked.
  * v8: `Player.soldAt`; `dock_job` may name the item sold (`cargoId`) and, under
  *     the one-sale experiment, "none".
+ * v9: the `seize` action (the unlimited-hold experiment) and `PlayerView.hold`.
  */
-export const RECORDING_SCHEMA_VERSION = 8;
+export const RECORDING_SCHEMA_VERSION = 9;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

@@ -307,6 +307,19 @@ export interface EscortMarkAction extends BaseAction {
   data: { carrierId: string };
 }
 
+/**
+ * A standing order for the turn, under the unlimited-hold experiment only
+ * (`HOLD_RULES`): with an undone Piracy, take this item off this ship if the
+ * turn ends, not moored, in its sector and it is still aboard. No sequence:
+ * it is settled at the end of the turn, after the move. An item gone by then
+ * is passed over, not refused. One per undone Piracy card, each a different
+ * item; refused while the experiment is off.
+ */
+export interface SeizeAction extends BaseAction {
+  type: "seize";
+  data: { victimId: string; cargoId: string };
+}
+
 export type TacticalAction =
   | RotateAction
   | CoastAction
@@ -320,7 +333,8 @@ export type PlayerAction =
   | TacticalAction
   | RepairAction
   | DockJobAction
-  | EscortMarkAction;
+  | EscortMarkAction
+  | SeizeAction;
 
 export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "rotate",
@@ -344,6 +358,7 @@ export const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "repair",
   "dock_job",
   "escort_mark",
+  "seize",
 ]);
 
 /** Every action a turn may submit. */
