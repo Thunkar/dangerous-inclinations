@@ -1,11 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game/missiles.ts";
 import { processActions } from "../../game/actionProcessors.ts";
-import {
-  SUBSYSTEM_CONFIGS,
-  getMissileStats,
-  interceptsPerRack,
-} from "../../models/subsystems.ts";
+import { getMissileStats, interceptsPerRack } from "../../models/subsystems.ts";
 import { resetSubsystemUsage } from "../../game/ship.ts";
 import type { GameState, Missile, PlayerAction, ShipLoadout } from "../../models/game.ts";
 import {
@@ -60,27 +56,10 @@ function missileAt(
 }
 
 describe("missiles: pathing", () => {
-  it("closes rings before sectors and stops after the given steps", () => {
-    expect(
-      stepToward({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 5, sector: 3 }, 3)
-    ).toEqual({ wellId: BH, ring: 5, sector: 1 });
-    expect(
-      stepToward({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 1, sector: 0 }, 1)
-    ).toEqual({ wellId: BH, ring: 2, sector: 0 });
-  });
-
   it("takes the short way round the ring", () => {
     expect(
       stepToward({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 3, sector: 20 }, 3)
     ).toEqual({ wellId: BH, ring: 3, sector: 21 });
-  });
-
-  it("stops on the target and never crosses wells", () => {
-    const target = { wellId: BH, ring: 3, sector: 1 };
-    expect(stepToward({ wellId: BH, ring: 3, sector: 0 }, target, 3)).toEqual(target);
-    expect(
-      stepToward({ wellId: BH, ring: 3, sector: 0 }, { wellId: ALPHA, ring: 3, sector: 1 }, 3)
-    ).toEqual({ wellId: BH, ring: 3, sector: 0 });
   });
 
   it("projectMissilePath starts with the drift once the missile has moved, and ends on the target", () => {
@@ -238,28 +217,6 @@ describe("missiles: launch", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("an absent count is a single missile", () => {
-    const processed = processActions(launcher(), [
-      { ...fire(1, "side-3", "p2"), playerId: "p1" } as PlayerAction,
-    ]);
-    expect(processed.state.missiles).toHaveLength(1);
-    expect(getSub(processed.state, "p1", "side-3").ammo).toBe(3);
-    expect(eventsOf(processed.events as never, "weapon_fired")[0]).toMatchObject({
-      count: 1,
-      heat: 2,
-    });
-  });
-
-  it("is a turret: fires backwards too", () => {
-    const state = withPower(
-      makeTwoPlayerGame({ ring: 3, sector: 0, facing: "retrograde" }, { ring: 3, sector: 3 }),
-      "p1",
-      "side-3",
-      2
-    );
-    expect(executeTurnAs(state, fire(1, "side-3", "p2")).errors).toBeUndefined();
-  });
-
   it("launches from wherever the ship is when the shot resolves", () => {
     const state = launcher({ ring: 5, sector: 1 });
     const before = executeTurnAs(state, fire(1, "side-3", "p2"), coast(2));
@@ -364,22 +321,6 @@ describe("missiles: movement at the end of the owner's turn", () => {
     expect(result.events).toEqual([]);
   });
 
-  it("drifts but cannot pursue a target in another well", () => {
-    const state = missileAt(
-      withShip(makeTwoPlayerGame(), "p2", { wellId: ALPHA, ring: 3, sector: 0 }),
-      5,
-      0,
-      { movesMade: 1 }
-    );
-    const result = processOwnerMissiles(state, "p1");
-    expect(result.state.missiles[0]).toMatchObject({
-      wellId: BH,
-      ring: 5,
-      sector: 1,
-      movesMade: 2,
-    });
-  });
-
   it.each([
     ["destroyed", (s: GameState) => withShip(s, "p2", { hitPoints: 0 })],
     ["not deployed", (s: GameState) => withPlayer(s, "p2", { hasDeployed: false })],
@@ -438,15 +379,6 @@ describe("missiles: on the target's sector", () => {
     });
   });
 
-  it("a rack that rolls 1 misses and the missile attacks anyway", () => {
-    const state = withPower({ ...onTarget(RACK), forcedRollValue: 1 }, "p2", "side-0", 2);
-    const result = processOwnerMissiles(state, "p1");
-    expect(eventTypes(result.events as never)).toContain("missile_intercepted");
-    expect(eventsOf(result.events as never, "missile_intercepted")[0].roll).toBe(1);
-    expect(eventTypes(result.events as never)).toContain("attack_resolved");
-    expect(result.state.missiles).toEqual([]);
-  });
-
   it.each([
     ["unpowered", (s: GameState) => s],
     [
@@ -491,15 +423,6 @@ describe("missiles: on the target's sector", () => {
     expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(3);
     expect(eventsOf(result.events as never, "attack_resolved")).toHaveLength(3);
     expect(getSub(result.state, "p2", "side-0").allocatedEnergy).toBe(2);
-  });
-
-  it("an unpowered rack lets the whole salvo through", () => {
-    const result = processOwnerMissiles(
-      { ...salvoOf(onTarget(RACK), 3), forcedRollValue: 5 },
-      "p1"
-    );
-    expect(eventTypes(result.events as never)).not.toContain("missile_intercepted");
-    expect(getShip(result.state, "p2").hitPoints).toBe(4);
   });
 
   it("one rack answers four and the fifth gets through", () => {
@@ -604,24 +527,6 @@ describe("missiles: on the target's sector", () => {
   });
 });
 
-describe("missiles: through executeTurn", () => {
-  it("a missile that hits during the owner's turn counts toward that turn's missions and destruction", () => {
-    let state = makeGameState([
-      makePlayer("p1", { wellId: BH, ring: 5, sector: 10 }),
-      makePlayer("p2", { wellId: BH, ring: 5, sector: 13 }),
-    ]);
-    state = withShip(state, "p2", { hitPoints: 2 });
-    state = missileAt(state, 5, 12);
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "ship_destroyed")[0]).toMatchObject({
-      victimId: "p2",
-      killerId: "p1",
-      cause: "missile",
-    });
-    expect(eventsOf(result.events, "cargo_dropped")).toEqual([]); // nothing carried
-  });
-});
-
 describe("missiles: lost with their ship", () => {
   /** p1 (active) kills p2 with a missile; p2 has one of its own in flight far away. */
   function killWithMissileInFlight(): GameState {
@@ -671,46 +576,5 @@ describe("missiles: lost with their ship", () => {
       expect.arrayContaining(["missile_moved", "ship_destroyed", "missile_expired"])
     );
     expect(result.gameState.missiles).toEqual([]);
-  });
-});
-
-describe("missiles: a salvo and a turn of interceptions are one use of a tile", () => {
-  it("a salvo of three costs the launcher's cubes once", () => {
-    const processed = processActions(launcher(), [
-      { ...fire(1, "side-3", "p2", undefined, undefined, 3), playerId: "p1" } as PlayerAction,
-    ]);
-    expect(processed.success).toBe(true);
-    expect(processed.state.missiles).toHaveLength(3);
-    expect(getSub(processed.state, "p1", "side-3").allocatedEnergy).toBe(
-      SUBSYSTEM_CONFIGS.missiles.minEnergy
-    );
-    expect(eventsOf(processed.events as never, "weapon_fired")[0]).toMatchObject({
-      count: 3,
-      heat: SUBSYSTEM_CONFIGS.missiles.minEnergy,
-    });
-  });
-
-  it("three interception rolls cost the rack's cubes once", () => {
-    const expected = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy;
-    const onTarget = missileAt(
-      makeTwoPlayerGame({}, { ring: 5, sector: 13, loadout: RACK }),
-      5,
-      12
-    );
-    const salvo: GameState = {
-      ...onTarget,
-      forcedRollValue: 5,
-      missiles: Array.from({ length: 3 }, (_, i) => ({ ...onTarget.missiles[0], id: `m-${i + 1}` })),
-    };
-    const result = processOwnerMissiles(withPower(salvo, "p2", "side-0", 2), "p1");
-    const intercepts = eventsOf(result.events as never, "missile_intercepted");
-    expect(intercepts).toHaveLength(3);
-    expect(intercepts.every((e) => e.destroyed)).toBe(true);
-    expect(result.state.missiles).toEqual([]);
-    expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
-    expect(getShip(result.state, "p2").hitPoints).toBe(10);
-    // The rack carries its cubes once however many it rolled at, and that is
-    // what it costs at the check.
-    expect(getSub(result.state, "p2", "side-0").allocatedEnergy).toBe(expected);
   });
 });

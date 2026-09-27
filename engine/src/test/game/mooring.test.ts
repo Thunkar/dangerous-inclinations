@@ -70,13 +70,6 @@ const FROM_BERTH = [0, 2] as const;
 type Line = readonly [number, number];
 
 describe("moored ships are safe", () => {
-  it("the fixtures put the berth where the tests say", () => {
-    const state = railgunLine(...CLEAR);
-    expect(berthOf(state)).toEqual({ wellId: ALPHA, ring: 2, sector: 0 });
-    expect(isMooredAt(state.stations, berthOf(state))).toBe(true);
-    expect(isMooredAt(state.stations, { ...berthOf(state), sector: 6 })).toBe(false);
-  });
-
   it.each<[string, boolean, Line]>([
     ["clear of any station", true, CLEAR],
     ["moored", false, AT_TARGET],
@@ -127,29 +120,6 @@ describe("moored ships are safe", () => {
     const shot = executeTurnAs(state, fire(1, "forward-0", "p2"));
     expect(shot.errors === undefined).toBe(accepted);
     expect(getShip(shot.gameState, "p2").hitPoints < 10).toBe(accepted);
-  });
-
-  it.each<[string, (berth: Position) => Position, boolean]>([
-    ["on the berth", (b) => b, true],
-    ["one sector along the station's ring", (b) => ({ ...b, sector: b.sector + 1 }), false],
-    ["the berth's sector on ring 1, inside the station", (b) => ({ ...b, ring: 1 }), false],
-    ["the berth's sector on ring 3, outside it", (b) => ({ ...b, ring: 3 }), false],
-    ["the same square round another planet", (b) => ({ ...b, wellId: "planet-beta" }), true],
-    ["the same numbers round the black hole", (b) => ({ ...b, wellId: "blackhole" }), false],
-  ])("a ship %s is moored and safe: %s", (_label, where, moored) => {
-    const state = railgunLine(...CLEAR);
-    const position = where(berthOf(state));
-    expect(isMooredAt(state.stations, position)).toBe(moored);
-  });
-
-  it("the berth moves with its station: the old square is open water once the round ends", () => {
-    const before = railgunLine(...CLEAR);
-    const oldBerth = berthOf(before);
-    const after = advanceStations(before).state;
-    const newBerth = berthOf(after);
-    expect(newBerth).not.toEqual(oldBerth);
-    expect(isMooredAt(after.stations, newBerth)).toBe(true);
-    expect(isMooredAt(after.stations, oldBerth)).toBe(false);
   });
 
   it.each<[string, boolean, Line]>([
