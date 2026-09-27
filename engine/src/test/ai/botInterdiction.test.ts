@@ -16,9 +16,11 @@ import { DEFAULT_POINTS_TO_WIN } from "../../models/missions.ts";
 import type { GameState, Position, ShipLoadout } from "../../models/game.ts";
 import {
   BLACK_HOLE_OUTER_RING,
+  PLANETS,
   PLANET_OUTER_RING,
   STATION_RING,
 } from "../../models/gravityWells.ts";
+import { circuitRoutes } from "../../game/missions/missionDeck.ts";
 import { viewFor } from "../../game/view.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { getStationForPlanet } from "../../game/stations.ts";
@@ -49,6 +51,9 @@ import {
   withSub,
 } from "../testUtils.ts";
 
+/** Where a Deliver crate loaded at each planet goes (the deck prints only these routes). */
+const CIRCUIT_NEXT = new Map(circuitRoutes(PLANETS.map((p) => p.id)));
+
 /** Railgun plus a turret that bears on the railgun's own ring: 6 damage a turn. */
 const RAIDER: ShipLoadout = {
   forwardSlots: ["railgun"],
@@ -63,6 +68,11 @@ const TRADER: ShipLoadout = {
 const WALLED: ShipLoadout = {
   forwardSlots: ["sensor_array"],
   sideSlots: ["radiator", "radiator", "shields", "shields"],
+};
+/** No weapon aboard at all. */
+const UNARMED: ShipLoadout = {
+  forwardSlots: ["sensor_array"],
+  sideSlots: ["shields", "radiator", "radiator", "shields"],
 };
 /** The trader with a rack instead of the laser: shields can stop this one. */
 const PLINKER: ShipLoadout = {
@@ -184,7 +194,7 @@ describe("danger: reading the scoreboard and the hold", () => {
     );
     const danger = opponent(state, "p1", "p2").danger;
 
-    expect(danger.completedMissions).toBe(ONE_FROM_WINNING);
+    expect(danger.points).toBe(ONE_FROM_WINNING);
     expect(danger.crates).toBe(1);
     expect(danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER);
   });
@@ -193,7 +203,7 @@ describe("danger: reading the scoreboard and the hold", () => {
     const state = makeTwoPlayerGame({ loadout: RAIDER }, { wellId: BH, ring: 3, sector: 12 });
     const danger = opponent(state, "p1", "p2").danger;
 
-    expect(danger.completedMissions).toBe(0);
+    expect(danger.points).toBe(0);
     expect(danger.score).toBeLessThan(0.2);
   });
 
@@ -211,20 +221,24 @@ describe("danger: reading the scoreboard and the hold", () => {
     );
   });
 
-  it("excludes the planet a crate was loaded at from where it can be delivered", () => {
-    // A Deliver route runs between two different planets, so the crate on a
-    // ship orbiting Alpha is going to Beta or Gamma, never back to Alpha.
-    const stations = makeGameState([]).stations;
-    const planets = predictedDeliveryPlanets(
-      { wellId: ALPHA, ring: STATION_RING, sector: 4 },
-      1,
-      0,
-      stations
-    );
+  it.each(PLANETS.map((p) => p.id))(
+    "puts the next planet round the circuit first for a crate in %s's well",
+    (planetId) => {
+      // The Deliver deck prints only the circuit routes, so a crate loaded here
+      // goes on to the next planet; the rest follow, since a crate loaded
+      // elsewhere is delivered here and loot sells anywhere.
+      const stations = makeGameState([]).stations;
+      const planets = predictedDeliveryPlanets(
+        { wellId: planetId, ring: STATION_RING, sector: 4 },
+        1,
+        0,
+        stations
+      );
 
-    expect(planets).not.toContain(ALPHA);
-    expect(planets.sort()).toEqual([BETA, GAMMA].sort());
-  });
+      expect(planets[0]).toBe(CIRCUIT_NEXT.get(planetId));
+      expect([...planets].sort()).toEqual(PLANETS.map((p) => p.id).sort());
+    }
+  );
 
   it("keeps every station on the list for data, including the one overhead", () => {
     // Scan and survey data is handed over at any station at all.
@@ -243,13 +257,13 @@ describe("danger: reading the scoreboard and the hold", () => {
   it("names a station for a carrier and nothing at all for an empty hold", () => {
     const stations = makeGameState([]).stations;
     const carrying = assessDanger(
-      { cargoAboard: { crates: 1, data: 0 }, completedMissionCount: ONE_FROM_WINNING },
+      { cargoAboard: { crates: 1, data: 0 }, completedMissionCount: ONE_FROM_WINNING, completedMissions: [] },
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
       stations,
       DEFAULT_POINTS_TO_WIN
     );
     const empty = assessDanger(
-      { cargoAboard: { crates: 0, data: 0 }, completedMissionCount: ONE_FROM_WINNING },
+      { cargoAboard: { crates: 0, data: 0 }, completedMissionCount: ONE_FROM_WINNING, completedMissions: [] },
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
       stations,
       DEFAULT_POINTS_TO_WIN
@@ -328,12 +342,12 @@ describe("interdiction goals", () => {
     expect(situation.currentGoal?.type).not.toBe("interdict");
   });
 
-  it("does not divert when its guns cannot beat the shield cubes on the target", () => {
-    // A shield tile buys one point of absorption for every two cubes on it, so
-    // the wall below (two tiles, four cubes) stops a two-damage rack whole
-    // and the bot has no business chasing. A laser skips the shields, so the
-    // same trader with a laser does divert. Same board, same rival, same
-    // score: only the bot's hull differs.
+  it("diverts behind a gun the visible shields would soak, and not without a gun", () => {
+    // The wall below (two shields, four cubes) stops a two-damage rack whole,
+    // but a soaked volley still strips the cubes and a critical breaks what it
+    // names whether or not the shot got through, so the rack is worth the
+    // trip. A hull with no gun at all has nothing to bring. Same board, same
+    // rival, same score: only the bot's hull differs.
     const board = (loadout: ShipLoadout) => {
       let state = aboutToWin(
         makeGameState([
@@ -349,23 +363,25 @@ describe("interdiction goals", () => {
       return state;
     };
 
-    const disarmed = board(PLINKER);
-    expect(opponent(disarmed, "p1", "p2").danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER);
-    expect(opponent(disarmed, "p1", "p2").shieldAbsorption).toBe(2);
-    expect(situationOf(disarmed, "p1").currentGoal?.type).not.toBe("interdict");
+    const plinker = board(PLINKER);
+    expect(opponent(plinker, "p1", "p2").danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER);
+    expect(opponent(plinker, "p1", "p2").shieldAbsorption).toBe(2);
+    expect(situationOf(plinker, "p1").currentGoal?.type).toBe("interdict");
+    expect(situationOf(board(UNARMED), "p1").currentGoal?.type).not.toBe("interdict");
 
     expect(situationOf(board(RAIDER), "p1").currentGoal?.type).toBe("interdict");
     expect(situationOf(board(TRADER), "p1").currentGoal?.type).toBe("interdict");
   });
 
-  it("aims the interception at where the cargo has to go, not at the pickup", () => {
-    // The crate on p2 was loaded at Alpha, so Alpha is the one station it
-    // cannot be delivered at; the ambush is set at one of the other two.
-    const state = aboutToWin(threeWay(), "p2", [crate(ALPHA, BETA)]);
+  it("aims the interception at the next planet round the circuit, not at the pickup", () => {
+    // A crate on a ship in Alpha's well was loaded at Alpha, and the Deliver
+    // deck sends it on round the circuit: the ambush is set there.
+    const next = CIRCUIT_NEXT.get(ALPHA)!;
+    const state = aboutToWin(threeWay(), "p2", [crate(ALPHA, next)]);
     const danger = opponent(state, "p1", "p2").danger;
 
-    expect(danger.predictedPlanets).not.toContain(ALPHA);
-    expect(danger.deliveryPosition?.wellId).not.toBe(ALPHA);
+    expect(danger.predictedPlanets[0]).toBe(next);
+    expect(danger.deliveryPosition?.wellId).toBe(next);
     expect(situationOf(state, "p1").currentGoal?.type).toBe("interdict");
   });
 });

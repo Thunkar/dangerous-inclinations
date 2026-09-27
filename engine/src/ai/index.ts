@@ -173,7 +173,7 @@ function buildDecisionLog(
   const leader = [...opponents].sort((a, b) => b.danger.score - a.danger.score)[0];
   if (leader && leader.danger.score >= INTERDICT_DANGER) {
     reasoning.push(
-      `${leader.player.name} is ${leader.danger.completedMissions}/3 with ` +
+      `${leader.player.name} is ${leader.danger.points}/${situation.view.pointsToWin} with ` +
         `${leader.danger.crates} crates, ${leader.danger.data} data (danger ${leader.danger.score.toFixed(2)}` +
         `${leader.danger.predictedPlanets[0] ? `, heading for ${leader.danger.predictedPlanets[0]}` : ""})`
     );

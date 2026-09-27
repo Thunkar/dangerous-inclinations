@@ -26,7 +26,7 @@
  * a turn whether or not anyone holds their Destroy card.
  */
 import type { Player, Position } from "../../models/game.ts";
-import type { Mission, SalvageMission } from "../../models/missions.ts";
+import type { DockJob, Mission, SalvageMission } from "../../models/missions.ts";
 import {
   SCAN_SECTOR_RANGE,
   SURVEY_RING,
@@ -47,6 +47,7 @@ import type { GameView } from "../../game/view.ts";
 import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
 import { positionOf, ringVelocity } from "../../game/geometry.ts";
 import { markedBy } from "../../game/escort.ts";
+import { dockJobsOnArrival } from "../../game/docking.ts";
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
 import {
   anySectorOnRing,
@@ -65,7 +66,6 @@ import {
 } from "./danger.ts";
 import {
   destroyTargetIds,
-  hullPotential,
   isWeaponReady,
   volleyPotential,
   weaponRangeTarget,
@@ -218,41 +218,72 @@ function nearestPlanet(
   return best;
 }
 
+/** What a dock goal knows about the ship: its hand, its hold, its tank and its berth. */
+interface DockingSeat {
+  me: Player;
+  status: BotStatus;
+}
+
+/**
+ * Whether a visit to `planetId`'s station is worth a trip for `job`.
+ *
+ * A berth the ship already holds is never a destination: docking happens only
+ * on arrival (RULES §Stations), so a goal "there" would be satisfied by sitting
+ * still. And a visit does one job, so it is only a trip for `job` if the visit
+ * would offer it (`dockJobsOnArrival`, read with the tank as it is now).
+ */
+function worthVisiting(seat: DockingSeat, planetId: string, job?: DockJob): boolean {
+  const { me, status } = seat;
+  if (status.moored && planetId === status.position.wellId) return false;
+  if (!job) return true;
+  const offer = dockJobsOnArrival(
+    { cargo: me.cargo, missions: me.missions, reactionMass: status.reactionMass },
+    planetId
+  );
+  return offer.jobs.some((o) => o.job === job);
+}
+
 function dockGoal(
   view: GameView,
-  from: Position,
-  mission: Pick<Mission, "id">,
+  seat: DockingSeat,
+  missionId: string,
   planetId: string,
   description: string,
-  urgency: number
+  urgency: number,
+  dockJob?: DockJob
 ): BotGoal | null {
+  if (!worthVisiting(seat, planetId, dockJob)) return null;
   const pos = stationPositionFor(view.stations, planetId);
   if (!pos) return null;
   return {
     type: "dock",
-    missionId: mission.id,
+    missionId,
     description,
     planetId,
-    estimatedTurns: cheapTurnEstimate(from, pos),
+    dockJob,
+    estimatedTurns: cheapTurnEstimate(seat.status.position, pos),
     urgency,
   };
 }
 
+/** The nearest station worth a trip for `dockJob`, whichever planet it orbits. */
 function dockAnywhereGoal(
   view: GameView,
-  from: Position,
-  mission: Mission,
-  description: string,
+  seat: DockingSeat,
+  missionId: string,
+  describe: (planetId: string) => string,
   urgency: number,
-  candidates: string[] = PLANETS.map((p) => p.id)
+  dockJob?: DockJob
 ): BotGoal | null {
-  const nearest = nearestPlanet(view, from, candidates);
+  const candidates = PLANETS.map((p) => p.id).filter((id) => worthVisiting(seat, id, dockJob));
+  const nearest = nearestPlanet(view, seat.status.position, candidates);
   if (!nearest) return null;
   return {
     type: "dock",
-    missionId: mission.id,
-    description,
+    missionId,
+    description: describe(nearest.planetId),
     planetId: nearest.planetId,
+    dockJob,
     estimatedTurns: nearest.turns,
     urgency,
   };
@@ -345,9 +376,9 @@ function carrierChaseGoal(
  * - they are close enough to the win to score {@link INTERDICT_DANGER};
  * - the bot is not itself winning the race: if its own turns-to-win is no
  *   worse than theirs, racing beats fighting;
- * - its guns can actually beat the shield cubes it can see on them (a shield
- *   subsystem absorbs four damage a turn and is refilled for free, so a smaller
- *   volley never reaches their hull however often it lands);
+ * - it has a gun that can fire this trip (a volley their shields soak still
+ *   strips the cubes, heats them and can land a critical that breaks what it
+ *   names);
  * - and it can be where they have to be before they get there. Arriving two
  *   turns after the delivery is a trip for nothing.
  *
@@ -370,7 +401,6 @@ function interdictionTarget(
     if (opponent.safeAtBerth && opponent.danger.deliveryPosition === null) continue;
     if (opponent.danger.score < INTERDICT_DANGER) continue;
     if (myDanger.turnsToWin <= opponent.danger.turnsToWin) continue;
-    if (hullPotential(weapons, opponent.shieldAbsorption) <= 0) continue;
     const meet = opponent.danger.deliveryPosition ?? opponent.position;
     const nearby =
       opponent.sameWell && opponent.ringDistance + opponent.sectorDistance <= INTERDICT_CHASE_RANGE;
@@ -401,6 +431,7 @@ export function computeGoals(
 ): BotGoal[] {
   const goals: BotGoal[] = [];
   const from = status.position;
+  const seat: DockingSeat = { me, status };
   const opponent = (id: string) => opponents.find((o) => o.player.id === id);
 
   for (const mission of me.missions) {
@@ -443,11 +474,12 @@ export function computeGoals(
         const planetId = inHand ? mission.deliveryPlanetId : mission.pickupPlanetId;
         const goal = dockGoal(
           view,
-          from,
-          mission,
+          seat,
+          mission.id,
           planetId,
           inHand ? `Deliver crate to ${planetId}` : `Pick up crate at ${planetId}`,
-          inHand ? 2 : PRIMARY_START_URGENCY
+          inHand ? 2 : PRIMARY_START_URGENCY,
+          "crates"
         );
         if (goal) goals.push(goal);
         break;
@@ -468,22 +500,30 @@ export function computeGoals(
           // The card names the station the transmission is filed at.
           const goal = dockGoal(
             view,
-            from,
-            mission,
+            seat,
+            mission.id,
             mission.deliveryPlanetId,
             `File the transmission at ${mission.deliveryPlanetId}`,
-            2
+            2,
+            "data"
           );
           if (goal) goals.push(goal);
         }
         break;
       }
       case "piracy": {
-        // The seized crate sells at any station, like data that happens to
-        // fill the hold.
+        // Loot rides as a crate whatever was seized, fills the hold and sells
+        // at any station by the crates job.
         const loot = me.cargo.find((c) => c.missionId === mission.id);
         if (loot?.isPickedUp) {
-          const goal = dockAnywhereGoal(view, from, mission, "Sell the loot", 2);
+          const goal = dockAnywhereGoal(
+            view,
+            seat,
+            mission.id,
+            (planetId) => `Sell the loot at ${planetId}`,
+            2,
+            "crates"
+          );
           if (goal) goals.push(goal);
           break;
         }
@@ -504,13 +544,12 @@ export function computeGoals(
         break;
       }
       case "tanker": {
-        // No trip of its own while the primary is open. The pumping happens on
-        // *any* arrival with the fuel aboard (RULES §Stations), so the card is not
-        // a destination: it is a reserve carried on the trips the seat is
-        // making anyway, which `attachPlanToGoal` plans for below. A dock goal
-        // of its own was a wasted journey: 10 arrivals in 118 held the fuel.
+        // No trip of its own while the primary is open. The fuel job is one a
+        // visit may do when it has nothing else to do (a repair or an idle
+        // stop), so the reserve rides on those trips (`attachPlanToGoal`);
+        // a visit for crates or data does that job instead.
         if (primaryOutstanding(me)) break;
-        // The fuel is handed in on arrival, so the tank has to still hold it
+        // The fuel is pumped on arrival, so the tank has to still hold it
         // when the ship gets there: below that, the trip is to the fast rings
         // and the scoop (the planner takes the fuel out of a coast).
         if (status.reactionMass < TANKER_FUEL + TANKER_APPROACH_FUEL) {
@@ -527,14 +566,28 @@ export function computeGoals(
           });
           break;
         }
-        const goal = dockAnywhereGoal(view, from, mission, "Pump the fuel in", 2);
+        const goal = dockAnywhereGoal(
+          view,
+          seat,
+          mission.id,
+          (planetId) => `Pump the fuel in at ${planetId}`,
+          2,
+          "fuel"
+        );
         if (goal) goals.push(goal);
         break;
       }
       case "survey": {
         if (mission.acquired) {
           // Data is filed at whatever station comes next.
-          const goal = dockAnywhereGoal(view, from, mission, "File the data", 2);
+          const goal = dockAnywhereGoal(
+            view,
+            seat,
+            mission.id,
+            (planetId) => `File the data at ${planetId}`,
+            2,
+            "data"
+          );
           if (goal) goals.push(goal);
           break;
         }
@@ -552,15 +605,16 @@ export function computeGoals(
         break;
       }
       case "salvage": {
-        // The black box is data for any station, filed like a Survey's. A
-        // box taken aboard in port is filed on the next arrival, and docking
-        // is arrival only, so the berth the ship already holds is no filing
-        // station.
+        // The black box is data for any station, filed like a Survey's.
         if (blackBoxAboard(me, mission)) {
-          const berthFree = PLANETS.map((p) => p.id).filter(
-            (id) => !(status.moored && id === from.wellId)
+          const goal = dockAnywhereGoal(
+            view,
+            seat,
+            mission.id,
+            (planetId) => `File the black box at ${planetId}`,
+            2,
+            "data"
           );
-          const goal = dockAnywhereGoal(view, from, mission, "File the black box", 2, berthFree);
           if (goal) goals.push(goal);
           break;
         }
@@ -612,8 +666,8 @@ export function computeGoals(
     }
   }
 
-  // Interdiction: no card names this, the scoreboard does. A player two
-  // cards down with cargo aboard wins on their next dock unless someone
+  // Interdiction: no card names this, the scoreboard does. A player one
+  // card from the win with cargo aboard wins on their next dock unless someone
   // meets them there. It is only worth the detour while the detour is no
   // longer than the bot's own next card: a turn spent away from a delivery
   // that was about to land is a turn given to everyone else at the table.
@@ -626,7 +680,7 @@ export function computeGoals(
       goals.push({
         type: "interdict",
         missionId: INTERDICT_GOAL_ID,
-        description: `Interdict ${prey.player.name} (${prey.danger.completedMissions} cards, ${prey.danger.crates + prey.danger.data} aboard)`,
+        description: `Interdict ${prey.player.name} (${prey.danger.points} points, ${prey.danger.crates + prey.danger.data} aboard)`,
         targetPlayerId: prey.player.id,
         estimatedTurns: detour,
         urgency: prey.danger.score >= CRITICAL_DANGER ? 4 : 2,
@@ -634,29 +688,16 @@ export function computeGoals(
     }
   }
 
-  // A station the ship is already moored at is not a destination: docking
-  // resolved the moment it arrived, and it keeps resolving every turn it
-  // holds the berth. Sending it "there" would be a goal satisfied by sitting
-  // still, which is how a bot with no affordable primary left used to hold a
-  // berth for the rest of the game.
-  const elsewhere = PLANETS.map((p) => p.id).filter((id) => !(status.moored && id === from.wellId));
-
   // Repair: docking fixes every broken subsystem, restores hull and reloads.
   if (status.brokenSubsystems.length > 0 || status.hull <= parameters.repairHullThreshold) {
-    const nearest = nearestPlanet(view, from, elsewhere);
-    if (nearest) {
-      goals.push({
-        type: "dock",
-        missionId: REPAIR_GOAL_ID,
-        description: `Repair at ${nearest.planetId}`,
-        planetId: nearest.planetId,
-        estimatedTurns: nearest.turns,
-        urgency:
-          status.brokenSubsystems.length > 0 && status.hull <= parameters.repairHullThreshold
-            ? 4
-            : 3,
-      });
-    }
+    const goal = dockAnywhereGoal(
+      view,
+      seat,
+      REPAIR_GOAL_ID,
+      (planetId) => `Repair at ${planetId}`,
+      status.brokenSubsystems.length > 0 && status.hull <= parameters.repairHullThreshold ? 4 : 3
+    );
+    if (goal) goals.push(goal);
   }
 
   // Never stand still: with nothing else to chase, a station is worth a trip
@@ -664,17 +705,8 @@ export function computeGoals(
   // trip, since a dock resolves on arrival and the berth underneath the ship
   // has already given everything it has (RULES §Stations).
   if (goals.length === 0) {
-    const nearest = nearestPlanet(view, from, elsewhere);
-    if (nearest) {
-      goals.push({
-        type: "dock",
-        missionId: IDLE_GOAL_ID,
-        description: `Visit ${nearest.planetId}`,
-        planetId: nearest.planetId,
-        estimatedTurns: nearest.turns,
-        urgency: 0,
-      });
-    }
+    const goal = dockAnywhereGoal(view, seat, IDLE_GOAL_ID, (planetId) => `Visit ${planetId}`, 0);
+    if (goal) goals.push(goal);
   }
 
   return goals.sort((a, b) => goalPriority(a) - goalPriority(b));
@@ -710,12 +742,14 @@ export function attachPlanToGoal(
       const station = getStationForPlanet(view.stations, goal.planetId!);
       if (!station) return goal;
       // A seat holding a Tanker arrives with the fuel if there is any route
-      // that does: the card is paid on arrival whatever brought the ship in,
-      // so the reserve rides on the trip rather than costing one. The fastest
-      // route burns the tank down to two and pumps nothing; the same search
-      // with the fuel held back coasts in instead. Fastest when no such route
-      // exists, which is the old behaviour for every other seat.
-      const reserve = holdsTanker(me) ? TANKER_FUEL : 0;
+      // that does, on a trip whose visit may do the fuel job: the Tanker's own
+      // trip, or a repair or idle stop, which takes the job worth most. A trip
+      // for crates or data does that job instead, so a reserve there would
+      // never pump. The fastest route burns the tank down and pumps nothing;
+      // the same search with the fuel held back coasts in instead. Fastest
+      // when no such route exists.
+      const fuelVisit = goal.dockJob === undefined || goal.dockJob === "fuel";
+      const reserve = holdsTanker(me) && fuelVisit ? TANKER_FUEL : 0;
       const fastest = planStationMeetUp(ship, station, PLAN_TURNS);
       const fuelled = reserve > 0 ? planStationMeetUp(ship, station, PLAN_TURNS, reserve) : null;
       const meet =

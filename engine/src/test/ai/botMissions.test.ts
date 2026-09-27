@@ -16,6 +16,7 @@ import { getStationForPlanet } from "../../game/stations.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
 import { predictedDeliveryPlanets } from "../../ai/behaviors/danger.ts";
 import { orbitSectorAt } from "../../ai/movementPlanner/index.ts";
+import { REPAIR_GOAL_ID as REPAIR_GOAL } from "../../ai/behaviors/missions.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import {
   ALPHA,
@@ -185,6 +186,38 @@ describe("bot missions", () => {
     expect(crate.isPickedUp).toBe(true);
   });
 
+  it("names the crates job at its pickup when a Tanker's fuel is aboard too", () => {
+    // Left to the default the visit would pump the fuel (a point) and leave
+    // the crate (none yet) on the dock: a visit does one job.
+    const deliver = deliverMission(ALPHA, BETA);
+    const tanker = tankerMission();
+    const start = withShip(
+      withMissions(
+        makeGameState([
+          makePlayer("p1", {
+            wellId: ALPHA,
+            ring: STATION_RING,
+            sector: approachSector(makeGameState([]), ALPHA),
+          }),
+          makePlayer("p2", { wellId: BETA, ring: 3, sector: 12 }),
+        ]),
+        "p1",
+        [deliver, tanker]
+      ),
+      "p1",
+      { reactionMass: MAX_REACTION_MASS }
+    );
+    expect(MAX_REACTION_MASS).toBeGreaterThanOrEqual(TANKER_FUEL);
+
+    const actions = botDecideActions(viewFor(start, "p1")).actions;
+    expect(actions.find((a) => a.type === "dock_job")?.data).toEqual({ job: "crates" });
+    const result = executeTurn(start, actions);
+    expect(result.errors).toBeUndefined();
+    const p1 = getPlayer(result.gameState, "p1");
+    expect(p1.cargo.find((c) => c.missionId === deliver.id)?.isPickedUp).toBe(true);
+    expect(p1.missions.find((m) => m.id === tanker.id)?.isCompleted).toBe(false);
+  });
+
   it("turns around for the delivery planet once the crate is aboard", () => {
     const start = withMissions(
       makeGameState([
@@ -323,30 +356,39 @@ describe("bot goals: piracy and tanker", () => {
       expect(currentGoal(state)?.missionId).toBe(PRIMARY.id);
     });
 
-    it("holds the fuel back on a dock trip it was making anyway", () => {
-      // ALPHA ring 1 is a berth away from its station: the fastest route burns
-      // the tank down to one and pumps nothing, and one turn longer arrives
-      // with seven. Without the card the seat takes the fast route.
-      const card = tankerMission();
-      const berth = (missions: Mission[]): GameState => {
-        const start = makeGameState([
-          makePlayer("p1", { wellId: ALPHA, ring: 1, sector: 0 }),
-          makePlayer("p2", { wellId: BH, ring: 3, sector: 12 }),
-        ]);
-        return withShip(withMissions(start, "p1", missions), "p1", {
-          reactionMass: MAX_REACTION_MASS,
-        });
-      };
-      const fetch = deliverMission(ALPHA, BETA, "fetch-p1");
+    // ALPHA ring 1 is a berth away from its station: the fastest route burns
+    // the tank down to one and pumps nothing, and one turn longer arrives with
+    // seven. A visit does one job, so the reserve rides only on a trip whose
+    // visit may do the fuel job.
+    const berth = (missions: Mission[], broken: boolean): GameState => {
+      const start = makeGameState([
+        makePlayer("p1", { wellId: ALPHA, ring: 1, sector: 0 }),
+        makePlayer("p2", { wellId: BH, ring: 3, sector: 12 }),
+      ]);
+      const state = withShip(withMissions(start, "p1", missions), "p1", {
+        reactionMass: MAX_REACTION_MASS,
+      });
+      return broken ? withSub(state, "p1", "side-0", { isBroken: true }) : state;
+    };
+    const fetch = deliverMission(ALPHA, BETA, "fetch-p1");
 
-      const tanking = currentGoal(berth([fetch, card]));
-      const plain = currentGoal(berth([fetch]));
-      expect(tanking?.missionId).toBe(fetch.id);
-      expect(plain?.missionId).toBe(fetch.id);
+    it("holds the fuel back on a repair trip, which takes the fuel job", () => {
+      const tanking = currentGoal(berth([fetch, tankerMission()], true));
+      const plain = currentGoal(berth([fetch], true));
+      expect(tanking?.missionId).toBe(REPAIR_GOAL);
+      expect(plain?.missionId).toBe(REPAIR_GOAL);
       // The fuel still aboard when it makes port, which is what pumps.
       expect(MAX_REACTION_MASS - tanking!.plan!.totalMassCost).toBeGreaterThanOrEqual(TANKER_FUEL);
       expect(MAX_REACTION_MASS - plain!.plan!.totalMassCost).toBeLessThan(TANKER_FUEL);
       expect(tanking!.plan!.totalTurns).toBeGreaterThan(plain!.plan!.totalTurns);
+    });
+
+    it("takes the fast route to a pickup, whose visit does the crates job", () => {
+      const tanking = currentGoal(berth([fetch, tankerMission()], false));
+      const plain = currentGoal(berth([fetch], false));
+      expect(tanking).toMatchObject({ missionId: fetch.id, dockJob: "crates" });
+      expect(tanking!.plan!.totalTurns).toBe(plain!.plan!.totalTurns);
+      expect(tanking!.plan!.totalMassCost).toBe(plain!.plan!.totalMassCost);
     });
 
     it("fills at the nearest fast ring, not the event horizon, once the primary is in", () => {

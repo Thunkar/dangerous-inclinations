@@ -7,6 +7,7 @@
  */
 import type { Facing, Player, PlayerAction, Position, ShipState } from "../models/game.ts";
 import type { Subsystem, SubsystemId, SubsystemType } from "../models/subsystems.ts";
+import type { DockJob } from "../models/missions.ts";
 import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import type { MovementPlan } from "./movementPlanner/index.ts";
 
@@ -51,10 +52,10 @@ export interface SuspectedSlot {
  * `behaviors/danger.assessDanger`.
  */
 export interface OpponentDanger {
-  /** 0-1. Half their score out of three, half how soon the rest can land. */
+  /** 0-1. Half their points out of the points that win, half how soon the rest can land. */
   score: number;
-  /** Cards already face-up in front of them. */
-  completedMissions: number;
+  /** Points already face-up in front of them. */
+  points: number;
   /** Crates aboard: a Deliver in progress, and it ends at a station. */
   crates: number;
   /** Data aboard: an Intercept's, a Survey's or a Salvage black box. */
@@ -151,6 +152,12 @@ export interface BotGoal {
   targetPlayerId?: string;
   /** For dock goals: the planet whose station to reach. */
   planetId?: string;
+  /**
+   * For dock goals: the one job the visit must do for the goal (a visit does
+   * one job). Absent for repairs and the idle trip, which take whatever job
+   * the visit offers by default.
+   */
+  dockJob?: DockJob;
   /** For salvage goals: the wreck to end a turn on (looked up in `view.wrecks`). */
   wreckId?: string;
   /** Cheap estimate used for ranking; the chosen goal gets a real plan. */

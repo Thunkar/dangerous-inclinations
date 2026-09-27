@@ -28,8 +28,9 @@ import type {
   ScanAction,
   TacticalAction,
 } from "../models/game.ts";
-import { MAX_HEAT } from "../models/game.ts";
+import { MAX_HEAT, isQuietTurn } from "../models/game.ts";
 import { SURVEY_RING } from "../models/missions.ts";
+import type { DockJob } from "../models/missions.ts";
 import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import {
@@ -39,8 +40,9 @@ import {
 } from "../models/subsystems.ts";
 import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
-import { getStationAt } from "../game/stations.ts";
-import { samePosition } from "../game/geometry.ts";
+import { getStationAt, isSafeAtBerth } from "../game/stations.ts";
+import { ringVelocity, samePosition } from "../game/geometry.ts";
+import { dockJobsOnArrival } from "../game/docking.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { heatAfterCheck } from "../game/heat.ts";
@@ -122,26 +124,47 @@ function buildCandidate(
   // station carries the ship at the end of the round (RULES §Stations).
   const moored = status.moored;
 
-  // A movement whose heat alone would gut the hull is not worth it.
-  const movementHeatDamage = Math.max(0, status.heat + movement.engineEnergy - status.dissipation);
+  // A movement whose heat alone would gut the hull is not worth it. Heat is
+  // hull damage only above the top of the track (RULES §Heat check).
+  const movementHeatDamage = Math.max(0, status.heat + movement.engineEnergy - MAX_HEAT);
   if (movementHeatDamage > 0 && status.hull - movementHeatDamage < MIN_HULL_AFTER_OVERHEAT) {
     movement = coastChoice(false);
   }
 
-  // Facing: the burn direction, or whatever gives the railgun a shot.
-  const canRotate = !status.rotation.isBroken && !status.rotation.usedThisTurn;
   const preview =
     movement.kind === "coast" && moored ? { ...movement.preview, moored: true } : movement.preview;
+  // Where the move ends. A coast or a jump leaves the facing free, and neither
+  // depends on it for where the ship ends up, so this is known before the
+  // facing is chosen.
+  const landing = projectPosition(ship, movement.requiredFacing ?? ship.facing, preview);
+  // A marker is a choice ("you may"): the bot puts one on every carrier it
+  // ends the turn with, one per marker in hand, except the ship its Destroy
+  // card names (a kill is worth two to the marker's one).
+  const escortMarks = escortMarksAt(situation, landing);
+  const marking = escortMarks.length > 0;
+  // Ships not to fire on: those `holdFireIds` names, and the ones this turn
+  // marks (a kill empties the hold, and an empty ship takes no marker).
+  const holdFire = new Set([...holdFireIds(situation), ...escortMarks]);
+  /** Whether this turn may fire at `o` from `at` at all, whatever the weapon. */
+  const mayFireAt = (o: Opponent, at: Position) =>
+    !isQuietTurn(view.turn, me) &&
+    !isSafeAtBerth(view.stations, at) &&
+    o.sameWell &&
+    canShootAt(o) &&
+    !holdFire.has(o.player.id);
+
+  // Facing: the burn direction, or whatever gives the railgun a shot the
+  // turn may actually take.
+  const canRotate = !status.rotation.isBroken && !status.rotation.usedThisTurn;
   let facing: Facing = movement.requiredFacing ?? ship.facing;
   if (movement.requiredFacing === null && canRotate) {
     const railgun = status.weapons.find((w) => w.type === "railgun" && isWeaponReady(w));
     if (railgun) {
-      const shotsWith = (f: Facing) => {
-        const post = projectPosition(ship, f, preview);
-        return situation.opponents.filter(
-          (o) => o.sameWell && !o.safeAtBerth && isInWeaponRange(railgun, post, o.position)
+      const shotsWith = (f: Facing) =>
+        situation.opponents.filter(
+          (o) =>
+            mayFireAt(o, landing) && isInWeaponRange(railgun, { ...landing, facing: f }, o.position)
         ).length;
-      };
       if (shotsWith(ship.facing) === 0 && shotsWith(flip(ship.facing)) > 0)
         facing = flip(ship.facing);
     }
@@ -149,7 +172,7 @@ function buildCandidate(
   const rotate = facing !== ship.facing;
 
   const pre = { ...status.position, facing };
-  const post = projectPosition(ship, facing, preview);
+  const post = { ...landing, facing };
   const endsOnStation = getStationAt(view.stations, post) !== undefined;
   /**
    * "Arrives at a station" (deliberately not "is at one"). Since RULES §Moored
@@ -172,14 +195,6 @@ function buildCandidate(
   const salvaging =
     me.missions.some((m) => m.type === "salvage" && !m.isCompleted && !blackBoxAboard(me, m)) &&
     view.wrecks.some((w) => samePosition(w, post));
-  // A marker is a choice ("you may"): the bot puts one on every carrier it
-  // ends the turn with, one per marker in hand, except the ship its Destroy
-  // card names (a kill is worth two to the marker's one).
-  const escortMarks = escortMarksAt(situation, post);
-  const marking = escortMarks.length > 0;
-  // Ships not to fire on: those `holdFireIds` names, and the ones this turn
-  // marks (a kill empties the hold, and an empty ship takes no marker).
-  const holdFire = new Set([...holdFireIds(situation), ...escortMarks]);
   // Docking, the survey, a salvage and a mark are all resolved from where the
   // ship ends its turn, so an uncompensated railgun recoil must not move it,
   // and a moored ship pushed off its berth loses the berth.
@@ -234,19 +249,17 @@ function buildCandidate(
     massAfterMovement: status.reactionMass - movement.massCost,
     postPositionMatters,
   };
-  // A shield subsystem absorbs damage up to the cubes on it and is powered again
-  // on its owner's next turn, so a volley that cannot beat the cubes we
-  // can see never reaches a hull, never lands a critical (a critical only
-  // breaks a subsystem if the shot reaches the hull) and buys nothing but our own
-  // heat, a missile off the rack and a subsystem turned face-up. A ship whose
-  // whole volley falls inside the visible shields is not fired on at all.
+  // A volley the visible shields soak still pays: the cubes it strips cost
+  // their owner heat, and a critical breaks the slot it names whether or not
+  // the shot reached the hull (RULES §Critical hits). So every ship with a
+  // shot is a candidate; `selectTarget` ranks those it can hurt first.
   const options = situation.opponents
     .filter((o) => o.sameWell && !holdFire.has(o.player.id))
     .map((opponent) => ({
       opponent,
       intents: firingOptions(situation, opponent, ctx, parameters),
     }))
-    .filter((o) => o.intents.length > 0 && hullThrough(o.intents, o.opponent.shieldAbsorption) > 0);
+    .filter((o) => o.intents.length > 0);
   const chosen = selectTarget(situation, options, parameters);
   const target: Opponent | null = chosen?.opponent ?? null;
 
@@ -293,7 +306,9 @@ function buildCandidate(
             0,
             Math.min(
               MAX_OVERHEAT,
-              status.hull - MIN_HULL_AFTER_OVERHEAT - (status.heat + heatUsed - status.dissipation)
+              status.hull -
+                MIN_HULL_AFTER_OVERHEAT -
+                Math.max(0, status.heat + heatUsed - MAX_HEAT)
             )
           )
         : 0;
@@ -503,11 +518,23 @@ function buildCandidate(
     tactical.push(scanAction(scanChosen));
   for (const s of inPhase("post")) tactical.push(fire(s));
 
+  const massSpent =
+    movement.massCost + (shots.some((s) => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0);
+  // Docking reads the tank after every action: the scoop's gain on a coast
+  // is in, a compensated recoil's fuel is out.
+  const scooped = scoop
+    ? Math.min(ringVelocity(ship.wellId, ship.ring), status.maxReactionMass - status.reactionMass)
+    : 0;
+  const visit = landsOnStation
+    ? arrivalVisit(situation, post.wellId, status.reactionMass + scooped - massSpent)
+    : null;
+
   const actions: PlayerAction[] = [
     ...tactical,
     ...escortMarks.map(
       (carrierId): PlayerAction => ({ type: "escort_mark", playerId: me.id, data: { carrierId } })
     ),
+    ...(visit?.job ? [{ type: "dock_job", playerId: me.id, data: { job: visit.job } } as const] : []),
   ];
   const killsTarget = target !== null && hullOn(target) >= target.hull;
   const scansForMission = scanChosen !== null && (scanChosen as ScanIntent).forMission;
@@ -523,12 +550,40 @@ function buildCandidate(
     scans: scanChosen !== null,
     heatDamage: Math.max(0, status.heat + heatUsed + poweredHeat - MAX_HEAT),
     heatCarried: heatAfterCheck(status.heat + heatUsed + poweredHeat, status.dissipation),
-    massSpent:
-      movement.massCost + (shots.some((s) => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0),
+    massSpent,
     completesStep:
-      landsOnStation || surveying || salvaging || marking || scansForMission || killsTarget,
+      visit?.completesStep === true ||
+      surveying ||
+      salvaging ||
+      marking ||
+      scansForMission ||
+      killsTarget,
     denialValue,
   };
+}
+
+/**
+ * The job to name for a visit this turn arrives at, and whether the visit is
+ * a step. A visit does one job (RULES §Stations). A dock goal that needs one
+ * (crates, data or fuel) names it when the visit offers it and is a step only
+ * then: left to the default, a Tanker holder with its fuel aboard would pump
+ * at its Deliver pickup and leave the crate on the dock. Any other arrival
+ * takes the default and counts, as repairs and a reload always come with it.
+ */
+function arrivalVisit(
+  situation: TacticalSituation,
+  planetId: string,
+  reactionMass: number
+): { job: DockJob | null; completesStep: boolean } {
+  const { me, currentGoal } = situation;
+  const needed =
+    currentGoal?.type === "dock" && currentGoal.planetId === planetId
+      ? currentGoal.dockJob
+      : undefined;
+  if (!needed) return { job: null, completesStep: true };
+  const offer = dockJobsOnArrival({ cargo: me.cargo, missions: me.missions, reactionMass }, planetId);
+  const offered = offer.jobs.some((o) => o.job === needed);
+  return { job: offered ? needed : null, completesStep: offered };
 }
 
 /**

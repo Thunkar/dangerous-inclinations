@@ -145,9 +145,9 @@ function shieldsStop(weapon: Subsystem): boolean {
 
 /**
  * Hull damage a volley puts through `shieldAbsorption` visible cubes: laser
- * damage skips the shields, everything else has to beat them first. A
- * shield subsystem is refilled for free, so shielded damage short of the cubes
- * never reaches a hull.
+ * damage skips the shields, everything else has to beat them first. Damage
+ * short of the cubes reaches no hull, but it is not wasted: the cubes it
+ * strips are heat to their owner, and a critical breaks what it names anyway.
  */
 export function hullThrough(
   shots: Array<{ damage: number; shielded: boolean }>,
@@ -239,16 +239,13 @@ function fallbackCriticalTarget(target: Opponent): SubsystemId {
  *   actually seen, then a loaded face-down slot (a rack is a gun and a sensor
  *   is their critical range, and either way the cubes burn), then anything
  *   else of theirs we know, then the engines.
- * - **kill**: get through to the hull. A shield subsystem holds up to four cubes and
- *   absorbs a point per two of them, and the cubes it spends come straight back
- *   spent, so it is powered again on their next turn and is the
- *   single subsystem standing between us and their hull. Break it and every later
- *   shot lands in full until they reach a station.
- *
- *   Naming it is a gamble the other way, though: a critical only breaks
- *   anything if the shot reaches the hull (`game/damage.ts`), so shields that
- *   still hold eat the very critical meant to bring them down. Against a full
- *   subsystem the shot has to be big enough to get through first.
+ * - **kill**: get through to the hull. A shield holds up to four cubes and
+ *   absorbs a point per two of them, and its owner powers it again every turn
+ *   (at a heat a check), so it is the single subsystem standing between us and
+ *   their hull. A critical breaks the slot it names whether or not the shot
+ *   got through (RULES §Critical hits), so naming it costs nothing even when
+ *   the shield holds: break it and every later shot lands in full until they
+ *   reach a station.
  */
 export function chooseCriticalTarget(
   target: Opponent,

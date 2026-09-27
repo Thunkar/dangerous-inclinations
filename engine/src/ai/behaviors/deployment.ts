@@ -10,7 +10,7 @@
  *      planet, or two sectors behind it: from ring 4 a soft burn outward
  *      lands on the same sector of ring 5, and ring 4 drifts 2 a turn, so
  *      starting there means an early jump;
- *   2. a card that has to reach somebody (Destroy, Intercept, Piracy) wants
+ *   2. a card that has to reach somebody (Destroy, Intercept, Piracy, Escort) wants
  *      ring 3, which drifts 4 a turn and brings the whole ring past the ship,
  *      on the legal sector farthest from the ships already placed;
  *   3. anyone else takes ring 4, farthest from the ships already placed
@@ -39,6 +39,7 @@ const HUNTING_MISSIONS = new Set<MissionType>([
   "destroy_ship",
   "intercept_transmission",
   "piracy",
+  "escort",
 ]);
 
 /** Where the ships already placed sit, as the view shows them. */

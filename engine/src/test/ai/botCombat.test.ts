@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { FireWeaponAction, GameState, PlayerAction, ShipLoadout } from "../../models/game.ts";
+import { FIRST_TURN } from "../../models/game.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { viewFor } from "../../game/view.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
@@ -638,6 +639,42 @@ describe("bot flies its own turn back from Home quietly", () => {
       { wellId: BH, ring: 3, sector: 0 }
     );
     expect(shotsOf(grounded(base, "p1"), "p1").length).toBeGreaterThan(0);
+  });
+});
+
+describe("bot turns the railgun only for a shot it may take", () => {
+  /**
+   * Railgun alone, facing prograde; after a coast on ring 3 the target sits
+   * three sectors behind, so only a flip to retrograde gives it a shot.
+   */
+  const RAIL_ONLY: ShipLoadout = {
+    forwardSlots: ["railgun"],
+    sideSlots: ["radiator", "radiator", "shields", "shields"],
+  };
+  const behind = (): GameState =>
+    grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: RAIL_ONLY },
+        { wellId: BH, ring: 3, sector: 1 }
+      ),
+      "p1"
+    );
+  const holdRotates = (state: GameState): boolean => {
+    const situation = analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS);
+    const hold = generateCandidates(situation, DEFAULT_BOT_PARAMETERS).find((c) =>
+      c.actions.some((a) => a.type === "coast" && !a.data.activateScoop)
+    );
+    return hold?.actions.some((a) => a.type === "rotate") ?? false;
+  };
+
+  it.each<[string, (s: GameState) => GameState, boolean]>([
+    ["a shot it may take", (s) => s, true],
+    ["the opening round", (s) => ({ ...s, turn: FIRST_TURN }), false],
+    ["a target back from Home", (s) => withPlayer(s, "p2", { recovering: true }), false],
+    ["a ship its own Escort marker sits on", (s) => withMissions(s, "p1", [escortMission("e", "p2")]), false],
+  ])("with %s", (_label, setup, rotates) => {
+    expect(getShip(behind(), "p1").facing).toBe("prograde");
+    expect(holdRotates(setup(behind()))).toBe(rotates);
   });
 });
 

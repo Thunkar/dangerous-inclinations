@@ -10,10 +10,11 @@
  *
  * | Public fact                  | What it says                                   |
  * |------------------------------|------------------------------------------------|
- * | `completedMissionCount` = 2  | one card from the win, whichever card it is    |
+ * | `completedMissionCount`      | their points: at two of three, any card wins    |
+ * | `completedMissions`          | whether their primary is still to come          |
  * | `cargoAboard.crates` > 0     | a Deliver crate or Piracy loot; it ends at a station |
  * | `cargoAboard.data` > 0       | Intercept, Survey or Salvage data; it ends at a station |
- * | the well they are in         | a crate cannot be delivered where it was loaded |
+ * | the well they are in         | a crate loaded there goes to the next planet round the circuit |
  *
  * Stations sit on planet ring 2 and drift 4 sectors a round, and the lanes
  * are the only way between wells, so "where will they be in five turns" is
@@ -34,7 +35,7 @@ import type {
   TransferLane,
 } from "../../models/game.ts";
 import type { Subsystem } from "../../models/subsystems.ts";
-import { MISSION_POINTS } from "../../models/missions.ts";
+import { MISSION_POINTS, isPrimaryType } from "../../models/missions.ts";
 import {
   BLACK_HOLE_OUTER_RING,
   PLANETS,
@@ -47,6 +48,7 @@ import {
 } from "../../models/gravityWells.ts";
 import { forwardDistance, sectorDistance } from "../../game/geometry.ts";
 import { getStationForPlanet, stationPosition } from "../../game/stations.ts";
+import { circuitRoutes } from "../../game/missions/missionDeck.ts";
 import type { PlayerView } from "../../game/view.ts";
 import type { OpponentDanger } from "../types.ts";
 import type { MovementPlan, PlannerTarget } from "../movementPlanner/index.ts";
@@ -155,14 +157,12 @@ export function stationPositionFor(stations: Station[], planetId: string): Posit
 // Danger
 // ---------------------------------------------------------------------------
 
-/** Turns a player typically needs for one card, start to finish (sim median). */
+/** Turns a player typically needs for one card, start to finish. */
 const TYPICAL_MISSION_TURNS = 12;
-/**
- * Points a card in progress is assumed to be worth. Every card but Survey
- * scores two, so counting cards by points rather than one-a-piece is what
- * keeps "how close are they?" honest.
- */
-const POINTS_PER_CARD = Math.max(...Object.values(MISSION_POINTS));
+/** What a primary card scores (Destroy, Deliver and Intercept score alike). */
+const PRIMARY_POINTS = MISSION_POINTS.deliver_cargo;
+/** What a secondary card scores (all five score alike). */
+const SECONDARY_POINTS = MISSION_POINTS.survey;
 /** Turns of a delivery run left after a pickup, for a player not carrying yet. */
 const PICKUP_TO_DELIVERY_TURNS = 8;
 /** A turns-to-win of this many turns or more reads as no danger at all. */
@@ -170,15 +170,19 @@ const DANGER_HORIZON = 30;
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
+/** Where a Deliver crate loaded at each planet goes: the next planet round the circuit. */
+const CIRCUIT_NEXT = new Map(circuitRoutes(PLANETS.map((p) => p.id)));
+
 /**
- * Planets a carrier could be docking at, nearest first.
+ * Planets a carrier could be docking at, most likely first.
  *
- * Data (a scan or a survey) is delivered at *any* station, so every
- * planet is a candidate. A crate was loaded at one station and its route
- * ends at a different planet, so the well they are orbiting right now is the
- * one place that crate cannot be going: the pickup is excluded. (A ship
- * carrying both is heading somewhere it can drop the data, which includes
- * where it is.)
+ * Data is filed at any station (an Intercept's at the one its card names,
+ * which is not public), so every planet is a candidate, nearest first. A
+ * crate in a planet's well may have been loaded there: the Deliver deck
+ * prints only the circuit routes, so that crate goes to the next planet round
+ * the circuit, and that planet comes first. The rest follow nearest first: a
+ * crate loaded elsewhere is delivered where it is, and loot sells anywhere.
+ * (A ship carrying both is heading somewhere it can drop the data.)
  */
 export function predictedDeliveryPlanets(
   carrier: Position,
@@ -187,13 +191,18 @@ export function predictedDeliveryPlanets(
   stations: Station[]
 ): string[] {
   if (crates <= 0 && data <= 0) return [];
-  const excluded = crates > 0 && data <= 0 && isPlanet(carrier.wellId) ? carrier.wellId : null;
+  const crateOnly = crates > 0 && data <= 0 && isPlanet(carrier.wellId);
+  const circuit = crateOnly ? CIRCUIT_NEXT.get(carrier.wellId) : undefined;
   return PLANETS.map((p) => p.id)
-    .filter((id) => id !== excluded)
     .map((id) => ({ id, position: stationPositionFor(stations, id) }))
     .filter((c): c is { id: string; position: Position } => c.position !== null)
     .map((c) => ({ id: c.id, turns: cheapTurnEstimate(carrier, c.position) }))
-    .sort((a, b) => a.turns - b.turns || (a.id < b.id ? -1 : 1))
+    .sort(
+      (a, b) =>
+        Number(b.id === circuit) - Number(a.id === circuit) ||
+        a.turns - b.turns ||
+        (a.id < b.id ? -1 : 1)
+    )
     .map((c) => c.id);
 }
 
@@ -207,22 +216,29 @@ export function predictedDeliveryPlanets(
  *   one in progress at its real distance and every later one at
  *   {@link TYPICAL_MISSION_TURNS}.
  *
- * So a player on two cards carrying a crate four turns from its station is
+ * So a player on two points carrying a crate four turns from its station is
  * near 1; the same player with an empty hold and the nearest station half a
- * map away is around half; a player on no cards is near 0 whatever they
+ * map away is around half; a player on no points is near 0 whatever they
  * carry.
+ *
+ * Cards are priced by their points. What a hold is worth is not public (data
+ * may be an Intercept's or a secondary's), so while a player's primary is
+ * still face-down the card in progress is priced as the primary and every
+ * later one as a secondary; once the primary is face-up every card left is a
+ * secondary.
  */
 export function assessDanger(
-  player: Pick<PlayerView, "cargoAboard" | "completedMissionCount">,
+  player: Pick<PlayerView, "cargoAboard" | "completedMissionCount" | "completedMissions">,
   position: Position,
   stations: Station[],
-  /** What this game plays to (`view.pointsToWin`), three. */
+  /** What this game plays to (`view.pointsToWin`). */
   pointsToWin: number
 ): OpponentDanger {
   const crates = player.cargoAboard.crates;
   const data = player.cargoAboard.data;
-  const completed = player.completedMissionCount;
+  const points = player.completedMissionCount;
   const carrying = crates + data > 0;
+  const primaryDone = player.completedMissions.some((m) => isPrimaryType(m.type));
 
   const predictedPlanets = predictedDeliveryPlanets(position, crates, data, stations);
   const nearestPlanets = carrying
@@ -241,16 +257,17 @@ export function assessDanger(
   // still need. A player with an empty hold has to reach a station before
   // anything can start, so their next card costs the trip plus the run.
   const legTurns = carrying ? turnsToDelivery : turnsToStation + PICKUP_TO_DELIVERY_TURNS;
-  const pointsLeft = Math.max(0, pointsToWin - completed - POINTS_PER_CARD);
-  const cardsLeft = Math.ceil(pointsLeft / POINTS_PER_CARD);
+  const legPoints = primaryDone ? SECONDARY_POINTS : PRIMARY_POINTS;
+  const pointsLeft = Math.max(0, pointsToWin - points - legPoints);
+  const cardsLeft = Math.ceil(pointsLeft / SECONDARY_POINTS);
   const turnsToWin = legTurns + cardsLeft * TYPICAL_MISSION_TURNS;
 
-  const progress = completed / pointsToWin;
+  const progress = points / pointsToWin;
   const imminence = clamp01(1 - turnsToWin / DANGER_HORIZON);
 
   return {
     score: clamp01(0.5 * progress + 0.5 * imminence),
-    completedMissions: completed,
+    points,
     crates,
     data,
     predictedPlanets,

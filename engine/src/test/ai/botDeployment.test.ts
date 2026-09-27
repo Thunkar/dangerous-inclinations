@@ -24,9 +24,12 @@ import {
   GAMMA,
   deliverMission,
   destroyMission,
+  escortMission,
   interceptMission,
   makeGameState,
   makePlayer,
+  piracyMission,
+  surveyMission,
 } from "../testUtils.ts";
 
 const FAST_RING = HOME_RINGS[0];
@@ -94,6 +97,8 @@ describe("botChooseDeployment", () => {
   it.each([
     ["a Destroy card", destroyMission("other-0")],
     ["an Intercept card", interceptMission("other-0")],
+    ["a Piracy card", piracyMission()],
+    ["an Escort card", escortMission()],
   ])("takes the fast inner ring with %s, away from the ships placed", (_label, mission) => {
     const state = deploymentState([mission], [0, 1]);
     for (const pick of PICKERS) {
@@ -113,8 +118,11 @@ describe("botChooseDeployment", () => {
     }
   });
 
-  it("spreads out: without a Deliver card it takes the sector farthest from the placed ships", () => {
-    const state = deploymentState([], [0, 1]);
+  it.each([
+    ["no card", []],
+    ["a Survey card", [surveyMission()]],
+  ])("spreads out on the outer ring with %s, farthest from the placed ships", (_label, hand) => {
+    const state = deploymentState(hand, [0, 1]);
     for (const pick of PICKERS) {
       const choice = botChooseDeployment(viewFor(state, "bot"), pick);
       expect(choice.ring).toBe(HOME_RING);
