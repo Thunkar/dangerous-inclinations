@@ -503,7 +503,7 @@ export function scriptedGameStart(seed: number): GameState {
       home: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 0 },
     }
   );
-  let state = makeGameState([p1, p2], {
+  const state = makeGameState([p1, p2], {
     ...createDeterminismFields(seed),
     forcedRollValue: undefined,
   });

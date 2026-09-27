@@ -6,7 +6,7 @@
  * apart from the components so `glyphs.tsx` exports nothing but components.
  */
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { TRACED_PATHS } from './paths'
+import type { TRACED_PATHS } from './paths'
 
 export type IconName = keyof typeof TRACED_PATHS
 

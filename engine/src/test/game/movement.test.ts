@@ -317,7 +317,7 @@ describe("movement: rotation", () => {
   });
 
   it("rotating before a burn changes its direction; rotating after does not", () => {
-    let state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
+    const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
     const before = mustExecute(state, rotate(1, "retrograde"), burn(2, "soft"));
     expect(getShip(before, "p1")).toMatchObject({ ring: 2, facing: "retrograde" });
     const after = mustExecute(state, burn(1, "soft"), rotate(2, "retrograde"));

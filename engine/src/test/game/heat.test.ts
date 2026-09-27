@@ -59,7 +59,7 @@ describe("heat: a tile's cubes are its heat, and an action puts them there", () 
     (_label, subsystemId, energy, action, eventType) => {
       // p2 sits one sector ahead of p1 (R3 S0): the railgun needs it on the same ring, the port laser one ring out.
       const targetRing = subsystemId === "forward-0" ? 3 : 4;
-      let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: targetRing, sector: 1 });
+      const state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: targetRing, sector: 1 });
       const result = executeTurnAs(state, action);
       expect(result.errors).toBeUndefined();
       const [event] = eventsOf(result.events, eventType);
@@ -69,20 +69,20 @@ describe("heat: a tile's cubes are its heat, and an action puts them there", () 
   );
 
   it("scanning heats the sensor array", () => {
-    let state = makeTwoPlayerGame({ loadout: SENSOR_LOADOUT }, { ring: 3, sector: 2 });
+    const state = makeTwoPlayerGame({ loadout: SENSOR_LOADOUT }, { ring: 3, sector: 2 });
     const result = executeTurnAs(state, scan(1, "p2", "side-0"));
     expect(eventsOf(result.events, "scanned")[0].heat).toBe(2);
   });
 
   it("jumping heats the engines", () => {
     // BH R5 S17 is on Alpha's outbound lane.
-    let state = makeTwoPlayerGame({ ring: 5, sector: 17 });
+    const state = makeTwoPlayerGame({ ring: 5, sector: 17 });
     const result = executeTurnAs(state, jump(1, "planet-alpha"));
     expect(eventsOf(result.events, "jumped")[0].heat).toBe(3);
   });
 
   it("a tile nobody lit generates no heat", () => {
-    let state = makeTwoPlayerGame();
+    const state = makeTwoPlayerGame();
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "coasted")[0].heat).toBe(0);
     expect(eventsOf(result.events, "heat_check")[0].damage).toBe(0);

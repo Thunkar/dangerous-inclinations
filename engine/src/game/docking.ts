@@ -25,7 +25,6 @@ import type { EventDraft } from "../models/events.ts";
 import type { Cargo, DockJob, Mission } from "../models/missions.ts";
 import {
   CARGO_HOLD_CRATES,
-  DOCK_JOBS,
   TANKER_FUEL,
   aboard,
   missionPoints,
