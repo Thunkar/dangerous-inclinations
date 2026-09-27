@@ -40,6 +40,7 @@ import {
   SECONDARY_KINDS_PRINTED,
   MISSION_POINTS,
   CARGO_HOLD_CRATES,
+  HOLD_RULES,
   type MissionType,
 } from "../models/missions.ts";
 import {
@@ -375,7 +376,11 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push(
     `| Card values | ${TYPES.map((t) => `${CARD_LABEL[t]} ${MISSION_POINTS[t]}`).join(", ")} |`
   );
-  out.push(`| Hold | ${CARGO_HOLD_CRATES} crate (data rides free) |`);
+  out.push(
+    HOLD_RULES.unlimited
+      ? "| Hold | no limit; a pirate names the item it seizes (unlimitedHold) |"
+      : `| Hold | ${CARGO_HOLD_CRATES} crate (data rides free) |`
+  );
   out.push(
     `| The deal | ${PRIMARY_OFFERS_PER_PLAYER} primaries keep ${PRIMARIES_PER_PLAYER}; ` +
       `${SECONDARY_OFFERS_PER_PLAYER} secondaries keep any ${SECONDARIES_PER_PLAYER} from a shuffled pile of ` +
