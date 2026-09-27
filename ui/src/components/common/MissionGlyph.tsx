@@ -47,7 +47,7 @@ const SIGNAL_BARS = [0, 1, 2]
 const BONE = 'M7 50l4-3h42l4 3-4 3H11z'
 const BONE_TURNS = [18, -18]
 
-const DRAWN: Record<Exclude<MissionType, 'escort' | 'salvage'>, ReactElement> = {
+const ART: Record<MissionType, ReactElement> = {
   // A gunsight, and a hull sitting in it.
   destroy_ship: (
     <>
@@ -116,14 +116,28 @@ const DRAWN: Record<Exclude<MissionType, 'escort' | 'salvage'>, ReactElement> = 
       <path d="M50 20h9v32h-9zM53 4h3v12h-3z" />
     </>
   ),
-}
-
-// Placeholders until the cards are drawn: the Tanker's drum and wall for
-// Escort, the Piracy flag for Salvage.
-const ART: Record<MissionType, ReactElement> = {
-  ...DRAWN,
-  escort: DRAWN.tanker,
-  salvage: DRAWN.piracy,
+  // A hull inside a shield: Destroy's hull in its gunsight, taken under a
+  // wing instead. The shield is the marker the board puts on the escorted
+  // ship, a 5 unit rim (every edge offset by exactly 5) round a narrower
+  // copy of Destroy's hull.
+  escort: (
+    <>
+      <path fillRule="evenodd" d="M8 5h48v25L32 60 8 30zM13 10v18.2L32 52l19-23.8V10z" />
+      <path d="M32 15l10 27-10-6-10 6z" />
+    </>
+  ),
+  // The wreck and what is worth taking from it: the hull broken down its
+  // spine along one zigzag, the halves drifting 5° apart about their tails,
+  // and the black box lifted out of the break by the same chevron that
+  // carries Deliver's crate and the Tanker's fuel.
+  salvage: (
+    <>
+      <path d="M27.5 29.2l4.9 9.6-6.4 7.6 3.4 4.8L8.3 62z" />
+      <path d="M34.6 51.2L32 45.9l7.6-6.4-3.1-10.3L55.7 62z" />
+      <path fillRule="evenodd" d="M22 2h20v15H22zM25 7.5v3.5h14V7.5z" />
+      <path d="M25 27l7-6 7 6v5l-7-6-7 6z" />
+    </>
+  ),
 }
 
 /** The three-letter code stamped in the card's corner. */

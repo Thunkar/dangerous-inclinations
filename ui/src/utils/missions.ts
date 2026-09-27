@@ -80,7 +80,7 @@ export function missionProgress(
     case 'escort':
       return mission.markedPlayerId
         ? 'Marker placed · done when that ship next delivers'
-        : 'Share a sector with an undocked carrier'
+        : 'Mark an undocked carrier in your sector'
     case 'salvage': {
       // The wreck's black box rides as the card's own data: free, like any
       // data, and filed at any station.
