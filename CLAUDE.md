@@ -250,6 +250,16 @@ out the derived ones once (critical faces, slot contents, cube labels) and
 `site/turn.ts` states the turn once for the cheatsheet, the card and the
 in-game rules dialog.
 
+**The words live in text files that hold only strings**, in on-screen order:
+`engine/src/text/missionCards.ts` (every card's name, title and rule) and
+`ui/src/text/` (`cheatsheet.ts`, `printedCard.ts`, `turn.ts`,
+`rulesDialog.ts`, `missionProgress.ts`, `landing.ts`). A number is a `{name}`
+slot the caller fills from the engine (`fill` for one string, `rich` in
+`ui/src/utils/rich.tsx` for elements, which also sets `<b>` and the few tags a
+caller names); `{_}` is a space set as a text run of its own, kept so the
+pages render pixel for pixel as they did. Rewording a rule is an edit to those
+files and nothing else.
+
 **One press, two sheets.** The table (`design/tokens.ts`) is the poster's
 inks at night: an ink ground, cream print, one red (a lifted `accent` for type
 and lines, the poster `accentBlock` for solid blocks), Oswald capitals for
