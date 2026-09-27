@@ -158,6 +158,18 @@ describe("scan: intercept missions", () => {
     ]);
   });
 
+  it("a scan after a pirate took the data puts the same data back aboard, not a second copy", () => {
+    const card = interceptMission("p2", "intercept-p2", GAMMA);
+    // Seized: the data is still in the hold, un-picked, as a pirate leaves it.
+    const state = withPlayer(scanner(), "p1", {
+      missions: [card],
+      cargo: [{ ...takenData(card), isPickedUp: false }],
+    });
+    const result = executeTurnAs(state, scan(1, "p2"));
+    expect(eventTypes(result.events)).toContain("data_acquired");
+    expect(getPlayer(result.gameState, "p1").cargo).toEqual([takenData(card)]);
+  });
+
   it("does not acquire for intercept missions on other players, nor twice", () => {
     const other = withPlayer(scanner(), "p1", { missions: [interceptMission("p3")] });
     const otherResult = executeTurnAs(other, scan(1, "p2"));
