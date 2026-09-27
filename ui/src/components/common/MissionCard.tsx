@@ -14,12 +14,12 @@
  */
 import { Box, Typography } from '@mui/material'
 import type { Cargo, Mission, MissionRequirementStatus } from '@dangerous-inclinations/engine'
-import { describeMission } from '@dangerous-inclinations/engine'
+import { describeMission, describeMissionRule } from '@dangerous-inclinations/engine'
 import { FONT_MONO, FONT_SANS, TABLE } from '../../theme'
 import { BAND_ANGLE, FAMILY_INK, PRESS } from '../../design/press'
 import {
   missionFamily,
-  missionFamilyLabel,
+  missionName,
   missionPoints,
   missionProgress,
 } from '../../utils/missions'
@@ -56,7 +56,7 @@ interface Cut {
   stateSize: string
   footSize: string
   icon: number
-  /** Lines the description is allowed before it is cut with an ellipsis. */
+  /** Lines the mission text is allowed before it is cut with an ellipsis. */
   textLines: number
   progressLines: number
 }
@@ -65,40 +65,40 @@ const FULL: Cut = {
   width: 168,
   height: 235,
   title: 24,
-  desc: 70,
+  desc: 96,
   foot: 18,
-  glyph: 58,
+  glyph: 52,
   stamp: 30,
   margin: 10,
   pad: 7,
   titleSize: '1rem',
   textSize: '0.74rem',
-  progressSize: '0.66rem',
+  progressSize: '0.62rem',
   stateSize: '0.5rem',
   footSize: '0.46rem',
   icon: 9,
-  textLines: 2,
-  progressLines: 2,
+  textLines: 5,
+  progressLines: 1,
 }
 
 const FAN: Cut = {
   width: 112,
   height: 157,
   title: 14,
-  desc: 68,
+  desc: 80,
   foot: 14,
-  glyph: 32,
+  glyph: 26,
   stamp: 18,
   margin: 6,
   pad: 4,
   titleSize: '0.66rem',
-  textSize: '0.6rem',
-  progressSize: '0.56rem',
+  textSize: '0.58rem',
+  progressSize: '0.52rem',
   stateSize: '0.42rem',
   footSize: '0.42rem',
   icon: 8,
-  textLines: 3,
-  progressLines: 2,
+  textLines: 6,
+  progressLines: 1,
 }
 
 /** 5:7, the proportion of the card that will be printed. */
@@ -214,7 +214,8 @@ export function MissionCard({
         '&:hover': onClick ? { outline: `2px solid ${outline ?? TABLE.accent}` } : undefined,
       }}
     >
-      {/* Title strip: the family name, always black on bare paper. */}
+      {/* Title strip: the card's name, always black on bare paper. The family
+          is the band's colour. */}
       <Box
         sx={{
           flex: `0 0 ${cut.title}px`,
@@ -236,7 +237,7 @@ export function MissionCard({
             color: INK,
           }}
         >
-          {missionFamilyLabel(mission)}
+          {missionName(mission)}
         </Typography>
       </Box>
 
@@ -308,6 +309,7 @@ export function MissionCard({
 
       {/* The job, typed on the paper, in a box that never changes size. */}
       <Box
+        data-card-text="box"
         sx={{
           flex: `0 0 ${cut.desc}px`,
           overflow: 'hidden',
@@ -317,19 +319,22 @@ export function MissionCard({
         }}
       >
         <Typography
+          data-card-text="rule"
+          title={describeMission(mission, nameOf)}
           sx={{
-            fontFamily: FONT_MONO,
+            fontFamily: FONT_SANS,
             fontWeight: 600,
             fontSize: cut.textSize,
             color: INK,
-            lineHeight: 1.25,
+            lineHeight: 1.2,
             ...clamp(cut.textLines),
           }}
         >
-          {describeMission(mission, nameOf)}
+          {describeMissionRule(mission, nameOf)}
         </Typography>
         {progress && !done && (
           <Typography
+            data-card-text="progress"
             sx={{
               fontSize: cut.progressSize,
               color: INK_SOFT,

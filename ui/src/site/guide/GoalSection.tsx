@@ -15,7 +15,6 @@ import {
   PRIMARY_OFFERS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   SECONDARY_OFFERS_PER_PLAYER,
-  TANKER_FUEL,
 } from '@dangerous-inclinations/engine'
 import { MissionCard } from '../../components/common/MissionCard'
 import { PRESS } from '../../design/press'
@@ -24,8 +23,8 @@ import { GuideSection, SubHead } from './parts'
 
 /** Seat counts, the way a card names a rival. */
 const SEATS: Record<string, string> = {
-  'left-1': '1st to your left',
-  'left-2': '2nd to your left',
+  'left-1': 'the 1st player to your left',
+  'left-2': 'the 2nd player to your left',
 }
 const nameOf = (id: string) => SEATS[id] ?? id
 
@@ -62,16 +61,10 @@ const SECONDARIES: Mission[] = [
   { id: 'g-salvage', type: 'salvage', isCompleted: false, cargoId: 'g-salvage-box' },
 ]
 
-/** What the card does not print: the one thing a hand must be able to do. */
+/** What the card does not print: the subsystem it needs aboard. */
 const NOTE: Partial<Record<MissionType, string>> = {
-  destroy_ship: 'Hull to 0. Needs a weapon.',
-  deliver_cargo: 'Load at the first station, deliver at the second.',
-  intercept_transmission: 'Scan them, then dock there. Needs a sensor.',
-  survey: 'End a turn on black hole ring 1, then dock anywhere.',
-  piracy: 'With your hold empty, share a sector with an undocked carrier; sell anywhere.',
-  tanker: `Arrive at a station with ${TANKER_FUEL} fuel.`,
-  escort: 'You may mark a carrier in your sector; you score when it next delivers, sells, files or pumps fuel.',
-  salvage: 'End a turn on a wreck, take its black box; file anywhere.',
+  destroy_ship: 'Needs a weapon.',
+  intercept_transmission: 'Needs a sensor array.',
 }
 
 const primaryPoints = MISSION_POINTS.destroy_ship
@@ -110,9 +103,11 @@ function CardRow({
         {missions.map(mission => (
           <Box key={mission.id} sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
             <MissionCard mission={mission} nameOf={nameOf} cargo={[]} />
-            <Body size="0.88rem" color={PRESS.inkSoft}>
-              {NOTE[mission.type]}
-            </Body>
+            {NOTE[mission.type] && (
+              <Body size="0.88rem" color={PRESS.inkSoft}>
+                {NOTE[mission.type]}
+              </Body>
+            )}
           </Box>
         ))}
       </Box>

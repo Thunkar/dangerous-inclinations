@@ -11,9 +11,7 @@ import {
   CARGO_HOLD_CRATES,
   MAX_REACTION_MASS,
   MISSION_FAMILY,
-  TANKER_FUEL,
   dataAboard,
-  getWellName,
   missionPoints as pointsForType,
 } from '@dangerous-inclinations/engine'
 import { TABLE } from '../theme'
@@ -34,64 +32,40 @@ export function missionFamilyColor(mission: Mission): string {
 }
 
 /**
- * One line telling the player how far along a card is, or null if there is
- * none. `fuel` is the ship's tank where the card is drawn next to it (the
- * hand at the table); a Tanker read off the board prints the rule instead.
+ * What the holder has done so far on a card, or null when nothing yet: the
+ * card's own text already says what to do. `fuel` is the ship's tank where the
+ * card is drawn next to it (the hand at the table).
  */
 export function missionProgress(
   mission: Mission,
   cargo: ReadonlyArray<Cargo>,
   fuel?: number
 ): string | null {
+  const aboard = (id: string) => cargo.some(c => c.missionId === id && c.isPickedUp)
   switch (mission.type) {
     case 'deliver_cargo': {
-      const crate = cargo.find(c => c.missionId === mission.id)
-      if (crate?.isPickedUp) {
-        return `Crate aboard · deliver at ${getWellName(mission.deliveryPlanetId)}`
-      }
-      // The hold takes one crate (RULES §Missions): a route whose turn has not
-      // come yet is waiting on the one in the hold, not on a trip to its
-      // station, and saying "load the crate" would send you there for nothing.
+      if (aboard(mission.id)) return 'Crate aboard'
+      // The hold takes one crate (RULES §Missions): another route's crate
+      // aboard means this one waits.
       const holdFull =
         cargo.filter(c => c.kind === 'crate' && c.isPickedUp).length >= CARGO_HOLD_CRATES
-      return holdFull
-        ? `Hold full · deliver first, then load at ${getWellName(mission.pickupPlanetId)}`
-        : `Load the crate at ${getWellName(mission.pickupPlanetId)}`
+      return holdFull ? 'Hold full' : null
     }
     case 'intercept_transmission':
-      return dataAboard({ cargo }, mission)
-        ? `Transmission taken · file it at ${getWellName(mission.deliveryPlanetId)}`
-        : `Scan them first, then file at ${getWellName(mission.deliveryPlanetId)}`
+      return dataAboard({ cargo }, mission) ? 'Transmission aboard' : null
     case 'survey':
-      return dataAboard({ cargo }, mission)
-        ? 'Data aboard · dock anywhere to file it'
-        : 'End a turn on Black Hole R1'
-    case 'piracy': {
-      // The loot rides as the card's own crate (engine `seizeLoot`), so the
-      // hold answers whether the job is still to find a mark or to sell.
-      const loot = cargo.find(c => c.missionId === mission.id)
-      return loot?.isPickedUp
-        ? 'Sell the loot at any station'
-        : 'With your hold empty, find an undocked ship carrying a crate or data'
-    }
+      return dataAboard({ cargo }, mission) ? 'Data aboard' : null
+    case 'piracy':
+      // The loot rides as the card's own crate (engine `seizeLoot`).
+      return aboard(mission.id) ? 'Loot aboard' : null
     case 'tanker':
-      return fuel === undefined
-        ? `Arrive at a station with ${TANKER_FUEL} fuel`
-        : `Arrive at a station with ${TANKER_FUEL} fuel (tank ${fuel}/${MAX_REACTION_MASS})`
+      return fuel === undefined ? null : `Tank ${fuel}/${MAX_REACTION_MASS}`
     case 'escort':
-      return mission.markedPlayerId
-        ? 'Marker placed · done when that ship next delivers, sells, files or pumps fuel'
-        : 'Mark an undocked carrier in your sector'
-    case 'salvage': {
-      // The wreck's black box rides as the card's own data: free, like any
-      // data, and filed at any station.
-      const box = cargo.find(c => c.missionId === mission.id)
-      return box?.isPickedUp
-        ? 'File the black box at any station'
-        : 'End a turn on a wreck and take its black box'
-    }
+      return mission.markedPlayerId ? 'Marker placed' : null
+    case 'salvage':
+      return aboard(mission.id) ? 'Black box aboard' : null
     default:
-      // Destroy has nothing to track: you either put their hull to 0 or you don't.
+      // Destroy has nothing to track: their hull reaches 0 or it does not.
       return null
   }
 }
@@ -99,6 +73,22 @@ export function missionProgress(
 /** Points the card scores when completed. */
 export function missionPoints(mission: Mission): number {
   return pointsForType(mission.type)
+}
+
+/** The card's name, printed in its title strip. */
+const MISSION_NAME: Record<Mission['type'], string> = {
+  destroy_ship: 'Destroy',
+  deliver_cargo: 'Deliver',
+  intercept_transmission: 'Intercept',
+  survey: 'Survey',
+  piracy: 'Piracy',
+  tanker: 'Tanker',
+  escort: 'Escort',
+  salvage: 'Salvage',
+}
+
+export function missionName(mission: Mission): string {
+  return MISSION_NAME[mission.type]
 }
 
 /** Short label for the card's family band. */

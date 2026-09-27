@@ -3,7 +3,7 @@
  */
 import type { GameEvent } from "../models/events.ts";
 import type { Mission, MissionRequirement } from "../models/missions.ts";
-import { TANKER_FUEL } from "../models/missions.ts";
+import { SCAN_SECTOR_RANGE, SURVEY_RING, TANKER_FUEL } from "../models/missions.ts";
 import type { Position } from "../models/game.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { getWellName } from "../models/gravityWells.ts";
@@ -39,6 +39,31 @@ export function describeMission(m: Mission, name: NameResolver): string {
         : "Escort a carrier until it delivers";
     case "salvage":
       return "Salvage a wreck's black box and file it";
+  }
+}
+
+/**
+ * The whole mission in a sentence or two, as the card prints it under its
+ * title: what to do, where, and what completes it (RULES §Missions).
+ */
+export function describeMissionRule(m: Mission, name: NameResolver): string {
+  switch (m.type) {
+    case "destroy_ship":
+      return `Bring the hull of ${name(m.targetPlayerId)} to 0 with a shot or a missile.`;
+    case "deliver_cargo":
+      return `Load the crate at ${getWellName(m.pickupPlanetId)}, then dock at ${getWellName(m.deliveryPlanetId)} to deliver it.`;
+    case "intercept_transmission":
+      return `Scan ${name(m.targetPlayerId)} (same ring, within ${SCAN_SECTOR_RANGE} sectors), then dock at ${getWellName(m.deliveryPlanetId)} to file it.`;
+    case "survey":
+      return `End a turn on Black Hole ring ${SURVEY_RING}, then file the data at any station.`;
+    case "piracy":
+      return "With your hold empty, end a turn on an undocked ship to take its crate or data. Sell it at any station.";
+    case "tanker":
+      return `Arrive at a station with ${TANKER_FUEL} or more fuel and pump ${TANKER_FUEL} in. That is the visit's one job.`;
+    case "escort":
+      return "You may mark an undocked carrier in your sector. Done when it next delivers or pumps fuel.";
+    case "salvage":
+      return "End a turn on a wreck to take its black box, one a turn. File it at any station.";
   }
 }
 
