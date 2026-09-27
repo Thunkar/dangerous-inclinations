@@ -1,7 +1,7 @@
 /**
  * A board model with every plan overlay on it, for the dev harness.
  *
- * The quiet fixture next door (`three/dev/fixtureModel.ts`) stands three ships
+ * The quiet fixture beside it (`fixtureModel.ts`) stands three ships
  * on a still board; this one gives the same table a turn in progress, because
  * missiles, ranges, routes and deployment sectors cannot be looked at when
  * nobody is playing. Everything that could be asked of the engine is: the
@@ -25,9 +25,9 @@ import {
   legalDeploymentsAgainst,
   projectMissilePath,
 } from '@dangerous-inclinations/engine'
-import { getPlayerColor } from '../../../../../utils/playerColors'
-import { crowdOffset, radialPoint, ringsOf } from '../../../geometry'
-import type { BoardModel, HomeMarker, MissilePreview, ShipToken } from '../../../model'
+import { getPlayerColor } from '../../../../utils/playerColors'
+import { crowdOffset, radialPoint, ringsOf } from '../../geometry'
+import type { BoardModel, HomeMarker, MissilePreview, ShipToken } from '../../model'
 
 interface FixtureSeat {
   playerId: string
@@ -257,7 +257,6 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     missilePreviews,
     plannedPoints,
     route,
-    focusWeapon: { weapon: FOCUS_WEAPON, from: me.position, facing: 'prograde' },
     rangeCells: rangeCellsFrom(me.position),
     missilePaths,
     selectableIds: [target.playerId],
@@ -274,7 +273,6 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     myColor: colorOf(me.playerId),
     colorOf,
     nameOf,
-    positionOf,
     pointOf: playerId => {
       const token = ships.find(ship => ship.playerId === playerId)
       return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null

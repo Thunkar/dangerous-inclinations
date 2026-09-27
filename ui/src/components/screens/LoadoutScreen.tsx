@@ -5,6 +5,7 @@ import {
   MISSIONS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
+  SLOT_IDS,
   isPrimaryType,
   calculateShipStatsFromLoadout,
   describeMission,
@@ -390,7 +391,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
             {[
               ['Dissipation', `${stats.dissipationCapacity}/turn`],
               ['Reaction mass', stats.reactionMass],
-              ['Systems', `${filled}/5`],
+              ['Systems', `${filled}/${SLOT_IDS.length}`],
             ].map(([label, value]) => (
               <Box key={label} sx={{ textAlign: 'center' }}>
                 <Typography sx={{ fontFamily: FONT_MONO, fontSize: 21, color: TABLE.ink }}>
@@ -439,7 +440,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
             <Typography variant="caption" color="text.secondary">
               {submitted
                 ? 'Your design is saved with this game.'
-                : `${filled}/5 systems · ${missionIds.length}/${MISSIONS_PER_PLAYER} missions · Appearance is cosmetic`}
+                : `${filled}/${SLOT_IDS.length} systems · ${missionIds.length}/${MISSIONS_PER_PLAYER} missions · Appearance is cosmetic`}
             </Typography>
           </Box>
           <Button

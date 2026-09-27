@@ -3,7 +3,7 @@
  * every screen (lobby, loadouts, board tokens, log). Red is never a seat: on
  * the table red means danger and the thing you can act on.
  */
-export const PLAYER_COLORS = [
+const PLAYER_COLORS = [
   '#3f7fd0', // cobalt
   '#3d9a5c', // green
   '#d08a1e', // ochre
@@ -12,7 +12,7 @@ export const PLAYER_COLORS = [
   '#c8b89a', // sand
 ] as const
 
-export const NEUTRAL_PLAYER_COLOR = '#7a7a7a'
+const NEUTRAL_PLAYER_COLOR = '#7a7a7a'
 
 export function getPlayerColor(index: number): string {
   if (index < 0) return NEUTRAL_PLAYER_COLOR

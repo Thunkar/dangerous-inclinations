@@ -93,8 +93,6 @@ interface PipTrackProps {
   worstCase?: number
   /** Replaces the plain "value/max" readout at the end of the bar. */
   readout?: ReactNode
-  /** Reserved label width, so several tracks under each other line up. */
-  labelWidth?: number
 }
 
 /** Hull, heat and fuel read as segmented bars: lit segments up to the value. */
@@ -109,7 +107,6 @@ export function PipTrack({
   projected,
   worstCase,
   readout,
-  labelWidth = 30,
 }: PipTrackProps) {
   const target = projected ?? value
   const lit = Math.max(0, Math.min(value, target))
@@ -121,7 +118,7 @@ export function PipTrack({
       {label && !compact && (
         <Typography
           variant="overline"
-          sx={{ color: TABLE.inkFaint, lineHeight: 1, minWidth: labelWidth, flexShrink: 0 }}
+          sx={{ color: TABLE.inkFaint, lineHeight: 1, minWidth: 30, flexShrink: 0 }}
         >
           {label}
         </Typography>

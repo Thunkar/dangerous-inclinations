@@ -27,7 +27,6 @@ interface PlayerContextValue {
   retry: () => void
   setPlayerName: (name: string) => Promise<void>
   clearNewPlayerFlag: () => void
-  logout: () => void
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null)
@@ -122,14 +121,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const clearNewPlayerFlag = useCallback(() => setIsNewPlayer(false), [])
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY_PLAYER_ID)
-    setPlayerId(null)
-    setPlayerNameState(DEFAULT_PLAYER_NAME)
-    setIsAuthenticated(false)
-    setIsNewPlayer(false)
-  }, [])
-
   return (
     <PlayerContext.Provider
       value={{
@@ -143,7 +134,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         retry,
         setPlayerName,
         clearNewPlayerFlag,
-        logout,
       }}
     >
       {children}

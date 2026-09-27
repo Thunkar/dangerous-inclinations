@@ -18,7 +18,6 @@
 import type { ReactNode } from 'react'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
-  BASE_CRITICAL_CHANCE,
   BLACKHOLE_RINGS,
   BURN_COSTS,
   COMPRESSED_JUMP_MASS,
@@ -32,7 +31,6 @@ import {
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   interceptsPerRack,
-  rollToResult,
 } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
 import { PRESS } from '../../design/press'
@@ -43,8 +41,8 @@ import {
   MISS_TOP,
   RADIATOR_DISSIPATION,
   SENSOR_CRIT,
-  SENSOR_CRIT_BONUS,
   energyLabel,
+  faceResult,
   phasingStrip,
   tileName,
   weaponStats,
@@ -287,10 +285,10 @@ function Row({
 // ---------------------------------------------------------------------------
 
 function rollClass(face: number): string {
-  const bare = rollToResult(face, BASE_CRITICAL_CHANCE)
+  const bare = faceResult(face)
   if (bare === 'miss') return 'di-miss'
   if (bare === 'critical') return 'di-crit'
-  return rollToResult(face, BASE_CRITICAL_CHANCE + SENSOR_CRIT_BONUS) === 'critical'
+  return faceResult(face, true) === 'critical'
     ? 'di-sensor'
     : 'di-hit'
 }

@@ -244,7 +244,6 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     missilePreviews: [],
     plannedPoints: [],
     route: null,
-    focusWeapon: null,
     rangeCells: [],
     missilePaths: {},
     selectableIds: ['p3'],
@@ -259,7 +258,6 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     myColor: colorOf('p1'),
     colorOf,
     nameOf,
-    positionOf: playerId => ships.find(ship => ship.playerId === playerId)?.position ?? null,
     pointOf: playerId => {
       const token = ships.find(ship => ship.playerId === playerId)
       return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null

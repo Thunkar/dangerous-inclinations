@@ -26,10 +26,11 @@ import type {
   Station,
   WeaponType,
 } from '@dangerous-inclinations/engine'
-import { HOME_RING } from '@dangerous-inclinations/engine'
+import { BURN_COSTS, HOME_RING } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
 import { getPlayerColor } from '../utils/playerColors'
 import { TABLE } from '../design/tokens'
+import { BASE_CRIT, SENSOR_CRIT } from '../site/numbers'
 
 // ---------------------------------------------------------------------------
 // Effects
@@ -310,10 +311,6 @@ function storedSpeed(): PlaybackSpeed {
 const CINEMA = { slow: 1.6, lead: 750, firstLead: 1300, tail: 1200 } as const
 
 let effectSeq = 0
-/** Ring counts in RULES §Movement, used to name a burn by what it actually did. */
-const BURN_RINGS = { soft: 1, medium: 2, hard: 3 } as const
-/** Fuel a burn costs before phasing, so the rest of what was spent is the phase. */
-const BURN_MASS = { soft: 1, medium: 2, hard: 3 } as const
 const nextId = (prefix: string) => `${prefix}-${++effectSeq}`
 
 function snapshotOf(view: GameView): BoardOverlay {
@@ -352,16 +349,16 @@ function snapshotOf(view: GameView): BoardOverlay {
  * never widens the band we print for the table to read.
  */
 function critThresholdFor(view: GameView, attackerId: string, sensing: boolean): number {
-  if (!sensing) return 10
+  if (!sensing) return BASE_CRIT
   const attacker = view.players.find(p => p.id === attackerId)
-  if (!attacker) return 10
+  if (!attacker) return BASE_CRIT
   const visiblySensing = attacker.slots.some(
     slot =>
       slot.type === 'sensor_array' &&
       (attacker.isMe ? slot.knownVia === 'own' : slot.knownVia === 'revealed') &&
       slot.isBroken !== true
   )
-  return visiblySensing ? 8 : 10
+  return visiblySensing ? SENSOR_CRIT : BASE_CRIT
 }
 
 export function AnimationProvider({ children }: { children: ReactNode }) {
@@ -594,10 +591,11 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             return BEAT.move
           case 'burned': {
             moveShip(event.playerId, event.to, 'burn')
-            const phase = event.massSpent - BURN_MASS[event.intensity]
+            // Fuel a burn costs before phasing, so the rest of what was spent is the phase.
+            const phase = event.massSpent - BURN_COSTS[event.intensity].mass
             mark(
               event.playerId,
-              `BURN ${BURN_RINGS[event.intensity]}${phase > 0 ? ` · PHASE ${phase}` : ''} · −${event.massSpent} fuel`,
+              `BURN ${BURN_COSTS[event.intensity].rings}${phase > 0 ? ` · PHASE ${phase}` : ''} · −${event.massSpent} fuel`,
               'good',
               { at: event.to }
             )
@@ -779,13 +777,13 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
           }
           case 'missile_intercepted': {
             const at = positionOf(event.targetId)
-            const hit = event.roll >= 2
+            const hit = event.destroyed
             setDice(d => [
               ...d,
               {
                 id: nextId('die'),
                 roll: event.roll,
-                critThreshold: 10,
+                critThreshold: BASE_CRIT,
                 outcome: hit ? 'destroyed' : 'leaked',
                 attackerId: event.targetId,
                 targetId: event.ownerId,

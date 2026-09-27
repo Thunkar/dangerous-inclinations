@@ -22,7 +22,7 @@ export function getStoredPlayerId(): string | null {
   return localStorage.getItem(STORAGE_KEY_PLAYER_ID)
 }
 
-export async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const playerId = getStoredPlayerId()
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }

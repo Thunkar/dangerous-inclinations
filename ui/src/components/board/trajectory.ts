@@ -30,7 +30,7 @@
  * touches no `three`) so a track is the same polyline on either board.
  */
 import type { GravityWellId, Position } from '@dangerous-inclinations/engine'
-import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
+import { SECTORS_PER_RING, samePosition } from '@dangerous-inclinations/engine'
 import {
   interpolatePositions,
   positionPoint,
@@ -47,7 +47,7 @@ import {
  * staying inside the plate margin at the rim and nowhere near the ring next
  * door: four fifths of the gap is still between the track and it.
  */
-export const TRACK_BOW = 0.22
+const TRACK_BOW = 0.22
 
 /**
  * Share of a ring-run spent easing off the ring and back onto it. Big enough
@@ -108,10 +108,6 @@ function smoothstep(t: number): number {
   return x * x * (3 - 2 * x)
 }
 
-function samePlace(a: Position, b: Position): boolean {
-  return a.wellId === b.wellId && a.ring === b.ring && a.sector === b.sector
-}
-
 /** A leg rides a ring when it stays in one well and never leaves one ring. */
 function ridesRing(from: Position, to: Position): boolean {
   return from.wellId === to.wellId && from.ring === to.ring
@@ -131,7 +127,7 @@ export function trackPoints(
 
   const legs: Array<{ from: Position; to: Position }> = []
   for (let i = 1; i < positions.length; i++) {
-    if (samePlace(positions[i - 1], positions[i])) continue
+    if (samePosition(positions[i - 1], positions[i])) continue
     legs.push({ from: positions[i - 1], to: positions[i] })
   }
   if (legs.length === 0) {

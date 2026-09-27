@@ -17,7 +17,7 @@ import {
 } from '@dangerous-inclinations/engine'
 import { TABLE } from '../theme'
 
-export const FAMILY_COLOR: Record<MissionFamily, string> = {
+const FAMILY_COLOR: Record<MissionFamily, string> = {
   combat: TABLE.danger,
   trade: TABLE.teal,
   intel: TABLE.violet,

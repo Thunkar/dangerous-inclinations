@@ -38,14 +38,19 @@ import { useGame } from '../../context/GameContext'
 // The turn is stated once. The cheatsheet and the printed card read the same
 // list, so none of them can disagree about what order a turn runs in.
 import { QUIET_TURN, TURN_STEPS } from '../../site/turn'
+import {
+  BASE_CRIT,
+  FULL_SHIELD,
+  HALF_SHIELD,
+  MISS_TOP,
+  RACK_ENERGY,
+  RADIATOR_DISSIPATION,
+  SENSOR_CRIT,
+  SENSOR_ENERGY,
+} from '../../site/numbers'
 
-/** What one radiator dissipates, read from the tile so this card cannot drift. */
-const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
-/** A half shield, a rack and a sensor all take this much; a full shield twice it. */
-const HALF_SHIELD = SUBSYSTEM_CONFIGS.shields.minEnergy
-const FULL_SHIELD = SUBSYSTEM_CONFIGS.shields.maxEnergy
-const RACK_ENERGY = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy
-const SENSOR_ENERGY = SUBSYSTEM_CONFIGS.sensor_array.minEnergy
+/** The hit roll as the Quick Reference states it, read off the engine's roll table. */
+const HIT_ROLL = `${MISS_TOP} miss, ${MISS_TOP + 1}–${BASE_CRIT - 1} hit, ${BASE_CRIT} crit (${SENSOR_CRIT}–10 with sensors)`
 
 /** The button that lives in the top bar, and the card it opens. */
 export function RulesButton() {
@@ -111,7 +116,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
       'Jump',
       `engines ${WELL_TRANSFER_COSTS.energy}, ${WELL_TRANSFER_COSTS.mass} fuel (${COMPRESSED_JUMP_MASS} with a compressor), no drift`,
     ],
-    ['Hit roll', '1 miss, 2–9 hit, 10 crit (8–10 with sensors)'],
+    ['Hit roll', HIT_ROLL],
     [
       'Salvo',
       `one action launches any number of a subsystem's missiles at one ship, all naming the same slot, for the subsystem's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} energy once; a rack with energy on it rolls at ${interceptsPerRack()} of them a turn, so it takes a second rack to answer a second launcher`,

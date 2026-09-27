@@ -21,26 +21,21 @@ import { ReplayGameProvider } from '../../context/GameContext'
 import { TableRoot } from '../table/TableRoot'
 import { TABLE } from '../../theme'
 
-export const SPECTATOR = '__spectator__'
+const SPECTATOR = '__spectator__'
 
 interface RecordingTableProps {
   recording: GameRecording
-  /** Whose seat to open from; null (the default) watches as a spectator. */
-  initialPerspectiveId?: string | null
-  /** Where the transport starts: -1 is before the first turn. */
-  initialTurnIndex?: number
   /** Extra header controls, given the turn currently on the table. */
   headerExtras?: (state: { turnIndex: number }) => ReactNode
 }
 
 export function RecordingTable({
   recording,
-  initialPerspectiveId = null,
-  initialTurnIndex = -1,
   headerExtras,
 }: RecordingTableProps) {
-  const [turnIndex, setTurnIndex] = useState(initialTurnIndex)
-  const [perspective, setPerspective] = useState<string>(initialPerspectiveId ?? SPECTATOR)
+  // -1 is before the first turn; the table opens watching as a spectator.
+  const [turnIndex, setTurnIndex] = useState(-1)
+  const [perspective, setPerspective] = useState<string>(SPECTATOR)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(900)
 

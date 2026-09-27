@@ -40,14 +40,11 @@ import {
 import type { BoardModel } from '../../components/board/model'
 import { GameBoardSvg } from '../../components/board/svg/GameBoardSvg'
 import { getPlayerColor } from '../../utils/playerColors'
-import { placeLabel, routeLegs, routeName } from '../../utils/route'
+import { ROUTE_SEARCH_TURNS, placeLabel, routeLegs, routeName } from '../../utils/route'
 import { FONT_SANS, TABLE } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { STATION_DRIFT } from '../turn'
 import { Field, Label, Plate, Segments, Stepper, Toggle } from './controls'
-
-/** How far the search looks before it gives up. The turn column uses 20 too. */
-const MAX_TURNS = 20
 
 const SHIP_ID = 'planner'
 const SHIP_COLOR = getPlayerColor(0)
@@ -152,7 +149,7 @@ export function RoutePlannerTool() {
     maxFuelCapacity: MAX_REACTION_MASS,
     hasFuelCompressor: compressor,
     allowWellTransfers: true,
-    maxTurns: MAX_TURNS,
+    maxTurns: ROUTE_SEARCH_TURNS,
     arrivalMass: keep,
   }
 
@@ -216,7 +213,6 @@ export function RoutePlannerTool() {
       missilePreviews: [],
       plannedPoints: [],
       route,
-      focusWeapon: null,
       rangeCells: [],
       missilePaths: {},
       selectableIds: [],
@@ -231,7 +227,6 @@ export function RoutePlannerTool() {
       myColor: SHIP_COLOR,
       colorOf: () => SHIP_COLOR,
       nameOf: () => 'your ship',
-      positionOf: playerId => (playerId === SHIP_ID ? from : null),
       pointOf: () => null,
     }),
     // `pick` closes over these.
@@ -407,8 +402,8 @@ export function RoutePlannerTool() {
               {destination.kind === 'sector' && same(from, destination.at)
                 ? 'The ship is already there.'
                 : keep > 0
-                  ? `No route there within ${MAX_TURNS} turns on ${fuel} fuel that arrives with ${keep}.`
-                  : `No route there within ${MAX_TURNS} turns on ${fuel} fuel.`}
+                  ? `No route there within ${ROUTE_SEARCH_TURNS} turns on ${fuel} fuel that arrives with ${keep}.`
+                  : `No route there within ${ROUTE_SEARCH_TURNS} turns on ${fuel} fuel.`}
             </Box>
           ) : (
             <>

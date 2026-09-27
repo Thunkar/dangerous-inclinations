@@ -78,8 +78,9 @@ function sameMove(a: MoveChoice, b: MoveChoice): boolean {
   return false
 }
 
-export function RoutePlanner({ disabled }: { disabled: boolean }) {
+export function RoutePlanner() {
   const plan = usePlan()
+  const disabled = plan.disabled
   const picking = plan.picking?.kind === 'destination'
   const dest = plan.routeDestination
   const route = plan.route

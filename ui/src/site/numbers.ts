@@ -7,24 +7,54 @@ import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
   BASE_CRITICAL_CHANCE,
   FIXED_SUBSYSTEM_TYPES,
+  SHIELD_ENERGY_PER_POINT,
   SUBSYSTEM_CONFIGS,
   getAdjustmentRange,
+  interceptsPerRack,
   rollToResult,
 } from '@dangerous-inclinations/engine'
 
 export const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
+/** The energy each powered subsystem takes: a half shield, a rack and a sensor alike; a full shield twice it. */
+export const HALF_SHIELD = SUBSYSTEM_CONFIGS.shields.minEnergy
+export const FULL_SHIELD = SUBSYSTEM_CONFIGS.shields.maxEnergy
+export const RACK_ENERGY = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy
+export const SENSOR_ENERGY = SUBSYSTEM_CONFIGS.sensor_array.minEnergy
 export const SENSOR_CRIT_BONUS =
   SUBSYSTEM_CONFIGS.sensor_array.passiveEffect?.criticalChanceBonus ?? 0
 
 export const D10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
 
-/** The lowest face that is a critical, bare and with a powered sensor. */
-const lowestCritical = (chance: number) =>
+/** The lowest face that is a critical at a critical chance. */
+export const lowestCritical = (chance: number) =>
   D10.find(face => rollToResult(face, chance) === 'critical') ?? 10
+/** The lowest face that is a critical, bare and with a powered sensor. */
 export const BASE_CRIT = lowestCritical(BASE_CRITICAL_CHANCE)
 export const SENSOR_CRIT = lowestCritical(BASE_CRITICAL_CHANCE + SENSOR_CRIT_BONUS)
+/** What a face of the d10 does, bare or with a powered sensor: the engine's roll table. */
+export const faceResult = (face: number, sensor = false) =>
+  rollToResult(face, BASE_CRITICAL_CHANCE + (sensor ? SENSOR_CRIT_BONUS : 0))
 /** The highest face that misses. */
 export const MISS_TOP = D10.filter(face => rollToResult(face) === 'miss').pop() ?? 1
+
+/** Shields stop every weapon but a laser, unless the laser's config says otherwise. */
+const LASERS_PIERCE = SUBSYSTEM_CONFIGS.laser.weaponStats?.ignoresShields ?? false
+
+/** What a powered subsystem does until its owner's next turn, with the engine's numbers. */
+export function poweredEffect(type: SubsystemType): string {
+  switch (type) {
+    case 'shields':
+      return `shields absorb 1 damage per ${SHIELD_ENERGY_PER_POINT} energy${
+        LASERS_PIERCE ? ' (not lasers)' : ''
+      }`
+    case 'ballistic_rack':
+      return `a rack rolls at ${interceptsPerRack()} missiles a turn`
+    case 'sensor_array':
+      return `a sensor makes your criticals ${SENSOR_CRIT}–10`
+    default:
+      return ''
+  }
+}
 
 /** A ballistic rack with energy on it downs a missile on this roll or better (`missiles.ts`). */
 export const INTERCEPT_ON = 2

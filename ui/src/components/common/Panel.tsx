@@ -35,8 +35,6 @@ interface PanelProps {
   sx?: SxProps<Theme>
   /** Makes the label a fold control and remembers the state under this key. */
   collapseId?: string
-  /** Folded on first sight. Ignored once the player has chosen. */
-  defaultCollapsed?: boolean
   /** Shown beside the label while folded: what you are not looking at. */
   summary?: ReactNode
 }
@@ -79,10 +77,9 @@ export function Panel({
   dense,
   sx,
   collapseId,
-  defaultCollapsed = false,
   summary,
 }: PanelProps) {
-  const { collapsed, toggle } = useCollapsed(collapseId, defaultCollapsed)
+  const { collapsed, toggle } = useCollapsed(collapseId, false)
   const foldable = collapseId !== undefined
   const Chevron = collapsed ? ChevronRightIcon : ExpandMoreIcon
 

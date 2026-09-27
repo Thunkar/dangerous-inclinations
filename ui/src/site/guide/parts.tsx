@@ -1,13 +1,11 @@
 /**
  * What the cheatsheet's sections are set from: a numbered band, a list of
- * short points, and a chip for a cost.
+ * short points, and the ledger a heat check is written in.
  */
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
-import type { SubsystemType } from '@dangerous-inclinations/engine'
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
-import { TileIcon } from '../../art/glyphs'
 import { Body, Display, Kicker, Numeral } from '../poster'
 
 export const COLUMN = { maxWidth: 1120, mx: 'auto', px: { xs: 2, sm: 4 } } as const
@@ -161,140 +159,6 @@ export function SubHead({ children, color = PRESS.ink }: { children: ReactNode; 
         textTransform: 'uppercase',
         lineHeight: 1.1,
         color,
-      }}
-    >
-      {children}
-    </Box>
-  )
-}
-
-/**
- * A tile and a number: what a tile costs, what it hits for. The icon is the
- * game's own mark, so it is the one printed on the tile at the table.
- */
-export function TileChip({
-  type,
-  label,
-  value,
-  tone = 'paper',
-  stretch = false,
-}: {
-  type: SubsystemType
-  label: string
-  value: ReactNode
-  tone?: 'paper' | 'ink' | 'red'
-  /** Fill its grid cell, with the figure pushed to the right edge. */
-  stretch?: boolean
-}) {
-  const bg = tone === 'ink' ? PRESS.ink : tone === 'red' ? PRESS.red : 'transparent'
-  const fg = tone === 'paper' ? PRESS.ink : PRESS.paper
-  return (
-    <Box
-      sx={{
-        display: stretch ? 'flex' : 'inline-flex',
-        alignItems: 'center',
-        gap: 1,
-        minHeight: 40,
-        pl: 1,
-        pr: 0,
-        border: `2px solid ${tone === 'red' ? PRESS.red : PRESS.ink}`,
-        bgcolor: bg,
-        color: fg,
-      }}
-    >
-      <TileIcon type={type} size={20} />
-      <Box
-        component="span"
-        sx={{
-          fontFamily: FONT_SANS,
-          fontSize: '0.92rem',
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
-          flex: stretch ? 1 : 'none',
-        }}
-      >
-        {label}
-      </Box>
-      <Box
-        component="span"
-        sx={{
-          alignSelf: 'stretch',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: stretch ? 44 : 0,
-          px: 1.1,
-          bgcolor: tone === 'paper' ? PRESS.ink : PRESS.paper,
-          color: tone === 'paper' ? PRESS.paper : tone === 'red' ? PRESS.red : PRESS.ink,
-          fontFamily: FONT_DISPLAY,
-          fontWeight: 700,
-          fontSize: '1.15rem',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {value}
-      </Box>
-    </Box>
-  )
-}
-
-/** A block of the worked heat check, or of any sum set out as blocks. */
-export function SumBlock({
-  value,
-  label,
-  tone = 'paper',
-}: {
-  value: ReactNode
-  label: string
-  tone?: 'paper' | 'ink' | 'red'
-}) {
-  const bg = tone === 'ink' ? PRESS.ink : tone === 'red' ? PRESS.red : PRESS.paper
-  const fg = tone === 'paper' ? PRESS.ink : PRESS.paper
-  return (
-    <Box
-      sx={{
-        minWidth: 76,
-        px: 1.5,
-        py: 1.25,
-        border: `3px solid ${tone === 'red' ? PRESS.red : PRESS.ink}`,
-        bgcolor: bg,
-        color: fg,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 0.75,
-      }}
-    >
-      <Numeral size="2.4rem" color={fg}>
-        {value}
-      </Numeral>
-      <Box
-        sx={{
-          fontFamily: FONT_DISPLAY,
-          fontWeight: 500,
-          fontSize: '0.82rem',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          lineHeight: 1.15,
-        }}
-      >
-        {label}
-      </Box>
-    </Box>
-  )
-}
-
-/** The operator between two sum blocks. */
-export function Op({ children }: { children: ReactNode }) {
-  return (
-    <Box
-      aria-hidden
-      sx={{
-        fontFamily: FONT_DISPLAY,
-        fontWeight: 700,
-        fontSize: '2rem',
-        lineHeight: 1,
-        alignSelf: 'center',
-        px: 0.25,
       }}
     >
       {children}

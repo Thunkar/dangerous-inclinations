@@ -28,6 +28,7 @@ import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body, Display } from '../poster'
 import { GuideSection, SubHead } from './parts'
 import type { Row } from './windows'
+import { STATION_DRIFT } from '../turn'
 import {
   CIRCUIT,
   CIRCUIT_ORDER,
@@ -35,7 +36,6 @@ import {
   OUTBOUND,
   PLANET_ARRIVE,
   PLANET_LEAVE,
-  STATION_STEP,
   at,
   bestClocks,
   either,
@@ -265,7 +265,7 @@ export function WindowsSection() {
           <>
             <P>
               Every station starts on sector {STATION_INITIAL_SECTOR} of its planet&rsquo;s ring{' '}
-              {STATION_RING} and steps <b>{STATION_STEP} sectors clockwise</b> at the end of every
+              {STATION_RING} and steps <b>{STATION_DRIFT} sectors clockwise</b> at the end of every
               round. All three step together, so <b>every station is always on the same sector</b>.
             </P>
             <P>

@@ -108,7 +108,7 @@ export interface MissilePreview {
 }
 
 /** The weapon whose range is drawn, from where it would be fired. */
-export interface FocusWeapon {
+interface FocusWeapon {
   weapon: Subsystem
   from: Position
   facing: Facing
@@ -131,7 +131,6 @@ export interface BoardModel {
   plannedPoints: Position[]
   /** The route planner's chosen route, when one is in view and no turn is playing. */
   route: MovementPlan | null
-  focusWeapon: FocusWeapon | null
   /** Every sector the focus weapon reaches from where it would be fired; empty without one. */
   rangeCells: Position[]
   /**
@@ -167,8 +166,6 @@ export interface BoardModel {
   myColor: string | null
   colorOf: (playerId: string) => string
   nameOf: (playerId: string) => string
-  /** Where a player's ship is drawn right now (overlay first), or null if absent. */
-  positionOf: (playerId: string) => Position | null
   /**
    * The board point that ship's hull is drawn on: its sector, plus the radial
    * step it takes among the ships sharing it. A sector is a cell and a beam
@@ -439,7 +436,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       missilePreviews,
       plannedPoints,
       route,
-      focusWeapon,
       rangeCells,
       missilePaths,
       selectableIds,
@@ -454,7 +450,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       myColor,
       colorOf,
       nameOf,
-      positionOf,
       pointOf,
     }),
     [
@@ -466,7 +461,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       missilePreviews,
       plannedPoints,
       route,
-      focusWeapon,
       rangeCells,
       missilePaths,
       selectableIds,
@@ -481,7 +475,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       myColor,
       colorOf,
       nameOf,
-      positionOf,
       pointOf,
     ]
   )

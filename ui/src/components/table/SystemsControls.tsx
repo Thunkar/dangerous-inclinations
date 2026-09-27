@@ -18,10 +18,10 @@
 import { Box, Button, ToggleButton, Tooltip, Typography } from '@mui/material'
 import CheckIcon from '@mui/icons-material/Check'
 import type { ReactNode } from 'react'
-import type { Subsystem, SubsystemId, SubsystemType } from '@dangerous-inclinations/engine'
+import type { Subsystem } from '@dangerous-inclinations/engine'
 import {
-  BASE_CRITICAL_CHANCE,
   SHIELD_ENERGY_PER_POINT,
+  SLOT_IDS,
   energyStepOf,
   getSubsystemConfig,
   interceptsPerRack,
@@ -29,44 +29,19 @@ import {
   isPowerableType,
   isQuietTurn,
   isSafeAtBerth,
-  rollToResult,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
 import { SubsystemIcon } from '../common/SubsystemIcon'
 import { FONT_MONO, TABLE } from '../../theme'
 import { slotWithSubsystem } from '../../utils/slots'
+import { SENSOR_CRIT, poweredEffect } from '../../site/numbers'
 
-const SLOT_ORDER: SubsystemId[] = ['forward-0', 'side-0', 'side-1', 'side-2', 'side-3']
-
-/** The lowest d10 face that criticals with a powered sensor aboard, from the engine. */
-export function sensorCriticalFrom(): number {
-  const bonus = getSubsystemConfig('sensor_array').passiveEffect?.criticalChanceBonus ?? 0
-  return (
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].find(
-      face => rollToResult(face, BASE_CRITICAL_CHANCE + bonus) === 'critical'
-    ) ?? 10
-  )
-}
-
-/** What a powered subsystem does until your next turn, with the engine's numbers. */
-export function poweredEffect(type: SubsystemType): string {
-  switch (type) {
-    case 'shields':
-      return `shields absorb 1 damage per ${SHIELD_ENERGY_PER_POINT} energy (not lasers)`
-    case 'ballistic_rack':
-      return `a rack rolls at ${interceptsPerRack()} missiles a turn`
-    case 'sensor_array':
-      return `a sensor makes your criticals ${sensorCriticalFrom()}–10`
-    default:
-      return ''
-  }
-}
-
-export function SystemsControls({ disabled }: { disabled: boolean }) {
+export function SystemsControls() {
   const plan = usePlan()
   const { view } = useGame()
-  const slots = SLOT_ORDER.map(id => plan.pendingSubsystems.find(s => s.id === id)).filter(
+  const disabled = plan.disabled
+  const slots = SLOT_IDS.map(id => plan.pendingSubsystems.find(s => s.id === id)).filter(
     (s): s is Subsystem => Boolean(s)
   )
   const weapons = slots.filter(s => getSubsystemConfig(s.type).weaponStats && !isPowerableType(s.type))
@@ -184,7 +159,7 @@ function defenceCaption(sub: Subsystem, level: number): string {
 
 function sensorCaption(sub: Subsystem): string {
   if (sub.isBroken) return 'broken'
-  return `crits ${sensorCriticalFrom()}–10 while up`
+  return `crits ${SENSOR_CRIT}–10 while up`
 }
 
 /** A kind of subsystem, under a faint rule. */

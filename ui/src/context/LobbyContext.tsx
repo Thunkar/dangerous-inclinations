@@ -22,7 +22,6 @@ export type LobbyPhase = 'browser' | 'lobby' | 'game'
 interface LobbyContextType {
   phase: LobbyPhase
   lobbyState: ServerLobby | null
-  currentLobbyId: string | null
   /** Set once the lobby's game has started. */
   gameId: string | null
   isRestoringSession: boolean
@@ -227,7 +226,6 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
       value={{
         phase,
         lobbyState,
-        currentLobbyId,
         gameId,
         isRestoringSession,
         error,

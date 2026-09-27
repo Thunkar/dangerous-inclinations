@@ -1,17 +1,15 @@
 /**
  * 06 · Fighting: one d10, four guns, and what a hit does.
  *
- * The roll strip asks `rollToResult` about every face, bare and with a sensor
+ * The roll strip asks `rollToResult` about every face (`faceResult`), bare and with a sensor
  * up, so the shading is the engine's and not a table typed out here.
  */
 import { Box } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
-  BASE_CRITICAL_CHANCE,
   SHIELD_ENERGY_PER_POINT,
   SUBSYSTEM_CONFIGS,
   interceptsPerRack,
-  rollToResult,
 } from '@dangerous-inclinations/engine'
 import type { ReactNode } from 'react'
 import { TileIcon } from '../../art/glyphs'
@@ -23,8 +21,8 @@ import {
   INTERCEPT_ON,
   MISS_TOP,
   SENSOR_CRIT,
-  SENSOR_CRIT_BONUS,
   energyLabel,
+  faceResult,
   tileName,
   weaponStats,
 } from '../numbers'
@@ -36,8 +34,8 @@ function RollStrip() {
     <Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '4px' }}>
         {D10.map(face => {
-          const bare = rollToResult(face, BASE_CRITICAL_CHANCE)
-          const sensed = rollToResult(face, BASE_CRITICAL_CHANCE + SENSOR_CRIT_BONUS)
+          const bare = faceResult(face)
+          const sensed = faceResult(face, true)
           const bg = bare === 'critical' ? PRESS.red : bare === 'hit' ? PRESS.ink : 'transparent'
           const fg = bare === 'miss' ? PRESS.ink : PRESS.paper
           return (

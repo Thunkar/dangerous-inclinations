@@ -7,9 +7,9 @@ import type { SubsystemType } from '@dangerous-inclinations/engine'
 import { getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { TABLE } from '../theme'
 
-export type SubsystemCategory = 'weapon' | 'defence' | 'passive' | 'utility'
+type SubsystemCategory = 'weapon' | 'defence' | 'passive' | 'utility'
 
-export function subsystemCategory(type: SubsystemType): SubsystemCategory {
+function subsystemCategory(type: SubsystemType): SubsystemCategory {
   const config = getSubsystemConfig(type)
   if (config.weaponStats) return 'weapon'
   if (type === 'shields') return 'defence'
@@ -18,7 +18,7 @@ export function subsystemCategory(type: SubsystemType): SubsystemCategory {
 }
 
 /** Category colours are for edges and badges only, never for the glyph. */
-export const CATEGORY_COLOR: Record<SubsystemCategory, string> = {
+const CATEGORY_COLOR: Record<SubsystemCategory, string> = {
   weapon: TABLE.accent,
   defence: TABLE.energy,
   passive: TABLE.inkFaint,

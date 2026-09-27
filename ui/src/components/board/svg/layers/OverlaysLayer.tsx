@@ -9,10 +9,9 @@
  *
  * The shape of a track is shared too: `trajectory.ts` bows a path off the ring
  * it rides so the dashes are not drawn on the ring's own ink, and both boards
- * ask it for the same polyline. It names no renderer and imports no `three`;
- * it only happens to sit beside the 3D overlays that first needed it. `Track`,
- * the polyline drawn twice so it carries a dark edge, lives here and the
- * missile layer borrows it, for the same reason: one ink for every plan.
+ * ask it for the same polyline. It names no renderer and imports no `three`.
+ * `Track`, the polyline drawn twice so it carries a dark edge, lives here and
+ * the missile layer borrows it, for the same reason: one ink for every plan.
  */
 import { memo, useState } from 'react'
 import type { MovementPlan, Position } from '@dangerous-inclinations/engine'
@@ -24,7 +23,7 @@ import { trackAttr, trackPoints } from '../../trajectory'
 
 /**
  * The table's red, which is what you can act on. Every deployment sector is
- * on the same ring of the same well now, so the wedges carry no well colour.
+ * in the same well, so the wedges carry no well colour.
  * They are simply the thing on the board you are being asked to click, and the
  * black hole's own colour is all but black.
  */

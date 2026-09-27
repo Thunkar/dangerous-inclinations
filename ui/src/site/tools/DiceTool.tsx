@@ -12,14 +12,10 @@
  */
 import { useState } from 'react'
 import { Box } from '@mui/material'
-import {
-  BASE_CRITICAL_CHANCE,
-  interceptsPerRack,
-  rollToResult,
-} from '@dangerous-inclinations/engine'
+import { interceptsPerRack } from '@dangerous-inclinations/engine'
 import type { HitRollResult } from '@dangerous-inclinations/engine'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
-import { BASE_CRIT, INTERCEPT_ON, MISS_TOP, SENSOR_CRIT, SENSOR_CRIT_BONUS } from '../numbers'
+import { BASE_CRIT, INTERCEPT_ON, MISS_TOP, SENSOR_CRIT, faceResult } from '../numbers'
 import { Field, Label, Plate, Stepper, Toggle } from './controls'
 
 /** A salvo is a magazine, and a rack answers a magazine. Nothing needs more. */
@@ -45,8 +41,7 @@ export function DiceTool() {
   const [sensor, setSensor] = useState(false)
   const [rolls, setRolls] = useState<number[]>([])
 
-  const criticalChance = BASE_CRITICAL_CHANCE + (sensor ? SENSOR_CRIT_BONUS : 0)
-  const results = rolls.map(roll => rollToResult(roll, criticalChance))
+  const results = rolls.map(roll => faceResult(roll, sensor))
   const tally = (kind: HitRollResult) => results.filter(r => r === kind).length
   const critFrom = sensor ? SENSOR_CRIT : BASE_CRIT
 

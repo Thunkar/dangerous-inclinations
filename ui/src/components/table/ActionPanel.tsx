@@ -36,6 +36,7 @@ import type { ReactNode } from 'react'
 import type { BurnIntensity, SubsystemType } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
+  COMPRESSED_JUMP_MASS,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
   calculateJumpMassCost,
@@ -58,6 +59,12 @@ import { StatusBlock } from './StatusBlock'
 
 const INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
 
+/** What a compressor saves on a jump, in words, from the engine's two prices. */
+const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five']
+const COMPRESSOR_NOTE = ` (the compressor pays ${
+  NUMBER_WORDS[WELL_TRANSFER_COSTS.mass - COMPRESSED_JUMP_MASS]
+} of the jump's ${NUMBER_WORDS[WELL_TRANSFER_COSTS.mass]} fuel, never the phasing)`
+
 export function ActionPanel() {
   const { view, submitTurn, isAnimating, turnErrors, clearTurnErrors, readOnly } = useGame()
   const plan = usePlan()
@@ -65,7 +72,6 @@ export function ActionPanel() {
 
   const destroyed = me.ship.hitPoints <= 0
   const waiting = !plan.isMyTurn
-  const disabled = waiting || isAnimating || readOnly
   /**
    * A turn you hold but cannot play. Only the respawn turn is one of those:
    * the turn after it is yours to fly, untouchable and in command, and quiet
@@ -167,19 +173,19 @@ export function ActionPanel() {
         )}
 
         <Step n={1} label="Orientation">
-          <OrientationControls disabled={disabled} />
+          <OrientationControls />
         </Step>
 
         <Divider />
         <Step n={2} label="Move · one per turn">
-          <MoveControls disabled={disabled} />
+          <MoveControls />
         </Step>
         {/* Not a fourth move: an instrument that proposes one. Its own plate. */}
-        <RoutePlanner disabled={disabled} />
+        <RoutePlanner />
 
         <Divider />
         <Step n={3} label="Systems">
-          <SystemsControls disabled={disabled} />
+          <SystemsControls />
         </Step>
 
         {/* What the turn puts on the loadout: read here, set by the steps above. */}
@@ -188,9 +194,9 @@ export function ActionPanel() {
           <ShipEnergyLoadout />
         </Box>
 
-        <RepairControl disabled={disabled} />
-        <DockJobControl disabled={disabled} />
-        <EscortControl disabled={disabled} />
+        <RepairControl />
+        <DockJobControl />
+        <EscortControl />
 
         <Divider />
         <Step n={4} label="Sequence">
@@ -237,7 +243,7 @@ export function ActionPanel() {
           fullWidth
           variant="contained"
           endIcon={<SendIcon />}
-          disabled={disabled || blocked}
+          disabled={plan.disabled || blocked}
           onClick={() => submitTurn(plan.actions)}
         >
           End turn
@@ -287,8 +293,9 @@ function TurnShell({
  * the turns on which it can happen. A control that offered itself and then did
  * nothing would be worse than none.
  */
-function RepairControl({ disabled }: { disabled: boolean }) {
+function RepairControl() {
   const plan = usePlan()
+  const disabled = plan.disabled
   const broken = plan.me.ship.subsystems.filter(s => s.isBroken)
   if (broken.length === 0) return null
 
@@ -309,32 +316,16 @@ function RepairControl({ disabled }: { disabled: boolean }) {
               const can = offered.includes(sub.id)
               const on = plan.repairChoice === sub.id
               return (
-                <Tooltip
+                <ChoiceChip
                   key={sub.id}
                   title={`${slotWithSubsystem(sub.id, sub.type)} · repaired at your heat check`}
+                  selected={on}
+                  disabled={disabled || !can}
+                  opacity={can ? 1 : 0.45}
+                  onClick={() => plan.setRepairChoice(on ? null : sub.id)}
                 >
-                  <Box
-                    component="button"
-                    type="button"
-                    disabled={disabled || !can}
-                    onClick={() => plan.setRepairChoice(on ? null : sub.id)}
-                    sx={{
-                      fontFamily: FONT_MONO,
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      px: 0.7,
-                      py: '2px',
-                      borderRadius: 0,
-                      cursor: disabled || !can ? 'default' : 'pointer',
-                      color: on ? TABLE.onSelected : TABLE.inkSoft,
-                      border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
-                      bgcolor: on ? TABLE.selected : 'transparent',
-                      opacity: can ? 1 : 0.45,
-                    }}
-                  >
-                    {slotWithSubsystem(sub.id, sub.type)}
-                  </Box>
-                </Tooltip>
+                  {slotWithSubsystem(sub.id, sub.type)}
+                </ChoiceChip>
               )
             })}
           </Box>
@@ -350,8 +341,9 @@ function RepairControl({ disabled }: { disabled: boolean }) {
  * jobs, their points and the default all come from the engine, and the
  * default is lit until another is picked.
  */
-function DockJobControl({ disabled }: { disabled: boolean }) {
+function DockJobControl() {
   const plan = usePlan()
+  const disabled = plan.disabled
   const offer = plan.dockOffer
   if (!offer) return null
   return (
@@ -363,33 +355,17 @@ function DockJobControl({ disabled }: { disabled: boolean }) {
           {offer.jobs.map(({ job, points }) => {
             const on = plan.dockJob === job
             return (
-              <Tooltip
+              <ChoiceChip
                 key={job}
                 title={`${points} point${points === 1 ? '' : 's'} this visit${
                   job === offer.default ? ' · the default' : ''
                 }`}
+                selected={on}
+                disabled={disabled}
+                onClick={() => plan.setDockJob(job)}
               >
-                <Box
-                  component="button"
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => plan.setDockJob(job)}
-                  sx={{
-                    fontFamily: FONT_MONO,
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    px: 0.7,
-                    py: '2px',
-                    borderRadius: 0,
-                    cursor: disabled ? 'default' : 'pointer',
-                    color: on ? TABLE.onSelected : TABLE.inkSoft,
-                    border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
-                    bgcolor: on ? TABLE.selected : 'transparent',
-                  }}
-                >
-                  {job} · {points}
-                </Box>
-              </Tooltip>
+                {job} · {points}
+              </ChoiceChip>
             )
           })}
         </Box>
@@ -404,8 +380,9 @@ function DockJobControl({ disabled }: { disabled: boolean }) {
  * engine would let a marker go on; nothing is lit until picked, and at one
  * pick per marker in hand the rest wait until one is taken back.
  */
-function EscortControl({ disabled }: { disabled: boolean }) {
+function EscortControl() {
   const plan = usePlan()
+  const disabled = plan.disabled
   const { view } = useGame()
   const offer = plan.escortOffer
   if (!offer) return null
@@ -423,38 +400,68 @@ function EscortControl({ disabled }: { disabled: boolean }) {
             const name = view.players.find(p => p.id === carrierId)?.name ?? carrierId
             const off = disabled || (!on && full)
             return (
-              <Tooltip
+              <ChoiceChip
                 key={carrierId}
                 title={`Put your marker on ${name}: done the next time they deliver, sell or file anything; back to you if they are destroyed first`}
+                selected={on}
+                disabled={off}
+                opacity={!on && full ? 0.5 : 1}
+                onClick={() => plan.toggleEscort(carrierId)}
               >
-                <Box
-                  component="button"
-                  type="button"
-                  disabled={off}
-                  aria-pressed={on}
-                  onClick={() => plan.toggleEscort(carrierId)}
-                  sx={{
-                    fontFamily: FONT_MONO,
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    px: 0.7,
-                    py: '2px',
-                    borderRadius: 0,
-                    cursor: off ? 'default' : 'pointer',
-                    color: on ? TABLE.onSelected : TABLE.inkSoft,
-                    border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
-                    bgcolor: on ? TABLE.selected : 'transparent',
-                    opacity: !on && full ? 0.5 : 1,
-                  }}
-                >
-                  Escort {name}
-                </Box>
-              </Tooltip>
+                Escort {name}
+              </ChoiceChip>
             )
           })}
         </Box>
       </Box>
     </>
+  )
+}
+
+/**
+ * One pick among a few (a subsystem to repair, a dock job, a carrier to
+ * escort): a cream block when chosen, an outlined one when not.
+ */
+function ChoiceChip({
+  title,
+  selected,
+  disabled,
+  opacity = 1,
+  onClick,
+  children,
+}: {
+  title: string
+  selected: boolean
+  disabled: boolean
+  opacity?: number
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <Tooltip title={title}>
+      <Box
+        component="button"
+        type="button"
+        disabled={disabled}
+        aria-pressed={selected}
+        onClick={onClick}
+        sx={{
+          fontFamily: FONT_MONO,
+          fontSize: '0.75rem',
+          fontWeight: 700,
+          px: 0.7,
+          py: '2px',
+          borderRadius: 0,
+          cursor: disabled ? 'default' : 'pointer',
+          color: selected ? TABLE.onSelected : TABLE.inkSoft,
+          border: `1px solid ${selected ? TABLE.selected : TABLE.plateEdge}`,
+          bgcolor: selected ? TABLE.selected : 'transparent',
+          opacity,
+        }}
+      >
+        {children}
+      </Box>
+    </Tooltip>
   )
 }
 
@@ -481,7 +488,7 @@ function Step({ n, label, children }: { n: number; label: string; children: Reac
 
 /**
  * The mark of the subsystem an action puts its energy on, in the colour of the
- * type beside it: the same silhouette the power mat above draws on that tile,
+ * type beside it: the same silhouette the loadout below draws on that tile,
  * so a button and the tile it will light read as one thing.
  */
 function ActionIcon({ type, className }: { type: SubsystemType; className?: string }) {
@@ -554,8 +561,9 @@ function SegmentedRow({ children, testId }: { children: ReactNode; testId?: stri
   )
 }
 
-function OrientationControls({ disabled }: { disabled: boolean }) {
+function OrientationControls() {
   const plan = usePlan()
+  const disabled = plan.disabled
   const rotating = plan.steps.some(s => s.kind === 'rotate')
   const ready = plan.rotateReady
   const facing = plan.me.ship.facing
@@ -630,8 +638,9 @@ function PhaseSlider({
   )
 }
 
-function MoveControls({ disabled }: { disabled: boolean }) {
+function MoveControls() {
   const plan = usePlan()
+  const disabled = plan.disabled
   const move = plan.moveStep.move
   const compressor = hasWorkingCompressor({ ...plan.me.ship, subsystems: plan.pendingSubsystems })
   const scoop = plan.pendingSubsystems.find(s => s.id === 'scoop')
@@ -806,7 +815,7 @@ function MoveControls({ disabled }: { disabled: boolean }) {
           />
           <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
             Engines at {WELL_TRANSFER_COSTS.energy}, {jumpFuel} fuel
-            {compressor ? " (the compressor pays two of the jump's three fuel, never the phasing)" : ''}. Phasing
+            {compressor ? COMPRESSOR_NOTE : ''}. Phasing
             never lands you outside the arrival arc.
           </Typography>
         </Box>
