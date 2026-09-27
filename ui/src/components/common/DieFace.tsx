@@ -5,7 +5,7 @@
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import { FONT_MONO, TABLE } from '../../theme'
-import type { DieRoll } from '../../context/AnimationContext'
+import type { DieRoll } from '../../animation/beats'
 
 const OUTCOME_COLOR: Record<DieRoll['outcome'], string> = {
   miss: TABLE.inkSoft,

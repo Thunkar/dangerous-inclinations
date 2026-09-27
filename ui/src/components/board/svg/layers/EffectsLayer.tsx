@@ -10,7 +10,7 @@
  * other.
  */
 import { memo } from 'react'
-import type { TableEffect } from '../../../../context/AnimationContext'
+import type { TableEffect } from '../../../../animation/beats'
 import { FONT_MONO } from '../../../../theme'
 import { positionPoint } from '../../geometry'
 import { BOARD } from '../palette'

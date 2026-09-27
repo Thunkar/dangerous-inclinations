@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { Group, Mesh, Points } from 'three'
 import { useFrame } from '@react-three/fiber'
-import type { TableEffect } from '../../../../../context/AnimationContext'
+import type { TableEffect } from '../../../../../animation/beats'
 import type { BoardModel } from '../../../model'
 import { positionPoint } from '../../../geometry'
 import { LAYER, elevationAt, toWorld } from '../../world'

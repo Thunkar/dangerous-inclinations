@@ -38,7 +38,7 @@ import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { MathUtils, PerspectiveCamera, Vector3, type Object3D } from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { GravityWellId, Missile, Position } from '@dangerous-inclinations/engine'
-import type { CameraShot } from '../../../context/AnimationContext'
+import type { CameraShot } from '../../../animation/beats'
 import { allWells, wellCenter, wellVisual } from '../geometry'
 import { blackHoleBody, bodyExtent } from './bodies'
 import {

@@ -29,13 +29,8 @@ import {
   projectMissilePath,
   samePosition,
 } from '@dangerous-inclinations/engine'
-import type {
-  CameraShot,
-  Ping,
-  ShipMotion,
-  TableEffect,
-  WreckMotion,
-} from '../../context/AnimationContext'
+import type { CameraShot, ShipMotion, TableEffect, WreckMotion } from '../../animation/beats'
+import type { Ping } from '../../context/AnimationContext'
 import { useAnimation } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
