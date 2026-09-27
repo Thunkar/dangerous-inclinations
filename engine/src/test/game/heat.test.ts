@@ -304,7 +304,7 @@ describe("heat: radiators", () => {
         playerId: "p1",
         subsystemId: "side-0",
         subsystemType: "radiator",
-        reason: "prevented_heat_damage",
+        reason: "shed_heat",
       }),
     ]);
     expect(getSub(result.gameState, "p1", "side-0").isRevealed).toBe(true);

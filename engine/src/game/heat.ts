@@ -98,7 +98,7 @@ export function resolveEndOfTurnHeat(
   // Radiators show themselves whenever they are shedding heat the base ship could not.
   if (heat > DEFAULT_DISSIPATION_CAPACITY && dissipation > DEFAULT_DISSIPATION_CAPACITY) {
     for (const radiator of ship.subsystems.filter((s) => s.type === "radiator" && !s.isBroken)) {
-      const r = revealSubsystem(next, playerId, radiator.id, "prevented_heat_damage");
+      const r = revealSubsystem(next, playerId, radiator.id, "shed_heat");
       next = r.ship;
       events.push(...r.events);
     }

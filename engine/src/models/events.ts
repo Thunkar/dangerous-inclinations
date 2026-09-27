@@ -27,7 +27,7 @@ export type RevealReason =
   | "intercepted"
   | "absorbed"
   | "scanned"
-  | "prevented_heat_damage"
+  | "shed_heat"
   | "compressed_jump"
   | "broken";
 
