@@ -14,8 +14,8 @@ import {
   SUBSYSTEM_CONFIGS,
   ringVelocity,
 } from '@dangerous-inclinations/engine'
+import { RADIATOR_DISSIPATION } from './numbers'
 
-const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
 const MISSILE_STEPS = SUBSYSTEM_CONFIGS.missiles.weaponStats?.fuelPerTurn ?? 0
 /** A station rides its ring like a ship, and advances once a round. */
 export const STATION_DRIFT = ringVelocity(PLANETS[0].id, STATION_RING)
@@ -34,7 +34,7 @@ export const TURN_STEPS: TurnStep[] = [
   {
     title: 'Respawn',
     blurb:
-      'Destroyed? This turn you come back: Home, full hull and fuel, drifting. Nobody can touch you until your next turn ends, and on it you fire at nobody.',
+      'Destroyed? This turn you come back: Home, full hull and fuel, drifting. Nobody can touch you until your next turn ends, and on it you fire at nobody and scan nobody.',
     terse: 'Destroyed? Home, full hull and fuel. Turn over',
   },
   {
@@ -60,17 +60,17 @@ export const TURN_STEPS: TurnStep[] = [
   {
     title: 'Heat check',
     blurb: `Every point of energy on your loadout is 1 heat. Over ${MAX_HEAT} is hull damage and the track stops at ${MAX_HEAT}. Dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} a radiator), carry the rest. At 0, repair one subsystem.`,
-    terse: `Energy converts to heat. Over ${MAX_HEAT}, your ship takes damage. Dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+2 per radiator)`,
+    terse: `Energy converts to heat. Over ${MAX_HEAT}, your ship takes damage. Dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator)`,
   },
   {
     title: 'Missions',
-    blurb: 'Flip what you completed, then pass.',
-    terse: 'Flip if completed, then pass',
+    blurb: "Take a wreck's black box, seize loot, put down an Escort marker if you choose. Flip what you completed, then pass.",
+    terse: 'Black box, loot, Escort marker; flip, pass',
   },
   {
     title: 'Stations',
-    blurb: `Once a round, after the last seat's turn: every station moves ${STATION_DRIFT} sectors, carrying whoever is moored.`,
-    terse: `Once a round, after the last seat: every station +${STATION_DRIFT}`,
+    blurb: `Once a round, after the last seat's turn: every station moves ${STATION_DRIFT} sectors, carrying whoever is moored, and every wreck drifts with its ring.`,
+    terse: `Once a round, after the last seat: every station +${STATION_DRIFT}, wrecks drift`,
     roundEnd: true,
   },
 ]

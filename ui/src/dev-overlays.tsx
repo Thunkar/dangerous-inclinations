@@ -21,7 +21,7 @@ import './index.css'
 import { theme } from './theme'
 import GameBoardThree from './components/board/three/GameBoardThree'
 import { GameBoardSvg } from './components/board/svg/GameBoardSvg'
-import { createOverlayFixtureModel } from './components/board/three/scene/overlays/fixture'
+import { createOverlayFixtureModel } from './components/board/three/dev/overlayFixture'
 
 const params = new URLSearchParams(window.location.search)
 const on = (flag: string, fallback: boolean) => {

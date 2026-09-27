@@ -17,7 +17,7 @@
  * numbers all lie in one plane, so they read at the Table camera instead of
  * going edge-on) and no drop is steep enough to hide the terrace below it from
  * a camera 62° above the plane. It is a display choice and nothing else reads it
- * as a rule; `FLAT_BOARD` turns it off and every well becomes coplanar again.
+ * as a rule.
  *
  * Nothing rule-shaped lives here: ring counts, radii and sector angles all
  * come from the engine through `geometry.ts`.
@@ -62,9 +62,6 @@ export { PRINT_SCALE } from '../geometry'
 /** Near/far chosen for a board this size: close enough to hug one well, far enough for the stars. */
 export const CAMERA_NEAR = 5
 export const CAMERA_FAR = 24000
-
-/** Set true to make every well coplanar again (see the header). */
-export const FLAT_BOARD = false
 
 export { PLATE_MARGIN } from '../geometry'
 
@@ -222,7 +219,6 @@ export function funnelFloorRadius(wellId: GravityWellId): number {
  * the innermost ring where the body sits.
  */
 export function surfaceElevation(wellId: GravityWellId, radius: number): number {
-  if (FLAT_BOARD) return 0
   const radii = ringRadii(wellId)
   const elevations = terraceElevations(wellId)
   for (let i = radii.length - 1; i > 0; i--) {
@@ -245,7 +241,6 @@ export function surfaceElevation(wellId: GravityWellId, radius: number): number 
 
 /** Elevation of a ring's ribbon: the outermost ring of a well sits at 0. */
 export function ringElevation(wellId: GravityWellId, ring: number): number {
-  if (FLAT_BOARD) return 0
   const elevations = terraceElevations(wellId)
   return elevations[Math.min(Math.max(ring, 1), elevations.length) - 1]
 }

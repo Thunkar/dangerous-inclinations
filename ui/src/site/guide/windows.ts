@@ -21,19 +21,17 @@ import {
   TRANSFER_LANES,
   circuitRoutes,
   planMovementToTarget,
-  ringVelocity,
   stationTarget,
+  wrapSector,
 } from '@dangerous-inclinations/engine'
 import type { OrbitalPosition } from '@dangerous-inclinations/engine'
+import { STATION_DRIFT } from '../turn'
 
 export type Lane = (typeof TRANSFER_LANES)[number]
 
 const PLANET_IDS = PLANETS.map(planet => planet.id)
 
 export const planetName = (id: string) => PLANETS.find(planet => planet.id === id)?.name ?? id
-
-/** How far every station steps at the end of a round. */
-export const STATION_STEP = ringVelocity(PLANET_IDS[0], STATION_RING)
 
 /**
  * The station clock: every sector a station can stand on, in the order it
@@ -45,7 +43,7 @@ export const CLOCK: number[] = (() => {
   let sector = STATION_INITIAL_SECTOR
   while (!seen.includes(sector)) {
     seen.push(sector)
-    sector = (sector + STATION_STEP) % SECTORS_PER_RING
+    sector = wrapSector(sector + STATION_DRIFT)
   }
   return seen
 })()

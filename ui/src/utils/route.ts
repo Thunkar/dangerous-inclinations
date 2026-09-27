@@ -9,6 +9,9 @@
 import type { Facing, MovementPlan, MovementStep, Position } from '@dangerous-inclinations/engine'
 import { getWellName } from '@dangerous-inclinations/engine'
 
+/** How many turns ahead a route search looks before it gives up: the turn column and the tool alike. */
+export const ROUTE_SEARCH_TURNS = 20
+
 export const placeLabel = (p: Position) => `${getWellName(p.wellId)} R${p.ring} S${p.sector}`
 
 /** Facing a burn needs: prograde burns outward, retrograde inward. Coasts and jumps keep the facing. */
@@ -19,7 +22,7 @@ export function facingFor(step: MovementStep, before: Facing): Facing {
 }
 
 /** One leg of a route: what it does, and whether the nose has to come round first. */
-export interface Leg {
+interface Leg {
   text: string
   rotate: boolean
   /** Fuel this leg spends; negative is fuel the scoop brought in. */
@@ -27,7 +30,7 @@ export interface Leg {
 }
 
 /** One step of a planned route, in the words of the move row. */
-export function legText(step: MovementStep, facingAfter: Facing): string {
+function legText(step: MovementStep, facingAfter: Facing): string {
   if (step.actionType === 'coast') return `coast${step.massCost < 0 ? ' + scoop' : ''}`
   if (step.actionType === 'well_transfer') return `jump → ${getWellName(step.to.wellId)}`
   const phase = step.sectorAdjustment

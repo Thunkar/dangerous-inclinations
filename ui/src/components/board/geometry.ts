@@ -42,7 +42,7 @@ export interface Point {
  * the view used to leave outside the plate was empty board.
  *
  *   black hole rings  250…476, gaps 56.5  ->  250…570, gaps 80
- *   planet rings      192…300, gaps 54    ->  192…332, gaps 70
+ *   planet rings      192…300, gaps 54    ->  192…332, gaps 70 (ring 1 at 122 came later)
  *   framed radius     plate x 1.38        ->  plate x 1.16  (691 units, as before)
  *   black hole body   125 units, 0.5 of ring 1, both unchanged
  *
@@ -96,8 +96,8 @@ export const BOARD_VIEWBOX = `${BOARD_BOUNDS.x} ${BOARD_BOUNDS.y} ${BOARD_BOUNDS
  * A board that has to fit the pane at rest can only ever be as big as the pane,
  * and four wells spread over a triangle 2652 units across leave each of them a
  * fifth of the height of the screen. But the whole board is not where the game
- * is: everyone deploys on black hole ring 3 or 4, every Home is in one of those
- * two sectors, and a ship is only ever elsewhere between missions. So both
+ * is: everyone deploys on black hole ring 3 or 4, every Home is on one of those
+ * two rings, and a ship is only ever elsewhere between missions. So both
  * renderers open on the black hole's plate and a margin (near enough to read a
  * sector number, far enough to show the lane arcs leaving for all three
  * planets) and the planets sit off the edges until you go and look at them.
@@ -190,7 +190,7 @@ const BODY_SHARE = {
  */
 export const ACCRETION_ORANGE = '#ddaa78'
 
-export const WELL_VISUALS: Record<GravityWellId, WellVisual> = {
+const WELL_VISUALS: Record<GravityWellId, WellVisual> = {
   blackhole: {
     id: 'blackhole',
     bodyRadius: BLACKHOLE_RING_RADII[0] * BODY_SHARE.blackhole,
@@ -339,7 +339,7 @@ export interface WreckCrowd {
   ships: number
 }
 
-export function wreckOffset(
+function wreckOffset(
   position: Position,
   crowd: WreckCrowd
 ): { radial: number; along: number } {

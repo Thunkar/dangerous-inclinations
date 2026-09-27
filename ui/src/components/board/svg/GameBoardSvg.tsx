@@ -81,11 +81,6 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
   // A sliding token keeps a 'tween' effect alive, so this covers moves too.
   const now = useBoardClock(model.effects.length > 0)
 
-  /**
-   * Your plan is printed in the table's cream: a projection, not a ship, so it
-   * never wears a seat colour and never reads as somebody's token.
-   */
-  const planColor = TABLE.ink
   const deploying = model.deployment !== null
 
   // --- pan / zoom ----------------------------------------------------------
@@ -173,7 +168,7 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
           <WrecksLayer wrecks={model.wrecks} now={now} />
           {model.route && <RouteOverlay route={model.route} />}
           {model.plannedPoints.length > 1 && (
-            <PlannedPath points={model.plannedPoints} color={planColor} />
+            <PlannedPath points={model.plannedPoints} color={model.planColor} />
           )}
           <MissilesLayer
             missiles={model.missiles}

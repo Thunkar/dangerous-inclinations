@@ -87,7 +87,7 @@ export function SecretsSection() {
       id="secrets"
       n={7}
       kicker="Hidden information"
-      title="Secret until powered"
+      title="Secret until used"
       lede="Subsystems turn face-up the first time they do their job."
       tone="deep"
     >
@@ -134,7 +134,7 @@ const DEATH: Array<{ when: string; title: string; text: string }> = [
   {
     when: 'At 0 hull',
     title: 'Off the board',
-    text: `Crates go back to their station, data is lost. Your Destroy holder scores ${MISSION_POINTS.destroy_ship}.`,
+    text: `Leave a wreck. Crates go back to their station, data is lost, Escort markers on you go back to their owners and your missiles in flight are removed. Your Destroy holder scores ${MISSION_POINTS.destroy_ship}.`,
   },
   {
     when: 'Your next turn',
@@ -144,7 +144,7 @@ const DEATH: Array<{ when: string; title: string; text: string }> = [
   {
     when: 'The turn after',
     title: 'A quiet turn',
-    text: 'Move as usual, fire at nobody. Nobody can touch you until it ends.',
+    text: 'Move as usual, fire at nobody, scan nobody. Nobody can touch you until it ends.',
   },
 ]
 

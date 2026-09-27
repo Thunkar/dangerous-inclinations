@@ -25,6 +25,7 @@ import type { BoardModel, HomeMarker, ShipToken, WreckToken } from '../../model'
 import { crowdOffset, radialPoint } from '../../geometry'
 import { visualForPlayer } from '../../../../ships/visual'
 import { getPlayerColor } from '../../../../utils/playerColors'
+import { TABLE } from '../../../../theme'
 
 interface FixtureSeat {
   playerId: string
@@ -244,7 +245,6 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     missilePreviews: [],
     plannedPoints: [],
     route: null,
-    focusWeapon: null,
     rangeCells: [],
     missilePaths: {},
     selectableIds: ['p3'],
@@ -256,10 +256,9 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     effects: [],
     ping: null,
     shot: null,
-    myColor: colorOf('p1'),
+    planColor: TABLE.ink,
     colorOf,
     nameOf,
-    positionOf: playerId => ships.find(ship => ship.playerId === playerId)?.position ?? null,
     pointOf: playerId => {
       const token = ships.find(ship => ship.playerId === playerId)
       return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null

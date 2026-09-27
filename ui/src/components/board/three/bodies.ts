@@ -44,7 +44,7 @@
  * to be printed on. `scene/Wells.tsx` decides between the two bands.
  *
  * Both ceilings grow with the board. `budget()` reads them from `world.ts` and
- * `geometry.ts` every time, and `blackHoleBody()` bisects the disc's radius
+ * `geometry.ts`, and `blackHoleBody()` bisects the disc's radius
  * against them by sampling the sheet where it actually goes rather than a
  * circle drawn round it, so opening the rings out moves ring 1 outward and the
  * black hole grows into the room with nothing here touched. It already has
@@ -350,7 +350,7 @@ export function sheetPoint(
  * every ceiling in `budget()`: found by bisection over the radius, testing the
  * sheet where it actually goes rather than a circle drawn around it.
  */
-export function blackHoleBody(treatment = blackHoleTreatment()): BlackHoleBody {
+function solveBlackHoleBody(treatment: BlackHoleTreatment): BlackHoleBody {
   const tuning = TUNING[treatment]
   const room = budget()
   const cosPitch = Math.cos(TABLE_PITCH * RAD)
@@ -466,6 +466,20 @@ export function blackHoleBody(treatment = blackHoleTreatment()): BlackHoleBody {
     arcOuterUp,
     extent,
   }
+}
+
+/**
+ * The solve, once per treatment. Everything it reads is fixed for the life of
+ * the page, and the camera asks for the hole on every frame.
+ */
+const solved = new Map<BlackHoleTreatment, BlackHoleBody>()
+export function blackHoleBody(treatment = blackHoleTreatment()): BlackHoleBody {
+  let body = solved.get(treatment)
+  if (!body) {
+    body = solveBlackHoleBody(treatment)
+    solved.set(treatment, body)
+  }
+  return body
 }
 
 /**

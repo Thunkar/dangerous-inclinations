@@ -19,7 +19,7 @@ import {
 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Billboard } from '@react-three/drei'
-import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
+import { forwardDistance } from '@dangerous-inclinations/engine'
 import { createShip } from '../../../../ships/model'
 import { boardConfig, type ShipVisual } from '../../../../ships/visual'
 import { MOUNTS } from '../../../../ships/config'
@@ -66,7 +66,7 @@ const SETTLE_MS = 320
  * A jump: charge on the departure arc, cross, arrive. Fractions of the beat.
  *
  * The crossing is a straight line and it is flat. A transfer lane joins two
- * arcs that lie in the same plane (black hole ring 5 and a planet's ring 3 are
+ * arcs that lie in the same plane (black hole ring 5 and a planet's ring 4 are
  * both the rim of their own well, at the height of the table) so there is
  * nothing to fly over, and the hull used to hop over a 200-unit parabola and
  * pitch up and back down along it for no reason anyone at the table could name.
@@ -395,9 +395,7 @@ function ShipMesh({
     const jump = motion.kind === 'jump'
     const from = positionPoint(motion.from)
     const to = positionPoint(ship.position)
-    const swept =
-      (((ship.position.sector - motion.from.sector) % SECTORS_PER_RING) + SECTORS_PER_RING) %
-      SECTORS_PER_RING
+    const swept = forwardDistance(motion.from.sector, ship.position.sector)
     return {
       jump,
       thrust: THRUST[motion.kind],

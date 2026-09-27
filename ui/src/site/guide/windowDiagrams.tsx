@@ -14,11 +14,13 @@ import {
   PLANET_RINGS,
   SECTORS_PER_RING,
   STATION_RING,
+  wrapSector,
 } from '@dangerous-inclinations/engine'
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body } from '../poster'
 import type { Row } from './windows'
+import { STATION_DRIFT } from '../turn'
 import {
   CIRCUIT,
   CIRCUIT_ORDER,
@@ -26,7 +28,6 @@ import {
   PLANET_ARRIVE,
   PLANET_LEAVE,
   RING_LANES,
-  STATION_STEP,
   bestClocks,
   planetName,
   span,
@@ -220,7 +221,7 @@ export function StationClockDiagram() {
       width={W}
       height={H}
       maxWidth={480}
-      label={`A planet seen from above. The station rides ring ${STATION_RING} and steps ${STATION_STEP} sectors clockwise every round, so it only ever sits on sector ${CLOCK.join(', ')}. Ships arrive from the black hole on ring ${PLANET_ARRIVE.ring} sectors ${arrive.label} and leave from ring ${PLANET_LEAVE.ring} sectors ${leave.label}.`}
+      label={`A planet seen from above. The station rides ring ${STATION_RING} and steps ${STATION_DRIFT} sectors clockwise every round, so it only ever sits on sector ${CLOCK.join(', ')}. Ships arrive from the black hole on ring ${PLANET_ARRIVE.ring} sectors ${arrive.label} and leave from ring ${PLANET_LEAVE.ring} sectors ${leave.label}.`}
     >
       {PLANET_RINGS.map(({ ring }) => (
         <circle
@@ -269,7 +270,7 @@ export function StationClockDiagram() {
         )
       })}
       <path
-        d={arcPath(cx, cy, flowR, 1.5, STATION_STEP + 1.5)}
+        d={arcPath(cx, cy, flowR, 1.5, STATION_DRIFT + 1.5)}
         fill="none"
         stroke={PRESS.ink}
         strokeWidth={2.5}
@@ -283,7 +284,7 @@ export function StationClockDiagram() {
         fontSize={11}
         fill={PRESS.inkSoft}
       >
-        {`ring ${STATION_RING}: stations · ring ${PLANET_ARRIVE.ring}: lanes · +${STATION_STEP} a round`}
+        {`ring ${STATION_RING}: stations · ring ${PLANET_ARRIVE.ring}: lanes · +${STATION_DRIFT} a round`}
       </text>
     </Svg>
   )
@@ -307,7 +308,7 @@ export function LaneRingDiagram() {
   ).join(', ')
   // A hop: off the end of an arrival arc and onto the departure arc after it.
   const hops = RING_LANES.filter(lane => lane.direction === 'inbound').filter(lane => {
-    const end = (lane.blackHoleArc.startSector + lane.blackHoleArc.length) % SECTORS_PER_RING
+    const end = wrapSector(lane.blackHoleArc.startSector + lane.blackHoleArc.length)
     return RING_LANES.some(l => l.direction === 'outbound' && l.blackHoleArc.startSector === end)
   })
   const circuit = [...CIRCUIT_ORDER, CIRCUIT_ORDER[0]].map(planetName)

@@ -40,6 +40,7 @@ import { useAnimation } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
+import { TABLE } from '../../theme'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
 import { crowdOffset, radialPoint, ringsOf, type Point, type WreckCrowd } from './geometry'
 
@@ -108,7 +109,7 @@ export interface MissilePreview {
 }
 
 /** The weapon whose range is drawn, from where it would be fired. */
-export interface FocusWeapon {
+interface FocusWeapon {
   weapon: Subsystem
   from: Position
   facing: Facing
@@ -131,7 +132,6 @@ export interface BoardModel {
   plannedPoints: Position[]
   /** The route planner's chosen route, when one is in view and no turn is playing. */
   route: MovementPlan | null
-  focusWeapon: FocusWeapon | null
   /** Every sector the focus weapon reaches from where it would be fired; empty without one. */
   rangeCells: Position[]
   /**
@@ -163,12 +163,13 @@ export interface BoardModel {
   ping: Ping | null
   /** What the 3D board's auto camera should frame while a turn plays; the flat board ignores it. */
   shot: CameraShot | null
-  /** This seat's colour, or null for a spectator. */
-  myColor: string | null
+  /**
+   * The colour the plan being built is drawn in: the table's cream. A plan is
+   * a projection, not a ship, so it never wears a seat colour.
+   */
+  planColor: string
   colorOf: (playerId: string) => string
   nameOf: (playerId: string) => string
-  /** Where a player's ship is drawn right now (overlay first), or null if absent. */
-  positionOf: (playerId: string) => Position | null
   /**
    * The board point that ship's hull is drawn on: its sector, plus the radial
    * step it takes among the ships sharing it. A sector is a cell and a beam
@@ -188,11 +189,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     (playerId: string) => getPlayerColor(view.players.findIndex(p => p.id === playerId)),
     [view.players]
   )
-
-  const myColor = useMemo(() => {
-    const index = view.players.findIndex(p => p.isMe)
-    return index >= 0 ? getPlayerColor(index) : null
-  }, [view.players])
 
   /**
    * A token per living ship: where it is, and (while a turn is playing) the
@@ -439,7 +435,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       missilePreviews,
       plannedPoints,
       route,
-      focusWeapon,
       rangeCells,
       missilePaths,
       selectableIds,
@@ -451,10 +446,9 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       effects,
       ping: pinged,
       shot,
-      myColor,
+      planColor: TABLE.ink,
       colorOf,
       nameOf,
-      positionOf,
       pointOf,
     }),
     [
@@ -466,7 +460,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       missilePreviews,
       plannedPoints,
       route,
-      focusWeapon,
       rangeCells,
       missilePaths,
       selectableIds,
@@ -478,10 +471,8 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       effects,
       pinged,
       shot,
-      myColor,
       colorOf,
       nameOf,
-      positionOf,
       pointOf,
     ]
   )

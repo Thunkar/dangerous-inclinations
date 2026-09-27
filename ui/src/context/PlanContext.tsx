@@ -71,7 +71,6 @@ import {
   isMooredAt,
   isPowerableType,
   isWeaponType,
-  rollToResult,
   opponentPositions,
   phasedJumpDestination,
   projectPosition,
@@ -88,6 +87,8 @@ import {
 } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
 import { slotWithSubsystem } from '../utils/slots'
+import { ROUTE_SEARCH_TURNS } from '../utils/route'
+import { lowestCritical } from '../site/numbers'
 
 /**
  * What "go there" means when the destination is a station.
@@ -148,6 +149,8 @@ export interface Target {
 interface PlanContextValue {
   me: Player
   isMyTurn: boolean
+  /** The turn's controls take no input: not your turn, or a turn still playing out. */
+  disabled: boolean
   steps: PlanStep[]
   /** The single move step; there is always exactly one. */
   moveStep: MoveStep
@@ -161,8 +164,6 @@ interface PlanContextValue {
   usedBy: (subsystemId: SubsystemId) => 'fire' | 'scan' | null
   /** My subsystems as the plan leaves them: an empty loadout plus the powers and the steps' draws. */
   pendingSubsystems: Subsystem[]
-  /** Energy the plan leaves on the loadout: what it costs in heat at the check. */
-  cubesOnLoadout: number
   /**
    * The lowest d10 face that is a critical for this fire step. A sensor with
    * energy on it widens the range: a powered one for every shot (power runs
@@ -191,8 +192,6 @@ interface PlanContextValue {
   scoopGain: number
   /** Heat at the check: the track as it stands plus every point of energy the plan puts on a tile. */
   projectedHeat: number
-  /** Total fuel the plan spends. */
-  massCost: number
   /** Fuel left when the plan is done, scoop gain included. */
   projectedFuel: number
   issues: string[]
@@ -327,13 +326,6 @@ function burnFitsInWell(position: Position, facing: Facing, intensity: BurnInten
 const bySlotOrder = (a: SlotView, b: SlotView) =>
   a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1
 
-const D10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-
-/** The lowest face the engine calls a critical at this chance. */
-function lowestCritical(chance: number): number {
-  return D10.find(face => rollToResult(face, chance) === 'critical') ?? 10
-}
-
 /**
  * The tile each step uses. Each tile does one thing a turn, so a tile a step
  * fires or scans with is not powered as well: the action leaves its energy on
@@ -437,7 +429,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 }
 
 function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode }) {
-  const { view, readOnly } = useGame()
+  const { view, readOnly, isAnimating } = useGame()
   // Nothing is powered until the plan powers it: last turn's energy is cleared
   // when this turn executes, so it is never the starting point.
   const [powers, setPowers] = useState<Record<SubsystemId, number>>({})
@@ -454,6 +446,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [routeIndex, setRouteIndex] = useState(0)
 
   const isMyTurn = !readOnly && view.activePlayerId === me.id && view.phase === 'active'
+  const disabled = !isMyTurn || isAnimating
 
   const reset = useCallback(() => {
     setPowers({})
@@ -522,7 +515,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
    * A ship just back from a respawn cannot be touched until the turn it plays
    * next is over (RULES §Destruction and Respawn), so it is on no picker and
    * in no range list: the engine would refuse the shot or the scan. Your own
-   * returning turn is quiet the same way, which ActionPanel enforces by
+   * returning turn is quiet the same way, which the Systems step enforces by
    * greying out every weapon and the scan.
    */
   const targets = useMemo<Target[]>(() => {
@@ -661,7 +654,11 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     return READY
   }, [jumpOptions, pendingSubsystems, moveStep, me.ship])
 
-  const scoopGain = ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
+  const scoopGain = useMemo(() => {
+    const scoop = pendingSubsystems.find(s => s.id === 'scoop')
+    if (!scoop || scoop.isBroken) return 0
+    return ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
+  }, [pendingSubsystems, moveFrom])
 
   /** Where the shot is fired from. */
   const firingFrom = useCallback(
@@ -756,7 +753,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       maxFuelCapacity: view.myStats?.maxReactionMass ?? me.ship.reactionMass,
       hasFuelCompressor: compressor,
       allowWellTransfers: true,
-      maxTurns: 20,
+      maxTurns: ROUTE_SEARCH_TURNS,
       arrivalMass: reserve,
     }
     if (routeStation && routeMode === 'meet') {
@@ -765,7 +762,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         const plan = planMovementToTarget(origin, stationTarget(routeStation), options)
         return plan ? [plan] : []
       }
-      const meet = planStationMeetUp(me.ship, routeStation, 20)
+      const meet = planStationMeetUp(me.ship, routeStation, ROUTE_SEARCH_TURNS)
       return meet ? [meet.plan] : []
     }
     if (!routeDestination || samePosition(me.ship, routeDestination)) return []
@@ -806,8 +803,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
    * walked: it is every point of energy on the loadout, whatever order it
    * went on in (`projectedHeat`).
    */
-  const { massCost, projectedFuel, issues } = useMemo(() => {
-    let spent = 0
+  const { projectedFuel, issues } = useMemo(() => {
     let fuel = me.ship.reactionMass
     const maxFuel = MAX_REACTION_MASS
     const problems: string[] = []
@@ -829,7 +825,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     }
 
     const spend = (amount: number, what: string) => {
-      spent += amount
       if (amount > fuel && !reportedShortFuel) {
         reportedShortFuel = true
         problems.push(`Not enough fuel for ${what}: ${amount} needed, ${fuel} in the tank by then`)
@@ -946,7 +941,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       problems.push('Engines act once per turn: burn/jump or recoil compensation, not both')
     // Energy refuses nothing: a turn that lights more than the ship can cool is
     // legal and costs hull, which the heat readout already shows.
-    return { massCost: spent, projectedFuel: fuel, issues: problems }
+    return { projectedFuel: fuel, issues: problems }
   }, [
     steps,
     stepStart,
@@ -1354,12 +1349,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     () => ({
       me,
       isMyTurn,
+      disabled,
       steps,
       moveStep,
       powers: planPowers,
       usedBy,
       pendingSubsystems,
-      cubesOnLoadout,
       criticalFrom,
       stepStart,
       finalPosition,
@@ -1373,7 +1368,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       jumpReady,
       scoopGain,
       projectedHeat,
-      massCost,
       projectedFuel,
       issues,
       actions,
@@ -1423,12 +1417,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     [
       me,
       isMyTurn,
+      disabled,
       steps,
       moveStep,
       planPowers,
       usedBy,
       pendingSubsystems,
-      cubesOnLoadout,
       criticalFrom,
       stepStart,
       finalPosition,
@@ -1442,7 +1436,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       jumpReady,
       scoopGain,
       projectedHeat,
-      massCost,
       projectedFuel,
       issues,
       actions,

@@ -1,6 +1,7 @@
 /**
  * End of game. The winner is whoever the engine says it is; the standings
- * show every player's completed cards, face-up as they were flipped.
+ * show every player's completed cards, face-up as they were flipped, in the
+ * engine's order: points, then hull, then fuel, then the earlier seat.
  */
 import { Box, Button, Typography } from '@mui/material'
 import { useGame } from '../../context/GameContext'
@@ -13,7 +14,17 @@ import { FONT_DISPLAY } from '../../design/press'
 export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
   const { view, nameOf } = useGame()
   const winner = view.players.find((p) => p.id === view.winnerId)
-  const standings = [...view.players].sort((a, b) => b.completedMissionCount - a.completedMissionCount)
+  // `view.players` is in seat order, so the index breaks the last tie.
+  const standings = view.players
+    .map((player, seat) => ({ player, seat }))
+    .sort(
+      (a, b) =>
+        b.player.completedMissionCount - a.player.completedMissionCount ||
+        (b.player.ship?.hitPoints ?? 0) - (a.player.ship?.hitPoints ?? 0) ||
+        (b.player.ship?.fuel ?? 0) - (a.player.ship?.fuel ?? 0) ||
+        a.seat - b.seat
+    )
+    .map(({ player }) => player)
 
   return (
     <Box
@@ -56,7 +67,6 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
                 >
                   {player.name}
                   {player.isMe ? ' (you)' : ''}
-                  {player.id === view.winnerId ? ' 🏆' : ''}
                 </Typography>
               }
             >

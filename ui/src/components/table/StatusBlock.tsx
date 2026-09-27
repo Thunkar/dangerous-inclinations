@@ -11,7 +11,9 @@
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import {
+  DEFAULT_DISSIPATION_CAPACITY,
   MAX_HEAT,
+  MAX_REACTION_MASS,
   SHIELD_ENERGY_PER_POINT,
   SHIELD_HEAT_PER_POINT,
   getMissileStats,
@@ -57,8 +59,8 @@ export function StatusBlock({ accent }: { accent?: string }) {
   if (!me) return null
 
   const stats = view.myStats
-  const dissipation = stats?.dissipationCapacity ?? 5
-  const maxFuel = stats?.maxReactionMass ?? 10
+  const dissipation = stats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY
+  const maxFuel = stats?.maxReactionMass ?? MAX_REACTION_MASS
 
   const heatNow = me.ship.heat.currentHeat
   /**

@@ -13,7 +13,6 @@ export type CameraView = 'Perspective' | 'Top' | 'Broadside' | 'Engines'
 export interface ViewerHandle {
   model: Group
   renderer: WebGLRenderer
-  capture: () => string
 }
 interface ViewerProps {
   config: ShipConfig
@@ -78,7 +77,7 @@ function Scene(props: ViewerProps) {
     handleRef,
   } = props
   const model = useShipModel(config, concealed)
-  const { gl, scene, camera, size, invalidate } = useThree()
+  const { gl, camera, size, invalidate } = useThree()
   const controls = useRef<OrbitControlsImpl>(null)
   const framingRadius = exploded > 0 ? 8.8 : 6.9
 
@@ -90,15 +89,11 @@ function Scene(props: ViewerProps) {
     handleRef.current = {
       model: model.root,
       renderer: gl,
-      capture: () => {
-        gl.render(scene, camera)
-        return gl.domElement.toDataURL('image/png')
-      },
     }
     return () => {
       handleRef.current = null
     }
-  }, [model, gl, scene, camera, handleRef])
+  }, [model, gl, handleRef])
 
   useEffect(() => {
     const perspective = camera as PerspectiveCamera

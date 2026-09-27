@@ -17,7 +17,7 @@
  */
 import { Box, Typography } from '@mui/material'
 import type { Subsystem, SubsystemId } from '@dangerous-inclinations/engine'
-import { getSubsystemConfig, isPowerableType } from '@dangerous-inclinations/engine'
+import { SLOT_IDS, getSubsystemConfig, isPowerableType } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { SubsystemTile } from '../common/SubsystemTile'
 import { ShipDisplay } from '../ship'
@@ -26,13 +26,14 @@ import { getPlayerColor } from '../../utils/playerColors'
 import { usePlan } from '../../context/PlanContext'
 import { usePulses } from '../../context/AnimationContext'
 import { slotWithSubsystem } from '../../utils/slots'
-import { poweredEffect } from './SystemsControls'
+import { poweredEffect } from '../../site/numbers'
 
 const MAT_METRICS = { width: 252, height: 196, band: 44 }
 const TILE = 32
 const CUBE = 7
 
-const SLOT_IDS: SubsystemId[] = ['forward-0', 'side-0', 'side-1', 'side-2', 'side-3']
+const FORWARD_IDS = SLOT_IDS.filter(id => id.startsWith('forward'))
+const SIDE_IDS = SLOT_IDS.filter(id => id.startsWith('side'))
 
 export function ShipEnergyLoadout() {
   const plan = usePlan()
@@ -85,7 +86,7 @@ export function ShipEnergyLoadout() {
         appearance={me.appearance}
         identityColor={getPlayerColor(view.players.findIndex(p => p.id === me.id))}
         metrics={MAT_METRICS}
-        slots={{ forward: [tile('forward-0')], side: SLOT_IDS.slice(1).map(tile) }}
+        slots={{ forward: FORWARD_IDS.map(tile), side: SIDE_IDS.map(tile) }}
         fixed={{ aft: [tile('engines'), tile('rotation')], forward: [tile('scoop')] }}
       />
       {powerable && (

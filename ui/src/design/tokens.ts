@@ -14,7 +14,6 @@
 export const TABLE = {
   /** The table surface. */
   felt: '#121417',
-  feltLight: '#16181c',
 
   /** The app bar: a step blacker than the table, ruled off in red. */
   bar: '#0a0b0d',
@@ -32,9 +31,8 @@ export const TABLE = {
   unlitEdge: 'rgba(236,228,208,0.24)',
   /** A face-down slot: flat cream hatching on `faceDown`, no shading. */
   hatch: 'rgba(236,228,208,0.07)',
-  /** Black laid over a block: the diagonal band on the red, a scrim. */
+  /** Black laid over a block: the diagonal band on the red. */
   shade: 'rgba(0,0,0,0.22)',
-  scrim: 'rgba(0,0,0,0.6)',
 
   /** Text: cream print on the ink. */
   ink: '#ece4d0',
@@ -46,7 +44,6 @@ export const TABLE = {
   /** The poster red, pressed flat: blocks only, `onAccent` on top. */
   accentBlock: '#d21b33',
   accentDim: '#a8182b',
-  accentGlow: 'rgba(210,27,51,0.35)',
   /** Type on a red block. */
   onAccent: '#f1ece0',
   /** A tint of the red behind a line of red type (an alert, a warning row). */

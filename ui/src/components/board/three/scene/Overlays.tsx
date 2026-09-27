@@ -245,7 +245,7 @@ export const Overlays = memo(function Overlays({ model }: { model: BoardModel })
   return (
     <>
       <RangeWedges cells={model.rangeCells} />
-      {model.myColor && <PlannedPath points={model.plannedPoints} color={model.myColor} />}
+      <PlannedPath points={model.plannedPoints} color={model.planColor} />
       {model.route && <RouteOverlay route={model.route} />}
       {model.onPickDestination && <SectorPicker onPick={model.onPickDestination} />}
       {model.deployment && (
