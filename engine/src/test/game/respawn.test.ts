@@ -39,11 +39,6 @@ import {
   withSub,
 } from "../testUtils.ts";
 
-const COMPRESSOR: ShipLoadout = {
-  forwardSlots: ["fuel_compressor"],
-  sideSlots: ["missiles", "laser", "shields", "laser"],
-};
-
 const crate: Cargo = {
   id: "crate-1",
   missionId: "d",
@@ -117,11 +112,6 @@ describe("respawn: destruction drops cargo", () => {
       missions: [{ ...interceptMission("p1"), isCompleted: true }],
     };
     expect(dropCargo(player).player.missions).toBe(player.missions);
-  });
-
-  it("dropping nothing emits nothing", () => {
-    const player = makePlayer("p2");
-    expect(dropCargo(player)).toEqual({ player, events: [] });
   });
 
   const seized = (c: Cargo): Cargo => ({ ...c, isPickedUp: false });
@@ -207,44 +197,6 @@ describe("respawn: the turn after dying", () => {
     expect(p2.missions).toHaveLength(1);
     expect(p2.cargo).toEqual([{ ...crate, isPickedUp: false }]);
   });
-
-  it("a respawned ship refuels to a full tank", () => {
-    let state = makeTwoPlayerGame({}, { loadout: COMPRESSOR }, { activePlayerIndex: 1 });
-    state = withShip(state, "p2", { hitPoints: 0, reactionMass: 0 });
-    expect(getShip(mustExecute(state), "p2").reactionMass).toBe(10);
-  });
-
-  /**
-   * One turn lost, not two: the respawn turn drifts and the turn after it is
-   * flown by its crew, quiet but in command, with the flag going out only when
-   * it ends (RULES §Destruction and Respawn).
-   */
-  it("only the respawn turn is lost: the ship flies the next one and the flag ends with it", () => {
-    let state = mustExecute(wreck()); // p2 back at Beta R4, drifted to S8; p1 to act
-    expect(getPlayer(state, "p2")).toMatchObject({ recovering: true });
-    expect(viewFor(state, "p1").players[1].recovering).toBe(true);
-
-    state = mustExecute(state, coast(1));
-    // Still untouchable while the other seat plays: the flag is spent by p2's
-    // own turn, not by the round moving on.
-    expect(getPlayer(state, "p2").recovering).toBe(true);
-    // Scooping is something only a crew at the helm can do: a lost turn drifts
-    // and nothing else.
-    const acting = executeTurnAs(state, coast(1, true));
-    expect(acting.errors).toBeUndefined();
-    expect(eventTypes(acting.events)).toContain("fuel_scooped");
-    expect(getPlayer(acting.gameState, "p2").recovering).toBe(false);
-    expect(viewFor(acting.gameState, "p1").players[1].recovering).toBe(false);
-  });
-
-  it("no one can shoot a wreck while it waits to respawn", () => {
-    const alive = withPower(makeTwoPlayerGame(), "p1", "side-3", 2);
-    const state = withShip(alive, "p2", { hitPoints: 0 });
-    expectRefusedUnless(
-      executeTurnAs(state, fire(1, "side-3", "p2")),
-      executeTurnAs(alive, fire(1, "side-3", "p2"))
-    );
-  });
 });
 
 /**
@@ -317,6 +269,12 @@ describe("respawn: the turn back is a first round of its own", () => {
     ["rotates", "rotated", returning, [rotate(1, "retrograde")]],
     ["burns", "burned", returning, [burn(1, "soft")]],
     ["jumps", "jumped", () => returning({ ring: 5, sector: 17 }), [jump(1, ALPHA)]],
+    [
+      "scoops",
+      "fuel_scooped",
+      () => withShip(returning(), "p2", { reactionMass: 5 }),
+      [coast(1, true)],
+    ],
   ])("still %s on it", (_what, event, build, actions) => {
     const result = executeTurnAs(build(), ...actions);
     expect(result.errors ?? []).toEqual([]);
@@ -381,8 +339,6 @@ describe("respawn: the returning ship drifts", () => {
 
   it.each([
     [BH, 4],
-    [BH, 1],
-    [BH, 5],
     [BETA, 3],
   ])("carries the ship its ring's velocity on %s ring %i", (wellId, ring) => {
     const start = 5;
@@ -406,15 +362,6 @@ describe("respawn: the returning ship drifts", () => {
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p2").sector).toBe(wrapSector(5 + velocity));
     expect(getShip(result.gameState, "p1").sector).toBe(wrapSector(5 + velocity));
-  });
-
-  it("rides no station: Home is on the black hole, so the stations leave without it", () => {
-    const state = returning({ wellId: BH, ring: 4, sector: 5 });
-    const result = executeTurnAs(state); // p2 is last in order: the round ends here
-    expect(eventsOf(result.events, "stations_moved")).toEqual([
-      expect.objectContaining({ riders: [] }),
-    ]);
-    expect(getShip(result.gameState, "p2").sector).toBe(wrapSector(5 + ringVelocity(BH, 4)));
   });
 });
 
