@@ -52,7 +52,12 @@ import {
   createRecordingService,
   type RecordingArchive,
 } from "../src/services/recordingService.ts";
-import { createGameService, type GameTransport } from "../src/services/gameService.ts";
+import {
+  createGameService,
+  engineBots,
+  type BotStrategy,
+  type GameTransport,
+} from "../src/services/gameService.ts";
 import { checkStatusAccess } from "../src/services/playerService.ts";
 import { LoadoutSubmissionSchema, SubmitTurnSchema } from "../src/schemas/game.ts";
 import { CreatePlayerSchema } from "../src/schemas/player.ts";
@@ -717,6 +722,58 @@ async function freshGame(archive: RecordingArchive | null = null) {
   );
   const retried = await atomic.games.submitTurn(atomic.gameId, HUMAN, [], { turn: at!.turn, activePlayerId: HUMAN });
   check(retried.ok, "the same turn succeeds once the write works again");
+}
+
+// --- A bot whose AI fails still submits a legal loadout ----------------------
+// The fallback hull and hand must be accepted by the engine whatever the deal,
+// or the human's own loadout submission fails and the game is stuck.
+{
+  const failingAi: Array<[string, BotStrategy["chooseLoadout"]]> = [
+    [
+      "throws",
+      () => {
+        throw new Error("smoke: simulated AI failure");
+      },
+    ],
+    [
+      "is refused",
+      (botOffers) => ({
+        loadout: SMOKE_LOADOUT,
+        missionIds: botOffers.filter((m) => isPrimaryType(m.type)).map((m) => m.id),
+      }),
+    ],
+  ];
+  for (const [how, chooseLoadout] of failingAi) {
+    for (let seed = 1; seed <= 12; seed++) {
+      const fallbackKv = memoryKv();
+      const fallbackGames = createGameService({
+        kv: fallbackKv,
+        recordings: createRecordingService(fallbackKv, null),
+        transport: { sendToPlayer: () => {}, broadcastViews: () => {} },
+        bots: { ...engineBots, chooseLoadout },
+        log: { info: () => {}, warn: () => {}, error: () => {} },
+      });
+      const gameId = `smoke-fallback-${seed}`;
+      await fallbackGames.createGame(gameId, SPECS, [HUMAN], seed);
+      const first = await fallbackGames.getView(gameId, HUMAN);
+      let outcome: string;
+      try {
+        const submitted = await fallbackGames.submitLoadout(gameId, HUMAN, {
+          loadout: SMOKE_LOADOUT,
+          missionIds: handFrom(first!.me!.missionOffers),
+        });
+        const after = await fallbackGames.getView(gameId, HUMAN);
+        outcome = submitted.ok ? `phase ${after?.phase}` : `refused: ${submitted.error}`;
+        if (submitted.ok && after?.players.some((p) => !p.hasSubmittedLoadout)) outcome = "a bot has no loadout";
+      } catch (error) {
+        outcome = `threw: ${String(error)}`;
+      }
+      check(
+        outcome === "phase deployment",
+        `seed ${seed}: when the bot AI ${how}, the fallback loadout is accepted (${outcome})`,
+      );
+    }
+  }
 }
 
 // --- Rewind is a live-game tool ----------------------------------------------

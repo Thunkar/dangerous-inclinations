@@ -22,8 +22,8 @@ import type {
   ShipLoadout,
 } from "@dangerous-inclinations/engine";
 import {
-  DEFAULT_LOADOUT,
-  MISSIONS_PER_PLAYER,
+  PRIMARIES_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
   type DeploymentChoice,
   botChooseDeployment,
   botChooseLoadout,
@@ -35,6 +35,8 @@ import {
   filterEventsFor,
   legalDeploymentPositions,
   isDestroyed,
+  isPrimaryType,
+  missionsMissingRequirements,
   missionTargetsPlayer,
   pickIndex,
   staleRecordingReason,
@@ -113,6 +115,24 @@ export interface ForkOptions {
 let botInvalidTurns = 0;
 export function getBotInvalidTurnCount(): number {
   return botInvalidTurns;
+}
+
+/**
+ * The hull a bot flies when its AI fails. A sensor bow and a gun meet every
+ * card's requirement (Intercept needs the sensor, Destroy a weapon), so any
+ * dealt hand has a legal pick for it.
+ */
+const FALLBACK_LOADOUT: ShipLoadout = {
+  forwardSlots: ["sensor_array"],
+  sideSlots: ["laser", "laser", "shields", "radiator"],
+};
+
+/** Every way to choose `k` of `items`, in order. */
+function combinations<T>(items: readonly T[], k: number): T[][] {
+  if (k === 0) return [[]];
+  return items.flatMap((item, i) =>
+    combinations(items.slice(i + 1), k - 1).map((rest) => [item, ...rest])
+  );
 }
 
 const gameKey = (gameId: string) => `game:${gameId}`;
@@ -282,11 +302,23 @@ export function createGameService(deps: GameServiceDeps) {
     return state.players[state.activePlayerIndex];
   }
 
+  /**
+   * What a bot submits when its AI fails or is refused: the fallback hull and
+   * the first legal hand (one primary, two secondaries) in its offers that the
+   * hull can fly.
+   */
   function fallbackLoadout(offers: Mission[]): LoadoutSubmission {
-    return {
-      loadout: DEFAULT_LOADOUT,
-      missionIds: offers.slice(0, MISSIONS_PER_PLAYER).map((m) => m.id),
-    };
+    const primaries = offers.filter((m) => isPrimaryType(m.type));
+    const secondaries = offers.filter((m) => !isPrimaryType(m.type));
+    for (const primary of combinations(primaries, PRIMARIES_PER_PLAYER)) {
+      for (const secondary of combinations(secondaries, SECONDARIES_PER_PLAYER)) {
+        const hand = [...primary, ...secondary];
+        if (missionsMissingRequirements(hand, FALLBACK_LOADOUT).length === 0) {
+          return { loadout: FALLBACK_LOADOUT, missionIds: hand.map((m) => m.id) };
+        }
+      }
+    }
+    throw new Error("No legal hand in these offers for the fallback hull");
   }
 
   /** Every bot that has not submitted picks missions and a loadout. */
