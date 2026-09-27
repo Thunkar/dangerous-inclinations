@@ -11,7 +11,16 @@
 import { describe, expect, it } from 'vitest'
 import type { GameConfig, GameEvent, GameView } from '@dangerous-inclinations/engine'
 import { filterEventsFor, runGame, viewFor } from '@dangerous-inclinations/engine'
-import { beatStart, eventToBeat, shotFor, snapshotOf, type Beat, type BoardOverlay } from './beats'
+import {
+  beatStart,
+  eventToBeat,
+  floatStack,
+  shotFor,
+  snapshotOf,
+  type Beat,
+  type BoardOverlay,
+  type TableEffect,
+} from './beats'
 
 const SEAT = 'bot-1'
 const CLOCK = { now: 0, tempo: 1 }
@@ -171,5 +180,26 @@ describe('a turn beat by beat', () => {
         if (ship.motion) expect(ship.motion.from).toEqual(before.ships[event.playerId].position)
       }
     }
+  })
+
+  it('stacks a float on the lowest step its sector has free', () => {
+    const here = { wellId: 'blackhole', ring: 3, sector: 4 }
+    const there = { wellId: 'blackhole', ring: 3, sector: 5 }
+    const float = (id: string, at: typeof here, stack: number): TableEffect => ({
+      id,
+      kind: 'float',
+      at,
+      playerId: 'bot-1',
+      text: '-2',
+      tone: 'damage',
+      stack,
+      start: 0,
+      duration: 1,
+    })
+    expect(floatStack([], here)).toBe(0)
+    expect(floatStack([float('a', here, 0), float('b', there, 1)], here)).toBe(1)
+    // The float under a climbing one has gone: its step is the one handed out.
+    expect(floatStack([float('b', here, 1), float('c', here, 2)], here)).toBe(0)
+    expect(floatStack([float('a', here, 0), float('b', here, 1)], here)).toBe(2)
   })
 })

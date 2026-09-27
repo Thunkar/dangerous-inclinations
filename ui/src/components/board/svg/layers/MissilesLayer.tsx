@@ -1,11 +1,12 @@
 /**
  * Missiles in flight, with the path they will take at the end of their
- * owner's next turn: the orbital drift first (a solid arc), then up to three
- * flight steps toward the target (dashed, rings closed first).
+ * owner's next turn: the orbital drift first (a solid arc), then the flight
+ * steps toward the target (dashed, rings closed first).
  *
  * A missile on its launch turn does not ride its orbit, so it has no drift
  * segment: the model asks the engine for the path, and this layer draws
- * exactly what comes back.
+ * exactly what comes back. Missiles sharing a sector stand abreast where the
+ * model puts them.
  *
  * A launch you have queued but not yet sent is drawn the same way, from the
  * position it would be fired at, so you can see where it lands before you
@@ -16,26 +17,18 @@
  * ring that carries it.
  */
 import { memo } from 'react'
-import type { Missile, Position } from '@dangerous-inclinations/engine'
+import type { Position } from '@dangerous-inclinations/engine'
 import { samePosition } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../theme'
-import type { MissilePreview } from '../../model'
+import type { MissilePreview, MissileToken } from '../../model'
 import { BOARD } from '../palette'
 import { positionPoint } from '../../geometry'
 import { trackAttr, trackPoints } from '../../trajectory'
 import { Track } from './OverlaysLayer'
 
-const MISSILE_TOOLTIP =
-  'Rides its orbit, then flies up to 3 steps toward the target (rings first). ' +
-  'On its launch turn it only flies, from where it was launched. 3 flights max.'
-
 interface MissilesLayerProps {
-  missiles: ReadonlyArray<Missile>
-  colorOf: (playerId: string) => string
-  nameOf: (playerId: string) => string
+  missiles: ReadonlyArray<MissileToken>
   previews?: ReadonlyArray<MissilePreview>
-  /** Projected path per missile id and per preview id, from the model. */
-  paths: Record<string, Position[]>
 }
 
 /** The drift: the arc the ring carries the warhead along, bowed clear of it. */
@@ -50,15 +43,12 @@ function flightPoints(path: ReadonlyArray<Position>): string {
 
 export const MissilesLayer = memo(function MissilesLayer({
   missiles,
-  colorOf,
-  nameOf,
   previews = [],
-  paths,
 }: MissilesLayerProps) {
   return (
     <g className="missiles">
       {previews.map(preview => {
-        const path = paths[preview.id] ?? []
+        const path = preview.path
         const start = positionPoint(preview.from)
         const drift = path[0]
         const end = path.length > 0 ? positionPoint(path[path.length - 1]) : start
@@ -99,15 +89,9 @@ export const MissilesLayer = memo(function MissilesLayer({
       })}
 
       {missiles.map(missile => {
-        const at: Position = { wellId: missile.wellId, ring: missile.ring, sector: missile.sector }
-        const color = colorOf(missile.ownerId)
-        const path = paths[missile.id] ?? []
+        const { position: at, color, path, point: here, tooltip } = missile
         const drift = path[0]
         const flight = path.slice(1)
-        const here = positionPoint(at)
-        const tooltip = `${nameOf(missile.ownerId)}'s missile → ${nameOf(missile.targetId)} · ${
-          3 - missile.movesMade
-        } flight(s) left. ${MISSILE_TOOLTIP}`
 
         return (
           <g key={missile.id}>

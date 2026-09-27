@@ -37,8 +37,9 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { MathUtils, PerspectiveCamera, Vector3, type Object3D } from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
-import type { GravityWellId, Missile, Position } from '@dangerous-inclinations/engine'
+import type { GravityWellId, Position } from '@dangerous-inclinations/engine'
 import type { CameraShot } from '../../../animation/beats'
+import type { MissileToken } from '../model'
 import { allWells, wellCenter, wellVisual } from '../geometry'
 import { blackHoleBody, bodyExtent } from './bodies'
 import {
@@ -87,7 +88,7 @@ export interface DirectorProps {
   animating: boolean
   /** The wells the player has to see to act: their ship's, and any their plan reaches. */
   actWells: readonly GravityWellId[]
-  missiles: readonly Missile[]
+  missiles: readonly MissileToken[]
   /** When a hand last touched the camera (performance.now()), 0 if never. */
   handAt: RefObject<number>
   /** True while it is this seat's turn to plan: the pull-back comes at once. */
@@ -369,7 +370,7 @@ export function Director({
         around(hullAt(current.targetId, current.at), MARGIN, points)
         for (const missile of missiles) {
           if (missile.targetId === current.targetId)
-            around(positionWorld(missile), MARGIN * 0.5, points)
+            around(positionWorld(missile.position), MARGIN * 0.5, points)
         }
         break
       }

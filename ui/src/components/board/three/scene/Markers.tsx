@@ -7,8 +7,7 @@
  * lives in `Station.tsx`.
  */
 import { Color } from 'three'
-import type { Station } from '@dangerous-inclinations/engine'
-import type { HomeMarker } from '../../model'
+import type { HomeMarker, StationMarker } from '../../model'
 import { LAYER, positionWorld } from '../world'
 import { StationToken } from './Station'
 
@@ -61,7 +60,7 @@ export function Markers({
   stations,
   homes,
 }: {
-  stations: readonly Station[]
+  stations: readonly StationMarker[]
   homes: readonly HomeMarker[]
 }) {
   return (

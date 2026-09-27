@@ -23,6 +23,7 @@ import { getPlayerColor } from '../utils/playerColors'
 import {
   beatStart,
   eventToBeat,
+  floatStack,
   shotFor,
   shotKey,
   type BoardOverlay,
@@ -181,16 +182,16 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
   const pushEffect = useCallback(
     (effect: EffectDraft) => {
       const life = effect.duration / tempo()
-      const started = {
-        ...effect,
-        id: nextId(effect.kind),
-        duration: life,
-        start: performance.now(),
-      } as TableEffect
-      setEffects(prev => [...prev, started])
+      const id = nextId(effect.kind)
+      const started = { ...effect, id, duration: life, start: performance.now() } as TableEffect
+      // A float takes its step in the pile over its sector as it goes up.
+      setEffects(prev => [
+        ...prev,
+        started.kind === 'float' ? { ...started, stack: floatStack(prev, started.at) } : started,
+      ])
       const timer = setTimeout(() => {
         expiryRef.current.delete(timer)
-        setEffects(prev => prev.filter(e => e !== started))
+        setEffects(prev => prev.filter(e => e.id !== id))
       }, life)
       expiryRef.current.add(timer)
     },

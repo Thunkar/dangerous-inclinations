@@ -37,7 +37,7 @@ import {
   planMovementToTarget,
   wrapSector,
 } from '@dangerous-inclinations/engine'
-import type { BoardModel } from '../../components/board/model'
+import { stationMarkers, type BoardModel } from '../../components/board/model'
 import { GameBoardSvg } from '../../components/board/svg/GameBoardSvg'
 import { getPlayerColor } from '../../utils/playerColors'
 import { ROUTE_SEARCH_TURNS, placeLabel, routeLegs, routeName } from '../../utils/route'
@@ -208,13 +208,12 @@ export function RoutePlannerTool() {
       ],
       wrecks: [],
       homes: [],
-      stations,
+      stations: stationMarkers(stations),
       missiles: [],
       missilePreviews: [],
       plannedPoints: [],
       route,
       rangeCells: [],
-      missilePaths: {},
       selectableIds: [],
       activeLaneIds: [],
       onPickDestination: pick,

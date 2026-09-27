@@ -1,9 +1,10 @@
 /**
  * Missiles in flight, and the launches sitting in your plan.
  *
- * The path a missile will take is already in the model (`missilePaths`, asked
- * of the engine once): the drift around its ring first, then the flight steps
- * toward its target. Nothing here works one out.
+ * The path a missile will take is already in the model (asked of the engine
+ * once): the drift around its ring first, then the flight steps toward its
+ * target. So are its heading and its place abreast in a salvo. Nothing here
+ * works one out.
  *
  * It is drawn the way the paper board draws it: the drift solid, because it
  * happens whatever anyone does, and the flight dashed, because it is an
@@ -15,21 +16,14 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AdditiveBlending, DoubleSide, type MeshBasicMaterial } from 'three'
 import { useFrame } from '@react-three/fiber'
-import type { Missile, Position } from '@dangerous-inclinations/engine'
 import { samePosition } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../theme'
 import { createMissile } from '../../../../ships/missile'
-import { facingAngle, positionPoint } from '../../geometry'
-import type { BoardModel, MissilePreview } from '../../model'
+import type { BoardModel, MissilePreview, MissileToken } from '../../model'
 import { sceneTime } from '../clock'
 import { LAYER, elevationAt, positionWorld, toWorld, yawFromHeading } from '../world'
 import { BoardTooltip, SurfaceDot, SurfaceLine, SurfaceRing } from './overlays/marks'
 import { NO_RAYCAST, arcPoints, chordPoints } from './overlays/paths'
-
-/** Word for word the reminder the SVG board's tooltip carries. */
-const MISSILE_TOOLTIP =
-  'Rides its orbit, then flies up to 3 steps toward the target (rings first). ' +
-  'On its launch turn it only flies, from where it was launched. 3 flights max.'
 
 /**
  * Missile dimensions in board units, as `ships/missile.ts` models it. It is
@@ -42,13 +36,6 @@ const WIDTH = 9
 const SCALE = 0.6
 /** How far the dart floats over the track it is drawing, before scaling. */
 const HOVER = 5
-/**
- * How far apart missiles sharing a sector stand: a salvo of four is four darts
- * abreast, not one dart drawn four times. Abreast means across each dart's own
- * heading, which may be along the ring or across it, so a salvo diving inward
- * does not line up nose to tail.
- */
-const SPREAD = 9
 /** A generous invisible sphere, so a dart two pixels wide can still be hovered. */
 const HOVER_RADIUS = 16
 
@@ -56,18 +43,6 @@ const HOVER_RADIUS = 16
 const PREVIEW_OPACITY = 0.55
 /** Dash drift, board units a second: the same flow as the planning overlays. */
 const DASH_SPEED = 9
-
-/** One shared empty path: a missile whose target has left the board has none. */
-const NO_PATH: Position[] = []
-
-/** Where the dart points: at the first place its path takes it. */
-function headingOf(at: Position, path: readonly Position[]): number {
-  const next = path.find(step => !samePosition(step, at))
-  if (!next || next.wellId !== at.wellId) return facingAngle(at, 'prograde')
-  const here = positionPoint(at)
-  const there = positionPoint(next)
-  return Math.atan2(there.y - here.y, there.x - here.x)
-}
 
 /** Two missiles side by side must not flicker in step, so each takes a phase. */
 function phaseOf(id: string): number {
@@ -115,26 +90,9 @@ function Dart({ color, phase }: { color: string; phase: number }) {
   )
 }
 
-function MissileInFlight({
-  missile,
-  path,
-  color,
-  tooltip,
-  offset,
-}: {
-  missile: Missile
-  path: readonly Position[]
-  color: string
-  tooltip: string
-  /** Its step abreast among the missiles sharing its sector. */
-  offset: number
-}) {
+function MissileInFlight({ missile }: { missile: MissileToken }) {
   const [hovered, setHovered] = useState(false)
-
-  const at = useMemo<Position>(
-    () => ({ wellId: missile.wellId, ring: missile.ring, sector: missile.sector }),
-    [missile.wellId, missile.ring, missile.sector]
-  )
+  const { position: at, path, color, tooltip, heading, point: abreast } = missile
   const drift = path[0]
   const flight = useMemo(() => path.slice(1), [path])
 
@@ -153,16 +111,7 @@ function MissileInFlight({
     [flight]
   )
 
-  const heading = useMemo(() => headingOf(at, path), [at, path])
   const yaw = yawFromHeading(heading)
-  // Abreast: the step is taken square to the way the dart points.
-  const abreast = useMemo(() => {
-    const centre = positionPoint(at)
-    return {
-      x: centre.x + Math.cos(heading + Math.PI / 2) * offset,
-      y: centre.y + Math.sin(heading + Math.PI / 2) * offset,
-    }
-  }, [at, heading, offset])
   const anchor = useMemo(() => toWorld(abreast, elevationAt(at) + LAYER.token), [abreast, at])
   const shadow = useMemo(() => toWorld(abreast, elevationAt(at) + LAYER.path), [abreast, at])
 
@@ -203,8 +152,9 @@ function MissileInFlight({
   )
 }
 
-function LaunchPreview({ preview, path }: { preview: MissilePreview; path: readonly Position[] }) {
+function LaunchPreview({ preview }: { preview: MissilePreview }) {
   const [hovered, setHovered] = useState(false)
+  const path = preview.path
   const drift = path[0]
 
   const driftTrack = useMemo(
@@ -274,47 +224,17 @@ function LaunchPreview({ preview, path }: { preview: MissilePreview; path: reado
 export const Missiles = memo(function Missiles({
   missiles,
   previews,
-  paths,
-  colorOf,
-  nameOf,
 }: {
   missiles: BoardModel['missiles']
   previews: BoardModel['missilePreviews']
-  paths: BoardModel['missilePaths']
-  colorOf: BoardModel['colorOf']
-  nameOf: BoardModel['nameOf']
 }) {
-  /** Each missile's step out from its sector's centre, in the order they are listed. */
-  const offsets = useMemo(() => {
-    const out: Record<string, number> = {}
-    for (const missile of missiles) {
-      const sharing = missiles.filter(other => samePosition(other, missile))
-      const index = sharing.indexOf(missile)
-      out[missile.id] = (index - (sharing.length - 1) / 2) * SPREAD
-    }
-    return out
-  }, [missiles])
-
   return (
     <>
       {previews.map(preview => (
-        <LaunchPreview
-          key={`preview-${preview.id}`}
-          preview={preview}
-          path={paths[preview.id] ?? NO_PATH}
-        />
+        <LaunchPreview key={`preview-${preview.id}`} preview={preview} />
       ))}
       {missiles.map(missile => (
-        <MissileInFlight
-          key={missile.id}
-          missile={missile}
-          path={paths[missile.id] ?? NO_PATH}
-          color={colorOf(missile.ownerId)}
-          offset={offsets[missile.id] ?? 0}
-          tooltip={`${nameOf(missile.ownerId)}'s missile → ${nameOf(missile.targetId)} · ${
-            3 - missile.movesMade
-          } flight(s) left. ${MISSILE_TOOLTIP}`}
-        />
+        <MissileInFlight key={missile.id} missile={missile} />
       ))}
     </>
   )

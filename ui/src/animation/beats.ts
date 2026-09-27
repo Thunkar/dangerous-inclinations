@@ -20,7 +20,7 @@ import type {
   Station,
   WeaponType,
 } from '@dangerous-inclinations/engine'
-import { BURN_COSTS, HOME_RING } from '@dangerous-inclinations/engine'
+import { BURN_COSTS, HOME_RING, samePosition } from '@dangerous-inclinations/engine'
 import { TABLE } from '../design/tokens'
 import { BASE_CRIT, SENSOR_CRIT } from '../site/numbers'
 
@@ -67,6 +67,14 @@ export type TableEffect =
       playerId: string
       /** Board-unit nudge off the anchor, so two floats on one ship do not stack. */
       offset?: { x: number; y: number }
+      /**
+       * Its step in the pile over its sector, taken when it went up: the
+       * lowest step no live float on the sector holds (see {@link floatStack}).
+       * A turn can put four of these on one sector at once (a critical, the
+       * damage, what the shield soaked and the tile it broke), and the nudge
+       * only separates two, so both boards draw a pile-up as a list.
+       */
+      stack?: number
       text: string
       tone: FloatTone
       start: number
@@ -156,6 +164,20 @@ export interface BoardOverlay {
   wrecks: { id: string; position: Position; motion?: WreckMotion }[]
   /** Carrier id to the ids of the players whose Escort markers sit on it. */
   escorts: Record<string, string[]>
+}
+
+/**
+ * The step a new float over `at` takes: the lowest one no live float on the
+ * same sector holds. Asked once, when the float goes up, so a number keeps its
+ * place while it climbs even after the one under it has gone.
+ */
+export function floatStack(live: readonly TableEffect[], at: Position): number {
+  const taken = new Set<number>()
+  for (const effect of live)
+    if (effect.kind === 'float' && samePosition(effect.at, at)) taken.add(effect.stack ?? 0)
+  let step = 0
+  while (taken.has(step)) step++
+  return step
 }
 
 // ---------------------------------------------------------------------------

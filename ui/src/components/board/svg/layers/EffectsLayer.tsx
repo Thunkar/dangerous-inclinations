@@ -7,7 +7,8 @@
  * drawn, which is beside the centre of its sector whenever somebody else is
  * standing in it, and the sector is the fallback. A float may carry a small
  * nudge in board units so two of them on one ship do not sit on top of each
- * other.
+ * other, and its step in the pile over its sector (`stack`), which the 3D
+ * board raises and this one writes a line higher.
  */
 import { memo } from 'react'
 import type { TableEffect } from '../../../../animation/beats'
@@ -29,6 +30,9 @@ const TONE_COLORS = {
   crit: BOARD.ink,
   good: BOARD.good,
 } as const
+
+/** A line of the floats' 15-unit type, with air: one step of a pile-up. */
+const FLOAT_LINE = 18
 
 export const EffectsLayer = memo(function EffectsLayer({
   effects,
@@ -87,7 +91,7 @@ export const EffectsLayer = memo(function EffectsLayer({
         const anchor = pointOf(effect.playerId) ?? positionPoint(effect.at)
         const at = {
           x: anchor.x + (effect.offset?.x ?? 0),
-          y: anchor.y + (effect.offset?.y ?? 0),
+          y: anchor.y + (effect.offset?.y ?? 0) - (effect.stack ?? 0) * FLOAT_LINE,
         }
         const rise = -38 * progress
         const opacity =

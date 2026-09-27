@@ -40,11 +40,10 @@ import {
 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { sceneTime } from '../clock'
-import type { Station } from '@dangerous-inclinations/engine'
-import { stationPosition } from '@dangerous-inclinations/engine'
 import { HULL_INK } from '../../../../ships/palette'
 import { wellColor } from '../../geometry'
 import { LAYER, positionWorld } from '../world'
+import type { StationMarker } from '../../model'
 
 /**
  * Heights in board units above the token layer, which is itself 8 over the
@@ -125,11 +124,11 @@ const QUARTERS = [0, 1, 2, 3]
 const CANS = 8
 const TRACES = [-1.9, -0.65, 0.65, 1.9]
 
-export function StationToken({ station }: { station: Station }) {
+export function StationToken({ station }: { station: StationMarker }) {
   const ring = useRef<Group>(null)
   const beacon = useRef<Mesh>(null)
   const identity = wellColor(station.planetId)
-  const at = positionWorld(stationPosition(station), LAYER.token)
+  const at = positionWorld(station.position, LAYER.token)
   /** Off the board's clock, so the three stations do not blink together. */
   const offset = useMemo(
     () => [...station.id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 100,

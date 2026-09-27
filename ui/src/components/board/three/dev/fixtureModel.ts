@@ -9,7 +9,7 @@
  * hangs two Escort markers on the player's own ship, and fills in the rest of
  * the contract with the empty values a quiet board has. Positions and stations come from the engine: nothing here is a rule.
  */
-import type { Position, Station } from '@dangerous-inclinations/engine'
+import type { Position } from '@dangerous-inclinations/engine'
 import {
   createInitialStations,
   createGame,
@@ -21,7 +21,13 @@ import {
   samePosition,
   viewFor,
 } from '@dangerous-inclinations/engine'
-import type { BoardModel, HomeMarker, ShipToken, WreckToken } from '../../model'
+import {
+  stationMarkers,
+  type BoardModel,
+  type HomeMarker,
+  type ShipToken,
+  type WreckToken,
+} from '../../model'
 import { crowdOffset, radialPoint } from '../../geometry'
 import { visualForPlayer } from '../../../../ships/visual'
 import { getPlayerColor } from '../../../../utils/playerColors'
@@ -234,7 +240,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     position: seat.home,
   }))
 
-  const stations: Station[] = createInitialStations()
+  const stations = stationMarkers(createInitialStations())
 
   return {
     ships,
@@ -246,7 +252,6 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     plannedPoints: [],
     route: null,
     rangeCells: [],
-    missilePaths: {},
     selectableIds: ['p3'],
     activeLaneIds: ['alpha-b'],
     onPickDestination: null,

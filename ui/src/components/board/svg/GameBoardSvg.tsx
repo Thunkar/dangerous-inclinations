@@ -170,13 +170,7 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
           {model.plannedPoints.length > 1 && (
             <PlannedPath points={model.plannedPoints} color={model.planColor} />
           )}
-          <MissilesLayer
-            missiles={model.missiles}
-            colorOf={model.colorOf}
-            nameOf={model.nameOf}
-            previews={model.missilePreviews}
-            paths={model.missilePaths}
-          />
+          <MissilesLayer missiles={model.missiles} previews={model.missilePreviews} />
           <ShipsLayer
             ships={model.ships}
             now={now}

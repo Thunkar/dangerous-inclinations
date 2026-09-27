@@ -23,11 +23,13 @@ import {
   SECTORS_PER_RING,
   getJumpOptions,
   canEngage,
+  getMissileStats,
   getSubsystemConfig,
   legalDeploymentsAgainst,
   placedShipPositions,
   projectMissilePath,
   samePosition,
+  stationPosition,
 } from '@dangerous-inclinations/engine'
 import type { CameraShot, ShipMotion, TableEffect, WreckMotion } from '../../animation/beats'
 import type { Ping } from '../../context/AnimationContext'
@@ -38,7 +40,15 @@ import { useRoutePlanOptional } from '../../context/RoutePlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { TABLE } from '../../theme'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
-import { crowdOffset, radialPoint, ringsOf, type Point, type WreckCrowd } from './geometry'
+import {
+  crowdOffset,
+  facingAngle,
+  positionPoint,
+  radialPoint,
+  ringsOf,
+  type Point,
+  type WreckCrowd,
+} from './geometry'
 
 export interface ShipToken {
   visual?: ShipVisual
@@ -95,13 +105,127 @@ export interface HomeMarker {
   position: Position
 }
 
+/** A station, where both boards draw it: the engine's `stationPosition`. */
+export interface StationMarker {
+  id: string
+  planetId: string
+  position: Position
+}
+
+export function stationMarkers(stations: readonly Station[]): StationMarker[] {
+  return stations.map(station => ({
+    id: station.id,
+    planetId: station.planetId,
+    position: stationPosition(station),
+  }))
+}
+
+/**
+ * A missile in flight, drawn the same on both boards: where it goes next (the
+ * orbital drift first, then the flight steps, asked of the engine), which way
+ * it points, and where it stands among the missiles sharing its sector.
+ */
+export interface MissileToken {
+  id: string
+  ownerId: string
+  targetId: string
+  position: Position
+  color: string
+  /** Empty when the target has left the board: a dart and nothing more. */
+  path: Position[]
+  /** Where the dart points, in board radians: at the first place its path takes it. */
+  heading: number
+  /**
+   * The board point the dart is drawn on: its sector, stepped abreast of the
+   * others in it, so a salvo of four is four darts side by side and not one
+   * dart drawn four times. Abreast is square to each dart's own heading, so a
+   * salvo diving inward does not line up nose to tail.
+   */
+  point: Point
+  tooltip: string
+}
+
 /** A launch sitting in the plan, not yet submitted. */
 export interface MissilePreview {
   id: string
   from: Position
   target: Position
+  /** Where it would fly on its launch turn: no ride, only flight steps. */
+  path: Position[]
   color: string
   label: string
+}
+
+/** How far apart missiles sharing a sector stand, in board units. */
+const MISSILE_SPREAD = 9
+
+/** The missile rules the tooltips quote, read off the engine once. */
+const MISSILE = getMissileStats()
+const MISSILE_TOOLTIP =
+  `Rides its orbit, then flies up to ${MISSILE.fuelPerTurn} steps toward the target (rings first). ` +
+  `On its launch turn it only flies, from where it was launched. ${MISSILE.maxMoves} flights max.`
+
+/** The label a planned launch carries. */
+export function missilePreviewLabel(targetName: string, count: number): string {
+  return count > 1
+    ? `Planned salvo of ${count} at ${targetName} · each flies up to ${MISSILE.fuelPerTurn} steps this turn`
+    : `Planned missile at ${targetName} · flies up to ${MISSILE.fuelPerTurn} steps this turn`
+}
+
+/** A planned launch's flight: on its launch turn a missile flies from where it is fired, with no ride. */
+export function previewPath(from: Position, target: Position): Position[] {
+  return projectMissilePath({ ...from, movesMade: 0 }, target)
+}
+
+/** Where a dart points: at the first place its path takes it, or along its ring. */
+function headingOf(at: Position, path: readonly Position[]): number {
+  const next = path.find(step => !samePosition(step, at))
+  if (!next || next.wellId !== at.wellId) return facingAngle(at, 'prograde')
+  const here = positionPoint(at)
+  const there = positionPoint(next)
+  return Math.atan2(there.y - here.y, there.x - here.x)
+}
+
+/**
+ * The missiles as both boards draw them. `targetAt` says where a target is
+ * on the board, or null once it has left it; a missile at a target that has
+ * gone has no path.
+ */
+export function missileTokens(
+  missiles: readonly Missile[],
+  targetAt: (playerId: string) => Position | null,
+  colorOf: (playerId: string) => string,
+  nameOf: (playerId: string) => string
+): MissileToken[] {
+  return missiles.map(missile => {
+    const position: Position = {
+      wellId: missile.wellId,
+      ring: missile.ring,
+      sector: missile.sector,
+    }
+    const target = targetAt(missile.targetId)
+    const path = target ? projectMissilePath(missile, target) : []
+    const heading = headingOf(position, path)
+    const sharing = missiles.filter(other => samePosition(other, missile))
+    const step = (sharing.indexOf(missile) - (sharing.length - 1) / 2) * MISSILE_SPREAD
+    const centre = positionPoint(position)
+    return {
+      id: missile.id,
+      ownerId: missile.ownerId,
+      targetId: missile.targetId,
+      position,
+      color: colorOf(missile.ownerId),
+      path,
+      heading,
+      point: {
+        x: centre.x + Math.cos(heading + Math.PI / 2) * step,
+        y: centre.y + Math.sin(heading + Math.PI / 2) * step,
+      },
+      tooltip: `${nameOf(missile.ownerId)}'s missile → ${nameOf(missile.targetId)} · ${
+        MISSILE.maxMoves - missile.movesMade
+      } flight(s) left. ${MISSILE_TOOLTIP}`,
+    }
+  })
 }
 
 /** The weapon whose range is drawn, from where it would be fired. */
@@ -121,8 +245,8 @@ export interface BoardModel {
   ships: ShipToken[]
   wrecks: WreckToken[]
   homes: HomeMarker[]
-  stations: Station[]
-  missiles: Missile[]
+  stations: StationMarker[]
+  missiles: MissileToken[]
   missilePreviews: MissilePreview[]
   /** The sectors the turn being built passes through, start included. */
   plannedPoints: Position[]
@@ -130,12 +254,6 @@ export interface BoardModel {
   route: MovementPlan | null
   /** Every sector the focus weapon reaches from where it would be fired; empty without one. */
   rangeCells: Position[]
-  /**
-   * Where each missile goes next, by missile id and by preview id: the
-   * orbital drift first, then the flight steps. Asked of the engine once,
-   * here, so neither board draws a path of its own invention.
-   */
-  missilePaths: Record<string, Position[]>
   /** Ships that can be targeted right now. */
   selectableIds: string[]
   /** Lanes that can be jumped from where the move starts. */
@@ -293,8 +411,18 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     [ships]
   )
 
-  const stations = overlay?.stations ?? view.stations
-  const missiles = overlay?.missiles ?? view.missiles
+  const liveStations = overlay?.stations ?? view.stations
+  const stations = useMemo(() => stationMarkers(liveStations), [liveStations])
+  const liveMissiles = overlay?.missiles ?? view.missiles
+  /**
+   * A missile in flight rides its orbit and then flies at its target. The
+   * path is asked of the engine here, once, so neither board draws a path of
+   * its own invention.
+   */
+  const missiles = useMemo(
+    () => missileTokens(liveMissiles, positionOf, colorOf, nameOf),
+    [liveMissiles, positionOf, colorOf, nameOf]
+  )
 
   // --- planning overlays ---------------------------------------------------
 
@@ -361,38 +489,19 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       if (!weapon || weapon.type !== 'missiles') return []
       const target = plan.targets.find(t => t.id === step.targetId)
       if (!target) return []
+      const from = plan.stepStart[index]?.position ?? plan.finalPosition.position
       return [
         {
           id: step.id,
-          from: plan.stepStart[index]?.position ?? plan.finalPosition.position,
+          from,
           target: target.position,
+          path: previewPath(from, target.position),
           color: colorOf(plan.me.id),
-          label:
-            step.count > 1
-              ? `Planned salvo of ${step.count} at ${nameOf(target.id)} · each flies up to 3 steps this turn`
-              : `Planned missile at ${nameOf(target.id)} · flies up to 3 steps this turn`,
+          label: missilePreviewLabel(nameOf(target.id), step.count),
         },
       ]
     })
   }, [plan, overlay, colorOf, nameOf])
-
-  /**
-   * A missile in flight rides its orbit and then flies at its target; a
-   * planned launch only flies, from where it would be fired, because the
-   * launch turn has no ride. Missiles whose target has left the board have no
-   * path at all.
-   */
-  const missilePaths = useMemo<Record<string, Position[]>>(() => {
-    const paths: Record<string, Position[]> = {}
-    for (const missile of missiles) {
-      const target = positionOf(missile.targetId)
-      if (target) paths[missile.id] = projectMissilePath(missile, target)
-    }
-    for (const preview of missilePreviews) {
-      paths[preview.id] = projectMissilePath({ ...preview.from, movesMade: 0 }, preview.target)
-    }
-    return paths
-  }, [missiles, missilePreviews, positionOf])
 
   const activeLaneIds = useMemo(() => {
     if (!plan || !plan.isMyTurn) return []
@@ -433,7 +542,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       plannedPoints,
       route,
       rangeCells,
-      missilePaths,
       selectableIds,
       activeLaneIds,
       onPickDestination,
@@ -458,7 +566,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       plannedPoints,
       route,
       rangeCells,
-      missilePaths,
       selectableIds,
       activeLaneIds,
       onPickDestination,

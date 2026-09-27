@@ -2,14 +2,13 @@
  * Loose tokens on the board: station discs and the players' Home markers.
  */
 import { memo } from 'react'
-import type { Station } from '@dangerous-inclinations/engine'
 import { getWellName } from '@dangerous-inclinations/engine'
-import type { HomeMarker } from '../../model'
+import type { HomeMarker, StationMarker } from '../../model'
 import { positionPoint, wellColor } from '../../geometry'
 import { BOARD } from '../palette'
 
 interface MarkersLayerProps {
-  stations: ReadonlyArray<Station>
+  stations: ReadonlyArray<StationMarker>
   homes: ReadonlyArray<HomeMarker>
 }
 
@@ -43,7 +42,7 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
       })}
 
       {stations.map((station) => {
-        const p = positionPoint({ wellId: station.planetId, ring: station.ring, sector: station.sector })
+        const p = positionPoint(station.position)
         const color = wellColor(station.planetId)
         return (
           <g key={station.id}>

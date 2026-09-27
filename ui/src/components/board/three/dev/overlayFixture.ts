@@ -10,25 +10,27 @@
  * `legalDeploymentsAgainst`. Only the seats and the shape of the turn are invented,
  * and this file is test data, never a renderer.
  */
-import type {
-  Missile,
-  MovementPlan,
-  Position,
-  Station,
-  Subsystem,
-} from '@dangerous-inclinations/engine'
+import type { Missile, MovementPlan, Position, Subsystem } from '@dangerous-inclinations/engine'
 import {
   SECTORS_PER_RING,
   createInitialStations,
   getJumpOptions,
   canEngage,
   legalDeploymentsAgainst,
-  projectMissilePath,
 } from '@dangerous-inclinations/engine'
 import { getPlayerColor } from '../../../../utils/playerColors'
 import { TABLE } from '../../../../theme'
 import { crowdOffset, radialPoint, ringsOf } from '../../geometry'
-import type { BoardModel, HomeMarker, MissilePreview, ShipToken } from '../../model'
+import {
+  missilePreviewLabel,
+  missileTokens,
+  previewPath,
+  stationMarkers,
+  type BoardModel,
+  type HomeMarker,
+  type MissilePreview,
+  type ShipToken,
+} from '../../model'
 
 interface FixtureSeat {
   playerId: string
@@ -177,7 +179,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     position: seat.home,
   }))
 
-  const stations: Station[] = createInitialStations()
+  const stations = stationMarkers(createInitialStations())
 
   const positionOf = (playerId: string): Position | null =>
     ships.find(ship => ship.playerId === playerId)?.position ?? null
@@ -190,19 +192,11 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
       id: 'plan-fire-0',
       from: me.position,
       target: target.position,
+      path: previewPath(me.position, target.position),
       color: colorOf(me.playerId),
-      label: `Planned missile at ${target.name} · flies up to 3 steps this turn`,
+      label: missilePreviewLabel(target.name, 1),
     },
   ]
-
-  const missilePaths: Record<string, Position[]> = {}
-  for (const missile of MISSILES) {
-    const at = positionOf(missile.targetId)
-    if (at) missilePaths[missile.id] = projectMissilePath(missile, at)
-  }
-  for (const preview of missilePreviews) {
-    missilePaths[preview.id] = projectMissilePath({ ...preview.from, movesMade: 0 }, preview.target)
-  }
 
   // A real jump out of the lane the route ends on, so the transfer step lands
   // where the engine says it lands.
@@ -254,12 +248,11 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     wrecks: [{ id: 'wreck-1', position: me.position, crowd: { index: 0, count: 1, ships: 1 } }],
     homes,
     stations,
-    missiles: MISSILES,
+    missiles: missileTokens(MISSILES, positionOf, colorOf, nameOf),
     missilePreviews,
     plannedPoints,
     route,
     rangeCells: rangeCellsFrom(me.position),
-    missilePaths,
     selectableIds: [target.playerId],
     activeLaneIds: ['alpha-b'],
     onPickDestination: picker ? position => onEvent('route destination', position) : null,

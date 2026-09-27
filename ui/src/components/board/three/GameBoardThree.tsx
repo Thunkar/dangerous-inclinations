@@ -193,13 +193,7 @@ function Board({
           <Markers stations={model.stations} homes={model.homes} />
           <Wrecks wrecks={model.wrecks} />
           <Overlays model={model} />
-          <Missiles
-            missiles={model.missiles}
-            previews={model.missilePreviews}
-            paths={model.missilePaths}
-            colorOf={model.colorOf}
-            nameOf={model.nameOf}
-          />
+          <Missiles missiles={model.missiles} previews={model.missilePreviews} />
           <Ships
             ships={model.ships}
             selectableIds={model.selectableIds}

@@ -15,8 +15,6 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { Group, Mesh } from 'three'
 import { Billboard, Text } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import type { Position } from '@dangerous-inclinations/engine'
-import { samePosition } from '@dangerous-inclinations/engine'
 import type { FloatTone, TableEffect } from '../../../../../animation/beats'
 import type { BoardModel } from '../../../model'
 import { positionPoint } from '../../../geometry'
@@ -73,25 +71,6 @@ const RISE = 38
  */
 const STACK = 64
 
-/**
- * A turn can put four of these on one sector at once (a critical, the damage,
- * what the shield soaked and the tile it broke) and the animator's nudge only
- * separates two of them. Each float takes the lowest free step over its own
- * sector and gives it back when it expires, so a pile-up reads as a list.
- */
-const claims = new Map<string, { at: Position; step: number }>()
-
-function claimStep(id: string, at: Position): number {
-  const held = claims.get(id)
-  if (held) return held.step
-  const taken = new Set<number>()
-  for (const claim of claims.values()) if (samePosition(claim.at, at)) taken.add(claim.step)
-  let step = 0
-  while (taken.has(step)) step++
-  claims.set(id, { at, step })
-  return step
-}
-
 /** Troika's text mesh: the two opacities are set per frame, never in React. */
 type TextMesh = Mesh & { fillOpacity: number; outlineOpacity: number }
 
@@ -105,11 +84,12 @@ export function Float({
   const group = useRef<Group>(null)
   const text = useRef<TextMesh>(null)
 
-  const step = claimStep(effect.id, effect.at)
+  // The step was taken against the sector when the float went up (the
+  // animator's `floatStack`), so two ships crowded into one still stack their
+  // numbers instead of writing over each other; only where the pile stands
+  // moves, onto the hull the number is about.
+  const step = effect.stack ?? 0
 
-  // The step is claimed against the sector, so two ships crowded into one still
-  // stack their numbers instead of writing over each other; only where the pile
-  // stands moves, onto the hull the number is about.
   const anchor = useMemo(() => {
     const at = toWorld(
       pointOf(effect.playerId) ?? positionPoint(effect.at),
@@ -120,13 +100,6 @@ export function Float({
     at.y += HEIGHT + step * STACK
     return at
   }, [effect.at, effect.playerId, effect.offset, step, pointOf])
-
-  useEffect(
-    () => () => {
-      claims.delete(effect.id)
-    },
-    [effect.id]
-  )
 
   useEffect(() => {
     const kind = REACTION[effect.tone]
