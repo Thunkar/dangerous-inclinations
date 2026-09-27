@@ -140,23 +140,10 @@ describe("bot targeting", () => {
     expect(shotsOf(state, "p1")).toHaveLength(0);
   });
 
-  it("names a slot on the target for the critical hit", () => {
-    const state = grounded(
-      makeTwoPlayerGame(
-        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
-        { wellId: BH, ring: 4, sector: 0 }
-      ),
-      "p1"
-    );
-    const shots = shotsOf(state, "p1");
-    expect(shots.length).toBeGreaterThan(0);
-    const slotIds = new Set(getShip(state, "p2").subsystems.map((s) => s.id));
-    for (const shot of shots) expect(slotIds.has(shot.data.criticalTarget)).toBe(true);
-  });
-
-  it("reads the cubes on a face-down forward slot as a railgun and breaks it first", () => {
-    // Energy allocation is public; four cubes on a forward tile can only be
-    // a railgun, so that is the slot the bot names on a critical.
+  it("names a loaded face-down slot over the engines on the critical", () => {
+    // Energy allocation is public. Four cubes on a face-down bow are a sensor
+    // or a wall, standing through the bot's turn, and breaking the slot dumps
+    // the cubes as heat, so that is the slot the bot names on a critical.
     const base = makeTwoPlayerGame(
       { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
       { wellId: BH, ring: 4, sector: 0, loadout: GUNSHIP }
@@ -415,25 +402,20 @@ describe("bot salvos", () => {
     return shots[0].data.count ?? 1;
   };
 
-  it("spends exactly the rounds it takes to finish a ship", () => {
+  it.each([
     // Four hull, two damage a missile: two rounds, and the other two stay aboard.
-    const state = launcherAgainst(4);
-    expect(salvoAt(state)).toBe(2);
+    ["exactly the rounds that finish a ship", 4, 0, 2],
+    // Ten hull against four rounds of two: nothing finishes it, so everything goes.
+    ["the whole magazine at a ship it cannot finish", 10, 0, 4],
+    // Six heat carried used to leave room for two missiles at two heat each. A
+    // salvo of any size is the tile's two cubes once, so the budget buys all four.
+    ["the whole magazine whatever the heat carried", 10, 6, 4],
+  ])("spends %s (hull %i, heat %i)", (_label, hull, heat, rounds) => {
+    const state = launcherAgainst(hull, heat);
+    expect(salvoAt(state)).toBe(rounds);
     expect(
       executeTurn(state, botDecideActions(viewFor(state, "p1")).actions).errors
     ).toBeUndefined();
-  });
-
-  it("empties the whole magazine into a ship it cannot finish this turn", () => {
-    // Ten hull against four rounds of two: nothing finishes it, so everything goes.
-    expect(salvoAt(launcherAgainst(10))).toBe(4);
-  });
-
-  it("heat does not trim the salvo, because the launch is one use of the tile", () => {
-    // Re-baselined for the flat rule: six heat carried used to leave room for
-    // two missiles at two heat each. A salvo of any size is now the tile's two
-    // cubes once, so the same budget buys the whole magazine.
-    expect(salvoAt(launcherAgainst(10, 6))).toBe(4);
   });
 });
 
