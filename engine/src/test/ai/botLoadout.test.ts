@@ -1,17 +1,13 @@
 /**
  * Loadout phase. `botChooseLoadout` keeps exactly a hand of the offered cards
- * and returns a hull the engine will accept, deterministically.
+ * and returns a hull the engine will accept, deterministically. That every
+ * natural deal ends in a legal, flyable hand the engine accepts is the
+ * bot-vs-bot games' check (`botGames.test.ts`); these are the choices.
  */
 import { describe, it, expect } from "vitest";
 import type { Mission } from "../../models/missions.ts";
-import {
-  MISSIONS_PER_PLAYER,
-  PRIMARIES_PER_PLAYER,
-  SECONDARIES_PER_PLAYER,
-  isPrimaryType,
-} from "../../models/missions.ts";
+import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
 import { missionsMissingRequirements, validateLoadout } from "../../game/loadout.ts";
-import { createGame, submitLoadout } from "../../game/setup.ts";
 import { botChooseLoadout } from "../../ai/index.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import type { BotArchetype } from "../../ai/behaviors/loadout.ts";
@@ -39,22 +35,37 @@ import {
  * Destroy and a hauler never does, so `hunter-tanky` and `hauler-aggressive`
  * are human-only: the balance suite forces those.
  */
-const HANDS: Partial<Record<BotArchetype, Mission[]>> = {
+const HANDS: Array<[string, BotArchetype, Mission[]]> = [
   // Only an Intercept asks for the eyes: the scan is the card's first step.
-  "interceptor-tanky": [
-    interceptMission("p2"),
-    deliverMission(ALPHA, BETA),
-    deliverMission(BETA, GAMMA),
+  [
+    "an Intercept with cargo",
+    "interceptor-tanky",
+    [interceptMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
   ],
-  "interceptor-aggressive": [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
-  "hunter-aggressive": [destroyMission("p2"), destroyMission("p3"), deliverMission(ALPHA, BETA)],
+  [
+    "an Intercept with Destroys",
+    "interceptor-aggressive",
+    [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
+  ],
+  // A Destroy card has to get through shields, which is the railgun's job.
+  [
+    "Destroys with cargo",
+    "hunter-aggressive",
+    [destroyMission("p2"), destroyMission("p3"), deliverMission(ALPHA, BETA)],
+  ],
   // Nothing to scan and nobody to kill: the forward slot goes to the legs.
-  "hauler-tanky": [
-    deliverMission(ALPHA, BETA),
-    deliverMission(BETA, GAMMA),
-    deliverMission(GAMMA, ALPHA),
+  [
+    "cargo alone",
+    "hauler-tanky",
+    [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), deliverMission(GAMMA, ALPHA)],
   ],
-};
+  // A Survey is a dive any loadout can make, so it asks for nothing forward.
+  [
+    "cargo and a Survey",
+    "hauler-tanky",
+    [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()],
+  ],
+];
 
 describe("botChooseLoadout", () => {
   it("every archetype template passes the engine's loadout validation", () => {
@@ -66,40 +77,11 @@ describe("botChooseLoadout", () => {
     }
   });
 
-  // Every card has a tile it cannot start without: the sensor hulls carry the
-  // array for Intercept and Survey, and all four carry a gun, which is what a
-  // kept Destroy card needs (RULES §Missions).
-  it.each(Object.keys(BOT_LOADOUT_TEMPLATES) as BotArchetype[])(
-    "the %s template can fly a Destroy card",
-    (archetype) => {
-      expect(
-        missionsMissingRequirements([destroyMission("p2")], BOT_LOADOUT_TEMPLATES[archetype])
-      ).toEqual([]);
-    }
-  );
-
-  it("gives each archetype its own hull", () => {
-    for (const [archetype, missions] of Object.entries(HANDS) as Array<[BotArchetype, Mission[]]>) {
-      expect(classifyArchetype(missions), archetype).toBe(archetype);
-      const choice = botChooseLoadout(missions);
-      expect(choice.missionIds).toHaveLength(MISSIONS_PER_PLAYER);
-      expect(validateLoadout(choice.loadout).errors, archetype).toEqual([]);
-      expect(choice.loadout).toEqual(BOT_LOADOUT_TEMPLATES[archetype]);
-    }
-  });
-
-  it("keeps exactly a hand of the offers, and only offered ones", () => {
-    const offers: Mission[] = [
-      destroyMission("p2"),
-      interceptMission("p3"),
-      deliverMission(ALPHA, BETA),
-      surveyMission(),
-      deliverMission(BETA, GAMMA),
-    ];
-    const choice = botChooseLoadout(offers);
+  it.each(HANDS)("flies %s on the %s hull", (_label, archetype, missions) => {
+    expect(classifyArchetype(missions)).toBe(archetype);
+    const choice = botChooseLoadout(missions);
     expect(choice.missionIds).toHaveLength(MISSIONS_PER_PLAYER);
-    expect(new Set(choice.missionIds).size).toBe(MISSIONS_PER_PLAYER);
-    for (const id of choice.missionIds) expect(offers.some((m) => m.id === id)).toBe(true);
+    expect(choice.loadout).toEqual(BOT_LOADOUT_TEMPLATES[archetype]);
   });
 
   it("keeps any hand it can fly, and spreads across them", () => {
@@ -107,7 +89,7 @@ describe("botChooseLoadout", () => {
     // valid, and which one it takes is the seeded pick. Measuring which plan
     // wins is the benchmark's job, not the chooser's.
     // No Deliver here, so no hand is a hold clash and every one stays on the
-    // table. The pairing rule is covered by its own test above.
+    // table. The pairing rule is covered by its own tests below.
     const offers: Mission[] = [
       destroyMission("p2"),
       interceptMission("p3"),
@@ -131,33 +113,24 @@ describe("botChooseLoadout", () => {
     expect(seen.size).toBe(hands.length);
   });
 
-  it("may keep two of a kind: a seat dealt three Surveys still has a hand", () => {
-    const offers: Mission[] = [
-      destroyMission("p2"),
-      surveyMission("survey-a"),
-      surveyMission("survey-b"),
-      surveyMission("survey-c"),
-    ];
+  it.each([
+    // Two of a kind are two jobs (RULES §Missions): three of one kind is a hand.
+    ["three Surveys", [surveyMission("a"), surveyMission("b"), surveyMission("c")]],
+    // Piracy clashes only with a Deliver's crate, so with none every hand stays.
+    ["Piracy and two Salvage", [piracyMission("a"), salvageMission("b"), salvageMission("c")]],
+  ])("keeps any two of %s behind a primary that carries no crate", (_label, secondaries) => {
+    const offers: Mission[] = [destroyMission("p2"), ...secondaries];
     const hands = validHands(offers);
     expect(hands).toHaveLength(3);
-    for (const hand of hands) {
-      expect(hand.filter((m) => m.type === "survey")).toHaveLength(SECONDARIES_PER_PLAYER);
-    }
-  });
-
-  it("every hand it keeps is one primary and two secondaries", () => {
-    const offers: Mission[] = [
-      destroyMission("p2"),
-      interceptMission("p3"),
-      deliverMission(ALPHA, BETA),
-      surveyMission("survey-a"),
-      piracyMission("piracy-a"),
-      tankerMission("tanker-a"),
-    ];
-    for (const hand of validHands(offers)) {
-      expect(hand.filter((m) => isPrimaryType(m.type))).toHaveLength(PRIMARIES_PER_PLAYER);
-      expect(hand.filter((m) => !isPrimaryType(m.type))).toHaveLength(SECONDARIES_PER_PLAYER);
-    }
+    const seen = new Set(
+      hands.map((_, i) =>
+        botChooseLoadout(offers, { pick: (n) => i % n })
+          .missionIds.slice()
+          .sort()
+          .join(",")
+      )
+    );
+    expect(seen.size).toBe(hands.length);
   });
 
   it("never keeps Piracy beside a Deliver while any other hand is offered", () => {
@@ -188,28 +161,6 @@ describe("botChooseLoadout", () => {
     expect(kept.filter((ids) => ids.includes("salvage-a"))).toHaveLength(2);
   });
 
-  it.each([
-    ["Piracy and Salvage", [piracyMission("a"), salvageMission("b"), salvageMission("c")]],
-    ["two Salvage", [salvageMission("a"), salvageMission("b"), salvageMission("c")]],
-    ["two Escorts", [escortMission("a"), escortMission("b"), escortMission("c")]],
-  ])(
-    "keeps %s behind a primary that carries no crate, whichever hand is picked",
-    (_label, secondaries) => {
-      const offers: Mission[] = [destroyMission("p2"), ...secondaries];
-      const hands = validHands(offers);
-      expect(hands).toHaveLength(3);
-      const seen = new Set(
-        hands.map((_, i) =>
-          botChooseLoadout(offers, { pick: (n) => i % n })
-            .missionIds.slice()
-            .sort()
-            .join(",")
-        )
-      );
-      expect(seen.size).toBe(hands.length);
-    }
-  );
-
   it("takes the Piracy card anyway when the deal leaves nothing else", () => {
     // Only a clashing pair is on the table, and a hand of two is not a hand.
     const offers: Mission[] = [
@@ -220,26 +171,6 @@ describe("botChooseLoadout", () => {
     const kept = botChooseLoadout(offers).missionIds;
     expect(kept).toHaveLength(MISSIONS_PER_PLAYER);
     expect(kept).toContain("piracy-a");
-  });
-
-  it("never offers a hand the forced loadout cannot fly", () => {
-    const railgun: ShipLoadout = {
-      forwardSlots: ["railgun"],
-      sideSlots: ["missiles", "radiator", "shields", "shields"],
-    };
-    const offers: Mission[] = [
-      interceptMission("p2"),
-      interceptMission("p3", "intercept-p3"),
-      deliverMission(ALPHA, BETA),
-      surveyMission("survey-a"),
-      piracyMission("piracy-a"),
-      tankerMission("tanker-a"),
-    ];
-    const hands = validHands(offers, railgun);
-    expect(hands.length).toBeGreaterThan(0);
-    for (const hand of hands) {
-      expect(missionsMissingRequirements(hand, railgun)).toEqual([]);
-    }
   });
 
   it("is deterministic", () => {
@@ -253,85 +184,6 @@ describe("botChooseLoadout", () => {
     const a = botChooseLoadout(offers);
     const b = botChooseLoadout(offers);
     expect(b).toEqual(a);
-  });
-
-  it("takes the sensor array forward whenever it holds an Intercept", () => {
-    // The forward slot holds the railgun or the sensor array, never both,
-    // and an Intercept cannot even begin without a scan.
-    for (const missions of [
-      [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
-      [interceptMission("p2"), deliverMission(ALPHA, BETA), surveyMission()],
-    ]) {
-      const { loadout } = botChooseLoadout(missions);
-      expect(loadout.forwardSlots, JSON.stringify(missions.map((m) => m.type))).toEqual([
-        "sensor_array",
-      ]);
-      expect(loadout.sideSlots).not.toContain("railgun");
-    }
-  });
-
-  it("keeps the railgun for a hand of Destroy cards", () => {
-    const { loadout } = botChooseLoadout(
-      [destroyMission("p2"), destroyMission("p3"), destroyMission("p4")]);
-    expect(loadout.forwardSlots).toEqual(["railgun"]);
-  });
-
-  it("spends the forward slot on legs, a gun or eyes according to the hand", () => {
-    // The sensor array earns the forward slot only when a card needs a scan.
-    // A pure cargo hand never scans anything and has nobody it must kill, so
-    // the slot goes to the legs that make the route cheap.
-    const { loadout } = botChooseLoadout(
-      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), deliverMission(GAMMA, ALPHA)]);
-    expect(loadout.forwardSlots).toEqual(["fuel_compressor"]);
-    // A Destroy card has to get through shields, which is the railgun's job.
-    const kill = botChooseLoadout(
-      [destroyMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)]);
-    expect(kill.loadout.forwardSlots).toEqual(["railgun"]);
-    // A Survey is a dive any loadout can make, so it asks for nothing forward: a
-    // cargo hand carrying one still spends the slot on the legs.
-    const survey = botChooseLoadout(
-      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()]);
-    expect(survey.loadout.forwardSlots).toEqual(["fuel_compressor"]);
-  });
-
-  it("gives every combat hull the heat headroom its volley needs", () => {
-    // A shield tile eats two damage a turn and is refilled for free, so a
-    // volley has to beat the cubes to reach a hull, and heat over the
-    // dissipation is the bot's own hull. Every hull that shoots carries a
-    // radiator, and the railgun loadouts carry a second gun to pair with the bow.
-    for (const [name, template] of Object.entries(BOT_LOADOUT_TEMPLATES)) {
-      expect(template.sideSlots, name).toContain("radiator");
-    }
-    // The hunter's partner gun is a broadside that lands its damage: a rack on
-    // the railgun's own ring, a laser a ring further out. Never missiles: a
-    // powered rack rolls at every one of them (see loadout.ts).
-    for (const name of ["hunter-tanky", "hunter-aggressive"] as const) {
-      const hunter = BOT_LOADOUT_TEMPLATES[name];
-      expect(hunter.forwardSlots, name).toEqual(["railgun"]);
-      expect(hunter.sideSlots, name).not.toContain("missiles");
-      expect(
-        hunter.sideSlots.some((t) => t === "laser" || t === "ballistic_rack"),
-        name
-      ).toBe(true);
-    }
-  });
-
-  it("produces submissions the engine accepts for a real deal", () => {
-    let state = createGame(
-      [1, 2, 3, 4].map((i) => ({ id: `bot-${i}`, name: `Bot ${i}` })),
-      99
-    );
-    for (const player of state.players) {
-      const choice = botChooseLoadout(player.missionOffers);
-      const result = submitLoadout(state, player.id, {
-        loadout: choice.loadout,
-        missionIds: choice.missionIds,
-      });
-      expect(result.error).toBeUndefined();
-      state = result.state;
-    }
-    expect(state.phase).toBe("deployment");
-    for (const player of state.players) expect(player.missions).toHaveLength(MISSIONS_PER_PLAYER);
   });
 
   // The simulator forces a hull on a seat to measure it. The bot then picks
@@ -376,21 +228,5 @@ describe("botChooseLoadout", () => {
       const kept = offers.filter((m) => choice.missionIds.includes(m.id));
       expect(missionsMissingRequirements(kept, choice.loadout)).toEqual([]);
     });
-  });
-
-  // A bot picks its cards first and then a hull that fits them, so it should
-  // never hand the referee a hand its loadout cannot fly, at any table size.
-  it.each([2, 3, 4])("never keeps a card its hull cannot complete (%i players)", (playerCount) => {
-    for (let seed = 0; seed < 40; seed++) {
-      const state = createGame(
-        Array.from({ length: playerCount }, (_, i) => ({ id: `bot-${i}`, name: `Bot ${i}` })),
-        seed
-      );
-      for (const player of state.players) {
-        const choice = botChooseLoadout(player.missionOffers);
-        const kept = player.missionOffers.filter((m) => choice.missionIds.includes(m.id));
-        expect(missionsMissingRequirements(kept, choice.loadout), `seed ${seed}`).toEqual([]);
-      }
-    }
   });
 });

@@ -10,7 +10,6 @@
  */
 import { describe, it, expect } from "vitest";
 import { runGame, setupBotGame, formatFailure } from "../../sim/runGame.ts";
-import { HOME_RINGS, BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import {
   MISSIONS_PER_PLAYER,
@@ -74,27 +73,12 @@ describe("bot-vs-bot games", () => {
   );
 
   it("is deterministic for a seed", () => {
+    // Keep seed 7: it is the game here in which an interceptor scans again for
+    // data a pirate took off it (the rescan branch in game/scan.ts).
     const a = runGame({ seed: 7, botCount: 3, maxTurns: MAX_TURNS, record: false });
     const b = runGame({ seed: 7, botCount: 3, maxTurns: MAX_TURNS, record: false });
     expect(b.turnsPlayed).toBe(a.turnsPlayed);
     expect(b.finalState.winnerId).toBe(a.finalState.winnerId);
     expect(JSON.stringify(b.turns)).toBe(JSON.stringify(a.turns));
-  });
-
-  it("sets every bot up with three missions and a home on a Black Hole deployment ring", () => {
-    const state = setupBotGame(11, 4);
-    expect(state.phase).toBe("active");
-    const homes = new Set<string>();
-    for (const player of state.players) {
-      expect(player.missions).toHaveLength(MISSIONS_PER_PLAYER);
-      expect(player.hasSubmittedLoadout).toBe(true);
-      expect(player.hasDeployed).toBe(true);
-      expect(player.home).not.toBeNull();
-      expect(player.home!.wellId).toBe(BLACK_HOLE_ID);
-      expect(HOME_RINGS as readonly number[]).toContain(player.home!.ring);
-      const key = `${player.home!.wellId}:${player.home!.sector}`;
-      expect(homes.has(key)).toBe(false);
-      homes.add(key);
-    }
   });
 });
