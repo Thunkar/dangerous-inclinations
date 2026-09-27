@@ -5,7 +5,7 @@ import { ShipAppearanceSchema, type ShipAppearance } from "../models/appearance.
  */
 import type { GameState, Player, ShipLoadout } from "../models/game.ts";
 import { DEFAULT_LOADOUT, MAX_PLAYERS, MIN_PLAYERS } from "../models/game.ts";
-import { HOME_RING, HOME_WELL_ID } from "../models/gravityWells.ts";
+import { HOME_RING, BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import { DEFAULT_POINTS_TO_WIN } from "../models/missions.ts";
 import { Rng, createDeterminismFields } from "../utils/rng.ts";
 import { createInitialShipState } from "./ship.ts";
@@ -25,7 +25,7 @@ export function createPlayer(spec: PlayerSpec): Player {
     id: spec.id,
     name: spec.name,
     ship: createInitialShipState(
-      { wellId: HOME_WELL_ID, ring: HOME_RING, sector: 0, facing: "prograde" },
+      { wellId: BLACK_HOLE_ID, ring: HOME_RING, sector: 0, facing: "prograde" },
       DEFAULT_LOADOUT
     ),
     missionOffers: [],
@@ -42,9 +42,8 @@ export function createPlayer(spec: PlayerSpec): Player {
 
 export interface GameOptions {
   /**
-   * Points that trigger the final round, agreed by the table before the deal:
-   * three (the default) or four. Any whole number of 2 or more is accepted so
-   * an experiment can measure one; the lobby only offers three and four.
+   * Points that trigger the final round: three at a table (the default). Any
+   * whole number of 2 or more is accepted so the simulator can measure one.
    */
   pointsToWin?: number;
 }

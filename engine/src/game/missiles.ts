@@ -11,10 +11,10 @@
  * toward its target (a step is one ring or one sector; rings close first).
  * If it ends on the target's sector it
  * attacks: a powered ballistic rack rolls against it and destroys it on a 2+,
- * otherwise it rolls to hit like any weapon. The rack rolls at every missile
- * that reaches the ship (a salvo is not stopped by one round of point defence),
- * and the whole turn of rolling is one use of the rack: the first roll costs
- * its cubes in heat and the rest are free. A missile that has moved
+ * otherwise it rolls to hit like any weapon. A rack rolls at up to
+ * `interceptsPerRack()` missiles a turn (one missiles subsystem's magazine),
+ * so a ship expecting more carries a second rack. Rolling adds no heat: the
+ * rack's cubes are already on it. A missile that has moved
  * `maxMoves` times without hitting is removed. A missile that catches a ship
  * still recovering from a respawn, or one moored at a station (RULES
  * §Stations), does neither: it slides past untouchable prey and stays in
@@ -34,7 +34,7 @@ import {
 } from "./geometry.ts";
 import { resolveAttack } from "./damage.ts";
 import { isDestroyed, updateSubsystem, useSubsystem } from "./ship.ts";
-import { isSafeAtBerth } from "./stations.ts";
+import { canBeFiredAt, isOnBoard } from "./targeting.ts";
 
 const MISSILE = getMissileStats();
 
@@ -124,7 +124,7 @@ export function missileCanReach(from: Position, target: Position): boolean {
   return false;
 }
 
-export interface MissileProcessResult {
+interface MissileProcessResult {
   state: GameState;
   events: EventDraft[];
 }
@@ -150,7 +150,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     const target = targetIndex >= 0 ? players[targetIndex] : undefined;
     const at = positionOf(missile);
 
-    if (!target || isDestroyed(target.ship) || !target.hasDeployed) {
+    if (!target || !isOnBoard(target)) {
       events.push({ type: "missile_expired", missileId: missile.id, ownerId, at });
       continue;
     }
@@ -164,7 +164,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     // fired at (RULES §Stations), so a missile that catches either neither
     // attacks nor is shot down: it stays in the air with one more move behind
     // it and burns out on schedule.
-    const untouchable = target.recovering || isSafeAtBerth(state.stations, targetPos);
+    const untouchable = !canBeFiredAt(target, state.stations);
 
     if (untouchable || !samePosition(moved, targetPos)) {
       const movesMade = missile.movesMade + 1;
@@ -200,8 +200,8 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
         s.rollsThisTurn < interceptsPerRack()
     );
     if (rack) {
-      // A turn of interceptions is one use of the rack: the first roll of a
-      // player-turn costs its cubes and the rest of that turn's rolls are free.
+      // The first roll of a player-turn uses the rack and flips it face-up.
+      // Its cubes are already on it, so no roll adds heat.
       let heat = 0;
       if (!rack.usedThisTurn) {
         const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");

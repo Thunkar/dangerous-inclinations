@@ -25,11 +25,12 @@ import type {
 } from "../models/game.ts";
 import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import type { Mission } from "../models/missions.ts";
+import { aboard } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import { getDissipationCapacity, getEffectiveCriticalChance, isDestroyed } from "./ship.ts";
 import { completedMissions } from "./missions/missionChecks.ts";
 
-export interface PublicShipView {
+interface PublicShipView {
   wellId: string;
   ring: number;
   sector: number;
@@ -67,7 +68,7 @@ export interface SlotView {
   ammo: number | null;
 }
 
-export interface FixedSystemView {
+interface FixedSystemView {
   id: SubsystemId;
   type: SubsystemType;
   isBroken: boolean;
@@ -107,7 +108,7 @@ export interface PlayerView {
   escortedBy: string[];
 }
 
-export interface OwnShipStats {
+interface OwnShipStats {
   dissipationCapacity: number;
   maxReactionMass: number;
   criticalChance: number;
@@ -208,10 +209,10 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
       })),
     slots,
     cargoAboard: {
-      crates: player.cargo.filter((c) => c.isPickedUp && c.kind === "crate").length,
-      data: player.cargo.filter((c) => c.isPickedUp && c.kind === "data").length,
+      crates: aboard(player.cargo).filter((c) => c.kind === "crate").length,
+      data: aboard(player.cargo).filter((c) => c.kind === "data").length,
     },
-    cargoCount: player.cargo.filter((c) => c.isPickedUp).length,
+    cargoCount: aboard(player.cargo).length,
     completedMissionCount: player.completedMissionCount,
     completedMissions: completedMissions(player),
     escortedBy: state.players

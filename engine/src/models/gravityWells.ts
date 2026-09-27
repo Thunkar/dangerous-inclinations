@@ -6,7 +6,7 @@ import type {
   TransferLane,
   Position,
 } from "./game.ts";
-import { SECTORS_PER_RING } from "./rings.ts";
+import { SECTORS_PER_RING, forwardDistance, wrapSector } from "./rings.ts";
 
 /**
  * Black hole: 5 rings. Inner rings are much faster.
@@ -73,13 +73,12 @@ export const GRAVITY_WELLS: GravityWell[] = [BLACK_HOLE, PLANET_ALPHA, PLANET_BE
 export const PLANETS: GravityWell[] = GRAVITY_WELLS.filter((w) => w.type === "planet");
 
 /** Everyone deploys together on one of these rings of the black hole; that sector becomes Home. */
-export const HOME_WELL_ID: GravityWellId = "blackhole";
 export const HOME_RINGS = [3, 4] as const;
 /** The outer deployment ring: where a ship whose placement names no ring goes. */
 export const HOME_RING = 4;
 /** Ring stations orbit on (planets only). Ring 1 is faster, and is the way in. */
 export const STATION_RING = 2;
-/** Black hole ring where a survey is taken. */
+/** The black hole's outer ring: all of it is lanes. */
 export const BLACK_HOLE_OUTER_RING = 5;
 export const PLANET_OUTER_RING = 4;
 
@@ -94,7 +93,7 @@ function arc(wellId: GravityWellId, ring: number, startSector: number): Transfer
  * clockwise: out to Beta (0–3), in from Alpha (4–7), out to Gamma (8–11), in
  * from Beta (12–15), out to Alpha (16–19), in from Gamma (20–23). Every
  * arrival arc is followed clockwise by the departure arc for the next planet,
- * so Alpha → Gamma → Beta → Alpha is the cheap circuit. Each planet's ring 3
+ * so Alpha → Gamma → Beta → Alpha is the cheap circuit. Each planet's ring 4
  * has two arcs (4–7 and 16–19): one you arrive on, one you leave from.
  */
 export const TRANSFER_LANES: TransferLane[] = [
@@ -176,12 +175,12 @@ export function isPlanet(wellId: GravityWellId): boolean {
 /** Offset of `sector` inside `arc`, or -1 if the position is not in the arc. */
 export function arcOffset(arc: TransferArc, position: Position): number {
   if (position.wellId !== arc.wellId || position.ring !== arc.ring) return -1;
-  const offset = (position.sector - arc.startSector + SECTORS_PER_RING) % SECTORS_PER_RING;
+  const offset = forwardDistance(arc.startSector, position.sector);
   return offset < arc.length ? offset : -1;
 }
 
 export function arcSectors(arc: TransferArc): number[] {
-  return Array.from({ length: arc.length }, (_, i) => (arc.startSector + i) % SECTORS_PER_RING);
+  return Array.from({ length: arc.length }, (_, i) => wrapSector(arc.startSector + i));
 }
 
 export interface JumpOption {
@@ -204,7 +203,7 @@ export function getJumpOptions(position: Position): JumpOption[] {
       destination: {
         wellId: to.wellId,
         ring: to.ring,
-        sector: (to.startSector + offset) % SECTORS_PER_RING,
+        sector: wrapSector(to.startSector + offset),
       },
     });
   }
@@ -244,31 +243,3 @@ export function phasedJumpDestination(
   const sector = arcSectors(arc)[offset];
   return sector === undefined ? undefined : { wellId: arc.wellId, ring: arc.ring, sector };
 }
-
-/**
- * Flat per-sector view of the lanes: one entry per departure sector.
- * Convenient for path planners that think in individual transfer points.
- */
-export interface TransferPoint {
-  laneId: string;
-  fromWellId: GravityWellId;
-  toWellId: GravityWellId;
-  fromRing: number;
-  toRing: number;
-  fromSector: number;
-  toSector: number;
-}
-
-export const TRANSFER_POINTS: TransferPoint[] = TRANSFER_LANES.flatMap((lane) => {
-  const from = laneDepartureArc(lane);
-  const to = laneArrivalArc(lane);
-  return Array.from({ length: TRANSFER_ARC_LENGTH }, (_, i) => ({
-    laneId: lane.id,
-    fromWellId: from.wellId,
-    toWellId: to.wellId,
-    fromRing: from.ring,
-    toRing: to.ring,
-    fromSector: (from.startSector + i) % SECTORS_PER_RING,
-    toSector: (to.startSector + i) % SECTORS_PER_RING,
-  }));
-});

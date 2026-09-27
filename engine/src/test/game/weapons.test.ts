@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
-import { calculateFiringSolutions, isInWeaponRange } from "../../game/targeting.ts";
+import { isInWeaponRange } from "../../game/targeting.ts";
 import { getSideFiringDirection, getSubsystemSide } from "../../game/ship.ts";
 import { missileCanReach } from "../../game/missiles.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
@@ -236,16 +236,12 @@ describe("weapons: missile range (turret)", () => {
     }
   });
 
-  it("calculateFiringSolutions reports range and distances per target", () => {
-    const solutions = calculateFiringSolutions(launcher, attackerAt(3, 0), [
-      { id: "a", position: at(5, 2) },
-      { id: "b", position: at(3, 12) },
-    ]);
-    expect(solutions).toEqual([
-      { targetId: "a", inRange: true, ringDistance: 2, sectorDistance: 2 },
-      // In range to launch at, though no missile would ever catch it.
-      { targetId: "b", inRange: true, ringDistance: 0, sectorDistance: 12 },
-    ]);
+  it.each([
+    ["two rings out, two sectors on", 5, 2],
+    // In range to launch at, though no missile would ever catch it.
+    ["across the ring", 3, 12],
+  ])("a launcher may fire at a ship %s", (_label, ring, sector) => {
+    expect(isInWeaponRange(launcher, attackerAt(3, 0), at(ring, sector))).toBe(true);
   });
 });
 

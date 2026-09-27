@@ -90,8 +90,8 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   events.push(...missiles.events);
   state = applyDestructions(state, missiles.events, events);
 
-  // Making port, or holding a berth held since last turn? Only an arrival is
-  // staked courtesy fuel (RULES §Stations).
+  // Arriving at a station, or holding a berth held since last turn? Only an
+  // arrival is a visit (RULES §Stations).
   const wasMoored = isMooredAt(gameState.stations, positionOf(active.ship));
   // The job named for the visit, if any; without one the visit does the default.
   const dockJob = actions.find((a) => a.type === "dock_job")?.data.job;

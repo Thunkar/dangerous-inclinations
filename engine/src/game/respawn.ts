@@ -1,14 +1,14 @@
 /**
  * Destruction and respawn.
  *
- * When a ship is destroyed it drops its cargo: crates return to their origin
- * station (they must be picked up again), data is lost, and seized loot
- * (which has no origin) is simply gone, to be taken again. On the owner's next
+ * When a ship is destroyed it drops its cargo: a Deliver crate returns to its
+ * origin station (it must be picked up again), and data and Piracy loot are
+ * lost, to be taken again. On the owner's next
  * turn the ship returns to their Home sector (nearest empty sector if it is
  * occupied) fully repaired and refuelled, drifts with its ring like anything
  * else in orbit, and the turn ends. It is `recovering` from then until the end
  * of the turn its owner plays next: nobody may fire at it, missile it or scan
- * it, and that turn is a first round of its own, so it allocates energy,
+ * it, and that turn is a first round of its own, so it powers subsystems,
  * rotates and moves but fires at nobody and scans nobody. Face-up tiles stay
  * face-up.
  *
@@ -19,7 +19,7 @@
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { isSecondaryMission } from "../models/missions.ts";
+import { aboard, isSecondaryMission } from "../models/missions.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { wrapSector, samePosition, positionOf } from "./geometry.ts";
 import { applyOrbitalMovement } from "./movement.ts";
@@ -33,7 +33,7 @@ export function needsRespawn(player: Player): boolean {
 export function dropCargo(player: Player): { player: Player; events: EventDraft[] } {
   const crates = player.cargo.filter((c) => c.kind === "crate");
   const data = player.cargo.filter((c) => c.kind === "data");
-  const cratesAboard = crates.filter((c) => c.isPickedUp).length;
+  const cratesAboard = aboard(crates).length;
   if (cratesAboard === 0 && data.length === 0) return { player, events: [] };
 
   // Only data still aboard is lost; data already handed in this turn stays delivered.
@@ -84,15 +84,11 @@ export function findRespawnPosition(state: GameState, home: Position, selfId: st
   return home;
 }
 
-export function createRespawnedShip(
-  previous: ShipState,
-  position: Position,
-  hull: { hitPoints: number; maxHitPoints: number } = {
+export function createRespawnedShip(previous: ShipState, position: Position): ShipState {
+  const fresh = createInitialShipState({ ...position, facing: "prograde" }, previous.loadout, {
     hitPoints: previous.maxHitPoints,
     maxHitPoints: previous.maxHitPoints,
-  }
-): ShipState {
-  const fresh = createInitialShipState({ ...position, facing: "prograde" }, previous.loadout, hull);
+  });
   const revealed = new Set(previous.subsystems.filter((s) => s.isRevealed).map((s) => s.id));
   return {
     ...fresh,

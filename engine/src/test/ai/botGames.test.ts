@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { runGame, setupBotGame, formatFailure } from "../../sim/runGame.ts";
-import { HOME_RINGS, HOME_WELL_ID } from "../../models/gravityWells.ts";
+import { HOME_RINGS, BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import type { MissionType } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER, MISSION_FAMILY } from "../../models/missions.ts";
 
@@ -69,7 +69,7 @@ describe("bot-vs-bot games", () => {
       expect(player.hasSubmittedLoadout).toBe(true);
       expect(player.hasDeployed).toBe(true);
       expect(player.home).not.toBeNull();
-      expect(player.home!.wellId).toBe(HOME_WELL_ID);
+      expect(player.home!.wellId).toBe(BLACK_HOLE_ID);
       expect(HOME_RINGS as readonly number[]).toContain(player.home!.ring);
       const key = `${player.home!.wellId}:${player.home!.sector}`;
       expect(homes.has(key)).toBe(false);

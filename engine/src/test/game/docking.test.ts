@@ -5,7 +5,7 @@ import {
   getStationForPlanet,
   isMooredAt,
   stationPosition,
-  updateStationPositions,
+  advanceStations,
 } from "../../game/stations.ts";
 import { dockJobsOnArrival } from "../../game/docking.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
@@ -76,9 +76,9 @@ describe("docking: stations", () => {
   });
 
   it("stations drift with their ring (4 sectors) when they move", () => {
-    const moved = updateStationPositions(createInitialStations());
-    expect(moved.map((s) => s.sector)).toEqual([4, 4, 4]);
-    expect(updateStationPositions(moved)[0].sector).toBe(8);
+    const moved = advanceStations(makeGameState([])).state;
+    expect(moved.stations.map((s) => s.sector)).toEqual([4, 4, 4]);
+    expect(advanceStations(moved).state.stations[0].sector).toBe(8);
   });
 
   it("getStationAt matches only the exact well, ring and sector", () => {

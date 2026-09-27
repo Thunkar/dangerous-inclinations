@@ -150,7 +150,7 @@ export interface TransferArc {
 }
 
 /**
- * A two-way lane connecting an arc on the black hole's outer ring with an
+ * A one-way lane connecting an arc on the black hole's outer ring with an
  * arc on a planet's outer ring. Jumping keeps the ship's offset inside the arc.
  */
 export interface TransferLane {
@@ -269,12 +269,6 @@ export interface WellTransferAction extends BaseAction {
   };
 }
 
-/** Deployment phase: place your ship and Home marker on a planet's outer ring. */
-export interface DeployShipAction extends BaseAction {
-  type: "deploy_ship";
-  data: { wellId: GravityWellId; sector: number };
-}
-
 /**
  * A standing order for the turn, not a tactical action: name the tile the crew
  * will get to if the ship is cold at its heat check. It has no sequence because
@@ -322,8 +316,7 @@ export type PlayerAction =
   | TacticalAction
   | RepairAction
   | DockJobAction
-  | EscortMarkAction
-  | DeployShipAction;
+  | EscortMarkAction;
 
 export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "rotate",
@@ -333,6 +326,26 @@ export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set(
   "fire_weapon",
   "scan",
   "power",
+]);
+
+/** The three moves; a turn takes at most one. */
+export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
+  "coast",
+  "burn",
+  "well_transfer",
+]);
+
+/** Standing orders: named with the turn and settled at its end, so they carry no sequence. */
+export const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
+  "repair",
+  "dock_job",
+  "escort_mark",
+]);
+
+/** Every action a turn may submit. */
+export const PLAYER_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
+  ...TACTICAL_ACTION_TYPES,
+  ...STANDING_ORDER_TYPES,
 ]);
 
 export function isTacticalAction(action: PlayerAction): action is TacticalAction {
@@ -373,7 +386,7 @@ export interface Player {
   intel: Record<string, SubsystemId[]>;
 }
 
-export type GamePhase = "lobby" | "setup" | "loadout" | "deployment" | "active" | "ended";
+export type GamePhase = "loadout" | "deployment" | "active" | "ended";
 
 export interface Station {
   id: string;
@@ -414,8 +427,8 @@ export interface GameState {
    */
   finalRound?: boolean;
   /**
-   * Points that trigger the final round, agreed by the table before the deal:
-   * three (the game) or four (all three cards mandatory). Fixed for the game.
+   * Points that trigger the final round: three at a table. Fixed for the game;
+   * the simulator may set another number to measure it.
    */
   pointsToWin: number;
   // Determinism

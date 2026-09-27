@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { MAX_HEAT, SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY } from "../../models/game.ts";
-import { calculateHeatDamage, resolveEndOfTurnHeat } from "../../game/heat.ts";
+import { resolveEndOfTurnHeat } from "../../game/heat.ts";
 import { getDissipationCapacity } from "../../game/ship.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import type { ShipLoadout } from "../../models/game.ts";
@@ -284,7 +284,8 @@ describe("heat: radiators", () => {
     expect(getDissipationCapacity(getShip(state, "p1").subsystems)).toBe(
       DEFAULT_DISSIPATION_CAPACITY
     );
-    expect(calculateHeatDamage({ ...getShip(state, "p1"), heat: { currentHeat: 12 } })).toBe(2);
+    const hot = { ...getShip(state, "p1"), heat: { currentHeat: 12 } };
+    expect(resolveEndOfTurnHeat(hot, "p1").damage).toBe(2);
   });
 
   it("a radiator that prevents heat damage is revealed", () => {

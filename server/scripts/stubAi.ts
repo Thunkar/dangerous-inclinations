@@ -10,7 +10,7 @@ import { DEFAULT_LOADOUT } from "../../engine/src/models/game.ts";
 import type { Mission } from "../../engine/src/models/missions.ts";
 import { MISSIONS_PER_PLAYER } from "../../engine/src/models/missions.ts";
 import type { GameView } from "../../engine/src/game/view.ts";
-import { HOME_RING, HOME_WELL_ID } from "../../engine/src/models/gravityWells.ts";
+import { HOME_RING, BLACK_HOLE_ID } from "../../engine/src/models/gravityWells.ts";
 // The rule itself, not the bot that reads it: engine/src/ai is exactly what
 // this stub stands in for, so nothing here may import from it.
 import { legalDeploymentsAgainst } from "../../engine/src/game/deployment.ts";
@@ -34,6 +34,6 @@ export function botChooseDeployment(
     .filter((p) => p.hasDeployed && p.ship)
     .map((p) => ({ wellId: p.ship!.wellId, ring: p.ship!.ring, sector: p.ship!.sector }));
   const legal = legalDeploymentsAgainst(placed);
-  if (legal.length === 0) return { wellId: HOME_WELL_ID, ring: HOME_RING, sector: 0 };
+  if (legal.length === 0) return { wellId: BLACK_HOLE_ID, ring: HOME_RING, sector: 0 };
   return legal[pick(legal.length)];
 }

@@ -157,8 +157,6 @@ function GameScreens({
   const { view } = useGame()
 
   switch (view.phase) {
-    case 'lobby':
-    case 'setup':
     case 'loadout':
       return <LoadoutScreen headerRight={headerRight} />
     case 'deployment':

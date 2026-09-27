@@ -18,7 +18,6 @@ import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
 import {
   addHeat,
   breakSubsystem,
-  findSubsystem,
   getEffectiveCriticalChance,
   revealSubsystem,
   updateSubsystem,
@@ -34,7 +33,7 @@ export function rollToResult(
   return roll >= threshold ? "critical" : "hit";
 }
 
-export interface AttackOutcome {
+interface AttackOutcome {
   ship: ShipState;
   hitResult: WeaponHitResult;
   events: EventDraft[];
@@ -113,23 +112,14 @@ export function resolveAttack(
   // the one best protected from being named. Absorbing first still blunts it
   // (the tile that soaked the shot spent its cubes, so breaking it dumps
   // little or no heat), but the tile is gone until a dock.
-  let criticalEffect: WeaponHitResult["criticalEffect"];
   if (result === "critical") {
-    const sub = findSubsystem(ship, criticalTarget);
-    if (sub && !sub.isBroken) {
-      const broken = breakSubsystem(ship, targetPlayerId, criticalTarget);
-      ship = broken.ship;
-      events.push(
-        ...broken.events.map((e) =>
-          e.type === "subsystem_broken" ? { ...e, by: attackerPlayerId } : e
-        )
-      );
-      criticalEffect = {
-        subsystemId: criticalTarget,
-        subsystemType: sub.type,
-        energyLost: broken.energyLost,
-      };
-    }
+    const broken = breakSubsystem(ship, targetPlayerId, criticalTarget);
+    ship = broken.ship;
+    events.push(
+      ...broken.events.map((e) =>
+        e.type === "subsystem_broken" ? { ...e, by: attackerPlayerId } : e
+      )
+    );
   }
 
   return {
@@ -141,7 +131,6 @@ export function resolveAttack(
       damage,
       damageToHull: toHull,
       damageToHeat: absorbed,
-      criticalEffect,
     },
   };
 }

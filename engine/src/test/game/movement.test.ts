@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { MAX_HEAT } from "../../models/game.ts";
-import { burnDestinationRing, projectPosition } from "../../game/movement.ts";
+import { projectPosition, ringAfter } from "../../game/movement.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { getAdjustmentRange, calculateBurnMassCost } from "../../models/rings.ts";
 import {
@@ -153,9 +153,14 @@ describe("movement: burns", () => {
     }
   );
 
-  it("burnDestinationRing still clamps as a safety net", () => {
-    expect(burnDestinationRing({ wellId: BH, ring: 5, facing: "prograde" }, "soft")).toBe(5);
-    expect(burnDestinationRing({ wellId: ALPHA, ring: 3, facing: "prograde" }, "hard")).toBe(4);
+  it.each([
+    ["one ring out from the black hole's ring 3", BH, 3, "prograde", 1, 4],
+    ["two rings in from ring 3", BH, 3, "retrograde", 2, 1],
+    ["out past the black hole's ring 5", BH, 5, "prograde", 1, null],
+    ["in past ring 1", BH, 1, "retrograde", 1, null],
+    ["out past a planet's ring 4", ALPHA, 3, "prograde", 3, null],
+  ] as const)("ringAfter: %s", (_label, wellId, ring, facing, rings, expected) => {
+    expect(ringAfter({ wellId, ring, facing }, rings)).toBe(expected);
   });
 
   it.each([

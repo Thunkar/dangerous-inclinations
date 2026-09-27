@@ -21,7 +21,7 @@ export function createInitialStations(planets: GravityWell[] = PLANETS): Station
   }));
 }
 
-export function updateStationPositions(stations: Station[]): Station[] {
+function updateStationPositions(stations: Station[]): Station[] {
   return stations.map((station) => ({
     ...station,
     sector: driftPosition({ wellId: station.planetId, ring: station.ring, sector: station.sector })

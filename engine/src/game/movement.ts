@@ -19,14 +19,17 @@ export function applyOrbitalMovement(ship: ShipState, moored = false): ShipState
   return { ...ship, sector: drifted.sector };
 }
 
-/** Ring a burn lands on. Validation rejects burns that would leave the rings; the clamp is a safety net. */
-export function burnDestinationRing(
+/**
+ * The ring `rings` steps from the ship's own in its facing direction
+ * (prograde = outward, retrograde = inward), or null when that would leave
+ * the well's rings. A burn and a railgun's recoil move this way.
+ */
+export function ringAfter(
   ship: Pick<ShipState, "wellId" | "ring" | "facing">,
-  intensity: BurnIntensity
-): number {
-  const direction = ship.facing === "prograde" ? 1 : -1;
-  const destination = ship.ring + direction * BURN_COSTS[intensity].rings;
-  return Math.max(1, Math.min(getMaxRing(ship.wellId), destination));
+  rings: number
+): number | null {
+  const ring = ship.ring + (ship.facing === "prograde" ? 1 : -1) * rings;
+  return ring >= 1 && ring <= getMaxRing(ship.wellId) ? ring : null;
 }
 
 /**
@@ -43,7 +46,8 @@ export function applyBurn(
     ship: {
       ...ship,
       reactionMass: ship.reactionMass - massSpent,
-      ring: burnDestinationRing(ship, intensity),
+      // Validation refuses a burn off the rings; a preview of one stays put.
+      ring: ringAfter(ship, BURN_COSTS[intensity].rings) ?? ship.ring,
       sector: wrapSector(ship.sector + sectorAdjustment),
     },
     massSpent,

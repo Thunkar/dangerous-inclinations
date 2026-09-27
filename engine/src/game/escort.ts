@@ -8,6 +8,7 @@
  */
 import type { Player, Position, Station } from "../models/game.ts";
 import type { EscortMission, Mission } from "../models/missions.ts";
+import { aboard } from "../models/missions.ts";
 import type { GameView } from "./view.ts";
 import { positionOf, samePosition } from "./geometry.ts";
 import { isMooredAt } from "./stations.ts";
@@ -27,10 +28,10 @@ export function unplacedEscorts(missions: readonly Mission[]): EscortMission[] {
   );
 }
 
-/** The ships this hand's undone Escort markers already sit on. */
-function markedBy(missions: readonly Mission[]): Set<string> {
+/** The ships this player's undone Escort markers sit on. */
+export function markedBy(player: { missions: readonly Mission[] }): Set<string> {
   return new Set(
-    missions.flatMap((m) =>
+    player.missions.flatMap((m) =>
       m.type === "escort" && !m.isCompleted && m.markedPlayerId !== null ? [m.markedPlayerId] : []
     )
   );
@@ -52,7 +53,7 @@ function candidates(
   if (unplacedEscorts(missions).length === 0) return [];
   // Same sector means same berth: a carrier moored there is the escort moored there.
   if (isMooredAt(stations, position)) return [];
-  const taken = markedBy(missions);
+  const taken = markedBy({ missions });
   const self = seats.findIndex((s) => s.id === escortId);
   const out: string[] = [];
   for (let step = 1; step < seats.length; step++) {
@@ -99,7 +100,7 @@ export function escortCandidatesAtEndOfTurn(
   const seats: EscortSeat[] = players.map((p) => ({
     id: p.id,
     position: p.hasDeployed && !isDestroyed(p.ship) ? positionOf(p.ship) : null,
-    carrying: p.cargo.some((c) => c.isPickedUp),
+    carrying: aboard(p.cargo).length > 0,
   }));
   return candidates(seats, stations, escortId, escort.missions, positionOf(escort.ship));
 }

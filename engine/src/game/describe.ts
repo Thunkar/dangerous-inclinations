@@ -7,8 +7,9 @@ import { TANKER_FUEL } from "../models/missions.ts";
 import type { Position } from "../models/game.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { getWellName } from "../models/gravityWells.ts";
+import { COMPRESSED_JUMP_MASS, WELL_TRANSFER_COSTS } from "../models/rings.ts";
 
-export type NameResolver = (playerId: string) => string;
+type NameResolver = (playerId: string) => string;
 
 function pos(p: Position): string {
   return `${getWellName(p.wellId)} R${p.ring} S${p.sector}`;
@@ -57,7 +58,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
   const sub = (t: Parameters<typeof getSubsystemConfig>[0]) => getSubsystemConfig(t).name;
   switch (e.type) {
     case "respawned":
-      return `${name(e.playerId)} returns to port at ${pos(e.position)}`;
+      return `${name(e.playerId)} returns Home at ${pos(e.position)}`;
     case "subsystem_powered":
       return `${name(e.playerId)} powers ${e.subsystemType ? sub(e.subsystemType) : e.subsystemId} at ${e.amount}`;
     case "rotated":
@@ -76,7 +77,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
         ? `, phased ${e.sectorAdjustment > 0 ? "+" : ""}${e.sectorAdjustment} in the arc`
         : "";
       const fuel = e.compressed
-        ? ` (-${e.massSpent} fuel; the compressor pays two of the lane's three)`
+        ? ` (-${e.massSpent} fuel; the compressor pays ${WELL_TRANSFER_COSTS.mass - COMPRESSED_JUMP_MASS} of the lane's ${WELL_TRANSFER_COSTS.mass})`
         : ` (-${e.massSpent} fuel)`;
       return `${name(e.playerId)} jumps to ${pos(e.to)}${phased}${fuel}${heat(e.heat)}`;
     }

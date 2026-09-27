@@ -49,7 +49,7 @@ import {
 } from "../../models/missions.ts";
 import { MAX_PLAYERS } from "../../models/game.ts";
 import { PLANETS, TRANSFER_LANES } from "../../models/gravityWells.ts";
-import { SECTORS_PER_RING } from "../../models/rings.ts";
+import { wrapSector } from "../../models/rings.ts";
 import type { Rng } from "../../utils/rng.ts";
 
 /** Copies of each distinct card in the printed primary deck. */
@@ -210,7 +210,7 @@ export function circuitRoutes(planetIds: readonly string[]): Array<[string, stri
       (lane) => lane.planetId === pickup && lane.direction === "inbound"
     );
     if (!inbound) continue;
-    const next = (inbound.blackHoleArc.startSector + inbound.blackHoleArc.length) % SECTORS_PER_RING;
+    const next = wrapSector(inbound.blackHoleArc.startSector + inbound.blackHoleArc.length);
     const outbound = TRANSFER_LANES.find(
       (lane) =>
         lane.direction === "outbound" &&

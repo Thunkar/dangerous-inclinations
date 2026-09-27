@@ -1,8 +1,8 @@
 /**
  * Action validators. Each returns a list of error messages (empty = valid)
  * and never mutates state. Processors call the matching validator on the
- * current state right before applying each action, so range and energy checks
- * see the ship as it is at that point in the sequence.
+ * current state right before applying each action, so range, fuel and
+ * "one thing a turn" checks see the ship as it is at that point in the sequence.
  */
 import type {
   GameState,
@@ -19,7 +19,13 @@ import type {
   ScanAction,
   WellTransferAction,
 } from "../models/game.ts";
-import { isOpeningRound, isQuietTurn, isTacticalAction } from "../models/game.ts";
+import {
+  MOVE_ACTION_TYPES,
+  PLAYER_ACTION_TYPES,
+  isOpeningRound,
+  isQuietTurn,
+  isTacticalAction,
+} from "../models/game.ts";
 import {
   energyStepOf,
   getSubsystemConfig,
@@ -34,28 +40,13 @@ import {
   calculateBurnMassCost,
   calculateJumpMassCost,
 } from "../models/rings.ts";
-import { findJump, getJumpAdjustmentRange, getMaxRing } from "../models/gravityWells.ts";
+import { findJump, getJumpAdjustmentRange } from "../models/gravityWells.ts";
 import { DOCK_JOBS, SCAN_SECTOR_RANGE } from "../models/missions.ts";
-import { positionOf, ringVelocity, sectorDistance } from "./geometry.ts";
-import { findSubsystem, hasWorkingCompressor, isDestroyed } from "./ship.ts";
-import { isInWeaponRange } from "./targeting.ts";
-import { isSafeAtBerth } from "./stations.ts";
-import { findReadySensor } from "./scan.ts";
-
-const MOVE_TYPES = new Set<PlayerAction["type"]>(["coast", "burn", "well_transfer"]);
-
-const ACTIVE_ACTION_TYPES = new Set<string>([
-  "rotate",
-  "coast",
-  "burn",
-  "well_transfer",
-  "fire_weapon",
-  "scan",
-  "power",
-  "repair",
-  "dock_job",
-  "escort_mark",
-]);
+import { positionOf, ringVelocity } from "./geometry.ts";
+import { findSubsystem, hasWorkingCompressor, requestedDraw } from "./ship.ts";
+import { ringAfter } from "./movement.ts";
+import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange, isOnBoard } from "./targeting.ts";
+import { findReadySensor, inScanRange } from "./scan.ts";
 
 export function validateActionSequence(actions: PlayerAction[]): string[] {
   const errors: string[] = [];
@@ -63,7 +54,7 @@ export function validateActionSequence(actions: PlayerAction[]): string[] {
     if (
       !a ||
       typeof a !== "object" ||
-      !ACTIVE_ACTION_TYPES.has((a as { type?: unknown }).type as string)
+      !PLAYER_ACTION_TYPES.has((a as { type?: unknown }).type as PlayerAction["type"])
     ) {
       errors.push(`Unknown or disallowed action type: ${String((a as { type?: unknown })?.type)}`);
     }
@@ -89,7 +80,7 @@ export function validateActionSequence(actions: PlayerAction[]): string[] {
     }
   }
 
-  const moves = tactical.filter((a) => MOVE_TYPES.has(a.type));
+  const moves = tactical.filter((a) => MOVE_ACTION_TYPES.has(a.type));
   if (moves.length > 1) errors.push("Only one movement action per turn (coast, burn or jump)");
 
   return errors;
@@ -129,7 +120,7 @@ export function validatePowerAction(state: GameState, action: PowerAction): stri
       `${config.name} has already been used or powered this turn: a subsystem does one thing a turn`,
     ];
 
-  const amount = action.data.amount ?? config.minEnergy;
+  const amount = requestedDraw(sub.type, action.data.amount);
   if (!Number.isInteger(amount)) return [`${config.name} is powered with a whole number of cubes`];
   const errors: string[] = [];
   if (amount < config.minEnergy)
@@ -190,8 +181,7 @@ export function validateBurnAction(state: GameState, action: BurnAction): string
     }
   }
   // A burn changes exactly its number of rings; there is no partial burn off the edge.
-  const target = player.ship.ring + (player.ship.facing === "prograde" ? 1 : -1) * cost.rings;
-  if (target < 1 || target > getMaxRing(player.ship.wellId)) {
+  if (ringAfter(player.ship, cost.rings) === null) {
     errors.push(
       `A ${action.data.burnIntensity} burn ${player.ship.facing === "prograde" ? "outward" : "inward"} from ring ${player.ship.ring} would leave the rings`
     );
@@ -213,13 +203,12 @@ function validateTarget(
   if (targetId === attacker.id) return { errors: ["Cannot target yourself"] };
   const target = findPlayer(state, targetId);
   if (!target) return { errors: [`Target ${targetId} not found`] };
-  if (!target.hasDeployed || isDestroyed(target.ship))
-    return { errors: [`${target.name} is not on the board`] };
+  if (!isOnBoard(target)) return { errors: [`${target.name} is not on the board`] };
   // Just back from Home: untouchable until their returning turn is over
   // (RULES §Destruction and Respawn). Both a shot and a scan are refused,
   // which is the whole point: a ship that returns to a sector everyone knows
   // must not be a free kill.
-  if (target.recovering)
+  if (!canBeScanned(target))
     return { errors: [`${target.name} cannot be touched until their next turn is over`] };
   return { errors: [], target };
 }
@@ -246,7 +235,7 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
   // A moored ship neither fires nor is fired at (RULES §Stations). Where the
   // ship is when the action comes up is what counts: burn off the berth first
   // and the shot after the move is fine.
-  if (isSafeAtBerth(state.stations, positionOf(player.ship)))
+  if (!canFireFrom(player.ship, state.stations))
     return ["A moored ship fires at nobody: burn off the berth first"];
   const weapon = findSubsystem(player.ship, action.data.subsystemId);
   if (!weapon) return [`Weapon ${action.data.subsystemId} not found`];
@@ -283,7 +272,7 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
   );
   errors.push(...targetErrors);
   // Scans still reach a berth; only weapons are refused, missiles included.
-  if (target && isSafeAtBerth(state.stations, positionOf(target.ship)))
+  if (target && !canBeFiredAt(target, state.stations))
     errors.push(`${target.name} is moored: nobody fires at a ship at a berth`);
   if (target) {
     if (!isInWeaponRange(weapon, player.ship, positionOf(target.ship))) {
@@ -302,8 +291,7 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
       if (player.ship.reactionMass < BURN_COSTS.soft.mass)
         errors.push("Not enough reaction mass to compensate recoil (need 1)");
     } else {
-      const recoilRing = player.ship.ring + (player.ship.facing === "prograde" ? 1 : -1);
-      if (recoilRing < 1 || recoilRing > getMaxRing(player.ship.wellId)) {
+      if (ringAfter(player.ship, 1) === null) {
         errors.push("Recoil would push the ship off the rings; compensate with engines or rotate");
       }
     }
@@ -368,10 +356,14 @@ export function validateScanAction(state: GameState, action: ScanAction): string
     ];
   const { errors, target } = validateTarget(state, player, action.data.targetPlayerId);
   if (!target) return errors;
-  if (target.ship.wellId !== player.ship.wellId || target.ship.ring !== player.ship.ring) {
-    errors.push(`${target.name} must be on your ring to scan`);
-  } else if (sectorDistance(player.ship.sector, target.ship.sector) > SCAN_SECTOR_RANGE) {
-    errors.push(`${target.name} must be within ${SCAN_SECTOR_RANGE} sectors to scan`);
+  if (!inScanRange(positionOf(player.ship), positionOf(target.ship))) {
+    const sameRing =
+      target.ship.wellId === player.ship.wellId && target.ship.ring === player.ship.ring;
+    errors.push(
+      sameRing
+        ? `${target.name} must be within ${SCAN_SECTOR_RANGE} sectors to scan`
+        : `${target.name} must be on your ring to scan`
+    );
   }
   const slot = findSubsystem(target.ship, action.data.peekSlot);
   if (!slot || slot.slotGroup === undefined) {
