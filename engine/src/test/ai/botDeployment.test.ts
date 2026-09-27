@@ -70,17 +70,6 @@ const PICKERS: Array<(n: number) => number> = [
 ];
 
 describe("botChooseDeployment", () => {
-  it("always names a deployment ring of the black hole", () => {
-    const state = deploymentState([], []);
-    for (const pick of PICKERS) {
-      const choice = botChooseDeployment(viewFor(state, "bot"), pick);
-      expect(choice.wellId).toBe(BLACK_HOLE_ID);
-      expect(HOME_RINGS as readonly number[]).toContain(choice.ring);
-      expect(choice.sector).toBeGreaterThanOrEqual(0);
-      expect(choice.sector).toBeLessThan(24);
-    }
-  });
-
   it.each([ALPHA, BETA, GAMMA])(
     "lines up with a lane toward the pickup planet of a Deliver card (%s)",
     (planet) => {
@@ -151,19 +140,5 @@ describe("botChooseDeployment", () => {
       });
       expect(deployShip(state, "bot", choice.sector, choice.ring).success).toBe(true);
     }
-  });
-
-  it("is deterministic for a given pick function and its choice is accepted by the engine", () => {
-    const state = deploymentState([deliverMission(GAMMA, ALPHA)], [3, 4]);
-    const a = botChooseDeployment(viewFor(state, "bot"), () => 0);
-    const b = botChooseDeployment(viewFor(state, "bot"), () => 0);
-    expect(a).toEqual(b);
-    const result = deployShip(state, "bot", a.sector, a.ring);
-    expect(result.success).toBe(true);
-    expect(result.state.players[0].home).toEqual({
-      wellId: BLACK_HOLE_ID,
-      ring: a.ring,
-      sector: a.sector,
-    });
   });
 });

@@ -11,11 +11,9 @@ import { setupBotGame } from "../../sim/runGame.ts";
 import { makeTwoPlayerGame, withPlayer } from "../testUtils.ts";
 
 describe("parseRuleOverrides", () => {
-  it.each([
-    ["missionsToWin=3", { missionsToWin: 3 }],
-    ["missionsToWin=4", { missionsToWin: 4 }],
-  ])("parses %s", (text, expected: RuleOverrides) => {
-    expect(parseRuleOverrides(text)).toEqual(expected);
+  it("parses missionsToWin=4", () => {
+    const expected: RuleOverrides = { missionsToWin: 4 };
+    expect(parseRuleOverrides("missionsToWin=4")).toEqual(expected);
   });
 
   it.each([

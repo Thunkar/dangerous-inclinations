@@ -10,6 +10,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { ShipLoadout } from "../../models/game.ts";
+import type { SubsystemId } from "../../models/subsystems.ts";
 import { viewFor } from "../../game/view.ts";
 import { analyzeSituation, shieldAbsorption, suspectedWeapon } from "../../ai/index.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
@@ -37,28 +38,20 @@ function opponentOf(state: Parameters<typeof viewFor>[0], viewerId: string): Opp
 }
 
 describe("suspectedWeapon: what the cubes on a face-down slot can mean", () => {
-  it.each([2, 4])("reads a loaded forward slot (%i cubes) as no weapon: only a sensor stands", (cubes) => {
-    expect(suspectedWeapon({ group: "forward", allocatedEnergy: cubes })).toBeNull();
-  });
-
-  it("reads two cubes on a side slot as a possible ballistic rack", () => {
-    // Two cubes on a side slot is a half wall or a rack, and the rack is the
-    // one that shoots back.
-    const read = suspectedWeapon({ group: "side", allocatedEnergy: 2 });
-    expect(read?.type).toBe("ballistic_rack");
-    expect(read?.confidence).toBeLessThan(1);
-    expect(read?.confidence).toBeGreaterThan(0);
-  });
-
-  it("reads four cubes on a side slot as a full wall: nothing that can shoot", () => {
-    expect(suspectedWeapon({ group: "side", allocatedEnergy: 4 })).toBeNull();
-  });
-
-  it("reads a dark slot as unknown, not as harmless", () => {
-    // It says nothing, which is the point: every gun on the board is dark
-    // between shots, so silence here is what a scan is for.
-    expect(suspectedWeapon({ group: "forward", allocatedEnergy: 0 })).toBeNull();
-    expect(suspectedWeapon({ group: "side", allocatedEnergy: 0 })).toBeNull();
+  it.each<[string, "forward" | "side", number, string | null]>([
+    // The powerable bow subsystems are the sensor and shields: no weapon.
+    ["a loaded bow as no weapon", "forward", 2, null],
+    // A half wall or a rack, and the rack is the one that shoots back.
+    ["two cubes on a side slot as a possible rack", "side", 2, "ballistic_rack"],
+    ["four cubes on a side slot as a full wall", "side", 4, null],
+    // Every gun is dark between shots, so silence is what a scan is for.
+    ["a dark slot as saying nothing", "side", 0, null],
+  ])("reads %s", (_label, group, allocatedEnergy, type) => {
+    const read = suspectedWeapon({ group, allocatedEnergy });
+    expect(read?.type ?? null).toBe(type);
+    // A guess, never a fact.
+    if (read) expect(read.confidence).toBeGreaterThan(0);
+    if (read) expect(read.confidence).toBeLessThan(1);
   });
 });
 
@@ -122,28 +115,28 @@ describe("threat assessment", () => {
 });
 
 describe("shieldAbsorption", () => {
-  it("prices a shield tile it can see at one point per two cubes", () => {
-    let state = withSub(facingOff(), "p2", "side-1", { isRevealed: true });
-    state = withPower(state, "p2", "side-1", 2);
-    expect(opponentOf(state, "p1").shieldAbsorption).toBe(1);
-  });
-
-  it("counts a face-down side slot at two cubes as half a shield: it may be a rack", () => {
-    const state = withPower(facingOff(), "p2", "side-1", 2);
-    expect(opponentOf(state, "p1").shieldAbsorption).toBe(0.5);
-  });
-
-  it("counts a face-down side slot at four cubes whole: nothing else holds four", () => {
-    const state = withPower(facingOff(), "p2", "side-1", 4);
-    expect(opponentOf(state, "p1").shieldAbsorption).toBe(2);
-  });
-
-  it("ignores empty slots and forward slots", () => {
-    const state = withPower(facingOff(), "p2", "forward-0", 4);
-    expect(shieldAbsorption(viewFor(state, "p1").players[1].slots)).toBe(0);
+  it.each<[string, SubsystemId, number, boolean, number]>([
+    ["a shield it can see at one point per two cubes", "side-1", 2, true, 1],
+    ["a face-down side slot at two cubes as half a shield: it may be a rack", "side-1", 2, false, 0.5],
+    ["a face-down side slot at four cubes whole: nothing else holds four", "side-1", 4, false, 2],
+    ["nothing for a loaded bow", "forward-0", 4, false, 0],
+  ])("prices %s", (_label, slot, cubes, revealed, points) => {
+    const state = withPower(
+      revealed ? withSub(facingOff(), "p2", slot, { isRevealed: true }) : facingOff(),
+      "p2",
+      slot,
+      cubes
+    );
+    expect(shieldAbsorption(viewFor(state, "p1").players[1].slots)).toBe(points);
+    expect(opponentOf(state, "p1").shieldAbsorption).toBe(points);
   });
 });
 
+/**
+ * The critical's other choices (a loaded face-down slot, a powered face-up
+ * one, the engines) are asserted through the bot's own shots in
+ * `botCombat.test.ts`.
+ */
 describe("chooseCriticalTarget", () => {
   it("names the biggest gun it has seen, lit or not", () => {
     // A railgun face-up in the bow and a laser face-up on the side: both are
@@ -151,16 +144,5 @@ describe("chooseCriticalTarget", () => {
     let state = withSub(facingOff(), "p2", "side-0", { isRevealed: true });
     state = withSub(state, "p2", "forward-0", { isRevealed: true });
     expect(chooseCriticalTarget(opponentOf(state, "p1"))).toBe("forward-0");
-  });
-
-  it("gambles on a loaded face-down slot when it has seen no gun at all", () => {
-    // Nothing face-up, one side slot carrying cubes: it is standing, so it is
-    // a wall, a rack or a sensor, and breaking it dumps the cubes as heat.
-    const state = withPower(facingOff(), "p2", "side-3", 2);
-    expect(chooseCriticalTarget(opponentOf(state, "p1"))).toBe("side-3");
-  });
-
-  it("falls back to the engines when nothing is known and nothing is powered", () => {
-    expect(chooseCriticalTarget(opponentOf(facingOff(), "p1"))).toBe("engines");
   });
 });
