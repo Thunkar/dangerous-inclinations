@@ -9,8 +9,14 @@ import type { GameEvent } from "../models/events.ts";
  * v5: a shuffled secondary pile with Escort and Salvage; the state carries `wrecks`,
  *     and an Escort marker is placed by choice with the `escort_mark` action.
  * v6: `fuel_sold` is `fuel_pumped`; a destroyed ship's missiles are removed.
+ * v7: `Player.points` and `mission_completed.points`; Survey has no station and
+ *     Intercept and Survey no taken flag (the data aboard says it); tiles carry
+ *     no `isPowered`; missiles no `turnFired`; `heat_damage` is folded into
+ *     `heat_check`; the radiator's reveal reason is `shed_heat`;
+ *     `missile_intercepted` has no heat and a missile's `attack_resolved` names
+ *     it; a kill removes loot instead of leaving it un-picked.
  */
-export const RECORDING_SCHEMA_VERSION = 6;
+export const RECORDING_SCHEMA_VERSION = 7;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made
