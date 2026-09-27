@@ -38,7 +38,6 @@ export interface TurnExecutedPayload extends ViewPayload {
   turnNumber: number;
   /** Only present when the recipient is the actor. */
   actions?: PlayerAction[];
-  rewind?: true;
 }
 
 export interface TurnErrorPayload {

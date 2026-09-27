@@ -130,7 +130,7 @@ export interface RecordingService {
   /** Keep turns 0..throughTurnIndex (inclusive); -1 keeps none. Clears any final state. */
   truncate(gameId: string, throughTurnIndex: number): Promise<void>;
   finalize(gameId: string, finalState: GameState, endReason: RecordingMetadata["endReason"]): Promise<GameRecording | null>;
-  /** True once the game was finalized (archived, or archiving); rewind is refused then. */
+  /** True once the game was finalized (archived, or archiving). */
   isFinalized(gameId: string): Promise<boolean>;
   /** Re-run archive writes that failed. Called on reads of ended games and on the health tick. */
   retryPendingFinalizations(): Promise<{ archived: number; pending: number }>;

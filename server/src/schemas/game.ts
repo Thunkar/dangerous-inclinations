@@ -44,13 +44,6 @@ export const DeploySchema = z
   })
   .strict();
 
-export const RewindSchema = z
-  .object({
-    /** -1 = the initial (post-deployment) state. */
-    turnIndex: z.number().int().finite().min(-1),
-  })
-  .strict();
-
 export const ForkSchema = z
   .object({
     recordingId: z.string().min(1),

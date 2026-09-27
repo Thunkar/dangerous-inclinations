@@ -1088,28 +1088,6 @@ async function freshGame(archive: RecordingArchive | null = null) {
   }
 }
 
-// --- Rewind is a live-game tool ----------------------------------------------
-{
-  const archived: GameRecording[] = [];
-  const archive: RecordingArchive = {
-    list: async () => [],
-    load: async (id) => archived.find((r) => r.recordingId === id) ?? null,
-    write: async (r) => {
-      archived.push(r);
-    },
-  };
-  const live = await freshGame(archive);
-  const at = await live.games.getView(live.gameId, HUMAN);
-  await live.games.submitTurn(live.gameId, HUMAN, [], { turn: at!.turn, activePlayerId: HUMAN });
-  check((await live.games.rewindGame(live.gameId, HUMAN, -1)).ok, "a live game can be rewound");
-
-  const ended = { ...(await live.games.getGame(live.gameId))!, phase: "ended" as const, winnerId: HUMAN };
-  await live.kv.set(`game:${live.gameId}`, serializeGame(ended));
-  await live.recordings.finalize(live.gameId, ended, "victory");
-  check(archived.length === 1, "the finished game was archived");
-  check(!(await live.games.rewindGame(live.gameId, HUMAN, -1)).ok, "a finished, published game cannot be rewound");
-}
-
 // --- Report ------------------------------------------------------------------
 console.log(`\nsmoke: ${toHuman.length} messages to the human`);
 for (const [type, count] of [...messageCounts].sort()) console.log(`  ${type.padEnd(14)} ${count}`);

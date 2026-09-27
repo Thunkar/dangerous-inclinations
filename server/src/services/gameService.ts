@@ -1,6 +1,6 @@
 /**
  * Live game orchestration: setup (loadout, deployment), turns, bots, and the
- * rewind/fork dev tools. All rules come from the engine; this module owns
+ * fork dev tool. All rules come from the engine; this module owns
  * persistence, ordering and who gets told what.
  *
  * Clients never receive a GameState. Every outgoing message carries
@@ -812,67 +812,6 @@ export function createGameService(deps: GameServiceDeps) {
         const humans = await getHumanPlayerIds(gameId);
         if (!humansAreRegistered(gameId, state, humans)) return;
         await runBotTurns(gameId, state, humans);
-      });
-    },
-
-    /**
-     * Dev tool: restore a live game to a recorded snapshot (`-1` = the initial
-     * active state) and drop the turns after it.
-     *
-     * Refused once the game is finished and its recording finalized: that
-     * recording is served by the public API, and rewinding would rewrite a
-     * published game. Rewind is a live-game tool only.
-     */
-    rewindGame(
-      gameId: string,
-      playerId: string,
-      turnIndex: number
-    ): Promise<Result<{ view: GameView }>> {
-      return withGameLock(gameId, async () => {
-        const state = await loadState(gameId);
-        if (!state) return { ok: false, error: "Game not found" };
-        if (state.phase === "ended" && (await recordings.isFinalized(gameId))) {
-          return {
-            ok: false,
-            error: "This game is finished and its recording is published; fork it instead",
-          };
-        }
-        const recording = await recordings.load(gameId);
-        if (!recording) return { ok: false, error: "No recording for this game" };
-        const stale = staleRecordingReason(recording);
-        if (stale) return { ok: false, error: stale };
-        if (turnIndex < -1 || turnIndex >= recording.turns.length) {
-          return {
-            ok: false,
-            error: `turnIndex ${turnIndex} out of range (-1..${recording.turns.length - 1})`,
-          };
-        }
-        const snapshot =
-          turnIndex === -1
-            ? recording.initialState
-            : recording.turns[turnIndex].resultingStateSnapshot;
-        if (snapshot.phase !== "active" && snapshot.phase !== "ended") {
-          return { ok: false, error: `Cannot rewind into a "${snapshot.phase}" snapshot` };
-        }
-        const restored: GameState = { ...snapshot, phase: "active", winnerId: undefined };
-
-        await recordings.truncate(gameId, turnIndex);
-        await saveState(gameId, restored);
-        transport.broadcastViews(gameId, (recipient) => ({
-          type: "TURN_EXECUTED",
-          payload: {
-            ...viewPayload(restored, recipient, []),
-            playerId,
-            turnNumber: restored.turn,
-            rewind: true,
-          },
-        }));
-
-        const humans = await getHumanPlayerIds(gameId);
-        if (!humansAreRegistered(gameId, restored, humans))
-          return { ok: true, view: viewFor(restored, playerId) };
-        const next = await runBotTurns(gameId, restored, humans);
-        return { ok: true, view: viewFor(next, playerId) };
       });
     },
 

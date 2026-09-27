@@ -59,7 +59,6 @@ information) and the simulator can still play a batch at another number
 | POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` (at most 64) | `{ ok, errors?, events? }` (dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn) |
 | GET | `/api/games/:gameId/chat` | none | `{ messages: ChatMessage[] }` (table talk, oldest first) |
 | POST | `/api/games/:gameId/chat` | `{ text, kind?: "say" \| "think" }` | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning, shown to humans, not fed to other agents |
-| POST | `/api/games/:gameId/rewind` | `{ turnIndex: number }` | `{ view }` (dev tool, called by hand: no client sends it; `-1` is the start of the active phase; live games only, refused once a game is finalized) |
 | POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` (all required) | `{ gameId, view }` (archived recordings of the current schema only; the seat must be your own original seat or a bot's) |
 | GET | `/api/health` | none | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }` |
 | GET | `/api/recordings` | none | `{ recordings: { recordingId, createdAt, source, turnCount, winnerId?, label? }[] }`: the **finished** recordings made under the current recording schema, newest first |
@@ -82,8 +81,7 @@ Server → client:
     events: GameEvent[],       // this turn's events, filtered for this recipient
     playerId: string,          // who acted
     turnNumber: number,
-    actions?: PlayerAction[],  // only included when recipient === playerId
-    rewind?: true } }
+    actions?: PlayerAction[] } }  // actions only included when recipient === playerId
 { type: "TURN_ERROR", payload: { error?: string, errors?: string[] } }
   // only to the submitter
 { type: "CHAT", payload: { id, gameId, playerId, name, kind: "say" | "think", text, turn, at } }
@@ -176,8 +174,8 @@ leaves its seat where it is and announces nothing.
 Live recordings hold full states and stay private until the game ends. The
 recordings API only lists and serves finalized recordings. A recording whose
 `schemaVersion` is not the engine's `RECORDING_SCHEMA_VERSION` was made under
-other rules: it is left out of the list and refused by replay, fork and
-rewind, never migrated.
+other rules: it is left out of the list and refused by replay and fork,
+never migrated.
 
 A live game is stored with the same stamp, and one saved under other rules
 is refused the same way: `410 { error }` on REST, the game socket closed

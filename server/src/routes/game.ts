@@ -8,7 +8,6 @@ import {
   ForkSchema,
   LoadoutSubmissionSchema,
   PreviewSchema,
-  RewindSchema,
 } from "../schemas/game.ts";
 import type { PlayerAction } from "@dangerous-inclinations/engine";
 
@@ -156,24 +155,6 @@ export async function gameRoutes(fastify: FastifyInstance) {
       member.playerId,
       body.data.sector,
       body.data.ring
-    );
-    if (!result.ok) return reply.code(400).send({ error: result.error });
-    return reply.send({ view: result.view });
-  });
-
-  // Dev tool: rewind the game to a recorded turn. Connected players get a
-  // TURN_EXECUTED with `rewind: true`; bots continue if one is to act.
-  fastify.post<GameRequest>("/api/games/:gameId/rewind", async (request, reply) => {
-    const member = await requireMember(request, reply);
-    if (!member) return;
-    const body = RewindSchema.safeParse(request.body);
-    if (!body.success)
-      return reply.code(400).send({ error: "Invalid request", details: body.error.errors });
-
-    const result = await gameService.rewindGame(
-      member.gameId,
-      member.playerId,
-      body.data.turnIndex
     );
     if (!result.ok) return reply.code(400).send({ error: result.error });
     return reply.send({ view: result.view });
