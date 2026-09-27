@@ -96,7 +96,7 @@ export function heatFromCubes(subsystems: ReadonlyArray<Subsystem>): number {
 
 /** Critical chance in percentage points: base plus each powered, working sensor array. */
 export function getEffectiveCriticalChance(subsystems: ReadonlyArray<Subsystem>): number {
-  const bonus = SUBSYSTEM_CONFIGS.sensor_array.passiveEffect?.criticalChanceBonus ?? 0;
+  const bonus = SUBSYSTEM_CONFIGS.sensor_array.criticalChanceBonus ?? 0;
   const count = subsystems.filter(
     (s) => s.type === "sensor_array" && isPowered(s) && !s.isBroken
   ).length;
@@ -109,7 +109,7 @@ export function getEffectiveCriticalChance(subsystems: ReadonlyArray<Subsystem>)
  */
 export function workingCompressors(ship: ShipState): Subsystem[] {
   return ship.subsystems.filter(
-    (s) => !s.isBroken && getSubsystemConfig(s.type).passiveEffect?.refuelOnWellTransfer === true
+    (s) => !s.isBroken && getSubsystemConfig(s.type).passiveEffect?.cheapensJump === true
   );
 }
 

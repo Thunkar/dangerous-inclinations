@@ -132,11 +132,11 @@ export interface WeaponStats {
   maxMoves?: number; // Guided projectiles: moves before expiry
 }
 
-/** Passive bonuses that need no energy. */
+/** Passive bonuses that need no energy: the tile works while it is aboard and unbroken. */
 export interface PassiveEffect {
   dissipationBonus?: number;
-  criticalChanceBonus?: number; // percentage points, only while powered
-  refuelOnWellTransfer?: boolean;
+  /** A jump costs COMPRESSED_JUMP_MASS fuel instead of the lane's full price. */
+  cheapensJump?: boolean;
 }
 
 export interface SubsystemConfig {
@@ -153,6 +153,8 @@ export interface SubsystemConfig {
   slotType: SlotType;
   isPassive?: boolean;
   passiveEffect?: PassiveEffect;
+  /** Sensor array: percentage points of critical chance while it has energy on it. */
+  criticalChanceBonus?: number;
   weaponStats?: WeaponStats;
 }
 
@@ -222,7 +224,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     minEnergy: 2,
     maxEnergy: 2,
     slotType: "forward",
-    passiveEffect: { criticalChanceBonus: 20 },
+    criticalChanceBonus: 20,
   },
 
   laser: {
@@ -279,7 +281,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     maxEnergy: 0,
     slotType: "forward",
     isPassive: true,
-    passiveEffect: { refuelOnWellTransfer: true },
+    passiveEffect: { cheapensJump: true },
   },
 
   missiles: {

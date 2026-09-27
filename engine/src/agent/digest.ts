@@ -80,7 +80,7 @@ const critFrom = (bonus: number) => {
   return 10;
 };
 const CRIT = critFrom(0);
-const SENSOR_CRIT = critFrom(SUBSYSTEM_CONFIGS.sensor_array.passiveEffect?.criticalChanceBonus ?? 0);
+const SENSOR_CRIT = critFrom(SUBSYSTEM_CONFIGS.sensor_array.criticalChanceBonus ?? 0);
 const burnLine = (i: keyof typeof BURN_COSTS) =>
   `${i} ${BURN_COSTS[i].rings}/${BURN_COSTS[i].mass}/${BURN_COSTS[i].energy}`;
 

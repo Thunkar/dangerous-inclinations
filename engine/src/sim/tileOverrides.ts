@@ -25,8 +25,7 @@ export type TileOverrides = Partial<Record<SubsystemType, Record<string, unknown
 /** Which of the three nested shapes a field name belongs to. */
 const PASSIVE_FIELDS: ReadonlySet<string> = new Set<keyof PassiveEffect>([
   "dissipationBonus",
-  "criticalChanceBonus",
-  "refuelOnWellTransfer",
+  "cheapensJump",
 ]);
 const WEAPON_FIELDS: ReadonlySet<string> = new Set<keyof WeaponStats>([
   "damage",
@@ -48,6 +47,7 @@ const CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof SubsystemConfig>([
   "energyStep",
   "slotType",
   "isPassive",
+  "criticalChanceBonus",
 ]);
 
 function parseValue(raw: string): unknown {
