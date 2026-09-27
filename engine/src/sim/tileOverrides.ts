@@ -47,7 +47,7 @@ const CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof SubsystemConfig>([
   "energyStep",
   "slotType",
   "isPassive",
-  "criticalChanceBonus",
+  "criticalFace",
 ]);
 
 function parseValue(raw: string): unknown {

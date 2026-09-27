@@ -252,13 +252,13 @@ describe("view: the viewer's own side", () => {
       dissipationCapacity: 7,
       maxHeat: MAX_HEAT,
       maxReactionMass: 10,
-      criticalChance: 30,
+      lowestCriticalFace: 8,
     });
     expect(viewFor(state, "p2").myStats).toEqual({
       dissipationCapacity: 5,
       maxHeat: MAX_HEAT,
       maxReactionMass: 10,
-      criticalChance: 10,
+      lowestCriticalFace: 10,
     });
   });
 

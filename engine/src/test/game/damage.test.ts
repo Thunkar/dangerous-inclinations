@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { SHIELD_HEAT_PER_POINT } from "../../models/game.ts";
 import { SHIELD_ENERGY_PER_POINT } from "../../models/subsystems.ts";
 import { resolveAttack, rollToResult } from "../../game/damage.ts";
-import { getEffectiveCriticalChance } from "../../game/ship.ts";
+import { lowestCriticalFace } from "../../game/ship.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import {
   eventsOf,
@@ -45,30 +45,30 @@ describe("damage: the d10", () => {
     [2, 10, "hit"],
     [9, 10, "hit"],
     [10, 10, "critical"],
-    [1, 30, "miss"],
-    [7, 30, "hit"],
-    [8, 30, "critical"],
-    [9, 30, "critical"],
-    [10, 30, "critical"],
-  ] as const)("roll %i at %i%% crit chance is a %s", (roll, chance, expected) => {
-    expect(rollToResult(roll, chance)).toBe(expected);
+    [1, 8, "miss"],
+    [7, 8, "hit"],
+    [8, 8, "critical"],
+    [9, 8, "critical"],
+    [10, 8, "critical"],
+  ] as const)("roll %i with criticals from %i is a %s", (roll, face, expected) => {
+    expect(rollToResult(roll, face)).toBe(expected);
   });
 
-  it("defaults to the base 10% critical chance", () => {
+  it("defaults to criticals on a 10 only", () => {
     expect(rollToResult(9)).toBe("hit");
     expect(rollToResult(10)).toBe("critical");
   });
 
   it.each([
     ["no sensor", undefined, false, false, 10],
-    ["powered sensor", SENSOR_LOADOUT, true, false, 30],
+    ["powered sensor", SENSOR_LOADOUT, true, false, 8],
     ["unpowered sensor", SENSOR_LOADOUT, false, false, 10],
     ["broken powered sensor", SENSOR_LOADOUT, true, true, 10],
-  ])("critical chance with %s is %i", (_label, loadout, powered, broken, expected) => {
+  ])("the lowest critical face with %s is %i", (_label, loadout, powered, broken, expected) => {
     let state = makeTwoPlayerGame({ loadout });
     if (powered) state = withPower(state, "p1", "forward-0", 2);
     if (broken) state = withSub(state, "p1", "forward-0", { isBroken: true });
-    expect(getEffectiveCriticalChance(getShip(state, "p1").subsystems)).toBe(expected);
+    expect(lowestCriticalFace(getShip(state, "p1").subsystems)).toBe(expected);
   });
 });
 

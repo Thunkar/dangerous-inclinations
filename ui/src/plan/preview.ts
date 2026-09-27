@@ -48,7 +48,6 @@ import {
   escortCandidates,
   findJump,
   getAdjustmentRange,
-  getEffectiveCriticalChance,
   getJumpAdjustmentRange,
   getJumpOptions,
   getStationAt,
@@ -64,6 +63,7 @@ import {
   isPowerableType,
   isQuietTurn,
   isWeaponType,
+  lowestCriticalFace,
   phasedJumpDestination,
   projectPosition,
   ringAfter,
@@ -71,7 +71,6 @@ import {
   unplacedEscorts,
 } from '@dangerous-inclinations/engine'
 import { slotWithSubsystem } from '../utils/slots'
-import { lowestCritical } from '../site/numbers'
 
 export type MoveChoice =
   | { kind: 'coast'; scoop: boolean }
@@ -622,11 +621,11 @@ export function criticalFrom(
   steps: readonly PlanStep[],
   step: PlanStep
 ): number {
-  if (step.kind !== 'fire') return lowestCritical(getEffectiveCriticalChance([]))
+  if (step.kind !== 'fire') return lowestCriticalFace([])
   const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
   const index = steps.findIndex(s => s.id === step.id)
   const before = weapon?.type === 'missiles' || index < 0 ? steps : steps.slice(0, index)
-  return lowestCritical(getEffectiveCriticalChance(loadoutFor(me, powers, drawsFor(me, before))))
+  return lowestCriticalFace(loadoutFor(me, powers, drawsFor(me, before)))
 }
 
 /**

@@ -41,8 +41,8 @@ export const MIN_PLAYERS = 2;
  */
 export const MAX_PLAYERS = 6;
 
-/** Base critical hit chance in percentage points (10 = d10 roll of 10). */
-export const BASE_CRITICAL_CHANCE = 10;
+/** The lowest d10 face that is a critical: a 10, unless a powered sensor widens it. */
+export const BASE_CRITICAL_FACE = 10;
 
 export const MAX_REACTION_MASS = 10;
 export const STARTING_REACTION_MASS = 10;

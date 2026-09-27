@@ -27,7 +27,7 @@ import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import type { Mission } from "../models/missions.ts";
 import { aboard } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
-import { getDissipationCapacity, getEffectiveCriticalChance, isDestroyed } from "./ship.ts";
+import { getDissipationCapacity, isDestroyed, lowestCriticalFace } from "./ship.ts";
 import { completedMissions } from "./missions/missionChecks.ts";
 
 interface PublicShipView {
@@ -111,7 +111,8 @@ export interface PlayerView {
 interface OwnShipStats {
   dissipationCapacity: number;
   maxReactionMass: number;
-  criticalChance: number;
+  /** The lowest d10 face that is a critical for my shots now (`lowestCriticalFace`). */
+  lowestCriticalFace: number;
   /**
    * Top of the heat track: above this, the excess is hull damage. Nothing on
    * the loadout carries into the owner's check: the energy on it now is last
@@ -244,7 +245,7 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
       ? {
           dissipationCapacity: getDissipationCapacity(me.ship.subsystems),
           maxReactionMass: MAX_REACTION_MASS,
-          criticalChance: getEffectiveCriticalChance(me.ship.subsystems),
+          lowestCriticalFace: lowestCriticalFace(me.ship.subsystems),
           maxHeat: MAX_HEAT,
         }
       : null,

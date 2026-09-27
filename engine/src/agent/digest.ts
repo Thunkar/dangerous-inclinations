@@ -24,7 +24,6 @@ import {
   interceptsPerRack,
 } from "../models/subsystems.ts";
 import {
-  BASE_CRITICAL_CHANCE,
   DEFAULT_DISSIPATION_CAPACITY,
   MAX_HEAT,
   SHIELD_HEAT_PER_POINT,
@@ -49,7 +48,7 @@ import {
 } from "../models/rings.ts";
 import type { GameView, PlayerView } from "../game/view.ts";
 import { describeEvent, describeMission } from "../game/describe.ts";
-import { rollToResult } from "../game/damage.ts";
+import { lowestCriticalFace } from "../game/ship.ts";
 import { seatOptions } from "./options.ts";
 import { isSafeAtBerth } from "../game/stations.ts";
 
@@ -73,14 +72,11 @@ const SHIELD_MAX = SUBSYSTEM_CONFIGS.shields.maxEnergy;
 const velocities = (rings: readonly RingConfig[]) => rings.map((r) => r.velocity).join("/");
 /** Sectors a station advances at the end of every round: its ring's velocity. */
 const STATION_DRIFT = PLANET_RINGS.find((r) => r.ring === STATION_RING)?.velocity ?? 0;
-/** The lowest d10 face that is a critical at this critical chance. */
-const critFrom = (bonus: number) => {
-  for (let face = 2; face <= 10; face++)
-    if (rollToResult(face, BASE_CRITICAL_CHANCE + bonus) === "critical") return face;
-  return 10;
-};
-const CRIT = critFrom(0);
-const SENSOR_CRIT = critFrom(SUBSYSTEM_CONFIGS.sensor_array.criticalChanceBonus ?? 0);
+/** The lowest d10 face that is a critical, bare and with a powered sensor. */
+const CRIT = lowestCriticalFace([]);
+const SENSOR_CRIT = lowestCriticalFace([
+  { type: "sensor_array", allocatedEnergy: cubes("sensor_array"), isBroken: false },
+]);
 const burnLine = (i: keyof typeof BURN_COSTS) =>
   `${i} ${BURN_COSTS[i].rings}/${BURN_COSTS[i].mass}/${BURN_COSTS[i].energy}`;
 

@@ -5,12 +5,12 @@
  */
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
-  BASE_CRITICAL_CHANCE,
   FIXED_SUBSYSTEM_TYPES,
   SHIELD_ENERGY_PER_POINT,
   SUBSYSTEM_CONFIGS,
   getAdjustmentRange,
   interceptsPerRack,
+  lowestCriticalFace,
   rollToResult,
 } from '@dangerous-inclinations/engine'
 
@@ -20,20 +20,17 @@ export const HALF_SHIELD = SUBSYSTEM_CONFIGS.shields.minEnergy
 export const FULL_SHIELD = SUBSYSTEM_CONFIGS.shields.maxEnergy
 export const RACK_ENERGY = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy
 export const SENSOR_ENERGY = SUBSYSTEM_CONFIGS.sensor_array.minEnergy
-export const SENSOR_CRIT_BONUS =
-  SUBSYSTEM_CONFIGS.sensor_array.criticalChanceBonus ?? 0
 
 export const D10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
 
-/** The lowest face that is a critical at a critical chance. */
-export const lowestCritical = (chance: number) =>
-  D10.find(face => rollToResult(face, chance) === 'critical') ?? 10
 /** The lowest face that is a critical, bare and with a powered sensor. */
-export const BASE_CRIT = lowestCritical(BASE_CRITICAL_CHANCE)
-export const SENSOR_CRIT = lowestCritical(BASE_CRITICAL_CHANCE + SENSOR_CRIT_BONUS)
+export const BASE_CRIT = lowestCriticalFace([])
+export const SENSOR_CRIT = lowestCriticalFace([
+  { type: 'sensor_array', allocatedEnergy: SENSOR_ENERGY, isBroken: false },
+])
 /** What a face of the d10 does, bare or with a powered sensor: the engine's roll table. */
 export const faceResult = (face: number, sensor = false) =>
-  rollToResult(face, BASE_CRITICAL_CHANCE + (sensor ? SENSOR_CRIT_BONUS : 0))
+  rollToResult(face, sensor ? SENSOR_CRIT : BASE_CRIT)
 /** The highest face that misses. */
 export const MISS_TOP = D10.filter(face => rollToResult(face) === 'miss').pop() ?? 1
 

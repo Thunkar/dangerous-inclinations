@@ -1,8 +1,8 @@
 /**
  * Weapon damage resolution (d10).
  *
- * 1 = miss, 2-9 = hit, 10 = critical. Each powered sensor array on the attacker
- * lowers the critical threshold by two (8-10 with one array).
+ * 1 = miss, 2-9 = hit, 10 = critical. A powered sensor array on the attacker
+ * makes 8-10 critical (`lowestCriticalFace`).
  *
  * Shields absorb one point of damage per SHIELD_ENERGY_PER_POINT cubes on the
  * tile; absorbed damage becomes heat and the spent cubes are gone,
@@ -10,7 +10,7 @@
  * attacker named whether or not the shot reached the hull.
  */
 import type { ShipState } from "../models/game.ts";
-import { BASE_CRITICAL_CHANCE, SHIELD_HEAT_PER_POINT } from "../models/game.ts";
+import { BASE_CRITICAL_FACE, SHIELD_HEAT_PER_POINT } from "../models/game.ts";
 import { SHIELD_ENERGY_PER_POINT, isPowered } from "../models/subsystems.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
@@ -18,19 +18,15 @@ import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
 import {
   addHeat,
   breakSubsystem,
-  getEffectiveCriticalChance,
+  lowestCriticalFace,
   revealSubsystem,
   updateSubsystem,
 } from "./ship.ts";
 
-export function rollToResult(
-  roll: number,
-  criticalChance: number = BASE_CRITICAL_CHANCE
-): HitRollResult {
+/** What a d10 face does: 1 misses, `criticalFace` and above is a critical, the rest hit. */
+export function rollToResult(roll: number, criticalFace: number = BASE_CRITICAL_FACE): HitRollResult {
   if (roll <= 1) return "miss";
-  const criticalValues = Math.round(criticalChance / 10);
-  const threshold = 11 - criticalValues; // 10 at 10%, 8 at 30%
-  return roll >= threshold ? "critical" : "hit";
+  return roll >= criticalFace ? "critical" : "hit";
 }
 
 interface AttackOutcome {
@@ -55,8 +51,7 @@ export function resolveAttack(
   /** Laser fire: shields are electromagnetic and do not stop it. */
   ignoresShields = false
 ): AttackOutcome {
-  const critChance = getEffectiveCriticalChance(attacker.subsystems);
-  const result = rollToResult(roll, critChance);
+  const result = rollToResult(roll, lowestCriticalFace(attacker.subsystems));
 
   if (result === "miss") {
     return {

@@ -153,8 +153,8 @@ export interface SubsystemConfig {
   slotType: SlotType;
   isPassive?: boolean;
   passiveEffect?: PassiveEffect;
-  /** Sensor array: percentage points of critical chance while it has energy on it. */
-  criticalChanceBonus?: number;
+  /** Sensor array: while it has energy on it, its owner's shots crit on this d10 face or higher. */
+  criticalFace?: number;
   weaponStats?: WeaponStats;
 }
 
@@ -224,7 +224,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     minEnergy: 2,
     maxEnergy: 2,
     slotType: "forward",
-    criticalChanceBonus: 20,
+    criticalFace: 8,
   },
 
   laser: {

@@ -6,7 +6,7 @@
  */
 import type { Facing, Position, ShipLoadout, ShipState } from "../models/game.ts";
 import {
-  BASE_CRITICAL_CHANCE,
+  BASE_CRITICAL_FACE,
   DEFAULT_DISSIPATION_CAPACITY,
   DEFAULT_LOADOUT,
   STARTING_HIT_POINTS,
@@ -94,13 +94,20 @@ export function heatFromCubes(subsystems: ReadonlyArray<Subsystem>): number {
   return subsystems.filter((s) => !s.isBroken).reduce((sum, s) => sum + s.allocatedEnergy, 0);
 }
 
-/** Critical chance in percentage points: base plus each powered, working sensor array. */
-export function getEffectiveCriticalChance(subsystems: ReadonlyArray<Subsystem>): number {
-  const bonus = SUBSYSTEM_CONFIGS.sensor_array.criticalChanceBonus ?? 0;
-  const count = subsystems.filter(
-    (s) => s.type === "sensor_array" && isPowered(s) && !s.isBroken
-  ).length;
-  return BASE_CRITICAL_CHANCE + count * bonus;
+/**
+ * The lowest d10 face that is a critical for shots from this loadout: a 10,
+ * or the face a working tile with energy on it widens it to (a sensor array's
+ * 8). Pass no tiles for the bare figure.
+ */
+export function lowestCriticalFace(
+  subsystems: ReadonlyArray<Pick<Subsystem, "type" | "allocatedEnergy" | "isBroken">>
+): number {
+  let face = BASE_CRITICAL_FACE;
+  for (const s of subsystems) {
+    const widened = getSubsystemConfig(s.type).criticalFace;
+    if (widened !== undefined && isPowered(s) && !s.isBroken) face = Math.min(face, widened);
+  }
+  return face;
 }
 
 /**
