@@ -109,7 +109,7 @@ describe("view: what an opponent's loadout shows", () => {
     ).toBe(true);
   });
 
-  it("exposes position, facing, hull, heat, fuel and the free reactor pool, but not cards or intel", () => {
+  it("exposes position, facing, hull, heat and fuel, but not cards or intel", () => {
     const state = withPower(
       withShip(knownGame(), "p2", { heat: { currentHeat: 3 }, hitPoints: 7 }),
       "p2",
@@ -128,7 +128,7 @@ describe("view: what an opponent's loadout shows", () => {
       fuel: STARTING_REACTION_MASS,
       isDestroyed: false,
     });
-    for (const secret of ["missions", "missionOffers", "cargo", "intel", "reactor", "subsystems"]) {
+    for (const secret of ["missions", "missionOffers", "cargo", "intel", "subsystems"]) {
       expect(opponent).not.toHaveProperty(secret);
     }
     // Ammo is readable on a face-up rack and on nothing else, so a slot the

@@ -16,6 +16,8 @@ import {
   eventsOf,
   eventTypes,
   executeTurnAs,
+  expectRefused,
+  expectRefusedUnless,
   fire,
   getPlayer,
   getShip,
@@ -226,10 +228,12 @@ describe("respawn: the turn after dying", () => {
   });
 
   it("no one can shoot a wreck while it waits to respawn", () => {
-    const state = withShip(withPower(makeTwoPlayerGame(), "p1", "side-3", 2), "p2", {
-      hitPoints: 0,
-    });
-    expect(executeTurnAs(state, fire(1, "side-3", "p2")).errors?.[0]).toMatch(/not on the board/i);
+    const alive = withPower(makeTwoPlayerGame(), "p1", "side-3", 2);
+    const state = withShip(alive, "p2", { hitPoints: 0 });
+    expectRefusedUnless(
+      executeTurnAs(state, fire(1, "side-3", "p2")),
+      executeTurnAs(alive, fire(1, "side-3", "p2"))
+    );
   });
 });
 
@@ -279,9 +283,13 @@ describe("respawn: the turn back is a first round of its own", () => {
   it.each(reaching())("refuses %s on the turn back from Home", (_what, event, action) => {
     const state = returning();
     const result = executeTurnAs(state, action());
-    expect(result.errors?.length).toBeGreaterThan(0);
+    expectRefused(result, state);
+    // The same ship not coming back is let through: the flag is the reason.
+    expectRefusedUnless(
+      result,
+      executeTurnAs(withPlayer(state, "p2", { recovering: false }), action())
+    );
     expect(eventTypes(result.events)).not.toContain(event);
-    expect(result.gameState).toBe(state);
   });
 
   it.each(reaching())("allows %s the turn after that", (_what, event, action) => {
@@ -324,7 +332,10 @@ describe("respawn: the turn back is a first round of its own", () => {
   it("nobody reaches it while the other seats play, and everybody does once its turn is over", () => {
     const state = underTheGun();
     const early = executeTurnAs(state, fire(1, "forward-0", "p2"));
-    expect(early.errors?.length).toBeGreaterThan(0);
+    expectRefusedUnless(
+      early,
+      executeTurnAs(withPlayer(state, "p2", { recovering: false }), fire(1, "forward-0", "p2"))
+    );
     expect(eventTypes(early.events)).not.toContain("weapon_fired");
 
     // p1 plays out its turn: the round moving on does not spend p2's flag.

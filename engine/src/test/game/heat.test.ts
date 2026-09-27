@@ -12,6 +12,7 @@ import {
   eventsOf,
   eventTypes,
   executeTurnAs,
+  expectRefusedUnless,
   fire,
   getShip,
   getSub,
@@ -213,20 +214,22 @@ describe("heat: a cold ship repairs one tile", () => {
 
   it("does nothing while heat is carried in from an earlier turn", () => {
     const state = withShip(stranded(), "p1", { heat: { currentHeat: 2 } });
-    const result = executeTurnAs(state, coast(1), repair("engines"));
-    expect(result.errors).toBeDefined();
+    expectRefusedUnless(
+      executeTurnAs(state, coast(1), repair("engines")),
+      executeTurnAs(stranded(), coast(1), repair("engines"))
+    );
   });
 
   it("refuses a tile that is not broken, and more than one repair a turn", () => {
-    expect(executeTurnAs(stranded(), coast(1), repair("scoop")).errors).toBeDefined();
-    expect(
-      executeTurnAs(
-        withSub(stranded(), "p1", "side-0", { isBroken: true }),
-        coast(1),
-        repair("engines"),
-        repair("side-0")
-      ).errors
-    ).toBeDefined();
+    expectRefusedUnless(
+      executeTurnAs(stranded(), coast(1), repair("scoop")),
+      executeTurnAs(stranded(), coast(1), repair("engines"))
+    );
+    const twoBroken = withSub(stranded(), "p1", "side-0", { isBroken: true });
+    expectRefusedUnless(
+      executeTurnAs(twoBroken, coast(1), repair("engines"), repair("side-0")),
+      executeTurnAs(twoBroken, coast(1), repair("engines"))
+    );
   });
 
   it("gets a stranded ship moving again: broken engines, one cold turn, then a burn", () => {
@@ -240,10 +243,12 @@ describe("heat: a cold ship repairs one tile", () => {
   });
 
   it("refuels a dry ship whose scoop was shot out: one cold turn, then a coast that scoops", () => {
-    const dry = withSub(withShip(makeTwoPlayerGame(), "p1", { reactionMass: 0 }), "p1", "scoop", {
-      isBroken: true,
-    });
-    expect(executeTurnAs(dry, coast(1, true)).errors).toBeDefined();
+    const dryWithScoop = withShip(makeTwoPlayerGame(), "p1", { reactionMass: 0 });
+    const dry = withSub(dryWithScoop, "p1", "scoop", { isBroken: true });
+    expectRefusedUnless(
+      executeTurnAs(dry, coast(1, true)),
+      executeTurnAs(dryWithScoop, coast(1, true))
+    );
 
     // p1 lights nothing, reaches 0 at the check and names the scoop.
     const cold = executeTurnAs(dry, coast(1), repair("scoop"));

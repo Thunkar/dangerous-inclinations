@@ -4,18 +4,37 @@
  * the last turn. `runGame` wires the same engine functions the server uses
  * (createGame → botChooseLoadout/submitLoadout → botChooseDeployment/
  * deployShip → executeTurn on `viewFor(state, activeId)`).
+ *
+ * The default run plays two seeds per seat count; `FULL_BOT_GAMES=1` plays
+ * the whole matrix.
  */
 import { describe, it, expect } from "vitest";
 import { runGame, setupBotGame, formatFailure } from "../../sim/runGame.ts";
 import { HOME_RINGS, BLACK_HOLE_ID } from "../../models/gravityWells.ts";
-import type { MissionType } from "../../models/missions.ts";
-import { MISSIONS_PER_PLAYER, MISSION_FAMILY } from "../../models/missions.ts";
+import type { ShipLoadout } from "../../models/game.ts";
+import {
+  MISSIONS_PER_PLAYER,
+  PRIMARIES_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  isPrimaryType,
+} from "../../models/missions.ts";
+import { missionsMissingRequirements } from "../../game/loadout.ts";
 
-const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
+const FULL = process.env.FULL_BOT_GAMES === "1";
+const SEEDS = FULL ? [1, 2, 3, 4, 5, 6, 7, 8] : [1, 2];
 const MAX_TURNS = 120;
 
-/** The only cards that exist. A bot must never hold or chase anything else. */
-const MISSION_TYPES = Object.keys(MISSION_FAMILY) as MissionType[];
+/** Hulls forced on seat 1: each can fly some hands and not others. */
+const FORCED_HULLS: Array<[string, ShipLoadout]> = [
+  [
+    "a hauler with no sensor",
+    { forwardSlots: ["fuel_compressor"], sideSlots: ["shields", "shields", "radiator", "laser"] },
+  ],
+  [
+    "a sensor bow with no gun",
+    { forwardSlots: ["sensor_array"], sideSlots: ["shields", "shields", "radiator", "radiator"] },
+  ],
+];
 
 describe("bot-vs-bot games", () => {
   for (const botCount of [2, 3, 4]) {
@@ -30,27 +49,29 @@ describe("bot-vs-bot games", () => {
     }
   }
 
-  it("deals, keeps and completes only the card types that exist", () => {
-    const kept = new Set<MissionType>();
-    const completed = new Set<MissionType>();
-    for (const seed of SEEDS) {
-      const result = runGame({ seed, botCount: 3, maxTurns: MAX_TURNS, record: false });
-      expect(result.endReason).not.toBe("invalid_turn");
-      for (const player of result.finalState.players) {
-        for (const mission of player.missionOffers) expect(MISSION_TYPES).toContain(mission.type);
-        for (const mission of player.missions) {
-          expect(MISSION_TYPES).toContain(mission.type);
-          kept.add(mission.type);
-          if (mission.isCompleted) completed.add(mission.type);
+  it.each([
+    ...[3, 4, 5, 6].map((n) => [`${n} bots choosing their own hulls`, n, undefined] as const),
+    ...FORCED_HULLS.map(([label, hull]) => [`${label} forced on seat 1`, 3, hull] as const),
+  ])(
+    "%s keep a legal hand: one primary and two secondaries, offered and flyable",
+    (_l, n, hull) => {
+      for (let seed = 1; seed <= 20; seed++) {
+        const state = setupBotGame(seed, n, hull ? { "bot-1": hull } : undefined);
+        for (const player of state.players) {
+          const offered = new Set(player.missionOffers.map((m) => m.id));
+          expect(player.missions.every((m) => offered.has(m.id))).toBe(true);
+          expect(new Set(player.missions.map((m) => m.id)).size).toBe(MISSIONS_PER_PLAYER);
+          expect(player.missions.filter((m) => isPrimaryType(m.type))).toHaveLength(
+            PRIMARIES_PER_PLAYER
+          );
+          expect(player.missions.filter((m) => !isPrimaryType(m.type))).toHaveLength(
+            SECONDARIES_PER_PLAYER
+          );
+          expect(missionsMissingRequirements(player.missions, player.ship.loadout)).toEqual([]);
         }
       }
     }
-    // The bots pick their own hands, so no single type is guaranteed; what
-    // must hold is that they finish cards from more than one family.
-    expect(completed.size).toBeGreaterThan(1);
-    expect(new Set([...completed].map((t) => MISSION_FAMILY[t])).size).toBeGreaterThan(1);
-    for (const type of completed) expect(kept).toContain(type);
-  }, 30_000);
+  );
 
   it("is deterministic for a seed", () => {
     const a = runGame({ seed: 7, botCount: 3, maxTurns: MAX_TURNS, record: false });

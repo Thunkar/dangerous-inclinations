@@ -5,6 +5,7 @@
  * default loadout, stations created, d10 pinned to 5 (a plain hit) via
  * `forcedRollValue`. Override anything you need per test.
  */
+import { expect } from "vitest";
 import type {
   BurnAction,
   BurnIntensity,
@@ -40,6 +41,7 @@ import type {
   SalvageMission,
   InterceptTransmissionMission,
   Mission,
+  Cargo,
 } from "../models/missions.ts";
 import { DEFAULT_POINTS_TO_WIN, type DockJob } from "../models/missions.ts";
 import { createInitialShipState, updateSubsystem } from "../game/ship.ts";
@@ -82,7 +84,7 @@ export function makePlayer(
   };
 }
 
-export function testDeterminismDefaults(seed = 0xdeadbeef) {
+function testDeterminismDefaults(seed = 0xdeadbeef) {
   return { ...createDeterminismFields(seed), forcedRollValue: 5 };
 }
 
@@ -271,7 +273,7 @@ export const interceptMission = (
   dataCargoId: `data-${id}`,
 });
 /** Data-paying secondary card (Survey is the only one). */
-export const secondaryMission = (
+const secondaryMission = (
   type: SecondaryMissionType = "survey",
   id = `${type}-1`,
   deliveryPlanetId = "any"
@@ -315,6 +317,44 @@ export const salvageMission = (id = "salvage-1"): SalvageMission => ({
   isCompleted: false,
   cargoId: `salvage-${id}`,
 });
+
+// ---------------------------------------------------------------------------
+// Cargo
+// ---------------------------------------------------------------------------
+
+/** A Deliver crate, aboard unless `isPickedUp` is false; its card is {@link deliverMission}'s id. */
+export const crateCargo = (pickup: string, delivery: string, isPickedUp = true): Cargo => ({
+  id: `crate-${pickup}-${delivery}`,
+  missionId: `deliver-${pickup}-${delivery}`,
+  kind: "crate",
+  pickupPlanetId: pickup,
+  deliveryPlanetId: delivery,
+  isPickedUp,
+});
+
+/** A crate aboard that sells at any station: Piracy's loot. */
+export const lootCargo = (id: string, missionId: string): Cargo => ({
+  id,
+  missionId,
+  kind: "crate",
+  deliveryPlanetId: "any",
+  isPickedUp: true,
+});
+
+/** Data aboard, filed at any station: a Survey's dive or a wreck's black box. */
+export const dataCargo = (id = "data-1", missionId = "survey-1"): Cargo => ({
+  id,
+  missionId,
+  kind: "data",
+  deliveryPlanetId: "any",
+  isPickedUp: true,
+});
+
+/** What a station reads off an arriving ship: its hold, its hand and its tank. */
+export function dockingShip(state: GameState, playerId: string) {
+  const p = getPlayer(state, playerId);
+  return { cargo: p.cargo, missions: p.missions, reactionMass: p.ship.reactionMass };
+}
 
 // ---------------------------------------------------------------------------
 // Actions (playerId is filled in by executeTurnAs)
@@ -410,6 +450,22 @@ export function executeTurnAs(
   );
 }
 
+/** The engine refused the turn and nothing moved. */
+export function expectRefused(result: TurnResult, before: GameState): void {
+  expect(result.errors?.length).toBeGreaterThan(0);
+  expect(result.gameState).toBe(before);
+}
+
+/**
+ * The engine refuses `refused` and accepts `accepted`, which differs from it
+ * in one thing: that thing is why the first was refused, whatever the message
+ * says.
+ */
+export function expectRefusedUnless(refused: TurnResult, accepted: TurnResult): void {
+  expect(refused.errors?.length).toBeGreaterThan(0);
+  expect(accepted.errors).toBeUndefined();
+}
+
 /** Execute and throw on validation errors (for setup steps). */
 export function mustExecute(state: GameState, ...actions: Array<Draft<PlayerAction>>): GameState {
   const result = executeTurnAs(state, ...actions);
@@ -460,7 +516,7 @@ export function scriptedGameStart(seed: number): GameState {
   return state;
 }
 
-export function scriptedActions(state: GameState): PlayerAction[] {
+function scriptedActions(state: GameState): PlayerAction[] {
   const active = state.players[state.activePlayerIndex];
   const target = state.players.find((p) => p.id !== active.id)!;
   const railgun = active.ship.subsystems.find((s) => s.id === "forward-0")!;

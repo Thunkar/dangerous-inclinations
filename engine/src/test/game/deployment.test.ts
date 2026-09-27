@@ -185,66 +185,55 @@ describe("setup: submitLoadout", () => {
     expect(state.activePlayerIndex).toBe(1);
   });
 
+  // Each row changes one thing in a submission the engine takes.
+  type Submission = { state: GameState; playerId: string; loadout: ShipLoadout; missionIds: string[] };
+  const legalSubmission = (): Submission => {
+    const state = createGame(SPECS, 3);
+    return { state, playerId: "p1", loadout: ANY_HAND, missionIds: pickHand(state, "p1") };
+  };
+  const submit = (s: Submission) =>
+    submitLoadout(s.state, s.playerId, { loadout: s.loadout, missionIds: s.missionIds });
+
   it.each([
-    [
-      "the wrong phase",
-      (s: GameState) => ({ ...s, phase: "active" as const }),
-      "p1",
-      DEFAULT_LOADOUT,
-      MISSIONS_PER_PLAYER,
-      /phase/i,
-    ],
-    [
-      "an unknown player",
-      (s: GameState) => s,
-      "p9",
-      DEFAULT_LOADOUT,
-      MISSIONS_PER_PLAYER,
-      /not found/i,
-    ],
+    ["the wrong phase", (s: Submission) => ({ ...s, state: { ...s.state, phase: "active" as const } })],
+    ["an unknown player", (s: Submission) => ({ ...s, playerId: "p9" })],
     [
       "an invalid loadout",
-      (s: GameState) => s,
-      "p1",
-      { forwardSlots: ["laser"], sideSlots: ["laser", "laser", "laser", "laser"] } as ShipLoadout,
-      MISSIONS_PER_PLAYER,
-      /forward slot/i,
+      (s: Submission) => ({
+        ...s,
+        loadout: { forwardSlots: ["laser"], sideSlots: ["laser", "laser", "laser", "laser"] } as ShipLoadout,
+      }),
     ],
-    [
-      "too few missions",
-      (s: GameState) => s,
-      "p1",
-      DEFAULT_LOADOUT,
-      MISSIONS_PER_PLAYER - 1,
-      /exactly/i,
-    ],
-  ])(
-    "rejects %s and returns the state unchanged",
-    (_label, prep, playerId, loadout, picks, message) => {
-      const state = prep(createGame(SPECS, 3));
-      const offers = state.players[0].missionOffers.slice(0, picks).map((m) => m.id);
-      const result = submitLoadout(state, playerId, { loadout, missionIds: offers });
-      expect(result.error).toMatch(message);
-      expect(result.state).toBe(state);
-    }
-  );
+    ["too few missions", (s: Submission) => ({ ...s, missionIds: s.missionIds.slice(1) })],
+  ])("rejects %s and returns the state unchanged", (_label, change) => {
+    const legal = legalSubmission();
+    const bad = change(legal);
+    const result = submit(bad);
+    expect(result.error).toBeDefined();
+    expect(result.state).toBe(bad.state);
+    expect(submit(legal).error).toBeUndefined();
+  });
 
   it("rejects missions that were not offered and a second submission", () => {
     const start = createGame(SPECS, 3);
     const foreign = submitLoadout(start, "p1", {
-      loadout: DEFAULT_LOADOUT,
+      loadout: ANY_HAND,
       missionIds: pickHand(start, "p2"),
     });
-    expect(foreign.error).toMatch(/not found in your offers/i);
-    const once = submitLoadout(start, "p1", {
-      loadout: ANY_HAND,
-      missionIds: pickHand(start, "p1"),
-    }).state;
-    const twice = submitLoadout(once, "p1", {
+    expect(foreign.error).toBeDefined();
+    expect(foreign.state).toBe(start);
+    // The same submission with p1's own offers is taken, once.
+    const first = submitLoadout(start, "p1", {
       loadout: ANY_HAND,
       missionIds: pickHand(start, "p1"),
     });
-    expect(twice.error).toMatch(/already submitted/i);
+    expect(first.error).toBeUndefined();
+    const twice = submitLoadout(first.state, "p1", {
+      loadout: ANY_HAND,
+      missionIds: pickHand(start, "p1"),
+    });
+    expect(twice.error).toBeDefined();
+    expect(twice.state).toBe(first.state);
   });
 });
 
@@ -528,33 +517,36 @@ describe("deployment", () => {
 
   it("deploys in reverse turn order: the last seat first, the first seat last", () => {
     const state = readyToDeploy();
-    expect(deployShip(state, "p1", 9, HOME_RING)).toMatchObject({
-      success: false,
-      error: /turn/i,
-      state,
-    });
-    const afterP2 = deployShip(state, "p2", 0, HOME_RING).state;
-    expect(deployShip(afterP2, "p2", 1, HOME_RING).error).toMatch(/already deployed/i);
+    expect(deployShip(state, "p1", 9, HOME_RING)).toMatchObject({ success: false, state });
+    const p2First = deployShip(state, "p2", 0, HOME_RING);
+    expect(p2First.success).toBe(true);
+    const afterP2 = p2First.state;
+    expect(deployShip(afterP2, "p2", 12, HOME_RING)).toMatchObject({ success: false, state: afterP2 });
     expect(deployShip(afterP2, "p1", 12, HOME_RING).success).toBe(true);
   });
 
   it.each([
-    ["sector 24", 24, /out of range/i],
-    ["sector -1", -1, /out of range/i],
-    ["a fractional sector", 1.5, /out of range/i],
-    ["an occupied sector", 5, /occupied/i],
-  ])("rejects deploying on %s", (_label, sector, message) => {
+    ["sector 24", 24],
+    ["sector -1", -1],
+    ["a fractional sector", 1.5],
+    ["an occupied sector", 5],
+  ])("rejects deploying on %s", (_label, sector) => {
     let state = readyToDeploy();
     state = deployShip(state, "p2", 5, HOME_RING).state; // p1 places next
     const result = deployShip(state, "p1", sector, HOME_RING);
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(message);
+    expect(result.error).toBeDefined();
     expect(result.state).toBe(state);
+    // Across the ring from p2 the same placement is taken.
+    expect(deployShip(state, "p1", 17, HOME_RING).success).toBe(true);
   });
 
   it("rejects deploying outside the deployment phase or for unknown players", () => {
-    expect(deployShip(createGame(SPECS, 1), "p1", 0, HOME_RING).error).toMatch(/deployment phase/i);
-    expect(deployShip(readyToDeploy(), "p9", 0, HOME_RING).error).toMatch(/not found/i);
+    // The last seat places first, so p2 is the one the deployment phase waits on.
+    const ready = readyToDeploy();
+    expect(deployShip(ready, "p2", 0, HOME_RING).success).toBe(true);
+    expect(deployShip(createGame(SPECS, 1), "p2", 0, HOME_RING).success).toBe(false);
+    expect(deployShip(ready, "p9", 0, HOME_RING).success).toBe(false);
   });
 
   it("becomes active once everyone has deployed, starting with the first player", () => {
@@ -570,8 +562,12 @@ describe("deployment", () => {
   it("no turns can be taken before the game is active", () => {
     const state = readyToDeploy();
     const result = executeTurn(state, [{ ...coast(1), playerId: "p1" }]);
-    expect(result.errors?.[0]).toMatch(/phase/i);
+    expect(result.errors?.length).toBeGreaterThan(0);
     expect(result.gameState).toBe(state);
+    // Once both ships are placed the same turn is taken.
+    let active = deployShip(state, "p2", 12, HOME_RING).state;
+    active = transitionToActivePhase(deployShip(active, "p1", 0, HOME_RING).state);
+    expect(executeTurn(active, [{ ...coast(1), playerId: "p1" }]).errors).toBeUndefined();
   });
 
   it("a freshly started game plays: the first turn drifts the first ship two sectors", () => {

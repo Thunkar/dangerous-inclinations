@@ -106,7 +106,14 @@ describe("recording: replay", () => {
         i === 3 ? { ...t, actions: [...t.actions, { ...t.actions[0], sequence: 1 }] } : t
       ),
     };
-    expect(() => replayRecording(corrupted)).toThrow(/turn 3/);
+    expect(() => replayRecording(corrupted)).toThrow();
+    // It is the corrupted turn that fails: the three before it still replay.
+    const upTo = (n: number): GameRecording => ({
+      ...corrupted,
+      turns: corrupted.turns.slice(0, n),
+    });
+    expect(() => replayRecording(upTo(3))).not.toThrow();
+    expect(() => replayRecording(upTo(4))).toThrow();
   });
 });
 

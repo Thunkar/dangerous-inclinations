@@ -6,7 +6,12 @@ import { describe, it, expect } from "vitest";
 import type { GameState, Position, ShipLoadout } from "../../models/game.ts";
 import { getMissileStats } from "../../models/subsystems.ts";
 import { processOwnerMissiles } from "../../game/missiles.ts";
-import { getStationForPlanet, isSafeAtBerth } from "../../game/stations.ts";
+import {
+  advanceStations,
+  getStationForPlanet,
+  isMooredAt,
+  isSafeAtBerth,
+} from "../../game/stations.ts";
 import { viewFor } from "../../game/view.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { botDecideActions } from "../../ai/index.ts";
@@ -71,6 +76,31 @@ describe("moored ships are safe", () => {
     expect(isSafeAtBerth(state.stations, { ...berthOf(state), sector: 6 })).toBe(false);
   });
 
+  it.each<[string, (berth: Position) => Position, boolean]>([
+    ["on the berth", (b) => b, true],
+    ["one sector along the station's ring", (b) => ({ ...b, sector: b.sector + 1 }), false],
+    ["the berth's sector on ring 1, inside the station", (b) => ({ ...b, ring: 1 }), false],
+    ["the berth's sector on ring 3, outside it", (b) => ({ ...b, ring: 3 }), false],
+    ["the same square round another planet", (b) => ({ ...b, wellId: "planet-beta" }), true],
+    ["the same numbers round the black hole", (b) => ({ ...b, wellId: "blackhole" }), false],
+  ])("a ship %s is moored and safe: %s", (_label, where, moored) => {
+    const state = railgunLine(...CLEAR);
+    const position = where(berthOf(state));
+    expect(isMooredAt(state.stations, position)).toBe(moored);
+    expect(isSafeAtBerth(state.stations, position)).toBe(moored);
+  });
+
+  it("the berth moves with its station: the old square is open water once the round ends", () => {
+    const before = railgunLine(...CLEAR);
+    const oldBerth = berthOf(before);
+    const after = advanceStations(before).state;
+    const newBerth = berthOf(after);
+    expect(newBerth).not.toEqual(oldBerth);
+    expect(isSafeAtBerth(after.stations, newBerth)).toBe(true);
+    expect(isSafeAtBerth(after.stations, oldBerth)).toBe(false);
+    expect(isMooredAt(after.stations, oldBerth)).toBe(false);
+  });
+
   it.each<[string, boolean, Line]>([
     ["clear of any station", true, CLEAR],
     ["at a moored target", false, AT_TARGET],
@@ -80,6 +110,31 @@ describe("moored ships are safe", () => {
     const shot = executeTurnAs(state, fire(1, "forward-0", "p2"));
     expect(shot.errors === undefined).toBe(accepted);
     expect(getShip(shot.gameState, "p2").hitPoints < 10).toBe(accepted);
+  });
+
+  it.each<[string, (berth: Position) => Position, boolean]>([
+    ["on the berth", (b) => b, true],
+    ["one sector along the station's ring", (b) => ({ ...b, sector: b.sector + 1 }), false],
+    ["the berth's sector on ring 1, inside the station", (b) => ({ ...b, ring: 1 }), false],
+    ["the berth's sector on ring 3, outside it", (b) => ({ ...b, ring: 3 }), false],
+    ["the same square round another planet", (b) => ({ ...b, wellId: "planet-beta" }), true],
+    ["the same numbers round the black hole", (b) => ({ ...b, wellId: "blackhole" }), false],
+  ])("a ship %s is moored and safe: %s", (_label, where, moored) => {
+    const state = railgunLine(...CLEAR);
+    const position = where(berthOf(state));
+    expect(isMooredAt(state.stations, position)).toBe(moored);
+    expect(isSafeAtBerth(state.stations, position)).toBe(moored);
+  });
+
+  it("the berth moves with its station: the old square is open water once the round ends", () => {
+    const before = railgunLine(...CLEAR);
+    const oldBerth = berthOf(before);
+    const after = advanceStations(before).state;
+    const newBerth = berthOf(after);
+    expect(newBerth).not.toEqual(oldBerth);
+    expect(isSafeAtBerth(after.stations, newBerth)).toBe(true);
+    expect(isSafeAtBerth(after.stations, oldBerth)).toBe(false);
+    expect(isMooredAt(after.stations, oldBerth)).toBe(false);
   });
 
   it.each<[string, boolean, Line]>([

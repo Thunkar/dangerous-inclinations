@@ -12,6 +12,8 @@ import {
   eventsOf,
   eventTypes,
   executeTurnAs,
+  expectRefused,
+  expectRefusedUnless,
   getShip,
   getSub,
   makePlayer,
@@ -75,26 +77,35 @@ describe("movement: drift", () => {
 
 describe("movement: action sequencing", () => {
   it.each([
-    ["two movement actions", [coast(1), burn(2, "soft")]],
-    ["duplicate sequence numbers", [rotate(1, "retrograde"), coast(1)]],
-    ["a gap in the sequence", [rotate(1, "retrograde"), coast(3)]],
-    ["a sequence not starting at 1", [coast(2)]],
+    ["two movement actions", [coast(1), burn(2, "soft")], [coast(1)]],
+    [
+      "duplicate sequence numbers",
+      [rotate(1, "retrograde"), coast(1)],
+      [rotate(1, "retrograde"), coast(2)],
+    ],
+    [
+      "a gap in the sequence",
+      [rotate(1, "retrograde"), coast(3)],
+      [rotate(1, "retrograde"), coast(2)],
+    ],
+    ["a sequence not starting at 1", [coast(2)], [coast(1)]],
     [
       "a tactical action without a sequence",
       [{ type: "coast", data: { activateScoop: false } } as never],
+      [coast(1)],
     ],
-  ])("rejects %s", (_label, actions) => {
-    let state = makeTwoPlayerGame();
+  ])("rejects %s, and accepts the same turn put right", (_label, actions, fixed) => {
+    const state = makeTwoPlayerGame();
     const result = executeTurnAs(state, ...actions);
-    expect(result.errors?.length).toBeGreaterThan(0);
-    expect(result.gameState).toBe(state);
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(state, ...fixed));
   });
 
   it("rejects actions that belong to another player", () => {
     const state = makeTwoPlayerGame();
     const result = executeTurn(state, [{ ...coast(1), playerId: "p2" }]);
-    expect(result.errors?.[0]).toMatch(/active player/i);
-    expect(result.gameState).toBe(state);
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurn(state, [{ ...coast(1), playerId: "p1" }]));
   });
 });
 
@@ -136,20 +147,22 @@ describe("movement: burns", () => {
     expect(getShip(result.gameState, "p1").ring).toBe(to);
   });
 
+  // The last column is a ring the same burn stays on the board from.
   it.each([
-    [BH, 5, "prograde", "soft"],
-    [BH, 3, "prograde", "hard"],
-    [BH, 1, "retrograde", "soft"],
-    [BH, 2, "retrograde", "medium"],
-    [ALPHA, 3, "prograde", "hard"],
-    [ALPHA, 2, "retrograde", "medium"],
+    [BH, 5, "prograde", "soft", 4],
+    [BH, 3, "prograde", "hard", 2],
+    [BH, 1, "retrograde", "soft", 2],
+    [BH, 2, "retrograde", "medium", 3],
+    [ALPHA, 3, "prograde", "hard", 1],
+    [ALPHA, 2, "retrograde", "medium", 3],
   ] as const)(
     "a burn that would leave the rings is rejected: %s ring %i %s %s",
-    (wellId, ring, facing, intensity) => {
-      const state = withPower(shipAt(wellId, ring, 0, facing), "p1", "engines", 3);
+    (wellId, ring, facing, intensity, inside) => {
+      const at = (r: number) => withPower(shipAt(wellId, r, 0, facing), "p1", "engines", 3);
+      const state = at(ring);
       const result = executeTurnAs(state, burn(1, intensity));
-      expect(result.errors?.[0]).toMatch(/leave the rings/i);
-      expect(result.gameState).toBe(state);
+      expectRefused(result, state);
+      expectRefusedUnless(result, executeTurnAs(at(inside), burn(1, intensity)));
     }
   );
 
@@ -174,30 +187,20 @@ describe("movement: burns", () => {
     expect(eventsOf(result.events, "burned")[0].heat).toBe(expected);
   });
 
-  it.each([
-    ["not enough mass", 0, "hard", 2],
-    // Eight cubes of wall leave two, and a hard burn wants three: a full wall
-    // and a full burn do not fit in one reactor.
-    ["a wall taking the cubes the burn needs", 8, "hard", 10],
-  ] as const)("rejects a burn with %s", (_label, wall, intensity, mass) => {
-    let state = makeTwoPlayerGame({
-      loadout: { forwardSlots: ["railgun"], sideSlots: ["shields", "shields", "laser", "laser"] },
-    });
-    if (wall > 0) {
-      state = withPower(state, "p1", "side-0", 4);
-      state = withPower(state, "p1", "side-1", 4);
-    }
-    state = withShip(state, "p1", { reactionMass: mass });
-    const result = executeTurnAs(state, burn(1, intensity));
-    expect(result.errors?.length).toBeGreaterThan(0);
-    expect(getShip(result.gameState, "p1").ring).toBe(3);
+  it("rejects a burn the tank cannot pay for, and takes it one mass later", () => {
+    // Ring 2 prograde: a hard burn lands on ring 5, so the board is not the reason.
+    const withMass = (mass: number) =>
+      withShip(makeTwoPlayerGame({ ring: 2 }), "p1", { reactionMass: mass });
+    const short = withMass(BURN_COSTS.hard.mass - 1);
+    const result = executeTurnAs(short, burn(1, "hard"));
+    expectRefused(result, short);
+    expectRefusedUnless(result, executeTurnAs(withMass(BURN_COSTS.hard.mass), burn(1, "hard")));
   });
 
   it("rejects a burn when the engines are broken", () => {
-    const state = withSub(withPower(makeTwoPlayerGame(), "p1", "engines", 3), "p1", "engines", {
-      isBroken: true,
-    });
-    expect(executeTurnAs(state, burn(1, "soft")).errors?.[0]).toMatch(/broken/i);
+    const ready = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
+    const state = withSub(ready, "p1", "engines", { isBroken: true });
+    expectRefusedUnless(executeTurnAs(state, burn(1, "soft")), executeTurnAs(ready, burn(1, "soft")));
   });
 });
 
@@ -234,24 +237,37 @@ describe("movement: phasing", () => {
   );
 
   it("braking is limited by the ring's velocity", () => {
-    const slow = withPower(shipAt(BH, 5, 0), "p1", "engines", 3);
-    expect(executeTurnAs(slow, burn(1, "soft", -1)).errors?.[0]).toMatch(/out of range/i);
+    // Retrograde: a prograde burn from ring 5 would be refused for leaving the rings.
+    const slow = withPower(shipAt(BH, 5, 0, "retrograde"), "p1", "engines", 3);
+    expectRefusedUnless(
+      executeTurnAs(slow, burn(1, "soft", -1)),
+      executeTurnAs(slow, burn(1, "soft", 0))
+    );
     const fast = withPower(shipAt(BH, 1, 0), "p1", "engines", 3);
-    expect(executeTurnAs(fast, burn(1, "soft", -8)).errors?.[0]).toMatch(/out of range/i);
-    expect(executeTurnAs(fast, burn(1, "soft", -7)).errors).toBeUndefined();
+    expectRefusedUnless(
+      executeTurnAs(fast, burn(1, "soft", -8)),
+      executeTurnAs(fast, burn(1, "soft", -7))
+    );
     expect(getShip(executeTurnAs(fast, burn(1, "soft", -7)).gameState, "p1").sector).toBe(1);
   });
 
   it("acceleration is capped at +3", () => {
     const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
-    expect(executeTurnAs(state, burn(1, "soft", 4)).errors?.[0]).toMatch(/out of range/i);
+    expectRefusedUnless(
+      executeTurnAs(state, burn(1, "soft", 4)),
+      executeTurnAs(state, burn(1, "soft", 3))
+    );
   });
 
   it("rejects phasing the ship cannot pay for", () => {
     const state = withShip(withPower(makeTwoPlayerGame(), "p1", "engines", 3), "p1", {
       reactionMass: 3,
     });
-    expect(executeTurnAs(state, burn(1, "soft", 3)).errors?.[0]).toMatch(/reaction mass/i);
+    // A soft burn is one mass and each sector of phasing one more: 4 against 3.
+    expectRefusedUnless(
+      executeTurnAs(state, burn(1, "soft", 3)),
+      executeTurnAs(state, burn(1, "soft", 2))
+    );
   });
 });
 
@@ -270,27 +286,29 @@ describe("movement: rotation", () => {
     expect(getShip(executeTurnAs(hot, rotate(1, "retrograde")).gameState, "p1").hitPoints).toBe(9);
   });
 
-  it.each([
-    [
-      "already facing that way",
-      (s: ReturnType<typeof makeTwoPlayerGame>) => withPower(s, "p1", "rotation", 1),
-      "prograde",
-    ],
-    [
-      "thrusters broken",
-      (s: ReturnType<typeof makeTwoPlayerGame>) =>
-        withSub(withPower(s, "p1", "rotation", 1), "p1", "rotation", { isBroken: true }),
-      "retrograde",
-    ],
-  ] as const)("rejects rotating when %s", (_label, setup, facing) => {
-    const result = executeTurnAs(setup(makeTwoPlayerGame()), rotate(1, facing));
-    expect(result.errors?.length).toBeGreaterThan(0);
+  it("rejects rotating to the way the ship already faces", () => {
+    const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
+    expectRefusedUnless(
+      executeTurnAs(state, rotate(1, "prograde")),
+      executeTurnAs(state, rotate(1, "retrograde"))
+    );
+  });
+
+  it("rejects rotating on broken thrusters", () => {
+    const ready = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
+    const broken = withSub(ready, "p1", "rotation", { isBroken: true });
+    expectRefusedUnless(
+      executeTurnAs(broken, rotate(1, "retrograde")),
+      executeTurnAs(ready, rotate(1, "retrograde"))
+    );
   });
 
   it("the thrusters work once per turn", () => {
     const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
-    const result = executeTurnAs(state, rotate(1, "retrograde"), rotate(2, "prograde"));
-    expect(result.errors?.[0]).toMatch(/already used/i);
+    expectRefusedUnless(
+      executeTurnAs(state, rotate(1, "retrograde"), rotate(2, "prograde")),
+      executeTurnAs(state, rotate(1, "retrograde"))
+    );
   });
 
   it("rotating before a burn changes its direction; rotating after does not", () => {
@@ -333,7 +351,10 @@ describe("movement: fuel scoop", () => {
 
   it("rejects scooping with a broken scoop", () => {
     const state = withSub(makeTwoPlayerGame(), "p1", "scoop", { isBroken: true });
-    expect(executeTurnAs(state, coast(1, true)).errors?.length).toBeGreaterThan(0);
+    expectRefusedUnless(
+      executeTurnAs(state, coast(1, true)),
+      executeTurnAs(makeTwoPlayerGame(), coast(1, true))
+    );
   });
 
   it("the scoop only runs while coasting, never during a burn", () => {

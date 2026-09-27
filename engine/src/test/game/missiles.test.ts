@@ -16,6 +16,7 @@ import {
   eventsOf,
   eventTypes,
   executeTurnAs,
+  expectRefusedUnless,
   fire,
   getShip,
   getSub,
@@ -183,7 +184,11 @@ describe("missiles: launch", () => {
 
   it("refuses to launch with no ammo", () => {
     const state = withSub(launcher(), "p1", "side-3", { ammo: 0 });
-    expect(executeTurnAs(state, fire(1, "side-3", "p2")).errors?.[0]).toMatch(/no missiles/i);
+    const lastRound = withSub(launcher(), "p1", "side-3", { ammo: 1 });
+    expectRefusedUnless(
+      executeTurnAs(state, fire(1, "side-3", "p2")),
+      executeTurnAs(lastRound, fire(1, "side-3", "p2"))
+    );
   });
 
   it("a salvo puts one token per missile in the air and is one use of the tile", () => {
@@ -208,13 +213,16 @@ describe("missiles: launch", () => {
     });
   });
 
+  // The last column is the nearest salvo the same tile fires.
   it.each([
-    ["more missiles than the tile holds", 5],
-    ["no missiles at all", 0],
-    ["a fraction of a missile", 1.5],
-  ])("refuses a salvo of %s", (_label, count) => {
-    const result = executeTurnAs(launcher(), fire(1, "side-3", "p2", "engines", undefined, count));
-    expect(result.errors?.length).toBeGreaterThan(0);
+    ["more missiles than the tile holds", 5, 4],
+    ["no missiles at all", 0, 1],
+    ["a fraction of a missile", 1.5, 1],
+  ])("refuses a salvo of %s", (_label, count, legal) => {
+    const salvo = (n: number) =>
+      executeTurnAs(launcher(), fire(1, "side-3", "p2", "engines", undefined, n));
+    const result = salvo(count);
+    expectRefusedUnless(result, salvo(legal));
     expect(result.gameState.missiles).toEqual([]);
   });
 

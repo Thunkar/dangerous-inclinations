@@ -23,6 +23,8 @@ import {
   coast,
   eventsOf,
   executeTurnAs,
+  expectRefused,
+  expectRefusedUnless,
   getShip,
   getSub,
   jump,
@@ -211,32 +213,36 @@ describe("jumps: executing a well transfer", () => {
   it("uses the engines: a burn in the same turn is impossible anyway (one movement), and they count as used", () => {
     const result = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA));
     expect(getSub(result.gameState, "p1", "engines").usedThisTurn).toBe(false); // reset at end of turn
-    const both = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA), burn(2, "soft"));
-    expect(both.errors?.[0]).toMatch(/one movement/i);
-    const withCoast = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA), coast(2));
-    expect(withCoast.errors?.[0]).toMatch(/one movement/i);
+    const alone = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA));
+    for (const second of [burn(2, "soft"), coast(2)]) {
+      expectRefusedUnless(executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA), second), alone);
+    }
   });
 
+  // Every row is put right by one change: BH R5 S17 is on Alpha's outbound
+  // lane with a full tank and working engines.
   it.each([
-    ["not on a lane", readyToJump(BH, 4, 5), ALPHA, /no transfer lane/i],
-    ["wrong destination for this arc", readyToJump(BH, 5, 17), BETA, /no transfer lane/i],
-    ["an arrival arc", readyToJump(BH, 5, 5), ALPHA, /no transfer lane/i],
+    ["not on a lane", readyToJump(BH, 4, 5), ALPHA, readyToJump(BH, 5, 17), ALPHA],
+    ["wrong destination for this arc", readyToJump(BH, 5, 17), BETA, readyToJump(BH, 5, 17), ALPHA],
+    ["an arrival arc", readyToJump(BH, 5, 5), ALPHA, readyToJump(BH, 5, 17), ALPHA],
     [
       "only 2 mass",
       withShip(readyToJump(BH, 5, 17), "p1", { reactionMass: 2 }),
       ALPHA,
-      /reaction mass/i,
+      withShip(readyToJump(BH, 5, 17), "p1", { reactionMass: 3 }),
+      ALPHA,
     ],
     [
       "broken engines",
       withSub(readyToJump(BH, 5, 17), "p1", "engines", { isBroken: true }),
       ALPHA,
-      /broken/i,
+      readyToJump(BH, 5, 17),
+      ALPHA,
     ],
-  ])("rejects a jump when %s", (_label, state, destination, message) => {
+  ])("rejects a jump when %s", (_label, state, destination, fixed, fixedDestination) => {
     const result = executeTurnAs(state, jump(1, destination));
-    expect(result.errors?.[0]).toMatch(message);
-    expect(result.gameState).toBe(state);
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(fixed, jump(1, fixedDestination)));
   });
 
   it("a working fuel compressor pays two of the lane's three fuel and is revealed", () => {
@@ -273,8 +279,10 @@ describe("jumps: executing a well transfer", () => {
 
   it("the lane is read from where the ship is when the jump executes", () => {
     // p1 on Alpha's lane ring S15 (no lane) cannot jump even though S16 next door starts the inbound arc.
-    const result = executeTurnAs(readyToJump(ALPHA, PLANET_OUTER_RING, 15), jump(1, BH));
-    expect(result.errors?.[0]).toMatch(/no transfer lane/i);
+    expectRefusedUnless(
+      executeTurnAs(readyToJump(ALPHA, PLANET_OUTER_RING, 15), jump(1, BH)),
+      executeTurnAs(readyToJump(ALPHA, PLANET_OUTER_RING, 16), jump(1, BH))
+    );
   });
 
   it("jumping is a movement: the ship does not drift afterwards even on a fast ring", () => {
@@ -348,26 +356,31 @@ describe("jumps: phasing inside the arrival arc", () => {
     ]);
   });
 
+  // The last column is the nearest phasing inside the arc from the same sector.
   it.each([
-    ["past the end of the arc", 17, 3],
-    ["before the start of the arc", 17, -2],
-    ["far outside it", 16, 9],
-  ])("rejects a jump phased %s", (_label, sector, adjustment) => {
+    ["past the end of the arc", 17, 3, 2],
+    ["before the start of the arc", 17, -2, -1],
+    ["far outside it", 16, 9, 3],
+  ])("rejects a jump phased %s", (_label, sector, adjustment, inside) => {
     const state = readyToJump(BH, 5, sector);
     const result = executeTurnAs(state, jump(1, ALPHA, adjustment));
-    expect(result.errors?.[0]).toMatch(/arrival arc/i);
-    expect(result.gameState).toBe(state);
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(state, jump(1, ALPHA, inside)));
   });
 
   it("rejects phasing the ship cannot pay for", () => {
     const state = withShip(readyToJump(BH, 5, 17), "p1", { reactionMass: 4 });
-    expect(executeTurnAs(state, jump(1, ALPHA, 2)).errors?.[0]).toMatch(/reaction mass/i);
-    expect(executeTurnAs(state, jump(1, ALPHA, 1)).errors).toBeUndefined();
+    expectRefusedUnless(
+      executeTurnAs(state, jump(1, ALPHA, 2)),
+      executeTurnAs(state, jump(1, ALPHA, 1))
+    );
   });
 
   it("rejects a fractional adjustment", () => {
-    const result = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA, 0.5));
-    expect(result.errors?.[0]).toMatch(/integer/i);
+    expectRefusedUnless(
+      executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA, 0.5)),
+      executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA, 1))
+    );
   });
 
   it("a compressor cheapens the lane but never the phasing", () => {
@@ -388,13 +401,17 @@ describe("jumps: phasing inside the arrival arc", () => {
     const dry = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
       reactionMass: 0,
     });
-    expect(executeTurnAs(dry, jump(1, ALPHA)).errors?.[0]).toMatch(/reaction mass/i);
-    expect(
+    const lane = withShip(dry, "p1", { reactionMass: COMPRESSED_JUMP_MASS });
+    // Dry, the lane is refused; with the lane's one fuel it is taken.
+    expectRefusedUnless(executeTurnAs(dry, jump(1, ALPHA)), executeTurnAs(lane, jump(1, ALPHA)));
+    // The lane's fuel and nothing for the phasing: refused until the phasing is paid.
+    expectRefusedUnless(
+      executeTurnAs(lane, jump(1, ALPHA, 1)),
       executeTurnAs(
-        withShip(dry, "p1", { reactionMass: COMPRESSED_JUMP_MASS }),
+        withShip(dry, "p1", { reactionMass: COMPRESSED_JUMP_MASS + 1 }),
         jump(1, ALPHA, 1)
-      ).errors?.[0]
-    ).toMatch(/reaction mass/i);
+      )
+    );
   });
 
   it("phasing an inbound jump works the same way, and still skips the drift", () => {

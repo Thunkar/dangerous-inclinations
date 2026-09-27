@@ -8,6 +8,8 @@ import {
   coast,
   cubesOnLoadout,
   executeTurnAs,
+  expectRefused,
+  expectRefusedUnless,
   fire,
   getShip,
   getSub,
@@ -206,12 +208,12 @@ describe("energy: it stays on the tile until its owner's next turn", () => {
   );
 });
 
-describe("energy: no reactor, so heat is the only limit", () => {
+describe("energy: heat is the only limit", () => {
   const fullWalls = [1, 2, 3, 4].map((seq, i) => power(seq, `side-${i}`, 4));
 
   it("lets a ship light more than it can cool, and charges it the hull", () => {
-    // Four walls at four cubes is sixteen, and a hard burn is three more: a
-    // reactor would have refused this and the heat track simply bills for it.
+    // Four walls at four cubes is sixteen, and a hard burn is three more:
+    // nothing refuses it, and the heat track simply bills for it.
     const result = executeTurnAs(fourShields({ ring: 2 }), ...fullWalls, burn(5, "hard"));
     expect(result.errors ?? []).toEqual([]);
     const cubes = 16 + BURN_COSTS.hard.energy;
@@ -277,23 +279,25 @@ describe("energy: power", () => {
   ])("refuses to power %s: only shields, racks and sensors take it", (_label, id) => {
     const state = rackAndTarget();
     const result = executeTurnAs(state, power(1, id, 2));
-    expect(result.errors?.length).toBeGreaterThan(0);
-    expect(result.gameState).toBe(state);
+    expectRefused(result, state);
+    // The same two cubes on the wall are taken.
+    expectRefusedUnless(result, executeTurnAs(state, power(1, "side-2", 2)));
   });
 
+  // The last column is an amount the same tile takes.
   it.each([
-    ["one cube on a shield", "side-2", 1],
-    ["three cubes on a shield", "side-2", 3],
-    ["more than a shield holds", "side-2", 6],
-    ["a negative amount", "side-2", -2],
-    ["a fractional amount", "side-2", 2.5],
-    ["four on a rack", "side-0", 4],
-    ["four on a sensor", "forward-0", 4],
-  ])("rejects %s", (_label, id, amount) => {
+    ["one cube on a shield", "side-2", 1, 2],
+    ["three cubes on a shield", "side-2", 3, 4],
+    ["more than a shield holds", "side-2", 6, 4],
+    ["a negative amount", "side-2", -2, 2],
+    ["a fractional amount", "side-2", 2.5, 2],
+    ["four on a rack", "side-0", 4, getSubsystemConfig("ballistic_rack").maxEnergy],
+    ["four on a sensor", "forward-0", 4, getSubsystemConfig("sensor_array").maxEnergy],
+  ])("rejects %s", (_label, id, amount, legal) => {
     const state = rackAndTarget();
     const result = executeTurnAs(state, power(1, id, amount));
-    expect(result.errors?.length).toBeGreaterThan(0);
-    expect(result.gameState).toBe(state);
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(state, power(1, id, legal)));
   });
 
   it("rejects a broken tile", () => {

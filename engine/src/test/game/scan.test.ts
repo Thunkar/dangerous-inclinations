@@ -6,6 +6,8 @@ import {
   eventsOf,
   eventTypes,
   executeTurnAs,
+  expectRefused,
+  expectRefusedUnless,
   getPlayer,
   getSub,
   interceptMission,
@@ -88,15 +90,18 @@ describe("scan: a successful scan", () => {
   });
 
   it("the sensor scans once per turn", () => {
-    const result = executeTurnAs(scanner(), scan(1, "p2", "side-0"), scan(2, "p2", "side-1"));
-    expect(result.errors?.length).toBeGreaterThan(0);
-    expect(executeTurnAs(scanner(), scan(1, "p2", "side-0")).errors).toBeUndefined();
+    expectRefusedUnless(
+      executeTurnAs(scanner(), scan(1, "p2", "side-0"), scan(2, "p2", "side-1")),
+      executeTurnAs(scanner(), scan(1, "p2", "side-0"))
+    );
   });
 
   it("range is measured when the scan executes", () => {
     const state = scanner(6); // 6 sectors ahead: out of range now, 2 after drifting to S4
-    expect(executeTurnAs(state, scan(1, "p2")).errors?.[0]).toMatch(/within 3 sectors/i);
-    expect(executeTurnAs(state, coast(1), scan(2, "p2")).errors).toBeUndefined();
+    expectRefusedUnless(
+      executeTurnAs(state, scan(1, "p2")),
+      executeTurnAs(state, coast(1), scan(2, "p2"))
+    );
   });
 
   it("does not consume the dice", () => {
@@ -108,27 +113,20 @@ describe("scan: a successful scan", () => {
 });
 
 describe("scan: rejections", () => {
+  // Each is taken with a sensor array aboard and side-0 as the peek slot.
   it.each([
     [
       "no sensor array installed",
       (s: GameState) => withShip(s, "p1", makeTwoPlayerGame().players[0].ship),
-      "p2",
       "side-0",
-      /no sensor array/i,
     ],
-    [
-      "a fixed system as the peek slot",
-      (s: GameState) => s,
-      "p2",
-      "engines",
-      /not a loadout slot/i,
-    ],
-    ["an unknown peek slot", (s: GameState) => s, "p2", "side-9", /not a loadout slot/i],
-  ])("rejects scanning with %s", (_label, setup, target, slot, message) => {
+    ["a fixed system as the peek slot", (s: GameState) => s, "engines"],
+    ["an unknown peek slot", (s: GameState) => s, "side-9"],
+  ])("rejects scanning with %s", (_label, setup, slot) => {
     const state = setup(scanner());
-    const result = executeTurnAs(state, scan(1, target, slot));
-    expect(result.errors?.[0]).toMatch(message);
-    expect(result.gameState).toBe(state);
+    const result = executeTurnAs(state, scan(1, "p2", slot));
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(scanner(), scan(1, "p2", "side-0")));
   });
 });
 

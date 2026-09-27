@@ -71,8 +71,10 @@ describe("match appearance", () => {
       ...choice(state),
       appearance: { ...appearance, paint: "red" },
     });
-    expect(result.error).toMatch(/appearance/i);
+    expect(result.error).toBeDefined();
     expect(result.state).toBe(state);
+    // The same submission painted properly is taken.
+    expect(submitLoadout(state, "p1", { ...choice(state), appearance }).error).toBeUndefined();
   });
   it("makes submitted appearance public while preserving slot privacy", () => {
     const state = submitLoadout(fresh(), "p1", { ...choice(fresh()), appearance }).state;
