@@ -23,7 +23,10 @@
  *   yarn balance --only=logical:hunter_aggressive,offbook:missile_boat
  *   yarn balance --output=/tmp/balance  # writes balance.md and balance.json
  *   yarn balance --rules=missionsToWin=4  # the same matrix under a proposed rule
+ *   yarn balance --tiles=laser.damage=3   # the same matrix with a tile changed
+ *   yarn balance --bot=aggressiveness=0.8 # the same matrix played by bots told to think differently
  *
+ * An unknown flag stops the run: a typo is a matrix that never ran.
  * `--only=` takes section names (natural, baselines, logical, illogical,
  * offbook, extreme), full row ids (`illogical:hauler_tanky+destroy`) or a bare
  * row name (`turtle`).
@@ -32,7 +35,13 @@
  * is never offered (`sim/ruleOverrides.ts`) and the page stamps it under the
  * title, so a proposed four-point game can be read against the same rows as
  * the three-point one that is the game. Two pages are only comparable when
- * they ran the same games, the same seeds and the same setting.
+ * they ran the same games, the same seeds and the same setting. `--tiles=` and
+ * `--bot=` are stamped the same way.
+ *
+ * **A bar that was not measured judges nothing.** Under `--only=` a row can
+ * run without the row that measures its bar; it prints its numbers with no
+ * bar, and every flag read against the bar (`outlier`, `dead`, `unpunished`,
+ * `weak`) stays down.
  *
  * **Every forced row reports `stuck`**: the share of its games in which seat 1
  * really flew the forced hull and really kept the forced card. Both are
@@ -71,7 +80,19 @@ import { DEFAULT_POINTS_TO_WIN, type MissionType } from "../models/missions.ts";
 import { BOT_LOADOUT_TEMPLATES, type BotArchetype } from "../ai/behaviors/loadout.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
 import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
-import { handShapeOf, type PerGameStats, type PerPlayerStats } from "./stats.ts";
+import {
+  applyTileOverrides,
+  describeTileOverrides,
+  parseTileOverrides,
+  type TileOverrides,
+} from "./tileOverrides.ts";
+import {
+  applyBotOverrides,
+  describeBotOverrides,
+  parseBotOverrides,
+  type BotOverrides,
+} from "./botOverrides.ts";
+import { CARD_LABEL, type PerGameStats, type PerPlayerStats } from "./stats.ts";
 
 const OUTLIER_MARGIN = 0.12;
 const STALL_SHARE = 0.2;
@@ -79,8 +100,6 @@ const SLOW_FINISH = 0.9;
 const SLOW_ROUNDS = 50;
 /** Below this share of games actually flying the row, the row is diluted. */
 const STUCK_FLOOR = 0.9;
-/** Used for any bar whose measuring row was not run. */
-const FALLBACK_BAR = 0.26;
 
 const hull = (forward: string, sides: string): ShipLoadout => ({
   forwardSlots: [forward] as ShipLoadout["forwardSlots"],
@@ -98,9 +117,6 @@ const PRIMARY_OF: Record<Exclude<BarName, "any">, MissionType> = {
   deliver: "deliver_cargo",
   intercept: "intercept_transmission",
 };
-
-/** "Destroy", "Deliver", "Intercept": the labels the stats module prints. */
-const cardLabel = (type: MissionType) => handShapeOf([{ type }]).split(" + ")[0];
 
 interface RowSpec {
   /** `section:name`, and what `--only=` takes. */
@@ -343,6 +359,15 @@ interface Args {
   noFail: boolean;
   /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
   rules?: RuleOverrides;
+  /** Experiment-only tile overrides, stamped on the page (see sim/tileOverrides.ts). */
+  tiles?: TileOverrides;
+  /** Experiment-only bot parameter overrides, stamped on the page (see sim/botOverrides.ts). */
+  bot?: BotOverrides;
+}
+
+function fail(message: string): never {
+  console.error(message);
+  process.exit(2);
 }
 
 function parseArgs(argv: string[]): Args {
@@ -353,22 +378,27 @@ function parseArgs(argv: string[]): Args {
     noFail: false,
   };
   for (const raw of argv) {
-    if (!raw.startsWith("--")) continue;
+    if (!raw.startsWith("--")) fail(`Unknown argument ${raw}`);
     const eq = raw.indexOf("=");
     const key = eq === -1 ? raw.slice(2) : raw.slice(2, eq);
     const value = eq === -1 ? "true" : raw.slice(eq + 1);
+    const num = () => {
+      const n = Number(value);
+      if (!Number.isFinite(n)) fail(`--${key} must be a number`);
+      return n;
+    };
     switch (key) {
       case "games":
-        args.games = Number(value);
+        args.games = num();
         break;
       case "quick":
         args.games = 40;
         break;
       case "baseSeed":
-        args.baseSeed = Number(value);
+        args.baseSeed = num();
         break;
       case "workers":
-        args.workers = Number(value);
+        args.workers = num();
         break;
       case "only":
         args.only = new Set(value.split(",").map((s) => s.trim()));
@@ -379,11 +409,17 @@ function parseArgs(argv: string[]): Args {
       case "rules":
         args.rules = parseRuleOverrides(value);
         break;
+      case "tiles":
+        args.tiles = parseTileOverrides(value);
+        break;
+      case "bot":
+        args.bot = parseBotOverrides(value);
+        break;
       case "no-fail":
         args.noFail = true;
         break;
       default:
-        console.warn(`Unknown flag --${key}`);
+        fail(`Unknown flag --${key}`);
     }
   }
   return args;
@@ -391,6 +427,8 @@ function parseArgs(argv: string[]): Args {
 
 const pct = (x: number) => `${Math.round(100 * x)}%`;
 const delta = (x: number) => `${x >= 0 ? "+" : "-"}${Math.abs(Math.round(100 * x))}pp`;
+/** A bar that was not measured in this run reads as such, never as a number. */
+const NOT_MEASURED = "not measured";
 const mean = (xs: number[]) =>
   xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : 0;
 
@@ -414,7 +452,8 @@ interface ForcedRow {
   label: string;
   /** The card forced on the seat, or "own hand" when none was. */
   card: string;
-  bar: number;
+  /** Null when the row that measures this bar did not run. */
+  bar: number | null;
   barName: BarName;
   /** Games in which the seat really flew this hull and kept this card. */
   stuck: number;
@@ -475,10 +514,10 @@ function flewHull(p: PerPlayerStats, loadout: ShipLoadout): boolean {
 
 /** "Destroy + Survey/Tanker": the primary is everything before the separator. */
 function keptPrimary(p: PerPlayerStats, primary: MissionType): boolean {
-  return p.handShape.split(" + ")[0] === cardLabel(primary);
+  return p.handShape.split(" + ")[0] === CARD_LABEL[primary];
 }
 
-function forcedRow(spec: RowSpec, batch: BatchResult, bar: number): ForcedRow {
+function forcedRow(spec: RowSpec, batch: BatchResult, bar: number | null): ForcedRow {
   const a = batch.aggregate;
   const g = a.gameCount;
   const b1 = seat1(batch.perGame);
@@ -499,13 +538,17 @@ function forcedRow(spec: RowSpec, batch: BatchResult, bar: number): ForcedRow {
     : 0;
 
   const flags: string[] = [];
-  if (spec.section === "offbook" || spec.section === "extreme") {
-    if (real >= bar + OUTLIER_MARGIN) flags.push("outlier");
-    if (spec.section === "offbook" && real <= bar - OUTLIER_MARGIN) flags.push("dead");
+  // Every verdict against the bar needs a bar: one this run did not measure
+  // judges nothing.
+  if (bar !== null) {
+    if (spec.section === "offbook" || spec.section === "extreme") {
+      if (real >= bar + OUTLIER_MARGIN) flags.push("outlier");
+      if (spec.section === "offbook" && real <= bar - OUTLIER_MARGIN) flags.push("dead");
+    }
+    // The reverse test: an illogical loadout is supposed to cost its pilot something.
+    if (spec.section === "illogical" && real >= bar) flags.push("unpunished");
+    if (spec.section === "logical" && real <= bar - OUTLIER_MARGIN) flags.push("weak");
   }
-  // The reverse test: an illogical loadout is supposed to cost its pilot something.
-  if (spec.section === "illogical" && real >= bar) flags.push("unpunished");
-  if (spec.section === "logical" && real <= bar - OUTLIER_MARGIN) flags.push("weak");
   if (1 - finish >= STALL_SHARE) flags.push("stall");
   if (deaths >= 1.5) flags.push("glass");
 
@@ -517,7 +560,7 @@ function forcedRow(spec: RowSpec, batch: BatchResult, bar: number): ForcedRow {
     id: spec.id,
     section: spec.section,
     label: spec.label,
-    card: spec.primary ? cardLabel(spec.primary) : "own hand",
+    card: spec.primary ? CARD_LABEL[spec.primary] : "own hand",
     bar,
     barName: spec.bar,
     stuck,
@@ -547,8 +590,10 @@ function renderForced(rows: ForcedRow[]): string[] {
     const note = f.suppressed.length
       ? `diluted (${f.suppressed.join(", ")} suppressed)`
       : f.flags.join(", ");
+    const bar = f.bar === null ? `${NOT_MEASURED} (${f.barName})` : `${pct(f.bar)} (${f.barName})`;
+    const vsBar = f.bar === null ? NOT_MEASURED : delta(f.real - f.bar);
     lines.push(
-      `| \`${f.id}\` | ${f.label} | ${f.card} | ${pct(f.real)} | ${pct(f.bar)} (${f.barName}) | ${delta(f.real - f.bar)} | ${pct(f.stuck)} | ${pct(f.wins)} | ${pct(f.othersEach)} | ${f.kills} | ${f.deaths} | ${f.dealt} | ${f.taken} | ${pct(f.finish)} | ${f.rounds} | ${note} |`
+      `| \`${f.id}\` | ${f.label} | ${f.card} | ${pct(f.real)} | ${bar} | ${vsBar} | ${pct(f.stuck)} | ${pct(f.wins)} | ${pct(f.othersEach)} | ${f.kills} | ${f.deaths} | ${f.dealt} | ${f.taken} | ${pct(f.finish)} | ${f.rounds} | ${note} |`
     );
   }
   return lines;
@@ -556,6 +601,10 @@ function renderForced(rows: ForcedRow[]): string[] {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  // In this process too, for anything read off the configs here; the workers
+  // that play the games get the same overrides with every job.
+  applyTileOverrides(args.tiles);
+  applyBotOverrides(args.bot);
   const want = (id: string) => {
     if (!args.only) return true;
     const [section, name] = id.split(":");
@@ -568,6 +617,8 @@ async function main() {
     workers: args.workers,
     tiebreak: true,
     rules: args.rules,
+    tiles: args.tiles,
+    bots: args.bot,
   };
   const started = Date.now();
   const log = (s: string) =>
@@ -580,17 +631,12 @@ async function main() {
     natural.push(naturalRow(bots, await runBatch({ ...common, botCount: bots })));
   }
 
-  const bars: Record<BarName, number> = {
-    any: natural.find((n) => n.bots === 3)?.seat1Real ?? FALLBACK_BAR,
-    destroy: FALLBACK_BAR,
-    deliver: FALLBACK_BAR,
-    intercept: FALLBACK_BAR,
-  };
-  const measured: Record<BarName, boolean> = {
-    any: natural.some((n) => n.bots === 3),
-    destroy: false,
-    deliver: false,
-    intercept: false,
+  // A bar is null until the row that measures it has run.
+  const bars: Record<BarName, number | null> = {
+    any: natural.find((n) => n.bots === 3)?.seat1Real ?? null,
+    destroy: null,
+    deliver: null,
+    intercept: null,
   };
 
   const rowsBySection: Record<Section, ForcedRow[]> = {
@@ -602,7 +648,7 @@ async function main() {
   };
   for (const spec of ROWS) {
     if (!want(spec.id)) continue;
-    log(`${spec.id}: ${spec.label}${spec.primary ? ` + ${cardLabel(spec.primary)}` : ""}`);
+    log(`${spec.id}: ${spec.label}${spec.primary ? ` + ${CARD_LABEL[spec.primary]}` : ""}`);
     const batch = await runBatch({
       ...common,
       botCount: 3,
@@ -615,7 +661,6 @@ async function main() {
     if (spec.section === "baselines") {
       const name = spec.id.split(":")[1] as Exclude<BarName, "any">;
       bars[name] = row.real;
-      measured[name] = true;
     }
   }
 
@@ -623,23 +668,29 @@ async function main() {
   lines.push(`# Balance suite (${new Date().toISOString().slice(0, 10)})`);
   // A run under `--rules=` is not the standing matrix: say so where the reader
   // looks first, or two pages get diffed as if they were the same suite.
-  if (describeRuleOverrides(args.rules)) {
+  const stamps = [
+    ["Rule overrides", describeRuleOverrides(args.rules)],
+    ["Tile overrides", describeTileOverrides(args.tiles)],
+    ["Bot overrides", describeBotOverrides(args.bot)],
+  ].filter(([, text]) => text !== "");
+  for (const [name, text] of stamps) {
     lines.push("");
-    lines.push(`Experiment overrides: ${describeRuleOverrides(args.rules)}`);
+    lines.push(`${name}: ${text}`);
   }
   lines.push("");
   lines.push(
     `${args.games} games per row, seeds ${args.baseSeed}+, turn cap 400, 3 players in every forced row, points to win ${args.rules?.missionsToWin ?? DEFAULT_POINTS_TO_WIN}.`
   );
   lines.push("");
+  const barText = (b: number | null) => (b === null ? NOT_MEASURED : pct(b));
   lines.push(
-    `Bars (seat 1's outright wins): any ${pct(bars.any)}, Destroy ${pct(bars.destroy)}, Deliver ${pct(bars.deliver)}, Intercept ${pct(bars.intercept)}.`
+    `Bars (seat 1's outright wins): any ${barText(bars.any)}, Destroy ${barText(bars.destroy)}, Deliver ${barText(bars.deliver)}, Intercept ${barText(bars.intercept)}.`
   );
-  const unmeasured = (Object.keys(bars) as BarName[]).filter((b) => !measured[b]);
+  const unmeasured = (Object.keys(bars) as BarName[]).filter((b) => bars[b] === null);
   if (unmeasured.length) {
     lines.push("");
     lines.push(
-      `Not measured in this run: ${unmeasured.join(", ")}. The fallback constant ${pct(FALLBACK_BAR)} stands in, so every comparison against ${unmeasured.length > 1 ? "those bars is" : "that bar is"} indicative only.`
+      `Not measured in this run: ${unmeasured.join(", ")}. Rows read against ${unmeasured.length > 1 ? "those bars" : "that bar"} print no bar and raise no flag that needs one.`
     );
   }
   if (natural.length) {

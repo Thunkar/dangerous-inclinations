@@ -9,6 +9,10 @@
  *   yarn bench --output=docs/bench-2026-09-18.md
  *   yarn bench --rules=missionsToWin=4   # a page played under a proposed rule
  *   yarn bench --bot=aggressiveness=0.8,targetPreference=weakest  # a page played by bots told to think differently
+ *   yarn bench --tiles=radiator.dissipationBonus=3  # a page played with a tile changed
+ *
+ * An unknown flag stops the run: a typo is a page stamped with rules it was
+ * not played under.
  *
  * It exists to be diffed. Every run stamps the rules it was played under at
  * the top, so two pages side by side say what changed and what it did, which
@@ -47,10 +51,14 @@ import {
   STARTING_HIT_POINTS,
 } from "../models/game.ts";
 import { SHIELD_ENERGY_PER_POINT, SUBSYSTEM_CONFIGS } from "../models/subsystems.ts";
-
-/** What one radiator adds, read from the tile so the stamp cannot drift. */
-const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
 import { runBatch, type BatchResult } from "./batch.ts";
+import { CARD_LABEL, LEAD_CHECK_ROUND } from "./stats.ts";
+import {
+  applyTileOverrides,
+  describeTileOverrides,
+  parseTileOverrides,
+  type TileOverrides,
+} from "./tileOverrides.ts";
 import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import {
   applyBotOverrides,
@@ -82,16 +90,6 @@ const TYPES: MissionType[] = [
   "escort",
   "salvage",
 ];
-const TYPE_LABEL: Record<MissionType, string> = {
-  deliver_cargo: "Deliver",
-  destroy_ship: "Destroy",
-  intercept_transmission: "Intercept",
-  survey: "Survey",
-  piracy: "Piracy",
-  tanker: "Tanker",
-  escort: "Escort",
-  salvage: "Salvage",
-};
 
 interface Args {
   games: number;
@@ -103,6 +101,13 @@ interface Args {
   rules?: RuleOverrides;
   /** Experiment-only bot parameter overrides, stamped on the page (see sim/botOverrides.ts). */
   bot?: BotOverrides;
+  /** Experiment-only tile overrides, stamped on the page (see sim/tileOverrides.ts). */
+  tiles?: TileOverrides;
+}
+
+function fail(message: string): never {
+  process.stderr.write(`[bench] ${message}\n`);
+  process.exit(2);
 }
 
 function parseArgs(argv: string[]): Args {
@@ -119,23 +124,31 @@ function parseArgs(argv: string[]): Args {
     }
     // Split on the first "=" only: values carry their own, as in
     // --rules=missionsToWin=4.
-    const flag = raw.replace(/^--/, "");
+    if (!raw.startsWith("--")) fail(`Unknown argument ${raw}`);
+    const flag = raw.slice(2);
     const eq = flag.indexOf("=");
-    if (eq === -1) continue;
+    if (eq === -1) fail(`Unknown flag ${raw}`);
     const key = flag.slice(0, eq);
     const value = flag.slice(eq + 1);
-    if (key === "games") args.games = Number(value);
-    else if (key === "workers") args.workers = Number(value);
-    else if (key === "minutes") args.minutesPerTurn = Number(value);
+    const num = () => {
+      const n = Number(value);
+      if (!Number.isFinite(n)) fail(`--${key} must be a number`);
+      return n;
+    };
+    if (key === "games") args.games = num();
+    else if (key === "workers") args.workers = num();
+    else if (key === "minutes") args.minutesPerTurn = num();
     else if (key === "output") args.output = value;
     else if (key === "rules") args.rules = parseRuleOverrides(value);
     else if (key === "bot") args.bot = parseBotOverrides(value);
+    else if (key === "tiles") args.tiles = parseTileOverrides(value);
     else if (key === "players") {
-      args.players = value
-        .split(",")
-        .map((n) => Number(n))
-        .filter((n) => n >= MIN_PLAYERS && n <= MAX_PLAYERS);
-    }
+      args.players = value.split(",").map((n) => Number(n));
+      const bad = args.players.filter(
+        (n) => !Number.isInteger(n) || n < MIN_PLAYERS || n > MAX_PLAYERS
+      );
+      if (bad.length) fail(`--players takes ${MIN_PLAYERS} to ${MAX_PLAYERS}, got ${value}`);
+    } else fail(`Unknown flag --${key}`);
   }
   return args;
 }
@@ -158,7 +171,8 @@ interface SeatRow {
   roundsP75: number;
   turns: number;
   kills: number;
-  completions: number;
+  cards: number;
+  points: number;
   seatSpread: string;
   burn: number;
   scoop: number;
@@ -189,7 +203,8 @@ function seatRow(players: number, batch: BatchResult): SeatRow {
     roundsP75: a.rounds.p75,
     turns: a.rounds.median * players,
     kills: round1(a.destructions.mean),
-    completions: round1(a.missionCompletions.mean),
+    cards: round1(a.cards.mean),
+    points: round1(a.points.mean),
     seatSpread: wins.map((w) => pct(w / a.gameCount)).join(" / "),
     burn: a.behaviour.burnShare,
     scoop: a.behaviour.scoopShare,
@@ -252,12 +267,11 @@ function missionRows(batches: BatchResult[]) {
 }
 
 /**
- * What shape of hand seats kept, and how it did.
+ * Which hands seats kept, and how they did.
  *
- * The question a three-card hand asks is which plan you came with: two
- * primaries, or one and a pair of secondary cards. If every seat keeps the same
- * shape the table has one plan and the others are untested. That is what this
- * is here to show.
+ * Every hand is one primary and two secondaries, so the question is which
+ * cards a seat came with. A hand every seat keeps is the table's one plan and
+ * the rest are untested. That is what this is here to show.
  */
 function handShapeRows(batches: BatchResult[]) {
   const pooled: Record<string, { seats: number; wins: number; points: number }> = {};
@@ -266,7 +280,7 @@ function handShapeRows(batches: BatchResult[]) {
       for (const p of Object.values(game.perPlayer)) {
         const row = (pooled[p.handShape] ??= { seats: 0, wins: 0, points: 0 });
         row.seats++;
-        row.points += p.completedMissions;
+        row.points += p.points;
         if (game.winnerId === p.playerId) row.wins++;
       }
     }
@@ -288,6 +302,47 @@ function pointsToWin(args: Args): number {
   return args.rules?.missionsToWin ?? DEFAULT_POINTS_TO_WIN;
 }
 
+/**
+ * How games unfold: one row per measure, one column per seat count, every
+ * number read off the events of the games in that column.
+ */
+function unfoldingTable(args: Args, batches: BatchResult[]): string[] {
+  const cols = batches.map((b) => b.aggregate.unfolding);
+  const row = (label: string, cell: (u: (typeof cols)[number]) => string) =>
+    `| ${label} | ${cols.map(cell).join(" | ")} |`;
+  return [
+    "## How games unfold",
+    "",
+    `| measure | ${args.players.map((n) => `${n} seats`).join(" | ")} |`,
+    `|---|${args.players.map(() => "---|").join("")}`,
+    row("Lead changes per game", (u) => `${u.leadChangesPerGame}`),
+    row(
+      `Won by a seat not leading at round ${LEAD_CHECK_ROUND}`,
+      (u) => `${pct(u.wonFromBehindShare)} of ${u.gamesPastRound10}`
+    ),
+    row("First card completed (median round)", (u) => `${u.firstScoreRound.median}`),
+    row("Escort markers placed per game", (u) => `${u.escortMarksPerGame}`),
+    row("Rounds from marker to Escort paid (median)", (u) =>
+      u.markToCompletionRounds.count === 0 ? "none paid" : `${u.markToCompletionRounds.median}`
+    ),
+    row("Wrecks left per game", (u) => `${u.wrecksPerGame}`),
+    row("Wrecks salvaged", (u) => pct(u.salvagedShare)),
+    row(
+      "Piracy seizures per game (crate / data)",
+      (u) => `${u.seizuresPerGame.crate} / ${u.seizuresPerGame.data}`
+    ),
+    row("Dock visits that did a job, per game", (u) => `${u.dockVisitsWithJobPerGame}`),
+    row("Of those, job named by the player", (u) => pct(u.dockJobsNamedShare)),
+    "",
+    "_The leader is the one seat with the most points; a tie leaves nobody leading, " +
+      "and the first seat to lead is not a change. The comeback row counts games still " +
+      `being played after round ${LEAD_CHECK_ROUND} that someone won, and a tie at round ` +
+      `${LEAD_CHECK_ROUND} counts as not leading. A marker taken back when its ship dies is ` +
+      "not timed. A visit whose job nobody named does the default, the job that scores most._",
+    "",
+  ];
+}
+
 function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   const out: string[] = [];
   const today = new Date().toISOString().slice(0, 10);
@@ -306,10 +361,9 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   // every game of the batch, so the page stamps what the games actually used.
   out.push(`| Points to win | ${pointsToWin(args)} |`);
   out.push(
-    `| Card values | ${TYPES.map((t) => `${TYPE_LABEL[t]} ${MISSION_POINTS[t]}`).join(", ")} |`
+    `| Card values | ${TYPES.map((t) => `${CARD_LABEL[t]} ${MISSION_POINTS[t]}`).join(", ")} |`
   );
   out.push(`| Hold | ${CARGO_HOLD_CRATES} crate (data rides free) |`);
-  out.push("| Moored ships | can neither fire nor be fired at |");
   out.push(
     `| The deal | ${PRIMARY_OFFERS_PER_PLAYER} primaries keep ${PRIMARIES_PER_PLAYER}; ` +
       `${SECONDARY_OFFERS_PER_PLAYER} secondaries keep any ${SECONDARIES_PER_PLAYER} from a shuffled pile of ` +
@@ -322,13 +376,14 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
       `planet ${PLANET_RINGS.map((r) => r.velocity).join("/")} (station on planet ring ${STATION_RING}) |`
   );
   out.push(`| Starting hull | ${STARTING_HIT_POINTS} |`);
+  // Read here, not at import: a `--tiles=` override is applied before this runs.
+  const radiator = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
   out.push(
-    `| Heat track | ${MAX_HEAT}; above it is hull damage, then shed ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator) and carry the rest |`
+    `| Heat track | ${MAX_HEAT}; above it is hull damage, then shed ${DEFAULT_DISSIPATION_CAPACITY} (+${radiator} per radiator) and carry the rest |`
   );
   out.push(
     `| Shields | ${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point, and its cubes as heat every turn it is powered |`
   );
-  out.push("| Repair | a station on arrival fixes everything; away from one, one subsystem a turn at 0 heat |");
   out.push(`| Table time assumes | ${args.minutesPerTurn} min per player-turn |`);
   // A page run under `--rules=` is not the standing benchmark: say so where
   // the reader looks first, or two pages get diffed as if they were.
@@ -338,20 +393,22 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   // for the same reason a rule override does.
   if (describeBotOverrides(args.bot))
     out.push(`| Bot overrides | ${describeBotOverrides(args.bot)} |`);
+  if (describeTileOverrides(args.tiles))
+    out.push(`| Tile overrides | ${describeTileOverrides(args.tiles)} |`);
   out.push("");
 
   out.push("## By seat count");
   out.push("");
   out.push(
-    "| seats | decided | rounds (median) | rounds (p75) | table time | kills/game | cards/game | burn | scoop | firing | lost | wins by seat | notes |"
+    "| seats | decided | rounds (median) | rounds (p75) | table time | kills/game | cards/game | points/game | burn | scoop | firing | lost | wins by seat | notes |"
   );
-  out.push("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+  out.push("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
   for (const r of rows) {
     out.push(
       `| ${r.players} | ${pct(r.decided)} | ${r.roundsMedian} | ${r.roundsP75} | ${tableTime(
         r.turns,
         args.minutesPerTurn
-      )} | ${r.kills} | ${r.completions} | ${pct(r.burn)} | ${pct(r.scoop)} | ${pct(
+      )} | ${r.kills} | ${r.cards} | ${r.points} | ${pct(r.burn)} | ${pct(r.scoop)} | ${pct(
         r.firing
       )} | ${pct(r.lost)} | ${r.seatSpread} | ${r.notes} |`
     );
@@ -359,9 +416,12 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push("");
   out.push(
     "_Table time is the median game at the stated pace: rounds x seats player-turns. " +
+      "Cards are cards completed; points count a primary as 2 and a secondary as 1. " +
       "`lost` is the share of turns spent respawning. `wins by seat` is turn order, first seat first._"
   );
   out.push("");
+
+  out.push(...unfoldingTable(args, batches));
 
   out.push("## Hands the bots kept");
   out.push("");
@@ -401,7 +461,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push("|---|---|---|---|---|---|");
   for (const m of missionRows(batches)) {
     out.push(
-      `| ${TYPE_LABEL[m.type]} | ${m.offered} | ${m.kept} | ${pct(m.pickRate)} | ${Math.round(
+      `| ${CARD_LABEL[m.type]} | ${m.offered} | ${m.kept} | ${pct(m.pickRate)} | ${Math.round(
         m.completedPerHundredKept
       )} | ${pct(m.shareOfWinningCards)} |`
     );
@@ -422,6 +482,7 @@ async function main() {
   // In this process for the stamp the page prints; the workers that play the
   // games get the same overrides with every job.
   applyBotOverrides(args.bot);
+  applyTileOverrides(args.tiles);
   const rows: SeatRow[] = [];
   const batches: BatchResult[] = [];
 
@@ -435,6 +496,7 @@ async function main() {
       workers: args.workers,
       rules: args.rules,
       bots: args.bot,
+      tiles: args.tiles,
     });
     batches.push(batch);
     rows.push(seatRow(players, batch));

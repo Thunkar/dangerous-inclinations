@@ -4,9 +4,14 @@
 import { Worker } from "node:worker_threads";
 import { fileURLToPath } from "node:url";
 import type { GameRecording } from "../recording/types.ts";
-import { runGame, type GameRunResult, type InvalidTurn } from "./runGame.ts";
+import {
+  runGame,
+  DEFAULT_BOT_COUNT,
+  DEFAULT_MAX_TURNS,
+  type GameRunResult,
+  type InvalidTurn,
+} from "./runGame.ts";
 import { freshSeed } from "../utils/rng.ts";
-import type { WeaponOverrides } from "./weaponOverrides.ts";
 import type { TileOverrides } from "./tileOverrides.ts";
 import type { RuleOverrides } from "./ruleOverrides.ts";
 import type { BotOverrides } from "./botOverrides.ts";
@@ -32,7 +37,6 @@ export interface BatchConfig {
   tiebreak?: boolean;
   tiles?: TileOverrides;
   rules?: RuleOverrides;
-  weapons?: WeaponOverrides;
   bots?: BotOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
@@ -57,7 +61,6 @@ export interface WorkerJob {
   tiebreak?: boolean;
   tiles?: TileOverrides;
   rules?: RuleOverrides;
-  weapons?: WeaponOverrides;
   bots?: BotOverrides;
   loadouts?: LoadoutOverrides;
   seatLoadouts?: SeatLoadouts;
@@ -82,14 +85,13 @@ export function summarizeRun(run: GameRunResult): WorkerReply {
 export async function runBatch(config: BatchConfig): Promise<BatchResult> {
   const jobs: WorkerJob[] = Array.from({ length: config.games }, (_, i) => ({
     seed: config.baseSeed !== undefined ? config.baseSeed + i : freshSeed(),
-    botCount: config.botCount ?? 2,
-    maxTurns: config.maxTurns ?? 200,
+    botCount: config.botCount ?? DEFAULT_BOT_COUNT,
+    maxTurns: config.maxTurns ?? DEFAULT_MAX_TURNS,
     record: config.record ?? false,
     label: config.label,
     tiebreak: config.tiebreak,
     tiles: config.tiles,
     rules: config.rules,
-    weapons: config.weapons,
     bots: config.bots,
     loadouts: config.loadouts,
     seatLoadouts: config.seatLoadouts,
