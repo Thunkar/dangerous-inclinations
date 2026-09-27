@@ -17,7 +17,7 @@
  *                                pirate does, and let them deliver
  *   an opponent about to win    → interdict: meet them where their cargo must go
  *   broken systems / low hull  → dock at the nearest station (repairs)
- *   nothing at all             → dock at the nearest station (repairs, cargo)
+ *   nothing at all             → patrol the black hole ring where the rivals are
  *
  * Interdiction is the one goal that is not about the bot's own hand. A race
  * for three points is also a race to stop whoever is ahead: a player two
@@ -43,10 +43,11 @@ import {
   PLANET_OUTER_RING,
   STATION_RING,
   isPlanet,
+  laneArrivalArc,
 } from "../../models/gravityWells.ts";
 import type { GameView } from "../../game/view.ts";
 import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
-import { positionOf, ringVelocity } from "../../game/geometry.ts";
+import { positionOf, ringVelocity, sectorDistance } from "../../game/geometry.ts";
 import { markedBy } from "../../game/escort.ts";
 import { dockJobsOnArrival } from "../../game/docking.ts";
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
@@ -63,6 +64,7 @@ import {
   cheapTurnEstimate,
   laneArrivalTarget,
   planInterception,
+  planetLane,
   stationPositionFor,
 } from "./danger.ts";
 import {
@@ -149,8 +151,10 @@ const SALVAGE_CHASE_TURNS = PIRACY_CHASE_TURNS;
 
 /** Standing goal: a station for repairs, hull and a reload. */
 export const REPAIR_GOAL_ID = "repair";
-/** Goal of last resort: a station is always worth a trip (repairs, cargo). */
-const IDLE_GOAL_ID = "idle";
+/** Goal of last resort: go where the rivals are in the black hole. */
+export const PATROL_GOAL_ID = "patrol";
+/** The ring a patrol prefers on a tie, and heads for with no rival in the black hole. */
+const PATROL_RING = 3;
 /** Standing goal: stop the player who is about to win. */
 const INTERDICT_GOAL_ID = "interdict";
 
@@ -422,6 +426,47 @@ function interdictionTarget(
   return best;
 }
 
+/**
+ * Where a bot with nothing to do goes: the black hole ring holding the most
+ * rivals (ties to {@link PATROL_RING}, then the ring nearest it, then the
+ * lower), at the sector of a rival on it with the most rivals within scan
+ * range (ties to the one nearest the bot, then the lower sector). With no
+ * rival in the black hole, ring {@link PATROL_RING} at the sector the nearest
+ * rival's way home lands on, or under the bot if there is no rival at all.
+ */
+function patrolTarget(from: Position, opponents: Opponent[]): Position {
+  const inHole = opponents.filter((o) => o.position.wellId === BLACK_HOLE_ID);
+  if (inHole.length === 0) {
+    const nearest = [...opponents].sort(
+      (a, b) =>
+        cheapTurnEstimate(from, a.position) - cheapTurnEstimate(from, b.position) ||
+        (a.player.id < b.player.id ? -1 : 1)
+    )[0];
+    const lane = nearest ? planetLane(nearest.position.wellId, "inbound") : undefined;
+    const sector = lane ? laneArrivalArc(lane).startSector : from.sector;
+    return { wellId: BLACK_HOLE_ID, ring: PATROL_RING, sector };
+  }
+  const onRing = (ring: number) => inHole.filter((o) => o.position.ring === ring);
+  const ring = [...new Set(inHole.map((o) => o.position.ring))].sort(
+    (a, b) =>
+      onRing(b).length - onRing(a).length ||
+      Math.abs(a - PATROL_RING) - Math.abs(b - PATROL_RING) ||
+      a - b
+  )[0];
+  const rivals = onRing(ring);
+  const within = (sector: number) =>
+    rivals.filter((o) => sectorDistance(o.position.sector, sector) <= SCAN_SECTOR_RANGE).length;
+  const sector = rivals
+    .map((o) => o.position.sector)
+    .sort(
+      (a, b) =>
+        within(b) - within(a) ||
+        sectorDistance(from.sector, a) - sectorDistance(from.sector, b) ||
+        a - b
+    )[0];
+  return { wellId: BLACK_HOLE_ID, ring, sector };
+}
+
 export function computeGoals(
   view: GameView,
   me: Player,
@@ -546,8 +591,8 @@ export function computeGoals(
       }
       case "tanker": {
         // No trip of its own while the primary is open. The fuel job is one a
-        // visit may do when it has nothing else to do (a repair or an idle
-        // stop), so the reserve rides on those trips (`attachPlanToGoal`);
+        // visit may do when it has nothing else to do (a repair stop), so the
+        // reserve rides on those trips (`attachPlanToGoal`);
         // a visit for crates or data does that job instead.
         if (primaryOutstanding(me)) break;
         // The fuel is pumped on arrival, so the tank has to still hold it
@@ -701,13 +746,17 @@ export function computeGoals(
     if (goal) goals.push(goal);
   }
 
-  // Never stand still: with nothing else to chase, a station is worth a trip
-  // for the repairs and whatever cargo turns up there, and it has to be a
-  // trip, since a dock resolves on arrival and the berth underneath the ship
-  // has already given everything it has (RULES §Stations).
+  // Nothing else to do: go where the rivals are. A station visit would do
+  // nothing here (repairs and every cargo job have goals of their own), and
+  // the black hole is where carriers, wrecks and targets turn up.
   if (goals.length === 0) {
-    const goal = dockAnywhereGoal(view, seat, IDLE_GOAL_ID, (planetId) => `Visit ${planetId}`, 0);
-    if (goal) goals.push(goal);
+    goals.push({
+      type: "patrol",
+      missionId: PATROL_GOAL_ID,
+      description: "Patrol the black hole",
+      estimatedTurns: cheapTurnEstimate(from, patrolTarget(from, opponents)),
+      urgency: 0,
+    });
   }
 
   return goals.sort((a, b) => goalPriority(a) - goalPriority(b));
@@ -744,7 +793,7 @@ export function attachPlanToGoal(
       if (!station) return goal;
       // A seat holding a Tanker arrives with the fuel if there is any route
       // that does, on a trip whose visit may do the fuel job: the Tanker's own
-      // trip, or a repair or idle stop, which takes the job worth most. A trip
+      // trip, or a repair stop, which takes the job worth most. A trip
       // for crates or data does that job instead, so a reserve there would
       // never pump. The fastest route burns the tank down and pumps nothing;
       // the same search with the fuel held back coasts in instead. Fastest
@@ -806,6 +855,18 @@ export function attachPlanToGoal(
       const prey = opponents.find((o) => o.player.id === goal.targetPlayerId);
       if (!prey) return goal;
       return planned(planShipToTarget(ship, nearDriftingShip(prey.position, 0), PLAN_TURNS));
+    }
+    case "patrol": {
+      // On the patrol ring already: a coast keeps the goal, and no sector is
+      // asked for, since phasing to one means leaving the ring and coming back.
+      const target = patrolTarget(status.position, opponents);
+      const onRing = anySectorOnRing(BLACK_HOLE_ID, target.ring);
+      const here = status.position.wellId === BLACK_HOLE_ID && status.position.ring === target.ring;
+      if (here) return planned(planShipToTarget(ship, onRing, PLAN_TURNS));
+      return planned(
+        planShipToTarget(ship, nearDriftingShip(target, SCAN_SECTOR_RANGE), PLAN_TURNS) ??
+          planShipToTarget(ship, onRing, PLAN_TURNS)
+      );
     }
     case "shadow": {
       const target = opponents.find((o) => o.player.id === goal.targetPlayerId);

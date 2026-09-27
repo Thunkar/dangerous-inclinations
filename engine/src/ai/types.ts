@@ -137,7 +137,8 @@ export type BotGoalType =
   | "pirate" // piracy: end a turn in a loaded ship's exact sector
   | "tanker" // tanker, short of fuel: scoop it up on a fast black hole ring
   | "salvage" // salvage: end a turn on a wreck's sector (it drifts like a station)
-  | "escort"; // escort: end a turn in an undocked carrier's exact sector
+  | "escort" // escort: end a turn in an undocked carrier's exact sector
+  | "patrol"; // nothing else to do: coast on the black hole ring the rivals are on
 
 /**
  * A goal derived from a mission (or from the need to repair). The bot
@@ -146,7 +147,7 @@ export type BotGoalType =
  */
 export interface BotGoal {
   type: BotGoalType;
-  /** Mission id, or one of the standing goal ids ("repair", "interdict", "idle"). */
+  /** Mission id, or one of the standing goal ids ("repair", "interdict", "patrol"). */
   missionId: string;
   description: string;
   targetPlayerId?: string;
@@ -154,8 +155,8 @@ export interface BotGoal {
   planetId?: string;
   /**
    * For dock goals: the one job the visit must do for the goal (a visit does
-   * one job). Absent for repairs and the idle trip, which take whatever job
-   * the visit offers by default.
+   * one job). Absent for repairs, which take whatever job the visit offers
+   * by default.
    */
   dockJob?: DockJob;
   /** For salvage goals: the wreck to end a turn on (looked up in `view.wrecks`). */

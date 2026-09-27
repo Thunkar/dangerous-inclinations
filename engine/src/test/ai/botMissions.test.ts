@@ -17,11 +17,11 @@ import { BLACK_HOLE_ID, BLACK_HOLE_OUTER_RING, STATION_RING } from "../../models
 import { executeTurn } from "../../game/turns.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import { viewFor } from "../../game/view.ts";
-import { getStationForPlanet } from "../../game/stations.ts";
+import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
 import { predictedDeliveryPlanets } from "../../ai/behaviors/danger.ts";
 import { orbitSectorAt } from "../../ai/movementPlanner/index.ts";
-import { REPAIR_GOAL_ID as REPAIR_GOAL } from "../../ai/behaviors/missions.ts";
+import { PATROL_GOAL_ID, REPAIR_GOAL_ID as REPAIR_GOAL } from "../../ai/behaviors/missions.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import {
   ALPHA,
@@ -29,6 +29,7 @@ import {
   BH,
   GAMMA,
   approachSector,
+  dataCargo,
   deliverMission,
   destroyMission,
   escortMission,
@@ -874,5 +875,135 @@ describe("bot turn handling", () => {
     expect(decision.log.candidates).toEqual([]);
 
     expect(executeTurn(state, decision.actions).errors).toBeUndefined();
+  });
+});
+
+describe("bot goals: patrol", () => {
+  const situation = (state: GameState) =>
+    analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS);
+  const DONE: Mission = { ...deliverMission(GAMMA, BETA, "primary-p1"), isCompleted: true };
+
+  /** p1 at `from` with nothing to do; the rivals at `rivals`, holds empty. */
+  const idle = (from: Position, rivals: Position[]): GameState =>
+    makeGameState([
+      makePlayer("p1", from),
+      ...rivals.map((pos, i) => makePlayer(`p${i + 2}`, pos)),
+    ]);
+  const bh = (ring: number, sector: number): Position => ({ wellId: BH, ring, sector });
+
+  /** Play `turns` turns: p1 decides, everyone else coasts; `check` runs after each. */
+  const play = (
+    start: GameState,
+    turns: number,
+    check: (state: GameState, turn: number) => void,
+    before: (state: GameState, actions: PlayerAction[]) => void = () => {}
+  ): GameState => {
+    let state = start;
+    for (let i = 0; i < turns && state.phase === "active"; i++) {
+      const active = state.players[state.activePlayerIndex];
+      const mine = active.id === "p1";
+      const actions = mine ? botDecideActions(viewFor(state, "p1")).actions : coastAs(active.id);
+      if (mine) before(state, actions);
+      const result = executeTurn(state, actions);
+      expect(result.errors, `turn ${i} by ${active.id}`).toBeUndefined();
+      state = result.gameState;
+      check(state, i);
+    }
+    return state;
+  };
+
+  it.each([
+    { label: "two on ring 3, one on 4", rivals: [bh(3, 8), bh(3, 10), bh(4, 16)], ring: 3 },
+    { label: "two on ring 4, one on 3", rivals: [bh(4, 8), bh(4, 10), bh(3, 16)], ring: 4 },
+    { label: "one on ring 3, one on 4", rivals: [bh(3, 8), bh(4, 16)], ring: 3 },
+    { label: "one on ring 2, one on 4", rivals: [bh(2, 8), bh(4, 16)], ring: 2 },
+  ])("heads for the ring the rivals are on: $label", ({ rivals, ring }) => {
+    const { currentGoal } = situation(idle(bh(5, 0), rivals));
+    expect(currentGoal).toMatchObject({ type: "patrol", missionId: PATROL_GOAL_ID });
+    expect(currentGoal?.plan?.destination).toMatchObject({ wellId: BH, ring });
+  });
+
+  it("heads for black hole ring 3 from a planet well and never docks on the way", () => {
+    const end = play(
+      idle({ wellId: ALPHA, ring: 3, sector: 0 }, [bh(3, 8), bh(3, 16)]),
+      45,
+      (s, i) => expect(isMooredAt(s.stations, getShip(s, "p1")), `turn ${i}`).toBe(false)
+    );
+    expect(getShip(end, "p1")).toMatchObject({ wellId: BH, ring: 3 });
+  });
+
+  it.each([9, 12, 18])(
+    "coasts on the patrol ring with the rivals %i sectors off, turn after turn",
+    (sector) => {
+      play(
+        idle(bh(3, 0), [bh(3, sector), bh(3, sector + 1)]),
+        9,
+        (s) => expect(getShip(s, "p1")).toMatchObject({ wellId: BH, ring: 3 }),
+        (s, actions) => {
+          expect(situation(s).currentGoal?.missionId).toBe(PATROL_GOAL_ID);
+          expect(actions.some((a) => a.type === "burn" || a.type === "well_transfer")).toBe(false);
+        }
+      );
+    }
+  );
+
+  it.each([
+    { label: "from ring 5 with every rival at a planet", from: bh(5, 0), destroyed: false },
+    {
+      label: "from a planet well with every rival at a planet",
+      from: { wellId: BETA, ring: 3, sector: 0 },
+      destroyed: false,
+    },
+    { label: "from ring 5 with every rival destroyed", from: bh(5, 0), destroyed: true },
+  ])("heads into the black hole $label", ({ from, destroyed }) => {
+    let state = idle(from, [
+      { wellId: ALPHA, ring: 3, sector: 0 },
+      { wellId: GAMMA, ring: 4, sector: 6 },
+    ]);
+    if (destroyed) {
+      state = withShip(withShip(state, "p2", { hitPoints: 0 }), "p3", { hitPoints: 0 });
+    }
+    const { currentGoal } = situation(state);
+    expect(currentGoal).toMatchObject({ type: "patrol", missionId: PATROL_GOAL_ID });
+    expect(currentGoal?.plan?.destination).toMatchObject({ wellId: BH, ring: 3 });
+  });
+
+  it.each([
+    {
+      label: "a broken subsystem",
+      broken: (s: GameState) => withSub(s, "p1", "side-0", { isBroken: true }),
+    },
+    {
+      label: "a hull at the repair threshold",
+      broken: (s: GameState) =>
+        withShip(s, "p1", { hitPoints: DEFAULT_BOT_PARAMETERS.repairHullThreshold }),
+    },
+  ])("repairs rather than patrol with $label", ({ broken }) => {
+    const { currentGoal, goals } = situation(broken(idle(bh(3, 0), [bh(3, 8), bh(3, 16)])));
+    expect(currentGoal?.missionId).toBe(REPAIR_GOAL);
+    expect(goals.some((g) => g.missionId === PATROL_GOAL_ID)).toBe(false);
+  });
+
+  // The primary is in and a secondary chases carriers: a carrier in another
+  // well is waited for where it must arrive, and only an empty table leaves
+  // the bot nothing to do but patrol.
+  it.each([
+    { card: piracyMission(), type: "pirate" },
+    { card: escortMission(), type: "escort" },
+  ])("patrols with a $type card only while nobody carries", ({ card, type }) => {
+    const table = (carrying: boolean): GameState => {
+      const state = withMissions(idle(bh(3, 0), [{ wellId: ALPHA, ring: 3, sector: 0 }]), "p1", [
+        card,
+        DONE,
+      ]);
+      return carrying
+        ? withPlayer(state, "p2", { cargo: [dataCargo("data-p2", "survey-p2")] })
+        : state;
+    };
+    expect(situation(table(true)).currentGoal).toMatchObject({ type, missionId: card.id });
+    expect(situation(table(false)).currentGoal).toMatchObject({
+      type: "patrol",
+      missionId: PATROL_GOAL_ID,
+    });
   });
 });
