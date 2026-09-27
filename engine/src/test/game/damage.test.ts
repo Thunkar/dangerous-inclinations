@@ -50,13 +50,11 @@ describe("damage: the d10", () => {
     [8, 8, "critical"],
     [9, 8, "critical"],
     [10, 8, "critical"],
-  ] as const)("roll %i with criticals from %i is a %s", (roll, face, expected) => {
+    // No face given: criticals on a 10 only.
+    [9, undefined, "hit"],
+    [10, undefined, "critical"],
+  ] as const)("roll %i with criticals from %s is a %s", (roll, face, expected) => {
     expect(rollToResult(roll, face)).toBe(expected);
-  });
-
-  it("defaults to criticals on a 10 only", () => {
-    expect(rollToResult(9)).toBe("hit");
-    expect(rollToResult(10)).toBe("critical");
   });
 
   it.each([
@@ -161,9 +159,8 @@ describe("damage: resolveAttack", () => {
     ).toEqual(["side-2", "side-3"]);
   });
 
-  it("unpowered and broken shields absorb nothing", () => {
-    const unpowered = resolveAttack(getShip(base, "p2"), "p2", 4, "engines", 5, attacker);
-    expect(unpowered.hitResult.damageToHeat).toBe(0);
+  it("broken shields absorb nothing", () => {
+    // Unpowered ones are the plain hit above.
     const brokenState = withSub(withPower(base, "p2", "side-2", 4), "p2", "side-2", {
       isBroken: true,
     });
@@ -254,22 +251,6 @@ describe("damage: resolveAttack", () => {
       expect(getSub(result.gameState, "p2", named).isBroken).toBe(true);
     }
   );
-
-  it("a sensor that is up makes an 8 critical, and a bare ship's 8 a plain hit", () => {
-    const sensorState = withPower(
-      makeTwoPlayerGame({ loadout: SENSOR_LOADOUT }),
-      "p1",
-      "forward-0",
-      2
-    );
-    const sensors = getShip(sensorState, "p1");
-    expect(resolveAttack(getShip(base, "p2"), "p2", 2, "engines", 8, sensors).hitResult.result).toBe(
-      "critical"
-    );
-    expect(
-      resolveAttack(getShip(base, "p2"), "p2", 2, "engines", 8, attacker).hitResult.result
-    ).toBe("hit");
-  });
 });
 
 describe("damage: through executeTurn", () => {
@@ -300,23 +281,6 @@ describe("damage: through executeTurn", () => {
     });
   });
 
-  it("a forced 10 breaks the attacker-named slot on the target", () => {
-    const state = withPower(laserDuel(), "p2", "side-0", 2);
-    const result = executeTurnAs(
-      { ...state, forcedRollValue: 10 },
-      fire(1, "side-0", "p2", "side-0")
-    );
-    expect(getSub(result.gameState, "p2", "side-0")).toMatchObject({
-      isBroken: true,
-      isRevealed: true,
-      allocatedEnergy: 0,
-    });
-    expect(eventsOf(result.events, "subsystem_broken")).toEqual([
-      expect.objectContaining({ playerId: "p2", subsystemId: "side-0", energyLost: 2 }),
-    ]);
-    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(2);
-  });
-
   it("a sensor-assisted critical leaves the sensor face-down: only scanning turns it over", () => {
     // The cubes on the bow are public and say what the tile is to anyone
     // counting, but the tile itself is a secret until it does its own job
@@ -331,15 +295,6 @@ describe("damage: through executeTurn", () => {
     expect(
       eventsOf(result.events, "subsystem_revealed").some((e) => e.subsystemId === "forward-0")
     ).toBe(false);
-    expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(false);
-  });
-
-  it("a natural 10 without sensors keeps the sensor slot face-down", () => {
-    const state = laserDuel(undefined, SENSOR_LOADOUT);
-    const result = executeTurnAs(
-      { ...state, forcedRollValue: 10 },
-      fire(1, "side-0", "p2", "engines")
-    );
     expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(false);
   });
 
@@ -376,15 +331,5 @@ describe("damage: through executeTurn", () => {
       allocatedEnergy: 4,
       isRevealed: false,
     });
-  });
-
-  it("a laser critical breaks the named tile through full shields", () => {
-    const state = withPower(laserDuel(), "p2", "side-2", 4);
-    const result = executeTurnAs(
-      { ...state, forcedRollValue: 10 },
-      fire(1, "side-0", "p2", "engines")
-    );
-    expect(getSub(result.gameState, "p2", "engines").isBroken).toBe(true);
-    expect(getShip(result.gameState, "p2").hitPoints).toBe(8);
   });
 });

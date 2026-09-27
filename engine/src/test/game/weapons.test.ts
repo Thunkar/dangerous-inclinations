@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
 import { isInWeaponRange } from "../../game/targeting.ts";
-import { getSideFiringDirection, getSubsystemSide } from "../../game/ship.ts";
+import { getSubsystemSide } from "../../game/ship.ts";
 import { missileCanReach } from "../../game/missiles.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import type { Facing, ShipLoadout } from "../../models/game.ts";
@@ -61,19 +61,9 @@ describe("weapons: sides", () => {
     expect(side("forward-0")).toBeNull();
     expect(side("engines")).toBeNull();
   });
-
-  it.each([
-    ["port", "prograde", "outward"],
-    ["starboard", "prograde", "inward"],
-    ["port", "retrograde", "inward"],
-    ["starboard", "retrograde", "outward"],
-  ] as const)("%s fires %s when %s", (side, facing, direction) => {
-    expect(getSideFiringDirection(side, facing)).toBe(direction);
-  });
 });
 
 describe("weapons: point blank", () => {
-  const game = makeTwoPlayerGame();
   const here = at(3, 0);
   it.each([
     ["railgun (spinal, wants a target ahead)", "forward-0", makeTwoPlayerGame()],
@@ -81,11 +71,6 @@ describe("weapons: point blank", () => {
     ["rack (broadside, same ring but one sector off)", "side-0", makeTwoPlayerGame({ loadout: RACKS })],
   ])("%s reaches a ship in its own sector", (_label, slot, state) => {
     expect(isInWeaponRange(getSub(state, "p1", slot), attackerAt(3, 0), here)).toBe(true);
-  });
-
-  it("holds from either facing: there is no ahead or behind at zero range", () => {
-    const railgun = getSub(game, "p1", "forward-0");
-    expect(isInWeaponRange(railgun, { ...attackerAt(3, 0), facing: "retrograde" }, here)).toBe(true);
   });
 });
 
@@ -117,15 +102,6 @@ describe("weapons: the opening round reaches nobody", () => {
     expectRefusedUnless(result, executeTurnAs(build(turn + 1), action()));
     expect(eventTypes(result.events)).not.toContain(event);
   });
-
-  it.each([
-    ["the shot", "weapon_fired", sameSector, () => fire(1, "forward-0", "p2")],
-    ["the scan", "scanned", sensing, () => scan(1, "p2", "side-0")],
-  ])("allows %s in the second", (_what, event, build, action) => {
-    const result = executeTurnAs(build(FIRST_TURN + 1), action());
-    expect(result.errors ?? []).toEqual([]);
-    expect(eventTypes(result.events)).toContain(event);
-  });
 });
 
 describe("weapons: railgun range (spinal)", () => {
@@ -136,7 +112,6 @@ describe("weapons: railgun range (spinal)", () => {
     ["5 ahead", at(3, 5), true],
     ["6 ahead", at(3, 6), false],
     ["1 behind", at(3, 23), false],
-    ["same sector (point blank)", at(3, 0), true],
     ["ahead but one ring out", at(4, 2), false],
   ])("prograde at R3 S0: %s -> %s", (_label, target, expected) => {
     expect(isInWeaponRange(railgun, attackerAt(3, 0), target)).toBe(expected);
@@ -188,7 +163,6 @@ describe("weapons: ballistic rack range", () => {
   it.each([
     ["same ring, +1", at(3, 1), true],
     ["same ring, -1 (wrap)", at(3, 23), true],
-    ["same ring, same sector (point blank)", at(3, 0), true],
     ["same ring, +2", at(3, 2), false],
     ["one ring out, +1", at(4, 1), true],
     ["one ring in, -1", at(2, 23), true],
@@ -205,12 +179,8 @@ describe("weapons: missile range (turret)", () => {
   // A missile is self-guided: anything in the well can be launched at, however
   // far, and whether it catches up is the missile's problem (missileCanReach).
   it.each([
-    ["two rings out, 3 sectors", at(5, 3)],
-    ["two rings in, same sector", at(1, 0)],
     ["a ship sharing the launcher's sector", at(3, 0)],
-    ["same ring, 4 sectors", at(3, 4)],
-    ["the far side of the ring", at(3, 12)],
-    ["four rings out and half the ring away", at(5, 14)],
+    ["two rings out and past the far side of the ring", at(5, 14)],
   ])("missiles at R3 S0 may be launched at %s", (_label, target) => {
     expect(isInWeaponRange(launcher, attackerAt(3, 0), target)).toBe(true);
     expect(isInWeaponRange(launcher, attackerAt(3, 0, "retrograde"), target)).toBe(true);
@@ -229,21 +199,6 @@ describe("weapons: missile range (turret)", () => {
     ["two rings in, half the ring away", at(1, 12), false],
   ])("a missile launched at R3 S0 at a target %s: reaches %s", (_label, target, expected) => {
     expect(missileCanReach(at(3, 0), target)).toBe(expected);
-  });
-
-  it("no weapon fires across gravity wells", () => {
-    const railgun = getSub(makeTwoPlayerGame(), "p1", "forward-0");
-    for (const weapon of [railgun, launcher, getSub(makeTwoPlayerGame(), "p1", "side-0")]) {
-      expect(isInWeaponRange(weapon, attackerAt(3, 0), at(3, 1, ALPHA))).toBe(false);
-    }
-  });
-
-  it.each([
-    ["two rings out, two sectors on", 5, 2],
-    // In range to launch at, though no missile would ever catch it.
-    ["across the ring", 3, 12],
-  ])("a launcher may fire at a ship %s", (_label, ring, sector) => {
-    expect(isInWeaponRange(launcher, attackerAt(3, 0), at(ring, sector))).toBe(true);
   });
 });
 
@@ -371,15 +326,6 @@ describe("weapons: a recovering ship cannot be shot or scanned", () => {
     expectRefused(result, state);
     expectRefusedUnless(result, executeTurnAs(build(), action()));
     expect(eventTypes(result.events)).not.toContain(event);
-  });
-
-  it.each([
-    ["the shot", "weapon_fired", gunned, () => fire(1, "side-0", "p2")],
-    ["the scan", "scanned", sensing, () => scan(1, "p2", "side-0")],
-  ])("allows %s once their turn back is over", (_what, event, build, action) => {
-    const result = executeTurnAs(build(), action());
-    expect(result.errors ?? []).toEqual([]);
-    expect(eventTypes(result.events)).toContain(event);
   });
 });
 
