@@ -151,7 +151,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Escort',
-      'end a turn, not moored, in the same sector as an undocked rival carrying a crate or data, and you may put your marker on it. Done the next time that ship delivers, sells or files anything, or pumps fuel; the marker comes back if it is destroyed first',
+      'end a turn, not moored, in the same sector as an undocked rival carrying a crate or data, and you may put your marker on it (a ship carries one marker). Done the next time that ship delivers, sells or files anything, or pumps fuel; the marker comes back if it is destroyed first',
     ],
     [
       'Salvage',

@@ -59,9 +59,9 @@ export function describeMissionRule(m: Mission, name: NameResolver): string {
     case "piracy":
       return "With your hold empty, end a turn on an undocked ship to take its crate or data. Sell it at any station.";
     case "tanker":
-      return `Arrive at a station with ${TANKER_FUEL} or more fuel and pump ${TANKER_FUEL} in. That is the visit's one job.`;
+      return `Arrive at a station with ${TANKER_FUEL} or more fuel and pump ${TANKER_FUEL} in.`;
     case "escort":
-      return "You may mark an undocked carrier in your sector. Done when it next delivers or pumps fuel.";
+      return "You may mark an undocked carrier in your sector that has no marker. Done at its next delivery or fuel pump.";
     case "salvage":
       return "End a turn on a wreck to take its black box, one a turn. File it at any station.";
   }

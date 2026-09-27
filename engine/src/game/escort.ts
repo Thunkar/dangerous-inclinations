@@ -2,7 +2,8 @@
  * Escort: who a marker may go on (RULES §Missions). "End a turn, not moored,
  * in the same sector as an undocked rival carrying cargo while holding an
  * undone Escort whose marker is in hand, and you may put your marker on that
- * ship." The marker is a choice, declared with the turn as an `escort_mark`
+ * ship." A ship carries one Escort marker, so a ship already marked by anyone
+ * takes no second one. The marker is a choice, declared with the turn as an `escort_mark`
  * action and settled at the end of it; this is the one question the referee,
  * the bots, the seat CLI and the table's plan all ask, so the four agree.
  */
@@ -14,11 +15,15 @@ import { positionOf, samePosition } from "./geometry.ts";
 import { isMooredAt } from "./stations.ts";
 import { isDestroyed } from "./ship.ts";
 
-/** A seat as the question needs it: where it is (null off the board) and whether it carries anything. */
+/**
+ * A seat as the question needs it: where it is (null off the board), whether
+ * it carries anything, and whether someone's Escort marker is already on it.
+ */
 interface EscortSeat {
   id: string;
   position: Position | null;
   carrying: boolean;
+  escorted: boolean;
 }
 
 /** Undone Escorts whose marker is still in hand, in hand order. */
@@ -40,8 +45,8 @@ export function markedBy(player: { missions: readonly Mission[] }): Set<string> 
 /**
  * The carriers a marker could go on from `position`, in seat order from the
  * next seat after the escort: rivals on the board in that sector, with a
- * crate or data aboard, neither ship moored, and none another of this hand's
- * Escorts already marks. Empty when the hand holds no marker to place.
+ * crate or data aboard, neither ship moored, and no ship that already carries
+ * an Escort marker (anyone's: a ship takes one). Empty when the hand holds no marker to place.
  */
 function candidates(
   seats: readonly EscortSeat[],
@@ -58,7 +63,7 @@ function candidates(
   const out: string[] = [];
   for (let step = 1; step < seats.length; step++) {
     const seat = seats[(Math.max(self, 0) + step) % seats.length];
-    if (seat.id === escortId || taken.has(seat.id)) continue;
+    if (seat.id === escortId || taken.has(seat.id) || seat.escorted) continue;
     if (!seat.position || !seat.carrying) continue;
     if (!samePosition(seat.position, position)) continue;
     out.push(seat.id);
@@ -81,6 +86,7 @@ export function escortCandidates(view: GameView, playerId: string, position: Pos
         ? { wellId: p.ship.wellId, ring: p.ship.ring, sector: p.ship.sector }
         : null,
     carrying: p.cargoCount > 0,
+    escorted: p.escortedBy.length > 0,
   }));
   return candidates(seats, view.stations, playerId, me.missions, position);
 }
@@ -101,6 +107,7 @@ export function escortCandidatesAtEndOfTurn(
     id: p.id,
     position: p.hasDeployed && !isDestroyed(p.ship) ? positionOf(p.ship) : null,
     carrying: aboard(p.cargo).length > 0,
+    escorted: players.some((other) => markedBy(other).has(p.id)),
   }));
   return candidates(seats, stations, escortId, escort.missions, positionOf(escort.ship));
 }
