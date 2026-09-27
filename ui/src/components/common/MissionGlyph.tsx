@@ -126,14 +126,14 @@ const ART: Record<MissionType, ReactElement> = {
       <path d="M32 15l8 22-8-5.5-8 5.5z" />
     </>
   ),
-  // An open claw coming down on a wreck: a cable, the grab head and two jaws
-  // spread wide with their tips turned in, over the hull broken into plates.
-  // The jaws are one polygon mirrored about the centre line, and the plates
-  // are tilted apart so they read as debris rather than a floor.
+  // An open claw coming down on a black box: a cable, the grab head and two
+  // jaws spread wide with their tips turned in, one polygon mirrored about
+  // the centre line. The black box is an 18 unit square with one band across
+  // it, sitting between the tips, 6.5 clear of each.
   salvage: (
     <>
       <path d="M30 2h4v10h-4zM17 12h30v6H17zM17 18h7l-8.5 15 5.5 8-4.5 3.5-8-11zM47 18h-7l8.5 15-5.5 8 4.5 3.5 8-11z" />
-      <path d="M4.8 51.6l20.4-5.9 2.3 5.7-20.2 6.9zM37.8 45.3l21.4 5.4-2.6 6.7-21.3-6.4zM24 56h16l-3.5 6h-9z" />
+      <path fillRule="evenodd" d="M23 44h18v18H23zM26 51.5v3h12v-3z" />
     </>
   ),
 }
