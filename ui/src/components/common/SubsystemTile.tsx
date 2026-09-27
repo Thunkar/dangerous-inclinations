@@ -17,7 +17,7 @@
 import { Box, Tooltip, Typography } from '@mui/material'
 import type { SlotKnowledge, SubsystemId, SubsystemType } from '@dangerous-inclinations/engine'
 import { getSubsystemConfig } from '@dangerous-inclinations/engine'
-import { subsystemCategoryColor } from '../../utils/icons'
+import { subsystemGroupColor } from '../../utils/subsystemGroups'
 import { SubsystemIcon } from './SubsystemIcon'
 import { slotLabel, slotShortLabel, slotWithSubsystem } from '../../utils/slots'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -169,7 +169,7 @@ export function SubsystemTile({
                 right: 3,
                 bottom: 2,
                 height: 2,
-                bgcolor: subsystemCategoryColor(type),
+                bgcolor: subsystemGroupColor(type),
                 opacity: isBroken ? 0.3 : 0.75,
               }}
             />

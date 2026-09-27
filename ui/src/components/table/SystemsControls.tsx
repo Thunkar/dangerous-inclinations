@@ -35,6 +35,7 @@ import { useGame } from '../../context/GameContext'
 import { SubsystemIcon } from '../common/SubsystemIcon'
 import { FONT_MONO, TABLE } from '../../theme'
 import { slotWithSubsystem } from '../../utils/slots'
+import { subsystemGroup } from '../../utils/subsystemGroups'
 import { SENSOR_CRIT, poweredEffect } from '../../site/numbers'
 
 export function SystemsControls() {
@@ -44,9 +45,9 @@ export function SystemsControls() {
   const slots = SLOT_IDS.map(id => plan.pendingSubsystems.find(s => s.id === id)).filter(
     (s): s is Subsystem => Boolean(s)
   )
-  const weapons = slots.filter(s => getSubsystemConfig(s.type).weaponStats && !isPowerableType(s.type))
-  const defence = slots.filter(s => isPowerableType(s.type) && s.type !== 'sensor_array')
-  const sensors = slots.filter(s => s.type === 'sensor_array')
+  const weapons = slots.filter(s => subsystemGroup(s.type) === 'weapon')
+  const defence = slots.filter(s => subsystemGroup(s.type) === 'defence')
+  const sensors = slots.filter(s => subsystemGroup(s.type) === 'sensor')
 
   // A quiet turn reaches nobody: the opening round, and your own turn back
   // from Home, which is a first round of your own.
@@ -72,7 +73,7 @@ export function SystemsControls() {
     return null
   }
 
-  if (slots.every(s => !getSubsystemConfig(s.type).weaponStats && !isPowerableType(s.type))) {
+  if (weapons.length + defence.length + sensors.length === 0) {
     return (
       <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
         Nothing aboard fires, powers or scans.
