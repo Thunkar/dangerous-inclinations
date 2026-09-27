@@ -1,7 +1,8 @@
 /**
  * The rules card: the Quick Reference and the turn cheat sheet from RULES.md,
  * plus the tables you look up mid-turn. Numbers are read from the engine so
- * the card can never drift from the rules.
+ * the card can never drift from the rules; the words are in
+ * `text/rulesDialog.ts`.
  *
  * It is a card you pick up, not a wall of the table: a button in the top bar
  * opens it over the board and it goes away again, so the rules never cost the
@@ -36,6 +37,7 @@ import {
   interceptsPerRack,
   TANKER_FUEL,
   WELL_TRANSFER_COSTS,
+  fill,
 } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../theme'
 import { FONT_DISPLAY } from '../../design/press'
@@ -53,13 +55,53 @@ import {
   SENSOR_CRIT,
   SENSOR_ENERGY,
 } from '../../site/numbers'
+import { RULES_DIALOG as T } from '../../text/rulesDialog'
+import { rich } from '../../utils/rich'
 
 /** What a kept hand is worth: the primary and both secondaries. */
 const HAND_POINTS =
-  MISSION_POINTS.destroy_ship * PRIMARIES_PER_PLAYER + MISSION_POINTS.survey * SECONDARIES_PER_PLAYER
+  MISSION_POINTS.destroy_ship * PRIMARIES_PER_PLAYER +
+  MISSION_POINTS.survey * SECONDARIES_PER_PLAYER
 
-/** The hit roll as the Quick Reference states it, read off the engine's roll table. */
-const HIT_ROLL = `${MISS_TOP} miss, ${MISS_TOP + 1}–${BASE_CRIT - 1} hit, ${BASE_CRIT} crit (${SENSOR_CRIT}–10 with sensors)`
+/** Every number the quick reference names, read off the engine. */
+const NUMBERS = {
+  halfShield: HALF_SHIELD,
+  fullShield: FULL_SHIELD,
+  rackEnergy: RACK_ENERGY,
+  sensorEnergy: SENSOR_ENERGY,
+  maxHeat: MAX_HEAT,
+  dissipation: DEFAULT_DISSIPATION_CAPACITY,
+  radiator: RADIATOR_DISSIPATION,
+  shieldEnergy: SHIELD_ENERGY_PER_POINT,
+  shieldHeat: SHIELD_HEAT_PER_POINT,
+  intercepts: interceptsPerRack(),
+  hull: STARTING_HIT_POINTS,
+  fuel: MAX_REACTION_MASS,
+  sectors: SECTORS_PER_RING,
+  soft: BURN_COSTS.soft.rings,
+  medium: BURN_COSTS.medium.rings,
+  hard: BURN_COSTS.hard.rings,
+  mostPhase: MAX_SECTOR_ADJUSTMENT,
+  jumpEnergy: WELL_TRANSFER_COSTS.energy,
+  jumpFuel: WELL_TRANSFER_COSTS.mass,
+  compressedFuel: COMPRESSED_JUMP_MASS,
+  // The hit roll, read off the engine's roll table.
+  miss: MISS_TOP,
+  hitFrom: MISS_TOP + 1,
+  hitTo: BASE_CRIT - 1,
+  crit: BASE_CRIT,
+  sensorCrit: SENSOR_CRIT,
+  salvoEnergy: SUBSYSTEM_CONFIGS.missiles.minEnergy,
+  scanRange: SCAN_SECTOR_RANGE,
+  tankerFuel: TANKER_FUEL,
+  homeRings: HOME_RINGS.join(' or '),
+  deploymentGap: DEPLOYMENT_GAP,
+  primaryOffers: PRIMARY_OFFERS_PER_PLAYER,
+  primaries: PRIMARIES_PER_PLAYER,
+  secondaryOffers: SECONDARY_OFFERS_PER_PLAYER,
+  secondaries: SECONDARIES_PER_PLAYER,
+  handPoints: HAND_POINTS,
+}
 
 /** The button that lives in the top bar, and the card it opens. */
 export function RulesButton() {
@@ -67,14 +109,20 @@ export function RulesButton() {
 
   return (
     <>
-      <Tooltip title="Quick reference">
+      <Tooltip title={T.tooltip}>
         <Button
           size="small"
           startIcon={<MenuBookIcon sx={{ fontSize: 15 }} />}
           onClick={() => setOpen(true)}
-          sx={{ color: TABLE.ink, minWidth: 0, px: 1, flexShrink: 0, '&:hover': { color: TABLE.accent, bgcolor: 'transparent' } }}
+          sx={{
+            color: TABLE.ink,
+            minWidth: 0,
+            px: 1,
+            flexShrink: 0,
+            '&:hover': { color: TABLE.accent, bgcolor: 'transparent' },
+          }}
         >
-          Rules
+          {T.button}
         </Button>
       </Tooltip>
       <RulesCard open={open} onClose={() => setOpen(false)} />
@@ -85,99 +133,10 @@ export function RulesButton() {
 function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
   // The number this game is played to, read off the view.
   const { view } = useGame()
-  const quick: Array<[string, string]> = [
-    [
-      'Energy',
-      'every action puts energy on the subsystem it uses; it stays there until your next turn, when you clear your loadout',
-    ],
-    [
-      'Power',
-      `an action too: shields (${HALF_SHIELD} or ${FULL_SHIELD}), a ballistic rack (${RACK_ENERGY}) or a sensor array (${SENSOR_ENERGY}) work until your next turn. Each subsystem does one thing a turn: power it or use it`,
-    ],
-    ['Heat', 'every point of energy on your loadout is 1 heat at your check'],
-    ['Heat track', `${MAX_HEAT} · above it is hull damage; heat does not reset`],
-    [
-      'Dissipation',
-      `dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator) at every check`,
-    ],
-    [
-      'Shields',
-      `power at ${HALF_SHIELD} or ${FULL_SHIELD}; ${SHIELD_ENERGY_PER_POINT} energy a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point; power them every turn you want them up; lasers ignore them`,
-    ],
-    [
-      'Ballistic rack',
-      `with energy on it (powered, or it fired) it rolls at ${interceptsPerRack()} missiles a turn, the same number its energy could have thrown`,
-    ],
-    [
-      'Critical',
-      "names any slot; breaks it through shields, and dumps its energy as heat (a subsystem holds its energy until its owner's next turn)",
-    ],
-    ['Repair', 'a station, on arrival, fixes everything; or one subsystem a turn at 0 heat'],
-    ['Hull', `${STARTING_HIT_POINTS}`],
-    ['Fuel', `${MAX_REACTION_MASS}`],
-    ['Sectors per ring', `${SECTORS_PER_RING}`],
-    [
-      'Burn',
-      `soft ${BURN_COSTS.soft.rings} / medium ${BURN_COSTS.medium.rings} / hard ${BURN_COSTS.hard.rings} rings · same in fuel and engine energy`,
-    ],
-    ['Phasing', `−(velocity−1) to +${MAX_SECTOR_ADJUSTMENT} sectors, 1 fuel each`],
-    [
-      'Jump',
-      `engines ${WELL_TRANSFER_COSTS.energy}, ${WELL_TRANSFER_COSTS.mass} fuel (${COMPRESSED_JUMP_MASS} with a compressor), no drift`,
-    ],
-    ['Hit roll', HIT_ROLL],
-    [
-      'Salvo',
-      `one action launches any number of a subsystem's missiles at one ship, all naming the same slot, for the subsystem's ${SUBSYSTEM_CONFIGS.missiles.minEnergy} energy once; a rack with energy on it rolls at ${interceptsPerRack()} of them a turn, so it takes a second rack to answer a second launcher`,
-    ],
-    [
-      'Scan',
-      `same ring, within ${SCAN_SECTOR_RANGE} sectors, sensor aboard and unbroken; the scan puts ${SENSOR_ENERGY} energy on it, so every shot after it has the wider range`,
-    ],
-    [
-      'Docking',
-      'on arrival only: full hull, repair all, reload missiles, and one job: your crates (deliver, then load), your data (file it all) or your fuel. You choose; by default the job worth the most points, ties to crates, then data. You stay moored until you burn away',
-    ],
-    ['Berth', 'a moored ship neither fires nor is fired at, missiles included; scans still reach it'],
-    ['Wrecks', 'left where a ship dies, drift with the stations; a Salvage takes the black box (data)'],
-    ['Survey', 'end a turn on Black Hole Ring 1 (take the data) then dock at any station'],
-    [
-      'Piracy',
-      'end a turn in the same sector as an undocked ship carrying a crate or data, with your hold empty: it is yours. The loot fills your hold and sells at any station, and their card goes back to undone',
-    ],
-    [
-      'Tanker',
-      `arrive at a station with ${TANKER_FUEL} or more fuel and make the fuel that visit's job: pump it in and the card is done`,
-    ],
-    [
-      'Escort',
-      'end a turn, not moored, in the same sector as an undocked rival carrying a crate or data, and you may put your marker on it (a ship carries one marker). Done the next time that ship delivers, sells or files anything, or pumps fuel; the marker comes back if it is destroyed first',
-    ],
-    [
-      'Salvage',
-      'end a turn on a wreck (moored or not) and take its black box: data, filed at any station',
-    ],
-    [
-      'Deployment',
-      `Black Hole Ring ${HOME_RINGS.join(' or ')}, at least ${DEPLOYMENT_GAP} sectors from every ship already placed (if no sector qualifies, the farthest one); that position is your Home`,
-    ],
-    [
-      'Missions',
-      'Primaries (2 pts): Destroy · Deliver · Intercept. Secondaries (1 pt): Survey · Piracy · Tanker · Escort · Salvage',
-    ],
-    [
-      'Keeping cards',
-      `${PRIMARY_OFFERS_PER_PLAYER} primaries keep ${PRIMARIES_PER_PLAYER}, ${SECONDARY_OFFERS_PER_PLAYER} secondaries keep any ${SECONDARIES_PER_PLAYER}, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon`,
-    ],
-    [
-      'Hand',
-      `${PRIMARIES_PER_PLAYER} primary of ${PRIMARY_OFFERS_PER_PLAYER} dealt, ${SECONDARIES_PER_PLAYER} of ${SECONDARY_OFFERS_PER_PLAYER} secondaries dealt. ${HAND_POINTS} points held, ${view.pointsToWin} win: the primary and either secondary`,
-    ],
-    [
-      'Win',
-      `${view.pointsToWin} points trigger the final round; when it ends, highest score wins (hull, then fuel, break ties). Your primary and either secondary is a win; two secondaries are not`,
-    ],
-  ]
+  const quick: Array<[string, string]> = T.quick.map(([label, rule]) => [
+    label,
+    fill(rule, { ...NUMBERS, pointsToWin: view.pointsToWin }),
+  ])
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth scroll="paper">
@@ -191,8 +150,11 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
           borderBottom: `1px solid ${TABLE.line}`,
         }}
       >
-        <Typography variant="overline" sx={{ color: TABLE.ink, fontSize: '0.95rem', fontWeight: 700 }}>
-          Quick reference
+        <Typography
+          variant="overline"
+          sx={{ color: TABLE.ink, fontSize: '0.95rem', fontWeight: 700 }}
+        >
+          {T.title}
         </Typography>
         <IconButton size="small" onClick={onClose} sx={{ color: TABLE.inkSoft }}>
           <CloseIcon fontSize="small" />
@@ -202,7 +164,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
       <DialogContent sx={{ px: 2, py: 1.5 }}>
         <Table rows={quick} />
 
-        <Heading>Turn cheat sheet</Heading>
+        <Heading>{T.turn.title}</Heading>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           {TURN_STEPS.map((step, index) => (
             <Box key={step.title} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
@@ -220,7 +182,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
               </Typography>
               <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.35 }}>
                 <Box component="strong" sx={{ color: TABLE.ink }}>
-                  {step.title}.
+                  {rich(T.turn.step, { title: step.title })}
                 </Box>{' '}
                 {step.blurb}
               </Typography>
@@ -231,55 +193,59 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
           {QUIET_TURN}
         </Typography>
 
-        <Heading>Ring velocity</Heading>
+        <Heading>{T.rings.title}</Heading>
         <Table
           rows={[
-            ['Black Hole', BLACKHOLE_RINGS.map(r => r.velocity).join(' · ')],
-            ['Planets', PLANET_RINGS.map(r => r.velocity).join(' · ')],
+            [T.rings.blackHole, BLACKHOLE_RINGS.map(r => r.velocity).join(' · ')],
+            [T.rings.planets, PLANET_RINGS.map(r => r.velocity).join(' · ')],
           ]}
         />
         <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.4, mt: 0.75 }}>
-          When to set off for a station, read off the station clock:{' '}
-          <Box
-            component="a"
-            href="/card#windows"
-            target="_blank"
-            rel="noopener"
-            sx={{ color: TABLE.accent, '&:hover': { color: TABLE.ink } }}
-          >
-            orbital windows
-          </Box>
-          .
+          {rich(
+            T.rings.windows,
+            {},
+            {
+              link: text => (
+                <Box
+                  component="a"
+                  href="/card#windows"
+                  target="_blank"
+                  rel="noopener"
+                  sx={{ color: TABLE.accent, '&:hover': { color: TABLE.ink } }}
+                >
+                  {text}
+                </Box>
+              ),
+            }
+          )}
         </Typography>
 
-        <Heading>Hidden information</Heading>
+        <Heading>{T.hidden.title}</Heading>
         <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
-          Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo
-          counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed missions,
-          wrecks and Escort markers.
+          {T.hidden.public}
           <br />
-          Private: what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo
-          is going.
+          {T.hidden.private}
           <br />
-          <Box component="span" sx={{ color: TABLE.accent }}>
-            Energy is the tell.
-          </Box>{' '}
-          Using a subsystem turns it face-up, so energy on a face-down slot between turns means it was
-          powered, not used: {HALF_SHIELD} is a half shield, a ballistic rack or a sensor array, and{' '}
-          {FULL_SHIELD} can only be a full shield. That is a deduction, not a reveal: the subsystem stays
-          face-down and only a scan makes sure. A gun is dark until it fires, which is why a silent
-          slot is the dangerous one.
+          {rich(
+            T.hidden.tell,
+            { halfShield: HALF_SHIELD, fullShield: FULL_SHIELD },
+            {
+              red: text => (
+                <Box component="span" sx={{ color: TABLE.accent }}>
+                  {text}
+                </Box>
+              ),
+            }
+          )}
         </Typography>
 
-        <Heading>Reveals</Heading>
+        <Heading>{T.reveals.title}</Heading>
         <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
-          A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack
-          rolls at a missile), and a missiles subsystem then shows what is left; shields absorb damage; a
-          sensor array scans; a radiator when your heat goes above {DEFAULT_DISSIPATION_CAPACITY} at
-          a heat check; a compressor when a jump costs {COMPRESSED_JUMP_MASS} fuel instead of{' '}
-          {WELL_TRANSFER_COSTS.mass}; any subsystem when a critical breaks it. Powering a subsystem does not
-          turn it over: a wall you never needed, a rack nothing came at and a sensor you never
-          scanned with are still secrets at the end of the game.
+          {rich(T.reveals.text, {
+            dissipation: DEFAULT_DISSIPATION_CAPACITY,
+            compressedFuel: COMPRESSED_JUMP_MASS,
+            jumpFuel: WELL_TRANSFER_COSTS.mass,
+          })}
         </Typography>
       </DialogContent>
     </Dialog>

@@ -1,7 +1,8 @@
 /**
  * Mission helpers for the UI: the card's title comes from the engine
  * (`describeMission`); everything here is the little line of progress printed
- * under it, and the family colour of the card.
+ * under it (its words are in `text/missionProgress.ts`), and the family
+ * colour of the card.
  *
  * Eight kinds of card: the primaries Destroy, Deliver and Intercept, and the
  * secondaries Survey, Piracy, Tanker, Escort and Salvage.
@@ -13,9 +14,11 @@ import {
   MISSION_CARDS,
   MISSION_FAMILY,
   dataAboard,
+  fill,
   missionPoints as pointsForType,
 } from '@dangerous-inclinations/engine'
 import { TABLE } from '../theme'
+import { MISSION_PROGRESS as P } from '../text/missionProgress'
 
 const FAMILY_COLOR: Record<MissionFamily, string> = {
   combat: TABLE.danger,
@@ -45,26 +48,26 @@ export function missionProgress(
   const aboard = (id: string) => cargo.some(c => c.missionId === id && c.isPickedUp)
   switch (mission.type) {
     case 'deliver_cargo': {
-      if (aboard(mission.id)) return 'Crate aboard'
+      if (aboard(mission.id)) return P.deliver_cargo.aboard
       // The hold takes one crate (RULES §Missions): another route's crate
       // aboard means this one waits.
       const holdFull =
         cargo.filter(c => c.kind === 'crate' && c.isPickedUp).length >= CARGO_HOLD_CRATES
-      return holdFull ? 'Hold full' : null
+      return holdFull ? P.deliver_cargo.holdFull : null
     }
     case 'intercept_transmission':
-      return dataAboard({ cargo }, mission) ? 'Transmission aboard' : null
+      return dataAboard({ cargo }, mission) ? P.intercept_transmission : null
     case 'survey':
-      return dataAboard({ cargo }, mission) ? 'Data aboard' : null
+      return dataAboard({ cargo }, mission) ? P.survey : null
     case 'piracy':
       // The loot rides as the card's own crate (engine `seizeLoot`).
-      return aboard(mission.id) ? 'Loot aboard' : null
+      return aboard(mission.id) ? P.piracy : null
     case 'tanker':
-      return fuel === undefined ? null : `Tank ${fuel}/${MAX_REACTION_MASS}`
+      return fuel === undefined ? null : fill(P.tanker, { fuel, max: MAX_REACTION_MASS })
     case 'escort':
-      return mission.markedPlayerId ? 'Marker placed' : null
+      return mission.markedPlayerId ? P.escort : null
     case 'salvage':
-      return aboard(mission.id) ? 'Black box aboard' : null
+      return aboard(mission.id) ? P.salvage : null
     default:
       // Destroy has nothing to track: their hull reaches 0 or it does not.
       return null
