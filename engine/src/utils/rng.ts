@@ -6,30 +6,17 @@
  * round-trips through JSON cleanly.
  *
  * The `Rng` class is a thin handle; the canonical state lives on GameState.
- * Prefer the helper functions (rollD10, pickIndex, shuffle) which take a
- * GameState and mutate its rngState in place, matching the snapshot-mutate
- * style the engine already uses.
+ * Engine code uses the helpers (rollD10, pickIndex), which take a GameState
+ * and advance its rngState in place. The deal shuffles with an `Rng` directly.
  */
 
 import type { GameState } from "../models/game.ts";
 
-/**
- * Default seed used when no explicit seed is provided. Arbitrary constant.
- */
-export const DEFAULT_RNG_SEED = 0xcafebabe | 0;
-
 export class Rng {
   state: number;
-  /**
-   * Test-only override: when set, rollD10 returns this value instead of
-   * consuming the PRNG. Has no effect on non-D10 helpers (shuffle/pickIndex).
-   * Lives on the instance, not in a global, so it's per-game and replay-safe.
-   */
-  forcedRollValue?: number;
 
-  constructor(seed: number = DEFAULT_RNG_SEED, forcedRollValue?: number) {
+  constructor(seed: number) {
     this.state = seed | 0;
-    this.forcedRollValue = forcedRollValue;
   }
 
   /** Step the PRNG and return a float in [0, 1). */
@@ -45,20 +32,14 @@ export class Rng {
     return Math.floor(this.next() * max);
   }
 
-  /** d10 roll, returns 1..10. Honors forcedRollValue when set. */
+  /** d10 roll, returns 1..10. */
   rollD10(): number {
-    if (this.forcedRollValue !== undefined) return this.forcedRollValue;
     return this.rollInt(10) + 1;
   }
 
   /** Random index into a non-empty array. */
   pickIndex<T>(arr: readonly T[]): number {
     return this.rollInt(arr.length);
-  }
-
-  /** Pick one element from a non-empty array. */
-  pick<T>(arr: readonly T[]): T {
-    return arr[this.pickIndex(arr)];
   }
 
   /** Returns a new array, Fisher-Yates shuffled. */
@@ -70,30 +51,22 @@ export class Rng {
     }
     return result;
   }
-
-  clone(): Rng {
-    return new Rng(this.state, this.forcedRollValue);
-  }
 }
 
-/**
- * Read GameState's PRNG into an Rng handle.
- * Engine code that consumes randomness should prefer the helpers below.
- */
-export function getRng(state: GameState): Rng {
-  return new Rng(state.rngState, state.forcedRollValue);
+/** Read GameState's PRNG into an Rng handle. */
+function getRng(state: GameState): Rng {
+  return new Rng(state.rngState);
 }
 
-/**
- * Write the PRNG state back to GameState.
- */
-export function commitRng(state: GameState, rng: Rng): void {
+/** Write the PRNG state back to GameState. */
+function commitRng(state: GameState, rng: Rng): void {
   state.rngState = rng.state;
 }
 
 /**
- * Roll a d10 against GameState's RNG, advancing it.
- * Mutates state.rngState in place.
+ * Roll a d10 against GameState's RNG, advancing it. Mutates state.rngState in
+ * place. A test may pin the die with `forcedRollValue`, which leaves the RNG
+ * untouched.
  */
 export function rollD10(state: GameState): number {
   if (state.forcedRollValue !== undefined) return state.forcedRollValue;

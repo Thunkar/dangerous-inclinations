@@ -241,7 +241,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 | **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1, take the data, then dock at **any** station to file it                                                                                                                       |
 | **Piracy**                                          | 1      | you end a turn in the **same sector** as an undocked ship carrying a crate or data: it is yours (your hold must be empty; loot fills it), then dock at **any** station to sell it. Their card goes back to undone |
 | **Tanker**                                          | 1      | you **arrive** at **any** station with **7 or more fuel**: hand in 7, and the card is done. Pumping is that visit's one job (see Docking) |
-| **Escort**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked rival carrying a crate or data, and **choose** to put your marker on that ship, face-up. The next time that ship delivers, sells or files anything at a station, the card is done. If it is destroyed first, the marker comes back to you |
+| **Escort**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked rival carrying a crate or data, and **choose** to put your marker on that ship, face-up. The next time that ship delivers, sells or files anything, or pumps fuel, at a station, the card is done. If it is destroyed first, the marker comes back to you |
 | **Salvage**                                         | 1      | you end a turn on a **wreck** (moored or not) and take its black box: it is data, it rides free, and a pirate can seize it. File it at **any** station |
 
 **The decks.** Two piles for the table, dealt separately.
@@ -273,6 +273,7 @@ When you complete a mission, turn the card face-up for everyone to see.
 When your hull reaches 0:
 
 - remove your ship and put a **wreck** token on its sector (wrecks stay until a Salvage takes one, and drift with the stations once a round by their ring's speed); drop your cargo: crates go back to their pickup station (you must load them again), data is lost; any Escort marker on your ship goes back to its owner;
+- your missiles in flight are removed;
 - on your next turn you respawn at Home and drift, and the turn after that is a first round of your own: untouchable until it is over, and on it no weapon of yours fires and you scan nobody (see A Turn). One turn gone.
 
 Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card. Nobody collects it twice over: a ship coming back cannot be shot at the sector everyone knows it returns to, and it does not get to fire first for the privilege.
@@ -300,7 +301,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Repair           | a station, on arrival, fixes everything; or one subsystem a turn at 0 heat                                                                                             |
 | Scan             | same ring, within 3 sectors, sensor aboard and unbroken                                                                                                           |
 | First round      | no weapon fires and nobody scans                                                                                                                                  |
-| Respawn          | next turn: back at Home, full hull and tank, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody |
+| Respawn          | your missiles in flight are removed. Next turn: back at Home, full hull and tank, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody |
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                             |
 | Docking          | on arrival only: full hull, repair all, reload missiles, and one job (crates, data or fuel); you stay moored until you burn away                                                  |
 | Berth            | a moored ship neither fires nor is fired at, missiles included; scans still reach it                                                                              |

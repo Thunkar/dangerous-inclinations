@@ -2,9 +2,9 @@
  * Missions: secret objectives. First player to reach the points to win
  * (`GameState.pointsToWin`, three) triggers the final round.
  *
- * Six mission types, in two kinds:
+ * Eight mission types, in two kinds:
  *   primaries (2 points): destroy_ship, deliver_cargo, intercept_transmission
- *   secondaries (1 point): survey, piracy, tanker
+ *   secondaries (1 point): survey, piracy, tanker, escort, salvage
  *
  * Completed missions are face-up: everyone can see them.
  */
@@ -74,13 +74,10 @@ export const SURVEY_RING = 1;
 export const TANKER_FUEL = 7;
 
 /**
- * What a completed card scores.
- *
- * One card at two points for each way of playing: Destroy for the hunter,
- * Deliver for the hauler, Intercept for the interceptor. Two of your own kind
- * is a win, so a hand states an intention instead of collecting whatever was
- * cheapest. Survey is the odd one at a point: a dive nobody has to cooperate
- * with, which is exactly why it is not a plan of its own.
+ * What a completed card scores: two for a primary (Destroy for the hunter,
+ * Deliver for the hauler, Intercept for the interceptor), one for a secondary.
+ * A hand is one primary and two secondaries, so the primary and either
+ * secondary is the win.
  */
 export const MISSION_POINTS: Readonly<Record<MissionType, number>> = {
   destroy_ship: 2,
@@ -129,13 +126,8 @@ export type MissionType =
   | "escort"
   | "salvage";
 
-/**
- * The secondary kinds, in the order the printed pile lists them. Experiment
- * only: `--secondaries=` (sim) replaces the kinds the pile is printed with, so
- * the deal can be measured with and without the new cards. A table plays the
- * full list.
- */
-export const SECONDARY_KINDS_PRINTED: SecondaryKind[] = [
+/** The secondary kinds, in the order the printed pile lists them. */
+export const SECONDARY_KINDS_PRINTED: readonly SecondaryKind[] = [
   "survey",
   "piracy",
   "tanker",
@@ -145,12 +137,11 @@ export const SECONDARY_KINDS_PRINTED: SecondaryKind[] = [
 export type SecondaryKind = "survey" | "piracy" | "tanker" | "escort" | "salvage";
 
 /**
- * The one-point cards that pay data: do the thing, take the data, file it at
- * any station. Survey is the only one left: Piracy pays a crate somebody else
- * loaded and Tanker pays nothing at all, so neither has data to file.
+ * The secondary card that makes its own data: Survey. Piracy's loot and
+ * Salvage's black box are carried under their own cards, and Tanker and
+ * Escort carry nothing.
  */
 export type SecondaryMissionType = "survey";
-export const SECONDARY_MISSION_TYPES: readonly SecondaryMissionType[] = ["survey"];
 
 /**
  * What a card is printed as: its title strip and its colour. The three
@@ -283,8 +274,8 @@ export interface SecondaryMission extends BaseMission {
 }
 
 /**
- * Piracy: end a turn in the same sector as a ship carrying a crate or a data
- * data and the loot is yours; sell it at any station.
+ * Piracy: end a turn in the same sector as a ship carrying a crate or data
+ * and the loot is yours; sell it at any station.
  *
  * The only secondary card that uses the hold, and the only one somebody else
  * pays for. A pirate needs room ({@link CARGO_HOLD_CRATES} is one, so a
@@ -320,8 +311,9 @@ export interface TankerMission extends BaseMission {
  * Escort: end a turn, not moored, in the same sector as an undocked rival
  * carrying cargo (a crate or data, loot included) with the marker in hand,
  * and you may put it on that ship, face-up for the table (the `escort_mark`
- * action). The next time that ship delivers, sells or files anything at
- * a station, the card is done. If the marked ship is destroyed first, the
+ * action). The next time that ship delivers, sells or files anything, or
+ * pumps a Tanker's fuel, at a station, the card is done. If the marked ship
+ * is destroyed first, the
  * marker comes back and the card is undone. A second Escort marks a
  * different ship.
  */
@@ -358,9 +350,12 @@ export type CargoKind = "crate" | "data";
 
 /**
  * Something a ship carries.
- * - crate: belongs to a Deliver mission; picked up at its origin station.
- * - data: from a scan or survey; delivered at any station.
- * Destroyed ships drop everything: crates go back to their origin, data is lost.
+ * - crate: a Deliver mission's, picked up at its origin station; or Piracy's
+ *   loot, which fills the hold and sells at any station.
+ * - data: an Intercept's scan (filed at the card's station), a Survey's
+ *   readings or Salvage's black box (filed at any station).
+ * Destroyed ships drop everything: a Deliver crate goes back to its origin,
+ * everything else is lost.
  */
 export interface Cargo {
   id: string;
@@ -374,6 +369,16 @@ export interface Cargo {
   isPickedUp: boolean;
 }
 
+/** The items in the hold, as opposed to those waiting on a dock or lost. */
+export function aboard(cargo: readonly Cargo[]): Cargo[] {
+  return cargo.filter((c) => c.isPickedUp);
+}
+
+/** Whether a crate is in the hold (the hold takes {@link CARGO_HOLD_CRATES}). */
+export function crateAboard(cargo: readonly Cargo[]): boolean {
+  return cargo.some((c) => c.kind === "crate" && c.isPickedUp);
+}
+
 export function missionTargetsPlayer(
   mission: Mission
 ): mission is DestroyShipMission | InterceptTransmissionMission {
@@ -383,7 +388,7 @@ export function missionTargetsPlayer(
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
   return m.type === "intercept_transmission";
 }
-/** The secondary cards that pay data (not Piracy or Tanker, which pay neither). */
+/** A Survey: the secondary card that makes its own data. */
 export function isSecondaryMission(m: Mission): m is SecondaryMission {
   return m.type === "survey";
 }

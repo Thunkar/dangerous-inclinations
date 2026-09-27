@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   TRANSFER_LANES,
-  TRANSFER_POINTS,
   TRANSFER_ARC_LENGTH,
   arcSectors,
   findJump,
@@ -69,8 +68,10 @@ describe("jumps: lane geometry", () => {
       );
       expect(directions.sort()).toEqual(["inbound", "outbound"]);
     }
-    // One transfer point per departure sector, none back.
-    expect(TRANSFER_POINTS).toHaveLength(6 * TRANSFER_ARC_LENGTH);
+    // One departure arc per lane, none back.
+    expect(TRANSFER_LANES.flatMap((l) => arcSectors(laneDepartureArc(l)))).toHaveLength(
+      6 * TRANSFER_ARC_LENGTH
+    );
   });
 
   it("the whole of black hole ring 5 is lanes, each sector in exactly one; only outbound arcs offer a jump", () => {

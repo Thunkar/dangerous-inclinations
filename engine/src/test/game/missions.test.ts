@@ -13,7 +13,6 @@ import { checkForWinner, completedMissions } from "../../game/missions/missionCh
 import { describeMission } from "../../game/describe.ts";
 import { createGame } from "../../game/setup.ts";
 import { viewFor } from "../../game/view.ts";
-import { secondaryCopiesPerKind } from "../../game/missions/missionDeck.ts";
 import {
   DEFAULT_POINTS_TO_WIN,
   MISSION_FAMILY,
@@ -26,10 +25,11 @@ import {
   SECONDARIES_PER_PLAYER,
   isPrimaryType,
   SECONDARY_OFFERS_PER_PLAYER,
+  SECONDARY_COPIES_PER_KIND,
   SECONDARY_KINDS_PRINTED,
   TANKER_FUEL,
 } from "../../models/missions.ts";
-import type { Mission, SecondaryKind } from "../../models/missions.ts";
+import type { Mission } from "../../models/missions.ts";
 import type { GameState } from "../../models/game.ts";
 import { PLANETS, STATION_RING } from "../../models/gravityWells.ts";
 import { createInitialStations, getStationForPlanet } from "../../game/stations.ts";
@@ -94,19 +94,11 @@ describe("missions: deck", () => {
     );
   });
 
-  // Four of each of five kinds is twenty; three kinds would not go round six
-  // seats at four each, so a three-kind pile prints six of each.
-  it.each<[string, SecondaryKind[], number]>([
-    ["the printed five", ["survey", "piracy", "tanker", "escort", "salvage"], 4],
-    ["an experiment's three", ["survey", "piracy", "tanker"], 6],
-    ["an experiment's two", ["escort", "salvage"], 9],
-  ])("the secondary pile of %s is the same pile at every table size", (_label, kinds, copies) => {
-    expect(secondaryCopiesPerKind(kinds.length)).toBe(copies);
-    const deck = buildSecondaryDeck(kinds);
-    expect(deck).toHaveLength(kinds.length * copies);
+  it("the secondary pile is four of each printed kind, the same at every table size", () => {
+    const deck = buildSecondaryDeck();
     expect(deck.every((c) => MISSION_FAMILY[c.type] === "secondary")).toBe(true);
-    for (const type of kinds) {
-      expect(deck.filter((c) => c.type === type), type).toHaveLength(copies);
+    for (const type of SECONDARY_KINDS_PRINTED) {
+      expect(deck.filter((c) => c.type === type), type).toHaveLength(SECONDARY_COPIES_PER_KIND);
     }
   });
 
@@ -843,7 +835,7 @@ describe("missions: tanker", () => {
   ])("arriving with %s: pumped %s", (_label, fuel, pumped) => {
     const state = withShip(docking(ALPHA, [tankerMission()]), "p1", { reactionMass: fuel });
     const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "fuel_sold")).toHaveLength(pumped ? 1 : 0);
+    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(pumped ? 1 : 0);
     expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? fuel - TANKER_FUEL : fuel);
     expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(
       pumped ? MISSION_POINTS.tanker : 0
@@ -852,7 +844,7 @@ describe("missions: tanker", () => {
 
   it("names the amount and the station it went into", () => {
     const state = withShip(docking(ALPHA, [tankerMission()]), "p1", { reactionMass: TANKER_FUEL });
-    expect(eventsOf(executeTurnAs(state, coast(1)).events, "fuel_sold")[0]).toMatchObject({
+    expect(eventsOf(executeTurnAs(state, coast(1)).events, "fuel_pumped")[0]).toMatchObject({
       playerId: "p1",
       amount: TANKER_FUEL,
       planetId: ALPHA,
@@ -895,7 +887,7 @@ describe("missions: tanker", () => {
     // One job a visit: named by the player, or the one that scores most.
     const state = withShip(build(), "p1", { reactionMass: 10 });
     const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "fuel_sold")).toHaveLength(pumped ? 1 : 0);
+    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(pumped ? 1 : 0);
     expect(eventsOf(result.events, "docked")[0].job === "fuel").toBe(pumped);
   });
 
@@ -908,7 +900,7 @@ describe("missions: tanker", () => {
     state = withMissions(state, "p1", [tankerMission()]);
     state = withShip(state, "p1", { reactionMass: 10 });
     const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).not.toContain("fuel_sold");
+    expect(eventTypes(result.events)).not.toContain("fuel_pumped");
     expect(getShip(result.gameState, "p1").reactionMass).toBe(10);
     expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(0);
   });

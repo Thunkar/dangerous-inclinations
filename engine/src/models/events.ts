@@ -6,7 +6,7 @@
  * events, never from diffing states or parsing strings.
  *
  * Visibility: most events are public (everyone at the table saw it), including
- * energy allocation (cubes sit on the tiles in the open). An event with
+ * the energy put on a subsystem (cubes sit on the loadout in the open). An event with
  * `privateTo` is only delivered to those players: e.g. what a scan revealed
  * is yours alone.
  */
@@ -230,7 +230,7 @@ export type GameEvent =
       planetId: string;
     })
   | (Base & {
-      /** Piracy: a crate taken off a ship sharing the pirate's sector. */
+      /** Piracy: a crate or data taken off a ship sharing the pirate's sector. */
       type: "cargo_seized";
       pirateId: string;
       victimId: string;
@@ -271,7 +271,7 @@ export type GameEvent =
     })
   | (Base & {
       /** Tanker: fuel pumped into a station's drums on arrival. */
-      type: "fuel_sold";
+      type: "fuel_pumped";
       playerId: string;
       amount: number;
       planetId: string;
@@ -285,8 +285,8 @@ export type GameEvent =
   | (Base & {
       type: "data_acquired";
       playerId: string;
-      /** Which card took data: a scan, or one of the secondary cards. */
-      kind: "scan" | "survey" | "grand_tour";
+      /** Which card took data: an Intercept's scan or a Survey's dive. */
+      kind: "scan" | "survey";
       missionId: string;
     })
   | (Base & {

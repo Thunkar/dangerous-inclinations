@@ -127,7 +127,7 @@ describe("two of a kind are two jobs", () => {
       { reactionMass: 2 * TANKER_FUEL }
     );
     const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "fuel_sold")).toHaveLength(1);
+    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(1);
     expect(eventsOf(result.events, "mission_completed").map((e) => e.mission.id)).toEqual([
       "tanker-a",
     ]);
@@ -649,6 +649,15 @@ describe("escort: markers", () => {
     expect(viewFor(result.gameState, null).players[1].escortedBy).toEqual([]);
   });
 
+  it("completes when the carrier pumps a Tanker's fuel on its own turn", () => {
+    const result = executeTurnAs(carrierArrives([tankerMission("tanker-p2")]), coast(1));
+    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(1);
+    expect(eventTypes(result.events)).not.toContain("cargo_delivered");
+    const p1 = getPlayer(result.gameState, "p1");
+    expect(p1.completedMissionCount).toBe(MISSION_POINTS.escort);
+    expect(p1.missions[0].isCompleted).toBe(true);
+  });
+
   it("an Escort that reaches the points on the carrier's turn starts the final round", () => {
     const result = executeTurnAs(carrierArrives([deliverMission(ALPHA, BETA)], 2), coast(1));
     expect(eventsOf(result.events, "final_round")).toEqual([
@@ -709,6 +718,18 @@ describe("escort: markers", () => {
     const result = executeTurnAs(state, coast(1));
     expect(eventTypes(result.events)).toEqual(
       expect.arrayContaining(["cargo_delivered", "ship_destroyed"])
+    );
+    expect(eventTypes(result.events)).not.toContain("escort_released");
+    expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);
+  });
+
+  it("a carrier that pumps fuel and then dies at its heat check pumped first: the Escort is done", () => {
+    const state = withShip(carrierArrives([tankerMission("tanker-p2")]), "p2", {
+      heat: { currentHeat: 60 },
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventTypes(result.events)).toEqual(
+      expect.arrayContaining(["fuel_pumped", "ship_destroyed"])
     );
     expect(eventTypes(result.events)).not.toContain("escort_released");
     expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);

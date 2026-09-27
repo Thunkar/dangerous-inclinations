@@ -20,7 +20,7 @@
 import {
   HOME_RING,
   HOME_RINGS,
-  HOME_WELL_ID,
+  BLACK_HOLE_ID,
   TRANSFER_LANES,
   arcSectors,
 } from "../../models/gravityWells.ts";
@@ -63,7 +63,7 @@ function laneSectorsTo(planetId: string): number[] {
 export function chooseDeployment(view: GameView, pick: (n: number) => number): DeploymentChoice {
   const placed = placedShipPositions(view);
   const legal = legalDeploymentsAgainst(placed);
-  if (legal.length === 0) return { wellId: HOME_WELL_ID, ring: HOME_RING, sector: 0 };
+  if (legal.length === 0) return { wellId: BLACK_HOLE_ID, ring: HOME_RING, sector: 0 };
 
   const take = (from: Position[]): DeploymentChoice => {
     const p = from[pick(from.length)];

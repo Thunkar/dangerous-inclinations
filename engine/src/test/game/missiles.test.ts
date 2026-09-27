@@ -617,6 +617,58 @@ describe("missiles: through executeTurn", () => {
   });
 });
 
+describe("missiles: lost with their ship", () => {
+  /** p1 (active) kills p2 with a missile; p2 has one of its own in flight far away. */
+  function killWithMissileInFlight(): GameState {
+    let state = makeGameState([
+      makePlayer("p1", { wellId: BH, ring: 5, sector: 10 }),
+      makePlayer("p2", { wellId: BH, ring: 5, sector: 13 }),
+    ]);
+    state = withShip(state, "p2", { hitPoints: 2 });
+    state = missileAt(state, 5, 12);
+    return missileAt(state, 1, 0, { id: "m-p2", ownerId: "p2", targetId: "p1" });
+  }
+
+  it("a destroyed ship's missiles in flight are removed", () => {
+    const result = executeTurnAs(killWithMissileInFlight(), coast(1));
+    expect(eventsOf(result.events, "ship_destroyed")).toEqual([
+      expect.objectContaining({ victimId: "p2" }),
+    ]);
+    expect(result.gameState.missiles.filter((m) => m.ownerId === "p2")).toEqual([]);
+    expect(eventsOf(result.events, "missile_expired")).toEqual([
+      expect.objectContaining({ missileId: "m-p2", ownerId: "p2" }),
+    ]);
+  });
+
+  it("they never move or attack on the owner's respawn turn or the quiet turn after", () => {
+    let state = mustExecute(killWithMissileInFlight(), coast(1));
+    const later: string[] = [];
+    // p2 respawns, p1 coasts, p2 plays its quiet turn.
+    for (let turn = 0; turn < 3; turn++) {
+      const result = executeTurnAs(state, coast(1));
+      expect(result.errors).toBeUndefined();
+      for (const e of result.events) {
+        if (e.type === "missile_moved" || e.type === "missile_expired") later.push(e.missileId);
+        if (e.type === "attack_resolved" && e.attackerId === "p2") later.push(e.type);
+      }
+      state = result.gameState;
+    }
+    expect(later).toEqual([]);
+    expect(state.missiles.some((m) => m.ownerId === "p2")).toBe(false);
+  });
+
+  it("a ship that dies at its own heat check loses the missiles that just moved", () => {
+    let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 1, sector: 12 });
+    state = withShip(state, "p1", { hitPoints: 1, heat: { currentHeat: 30 } });
+    state = missileAt(state, 3, 6, { targetId: "p2" });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventTypes(result.events)).toEqual(
+      expect.arrayContaining(["missile_moved", "ship_destroyed", "missile_expired"])
+    );
+    expect(result.gameState.missiles).toEqual([]);
+  });
+});
+
 describe("missiles: a salvo and a turn of interceptions are one use of a tile", () => {
   it("a salvo of three costs the launcher's cubes once", () => {
     const processed = processActions(launcher(), [

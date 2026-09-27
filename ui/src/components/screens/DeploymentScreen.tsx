@@ -18,7 +18,7 @@ import {
   DEPLOYMENT_GAP,
   HOME_RING,
   HOME_RINGS,
-  HOME_WELL_ID,
+  BLACK_HOLE_ID,
   SECTORS_PER_RING,
   getWellName,
   legalDeploymentsAgainst,
@@ -138,7 +138,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                   <Box
                     onClick={
                       open && myTurn
-                        ? () => onDeploy({ wellId: HOME_WELL_ID, ring, sector })
+                        ? () => onDeploy({ wellId: BLACK_HOLE_ID, ring, sector })
                         : undefined
                     }
                     role={open && myTurn ? 'button' : undefined}

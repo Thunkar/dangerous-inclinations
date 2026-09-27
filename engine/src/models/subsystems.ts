@@ -66,7 +66,7 @@ export type SlotGroup = "forward" | "side";
  * - forward / side: restricted to that slot group
  * - either: forward or side
  */
-export type SlotType = "fixed" | SlotGroup | "either";
+type SlotType = "fixed" | SlotGroup | "either";
 
 export const FIXED_SUBSYSTEM_TYPES: readonly SubsystemType[] = ["engines", "rotation", "scoop"];
 

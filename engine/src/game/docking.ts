@@ -23,19 +23,25 @@
 import type { GameState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo, DockJob, Mission } from "../models/missions.ts";
-import { CARGO_HOLD_CRATES, DOCK_JOBS, TANKER_FUEL, missionPoints } from "../models/missions.ts";
+import {
+  CARGO_HOLD_CRATES,
+  DOCK_JOBS,
+  TANKER_FUEL,
+  aboard,
+  missionPoints,
+} from "../models/missions.ts";
 import { positionOf } from "./geometry.ts";
 import { getStationAt } from "./stations.ts";
 import { isDestroyed, reloadMissiles, repairAllSubsystems } from "./ship.ts";
 
 /** What a visit reads off the ship: the hold, the hand and the tank. */
-export interface DockingShip {
+interface DockingShip {
   cargo: readonly Cargo[];
   missions: readonly Mission[];
   reactionMass: number;
 }
 
-export interface DockJobOption {
+interface DockJobOption {
   job: DockJob;
   /** Mission points the job completes on this visit. Loading a crate scores nothing. */
   points: number;
@@ -64,19 +70,19 @@ const deliversHere = (item: Cargo, planetId: string) =>
   item.deliveryPlanetId === "any" || item.deliveryPlanetId === planetId;
 
 function visitWork(ship: DockingShip, planetId: string): VisitWork {
-  const aboard = ship.cargo.filter((c) => c.isPickedUp);
-  const unloaded = aboard.filter((c) => c.kind === "crate" && deliversHere(c, planetId));
-  const filed = aboard.filter((c) => c.kind === "data" && deliversHere(c, planetId));
+  const held = aboard(ship.cargo);
+  const unloaded = held.filter((c) => c.kind === "crate" && deliversHere(c, planetId));
+  const filed = held.filter((c) => c.kind === "data" && deliversHere(c, planetId));
 
   // Unload first, then load: a crate delivered here frees the hold for one
   // waiting at the same station, which is what makes a chained route one trip
   // instead of two. A seized crate has no dock of its own, so nothing
   // reloads it.
-  let room = CARGO_HOLD_CRATES - aboard.filter((c) => c.kind === "crate").length + unloaded.length;
+  let room = CARGO_HOLD_CRATES - held.filter((c) => c.kind === "crate").length + unloaded.length;
   const loaded: Cargo[] = [];
   for (const item of ship.cargo) {
     if (item.isPickedUp || item.kind !== "crate" || room <= 0) continue;
-    if (item.pickupPlanetId !== "any" && item.pickupPlanetId !== planetId) continue;
+    if (item.pickupPlanetId !== planetId) continue;
     loaded.push(item);
     room--;
   }
@@ -124,7 +130,7 @@ export function chosenDockJob(offer: DockJobs, named?: DockJob): DockJob | null 
   return offer.default;
 }
 
-export interface DockingResult {
+interface DockingResult {
   state: GameState;
   events: EventDraft[];
   /** Planet docked at, if any. */
@@ -205,7 +211,7 @@ export function processDocking(
   // Tanker: the card's fuel goes into the drums and the card is done.
   if (job === "fuel") {
     ship = { ...ship, reactionMass: ship.reactionMass - TANKER_FUEL };
-    events.push({ type: "fuel_sold", playerId: player.id, amount: TANKER_FUEL, planetId });
+    events.push({ type: "fuel_pumped", playerId: player.id, amount: TANKER_FUEL, planetId });
   }
 
   const players = [...state.players];

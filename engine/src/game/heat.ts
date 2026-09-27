@@ -36,16 +36,9 @@ import {
   updateSubsystem,
 } from "./ship.ts";
 
-export { addHeat } from "./ship.ts";
-
 /** The heat a ship would be carrying at a check, before it dissipates. */
 export function heatAtCheck(ship: ShipState): number {
   return ship.heat.currentHeat + heatFromCubes(ship.subsystems);
-}
-
-/** Hull the next heat check would cost: whatever is over the top of the track. */
-export function calculateHeatDamage(ship: ShipState): number {
-  return Math.max(0, heatAtCheck(ship) - MAX_HEAT);
 }
 
 /** Heat left on the track after a check: capped at the top, then dissipated. */
@@ -82,7 +75,7 @@ export function resolveEndOfTurnHeat(
   repairChoice?: SubsystemId
 ): { ship: ShipState; damage: number; events: EventDraft[] } {
   const cubes = heatFromCubes(ship.subsystems);
-  const heat = ship.heat.currentHeat + cubes;
+  const heat = heatAtCheck(ship);
   const dissipation = getDissipationCapacity(ship.subsystems);
   const damage = Math.max(0, heat - MAX_HEAT);
   const carried = heatAfterCheck(heat, dissipation);

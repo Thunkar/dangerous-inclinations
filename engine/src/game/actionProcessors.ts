@@ -21,14 +21,14 @@ import type {
   EscortMarkAction,
   Missile,
 } from "../models/game.ts";
-import { isTacticalAction, MAX_REACTION_MASS } from "../models/game.ts";
+import { MAX_REACTION_MASS, MOVE_ACTION_TYPES, isTacticalAction } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { getSubsystemConfig, isWeaponType } from "../models/subsystems.ts";
+import { getSubsystemConfig, type WeaponType } from "../models/subsystems.ts";
 import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from "../models/rings.ts";
-import { findJump, getMaxRing, phasedJumpDestination } from "../models/gravityWells.ts";
+import { findJump, phasedJumpDestination } from "../models/gravityWells.ts";
 import { rollD10 } from "../utils/rng.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
-import { applyOrbitalMovement, applyBurn, applyRotation } from "./movement.ts";
+import { applyOrbitalMovement, applyBurn, applyRotation, ringAfter } from "./movement.ts";
 import { resolveAttack } from "./damage.ts";
 import { createMissile } from "./missiles.ts";
 import { processScan } from "./scan.ts";
@@ -38,6 +38,7 @@ import {
   findSubsystem,
   hasWorkingCompressor,
   isDestroyed,
+  requestedDraw,
   updateSubsystem,
   useSubsystem,
   workingCompressors,
@@ -56,7 +57,7 @@ import {
   validateWellTransferAction,
 } from "./validators.ts";
 
-export interface ProcessResult {
+interface ProcessResult {
   success: boolean;
   state: GameState;
   events: EventDraft[];
@@ -204,9 +205,7 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
   }
 
   // Orbital drift is not optional: a turn without a movement action coasts.
-  if (
-    !tactical.some((a) => a.type === "coast" || a.type === "burn" || a.type === "well_transfer")
-  ) {
+  if (!tactical.some((a) => MOVE_ACTION_TYPES.has(a.type))) {
     const active = current.players[current.activePlayerIndex];
     const err = run(
       {
@@ -239,7 +238,7 @@ function processPower(state: GameState, action: PowerAction): Step {
   const events: EventDraft[] = [];
   const next = withPlayer(state, action.playerId, (p) => {
     const sub = findSubsystem(p.ship, action.data.subsystemId)!;
-    const amount = action.data.amount ?? getSubsystemConfig(sub.type).minEnergy;
+    const amount = requestedDraw(sub.type, action.data.amount);
     const ship = updateSubsystem(p.ship, sub.id, {
       allocatedEnergy: amount,
       isPowered: true,
@@ -355,7 +354,7 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
   const destination = phasedJumpDestination(jump, sectorAdjustment)!;
   let heat = 0;
   const compressed = hasWorkingCompressor(player.ship);
-  // A compressor cuts the lane's own fuel to COMPRESSED_TRANSFER_MASS; the
+  // A compressor cuts the lane's own fuel to COMPRESSED_JUMP_MASS; the
   // phasing is paid either way.
   const massSpent = calculateJumpMassCost(sectorAdjustment, compressed);
 
@@ -366,9 +365,8 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
     heat = used.heat;
     events.push(...used.events);
     if (compressed) {
-      // Using the tile: heat is its cubes if it charges any (none while it is
-      // passive, which is the rule as it stands), and it flips face-up the
-      // first time it pays for a lane.
+      // The compressor takes no cubes, so it adds no heat; it flips face-up
+      // the first time it pays for a lane.
       for (const compressor of workingCompressors(ship)) {
         const r = useSubsystem(ship, p.id, compressor.id, "compressed_jump");
         ship = r.ship;
@@ -402,9 +400,9 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
   const targetIndex = players.findIndex((p) => p.id === action.data.targetPlayerId);
   let attacker = players[attackerIndex];
   const weapon = findSubsystem(attacker.ship, action.data.subsystemId)!;
-  if (!isWeaponType(weapon.type)) return { state, events };
   const config = getSubsystemConfig(weapon.type);
-  const weaponType = weapon.type;
+  // Validated: the subsystem is a weapon.
+  const weaponType = weapon.type as WeaponType;
 
   // A missiles tile may empty as much of its magazine as it likes at one ship
   // in one action, and that is one use of the tile: its cubes are charged once
@@ -518,8 +516,8 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
         heat: compensated.heat,
       });
     } else {
-      const pushed = attacker.ship.ring + (attacker.ship.facing === "prograde" ? 1 : -1);
-      const ring = Math.max(1, Math.min(getMaxRing(attacker.ship.wellId), pushed)); // validated earlier; clamp defensively
+      // Validated: the push stays on the rings.
+      const ring = ringAfter(attacker.ship, 1) ?? attacker.ship.ring;
       attacker = { ...attacker, ship: { ...attacker.ship, ring } };
       events.push({
         type: "recoil",

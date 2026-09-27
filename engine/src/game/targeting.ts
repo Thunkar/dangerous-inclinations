@@ -14,18 +14,42 @@
  *   actually catch up).
  * Nothing fires across gravity wells.
  */
-import type { Position, ShipState } from "../models/game.ts";
+import type { Player, Position, ShipState, Station } from "../models/game.ts";
 import type { Subsystem, WeaponStats } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
-import { forwardDistance, sectorDistance } from "./geometry.ts";
+import { forwardDistance, positionOf, sectorDistance } from "./geometry.ts";
 import { missileCanReach } from "./missiles.ts";
-import { getSideFiringDirection, getSubsystemSide, isRingDirectionValid } from "./ship.ts";
+import {
+  getSideFiringDirection,
+  getSubsystemSide,
+  isDestroyed,
+  isRingDirectionValid,
+} from "./ship.ts";
+import { isSafeAtBerth } from "./stations.ts";
 
-export interface FiringSolution {
-  targetId: string;
-  inRange: boolean;
-  ringDistance: number;
-  sectorDistance: number;
+type Seat = Pick<Player, "hasDeployed" | "ship" | "recovering">;
+
+/** A deployed ship that is not destroyed. */
+export function isOnBoard(player: Pick<Player, "hasDeployed" | "ship">): boolean {
+  return player.hasDeployed && !isDestroyed(player.ship);
+}
+
+/**
+ * Whether anyone may scan this ship: on the board and not back from Home
+ * this round (RULES §Destruction and Respawn).
+ */
+export function canBeScanned(target: Seat): boolean {
+  return isOnBoard(target) && !target.recovering;
+}
+
+/** Whether anyone may fire at this ship, missiles included: scannable, and not moored (RULES §Stations). */
+export function canBeFiredAt(target: Seat, stations: Station[]): boolean {
+  return canBeScanned(target) && !isSafeAtBerth(stations, positionOf(target.ship));
+}
+
+/** Whether this ship may fire at all: a moored ship fires at nobody (RULES §Stations). */
+export function canFireFrom(ship: ShipState, stations: Station[]): boolean {
+  return !isSafeAtBerth(stations, positionOf(ship));
 }
 
 export function isInWeaponRange(
@@ -110,17 +134,4 @@ export function canEngage(
   const stats = getSubsystemConfig(weapon.type).weaponStats;
   if (stats?.arc !== "turret") return true;
   return missileCanReach(attacker, target);
-}
-
-export function calculateFiringSolutions(
-  weapon: Subsystem,
-  attacker: Pick<ShipState, "wellId" | "ring" | "sector" | "facing">,
-  targets: ReadonlyArray<{ id: string; position: Position }>
-): FiringSolution[] {
-  return targets.map(({ id, position }) => ({
-    targetId: id,
-    inRange: isInWeaponRange(weapon, attacker, position),
-    ringDistance: Math.abs(position.ring - attacker.ring),
-    sectorDistance: sectorDistance(attacker.sector, position.sector),
-  }));
 }

@@ -3,6 +3,16 @@
  */
 export const SECTORS_PER_RING = 24;
 
+/** A sector number brought back onto the ring (0..23). */
+export function wrapSector(sector: number): number {
+  return ((sector % SECTORS_PER_RING) + SECTORS_PER_RING) % SECTORS_PER_RING;
+}
+
+/** Sectors from `from` to `to` moving prograde (0..23). */
+export function forwardDistance(from: number, to: number): number {
+  return wrapSector(to - from);
+}
+
 /** Phasing: extra sectors that can be added during a burn (braking is limited by velocity). */
 export const MAX_SECTOR_ADJUSTMENT = 3;
 export const SECTOR_ADJUSTMENT_COST_PER_SECTOR = 1;

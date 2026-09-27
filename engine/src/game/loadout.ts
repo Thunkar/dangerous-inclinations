@@ -13,9 +13,10 @@ import {
   slotSubsystemId,
 } from "../models/subsystems.ts";
 import type { ShipLoadout, LoadoutValidation } from "../models/game.ts";
-import { DEFAULT_DISSIPATION_CAPACITY, STARTING_REACTION_MASS } from "../models/game.ts";
+import { STARTING_REACTION_MASS } from "../models/game.ts";
 import type { MissionRequirement, MissionType } from "../models/missions.ts";
 import { missionRequirements } from "../models/missions.ts";
+import { getDissipationCapacity } from "./ship.ts";
 
 const byGroup = (predicate: (slotType: string) => boolean): SubsystemType[] =>
   (Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]).filter((t) =>
@@ -97,12 +98,10 @@ export function calculateShipStatsFromLoadout(loadout: ShipLoadout): {
   dissipationCapacity: number;
   reactionMass: number;
 } {
-  let dissipationCapacity = DEFAULT_DISSIPATION_CAPACITY;
-  for (const type of [...loadout.forwardSlots, ...loadout.sideSlots]) {
-    if (type === null) continue;
-    dissipationCapacity += getSubsystemConfig(type).passiveEffect?.dissipationBonus ?? 0;
-  }
-  return { dissipationCapacity, reactionMass: STARTING_REACTION_MASS };
+  return {
+    dissipationCapacity: getDissipationCapacity(createSubsystemsFromLoadout(loadout)),
+    reactionMass: STARTING_REACTION_MASS,
+  };
 }
 
 export function countSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): number {

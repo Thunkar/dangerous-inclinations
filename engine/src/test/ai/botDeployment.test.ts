@@ -10,7 +10,7 @@ import type { Mission } from "../../models/missions.ts";
 import {
   HOME_RING,
   HOME_RINGS,
-  HOME_WELL_ID,
+  BLACK_HOLE_ID,
   TRANSFER_LANES,
   arcSectors,
 } from "../../models/gravityWells.ts";
@@ -46,14 +46,14 @@ function linedUpSectors(planetId: string): Set<number> {
 
 /** A deployment-phase game where `occupied` ring-4 sectors already hold ships. */
 function deploymentState(missions: Mission[], occupied: number[]): GameState {
-  const bot = makePlayer("bot", { wellId: HOME_WELL_ID, ring: HOME_RING, sector: 0 }, undefined, {
+  const bot = makePlayer("bot", { wellId: BLACK_HOLE_ID, ring: HOME_RING, sector: 0 }, undefined, {
     hasDeployed: false,
     home: null,
     missions,
   });
   const others = occupied.map((sector, i) =>
-    makePlayer(`other-${i}`, { wellId: HOME_WELL_ID, ring: HOME_RING, sector }, undefined, {
-      home: { wellId: HOME_WELL_ID, ring: HOME_RING, sector },
+    makePlayer(`other-${i}`, { wellId: BLACK_HOLE_ID, ring: HOME_RING, sector }, undefined, {
+      home: { wellId: BLACK_HOLE_ID, ring: HOME_RING, sector },
     })
   );
   return makeGameState([bot, ...others], { phase: "deployment", turn: 0 });
@@ -71,7 +71,7 @@ describe("botChooseDeployment", () => {
     const state = deploymentState([], []);
     for (const pick of PICKERS) {
       const choice = botChooseDeployment(viewFor(state, "bot"), pick);
-      expect(choice.wellId).toBe(HOME_WELL_ID);
+      expect(choice.wellId).toBe(BLACK_HOLE_ID);
       expect(HOME_RINGS as readonly number[]).toContain(choice.ring);
       expect(choice.sector).toBeGreaterThanOrEqual(0);
       expect(choice.sector).toBeLessThan(24);
@@ -153,7 +153,7 @@ describe("botChooseDeployment", () => {
     const result = deployShip(state, "bot", a.sector, a.ring);
     expect(result.success).toBe(true);
     expect(result.state.players[0].home).toEqual({
-      wellId: HOME_WELL_ID,
+      wellId: BLACK_HOLE_ID,
       ring: a.ring,
       sector: a.sector,
     });

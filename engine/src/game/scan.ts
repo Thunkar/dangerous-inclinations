@@ -11,14 +11,24 @@
  * but a tile does one thing a turn: a sensor powered this turn cannot scan
  * (RULES §Energy and Heat).
  */
-import type { GameState, Player, ScanAction } from "../models/game.ts";
+import type { GameState, Player, Position, ScanAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo } from "../models/missions.ts";
-import { isInterceptTransmissionMission } from "../models/missions.ts";
+import { SCAN_SECTOR_RANGE, isInterceptTransmissionMission } from "../models/missions.ts";
+import { sectorDistance } from "./geometry.ts";
 import { findSubsystem, useSubsystem } from "./ship.ts";
 
-export interface ScanResult {
+/** Whether a sensor at `from` reaches `to`: the same ring, within SCAN_SECTOR_RANGE sectors. */
+export function inScanRange(from: Position, to: Position): boolean {
+  return (
+    from.wellId === to.wellId &&
+    from.ring === to.ring &&
+    sectorDistance(from.sector, to.sector) <= SCAN_SECTOR_RANGE
+  );
+}
+
+interface ScanResult {
   state: GameState;
   events: EventDraft[];
 }

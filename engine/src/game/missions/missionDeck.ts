@@ -29,14 +29,14 @@
  * card, each cargo route), which keeps the same share of it pointed at people
  * as the old per-player decks had (31% at three seats, 53% at six).
  *
- * The secondary pile is {@link SECONDARY_COPIES_PER_KIND} copies of each kind
- * (more if a full table would run it dry), shuffled and dealt three to a seat
+ * The secondary pile is {@link SECONDARY_COPIES_PER_KIND} copies of each kind,
+ * shuffled and dealt three to a seat
  * like the primaries. A hand keeps any two, two of a kind included: two of a
  * kind are two jobs, and nothing a ship does completes both at once
  * (`missionChecks.ts`).
  */
 import type { Player } from "../../models/game.ts";
-import type { Cargo, SecondaryKind, SecondaryMission, Mission } from "../../models/missions.ts";
+import type { Cargo, SecondaryMission, Mission } from "../../models/missions.ts";
 import {
   MISSIONS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
@@ -49,7 +49,7 @@ import {
 } from "../../models/missions.ts";
 import { MAX_PLAYERS } from "../../models/game.ts";
 import { PLANETS, TRANSFER_LANES } from "../../models/gravityWells.ts";
-import { SECTORS_PER_RING } from "../../models/rings.ts";
+import { wrapSector } from "../../models/rings.ts";
 import type { Rng } from "../../utils/rng.ts";
 
 /** Copies of each distinct card in the printed primary deck. */
@@ -108,31 +108,13 @@ export function buildPrimaryDeck(
 }
 
 /**
- * Copies of each secondary kind printed: {@link SECONDARY_COPIES_PER_KIND},
- * or more when that few kinds would not go round a full table three cards a
- * seat (three kinds print six of each).
- */
-export function secondaryCopiesPerKind(kinds: number): number {
-  return Math.max(
-    SECONDARY_COPIES_PER_KIND,
-    Math.ceil((MAX_PLAYERS * SECONDARY_OFFERS_PER_PLAYER) / Math.max(1, kinds))
-  );
-}
-
-/**
  * The printed secondary pile, in a fixed order. It names no rival and no
  * route, so it is the same pile at every table size.
- *
- * @param kinds the kinds printed; the table plays {@link SECONDARY_KINDS_PRINTED}
- *   (the simulator's `--secondaries=` rewrites that list for an experiment).
  */
-export function buildSecondaryDeck(
-  kinds: readonly SecondaryKind[] = SECONDARY_KINDS_PRINTED
-): DeckCard[] {
+export function buildSecondaryDeck(): DeckCard[] {
   const deck: DeckCard[] = [];
-  const copies = secondaryCopiesPerKind(kinds.length);
-  for (let copy = 0; copy < copies; copy++) {
-    for (const type of kinds) {
+  for (let copy = 0; copy < SECONDARY_COPIES_PER_KIND; copy++) {
+    for (const type of SECONDARY_KINDS_PRINTED) {
       // Survey data is filed at whatever station the ship next docks at.
       deck.push(type === "survey" ? { type, deliveryPlanetId: "any" } : { type });
     }
@@ -210,7 +192,7 @@ export function circuitRoutes(planetIds: readonly string[]): Array<[string, stri
       (lane) => lane.planetId === pickup && lane.direction === "inbound"
     );
     if (!inbound) continue;
-    const next = (inbound.blackHoleArc.startSector + inbound.blackHoleArc.length) % SECTORS_PER_RING;
+    const next = wrapSector(inbound.blackHoleArc.startSector + inbound.blackHoleArc.length);
     const outbound = TRANSFER_LANES.find(
       (lane) =>
         lane.direction === "outbound" &&

@@ -177,11 +177,6 @@ describe("damage: resolveAttack", () => {
     const target = getShip(state, "p2");
     const outcome = resolveAttack(target, "p2", 2, "engines", 10, attacker);
     expect(outcome.hitResult.result).toBe("critical");
-    expect(outcome.hitResult.criticalEffect).toEqual({
-      subsystemId: "engines",
-      subsystemType: "engines",
-      energyLost: 3,
-    });
     const engines = outcome.ship.subsystems.find((s) => s.id === "engines")!;
     expect(engines).toMatchObject({
       isBroken: true,
@@ -220,7 +215,9 @@ describe("damage: resolveAttack", () => {
     const outcome = resolveAttack(getShip(state, "p2"), "p2", 2, "engines", 10, attacker);
     expect(outcome.hitResult.result).toBe("critical");
     expect(outcome.hitResult.damageToHull).toBe(0);
-    expect(outcome.hitResult.criticalEffect).toMatchObject({ subsystemId: "engines" });
+    expect(outcome.events.find((e) => e.type === "subsystem_broken")).toMatchObject({
+      subsystemId: "engines",
+    });
     expect(outcome.ship.subsystems.find((s) => s.id === "engines")!.isBroken).toBe(true);
   });
 
@@ -232,16 +229,18 @@ describe("damage: resolveAttack", () => {
     // All four cubes went on the two points it absorbed and returned to the
     // reactor, so there is nothing left to dump as heat: the punishment for
     // naming a wall that holds is the tile, not the heat.
-    expect(outcome.hitResult.criticalEffect?.energyLost).toBe(0);
+    expect(outcome.events.find((e) => e.type === "subsystem_broken")).toMatchObject({
+      subsystemId: "side-2",
+      energyLost: 0,
+    });
   });
 
   it("a critical on an already broken or unknown slot has no extra effect", () => {
     const state = withSub(base, "p2", "engines", { isBroken: true });
     const broken = resolveAttack(getShip(state, "p2"), "p2", 2, "engines", 10, attacker);
-    expect(broken.hitResult.criticalEffect).toBeUndefined();
     expect(broken.events).toEqual([]);
     const unknown = resolveAttack(getShip(base, "p2"), "p2", 2, "side-7", 10, attacker);
-    expect(unknown.hitResult.criticalEffect).toBeUndefined();
+    expect(unknown.events).toEqual([]);
     expect(unknown.ship.hitPoints).toBe(8);
   });
 

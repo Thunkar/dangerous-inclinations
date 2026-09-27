@@ -14,7 +14,7 @@ import type {
   SecondaryMission,
   Mission,
 } from "../../models/missions.ts";
-import { SURVEY_RING, missionPoints } from "../../models/missions.ts";
+import { SURVEY_RING, aboard, crateAboard, missionPoints } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
@@ -36,11 +36,6 @@ function secondaryDone(mission: SecondaryMission, player: Player): boolean {
       // The dive: the innermost ring of the black hole, held to the end of a turn.
       return ship.wellId === BLACK_HOLE_ID && ship.ring === SURVEY_RING;
   }
-}
-
-/** A crate in the hold, as opposed to one waiting on a dock. */
-function crateAboard(cargo: readonly Cargo[]): boolean {
-  return cargo.some((c) => c.kind === "crate" && c.isPickedUp);
 }
 
 /**
@@ -77,8 +72,8 @@ function seizeLoot(
     if (!victim.hasDeployed || isDestroyed(victim.ship)) continue;
     if (!samePosition(positionOf(victim.ship), positionOf(ship))) continue;
     if (isMooredAt(state.stations, positionOf(victim.ship))) continue;
-    const aboard = victim.cargo.filter((c) => c.isPickedUp);
-    const taken = aboard.find((c) => c.kind === "crate") ?? aboard.find((c) => c.kind === "data");
+    const held = aboard(victim.cargo);
+    const taken = held.find((c) => c.kind === "crate") ?? held.find((c) => c.kind === "data");
     if (!taken) continue;
     players[victimIndex] = {
       ...victim,
@@ -167,9 +162,9 @@ function salvageWreck(
 
 /**
  * Escort completion: every other player's undone Escort marking a ship that
- * delivered, sold or filed anything this turn is done. Deliveries happen on
- * the carrier's own turn, so this pays players who are not the active one.
- * `players` is written in place; the events come back.
+ * delivered, sold or filed anything, or pumped a Tanker's fuel, this turn is
+ * done. Those happen on the carrier's own turn, so this pays players who are
+ * not the active one. `players` is written in place; the events come back.
  */
 function payEscorts(players: Player[], deliveredBy: ReadonlySet<string>): EventDraft[] {
   const events: EventDraft[] = [];
@@ -179,7 +174,7 @@ function payEscorts(players: Player[], deliveredBy: ReadonlySet<string>): EventD
     const done: Mission[] = [];
     const missions = player.missions.map((m) => {
       if (m.type !== "escort" || m.isCompleted || m.markedPlayerId === null) return m;
-      if (m.markedPlayerId === player.id || !deliveredBy.has(m.markedPlayerId)) return m;
+      if (!deliveredBy.has(m.markedPlayerId)) return m;
       const completed: EscortMission = { ...m, isCompleted: true };
       points += missionPoints(completed.type);
       done.push(completed);
@@ -200,7 +195,7 @@ function payEscorts(players: Player[], deliveredBy: ReadonlySet<string>): EventD
   return events;
 }
 
-export interface MissionCheckResult {
+interface MissionCheckResult {
   state: GameState;
   events: EventDraft[];
 }
@@ -224,7 +219,7 @@ export function processMissionEvents(
 
   const kills = new Set<string>();
   const deliveredCargoIds = new Set<string>();
-  /** Every ship that delivered, sold or filed anything this turn (Escort). */
+  /** Every ship that delivered, sold or filed anything, or pumped fuel, this turn (Escort). */
   const deliveredBy = new Set<string>();
   let pumpedFuel = false;
 
@@ -234,7 +229,10 @@ export function processMissionEvents(
       deliveredBy.add(e.playerId);
       if (e.playerId === playerId) deliveredCargoIds.add(e.cargoId);
     }
-    if (e.type === "fuel_sold" && e.playerId === playerId) pumpedFuel = true;
+    if (e.type === "fuel_pumped") {
+      deliveredBy.add(e.playerId);
+      if (e.playerId === playerId) pumpedFuel = true;
+    }
   }
 
   const players = [...state.players];
@@ -381,8 +379,8 @@ export function processMissionEvents(
     cargo !== player.cargo ||
     missions.some((m, i) => m !== player.missions[i]);
   if (changed) players[index] = { ...player, missions, cargo, completedMissionCount };
-  // Everyone else's Escorts on a ship that delivered this turn: the carrier is
-  // the active player, so this pays a card held at another seat.
+  // Everyone else's Escorts on a ship that delivered or pumped fuel this turn:
+  // the carrier is the active player, so this pays a card held at another seat.
   const escortEvents = payEscorts(players, deliveredBy);
   events.push(...escortEvents);
 

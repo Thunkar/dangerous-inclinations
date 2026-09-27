@@ -28,7 +28,7 @@ import {
   phasedJumpDestination,
 } from "../../models/gravityWells.ts";
 import { driftPosition, ringVelocity, wrapSector } from "../../game/geometry.ts";
-import { burnDestinationRing } from "../../game/movement.ts";
+import { ringAfter } from "../../game/movement.ts";
 import type { OrientedPosition, MovementActionType } from "./types.ts";
 
 export interface SuccessorInfo {
@@ -77,11 +77,8 @@ export function getSuccessors(
     if (burnCost.mass > availableMass) continue;
 
     for (const facing of ["prograde", "retrograde"] as const) {
-      const destRing = burnDestinationRing({ ...position, facing }, intensity);
-      // burnDestinationRing clamps to the rings that exist; a burn that
-      // would leave them changes the ring by less than it should, and the
-      // engine rejects it.
-      if (Math.abs(destRing - position.ring) !== burnCost.rings) continue;
+      const destRing = ringAfter({ ...position, facing }, burnCost.rings);
+      if (destRing === null) continue;
 
       for (let adj = adjustmentRange.min; adj <= adjustmentRange.max; adj++) {
         const massCost = calculateBurnMassCost(burnCost.mass, adj);

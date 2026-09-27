@@ -10,7 +10,7 @@
 import type { GameState, Player, Position } from "../models/game.ts";
 import { FIRST_TURN } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { HOME_RING, HOME_RINGS, HOME_WELL_ID } from "../models/gravityWells.ts";
+import { BLACK_HOLE_ID, HOME_RINGS } from "../models/gravityWells.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { samePosition, sectorDistance } from "./geometry.ts";
 import { createInitialShipState } from "./ship.ts";
@@ -18,10 +18,10 @@ import { createInitialShipState } from "./ship.ts";
 /** Sectors that must separate a new ship from every ship already placed. */
 export const DEPLOYMENT_GAP = 3;
 
-export function deploymentPositions(): Position[] {
+function deploymentPositions(): Position[] {
   return HOME_RINGS.flatMap((ring) =>
     Array.from({ length: SECTORS_PER_RING }, (_, sector) => ({
-      wellId: HOME_WELL_ID,
+      wellId: BLACK_HOLE_ID,
       ring,
       sector,
     }))
@@ -60,20 +60,11 @@ export function legalDeploymentPositions(state: GameState): Position[] {
   return legalDeploymentsAgainst(placedShips(state));
 }
 
-export function isDeploymentPositionLegal(state: GameState, position: Position): boolean {
+function isDeploymentPositionLegal(state: GameState, position: Position): boolean {
   return legalDeploymentPositions(state).some((p) => samePosition(p, position));
 }
 
-/** Legal sectors on the outer deployment ring, or its free ones if none is legal. */
-export function getAvailableDeploymentSectors(state: GameState): number[] {
-  const legal = legalDeploymentPositions(state).filter((p) => p.ring === HOME_RING);
-  if (legal.length > 0) return legal.map((p) => p.sector);
-  return Array.from({ length: SECTORS_PER_RING }, (_, s) => s).filter((sector) =>
-    isDeploymentPositionFree(state, { wellId: HOME_WELL_ID, ring: HOME_RING, sector })
-  );
-}
-
-export interface DeploymentResult {
+interface DeploymentResult {
   success: boolean;
   error?: string;
   state: GameState;
@@ -84,7 +75,7 @@ export function deployShip(
   state: GameState,
   playerId: string,
   sector: number,
-  ring: number = HOME_RING
+  ring: number
 ): DeploymentResult {
   const fail = (error: string): DeploymentResult => ({ success: false, error, state, events: [] });
 
@@ -103,7 +94,7 @@ export function deployShip(
     return fail(`Ring ${ring} is not on Black Hole ring ${HOME_RINGS.join(" or ")}`);
   }
 
-  const position: Position = { wellId: HOME_WELL_ID, ring, sector };
+  const position: Position = { wellId: BLACK_HOLE_ID, ring, sector };
   if (!isDeploymentPositionFree(state, position)) return fail(`Sector ${sector} is occupied`);
   if (!isDeploymentPositionLegal(state, position)) {
     return fail(
@@ -138,7 +129,7 @@ export function deployShip(
   };
 }
 
-export function checkAllDeployed(state: GameState): boolean {
+function checkAllDeployed(state: GameState): boolean {
   return state.players.every((p) => p.hasDeployed);
 }
 

@@ -120,7 +120,7 @@ export function addHeat(ship: ShipState, amount: number): ShipState {
   return { ...ship, heat: { currentHeat: ship.heat.currentHeat + amount } };
 }
 
-export interface ShipChange {
+interface ShipChange {
   ship: ShipState;
   events: EventDraft[];
 }
@@ -142,6 +142,11 @@ export function revealSubsystem(
   };
 }
 
+/** The cubes asked for: `requested`, or the subsystem's minimum when none is named. */
+export function requestedDraw(type: Subsystem["type"], requested?: number): number {
+  return requested ?? getSubsystemConfig(type).minEnergy;
+}
+
 /**
  * The cubes an action puts on the tile it uses. Every tile but the engines has
  * one legal figure, which is why nobody places cubes: the engines take the
@@ -150,7 +155,7 @@ export function revealSubsystem(
 export function drawFor(type: Subsystem["type"], requested?: number): number {
   const config = getSubsystemConfig(type);
   if (config.maxEnergy === 0) return 0;
-  return Math.min(config.maxEnergy, Math.max(config.minEnergy, requested ?? config.minEnergy));
+  return Math.min(config.maxEnergy, Math.max(config.minEnergy, requestedDraw(type, requested)));
 }
 
 /**
