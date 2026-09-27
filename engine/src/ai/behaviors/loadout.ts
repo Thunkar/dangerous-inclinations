@@ -9,6 +9,7 @@ import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission, MissionType } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
 import {
+  HOLD_RULES,
   MISSIONS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   isPrimaryType,
@@ -213,8 +214,13 @@ export function selectBotMissions(
   return choose[pick ? pick(choose.length) : 0];
 }
 
-/** Deliver and Piracy both want the one crate the hold takes. */
+/**
+ * Deliver and Piracy both want the one crate the hold takes. Under the
+ * unlimited-hold experiment (`HOLD_RULES`) the hold takes both, so nothing is
+ * contested.
+ */
 function holdIsContested(hand: Mission[]): boolean {
+  if (HOLD_RULES.unlimited) return false;
   return hand.some((m) => m.type === "deliver_cargo") && hand.some((m) => m.type === "piracy");
 }
 

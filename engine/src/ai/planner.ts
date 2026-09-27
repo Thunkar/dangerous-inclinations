@@ -71,6 +71,8 @@ import { castOffChoice, coastChoice, movementFromPlan } from "./behaviors/positi
 import type { MovementChoice } from "./behaviors/positioning.ts";
 import { planShipToTarget } from "./movementPlanner/index.ts";
 import { blackBoxAboard, surveyToDive } from "./behaviors/missions.ts";
+import { seizeChoices } from "./behaviors/piracy.ts";
+import type { SeizableItem } from "../game/piracy.ts";
 
 /** Hull the bot keeps when it accepts heat damage for a decisive volley. */
 const MIN_HULL_AFTER_OVERHEAT = 3;
@@ -141,9 +143,20 @@ function buildCandidate(
   // card names (a kill is worth two to the marker's one).
   const escortMarks = escortMarksAt(situation, landing);
   const marking = escortMarks.length > 0;
+  // Unlimited-hold experiment: the items a pirate names where the move ends
+  // (none while the experiment is off).
+  const seizes = seizeChoices(view, me, landing);
+  const seizing = seizes.length > 0;
   // Ships not to fire on: those `holdFireIds` names, and the ones this turn
-  // marks (a kill empties the hold, and an empty ship takes no marker).
-  const holdFire = new Set([...holdFireIds(situation), ...escortMarks]);
+  // marks or seizes from (a kill empties the hold, and an empty ship takes no
+  // marker and gives up nothing). A Destroy target stays fair game: the kill
+  // is worth two, and a shot that does not kill leaves the item to take.
+  const prey = destroyTargetIds(me);
+  const holdFire = new Set([
+    ...holdFireIds(situation),
+    ...escortMarks,
+    ...seizes.map((i) => i.victimId).filter((id) => !prey.has(id)),
+  ]);
   /** Whether this turn may fire at `o` from `at` at all, whatever the weapon. */
   const mayFireAt = (o: Opponent, at: Position) =>
     !isQuietTurn(view.turn, me) &&
@@ -194,10 +207,10 @@ function buildCandidate(
   const salvaging =
     me.missions.some((m) => m.type === "salvage" && !m.isCompleted && !blackBoxAboard(me, m)) &&
     view.wrecks.some((w) => samePosition(w, post));
-  // Docking, the survey, a salvage and a mark are all resolved from where the
-  // ship ends its turn, so an uncompensated railgun recoil must not move it,
-  // and a moored ship pushed off its berth loses the berth.
-  const postPositionMatters = endsOnStation || surveying || salvaging || marking;
+  // Docking, the survey, a salvage, a mark and a seizure are all resolved
+  // from where the ship ends its turn, so an uncompensated railgun recoil
+  // must not move it, and a moored ship pushed off its berth loses the berth.
+  const postPositionMatters = endsOnStation || surveying || salvaging || marking || seizing;
 
   // Budgets.
   const targets: EnergyTargets = new Map();
@@ -533,6 +546,7 @@ function buildCandidate(
     ...escortMarks.map(
       (carrierId): PlayerAction => ({ type: "escort_mark", playerId: me.id, data: { carrierId } })
     ),
+    ...seizeActions(me.id, seizes),
     ...(visit?.naming ? [{ type: "dock_job", playerId: me.id, data: visit.naming } as const] : []),
   ];
   const killsTarget = target !== null && hullOn(target) >= target.hull;
@@ -555,6 +569,7 @@ function buildCandidate(
       surveying ||
       salvaging ||
       marking ||
+      seizing ||
       scansForMission ||
       killsTarget,
     denialValue,
@@ -633,6 +648,15 @@ function escortMarksAt(situation: TacticalSituation, post: Position): string[] {
     .slice(0, unplacedEscorts(me.missions).length);
 }
 
+/** The `seize` actions naming `items` (the unlimited-hold experiment). */
+function seizeActions(playerId: string, items: readonly SeizableItem[]): PlayerAction[] {
+  return items.map((i) => ({
+    type: "seize",
+    playerId,
+    data: { victimId: i.victimId, cargoId: i.cargoId },
+  }));
+}
+
 /**
  * The subsystem to fix first: what stops the ship being a ship before what
  * stops it being dangerous. A broken engine, thruster or scoop can strand a
@@ -665,6 +689,7 @@ function coldRepairCandidate(situation: TacticalSituation): ActionPlan | null {
     ...escortMarksAt(situation, post).map(
       (carrierId): PlayerAction => ({ type: "escort_mark", playerId: me.id, data: { carrierId } })
     ),
+    ...seizeActions(me.id, seizeChoices(situation.view, me, post)),
   ];
   return {
     actions,

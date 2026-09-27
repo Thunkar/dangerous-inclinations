@@ -28,6 +28,7 @@
 import type { Player, Position } from "../../models/game.ts";
 import type { DockJob, Mission, SalvageMission } from "../../models/missions.ts";
 import {
+  HOLD_RULES,
   SALE_RULES,
   SCAN_SECTOR_RANGE,
   SURVEY_RING,
@@ -558,7 +559,8 @@ export function computeGoals(
         // The hold takes one crate (RULES §Missions): while another route's
         // crate is aboard there is nothing to fetch, and the trip to its
         // station would be a trip to watch it stay on the dock.
-        const holdFull = crateAboard(me.cargo);
+        // Under the unlimited-hold experiment nothing waits on room.
+        const holdFull = !HOLD_RULES.unlimited && crateAboard(me.cargo);
         if (!inHand && holdFull) break;
         const planetId = inHand ? mission.deliveryPlanetId : mission.pickupPlanetId;
         // One-sale experiment: loading is not a sale, so a pickup names no job.
@@ -634,8 +636,9 @@ export function computeGoals(
           break;
         }
         // The hold takes one crate: a pirate carrying freight of its own
-        // seizes nothing, so there is no trip to make yet.
-        if (crateAboard(me.cargo)) break;
+        // seizes nothing, so there is no trip to make yet. Under the
+        // unlimited-hold experiment it seizes whatever it carries.
+        if (!HOLD_RULES.unlimited && crateAboard(me.cargo)) break;
         // Data counts: it is loot like any other.
         const goal = carrierChaseGoal(
           view,
