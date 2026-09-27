@@ -117,13 +117,6 @@ describe('a turn beat by beat', () => {
     const drifted = TURNS.flatMap(played => {
       const expected = resting(snapshotOf(played.next))
       const actual = resting(replay(played).board)
-      // A missile that hits is not named by the attack it makes (the engine's
-      // attack_resolved carries no missileId), so the board cannot tell which
-      // token to take off and keeps it until the view is committed.
-      if (played.events.some(e => e.type === 'attack_resolved' && e.weaponType === 'missiles')) {
-        delete (actual as Partial<typeof actual>).missiles
-        delete (expected as Partial<typeof expected>).missiles
-      }
       const keys = Object.keys(expected) as Array<keyof typeof expected>
       const off = keys.flatMap(key => {
         const a = actual[key] as Record<string, unknown>

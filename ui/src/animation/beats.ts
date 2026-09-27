@@ -527,6 +527,8 @@ export function eventToBeat(
           targetId: event.targetId,
           label: event.weaponType,
         })
+        // A missile is spent by its attack, hit or miss.
+        if (event.missileId) board.missiles = board.missiles.filter(m => m.id !== event.missileId)
         if (event.result === 'miss') {
           float(event.targetId, 'MISS', 'miss', FLOAT.normal)
           return BEAT.resolve

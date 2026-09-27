@@ -246,6 +246,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       attackerId: ownerId,
       targetId: target.id,
       weaponType: "missiles",
+      missileId: missile.id,
       roll,
       result: outcome.hitResult.result,
       damage: outcome.hitResult.damage,

@@ -101,6 +101,8 @@ export type GameEvent =
       attackerId: string;
       targetId: string;
       weaponType: WeaponType;
+      /** The missile that made the attack, which is spent by it; absent for a gun. */
+      missileId?: string;
       roll: number;
       result: HitRollResult;
       damage: number;
