@@ -28,6 +28,10 @@ import {
 } from '../numbers'
 import { GuideSection, Points, SubHead } from './parts'
 import { MissileFlight } from './missileDiagram'
+import { CHEATSHEET } from '../../text/cheatsheet'
+import { rich } from '../../utils/rich'
+
+const T = CHEATSHEET.fight
 
 function RollStrip() {
   return (
@@ -88,14 +92,12 @@ function RollStrip() {
           lineHeight: 1.2,
         }}
       >
-        <Box>{MISS_TOP} misses</Box>
-        <Box>
-          {MISS_TOP + 1}&ndash;{BASE_CRIT - 1} hit
-        </Box>
+        <Box>{rich(T.roll.miss, { top: MISS_TOP })}</Box>
+        <Box>{rich(T.roll.hit, { from: MISS_TOP + 1, to: BASE_CRIT - 1 })}</Box>
         <Box sx={{ color: PRESS.redText }}>
-          {SENSOR_CRIT}&ndash;{BASE_CRIT - 1}: crit with a powered sensor
+          {rich(T.roll.sensor, { from: SENSOR_CRIT, to: BASE_CRIT - 1 })}
         </Box>
-        <Box sx={{ color: PRESS.redText }}>{BASE_CRIT} critical</Box>
+        <Box sx={{ color: PRESS.redText }}>{rich(T.roll.critical, { face: BASE_CRIT })}</Box>
       </Box>
     </Box>
   )
@@ -104,47 +106,37 @@ function RollStrip() {
 const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
   {
     type: 'railgun',
-    reach: (
-      <>
-        Same ring, 1&ndash;{weaponStats('railgun').sectorRange} sectors ahead. The recoil pushes you
-        a ring, unless you spend 1 fuel to hold.
-      </>
-    ),
+    reach: rich(T.reach.railgun, { sectors: weaponStats('railgun').sectorRange! }),
   },
   {
     type: 'laser',
-    reach: (
-      <>
-        &plusmn;{weaponStats('laser').ringRange} rings, &plusmn;{weaponStats('laser').sectorRange}{' '}
-        sector, off one side. <b>Ignores shields.</b>
-      </>
-    ),
+    reach: rich(T.reach.laser, {
+      rings: weaponStats('laser').ringRange!,
+      sectors: weaponStats('laser').sectorRange!,
+    }),
   },
   {
     type: 'ballistic_rack',
-    reach: (
-      <>
-        &plusmn;{weaponStats('ballistic_rack').ringRange} ring, &plusmn;
-        {weaponStats('ballistic_rack').sectorRange} sector, either side. With energy on it, shoots
-        down {interceptsPerRack()} missiles a turn on {INTERCEPT_ON}+.
-      </>
-    ),
+    reach: rich(T.reach.ballistic_rack, {
+      rings: weaponStats('ballistic_rack').ringRange!,
+      sectors: weaponStats('ballistic_rack').sectorRange!,
+      intercepts: interceptsPerRack(),
+      on: INTERCEPT_ON,
+    }),
   },
   {
     type: 'missiles',
-    reach: (
-      <>
-        Any ship in your well. Launch any number at one ship: {weaponStats('missiles').maxAmmo}{' '}
-        aboard, {weaponStats('missiles').stepsPerMove} steps a turn for{' '}
-        {weaponStats('missiles').maxMoves} turns.
-      </>
-    ),
+    reach: rich(T.reach.missiles, {
+      aboard: weaponStats('missiles').maxAmmo!,
+      steps: weaponStats('missiles').stepsPerMove!,
+      turns: weaponStats('missiles').maxMoves!,
+    }),
   },
 ]
 
 function slotOf(type: SubsystemType): string {
   const slot = SUBSYSTEM_CONFIGS[type].slotType
-  return slot === 'either' ? 'forward or side' : slot
+  return slot === 'either' ? T.eitherSlot : slot
 }
 
 function Weapon({ type, reach }: { type: SubsystemType; reach: ReactNode }) {
@@ -176,7 +168,7 @@ function Weapon({ type, reach }: { type: SubsystemType; reach: ReactNode }) {
               mt: 0.5,
             }}
           >
-            {slotOf(type)} · {energyLabel(type)} energy
+            {rich(T.slotLine, { slot: slotOf(type), energy: energyLabel(type) })}
           </Box>
         </Box>
         <Box sx={{ textAlign: 'right' }}>
@@ -192,7 +184,7 @@ function Weapon({ type, reach }: { type: SubsystemType; reach: ReactNode }) {
               color: PRESS.paperSoft,
             }}
           >
-            damage
+            {T.damage}
           </Box>
         </Box>
       </Box>
@@ -205,13 +197,7 @@ function Weapon({ type, reach }: { type: SubsystemType; reach: ReactNode }) {
 
 export function FightSection() {
   return (
-    <GuideSection
-      id="fight"
-      n={6}
-      kicker="Combat"
-      title="Roll one d10"
-      lede="Each weapon fires once a turn. Name a slot on the target, then roll."
-    >
+    <GuideSection id="fight" n={6} kicker={T.kicker} title={T.title} lede={T.lede}>
       <Box sx={{ mb: 5 }}>
         <RollStrip />
       </Box>
@@ -230,7 +216,7 @@ export function FightSection() {
       </Box>
 
       <Box sx={{ mb: 5 }}>
-        <SubHead>Missiles in flight</SubHead>
+        <SubHead>{T.missilesTitle}</SubHead>
         <MissileFlight />
       </Box>
 
@@ -241,28 +227,8 @@ export function FightSection() {
           gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
         }}
       >
-        <Points
-          items={[
-            <>
-              <b>Shields absorb first</b>: {SHIELD_ENERGY_PER_POINT} energy stop 1 damage. Lasers
-              ignore them.
-            </>,
-            <>The rest is hull. At 0 the ship is destroyed (see 08).</>,
-          ]}
-        />
-        <Points
-          items={[
-            <>
-              <b>A critical breaks the slot you named</b>, shields or not, and its energy goes onto
-              its owner&rsquo;s heat.
-            </>,
-            <>In your own sector every weapon reaches. Nothing fires across wells.</>,
-            <>
-              <b>A berth is safe</b>: a moored ship neither fires nor is fired at, missiles
-              included. Scans still reach it.
-            </>,
-          ]}
-        />
+        <Points items={T.hits.map(item => rich(item, { shieldEnergy: SHIELD_ENERGY_PER_POINT }))} />
+        <Points items={T.rules.map(item => rich(item))} />
       </Box>
     </GuideSection>
   )

@@ -10,27 +10,26 @@ import {
   DEFAULT_DISSIPATION_CAPACITY,
   MISSION_POINTS,
   SCAN_SECTOR_RANGE,
+  fill,
 } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body, Display, Numeral } from '../poster'
 import { GuideSection, Points, SubHead } from './parts'
+import { CHEATSHEET } from '../../text/cheatsheet'
+import { rich } from '../../utils/rich'
+
+const T = CHEATSHEET.secrets
 
 const REVEALS: Array<{ types: SubsystemType[]; when: ReactNode }> = [
-  { types: ['railgun', 'laser', 'missiles'], when: 'A weapon, when it fires.' },
-  { types: ['ballistic_rack'], when: 'A rack, when it fires or rolls at a missile.' },
-  { types: ['shields'], when: 'Shields, when they absorb damage.' },
-  { types: ['sensor_array'], when: 'A sensor, when it scans.' },
-  {
-    types: ['radiator'],
-    when: `A radiator, when your heat is over ${DEFAULT_DISSIPATION_CAPACITY} at a check.`,
-  },
-  {
-    types: ['fuel_compressor'],
-    when: `A compressor, when a jump costs ${COMPRESSED_JUMP_MASS} fuel.`,
-  },
-  { types: [], when: 'Any subsystem, when a critical breaks it.' },
+  { types: ['railgun', 'laser', 'missiles'], when: T.reveals.weapon },
+  { types: ['ballistic_rack'], when: T.reveals.rack },
+  { types: ['shields'], when: T.reveals.shields },
+  { types: ['sensor_array'], when: T.reveals.sensor },
+  { types: ['radiator'], when: fill(T.reveals.radiator, { heat: DEFAULT_DISSIPATION_CAPACITY }) },
+  { types: ['fuel_compressor'], when: fill(T.reveals.compressor, { fuel: COMPRESSED_JUMP_MASS }) },
+  { types: [], when: T.reveals.broken },
 ]
 
 function Reveals() {
@@ -49,7 +48,7 @@ function Reveals() {
           textTransform: 'uppercase',
         }}
       >
-        Turned face-up when
+        {T.revealsTitle}
       </Box>
       {REVEALS.map((row, index) => (
         <Box
@@ -74,7 +73,7 @@ function Reveals() {
       ))}
       <Box sx={{ bgcolor: PRESS.red, color: PRESS.paper, px: 2, py: 1.25 }}>
         <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.96rem', fontWeight: 700 }}>
-          Powering a subsystem does not turn it face-up.
+          {T.revealsFoot}
         </Box>
       </Box>
     </Box>
@@ -83,14 +82,7 @@ function Reveals() {
 
 export function SecretsSection() {
   return (
-    <GuideSection
-      id="secrets"
-      n={7}
-      kicker="Hidden information"
-      title="Secret until used"
-      lede="Subsystems turn face-up the first time they do their job."
-      tone="deep"
-    >
+    <GuideSection id="secrets" n={7} kicker={T.kicker} title={T.title} lede={T.lede} tone="deep">
       <Box
         sx={{
           display: 'grid',
@@ -102,27 +94,12 @@ export function SecretsSection() {
         <Reveals />
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <Box>
-            <SubHead>Read the energy</SubHead>
-            <Points
-              items={[
-                <>
-                  Energy on every subsystem is <b>public</b>. On a face-down subsystem it means
-                  powered, not used.
-                </>,
-                <>A gun is dark until it fires.</>,
-              ]}
-            />
+            <SubHead>{T.energyTitle}</SubHead>
+            <Points items={T.energy.map(item => rich(item))} />
           </Box>
           <Box>
-            <SubHead>Scan to be sure</SubHead>
-            <Points
-              items={[
-                <>
-                  With a sensor, scan a ship on your ring within {SCAN_SECTOR_RANGE} sectors: look
-                  at one of its face-down subsystems. Intercept holders take its data.
-                </>,
-              ]}
-            />
+            <SubHead>{T.scanTitle}</SubHead>
+            <Points items={T.scan.map(item => rich(item, { sectors: SCAN_SECTOR_RANGE }))} />
           </Box>
         </Box>
       </Box>
@@ -130,33 +107,15 @@ export function SecretsSection() {
   )
 }
 
-const DEATH: Array<{ when: string; title: string; text: string }> = [
-  {
-    when: 'At 0 hull',
-    title: 'Off the board',
-    text: `Leave a wreck. Crates go back to their station, data is lost, Escort markers on you go back to their owners and your missiles in flight are removed. Your Destroy holder scores ${MISSION_POINTS.destroy_ship}.`,
-  },
-  {
-    when: 'Your next turn',
-    title: 'Back at Home',
-    text: 'Full hull and fuel, heat 0, drifting. That is the turn.',
-  },
-  {
-    when: 'The turn after',
-    title: 'A quiet turn',
-    text: 'Move as usual, fire at nobody, scan nobody. Nobody can touch you until it ends.',
-  },
-]
+const D = CHEATSHEET.death
+const DEATH: Array<{ when: string; title: string; text: string }> = D.steps.map(step => ({
+  ...step,
+  text: fill(step.text, { destroyPoints: MISSION_POINTS.destroy_ship }),
+}))
 
 export function DeathSection() {
   return (
-    <GuideSection
-      id="death"
-      n={8}
-      kicker="Destruction"
-      title="Nobody is out"
-      lede="A destroyed ship comes back, minus its cargo and a turn."
-    >
+    <GuideSection id="death" n={8} kicker={D.kicker} title={D.title} lede={D.lede}>
       <Box
         sx={{
           display: 'grid',

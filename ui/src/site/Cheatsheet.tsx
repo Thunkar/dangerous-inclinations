@@ -30,6 +30,10 @@ import { DeathSection, SecretsSection } from './guide/SecretsSection'
 import { WindowsSection } from './guide/WindowsSection'
 import { CardBack, CardFront } from './card/CardFaces'
 import { CARD_CSS, CARD_HEIGHT_MM, CARD_PAGE_CSS, CARD_WIDTH_MM } from './card/cardStyles'
+import { CHEATSHEET } from '../text/cheatsheet'
+import { rich } from '../utils/rich'
+
+const T = CHEATSHEET
 
 /**
  * The card's stylesheet, and the only `<style>` element in the app. `@page`,
@@ -43,17 +47,9 @@ ${CARD_PAGE_CSS}
 ${CARD_CSS}
 `
 
-const CONTENTS: Array<{ id: string; label: string }> = [
-  { id: 'goal', label: 'The goal' },
-  { id: 'setup', label: 'Setting up' },
-  { id: 'turn', label: 'The turn' },
-  { id: 'move', label: 'Moving' },
-  { id: 'heat', label: 'Heat' },
-  { id: 'fight', label: 'Fighting' },
-  { id: 'secrets', label: 'Secrets' },
-  { id: 'death', label: 'Destruction' },
-  { id: 'windows', label: 'Orbital windows' },
-]
+const CONTENTS: Array<{ id: string; label: string }> = (
+  ['goal', 'setup', 'turn', 'move', 'heat', 'fight', 'secrets', 'death', 'windows'] as const
+).map(id => ({ id, label: T.contents[id] }))
 
 function Contents() {
   return (
@@ -129,7 +125,7 @@ function Contents() {
             textTransform: 'uppercase',
           }}
         >
-          The card
+          {T.contents.card}
         </Box>
       </Box>
     </Box>
@@ -147,23 +143,22 @@ function PrintCard() {
     >
       <Box className="di-print" sx={{ ...COLUMN, py: { xs: 5, sm: 7 } }}>
         <Box className="di-screen-only" sx={{ mb: 4 }}>
-          <Kicker>For the table</Kicker>
+          <Kicker>{T.card.kicker}</Kicker>
           <Box id="card-title">
             <Display component="h2" size={{ xs: '2.4rem', sm: '3.4rem' }} sx={{ mt: 0.75 }}>
-              One card for every seat
+              {T.card.title}
             </Display>
           </Box>
           <Body size={{ xs: '1.02rem', sm: '1.12rem' }} sx={{ mt: 1.5 }}>
-            Two faces of a {CARD_WIDTH_MM}&times;{CARD_HEIGHT_MM}mm card: your turn on the front,
-            the fight on the back.
+            {rich(T.card.lede, { width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM })}
           </Body>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mt: 3 }}>
             <Slab tone="red" onClick={() => window.print()}>
               <PrintIcon sx={{ fontSize: 20 }} />
-              Print faces
+              {T.card.print}
             </Slab>
             <Body size="0.92rem" color={PRESS.inkSoft} sx={{ maxWidth: '52ch' }}>
-              One A4 sheet at true size.
+              {T.card.printNote}
             </Body>
           </Box>
         </Box>
@@ -195,16 +190,22 @@ export function Cheatsheet() {
 
       <Box className="di-screen-only">
         <Box sx={{ ...COLUMN, pt: { xs: 4, sm: 7 }, pb: { xs: 5, sm: 7 } }}>
-          <Kicker>Cheatsheet</Kicker>
+          <Kicker>{T.page.kicker}</Kicker>
           <Display component="h1" size={{ xs: '3.2rem', sm: '5rem' }} sx={{ mt: 1 }}>
-            How to{' '}
-            <Box component="span" sx={{ color: PRESS.red }}>
-              play
-            </Box>
+            {rich(
+              T.page.title,
+              {},
+              {
+                red: text => (
+                  <Box component="span" sx={{ color: PRESS.red }}>
+                    {text}
+                  </Box>
+                ),
+              }
+            )}
           </Display>
           <Body size={{ xs: '1.05rem', sm: '1.15rem' }} sx={{ mt: 2.5 }}>
-            A first game, in order. Read 01 to 03 before you start and the rest as it comes up. The
-            rulebook has the details and wins any disagreement.
+            {T.page.lede}
           </Body>
           <Contents />
         </Box>

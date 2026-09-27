@@ -11,6 +11,7 @@ import type { Mission, MissionType } from '@dangerous-inclinations/engine'
 import {
   DEFAULT_POINTS_TO_WIN,
   MISSION_CARDS,
+  fill,
   MISSION_POINTS,
   PRIMARIES_PER_PLAYER,
   PRIMARY_OFFERS_PER_PLAYER,
@@ -20,14 +21,14 @@ import {
 import { MissionCard } from '../../components/common/MissionCard'
 import { PRESS } from '../../design/press'
 import { Body } from '../poster'
+import { CHEATSHEET } from '../../text/cheatsheet'
+import { rich } from '../../utils/rich'
 import { GuideSection, SubHead } from './parts'
 
+const T = CHEATSHEET.goal
+
 /** Seat counts, the way a card names a rival. */
-const SEATS: Record<string, string> = {
-  'left-1': 'the 1st player to your left',
-  'left-2': 'the 2nd player to your left',
-}
-const nameOf = (id: string) => SEATS[id] ?? id
+const nameOf = (id: string) => T.rivals[id] ?? id
 
 const PRIMARIES: Mission[] = [
   { id: 'g-destroy', type: 'destroy_ship', isCompleted: false, targetPlayerId: 'left-2' },
@@ -121,24 +122,25 @@ export function GoalSection() {
     <GuideSection
       id="goal"
       n={1}
-      kicker="The goal"
-      title={`${DEFAULT_POINTS_TO_WIN} points end the round`}
-      lede={
-        <>
-          Score your secret mission cards. When anyone reaches {DEFAULT_POINTS_TO_WIN}, finish the
-          round; the highest score wins, then the most hull, then the most fuel.
-        </>
-      }
+      kicker={T.kicker}
+      title={fill(T.title, { points: DEFAULT_POINTS_TO_WIN })}
+      lede={rich(T.lede, { points: DEFAULT_POINTS_TO_WIN })}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         <CardRow
-          title={`Primaries · ${primaryPoints} points`}
-          detail={`Dealt ${PRIMARY_OFFERS_PER_PLAYER}, keep ${PRIMARIES_PER_PLAYER}`}
+          title={fill(T.primaries.title, { points: primaryPoints })}
+          detail={fill(T.primaries.detail, {
+            dealt: PRIMARY_OFFERS_PER_PLAYER,
+            kept: PRIMARIES_PER_PLAYER,
+          })}
           missions={PRIMARIES}
         />
         <CardRow
-          title={`Secondaries · ${secondaryPoints} point`}
-          detail={`Dealt ${SECONDARY_OFFERS_PER_PLAYER} from a shuffled pile, keep any ${SECONDARIES_PER_PLAYER}; two of a kind are two jobs.`}
+          title={fill(T.secondaries.title, { points: secondaryPoints })}
+          detail={fill(T.secondaries.detail, {
+            dealt: SECONDARY_OFFERS_PER_PLAYER,
+            kept: SECONDARIES_PER_PLAYER,
+          })}
           missions={SECONDARIES}
         />
       </Box>

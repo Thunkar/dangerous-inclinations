@@ -14,12 +14,17 @@ import {
   MAX_SECTOR_ADJUSTMENT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
+  fill,
 } from '@dangerous-inclinations/engine'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body, Display, Slab } from '../poster'
 import { phasingStrip } from '../numbers'
 import { GuideSection, SubHead } from './parts'
 import { BurnDiagram, CoastDiagram, JumpDiagram } from './moveDiagrams'
+import { CHEATSHEET } from '../../text/cheatsheet'
+import { rich } from '../../utils/rich'
+
+const T = CHEATSHEET.move
 
 const range = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`)
 
@@ -49,8 +54,8 @@ function Cost({ fuel, energy }: { fuel: string; energy: string }) {
   )
   return (
     <Box sx={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-      {cell('fuel', fuel, false)}
-      {cell('energy', energy, true)}
+      {cell(T.fuel, fuel, false)}
+      {cell(T.energy, energy, true)}
     </Box>
   )
 }
@@ -130,7 +135,12 @@ function PhaseStrip() {
         <svg
           viewBox={`0 0 ${width} ${bottom + cellH + 4}`}
           role="img"
-          aria-label={`A soft burn out from ring ${PHASE_FROM.ring} to ring ${PHASE_TO}: the ship drifts ${drift} sectors, then lands on ring ${PHASE_TO} straight out for free, or up to ${MAX_SECTOR_ADJUSTMENT} sectors either side for 1 fuel each`}
+          aria-label={fill(T.phasing.label, {
+            from: PHASE_FROM.ring,
+            to: PHASE_TO,
+            drift,
+            most: MAX_SECTOR_ADJUSTMENT,
+          })}
           style={{ width: '100%', minWidth: 520, height: 'auto', display: 'block' }}
         >
           <defs>
@@ -158,8 +168,12 @@ function PhaseStrip() {
             </marker>
           </defs>
 
-          {label(top + 38, `RING ${PHASE_TO}`)}
-          {label(bottom + 30, `RING ${PHASE_FROM.ring}`, `SPEED ${PHASE_FROM.velocity}`)}
+          {label(top + 38, fill(T.phasing.ring, { ring: PHASE_TO }))}
+          {label(
+            bottom + 30,
+            fill(T.phasing.ring, { ring: PHASE_FROM.ring }),
+            fill(T.phasing.speed, { speed: PHASE_FROM.velocity })
+          )}
 
           {/* The ring the burn lands on: what each landing sector costs. */}
           {strip.map(({ sector, fuel }) => (
@@ -191,7 +205,7 @@ function PhaseStrip() {
                 letterSpacing="0.08em"
                 fill={PRESS.paper}
               >
-                {fuel === 0 ? 'FREE' : 'FUEL'}
+                {fuel === 0 ? T.phasing.free : T.phasing.paid}
               </text>
             </g>
           ))}
@@ -230,7 +244,7 @@ function PhaseStrip() {
             letterSpacing="0.08em"
             fill={PRESS.ink}
           >
-            DRIFT {drift}
+            {rich(T.phasing.drift, { sectors: drift })}
           </text>
 
           {/* The burn: out from the drift to the ring above. */}
@@ -250,13 +264,12 @@ function PhaseStrip() {
             letterSpacing="0.08em"
             fill={PRESS.redText}
           >
-            BURN OUT
+            {T.phasing.burn}
           </text>
         </svg>
       </Box>
       <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1 }}>
-        A soft burn out from ring {PHASE_FROM.ring}. Each sector short or long is 1 fuel, up to{' '}
-        {MAX_SECTOR_ADJUSTMENT} long and never back onto your start.
+        {rich(T.phasing.caption, { ring: PHASE_FROM.ring, most: MAX_SECTOR_ADJUSTMENT })}
       </Body>
     </Box>
   )
@@ -268,13 +281,7 @@ const scoopEnergy = SUBSYSTEM_CONFIGS.scoop.minEnergy
 
 export function MoveSection() {
   return (
-    <GuideSection
-      id="move"
-      n={4}
-      kicker="Getting somewhere"
-      title="Coast, burn or jump"
-      lede="Every turn your ring carries you forward. Your one move is what you do about it."
-    >
+    <GuideSection id="move" n={4} kicker={T.kicker} title={T.title} lede={T.lede}>
       <Box
         sx={{
           display: 'grid',
@@ -283,42 +290,38 @@ export function MoveSection() {
           mb: 5,
         }}
       >
-        <Move title="Coast" diagram={<CoastDiagram />} fuel="0" energy="0">
-          Drift only. Run the <b>scoop</b> ({scoopEnergy} energy) to gain fuel equal to your
-          ring&rsquo;s speed.
+        <Move title={T.coast.title} diagram={<CoastDiagram />} fuel="0" energy="0">
+          {rich(T.coast.text, { scoopEnergy })}
         </Move>
         <Move
-          title="Burn"
+          title={T.burn.title}
           diagram={<BurnDiagram />}
           fuel={range(soft.mass, hard.mass)}
           energy={range(soft.energy, hard.energy)}
         >
-          Drift, then cross {range(soft.rings, hard.rings)} rings, 1 fuel and 1 energy each.
-          Prograde burns out, retrograde in.
+          {rich(T.burn.text, { rings: range(soft.rings, hard.rings) })}
         </Move>
         <Move
-          title="Jump"
+          title={T.jump.title}
           diagram={<JumpDiagram />}
           fuel={`${WELL_TRANSFER_COSTS.mass} / ${COMPRESSED_JUMP_MASS}`}
           energy={`${WELL_TRANSFER_COSTS.energy}`}
         >
-          From a lane&rsquo;s departure arc to the same sector of its arrival arc, with no drift.
-          Lanes run <b>one way</b>. {COMPRESSED_JUMP_MASS} fuel with a compressor.
+          {rich(T.jump.text, { compressedFuel: COMPRESSED_JUMP_MASS })}
         </Move>
       </Box>
 
       <Box sx={{ mb: 5 }}>
-        <SubHead>Phasing: land short or long (example)</SubHead>
+        <SubHead>{T.phasing.title}</SubHead>
         <PhaseStrip />
         <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 0.5 }}>
-          A jump can land on any sector of the arrival arc, 1 fuel for each away from the matching
-          one.
+          {T.phasing.jump}
         </Body>
       </Box>
 
       <Box>
         <Slab to={{ kind: 'tools', tool: 'route' }} tone="ink">
-          Plot a route on the board &rarr;
+          {T.planner}
         </Slab>
       </Box>
     </GuideSection>

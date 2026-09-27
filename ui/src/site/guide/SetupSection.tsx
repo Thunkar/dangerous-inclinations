@@ -8,12 +8,15 @@
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { FORWARD_SLOT_COUNT, SIDE_SLOT_COUNT } from '@dangerous-inclinations/engine'
+import { FORWARD_SLOT_COUNT, SIDE_SLOT_COUNT, fill } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { FIXED_TILES, FORWARD_TILES, SIDE_TILES, tileName } from '../numbers'
+import { CHEATSHEET } from '../../text/cheatsheet'
 import { GuideSection } from './parts'
+
+const T = CHEATSHEET.setup
 
 /** A face-down tile: black, with only its slot printed on the back. */
 function FaceDown({ label, size }: { label: string; size: number }) {
@@ -105,19 +108,19 @@ function Loadout() {
         gridTemplateColumns: { xs: '1fr', md: '1.1fr 1.6fr 1fr' },
       }}
     >
-      <Group title={`Forward · ${FORWARD_SLOT_COUNT}`}>
-        <FaceDown label="Fwd" size={72} />
+      <Group title={fill(T.forward, { slots: FORWARD_SLOT_COUNT })}>
+        <FaceDown label={T.forwardBack} size={72} />
         <Options types={FORWARD_TILES} />
       </Group>
-      <Group title={`Side · ${SIDE_SLOT_COUNT}`}>
+      <Group title={fill(T.side, { slots: SIDE_SLOT_COUNT })}>
         <Box sx={{ display: 'flex', gap: 1 }}>
           {Array.from({ length: SIDE_SLOT_COUNT }, (_, i) => (
-            <FaceDown key={i} label={`S${i + 1}`} size={56} />
+            <FaceDown key={i} label={fill(T.sideBack, { n: i + 1 })} size={56} />
           ))}
         </Box>
         <Options types={SIDE_TILES} />
       </Group>
-      <Group title="Mandatory on every ship">
+      <Group title={T.fixed}>
         <Box sx={{ display: 'flex', gap: 1 }}>
           {FIXED_TILES.map(type => (
             <Printed key={type} type={type} />
@@ -131,14 +134,7 @@ function Loadout() {
 
 export function SetupSection() {
   return (
-    <GuideSection
-      id="setup"
-      n={2}
-      kicker="Before the first turn"
-      title="Build the ship"
-      lede="Make it yours, keep your eye on the missions"
-      tone="deep"
-    >
+    <GuideSection id="setup" n={2} kicker={T.kicker} title={T.title} lede={T.lede} tone="deep">
       <Loadout />
     </GuideSection>
   )

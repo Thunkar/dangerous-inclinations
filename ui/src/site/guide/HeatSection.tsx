@@ -14,6 +14,7 @@ import {
   MAX_HEAT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
+  fill,
   heatAfterCheck,
 } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
@@ -21,6 +22,10 @@ import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Numeral } from '../poster'
 import { RADIATOR_DISSIPATION, energyLabel } from '../numbers'
 import { GuideSection, Ledger, Points, SubHead } from './parts'
+import { CHEATSHEET } from '../../text/cheatsheet'
+import { rich } from '../../utils/rich'
+
+const T = CHEATSHEET.heat
 
 const energy = (type: keyof typeof SUBSYSTEM_CONFIGS) => SUBSYSTEM_CONFIGS[type].minEnergy
 
@@ -81,14 +86,7 @@ function EnergyCell({
 
 export function HeatSection() {
   return (
-    <GuideSection
-      id="heat"
-      n={5}
-      kicker="Energy and heat"
-      title="Every action costs energy"
-      lede="At your heat check, every point of energy on your loadout is 1 heat."
-      tone="deep"
-    >
+    <GuideSection id="heat" n={5} kicker={T.kicker} title={T.title} lede={T.lede} tone="deep">
       <Box
         sx={{
           display: 'grid',
@@ -100,20 +98,17 @@ export function HeatSection() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3.5 }}>
           <Points
             items={[
-              <>
-                Energy <b>stays on the subsystem until your next turn</b>, so shields, a rack or a
-                sensor you power work through everyone else&rsquo;s turn.
-              </>,
-              <>
-                Over {MAX_HEAT} heat at your check is hull damage. Dissipate{' '}
-                {DEFAULT_DISSIPATION_CAPACITY} (+{RADIATOR_DISSIPATION} a radiator) and carry the
-                rest.
-              </>,
-              <>If you have 0 heat at your check, repair one broken subsystem.</>,
+              rich(T.points.stays),
+              rich(T.points.over, {
+                maxHeat: MAX_HEAT,
+                dissipation: DEFAULT_DISSIPATION_CAPACITY,
+                radiator: RADIATOR_DISSIPATION,
+              }),
+              T.points.cold,
             ]}
           />
           <Box>
-            <SubHead>Energy an action puts on its subsystem</SubHead>
+            <SubHead>{T.energyTitle}</SubHead>
             <Box
               sx={{
                 display: 'grid',
@@ -121,16 +116,24 @@ export function HeatSection() {
                 gap: 1,
               }}
             >
-              <EnergyCell type="rotation" label="Rotate" value={energy('rotation')} />
-              <EnergyCell type="engines" label="Burn" value={energyLabel('engines')} />
-              <EnergyCell type="engines" label="Jump" value={WELL_TRANSFER_COSTS.energy} />
-              <EnergyCell type="scoop" label="Scoop" value={energy('scoop')} />
-              <EnergyCell type="railgun" label="Railgun" value={energy('railgun')} />
-              <EnergyCell type="laser" label="Laser" value={energy('laser')} />
-              <EnergyCell type="missiles" label="Salvo" value={energy('missiles')} />
-              <EnergyCell type="ballistic_rack" label="Rack" value={energy('ballistic_rack')} />
-              <EnergyCell type="sensor_array" label="Sensor" value={energy('sensor_array')} />
-              <EnergyCell type="shields" label="Shields" value={energyLabel('shields')} />
+              <EnergyCell type="rotation" label={T.energy.rotate} value={energy('rotation')} />
+              <EnergyCell type="engines" label={T.energy.burn} value={energyLabel('engines')} />
+              <EnergyCell type="engines" label={T.energy.jump} value={WELL_TRANSFER_COSTS.energy} />
+              <EnergyCell type="scoop" label={T.energy.scoop} value={energy('scoop')} />
+              <EnergyCell type="railgun" label={T.energy.railgun} value={energy('railgun')} />
+              <EnergyCell type="laser" label={T.energy.laser} value={energy('laser')} />
+              <EnergyCell type="missiles" label={T.energy.salvo} value={energy('missiles')} />
+              <EnergyCell
+                type="ballistic_rack"
+                label={T.energy.rack}
+                value={energy('ballistic_rack')}
+              />
+              <EnergyCell
+                type="sensor_array"
+                label={T.energy.sensor}
+                value={energy('sensor_array')}
+              />
+              <EnergyCell type="shields" label={T.energy.shields} value={energyLabel('shields')} />
             </Box>
           </Box>
         </Box>
@@ -147,16 +150,20 @@ export function HeatSection() {
         >
           <Ledger
             rows={[
-              { value: `${EXAMPLE.carried}`, label: 'carried in' },
+              { value: `${EXAMPLE.carried}`, label: T.ledger.carried },
               {
                 value: `+${EXAMPLE.spent}`,
-                label: `railgun ${energy('railgun')} · hard burn ${BURN_COSTS.hard.energy} · shields ${SUBSYSTEM_CONFIGS.shields.maxEnergy}`,
+                label: fill(T.ledger.spent, {
+                  railgun: energy('railgun'),
+                  hardBurn: BURN_COSTS.hard.energy,
+                  shields: SUBSYSTEM_CONFIGS.shields.maxEnergy,
+                }),
               },
-              { value: `${atCheck}`, label: 'at the check', rule: true },
-              { value: `−${hull}`, label: `hull: over ${MAX_HEAT}`, tone: 'red' },
-              { value: `${MAX_HEAT}`, label: 'the track stops' },
-              { value: `−${DEFAULT_DISSIPATION_CAPACITY}`, label: 'dissipate' },
-              { value: `${carries}`, label: 'into your next turn', tone: 'ink' },
+              { value: `${atCheck}`, label: T.ledger.atCheck, rule: true },
+              { value: `−${hull}`, label: fill(T.ledger.hull, { maxHeat: MAX_HEAT }), tone: 'red' },
+              { value: `${MAX_HEAT}`, label: T.ledger.stops },
+              { value: `−${DEFAULT_DISSIPATION_CAPACITY}`, label: T.ledger.dissipate },
+              { value: `${carries}`, label: T.ledger.carries, tone: 'ink' },
             ]}
           />
         </Box>

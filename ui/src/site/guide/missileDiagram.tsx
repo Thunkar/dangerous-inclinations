@@ -18,6 +18,7 @@ import {
   BLACK_HOLE_ID,
   BLACK_HOLE_OUTER_RING,
   driftPosition,
+  fill,
   getMissileStats,
   getRingConfig,
   stepToward,
@@ -26,6 +27,10 @@ import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Tag } from '../DiagramParts'
 import { Body } from '../poster'
 import { INTERCEPT_ON } from '../numbers'
+import { CHEATSHEET } from '../../text/cheatsheet'
+import { rich } from '../../utils/rich'
+
+const T = CHEATSHEET.fight.missile
 
 const MISSILE = getMissileStats()
 /** The two outer rings of the black hole: the slowest, so two turns fit across a page. */
@@ -149,7 +154,7 @@ function Ship({ at: where, hollow = false }: { at: Position; hollow?: boolean })
 function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
   const turns = twoTurns(launch)
   const hitTurn = turns.findIndex(t => t.hit)
-  const label = `Launched, then the ship moves on: the missile flies from where it was dropped with no ride on its first turn, rides its ring then flies on its second, and reaches the target on turn ${hitTurn + 1}`
+  const label = fill(T.label, { hitTurn: hitTurn + 1 })
   return (
     <Box sx={{ minWidth: 0 }}>
       <Box sx={{ overflowX: 'auto' }}>
@@ -169,7 +174,7 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
                 fontSize={18}
                 fill={PRESS.ink}
               >
-                RING {ring}
+                {rich(T.ring, { ring })}
               </text>
               <text
                 x={0}
@@ -179,7 +184,7 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
                 letterSpacing="0.06em"
                 fill={PRESS.ink}
               >
-                SPEED {getRingConfig(BLACK_HOLE_ID, ring)?.velocity}
+                {rich(T.speed, { speed: getRingConfig(BLACK_HOLE_ID, ring)?.velocity ?? null })}
               </text>
               {Array.from({ length: COLUMNS }, (_, sector) => (
                 <rect
@@ -225,7 +230,7 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
             x={(cx(TARGET_1.sector) + cx(TARGET_2.sector)) / 2}
             y={y(TARGET_1.ring) - 9}
           >
-            target drifts
+            {T.targetDrifts}
           </Tag>
 
           {/* The ship fires, then moves on: the missile does not go with it. */}
@@ -239,7 +244,7 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
           />
           <Ship at={shipTo} />
           <Tag anchor="middle" x={cx(shipTo.sector) + 18} y={y(shipTo.ring) + CELL + 13}>
-            your move
+            {T.yourMove}
           </Tag>
 
           {turns.map((turn, index) => (
@@ -257,7 +262,7 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
             y={rowOf(launch.ring) === 0 ? y(launch.ring) - 9 : y(launch.ring) + CELL + 13}
             color={PRESS.redText}
           >
-            launch
+            {T.launch}
           </Tag>
           {hitTurn >= 0 && (
             <Tag
@@ -266,7 +271,7 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
               y={y(TARGET_2.ring) + CELL + 13}
               color={PRESS.redText}
             >
-              {`hit, turn ${hitTurn + 1}`}
+              {fill(T.hit, { turn: hitTurn + 1 })}
             </Tag>
           )}
         </svg>
@@ -309,10 +314,10 @@ function Key() {
   )
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', mb: 2 }}>
-      {item(dot(PRESS.red), 'turn 1')}
-      {item(dot(PRESS.ink), 'turn 2')}
-      {item(line(true), 'rides its orbit')}
-      {item(line(false), `flies ${MISSILE.stepsPerMove}, rings first`)}
+      {item(dot(PRESS.red), T.key.turn1)}
+      {item(dot(PRESS.ink), T.key.turn2)}
+      {item(line(true), T.key.rides)}
+      {item(line(false), fill(T.key.flies, { steps: MISSILE.stepsPerMove }))}
     </Box>
   )
 }
@@ -327,11 +332,12 @@ export function MissileFlight() {
         <Flight launch={launch} shipTo={driftPosition(launch)} />
       </Box>
       <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1.5 }}>
-        The turn you launch it, a missile flies {MISSILE.stepsPerMove} steps from the sector you
-        dropped it on, whether you fired before your move or after it. At the end of every turn
-        after that it rides its orbit, then flies {MISSILE.stepsPerMove}. On the target&rsquo;s
-        sector it attacks like a weapon ({MISSILE.damage} damage), unless a rack with energy on it
-        shoots it down on {INTERCEPT_ON}+. It lasts {MISSILE.maxMoves} turns.
+        {rich(T.caption, {
+          steps: MISSILE.stepsPerMove,
+          damage: MISSILE.damage,
+          on: INTERCEPT_ON,
+          turns: MISSILE.maxMoves,
+        })}
       </Body>
     </Box>
   )

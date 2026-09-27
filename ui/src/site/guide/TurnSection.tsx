@@ -7,18 +7,15 @@ import { Box } from '@mui/material'
 import { PRESS } from '../../design/press'
 import { Body, Display, Kicker, Numeral } from '../poster'
 import { QUIET_TURN, TURN_STEPS } from '../turn'
+import { CHEATSHEET } from '../../text/cheatsheet'
+import { rich } from '../../utils/rich'
 import { GuideSection } from './parts'
+
+const T = CHEATSHEET.turn
 
 export function TurnSection() {
   return (
-    <GuideSection
-      id="turn"
-      n={3}
-      kicker="Your turn"
-      title="Seven steps, then the stations"
-      lede="You choose the order of your actions; the rest is fixed."
-      tone="ink"
-    >
+    <GuideSection id="turn" n={3} kicker={T.kicker} title={T.title} lede={T.lede} tone="ink">
       <Box
         component="ol"
         sx={{
@@ -54,9 +51,9 @@ export function TurnSection() {
               }}
             >
               <Numeral size="3.6rem">{index + 1}</Numeral>
-              {index === 0 && <Kicker color={PRESS.paperSoft}>If destroyed</Kicker>}
-              {index === 2 && <Kicker color={PRESS.paperSoft}>Any order</Kicker>}
-              {step.roundEnd && <Kicker>Once a round</Kicker>}
+              {index === 0 && <Kicker color={PRESS.paperSoft}>{T.respawnNote}</Kicker>}
+              {index === 2 && <Kicker color={PRESS.paperSoft}>{T.actionsNote}</Kicker>}
+              {step.roundEnd && <Kicker>{T.roundEndNote}</Kicker>}
             </Box>
             <Display size="1.75rem" color={step.roundEnd ? PRESS.ink : PRESS.paper} component="h3">
               {step.title}
@@ -77,13 +74,13 @@ export function TurnSection() {
           }}
         >
           <Numeral size="3.6rem" color={PRESS.ink}>
-            R1
+            {T.quiet.numeral}
           </Numeral>
           <Display size="1.75rem" color={PRESS.paper} component="h3">
-            Round one is quiet
+            {T.quiet.title}
           </Display>
           <Body size="0.96rem" color={PRESS.paper}>
-            {QUIET_TURN} So is your first turn back from Home.
+            {rich(T.quiet.text, { quietTurn: QUIET_TURN })}
           </Body>
         </Box>
       </Box>

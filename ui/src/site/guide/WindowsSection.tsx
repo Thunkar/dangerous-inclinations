@@ -22,6 +22,7 @@ import {
   TANKER_FUEL,
   TRANSFER_ARC_LENGTH,
   WELL_TRANSFER_COSTS,
+  fill,
 } from '@dangerous-inclinations/engine'
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
@@ -53,12 +54,16 @@ import {
   LaneRingDiagram,
   StationClockDiagram,
 } from './windowDiagrams'
+import { CHEATSHEET } from '../../text/cheatsheet'
+import { rich } from '../../utils/rich'
+
+const T = CHEATSHEET.windows
 
 const arcRange = (arc: { startSector: number; length: number }) =>
   span(arc.startSector, arc.startSector + arc.length - 1)
 
 const CIRCUIT_NAMES = [...CIRCUIT_ORDER, CIRCUIT_ORDER[0]].map(planetName)
-const ROUTES = CIRCUIT.map(([a, b]) => `${planetName(a)} → ${planetName(b)}`)
+const ROUTES = CIRCUIT.map(([a, b]) => fill(T.route, { from: planetName(a), to: planetName(b) }))
 const DRIFT = BLACKHOLE_RINGS[BLACK_HOLE_OUTER_RING - 1].velocity
 
 /** One hint: the words on the left, what to read on the right. */
@@ -114,7 +119,7 @@ function Thumb({
           color: PRESS.inkSoft,
         }}
       >
-        Asking the route planner
+        {T.working}
       </Box>
     )
   }
@@ -146,6 +151,9 @@ function Nb({ children }: { children: ReactNode }) {
     </Box>
   )
 }
+
+/** The cheatsheet's tags, and `<nb>` for a range that must not break. */
+const TAGS = { nb: (text: ReactNode) => <Nb>{text}</Nb> }
 
 function P({ children }: { children: ReactNode }) {
   return <Body size="1rem">{children}</Body>
@@ -183,13 +191,13 @@ function LaneTable() {
     >
       <Box role="row" sx={{ display: 'contents' }}>
         <Box role="columnheader" sx={head}>
-          To reach
+          {T.lanes.table.planet}
         </Box>
         <Box role="columnheader" sx={head}>
-          Jump from ring {BLACK_HOLE_OUTER_RING}
+          {rich(T.lanes.table.arc, { ring: BLACK_HOLE_OUTER_RING })}
         </Box>
         <Box role="columnheader" sx={head}>
-          Lane mouth
+          {T.lanes.table.mouth}
         </Box>
       </Box>
       {OUTBOUND.map(lane => (
@@ -218,8 +226,8 @@ function lateness(row: Row, best: number): string {
   const tail =
     worst.includes(next) || worst.length === CLOCK.length
       ? ''
-      : `; on ${either(worst)} it takes ${highest(row)}`
-  return `A round late the clock reads ${next} and it takes ${late}${tail}.`
+      : fill(T.lateWorst, { readings: either(worst), turns: highest(row) })
+  return fill(T.late, { reading: next, turns: late, worst: tail })
 }
 
 /** The clocks a compressor is quicker on, and by how much. */
@@ -227,10 +235,10 @@ function compressorSaves(plain: Row, compressed: Row): string {
   const quicker = CLOCK.filter(
     clock => (at(compressed, clock) ?? Infinity) < (at(plain, clock) ?? Infinity)
   )
-  if (quicker.length === 0) return 'A fuel compressor changes nothing here.'
+  if (quicker.length === 0) return T.compressor.nothing
   const saved = quicker.map(clock => (at(plain, clock) ?? 0) - (at(compressed, clock) ?? 0))
-  const by = saved.every(s => s === 1) ? 'saves a turn' : 'saves turns'
-  return `A fuel compressor ${by} on ${either(quicker, 'and')}.`
+  const by = saved.every(s => s === 1) ? T.compressor.aTurn : T.compressor.turns
+  return fill(T.compressor.saves, { by, readings: either(quicker, 'and') })
 }
 
 export function WindowsSection() {
@@ -247,138 +255,120 @@ export function WindowsSection() {
   const legTurns = tables ? span(lowest(tables.leg), highest(tables.leg)) : '?'
 
   return (
-    <GuideSection
-      id="windows"
-      n={9}
-      kicker="When to travel"
-      title="Orbital windows"
-      lede={
-        <>
-          The stations, the lanes and the rings all turn at fixed speeds, so some turns are simply
-          better for a trip than others. All of it is read off one number: the station clock.
-        </>
-      }
-    >
+    <GuideSection id="windows" n={9} kicker={T.kicker} title={T.title} lede={T.lede}>
       <Block
-        head="The station clock"
+        head={T.clock.title}
         text={
           <>
             <P>
-              Every station starts on sector {STATION_INITIAL_SECTOR} of its planet&rsquo;s ring{' '}
-              {STATION_RING} and steps <b>{STATION_DRIFT} sectors clockwise</b> at the end of every
-              round. All three step together, so <b>every station is always on the same sector</b>.
+              {rich(T.clock.steps, {
+                sector: STATION_INITIAL_SECTOR,
+                ring: STATION_RING,
+                drift: STATION_DRIFT,
+              })}
             </P>
+            <P>{rich(T.clock.reads, { readings: either(CLOCK), rounds: CLOCK.length })}</P>
             <P>
-              That sector is the clock. It only ever reads <b>{either(CLOCK)}</b>, and it comes
-              round every {CLOCK.length} rounds.
-            </P>
-            <P>
-              Every planet is laid out the same: you arrive from the black hole on ring{' '}
-              {PLANET_ARRIVE.ring} at sectors <Nb>{arcRange(PLANET_ARRIVE)}</Nb>, and leave for it
-              from ring {PLANET_LEAVE.ring} at sectors <Nb>{arcRange(PLANET_LEAVE)}</Nb>. So the
-              same windows hold for{' '}
-              {either(
-                PLANETS.map(p => p.name),
-                'and'
+              {rich(
+                T.clock.planets,
+                {
+                  arriveRing: PLANET_ARRIVE.ring,
+                  arriveSectors: arcRange(PLANET_ARRIVE),
+                  leaveRing: PLANET_LEAVE.ring,
+                  leaveSectors: arcRange(PLANET_LEAVE),
+                  planets: either(
+                    PLANETS.map(p => p.name),
+                    'and'
+                  ),
+                },
+                TAGS
               )}
-              .
             </P>
           </>
         }
         aside={
-          <Figure
-            caption={`Any planet from above, sector 0 at the top and clockwise the way ships drift. The red squares are the only ${CLOCK.length} places a station can be.`}
-          >
+          <Figure caption={fill(T.clock.caption, { places: CLOCK.length })}>
             <StationClockDiagram />
           </Figure>
         }
       />
 
       <Block
-        head={`Black hole ring ${BLACK_HOLE_OUTER_RING}`}
+        head={fill(T.lanes.title, { ring: BLACK_HOLE_OUTER_RING })}
         text={
           <>
+            <P>{rich(T.lanes.arcs, { sectors: TRANSFER_ARC_LENGTH })}</P>
             <P>
-              The black hole&rsquo;s outer ring is all lanes, one way, {TRANSFER_ARC_LENGTH} sectors
-              each. Solid arcs are where you <b>jump out</b> to a planet; open arcs are where you{' '}
-              <b>land</b> coming back.
-            </P>
-            <P>
-              Every landing arc is followed clockwise by the next planet&rsquo;s jump arc, so the
-              short way round the map is <b>{CIRCUIT_NAMES.join(' → ')}</b> (the red hops). Going
-              the other way means crossing most of the ring, and the Deliver deck prints only the{' '}
-              {CIRCUIT.length} routes that ride the circuit.
+              {rich(T.lanes.circuit, {
+                circuit: CIRCUIT_NAMES.join(' → '),
+                routes: CIRCUIT.length,
+              })}
             </P>
             <LaneTable />
           </>
         }
         aside={
-          <Figure caption="Sector 0 at the top, clockwise. The lane mouth is the first sector of a jump arc: the timings below count from reaching it.">
+          <Figure caption={T.lanes.caption}>
             <LaneRingDiagram />
           </Figure>
         }
       />
 
       <Block
-        head="Hint 1 · Getting to a station"
+        head={T.approach.title}
         text={
           <>
-            <Thumb
-              rule={
-                tables ? `Reach the lane mouth when the clock shows ${either(approachBest)}` : null
-              }
-            >
+            <Thumb rule={tables ? fill(T.approach.rule, { readings: either(approachBest) }) : null}>
               {tables &&
-                `Docked ${lowest(tables.approach)} turns later. ${lateness(tables.approach, approachBest[0])}`}
+                fill(T.approach.reason, {
+                  turns: lowest(tables.approach),
+                  late: lateness(tables.approach, approachBest[0]),
+                })}
             </Thumb>
             <P>
-              You drift through a jump arc at {DRIFT} sector{DRIFT === 1 ? '' : 's'} a turn, so you
-              have a few turns on it to wait for a better clock before you jump.
+              {rich(T.approach.drift, {
+                sectors: DRIFT,
+                plural: DRIFT === 1 ? '' : T.approach.plural,
+              })}
             </P>
           </>
         }
-        aside={
-          <ClockStrip
-            row={tables?.approach ?? null}
-            label="Clock when you reach the lane mouth → turns until docked"
-          />
-        }
+        aside={<ClockStrip row={tables?.approach ?? null} label={T.approach.strip} />}
       />
 
       <Block
-        head={`Hint 2 · Tanker: arrive with ${TANKER_FUEL}`}
+        head={fill(T.tanker.title, { fuel: TANKER_FUEL })}
         text={
           <>
             <Thumb
               tone="ink"
-              rule={
-                tables
-                  ? `Leave the black hole with a full tank, reach the mouth on ${either(tankerBest)}`
-                  : null
-              }
+              rule={tables ? fill(T.tanker.rule, { readings: either(tankerBest) }) : null}
             >
               {tables &&
-                `You dock with ${TANKER_FUEL} aboard in ${lowest(tables.tanker)} turns.` +
+                fill(T.tanker.reason, { fuel: TANKER_FUEL, turns: lowest(tables.tanker) }) +
                   (othersNumbers.length
-                    ? ` On the other clocks it takes ${span(Math.min(...othersNumbers), Math.max(...othersNumbers))}.`
+                    ? fill(T.tanker.others, {
+                        turns: span(Math.min(...othersNumbers), Math.max(...othersNumbers)),
+                      })
                     : '')}
             </Thumb>
             <P>
-              Keeping {TANKER_FUEL} aboard costs turns: a full tank has only{' '}
-              {MAX_REACTION_MASS - TANKER_FUEL} to spare, and a jump alone is{' '}
-              {WELL_TRANSFER_COSTS.mass} fuel ({COMPRESSED_JUMP_MASS} with a compressor), so the
-              routes that spend freely are out. The route planner finds the rest: set{' '}
-              <b>Arrive with {TANKER_FUEL}</b>.
+              {rich(T.tanker.cost, {
+                fuel: TANKER_FUEL,
+                spare: MAX_REACTION_MASS - TANKER_FUEL,
+                jump: WELL_TRANSFER_COSTS.mass,
+                compressed: COMPRESSED_JUMP_MASS,
+              })}
             </P>
             {tables && <P>{compressorSaves(tables.tanker, tables.tankerCompressed)}</P>}
           </>
         }
         aside={
           <>
-            <ClockStrip row={tables?.tanker ?? null} label="Without a compressor" tone="ink" />
+            <ClockStrip row={tables?.tanker ?? null} label={T.tanker.plain} tone="ink" />
             <ClockStrip
               row={tables?.tankerCompressed ?? null}
-              label="With a compressor"
+              label={T.tanker.compressed}
               tone="ink"
             />
           </>
@@ -386,49 +376,40 @@ export function WindowsSection() {
       />
 
       <Block
-        head="Hint 3 · Delivery: the second leg"
+        head={T.leg.title}
         text={
           <>
-            <Thumb
-              rule={
-                tables
-                  ? `Ride the circuit, and leave the pickup station on ${either(legBest)}`
-                  : null
-              }
-            >
-              {tables &&
-                `${either(ROUTES, 'and')}: ${legTurns} turns, station to station, whenever you leave.`}
+            <Thumb rule={tables ? fill(T.leg.rule, { readings: either(legBest) }) : null}>
+              {tables && fill(T.leg.reason, { routes: either(ROUTES, 'and'), turns: legTurns })}
             </Thumb>
             <P>
-              Moored, you ride the station round, so waiting for the clock costs nothing but turns.
+              {T.leg.moored}
               {tables &&
-                ` With a compressor, leaving on ${either(legCompressedBest)} cuts the leg to ${lowest(tables.legCompressed)} turns.`}
+                fill(T.leg.compressed, {
+                  readings: either(legCompressedBest),
+                  turns: lowest(tables.legCompressed),
+                })}
             </P>
-            <Figure
-              caption={`The Deliver deck's ${CIRCUIT.length} routes: each one leg of the circuit.`}
-            >
+            <Figure caption={fill(T.leg.caption, { routes: CIRCUIT.length })}>
               <CircuitDiagram legTurns={legTurns} />
             </Figure>
           </>
         }
         aside={
           <>
-            <ClockStrip
-              row={tables?.leg ?? null}
-              label="Clock when you leave → turns to the next station"
-            />
-            <ClockStrip row={tables?.legCompressed ?? null} label="With a compressor" />
+            <ClockStrip row={tables?.leg ?? null} label={T.leg.strip} />
+            <ClockStrip row={tables?.legCompressed ?? null} label={T.leg.stripCompressed} />
           </>
         }
       />
 
       <Body size="0.88rem" color={PRESS.inkSoft} sx={{ maxWidth: '76ch' }}>
-        Worked out on this page by the game&rsquo;s own route planner: the fewest turns from a full
-        tank of {MAX_REACTION_MASS} with a working scoop, the stations stepping once a round. Hints
-        1 and 2 count from reaching a lane mouth on black hole ring {BLACK_HOLE_OUTER_RING}; hint 3
-        from moored at the pickup station. Only turns are kept down, not fuel. Every planet is built
-        the same and the three circuit legs are one leg turned round, so {planetName(PLANETS[0].id)}{' '}
-        and {ROUTES[0]} are worked out and hold for all of them.
+        {rich(T.foot, {
+          fullTank: MAX_REACTION_MASS,
+          ring: BLACK_HOLE_OUTER_RING,
+          planet: planetName(PLANETS[0].id),
+          route: ROUTES[0],
+        })}
       </Body>
     </GuideSection>
   )

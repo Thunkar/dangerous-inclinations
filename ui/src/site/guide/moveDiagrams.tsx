@@ -5,10 +5,13 @@
  * a number here would be read as the number. Red is always the move.
  */
 import type { ReactNode } from 'react'
-import { BLACK_HOLE_OUTER_RING, PLANET_OUTER_RING } from '@dangerous-inclinations/engine'
+import { BLACK_HOLE_OUTER_RING, PLANET_OUTER_RING, fill } from '@dangerous-inclinations/engine'
 import { PRESS } from '../../design/press'
 import { useArrowHeads, type ArrowHeadSet } from '../diagram'
 import { ArrowHeads, Ring, Tag } from '../DiagramParts'
+import { CHEATSHEET } from '../../text/cheatsheet'
+
+const T = CHEATSHEET.move
 
 const W = 320
 const H = 170
@@ -53,12 +56,9 @@ function Ship({ x, y }: { x: number; y: number }) {
 export function CoastDiagram() {
   const heads = useArrowHeads(HEADS)
   return (
-    <Frame
-      heads={heads}
-      label="A coast: the ship drifts forward along its ring by the ring's speed"
-    >
+    <Frame heads={heads} label={T.coast.diagram.label}>
       <Tag x={8} y={52}>
-        your ring
+        {T.coast.diagram.ring}
       </Tag>
       <GuideRing y={90} />
       <Ship x={34} y={90} />
@@ -71,7 +71,7 @@ export function CoastDiagram() {
         markerEnd={heads.red}
       />
       <Tag x={144} y={124} anchor="middle" color={PRESS.redText}>
-        drift = the ring&apos;s speed
+        {T.coast.diagram.drift}
       </Tag>
     </Frame>
   )
@@ -80,18 +80,15 @@ export function CoastDiagram() {
 export function BurnDiagram() {
   const heads = useArrowHeads(HEADS)
   return (
-    <Frame
-      heads={heads}
-      label="A burn: drift first, then change ring; prograde burns outward, retrograde inward"
-    >
+    <Frame heads={heads} label={T.burn.diagram.label}>
       <GuideRing y={30} />
       <GuideRing y={85} />
       <GuideRing y={140} />
       <Tag x={W - 8} y={20} anchor="end">
-        outer ring
+        {T.burn.diagram.outer}
       </Tag>
       <Tag x={W - 8} y={162} anchor="end">
-        inner ring
+        {T.burn.diagram.inner}
       </Tag>
       <Ship x={30} y={85} />
       <path d="M52 85H128" stroke={PRESS.ink} strokeWidth={5} strokeDasharray="10 6" fill="none" />
@@ -111,13 +108,13 @@ export function BurnDiagram() {
         markerEnd={heads.ink}
       />
       <Tag x={52} y={68}>
-        drift first
+        {T.burn.diagram.drift}
       </Tag>
       <Tag x={W - 8} y={62} anchor="end" color={PRESS.redText}>
-        prograde: out
+        {T.burn.diagram.prograde}
       </Tag>
       <Tag x={W - 8} y={117} anchor="end">
-        retrograde: in
+        {T.burn.diagram.retrograde}
       </Tag>
     </Frame>
   )
@@ -138,27 +135,26 @@ export function JumpDiagram() {
     />
   )
   return (
-    <Frame
-      heads={heads}
-      label="A jump: from a lane's departure arc on the black hole's outer ring to the matching sector of the planet's arrival arc, with no drift"
-    >
+    <Frame heads={heads} label={T.jump.diagram.label}>
       <circle cx={28} cy={78} r={24} fill={PRESS.ink} />
       {[0, 1, 2, 3].map(i => cell(60 + i * 22, 68, i === 1, `d${i}`))}
       <path d="M152 78H182" stroke={PRESS.red} strokeWidth={8} fill="none" markerEnd={heads.red} />
       {[0, 1, 2, 3].map(i => cell(192 + i * 22, 68, i === 1, `a${i}`))}
       <circle cx={W - 16} cy={78} r={14} fill={PRESS.teal} />
       <Tag x={60} y={54}>
-        depart
+        {T.jump.diagram.depart}
       </Tag>
       <Tag x={192} y={54}>
-        arrive
+        {T.jump.diagram.arrive}
       </Tag>
-      <Tag x={8} y={130}>{`black hole ring ${BLACK_HOLE_OUTER_RING}`}</Tag>
+      <Tag x={8} y={130}>
+        {fill(T.jump.diagram.from, { ring: BLACK_HOLE_OUTER_RING })}
+      </Tag>
       <Tag x={W - 8} y={130} anchor="end">
-        {`planet ring ${PLANET_OUTER_RING}`}
+        {fill(T.jump.diagram.to, { ring: PLANET_OUTER_RING })}
       </Tag>
       <Tag x={W / 2} y={160} anchor="middle" color={PRESS.redText}>
-        same sector of the arc · no drift
+        {T.jump.diagram.note}
       </Tag>
     </Frame>
   )

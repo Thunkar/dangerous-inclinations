@@ -8,8 +8,9 @@ export * from "./models/weapons.ts";
 export * from "./models/rings.ts";
 export * from "./models/gravityWells.ts";
 
-// The words printed on the mission cards
+// The words printed on the mission cards, and the slot filler every printable text uses
 export * from "./text/missionCards.ts";
+export * from "./utils/fill.ts";
 
 // Game logic
 export * from "./game/index.ts";

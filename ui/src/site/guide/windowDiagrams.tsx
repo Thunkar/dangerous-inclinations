@@ -14,6 +14,7 @@ import {
   PLANET_RINGS,
   SECTORS_PER_RING,
   STATION_RING,
+  fill,
   wrapSector,
 } from '@dangerous-inclinations/engine'
 import { FONT_SANS } from '../../theme'
@@ -34,6 +35,9 @@ import {
   planetName,
   span,
 } from './windows'
+import { CHEATSHEET } from '../../text/cheatsheet'
+
+const T = CHEATSHEET.windows
 
 /** The angle of a sector's leading edge: 0 at the top, clockwise. */
 const angle = (sector: number) => (sector / SECTORS_PER_RING) * 2 * Math.PI - Math.PI / 2
@@ -208,7 +212,15 @@ export function StationClockDiagram() {
       width={W}
       height={H}
       maxWidth={480}
-      label={`A planet seen from above. The station rides ring ${STATION_RING} and steps ${STATION_DRIFT} sectors clockwise every round, so it only ever sits on sector ${CLOCK.join(', ')}. Ships arrive from the black hole on ring ${PLANET_ARRIVE.ring} sectors ${arrive.label} and leave from ring ${PLANET_LEAVE.ring} sectors ${leave.label}.`}
+      label={fill(T.clock.diagram.label, {
+        ring: STATION_RING,
+        drift: STATION_DRIFT,
+        readings: CLOCK.join(', '),
+        arriveRing: PLANET_ARRIVE.ring,
+        arriveSectors: arrive.label,
+        leaveRing: PLANET_LEAVE.ring,
+        leaveSectors: leave.label,
+      })}
     >
       {PLANET_RINGS.map(({ ring }) => (
         <circle
@@ -224,7 +236,7 @@ export function StationClockDiagram() {
       ))}
       <circle cx={cx} cy={cy} r={30} fill={PRESS.paperDeep} stroke={PRESS.ink} strokeWidth={2} />
       <Cap x={cx} y={cy} size={11}>
-        PLANET
+        {T.clock.diagram.planet}
       </Cap>
 
       <path d={arrive.d} fill={PRESS.paperDeep} stroke={PRESS.ink} strokeWidth={2} />
@@ -234,14 +246,14 @@ export function StationClockDiagram() {
         cy={cy}
         r={outer + 16}
         sector={arrive.mid}
-        lines={['arrive', arrive.label]}
+        lines={[T.clock.diagram.arrive, arrive.label]}
       />
       <OuterLabel
         cx={cx}
         cy={cy}
         r={outer + 16}
         sector={leave.mid}
-        lines={['leave', leave.label]}
+        lines={[T.clock.diagram.leave, leave.label]}
       />
 
       {CLOCK.map(sector => {
@@ -271,7 +283,11 @@ export function StationClockDiagram() {
         fontSize={11}
         fill={PRESS.inkSoft}
       >
-        {`ring ${STATION_RING}: stations · ring ${PLANET_ARRIVE.ring}: lanes · +${STATION_DRIFT} a round`}
+        {fill(T.clock.diagram.foot, {
+          stationRing: STATION_RING,
+          laneRing: PLANET_ARRIVE.ring,
+          drift: STATION_DRIFT,
+        })}
       </text>
     </Svg>
   )
@@ -287,7 +303,7 @@ export function LaneRingDiagram() {
   const r0 = 112
   const r1 = 154
   const words = (lane: (typeof RING_LANES)[number]): [string, string] => [
-    lane.direction === 'outbound' ? 'out to' : 'in from',
+    lane.direction === 'outbound' ? T.lanes.diagram.out : T.lanes.diagram.in,
     planetName(lane.planetId),
   ]
   const describe = RING_LANES.map(
@@ -306,7 +322,11 @@ export function LaneRingDiagram() {
       width={W}
       height={H}
       maxWidth={500}
-      label={`Black hole ring ${BLACK_HOLE_OUTER_RING} is six lane arcs, clockwise: ${describe}. Every arrival arc is followed clockwise by the next planet's departure arc, so ${circuit.join(' to ')} is the short way round.`}
+      label={fill(T.lanes.diagram.label, {
+        ring: BLACK_HOLE_OUTER_RING,
+        arcs: describe,
+        circuit: circuit.join(' to '),
+      })}
     >
       {RING_LANES.map(lane => {
         const { startSector: s, length } = lane.blackHoleArc
@@ -357,10 +377,10 @@ export function LaneRingDiagram() {
       })}
       <circle cx={cx} cy={cy} r={60} fill={PRESS.ink} />
       <Cap x={cx} y={cy - 9} size={13} color={PRESS.paper}>
-        BLACK HOLE
+        {T.lanes.diagram.hole}
       </Cap>
       <Cap x={cx} y={cy + 11} size={11} weight={500} color={PRESS.paperSoft}>
-        {`RING ${BLACK_HOLE_OUTER_RING}`}
+        {fill(T.lanes.diagram.ring, { ring: BLACK_HOLE_OUTER_RING })}
       </Cap>
     </Svg>
   )
@@ -391,7 +411,10 @@ export function CircuitDiagram({ legTurns }: { legTurns: string }) {
       width={W}
       height={H}
       maxWidth={460}
-      label={`The planets in a ring: ${[...names, names[0]].join(' to ')}. Each delivery leg the deck prints takes ${legTurns} turns, station to station.`}
+      label={fill(T.leg.diagram.label, {
+        circuit: [...names, names[0]].join(' to '),
+        turns: legTurns,
+      })}
     >
       {CIRCUIT.map(([from, to]) => {
         const [x0, y0] = place.get(from)!
@@ -453,7 +476,7 @@ export function CircuitDiagram({ legTurns }: { legTurns: string }) {
         fontSize={11}
         fill={PRESS.inkSoft}
       >
-        turns, station to station
+        {T.leg.diagram.foot}
       </text>
     </Svg>
   )
@@ -479,10 +502,16 @@ export function ClockStrip({
   const W = CLOCK.length * (w + gap) - gap
   const H = h + 26
   const best = row ? bestClocks(row) : []
-  const fill = tone === 'red' ? PRESS.red : PRESS.ink
+  const solid = tone === 'red' ? PRESS.red : PRESS.ink
   const aria = row
-    ? `${label}: ${CLOCK.map((clock, i) => `on ${clock}, ${row[i] ?? 'no route'}`).join('; ')}. Quickest on ${best.join(' or ')}.`
-    : `${label}: still being worked out.`
+    ? fill(T.strip.label, {
+        label,
+        readings: CLOCK.map((clock, i) =>
+          fill(T.strip.reading, { reading: clock, turns: `${row[i] ?? T.strip.noRoute}` })
+        ).join('; '),
+        best: best.join(' or '),
+      })
+    : fill(T.strip.working, { label })
   return (
     <Box sx={{ maxWidth: 460 }}>
       <Box
@@ -513,8 +542,8 @@ export function ClockStrip({
                 y={20}
                 width={w - 2}
                 height={h}
-                fill={top ? fill : 'none'}
-                stroke={top ? fill : row ? PRESS.ink : PRESS.inkFaint}
+                fill={top ? solid : 'none'}
+                stroke={top ? solid : row ? PRESS.ink : PRESS.inkFaint}
                 strokeWidth={2}
               />
               <Cap
@@ -536,7 +565,7 @@ export function ClockStrip({
                   letterSpacing="0.1em"
                   fill={top ? PRESS.paper : PRESS.inkSoft}
                 >
-                  TURNS
+                  {T.strip.turns}
                 </text>
               )}
             </g>
