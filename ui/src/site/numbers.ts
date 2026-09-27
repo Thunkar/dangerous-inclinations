@@ -6,6 +6,7 @@
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
   FIXED_SUBSYSTEM_TYPES,
+  INTERCEPT_ROLL,
   SHIELD_ENERGY_PER_POINT,
   SUBSYSTEM_CONFIGS,
   getAdjustmentRange,
@@ -53,8 +54,8 @@ export function poweredEffect(type: SubsystemType): string {
   }
 }
 
-/** A ballistic rack with energy on it downs a missile on this roll or better (`missiles.ts`). */
-export const INTERCEPT_ON = 2
+/** A ballistic rack with energy on it downs a missile on this roll or better. */
+export const INTERCEPT_ON = INTERCEPT_ROLL
 
 export const weaponStats = (type: SubsystemType) => SUBSYSTEM_CONFIGS[type].weaponStats!
 

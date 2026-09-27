@@ -38,6 +38,9 @@ import { canBeFiredAt, isOnBoard } from "./targeting.ts";
 
 const MISSILE = getMissileStats();
 
+/** A ballistic rack with energy on it destroys a missile on this d10 roll or better. */
+export const INTERCEPT_ROLL = 2;
+
 export function createMissile(
   state: GameState,
   owner: Player,
@@ -210,7 +213,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
         rollsThisTurn: r.rollsThisTurn + 1,
       }));
       const roll = rollD10(state);
-      const destroyed = roll >= 2;
+      const destroyed = roll >= INTERCEPT_ROLL;
       events.push({
         type: "missile_intercepted",
         missileId: missile.id,
