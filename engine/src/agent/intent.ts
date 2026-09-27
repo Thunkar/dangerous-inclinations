@@ -79,6 +79,12 @@ export interface TurnIntent {
    * marker and costs nothing.
    */
   escort?: string[];
+  /**
+   * Under the unlimited-hold experiment only: items to seize, one per free
+   * Piracy card, each a different item. Settled where the turn ends; an item
+   * not there then is passed over.
+   */
+  seize?: { victim: string; cargoId: string }[];
 }
 
 export interface BuiltTurn {
@@ -282,6 +288,20 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       else {
         named.add(carrierId);
         actions.push({ type: "escort_mark", playerId: me.id, data: { carrierId } });
+      }
+    }
+  }
+  if (intent.seize !== undefined) {
+    const named = new Set<string>();
+    for (const { victim, cargoId } of intent.seize) {
+      const key = `${victim}/${cargoId}`;
+      if (victim === me.id) notes.push("a seizure is made from a rival, not you; dropped");
+      else if (!view.players.some((p) => p.id === victim))
+        notes.push(`no player ${String(victim)} to seize from; dropped`);
+      else if (named.has(key)) notes.push(`${cargoId} named twice for a seizure; once kept`);
+      else {
+        named.add(key);
+        actions.push({ type: "seize", playerId: me.id, data: { victimId: victim, cargoId } });
       }
     }
   }

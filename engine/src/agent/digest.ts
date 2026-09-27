@@ -291,6 +291,10 @@ export function describeViewForAgent(
       out.push(
         `  Escort: ${o.escort.markersInHand} marker(s) in hand. Add {"escort":["<playerId>"]} to put one on a carrier whose sector you END this turn in (undocked, carrying a crate or data); a ship that does not qualify then takes nothing. After a plain coast: [${o.escort.carriersAfterCoast.map(name).join(", ") || "-"}].`
       );
+    if (o.seize)
+      out.push(
+        `  Seize: ${o.seize.freeCards} Piracy card(s) free. Add {"seize":[{"victim":"<playerId>","cargoId":"<id>"}]} to take that item off a ship whose sector you END this turn in (neither of you moored); nothing is taken unless named. After a plain coast: [${o.seize.itemsAfterCoast.map((i) => `${name(i.victimId)} ${i.kind} ${i.cargoId}`).join(", ") || "-"}].`
+      );
     out.push(`  Heat budget before damage: ${o.heatBudget}.`);
   }
 

@@ -584,6 +584,17 @@ check(
   "an Escort marker that names no carrier is rejected",
 );
 check(
+  accepts([
+    { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: false } },
+    { playerId: HUMAN, type: "seize", data: { victimId: "bot-1", cargoId: "crate-m0" } },
+  ]),
+  "a seizure has a wire shape (the engine refuses it outside the unlimited-hold experiment)",
+);
+check(
+  !accepts([{ playerId: HUMAN, type: "seize", data: { victimId: "bot-1" } }]),
+  "a seizure that names no item is rejected",
+);
+check(
   !accepts([{ ...goodBurn, data: { burnIntensity: "soft", sectorAdjustment: "0" } }]),
   'a burn with sectorAdjustment "0" (string) is rejected',
 );
