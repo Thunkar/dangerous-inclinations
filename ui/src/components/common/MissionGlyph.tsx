@@ -118,24 +118,22 @@ const ART: Record<MissionType, ReactElement> = {
   ),
   // A hull inside a shield: Destroy's hull in its gunsight, taken under a
   // wing instead. The shield is the marker the board puts on the escorted
-  // ship, a 5 unit rim (every edge offset by exactly 5) round a narrower
-  // copy of Destroy's hull.
+  // ship, a 5 unit rim (every edge offset by exactly 5); the hull inside is a
+  // smaller copy of Destroy's, held 3 clear of the rim everywhere.
   escort: (
     <>
       <path fillRule="evenodd" d="M8 5h48v25L32 60 8 30zM13 10v18.2L32 52l19-23.8V10z" />
-      <path d="M32 15l10 27-10-6-10 6z" />
+      <path d="M32 15l8 22-8-5.5-8 5.5z" />
     </>
   ),
-  // The wreck and what is worth taking from it: the hull broken down its
-  // spine along one zigzag, the halves drifting 5° apart about their tails,
-  // and the black box lifted out of the break by the same chevron that
-  // carries Deliver's crate and the Tanker's fuel.
+  // An open claw coming down on a wreck: a cable, the grab head and two jaws
+  // spread wide with their tips turned in, over the hull broken into plates.
+  // The jaws are one polygon mirrored about the centre line, and the plates
+  // are tilted apart so they read as debris rather than a floor.
   salvage: (
     <>
-      <path d="M27.5 29.2l4.9 9.6-6.4 7.6 3.4 4.8L8.3 62z" />
-      <path d="M34.6 51.2L32 45.9l7.6-6.4-3.1-10.3L55.7 62z" />
-      <path fillRule="evenodd" d="M22 2h20v15H22zM25 7.5v3.5h14V7.5z" />
-      <path d="M25 27l7-6 7 6v5l-7-6-7 6z" />
+      <path d="M30 2h4v10h-4zM17 12h30v6H17zM17 18h7l-8.5 15 5.5 8-4.5 3.5-8-11zM47 18h-7l8.5 15-5.5 8 4.5 3.5 8-11z" />
+      <path d="M4.8 51.6l20.4-5.9 2.3 5.7-20.2 6.9zM37.8 45.3l21.4 5.4-2.6 6.7-21.3-6.4zM24 56h16l-3.5 6h-9z" />
     </>
   ),
 }
