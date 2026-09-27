@@ -10,6 +10,7 @@ import { getSubsystemConfig } from "../models/subsystems.ts";
 import { getWellName } from "../models/gravityWells.ts";
 import { COMPRESSED_JUMP_MASS, WELL_TRANSFER_COSTS } from "../models/rings.ts";
 import { MISSION_CARDS } from "../text/missionCards.ts";
+import { fill } from "../utils/fill.ts";
 
 type NameResolver = (playerId: string) => string;
 
@@ -22,31 +23,32 @@ function heat(h: number): string {
 }
 
 export function describeMission(m: Mission, name: NameResolver): string {
+  const card = MISSION_CARDS;
   switch (m.type) {
     case "destroy_ship":
-      return MISSION_CARDS.destroy_ship.title(name(m.targetPlayerId));
+      return fill(card.destroy_ship.title, { target: name(m.targetPlayerId) });
     case "deliver_cargo":
-      return MISSION_CARDS.deliver_cargo.title(
-        getWellName(m.pickupPlanetId),
-        getWellName(m.deliveryPlanetId)
-      );
+      return fill(card.deliver_cargo.title, {
+        pickup: getWellName(m.pickupPlanetId),
+        delivery: getWellName(m.deliveryPlanetId),
+      });
     case "intercept_transmission":
-      return MISSION_CARDS.intercept_transmission.title(
-        name(m.targetPlayerId),
-        getWellName(m.deliveryPlanetId)
-      );
+      return fill(card.intercept_transmission.title, {
+        target: name(m.targetPlayerId),
+        filing: getWellName(m.deliveryPlanetId),
+      });
     case "survey":
-      return MISSION_CARDS.survey.title;
+      return card.survey.title;
     case "piracy":
-      return MISSION_CARDS.piracy.title;
+      return card.piracy.title;
     case "tanker":
-      return MISSION_CARDS.tanker.title(TANKER_FUEL);
+      return fill(card.tanker.title, { fuel: TANKER_FUEL });
     case "escort":
       return m.markedPlayerId
-        ? MISSION_CARDS.escort.title(name(m.markedPlayerId))
-        : MISSION_CARDS.escort.titleUnmarked;
+        ? fill(card.escort.title, { carrier: name(m.markedPlayerId) })
+        : card.escort.titleUnmarked;
     case "salvage":
-      return MISSION_CARDS.salvage.title;
+      return card.salvage.title;
   }
 }
 
@@ -56,30 +58,31 @@ export function describeMission(m: Mission, name: NameResolver): string {
  * words are in `text/missionCards.ts`.
  */
 export function describeMissionRule(m: Mission, name: NameResolver): string {
+  const card = MISSION_CARDS;
   switch (m.type) {
     case "destroy_ship":
-      return MISSION_CARDS.destroy_ship.rule(name(m.targetPlayerId));
+      return fill(card.destroy_ship.rule, { target: name(m.targetPlayerId) });
     case "deliver_cargo":
-      return MISSION_CARDS.deliver_cargo.rule(
-        getWellName(m.pickupPlanetId),
-        getWellName(m.deliveryPlanetId)
-      );
+      return fill(card.deliver_cargo.rule, {
+        pickup: getWellName(m.pickupPlanetId),
+        delivery: getWellName(m.deliveryPlanetId),
+      });
     case "intercept_transmission":
-      return MISSION_CARDS.intercept_transmission.rule(
-        name(m.targetPlayerId),
-        SCAN_SECTOR_RANGE,
-        getWellName(m.deliveryPlanetId)
-      );
+      return fill(card.intercept_transmission.rule, {
+        target: name(m.targetPlayerId),
+        scanRange: SCAN_SECTOR_RANGE,
+        filing: getWellName(m.deliveryPlanetId),
+      });
     case "survey":
-      return MISSION_CARDS.survey.rule(SURVEY_RING);
+      return fill(card.survey.rule, { ring: SURVEY_RING });
     case "piracy":
-      return MISSION_CARDS.piracy.rule;
+      return card.piracy.rule;
     case "tanker":
-      return MISSION_CARDS.tanker.rule(TANKER_FUEL);
+      return fill(card.tanker.rule, { fuel: TANKER_FUEL });
     case "escort":
-      return MISSION_CARDS.escort.rule;
+      return card.escort.rule;
     case "salvage":
-      return MISSION_CARDS.salvage.rule;
+      return card.salvage.rule;
   }
 }
 
