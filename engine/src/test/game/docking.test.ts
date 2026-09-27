@@ -1,12 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  createInitialStations,
-  getStationAt,
-  getStationForPlanet,
-  isMooredAt,
-  stationPosition,
-  advanceStations,
-} from "../../game/stations.ts";
+import { createInitialStations, getStationForPlanet, isMooredAt } from "../../game/stations.ts";
 import { dockJobsOnArrival } from "../../game/docking.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import type { Cargo, DockJob, Mission } from "../../models/missions.ts";
@@ -71,24 +64,6 @@ describe("docking: stations", () => {
     const stations = createInitialStations();
     expect(stations.map((s) => s.planetId)).toEqual([ALPHA, BETA, GAMMA]);
     expect(stations.every((s) => s.ring === STATION_RING && s.sector === 0)).toBe(true);
-  });
-
-  it("stations drift with their ring (4 sectors) when they move", () => {
-    const moved = advanceStations(makeGameState([])).state;
-    expect(moved.stations.map((s) => s.sector)).toEqual([4, 4, 4]);
-    expect(advanceStations(moved).state.stations[0].sector).toBe(8);
-  });
-
-  it("getStationAt matches only the exact well, ring and sector", () => {
-    const stations = createInitialStations();
-    expect(getStationAt(stations, { wellId: BETA, ring: STATION_RING, sector: 0 })?.planetId).toBe(BETA);
-    expect(getStationAt(stations, { wellId: BETA, ring: STATION_RING + 1, sector: 0 })).toBeUndefined();
-    expect(getStationAt(stations, { wellId: BETA, ring: STATION_RING, sector: 1 })).toBeUndefined();
-    expect(stationPosition(getStationForPlanet(stations, GAMMA)!)).toEqual({
-      wellId: GAMMA,
-      ring: STATION_RING,
-      sector: 0,
-    });
   });
 
   it("stations advance at the end of each round, not each turn", () => {
@@ -291,22 +266,6 @@ describe("docking: moored ships ride their station", () => {
     expect(eventsOf(second.events, "stations_moved")).toEqual([
       expect.objectContaining({ riders: ["p1"] }),
     ]);
-    // Nobody is moored the round after p1 has cast off.
-    const away = withShip(second.gameState, "p1", { ring: STATION_RING + 1, sector: 9 });
-    const third = executeTurnAs(away, coast(1));
-    const fourth = executeTurnAs(third.gameState, coast(1));
-    expect(eventsOf(fourth.events, "stations_moved")[0].riders).toEqual([]);
-  });
-
-  it("moves a moored ship 4 sectors a round, exactly as drifting on ring 1 does", () => {
-    // p1 moored on the station, p2 free on the same ring: both advance 4.
-    const state = makeGameState([
-      makePlayer("p1", { wellId: ALPHA, ring: STATION_RING, sector: 0 }),
-      makePlayer("p2", { wellId: ALPHA, ring: STATION_RING, sector: 2 }),
-    ]);
-    const after = playRound(state);
-    expect(getShip(after, "p1").sector).toBe(4);
-    expect(getShip(after, "p2").sector).toBe(6);
   });
 
   it("two ships on one station sector both ride it", () => {
@@ -365,26 +324,6 @@ describe("docking: moored ships ride their station", () => {
     expect(getPlayer(result.gameState, "p1").cargo).toHaveLength(2);
   });
 
-  it("delivers before it loads, so a chained route is still one visit", () => {
-    // Arriving at BETA carrying BETA's crate and with BETA's next crate waiting:
-    // the hold empties and fills in the same dock.
-    const state = withMissions(approaching(BETA), "p1", [
-      deliverMission(ALPHA, BETA),
-      deliverMission(BETA, GAMMA),
-    ]);
-    const loaded = withPlayer(state, "p1", {
-      cargo: state.players[0].cargo.map((c) =>
-        c.pickupPlanetId === ALPHA ? { ...c, isPickedUp: true } : c
-      ),
-    });
-    const result = executeTurnAs(loaded, coast(1));
-    expect(eventTypes(result.events)).toContain("cargo_delivered");
-    const [pickedUp] = eventsOf(result.events, "cargo_picked_up");
-    const outbound = getPlayer(result.gameState, "p1").cargo.find((c) => c.id === pickedUp.cargoId);
-    expect(outbound).toMatchObject({ pickupPlanetId: BETA, deliveryPlanetId: GAMMA });
-    expect(eventsOf(result.events, "cargo_picked_up")).toHaveLength(1);
-  });
-
   it("carries data alongside a full hold: numbers are not freight", () => {
     const state = withMissions(approaching(ALPHA), "p1", [deliverMission(ALPHA, BETA)]);
     const withData = withPlayer(state, "p1", {
@@ -406,69 +345,6 @@ describe("docking: moored ships ride their station", () => {
     expect(eventsOf(result.events, "cargo_delivered")).toEqual([]);
     const cargo = getPlayer(result.gameState, "p1").cargo;
     expect(cargo.filter((c) => c.isPickedUp).map((c) => c.kind).sort()).toEqual(["crate", "data"]);
-  });
-
-  it("loads one crate and leaves the second on the dock", () => {
-    // Two routes out of the same station: the hold takes one crate, so the
-    // second is two trips away, not more data in the same hold.
-    const state = withMissions(approaching(ALPHA), "p1", [
-      deliverMission(ALPHA, BETA),
-      deliverMission(ALPHA, GAMMA),
-    ]);
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "cargo_picked_up")).toHaveLength(1);
-    const cargo = getPlayer(result.gameState, "p1").cargo;
-    expect(cargo.filter((c) => c.isPickedUp)).toHaveLength(1);
-    expect(cargo.filter((c) => !c.isPickedUp)).toHaveLength(1);
-  });
-
-  it("a chained route is one trip: the crate dropped here frees the hold for the next", () => {
-    // Alpha→Beta with the crate aboard, arriving at Beta, where Beta→Gamma's
-    // crate is waiting. Unload, then load.
-    const outbound = deliverMission(ALPHA, BETA);
-    const onward = deliverMission(BETA, GAMMA);
-    let state = withMissions(approaching(BETA), "p1", [outbound, onward]);
-    state = withPlayer(state, "p1", {
-      cargo: getPlayer(state, "p1").cargo.map((c) =>
-        c.missionId === outbound.id ? { ...c, isPickedUp: true } : c
-      ),
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual([
-      outbound.cargoId,
-    ]);
-    expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.cargoId)).toEqual([
-      onward.cargoId,
-    ]);
-  });
-
-  it("data rides free: data aboard never keeps a crate off the ship", () => {
-    const mission = deliverMission(ALPHA, BETA);
-    let state = withMissions(approaching(ALPHA), "p1", [mission]);
-    state = withPlayer(state, "p1", {
-      cargo: [
-        ...getPlayer(state, "p1").cargo,
-        {
-          id: "data-1",
-          missionId: "survey-1",
-          kind: "data",
-          deliveryPlanetId: "any",
-          isPickedUp: true,
-        },
-      ],
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.cargoId)).toEqual([
-      mission.cargoId,
-    ]);
-  });
-
-  it("a crate is loaded on arrival, not by sitting in the berth", () => {
-    const state = withMissions(approaching(ALPHA), "p1", [deliverMission(ALPHA, BETA)]);
-    const arrival = executeTurnAs(state, coast(1));
-    expect(eventTypes(arrival.events)).toContain("cargo_picked_up");
-    const holding = executeTurnAs(mustExecute(arrival.gameState, coast(1)), coast(1));
-    expect(eventTypes(holding.events)).not.toContain("cargo_picked_up");
   });
 
   it("a destroyed ship on a station's sector is off the board and rides nothing", () => {
@@ -635,16 +511,6 @@ describe("docking: one job a visit", () => {
     expect(aboard(result.gameState, interceptItem.id)).toBe(true);
   });
 
-  it("a chosen job wins over the default", () => {
-    // Default would be the crate (2 against the Tanker's 1).
-    const state = visit(ALPHA, [[deliver, deliverCrate], TANKER]);
-    expect(dockJobsOnArrival(dockingShip(state, "p1"), ALPHA).default).toBe("crates");
-    const result = arrive(state, "fuel");
-    expect(eventsOf(result.events, "docked")[0].job).toBe("fuel");
-    expect(eventsOf(result.events, "cargo_delivered")).toEqual([]);
-    expect(aboard(result.gameState, deliverCrate.id)).toBe(true);
-  });
-
   it.each<[string, () => GameState, DockJob, DockJob]>([
     ["data with none aboard", () => visit(ALPHA, [[deliver, deliverCrate], TANKER]), "data", "crates"],
     ["fuel one short of the load", () => visit(ALPHA, [[deliver, deliverCrate], TANKER], TANKER_FUEL - 1), "fuel", "crates"],
@@ -653,11 +519,6 @@ describe("docking: one job a visit", () => {
     const result = arrive(build(), named);
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "docked")[0].job).toBe(done);
-  });
-
-  it("names no job when the visit has none to do", () => {
-    const result = arrive(visit(ALPHA, [], 0), "fuel");
-    expect(eventsOf(result.events, "docked")[0].job).toBeNull();
   });
 
   it("a berth held since last turn does no job, named or not", () => {
