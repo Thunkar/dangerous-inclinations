@@ -28,6 +28,8 @@ export const CHEATSHEET = {
 
   /** The tiles under the head, one per section, and the last one for the card. */
   contents: {
+    /** Read aloud for the row of tiles. */
+    label: 'Sections',
     goal: 'The goal',
     setup: 'Setting up',
     turn: 'The turn',

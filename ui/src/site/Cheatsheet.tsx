@@ -55,7 +55,7 @@ function Contents() {
   return (
     <Box
       component="nav"
-      aria-label="Sections"
+      aria-label={T.contents.label}
       sx={{
         display: 'grid',
         gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)', lg: 'repeat(10, 1fr)' },
