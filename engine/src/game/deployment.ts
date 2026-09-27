@@ -98,7 +98,7 @@ export function deployShip(
   if (!isDeploymentPositionFree(state, position)) return fail(`Sector ${sector} is occupied`);
   if (!isDeploymentPositionLegal(state, position)) {
     return fail(
-      `Ring ${ring} sector ${sector} is within ${DEPLOYMENT_GAP} sectors of a placed ship`
+      `Ring ${ring} sector ${sector} is closer than ${DEPLOYMENT_GAP} sectors to a placed ship`
     );
   }
 
