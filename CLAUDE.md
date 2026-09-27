@@ -48,7 +48,8 @@ sectors from every placed ship; that position is their Home (destroyed ships res
 their next turn is a first round of their own: untouchable until it is over, and
 firing at and scanning nobody on it). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
 from black hole ring 5 to its ring 4 and an inbound lane back. Stations orbit planet ring 2, with a faster ring 1 inside them, and are where cargo is
-loaded, ships are repaired and data is delivered.
+loaded, ships are repaired and data is delivered. A moored ship can neither fire nor be
+fired at, missiles included (scans still reach it).
 
 Loadout subsystems (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
@@ -62,22 +63,27 @@ rack that fired is up as well. Each subsystem does one thing a turn. Scanning pe
 subsystem privately. Completed missions are face-up. Reaching
 the table's points (3; the value rides on `GameState.pointsToWin` and the
 view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
-played out, then highest score wins (hull, then fuel, break ties). Six card types in two kinds: primaries
+played out, then highest score wins (hull, then fuel, break ties). Eight card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy
 (seize an undocked rival's crate or data, loot that fills the hold and
-sells anywhere, their card back to undone) and tanker (arrive at a station
-with seven fuel and pump it in)). A dock visit does one job, crates, data or
+sells anywhere, their card back to undone), tanker (arrive at a station
+with seven fuel and pump it in), escort (you may put your marker, face-up, on
+an undocked rival carrying cargo in your sector; it pays when that ship next
+delivers, and comes back if it dies) and salvage (a destroyed ship leaves a
+wreck that drifts with the stations; end a turn on it and take its black box,
+data filed anywhere)). A dock visit does one job, crates, data or
 fuel, the player's choice (`dock_job`; the default is the job that scores
 most, and it is what the bots take). Deliver
 routes run only round the circuit (Alpha → Gamma → Beta → Alpha, the short
 way through the black hole's lanes). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
 is hunting whom; setup removes offsets the table is too small for. Deal 3
-primaries and keep 1; take one of each secondary and keep 2. Five points
-held and three win, so the primary plus either secondary is the win and the
-other secondary is the spare. The secondary offer is the same for everyone
-and needs no shuffle, so those three have to be worth roughly the same or the
-choice is fake.
+primaries and keep 1; deal 3 secondaries from a shuffled pile (four of each
+of the five) and keep any 2: two of a kind are two jobs, nothing completes
+both at once. Five points held and three win, so the primary plus either
+secondary is the win and the other secondary is the spare. The secondary
+offer differs seat to seat, so the five have to be worth roughly the same or
+the deal is a lottery.
 New mission types are proposed to the designer, never added unasked.
 
 Missiles fire in **salvos**: one action launches any number of a subsystem's missiles
@@ -202,9 +208,11 @@ any subsystem), `--weapons=laser.damage=3` (firing stats),
 passed to `createGame`; `yarn bench --rules=` takes it too and stamps it on
 the page), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'
 parameters), `--loadouts=` (the bots' hull templates), `--seats=` (a hull
-forced on one seat) and `--hands=bot-1=destroy` (the primary a seat is dealt
+forced on one seat), `--hands=bot-1=destroy` (the primary a seat is dealt
 and keeps: the bots price one road to the win and take it every time, so a
-plan they never choose is only measurable dealt). The summary prints turn
+plan they never choose is only measurable dealt) and
+`--secondaries=survey,piracy,tanker` (the kinds the secondary pile is
+printed with, stamped on the page). The summary prints turn
 behaviour (coast/burn/jump/firing shares, shield cubes, heat at check, damage
 soaked). A change that survives its experiment moves into the models, and a
 switch whose experiment is over is deleted, not kept: the measurement lives
@@ -645,9 +653,44 @@ not an argument:
   (one seizure per turn end, or two pirates trade the loot for ever) and buys
   nothing; the designer kept the simpler rule.
 
+- **Secondaries dealt from a pile, with Escort and Salvage.** Adopted 27 Sept
+  2026 as one package: the secondary pile is shuffled and dealt like the
+  primaries (3, keep any 2, two of a kind allowed as two jobs), Escort and
+  Salvage join Survey, Piracy and Tanker, and a moored ship neither fires nor
+  is fired at. The deal alone is neutral (benchmark at 240 games a seat count,
+  same seeds, with only the old three kinds: rounds 31 / 32 / 32 / 33 against
+  31 / 33 / 32 / 33, every card within 3 per 100 kept). Both cards passed the
+  free-ride screen (with nobody trying, 9–11% of seats would score an Escort
+  and 1–5% a Salvage with a wreck that lasted the round). With bots flying
+  them they read like the old cards: completed per 100 kept Survey 34, Escort
+  33, Piracy 27, Salvage 23, Tanker 19. The balance suite (baselines,
+  logical, illogical, off-book, 300 games a row) has **no flag at all**
+  against one failing and six glass on main; dealt Destroy / Deliver /
+  Intercept 39 / 32 / 30 against 41 / 38 / 30. Roads measured on the way:
+  **Salvage as a crate** (the first shape) put two of five kinds in Deliver's
+  one-crate hold and took dealt Deliver to 28% and Destroy to 45%; the black
+  box as data gave back Destroy's edge and removed the clash. **An automatic
+  Escort marker** made hunters mark their own prey at point blank; marking is
+  a "you may". **Moored-safe** on its own is small (Deliver +3, Intercept +2,
+  kills unchanged) and was kept for the table: it is what a berth reads as.
+  The cost is kills, about a third fewer at every seat count (2.2 / 4.7 / 8.2
+  / 10.4 against 3.6 / 7.5 / 11.8 / 15.4), and adding one card at a time
+  shows why: Escort is a truce, a bot never shoots the ship its own marker is
+  on (3.4 kills at three seats, 3.0 with Salvage, 2.3 with Escort, 3.3 with
+  Escort when the bots ignore their markers). The designer wants that table
+  politics; the escorted ship may always turn on its escort.
+
 Known open problems:
 
-- **The primary you are dealt still moves a seat, now by about five points.**
+- **The primary you are dealt still moves a seat, and Intercept is the weak
+  card.** Under the five secondaries (27 Sept, 300 games a row): dealt Destroy
+  39%, Deliver 32%, Intercept 30%. It is the card, not the sensor: a sensor
+  bow with two lasers dealt Destroy reads 34% against the railgun's 39, with
+  three launchers 39%, and both interceptor presets sit on the Intercept bar.
+  Intercept completes 27 per 100 kept against Destroy's 62 and Deliver's 55.
+  **The benchmark's hull table is the card table in disguise**: natural bots
+  pick the hull from the primary one-for-one (1704 sensor bows, 1704
+  Intercepts), so "the sensor bow wins 16%" means Intercept does.
   At 1000 games a row since the circuit routes (26 Sept): dealt Destroy 37.9%,
   Deliver 32.9%, Intercept 31.4%, against a 33% share. Before, at 400 games,
   32 / 42 / 32, and earlier readings swung with the bots (37 / 31 / 26 before
@@ -698,8 +741,10 @@ Known open problems:
   20-round games. Left as it stands: missions are public, a runner with a
   crate aboard is Piracy's prey, and the designer's line is that a hull may
   dominate a game but not every game.
-- **The secondary offer is still lopsided, but the cards are level.**
-  Everyone is offered all three; Piracy is the one left out (kept 57%
+- **The secondary offer was lopsided under the one-of-each deal** (now a
+  pile, settled above; bots keep uniformly among legal hands, so pick rates
+  from the pile say more about legality than value). Under one-of-each,
+  Piracy was the one left out (kept 57%
   against 71–72% for Survey and Tanker). Completed per 100 kept in the
   benchmark under one job per visit: Survey 26, Piracy 28, Tanker 18, and
   each sits in 17–18% of winners' cards (Tanker was 27% while it shared a stop
@@ -753,7 +798,9 @@ Known open problems:
   is a different hunter.
 - **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: 33 rounds at every seat count from 3 to 6 in the benchmark
+- **Length**: under the five secondaries (27 Sept, 240 games a seat count)
+  31 / 30 / 28 / 28 rounds at 3 / 4 / 5 / 6 seats, 1h33 to 2h48, kills 2.2 /
+  4.7 / 8.2 / 10.4 (Escort's truce, settled above). Before: 33 rounds at every seat count from 3 to 6 in the benchmark
   under one job per visit (26 Sept), 1h39 to 3h18 at a minute a turn, 100% of
   games decided; kills 4.0 / 7.5 / 12.8 / 14.9. Before the circuit routes it
   was 27 / 21 / 25 / 27 and 1h21 to 2h42: the one-stop Deliver + Tanker had
