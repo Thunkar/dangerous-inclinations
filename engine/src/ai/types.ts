@@ -159,6 +159,11 @@ export interface BotGoal {
    * by default.
    */
   dockJob?: DockJob;
+  /**
+   * For dock goals under the one-sale experiment: the item the visit sells
+   * (a visit sells one). Absent for fuel and for a job with one item.
+   */
+  dockCargoId?: string;
   /** For salvage goals: the wreck to end a turn on (looked up in `view.wrecks`). */
   wreckId?: string;
   /** Cheap estimate used for ranking; the chosen goal gets a real plan. */

@@ -28,6 +28,7 @@
 import type { Player, Position } from "../../models/game.ts";
 import type { DockJob, Mission, SalvageMission } from "../../models/missions.ts";
 import {
+  SALE_RULES,
   SCAN_SECTOR_RANGE,
   SURVEY_RING,
   TANKER_FUEL,
@@ -49,7 +50,8 @@ import type { GameView } from "../../game/view.ts";
 import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
 import { positionOf, ringVelocity, sectorDistance } from "../../game/geometry.ts";
 import { markedBy } from "../../game/escort.ts";
-import { dockJobsOnArrival } from "../../game/docking.ts";
+import { cratesLoadedOnArrival, dockJobsOnArrival } from "../../game/docking.ts";
+import { saleAllowedAt, saleBlocked } from "./sales.ts";
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
 import {
   anySectorOnRing,
@@ -236,16 +238,45 @@ interface DockingSeat {
  * on arrival (RULES §Stations), so a goal "there" would be satisfied by sitting
  * still. And a visit does one job, so it is only a trip for `job` if the visit
  * would offer it (`dockJobsOnArrival`, read with the tank as it is now).
+ *
+ * Under the one-sale experiment a trip for a sale is a trip only to a station
+ * that would buy that item from this seat (`saleAllowedAt`), and a pickup
+ * (no job) is a trip only if a crate would load there.
  */
-function worthVisiting(seat: DockingSeat, planetId: string, job?: DockJob): boolean {
+function worthVisiting(
+  seat: DockingSeat,
+  planetId: string,
+  job?: DockJob,
+  missionId?: string,
+  cargoId?: string
+): boolean {
   const { me, status } = seat;
   if (status.moored && planetId === status.position.wellId) return false;
   if (!job) return true;
-  const offer = dockJobsOnArrival(
-    { cargo: me.cargo, missions: me.missions, reactionMass: status.reactionMass },
-    planetId
-  );
+  const ship = {
+    cargo: me.cargo,
+    missions: me.missions,
+    reactionMass: status.reactionMass,
+    soldAt: me.soldAt,
+  };
+  const offer = dockJobsOnArrival(ship, planetId);
+  if (SALE_RULES.oneSalePerStation) {
+    if (missionId !== undefined && !saleAllowedAt(me, planetId, missionId)) return false;
+    return offer.jobs.some((o) => o.job === job && (cargoId === undefined || o.cargoId === cargoId));
+  }
   return offer.jobs.some((o) => o.job === job);
+}
+
+/** One-sale experiment: a Deliver pickup is a trip if a crate would load there. */
+function worthPickingUp(seat: DockingSeat, planetId: string): boolean {
+  const { me, status } = seat;
+  if (status.moored && planetId === status.position.wellId) return false;
+  return (
+    cratesLoadedOnArrival(
+      { cargo: me.cargo, missions: me.missions, reactionMass: status.reactionMass },
+      planetId
+    ) > 0
+  );
 }
 
 function dockGoal(
@@ -255,9 +286,10 @@ function dockGoal(
   planetId: string,
   description: string,
   urgency: number,
-  dockJob?: DockJob
+  dockJob?: DockJob,
+  cargoId?: string
 ): BotGoal | null {
-  if (!worthVisiting(seat, planetId, dockJob)) return null;
+  if (!worthVisiting(seat, planetId, dockJob, missionId, cargoId)) return null;
   const pos = stationPositionFor(view.stations, planetId);
   if (!pos) return null;
   return {
@@ -266,6 +298,7 @@ function dockGoal(
     description,
     planetId,
     dockJob,
+    ...(cargoId !== undefined ? { dockCargoId: cargoId } : {}),
     estimatedTurns: cheapTurnEstimate(seat.status.position, pos),
     urgency,
   };
@@ -278,9 +311,12 @@ function dockAnywhereGoal(
   missionId: string,
   describe: (planetId: string) => string,
   urgency: number,
-  dockJob?: DockJob
+  dockJob?: DockJob,
+  cargoId?: string
 ): BotGoal | null {
-  const candidates = PLANETS.map((p) => p.id).filter((id) => worthVisiting(seat, id, dockJob));
+  const candidates = PLANETS.map((p) => p.id).filter((id) =>
+    worthVisiting(seat, id, dockJob, missionId, cargoId)
+  );
   const nearest = nearestPlanet(view, seat.status.position, candidates);
   if (!nearest) return null;
   return {
@@ -289,6 +325,7 @@ function dockAnywhereGoal(
     description: describe(nearest.planetId),
     planetId: nearest.planetId,
     dockJob,
+    ...(cargoId !== undefined ? { dockCargoId: cargoId } : {}),
     estimatedTurns: nearest.turns,
     urgency,
   };
@@ -482,6 +519,9 @@ export function computeGoals(
 
   for (const mission of me.missions) {
     if (mission.isCompleted) continue;
+    // One-sale experiment: a card with no station left to sell at is dead,
+    // and a secondary whose only stations left are the primary's waits.
+    if (SALE_RULES.oneSalePerStation && saleBlocked(me, mission) !== null) continue;
     switch (mission.type) {
       case "destroy_ship": {
         const target = opponent(mission.targetPlayerId);
@@ -518,6 +558,20 @@ export function computeGoals(
         const holdFull = crateAboard(me.cargo);
         if (!inHand && holdFull) break;
         const planetId = inHand ? mission.deliveryPlanetId : mission.pickupPlanetId;
+        // One-sale experiment: loading is not a sale, so a pickup names no job.
+        if (SALE_RULES.oneSalePerStation && !inHand) {
+          if (!worthPickingUp(seat, planetId)) break;
+          const pickup = dockGoal(
+            view,
+            seat,
+            mission.id,
+            planetId,
+            `Pick up crate at ${planetId}`,
+            PRIMARY_START_URGENCY
+          );
+          if (pickup) goals.push(pickup);
+          break;
+        }
         const goal = dockGoal(
           view,
           seat,
@@ -525,7 +579,8 @@ export function computeGoals(
           planetId,
           inHand ? `Deliver crate to ${planetId}` : `Pick up crate at ${planetId}`,
           inHand ? 2 : PRIMARY_START_URGENCY,
-          "crates"
+          "crates",
+          inHand ? mission.cargoId : undefined
         );
         if (goal) goals.push(goal);
         break;
@@ -551,7 +606,8 @@ export function computeGoals(
             mission.deliveryPlanetId,
             `File the transmission at ${mission.deliveryPlanetId}`,
             2,
-            "data"
+            "data",
+            mission.dataCargoId
           );
           if (goal) goals.push(goal);
         }
@@ -568,7 +624,8 @@ export function computeGoals(
             mission.id,
             (planetId) => `Sell the loot at ${planetId}`,
             2,
-            "crates"
+            "crates",
+            loot.id
           );
           if (goal) goals.push(goal);
           break;
@@ -632,7 +689,8 @@ export function computeGoals(
             mission.id,
             (planetId) => `File the data at ${planetId}`,
             2,
-            "data"
+            "data",
+            mission.dataCargoId
           );
           if (goal) goals.push(goal);
           break;
@@ -659,7 +717,8 @@ export function computeGoals(
             mission.id,
             (planetId) => `File the black box at ${planetId}`,
             2,
-            "data"
+            "data",
+            mission.cargoId
           );
           if (goal) goals.push(goal);
           break;
@@ -799,7 +858,12 @@ export function attachPlanToGoal(
       // the same search with the fuel held back coasts in instead. Fastest
       // when no such route exists.
       const fuelVisit = goal.dockJob === undefined || goal.dockJob === "fuel";
-      const reserve = holdsTanker(me) && fuelVisit ? TANKER_FUEL : 0;
+      // One-sale experiment: and only to a station that would buy the fuel.
+      const tanker = me.missions.find((m) => m.type === "tanker" && !m.isCompleted);
+      const fuelSells =
+        !SALE_RULES.oneSalePerStation ||
+        (tanker !== undefined && saleAllowedAt(me, goal.planetId!, tanker.id));
+      const reserve = holdsTanker(me) && fuelVisit && fuelSells ? TANKER_FUEL : 0;
       const fastest = planStationMeetUp(ship, station, PLAN_TURNS);
       const fuelled = reserve > 0 ? planStationMeetUp(ship, station, PLAN_TURNS, reserve) : null;
       const meet =

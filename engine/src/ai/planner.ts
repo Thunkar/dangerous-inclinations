@@ -29,8 +29,7 @@ import type {
   TacticalAction,
 } from "../models/game.ts";
 import { MAX_HEAT, isQuietTurn } from "../models/game.ts";
-import { SURVEY_RING } from "../models/missions.ts";
-import type { DockJob } from "../models/missions.ts";
+import { SALE_RULES, SURVEY_RING } from "../models/missions.ts";
 import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import {
@@ -42,7 +41,8 @@ import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
 import { getStationAt } from "../game/stations.ts";
 import { ringVelocity, samePosition } from "../game/geometry.ts";
-import { dockJobsOnArrival } from "../game/docking.ts";
+import { chosenSale, dockJobsOnArrival, type DockNaming } from "../game/docking.ts";
+import { allowedSales } from "./behaviors/sales.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
 import { canBeFiredAt, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
 import { heatAfterCheck } from "../game/heat.ts";
@@ -533,7 +533,7 @@ function buildCandidate(
     ...escortMarks.map(
       (carrierId): PlayerAction => ({ type: "escort_mark", playerId: me.id, data: { carrierId } })
     ),
-    ...(visit?.job ? [{ type: "dock_job", playerId: me.id, data: { job: visit.job } } as const] : []),
+    ...(visit?.naming ? [{ type: "dock_job", playerId: me.id, data: visit.naming } as const] : []),
   ];
   const killsTarget = target !== null && hullOn(target) >= target.hull;
   const scansForMission = scanChosen !== null && (scanChosen as ScanIntent).forMission;
@@ -573,16 +573,51 @@ function arrivalVisit(
   situation: TacticalSituation,
   planetId: string,
   reactionMass: number
-): { job: DockJob | null; completesStep: boolean } {
+): { naming: DockNaming | null; completesStep: boolean } {
   const { me, currentGoal } = situation;
+  if (SALE_RULES.oneSalePerStation) return oneSaleVisit(situation, planetId, reactionMass);
   const needed =
     currentGoal?.type === "dock" && currentGoal.planetId === planetId
       ? currentGoal.dockJob
       : undefined;
-  if (!needed) return { job: null, completesStep: true };
+  if (!needed) return { naming: null, completesStep: true };
   const offer = dockJobsOnArrival({ cargo: me.cargo, missions: me.missions, reactionMass }, planetId);
   const offered = offer.jobs.some((o) => o.job === needed);
-  return { job: offered ? needed : null, completesStep: offered };
+  return { naming: offered ? { job: needed } : null, completesStep: offered };
+}
+
+/**
+ * One-sale experiment: the sale to name. The goal's own item when the goal
+ * is this station and it is on offer; otherwise the best sale this seat may
+ * make here (`allowedSales`: never a secondary at the primary's station);
+ * and "none" rather than let the default sell something it may not.
+ */
+function oneSaleVisit(
+  situation: TacticalSituation,
+  planetId: string,
+  reactionMass: number
+): { naming: DockNaming | null; completesStep: boolean } {
+  const { me, currentGoal } = situation;
+  const offer = dockJobsOnArrival(
+    { cargo: me.cargo, missions: me.missions, reactionMass, soldAt: me.soldAt },
+    planetId
+  );
+  const allowed = allowedSales(me, planetId, offer);
+  const goal = currentGoal?.type === "dock" && currentGoal.planetId === planetId ? currentGoal : null;
+  const needed = goal?.dockJob
+    ? allowed.find(
+        (o) =>
+          o.job === goal.dockJob &&
+          (goal.dockCargoId === undefined || o.cargoId === goal.dockCargoId)
+      )
+    : undefined;
+  const sale = needed ?? chosenSale({ jobs: allowed, default: null });
+  const naming: DockNaming | null = sale
+    ? { job: sale.job, ...(sale.cargoId !== undefined ? { cargoId: sale.cargoId } : {}) }
+    : offer.jobs.length > 0
+      ? { job: "none" }
+      : null;
+  return { naming, completesStep: goal?.dockJob ? needed !== undefined : true };
 }
 
 /**
