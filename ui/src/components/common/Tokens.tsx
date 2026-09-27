@@ -16,9 +16,6 @@ interface EnergyCubesProps {
   /** Cells printed on the tile. 0 hides the row entirely. */
   capacity: number
   size?: number
-  /** Click a cell to set the allocation to that many cubes. */
-  onSet?: (n: number) => void
-  disabled?: boolean
   title?: string
   /**
    * Cubes needed before the tile does anything (its minimum). A tick is drawn
@@ -31,8 +28,6 @@ export function EnergyCubes({
   count,
   capacity,
   size = 9,
-  onSet,
-  disabled,
   title,
   threshold,
 }: EnergyCubesProps) {
@@ -45,26 +40,16 @@ export function EnergyCubes({
         return (
           <Box
             key={i}
-            onClick={
-              onSet && !disabled
-                ? (e) => {
-                    e.stopPropagation()
-                    onSet(filled && i + 1 === count ? i : i + 1)
-                  }
-                : undefined
-            }
             sx={{
               width: size,
               height: size,
               flexShrink: 0,
-              cursor: onSet && !disabled ? 'pointer' : 'default',
               bgcolor: filled ? TABLE.energy : TABLE.unlit,
               border: `1px solid ${filled ? TABLE.energy : TABLE.unlitEdge}`,
               transition: 'background-color 120ms ease',
               ...(tick !== undefined && i + 1 === tick
                 ? { mr: '3px', borderRight: `2px solid ${TABLE.accent}` }
                 : null),
-              '&:hover': onSet && !disabled ? { outline: `1px solid ${TABLE.accent}` } : undefined,
             }}
           />
         )

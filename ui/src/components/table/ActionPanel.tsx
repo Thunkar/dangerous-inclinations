@@ -1,18 +1,18 @@
 /**
- * Your turn, in the order a turn is actually played: read the ship, decide
- * what to power, then decide what to do.
+ * Your turn, in the order a turn is actually played: read the ship, point
+ * it, move it, then decide what its systems do.
  *
  *   status          · hull, heat, fuel, ammo, where you are: always on screen
- *   1. Power        · the tiles, lit by what the turn puts on them; shields, a
- *                     rack and a sensor are the three you power yourself, and
- *                     their power actions run before everything else
- *   2. Orientation  · which way the nose points
- *   3. Move         · coast, burn or jump; exactly one per turn
+ *   1. Orientation  · which way the nose points
+ *   2. Move         · coast, burn or jump; exactly one per turn
  *      Route planner · its own plate under the move row: a navigation aid
  *                      that proposes a move, never one that commits it
- *   4. Weapons & scan
- *   5. The sequence you have built, in the order it will happen
- *   6. End turn
+ *   3. Systems      · fire a weapon, power a shield, a rack or a sensor, scan
+ *      Loadout      · a readout, not a control: the energy the turn puts on
+ *                     each subsystem, right under the controls that put it
+ *                     there (every cube is heat at the check)
+ *   4. The sequence you have built, in the order it will happen
+ *   End turn        · pinned to the bottom
  *
  * Only the middle scrolls: the status block is pinned to the top and the
  * button that ends the turn to the bottom, so neither is ever more than a
@@ -43,18 +43,17 @@ import {
   getWellName,
   hasWorkingCompressor,
   phasedJumpDestination,
-  isOpeningRound,
-  isQuietTurn,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { SubsystemIcon } from '../common/SubsystemIcon'
 import { FONT_MONO, TABLE } from '../../theme'
-import { slotLabel } from '../../utils/slots'
+import { slotWithSubsystem } from '../../utils/slots'
 import { RoutePlanner } from './RoutePlanner'
 import { SequenceList } from './SequenceList'
 import { ShipEnergyLoadout } from './ShipEnergyLoadout'
+import { SystemsControls } from './SystemsControls'
 import { StatusBlock } from './StatusBlock'
 
 const INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
@@ -167,32 +166,34 @@ export function ActionPanel() {
           </Alert>
         )}
 
-        <Step n={1} label="Power">
-          <ShipEnergyLoadout disabled={disabled} />
-        </Step>
-
-        <Divider />
-        <Step n={2} label="Orientation">
+        <Step n={1} label="Orientation">
           <OrientationControls disabled={disabled} />
         </Step>
 
         <Divider />
-        <Step n={3} label="Move · one per turn">
+        <Step n={2} label="Move · one per turn">
           <MoveControls disabled={disabled} />
         </Step>
         {/* Not a fourth move: an instrument that proposes one. Its own plate. */}
         <RoutePlanner disabled={disabled} />
 
         <Divider />
-        <Step n={4} label="Weapons & scan">
-          <WeaponControls disabled={disabled} />
+        <Step n={3} label="Systems">
+          <SystemsControls disabled={disabled} />
         </Step>
+
+        {/* What the turn puts on the loadout: read here, set by the steps above. */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
+          <SectionLabel sx={{ lineHeight: 1.35 }}>Loadout · energy this turn</SectionLabel>
+          <ShipEnergyLoadout />
+        </Box>
 
         <RepairControl disabled={disabled} />
         <DockJobControl disabled={disabled} />
+        <EscortControl disabled={disabled} />
 
         <Divider />
-        <Step n={5} label="Sequence">
+        <Step n={4} label="Sequence">
           <SequenceList />
         </Step>
       </Box>
@@ -310,7 +311,7 @@ function RepairControl({ disabled }: { disabled: boolean }) {
               return (
                 <Tooltip
                   key={sub.id}
-                  title={`${getSubsystemConfig(sub.type).name} (${sub.id}) · repaired at your heat check`}
+                  title={`${slotWithSubsystem(sub.id, sub.type)} · repaired at your heat check`}
                 >
                   <Box
                     component="button"
@@ -331,7 +332,7 @@ function RepairControl({ disabled }: { disabled: boolean }) {
                       opacity: can ? 1 : 0.45,
                     }}
                   >
-                    {sub.id}
+                    {slotWithSubsystem(sub.id, sub.type)}
                   </Box>
                 </Tooltip>
               )
@@ -387,6 +388,66 @@ function DockJobControl({ disabled }: { disabled: boolean }) {
                   }}
                 >
                   {job} · {points}
+                </Box>
+              </Tooltip>
+            )
+          })}
+        </Box>
+      </Box>
+    </>
+  )
+}
+
+/**
+ * An Escort marker is a "you may" (RULES §Missions, Escort). The choice
+ * appears only when the turn as built ends in the sector of a carrier the
+ * engine would let a marker go on; nothing is lit until picked, and at one
+ * pick per marker in hand the rest wait until one is taken back.
+ */
+function EscortControl({ disabled }: { disabled: boolean }) {
+  const plan = usePlan()
+  const { view } = useGame()
+  const offer = plan.escortOffer
+  if (!offer) return null
+  const full = plan.escortChoices.length >= offer.markers
+  return (
+    <>
+      <Divider />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
+        <SectionLabel>
+          Escort · you may place {offer.markers === 1 ? 'your marker' : `${offer.markers} markers`}
+        </SectionLabel>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+          {offer.carriers.map(carrierId => {
+            const on = plan.escortChoices.includes(carrierId)
+            const name = view.players.find(p => p.id === carrierId)?.name ?? carrierId
+            const off = disabled || (!on && full)
+            return (
+              <Tooltip
+                key={carrierId}
+                title={`Put your marker on ${name}: done the next time they deliver, sell or file anything; back to you if they are destroyed first`}
+              >
+                <Box
+                  component="button"
+                  type="button"
+                  disabled={off}
+                  aria-pressed={on}
+                  onClick={() => plan.toggleEscort(carrierId)}
+                  sx={{
+                    fontFamily: FONT_MONO,
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    px: 0.7,
+                    py: '2px',
+                    borderRadius: 0,
+                    cursor: off ? 'default' : 'pointer',
+                    color: on ? TABLE.onSelected : TABLE.inkSoft,
+                    border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
+                    bgcolor: on ? TABLE.selected : 'transparent',
+                    opacity: !on && full ? 0.5 : 1,
+                  }}
+                >
+                  Escort {name}
                 </Box>
               </Tooltip>
             )
@@ -750,89 +811,6 @@ function MoveControls({ disabled }: { disabled: boolean }) {
           </Typography>
         </Box>
       )}
-    </Box>
-  )
-}
-
-function WeaponControls({ disabled }: { disabled: boolean }) {
-  const plan = usePlan()
-  const { view } = useGame()
-  const weapons = plan.pendingSubsystems.filter(s => getSubsystemConfig(s.type).weaponStats)
-  const sensor = plan.pendingSubsystems.find(s => s.type === 'sensor_array')
-  // A quiet turn reaches nobody: the opening round, and your own turn back
-  // from Home, which is a first round of your own.
-  const quiet = isQuietTurn(view.turn, plan.me)
-  const back = quiet && !isOpeningRound(view.turn)
-
-  return (
-    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-      {weapons.length === 0 && (
-        <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-          No weapons aboard.
-        </Typography>
-      )}
-      {quiet && (
-        <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-          {back
-            ? 'Back from Home: this turn is a first round of your own. Nobody touches you until it is over, and you fire at nobody and scan nobody.'
-            : 'The first round reaches nobody: no weapon fires and nobody scans.'}
-        </Typography>
-      )}
-      {weapons.map(weapon => {
-        const config = getSubsystemConfig(weapon.type)
-        const queued = plan.steps.some(s => s.kind === 'fire' && s.subsystemId === weapon.id)
-        const stats = config.weaponStats!
-        const noAmmo = weapon.type === 'missiles' && (weapon.ammo ?? 0) <= 0
-        return (
-          <Tooltip
-            key={weapon.id}
-            title={`${config.name} · ${stats.damage} damage${stats.ignoresShields ? ' (ignores shields)' : ''} · the shot puts ${config.minEnergy} energy on it, heat at your check${
-              weapon.isBroken ? ' · broken' : ''
-            }${noAmmo ? ' · no ammo' : ''}${
-              quiet
-                ? back
-                  ? ' · nothing of yours fires on your turn back from Home'
-                  : ' · nothing fires in the first round'
-                : ''
-            }`}
-          >
-            <Box component="span" sx={{ display: 'flex' }}>
-              <Chip
-                size="small"
-                icon={<ActionIcon type={weapon.type} />}
-                label={`${slotLabel(weapon.id)}: ${config.name}`}
-                color={queued ? 'primary' : 'default'}
-                variant={queued ? 'filled' : 'outlined'}
-                onClick={() => plan.addFire(weapon.id)}
-                onMouseEnter={() => plan.setFocusWeapon(weapon.id)}
-                onMouseLeave={() => plan.setFocusWeapon(null)}
-                disabled={disabled || queued || weapon.isBroken || noAmmo || quiet}
-                sx={{ fontSize: '0.8rem' }}
-              />
-            </Box>
-          </Tooltip>
-        )
-      })}
-      <Tooltip
-        title={`Scan a ship on your ring within 3 sectors and look at one of their face-down subsystems.${
-          quiet
-            ? back
-              ? ' You scan nobody on your turn back from Home.'
-              : ' Nobody scans in the first round.'
-            : ''
-        }`}
-      >
-        <Box component="span" sx={{ display: 'flex' }}>
-          <Chip
-            size="small"
-            icon={<ActionIcon type="sensor_array" />}
-            label="scan"
-            variant="outlined"
-            onClick={plan.addScan}
-            disabled={disabled || !sensor || quiet}
-          />
-        </Box>
-      </Tooltip>
     </Box>
   )
 }

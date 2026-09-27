@@ -19,7 +19,7 @@ import type { SlotKnowledge, SubsystemId, SubsystemType } from '@dangerous-incli
 import { getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { subsystemCategoryColor } from '../../utils/icons'
 import { SubsystemIcon } from './SubsystemIcon'
-import { slotLabel, slotShortLabel } from '../../utils/slots'
+import { slotLabel, slotShortLabel, slotWithSubsystem } from '../../utils/slots'
 import { FONT_MONO, TABLE } from '../../theme'
 import { EnergyCubes } from './Tokens'
 
@@ -32,10 +32,7 @@ export interface SubsystemTileProps {
   size?: number
   /** Cells to print. Defaults to the system's max energy (0 when unknown). */
   capacity?: number
-  onSetEnergy?: (n: number) => void
   onClick?: () => void
-  /** Right click on the tile or its cells (the caller calls preventDefault). */
-  onContextMenu?: (event: React.MouseEvent) => void
   selected?: boolean
   highlighted?: boolean
   pulse?: boolean
@@ -60,9 +57,7 @@ export function SubsystemTile({
   allocatedEnergy,
   size = 54,
   capacity,
-  onSetEnergy,
   onClick,
-  onContextMenu,
   selected,
   highlighted,
   pulse,
@@ -78,7 +73,7 @@ export function SubsystemTile({
   const wells = faceDown ? Math.max(allocatedEnergy, 4) : cubeCapacity
   const live = allocatedEnergy > 0 && !isBroken
 
-  const name = config?.name ?? `${slotLabel(id)} · face down`
+  const name = type ? slotWithSubsystem(id, type) : `${slotLabel(id)} · face down`
   const tip =
     tooltip ??
     (faceDown
@@ -103,10 +98,7 @@ export function SubsystemTile({
   const glyph = stamped ? size * 0.5 : size * 0.58
 
   return (
-    <Box
-      onContextMenu={onContextMenu}
-      sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}
-    >
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
       <Tooltip title={tip} placement="top">
         <Box
           onClick={onClick}
@@ -228,8 +220,6 @@ export function SubsystemTile({
           count={allocatedEnergy}
           capacity={wells}
           size={cubeSize ?? Math.max(6, Math.round(size * 0.14))}
-          onSet={onSetEnergy}
-          disabled={isBroken === true}
           threshold={minEnergy}
         />
       </Box>

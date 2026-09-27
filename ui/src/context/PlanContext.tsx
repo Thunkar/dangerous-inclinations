@@ -43,6 +43,7 @@ import type {
   Station,
 } from '@dangerous-inclinations/engine'
 import {
+  isSafeAtBerth,
   BURN_COSTS,
   SCAN_SECTOR_RANGE,
   WELL_TRANSFER_COSTS,
@@ -51,6 +52,8 @@ import {
   canSubsystemFunction,
   chosenDockJob,
   dockJobsOnArrival,
+  escortCandidates,
+  unplacedEscorts,
   drawFor,
   getAdjustmentRange,
   getJumpAdjustmentRange,
@@ -84,6 +87,7 @@ import {
   stationPosition,
 } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
+import { slotWithSubsystem } from '../utils/slots'
 
 /**
  * What "go there" means when the destination is a station.
@@ -153,8 +157,6 @@ interface PlanContextValue {
    * the plan also fires or scans with (each tile does one thing a turn).
    */
   powers: Record<SubsystemId, number>
-  /** Whether a click can power this tile: powerable, unbroken, and not used by a step. */
-  canPower: (subsystemId: SubsystemId) => boolean
   /** The step that uses a tile, if one does: a fired rack or a scanning sensor is up anyway. */
   usedBy: (subsystemId: SubsystemId) => 'fire' | 'scan' | null
   /** My subsystems as the plan leaves them: an empty loadout plus the powers and the steps' draws. */
@@ -207,13 +209,12 @@ interface PlanContextValue {
    * legal way to throw one away.
    */
   targetsOutOfReach: (step: PlanStep) => Target[]
-  setEnergyTo: (subsystemId: SubsystemId, value: number) => void
   /**
-   * One click on a powerable tile: up powers it at its minimum, then a step at
-   * a time, and past the top takes it off again (shields 2, 4, off; a rack or
-   * a sensor 2, off); down comes back a step. Every other tile ignores it.
+   * Power a shield, rack or sensor at a level (0 is off): the Systems step's
+   * segments. A tile a step fires or scans with ignores it, because the step
+   * already leaves its energy there.
    */
-  power: (subsystemId: SubsystemId, direction: 1 | -1) => void
+  setEnergyTo: (subsystemId: SubsystemId, value: number) => void
   setMove: (move: MoveChoice) => void
   toggleRotate: () => void
   addFire: (subsystemId: SubsystemId) => void
@@ -246,6 +247,15 @@ interface PlanContextValue {
   /** The job the visit will do: the one picked, if on offer, or the engine's default. */
   dockJob: DockJob | null
   setDockJob: (job: DockJob | null) => void
+  /**
+   * The rivals an Escort marker could go on if the turn ends where the plan
+   * ends it (the engine's `escortCandidates`), and how many markers are in
+   * hand; null when there is nobody, which is when there is nothing to choose.
+   */
+  escortOffer: { carriers: string[]; markers: number } | null
+  /** Carriers the player chose to mark: a "you may", so none until picked. */
+  escortChoices: string[]
+  toggleEscort: (carrierId: string) => void
   /** Route planner: a destination sector, the routes the engine finds, and the one in view. */
   routeDestination: Position | null
   /**
@@ -380,35 +390,6 @@ function defaultSteps(): PlanStep[] {
 }
 
 /**
- * One click on a powerable tile: up powers it at its minimum, then a step at a
- * time, and past the top takes it off again; down comes back a step and off
- * below the minimum. Returns the tile's new setting, or null when the click
- * can do nothing, which includes every tile a step uses.
- */
-function poweredTo(
-  player: Player,
-  powers: Record<SubsystemId, number>,
-  used: Record<SubsystemId, 'fire' | 'scan'>,
-  subsystemId: SubsystemId,
-  direction: 1 | -1
-): number | null {
-  const sub = powerableTile(player, used, subsystemId)
-  if (!sub) return null
-  const config = getSubsystemConfig(sub.type)
-  const current = powers[subsystemId] ?? 0
-  const step = energyStepOf(sub.type)
-  if (direction > 0) {
-    // Powering costs the whole minimum at once, or nothing. Nothing else
-    // stops it: what a tile costs is heat at the check, and spending more
-    // heat than the ship can dissipate is the player's decision to make.
-    if (current === 0) return config.minEnergy
-    return current >= config.maxEnergy ? 0 : current + step
-  }
-  if (current === 0) return null
-  return current <= config.minEnergy ? 0 : current - step
-}
-
-/**
  * The cubes each step puts on the tile it uses. This is the whole of the old
  * energy step: there was never a choice in any of these numbers, only one
  * legal figure per tile and the chance of typing it wrong.
@@ -465,6 +446,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
   const [repairChoice, setRepairChoiceState] = useState<SubsystemId | null>(null)
   const [dockChoice, setDockChoice] = useState<DockJob | null>(null)
+  const [escortChoices, setEscortChoices] = useState<string[]>([])
   const [routeDestination, setRouteDestinationState] = useState<Position | null>(null)
   const [routeStationId, setRouteStationId] = useState<string | null>(null)
   const [routeMode, setRouteMode] = useState<RouteMode>('meet')
@@ -479,6 +461,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     setPicking(null)
     setFocusWeaponId(null)
     setDockChoice(null)
+    setEscortChoices([])
   }, [])
 
   // A new turn (or a fresh state after our own turn) starts a fresh plan.
@@ -530,10 +513,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     [me, planPowers, steps]
   )
 
-  const canPower = useCallback(
-    (subsystemId: SubsystemId) => powerableTile(me, used, subsystemId) !== null,
-    [me, used]
-  )
   const usedBy = useCallback((subsystemId: SubsystemId) => used[subsystemId] ?? null, [used])
   const pendingShip = useMemo(
     () => ({ ...me.ship, subsystems: pendingSubsystems }),
@@ -694,18 +673,31 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     [steps, stepStart, me.ship]
   )
 
+  /**
+   * A moored ship neither fires nor is fired at, missiles included (RULES
+   * §Stations): the engine's own question, asked of where the shot would be
+   * fired from and of where the target sits. Scans still reach a berth.
+   */
+  const safeAtBerth = useCallback(
+    (position: Position) => isSafeAtBerth(view.stations, position),
+    [view.stations]
+  )
+
   const targetsOutOfReach = useCallback(
     (step: PlanStep): Target[] => {
       if (step.kind !== 'fire') return []
       const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
       if (!weapon) return []
       const { attacker } = firingFrom(step)
+      if (safeAtBerth(attacker)) return []
       return targets.filter(
         t =>
-          isInWeaponRange(weapon, attacker, t.position) && !canEngage(weapon, attacker, t.position)
+          !safeAtBerth(t.position) &&
+          isInWeaponRange(weapon, attacker, t.position) &&
+          !canEngage(weapon, attacker, t.position)
       )
     },
-    [firingFrom, pendingSubsystems, targets]
+    [firingFrom, pendingSubsystems, targets, safeAtBerth]
   )
 
   const targetsInRange = useCallback(
@@ -715,8 +707,10 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       const attacker = { ...at.position, facing: at.facing }
       if (step.kind === 'fire') {
         const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
-        if (!weapon) return []
-        return targets.filter(t => isInWeaponRange(weapon, attacker, t.position))
+        if (!weapon || safeAtBerth(attacker)) return []
+        return targets.filter(
+          t => !safeAtBerth(t.position) && isInWeaponRange(weapon, attacker, t.position)
+        )
       }
       if (step.kind === 'scan') {
         return targets.filter(
@@ -728,7 +722,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       }
       return []
     },
-    [steps, stepStart, targets, pendingSubsystems, me.ship]
+    [steps, stepStart, targets, pendingSubsystems, me.ship, safeAtBerth]
   )
 
   const engines = pendingSubsystems.find(s => s.id === 'engines')
@@ -824,6 +818,15 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     // out of range.
     const untouchable = (id: string) => view.players.some(p => p.id === id && p.recovering)
     const nameOf = (id: string) => view.players.find(p => p.id === id)?.name ?? id
+    /** A target moored at a station: a ship off the board is at no berth. */
+    const targetAtBerth = (id: string): boolean => {
+      const ship = view.players.find(p => p.id === id)?.ship
+      return (
+        !!ship &&
+        !ship.isDestroyed &&
+        safeAtBerth({ wellId: ship.wellId, ring: ship.ring, sector: ship.sector })
+      )
+    }
 
     const spend = (amount: number, what: string) => {
       spent += amount
@@ -887,22 +890,27 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
           if (!weapon || !isWeaponType(weapon.type)) break
           const config = getSubsystemConfig(weapon.type)
+          const name = slotWithSubsystem(weapon.id, weapon.type)
           // A salvo is one use of the tile, its energy once however big the
           // launch (RULES §Weapons → Missiles).
-          if (weapon.isBroken) problems.push(`${config.name} is broken`)
+          if (weapon.isBroken) problems.push(`${name} is broken`)
           if (weapon.type === 'missiles') {
             const ammo = weapon.ammo ?? 0
-            if (ammo <= 0) problems.push('No missiles left aboard')
+            if (ammo <= 0) problems.push(`${name}: no missiles left aboard`)
             else if (step.count > ammo)
-              problems.push(`${config.name}: ${step.count} missiles planned, ${ammo} aboard`)
+              problems.push(`${name}: ${step.count} missiles planned, ${ammo} aboard`)
             if (step.count < 1)
-              problems.push(`${config.name}: a salvo launches at least one missile`)
+              problems.push(`${name}: a salvo launches at least one missile`)
           }
-          if (!step.targetId) problems.push(`${config.name}: pick a target`)
+          if (safeAtBerth(at.position))
+            problems.push('A moored ship fires at nobody: burn off the berth first')
+          else if (!step.targetId) problems.push(`${name}: pick a target`)
+          else if (targetAtBerth(step.targetId))
+            problems.push(`${nameOf(step.targetId)} is moored: nobody fires at a ship at a berth`)
           else if (untouchable(step.targetId))
             problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
           else if (!targetsInRange(step).some(t => t.id === step.targetId))
-            problems.push(`${config.name}: target out of range from where you fire`)
+            problems.push(`${name}: target out of range from where you fire`)
           if (config.weaponStats?.hasRecoil) {
             if (step.compensateRecoil) {
               engineUses++
@@ -922,7 +930,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         case 'scan': {
           const sensor = pendingSubsystems.find(s => s.type === 'sensor_array')
           if (!sensor) problems.push('No sensor array aboard')
-          else if (sensor.isBroken) problems.push('Sensor array is broken')
+          else if (sensor.isBroken) problems.push(`${slotWithSubsystem(sensor.id, sensor.type)} is broken`)
           if (!step.targetId) problems.push('Scan: pick a target on your ring within 3 sectors')
           else if (untouchable(step.targetId))
             problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
@@ -948,6 +956,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     me.ship,
     targetsInRange,
     view.players,
+    safeAtBerth,
   ])
 
   /**
@@ -970,9 +979,37 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const dockJob = dockOffer ? chosenDockJob(dockOffer, dockChoice ?? undefined) : null
   // A pick the plan no longer offers is dropped, as a repair is.
   useEffect(() => {
-    if (dockChoice !== null && !dockOffer?.jobs.some(o => o.job === dockChoice))
-      setDockChoice(null)
+    if (dockChoice !== null && !dockOffer?.jobs.some(o => o.job === dockChoice)) setDockChoice(null)
   }, [dockChoice, dockOffer])
+
+  /**
+   * An Escort marker is a "you may" (RULES §Missions, Escort): offered when
+   * the turn as planned ends in the sector of a carrier the engine would let
+   * a marker go on, and placed only if picked. Stations and ships do not move
+   * during a turn, so where they are now is where the plan meets them.
+   */
+  const escortOffer = useMemo(() => {
+    if (isDestroyed(me.ship)) return null
+    const carriers = escortCandidates(view, me.id, finalPosition.position)
+    return carriers.length > 0 ? { carriers, markers: unplacedEscorts(me.missions).length } : null
+  }, [me, view, finalPosition])
+  const toggleEscort = useCallback(
+    (carrierId: string) =>
+      setEscortChoices(chosen =>
+        chosen.includes(carrierId)
+          ? chosen.filter(id => id !== carrierId)
+          : // One marker per ship and one ship per marker: at the cap, a new pick is refused.
+            chosen.length < (escortOffer?.markers ?? 0)
+            ? [...chosen, carrierId]
+            : chosen,
+      ),
+    [escortOffer],
+  )
+  // Picks the plan no longer offers are dropped.
+  useEffect(() => {
+    if (escortChoices.some(id => !escortOffer?.carriers.includes(id)))
+      setEscortChoices(chosen => chosen.filter(id => escortOffer?.carriers.includes(id)))
+  }, [escortChoices, escortOffer])
 
   const actions = useMemo<PlayerAction[]>(() => {
     const list: PlayerAction[] = []
@@ -1064,8 +1101,22 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     // default, which is what the control shows preselected.
     if (dockChoice !== null && dockOffer?.jobs.some(o => o.job === dockChoice))
       list.push({ playerId: me.id, type: 'dock_job', data: { job: dockChoice } })
+    // Only a marker the plan still offers is sent: no pick, no marker.
+    for (const carrierId of escortChoices)
+      if (escortOffer?.carriers.includes(carrierId))
+        list.push({ playerId: me.id, type: 'escort_mark', data: { carrierId } })
     return list
-  }, [me, planPowers, steps, stepStart, repairChoice, dockChoice, dockOffer])
+  }, [
+    me,
+    planPowers,
+    steps,
+    stepStart,
+    repairChoice,
+    dockChoice,
+    dockOffer,
+    escortChoices,
+    escortOffer,
+  ])
 
   /**
    * A repair needs the ship cold at its check: nothing carried in and no
@@ -1086,20 +1137,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const setRepairChoice = useCallback((id: SubsystemId | null) => setRepairChoiceState(id), [])
 
   // --- mutators ------------------------------------------------------------
-
-  /**
-   * The tile click model, which only reaches the powerable tiles: one is off
-   * or at least at its minimum, never in between. A tile a step uses refuses
-   * the click, because the step already leaves its energy there.
-   */
-  const power = useCallback(
-    (subsystemId: SubsystemId, direction: 1 | -1) => {
-      const next = poweredTo(me, planPowers, used, subsystemId, direction)
-      if (next === null) return
-      setPowers(prev => ({ ...prev, [subsystemId]: next }))
-    },
-    [me, planPowers, used]
-  )
 
   const setEnergyTo = useCallback(
     (subsystemId: SubsystemId, value: number) => {
@@ -1320,7 +1357,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       steps,
       moveStep,
       powers: planPowers,
-      canPower,
       usedBy,
       pendingSubsystems,
       cubesOnLoadout,
@@ -1350,7 +1386,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targetsInRange,
       targetsOutOfReach,
       setEnergyTo,
-      power,
       setMove,
       toggleRotate,
       addFire,
@@ -1369,6 +1404,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       dockOffer,
       dockJob,
       setDockJob: setDockChoice,
+      escortOffer,
+      escortChoices,
+      toggleEscort,
       routeDestination,
       routeStation,
       routeMode,
@@ -1388,7 +1426,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       steps,
       moveStep,
       planPowers,
-      canPower,
       usedBy,
       pendingSubsystems,
       cubesOnLoadout,
@@ -1415,7 +1452,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targetsInRange,
       targetsOutOfReach,
       setEnergyTo,
-      power,
       setMove,
       toggleRotate,
       addFire,
@@ -1428,6 +1464,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       repairable,
       dockOffer,
       dockJob,
+      escortOffer,
+      escortChoices,
+      toggleEscort,
       routeDestination,
       routeStation,
       routeMode,

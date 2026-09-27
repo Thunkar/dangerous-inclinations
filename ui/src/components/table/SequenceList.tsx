@@ -17,7 +17,7 @@ import type { PlanStep } from '../../context/PlanContext'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
 import { FONT_MONO, TABLE } from '../../theme'
-import { slotLabel } from '../../utils/slots'
+import { slotWithSubsystem } from '../../utils/slots'
 
 export function SequenceList() {
   const plan = usePlan()
@@ -47,15 +47,14 @@ const ROW_SX = {
 /** A power action: always ahead of the steps, so it has no arrows, only a way to take it off. */
 function PowerRow({ sub, n }: { sub: Subsystem; n: number }) {
   const plan = usePlan()
-  const config = getSubsystemConfig(sub.type)
   return (
     <Box data-testid="power-row" sx={ROW_SX}>
       <Box sx={{ flex: 1, minWidth: 0, pl: 0.25 }}>
         <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: '0.85rem', color: TABLE.ink, lineHeight: 1.3 }}>
-          {n}. Power {config.name} ({plan.powers[sub.id]})
+          {n}. Power {slotWithSubsystem(sub.id, sub.type)} at {plan.powers[sub.id]}
         </Typography>
         <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem', color: TABLE.inkFaint, lineHeight: 1.3 }}>
-          {slotLabel(sub.id)} · first, and it works until your next turn
+          first, and it works until your next turn
         </Typography>
       </Box>
       <IconButton size="small" sx={{ p: 0.25 }} onClick={() => plan.setEnergyTo(sub.id, 0)}>
@@ -69,6 +68,8 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
   const plan = usePlan()
   const { nameOf } = useGame()
   const at = plan.stepStart[index]
+  const weapon =
+    step.kind === 'fire' ? plan.pendingSubsystems.find(s => s.id === step.subsystemId) : undefined
 
   return (
     <Box sx={ROW_SX}>
@@ -88,7 +89,7 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
 
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: '0.85rem', color: TABLE.ink, lineHeight: 1.3 }}>
-          {offset + index + 1}. {stepTitle(step, nameOf)}
+          {offset + index + 1}. {stepTitle(step, nameOf, weapon)}
         </Typography>
         <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem', color: TABLE.inkFaint, lineHeight: 1.3 }}>
           from {getWellName(at.position.wellId)} R{at.position.ring} S{at.position.sector} · {at.facing}
@@ -107,7 +108,7 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
   )
 }
 
-function stepTitle(step: PlanStep, nameOf: (id: string) => string): string {
+function stepTitle(step: PlanStep, nameOf: (id: string) => string, weapon?: Subsystem): string {
   switch (step.kind) {
     case 'rotate':
       return 'Rotate'
@@ -119,7 +120,7 @@ function stepTitle(step: PlanStep, nameOf: (id: string) => string): string {
         }`
       return `Jump to ${getWellName(step.move.destinationWellId)}`
     case 'fire':
-      return `Fire ${slotLabel(step.subsystemId)}${step.count > 1 ? ` ×${step.count}` : ''}${
+      return `Fire ${slotWithSubsystem(step.subsystemId, weapon?.type)}${step.count > 1 ? ` ×${step.count}` : ''}${
         step.targetId ? ` at ${nameOf(step.targetId)}` : ''
       }`
     case 'scan':
@@ -129,8 +130,12 @@ function stepTitle(step: PlanStep, nameOf: (id: string) => string): string {
 
 function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
   const plan = usePlan()
-  const { nameOf } = useGame()
+  const { nameOf, view } = useGame()
   const weapon = plan.pendingSubsystems.find((s) => s.id === step.subsystemId)
+  /** Their slot, named with what you know sits in it. */
+  const theirs = view.players
+    .find((p) => p.id === step.targetId)
+    ?.slots.find((slot) => slot.id === step.criticalTarget)
   const config = weapon ? getSubsystemConfig(weapon.type) : null
   const inRange = plan.targetsInRange(step)
   const picking = plan.picking?.kind === 'crit' && plan.picking.stepId === step.id
@@ -231,7 +236,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}
-          label={`crit: ${slotLabel(step.criticalTarget)}`}
+          label={`crit: ${slotWithSubsystem(step.criticalTarget, theirs?.type)}`}
           color={picking ? 'primary' : 'default'}
           variant={picking ? 'filled' : 'outlined'}
           onClick={() => plan.setPicking(picking ? null : { kind: 'crit', stepId: step.id })}
@@ -301,7 +306,7 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}
-          label={step.peekSlot ? `peek: ${slotLabel(step.peekSlot)}` : 'peek: choose a slot'}
+          label={step.peekSlot ? `peek: ${slotWithSubsystem(step.peekSlot, chosen?.type)}` : 'peek: choose a slot'}
           color={picking ? 'primary' : 'default'}
           variant={picking ? 'filled' : 'outlined'}
           onClick={() => plan.setPicking(picking ? null : { kind: 'peek', stepId: step.id })}

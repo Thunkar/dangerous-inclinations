@@ -8,9 +8,9 @@ export const MOUNTS: {
   group: 'forward' | 'side'
   index: number
 }[] = [
-  { id: 'forward-0', label: 'Forward mount', short: 'F1', group: 'forward', index: 0 },
-  { id: 'side-0', label: 'Port · forward', short: 'P1', group: 'side', index: 0 },
-  { id: 'side-1', label: 'Port · aft', short: 'P2', group: 'side', index: 1 },
-  { id: 'side-2', label: 'Starboard · forward', short: 'S1', group: 'side', index: 2 },
-  { id: 'side-3', label: 'Starboard · aft', short: 'S2', group: 'side', index: 3 },
+  { id: 'forward-0', label: 'Forward', short: 'F1', group: 'forward', index: 0 },
+  { id: 'side-0', label: 'Port fore', short: 'P1', group: 'side', index: 0 },
+  { id: 'side-1', label: 'Port aft', short: 'P2', group: 'side', index: 1 },
+  { id: 'side-2', label: 'Starboard fore', short: 'S1', group: 'side', index: 2 },
+  { id: 'side-3', label: 'Starboard aft', short: 'S2', group: 'side', index: 3 },
 ]

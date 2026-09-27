@@ -7,12 +7,9 @@
  * Nothing to set, and nothing to get wrong. Your loadout is cleared when your
  * turn executes, so what is drawn here starts empty every turn.
  *
- * The exceptions are the three tiles that work on other players' turns:
- * shields, a ballistic rack and a sensor array. Powering one is an action, and
- * these are its controls: left click powers it (shields 2, then 4, then off; a
- * rack or a sensor 2, then off), right click takes it back a step, or click a
- * cell to set the level. A tile the turn fires or scans with is not powered as
- * well: each tile does one thing a turn, and the action leaves it up anyway.
+ * The three tiles that work on other players' turns (shields, a ballistic
+ * rack and a sensor array) are powered from the Systems step, like every other
+ * action: nothing here is a control, so nothing here takes a click.
  *
  * There is no reactor to draw. Nothing caps what a ship powers at once: every
  * point of energy here is a point of heat at the check, and the status block's
@@ -20,14 +17,7 @@
  */
 import { Box, Typography } from '@mui/material'
 import type { Subsystem, SubsystemId } from '@dangerous-inclinations/engine'
-import {
-  BASE_CRITICAL_CHANCE,
-  SHIELD_ENERGY_PER_POINT,
-  getSubsystemConfig,
-  interceptsPerRack,
-  isPowerableType,
-  rollToResult,
-} from '@dangerous-inclinations/engine'
+import { getSubsystemConfig, isPowerableType } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { SubsystemTile } from '../common/SubsystemTile'
 import { ShipDisplay } from '../ship'
@@ -35,7 +25,8 @@ import { useGame } from '../../context/GameContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { usePlan } from '../../context/PlanContext'
 import { usePulses } from '../../context/AnimationContext'
-import { slotLabel } from '../../utils/slots'
+import { slotWithSubsystem } from '../../utils/slots'
+import { poweredEffect } from './SystemsControls'
 
 const MAT_METRICS = { width: 252, height: 196, band: 44 }
 const TILE = 32
@@ -43,7 +34,7 @@ const CUBE = 7
 
 const SLOT_IDS: SubsystemId[] = ['forward-0', 'side-0', 'side-1', 'side-2', 'side-3']
 
-export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
+export function ShipEnergyLoadout() {
   const plan = usePlan()
   const { view } = useGame()
   const pulses = usePulses()
@@ -56,8 +47,6 @@ export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
     const sub = subsystem(id)
     if (!sub) return <Box key={id} sx={{ width: TILE, height: TILE }} />
     const config = getSubsystemConfig(sub.type)
-    // Only a tile you can power is a control; the rest are lit by the turn.
-    const live = !disabled && plan.canPower(sub.id)
 
     return (
       <Box
@@ -79,21 +68,6 @@ export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
           pulse={Boolean(pulses[`${me.id}:${sub.id}`])}
           selected={plan.focusWeaponId === sub.id}
           tooltip={<TileTip sub={sub} usedBy={plan.usedBy(sub.id)} />}
-          onClick={live ? () => plan.power(sub.id, 1) : undefined}
-          onContextMenu={
-            live
-              ? event => {
-                  event.preventDefault()
-                  plan.power(sub.id, -1)
-                }
-              : undefined
-          }
-          onSetEnergy={
-            live
-              ? n =>
-                  plan.setEnergyTo(sub.id, n < config.minEnergy ? 0 : Math.min(n, config.maxEnergy))
-              : undefined
-          }
         />
       </Box>
     )
@@ -125,7 +99,7 @@ export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
           }}
         >
           {up.length === 0
-            ? 'Nothing powered. Click shields, a rack or a sensor to power it.'
+            ? 'Nothing up until your next turn.'
             : `Up until your next turn: ${up
                 .map(
                   s =>
@@ -144,27 +118,7 @@ export function ShipEnergyLoadout({ disabled }: { disabled: boolean }) {
   )
 }
 
-/** What a powered tile does until your next turn, with the engine's numbers. */
-function poweredEffect(sub: Subsystem): string {
-  switch (sub.type) {
-    case 'shields':
-      return `shields absorb 1 damage per ${SHIELD_ENERGY_PER_POINT} energy (not lasers)`
-    case 'ballistic_rack':
-      return `a rack rolls at ${interceptsPerRack()} missiles a turn`
-    case 'sensor_array': {
-      const bonus = getSubsystemConfig('sensor_array').passiveEffect?.criticalChanceBonus ?? 0
-      const from =
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].find(
-          face => rollToResult(face, BASE_CRITICAL_CHANCE + bonus) === 'critical'
-        ) ?? 10
-      return `a sensor makes your criticals ${from}–10`
-    }
-    default:
-      return ''
-  }
-}
-
-/** Name, what the tile holds, and whether it is yours to power. */
+/** Name, what the tile holds, and where it is powered from. */
 function TileTip({ sub, usedBy }: { sub: Subsystem; usedBy: 'fire' | 'scan' | null }) {
   const config = getSubsystemConfig(sub.type)
   const passive = config.maxEnergy === 0
@@ -172,7 +126,7 @@ function TileTip({ sub, usedBy }: { sub: Subsystem; usedBy: 'fire' | 'scan' | nu
   return (
     <Box>
       <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 700, fontSize: '0.82rem' }}>
-        {slotLabel(sub.id)}: {config.name}
+        {slotWithSubsystem(sub.id, sub.type)}
       </Typography>
       {passive ? (
         <Typography variant="caption" sx={{ display: 'block' }}>
@@ -182,21 +136,17 @@ function TileTip({ sub, usedBy }: { sub: Subsystem; usedBy: 'fire' | 'scan' | nu
         <Typography variant="caption" sx={{ display: 'block' }}>
           {usedBy === 'fire'
             ? 'It fires this turn, and its energy stays on until your next turn, so it is up anyway.'
-            : 'It scans this turn, and its energy stays on until your next turn, so every shot after the scan has the wider range.'}{' '}
-          Each subsystem does one thing a turn: nothing to power.
+            : 'It scans this turn, and its energy stays on until your next turn, so every shot after the scan has the wider range.'}
         </Typography>
       ) : powerable ? (
         <>
           <Typography variant="caption" sx={{ display: 'block' }}>
             Power {sub.allocatedEnergy}/{config.maxEnergy} · powered, it works until your next turn:{' '}
-            {poweredEffect(sub)}. Every point of energy is heat at your check, and powering does not
-            turn it face-up.
+            {poweredEffect(sub.type)}. Every point of energy is heat at your check, and powering does
+            not turn it face-up.
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', color: TABLE.inkFaint }}>
-            {config.maxEnergy > config.minEnergy
-              ? `Click: ${config.minEnergy}, ${config.maxEnergy}, off`
-              : `Click: ${config.minEnergy}, off`}{' '}
-            · right click takes it back a step
+            Powered from the Systems step
           </Typography>
         </>
       ) : (

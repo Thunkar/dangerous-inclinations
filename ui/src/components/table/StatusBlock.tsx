@@ -22,7 +22,8 @@ import { FONT_MONO, TABLE } from '../../theme'
 import { CargoTokens, PipTrack } from '../common/Tokens'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
-import { slotLabel, slotShortLabel } from '../../utils/slots'
+import { EscortedBy } from './EscortedBy'
+import { slotShortLabel, slotWithSubsystem } from '../../utils/slots'
 
 /**
  * One round in a launcher: filled while it is aboard, an empty outline once it
@@ -211,6 +212,9 @@ export function StatusBlock({ accent }: { accent?: string }) {
         </Tooltip>
       </Box>
 
+      {/* Escort markers on your own ship: public, and worth knowing who is riding on you. */}
+      <EscortedBy player={view.players.find(p => p.isMe)} />
+
       {/* Hull and heat, each on its own row: the heat track grows with the plan and must never wrap. */}
       <Box
         sx={{
@@ -373,7 +377,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
           return (
             <Tooltip
               key={tile.id}
-              title={`${slotLabel(tile.id)}: ${left} of ${perTubeMax} missiles. Private until you fire.`}
+              title={`${slotWithSubsystem(tile.id, tile.type)}: ${left} of ${perTubeMax} missiles. Private until you fire.`}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
                 <Typography
