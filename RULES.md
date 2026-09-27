@@ -242,7 +242,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 | **Piracy**                                          | 1      | you end a turn in the **same sector** as an undocked ship carrying a crate or data: it is yours (your hold must be empty; loot fills it), then dock at **any** station to sell it. Their card goes back to undone |
 | **Tanker**                                          | 1      | you **arrive** at **any** station with **7 or more fuel**: hand in 7, and the card is done. Pumping is that visit's one job (see Docking) |
 | **Escort**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked rival carrying a crate or data, and **choose** to put your marker on that ship, face-up. The next time that ship delivers, sells or files anything, or pumps fuel, at a station, the card is done. If it is destroyed first, the marker comes back to you |
-| **Salvage**                                         | 1      | you end a turn on a **wreck** (moored or not) and take its black box: it is data, it rides free, and a pirate can seize it. File it at **any** station |
+| **Salvage**                                         | 1      | you end a turn on a **wreck** (moored or not) and take its black box, one wreck a turn: it is data, it rides free, and a pirate can seize it. File it at **any** station |
 
 **The decks.** Two piles for the table, dealt separately.
 
