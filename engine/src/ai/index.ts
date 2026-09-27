@@ -3,7 +3,7 @@
  * human in its seat would see. Three entry points cover the three phases a
  * bot acts in:
  *
- *   botChooseLoadout(offers, { playerCount })   loadout phase
+ *   botChooseLoadout(offers, context)           loadout phase
  *   botChooseDeployment(view, pick)             deployment phase
  *   botDecideActions(view, parameters)          active phase
  *
@@ -69,13 +69,12 @@ export function botDecideActions(
 export function botChooseLoadout(
   offers: Mission[],
   context: {
-    playerCount: number;
     hull?: ShipLoadout;
     /** Experiment only: force the kind of primary this seat keeps. */
     primary?: MissionType;
     /** Chooses among the flyable hands; wire it to the game's seeded RNG. */
     pick?: (n: number) => number;
-  }
+  } = {}
 ): { missionIds: string[]; loadout: ShipLoadout } {
   const missions = selectBotMissions(offers, context.hull, context.primary, context.pick);
   // A hand and a loadout are one choice: a kept Intercept needs the sensor array

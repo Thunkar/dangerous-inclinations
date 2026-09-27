@@ -34,7 +34,7 @@ const fresh = () =>
     123
   );
 const choice = (state: ReturnType<typeof fresh>) =>
-  botChooseLoadout(state.players[0].missionOffers, { playerCount: 2 });
+  botChooseLoadout(state.players[0].missionOffers);
 
 describe("match appearance", () => {
   it("validates bounds and refuses identity colors, arbitrary assets and unknown fields", () => {

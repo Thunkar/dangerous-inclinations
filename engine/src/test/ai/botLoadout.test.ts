@@ -81,7 +81,7 @@ describe("botChooseLoadout", () => {
   it("gives each archetype its own hull", () => {
     for (const [archetype, missions] of Object.entries(HANDS) as Array<[BotArchetype, Mission[]]>) {
       expect(classifyArchetype(missions), archetype).toBe(archetype);
-      const choice = botChooseLoadout(missions, { playerCount: 4 });
+      const choice = botChooseLoadout(missions);
       expect(choice.missionIds).toHaveLength(MISSIONS_PER_PLAYER);
       expect(validateLoadout(choice.loadout).errors, archetype).toEqual([]);
       expect(choice.loadout).toEqual(BOT_LOADOUT_TEMPLATES[archetype]);
@@ -96,7 +96,7 @@ describe("botChooseLoadout", () => {
       surveyMission(),
       deliverMission(BETA, GAMMA),
     ];
-    const choice = botChooseLoadout(offers, { playerCount: 3 });
+    const choice = botChooseLoadout(offers);
     expect(choice.missionIds).toHaveLength(MISSIONS_PER_PLAYER);
     expect(new Set(choice.missionIds).size).toBe(MISSIONS_PER_PLAYER);
     for (const id of choice.missionIds) expect(offers.some((m) => m.id === id)).toBe(true);
@@ -122,7 +122,7 @@ describe("botChooseLoadout", () => {
 
     const seen = new Set(
       hands.map((_, i) =>
-        botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n })
+        botChooseLoadout(offers, { pick: (n) => i % n })
           .missionIds.slice()
           .sort()
           .join(",")
@@ -169,7 +169,7 @@ describe("botChooseLoadout", () => {
       tankerMission("tanker-a"),
     ];
     for (let i = 0; i < 3; i++) {
-      const kept = botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n }).missionIds;
+      const kept = botChooseLoadout(offers, { pick: (n) => i % n }).missionIds;
       expect(kept).not.toContain("clash");
     }
   });
@@ -182,7 +182,7 @@ describe("botChooseLoadout", () => {
       tankerMission("tanker-a"),
     ];
     const kept = [0, 1, 2].map(
-      (i) => botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n }).missionIds
+      (i) => botChooseLoadout(offers, { pick: (n) => i % n }).missionIds
     );
     // Three hands on offer, none refused: two of the three carry the Salvage.
     expect(kept.filter((ids) => ids.includes("salvage-a"))).toHaveLength(2);
@@ -200,7 +200,7 @@ describe("botChooseLoadout", () => {
       expect(hands).toHaveLength(3);
       const seen = new Set(
         hands.map((_, i) =>
-          botChooseLoadout(offers, { playerCount: 3, pick: (n) => i % n })
+          botChooseLoadout(offers, { pick: (n) => i % n })
             .missionIds.slice()
             .sort()
             .join(",")
@@ -217,7 +217,7 @@ describe("botChooseLoadout", () => {
       piracyMission("piracy-a"),
       piracyMission("piracy-b"),
     ];
-    const kept = botChooseLoadout(offers, { playerCount: 3 }).missionIds;
+    const kept = botChooseLoadout(offers).missionIds;
     expect(kept).toHaveLength(MISSIONS_PER_PLAYER);
     expect(kept).toContain("piracy-a");
   });
@@ -250,8 +250,8 @@ describe("botChooseLoadout", () => {
       surveyMission(),
       interceptMission("p3"),
     ];
-    const a = botChooseLoadout(offers, { playerCount: 4 });
-    const b = botChooseLoadout(offers, { playerCount: 4 });
+    const a = botChooseLoadout(offers);
+    const b = botChooseLoadout(offers);
     expect(b).toEqual(a);
   });
 
@@ -262,7 +262,7 @@ describe("botChooseLoadout", () => {
       [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
       [interceptMission("p2"), deliverMission(ALPHA, BETA), surveyMission()],
     ]) {
-      const { loadout } = botChooseLoadout(missions, { playerCount: 4 });
+      const { loadout } = botChooseLoadout(missions);
       expect(loadout.forwardSlots, JSON.stringify(missions.map((m) => m.type))).toEqual([
         "sensor_array",
       ]);
@@ -272,9 +272,7 @@ describe("botChooseLoadout", () => {
 
   it("keeps the railgun for a hand of Destroy cards", () => {
     const { loadout } = botChooseLoadout(
-      [destroyMission("p2"), destroyMission("p3"), destroyMission("p4")],
-      { playerCount: 4 }
-    );
+      [destroyMission("p2"), destroyMission("p3"), destroyMission("p4")]);
     expect(loadout.forwardSlots).toEqual(["railgun"]);
   });
 
@@ -283,22 +281,16 @@ describe("botChooseLoadout", () => {
     // A pure cargo hand never scans anything and has nobody it must kill, so
     // the slot goes to the legs that make the route cheap.
     const { loadout } = botChooseLoadout(
-      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), deliverMission(GAMMA, ALPHA)],
-      { playerCount: 3 }
-    );
+      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), deliverMission(GAMMA, ALPHA)]);
     expect(loadout.forwardSlots).toEqual(["fuel_compressor"]);
     // A Destroy card has to get through shields, which is the railgun's job.
     const kill = botChooseLoadout(
-      [destroyMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
-      { playerCount: 3 }
-    );
+      [destroyMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)]);
     expect(kill.loadout.forwardSlots).toEqual(["railgun"]);
     // A Survey is a dive any loadout can make, so it asks for nothing forward: a
     // cargo hand carrying one still spends the slot on the legs.
     const survey = botChooseLoadout(
-      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()],
-      { playerCount: 3 }
-    );
+      [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()]);
     expect(survey.loadout.forwardSlots).toEqual(["fuel_compressor"]);
   });
 
@@ -330,7 +322,7 @@ describe("botChooseLoadout", () => {
       99
     );
     for (const player of state.players) {
-      const choice = botChooseLoadout(player.missionOffers, { playerCount: 4 });
+      const choice = botChooseLoadout(player.missionOffers);
       const result = submitLoadout(state, player.id, {
         loadout: choice.loadout,
         missionIds: choice.missionIds,
@@ -361,7 +353,7 @@ describe("botChooseLoadout", () => {
         piracyMission("piracy-a"),
         tankerMission("tanker-a"),
       ];
-      const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
+      const choice = botChooseLoadout(offers, { hull: RAILGUN });
       expect(choice.loadout).toEqual(RAILGUN);
       const kept = offers.filter((m) => choice.missionIds.includes(m.id));
       expect(missionsMissingRequirements(kept, choice.loadout)).toEqual([]);
@@ -379,7 +371,7 @@ describe("botChooseLoadout", () => {
         piracyMission("piracy-a"),
         tankerMission("tanker-a"),
       ];
-      const choice = botChooseLoadout(offers, { playerCount: 3, hull: RAILGUN });
+      const choice = botChooseLoadout(offers, { hull: RAILGUN });
       expect(choice.loadout).not.toEqual(RAILGUN);
       const kept = offers.filter((m) => choice.missionIds.includes(m.id));
       expect(missionsMissingRequirements(kept, choice.loadout)).toEqual([]);
@@ -395,7 +387,7 @@ describe("botChooseLoadout", () => {
         seed
       );
       for (const player of state.players) {
-        const choice = botChooseLoadout(player.missionOffers, { playerCount });
+        const choice = botChooseLoadout(player.missionOffers);
         const kept = player.missionOffers.filter((m) => choice.missionIds.includes(m.id));
         expect(missionsMissingRequirements(kept, choice.loadout), `seed ${seed}`).toEqual([]);
       }

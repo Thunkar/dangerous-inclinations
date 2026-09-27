@@ -183,7 +183,6 @@ export function setupBotGame(
     // that hull can fly, and a deal with no flyable trio (four of the six
     // offers needing a sensor array) leaves the seat its own loadout for that game.
     const choice = botChooseLoadout(player.missionOffers, {
-      playerCount: botCount,
       hull: seatLoadouts?.[player.id],
       primary: seatHands?.[player.id],
       // Seeded: the spread of hands across a batch replays exactly.
