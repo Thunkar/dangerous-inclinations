@@ -140,7 +140,6 @@ export function cardForPlayer(
         isCompleted: false,
         targetPlayerId: rival(card.targetOffset),
         deliveryPlanetId: card.deliveryPlanetId,
-        scanAcquired: false,
         dataCargoId: "",
       };
     case "deliver_cargo":
@@ -163,7 +162,6 @@ export function cardForPlayer(
       const survey: Omit<SurveyMission, "id"> = {
         type: card.type,
         isCompleted: false,
-        acquired: false,
         dataCargoId: "",
       };
       return survey;

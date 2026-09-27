@@ -12,6 +12,7 @@ import {
   MAX_REACTION_MASS,
   MISSION_FAMILY,
   TANKER_FUEL,
+  dataAboard,
   getWellName,
   missionPoints as pointsForType,
 } from '@dangerous-inclinations/engine'
@@ -58,11 +59,11 @@ export function missionProgress(
         : `Load the crate at ${getWellName(mission.pickupPlanetId)}`
     }
     case 'intercept_transmission':
-      return mission.scanAcquired
+      return dataAboard({ cargo }, mission)
         ? `Transmission taken · file it at ${getWellName(mission.deliveryPlanetId)}`
         : `Scan them first, then file at ${getWellName(mission.deliveryPlanetId)}`
     case 'survey':
-      return mission.acquired
+      return dataAboard({ cargo }, mission)
         ? 'Data aboard · dock anywhere to file it'
         : 'End a turn on Black Hole R1'
     case 'piracy': {

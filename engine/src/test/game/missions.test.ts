@@ -28,6 +28,7 @@ import {
   SECONDARY_COPIES_PER_KIND,
   SECONDARY_KINDS_PRINTED,
   TANKER_FUEL,
+  dataAboard,
 } from "../../models/missions.ts";
 import type { Mission } from "../../models/missions.ts";
 import type { GameState } from "../../models/game.ts";
@@ -60,6 +61,7 @@ import {
   makeTwoPlayerGame,
   mustExecute,
   surveyMission,
+  takenData,
   withMissile,
   withMissions,
   withPlayer,
@@ -211,12 +213,7 @@ describe("missions: deck", () => {
   it("every card starts uncompleted and with empty progress once it is dealt", () => {
     const hand = [...dealMissionOffers(ids(3), new Rng(5)).values()].flat();
     expect(hand.every((m) => !m.isCompleted)).toBe(true);
-    expect(
-      hand.filter((m) => m.type === "intercept_transmission").every((m) => !m.scanAcquired)
-    ).toBe(true);
-    expect(hand.filter((m) => "acquired" in m).every((m) => "acquired" in m && !m.acquired)).toBe(
-      true
-    );
+    expect(hand.filter((m) => m.type === "escort" && m.markedPlayerId !== null)).toEqual([]);
   });
 
   it("prints only the routes that ride the circuit, Alpha to Gamma to Beta to Alpha", () => {
@@ -461,19 +458,8 @@ describe("missions: trade", () => {
 
   /** An Intercept already scanned, its data aboard, filed at `filedAt`. */
   const carryingTransmission = (filedAt: string) => {
-    const card = { ...interceptMission("p2", "intercept-p2", filedAt), scanAcquired: true };
-    const withData = (s: GameState) =>
-      withPlayer(s, "p1", {
-        cargo: [
-          {
-            id: card.dataCargoId,
-            missionId: card.id,
-            kind: "data" as const,
-            deliveryPlanetId: card.deliveryPlanetId,
-            isPickedUp: true,
-          },
-        ],
-      });
+    const card = interceptMission("p2", "intercept-p2", filedAt);
+    const withData = (s: GameState) => withPlayer(s, "p1", { cargo: [takenData(card)] });
     return { card, withData };
   };
 
@@ -527,7 +513,6 @@ describe("missions: secondary", () => {
       }),
     ]);
     const player = getPlayer(result.gameState, "p1");
-    expect(player.missions[0]).toMatchObject({ acquired: true });
     expect(player.cargo).toEqual([
       expect.objectContaining({ missionId: "survey-1", kind: "data", deliveryPlanetId: "any" }),
     ]);
@@ -561,20 +546,8 @@ describe("missions: secondary", () => {
   });
 
   it("survey completes when the data is delivered", () => {
-    const acquired = { ...surveyMission(), acquired: true };
-    const state = docking(ALPHA, [acquired], (s) =>
-      withPlayer(s, "p1", {
-        cargo: [
-          {
-            id: acquired.dataCargoId,
-            missionId: acquired.id,
-            kind: "data",
-            deliveryPlanetId: "any",
-            isPickedUp: true,
-          },
-        ],
-      })
-    );
+    const card = surveyMission();
+    const state = docking(ALPHA, [card], (s) => withPlayer(s, "p1", { cargo: [takenData(card)] }));
     expect(
       eventsOf(executeTurnAs(state, coast(1)).events, "mission_completed")[0].mission.type
     ).toBe("survey");
@@ -733,26 +706,19 @@ describe("missions: piracy", () => {
   it.each([
     [
       "a survey's data, which has to be dived for again",
-      () => {
-        const card = { ...surveyMission("survey-p2"), acquired: true };
-        return { card, cargoId: card.dataCargoId, to: "any", undone: { acquired: false } };
-      },
+      () => surveyMission("survey-p2"),
     ],
     [
       "an intercept's transmission, which has to be scanned again",
-      () => {
-        const card = { ...interceptMission("p1", "intercept-p2", BETA), scanAcquired: true };
-        return { card, cargoId: card.dataCargoId, to: BETA, undone: { scanAcquired: false } };
-      },
+      () => interceptMission("p1", "intercept-p2", BETA),
     ],
   ])("takes %s, and the loot is a crate aboard the pirate", (_label, build) => {
     const loot = piracyMission();
-    const { card, cargoId, to, undone } = build();
+    const card = build();
+    const cargoId = card.dataCargoId;
     const state = withPlayer(alongside([loot], []), "p2", {
       missions: [card],
-      cargo: [
-        { id: cargoId, missionId: card.id, kind: "data", deliveryPlanetId: to, isPickedUp: true },
-      ],
+      cargo: [takenData(card)],
     });
     const result = executeTurnAs(state, coast(1));
 
@@ -769,33 +735,22 @@ describe("missions: piracy", () => {
     expect(getPlayer(result.gameState, "p2").cargo).toEqual([
       expect.objectContaining({ id: cargoId, isPickedUp: false }),
     ]);
-    expect(getPlayer(result.gameState, "p2").missions[0]).toMatchObject(undone);
+    expect(dataAboard(getPlayer(result.gameState, "p2"), card)).toBe(false);
   });
 
   it("takes the crate first from a ship carrying both, and leaves the data", () => {
-    const data = { ...surveyMission("survey-p2"), acquired: true };
+    const data = surveyMission("survey-p2");
     let state = alongside([piracyMission()], [CRATE]);
     state = withPlayer(state, "p2", {
       missions: [...getPlayer(state, "p2").missions, data],
-      cargo: [
-        ...getPlayer(state, "p2").cargo,
-        {
-          id: data.dataCargoId,
-          missionId: data.id,
-          kind: "data",
-          deliveryPlanetId: "any",
-          isPickedUp: true,
-        },
-      ],
+      cargo: [...getPlayer(state, "p2").cargo, takenData(data)],
     });
     const result = executeTurnAs(state, coast(1));
 
     expect(eventsOf(result.events, "cargo_seized")).toEqual([
       expect.objectContaining({ kind: "crate", cargoId: CRATE.cargoId }),
     ]);
-    const victim = getPlayer(result.gameState, "p2");
-    expect(victim.cargo.find((c) => c.id === data.dataCargoId)).toMatchObject({ isPickedUp: true });
-    expect(victim.missions.find((m) => m.type === "survey")).toMatchObject({ acquired: true });
+    expect(dataAboard(getPlayer(result.gameState, "p2"), data)).toBe(true);
   });
 
   it("sells the loot at any station, which is the whole card", () => {
@@ -863,19 +818,9 @@ describe("missions: tanker", () => {
     [
       "files survey data",
       () => {
-        const survey = { ...surveyMission(), acquired: true };
+        const survey = surveyMission();
         return docking(ALPHA, [tankerMission(), survey], (s) =>
-          withPlayer(s, "p1", {
-            cargo: [
-              {
-                id: survey.dataCargoId,
-                missionId: survey.id,
-                kind: "data" as const,
-                deliveryPlanetId: "any",
-                isPickedUp: true,
-              },
-            ],
-          })
+          withPlayer(s, "p1", { cargo: [takenData(survey)] })
         );
       },
       false,
@@ -907,7 +852,7 @@ describe("missions: winning", () => {
   it("a primary on top of one secondary starts the final round; the game ends when the round does", () => {
     // Three points win, and a hand holds five: the primary and either
     // secondary is the win, so a seat with its data filed wins on the kill.
-    const done = [{ ...surveyMission("s"), acquired: true, isCompleted: true }];
+    const done = [{ ...surveyMission("s"), isCompleted: true }];
     let state = withShip(gunline(), "p2", { hitPoints: 4 });
     state = withPlayer(state, "p1", {
       missions: [...done, destroyMission("p2")],
@@ -948,7 +893,7 @@ describe("missions: winning", () => {
     state = withPlayer(state, "p1", {
       missions: [
         { ...destroyMission("p2", "t"), isCompleted: true },
-        { ...surveyMission("s"), isCompleted: true, acquired: true },
+        { ...surveyMission("s"), isCompleted: true },
       ],
       points: 3,
     });
@@ -1019,7 +964,7 @@ describe("missions: the points the table plays to", () => {
   it("plays the fourth point out at a four-point table where three would have ended it", () => {
     // p1 holds filed data and a Destroy: the kill takes it to three, which
     // ends a three-point game and is one short of a four-point one.
-    const done = [{ ...surveyMission("s"), acquired: true, isCompleted: true }];
+    const done = [{ ...surveyMission("s"), isCompleted: true }];
     const setUp = (pointsToWin: number) =>
       withPlayer(withShip({ ...gunline(), pointsToWin }, "p2", { hitPoints: 4 }), "p1", {
         missions: [...done, destroyMission("p2")],

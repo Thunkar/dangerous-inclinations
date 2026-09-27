@@ -13,7 +13,7 @@ import type {
   SalvageMission,
   Mission,
 } from "../../models/missions.ts";
-import { SURVEY_RING, aboard, crateAboard, missionPoints } from "../../models/missions.ts";
+import { SURVEY_RING, aboard, crateAboard, dataAboard, missionPoints } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
@@ -59,16 +59,9 @@ function seizeLoot(
     if (!taken) continue;
     players[victimIndex] = {
       ...victim,
+      // The card the item was doing goes back to undone with it: a Deliver
+      // reloads its crate, a Survey or an Intercept has no data aboard.
       cargo: victim.cargo.map((c) => (c.id === taken.id ? { ...c, isPickedUp: false } : c)),
-      // The card the item was doing goes back to undone. A Deliver keeps its
-      // crate to reload, so only the cards that remember having done the thing
-      // have anything to forget.
-      missions: victim.missions.map((m) => {
-        if (m.id !== taken.missionId || m.isCompleted) return m;
-        if (m.type === "survey") return { ...m, acquired: false };
-        if (m.type === "intercept_transmission") return { ...m, scanAcquired: false };
-        return m;
-      }),
     };
     // The loot rides as the card's own crate whatever was taken: it fills the
     // hold and everyone can see it. Seized before and lost since, it is the
@@ -287,8 +280,8 @@ export function processMissionEvents(
         if (deliveredCargoIds.has(mission.cargoId)) next = { ...mission, isCompleted: true };
         break;
       case "intercept_transmission":
-        if (mission.scanAcquired && deliveredCargoIds.has(mission.dataCargoId))
-          next = { ...mission, isCompleted: true };
+        // Only data aboard is filed, so filing it is the whole check.
+        if (deliveredCargoIds.has(mission.dataCargoId)) next = { ...mission, isCompleted: true };
         break;
       case "piracy":
         // The loot is sold like any other freight: a crate bound for "any"
@@ -312,34 +305,32 @@ export function processMissionEvents(
         break;
       }
       case "survey": {
-        let m = mission;
-        if (!m.acquired && !dived) {
-          if (onSurveyRing) {
-            dived = true;
-            m = { ...m, acquired: true };
-            // Data a pirate took is still in the hold, un-picked: the dive
-            // that takes it again puts the same data back aboard.
-            const data: Cargo = {
-              id: m.dataCargoId,
-              missionId: m.id,
-              kind: "data",
-              deliveryPlanetId: "any",
-              isPickedUp: true,
-            };
-            cargo = cargo.some((c) => c.id === data.id)
-              ? cargo.map((c) => (c.id === data.id ? data : c))
-              : [...cargo, data];
-            events.push({
-              type: "data_acquired",
-              playerId,
-              kind: m.type,
-              missionId: m.id,
-              privateTo: [playerId],
-            });
-          }
+        // Only data aboard is filed, so filing it is the whole check.
+        if (deliveredCargoIds.has(mission.dataCargoId)) {
+          next = { ...mission, isCompleted: true };
+          break;
         }
-        if (m.acquired && deliveredCargoIds.has(m.dataCargoId)) m = { ...m, isCompleted: true };
-        next = m;
+        if (dived || !onSurveyRing || dataAboard({ cargo }, mission)) break;
+        dived = true;
+        // Data a pirate took is still in the hold, un-picked: the dive that
+        // takes it again puts the same data back aboard.
+        const data: Cargo = {
+          id: mission.dataCargoId,
+          missionId: mission.id,
+          kind: "data",
+          deliveryPlanetId: "any",
+          isPickedUp: true,
+        };
+        cargo = cargo.some((c) => c.id === data.id)
+          ? cargo.map((c) => (c.id === data.id ? data : c))
+          : [...cargo, data];
+        events.push({
+          type: "data_acquired",
+          playerId,
+          kind: mission.type,
+          missionId: mission.id,
+          privateTo: [playerId],
+        });
         break;
       }
     }

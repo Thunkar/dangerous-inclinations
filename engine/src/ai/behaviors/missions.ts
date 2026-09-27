@@ -32,6 +32,7 @@ import {
   SURVEY_RING,
   TANKER_FUEL,
   crateAboard,
+  dataAboard,
   isPrimaryType,
 } from "../../models/missions.ts";
 import {
@@ -177,9 +178,9 @@ function holdsTanker(me: Player): boolean {
   return me.missions.some((m) => !m.isCompleted && m.type === "tanker");
 }
 
-/** A Survey still to dive for: undone, and its data not yet taken. */
-export function surveyToDive(m: Mission): boolean {
-  return m.type === "survey" && !m.isCompleted && !m.acquired;
+/** A Survey still to dive for: undone, and its data not aboard. */
+export function surveyToDive(me: Player, m: Mission): boolean {
+  return m.type === "survey" && !m.isCompleted && !dataAboard(me, m);
 }
 
 /** Whether this Salvage card's black box is in the hold. */
@@ -191,7 +192,7 @@ export function blackBoxAboard(me: Player, m: SalvageMission): boolean {
 export function interceptTargetIds(me: Player): Set<string> {
   return new Set(
     me.missions.flatMap((m) =>
-      m.type === "intercept_transmission" && !m.isCompleted && !m.scanAcquired
+      m.type === "intercept_transmission" && !m.isCompleted && !dataAboard(me, m)
         ? [m.targetPlayerId]
         : []
     )
@@ -485,7 +486,7 @@ export function computeGoals(
         break;
       }
       case "intercept_transmission": {
-        if (!mission.scanAcquired) {
+        if (!dataAboard(me, mission)) {
           const target = opponent(mission.targetPlayerId);
           if (!target || status.sensors.every((s) => s.isBroken)) break;
           goals.push({
@@ -578,7 +579,7 @@ export function computeGoals(
         break;
       }
       case "survey": {
-        if (mission.acquired) {
+        if (dataAboard(me, mission)) {
           // Data is filed at whatever station comes next.
           const goal = dockAnywhereGoal(
             view,

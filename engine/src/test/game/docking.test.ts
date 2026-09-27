@@ -25,6 +25,7 @@ import {
   eventTypes,
   crateCargo,
   dataCargo,
+  takenData,
   dockingShip,
   lootCargo,
   executeTurnAs,
@@ -500,20 +501,14 @@ function deliverCard(pickup: string, delivery: string, aboard: boolean): [Missio
 
 /** A Survey dived, its data aboard for any station. */
 function surveyCard(): [Mission, Cargo] {
-  const mission = { ...surveyMission(), acquired: true };
-  return [
-    mission,
-    dataCargo(mission.dataCargoId, mission.id),
-  ];
+  const mission = surveyMission();
+  return [mission, takenData(mission)];
 }
 
 /** An Intercept scanned, its data aboard for `station`. */
 function interceptCard(station: string): [Mission, Cargo] {
-  const mission = { ...interceptMission("p2", "intercept-p2", station), scanAcquired: true };
-  return [
-    mission,
-    { id: mission.dataCargoId, missionId: mission.id, kind: "data", deliveryPlanetId: station, isPickedUp: true },
-  ];
+  const mission = interceptMission("p2", "intercept-p2", station);
+  return [mission, takenData(mission)];
 }
 
 /** A Piracy card with its loot aboard: a crate that sells anywhere. */

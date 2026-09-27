@@ -918,7 +918,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
       makePlayer(HUMAN, here, SMOKE_LOADOUT, { name: "Ada", missions: [escortMission("smoke-escort-card")] }),
       makePlayer(BOT_A, ahead, DEFAULT_LOADOUT, {
         name: "Bot Alpha",
-        missions: [{ ...survey, acquired: true }],
+        missions: [survey],
         cargo: [data],
       }),
       makePlayer(BOT_B, here, DEFAULT_LOADOUT, { name: "Bot Beta" }),

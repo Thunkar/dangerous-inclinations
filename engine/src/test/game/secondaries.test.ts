@@ -4,8 +4,8 @@
  */
 import { describe, it, expect } from "vitest";
 import type { GameState, Wreck } from "../../models/game.ts";
-import type { Mission } from "../../models/missions.ts";
-import { MISSION_POINTS, TANKER_FUEL } from "../../models/missions.ts";
+import type { Mission, SurveyMission } from "../../models/missions.ts";
+import { MISSION_POINTS, TANKER_FUEL, dataAboard } from "../../models/missions.ts";
 import { STATION_RING } from "../../models/gravityWells.ts";
 import { filterEventsFor } from "../../models/events.ts";
 import { getStationForPlanet } from "../../game/stations.ts";
@@ -36,6 +36,7 @@ import {
   piracyMission,
   salvageMission,
   surveyMission,
+  takenData,
   tankerMission,
   withMissions,
   withPlayer,
@@ -95,9 +96,8 @@ describe("two of a kind are two jobs", () => {
     );
     const first = executeTurnAs(state, coast(1));
     expect(eventsOf(first.events, "data_acquired").map((e) => e.missionId)).toEqual(["survey-a"]);
-    expect(
-      getPlayer(first.gameState, "p1").missions.map((m) => "acquired" in m && m.acquired)
-    ).toEqual([true, false]);
+    const p1 = getPlayer(first.gameState, "p1");
+    expect(p1.missions.map((m) => dataAboard(p1, m as SurveyMission))).toEqual([true, false]);
 
     const second = executeTurnAs({ ...first.gameState, activePlayerIndex: 0 }, coast(1));
     expect(eventsOf(second.events, "data_acquired").map((e) => e.missionId)).toEqual(["survey-b"]);
@@ -479,20 +479,9 @@ describe("escort: markers", () => {
   });
 
   it("marks a ship carrying data", () => {
-    const data = { ...surveyMission("survey-p2"), acquired: true };
+    const data = surveyMission("survey-p2");
     let state = withMissions(table(LANDING), "p1", [escortMission()]);
-    state = withPlayer(state, "p2", {
-      missions: [data],
-      cargo: [
-        {
-          id: data.dataCargoId,
-          missionId: data.id,
-          kind: "data",
-          deliveryPlanetId: "any",
-          isPickedUp: true,
-        },
-      ],
-    });
+    state = withPlayer(state, "p2", { missions: [data], cargo: [takenData(data)] });
     const result = executeTurnAs(state, coast(1), escortMark("p2"));
     expect(getPlayer(result.gameState, "p1").missions[0]).toMatchObject({ markedPlayerId: "p2" });
   });
@@ -619,25 +608,14 @@ describe("escort: markers", () => {
 
   it.each<[string, Mission[]]>([
     ["delivers a crate", [deliverMission(ALPHA, BETA)]],
-    ["files data", [{ ...surveyMission("survey-p2"), acquired: true }]],
+    ["files data", [surveyMission("survey-p2")]],
     ["sells loot", [piracyMission("piracy-p2")]],
   ])("completes on the carrier's own turn when it %s, and the points count", (_label, cards) => {
     let state = carrierArrives(cards);
     // The loot rides as the Piracy card's crate, not a crate made at the deal.
     if (cards[0].type === "piracy")
       state = withPlayer(state, "p2", { cargo: [lootCargo(cards[0].cargoId, cards[0].id)] });
-    if (cards[0].type === "survey")
-      state = withPlayer(state, "p2", {
-        cargo: [
-          {
-            id: cards[0].dataCargoId,
-            missionId: cards[0].id,
-            kind: "data",
-            deliveryPlanetId: "any",
-            isPickedUp: true,
-          },
-        ],
-      });
+    if (cards[0].type === "survey") state = withPlayer(state, "p2", { cargo: [takenData(cards[0])] });
     const result = executeTurnAs(state, coast(1));
     expect(eventTypes(result.events)).toContain("cargo_delivered");
     const escort = eventsOf(result.events, "mission_completed").filter((e) => e.playerId === "p1");

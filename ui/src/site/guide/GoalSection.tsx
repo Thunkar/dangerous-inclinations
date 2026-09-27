@@ -45,7 +45,6 @@ const PRIMARIES: Mission[] = [
     isCompleted: false,
     targetPlayerId: 'left-1',
     deliveryPlanetId: 'planet-beta',
-    scanAcquired: false,
     dataCargoId: 'g-data',
   },
 ]
@@ -55,7 +54,6 @@ const SECONDARIES: Mission[] = [
     id: 'g-survey',
     type: 'survey',
     isCompleted: false,
-    acquired: false,
     dataCargoId: 'g-survey-data',
   },
   { id: 'g-piracy', type: 'piracy', isCompleted: false, cargoId: 'g-loot' },

@@ -6,7 +6,7 @@
  * same pure helpers the UI uses.
  */
 import type { GameEvent } from "../models/events.ts";
-import type { Mission } from "../models/missions.ts";
+import type { Cargo, Mission } from "../models/missions.ts";
 import {
   DEFAULT_POINTS_TO_WIN,
   MISSION_POINTS,
@@ -14,6 +14,7 @@ import {
   SECONDARIES_PER_PLAYER,
   SURVEY_RING,
   TANKER_FUEL,
+  dataAboard,
 } from "../models/missions.ts";
 import type { SubsystemType } from "../models/subsystems.ts";
 import {
@@ -114,7 +115,7 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
 - Destroyed: a wreck is left on your sector; you drop your cargo (a Deliver crate goes back to its pickup station, loot and data are lost), every Escort marker on you goes back to its owner and your missiles in flight are removed. You lose one turn. On your next turn the ship is placed at Home, full hull and tank, and drifts with its ring. The turn after that is A FIRST ROUND OF YOUR OWN: power, rotation and a move are yours, but no weapon of yours fires and you scan nobody, and nobody can fire at, missile or scan you until that turn is over.`;
 }
 
-function missionLine(m: Mission, name: (id: string) => string): string {
+function missionLine(m: Mission, cargo: readonly Cargo[], name: (id: string) => string): string {
   const head = describeMission(m, name);
   if (m.isCompleted) return `${head} · DONE`;
   switch (m.type) {
@@ -122,12 +123,12 @@ function missionLine(m: Mission, name: (id: string) => string): string {
       return `${head} · load the crate at ${getWellName(m.pickupPlanetId as never)}'s station, deliver at ${getWellName(m.deliveryPlanetId as never)}'s`;
     case "intercept_transmission":
       return `${head} · ${
-        m.scanAcquired
+        dataAboard({ cargo }, m)
           ? `data aboard: file it at ${getWellName(m.deliveryPlanetId as never)}'s station`
           : `scan them first (same ring, within ${SCAN_SECTOR_RANGE} sectors, with a sensor array aboard), then file at ${getWellName(m.deliveryPlanetId as never)}'s station`
       }`;
     case "survey":
-      return `${head} · ${m.acquired ? "data aboard: dock at any station" : `end a turn on BH R${SURVEY_RING}`}`;
+      return `${head} · ${dataAboard({ cargo }, m) ? "data aboard: dock at any station" : `end a turn on BH R${SURVEY_RING}`}`;
     case "piracy":
       return `${head} · end a turn in the sector of a ship carrying a crate or data (hold empty, neither of you moored), then sell the loot at ANY station`;
     case "tanker":
@@ -198,7 +199,7 @@ export function describeViewForAgent(
       .join("; ")}. Cubes held from last turn come off when your turn starts.`
   );
   out.push(`YOUR POINTS: ${me.points}/${view.pointsToWin}. CARDS:`);
-  for (const m of me.missions) out.push(`  - ${missionLine(m, name)}`);
+  for (const m of me.missions) out.push(`  - ${missionLine(m, me.cargo, name)}`);
   if (me.cargo.length)
     out.push(
       `CARGO: ${me.cargo

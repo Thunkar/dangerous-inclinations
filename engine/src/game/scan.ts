@@ -15,7 +15,7 @@ import type { GameState, Player, Position, ScanAction } from "../models/game.ts"
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo } from "../models/missions.ts";
-import { SCAN_SECTOR_RANGE, isInterceptTransmissionMission } from "../models/missions.ts";
+import { SCAN_SECTOR_RANGE, dataAboard, isInterceptTransmissionMission } from "../models/missions.ts";
 import { sectorDistance } from "./geometry.ts";
 import { findSubsystem, useSubsystem } from "./ship.ts";
 
@@ -97,11 +97,11 @@ export function processScan(state: GameState, action: ScanAction): ScanResult {
 
   // Intercept missions on this target acquire their transmission.
   let cargo = scanner.cargo;
-  const missions = scanner.missions.map((mission) => {
+  for (const mission of scanner.missions) {
     if (
       isInterceptTransmissionMission(mission) &&
       !mission.isCompleted &&
-      !mission.scanAcquired &&
+      !dataAboard(scanner, mission) &&
       mission.targetPlayerId === target.id
     ) {
       const data: Cargo = {
@@ -123,12 +123,10 @@ export function processScan(state: GameState, action: ScanAction): ScanResult {
         missionId: mission.id,
         privateTo: [scanner.id],
       });
-      return { ...mission, scanAcquired: true };
     }
-    return mission;
-  });
+  }
 
   const players = [...state.players];
-  players[scannerIndex] = { ...scanner, ship: used.ship, intel, missions, cargo };
+  players[scannerIndex] = { ...scanner, ship: used.ship, intel, cargo };
   return { state: { ...state, players }, events };
 }

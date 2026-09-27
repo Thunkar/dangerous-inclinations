@@ -268,14 +268,12 @@ export const interceptMission = (
   isCompleted: false,
   targetPlayerId,
   deliveryPlanetId,
-  scanAcquired: false,
   dataCargoId: `data-${id}`,
 });
 export const surveyMission = (id = "survey-1"): SurveyMission => ({
   id,
   type: "survey",
   isCompleted: false,
-  acquired: false,
   dataCargoId: `data-${id}`,
 });
 
@@ -338,6 +336,15 @@ export const dataCargo = (id = "data-1", missionId = "survey-1"): Cargo => ({
   missionId,
   kind: "data",
   deliveryPlanetId: "any",
+  isPickedUp: true,
+});
+
+/** The data an Intercept's scan or a Survey's dive puts aboard, filed where the card says. */
+export const takenData = (mission: InterceptTransmissionMission | SurveyMission): Cargo => ({
+  id: mission.dataCargoId,
+  missionId: mission.id,
+  kind: "data",
+  deliveryPlanetId: mission.type === "intercept_transmission" ? mission.deliveryPlanetId : "any",
   isPickedUp: true,
 });
 

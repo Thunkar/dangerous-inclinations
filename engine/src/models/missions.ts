@@ -243,7 +243,7 @@ export interface InterceptTransmissionMission extends BaseMission {
   targetPlayerId: string;
   /** Planet whose station the transmission is filed at. */
   deliveryPlanetId: string;
-  scanAcquired: boolean;
+  /** Id the transmission takes aboard; whether it is aboard is {@link dataAboard}. */
   dataCargoId: string;
 }
 
@@ -257,8 +257,7 @@ export interface InterceptTransmissionMission extends BaseMission {
  */
 export interface SurveyMission extends BaseMission {
   type: "survey";
-  /** The thing has been done and the data is aboard. */
-  acquired: boolean;
+  /** Id the readings take aboard; whether they are aboard is {@link dataAboard}. */
   dataCargoId: string;
 }
 
@@ -361,6 +360,18 @@ export interface Cargo {
 /** The items in the hold, as opposed to those waiting on a dock or lost. */
 export function aboard(cargo: readonly Cargo[]): Cargo[] {
   return cargo.filter((c) => c.isPickedUp);
+}
+
+/**
+ * Whether an Intercept's transmission or a Survey's readings are in the hold:
+ * the card's thing has been done and its data not yet filed. A pirate who
+ * takes it, or a kill, puts the card back to undone by taking the data.
+ */
+export function dataAboard(
+  player: { readonly cargo: readonly Cargo[] },
+  mission: InterceptTransmissionMission | SurveyMission
+): boolean {
+  return player.cargo.some((c) => c.id === mission.dataCargoId && c.isPickedUp);
 }
 
 /** Whether a crate is in the hold (the hold takes {@link CARGO_HOLD_CRATES}). */

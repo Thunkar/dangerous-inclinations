@@ -4,6 +4,7 @@ import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
 import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from "../../game/respawn.ts";
 import type { GameState, Player, Position, ShipLoadout } from "../../models/game.ts";
 import type { Cargo } from "../../models/missions.ts";
+import { dataAboard } from "../../models/missions.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import {
@@ -78,7 +79,7 @@ function wreck(): GameState {
 }
 
 describe("respawn: destruction drops cargo", () => {
-  it("a kill drops picked-up crates and destroys data; acquired flags reset", () => {
+  it("a kill drops picked-up crates and destroys data", () => {
     let state = withPower(
       makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 3, sector: 2 }),
       "p1",
@@ -86,16 +87,15 @@ describe("respawn: destruction drops cargo", () => {
       4
     );
     state = withShip(state, "p2", { hitPoints: 4 });
-    // The intercept's data is aboard and is lost; the survey's data was already delivered
-    // (not aboard), so that mission keeps its acquired flag.
-    const intercept = { ...interceptMission("p1"), scanAcquired: true };
+    // The intercept's data is aboard and is lost: the card has to scan again.
+    const intercept = interceptMission("p1");
     state = withPlayer(state, "p2", {
       cargo: [
         crate,
         { ...data, missionId: intercept.id },
         { ...crate, id: "crate-2", isPickedUp: false },
       ],
-      missions: [intercept, { ...surveyMission(), acquired: true }],
+      missions: [intercept],
     });
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
     expect(eventsOf(result.events, "cargo_dropped")).toEqual([
@@ -106,23 +106,16 @@ describe("respawn: destruction drops cargo", () => {
       ["crate-1", false],
       ["crate-2", false],
     ]);
-    expect(
-      p2.missions.map((m) =>
-        "scanAcquired" in m ? m.scanAcquired : "acquired" in m ? m.acquired : null
-      )
-    ).toEqual([false, true]);
+    expect(dataAboard(p2, intercept)).toBe(false);
   });
 
-  it("completed missions keep their acquired data flags", () => {
+  it("dropping cargo leaves the cards as they were", () => {
     const player: Player = {
       ...makePlayer("p2"),
       cargo: [data],
-      missions: [{ ...interceptMission("p1"), scanAcquired: true, isCompleted: true }],
+      missions: [{ ...interceptMission("p1"), isCompleted: true }],
     };
-    expect(dropCargo(player).player.missions[0]).toMatchObject({
-      scanAcquired: true,
-      isCompleted: true,
-    });
+    expect(dropCargo(player).player.missions).toBe(player.missions);
   });
 
   it("dropping nothing emits nothing", () => {

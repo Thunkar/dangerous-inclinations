@@ -6,8 +6,13 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, PlayerAction, Position, ShipLoadout, Wreck } from "../../models/game.ts";
 import { MAX_REACTION_MASS, STARTING_HIT_POINTS } from "../../models/game.ts";
-import type { Cargo, Mission, SurveyMission } from "../../models/missions.ts";
-import { SURVEY_RING, TANKER_FUEL } from "../../models/missions.ts";
+import type {
+  Cargo,
+  InterceptTransmissionMission,
+  Mission,
+  SurveyMission,
+} from "../../models/missions.ts";
+import { SURVEY_RING, TANKER_FUEL, dataAboard } from "../../models/missions.ts";
 import { BLACK_HOLE_ID, BLACK_HOLE_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { ringVelocity } from "../../game/geometry.ts";
@@ -99,10 +104,9 @@ describe("bot missions", () => {
 
     const result = executeTurn(state, decision.actions);
     expect(result.errors).toBeUndefined();
-    const mission = getPlayer(result.gameState, "p1").missions[0];
-    expect(mission.type === "intercept_transmission" && mission.scanAcquired).toBe(true);
-    // The transmission is aboard as data, to be delivered at any station.
-    expect(getPlayer(result.gameState, "p1").cargo.some((c) => c.kind === "data")).toBe(true);
+    const p1 = getPlayer(result.gameState, "p1");
+    // The transmission is aboard as data, to be filed at the card's station.
+    expect(dataAboard(p1, p1.missions[0] as InterceptTransmissionMission)).toBe(true);
   });
 
   it("moves onto the target's ring first and scans after the move", () => {
@@ -128,8 +132,8 @@ describe("bot missions", () => {
 
     const result = executeTurn(state, decision.actions);
     expect(result.errors).toBeUndefined();
-    const mission = getPlayer(result.gameState, "p1").missions[0];
-    expect(mission.type === "intercept_transmission" && mission.scanAcquired).toBe(true);
+    const p1 = getPlayer(result.gameState, "p1");
+    expect(dataAboard(p1, p1.missions[0] as InterceptTransmissionMission)).toBe(true);
   });
 
   it("does not try to scan across gravity wells", () => {
@@ -157,11 +161,10 @@ describe("bot missions", () => {
     );
 
     const acquired = (s: GameState) =>
-      (getPlayer(s, "p1").missions[0] as SurveyMission).acquired;
+      dataAboard(getPlayer(s, "p1"), getPlayer(s, "p1").missions[0] as SurveyMission);
     const state = playUntil(start, "p1", acquired, 60);
 
     expect(acquired(state)).toBe(true);
-    expect(getPlayer(state, "p1").cargo.some((c) => c.kind === "data")).toBe(true);
   });
 
   it("docks at the pickup station for a Deliver card", () => {

@@ -185,7 +185,7 @@ function buildCandidate(
    */
   const landsOnStation = endsOnStation && !moored;
   const surveying =
-    post.wellId === BLACK_HOLE_ID && post.ring === SURVEY_RING && me.missions.some(surveyToDive);
+    post.wellId === BLACK_HOLE_ID && post.ring === SURVEY_RING && me.missions.some((m) => surveyToDive(me, m));
   // Salvage and Escort are read off the same place: a wreck's black box taken
   // by ending a turn on its sector (a berth included, and whatever is in the
   // hold), a marker put on an undocked carrier by ending a turn in its sector

@@ -19,7 +19,7 @@
  */
 import type { GameState, Player, Position, ShipState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import { aboard, isSurveyMission } from "../models/missions.ts";
+import { aboard } from "../models/missions.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { wrapSector, samePosition, positionOf } from "./geometry.ts";
 import { applyOrbitalMovement } from "./movement.ts";
@@ -36,26 +36,10 @@ export function dropCargo(player: Player): { player: Player; events: EventDraft[
   const cratesAboard = aboard(crates).length;
   if (cratesAboard === 0 && data.length === 0) return { player, events: [] };
 
-  // Only data still aboard is lost; data already handed in this turn stays delivered.
-  const lostData = new Set(data.map((c) => c.missionId));
-  const missions = player.missions.map((m) => {
-    if (
-      m.type === "intercept_transmission" &&
-      !m.isCompleted &&
-      m.scanAcquired &&
-      lostData.has(m.id)
-    )
-      return { ...m, scanAcquired: false };
-    // Survey data goes down with the ship: the dive has to be made again.
-    if (isSurveyMission(m) && !m.isCompleted && m.acquired && lostData.has(m.id))
-      return { ...m, acquired: false };
-    return m;
-  });
-
+  // Data goes down with the ship: an Intercept scans again, a Survey dives again.
   return {
     player: {
       ...player,
-      missions,
       cargo: crates.map((c) => ({ ...c, isPickedUp: false })),
     },
     events: [

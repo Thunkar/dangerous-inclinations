@@ -11,6 +11,7 @@ import {
   getPlayer,
   getSub,
   interceptMission,
+  takenData,
   makeTwoPlayerGame,
   mustExecute,
   scan,
@@ -136,11 +137,7 @@ describe("scan: intercept missions", () => {
     const state = withPlayer(scanner(), "p1", { missions: [card] });
     const result = executeTurnAs(state, scan(1, "p2"));
     const mission = getPlayer(result.gameState, "p1").missions[0];
-    expect(mission).toMatchObject({
-      type: "intercept_transmission",
-      scanAcquired: true,
-      isCompleted: false,
-    });
+    expect(mission).toMatchObject({ type: "intercept_transmission", isCompleted: false });
     expect(getPlayer(result.gameState, "p1").cargo).toEqual([
       {
         id: "data-intercept-p2",
@@ -168,16 +165,8 @@ describe("scan: intercept missions", () => {
     expect(getPlayer(otherResult.gameState, "p1").cargo).toEqual([]);
 
     const already = withPlayer(scanner(), "p1", {
-      missions: [{ ...interceptMission("p2"), scanAcquired: true }],
-      cargo: [
-        {
-          id: "data-intercept-p2",
-          missionId: "intercept-p2",
-          kind: "data",
-          deliveryPlanetId: "any",
-          isPickedUp: true,
-        },
-      ],
+      missions: [interceptMission("p2")],
+      cargo: [takenData(interceptMission("p2"))],
     });
     const againResult = executeTurnAs(already, scan(1, "p2"));
     expect(eventTypes(againResult.events)).not.toContain("data_acquired");
