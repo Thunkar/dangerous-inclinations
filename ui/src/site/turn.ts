@@ -16,7 +16,7 @@ import {
 } from '@dangerous-inclinations/engine'
 import { RADIATOR_DISSIPATION } from './numbers'
 
-const MISSILE_STEPS = SUBSYSTEM_CONFIGS.missiles.weaponStats?.fuelPerTurn ?? 0
+const MISSILE_STEPS = SUBSYSTEM_CONFIGS.missiles.weaponStats?.stepsPerMove ?? 0
 /** A station rides its ring like a ship, and advances once a round. */
 export const STATION_DRIFT = ringVelocity(PLANETS[0].id, STATION_RING)
 

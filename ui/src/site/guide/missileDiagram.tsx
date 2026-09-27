@@ -54,7 +54,7 @@ function flyTurn(from: Position, target: Position, ride: boolean): Turn {
   const rode = ride ? driftPosition(from) : from
   const steps: Position[] = []
   let here = rode
-  for (let left = MISSILE.fuelPerTurn; left > 0 && !same(here, target); left--) {
+  for (let left = MISSILE.stepsPerMove; left > 0 && !same(here, target); left--) {
     here = stepToward(here, target, 1)
     steps.push(here)
   }
@@ -312,7 +312,7 @@ function Key() {
       {item(dot(PRESS.red), 'turn 1')}
       {item(dot(PRESS.ink), 'turn 2')}
       {item(line(true), 'rides its orbit')}
-      {item(line(false), `flies ${MISSILE.fuelPerTurn}, rings first`)}
+      {item(line(false), `flies ${MISSILE.stepsPerMove}, rings first`)}
     </Box>
   )
 }
@@ -327,9 +327,9 @@ export function MissileFlight() {
         <Flight launch={launch} shipTo={driftPosition(launch)} />
       </Box>
       <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1.5 }}>
-        The turn you launch it, a missile flies {MISSILE.fuelPerTurn} steps from the sector you
+        The turn you launch it, a missile flies {MISSILE.stepsPerMove} steps from the sector you
         dropped it on, whether you fired before your move or after it. At the end of every turn
-        after that it rides its orbit, then flies {MISSILE.fuelPerTurn}. On the target&rsquo;s
+        after that it rides its orbit, then flies {MISSILE.stepsPerMove}. On the target&rsquo;s
         sector it attacks like a weapon ({MISSILE.damage} damage), unless a rack with energy on it
         shoots it down on {INTERCEPT_ON}+. It lasts {MISSILE.maxMoves} turns.
       </Body>

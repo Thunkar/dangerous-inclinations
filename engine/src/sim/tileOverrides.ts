@@ -38,7 +38,7 @@ const WEAPON_FIELDS: ReadonlySet<string> = new Set<keyof WeaponStats>([
   "canTargetSameRing",
   "ignoresShields",
   "maxAmmo",
-  "fuelPerTurn",
+  "stepsPerMove",
   "maxMoves",
 ]);
 const CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof SubsystemConfig>([

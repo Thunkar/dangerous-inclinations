@@ -7,7 +7,7 @@
  * one will actually catch up.
  * At the end of the owner's turn each of their missiles drifts with its ring,
  * except on the turn it was launched (it flies from the sector it was dropped
- * on, whenever in the turn that was), then moves up to `fuelPerTurn` steps
+ * on, whenever in the turn that was), then moves up to `stepsPerMove` steps
  * toward its target (a step is one ring or one sector; rings close first).
  * If it ends on the target's sector it
  * attacks: a powered ballistic rack rolls against it and destroys it on a 2+,
@@ -94,7 +94,7 @@ export function projectMissilePath(
   path.push(drifted);
   if (missile.wellId !== target.wellId) return path;
   let current = drifted;
-  for (let i = 0; i < MISSILE.fuelPerTurn && !samePosition(current, target); i++) {
+  for (let i = 0; i < MISSILE.stepsPerMove && !samePosition(current, target); i++) {
     current = stepToward(current, target, 1);
     path.push(current);
   }
@@ -157,7 +157,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
 
     const targetPos = positionOf(target.ship);
     const start = rideStart(missile);
-    const moved = stepToward(start, targetPos, MISSILE.fuelPerTurn);
+    const moved = stepToward(start, targetPos, MISSILE.stepsPerMove);
 
     // A ship that just came back cannot be touched until its returning turn
     // is over (RULES §Destruction and Respawn), and a moored one cannot be

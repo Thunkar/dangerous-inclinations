@@ -162,14 +162,14 @@ const MISSILE_SPREAD = 9
 /** The missile rules the tooltips quote, read off the engine once. */
 const MISSILE = getMissileStats()
 const MISSILE_TOOLTIP =
-  `Rides its orbit, then flies up to ${MISSILE.fuelPerTurn} steps toward the target (rings first). ` +
+  `Rides its orbit, then flies up to ${MISSILE.stepsPerMove} steps toward the target (rings first). ` +
   `On its launch turn it only flies, from where it was launched. ${MISSILE.maxMoves} flights max.`
 
 /** The label a planned launch carries. */
 export function missilePreviewLabel(targetName: string, count: number): string {
   return count > 1
-    ? `Planned salvo of ${count} at ${targetName} · each flies up to ${MISSILE.fuelPerTurn} steps this turn`
-    : `Planned missile at ${targetName} · flies up to ${MISSILE.fuelPerTurn} steps this turn`
+    ? `Planned salvo of ${count} at ${targetName} · each flies up to ${MISSILE.stepsPerMove} steps this turn`
+    : `Planned missile at ${targetName} · flies up to ${MISSILE.stepsPerMove} steps this turn`
 }
 
 /** A planned launch's flight: on its launch turn a missile flies from where it is fired, with no ride. */

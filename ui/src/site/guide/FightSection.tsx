@@ -135,7 +135,7 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
     reach: (
       <>
         Any ship in your well. Launch any number at one ship: {weaponStats('missiles').maxAmmo}{' '}
-        aboard, {weaponStats('missiles').fuelPerTurn} steps a turn for{' '}
+        aboard, {weaponStats('missiles').stepsPerMove} steps a turn for{' '}
         {weaponStats('missiles').maxMoves} turns.
       </>
     ),

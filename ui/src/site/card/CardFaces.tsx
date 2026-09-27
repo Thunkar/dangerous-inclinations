@@ -319,7 +319,7 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
     reach: (
       <>
         anyone in your well; a salvo is one action. {weaponStats('missiles').maxAmmo} aboard, fly{' '}
-        {weaponStats('missiles').fuelPerTurn} a turn for {weaponStats('missiles').maxMoves}
+        {weaponStats('missiles').stepsPerMove} a turn for {weaponStats('missiles').maxMoves}
       </>
     ),
   },

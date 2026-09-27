@@ -128,7 +128,7 @@ export interface WeaponStats {
   canTargetSameRing?: boolean; // Broadside weapons that also cover the same ring
   ignoresShields?: boolean; // Laser: shields are electromagnetic and deflect only physical projectiles
   maxAmmo?: number; // Ammunition-based weapons
-  fuelPerTurn?: number; // Guided projectiles: steps per move
+  stepsPerMove?: number; // Guided projectiles: steps (a ring or a sector) per move; missiles burn no fuel
   maxMoves?: number; // Guided projectiles: moves before expiry
 }
 
@@ -291,10 +291,10 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     weaponStats: {
       damage: 2,
       // No ringRange or sectorRange: a guided missile is launched at anyone in
-      // the well and its own flight (fuelPerTurn x maxMoves) is its range.
+      // the well and its own flight (stepsPerMove x maxMoves) is its range.
       arc: "turret",
       maxAmmo: 4,
-      fuelPerTurn: 3,
+      stepsPerMove: 3,
       maxMoves: 3,
     },
   },
@@ -369,13 +369,13 @@ export function interceptsPerRack(): number {
 }
 
 export function getMissileStats(): Required<
-  Pick<WeaponStats, "damage" | "maxAmmo" | "fuelPerTurn" | "maxMoves">
+  Pick<WeaponStats, "damage" | "maxAmmo" | "stepsPerMove" | "maxMoves">
 > {
   const stats = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
   return {
     damage: stats.damage,
     maxAmmo: stats.maxAmmo!,
-    fuelPerTurn: stats.fuelPerTurn!,
+    stepsPerMove: stats.stepsPerMove!,
     maxMoves: stats.maxMoves!,
   };
 }

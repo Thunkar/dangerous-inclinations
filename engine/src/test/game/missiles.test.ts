@@ -115,7 +115,7 @@ describe("missiles: pathing", () => {
       { wellId: BH, ring: 5, sector: 0, movesMade: 0 },
       { wellId: BH, ring: 1, sector: 12 }
     );
-    expect(path).toHaveLength(getMissileStats().fuelPerTurn + 1);
+    expect(path).toHaveLength(getMissileStats().stepsPerMove + 1);
   });
 
   const pathCases: Array<
