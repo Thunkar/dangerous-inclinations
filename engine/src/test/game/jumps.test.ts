@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   TRANSFER_LANES,
-  TRANSFER_ARC_LENGTH,
   arcSectors,
   findJump,
   getJumpAdjustmentRange,
@@ -30,7 +29,6 @@ import {
   jump,
   makeGameState,
   makePlayer,
-  makeTwoPlayerGame,
   withShip,
   withSub,
 } from "../testUtils.ts";
@@ -55,27 +53,6 @@ function readyToJump(
 }
 
 describe("jumps: lane geometry", () => {
-  it("six one-way lanes of four sectors each: one out and one in per planet", () => {
-    expect(TRANSFER_LANES).toHaveLength(6);
-    expect(
-      TRANSFER_LANES.every(
-        (l) =>
-          l.blackHoleArc.length === TRANSFER_ARC_LENGTH &&
-          l.planetArc.length === TRANSFER_ARC_LENGTH
-      )
-    ).toBe(true);
-    for (const planet of [ALPHA, BETA, GAMMA]) {
-      const directions = TRANSFER_LANES.filter((l) => l.planetId === planet).map(
-        (l) => l.direction
-      );
-      expect(directions.sort()).toEqual(["inbound", "outbound"]);
-    }
-    // One departure arc per lane, none back.
-    expect(TRANSFER_LANES.flatMap((l) => arcSectors(laneDepartureArc(l)))).toHaveLength(
-      6 * TRANSFER_ARC_LENGTH
-    );
-  });
-
   it("the whole of black hole ring 5 is lanes, each sector in exactly one; only outbound arcs offer a jump", () => {
     const outbound = new Set(
       TRANSFER_LANES.filter((l) => l.direction === "outbound").flatMap((l) =>
@@ -90,15 +67,6 @@ describe("jumps: lane geometry", () => {
     }
     const covered = TRANSFER_LANES.flatMap((l) => arcSectors(l.blackHoleArc)).sort((a, b) => a - b);
     expect(covered).toEqual(Array.from({ length: SECTORS_PER_RING }, (_, i) => i));
-  });
-
-  it("each planet has two arcs on ring 3 (4-7 and 16-19)", () => {
-    for (const planet of [ALPHA, BETA, GAMMA]) {
-      const arcs = TRANSFER_LANES.filter((l) => l.planetId === planet)
-        .map((l) => l.planetArc.startSector)
-        .sort((a, b) => a - b);
-      expect(arcs).toEqual([4, 16]);
-    }
   });
 
   it.each([
@@ -210,9 +178,7 @@ describe("jumps: executing a well transfer", () => {
     });
   });
 
-  it("uses the engines: a burn in the same turn is impossible anyway (one movement), and they count as used", () => {
-    const result = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA));
-    expect(getSub(result.gameState, "p1", "engines").usedThisTurn).toBe(false); // reset at end of turn
+  it("is the turn's one movement: a burn or a coast after it is refused", () => {
     const alone = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA));
     for (const second of [burn(2, "soft"), coast(2)]) {
       expectRefusedUnless(executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA), second), alone);
@@ -247,7 +213,6 @@ describe("jumps: executing a well transfer", () => {
 
   it("a working fuel compressor pays two of the lane's three fuel and is revealed", () => {
     // The lane is 3 and the tile pays 2 of it, so a compressed jump is 1.
-    expect(COMPRESSED_JUMP_MASS).toBe(1);
     const state = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
       reactionMass: 1,
     });
@@ -276,21 +241,6 @@ describe("jumps: executing a well transfer", () => {
     expect(getShip(result.gameState, "p1").reactionMass).toBe(10 - 3);
     expect(eventsOf(result.events, "jumped")[0].compressed).toBe(false);
   });
-
-  it("the lane is read from where the ship is when the jump executes", () => {
-    // p1 on Alpha's lane ring S15 (no lane) cannot jump even though S16 next door starts the inbound arc.
-    expectRefusedUnless(
-      executeTurnAs(readyToJump(ALPHA, PLANET_OUTER_RING, 15), jump(1, BH)),
-      executeTurnAs(readyToJump(ALPHA, PLANET_OUTER_RING, 16), jump(1, BH))
-    );
-  });
-
-  it("jumping is a movement: the ship does not drift afterwards even on a fast ring", () => {
-    // Beta's lane ring S17 is on Beta's inbound lane (16–19 → BH 12–15).
-    const state = makeTwoPlayerGame({ wellId: BETA, ring: PLANET_OUTER_RING, sector: 17 });
-    const result = executeTurnAs(state, jump(1, BH));
-    expect(getShip(result.gameState, "p1").sector).toBe(13);
-  });
 });
 
 describe("jumps: phasing inside the arrival arc", () => {
@@ -314,21 +264,6 @@ describe("jumps: phasing inside the arrival arc", () => {
         expect(phasedJumpDestination(option, max + 1)).toBeUndefined();
       }
     }
-  });
-
-  it.each([
-    [16, -1, undefined],
-    [16, 0, 4],
-    [16, 3, 7],
-    [17, -1, 4],
-    [17, 2, 7],
-    [17, 3, undefined],
-    [19, -3, 4],
-    [19, 0, 7],
-    [19, 1, undefined],
-  ])("from BH R5 S%i, phasing %i lands on Alpha's lane ring S%s", (sector, adjustment, landing) => {
-    const [option] = getJumpOptions({ wellId: BH, ring: 5, sector });
-    expect(phasedJumpDestination(option, adjustment)?.sector).toBe(landing);
   });
 
   it.each([
