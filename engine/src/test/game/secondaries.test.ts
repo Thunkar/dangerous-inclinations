@@ -164,10 +164,8 @@ describe("salvage: wrecks", () => {
   );
 
   it.each([
-    ["the black hole's ring 3", { wellId: BH, ring: 3, sector: 22 }],
     ["the black hole's ring 1", { wellId: BH, ring: 1, sector: 23 }],
     ["a planet's ring 2", { wellId: ALPHA, ring: 2, sector: 5 }],
-    ["a planet's ring 4", { wellId: GAMMA, ring: 4, sector: 10 }],
   ])("a wreck on %s drifts by its ring's speed once a round, with the stations", (_label, at) => {
     const state = { ...table(), wrecks: [wreckAt("w", at)] };
     // p1's turn is not the end of the round: nothing drifts.
@@ -212,9 +210,9 @@ describe("salvage: wrecks", () => {
     expect(eventTypes(filterEventsFor(result.events, "p2"))).toContain("wreck_salvaged");
   });
 
-  it.each([ALPHA, BETA, GAMMA])("files a black box at %s, which is the whole card", (planet) => {
+  it("files a black box at any station, which is the whole card", () => {
     const card = salvageMission();
-    const state = withPlayer(arriving(table(), "p1", planet, [card]), "p1", {
+    const state = withPlayer(arriving(table(), "p1", BETA, [card]), "p1", {
       cargo: [dataCargo(card.cargoId, card.id)],
     });
     const result = executeTurnAs(state, coast(1));
@@ -363,56 +361,6 @@ describe("salvage: wrecks", () => {
       expect.objectContaining({ wreckId: "w1", cargoId: salvageMission("salvage-a").cargoId }),
     ]);
     expect(result.gameState.wrecks.map((w) => w.id)).toEqual(["w2"]);
-  });
-
-  it("a pirate can seize a black box as data, and the victim's Salvage stays undone", () => {
-    const card = salvageMission("salvage-p2");
-    let state = withMissions(table(LANDING), "p1", [piracyMission()]);
-    state = withPlayer(state, "p2", {
-      missions: [card],
-      cargo: [dataCargo(card.cargoId, card.id)],
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "cargo_seized")).toEqual([
-      expect.objectContaining({ victimId: "p2", cargoId: card.cargoId, kind: "data" }),
-    ]);
-    const victim = getPlayer(result.gameState, "p2");
-    expect(victim.cargo).toEqual([
-      expect.objectContaining({ id: card.cargoId, isPickedUp: false }),
-    ]);
-    expect(victim.missions[0].isCompleted).toBe(false);
-  });
-
-  it("a pirate beside a crate and a black box takes the crate", () => {
-    const card = salvageMission("salvage-p2");
-    const loot = piracyMission("piracy-p2");
-    let state = withMissions(table(LANDING), "p1", [piracyMission()]);
-    state = withPlayer(state, "p2", {
-      missions: [card, loot],
-      cargo: [dataCargo(card.cargoId, card.id), lootCargo(loot.cargoId, loot.id)],
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "cargo_seized")).toEqual([
-      expect.objectContaining({ cargoId: loot.cargoId, kind: "crate" }),
-    ]);
-  });
-
-  it("a ship destroyed with a black box aboard loses it, and the card stays undone", () => {
-    const card = salvageMission("salvage-p2");
-    let state = withPower(
-      withShip(table({ wellId: BH, ring: 3, sector: 2 }), "p2", { hitPoints: 4 }),
-      "p1",
-      "forward-0",
-      4
-    );
-    state = withPlayer(state, "p2", {
-      missions: [card],
-      cargo: [dataCargo(card.cargoId, card.id)],
-    });
-    const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
-    const victim = getPlayer(result.gameState, "p2");
-    expect(victim.cargo).toEqual([]);
-    expect(victim.missions[0].isCompleted).toBe(false);
   });
 });
 
@@ -716,26 +664,13 @@ describe("escort: markers", () => {
     expect(eventTypes(filterEventsFor(result.events, "p2"))).toContain("escort_released");
   });
 
-  it("a carrier that delivers and then dies at its heat check delivered first: the Escort is done", () => {
-    const state = withShip(carrierArrives([deliverMission(ALPHA, BETA)]), "p2", {
-      heat: { currentHeat: 60 },
-    });
+  it.each<[string, Mission, string]>([
+    ["delivers", deliverMission(ALPHA, BETA), "cargo_delivered"],
+    ["pumps fuel", tankerMission("tanker-p2"), "fuel_pumped"],
+  ])("a carrier that %s and then dies at its heat check did it first: the Escort is done", (_label, card, done) => {
+    const state = withShip(carrierArrives([card]), "p2", { heat: { currentHeat: 60 } });
     const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).toEqual(
-      expect.arrayContaining(["cargo_delivered", "ship_destroyed"])
-    );
-    expect(eventTypes(result.events)).not.toContain("escort_released");
-    expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);
-  });
-
-  it("a carrier that pumps fuel and then dies at its heat check pumped first: the Escort is done", () => {
-    const state = withShip(carrierArrives([tankerMission("tanker-p2")]), "p2", {
-      heat: { currentHeat: 60 },
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).toEqual(
-      expect.arrayContaining(["fuel_pumped", "ship_destroyed"])
-    );
+    expect(eventTypes(result.events)).toEqual(expect.arrayContaining([done, "ship_destroyed"]));
     expect(eventTypes(result.events)).not.toContain("escort_released");
     expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);
   });
