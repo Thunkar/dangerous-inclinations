@@ -496,7 +496,10 @@ export function eventToBeat(
         burst(event.playerId, TABLE.success, 26, 600, event.position)
         return BEAT.small
       case 'heat_check':
-        if (event.damage > 0) return 0 // heat_damage marks it below
+        if (event.damage > 0) {
+          float(event.playerId, `${event.damage} heat`, 'heat', FLOAT.normal)
+          return BEAT.small
+        }
         if (event.carried > 0) mark(event.playerId, `HEAT +${event.carried}`, 'heat')
         return event.carried > 0 ? BEAT.small : 0
       case 'weapon_fired':
@@ -599,9 +602,6 @@ export function eventToBeat(
       }
       case 'missile_expired':
         board.missiles = board.missiles.filter(m => m.id !== event.missileId)
-        return BEAT.small
-      case 'heat_damage':
-        float(event.playerId, `${event.damage} heat`, 'heat', FLOAT.normal)
         return BEAT.small
       case 'subsystem_broken': {
         pulses.push(`${event.playerId}:${event.subsystemId}`)

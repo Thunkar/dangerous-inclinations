@@ -105,10 +105,7 @@ export function resolveEndOfTurnHeat(
   }
 
   events.push({ type: "heat_check", playerId, heat, cubes, dissipation, damage, carried });
-  if (damage > 0) {
-    next = { ...next, hitPoints: Math.max(0, next.hitPoints - damage) };
-    events.push({ type: "heat_damage", playerId, heat, dissipation, damage });
-  }
+  if (damage > 0) next = { ...next, hitPoints: Math.max(0, next.hitPoints - damage) };
 
   return { ship: { ...next, heat: { currentHeat: carried } }, damage, events };
 }

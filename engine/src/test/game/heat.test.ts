@@ -85,7 +85,7 @@ describe("heat: a tile's cubes are its heat, and an action puts them there", () 
     let state = makeTwoPlayerGame();
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "coasted")[0].heat).toBe(0);
-    expect(eventsOf(result.events, "heat_damage")).toEqual([]);
+    expect(eventsOf(result.events, "heat_check")[0].damage).toBe(0);
     expect(getShip(result.gameState, "p1").hitPoints).toBe(10);
   });
 
@@ -102,7 +102,6 @@ describe("heat: a tile's cubes are its heat, and an action puts them there", () 
       burn(3, "hard")
     );
     expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "heat_damage")).toEqual([]);
     expect(eventsOf(result.events, "heat_check")).toEqual([
       expect.objectContaining({ playerId: "p1", heat: 6, dissipation: 5, damage: 0, carried: 1 }),
     ]);
@@ -128,7 +127,7 @@ describe("heat: end-of-turn resolution", () => {
       const result = executeTurnAs(state, coast(1));
       expect(getShip(result.gameState, "p1").hitPoints).toBe(hull);
       expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(carried);
-      expect(eventsOf(result.events, "heat_damage").length > 0).toBe(damaged);
+      expect(eventsOf(result.events, "heat_check")[0].damage > 0).toBe(damaged);
     }
   );
 
@@ -336,7 +335,6 @@ describe("heat: radiators", () => {
         damage: 3,
         carried: 5,
       },
-      { type: "heat_damage", playerId: "p1", heat: 13, dissipation: 5, damage: 3 },
     ]);
   });
 

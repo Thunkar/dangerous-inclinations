@@ -165,13 +165,6 @@ export type GameEvent =
       cause: "weapon" | "missile" | "heat";
     })
   | (Base & {
-      type: "heat_damage";
-      playerId: string;
-      heat: number;
-      dissipation: number;
-      damage: number;
-    })
-  | (Base & {
       /** A cold ship's crew got outside and fixed one thing (RULES §Heat check). */
       type: "subsystem_repaired";
       playerId: string;
