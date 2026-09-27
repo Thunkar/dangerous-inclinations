@@ -4,6 +4,7 @@
  * engine's order: points, then hull, then fuel, then the earlier seat.
  */
 import { Box, Button, Typography } from '@mui/material'
+import { rankPlayers } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { MissionCard } from '../common/MissionCard'
@@ -14,17 +15,7 @@ import { FONT_DISPLAY } from '../../design/press'
 export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
   const { view, nameOf } = useGame()
   const winner = view.players.find((p) => p.id === view.winnerId)
-  // `view.players` is in seat order, so the index breaks the last tie.
-  const standings = view.players
-    .map((player, seat) => ({ player, seat }))
-    .sort(
-      (a, b) =>
-        b.player.points - a.player.points ||
-        (b.player.ship?.hitPoints ?? 0) - (a.player.ship?.hitPoints ?? 0) ||
-        (b.player.ship?.fuel ?? 0) - (a.player.ship?.fuel ?? 0) ||
-        a.seat - b.seat
-    )
-    .map(({ player }) => player)
+  const standings = rankPlayers(view).ranked
 
   return (
     <Box

@@ -6,6 +6,7 @@
  */
 import type { GameState, Player } from "../../models/game.ts";
 import type { EventDraft } from "../../models/events.ts";
+import type { PlayerView } from "../view.ts";
 import type {
   Cargo,
   EscortMission,
@@ -13,7 +14,13 @@ import type {
   SalvageMission,
   Mission,
 } from "../../models/missions.ts";
-import { SURVEY_RING, aboard, crateAboard, dataAboard, missionPoints } from "../../models/missions.ts";
+import {
+  SURVEY_RING,
+  aboard,
+  crateAboard,
+  dataAboard,
+  missionPoints,
+} from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
@@ -376,27 +383,36 @@ export function checkForWinner(state: GameState): Player | undefined {
 
 export type Decider = "points" | "hull" | "fuel" | "seat";
 
+/** What the standings read off a seat: its points, its hull and its fuel. */
+function standing(p: Player | PlayerView): { points: number; hull: number; fuel: number } {
+  if ("isMe" in p)
+    return { points: p.points, hull: p.ship?.hitPoints ?? 0, fuel: p.ship?.fuel ?? 0 };
+  return { points: p.points, hull: p.ship.hitPoints, fuel: p.ship.reactionMass };
+}
+
 /**
  * Standings: most points, then most hull, then most fuel, then the earlier
  * seat. Used when the final round has been played out and at the simulator's
- * turn cap. Also says what separated first from second.
+ * turn cap, and by anything that ranks the table from a view (all three are
+ * public). Also says what separated first from second.
  */
-export function rankPlayers(state: GameState): { ranked: Player[]; decidedBy: Decider } {
-  const ranked = [...state.players].sort(
-    (a, b) =>
-      b.points - a.points ||
-      b.ship.hitPoints - a.ship.hitPoints ||
-      b.ship.reactionMass - a.ship.reactionMass ||
-      state.players.indexOf(a) - state.players.indexOf(b)
-  );
-  const [first, second] = ranked;
+export function rankPlayers<T extends Player | PlayerView>(table: {
+  players: readonly T[];
+}): { ranked: T[]; decidedBy: Decider } {
+  const seat = (p: T) => table.players.indexOf(p);
+  const ranked = [...table.players].sort((a, b) => {
+    const x = standing(a);
+    const y = standing(b);
+    return y.points - x.points || y.hull - x.hull || y.fuel - x.fuel || seat(a) - seat(b);
+  });
+  const [first, second] = ranked.map(standing);
   const decidedBy: Decider = !second
     ? "points"
     : first.points !== second.points
       ? "points"
-      : first.ship.hitPoints !== second.ship.hitPoints
+      : first.hull !== second.hull
         ? "hull"
-        : first.ship.reactionMass !== second.ship.reactionMass
+        : first.fuel !== second.fuel
           ? "fuel"
           : "seat";
   return { ranked, decidedBy };

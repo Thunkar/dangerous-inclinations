@@ -9,7 +9,7 @@ import {
   dealMissionOffers,
   selectMissionsFromOffers,
 } from "../../game/missions/missionDeck.ts";
-import { checkForWinner, completedMissions } from "../../game/missions/missionChecks.ts";
+import { checkForWinner, completedMissions, rankPlayers } from "../../game/missions/missionChecks.ts";
 import { describeMission } from "../../game/describe.ts";
 import { createGame } from "../../game/setup.ts";
 import { viewFor } from "../../game/view.ts";
@@ -988,5 +988,35 @@ describe("missions: the points the table plays to", () => {
     ["nonsense", Number.NaN],
   ])("refuses %s as the number to play to", (_case, pointsToWin) => {
     expect(() => createGame(SPECS, 1, { pointsToWin })).toThrow();
+  });
+});
+
+describe("missions: standings", () => {
+  type Seat = { points: number; hull: number; fuel: number };
+  const table = (p1: Seat, p2: Seat): GameState => {
+    let state = makeTwoPlayerGame();
+    for (const [id, seat] of [
+      ["p1", p1],
+      ["p2", p2],
+    ] as const) {
+      state = withPlayer(state, id, { points: seat.points });
+      state = withShip(state, id, { hitPoints: seat.hull, reactionMass: seat.fuel });
+    }
+    return state;
+  };
+  const seat = (points: number, hull: number, fuel: number): Seat => ({ points, hull, fuel });
+
+  it.each([
+    ["points first", seat(1, 9, 9), seat(3, 1, 1), ["p2", "p1"], "points"],
+    ["then hull", seat(3, 4, 9), seat(3, 6, 1), ["p2", "p1"], "hull"],
+    ["then fuel", seat(3, 6, 2), seat(3, 6, 5), ["p2", "p1"], "fuel"],
+    ["then the earlier seat", seat(3, 6, 5), seat(3, 6, 5), ["p1", "p2"], "seat"],
+  ] as const)("ranks %s, from the state and from any view alike", (_label, p1, p2, order, by) => {
+    const state = table(p1, p2);
+    const views = [viewFor(state, "p2"), viewFor(state, null)];
+    for (const standings of [rankPlayers(state), ...views.map((v) => rankPlayers(v))]) {
+      expect(standings.ranked.map((p) => p.id)).toEqual(order);
+      expect(standings.decidedBy).toBe(by);
+    }
   });
 });
