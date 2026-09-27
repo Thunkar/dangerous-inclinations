@@ -163,7 +163,6 @@ describe("docking: ending the turn on a station", () => {
     expect(getSub(result.gameState, "p1", "side-0")).toMatchObject({
       isBroken: false,
       allocatedEnergy: 0,
-      isPowered: false,
     });
   });
 

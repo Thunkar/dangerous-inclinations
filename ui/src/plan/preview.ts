@@ -43,7 +43,6 @@ import {
   canBeScanned,
   canEngage,
   canFireFrom,
-  canSubsystemFunction,
   drawFor,
   dockJobsOnArrival,
   escortCandidates,
@@ -248,8 +247,7 @@ export function loadoutFor(
 ): Subsystem[] {
   return player.ship.subsystems.map(s => {
     const allocatedEnergy = s.isBroken ? 0 : (powers[s.id] ?? draws[s.id] ?? 0)
-    const next = { ...s, allocatedEnergy }
-    return { ...next, isPowered: canSubsystemFunction(next) }
+    return { ...s, allocatedEnergy }
   })
 }
 

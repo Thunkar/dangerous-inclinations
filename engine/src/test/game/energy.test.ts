@@ -108,7 +108,6 @@ describe("energy: every cube is heat at the check", () => {
     expect(eventsOf(next.events, "heat_check")[0].cubes).toBe(0);
     expect(getSub(next.gameState, "p1", "side-2")).toMatchObject({
       allocatedEnergy: 0,
-      isPowered: false,
     });
   });
 
@@ -162,10 +161,10 @@ describe("energy: it stays on the tile until its owner's next turn", () => {
       const afterP1 = mustExecute(start, ...actions);
       expect(getSub(afterP1, "p1", id).allocatedEnergy).toBe(cubes);
       const afterP2 = mustExecute(afterP1, coast(1));
-      expect(getSub(afterP2, "p1", id)).toMatchObject({ allocatedEnergy: cubes, isPowered: true });
+      expect(getSub(afterP2, "p1", id)).toMatchObject({ allocatedEnergy: cubes });
       // Gone once p1's own next turn is processed.
       const next = mustExecute(afterP2, coast(1));
-      expect(getSub(next, "p1", id)).toMatchObject({ allocatedEnergy: 0, isPowered: false });
+      expect(getSub(next, "p1", id)).toMatchObject({ allocatedEnergy: 0 });
     }
   );
 
@@ -245,7 +244,6 @@ describe("energy: power", () => {
     expect(result.errors ?? []).toEqual([]);
     expect(getSub(result.gameState, "p1", id)).toMatchObject({
       allocatedEnergy: expected,
-      isPowered: true,
       // Powering is not using: the tile stays face-down.
       isRevealed: false,
     });

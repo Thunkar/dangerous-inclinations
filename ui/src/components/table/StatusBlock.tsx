@@ -19,6 +19,7 @@ import {
   getMissileStats,
   getWellName,
   heatAfterCheck,
+  isPowered,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { CargoTokens, PipTrack } from '../common/Tokens'
@@ -81,7 +82,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
    * other time they are the ones your last turn left up.
    */
   const shieldTiles = (planning ? plan.pendingSubsystems : me.ship.subsystems).filter(
-    s => s.type === 'shields' && s.isPowered && !s.isBroken
+    s => s.type === 'shields' && isPowered(s) && !s.isBroken
   )
   const shieldsOnly = shieldTiles.reduce(
     (sum, s) => sum + Math.floor(s.allocatedEnergy / SHIELD_ENERGY_PER_POINT),

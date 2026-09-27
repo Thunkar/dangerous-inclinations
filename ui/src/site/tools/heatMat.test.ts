@@ -49,7 +49,7 @@ function shipOf(mat: Mat): ShipState {
   )
   for (const slot of SLOTS) {
     const cubes = mat.energy[slot] ?? 0
-    if (cubes > 0) ship = updateSubsystem(ship, slot, { allocatedEnergy: cubes, isPowered: true })
+    if (cubes > 0) ship = updateSubsystem(ship, slot, { allocatedEnergy: cubes })
   }
   return { ...ship, heat: { currentHeat: mat.track } }
 }

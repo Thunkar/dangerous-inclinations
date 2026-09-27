@@ -5,7 +5,7 @@ import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from "../
 import type { GameState, Player, Position, ShipLoadout } from "../../models/game.ts";
 import type { Cargo } from "../../models/missions.ts";
 import { dataAboard } from "../../models/missions.ts";
-import { getSubsystemConfig } from "../../models/subsystems.ts";
+import { getSubsystemConfig, isPowered } from "../../models/subsystems.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import {
   power,
@@ -162,7 +162,7 @@ describe("respawn: the turn after dying", () => {
     });
     expect(ship.subsystems.every((s) => s.allocatedEnergy === 0)).toBe(true);
     expect(
-      ship.subsystems.every((s) => s.allocatedEnergy === 0 && !s.isPowered && !s.isBroken)
+      ship.subsystems.every((s) => s.allocatedEnergy === 0 && !isPowered(s) && !s.isBroken)
     ).toBe(true);
     expect(result.gameState.activePlayerIndex).toBe(0);
     expect(result.gameState.turn).toBe(state.turn + 1);

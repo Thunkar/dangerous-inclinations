@@ -65,7 +65,6 @@ const FOCUS_WEAPON: Subsystem = {
   id: 'side-0',
   type: 'missiles',
   allocatedEnergy: 2,
-  isPowered: true,
   usedThisTurn: false,
   rollsThisTurn: 0,
   isBroken: false,

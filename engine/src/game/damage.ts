@@ -11,7 +11,7 @@
  */
 import type { ShipState } from "../models/game.ts";
 import { BASE_CRITICAL_CHANCE, SHIELD_HEAT_PER_POINT } from "../models/game.ts";
-import { SHIELD_ENERGY_PER_POINT } from "../models/subsystems.ts";
+import { SHIELD_ENERGY_PER_POINT, isPowered } from "../models/subsystems.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
@@ -81,7 +81,7 @@ export function resolveAttack(
   let absorbed = 0;
   const shields = ignoresShields
     ? []
-    : ship.subsystems.filter((s) => s.type === "shields" && s.isPowered && !s.isBroken);
+    : ship.subsystems.filter((s) => s.type === "shields" && isPowered(s) && !s.isBroken);
   for (const shield of shields) {
     if (remainingDamage <= 0) break;
     const take = Math.min(remainingDamage, Math.floor(shield.allocatedEnergy / SHIELD_ENERGY_PER_POINT));
@@ -93,7 +93,6 @@ export function resolveAttack(
     // critical that finds it now dumps only what is left.
     ship = updateSubsystem(ship, shield.id, {
       allocatedEnergy: left,
-      isPowered: left > 0,
     });
     ship = addHeat(ship, take * SHIELD_HEAT_PER_POINT);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");

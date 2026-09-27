@@ -12,7 +12,12 @@ import {
   STARTING_HIT_POINTS,
 } from "../models/game.ts";
 import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
-import { SUBSYSTEM_CONFIGS, getSubsystemConfig, getMissileStats } from "../models/subsystems.ts";
+import {
+  SUBSYSTEM_CONFIGS,
+  getSubsystemConfig,
+  getMissileStats,
+  isPowered,
+} from "../models/subsystems.ts";
 import type { EventDraft, RevealReason } from "../models/events.ts";
 import { createSubsystemsFromLoadout, calculateShipStatsFromLoadout } from "./loadout.ts";
 
@@ -84,18 +89,16 @@ export function getDissipationCapacity(
  * lands on the track directly (`damage.ts`).
  */
 export function heatFromCubes(subsystems: ReadonlyArray<Subsystem>): number {
-  // The cubes themselves, not `isPowered`: a tile is hot because it is carrying
-  // them, and a broken one dumped its as heat when it broke.
-  return subsystems
-    .filter((s) => !s.isBroken)
-    .reduce((sum, s) => sum + s.allocatedEnergy, 0);
+  // A tile is hot because it is carrying cubes, and a broken one dumped its
+  // as heat when it broke.
+  return subsystems.filter((s) => !s.isBroken).reduce((sum, s) => sum + s.allocatedEnergy, 0);
 }
 
 /** Critical chance in percentage points: base plus each powered, working sensor array. */
 export function getEffectiveCriticalChance(subsystems: ReadonlyArray<Subsystem>): number {
   const bonus = SUBSYSTEM_CONFIGS.sensor_array.passiveEffect?.criticalChanceBonus ?? 0;
   const count = subsystems.filter(
-    (s) => s.type === "sensor_array" && s.isPowered && !s.isBroken
+    (s) => s.type === "sensor_array" && isPowered(s) && !s.isBroken
   ).length;
   return BASE_CRITICAL_CHANCE + count * bonus;
 }
@@ -170,7 +173,7 @@ export function drawFor(type: Subsystem["type"], requested?: number): number {
 export function powerForUse(ship: ShipState, id: SubsystemId, draw: number): ShipState {
   const sub = findSubsystem(ship, id);
   if (!sub || sub.allocatedEnergy >= draw) return ship;
-  return updateSubsystem(ship, id, { allocatedEnergy: draw, isPowered: true });
+  return updateSubsystem(ship, id, { allocatedEnergy: draw });
 }
 
 /**
@@ -208,12 +211,10 @@ export function useSubsystem(
  * is whatever this turn's actions put on (RULES §Energy and Heat).
  */
 export function clearLoadout(ship: ShipState): ShipState {
-  if (!ship.subsystems.some((s) => s.allocatedEnergy !== 0 || s.isPowered)) return ship;
+  if (!ship.subsystems.some(isPowered)) return ship;
   return {
     ...ship,
-    subsystems: ship.subsystems.map((s) =>
-      s.allocatedEnergy !== 0 || s.isPowered ? { ...s, allocatedEnergy: 0, isPowered: false } : s
-    ),
+    subsystems: ship.subsystems.map((s) => (isPowered(s) ? { ...s, allocatedEnergy: 0 } : s)),
   };
 }
 
@@ -231,7 +232,6 @@ export function breakSubsystem(
   const energyLost = sub.allocatedEnergy;
   let next: ShipState = updateSubsystem(ship, id, {
     allocatedEnergy: 0,
-    isPowered: false,
     isBroken: true,
     isRevealed: true,
   });

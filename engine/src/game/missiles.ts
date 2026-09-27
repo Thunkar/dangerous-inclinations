@@ -22,7 +22,7 @@
  */
 import type { GameState, Missile, Player, Position } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { getMissileStats, interceptsPerRack } from "../models/subsystems.ts";
+import { getMissileStats, interceptsPerRack, isPowered } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import { rollD10, nextEntityId } from "../utils/rng.ts";
 import {
@@ -195,7 +195,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     const rack = targetShip.subsystems.find(
       (s) =>
         s.type === "ballistic_rack" &&
-        s.isPowered &&
+        isPowered(s) &&
         !s.isBroken &&
         s.rollsThisTurn < interceptsPerRack()
     );

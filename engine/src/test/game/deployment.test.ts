@@ -420,7 +420,6 @@ describe("loadout: validation and instantiation", () => {
       slotGroup: "side",
       slotIndex: 2,
       allocatedEnergy: 0,
-      isPowered: false,
       isBroken: false,
     });
     expect(subsystems.find((s) => s.id === "side-3")?.ammo).toBe(4);

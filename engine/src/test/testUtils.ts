@@ -149,7 +149,6 @@ export function withPower(
       if (p.id !== playerId) return p;
       const ship = updateSubsystem(p.ship, subsystemId, {
         allocatedEnergy: energy,
-        isPowered: energy > 0,
       });
       return { ...p, ship };
     }),

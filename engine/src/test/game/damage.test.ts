@@ -124,7 +124,6 @@ describe("damage: resolveAttack", () => {
     expect(outcome.ship.heat.currentHeat).toBe(toHeat * SHIELD_HEAT_PER_POINT);
     const shield = outcome.ship.subsystems.find((s) => s.id === "side-2")!;
     expect(shield.allocatedEnergy).toBe(shieldLeft);
-    expect(shield.isPowered).toBe(shieldLeft > 0);
     // The cubes that absorbed are spent, so the tile costs that much less at
     // the owner's next check.
     expect(cubesOnLoadout(outcome.ship)).toBe(
@@ -181,7 +180,6 @@ describe("damage: resolveAttack", () => {
     expect(engines).toMatchObject({
       isBroken: true,
       allocatedEnergy: 0,
-      isPowered: false,
       isRevealed: true,
     });
     expect(outcome.ship.heat.currentHeat).toBe(3);

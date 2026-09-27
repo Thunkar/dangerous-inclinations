@@ -160,7 +160,6 @@ export interface Subsystem {
   id: SubsystemId;
   type: SubsystemType;
   allocatedEnergy: number;
-  isPowered: boolean;
   usedThisTurn: boolean;
   /**
    * Interception rolls a ballistic rack has made this player-turn. A rack's
@@ -344,9 +343,12 @@ export const WEAPON_SUBSYSTEM_TYPES: readonly WeaponType[] = (
   Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]
 ).filter(isWeaponType);
 
-export function canSubsystemFunction(subsystem: Subsystem): boolean {
-  if (subsystem.isBroken) return false;
-  return subsystem.allocatedEnergy >= SUBSYSTEM_CONFIGS[subsystem.type].minEnergy;
+/**
+ * Whether a tile has energy on it: an action put it there this turn, or on its
+ * owner's last turn, and it works until its owner's next turn clears it.
+ */
+export function isPowered(subsystem: Pick<Subsystem, "allocatedEnergy">): boolean {
+  return subsystem.allocatedEnergy > 0;
 }
 
 /**

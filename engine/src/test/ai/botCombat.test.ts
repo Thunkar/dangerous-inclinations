@@ -162,7 +162,7 @@ describe("bot targeting", () => {
       { wellId: BH, ring: 4, sector: 0, loadout: GUNSHIP }
     );
     let state = grounded(base, "p1");
-    state = withSub(state, "p2", "forward-0", { allocatedEnergy: 4, isPowered: true });
+    state = withSub(state, "p2", "forward-0", { allocatedEnergy: 4 });
     const shots = shotsOf(state, "p1");
     expect(shots.length).toBeGreaterThan(0);
     for (const shot of shots) expect(shot.data.criticalTarget).toBe("forward-0");

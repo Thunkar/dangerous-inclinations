@@ -69,7 +69,6 @@ function createSubsystemInstance(
     id: slot ? slotSubsystemId(slot.group, slot.index) : type,
     type,
     allocatedEnergy: 0,
-    isPowered: false,
     usedThisTurn: false,
     rollsThisTurn: 0,
     isBroken: false,

@@ -134,7 +134,6 @@ function slotAsSubsystem(slot: SlotView, type: SubsystemType = slot.type!): Subs
     id: slot.id,
     type,
     allocatedEnergy: 0,
-    isPowered: false,
     usedThisTurn: false,
     rollsThisTurn: 0,
     isBroken: slot.isBroken ?? false,

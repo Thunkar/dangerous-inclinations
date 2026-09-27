@@ -241,7 +241,6 @@ function processPower(state: GameState, action: PowerAction): Step {
     const amount = requestedDraw(sub.type, action.data.amount);
     const ship = updateSubsystem(p.ship, sub.id, {
       allocatedEnergy: amount,
-      isPowered: true,
       usedThisTurn: true,
     });
     events.push({
