@@ -3,9 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "rootDir": "..",
-    "baseUrl": ".",
     "paths": {
-      "@dangerous-inclinations/engine": ["../engine/src/index.ts"]
+      "@dangerous-inclinations/engine": ["./../engine/src/index.ts"]
     }
   },
   "include": ["src", "scripts"]
