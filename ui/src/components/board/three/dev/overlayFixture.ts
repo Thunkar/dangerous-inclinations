@@ -26,6 +26,7 @@ import {
   projectMissilePath,
 } from '@dangerous-inclinations/engine'
 import { getPlayerColor } from '../../../../utils/playerColors'
+import { TABLE } from '../../../../theme'
 import { crowdOffset, radialPoint, ringsOf } from '../../geometry'
 import type { BoardModel, HomeMarker, MissilePreview, ShipToken } from '../../model'
 
@@ -270,7 +271,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     effects: [],
     ping: null,
     shot: null,
-    myColor: colorOf(me.playerId),
+    planColor: TABLE.ink,
     colorOf,
     nameOf,
     pointOf: playerId => {

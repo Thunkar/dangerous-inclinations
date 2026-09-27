@@ -257,6 +257,10 @@ export function FightSection() {
               its owner&rsquo;s heat.
             </>,
             <>In your own sector every weapon reaches. Nothing fires across wells.</>,
+            <>
+              <b>A berth is safe</b>: a moored ship neither fires nor is fired at, missiles
+              included. Scans still reach it.
+            </>,
           ]}
         />
       </Box>

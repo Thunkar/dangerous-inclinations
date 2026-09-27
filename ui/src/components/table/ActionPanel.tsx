@@ -105,7 +105,7 @@ export function ActionPanel() {
               : readOnly
                 ? 'Nothing here can be played.'
                 : sittingOut
-                  ? 'Your ship is lost. You return to Home this turn with a full hull and tank and drift; nobody can touch you until your next turn.'
+                  ? 'Your ship is lost. You return to Home this turn with a full hull and tank and drift; nobody can touch you until your next turn is over.'
                   : isAnimating
                     ? 'Watching the turn play out…'
                     : `Waiting for ${active?.name ?? 'the next player'} to act.`}
@@ -402,7 +402,7 @@ function EscortControl() {
             return (
               <ChoiceChip
                 key={carrierId}
-                title={`Put your marker on ${name}: done the next time they deliver, sell or file anything; back to you if they are destroyed first`}
+                title={`Put your marker on ${name}: done the next time they deliver, sell or file anything, or pump fuel; back to you if they are destroyed first`}
                 selected={on}
                 disabled={off}
                 opacity={!on && full ? 0.5 : 1}

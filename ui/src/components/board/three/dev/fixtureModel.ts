@@ -25,6 +25,7 @@ import type { BoardModel, HomeMarker, ShipToken, WreckToken } from '../../model'
 import { crowdOffset, radialPoint } from '../../geometry'
 import { visualForPlayer } from '../../../../ships/visual'
 import { getPlayerColor } from '../../../../utils/playerColors'
+import { TABLE } from '../../../../theme'
 
 interface FixtureSeat {
   playerId: string
@@ -255,7 +256,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     effects: [],
     ping: null,
     shot: null,
-    myColor: colorOf('p1'),
+    planColor: TABLE.ink,
     colorOf,
     nameOf,
     pointOf: playerId => {

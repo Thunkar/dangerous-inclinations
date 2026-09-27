@@ -34,7 +34,7 @@ export const TURN_STEPS: TurnStep[] = [
   {
     title: 'Respawn',
     blurb:
-      'Destroyed? This turn you come back: Home, full hull and fuel, drifting. Nobody can touch you until your next turn ends, and on it you fire at nobody.',
+      'Destroyed? This turn you come back: Home, full hull and fuel, drifting. Nobody can touch you until your next turn ends, and on it you fire at nobody and scan nobody.',
     terse: 'Destroyed? Home, full hull and fuel. Turn over',
   },
   {
@@ -64,13 +64,13 @@ export const TURN_STEPS: TurnStep[] = [
   },
   {
     title: 'Missions',
-    blurb: 'Flip what you completed, then pass.',
-    terse: 'Flip if completed, then pass',
+    blurb: "Take a wreck's black box, seize loot, put down an Escort marker if you choose. Flip what you completed, then pass.",
+    terse: 'Black box, loot, Escort marker; flip, pass',
   },
   {
     title: 'Stations',
-    blurb: `Once a round, after the last seat's turn: every station moves ${STATION_DRIFT} sectors, carrying whoever is moored.`,
-    terse: `Once a round, after the last seat: every station +${STATION_DRIFT}`,
+    blurb: `Once a round, after the last seat's turn: every station moves ${STATION_DRIFT} sectors, carrying whoever is moored, and every wreck drifts with its ring.`,
+    terse: `Once a round, after the last seat: every station +${STATION_DRIFT}, wrecks drift`,
     roundEnd: true,
   },
 ]

@@ -40,6 +40,7 @@ import { useAnimation } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
+import { TABLE } from '../../theme'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
 import { crowdOffset, radialPoint, ringsOf, type Point, type WreckCrowd } from './geometry'
 
@@ -162,8 +163,11 @@ export interface BoardModel {
   ping: Ping | null
   /** What the 3D board's auto camera should frame while a turn plays; the flat board ignores it. */
   shot: CameraShot | null
-  /** This seat's colour, or null for a spectator. */
-  myColor: string | null
+  /**
+   * The colour the plan being built is drawn in: the table's cream. A plan is
+   * a projection, not a ship, so it never wears a seat colour.
+   */
+  planColor: string
   colorOf: (playerId: string) => string
   nameOf: (playerId: string) => string
   /**
@@ -185,11 +189,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     (playerId: string) => getPlayerColor(view.players.findIndex(p => p.id === playerId)),
     [view.players]
   )
-
-  const myColor = useMemo(() => {
-    const index = view.players.findIndex(p => p.isMe)
-    return index >= 0 ? getPlayerColor(index) : null
-  }, [view.players])
 
   /**
    * A token per living ship: where it is, and (while a turn is playing) the
@@ -447,7 +446,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       effects,
       ping: pinged,
       shot,
-      myColor,
+      planColor: TABLE.ink,
       colorOf,
       nameOf,
       pointOf,
@@ -472,7 +471,6 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       effects,
       pinged,
       shot,
-      myColor,
       colorOf,
       nameOf,
       pointOf,

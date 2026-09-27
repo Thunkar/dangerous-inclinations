@@ -185,7 +185,7 @@ export function OpponentCard({
             </Typography>
           )}
           {recovering && (
-            <Tooltip title="Respawned at Home · no shot, missile or scan reaches it until its next turn is over, and it fires at nobody on that turn">
+            <Tooltip title="Respawned at Home · no shot, missile or scan reaches it until its next turn is over, and on that turn it fires at nobody and scans nobody">
               <Typography
                 variant="overline"
                 noWrap

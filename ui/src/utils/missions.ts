@@ -71,7 +71,7 @@ export function missionProgress(
       const loot = cargo.find(c => c.missionId === mission.id)
       return loot?.isPickedUp
         ? 'Sell the loot at any station'
-        : 'Find an undocked ship carrying a crate or data'
+        : 'With your hold empty, find an undocked ship carrying a crate or data'
     }
     case 'tanker':
       return fuel === undefined
@@ -79,7 +79,7 @@ export function missionProgress(
         : `Arrive at a station with ${TANKER_FUEL} fuel (tank ${fuel}/${MAX_REACTION_MASS})`
     case 'escort':
       return mission.markedPlayerId
-        ? 'Marker placed · done when that ship next delivers'
+        ? 'Marker placed · done when that ship next delivers, sells, files or pumps fuel'
         : 'Mark an undocked carrier in your sector'
     case 'salvage': {
       // The wreck's black box rides as the card's own data: free, like any

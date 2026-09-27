@@ -401,6 +401,7 @@ export function CardBack() {
               'critical',
               'Breaks the named subsystem through the shields, face-up. Its energy goes onto its owner’s heat',
             ],
+            ['moored', 'Neither fires nor is fired at, missiles included; scans still reach it'],
           ]}
         />
       </Section>

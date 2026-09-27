@@ -162,7 +162,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                 return open ? (
                   <Box key={sector}>{cell}</Box>
                 ) : (
-                  <Tooltip key={sector} title={`within ${DEPLOYMENT_GAP} sectors of a placed ship`}>
+                  <Tooltip key={sector} title={`closer than ${DEPLOYMENT_GAP} sectors to a placed ship`}>
                     <Box>{cell}</Box>
                   </Tooltip>
                 )

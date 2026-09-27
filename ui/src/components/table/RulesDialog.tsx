@@ -21,9 +21,14 @@ import {
   MAX_REACTION_MASS,
   MAX_SECTOR_ADJUSTMENT,
   PLANET_RINGS,
+  PRIMARIES_PER_PLAYER,
+  PRIMARY_OFFERS_PER_PLAYER,
   SCAN_SECTOR_RANGE,
+  SECONDARIES_PER_PLAYER,
+  SECONDARY_OFFERS_PER_PLAYER,
   SECTORS_PER_RING,
   MAX_HEAT,
+  MISSION_POINTS,
   SHIELD_ENERGY_PER_POINT,
   SHIELD_HEAT_PER_POINT,
   STARTING_HIT_POINTS,
@@ -48,6 +53,10 @@ import {
   SENSOR_CRIT,
   SENSOR_ENERGY,
 } from '../../site/numbers'
+
+/** What a kept hand is worth: the primary and both secondaries. */
+const HAND_POINTS =
+  MISSION_POINTS.destroy_ship * PRIMARIES_PER_PLAYER + MISSION_POINTS.survey * SECONDARIES_PER_PLAYER
 
 /** The hit roll as the Quick Reference states it, read off the engine's roll table. */
 const HIT_ROLL = `${MISS_TOP} miss, ${MISS_TOP + 1}–${BASE_CRIT - 1} hit, ${BASE_CRIT} crit (${SENSOR_CRIT}–10 with sensors)`
@@ -129,14 +138,24 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
       'Docking',
       'on arrival only: full hull, repair all, reload missiles, and one job: your crates (deliver, then load), your data (file it all) or your fuel. You choose; by default the job worth the most points, ties to crates, then data. You stay moored until you burn away',
     ],
+    ['Berth', 'a moored ship neither fires nor is fired at, missiles included; scans still reach it'],
+    ['Wrecks', 'left where a ship dies, drift with the stations; a Salvage takes the black box (data)'],
     ['Survey', 'end a turn on Black Hole Ring 1 (take the data) then dock at any station'],
     [
       'Piracy',
-      'end a turn in the same sector as an undocked ship carrying a crate or data: it is yours. The loot fills your hold and sells at any station, and their card goes back to undone',
+      'end a turn in the same sector as an undocked ship carrying a crate or data, with your hold empty: it is yours. The loot fills your hold and sells at any station, and their card goes back to undone',
     ],
     [
       'Tanker',
       `arrive at a station with ${TANKER_FUEL} or more fuel and make the fuel that visit's job: pump it in and the card is done`,
+    ],
+    [
+      'Escort',
+      'end a turn, not moored, in the same sector as an undocked rival carrying a crate or data, and you may put your marker on it. Done the next time that ship delivers, sells or files anything, or pumps fuel; the marker comes back if it is destroyed first',
+    ],
+    [
+      'Salvage',
+      'end a turn on a wreck (moored or not) and take its black box: data, filed at any station',
     ],
     [
       'Deployment',
@@ -144,7 +163,15 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
     ],
     [
       'Missions',
-      'Primaries (2 pts): Destroy · Deliver · Intercept. Secondaries (1 pt): Survey · Piracy · Tanker',
+      'Primaries (2 pts): Destroy · Deliver · Intercept. Secondaries (1 pt): Survey · Piracy · Tanker · Escort · Salvage',
+    ],
+    [
+      'Keeping cards',
+      `${PRIMARY_OFFERS_PER_PLAYER} primaries keep ${PRIMARIES_PER_PLAYER}, ${SECONDARY_OFFERS_PER_PLAYER} secondaries keep any ${SECONDARIES_PER_PLAYER}, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon`,
+    ],
+    [
+      'Hand',
+      `${PRIMARIES_PER_PLAYER} primary of ${PRIMARY_OFFERS_PER_PLAYER} dealt, ${SECONDARIES_PER_PLAYER} of ${SECONDARY_OFFERS_PER_PLAYER} secondaries dealt. ${HAND_POINTS} points held, ${view.pointsToWin} win: the primary and either secondary`,
     ],
     [
       'Win',
@@ -228,7 +255,8 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
         <Heading>Hidden information</Heading>
         <Typography sx={{ fontSize: '0.875rem', color: TABLE.inkSoft, lineHeight: 1.4 }}>
           Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo
-          counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed missions.
+          counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed missions,
+          wrecks and Escort markers.
           <br />
           Private: what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo
           is going.

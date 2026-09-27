@@ -15,6 +15,7 @@ import {
   PRIMARY_OFFERS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   SECONDARY_OFFERS_PER_PLAYER,
+  TANKER_FUEL,
 } from '@dangerous-inclinations/engine'
 import { MissionCard } from '../../components/common/MissionCard'
 import { PRESS } from '../../design/press'
@@ -70,9 +71,9 @@ const NOTE: Partial<Record<MissionType, string>> = {
   deliver_cargo: 'Load at the first station, deliver at the second.',
   intercept_transmission: 'Scan them, then dock there. Needs a sensor.',
   survey: 'End a turn on black hole ring 1, then dock anywhere.',
-  piracy: 'Share a sector with an undocked carrier; sell anywhere.',
-  tanker: 'Arrive at a station with the fuel.',
-  escort: 'You may mark a carrier in your sector; it delivers, you score.',
+  piracy: 'With your hold empty, share a sector with an undocked carrier; sell anywhere.',
+  tanker: `Arrive at a station with ${TANKER_FUEL} fuel.`,
+  escort: 'You may mark a carrier in your sector; you score when it next delivers, sells, files or pumps fuel.',
   salvage: 'End a turn on a wreck, take its black box; file anywhere.',
 }
 

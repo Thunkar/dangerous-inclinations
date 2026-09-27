@@ -224,7 +224,7 @@ export function RoutePlannerTool() {
       effects: [],
       ping: null,
       shot: null,
-      myColor: SHIP_COLOR,
+      planColor: TABLE.ink,
       colorOf: () => SHIP_COLOR,
       nameOf: () => 'your ship',
       pointOf: () => null,
