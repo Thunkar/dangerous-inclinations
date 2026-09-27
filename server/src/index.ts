@@ -9,6 +9,7 @@ import { setupWebSocketRooms } from "./websocket/roomHandler.ts";
 import { closeRedis } from "./services/redis.ts";
 import { setLogger } from "./services/logger.ts";
 import { gameService, recordings, RECORDINGS_DIR } from "./services/live.ts";
+import { StaleGameError } from "./services/gameService.ts";
 
 const fastify = Fastify({
   logger: true,
@@ -27,6 +28,12 @@ await fastify.register(cors, {
 });
 
 await fastify.register(websocket);
+
+// A live game saved under older rules is gone, not broken: 410, as a stale recording is.
+fastify.setErrorHandler((error, _request, reply) => {
+  if (error instanceof StaleGameError) return reply.code(410).send({ error: error.message });
+  return reply.send(error);
+});
 
 await fastify.register(playerRoutes);
 await fastify.register(lobbyRoutes);

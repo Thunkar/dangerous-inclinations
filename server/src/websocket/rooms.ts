@@ -7,8 +7,8 @@
  * connected while any of them is open, so closing one tab never tears down a
  * game another tab is still playing.
  *
- * Game rooms send per-recipient messages (`sendToPlayer`, `broadcastViews`)
- * because every game message carries the recipient's own view of the state.
+ * Game rooms send per-recipient messages (`broadcastViews`) because every
+ * game message carries the recipient's own view of the state.
  * `broadcastToRoom` sends the same string to everyone and is only for lobby
  * and global messages, which carry no game state.
  */
@@ -113,10 +113,6 @@ function send(connection: Connection, message: unknown): void {
     return;
   }
   if (connection.ws.readyState === OPEN) connection.ws.send(JSON.stringify(message));
-}
-
-export function sendToPlayer(room: Room, roomId: string, playerId: string, message: unknown): void {
-  for (const connection of connectionsOf(room, roomId, playerId) ?? []) send(connection, message);
 }
 
 /** Build and send a message for each member of the room; every socket of a player gets it. */

@@ -10,11 +10,13 @@ export const AgentSchema = z.object({
   model: z.string().min(1).max(80),
 });
 
-export const CreatePlayerSchema = z.object({
-  playerId: z.string().uuid().optional(), // If provided, will validate; if not, server creates
-  playerName: z.string().min(1).max(50),
-  agent: AgentSchema.optional(),
-});
+/** The server picks the player id; a body that names one is refused. */
+export const CreatePlayerSchema = z
+  .object({
+    playerName: z.string().min(1).max(50),
+    agent: AgentSchema.optional(),
+  })
+  .strict();
 
 export const UpdatePlayerSchema = z.object({
   playerName: z.string().min(1).max(50),

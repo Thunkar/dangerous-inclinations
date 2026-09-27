@@ -55,7 +55,8 @@ export const ForkSchema = z
   .object({
     recordingId: z.string().min(1),
     turnIndex: z.number().int().finite().min(-1),
-    impersonateOriginalPlayerId: z.string().min(1).optional(),
+    /** The recorded seat to take over: your own, or a bot's. */
+    impersonateOriginalPlayerId: z.string().min(1),
   })
   .strict();
 
@@ -215,10 +216,20 @@ export const SubmitTurnSchema = z
   })
   .strict();
 
-/** Compile-time proof the wire shapes stay a subset of the engine's actions. */
+/**
+ * Compile-time proof the wire shapes and the engine's actions agree: every
+ * wire shape is an engine action, and every engine action a turn may carry
+ * (all but `deploy_ship`) has a wire shape.
+ */
 export type SubmittedAction = z.infer<typeof PlayerActionSchema>;
 const _actionsAreEngineActions: (a: SubmittedAction) => PlayerAction = (a) => a;
 void _actionsAreEngineActions;
+type UnsubmittableActionType = Exclude<
+  Exclude<PlayerAction["type"], "deploy_ship">,
+  SubmittedAction["type"]
+>;
+const _everyEngineActionHasAShape: [UnsubmittableActionType] extends [never] ? true : never = true;
+void _everyEngineActionHasAShape;
 
 /** Table talk: a line of chat, or a player's reasoning (`think`). */
 export const ChatSchema = z
@@ -231,6 +242,6 @@ export const ChatSchema = z
 /** Dry run of a turn's actions against the live state. */
 export const PreviewSchema = z
   .object({
-    actions: z.array(PlayerActionSchema),
+    actions: z.array(PlayerActionSchema).max(64),
   })
   .strict();

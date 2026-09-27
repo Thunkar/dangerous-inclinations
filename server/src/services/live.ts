@@ -8,7 +8,7 @@ import { getRedis } from "./redis.ts";
 import { redisKv } from "./kv.ts";
 import { createRecordingArchive, createRecordingService } from "./recordingService.ts";
 import { createGameService, type GameTransport } from "./gameService.ts";
-import { broadcastViews, sendToPlayer } from "../websocket/rooms.ts";
+import { broadcastViews } from "../websocket/rooms.ts";
 
 /** Archive of finished recordings. Override with $RECORDINGS_DIR to share with the sim CLI. */
 export const RECORDINGS_DIR = process.env.RECORDINGS_DIR
@@ -20,7 +20,6 @@ export const recordingArchive = createRecordingArchive(RECORDINGS_DIR);
 export const recordings = createRecordingService(kv, recordingArchive);
 
 const wsTransport: GameTransport = {
-  sendToPlayer: (gameId, playerId, message) => sendToPlayer("game", gameId, playerId, message),
   broadcastViews: (gameId, build) => broadcastViews("game", gameId, build),
 };
 

@@ -1,5 +1,7 @@
 /**
- * Recording capture and persistence (schema v5: events per turn, `power`, `dock_job` and `escort_mark` actions, wrecks on the state).
+ * Recording capture and persistence. Every recording carries the engine's
+ * RECORDING_SCHEMA_VERSION (engine/src/recording/types.ts); one made under
+ * another version is refused, never migrated.
  *
  * Lifecycle:
  * - `init` when a game enters the active phase: the post-deployment state
@@ -54,7 +56,6 @@ export interface RecordingSummary {
   turnCount: number;
   winnerId?: string;
   label?: string;
-  file: string;
 }
 
 /** Finished recordings on disk. */
@@ -96,7 +97,6 @@ export function createRecordingArchive(dir: string): RecordingArchive {
             turnCount: rec.metadata.turnCount,
             winnerId: rec.metadata.winnerId,
             label: rec.metadata.label,
-            file,
           };
         }),
       );

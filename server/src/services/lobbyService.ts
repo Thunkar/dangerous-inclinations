@@ -24,7 +24,6 @@ export interface LobbyPlayer {
   playerName: string;
   /** The server's own AI. */
   isBot: boolean;
-  isReady: boolean;
   /** An outside agent (Claude, Codex) playing this seat; absent for people and bots. */
   agent?: AgentInfo;
 }
@@ -59,7 +58,6 @@ function seatFor(playerId: string, player: PlayerAuth): LobbyPlayer {
     playerId,
     playerName: player.playerName,
     isBot: false,
-    isReady: false,
     ...(player.agent ? { agent: player.agent } : {}),
   };
 }
@@ -188,7 +186,6 @@ export function addBot(
       playerId: `bot-${randomUUID()}`,
       playerName: botName || `Bot ${lobby.players.filter((p) => p.isBot).length + 1}`,
       isBot: true,
-      isReady: true, // bots are always ready
     };
     lobby.players.push(newBot);
     await saveLobby(lobby);

@@ -1,19 +1,19 @@
 /**
  * End-to-end smoke test for the game service: one human and two bots through
- * loadout, deployment and ten turns, with no Redis and no sockets. Persistence
- * is an in-memory Kv and the transport just records what would have been sent,
- * which is exactly what we want to inspect.
+ * loadout, deployment and ten turns, then a hand-built board where the human's
+ * turns power, fire, scan, repair, name a dock job and mark an Escort, with no
+ * Redis and no sockets. Persistence is an in-memory Kv and the transport just
+ * records what would have been sent, which is exactly what we want to inspect.
  *
  * It asserts the hidden-information contract of docs/protocol.md: nothing the
  * human receives may contain another player's missions, the RNG state, or the
  * identity of a face-down tile.
  *
  *   node --experimental-transform-types --import ./scripts/engine-source-loader.mjs scripts/smoke.ts
- *
- * Add STUB_AI=1 while engine/src/ai is mid-rewrite (see engine-source-loader.mjs).
  */
-import type { GameRecording } from "@dangerous-inclinations/engine";
+import type { Cargo, GameRecording, GameState, PlayerAction } from "@dangerous-inclinations/engine";
 import {
+  DEFAULT_LOADOUT,
   DEFAULT_SHIP_APPEARANCE,
   DEPLOYMENT_GAP,
   HOME_RINGS,
@@ -28,7 +28,10 @@ import {
   legalDeploymentsAgainst,
   placedShipPositions,
   samePosition,
+  ringVelocity,
   wrapSector,
+  type EscortMission,
+  type GameEvent,
   type MissionType,
   type ShipLoadout,
 } from "@dangerous-inclinations/engine";
@@ -55,11 +58,29 @@ import {
 import {
   createGameService,
   engineBots,
+  serializeGame,
+  StaleGameError,
   type BotStrategy,
   type GameTransport,
 } from "../src/services/gameService.ts";
-import { checkStatusAccess } from "../src/services/playerService.ts";
-import { LoadoutSubmissionSchema, SubmitTurnSchema } from "../src/schemas/game.ts";
+import { checkPlayerAccess } from "../src/services/playerService.ts";
+import {
+  ForkSchema,
+  LoadoutSubmissionSchema,
+  PreviewSchema,
+  SubmitTurnSchema,
+} from "../src/schemas/game.ts";
+import { answerSubmission, connectedMessage } from "../src/websocket/submission.ts";
+// Board-building helpers for the canned position (they import no test runner).
+import {
+  BH,
+  escortMission,
+  makeGameState,
+  makePlayer,
+  surveyMission,
+  withShip,
+  withSub,
+} from "../../engine/src/test/testUtils.ts";
 import { CreatePlayerSchema } from "../src/schemas/player.ts";
 import { CreateLobbySchema } from "../src/schemas/lobby.ts";
 import {
@@ -110,9 +131,29 @@ function* walk(value: unknown, path = "$"): Generator<{ path: string; key: strin
 }
 
 /** Server-authoritative fields that must never cross the wire. */
-const SECRET_KEYS = ["rngState", "rngSeed", "nextEntityId", "resultingStateSnapshot", "initialState"];
+const SECRET_KEYS = [
+  "rngState",
+  "rngSeed",
+  "nextEntityId",
+  "forcedRollValue",
+  "resultingStateSnapshot",
+  "initialState",
+];
+
+/** A wreck on the wire is where it lies and nothing else. */
+const WRECK_KEYS = ["id", "wellId", "ring", "sector"];
+/** Events about the board everyone sees: none may be addressed to anyone. */
+const PUBLIC_EVENTS: ReadonlyArray<GameEvent["type"]> = [
+  "wreck_left",
+  "wreck_salvaged",
+  "escort_marked",
+  "escort_released",
+  "stations_moved",
+];
 
 let hiddenOpponentSlots = 0;
+let wrecksSeen = 0;
+let escortMarkersSeen = 0;
 let visibleOpponentSlots = 0;
 let ownSlotsSeen = 0;
 
@@ -128,6 +169,22 @@ function inspectHumanMessage(message: ServerGameMessage, index: number): void {
   const { view, events } = message.payload;
 
   check(view.me === null || view.me.id === HUMAN, `${where}: view.me is the recipient`);
+
+  for (const wreck of view.wrecks) {
+    wrecksSeen++;
+    const keys = Object.keys(wreck).sort();
+    check(
+      keys.length === WRECK_KEYS.length && WRECK_KEYS.every((k) => keys.includes(k)),
+      `${where}: wreck ${wreck.id} carries only its position (${keys.join(", ")})`,
+    );
+  }
+  for (const player of view.players) {
+    escortMarkersSeen += player.escortedBy.length;
+    check(
+      player.escortedBy.every((id) => view.players.some((p) => p.id === id)),
+      `${where}: ${player.id}'s Escort markers name seats at the table`,
+    );
+  }
 
   for (const player of view.players) {
     if (player.id === HUMAN) {
@@ -165,6 +222,9 @@ function inspectHumanMessage(message: ServerGameMessage, index: number): void {
       !event.privateTo || event.privateTo.includes(HUMAN),
       `${where}: private event "${event.type}" not addressed to the human`,
     );
+    if (PUBLIC_EVENTS.includes(event.type)) {
+      check(event.privateTo === undefined, `${where}: "${event.type}" is public`);
+    }
   }
 
   if (message.type === "TURN_EXECUTED") {
@@ -184,9 +244,6 @@ const toHuman: ServerGameMessage[] = [];
 const messageCounts = new Map<string, number>();
 
 const transport: GameTransport = {
-  sendToPlayer(_gameId, playerId, message) {
-    record(playerId, message);
-  },
   broadcastViews(_gameId, build) {
     // Every player is treated as connected so bot messages are built too.
     for (const spec of SPECS) record(spec.id, build(spec.id));
@@ -200,6 +257,22 @@ function record(playerId: string, message: ServerGameMessage): void {
   const onTheWire = JSON.parse(JSON.stringify(message)) as ServerGameMessage;
   toHuman.push(onTheWire);
   inspectHumanMessage(onTheWire, toHuman.length - 1);
+}
+
+/** A reply the socket sends only to the human (CONNECTED, TURN_ERROR): recorded and inspected the same way. */
+function recordReply(message: ServerGameMessage | null): ServerGameMessage | null {
+  if (message) record(HUMAN, message);
+  return message;
+}
+
+/** A raw SUBMIT_TURN from the human, through the socket's own handler. */
+function submitRaw(service: typeof games, gameId: string, body: unknown): Promise<ServerGameMessage | null> {
+  const raw = typeof body === "string" ? body : JSON.stringify(body);
+  return answerSubmission(service, gameId, HUMAN, raw).then(recordReply);
+}
+
+function submitTurnMessage(actions: unknown[], turn: number, activePlayerId = HUMAN) {
+  return { type: "SUBMIT_TURN", payload: { actions, turn, activePlayerId } };
 }
 
 const kv = memoryKv();
@@ -333,10 +406,18 @@ console.log(`smoke: deployment done, turn ${afterDeploy.turn}, ${afterDeploy.act
   check(dry.ok === true && Array.isArray(dry.events), "a preview of an empty (coast) turn is legal and returns the events it would produce");
   const before = await games.getView(GAME_ID, HUMAN);
   check(before!.turn === afterDeploy.turn, "a preview commits nothing");
+  // Positive control: a soft burn from the inner deployment ring stays on the board.
+  const soft = await games.previewTurn(GAME_ID, HUMAN, [
+    { type: "burn", playerId: HUMAN, sequence: 1, data: { burnIntensity: "soft", sectorAdjustment: 0 } },
+  ]);
+  check(soft.ok === true, `a preview of a soft burn is legal (${soft.errors?.join("; ") ?? soft.error ?? ""})`);
   const bad = await games.previewTurn(GAME_ID, HUMAN, [
     { type: "burn", playerId: HUMAN, sequence: 1, data: { burnIntensity: "hard", sectorAdjustment: 0 } },
   ]);
-  check(bad.ok === false && (bad.errors?.length ?? 0) > 0, "a preview of an unpowered burn reports the engine's errors");
+  check(
+    bad.ok === false && (bad.errors?.length ?? 0) > 0,
+    "a preview of a hard burn off the outermost ring reports the engine's errors",
+  );
   const notMine = await games.previewTurn(GAME_ID, BOT_A, []);
   check(notMine.ok === false, "a preview by the wrong seat is refused");
   const said = await games.postChat(GAME_ID, HUMAN, "say", "good luck, all");
@@ -351,12 +432,40 @@ console.log(`smoke: deployment done, turn ${afterDeploy.turn}, ${afterDeploy.act
   check(!stranger.ok, "only seated players talk at the table");
 }
 
-// --- Stale submission --------------------------------------------------------
-const stale = await games.submitTurn(GAME_ID, HUMAN, [], { turn: 999, activePlayerId: HUMAN });
-check(!stale.ok, "a stale SUBMIT_TURN is rejected");
+// --- Socket replies (CONNECTED, TURN_ERROR) -------------------------------------
+recordReply(connectedMessage(GAME_ID));
+check(messageCounts.get("CONNECTED") === 1, "CONNECTED is inspected like every other message");
+
+const stale = await submitRaw(games, GAME_ID, submitTurnMessage([], 999));
+check(stale?.type === "TURN_ERROR", "a stale SUBMIT_TURN is answered with TURN_ERROR");
 
 const wrongSeat = await games.submitTurn(GAME_ID, BOT_A, [], { turn: afterDeploy.turn, activePlayerId: BOT_A });
 check(!wrongSeat.ok, "a turn submitted for someone else's seat is rejected");
+
+const notJson = await submitRaw(games, GAME_ID, "{ not json");
+check(notJson?.type === "TURN_ERROR", "a SUBMIT_TURN that is not JSON is answered with TURN_ERROR");
+const malformed = await submitRaw(
+  games,
+  GAME_ID,
+  submitTurnMessage([{ playerId: HUMAN, type: "self_destruct", data: {} }], afterDeploy.turn),
+);
+check(
+  malformed?.type === "TURN_ERROR" && (malformed.payload.errors?.length ?? 0) > 0,
+  "a malformed action is answered with TURN_ERROR and the schema's reasons",
+);
+const illegal = await submitRaw(
+  games,
+  GAME_ID,
+  submitTurnMessage(
+    [{ playerId: HUMAN, type: "burn", sequence: 1, data: { burnIntensity: "hard", sectorAdjustment: 0 } }],
+    afterDeploy.turn,
+  ),
+);
+check(
+  illegal?.type === "TURN_ERROR" && (illegal.payload.errors?.length ?? 0) > 0,
+  "an illegal turn is answered with TURN_ERROR and the engine's reasons",
+);
+check((await games.getView(GAME_ID, HUMAN))!.turn === afterDeploy.turn, "a refused turn does not advance the game");
 
 // --- Turns -------------------------------------------------------------------
 let played = 0;
@@ -369,8 +478,10 @@ for (let i = 0; i < TURNS; i++) {
   }
   if (view.activePlayerId !== HUMAN) fail(`turn ${view.turn}: expected the human to be active, got ${view.activePlayerId}`);
 
-  const result = await games.submitTurn(GAME_ID, HUMAN, [], { turn: view.turn, activePlayerId: HUMAN });
-  if (!result.ok) fail(`turn ${view.turn} rejected: ${result.error ?? result.errors?.join("; ")}`);
+  const refused = await submitRaw(games, GAME_ID, submitTurnMessage([], view.turn));
+  if (refused?.type === "TURN_ERROR") {
+    fail(`turn ${view.turn} rejected: ${refused.payload.error ?? refused.payload.errors?.join("; ")}`);
+  }
   played++;
 }
 check(played > 0, "the human played at least one turn");
@@ -506,12 +617,13 @@ check(
 );
 
 // --- Status access (a player only ever reads its own view) -------------------
-const ownStatus = checkStatusAccess(HUMAN, HUMAN);
-check(ownStatus.ok && ownStatus.playerId === HUMAN, "a player may read its own status");
-const otherStatus = checkStatusAccess(HUMAN, BOT_A);
-check(!otherStatus.ok && otherStatus.code === 403, "asking for another player's status is a 403");
-const anonStatus = checkStatusAccess(undefined, HUMAN);
-check(!anonStatus.ok && anonStatus.code === 401, "a status request without x-player-id is a 401");
+// The same check guards reading a status and renaming a player.
+const ownStatus = checkPlayerAccess(HUMAN, HUMAN);
+check(ownStatus.ok && ownStatus.playerId === HUMAN, "a player may read its own status and rename itself");
+const otherStatus = checkPlayerAccess(HUMAN, BOT_A);
+check(!otherStatus.ok && otherStatus.code === 403, "reading or renaming another player is a 403");
+const anonStatus = checkPlayerAccess(undefined, HUMAN);
+check(!anonStatus.ok && anonStatus.code === 401, "a player request without x-player-id is a 401");
 
 // --- Agent seats (who plays a seat is public, and only known drivers count) ---
 const agentSeat = CreatePlayerSchema.safeParse({ playerName: "Codex", agent: { driver: "codex", model: "gpt-6-astra" } });
@@ -522,6 +634,23 @@ check(
   "an unknown agent driver is rejected",
 );
 check(!CreatePlayerSchema.safeParse({ playerName: "X", agent: { driver: "claude" } }).success, "an agent without a model is rejected");
+check(
+  !CreatePlayerSchema.safeParse({ playerName: "X", playerId: "2f0c6f1e-3b1a-4d2e-9c1f-6a7b8c9d0e1f" }).success,
+  "a client cannot choose its own player id",
+);
+
+// --- Request bounds -------------------------------------------------------------
+const coastAction = { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: false } };
+check(PreviewSchema.safeParse({ actions: [coastAction] }).success, "a preview of one action passes the schema");
+check(
+  !PreviewSchema.safeParse({ actions: Array.from({ length: 65 }, () => coastAction) }).success,
+  "a preview of more actions than a SUBMIT_TURN may carry is refused",
+);
+check(
+  ForkSchema.safeParse({ recordingId: "r", turnIndex: -1, impersonateOriginalPlayerId: BOT_A }).success,
+  "a fork naming its seat passes the schema",
+);
+check(!ForkSchema.safeParse({ recordingId: "r", turnIndex: -1 }).success, "a fork must name the seat it takes");
 
 // --- Table size (the seats are the only thing a lobby settles) ---------------
 const lobbyBody = { lobbyName: "Smoke", maxPlayers: 3 };
@@ -559,16 +688,28 @@ if (recording) {
   };
   // The same finished game written under older rules: refused, never migrated.
   const stale = { ...archived, recordingId: "smoke-stale", schemaVersion: 2 } as unknown as GameRecording;
+  // The same game with the human's Escort marker on Bot Alpha.
+  const escort: EscortMission = { id: "smoke-escort", type: "escort", isCompleted: false, markedPlayerId: BOT_A };
+  const escorted: GameRecording = {
+    ...archived,
+    recordingId: "smoke-escorted",
+    initialState: {
+      ...archived.initialState,
+      players: archived.initialState.players.map((p) =>
+        p.id === HUMAN ? { ...p, missions: [...p.missions, escort] } : p,
+      ),
+    },
+  };
   const archive: RecordingArchive = {
     list: async () => [],
-    load: async (id) => [archived, stale].find((r) => r.recordingId === id) ?? null,
+    load: async (id) => [archived, stale, escorted].find((r) => r.recordingId === id) ?? null,
     write: async () => {},
   };
   const forkKv = memoryKv();
   const forkGames = createGameService({
     kv: forkKv,
     recordings: createRecordingService(forkKv, archive),
-    transport: { sendToPlayer: () => {}, broadcastViews: () => {} },
+    transport: { broadcastViews: () => {} },
   });
 
   const outsider = "human-grace";
@@ -578,6 +719,25 @@ if (recording) {
     humanPlayerName: "Grace",
   });
   check(botSeat.ok, `a bot seat of a finished recording can be forked (${botSeat.ok ? "" : botSeat.error})`);
+
+  const markedSeat = await forkGames.forkGameFromRecording("smoke-escorted", -1, {
+    impersonateOriginalPlayerId: BOT_A,
+    humanPlayerId: outsider,
+    humanPlayerName: "Grace",
+  });
+  if (markedSeat.ok) {
+    const forked = await forkGames.getGame(markedSeat.gameId);
+    const marker = forked?.players
+      .find((p) => p.id === HUMAN)
+      ?.missions.find((m): m is EscortMission => m.type === "escort");
+    check(marker?.markedPlayerId === outsider, "forking a marked seat moves the Escort marker to the new player");
+    check(
+      markedSeat.view.players.find((p) => p.id === outsider)?.escortedBy.includes(HUMAN) === true,
+      "the forked view shows the Escort marker on the new player",
+    );
+  } else {
+    check(false, `a marked bot seat can be forked (${markedSeat.error})`);
+  }
 
   const ownSeat = await forkGames.forkGameFromRecording("smoke-archived", -1, {
     impersonateOriginalPlayerId: HUMAN,
@@ -686,7 +846,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
   const gameGames = createGameService({
     kv: gameKv,
     recordings: gameRecordings,
-    transport: { sendToPlayer: () => {}, broadcastViews: () => {} },
+    transport: { broadcastViews: () => {} },
     log: { info: () => {}, warn: () => {}, error: () => {} },
   });
   await gameGames.createGame(gameId, SPECS, [HUMAN], SEED);
@@ -724,6 +884,158 @@ async function freshGame(archive: RecordingArchive | null = null) {
   check(retried.ok, "the same turn succeeds once the write works again");
 }
 
+// --- Real submissions on a canned board -----------------------------------------
+// Black hole ring 3 past the opening round: Bot Beta shares the human's sector
+// with one hull point left, Bot Alpha waits one coast ahead carrying data, and
+// a wreck already lies on the board. One human turn powers the shields, fires
+// at Bot Beta, coasts onto Bot Alpha, scans it, names a dock job and marks it
+// with an Escort; the next repairs a broken subsystem on a cold ship. Every turn goes in as a raw SUBMIT_TURN through
+// the socket's handler, and every message out passes the checks above. The
+// bots coast: the position is what is under test, not their play.
+{
+  const CANNED = "smoke-canned";
+  const cannedGames = createGameService({
+    kv,
+    recordings,
+    transport,
+    bots: { ...engineBots, decideActions: () => ({ actions: [] }) },
+  });
+  // createGame registers the human seat; the board is then replaced.
+  await cannedGames.createGame(CANNED, SPECS, [HUMAN], SEED);
+
+  const here = { wellId: BH, ring: 3, sector: 5 };
+  const ahead = { ...here, sector: wrapSector(here.sector + ringVelocity(BH, here.ring)) };
+  const survey = surveyMission("smoke-survey");
+  const data: Cargo = {
+    id: survey.dataCargoId,
+    kind: "data",
+    missionId: survey.id,
+    deliveryPlanetId: "any",
+    isPickedUp: true,
+  };
+  let board: GameState = makeGameState(
+    [
+      makePlayer(HUMAN, here, SMOKE_LOADOUT, { name: "Ada", missions: [escortMission("smoke-escort-card")] }),
+      makePlayer(BOT_A, ahead, DEFAULT_LOADOUT, {
+        name: "Bot Alpha",
+        missions: [{ ...survey, acquired: true }],
+        cargo: [data],
+      }),
+      makePlayer(BOT_B, here, DEFAULT_LOADOUT, { name: "Bot Beta" }),
+    ],
+    { wrecks: [{ id: "smoke-wreck", wellId: BH, ring: 2, sector: 20 }] },
+  );
+  board = withShip(board, BOT_B, { hitPoints: 1 });
+  await kv.set(`game:${CANNED}`, serializeGame(board));
+  // The recording starts with the board, as it would when a game turns active.
+  await recordings.init(CANNED, board, new Set([HUMAN]));
+
+  const firstTurn = board.turn;
+  const act = (actions: Array<Omit<PlayerAction, "playerId">>) => actions.map((a) => ({ ...a, playerId: HUMAN }));
+  const fullTurn = act([
+    { type: "power", sequence: 1, data: { subsystemId: "side-2" } },
+    { type: "fire_weapon", sequence: 2, data: { subsystemId: "side-0", targetPlayerId: BOT_B, criticalTarget: "engines" } },
+    { type: "coast", sequence: 3, data: { activateScoop: false } },
+    { type: "scan", sequence: 4, data: { targetPlayerId: BOT_A, peekSlot: "forward-0" } },
+    { type: "dock_job", data: { job: "crates" } },
+    { type: "escort_mark", data: { carrierId: BOT_A } },
+  ] as Array<Omit<PlayerAction, "playerId">>);
+
+  const preview = await cannedGames.previewTurn(CANNED, HUMAN, fullTurn as PlayerAction[]);
+  check(preview.ok, `the canned turn previews legal (${preview.errors?.join("; ") ?? preview.error ?? ""})`);
+
+  const sentBefore = toHuman.length;
+  const refused = await submitRaw(cannedGames, CANNED, submitTurnMessage(fullTurn, firstTurn));
+  check(refused === null, `power, fire, scan, dock job and Escort go through the socket (${JSON.stringify(refused)})`);
+  const executed = toHuman
+    .slice(sentBefore)
+    .find((m) => m.type === "TURN_EXECUTED" && m.payload.playerId === HUMAN);
+  const seen = new Set(executed?.type === "TURN_EXECUTED" ? executed.payload.events.map((e) => e.type) : []);
+  for (const type of [
+    "subsystem_powered",
+    "weapon_fired",
+    "ship_destroyed",
+    "wreck_left",
+    "scanned",
+    "scan_result",
+    "escort_marked",
+  ] as const) {
+    check(seen.has(type), `the human's canned turn shows "${type}"`);
+  }
+  if (executed?.type === "TURN_EXECUTED") {
+    const { view } = executed.payload;
+    check(view.wrecks.length === 2, `the new wreck joins the one on the board (${view.wrecks.length})`);
+    check(
+      view.players.find((p) => p.id === BOT_A)?.escortedBy.includes(HUMAN) === true,
+      "Bot Alpha carries the human's Escort marker in the view",
+    );
+  }
+
+  // The next turn: a broken subsystem on a cold ship, repaired.
+  const between = await cannedGames.getView(CANNED, HUMAN);
+  check(
+    between?.phase === "active" && between.activePlayerId === HUMAN && between.turn === firstTurn + 1,
+    `the bots played and the human is to act again (turn ${between?.turn}, ${between?.activePlayerId})`,
+  );
+  let cold = (await cannedGames.getGame(CANNED))!;
+  cold = withSub(cold, HUMAN, "side-3", { isBroken: true });
+  cold = withShip(cold, HUMAN, { heat: { ...cold.players.find((p) => p.id === HUMAN)!.ship.heat, currentHeat: 0 } });
+  await kv.set(`game:${CANNED}`, serializeGame(cold));
+  const sentBeforeRepair = toHuman.length;
+  const repairRefused = await submitRaw(
+    cannedGames,
+    CANNED,
+    submitTurnMessage(
+      act([
+        { type: "coast", sequence: 1, data: { activateScoop: false } },
+        { type: "repair", data: { subsystemId: "side-3" } },
+      ] as Array<Omit<PlayerAction, "playerId">>),
+      cold.turn,
+    ),
+  );
+  check(repairRefused === null, `a cold repair goes through the socket (${JSON.stringify(repairRefused)})`);
+  const repaired = toHuman
+    .slice(sentBeforeRepair)
+    .find((m) => m.type === "TURN_EXECUTED" && m.payload.playerId === HUMAN);
+  check(
+    repaired?.type === "TURN_EXECUTED" && repaired.payload.events.some((e) => e.type === "subsystem_repaired"),
+    "the cold turn shows the repair",
+  );
+  check(wrecksSeen > 0, "wrecks were inspected on the wire");
+  check(escortMarkersSeen > 0, "Escort markers were inspected on the wire");
+}
+
+// --- A live game saved under older rules is refused -----------------------------
+{
+  const staleKv = memoryKv();
+  const staleGames = createGameService({
+    kv: staleKv,
+    recordings: createRecordingService(staleKv, null),
+    transport: { broadcastViews: () => {} },
+  });
+  await staleGames.createGame("smoke-old", SPECS, [HUMAN], SEED);
+  const current = (await staleGames.getGame("smoke-old"))!;
+  check(current.phase === "loadout", "a game saved under the current rules loads");
+  for (const [label, stored] of [
+    ["an older schema version", JSON.stringify({ schemaVersion: RECORDING_SCHEMA_VERSION - 1, state: current })],
+    ["no schema version", JSON.stringify(current)],
+  ] as const) {
+    await staleKv.set("game:smoke-old", stored);
+    let refusedWith: unknown = null;
+    try {
+      await staleGames.getGame("smoke-old");
+    } catch (error) {
+      refusedWith = error;
+    }
+    check(refusedWith instanceof StaleGameError, `a live game with ${label} is refused, not loaded`);
+    const reply = await answerSubmission(staleGames, "smoke-old", HUMAN, JSON.stringify(submitTurnMessage([], 1)));
+    check(
+      reply?.type === "TURN_ERROR" && typeof reply.payload.error === "string",
+      `a turn for a live game with ${label} is answered with TURN_ERROR`,
+    );
+  }
+}
+
 // --- A bot whose AI fails still submits a legal loadout ----------------------
 // The fallback hull and hand must be accepted by the engine whatever the deal,
 // or the human's own loadout submission fails and the game is stuck.
@@ -749,7 +1061,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
       const fallbackGames = createGameService({
         kv: fallbackKv,
         recordings: createRecordingService(fallbackKv, null),
-        transport: { sendToPlayer: () => {}, broadcastViews: () => {} },
+        transport: { broadcastViews: () => {} },
         bots: { ...engineBots, chooseLoadout },
         log: { info: () => {}, warn: () => {}, error: () => {} },
       });
@@ -792,7 +1104,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
   check((await live.games.rewindGame(live.gameId, HUMAN, -1)).ok, "a live game can be rewound");
 
   const ended = { ...(await live.games.getGame(live.gameId))!, phase: "ended" as const, winnerId: HUMAN };
-  await live.kv.set(`game:${live.gameId}`, JSON.stringify(ended));
+  await live.kv.set(`game:${live.gameId}`, serializeGame(ended));
   await live.recordings.finalize(live.gameId, ended, "victory");
   check(archived.length === 1, "the finished game was archived");
   check(!(await live.games.rewindGame(live.gameId, HUMAN, -1)).ok, "a finished, published game cannot be rewound");
@@ -803,6 +1115,7 @@ console.log(`\nsmoke: ${toHuman.length} messages to the human`);
 for (const [type, count] of [...messageCounts].sort()) console.log(`  ${type.padEnd(14)} ${count}`);
 console.log(`  opponent slots: ${hiddenOpponentSlots} face-down, ${visibleOpponentSlots} face-up`);
 console.log(`  own slots seen in full: ${ownSlotsSeen}`);
+console.log(`  wrecks seen: ${wrecksSeen}, Escort markers seen: ${escortMarkersSeen}`);
 console.log(`  bot turns rejected by the engine: ${games.getBotInvalidTurnCount()}`);
 
 const unique = [...new Set(failures)];

@@ -4,14 +4,13 @@
  */
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
-import type { PlayerAction } from "@dangerous-inclinations/engine";
 import { getPlayer } from "../services/playerService.ts";
 import { getLobby, findLobbyByGameId, deleteLobby } from "../services/lobbyService.ts";
 import { gameService } from "../services/live.ts";
-import { SubmitTurnSchema } from "../schemas/game.ts";
+import { StaleGameError } from "../services/gameService.ts";
 import type { ServerGameMessage } from "../protocol.ts";
+import { answerSubmission, connectedMessage } from "./submission.ts";
 import {
-  broadcastToRoom,
   getConnectedPlayers,
   registerConnection,
   releaseConnection,
@@ -107,13 +106,10 @@ export async function setupWebSocketRooms(fastify: FastifyInstance) {
     fastify.log.info(`Player ${player.playerName} (${playerId}) connected to lobby ${lobbyId}`);
     send(socket, { type: "CONNECTED", room: "lobby", roomId: lobbyId });
 
-    // PLAYER_JOINED is broadcast by lobbyService.joinLobby with the full LobbyPlayer.
+    // Seats change through the lobby service (PLAYER_JOINED, PLAYER_LEFT), not
+    // through sockets: a closed socket leaves the seat in the lobby.
     socket.on("close", () => {
       unregisterConnection("lobby", lobbyId, playerId, socket);
-      // Another tab of the same player may still be in the lobby.
-      if (!getConnectedPlayers("lobby", lobbyId).has(playerId)) {
-        broadcastToRoom("lobby", { type: "PLAYER_LEFT", payload: { playerId } }, lobbyId);
-      }
       fastify.log.info(
         `Player ${player.playerName} (${playerId}) disconnected from lobby ${lobbyId}`
       );
@@ -132,38 +128,24 @@ export async function setupWebSocketRooms(fastify: FastifyInstance) {
     const player = await getPlayer(playerId);
     if (!player) return socket.close(1008, "Invalid player");
 
-    const game = await gameService.getGame(gameId);
+    let game;
+    try {
+      game = await gameService.getGame(gameId);
+    } catch (error) {
+      if (error instanceof StaleGameError) return socket.close(1008, "Game saved under older rules");
+      throw error;
+    }
     if (!game) return socket.close(1008, "Game not found");
     if (!game.players.some((p) => p.id === playerId))
       return socket.close(1008, "Player not in game");
 
     fastify.log.info(`Player ${player.playerName} (${playerId}) connected to game ${gameId}`);
-    send(socket, { type: "CONNECTED", room: "game", roomId: gameId });
+    send(socket, connectedMessage(gameId));
 
     async function handleSubmission(raw: Buffer): Promise<void> {
       try {
-        const parsed = SubmitTurnSchema.safeParse(JSON.parse(raw.toString()));
-        if (!parsed.success) {
-          // A malformed action fails the whole submission: never a silent coast.
-          const errors = parsed.error.errors.map(
-            (issue) => `${issue.path.join(".") || "payload"}: ${issue.message}`
-          );
-          return send(socket, {
-            type: "TURN_ERROR",
-            payload: { error: "Invalid SUBMIT_TURN message", errors },
-          });
-        }
-        const { actions, turn, activePlayerId } = parsed.data.payload;
-        const result = await gameService.submitTurn(gameId!, playerId!, actions as PlayerAction[], {
-          turn,
-          activePlayerId,
-        });
-        if (!result.ok) {
-          send(socket, {
-            type: "TURN_ERROR",
-            payload: { error: result.error, errors: result.errors },
-          });
-        }
+        const reply = await answerSubmission(gameService, gameId!, playerId!, raw.toString());
+        if (reply) send(socket, reply);
       } catch (error) {
         fastify.log.error({ error, gameId, playerId }, "WebSocket message error");
         send(socket, {

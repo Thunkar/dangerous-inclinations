@@ -129,7 +129,8 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return reply.send({ message: result.message });
   });
 
-  // Loadout phase: ship loadout and the 3 missions kept from the 5 offered.
+  // Loadout phase: the ship loadout and the hand kept from the offers
+  // (MISSIONS_PER_PLAYER of MISSION_OFFERS_PER_PLAYER; the engine checks it).
   fastify.post<GameRequest>("/api/games/:gameId/loadout", async (request, reply) => {
     const member = await requireMember(request, reply);
     if (!member) return;

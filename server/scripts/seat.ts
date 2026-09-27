@@ -8,18 +8,28 @@
  *   yarn seat join --player <id> --lobby <id>     join a lobby (a new player is at no table yet, so it goes by id)
  *   yarn seat start --as Codex                    start the seat's lobby (host only), print the game id
  *   yarn seat leave --as Codex                    leave the lobby
- *   yarn seat view --as Codex [--rules] [--json] [--turns 2]
+ *   yarn seat view --as Codex [--rules] [--json] [--turns 1]   what the seat sees; --turns is how many recent turns
  *   yarn seat options --as Codex                  legal moves, as JSON
- *   yarn seat try --as Codex --intent '{...}'     build + dry-run a turn: errors or the events it would cause
- *   yarn seat act --as Codex --intent '{...}'    build, dry-run, submit (an illegal turn is refused, nothing is sent)
+ *   yarn seat guide                               the rules digest and the intent format an agent is given
+ *   yarn seat try --as Codex --intent '{...}' [--show]   build + dry-run a turn: errors or the events it would cause;
+ *                                                 --show prints the actions built
+ *   yarn seat act --as Codex --intent '{...}' [--think "..."] [--say "..."] [--timeout 5]
+ *                                                 build, dry-run, submit (an illegal turn is refused, nothing is sent);
+ *                                                 waits --timeout seconds for the turn to come round first
+ *                                                 (try and act: --file <path> reads the intent from a file,
+ *                                                 --actions '[...]' submits raw actions instead of an intent)
  *   yarn seat loadout --as Codex --forward railgun --sides missiles,radiator,laser,shields --missions m1,m2,m3
- *                                                 (the three are one primary and any two secondaries)
+ *                                                 (one primary and any two secondaries; no flags prints the offers)
  *   yarn seat deploy --as Codex --sector 6 [--ring 3|4]   (ring 4 unless asked; no --sector prints the rule and the legal positions)
  *   yarn seat rules                               the full RULES.md
- *   yarn seat say --as Codex "text" / think "text" / chat
- *   yarn seat wait --as Codex [--timeout 600]     hold a socket open until it is your turn, then print the view
+ *   yarn seat say --as Codex "text" (or --text "text") / think "text" / chat [--last 50]
+ *   yarn seat wait --as Codex [--timeout 3600] [--hold]   hold a socket open until it is your turn, then print the view;
+ *                                                 --hold keeps the socket open afterwards
  *   yarn seat agent --as Codex [--driver codex|claude] [--model m] [--turns N] [--quiet-think]
  *                             [--ask-timeout 900] [--attempts 8]   how long a model gets per question, and how many tries before the seat gives up (0 = for ever)
+ *
+ * Every command takes --server <url> (or DI_SERVER; default http://localhost:3000)
+ * and --game <id> (or DI_GAME) to name the game directly.
  *
  * Nothing is kept on this machine: players, lobbies and games live on the
  * server. A seat is named with `--as <name>`, which finds a player of that
@@ -57,6 +67,9 @@ import {
   FORWARD_SLOT_SUBSYSTEMS,
   HOME_RING,
   HOME_RINGS,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  MISSIONS_PER_PLAYER,
   SIDE_SLOT_SUBSYSTEMS,
   WEAPON_SUBSYSTEM_TYPES,
   buildTurn,
@@ -340,7 +353,7 @@ function loadoutPrompt(view: GameView): string {
       }${needs ? `, needs ${needs}` : ""})`;
     })
     .join("\n");
-  return `LOADOUT PHASE. Keep 3 of your ${me.missionOffers.length} mission cards and build a hull: exactly 1 forward subsystem and exactly 4 side subsystems, repeats allowed.
+  return `LOADOUT PHASE. Keep ${MISSIONS_PER_PLAYER} of your ${me.missionOffers.length} mission cards and build a hull: exactly 1 forward subsystem and exactly 4 side subsystems, repeats allowed.
   forward slot: ${FORWARD_TILES.join(" | ")}
   side slots:   ${SIDE_TILES.join(" | ")}
 Nothing else fits, and a subsystem is never moved once the game starts: a station repairs, it never refits.
@@ -348,8 +361,8 @@ Your offers:
 ${offers}
 Loadouts that are known to fly (you are not limited to these):
 ${presetLines()}
-Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO 1-point secondaries (Survey, Piracy, Tanker, Escort, Salvage; two of a kind is allowed, and they are two jobs), which is five points held: your primary and either secondary wins, and the third card you are offered is the one you leave.
-Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "missionIds": ["id","id","id"], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","radiator"]}}`;
+Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO 1-point secondaries (Survey, Piracy, Tanker, Escort, Salvage; two of a kind is allowed, and they are two jobs), which is five points held: your primary and either secondary wins, and the other secondary is the spare.
+Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "missionIds": [${Array.from({ length: MISSIONS_PER_PLAYER }, () => '"id"').join(",")}], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","radiator"]}}`;
 }
 
 function deployPrompt(view: GameView): string {
@@ -600,7 +613,7 @@ async function driveLoadout(payload: ViewPayload, drv: Driver, quietThink: boole
     const rules = attempt >= 2 ? `\n\nTHE FULL RULES:\n${fullRules()}` : "";
     const prompt = `${agentRulesDigest()}${rules}\n\n${loadoutPrompt(view)}${
       error
-        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every subsystem must fit its slot (forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")}) and you keep exactly 3 of the ${view.me!.missionOffers.length} offers by their ids: one primary and any two secondaries.`
+        ? `\n\nYOUR PREVIOUS CHOICE WAS REJECTED: ${error}. Choose again. Every subsystem must fit its slot (forward: ${FORWARD_TILES.join(", ")}; side: ${SIDE_TILES.join(", ")}) and you keep exactly ${MISSIONS_PER_PLAYER} of the ${view.me!.missionOffers.length} offers by their ids: one primary and any two secondaries.`
         : ""
     }`;
     const { answer, timedOut } = askModel(prompt, drv);
@@ -612,8 +625,8 @@ async function driveLoadout(payload: ViewPayload, drv: Driver, quietThink: boole
     }
     const l = answer.loadout as { forward?: string; sides?: string[] } | undefined;
     const missionIds = Array.isArray(answer.missionIds) ? (answer.missionIds as string[]) : [];
-    if (!l?.forward || l.sides?.length !== 4 || missionIds.length !== 3) {
-      error = "the answer needs loadout.forward, exactly 4 loadout.sides and exactly 3 missionIds";
+    if (!l?.forward || l.sides?.length !== 4 || missionIds.length !== MISSIONS_PER_PLAYER) {
+      error = `the answer needs loadout.forward, exactly 4 loadout.sides and exactly ${MISSIONS_PER_PLAYER} missionIds`;
       log(`loadout attempt ${attempt}: ${error}`);
       continue;
     }
@@ -987,7 +1000,7 @@ async function menu(): Promise<void> {
       if (w === null) continue;
       const chosen = options[w];
       if (chosen === "start the game now") {
-        await attempt("start (2-4 seats, host only)", async () => {
+        await attempt(`start (${MIN_PLAYERS}-${MAX_PLAYERS} seats, host only)`, async () => {
           const { gameId } = await http<{ gameId: string }>("POST", `/api/lobbies/${LOBBY}/start`);
           GAME = gameId;
         });

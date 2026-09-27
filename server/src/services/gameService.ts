@@ -1,4 +1,3 @@
-import type { ShipAppearance } from "@dangerous-inclinations/engine";
 /**
  * Live game orchestration: setup (loadout, deployment), turns, bots, and the
  * rewind/fork dev tools. All rules come from the engine; this module owns
@@ -8,7 +7,8 @@ import type { ShipAppearance } from "@dangerous-inclinations/engine";
  * `viewFor(state, recipient)` and events filtered for that recipient.
  *
  * Persistence (`Kv`), transport and the bot strategy are injected so the
- * whole flow can run without Redis or sockets (see scripts/smoke.ts).
+ * whole flow can run without Redis or sockets, and so the smoke test can make
+ * a bot's AI fail (see scripts/smoke.ts).
  */
 import { randomUUID } from "node:crypto";
 import type {
@@ -19,6 +19,7 @@ import type {
   Player,
   PlayerAction,
   PlayerSpec,
+  ShipAppearance,
   ShipLoadout,
 } from "@dangerous-inclinations/engine";
 import {
@@ -29,7 +30,6 @@ import {
   botChooseLoadout,
   botDecideActions,
   createGame as engineCreateGame,
-  type GameOptions,
   deployShip,
   executeTurn,
   filterEventsFor,
@@ -39,6 +39,7 @@ import {
   missionsMissingRequirements,
   missionTargetsPlayer,
   pickIndex,
+  RECORDING_SCHEMA_VERSION,
   staleRecordingReason,
   stampEvents,
   submitLoadout as engineSubmitLoadout,
@@ -63,7 +64,6 @@ import type {
 // ---------------------------------------------------------------------------
 
 export interface GameTransport {
-  sendToPlayer(gameId: string, playerId: string, message: ServerGameMessage): void;
   broadcastViews(gameId: string, build: (playerId: string) => ServerGameMessage): void;
 }
 
@@ -103,7 +103,7 @@ export interface LoadoutSubmission {
 
 export interface ForkOptions {
   /** Recorded player the forking human takes over. */
-  impersonateOriginalPlayerId?: string;
+  impersonateOriginalPlayerId: string;
   humanPlayerId: string;
   humanPlayerName: string;
 }
@@ -135,6 +135,36 @@ function combinations<T>(items: readonly T[], k: number): T[][] {
   );
 }
 
+/**
+ * A live game as the store holds it: the state and the schema version of the
+ * rules it was saved under. A game saved under other rules is refused, never
+ * migrated, as a recording is.
+ */
+interface StoredGame {
+  schemaVersion: number;
+  state: GameState;
+}
+
+/** A live game saved under other rules: it cannot be loaded. */
+export class StaleGameError extends Error {}
+
+export function serializeGame(state: GameState): string {
+  const stored: StoredGame = { schemaVersion: RECORDING_SCHEMA_VERSION, state };
+  return JSON.stringify(stored);
+}
+
+function parseGame(data: string): GameState {
+  const stored = JSON.parse(data) as Partial<StoredGame>;
+  if (stored.schemaVersion !== RECORDING_SCHEMA_VERSION || !stored.state) {
+    const version =
+      stored.schemaVersion === undefined ? "no schema version" : `schema v${String(stored.schemaVersion)}`;
+    throw new StaleGameError(
+      `This game was saved under older rules (${version}, the rules are at v${RECORDING_SCHEMA_VERSION}) and cannot be played. Start a new game.`
+    );
+  }
+  return stored.state;
+}
+
 const gameKey = (gameId: string) => `game:${gameId}`;
 const humansKey = (gameId: string) => `game-humans:${gameId}`;
 const chatKey = (gameId: string) => `game-chat:${gameId}`;
@@ -148,13 +178,14 @@ export function createGameService(deps: GameServiceDeps) {
   // Persistence
   // -------------------------------------------------------------------------
 
+  /** Throws StaleGameError for a game saved under other rules. */
   async function loadState(gameId: string): Promise<GameState | null> {
     const data = await kv.get(gameKey(gameId));
-    return data ? (JSON.parse(data) as GameState) : null;
+    return data ? parseGame(data) : null;
   }
 
   async function saveState(gameId: string, state: GameState): Promise<void> {
-    await kv.set(gameKey(gameId), JSON.stringify(state));
+    await kv.set(gameKey(gameId), serializeGame(state));
   }
 
   async function getHumanPlayerIds(gameId: string): Promise<Set<string>> {
@@ -508,8 +539,11 @@ export function createGameService(deps: GameServiceDeps) {
     newName: string
   ): GameState {
     const rename = (id: string) => (id === oldId ? newId : id);
-    const renameMission = (m: Mission): Mission =>
-      missionTargetsPlayer(m) && m.targetPlayerId === oldId ? { ...m, targetPlayerId: newId } : m;
+    const renameMission = (m: Mission): Mission => {
+      if (missionTargetsPlayer(m) && m.targetPlayerId === oldId) return { ...m, targetPlayerId: newId };
+      if (m.type === "escort" && m.markedPlayerId === oldId) return { ...m, markedPlayerId: newId };
+      return m;
+    };
     const renameIntel = (intel: Player["intel"]): Player["intel"] =>
       Object.fromEntries(Object.entries(intel).map(([id, slots]) => [rename(id), slots]));
 
@@ -595,22 +629,15 @@ export function createGameService(deps: GameServiceDeps) {
       gameId: string,
       players: PlayerSpec[],
       humanPlayerIds: Iterable<string>,
-      seed?: number,
-      /** What the table agreed on before the deal (points to win). */
-      options?: GameOptions
+      seed?: number
     ): Promise<GameState> {
-      const state = engineCreateGame(players, seed, options);
+      const state = engineCreateGame(players, seed);
       await saveState(gameId, state);
       await setHumanPlayerIds(gameId, humanPlayerIds);
       return state;
     },
 
     getGame: loadState,
-
-    async isPlayerInGame(gameId: string, playerId: string): Promise<boolean> {
-      const state = await loadState(gameId);
-      return state !== null && state.players.some((p) => p.id === playerId);
-    },
 
     /**
      * Under the same lock as turn processing: a turn in flight finishes first
@@ -883,11 +910,6 @@ export function createGameService(deps: GameServiceDeps) {
         };
       }
       const seat = options.impersonateOriginalPlayerId;
-      if (!seat)
-        return {
-          ok: false,
-          error: "impersonateOriginalPlayerId is required: choose the recorded player to take over",
-        };
 
       const snapshot =
         turnIndex === -1
@@ -941,3 +963,5 @@ export function createGameService(deps: GameServiceDeps) {
     },
   };
 }
+
+export type GameService = ReturnType<typeof createGameService>;
