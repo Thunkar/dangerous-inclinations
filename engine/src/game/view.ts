@@ -98,7 +98,7 @@ export interface PlayerView {
   cargoAboard: { crates: number; data: number };
   /** Total tokens aboard. */
   cargoCount: number;
-  completedMissionCount: number;
+  points: number;
   completedMissions: Mission[];
   /**
    * The players whose Escort markers sit on this ship. Public: the marker is
@@ -213,7 +213,7 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
       data: aboard(player.cargo).filter((c) => c.kind === "data").length,
     },
     cargoCount: aboard(player.cargo).length,
-    completedMissionCount: player.completedMissionCount,
+    points: player.points,
     completedMissions: completedMissions(player),
     escortedBy: state.players
       .filter((p) =>

@@ -197,7 +197,7 @@ export function describeViewForAgent(
       })
       .join("; ")}. Cubes held from last turn come off when your turn starts.`
   );
-  out.push(`YOUR POINTS: ${me.completedMissionCount}/${view.pointsToWin}. CARDS:`);
+  out.push(`YOUR POINTS: ${me.points}/${view.pointsToWin}. CARDS:`);
   for (const m of me.missions) out.push(`  - ${missionLine(m, name)}`);
   if (me.cargo.length)
     out.push(
@@ -218,7 +218,7 @@ export function describeViewForAgent(
       continue;
     }
     out.push(
-      `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.completedMissionCount} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Subsystems: ${subsystemLine(p)}. Completed: ${
+      `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.points} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Subsystems: ${subsystemLine(p)}. Completed: ${
         p.completedMissions.map((m) => describeMission(m, name)).join("; ") || "none"
       }.${p.escortedBy.length ? ` Escort markers on them: ${p.escortedBy.map(name).join(", ")}.` : ""}${p.recovering ? " UNTOUCHABLE until their next turn is over: no shot, missile or scan reaches them, and they fire at nobody on it." : ""}${!s.isDestroyed && isSafeAtBerth(view.stations, s) ? " MOORED: no shot or missile reaches them, and they fire at nobody while they hold the berth." : ""}`
     );

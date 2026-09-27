@@ -293,7 +293,7 @@ export type GameEvent =
       type: "mission_completed";
       playerId: string;
       mission: Mission;
-      completedCount: number;
+      points: number;
     })
   | (Base & {
       type: "stations_moved";

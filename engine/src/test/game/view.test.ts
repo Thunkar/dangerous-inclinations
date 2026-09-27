@@ -197,11 +197,11 @@ describe("view: what an opponent's loadout shows", () => {
         },
       ],
       missions: [{ ...destroyMission("p1", "t"), isCompleted: true }, surveyMission("s")],
-      completedMissionCount: 1,
+      points: 1,
     });
     const opponent = viewFor(state, "p1").players[1];
     expect(opponent.cargoCount).toBe(1);
-    expect(opponent.completedMissionCount).toBe(1);
+    expect(opponent.points).toBe(1);
     expect(opponent.completedMissions.map((m) => m.id)).toEqual(["t"]);
   });
 

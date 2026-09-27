@@ -30,7 +30,7 @@ export function createPlayer(spec: PlayerSpec): Player {
     ),
     missionOffers: [],
     missions: [],
-    completedMissionCount: 0,
+    points: 0,
     cargo: [],
     hasDeployed: false,
     hasSubmittedLoadout: false,

@@ -359,12 +359,12 @@ describe("missions: combat", () => {
     const [completed] = eventsOf(result.events, "mission_completed");
     expect(completed).toMatchObject({
       playerId: "p1",
-      completedCount: MISSION_POINTS.destroy_ship,
+      points: MISSION_POINTS.destroy_ship,
       mission: { id: "destroy-p2", isCompleted: true },
     });
     expect(completed).not.toHaveProperty("privateTo");
     expect(getPlayer(result.gameState, "p1")).toMatchObject({
-      completedMissionCount: MISSION_POINTS.destroy_ship,
+      points: MISSION_POINTS.destroy_ship,
     });
     expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);
   });
@@ -384,7 +384,7 @@ describe("missions: combat", () => {
     expect(eventsOf(p2Turn.events, "ship_destroyed")[0]).not.toHaveProperty("killerId");
     const p1Turn = executeTurnAs(p2Turn.gameState, coast(1));
     expect(eventTypes(p1Turn.events)).not.toContain("mission_completed");
-    expect(getPlayer(p1Turn.gameState, "p1").completedMissionCount).toBe(0);
+    expect(getPlayer(p1Turn.gameState, "p1").points).toBe(0);
   });
 
   it("a destroy card only counts its own target", () => {
@@ -430,7 +430,7 @@ describe("missions: combat", () => {
       "destroy-a",
       "destroy-b",
     ]);
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(
+    expect(getPlayer(result.gameState, "p1").points).toBe(
       2 * MISSION_POINTS.destroy_ship
     );
   });
@@ -446,7 +446,7 @@ describe("missions: trade", () => {
       expect.arrayContaining(["cargo_delivered", "docked", "mission_completed"])
     );
     expect(getPlayer(result.gameState, "p1").cargo).toEqual([]);
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(
+    expect(getPlayer(result.gameState, "p1").points).toBe(
       MISSION_POINTS.deliver_cargo
     );
   });
@@ -642,7 +642,7 @@ describe("missions: piracy", () => {
       expect.objectContaining({ id: CRATE.cargoId, isPickedUp: false, pickupPlanetId: ALPHA }),
     ]);
     // Nothing is scored by the seizure itself: the crate has to be sold.
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(0);
+    expect(getPlayer(result.gameState, "p1").points).toBe(0);
   });
 
   it("takes from a fellow pirate too, who has to go and seize another", () => {
@@ -823,7 +823,7 @@ describe("missions: piracy", () => {
       planetId: ALPHA,
     });
     expect(eventsOf(result.events, "mission_completed")[0].mission.type).toBe("piracy");
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(MISSION_POINTS.piracy);
+    expect(getPlayer(result.gameState, "p1").points).toBe(MISSION_POINTS.piracy);
   });
 });
 
@@ -837,7 +837,7 @@ describe("missions: tanker", () => {
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(pumped ? 1 : 0);
     expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? fuel - TANKER_FUEL : fuel);
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(
+    expect(getPlayer(result.gameState, "p1").points).toBe(
       pumped ? MISSION_POINTS.tanker : 0
     );
   });
@@ -902,7 +902,7 @@ describe("missions: tanker", () => {
     const result = executeTurnAs(state, coast(1));
     expect(eventTypes(result.events)).not.toContain("fuel_pumped");
     expect(getShip(result.gameState, "p1").reactionMass).toBe(10);
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(0);
+    expect(getPlayer(result.gameState, "p1").points).toBe(0);
   });
 });
 
@@ -914,7 +914,7 @@ describe("missions: winning", () => {
     let state = withShip(gunline(), "p2", { hitPoints: 4 });
     state = withPlayer(state, "p1", {
       missions: [...done, destroyMission("p2")],
-      completedMissionCount: 1,
+      points: 1,
     });
     // p1 (first seat) reaches 3: not over yet, p2 still gets this round's turn.
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
@@ -953,7 +953,7 @@ describe("missions: winning", () => {
         { ...destroyMission("p2", "t"), isCompleted: true },
         { ...surveyMission("s"), isCompleted: true, acquired: true },
       ],
-      completedMissionCount: 3,
+      points: 3,
     });
     state = { ...state, finalRound: true, activePlayerIndex: 1 };
     // p2 coasts: round over, p1 wins on points.
@@ -962,7 +962,7 @@ describe("missions: winning", () => {
     expect(closed.gameState.winnerId).toBe("p1");
 
     // Same board, but both at 3 points: hull decides (p1 has 10, p2 has 4).
-    const tied = withPlayer(state, "p2", { completedMissionCount: 3 });
+    const tied = withPlayer(state, "p2", { points: 3 });
     const decided = executeTurnAs(tied, coast(1));
     expect(decided.gameState.winnerId).toBe("p1");
     expect(eventsOf(decided.events, "game_ended")).toEqual([
@@ -976,10 +976,10 @@ describe("missions: winning", () => {
     let state = withShip(gunline(), "p2", { hitPoints: 4 });
     state = withPlayer(state, "p1", {
       missions: [destroyMission("p2")],
-      completedMissionCount: 0,
+      points: 0,
     });
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(2);
+    expect(getPlayer(result.gameState, "p1").points).toBe(2);
     expect(result.gameState.phase).toBe("active");
     expect(checkForWinner(result.gameState)).toBeUndefined();
   });
@@ -1013,7 +1013,7 @@ describe("missions: the points the table plays to", () => {
     "at a table on %s, %i points reached by a seat with %i triggers the final round: %s",
     (_case, pointsToWin, completed, triggers) => {
       const state = withPlayer(makeTwoPlayerGame({}, {}, { pointsToWin }), "p1", {
-        completedMissionCount: completed,
+        points: completed,
       });
       expect(checkForWinner(state)?.id).toBe(triggers ? "p1" : undefined);
     }
@@ -1026,15 +1026,15 @@ describe("missions: the points the table plays to", () => {
     const setUp = (pointsToWin: number) =>
       withPlayer(withShip({ ...gunline(), pointsToWin }, "p2", { hitPoints: 4 }), "p1", {
         missions: [...done, destroyMission("p2")],
-        completedMissionCount: 1,
+        points: 1,
       });
 
     const atThree = executeTurnAs(setUp(3), fire(1, "forward-0", "p2"));
-    expect(getPlayer(atThree.gameState, "p1").completedMissionCount).toBe(3);
+    expect(getPlayer(atThree.gameState, "p1").points).toBe(3);
     expect(atThree.gameState.finalRound).toBe(true);
 
     const atFour = executeTurnAs(setUp(4), fire(1, "forward-0", "p2"));
-    expect(getPlayer(atFour.gameState, "p1").completedMissionCount).toBe(3);
+    expect(getPlayer(atFour.gameState, "p1").points).toBe(3);
     expect(atFour.gameState.finalRound).toBeUndefined();
     expect(checkForWinner(atFour.gameState)).toBeUndefined();
   });

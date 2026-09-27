@@ -565,7 +565,7 @@ describe("docking: one job a visit", () => {
     expect(getShip(result.gameState, "p1").reactionMass).toBe(job === "fuel" ? 10 - TANKER_FUEL : 10);
     expect(aboard(result.gameState, deliverCrate.id)).toBe(crateAboard ? true : null);
     expect(aboard(result.gameState, surveyData.id)).toBe(dataAboard ? true : null);
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(points);
+    expect(getPlayer(result.gameState, "p1").points).toBe(points);
   });
 
   it.each<[DockJob]>([["crates"], ["data"], ["fuel"]])(
@@ -628,7 +628,7 @@ describe("docking: one job a visit", () => {
     expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId).sort()).toEqual(
       [surveyItem.id, interceptItem.id].sort()
     );
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(
+    expect(getPlayer(result.gameState, "p1").points).toBe(
       MISSION_POINTS.survey + MISSION_POINTS.intercept_transmission
     );
   });

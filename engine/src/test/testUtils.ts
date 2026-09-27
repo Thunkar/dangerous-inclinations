@@ -72,7 +72,7 @@ export function makePlayer(
     ship,
     missionOffers: [],
     missions: [],
-    completedMissionCount: 0,
+    points: 0,
     cargo: [],
     hasDeployed: true,
     hasSubmittedLoadout: true,

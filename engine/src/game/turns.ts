@@ -274,7 +274,7 @@ function finish(
     events.push({
       type: "final_round",
       playerId: reached.id,
-      points: reached.completedMissionCount,
+      points: reached.points,
       turnsLeft: newRound ? 0 : state.players.length - nextIndex,
     });
   }

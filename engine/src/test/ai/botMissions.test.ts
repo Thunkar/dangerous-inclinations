@@ -254,7 +254,7 @@ describe("bot missions", () => {
       [surveyMission("survey-1")]
     );
 
-    const completed = (s: GameState) => getPlayer(s, "p1").completedMissionCount > 0;
+    const completed = (s: GameState) => getPlayer(s, "p1").points > 0;
     const state = playUntil(start, "p1", completed, 120);
     expect(completed(state)).toBe(true);
     expect(getShip(state, "p1").wellId).toBe(BETA);

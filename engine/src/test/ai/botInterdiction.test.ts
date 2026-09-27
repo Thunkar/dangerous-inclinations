@@ -108,7 +108,7 @@ function dataCargo(): Cargo {
 const ONE_FROM_WINNING = DEFAULT_POINTS_TO_WIN - 1;
 
 function aboutToWin(state: GameState, playerId: string, cargo: Cargo[] = [crate(ALPHA, BETA)]) {
-  return withPlayer(state, playerId, { completedMissionCount: ONE_FROM_WINNING, cargo });
+  return withPlayer(state, playerId, { points: ONE_FROM_WINNING, cargo });
 }
 
 function situationOf(state: GameState, viewerId: string) {
@@ -212,7 +212,7 @@ describe("danger: reading the scoreboard and the hold", () => {
     const base = makeTwoPlayerGame({ loadout: RAIDER }, { wellId: ALPHA, ring: 2, sector: 4 });
     const leader = aboutToWin(base, "p2");
     const nobody = withPlayer(base, "p2", {
-      completedMissionCount: 0,
+      points: 0,
       cargo: [crate(ALPHA, BETA)],
     });
 
@@ -257,13 +257,13 @@ describe("danger: reading the scoreboard and the hold", () => {
   it("names a station for a carrier and nothing at all for an empty hold", () => {
     const stations = makeGameState([]).stations;
     const carrying = assessDanger(
-      { cargoAboard: { crates: 1, data: 0 }, completedMissionCount: ONE_FROM_WINNING, completedMissions: [] },
+      { cargoAboard: { crates: 1, data: 0 }, points: ONE_FROM_WINNING, completedMissions: [] },
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
       stations,
       DEFAULT_POINTS_TO_WIN
     );
     const empty = assessDanger(
-      { cargoAboard: { crates: 0, data: 0 }, completedMissionCount: ONE_FROM_WINNING, completedMissions: [] },
+      { cargoAboard: { crates: 0, data: 0 }, points: ONE_FROM_WINNING, completedMissions: [] },
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
       stations,
       DEFAULT_POINTS_TO_WIN
@@ -309,7 +309,7 @@ describe("interdiction goals", () => {
     // p3 has data aboard and a station under it, but nothing face-up: every
     // card is worth two now, so a rival one card short is a rival about to
     // win however close the other one happens to be sitting.
-    state = withPlayer(state, "p3", { completedMissionCount: 0, cargo: [dataCargo()] });
+    state = withPlayer(state, "p3", { points: 0, cargo: [dataCargo()] });
     state = aboutToWin(state, "p2", [crate(BETA, ALPHA)]);
     const situation = situationOf(state, "p1");
 
@@ -329,7 +329,7 @@ describe("interdiction goals", () => {
     // to fight would hand the game to the third player.
     let state = aboutToWin(threeWay(), "p2", [crate(BETA, ALPHA)]);
     state = withPlayer(state, "p1", {
-      completedMissionCount: ONE_FROM_WINNING,
+      points: ONE_FROM_WINNING,
       cargo: [crate(BETA, ALPHA)],
       missions: [deliverMission(BETA, ALPHA)],
     });
@@ -466,7 +466,7 @@ describe("denial valuation", () => {
       dataCargo(),
     ]);
     const empty = withPlayer(withShip(duel(), "p2", { hitPoints: 2 }), "p2", {
-      completedMissionCount: ONE_FROM_WINNING,
+      points: ONE_FROM_WINNING,
       cargo: [],
     });
 

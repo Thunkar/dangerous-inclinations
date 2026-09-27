@@ -40,7 +40,7 @@ describe("missionsToWin", () => {
 
   it("changes nothing in the process, so a game made beside it still plays to three", () => {
     expect(parseRuleOverrides("missionsToWin=2")).toEqual({ missionsToWin: 2 });
-    const state = withPlayer(makeTwoPlayerGame(), "p1", { completedMissionCount: 2 });
+    const state = withPlayer(makeTwoPlayerGame(), "p1", { points: 2 });
     expect(checkForWinner(state)).toBeUndefined();
     expect(
       createGame([

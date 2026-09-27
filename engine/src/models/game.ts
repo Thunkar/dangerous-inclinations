@@ -364,7 +364,7 @@ export interface Player {
   /** Offered during loadout; the player keeps MISSIONS_PER_PLAYER of them. */
   missionOffers: Mission[];
   missions: Mission[];
-  completedMissionCount: number;
+  points: number;
   cargo: Cargo[];
   hasDeployed: boolean;
   hasSubmittedLoadout: boolean;

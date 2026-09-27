@@ -29,7 +29,7 @@ const completed = (turn: number, playerId: string, mission: Mission, count: numb
   turn,
   playerId,
   mission,
-  completedCount: count,
+  points: count,
 });
 
 /**
@@ -40,11 +40,11 @@ const completed = (turn: number, playerId: string, mission: Mission, count: numb
 function cannedRun(): GameRunResult {
   const p1 = makePlayer("p1", undefined, undefined, {
     missions: [destroy],
-    completedMissionCount: 2,
+    points: 2,
   });
   const p2 = makePlayer("p2", undefined, undefined, {
     missions: [survey, escort],
-    completedMissionCount: 2,
+    points: 2,
   });
   const finalState = makeGameState([p1, p2], { phase: "ended", winnerId: "p2" });
   const turn = (

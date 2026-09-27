@@ -170,25 +170,25 @@ function payEscorts(players: Player[], deliveredBy: ReadonlySet<string>): EventD
   const events: EventDraft[] = [];
   if (deliveredBy.size === 0) return events;
   players.forEach((player, index) => {
-    let points = 0;
+    let earned = 0;
     const done: Mission[] = [];
     const missions = player.missions.map((m) => {
       if (m.type !== "escort" || m.isCompleted || m.markedPlayerId === null) return m;
       if (!deliveredBy.has(m.markedPlayerId)) return m;
       const completed: EscortMission = { ...m, isCompleted: true };
-      points += missionPoints(completed.type);
+      earned += missionPoints(completed.type);
       done.push(completed);
       return completed;
     });
     if (done.length === 0) return;
-    const completedMissionCount = player.completedMissionCount + points;
-    players[index] = { ...player, missions, completedMissionCount };
+    const points = player.points + earned;
+    players[index] = { ...player, missions, points };
     for (const mission of done) {
       events.push({
         type: "mission_completed",
         playerId: player.id,
         mission,
-        completedCount: completedMissionCount,
+        points,
       });
     }
   });
@@ -360,7 +360,7 @@ export function processMissionEvents(
     return next;
   });
 
-  const completedMissionCount = player.completedMissionCount + completed;
+  const points = player.points + completed;
   for (const m of missions) {
     const before = player.missions.find((pm) => pm.id === m.id);
     if (m.isCompleted && before && !before.isCompleted) {
@@ -368,7 +368,7 @@ export function processMissionEvents(
         type: "mission_completed",
         playerId,
         mission: m,
-        completedCount: completedMissionCount,
+        points,
       });
     }
   }
@@ -378,7 +378,7 @@ export function processMissionEvents(
     seized ||
     cargo !== player.cargo ||
     missions.some((m, i) => m !== player.missions[i]);
-  if (changed) players[index] = { ...player, missions, cargo, completedMissionCount };
+  if (changed) players[index] = { ...player, missions, cargo, points };
   // Everyone else's Escorts on a ship that delivered or pumped fuel this turn:
   // the carrier is the active player, so this pays a card held at another seat.
   const escortEvents = payEscorts(players, deliveredBy);
@@ -392,7 +392,7 @@ export function processMissionEvents(
 
 /** The first seat, in turn order, that has reached the points needed to trigger the final round. */
 export function checkForWinner(state: GameState): Player | undefined {
-  return state.players.find((p) => p.completedMissionCount >= state.pointsToWin);
+  return state.players.find((p) => p.points >= state.pointsToWin);
 }
 
 export type Decider = "points" | "hull" | "fuel" | "seat";
@@ -405,7 +405,7 @@ export type Decider = "points" | "hull" | "fuel" | "seat";
 export function rankPlayers(state: GameState): { ranked: Player[]; decidedBy: Decider } {
   const ranked = [...state.players].sort(
     (a, b) =>
-      b.completedMissionCount - a.completedMissionCount ||
+      b.points - a.points ||
       b.ship.hitPoints - a.ship.hitPoints ||
       b.ship.reactionMass - a.ship.reactionMass ||
       state.players.indexOf(a) - state.players.indexOf(b)
@@ -413,7 +413,7 @@ export function rankPlayers(state: GameState): { ranked: Player[]; decidedBy: De
   const [first, second] = ranked;
   const decidedBy: Decider = !second
     ? "points"
-    : first.completedMissionCount !== second.completedMissionCount
+    : first.points !== second.points
       ? "points"
       : first.ship.hitPoints !== second.ship.hitPoints
         ? "hull"

@@ -66,7 +66,7 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
         isMine: p.id === myPlayerId,
         hull: p.ship.hitPoints,
         maxHull: p.ship.maxHitPoints,
-        pointsScored: p.completedMissionCount,
+        pointsScored: p.points,
       }))
       // Another human's seat would expose their hand; the server refuses it too.
       .filter((p) => p.isBot || p.isMine)

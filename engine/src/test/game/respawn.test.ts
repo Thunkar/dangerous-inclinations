@@ -71,7 +71,7 @@ function wreck(): GameState {
   state = withSub(state, "p2", "engines", { isBroken: true });
   state = withPlayer(state, "p2", {
     home: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 },
-    completedMissionCount: 1,
+    points: 1,
     intel: { p1: ["side-1"] },
   });
   return state;
@@ -190,7 +190,7 @@ describe("respawn: the turn after dying", () => {
     state = mustExecute(state);
     const p2 = getPlayer(state, "p2");
     expect(p2).toMatchObject({
-      completedMissionCount: 1,
+      points: 1,
       intel: { p1: ["side-1"] },
       home: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 },
     });

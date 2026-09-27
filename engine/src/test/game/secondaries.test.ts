@@ -118,7 +118,7 @@ describe("two of a kind are two jobs", () => {
       "tanker-a",
     ]);
     const p1 = getPlayer(result.gameState, "p1");
-    expect(p1.completedMissionCount).toBe(MISSION_POINTS.tanker);
+    expect(p1.points).toBe(MISSION_POINTS.tanker);
     expect(p1.missions.map((m) => m.isCompleted)).toEqual([true, false]);
   });
 });
@@ -225,7 +225,7 @@ describe("salvage: wrecks", () => {
     expect(eventsOf(result.events, "mission_completed").map((e) => e.mission.id)).toEqual([
       card.id,
     ]);
-    expect(getPlayer(result.gameState, "p1").completedMissionCount).toBe(MISSION_POINTS.salvage);
+    expect(getPlayer(result.gameState, "p1").points).toBe(MISSION_POINTS.salvage);
   });
 
   it.each([
@@ -612,7 +612,7 @@ describe("escort: markers", () => {
     let state = arriving(table(), "p2", BETA, p2Missions);
     state = withPlayer(state, "p1", {
       missions: [escortMission("escort-1", "p2")],
-      completedMissionCount: p1Points,
+      points: p1Points,
     });
     return { ...state, activePlayerIndex: 1 };
   }
@@ -641,10 +641,10 @@ describe("escort: markers", () => {
     const result = executeTurnAs(state, coast(1));
     expect(eventTypes(result.events)).toContain("cargo_delivered");
     const escort = eventsOf(result.events, "mission_completed").filter((e) => e.playerId === "p1");
-    expect(escort).toEqual([expect.objectContaining({ completedCount: MISSION_POINTS.escort })]);
+    expect(escort).toEqual([expect.objectContaining({ points: MISSION_POINTS.escort })]);
     expect(escort[0].mission.type).toBe("escort");
     const p1 = getPlayer(result.gameState, "p1");
-    expect(p1.completedMissionCount).toBe(MISSION_POINTS.escort);
+    expect(p1.points).toBe(MISSION_POINTS.escort);
     expect(p1.missions[0].isCompleted).toBe(true);
     // A finished Escort's marker is off the ship.
     expect(viewFor(result.gameState, null).players[1].escortedBy).toEqual([]);
@@ -671,7 +671,7 @@ describe("escort: markers", () => {
       ["p3", "escort-p3"],
     ]);
     for (const id of ["p1", "p2", "p3"])
-      expect(getPlayer(result.gameState, id).completedMissionCount).toBe(1);
+      expect(getPlayer(result.gameState, id).points).toBe(1);
     const p2Cards = getPlayer(result.gameState, "p2").missions;
     expect(p2Cards.map((m) => m.isCompleted)).toEqual([true, false]);
   });
@@ -681,7 +681,7 @@ describe("escort: markers", () => {
     expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(1);
     expect(eventTypes(result.events)).not.toContain("cargo_delivered");
     const p1 = getPlayer(result.gameState, "p1");
-    expect(p1.completedMissionCount).toBe(MISSION_POINTS.escort);
+    expect(p1.points).toBe(MISSION_POINTS.escort);
     expect(p1.missions[0].isCompleted).toBe(true);
   });
 

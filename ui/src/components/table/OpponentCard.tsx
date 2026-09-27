@@ -199,7 +199,7 @@ export function OpponentCard({
       }
       action={
         <Tooltip
-          title={`${player.completedMissionCount} of ${view.pointsToWin} points`}
+          title={`${player.points} of ${view.pointsToWin} points`}
         >
           <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
             {Array.from({ length: view.pointsToWin }, (_, i) => (
@@ -208,8 +208,8 @@ export function OpponentCard({
                 sx={{
                   width: 8,
                   height: 12,
-                  bgcolor: i < player.completedMissionCount ? TABLE.accentBlock : 'transparent',
-                  border: `1px solid ${i < player.completedMissionCount ? TABLE.accentBlock : TABLE.unlitEdge}`,
+                  bgcolor: i < player.points ? TABLE.accentBlock : 'transparent',
+                  border: `1px solid ${i < player.points ? TABLE.accentBlock : TABLE.unlitEdge}`,
                 }}
               />
             ))}

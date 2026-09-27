@@ -141,7 +141,7 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
   for (const p of final.players) {
     perPlayer[p.id] = {
       playerId: p.id,
-      points: p.completedMissionCount,
+      points: p.points,
       damageDealt: 0,
       damageTaken: 0,
       kills: 0,
@@ -244,7 +244,7 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
     totalDamage,
     destructions,
     cards: Object.values(completionsByType).reduce((s, n) => s + (n ?? 0), 0),
-    points: final.players.reduce((s, p) => s + p.completedMissionCount, 0),
+    points: final.players.reduce((s, p) => s + p.points, 0),
     completionsByType,
     offeredByType,
     keptByType,
@@ -290,8 +290,8 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
       switch (e.type) {
         case "mission_completed": {
           firstScoreRound ??= e.turn;
-          // `completedCount` is the player's running points after the card.
-          scores.set(e.playerId, e.completedCount);
+          // `points` is the player's running points after the card.
+          scores.set(e.playerId, e.points);
           const now = soleLeader(scores);
           if (now !== null && leader !== null && now !== leader) leadChanges++;
           if (now !== null) leader = now;

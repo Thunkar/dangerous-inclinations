@@ -157,7 +157,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "data_acquired":
       return `${name(e.playerId)} acquires ${e.kind} data`;
     case "mission_completed":
-      return `${name(e.playerId)} completes ${describeMission(e.mission, name)} (${e.completedCount} done)`;
+      return `${name(e.playerId)} completes ${describeMission(e.mission, name)} (${e.points} points)`;
     case "action_skipped":
       return `${name(e.playerId)}'s ${e.action === "scan" ? "scan" : "shot"} at ${name(e.targetId)} is not taken: the ship is already gone`;
     case "stations_moved": {

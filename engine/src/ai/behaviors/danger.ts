@@ -10,7 +10,7 @@
  *
  * | Public fact                  | What it says                                   |
  * |------------------------------|------------------------------------------------|
- * | `completedMissionCount`      | their points: at two of three, any card wins    |
+ * | `points`                     | their points: at two of three, any card wins    |
  * | `completedMissions`          | whether their primary is still to come          |
  * | `cargoAboard.crates` > 0     | a Deliver crate or Piracy loot; it ends at a station |
  * | `cargoAboard.data` > 0       | Intercept, Survey or Salvage data; it ends at a station |
@@ -228,7 +228,7 @@ export function predictedDeliveryPlanets(
  * secondary.
  */
 export function assessDanger(
-  player: Pick<PlayerView, "cargoAboard" | "completedMissionCount" | "completedMissions">,
+  player: Pick<PlayerView, "cargoAboard" | "points" | "completedMissions">,
   position: Position,
   stations: Station[],
   /** What this game plays to (`view.pointsToWin`). */
@@ -236,7 +236,7 @@ export function assessDanger(
 ): OpponentDanger {
   const crates = player.cargoAboard.crates;
   const data = player.cargoAboard.data;
-  const points = player.completedMissionCount;
+  const points = player.points;
   const carrying = crates + data > 0;
   const primaryDone = player.completedMissions.some((m) => isPrimaryType(m.type));
 

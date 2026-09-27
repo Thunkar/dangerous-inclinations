@@ -19,7 +19,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
     .map((player, seat) => ({ player, seat }))
     .sort(
       (a, b) =>
-        b.player.completedMissionCount - a.player.completedMissionCount ||
+        b.player.points - a.player.points ||
         (b.player.ship?.hitPoints ?? 0) - (a.player.ship?.hitPoints ?? 0) ||
         (b.player.ship?.fuel ?? 0) - (a.player.ship?.fuel ?? 0) ||
         a.seat - b.seat
@@ -43,7 +43,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
         {winner
-          ? `${winner.completedMissionCount} of ${view.pointsToWin} points.`
+          ? `${winner.points} of ${view.pointsToWin} points.`
           : 'No winner was declared.'}
       </Typography>
 
@@ -71,7 +71,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
               }
             >
               <SectionLabel>
-                {player.completedMissionCount} / {view.pointsToWin} points · hull{' '}
+                {player.points} / {view.pointsToWin} points · hull{' '}
                 {player.ship?.hitPoints ?? 0}/{player.ship?.maxHitPoints ?? 10}
               </SectionLabel>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
