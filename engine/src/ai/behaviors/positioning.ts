@@ -1,8 +1,7 @@
 /**
  * Movement. Turns the first step of a movement plan into an engine action
- * the current ship can actually perform, checking each burn against
- * getAdjustmentRange / calculateBurnMassCost and each jump against
- * findJump, engine state and fuel. Anything that fails becomes a coast.
+ * the current ship can actually perform, checked against the engine's
+ * `legalMoves`. Anything that fails becomes a coast.
  */
 import type { BurnIntensity, Facing, ShipState } from "../../models/game.ts";
 import {
@@ -10,11 +9,9 @@ import {
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
   calculateJumpMassCost,
-  getAdjustmentRange,
 } from "../../models/rings.ts";
-import { findJump, getJumpAdjustmentRange, phasedJumpDestination } from "../../models/gravityWells.ts";
-import { ringVelocity } from "../../game/geometry.ts";
-import { ringAfter } from "../../game/movement.ts";
+import { findJump, phasedJumpDestination } from "../../models/gravityWells.ts";
+import { legalMoves, phasingAllowed } from "../../game/movement.ts";
 import type { MovementPreview } from "../../game/movement.ts";
 import type { MovementPlan } from "../movementPlanner/index.ts";
 import { getFirstAction } from "../movementPlanner/index.ts";
@@ -58,56 +55,38 @@ export function coastChoice(wantsScoop: boolean): MovementChoice {
  * do is dock again: this is the move that turns the next arrival back into a
  * visit.
  */
-export function castOffChoice(ship: ShipState, status: BotStatus): MovementChoice | null {
-  if (!burnIsValid(ship, status, "soft", 0)) return null;
-  for (const facing of ["prograde", "retrograde"] as const) {
-    if (ringAfter({ ...ship, facing }, BURN_COSTS.soft.rings) === null) continue;
-    if (facing !== ship.facing && (status.rotation.isBroken || status.rotation.usedThisTurn))
-      continue;
-    return {
-      kind: "burn",
-      preview: { kind: "burn", burnIntensity: "soft", sectorAdjustment: 0 },
-      requiredFacing: facing,
-      engineEnergy: BURN_COSTS.soft.energy,
-      massCost: BURN_COSTS.soft.mass,
-      wantsScoop: false,
-      burnIntensity: "soft",
-      sectorAdjustment: 0,
-    };
-  }
-  return null;
+export function castOffChoice(ship: ShipState): MovementChoice | null {
+  const burn = legalMoves(ship).burns.find((b) => b.intensity === "soft");
+  if (!burn) return null;
+  return {
+    kind: "burn",
+    preview: { kind: "burn", burnIntensity: "soft", sectorAdjustment: 0 },
+    requiredFacing: burn.facing,
+    engineEnergy: burn.engineEnergy,
+    massCost: burn.fuel,
+    wantsScoop: false,
+    burnIntensity: "soft",
+    sectorAdjustment: 0,
+  };
 }
 
-/**
- * Whether a burn from `ship` (current ring) is legal for the engine.
- */
-function burnIsValid(
+/** Whether the engine takes this burn from `ship` now, rotating to `facing` first if need be. */
+function burnIsLegal(
   ship: ShipState,
-  status: BotStatus,
   intensity: BurnIntensity,
+  facing: Facing,
   adjustment: number
 ): boolean {
-  if (status.engines.isBroken || status.engines.usedThisTurn) return false;
-  const { min, max } = getAdjustmentRange(ringVelocity(ship.wellId, ship.ring));
-  if (adjustment < min || adjustment > max) return false;
-  return ship.reactionMass >= calculateBurnMassCost(BURN_COSTS[intensity].mass, adjustment);
+  return legalMoves(ship).burns.some(
+    (b) => b.intensity === intensity && b.facing === facing && phasingAllowed(b, adjustment)
+  );
 }
 
-function jumpIsValid(
-  ship: ShipState,
-  status: BotStatus,
-  destinationWellId: string,
-  adjustment = 0
-): boolean {
-  if (status.engines.isBroken || status.engines.usedThisTurn) return false;
-  const jump = findJump(
-    { wellId: ship.wellId, ring: ship.ring, sector: ship.sector },
-    destinationWellId
+/** Whether the engine takes this jump from `ship` now. */
+function jumpIsLegal(ship: ShipState, destinationWellId: string, adjustment = 0): boolean {
+  return legalMoves(ship).jumps.some(
+    (j) => j.destinationWellId === destinationWellId && phasingAllowed(j, adjustment)
   );
-  if (!jump) return false;
-  const { min, max } = getJumpAdjustmentRange(jump);
-  if (adjustment < min || adjustment > max) return false;
-  return ship.reactionMass >= calculateJumpMassCost(adjustment, status.hasCompressor);
 }
 
 /**
@@ -129,10 +108,8 @@ export function movementFromPlan(
   if (first.actionType === "burn") {
     const intensity = first.burnIntensity ?? "soft";
     const adjustment = first.sectorAdjustment;
-    if (!burnIsValid(ship, status, intensity, adjustment)) return null;
     const facing = first.targetFacing ?? ship.facing;
-    if (facing !== ship.facing && (status.rotation.isBroken || status.rotation.usedThisTurn))
-      return null;
+    if (!burnIsLegal(ship, intensity, facing, adjustment)) return null;
     return {
       kind: "burn",
       preview: { kind: "burn", burnIntensity: intensity, sectorAdjustment: adjustment },
@@ -147,7 +124,7 @@ export function movementFromPlan(
 
   const destination = first.destinationWellId!;
   const adjustment = first.sectorAdjustment;
-  if (!jumpIsValid(ship, status, destination, adjustment)) return null;
+  if (!jumpIsLegal(ship, destination, adjustment)) return null;
   const jump = findJump(
     { wellId: ship.wellId, ring: ship.ring, sector: ship.sector },
     destination

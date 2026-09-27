@@ -743,7 +743,7 @@ export function generateCandidates(
   // so that a bot whose goal it cannot yet afford has something to choose
   // besides "hold position", which it used to choose for the rest of the game.
   if (status.moored) {
-    const castOff = castOffChoice(ship, status);
+    const castOff = castOffChoice(ship);
     if (castOff) {
       candidates.push(buildCandidate(situation, parameters, castOff, "Cast off", false));
     }

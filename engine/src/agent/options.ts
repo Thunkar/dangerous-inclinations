@@ -3,41 +3,25 @@
  * same pure functions the UI uses for previews. Agents read this instead of
  * guessing, so an illegal move is never their only option.
  */
-import type { BurnIntensity, Facing, Position } from "../models/game.ts";
+import type { Facing, Position } from "../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, isOpeningRound, isQuietTurn } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { energyStepOf, getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
-import {
-  BURN_COSTS,
-  SECTOR_ADJUSTMENT_COST_PER_SECTOR,
-  WELL_TRANSFER_COSTS,
-  calculateJumpMassCost,
-  getAdjustmentRange,
-} from "../models/rings.ts";
-
-const BURN_INTENSITIES: BurnIntensity[] = ["soft", "medium", "hard"];
-import { getJumpAdjustmentRange, getJumpOptions } from "../models/gravityWells.ts";
 import type { GameView } from "../game/view.ts";
 import { positionOf, ringVelocity } from "../game/geometry.ts";
 import { inScanRange } from "../game/scan.ts";
 import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
-import { projectPosition, ringAfter, type MovementPreview } from "../game/movement.ts";
+import {
+  legalMoves,
+  projectPosition,
+  type LegalBurn,
+  type LegalJump,
+  type MovementPreview,
+} from "../game/movement.ts";
 import { isMooredAt } from "../game/stations.ts";
-import { hasWorkingCompressor } from "../game/ship.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
 
-export interface BurnOption {
-  intensity: BurnIntensity;
-  /** Facing the burn needs (prograde burns outward, retrograde inward). */
-  facing: Facing;
-  toRing: number;
-  engineEnergy: number;
-  fuel: number;
-  /** Phasing allowed on arrival (fuel per sector). */
-  adjustment: { min: number; max: number };
-  /** Whether the ship must rotate first (one thruster cube, one heat). */
-  needsRotation: boolean;
-}
+export type BurnOption = LegalBurn;
 
 export interface WeaponOption {
   weapon: SubsystemId;
@@ -73,18 +57,10 @@ export interface SeatOptions {
    * carries no heat in and makes none can name one (RULES §Heat check).
    */
   repair: { broken: SubsystemId[]; possibleThisTurn: boolean };
+  /** Every burn the engines, the thrusters and the tank allow, phasing included (`legalMoves`). */
   burns: BurnOption[];
-  jump: {
-    destinationWellId: string;
-    destination: Position;
-    energy: number;
-    /** Fuel for an unphased jump (1 with a working compressor). */
-    fuel: number;
-    /** Fuel each sector of phasing costs; a compressor does not pay for it. */
-    phasingFuel: number;
-    /** Sectors the landing may be shifted by, bounded by the arrival arc. */
-    adjustment: { min: number; max: number };
-  } | null;
+  /** The jump from the departure arc the ship is in, if the tank covers it (`legalMoves`). */
+  jump: LegalJump | null;
   /** Docked at a station: a coast holds the berth, only a burn casts off. */
   moored: boolean;
   /** Fuel a scoop would gain this turn: 0 when the scoop is broken. */
@@ -115,55 +91,16 @@ export function seatOptions(view: GameView): SeatOptions {
   const ship = me.ship;
   const here = { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing: ship.facing };
   const velocity = ringVelocity(ship.wellId, ship.ring);
-  const compressor = hasWorkingCompressor(ship);
 
-  /**
-   * A move needs working hardware and fuel, not just room on the board. These
-   * were geometry-only and listed every burn the rings allowed, so a ship with
-   * broken engines was told it could burn, the dry run refused it, and the
-   * agent went round the loop with nothing in the options to tell it why.
-   */
-  const working = (id: SubsystemId) => {
-    const sub = ship.subsystems.find((x) => x.id === id);
-    return sub !== undefined && !sub.isBroken;
-  };
-  const enginesWork = working("engines");
-  const thrustersWork = working("rotation");
-  const scoopWorks = working("scoop");
+  const scoop = ship.subsystems.find((x) => x.id === "scoop");
+  const scoopWorks = scoop !== undefined && !scoop.isBroken;
 
-  const burns: BurnOption[] = [];
-  for (const facing of enginesWork ? (["prograde", "retrograde"] as Facing[]) : []) {
-    const needsRotation = facing !== ship.facing;
-    if (needsRotation && !thrustersWork) continue;
-    for (const intensity of BURN_INTENSITIES) {
-      const cost = BURN_COSTS[intensity];
-      const toRing = ringAfter({ ...ship, facing }, cost.rings);
-      if (toRing === null) continue;
-      if (cost.mass > ship.reactionMass) continue;
-      burns.push({
-        intensity,
-        facing,
-        toRing,
-        engineEnergy: cost.energy,
-        fuel: cost.mass,
-        adjustment: getAdjustmentRange(velocity),
-        needsRotation,
-      });
-    }
-  }
-
-  const jumpOption = enginesWork ? getJumpOptions(here)[0] : undefined;
-  const jump =
-    jumpOption && calculateJumpMassCost(0, compressor) <= ship.reactionMass
-    ? {
-        destinationWellId: jumpOption.destination.wellId,
-        destination: jumpOption.destination,
-        energy: WELL_TRANSFER_COSTS.energy,
-        fuel: calculateJumpMassCost(0, compressor),
-        phasingFuel: SECTOR_ADJUSTMENT_COST_PER_SECTOR,
-        adjustment: getJumpAdjustmentRange(jumpOption),
-      }
-    : null;
+  // A move needs working hardware and fuel, not just room on the board, and
+  // phasing is fuel too: the engine's own list, so a ship with broken engines
+  // or a dry tank is never offered a move the dry run then refuses.
+  const moves = legalMoves(ship);
+  const burns: BurnOption[] = moves.burns;
+  const jump = moves.jumps[0] ?? null;
   const moored = isMooredAt(view.stations, here);
 
   // A ship recovering from a respawn is untouchable until the turn it plays

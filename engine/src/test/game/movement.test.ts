@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { MAX_HEAT } from "../../models/game.ts";
-import { projectPosition, ringAfter } from "../../game/movement.ts";
+import type { GameState, ShipLoadout } from "../../models/game.ts";
+import { legalMoves, phasingAllowed, projectPosition, ringAfter } from "../../game/movement.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { getAdjustmentRange, calculateBurnMassCost } from "../../models/rings.ts";
 import {
@@ -16,6 +17,7 @@ import {
   expectRefusedUnless,
   getShip,
   getSub,
+  jump,
   makePlayer,
   makeGameState,
   makeTwoPlayerGame,
@@ -200,7 +202,10 @@ describe("movement: burns", () => {
   it("rejects a burn when the engines are broken", () => {
     const ready = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
     const state = withSub(ready, "p1", "engines", { isBroken: true });
-    expectRefusedUnless(executeTurnAs(state, burn(1, "soft")), executeTurnAs(ready, burn(1, "soft")));
+    expectRefusedUnless(
+      executeTurnAs(state, burn(1, "soft")),
+      executeTurnAs(ready, burn(1, "soft"))
+    );
   });
 });
 
@@ -394,5 +399,94 @@ describe("movement: projectPosition", () => {
     expect(
       projectPosition(ship, "prograde", { kind: "jump", jumpDestination: destination })
     ).toEqual({ ...destination, facing: "prograde" });
+  });
+});
+
+describe("movement: legalMoves agrees with the referee", () => {
+  const COMPRESSOR_HULL: ShipLoadout = {
+    forwardSlots: ["fuel_compressor"],
+    sideSlots: ["laser", "laser", "shields", "radiator"],
+  };
+  // BH ring 5, sector 1: inside Beta's outbound departure arc (sectors 0-3).
+  const ON_LANE = { wellId: BH, ring: 5, sector: 1 } as const;
+  const setups: Array<[string, () => GameState]> = [
+    ["a full tank on ring 3", () => makeTwoPlayerGame({ ring: 3, sector: 0 })],
+    [
+      "two fuel on ring 3",
+      () => withShip(makeTwoPlayerGame({ ring: 3 }), "p1", { reactionMass: 2 }),
+    ],
+    ["an empty tank", () => withShip(makeTwoPlayerGame({ ring: 3 }), "p1", { reactionMass: 0 })],
+    [
+      "broken engines",
+      () => withSub(makeTwoPlayerGame({ ring: 3 }), "p1", "engines", { isBroken: true }),
+    ],
+    [
+      "broken thrusters",
+      () => withSub(makeTwoPlayerGame({ ring: 3 }), "p1", "rotation", { isBroken: true }),
+    ],
+    ["the outermost ring", () => makeTwoPlayerGame({ ring: 5, sector: 12 })],
+    [
+      "a lane end with four fuel",
+      () => withShip(makeTwoPlayerGame(ON_LANE), "p1", { reactionMass: 4 }),
+    ],
+    [
+      "a lane end with a compressor and two fuel",
+      () =>
+        withShip(makeTwoPlayerGame({ ...ON_LANE, loadout: COMPRESSOR_HULL }), "p1", {
+          reactionMass: 2,
+        }),
+    ],
+  ];
+  const ADJUSTMENTS = [-8, -3, -2, -1, 0, 1, 2, 3, 4];
+
+  it.each(setups)(
+    "every burn from %s is listed exactly when the referee takes it",
+    (_label, setup) => {
+      const state = setup();
+      const moves = legalMoves(getShip(state, "p1"));
+      for (const facing of ["prograde", "retrograde"] as const) {
+        for (const intensity of ["soft", "medium", "hard"] as const) {
+          for (const adjustment of ADJUSTMENTS) {
+            const listed = moves.burns.some(
+              (b) =>
+                b.intensity === intensity && b.facing === facing && phasingAllowed(b, adjustment)
+            );
+            const turn =
+              facing === getShip(state, "p1").facing
+                ? executeTurnAs(state, burn(1, intensity, adjustment))
+                : executeTurnAs(state, rotate(1, facing), burn(2, intensity, adjustment));
+            expect(listed, `${facing} ${intensity} ${adjustment}`).toBe(turn.errors === undefined);
+          }
+        }
+      }
+    }
+  );
+
+  it.each(setups)(
+    "every jump from %s is listed exactly when the referee takes it",
+    (_label, setup) => {
+      const state = setup();
+      const moves = legalMoves(getShip(state, "p1"));
+      for (const destination of ["planet-alpha", "planet-beta", "planet-gamma"]) {
+        for (const adjustment of ADJUSTMENTS) {
+          const listed = moves.jumps.some(
+            (j) => j.destinationWellId === destination && phasingAllowed(j, adjustment)
+          );
+          const turn = executeTurnAs(state, jump(1, destination, adjustment));
+          expect(listed, `${destination} ${adjustment}`).toBe(turn.errors === undefined);
+        }
+      }
+    }
+  );
+
+  it("offers a jump from a lane end, and phasing only as far as the tank pays", () => {
+    const state = withShip(makeTwoPlayerGame(ON_LANE), "p1", { reactionMass: 4 });
+    expect(legalMoves(getShip(state, "p1")).jumps).toEqual([
+      expect.objectContaining({
+        destinationWellId: "planet-beta",
+        fuel: 3,
+        adjustment: { min: -1, max: 1 },
+      }),
+    ]);
   });
 });
