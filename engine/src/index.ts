@@ -32,6 +32,7 @@ export { runGame, setupBotGame, formatFailure } from "./sim/runGame.ts";
 export type { GameConfig, GameRunResult, InvalidTurn } from "./sim/runGame.ts";
 
 // AI Bot
+// The bots' entry points and the few types callers name (`ai/index.ts`); the
+// rest of the bots' types stay internal.
 export * from "./ai/index.ts";
 export * from "./agent/index.ts";
-export * from "./ai/types.ts";
