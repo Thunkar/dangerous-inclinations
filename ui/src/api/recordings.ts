@@ -8,7 +8,6 @@ export interface RecordingSummary {
   turnCount: number;
   winnerId?: string;
   label?: string;
-  file: string;
 }
 
 export async function listRecordings(): Promise<RecordingSummary[]> {

@@ -42,7 +42,6 @@ export interface LobbyPlayer {
   playerId: string
   playerName: string
   isBot: boolean
-  isReady: boolean
   /** Set when an agent (Claude, Codex) plays this seat. */
   agent?: AgentInfo
 }
@@ -161,7 +160,6 @@ export interface TurnExecutedPayload {
   turnNumber: number
   /** Only present when the recipient is the player who acted. */
   actions?: PlayerAction[]
-  rewind?: true
 }
 
 /**

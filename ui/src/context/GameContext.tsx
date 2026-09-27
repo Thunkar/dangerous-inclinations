@@ -198,17 +198,16 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
 
   /**
    * Take the server's list of the game's turns. Turns already seen live keep
-   * their frames; with `replace` false, live turns the list does not have yet
-   * (it was fetched while they arrived) stay on the end. A rewind replaces.
+   * their frames, and live turns the list does not have yet (it was fetched
+   * while they arrived) stay on the end.
    */
-  const mergeListed = useCallback((listed: TurnSummary[], replace: boolean) => {
+  const mergeListed = useCallback((listed: TurnSummary[]) => {
     setHistory((prev) => {
       const byKey = new Map(prev.map((r) => [r.key, r]))
       const fromServer: TurnRecord[] = listed.map((t) => {
         const key = turnKey(t.turn, t.actorId)
         return { key, turn: t.turn, actorId: t.actorId, eventCount: t.eventCount, index: t.index, frames: byKey.get(key)?.frames }
       })
-      if (replace) return fromServer
       const known = new Set(fromServer.map((r) => r.key))
       return [...fromServer, ...prev.filter((r) => !known.has(r.key))]
     })
@@ -364,12 +363,11 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
     if (!client) return
     let cancelled = false
 
-    // The whole game back to its first turn: on joining, on a resync, and
-    // after a rewind (which takes turns away).
-    const refreshTimeline = (replace: boolean) => {
+    // The whole game back to its first turn: on joining and on a resync.
+    const refreshTimeline = () => {
       getTurns(gameId)
         .then((response) => {
-          if (!cancelled) mergeListed(response.turns, replace)
+          if (!cancelled) mergeListed(response.turns)
         })
         .catch(() => {
           // No list (a spectator, a server without it): the timeline shows the turns seen live.
@@ -383,11 +381,10 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
         switch (data.type) {
           case 'GAME_VIEW':
             enqueue({ view: data.payload.view, events: data.payload.events, animate: false, replaceLog: true })
-            refreshTimeline(false)
+            refreshTimeline()
             break
           case 'TURN_EXECUTED':
-            enqueue({ view: data.payload.view, events: data.payload.events, animate: !data.payload.rewind })
-            if (data.payload.rewind) refreshTimeline(true)
+            enqueue({ view: data.payload.view, events: data.payload.events, animate: true })
             break
           case 'TURN_ERROR':
             setTurnErrors(data.payload.errors ?? (data.payload.error ? [data.payload.error] : ['Turn rejected']))
