@@ -13,7 +13,7 @@
  * (`MovementDiagram`).
  *
  * Every number is read from the engine. What is written out is the wording,
- * which RULES.md owns and this compresses.
+ * which RULES.md owns and this compresses; it lives in `text/printedCard.ts`.
  */
 import type { ReactNode } from 'react'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
@@ -30,6 +30,7 @@ import {
   SHIELD_HEAT_PER_POINT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
+  fill,
   interceptsPerRack,
 } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
@@ -49,7 +50,13 @@ import {
 } from '../numbers'
 import { TURN_STEPS } from '../turn'
 import { MovementDiagram } from './MovementDiagram'
+import { PRINTED_CARD } from '../../text/printedCard'
+import { rich, type RichTags } from '../../utils/rich'
 
+const F = PRINTED_CARD.front
+const B = PRINTED_CARD.back
+/** On the card, red words are bold. */
+const RED_WORDS: RichTags = { red: text => <b className="r">{text}</b> }
 
 const PRIMARY = MISSION_POINTS.destroy_ship
 const SECONDARY = MISSION_POINTS.survey
@@ -60,7 +67,7 @@ function Card({ face, children }: { face: string; children: ReactNode }) {
     <div className="di-frame">
       <div className="di-card">
         <div className="di-head">
-          <b>Dangerous Inclinations</b>
+          <b>{PRINTED_CARD.head}</b>
           <span>{face}</span>
         </div>
         {children}
@@ -89,7 +96,7 @@ function Section({
   )
 }
 
-function Notes({ rows }: { rows: Array<[string, ReactNode]> }) {
+function Notes({ rows }: { rows: ReadonlyArray<readonly [string, ReactNode]> }) {
   return (
     <div className="di-notes">
       {rows.map(([label, value]) => (
@@ -112,15 +119,13 @@ export function CardFront() {
   const soft = BURN_COSTS.soft
   const hard = BURN_COSTS.hard
   return (
-    <Card face="Turn/movement">
+    <Card face={F.face}>
       <div className="di-goal">
-        <strong>{DEFAULT_POINTS_TO_WIN} points end the round</strong>
-        <span>
-          Primary {PRIMARY} + either secondary {SECONDARY} wins. Ties: hull, then fuel.
-        </span>
+        <strong>{rich(F.goal.title, { points: DEFAULT_POINTS_TO_WIN })}</strong>
+        <span>{rich(F.goal.text, { primary: PRIMARY, secondary: SECONDARY })}</span>
       </div>
 
-      <Section title="The turn" aside="in order">
+      <Section title={F.turn.title} aside={F.turn.aside}>
         <div className="di-steps">
           {TURN_STEPS.map((step, index) => (
             <Row
@@ -132,21 +137,21 @@ export function CardFront() {
             />
           ))}
         </div>
-        <div className="di-quiet">Round 1, and your first turn back: nobody fires or scans</div>
+        <div className="di-quiet">{F.turn.quiet}</div>
       </Section>
 
-      <Section title="Movement" aside="along the orbit">
+      <Section title={F.movement.title} aside={F.movement.aside}>
         <MovementDiagram />
       </Section>
 
-      <Section title="Costs">
+      <Section title={F.costs.title}>
         <table className="di-t">
           <thead>
             <tr>
-              <th colSpan={2}>move</th>
-              <th>fuel</th>
-              <th>energy</th>
-              <th className="di-l">and</th>
+              <th colSpan={2}>{F.costs.columns.move}</th>
+              <th>{F.costs.columns.fuel}</th>
+              <th>{F.costs.columns.energy}</th>
+              <th className="di-l">{F.costs.columns.and}</th>
             </tr>
           </thead>
           <tbody>
@@ -154,44 +159,47 @@ export function CardFront() {
               <td className="di-ic">
                 <Icon type="scoop" />
               </td>
-              <td className="k">Coast</td>
+              <td className="k">{F.costs.coast.move}</td>
               <td className="n">0</td>
               <td className="n">0</td>
               <td className="di-w">
-                Scoop ({SUBSYSTEM_CONFIGS.scoop.minEnergy} energy): +fuel equal to ring speed
+                {rich(F.costs.coast.and, { energy: SUBSYSTEM_CONFIGS.scoop.minEnergy })}
               </td>
             </tr>
             <tr>
               <td className="di-ic">
                 <Icon type="engines" />
               </td>
-              <td className="k">Burn</td>
+              <td className="k">{F.costs.burn.move}</td>
               <td className="n">{range(soft.mass, hard.mass)}</td>
               <td className="n">{range(soft.energy, hard.energy)}</td>
-              <td className="di-w">1 of each a ring; prograde out</td>
+              <td className="di-w">{F.costs.burn.and}</td>
             </tr>
             <tr>
               <td className="di-ic">
                 <Icon type="engines" />
               </td>
-              <td className="k">Jump</td>
+              <td className="k">{F.costs.jump.move}</td>
               <td className="n">
-                {WELL_TRANSFER_COSTS.mass}
-                <span className="r">/{COMPRESSED_JUMP_MASS}</span>
+                {rich(
+                  F.costs.jump.fuel,
+                  { fuel: WELL_TRANSFER_COSTS.mass, compressed: COMPRESSED_JUMP_MASS },
+                  { red: text => <span className="r">{text}</span> }
+                )}
               </td>
               <td className="n">{WELL_TRANSFER_COSTS.energy}</td>
               <td className="di-w">
-                No drift; <b className="r">{COMPRESSED_JUMP_MASS}</b> fuel with a compressor
+                {rich(F.costs.jump.and, { compressed: COMPRESSED_JUMP_MASS }, RED_WORDS)}
               </td>
             </tr>
             <tr>
               <td className="di-ic">
                 <Icon type="rotation" />
               </td>
-              <td className="k">Rotate</td>
+              <td className="k">{F.costs.rotate.move}</td>
               <td className="n">0</td>
               <td className="n">{SUBSYSTEM_CONFIGS.rotation.minEnergy}</td>
-              <td className="di-w">Flip facing</td>
+              <td className="di-w">{F.costs.rotate.and}</td>
             </tr>
           </tbody>
         </table>
@@ -218,7 +226,7 @@ function Phasing() {
   const drift = from.velocity
   return (
     <div className="di-phase">
-      <b>phase</b>
+      <b>{F.costs.phase}</b>
       <svg
         className="di-phase-strip"
         viewBox={`0 0 ${width} 58`}
@@ -252,7 +260,7 @@ function Phasing() {
         <path d={`M${mid(drift)} 42V30`} stroke={RED} strokeWidth={6} fill="none" />
         <path d={`M${mid(drift) - 7} 33L${mid(drift)} 26L${mid(drift) + 7} 33z`} fill={RED} />
       </svg>
-      <span className="di-phase-note">fuel to land, from speed {drift}</span>
+      <span className="di-phase-note">{rich(F.costs.phaseNote, { speed: drift })}</span>
     </div>
   )
 }
@@ -286,68 +294,71 @@ function rollClass(face: number): string {
   const bare = faceResult(face)
   if (bare === 'miss') return 'di-miss'
   if (bare === 'critical') return 'di-crit'
-  return faceResult(face, true) === 'critical'
-    ? 'di-sensor'
-    : 'di-hit'
+  return faceResult(face, true) === 'critical' ? 'di-sensor' : 'di-hit'
 }
 
 const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
   {
     type: 'railgun',
-    reach: <>same ring, 1&ndash;{weaponStats('railgun').sectorRange} ahead; recoils a ring</>,
+    reach: rich(B.weapons.reach.railgun, { sectors: weaponStats('railgun').sectorRange! }),
   },
   {
     type: 'laser',
-    reach: (
-      <>
-        &plusmn;{weaponStats('laser').ringRange} rings &plusmn;{weaponStats('laser').sectorRange},
-        one side; <b className="r">ignores shields</b>
-      </>
+    reach: rich(
+      B.weapons.reach.laser,
+      { rings: weaponStats('laser').ringRange!, sectors: weaponStats('laser').sectorRange! },
+      RED_WORDS
     ),
   },
   {
     type: 'ballistic_rack',
-    reach: (
-      <>
-        &plusmn;{weaponStats('ballistic_rack').ringRange} ring &plusmn;
-        {weaponStats('ballistic_rack').sectorRange} either side, or 1 along your ring
-      </>
-    ),
+    reach: rich(B.weapons.reach.ballistic_rack, {
+      rings: weaponStats('ballistic_rack').ringRange!,
+      sectors: weaponStats('ballistic_rack').sectorRange!,
+    }),
   },
   {
     type: 'missiles',
-    reach: (
-      <>
-        anyone in your well; a salvo is one action. {weaponStats('missiles').maxAmmo} aboard, fly{' '}
-        {weaponStats('missiles').stepsPerMove} a turn for {weaponStats('missiles').maxMoves}
-      </>
-    ),
+    reach: rich(B.weapons.reach.missiles, {
+      aboard: weaponStats('missiles').maxAmmo!,
+      steps: weaponStats('missiles').stepsPerMove!,
+      turns: weaponStats('missiles').maxMoves!,
+    }),
   },
 ]
 
 const POWERED: Array<{ type: SubsystemType; effect: ReactNode }> = [
   {
     type: 'shields',
-    effect: `${SHIELD_ENERGY_PER_POINT} energy stop 1 damage, as ${SHIELD_HEAT_PER_POINT} heat; not lasers`,
+    effect: fill(B.powered.shields, {
+      energy: SHIELD_ENERGY_PER_POINT,
+      heat: SHIELD_HEAT_PER_POINT,
+    }),
   },
   {
     type: 'ballistic_rack',
-    effect: `shoots down ${interceptsPerRack()} missiles a turn, each on ${INTERCEPT_ON}+`,
+    effect: fill(B.powered.ballistic_rack, { missiles: interceptsPerRack(), on: INTERCEPT_ON }),
   },
   {
     type: 'sensor_array',
-    effect: `your shots after it crit on ${SENSOR_CRIT}+; scan: your ring, within ${SCAN_SECTOR_RANGE}, see a subsystem`,
+    effect: fill(B.powered.sensor_array, { crit: SENSOR_CRIT, sectors: SCAN_SECTOR_RANGE }),
   },
 ]
 
 const PASSIVE: Array<{ type: SubsystemType; effect: ReactNode }> = [
   {
     type: 'radiator',
-    effect: `+${RADIATOR_DISSIPATION} dissipation; shows above ${DEFAULT_DISSIPATION_CAPACITY} heat`,
+    effect: fill(B.passive.radiator, {
+      dissipation: RADIATOR_DISSIPATION,
+      heat: DEFAULT_DISSIPATION_CAPACITY,
+    }),
   },
   {
     type: 'fuel_compressor',
-    effect: `a jump costs ${COMPRESSED_JUMP_MASS} fuel, not ${WELL_TRANSFER_COSTS.mass}`,
+    effect: fill(B.passive.fuel_compressor, {
+      compressed: COMPRESSED_JUMP_MASS,
+      fuel: WELL_TRANSFER_COSTS.mass,
+    }),
   },
 ]
 
@@ -372,8 +383,8 @@ function TileRows({ rows }: { rows: Array<{ type: SubsystemType; effect: ReactNo
 
 export function CardBack() {
   return (
-    <Card face="Subsystems">
-      <Section title="The roll" aside="one d10 a shot">
+    <Card face={B.face}>
+      <Section title={B.roll.title} aside={B.roll.aside}>
         <div className="di-roll">
           {D10.map(face => (
             <span key={face} className={rollClass(face)}>
@@ -383,35 +394,37 @@ export function CardBack() {
         </div>
         <Notes
           rows={[
-            ['name', `A slot to be the target in case of a critical hit`],
-
+            B.roll.notes.name,
             [
-              'Roll a d10',
-              <>
-                {MISS_TOP} miss · {MISS_TOP + 1}&ndash;{BASE_CRIT - 1} hit · {BASE_CRIT} crit ·{' '}
-                <b className="r">
-                  {SENSOR_CRIT}&ndash;{BASE_CRIT - 1} crit with a powered sensor
-                </b>
-              </>,
+              B.roll.notes.roll[0],
+              rich(
+                B.roll.notes.roll[1],
+                {
+                  miss: MISS_TOP,
+                  hitFrom: MISS_TOP + 1,
+                  hitTo: BASE_CRIT - 1,
+                  crit: BASE_CRIT,
+                  sensorFrom: SENSOR_CRIT,
+                  sensorTo: BASE_CRIT - 1,
+                },
+                RED_WORDS
+              ),
             ],
-            ['hit', 'Shields absorb first, except lasers'],
-            [
-              'critical',
-              'Breaks the named subsystem through the shields, face-up. Its energy goes onto its owner’s heat',
-            ],
-            ['moored', 'Neither fires nor is fired at, missiles included; scans still reach it'],
+            B.roll.notes.hit,
+            B.roll.notes.critical,
+            B.roll.notes.moored,
           ]}
         />
       </Section>
 
-      <Section title="Weapons" aside="each fires once a turn">
+      <Section title={B.weapons.title} aside={B.weapons.aside}>
         <table className="di-t">
           <thead>
             <tr>
-              <th colSpan={2}>subsystem</th>
-              <th>energy</th>
-              <th>dmg</th>
-              <th className="di-l">reaches</th>
+              <th colSpan={2}>{B.weapons.columns.subsystem}</th>
+              <th>{B.weapons.columns.energy}</th>
+              <th>{B.weapons.columns.damage}</th>
+              <th className="di-l">{B.weapons.columns.reaches}</th>
             </tr>
           </thead>
           <tbody>
@@ -430,46 +443,42 @@ export function CardBack() {
         </table>
       </Section>
 
-      <Section title="Powered" aside="works until your next turn">
+      <Section title={B.powered.title} aside={B.powered.aside}>
         <TileRows rows={POWERED} />
       </Section>
 
-      <Section title="Passive" aside="nothing to power">
+      <Section title={B.passive.title} aside={B.passive.aside}>
         <TileRows rows={PASSIVE} />
       </Section>
 
-      <Section title="Heat check" aside="energy turns to heat">
+      <Section title={B.heat.title} aside={B.heat.aside}>
         {/* One sum, three outcomes, then the same two steps for every one of them. */}
         <div className="di-tree">
           <span className="k">
-            carried
-            <br />+ energy
+            {B.heat.sum[0]}
+            <br />
+            {B.heat.sum[1]}
           </span>
           <i className="l" />
           <div className="di-fork">
-            <span>
-              <b>0</b>&nbsp;repair 1 subsystem
-            </span>
-            <span>
-              <b>1&ndash;{MAX_HEAT}</b>
-            </span>
-            <span className="x">
-              <b>over {MAX_HEAT}</b>&nbsp;excess to hull
-            </span>
+            <span>{rich(B.heat.cold)}</span>
+            <span>{rich(B.heat.normal, { maxHeat: MAX_HEAT })}</span>
+            <span className="x">{rich(B.heat.over, { maxHeat: MAX_HEAT })}</span>
           </div>
           <i className="l" />
           <span>
-            dissipate {DEFAULT_DISSIPATION_CAPACITY}
-            <br />+{RADIATOR_DISSIPATION} a radiator
+            {rich(B.heat.dissipate[0], { dissipation: DEFAULT_DISSIPATION_CAPACITY })}
+            <br />
+            {rich(B.heat.dissipate[1], { radiator: RADIATOR_DISSIPATION })}
           </span>
-          <i className="a">&rarr;</i>
-          <span className="k">carry</span>
+          <i className="a">{B.heat.arrow}</i>
+          <span className="k">{B.heat.carry}</span>
         </div>
       </Section>
 
-      <Section title="Face-down" aside="energy is public">
+      <Section title={B.faceDown.title} aside={B.faceDown.aside}>
         <div className="di-fine" style={{ marginTop: 0 }}>
-          Using a subsystem turns it face-up; powering it does not.
+          {B.faceDown.text}
         </div>
       </Section>
     </Card>

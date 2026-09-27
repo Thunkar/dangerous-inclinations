@@ -4,7 +4,7 @@
  * RULES.md §A Turn is the statement of them; this is that list in the forms
  * the cheatsheet, the printed card and the in-game rules dialog need, so the
  * three cannot disagree about what order a turn runs in or what a step is
- * called. Every number is the engine's.
+ * called. Every number is the engine's; the words are in `text/turn.ts`.
  */
 import {
   DEFAULT_DISSIPATION_CAPACITY,
@@ -12,9 +12,11 @@ import {
   PLANETS,
   STATION_RING,
   SUBSYSTEM_CONFIGS,
+  fill,
   ringVelocity,
 } from '@dangerous-inclinations/engine'
 import { RADIATOR_DISSIPATION } from './numbers'
+import { TURN } from '../text/turn'
 
 const MISSILE_STEPS = SUBSYSTEM_CONFIGS.missiles.weaponStats?.stepsPerMove ?? 0
 /** A station rides its ring like a ship, and advances once a round. */
@@ -30,50 +32,36 @@ export interface TurnStep {
   roundEnd?: true
 }
 
+const T = TURN.steps
+const HEAT = {
+  maxHeat: MAX_HEAT,
+  dissipation: DEFAULT_DISSIPATION_CAPACITY,
+  radiator: RADIATOR_DISSIPATION,
+}
+
 export const TURN_STEPS: TurnStep[] = [
+  T.respawn,
+  T.clear,
+  T.actions,
   {
-    title: 'Respawn',
-    blurb:
-      'Destroyed? This turn you come back: Home, full hull and fuel, drifting. Nobody can touch you until your next turn ends, and on it you fire at nobody and scan nobody.',
-    terse: 'Destroyed? Home, full hull and fuel. Turn over',
+    title: T.missiles.title,
+    blurb: fill(T.missiles.blurb, { steps: MISSILE_STEPS }),
+    terse: fill(T.missiles.terse, { steps: MISSILE_STEPS }),
   },
+  T.docking,
   {
-    title: 'Clear',
-    blurb: 'All the energy on your subsystems goes back to the supply.',
-    terse: 'Energy goes back to the supply',
+    title: T.heatCheck.title,
+    blurb: fill(T.heatCheck.blurb, HEAT),
+    terse: fill(T.heatCheck.terse, HEAT),
   },
+  T.missions,
   {
-    title: 'Actions',
-    blurb: 'Any order: power shields, a rack or a sensor, rotate, move, fire, scan.',
-    terse: 'Power · Rotate · Move · Fire · Scan',
-  },
-  {
-    title: 'Missiles',
-    blurb: `Each of yours rides its orbit (not on the turn you launched it), flies ${MISSILE_STEPS} steps and hits if it reaches its target's sector.`,
-    terse: `Ride the orbit (not on launch), fly ${MISSILE_STEPS}, hit on its sector`,
-  },
-  {
-    title: 'Docking',
-    blurb: 'Arrived on a station? Repair everything, full hull, reload, and one job: your crates, your data or your fuel.',
-    terse: 'Arrived? Repair, rearm, one job',
-  },
-  {
-    title: 'Heat check',
-    blurb: `Every point of energy on your loadout is 1 heat. Over ${MAX_HEAT} is hull damage and the track stops at ${MAX_HEAT}. Dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} a radiator), carry the rest. At 0, repair one subsystem.`,
-    terse: `Energy converts to heat. Over ${MAX_HEAT}, your ship takes damage. Dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${RADIATOR_DISSIPATION} per radiator)`,
-  },
-  {
-    title: 'Missions',
-    blurb: "Take a wreck's black box, seize loot, put down an Escort marker if you choose. Flip what you completed, then pass.",
-    terse: 'Black box, loot, Escort marker; flip, pass',
-  },
-  {
-    title: 'Stations',
-    blurb: `Once a round, after the last seat's turn: every station moves ${STATION_DRIFT} sectors, carrying whoever is moored, and every wreck drifts with its ring.`,
-    terse: `Once a round, after the last seat: every station +${STATION_DRIFT}, wrecks drift`,
+    title: T.stations.title,
+    blurb: fill(T.stations.blurb, { drift: STATION_DRIFT }),
+    terse: fill(T.stations.terse, { drift: STATION_DRIFT }),
     roundEnd: true,
   },
 ]
 
 /** The one rule of the opening round, and of a ship's first turn back from Home. */
-export const QUIET_TURN = 'The first round reaches nobody: no weapon fires and nobody scans.'
+export const QUIET_TURN = TURN.quiet

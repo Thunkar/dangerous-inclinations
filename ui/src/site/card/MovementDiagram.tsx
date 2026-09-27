@@ -17,10 +17,14 @@ import {
   BLACK_HOLE_OUTER_RING,
   BURN_COSTS,
   PLANET_OUTER_RING,
+  fill,
 } from '@dangerous-inclinations/engine'
 import { PRESS } from '../../design/press'
 import { INK, RED, useArrowHeads, type TagFace } from '../diagram'
 import { ArrowHeads, Ring, Tag } from '../DiagramParts'
+import { PRINTED_CARD } from '../../text/printedCard'
+
+const M = PRINTED_CARD.front.movement
 
 const W = 208
 const H = 86
@@ -30,7 +34,7 @@ const TRACK_END = W - 2
 /** The card's captions: the guide's capitals at card size. */
 const CARD_TAG: TagFace = { size: 4.9, weight: 700, spacing: '0.06em', font: 'var(--di-display)' }
 
-function Label({ y, title, note }: { y: number; title: string; note: string[] }) {
+function Label({ y, title, note }: { y: number; title: string; note: readonly string[] }) {
   return (
     <>
       <text
@@ -108,7 +112,7 @@ export function MovementDiagram() {
       <ArrowHeads heads={heads} />
 
       {/* coast: the drift, which happens whatever else the turn does */}
-      <Label y={8} title="COAST" note={['Drift only']} />
+      <Label y={8} title={M.coast.title} note={M.coast.note} />
       <CardRing y={9} />
       <Ship x={TRACK_X + 6} y={9} />
       <path
@@ -120,11 +124,15 @@ export function MovementDiagram() {
         markerEnd={heads.red}
       />
       <CardTag x={126} y={5.2}>
-        by the ring&apos;s speed
+        {M.drift}
       </CardTag>
 
       {/* burn: drift first, ring second, and the facing picks the way */}
-      <Label y={31} title="BURN" note={['Drift, then', `1\u2013${hard} rings`]} />
+      <Label
+        y={31}
+        title={M.burn.title}
+        note={[M.burn.note[0], fill(M.burn.note[1], { rings: hard })]}
+      />
       <CardRing y={24} />
       <CardRing y={36} />
       <CardRing y={48} />
@@ -152,14 +160,14 @@ export function MovementDiagram() {
         markerEnd={heads.ink}
       />
       <CardTag x={146} y={20.5} color={PRESS.redText}>
-        prograde: out
+        {M.prograde}
       </CardTag>
       <CardTag x={142} y={55}>
-        retrograde: in
+        {M.retrograde}
       </CardTag>
 
       {/* jump: a lane between two wells, and no drift */}
-      <Label y={68} title="JUMP" note={['Transfer sectors']} />
+      <Label y={68} title={M.jump.title} note={M.jump.note} />
       <circle cx={TRACK_X + 5} cy={70} r={5} fill={INK} />
       {[0, 1, 2, 3].map(i => (
         <Cell key={`d${i}`} x={TRACK_X + 14 + i * 10} y={65.5} on={i === 1} />
@@ -169,10 +177,14 @@ export function MovementDiagram() {
         <Cell key={`a${i}`} x={136 + i * 10} y={65.5} on={i === 1} />
       ))}
       <circle cx={TRACK_END - 4} cy={70} r={4} fill={PRESS.teal} />
-      <CardTag x={TRACK_X + 14} y={83}>{`hole ring ${BLACK_HOLE_OUTER_RING}`}</CardTag>
-      <CardTag x={136} y={83}>{`planet ring ${PLANET_OUTER_RING}`}</CardTag>
+      <CardTag x={TRACK_X + 14} y={83}>
+        {fill(M.from, { ring: BLACK_HOLE_OUTER_RING })}
+      </CardTag>
+      <CardTag x={136} y={83}>
+        {fill(M.to, { ring: PLANET_OUTER_RING })}
+      </CardTag>
       <CardTag x={TRACK_X + 14} y={62}>
-        same sector of the arc
+        {M.arc}
       </CardTag>
     </svg>
   )
