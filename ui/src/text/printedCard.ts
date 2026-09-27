@@ -5,9 +5,7 @@
  * Only strings live here. A `{name}` is a slot the caller fills with a
  * number from the engine: the words around a slot are free to change, and a
  * slot may move or be dropped but keeps its name. `<b>` is bold, `<red>` is
- * set in red, and `{_}` is a space set as a run of its own, which keeps the
- * card printing exactly as it did (a plain space reads the same). `\u00a0` is
- * a space the line never breaks at.
+ * set in red. `\u00a0` is a space the line never breaks at.
  */
 
 export const PRINTED_CARD = {
@@ -74,7 +72,7 @@ export const PRINTED_CARD = {
         name: ['name', 'A slot to be the target in case of a critical hit'],
         roll: [
           'Roll a d10',
-          '{miss} miss · {hitFrom}–{hitTo} hit · {crit} crit ·{_}<red>{sensorFrom}–{sensorTo} crit with a powered sensor</red>',
+          '{miss} miss · {hitFrom}–{hitTo} hit · {crit} crit · <red>{sensorFrom}–{sensorTo} crit with a powered sensor</red>',
         ],
         hit: ['hit', 'Shields absorb first, except lasers'],
         critical: [
@@ -96,7 +94,7 @@ export const PRINTED_CARD = {
         laser: '±{rings} rings ±{sectors}, one side; <red>ignores shields</red>',
         ballistic_rack: '±{rings} ring ±{sectors} either side, or 1 along your ring',
         missiles:
-          'anyone in your well; a salvo is one action. {aboard} aboard, fly{_}{steps} a turn for {turns}',
+          'anyone in your well; a salvo is one action. {aboard} aboard, fly {steps} a turn for {turns}',
       },
     },
     powered: {

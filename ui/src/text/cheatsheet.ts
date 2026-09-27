@@ -10,9 +10,7 @@
  * a slot are free to change, and a slot may move or be dropped but keeps its
  * name. A word set differently inside a sentence is marked with a tag, `<b>`
  * for bold and the few others named where they are used (`<red>`, `<nb>` for
- * a range that must not break across lines). `{_}` is a space set as a run
- * of its own, which keeps the page printing exactly as it did; a plain space
- * reads the same.
+ * a range that must not break across lines).
  */
 
 export const CHEATSHEET = {
@@ -22,7 +20,7 @@ export const CHEATSHEET = {
   page: {
     kicker: 'Cheatsheet',
     /** `<red>` is set in red. */
-    title: 'How to{_}<red>play</red>',
+    title: 'How to <red>play</red>',
     lede: 'A first game, in order. Read 01 to 03 before you start and the rest as it comes up. The rulebook has the details and wins any disagreement.',
   },
 
@@ -153,7 +151,7 @@ export const CHEATSHEET = {
       drift: 'DRIFT {sectors}',
       burn: 'BURN OUT',
       caption:
-        'A soft burn out from ring {ring}. Each sector short or long is 1 fuel, up to{_}{most} long and never back onto your start.',
+        'A soft burn out from ring {ring}. Each sector short or long is 1 fuel, up to {most} long and never back onto your start.',
       jump: 'A jump can land on any sector of the arrival arc, 1 fuel for each away from the matching one.',
     },
     planner: 'Plot a route on the board →',
@@ -169,7 +167,7 @@ export const CHEATSHEET = {
     points: {
       stays:
         'Energy <b>stays on the subsystem until your next turn</b>, so shields, a rack or a sensor you power work through everyone else’s turn.',
-      over: 'Over {maxHeat} heat at your check is hull damage. Dissipate{_}{dissipation} (+{radiator} a radiator) and carry the rest.',
+      over: 'Over {maxHeat} heat at your check is hull damage. Dissipate {dissipation} (+{radiator} a radiator) and carry the rest.',
       cold: 'If you have 0 heat at your check, repair one broken subsystem.',
     },
     energyTitle: 'Energy an action puts on its subsystem',
@@ -216,11 +214,11 @@ export const CHEATSHEET = {
     reach: {
       railgun:
         'Same ring, 1–{sectors} sectors ahead. The recoil pushes you a ring, unless you spend 1 fuel to hold.',
-      laser: '±{rings} rings, ±{sectors}{_}sector, off one side. <b>Ignores shields.</b>',
+      laser: '±{rings} rings, ±{sectors} sector, off one side. <b>Ignores shields.</b>',
       ballistic_rack:
         '±{rings} ring, ±{sectors} sector, either side. With energy on it, shoots down {intercepts} missiles a turn on {on}+.',
       missiles:
-        'Any ship in your well. Launch any number at one ship: {aboard}{_}aboard, {steps} steps a turn for{_}{turns} turns.',
+        'Any ship in your well. Launch any number at one ship: {aboard} aboard, {steps} steps a turn for {turns} turns.',
     },
     /** A gun that fits either slot. */
     eitherSlot: 'forward or side',
@@ -330,12 +328,12 @@ export const CHEATSHEET = {
     clock: {
       title: 'The station clock',
       steps:
-        'Every station starts on sector {sector} of its planet’s ring{_}{ring} and steps <b>{drift} sectors clockwise</b> at the end of every round. All three step together, so <b>every station is always on the same sector</b>.',
+        'Every station starts on sector {sector} of its planet’s ring {ring} and steps <b>{drift} sectors clockwise</b> at the end of every round. All three step together, so <b>every station is always on the same sector</b>.',
       reads:
         'That sector is the clock. It only ever reads <b>{readings}</b>, and it comes round every {rounds} rounds.',
       /** `<nb>` keeps a range on one line. */
       planets:
-        'Every planet is laid out the same: you arrive from the black hole on ring{_}{arriveRing} at sectors <nb>{arriveSectors}</nb>, and leave for it from ring {leaveRing} at sectors <nb>{leaveSectors}</nb>. So the same windows hold for{_}{planets}.',
+        'Every planet is laid out the same: you arrive from the black hole on ring {arriveRing} at sectors <nb>{arriveSectors}</nb>, and leave for it from ring {leaveRing} at sectors <nb>{leaveSectors}</nb>. So the same windows hold for {planets}.',
       caption:
         'Any planet from above, sector 0 at the top and clockwise the way ships drift. The red squares are the only {places} places a station can be.',
       diagram: {
@@ -350,9 +348,9 @@ export const CHEATSHEET = {
 
     lanes: {
       title: 'Black hole ring {ring}',
-      arcs: 'The black hole’s outer ring is all lanes, one way, {sectors} sectors each. Solid arcs are where you <b>jump out</b> to a planet; open arcs are where you{_}<b>land</b> coming back.',
+      arcs: 'The black hole’s outer ring is all lanes, one way, {sectors} sectors each. Solid arcs are where you <b>jump out</b> to a planet; open arcs are where you <b>land</b> coming back.',
       circuit:
-        'Every landing arc is followed clockwise by the next planet’s jump arc, so the short way round the map is <b>{circuit}</b> (the red hops). Going the other way means crossing most of the ring, and the Deliver deck prints only the{_}{routes} routes that ride the circuit.',
+        'Every landing arc is followed clockwise by the next planet’s jump arc, so the short way round the map is <b>{circuit}</b> (the red hops). Going the other way means crossing most of the ring, and the Deliver deck prints only the {routes} routes that ride the circuit.',
       table: {
         planet: 'To reach',
         arc: 'Jump from ring {ring}',
@@ -398,7 +396,7 @@ export const CHEATSHEET = {
       rule: 'Leave the black hole with a full tank, reach the mouth on {readings}',
       reason: 'You dock with {fuel} aboard in {turns} turns.',
       others: ' On the other clocks it takes {turns}.',
-      cost: 'Keeping {fuel} aboard costs turns: a full tank has only{_}{spare} to spare, and a jump alone is{_}{jump} fuel ({compressed} with a compressor), so the routes that spend freely are out. The route planner finds the rest: set{_}<b>Arrive with {fuel}</b>.',
+      cost: 'Keeping {fuel} aboard costs turns: a full tank has only {spare} to spare, and a jump alone is {jump} fuel ({compressed} with a compressor), so the routes that spend freely are out. The route planner finds the rest: set <b>Arrive with {fuel}</b>.',
       plain: 'Without a compressor',
       compressed: 'With a compressor',
     },
@@ -429,7 +427,7 @@ export const CHEATSHEET = {
       turns: 'TURNS',
     },
 
-    foot: 'Worked out on this page by the game’s own route planner: the fewest turns from a full tank of {fullTank} with a working scoop, the stations stepping once a round. Hints 1 and 2 count from reaching a lane mouth on black hole ring {ring}; hint 3 from moored at the pickup station. Only turns are kept down, not fuel. Every planet is built the same and the three circuit legs are one leg turned round, so {planet}{_}and {route} are worked out and hold for all of them.',
+    foot: 'Worked out on this page by the game’s own route planner: the fewest turns from a full tank of {fullTank} with a working scoop, the stations stepping once a round. Hints 1 and 2 count from reaching a lane mouth on black hole ring {ring}; hint 3 from moored at the pickup station. Only turns are kept down, not fuel. Every planet is built the same and the three circuit legs are one leg turned round, so {planet} and {route} are worked out and hold for all of them.',
   },
 
   // -------------------------------------------------------------------------

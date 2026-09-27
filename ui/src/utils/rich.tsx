@@ -7,8 +7,7 @@
  *
  * Each slot's value is a text node of its own, the way JSX writes
  * `text {value} text`, so a sentence breaks into the same runs the browser
- * shapes it in; `{_}` is a space set as a run of its own, the way JSX writes
- * `{' '}`. A string with no tags and no slots comes back as the string.
+ * shapes it in. A string with no tags and no slots comes back as the string.
  * `fill` (from the engine) is the same substitution when one string is wanted.
  */
 import { Fragment, type ReactNode } from 'react'
@@ -27,7 +26,7 @@ function runs(text: string, values: Record<string, SlotValue>): string[] {
   let last = 0
   for (const match of text.matchAll(SLOT)) {
     if (match.index > last) out.push(text.slice(last, match.index))
-    const value = match[1] === '_' ? ' ' : values[match[1]]
+    const value = values[match[1]]
     if (value !== null && value !== '') out.push(String(value))
     last = match.index + match[0].length
   }

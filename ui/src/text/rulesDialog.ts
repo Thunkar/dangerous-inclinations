@@ -7,9 +7,7 @@
  * number from the engine: the words around a slot are free to change, and a
  * slot may move or be dropped but keeps its name. A row can be added,
  * removed or moved freely as long as it only uses the slots listed on
- * `quick`. `<red>` is set in red, `<link>` is the link, and `{_}` is a space
- * set as a run of its own, which keeps the dialog drawing exactly as it did
- * (a plain space reads the same).
+ * `quick`. `<red>` is set in red and `<link>` is the link.
  */
 
 export const RULES_DIALOG = {
@@ -133,7 +131,7 @@ export const RULES_DIALOG = {
     blackHole: 'Black Hole',
     planets: 'Planets',
     windows:
-      'When to set off for a station, read off the station clock:{_}<link>orbital windows</link>.',
+      'When to set off for a station, read off the station clock: <link>orbital windows</link>.',
   },
 
   hidden: {
@@ -143,11 +141,11 @@ export const RULES_DIALOG = {
       'Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed missions, wrecks and Escort markers.',
     private:
       'Private: what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo is going.',
-    tell: '<red>Energy is the tell.</red>{_}Using a subsystem turns it face-up, so energy on a face-down slot between turns means it was powered, not used: {halfShield} is a half shield, a ballistic rack or a sensor array, and{_}{fullShield} can only be a full shield. That is a deduction, not a reveal: the subsystem stays face-down and only a scan makes sure. A gun is dark until it fires, which is why a silent slot is the dangerous one.',
+    tell: '<red>Energy is the tell.</red> Using a subsystem turns it face-up, so energy on a face-down slot between turns means it was powered, not used: {halfShield} is a half shield, a ballistic rack or a sensor array, and {fullShield} can only be a full shield. That is a deduction, not a reveal: the subsystem stays face-down and only a scan makes sure. A gun is dark until it fires, which is why a silent slot is the dangerous one.',
   },
 
   reveals: {
     title: 'Reveals',
-    text: 'A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack rolls at a missile), and a missiles subsystem then shows what is left; shields absorb damage; a sensor array scans; a radiator when your heat goes above {dissipation} at a heat check; a compressor when a jump costs {compressedFuel} fuel instead of{_}{jumpFuel}; any subsystem when a critical breaks it. Powering a subsystem does not turn it over: a wall you never needed, a rack nothing came at and a sensor you never scanned with are still secrets at the end of the game.',
+    text: 'A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack rolls at a missile), and a missiles subsystem then shows what is left; shields absorb damage; a sensor array scans; a radiator when your heat goes above {dissipation} at a heat check; a compressor when a jump costs {compressedFuel} fuel instead of {jumpFuel}; any subsystem when a critical breaks it. Powering a subsystem does not turn it over: a wall you never needed, a rack nothing came at and a sensor you never scanned with are still secrets at the end of the game.',
   },
 } as const
