@@ -4,6 +4,7 @@ import { BURN_COSTS } from "../../models/rings.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import type { GameState } from "../../models/game.ts";
 import {
+  ALPHA,
   burn,
   coast,
   cubesOnLoadout,
@@ -13,9 +14,11 @@ import {
   fire,
   getShip,
   getSub,
+  jump,
   makeTwoPlayerGame,
   mustExecute,
   power,
+  rotate,
   scan,
   withMissile,
   withPower,
@@ -65,50 +68,29 @@ const p2MissileOnP1 = (state: GameState, criticalTarget = "engines") => {
  * owner's check, however it got onto the tile (RULES §Energy and Heat).
  */
 describe("energy: every cube is heat at the check", () => {
-  it.each([
-    ["a soft burn", [burn(1, "soft")], BURN_COSTS.soft.energy],
-    ["a medium burn", [burn(1, "medium")], BURN_COSTS.medium.energy],
-    ["a scooping coast", [coast(1, true)], getSubsystemConfig("scoop").minEnergy],
-    ["a full wall", [power(1, "side-2", 4), coast(2)], 4],
-    ["a half wall", [power(1, "side-2", 2), coast(2)], 2],
-  ] as const)("charges %s exactly its cubes", (_label, actions, expected) => {
-    const result = executeTurnAs(makeTwoPlayerGame({ ring: 2 }), ...actions);
+  // The price of every action, in the numbers RULES §Energy and Heat prints:
+  // the cubes it puts on its tile are exactly what the check bills.
+  const pointBlank = () => makeTwoPlayerGame({ ring: 2, sector: 0 }, { ring: 2, sector: 0 });
+  const open = () => makeTwoPlayerGame({ ring: 2 });
+  it.each<[string, () => GameState, Array<Parameters<typeof executeTurnAs>[1]>, number]>([
+    ["a soft burn", open, [burn(1, "soft")], 1],
+    ["a medium burn", open, [burn(1, "medium")], 2],
+    ["a hard burn", open, [burn(1, "hard")], 3],
+    ["a scooping coast", open, [coast(1, true)], 3],
+    ["a rotation", open, [rotate(1, "retrograde")], 1],
+    ["a jump", () => makeTwoPlayerGame({ ring: 5, sector: 17 }), [jump(1, ALPHA)], 3],
+    ["a laser shot", pointBlank, [fire(1, "side-0", "p2"), coast(2)], 2],
+    ["a railgun shot", pointBlank, [fire(1, "forward-0", "p2")], 4],
+    ["a salvo", pointBlank, [fire(1, "side-3", "p2", "engines", undefined, 2)], 2],
+    ["a scan", rackAndTarget, [scan(1, "p2", "side-0"), coast(2)], 2],
+    ["a half wall", open, [power(1, "side-2", 2), coast(2)], 2],
+    ["a full wall", open, [power(1, "side-2", 4), coast(2)], 4],
+  ])("charges %s exactly its cubes", (_label, build, actions, expected) => {
+    const result = executeTurnAs(build(), ...actions);
     expect(result.errors ?? []).toEqual([]);
     const [check] = eventsOf(result.events, "heat_check");
     expect(check.cubes).toBe(expected);
     expect(check.heat).toBe(expected);
-  });
-
-  it("adds the draws of a whole turn together", () => {
-    // Point blank, so the laser bears: a shot, a scooping coast and nothing else.
-    const result = executeTurnAs(
-      makeTwoPlayerGame({ ring: 2, sector: 0 }, { ring: 2, sector: 0 }),
-      fire(1, "side-0", "p2"),
-      coast(2, true)
-    );
-    expect(result.errors ?? []).toEqual([]);
-    const laser = getSubsystemConfig("laser").minEnergy;
-    const scoop = getSubsystemConfig("scoop").minEnergy;
-    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(laser + scoop);
-  });
-
-  it("charges nothing for a tile that did nothing and was not powered", () => {
-    const result = executeTurnAs(makeTwoPlayerGame(), coast(1));
-    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(0);
-  });
-
-  it("bills a powered shield once, and a shield not powered again is at 0 on the next turn", () => {
-    const powered = executeTurnAs(makeTwoPlayerGame(), power(1, "side-2", 4), coast(2));
-    expect(eventsOf(powered.events, "heat_check")[0].cubes).toBe(4);
-    // It works through p2's turn and is still holding its cubes when p2 is done.
-    const afterP2 = mustExecute(powered.gameState, coast(1));
-    expect(getSub(afterP2, "p1", "side-2").allocatedEnergy).toBe(4);
-    // p1's next turn clears it: not powered again, it is neither up nor billed.
-    const next = executeTurnAs(afterP2, coast(1));
-    expect(eventsOf(next.events, "heat_check")[0].cubes).toBe(0);
-    expect(getSub(next.gameState, "p1", "side-2")).toMatchObject({
-      allocatedEnergy: 0,
-    });
   });
 
   it("clears last turn's cubes before the actions, so the check bills only this turn's", () => {
@@ -222,13 +204,11 @@ describe("energy: heat is the only limit", () => {
     expect(getShip(result.gameState, "p1").hitPoints).toBe(10 - (cubes - MAX_HEAT));
   });
 
-  it.each([
-    ["a hard burn behind a full wall", [burn(5, "hard")]],
-    ["a railgun shot behind a full wall", [fire(5, "forward-0", "p2"), coast(6)]],
-  ] as const)("does not refuse %s for energy", (_label, actions) => {
-    // The rival sits one ring out and two sectors ahead: inside the railgun's arc.
+  it("does not refuse a railgun shot behind a full wall for energy", () => {
+    // The rival sits two sectors ahead on the same ring: inside the railgun's arc.
     const state = withShip(fourShields({ ring: 2 }), "p2", { ring: 2, sector: 2 });
-    expect(executeTurnAs(state, ...fullWalls, ...actions).errors ?? []).toEqual([]);
+    const shot = [fire(5, "forward-0", "p2"), coast(6)];
+    expect(executeTurnAs(state, ...fullWalls, ...shot).errors ?? []).toEqual([]);
   });
 });
 

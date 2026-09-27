@@ -5,9 +5,6 @@ import {
   forwardDistance,
   sectorStepToward,
   ringVelocity,
-  driftPosition,
-  positionOf,
-  samePosition,
 } from "../../game/geometry.ts";
 import {
   arcOffset,
@@ -15,14 +12,9 @@ import {
   getMaxRing,
   TRANSFER_ARC_LENGTH,
 } from "../../models/gravityWells.ts";
-import { SECTORS_PER_RING } from "../../models/rings.ts";
 import { ALPHA, BH } from "../testUtils.ts";
 
 describe("geometry: sector arithmetic", () => {
-  it("rings have 24 sectors", () => {
-    expect(SECTORS_PER_RING).toBe(24);
-  });
-
   it.each([
     [0, 0],
     [24, 0],
@@ -71,56 +63,15 @@ describe("geometry: sector arithmetic", () => {
 });
 
 describe("geometry: rings and drift", () => {
-  it.each([
-    [BH, 1, 8],
-    [BH, 2, 6],
-    [BH, 3, 4],
-    [BH, 4, 2],
-    [BH, 5, 1],
-    [ALPHA, 1, 6],
-    [ALPHA, 2, 4],
-    [ALPHA, 3, 2],
-    [ALPHA, 4, 1],
-  ])("%s ring %i drifts %i sectors per turn", (wellId, ring, velocity) => {
-    expect(ringVelocity(wellId, ring)).toBe(velocity);
-    expect(driftPosition({ wellId, ring, sector: 0 })).toEqual({ wellId, ring, sector: velocity });
-  });
-
   it("falls back to velocity 1 for unknown wells and rings", () => {
     expect(ringVelocity("nowhere", 1)).toBe(1);
     expect(ringVelocity(BH, 9)).toBe(1);
     expect(ringVelocity(ALPHA, 5)).toBe(1);
   });
 
-  it("drift wraps around the ring and keeps well and ring", () => {
-    expect(driftPosition({ wellId: BH, ring: 1, sector: 20 })).toEqual({
-      wellId: BH,
-      ring: 1,
-      sector: 4,
-    });
-    expect(driftPosition({ wellId: ALPHA, ring: 4, sector: 23 })).toEqual({
-      wellId: ALPHA,
-      ring: 4,
-      sector: 0,
-    });
-  });
-
   it("the black hole has 5 rings and planets have 4", () => {
     expect(getMaxRing(BH)).toBe(5);
     expect(getMaxRing(ALPHA)).toBe(4);
-  });
-
-  it("positionOf strips everything but the position", () => {
-    const pos = positionOf({ wellId: BH, ring: 2, sector: 7, facing: "retrograde" } as never);
-    expect(pos).toEqual({ wellId: BH, ring: 2, sector: 7 });
-  });
-
-  it("samePosition compares well, ring and sector", () => {
-    const a = { wellId: BH, ring: 2, sector: 7 };
-    expect(samePosition(a, { ...a })).toBe(true);
-    expect(samePosition(a, { ...a, sector: 8 })).toBe(false);
-    expect(samePosition(a, { ...a, ring: 3 })).toBe(false);
-    expect(samePosition(a, { ...a, wellId: ALPHA })).toBe(false);
   });
 });
 

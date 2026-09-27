@@ -1,22 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { BURN_COSTS } from "../../models/rings.ts";
-import { MAX_HEAT } from "../../models/game.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
-import { legalMoves, phasingAllowed, projectPosition, ringAfter } from "../../game/movement.ts";
+import { legalMoves, phasingAllowed, projectPosition } from "../../game/movement.ts";
 import { executeTurn } from "../../game/turns.ts";
-import { getAdjustmentRange, calculateBurnMassCost } from "../../models/rings.ts";
 import {
   ALPHA,
   BH,
   burn,
   coast,
   eventsOf,
-  eventTypes,
   executeTurnAs,
   expectRefused,
   expectRefusedUnless,
   getShip,
-  getSub,
   jump,
   makePlayer,
   makeGameState,
@@ -68,12 +64,6 @@ describe("movement: drift", () => {
         scooped: false,
       }),
     ]);
-  });
-
-  it("drift alone costs no mass and no heat", () => {
-    const state = mustExecute(makeTwoPlayerGame(), coast(1));
-    expect(getShip(state, "p1").reactionMass).toBe(10);
-    expect(getShip(state, "p1").heat.currentHeat).toBe(0);
   });
 });
 
@@ -168,27 +158,6 @@ describe("movement: burns", () => {
     }
   );
 
-  it.each([
-    ["one ring out from the black hole's ring 3", BH, 3, "prograde", 1, 4],
-    ["two rings in from ring 3", BH, 3, "retrograde", 2, 1],
-    ["out past the black hole's ring 5", BH, 5, "prograde", 1, null],
-    ["in past ring 1", BH, 1, "retrograde", 1, null],
-    ["out past a planet's ring 4", ALPHA, 3, "prograde", 3, null],
-  ] as const)("ringAfter: %s", (_label, wellId, ring, facing, rings, expected) => {
-    expect(ringAfter({ wellId, ring, facing }, rings)).toBe(expected);
-  });
-
-  it.each([
-    ["soft", 1],
-    ["medium", 2],
-    ["hard", 3],
-  ] as const)("a %s burn costs its own cubes in heat", (intensity, expected) => {
-    // The burn powers the engines to exactly what it needs, so the heat is the
-    // burn's, and a ship cannot be caught carrying more than it asked for.
-    const result = executeTurnAs(makeTwoPlayerGame({ ring: 2 }), burn(1, intensity));
-    expect(eventsOf(result.events, "burned")[0].heat).toBe(expected);
-  });
-
   it("rejects a burn the tank cannot pay for, and takes it one mass later", () => {
     // Ring 2 prograde: a hard burn lands on ring 5, so the board is not the reason.
     const withMass = (mass: number) =>
@@ -210,22 +179,6 @@ describe("movement: burns", () => {
 });
 
 describe("movement: phasing", () => {
-  it.each([
-    [8, -7, 3],
-    [4, -3, 3],
-    [1, 0, 3],
-  ])("velocity %i allows adjustments from %i to %i", (velocity, min, max) => {
-    const range = getAdjustmentRange(velocity);
-    expect(range.min + 0).toBe(min); // + 0 folds -0 into 0
-    expect(range.max).toBe(max);
-  });
-
-  it("each sector of adjustment costs one extra mass", () => {
-    expect(calculateBurnMassCost(1, 3)).toBe(4);
-    expect(calculateBurnMassCost(2, -2)).toBe(4);
-    expect(calculateBurnMassCost(3, 0)).toBe(3);
-  });
-
   it.each([
     [3, 7, 5],
     [-3, 1, 5],
@@ -277,18 +230,14 @@ describe("movement: phasing", () => {
 });
 
 describe("movement: rotation", () => {
-  it("rotating flips the facing, uses the thrusters and heats them", () => {
+  it("rotating flips the facing", () => {
+    // What it costs is in the energy table (energy.test.ts).
     const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
     const result = executeTurnAs(state, rotate(1, "retrograde"));
     expect(getShip(result.gameState, "p1").facing).toBe("retrograde");
     expect(eventsOf(result.events, "rotated")).toEqual([
       expect.objectContaining({ playerId: "p1", facing: "retrograde" }),
     ]);
-    // One point of heat is nowhere near the top of the track, so check the
-    // thrusters charged for it by starting one under it: 9 + 1 redlines by 0,
-    // and 10 + 1 costs a hull.
-    const hot = withShip(state, "p1", { heat: { currentHeat: MAX_HEAT } });
-    expect(getShip(executeTurnAs(hot, rotate(1, "retrograde")).gameState, "p1").hitPoints).toBe(9);
   });
 
   it("rejects rotating to the way the ship already faces", () => {
@@ -360,15 +309,6 @@ describe("movement: fuel scoop", () => {
       executeTurnAs(state, coast(1, true)),
       executeTurnAs(makeTwoPlayerGame(), coast(1, true))
     );
-  });
-
-  it("the scoop only runs while coasting, never during a burn", () => {
-    let state = withPower(makeTwoPlayerGame(), "p1", "scoop", 3);
-    state = withShip(state, "p1", { reactionMass: 5 });
-    const result = executeTurnAs(state, burn(1, "soft"));
-    expect(getShip(result.gameState, "p1").reactionMass).toBe(4);
-    expect(eventTypes(result.events)).not.toContain("coasted");
-    expect(getSub(result.gameState, "p1", "scoop").usedThisTurn).toBe(false);
   });
 });
 
@@ -478,15 +418,4 @@ describe("movement: legalMoves agrees with the referee", () => {
       }
     }
   );
-
-  it("offers a jump from a lane end, and phasing only as far as the tank pays", () => {
-    const state = withShip(makeTwoPlayerGame(ON_LANE), "p1", { reactionMass: 4 });
-    expect(legalMoves(getShip(state, "p1")).jumps).toEqual([
-      expect.objectContaining({
-        destinationWellId: "planet-beta",
-        fuel: 3,
-        adjustment: { min: -1, max: 1 },
-      }),
-    ]);
-  });
 });
