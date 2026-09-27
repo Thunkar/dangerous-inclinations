@@ -69,11 +69,11 @@ worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, pirac
 sells anywhere, their card back to undone), tanker (arrive at a station
 with seven fuel and pump it in), escort (you may put your marker, face-up, on
 an undocked rival carrying cargo in your sector; it pays when that ship next
-delivers, and comes back if it dies) and salvage (a destroyed ship leaves a
+delivers or pumps fuel, and comes back if it dies) and salvage (a destroyed ship leaves a
 wreck that drifts with the stations; end a turn on it and take its black box,
 data filed anywhere)). A dock visit does one job, crates, data or
 fuel, the player's choice (`dock_job`; the default is the job that scores
-most, and it is what the bots take). Deliver
+most; the bots name the job their goal needs). Deliver
 routes run only round the circuit (Alpha → Gamma → Beta → Alpha, the short
 way through the black hole's lanes). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
@@ -173,8 +173,10 @@ turn is legal.
 
 Benchmark: `yarn bench` (engine) writes `docs/benchmark.md`, one page describing
 how the rules as they stand play at 3/4/5/6 seats: length in rounds and in table
-time, kills, the hulls bots chose and their win rates, and every card's pick rate
-and payoff. It stamps the rules it ran under at the top, so two versions of the
+time, kills, how games unfold (lead changes, comebacks, the first card, Escort
+markers, wrecks, seizures, dock jobs), the hulls bots chose and their win rates
+(natural bots take the hull from the primary, so this is the card table by
+another name), and every card's pick rate and payoff. It stamps the rules it ran under at the top, so two versions of the
 page can be diffed to see what a rule change actually did. Keep the games and
 seeds fixed between runs or the comparison is worthless. It is a description and
 never fails; the gate is below.
@@ -562,7 +564,7 @@ not an argument:
   hull damage 39.9 → 41.3, heat at the check 7.09 both. `Subsystem.isStanding`,
   `set_standing_power` and `standing_power_set` are gone; the action is `power`
   and the event `subsystem_powered`, which names the subsystem only once it is
-  face-up. Recordings were schema v3 then; v4 since `dock_job` (26 Sept).
+  face-up. Recordings were schema v3 then; v7 since the 27 Sept cleanup.
 
   Measured against the pre-rewrite code on the same seeds, 200 games a row,
   42 comparable rows: **the mean row moves +0.9pp and the median +1.0pp, and
@@ -680,9 +682,12 @@ not an argument:
 
 Known open problems:
 
-- **The primary you are dealt still moves a seat, and Intercept is the weak
-  card.** Under the five secondaries (27 Sept, 300 games a row): dealt Destroy
-  39%, Deliver 32%, Intercept 30%. It is the card, not the sensor: a sensor
+- **The primary you are dealt still moves a seat, by about six points.**
+  After the 27 Sept cleanup, whose bot fixes (dock jobs named, criticals
+  through shields, overheat against the redline, danger priced in points)
+  moved every row a little, 200 games a row: dealt Destroy 34%, Deliver 28%,
+  Intercept 33%. Before those fixes, under the five secondaries at 300 games:
+  dealt Destroy 39%, Deliver 32%, Intercept 30%. It is the card, not the sensor: a sensor
   bow with two lasers dealt Destroy reads 34% against the railgun's 39, with
   three launchers 39%, and both interceptor presets sit on the Intercept bar.
   Intercept completes 27 per 100 kept against Destroy's 62 and Deliver's 55.
@@ -713,6 +718,16 @@ Known open problems:
   presets pay two a check for a sensor they used to hold for nothing and fell
   2–3 points. Whether any of this reaches the *natural* sensor bow is
   unmeasured, because the bots' hull templates still put the bow on a hauler.
+- **The compressor with guns is over its bar again.** The balance suite's
+  extreme rows `legs_lasers` (compressor + lasers×2 + shields + radiator) and
+  `legs_rack` (compressor + racks×2 + shields + radiator) fail as `outlier`:
+  43% and 45% against a 29% own-hand bar at 200 games after the 27 Sept
+  cleanup, and already 40% and 38% against 26% on main before it (the
+  five-secondary package; earlier runs that day skipped the extreme
+  section). Every other row is inside its bar. The compressor is the only bow
+  that helps every card; a price lever has been measured before (below), and
+  the bots' natural hull never takes a gun beside it, so this lives only in
+  forced rows.
 - **The compressor runner's shortcut is closed; watch whether it stays shut.**
   Everything below is from before 26 Sept, when a crate visit could also pump
   the Tanker's fuel. With the circuit routes, crates-only visits and Tanker at
@@ -796,9 +811,13 @@ Known open problems:
   is a different hunter.
 - **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: under the five secondaries (27 Sept, 240 games a seat count)
-  31 / 30 / 28 / 28 rounds at 3 / 4 / 5 / 6 seats, 1h33 to 2h48, kills 2.2 /
-  4.7 / 8.2 / 10.4 (Escort's truce, settled above). Before: 33 rounds at every seat count from 3 to 6 in the benchmark
+- **Length**: after the 27 Sept cleanup (benchmark, 120 games a seat count)
+  31 / 33 / 29 / 27 rounds at 3 / 4 / 5 / 6 seats, 1h33 to 2h42, kills 2.0 /
+  5.4 / 7.5 / 9.7. 71–82% of games are won by a seat that was not leading at
+  round 10, with 0.5–0.8 lead changes a game and the first card at round 8–9
+  (the benchmark's "How games unfold" table). Under the five secondaries
+  before the cleanup (240 games a seat count) 31 / 30 / 28 / 28 rounds,
+  1h33 to 2h48, kills 2.2 / 4.7 / 8.2 / 10.4 (Escort's truce, settled above). Before: 33 rounds at every seat count from 3 to 6 in the benchmark
   under one job per visit (26 Sept), 1h39 to 3h18 at a minute a turn, 100% of
   games decided; kills 4.0 / 7.5 / 12.8 / 14.9. Before the circuit routes it
   was 27 / 21 / 25 / 27 and 1h21 to 2h42: the one-stop Deliver + Tanker had
