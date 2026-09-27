@@ -3,14 +3,13 @@
  * it, move it, then decide what its systems do.
  *
  *   status          · hull, heat, fuel, ammo, where you are: always on screen
+ *   Loadout         · a readout, not a control: the energy the turn puts on
+ *                     each subsystem (every cube is heat at the check)
  *   1. Orientation  · which way the nose points
  *   2. Move         · coast, burn or jump; exactly one per turn
  *      Route planner · its own plate under the move row: a navigation aid
  *                      that proposes a move, never one that commits it
  *   3. Systems      · fire a weapon, power a shield, a rack or a sensor, scan
- *      Loadout      · a readout, not a control: the energy the turn puts on
- *                     each subsystem, right under the controls that put it
- *                     there (every cube is heat at the check)
  *   4. The sequence you have built, in the order it will happen
  *   End turn        · pinned to the bottom
  *
@@ -172,6 +171,13 @@ export function ActionPanel() {
           </Alert>
         )}
 
+        {/* What the turn puts on the loadout: read here, set by the steps below. */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
+          <SectionLabel sx={{ lineHeight: 1.35 }}>Loadout · energy this turn</SectionLabel>
+          <ShipEnergyLoadout />
+        </Box>
+
+        <Divider />
         <Step n={1} label="Orientation">
           <OrientationControls />
         </Step>
@@ -187,12 +193,6 @@ export function ActionPanel() {
         <Step n={3} label="Systems">
           <SystemsControls />
         </Step>
-
-        {/* What the turn puts on the loadout: read here, set by the steps above. */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
-          <SectionLabel sx={{ lineHeight: 1.35 }}>Loadout · energy this turn</SectionLabel>
-          <ShipEnergyLoadout />
-        </Box>
 
         <RepairControl />
         <DockJobControl />
