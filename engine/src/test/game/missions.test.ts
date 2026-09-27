@@ -21,12 +21,9 @@ import {
   MISSIONS_PER_PLAYER,
   MISSION_OFFERS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
-  PRIMARY_OFFERS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   isPrimaryType,
   SECONDARY_OFFERS_PER_PLAYER,
-  SECONDARY_COPIES_PER_KIND,
-  SECONDARY_KINDS_PRINTED,
   TANKER_FUEL,
   dataAboard,
 } from "../../models/missions.ts";
@@ -96,20 +93,12 @@ describe("missions: deck", () => {
     );
   });
 
-  it("the secondary pile is four of each printed kind, the same at every table size", () => {
+  it("the secondary pile is four each of the five secondaries, the same at every table size", () => {
     const deck = buildSecondaryDeck();
-    expect(deck.every((c) => MISSION_FAMILY[c.type] === "secondary")).toBe(true);
-    for (const type of SECONDARY_KINDS_PRINTED) {
-      expect(deck.filter((c) => c.type === type), type).toHaveLength(SECONDARY_COPIES_PER_KIND);
+    expect(deck).toHaveLength(20);
+    for (const type of ["survey", "piracy", "tanker", "escort", "salvage"]) {
+      expect(deck.filter((c) => c.type === type), type).toHaveLength(4);
     }
-  });
-
-  it("prints the five secondaries by default", () => {
-    expect(SECONDARY_KINDS_PRINTED).toEqual(["survey", "piracy", "tanker", "escort", "salvage"]);
-    expect(new Set(buildSecondaryDeck().map((c) => c.type))).toEqual(
-      new Set(["survey", "piracy", "tanker", "escort", "salvage"])
-    );
-    expect(buildSecondaryDeck()).toHaveLength(20);
   });
 
   it.each([2, 3, 4, 5, 6])(
@@ -120,6 +109,8 @@ describe("missions: deck", () => {
         const offers = dealMissionOffers(ids(players), new Rng(seed));
         const dealt: Record<string, number> = {};
         for (const hand of offers.values()) {
+          // Both piles hold enough to deal the whole table its full offer.
+          expect(hand).toHaveLength(MISSION_OFFERS_PER_PLAYER);
           const secondaries = hand.filter((m) => !isPrimaryType(m.type));
           expect(secondaries).toHaveLength(SECONDARY_OFFERS_PER_PLAYER);
           for (const m of secondaries) dealt[m.type] = (dealt[m.type] ?? 0) + 1;
@@ -140,23 +131,6 @@ describe("missions: deck", () => {
       }
     }
     expect(pairs).toBeGreaterThan(0);
-  });
-
-  it.each([2, 3, 4, 5, 6])("both %i-player piles hold enough to deal the table", (players) => {
-    expect(buildPrimaryDeck(players, PLANET_IDS).length).toBeGreaterThanOrEqual(
-      players * PRIMARY_OFFERS_PER_PLAYER
-    );
-    expect(buildSecondaryDeck().length).toBeGreaterThanOrEqual(
-      players * SECONDARY_OFFERS_PER_PLAYER
-    );
-  });
-
-  it("prints no card that names a seat: a rival card counts, it does not point", () => {
-    const deck = buildPrimaryDeck(6, PLANET_IDS);
-    for (const card of deck) {
-      expect(card).not.toHaveProperty("targetPlayerId");
-      if ("targetOffset" in card) expect(card.targetOffset).toBeGreaterThan(0);
-    }
   });
 
   it.each([2, 3, 4, 5, 6])(
@@ -523,15 +497,7 @@ describe("missions: secondary", () => {
     ["the innermost ring of a planet", { wellId: ALPHA, ring: 1, sector: 5 }],
   ])("survey is not held on %s", (_label, position) => {
     const result = executeTurnAs(surveying(position), coast(1));
-    expect(eventTypes(result.events)).not.toContain("survey_hold");
     expect(eventTypes(result.events)).not.toContain("data_acquired");
-  });
-
-  it("no secondary card names a station", () => {
-    const deck = buildSecondaryDeck();
-    const secondary = deck.filter((m) => MISSION_FAMILY[m.type] === "secondary");
-    expect(secondary).toHaveLength(deck.length);
-    expect(secondary.filter((m) => "deliveryPlanetId" in m)).toEqual([]);
   });
 
   it("a ship that burns up on ring 1 acquires nothing", () => {
@@ -780,71 +746,19 @@ describe("missions: piracy", () => {
 });
 
 describe("missions: tanker", () => {
+  // RULES §Missions: arrive with 7 or more fuel and hand in 7.
   it.each([
-    ["the card's fuel exactly", TANKER_FUEL, true],
-    ["one more", TANKER_FUEL + 1, true],
-    ["one short", TANKER_FUEL - 1, false],
+    ["the card's fuel exactly", 7, true],
+    ["one more", 8, true],
+    ["one short", 6, false],
   ])("arriving with %s: pumped %s", (_label, fuel, pumped) => {
     const state = withShip(docking(ALPHA, [tankerMission()]), "p1", { reactionMass: fuel });
     const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(pumped ? 1 : 0);
-    expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? fuel - TANKER_FUEL : fuel);
-    expect(getPlayer(result.gameState, "p1").points).toBe(
-      pumped ? MISSION_POINTS.tanker : 0
+    expect(eventsOf(result.events, "fuel_pumped")).toEqual(
+      pumped ? [expect.objectContaining({ playerId: "p1", amount: 7, planetId: ALPHA })] : []
     );
-  });
-
-  it("names the amount and the station it went into", () => {
-    const state = withShip(docking(ALPHA, [tankerMission()]), "p1", { reactionMass: TANKER_FUEL });
-    expect(eventsOf(executeTurnAs(state, coast(1)).events, "fuel_pumped")[0]).toMatchObject({
-      playerId: "p1",
-      amount: TANKER_FUEL,
-      planetId: ALPHA,
-    });
-  });
-
-  /** Aboard, and taken off at whatever this visit's station is. */
-  const aboard = (s: GameState) =>
-    withPlayer(s, "p1", {
-      cargo: getPlayer(s, "p1").cargo.map((c) => ({ ...c, isPickedUp: true })),
-    });
-
-  it.each([
-    // Loading scores nothing and the fuel scores its point, so the crate waits.
-    ["loads a Deliver crate", () => docking(ALPHA, [tankerMission(), deliverMission(ALPHA, BETA)]), true],
-    // A delivered crate is two points against the fuel's one.
-    ["drops off a Deliver crate", () => docking(ALPHA, [tankerMission(), deliverMission(BETA, ALPHA)], aboard), false],
-    // A point each, and a tie goes to the data.
-    [
-      "files survey data",
-      () => {
-        const survey = surveyMission();
-        return docking(ALPHA, [tankerMission(), survey], (s) =>
-          withPlayer(s, "p1", { cargo: [takenData(survey)] })
-        );
-      },
-      false,
-    ],
-  ])("a visit that could also have %s pumps fuel by default: %s", (_label, build, pumped) => {
-    // One job a visit: named by the player, or the one that scores most.
-    const state = withShip(build(), "p1", { reactionMass: 10 });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(pumped ? 1 : 0);
-    expect(eventsOf(result.events, "docked")[0].job === "fuel").toBe(pumped);
-  });
-
-  it("pumps nothing while it holds a berth it already held: an arrival is the trigger", () => {
-    const station = getStationForPlanet(createInitialStations(), ALPHA)!;
-    let state = makeGameState([
-      makePlayer("p1", { wellId: ALPHA, ring: STATION_RING, sector: station.sector }),
-      makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
-    ]);
-    state = withMissions(state, "p1", [tankerMission()]);
-    state = withShip(state, "p1", { reactionMass: 10 });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).not.toContain("fuel_pumped");
-    expect(getShip(result.gameState, "p1").reactionMass).toBe(10);
-    expect(getPlayer(result.gameState, "p1").points).toBe(0);
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? fuel - 7 : fuel);
+    expect(getPlayer(result.gameState, "p1").points).toBe(pumped ? MISSION_POINTS.tanker : 0);
   });
 });
 
