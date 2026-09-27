@@ -194,11 +194,14 @@ export function blackBoxAboard(me: Player, m: SalvageMission): boolean {
   return me.cargo.some((c) => c.id === m.cargoId && c.isPickedUp);
 }
 
-/** The players an undone Intercept still has to scan. */
+/** The players an undone Intercept still has to scan (not for a dead card, under the one-sale experiment). */
 export function interceptTargetIds(me: Player): Set<string> {
   return new Set(
     me.missions.flatMap((m) =>
-      m.type === "intercept_transmission" && !m.isCompleted && !dataAboard(me, m)
+      m.type === "intercept_transmission" &&
+      !m.isCompleted &&
+      !dataAboard(me, m) &&
+      !(SALE_RULES.oneSalePerStation && saleBlocked(me, m) === "dead")
         ? [m.targetPlayerId]
         : []
     )

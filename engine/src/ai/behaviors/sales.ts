@@ -14,7 +14,6 @@
  */
 import type { Player } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
-import { isPrimaryType } from "../../models/missions.ts";
 import { PLANETS } from "../../models/gravityWells.ts";
 import type { DockJobs } from "../../game/docking.ts";
 
@@ -68,7 +67,6 @@ export function saleBlocked(me: Seller, mission: Mission): "dead" | "waiting" | 
     default: {
       const unsold = PLANETS.map((p) => p.id).filter((id) => !me.soldAt.includes(id));
       if (unsold.length === 0) return "dead";
-      if (isPrimaryType(mission.type)) return null;
       return unsold.some((id) => saleAllowedAt(me, id, mission.id)) ? null : "waiting";
     }
   }
