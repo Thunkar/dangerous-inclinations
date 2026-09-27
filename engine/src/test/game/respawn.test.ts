@@ -25,6 +25,7 @@ import {
   getSub,
   interceptMission,
   jump,
+  lootCargo,
   makeGameState,
   makePlayer,
   makeTwoPlayerGame,
@@ -121,6 +122,22 @@ describe("respawn: destruction drops cargo", () => {
   it("dropping nothing emits nothing", () => {
     const player = makePlayer("p2");
     expect(dropCargo(player)).toEqual({ player, events: [] });
+  });
+
+  const seized = (c: Cargo): Cargo => ({ ...c, isPickedUp: false });
+  it.each<[string, Cargo, Cargo[], { crates: number; data: number } | null]>([
+    ["a Deliver crate aboard goes back to its dock", crate, [seized(crate)], { crates: 1, data: 0 }],
+    ["a Deliver crate still on its dock stays there", seized(crate), [seized(crate)], null],
+    ["loot aboard is lost", lootCargo("loot-1", "piracy-1"), [], { crates: 1, data: 0 }],
+    ["loot a pirate took is gone with it", seized(lootCargo("loot-1", "piracy-1")), [], null],
+    ["data aboard is lost", data, [], { crates: 0, data: 1 }],
+    ["data a pirate took is gone with it", seized(data), [], null],
+  ])("%s", (_label, item, left, counted) => {
+    const result = dropCargo({ ...makePlayer("p2"), cargo: [item] });
+    expect(result.player.cargo).toEqual(left);
+    expect(result.events).toEqual(
+      counted ? [expect.objectContaining({ type: "cargo_dropped", ...counted })] : []
+    );
   });
 });
 

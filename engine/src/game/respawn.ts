@@ -29,28 +29,28 @@ export function needsRespawn(player: Player): boolean {
   return player.hasDeployed && isDestroyed(player.ship);
 }
 
-/** Drop everything the ship carries. Returns the updated player and events. */
+/**
+ * Empty the hold of a destroyed ship. A Deliver crate aboard goes back to its
+ * pickup station, to be loaded again; loot and data aboard are lost, so a
+ * pirate seizes again, an Intercept scans again and a Survey dives again.
+ * Only what is aboard is dropped and counted: a Deliver crate still waiting on
+ * its dock stays there. Loot and data entries not aboard (taken by a pirate)
+ * go with the rest, since nothing can bring them back but doing the job again.
+ */
 export function dropCargo(player: Player): { player: Player; events: EventDraft[] } {
-  const crates = player.cargo.filter((c) => c.kind === "crate");
-  const data = player.cargo.filter((c) => c.kind === "data");
-  const cratesAboard = aboard(crates).length;
-  if (cratesAboard === 0 && data.length === 0) return { player, events: [] };
-
-  // Data goes down with the ship: an Intercept scans again, a Survey dives again.
-  return {
-    player: {
-      ...player,
-      cargo: crates.map((c) => ({ ...c, isPickedUp: false })),
-    },
-    events: [
-      {
-        type: "cargo_dropped",
-        playerId: player.id,
-        crates: cratesAboard,
-        data: data.length,
-      },
-    ],
-  };
+  const held = aboard(player.cargo);
+  const crates = held.filter((c) => c.kind === "crate").length;
+  const data = held.filter((c) => c.kind === "data").length;
+  // A Deliver crate is the only item with a dock of its own to go back to.
+  const cargo = player.cargo
+    .filter((c) => c.pickupPlanetId !== undefined)
+    .map((c) => (c.isPickedUp ? { ...c, isPickedUp: false } : c));
+  const unchanged =
+    cargo.length === player.cargo.length && cargo.every((c, i) => c === player.cargo[i]);
+  if (unchanged) return { player, events: [] };
+  const events: EventDraft[] =
+    crates + data > 0 ? [{ type: "cargo_dropped", playerId: player.id, crates, data }] : [];
+  return { player: { ...player, cargo }, events };
 }
 
 /** Home sector if free, otherwise the nearest free sector on the Home marker's ring. */
