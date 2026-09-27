@@ -2,15 +2,22 @@
  * Player endpoints: identity and session status.
  *
  * "Absent" and "could not ask" are different answers: only a 404 means the
- * server does not know this player. Anything else (offline, 5xx, a bad
- * gateway) is transient and must not cost the player their seat, so it is
- * thrown for the caller to retry.
+ * server does not know this player. A 410 is final too: the player's game was
+ * saved under older rules and can never be resumed, so it is thrown for the
+ * caller to recognise (`isStaleGame`) and not to retry. Anything else
+ * (offline, 5xx, a bad gateway) is transient and must not cost the player
+ * their seat, so it is thrown for the caller to retry.
  */
 import { APIClientError, api } from './client'
 import type { CreatePlayerRequest, CreatePlayerResponse, Player, PlayerStatusResponse } from './types'
 
 function isNotFound(error: unknown): boolean {
   return error instanceof APIClientError && error.statusCode === 404
+}
+
+/** The player's game was saved under older rules: gone for good, not worth asking again. */
+export function isStaleGame(error: unknown): boolean {
+  return error instanceof APIClientError && error.statusCode === 410
 }
 
 export async function createPlayer(playerName: string): Promise<CreatePlayerResponse> {
@@ -31,7 +38,10 @@ export async function updatePlayerName(playerId: string, playerName: string): Pr
   await api.put(`/api/players/${playerId}`, { playerName })
 }
 
-/** Where the player is: their lobby (and, through it, their game) if any. */
+/**
+ * Where the player is: their lobby (and, through it, their game) if any.
+ * Throws a 410 (`isStaleGame`) when that game can no longer be resumed.
+ */
 export async function getPlayerStatus(playerId: string): Promise<PlayerStatusResponse | null> {
   try {
     return await api.get<PlayerStatusResponse>(`/api/players/${playerId}/status`)

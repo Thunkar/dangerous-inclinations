@@ -206,7 +206,7 @@ function LiveGame({
 // ---------------------------------------------------------------------------
 
 function LobbyFlow({ onOpenRecordings }: { onOpenRecordings: () => void }) {
-  const { phase, gameId, joinLobby, isRestoringSession, returnToLobby } = useLobby()
+  const { phase, gameId, joinLobby, isRestoringSession, returnToLobby, notice } = useLobby()
 
   if (isRestoringSession) {
     return (
@@ -220,7 +220,11 @@ function LobbyFlow({ onOpenRecordings }: { onOpenRecordings: () => void }) {
     case 'browser':
       return (
         <SiteFrame>
-          <LobbyBrowser onLobbyJoined={joinLobby} onOpenRecordings={onOpenRecordings} />
+          <LobbyBrowser
+            onLobbyJoined={joinLobby}
+            onOpenRecordings={onOpenRecordings}
+            notice={notice}
+          />
         </SiteFrame>
       )
     case 'lobby':

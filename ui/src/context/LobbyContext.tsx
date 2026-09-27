@@ -13,7 +13,7 @@ import {
   removeBot as removeBotAPI,
 } from '../api/lobby'
 import { MIN_PLAYERS } from '@dangerous-inclinations/engine'
-import { getPlayerStatus } from '../api/player'
+import { getPlayerStatus, isStaleGame } from '../api/player'
 import { usePlayer } from './PlayerContext'
 import { useWebSocket } from './WebSocketContext'
 
@@ -26,6 +26,8 @@ interface LobbyContextType {
   gameId: string | null
   isRestoringSession: boolean
   error: string | null
+  /** Why the seat could not be restored, when that is final: shown once on the lobby list. */
+  notice: string | null
   joinLobby: (lobbyId: string) => void
   addBotToLobby: (botName?: string) => Promise<void>
   removeBotFromLobby: (botId: string) => Promise<void>
@@ -51,6 +53,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
   const [gameId, setGameId] = useState<string | null>(null)
   const [isRestoringSession, setIsRestoringSession] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const sessionRestoredRef = useRef(false)
 
   // Restore the session from the server once the player is known.
@@ -72,7 +75,10 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to restore session')
+        // A game saved under older rules is gone: say so and stay on the lobby list.
+        if (isStaleGame(err))
+          setNotice('That game was saved under older rules and cannot be resumed.')
+        else setError(err instanceof Error ? err.message : 'Failed to restore session')
       } finally {
         setIsRestoringSession(false)
       }
@@ -229,6 +235,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
         gameId,
         isRestoringSession,
         error,
+        notice,
         joinLobby: joinLobbyAction,
         addBotToLobby,
         removeBotFromLobby,

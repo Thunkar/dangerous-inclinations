@@ -34,6 +34,8 @@ import { TABLE } from '../../theme'
 interface LobbyBrowserProps {
   onLobbyJoined: (lobbyId: string) => void
   onOpenRecordings: () => void
+  /** Why the seat this browser had could not be restored, shown until dismissed. */
+  notice?: string | null
 }
 
 function isGlobalMessage(data: unknown): data is GlobalSocketMessage {
@@ -46,12 +48,13 @@ const SEAT_COUNTS = Array.from(
   (_, i) => MIN_PLAYERS + i
 )
 
-export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserProps) {
+export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyBrowserProps) {
   const { playerName, setPlayerName } = usePlayer()
   const { client, connect } = useWebSocket()
   const [lobbies, setLobbies] = useState<LobbyListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [shownNotice, setShownNotice] = useState<string | null>(notice ?? null)
   const [busy, setBusy] = useState(false)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -169,6 +172,11 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings }: LobbyBrowserPr
         }
       >
         <SectionLabel>Sitting as {playerName}</SectionLabel>
+        {shownNotice && (
+          <Alert severity="info" sx={{ my: 1 }} onClose={() => setShownNotice(null)}>
+            {shownNotice}
+          </Alert>
+        )}
         {error && (
           <Alert severity="error" sx={{ my: 1 }} onClose={() => setError(null)}>
             {error}
