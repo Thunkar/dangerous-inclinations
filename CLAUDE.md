@@ -80,7 +80,7 @@ way through the black hole's lanes). Two physical decks for the table: rival car
 is hunting whom; setup removes offsets the table is too small for. Deal 3
 primaries and keep 1; deal 3 secondaries from a shuffled pile (four of each
 of the five) and keep any 2: two of a kind are two jobs, nothing completes
-both at once. Five points held and three win, so the primary plus either
+both at once. Four points held and three win, so the primary plus either
 secondary is the win and the other secondary is the spare. The secondary
 offer differs seat to seat, so the five have to be worth roughly the same or
 the deal is a lottery.

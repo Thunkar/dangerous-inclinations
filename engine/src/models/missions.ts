@@ -14,7 +14,7 @@ import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
 
 /**
  * Three points win by default, and a hand is one primary and two secondaries:
- * five on the table for the three that win. The hand is unchanged by the
+ * four held for the three that win. The hand is unchanged by the
  * number: a primary and either secondary is a win, and the other secondary is
  * the spare a player takes when the game puts it in their way. Two secondaries
  * on their own are two points and cannot win, so the primary somebody else set

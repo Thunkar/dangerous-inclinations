@@ -231,7 +231,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 
 **Secondary cards score one.** Survey, Piracy, Tanker, Escort, Salvage. Each is a thing you do rather than a primary someone sets you: no subsystem aboard can do it for you. Survey pays in data: take it the moment you dive, then file it at **any** station. Piracy pays in loot: the crate or data you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card. Escort pays when the ship you mark delivers or pumps fuel: you bet on their run, in the open. Salvage pays in data too: the black box of somebody's wreck.
 
-**A hand is one primary and two secondaries**: two points and one and one, five on the table for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
+**A hand is one primary and two secondaries**: two points and one and one, four held for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
 
 | Card                                                | Points | Complete when                                                                                                                                                                                                     |
 | --------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -312,7 +312,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Ammo             | private while the missiles subsystem is face-down; public once it has fired                                                                                            |
 | Salvo            | one action launches any number of your missiles at one ship, for the subsystem's 2 energy once; a rack with energy on it rolls at 4 of them a turn, one rack per 4     |
 | Win              | 3 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel                                                                          |
-| Hand             | 1 primary of 3 dealt, 2 of 3 secondaries dealt. Five points held, three win: the primary and either secondary                                                     |
+| Hand             | 1 primary of 3 dealt, 2 of 3 secondaries dealt. Four points held, three win: the primary and either secondary                                                     |
 
 ### Turn cheat sheet
 
