@@ -32,10 +32,10 @@ interface Leg {
 /** One step of a planned route, in the words of the move row. */
 function legText(step: MovementStep, facingAfter: Facing): string {
   if (step.actionType === 'coast') return `coast${step.massCost < 0 ? ' + scoop' : ''}`
-  if (step.actionType === 'well_transfer') return `jump → ${getWellName(step.to.wellId)}`
   const phase = step.sectorAdjustment
     ? ` ${step.sectorAdjustment > 0 ? '+' : ''}${step.sectorAdjustment}`
     : ''
+  if (step.actionType === 'well_transfer') return `jump → ${getWellName(step.to.wellId)}${phase}`
   return `${step.burnIntensity ?? 'soft'} burn ${facingAfter === 'prograde' ? 'out' : 'in'}${phase}`
 }
 
