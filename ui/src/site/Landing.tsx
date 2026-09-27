@@ -4,7 +4,8 @@
  * Three ways in, because the game is three things: a client that plays it
  * against bots, the tools a real table wants, and the cheatsheet that teaches
  * it and prints the player card. Whatever number is stated here is read from
- * the engine, so the page cannot promise a rule the code does not keep.
+ * the engine, so the page cannot promise a rule the code does not keep; the
+ * words are in `text/landing.ts`.
  */
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
@@ -15,12 +16,15 @@ import {
   MIN_PLAYERS,
   MISSIONS_PER_PLAYER,
   SECTORS_PER_RING,
+  fill,
 } from '@dangerous-inclinations/engine'
 import { BAND_ANGLE, FONT_DISPLAY, PRESS } from '../design/press'
 import type { Route } from './routes'
 import { SiteLink } from './SiteLink'
 import { SiteFooter, SiteHeader } from './SiteChrome'
 import { Body, Display, Kicker, Numeral, Slab } from './poster'
+import { LANDING as T } from '../text/landing'
+import { rich } from '../utils/rich'
 
 const COLUMN = { maxWidth: 1120, mx: 'auto', px: { xs: 2, sm: 4 } } as const
 
@@ -65,7 +69,7 @@ function PosterArt() {
     <svg
       viewBox="0 0 540 620"
       role="img"
-      aria-label="A black hole with three rings pierced by a red wedge, a planet, and a ship drifting on the middle ring"
+      aria-label={T.hero.picture}
       style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}
     >
       <circle cx={cx} cy={cy} r={110} fill={PRESS.ink} />
@@ -106,30 +110,9 @@ function PosterArt() {
 type DoorTone = 'ink' | 'red' | 'paper'
 
 const DOORS: Array<{ route: Route; tone: DoorTone; title: string; blurb: string; cta: string }> = [
-  {
-    route: { kind: 'play' },
-    tone: 'ink',
-    title: 'Play',
-    blurb:
-      'The video game: a live table against bots or friends, on a flat board or in 3D. It is where the rules are playtested, so it always plays them as they stand.',
-    cta: 'Take a seat',
-  },
-  {
-    route: { kind: 'tools', tool: null },
-    tone: 'red',
-    title: 'Table tools',
-    blurb:
-      'For a game at a real table: the board as a route planner, a heat check that does the sums, and a fistful of d10s for a salvo.',
-    cta: 'Open the tools',
-  },
-  {
-    route: { kind: 'card' },
-    tone: 'paper',
-    title: 'Cheatsheet',
-    blurb:
-      'How to play, in the order a first game meets it, and the two-sided player card to print and cut for every seat.',
-    cta: 'Learn the game',
-  },
+  { route: { kind: 'play' }, tone: 'ink', ...T.doors.play },
+  { route: { kind: 'tools', tool: null }, tone: 'red', ...T.doors.tools },
+  { route: { kind: 'card' }, tone: 'paper', ...T.doors.card },
 ]
 
 const DOOR_LOOK: Record<DoorTone, { bg: string; fg: string; soft: string; num: string }> = {
@@ -268,25 +251,20 @@ const PICTOGRAMS: Record<string, ReactNode> = {
 }
 
 const LINES: Array<{ key: keyof typeof PICTOGRAMS; title: string; text: string }> = [
-  {
-    key: 'orbit',
-    title: 'Ride the drift',
-    text: 'Every ship drifts by its ring’s speed every turn. Burn to change ring, jump a one-way lane to change planet.',
-  },
+  { key: 'orbit', ...T.lines.orbit },
   {
     key: 'heat',
-    title: 'Pay in heat',
-    text: `Every action costs energy, and every point of energy is heat at your check. Past ${MAX_HEAT}, the hull pays.`,
+    title: T.lines.heat.title,
+    text: fill(T.lines.heat.text, { maxHeat: MAX_HEAT }),
   },
-  {
-    key: 'fight',
-    title: 'Roll one d10',
-    text: 'A 1 misses and a 10 breaks the slot you named. Subsystems stay face-down until they do their job.',
-  },
+  { key: 'fight', ...T.lines.fight },
   {
     key: 'score',
-    title: `${DEFAULT_POINTS_TO_WIN} points end it`,
-    text: `Hold ${MISSIONS_PER_PLAYER} secret cards: a primary worth 2 and two worth 1. Reach ${DEFAULT_POINTS_TO_WIN} and the round plays out.`,
+    title: fill(T.lines.score.title, { points: DEFAULT_POINTS_TO_WIN }),
+    text: fill(T.lines.score.text, {
+      cards: MISSIONS_PER_PLAYER,
+      points: DEFAULT_POINTS_TO_WIN,
+    }),
   },
 ]
 
@@ -319,11 +297,23 @@ function FourLines() {
 // ---------------------------------------------------------------------------
 
 const FACTS: Array<{ value: string; label: string }> = [
-  { value: `${MIN_PLAYERS}–${MAX_PLAYERS}`, label: 'players' },
-  { value: `${DEFAULT_POINTS_TO_WIN}`, label: 'points win' },
-  { value: `${MISSIONS_PER_PLAYER}`, label: 'secret cards' },
-  { value: `${SECTORS_PER_RING}`, label: 'sectors a ring' },
-  { value: 'd10', label: 'one die' },
+  {
+    value: fill(T.facts.players.value, { min: MIN_PLAYERS, max: MAX_PLAYERS }),
+    label: T.facts.players.label,
+  },
+  {
+    value: fill(T.facts.points.value, { points: DEFAULT_POINTS_TO_WIN }),
+    label: T.facts.points.label,
+  },
+  {
+    value: fill(T.facts.cards.value, { cards: MISSIONS_PER_PLAYER }),
+    label: T.facts.cards.label,
+  },
+  {
+    value: fill(T.facts.sectors.value, { sectors: SECTORS_PER_RING }),
+    label: T.facts.sectors.label,
+  },
+  T.facts.die,
 ]
 
 export function Landing() {
@@ -343,18 +333,16 @@ export function Landing() {
         }}
       >
         <Box sx={{ minWidth: 0 }}>
-          <Kicker>
-            A tabletop game for {MIN_PLAYERS}&ndash;{MAX_PLAYERS} players
-          </Kicker>
+          <Kicker>{rich(T.hero.kicker, { min: MIN_PLAYERS, max: MAX_PLAYERS })}</Kicker>
           <Display
             component="h1"
             size={{ xs: '3.3rem', sm: '5.2rem', lg: '6.2rem' }}
             sx={{ mt: 1.5 }}
           >
-            Dangerous
+            {T.hero.title[0]}
             <br />
             <Box component="span" sx={{ color: PRESS.red }}>
-              Inclinations
+              {T.hero.title[1]}
             </Box>
           </Display>
           <Display
@@ -362,19 +350,17 @@ export function Landing() {
             weight={500}
             sx={{ mt: 2.5, letterSpacing: '0.04em' }}
           >
-            Drift. Burn. Jump. Fire.
+            {T.hero.motto}
           </Display>
           <Body size={{ xs: '1.02rem', sm: '1.12rem' }} sx={{ mt: 2.5 }}>
-            Ships orbit a black hole and its three planets. You ride the drift, burn between rings,
-            jump the one-way lanes and fight over cargo and secrets, on the heat you can afford. The
-            first to {DEFAULT_POINTS_TO_WIN} points from their secret mission cards ends the round.
+            {rich(T.hero.text, { points: DEFAULT_POINTS_TO_WIN })}
           </Body>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 3.5 }}>
             <Slab to={{ kind: 'play' }} tone="red">
-              Play it now
+              {T.hero.play}
             </Slab>
             <Slab to={{ kind: 'card' }} tone="paper">
-              How to play
+              {T.hero.learn}
             </Slab>
           </Box>
         </Box>
@@ -410,14 +396,14 @@ export function Landing() {
       </Box>
 
       <Box sx={{ ...COLUMN, pb: { xs: 6, sm: 9 } }}>
-        <Kicker>The game in four lines</Kicker>
+        <Kicker>{T.lines.kicker}</Kicker>
         <Display size={{ xs: '2.2rem', sm: '3rem' }} component="h2" sx={{ mt: 1, mb: 4 }}>
-          Orbit, heat, dice, cards
+          {T.lines.title}
         </Display>
         <FourLines />
         <Box sx={{ mt: 5 }}>
           <Slab to={{ kind: 'card' }} tone="ink">
-            Read the cheatsheet &rarr;
+            {T.lines.more}
           </Slab>
         </Box>
       </Box>
