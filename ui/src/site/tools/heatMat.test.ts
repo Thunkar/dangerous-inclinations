@@ -1,0 +1,135 @@
+/**
+ * The heat tracker plays the engine's rules by hand, so it is held to the
+ * engine on a built ship: a shield soaking a point (`resolveAttack` with one
+ * point of damage) and a critical breaking a slot (`breakSubsystem`) must
+ * leave the same energy on every slot and the same heat on the track as the
+ * mat does.
+ */
+import { describe, expect, it } from 'vitest'
+import type { ShipLoadout, ShipState, SubsystemType } from '@dangerous-inclinations/engine'
+import {
+  breakSubsystem,
+  createInitialShipState,
+  resolveAttack,
+  rollToResult,
+  updateSubsystem,
+} from '@dangerous-inclinations/engine'
+import type { MountId } from '../../ships/mounts'
+import { SLOTS, absorbPoint, breakSlot, type Mat, type SlotId } from './heatMat'
+
+type Energy = Partial<Record<SlotId, number>>
+
+const SIDES: MountId[] = ['side-0', 'side-1', 'side-2', 'side-3']
+
+function matOf(forward: SubsystemType, sides: SubsystemType[], energy: Energy, track = 0): Mat {
+  return {
+    loadout: {
+      'forward-0': forward,
+      'side-0': sides[0],
+      'side-1': sides[1],
+      'side-2': sides[2],
+      'side-3': sides[3],
+    },
+    energy,
+    broken: [],
+    track,
+    checked: false,
+  }
+}
+
+/** The same mat as a ship: the loadout built by the engine, the energy put on its slots. */
+function shipOf(mat: Mat): ShipState {
+  const loadout: ShipLoadout = {
+    forwardSlots: [mat.loadout['forward-0']],
+    sideSlots: SIDES.map(id => mat.loadout[id]) as ShipLoadout['sideSlots'],
+  }
+  let ship = createInitialShipState(
+    { wellId: 'blackhole', ring: 3, sector: 0, facing: 'prograde' },
+    loadout
+  )
+  for (const slot of SLOTS) {
+    const cubes = mat.energy[slot] ?? 0
+    if (cubes > 0) ship = updateSubsystem(ship, slot, { allocatedEnergy: cubes, isPowered: true })
+  }
+  return { ...ship, heat: { currentHeat: mat.track } }
+}
+
+/** What the mat shows of a ship: the energy on every slot and the track. */
+function reading(ship: ShipState) {
+  const energy: Energy = {}
+  for (const slot of SLOTS) {
+    const cubes = ship.subsystems.find(s => s.id === slot)?.allocatedEnergy ?? 0
+    if (cubes > 0) energy[slot] = cubes
+  }
+  return { energy, track: ship.heat.currentHeat }
+}
+
+function matReading(mat: Mat) {
+  const energy: Energy = {}
+  for (const slot of SLOTS) if ((mat.energy[slot] ?? 0) > 0) energy[slot] = mat.energy[slot]
+  return { energy, track: mat.track }
+}
+
+/** A roll that hits and is not a critical, whatever the attacker runs. */
+const HIT = Array.from({ length: 10 }, (_, i) => i + 1).find(roll => rollToResult(roll) === 'hit')!
+
+const WALLS: Array<[string, Mat]> = [
+  [
+    'one full wall',
+    matOf('railgun', ['shields', 'laser', 'radiator', 'radiator'], { 'side-0': 4 }),
+  ],
+  [
+    'two walls, the first half up',
+    matOf('railgun', ['shields', 'shields', 'radiator', 'laser'], { 'side-0': 2, 'side-1': 4 }, 3),
+  ],
+  [
+    'two walls, the first down',
+    matOf('sensor_array', ['laser', 'shields', 'shields', 'radiator'], { 'side-2': 4 }),
+  ],
+  [
+    'a wall in the bow and one on the side',
+    matOf(
+      'shields',
+      ['shields', 'laser', 'radiator', 'radiator'],
+      { 'forward-0': 2, 'side-0': 4 },
+      5
+    ),
+  ],
+  ['no wall up', matOf('railgun', ['shields', 'laser', 'radiator', 'radiator'], {}, 2)],
+]
+
+describe('the heat mat against the engine', () => {
+  it.each(WALLS)('soaks a point where the engine does: %s', (_name, mat) => {
+    const target = shipOf(mat)
+    const attacker = shipOf(matOf('railgun', ['laser', 'laser', 'radiator', 'radiator'], {}))
+    const hit = resolveAttack(target, 'p1', 1, 'engines', HIT, attacker, 'p2')
+    expect(matReading(absorbPoint(mat))).toEqual(reading(hit.ship))
+  })
+
+  it.each(WALLS)('soaks a second point where the engine does: %s', (_name, mat) => {
+    const target = shipOf(mat)
+    const attacker = shipOf(matOf('railgun', ['laser', 'laser', 'radiator', 'radiator'], {}))
+    const hit = resolveAttack(target, 'p1', 2, 'engines', HIT, attacker, 'p2')
+    expect(matReading(absorbPoint(absorbPoint(mat)))).toEqual(reading(hit.ship))
+  })
+
+  const BREAKS: Array<[SlotId, Mat]> = [
+    ['side-0', WALLS[1][1]],
+    [
+      'forward-0',
+      matOf('sensor_array', ['laser', 'shields', 'radiator', 'radiator'], { 'forward-0': 2 }, 4),
+    ],
+    [
+      'engines',
+      matOf('railgun', ['laser', 'shields', 'radiator', 'radiator'], { engines: 3, 'side-1': 2 }),
+    ],
+    ['side-3', matOf('railgun', ['laser', 'shields', 'radiator', 'radiator'], { 'side-1': 4 }, 1)],
+  ]
+
+  it.each(BREAKS)('dumps what the engine dumps when %s breaks', (slot, mat) => {
+    const broken = breakSubsystem(shipOf(mat), 'p1', slot)
+    const after = breakSlot(mat, slot)
+    expect(matReading(after)).toEqual(reading(broken.ship))
+    expect(after.broken).toContain(slot)
+  })
+})

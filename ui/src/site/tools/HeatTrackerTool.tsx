@@ -45,16 +45,19 @@ import { FORWARD_TILES, RADIATOR_DISSIPATION, SENSOR_CRIT, SIDE_TILES, tileName 
 import { Ledger } from '../guide/parts'
 import type { LedgerRow } from '../guide/parts'
 import { Field, Label, Plate, Segments, Stepper } from './controls'
-
-type FixedId = 'engines' | 'rotation' | 'scoop'
-type SlotId = MountId | FixedId
-
-const FIXED: FixedId[] = ['engines', 'rotation', 'scoop']
-const SLOTS: SlotId[] = [...MOUNTS.map(mount => mount.id), ...FIXED]
+import {
+  FIXED,
+  SLOTS,
+  TRACK_CEILING,
+  absorbPoint,
+  absorbingShield,
+  breakSlot,
+  typeAt,
+  type Mat,
+  type SlotId,
+} from './heatMat'
 
 const STORAGE_KEY = 'di.tools.heat'
-/** Absorbed heat lands between checks, so the track can stand over the top until yours. */
-const TRACK_CEILING = 30
 
 const CAPS = {
   fontFamily: FONT_DISPLAY,
@@ -62,15 +65,6 @@ const CAPS = {
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
 } as const
-
-interface Mat {
-  loadout: Record<MountId, SubsystemType>
-  energy: Partial<Record<SlotId, number>>
-  broken: SlotId[]
-  track: number
-  /** This turn's heat check is done; the energy stays on until the next turn starts. */
-  checked: boolean
-}
 
 const STARTING = BOT_LOADOUT_TEMPLATES['hunter-aggressive']
 
@@ -89,9 +83,6 @@ function freshMat(): Mat {
     checked: false,
   }
 }
-
-const typeAt = (mat: Mat, slot: SlotId): SubsystemType =>
-  slot in mat.loadout ? mat.loadout[slot as MountId] : (slot as FixedId)
 
 /** The settings a subsystem's energy can stand at: off, then each step to the top. */
 function levelsOf(type: SubsystemType): number[] {
@@ -199,16 +190,11 @@ export function HeatTrackerTool() {
 
   /** A break dumps the subsystem's energy onto the track; a repair just stands it up again. */
   const toggleBroken = (slot: SlotId) =>
-    setMat(m => {
-      if (m.broken.includes(slot)) return { ...m, broken: m.broken.filter(s => s !== slot) }
-      const dumped = m.energy[slot] ?? 0
-      return {
-        ...m,
-        broken: [...m.broken, slot],
-        energy: { ...m.energy, [slot]: 0 },
-        track: Math.min(TRACK_CEILING, m.track + dumped),
-      }
-    })
+    setMat(m =>
+      m.broken.includes(slot)
+        ? { ...m, broken: m.broken.filter(s => s !== slot) }
+        : breakSlot(m, slot)
+    )
 
   const tap = (slot: SlotId, direction: 1 | -1) => {
     if (mode === 'break') {
@@ -227,24 +213,8 @@ export function HeatTrackerTool() {
     }))
 
   // The shields absorb in slot order, as the engine walks them.
-  const absorbingShield = SLOTS.find(
-    slot =>
-      typeAt(mat, slot) === 'shields' &&
-      !isBroken(slot) &&
-      energyOf(slot) >= SHIELD_ENERGY_PER_POINT
-  )
-  const absorb = () =>
-    setMat(m => {
-      if (!absorbingShield) return m
-      return {
-        ...m,
-        energy: {
-          ...m.energy,
-          [absorbingShield]: (m.energy[absorbingShield] ?? 0) - SHIELD_ENERGY_PER_POINT,
-        },
-        track: Math.min(TRACK_CEILING, m.track + SHIELD_HEAT_PER_POINT),
-      }
-    })
+  const canAbsorb = absorbingShield(mat) !== undefined
+  const absorb = () => setMat(absorbPoint)
 
   const onMat = SLOTS.reduce((sum, slot) => sum + energyOf(slot), 0)
   const hull = SLOTS.map(slot => ({ type: typeAt(mat, slot), isBroken: isBroken(slot) }))
@@ -396,7 +366,7 @@ export function HeatTrackerTool() {
               editable
             />
           </Field>
-          <AbsorbButton disabled={!absorbingShield} onClick={absorb} />
+          <AbsorbButton disabled={!canAbsorb} onClick={absorb} />
         </Box>
 
         <Box sx={{ mt: 3 }}>
