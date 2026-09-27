@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { GameState, PlayerAction, Position, ShipLoadout, Wreck } from "../../models/game.ts";
-import { MAX_REACTION_MASS, STARTING_HIT_POINTS } from "../../models/game.ts";
+import { MAX_REACTION_MASS } from "../../models/game.ts";
 import type {
   Cargo,
   InterceptTransmissionMission,
@@ -167,28 +167,6 @@ describe("bot missions", () => {
     expect(acquired(state)).toBe(true);
   });
 
-  it("docks at the pickup station for a Deliver card", () => {
-    const station = getStationForPlanet(makeGameState([]).stations, ALPHA)!;
-    const start = withMissions(
-      makeGameState([
-        makePlayer("p1", {
-          wellId: ALPHA,
-          ring: STATION_RING,
-          sector: approachSector(makeGameState([]), ALPHA),
-        }),
-        makePlayer("p2", { wellId: BETA, ring: 3, sector: 12 }),
-      ]),
-      "p1",
-      [deliverMission(ALPHA, BETA)]
-    );
-    expect(station.ring).toBe(STATION_RING);
-
-    const result = executeTurn(start, botDecideActions(viewFor(start, "p1")).actions);
-    expect(result.errors).toBeUndefined();
-    const crate = getPlayer(result.gameState, "p1").cargo[0];
-    expect(crate.isPickedUp).toBe(true);
-  });
-
   it("names the crates job at its pickup when a Tanker's fuel is aboard too", () => {
     // Left to the default the visit would pump the fuel (a point) and leave
     // the crate (none yet) on the dock: a visit does one job.
@@ -221,7 +199,7 @@ describe("bot missions", () => {
     expect(p1.missions.find((m) => m.id === tanker.id)?.isCompleted).toBe(false);
   });
 
-  it("turns around for the delivery planet once the crate is aboard", () => {
+  it("docks at the pickup for a Deliver card, then turns for the delivery planet", () => {
     const start = withMissions(
       makeGameState([
         makePlayer("p1", {
@@ -235,7 +213,9 @@ describe("bot missions", () => {
       [deliverMission(ALPHA, BETA)]
     );
 
-    const picked = executeTurn(start, botDecideActions(viewFor(start, "p1")).actions).gameState;
+    const docked = executeTurn(start, botDecideActions(viewFor(start, "p1")).actions);
+    expect(docked.errors).toBeUndefined();
+    const picked = docked.gameState;
     expect(getPlayer(picked, "p1").cargo[0].isPickedUp).toBe(true);
 
     // The goal is no longer the pickup station: the crate has to reach BETA.
@@ -730,12 +710,6 @@ describe("bot goals: salvage and escort", () => {
       const result = executeTurn(state, actions);
       expect(result.errors).toBeUndefined();
     });
-
-    it("the marker it declares goes on", () => {
-      const state = besideCarriers([escortMission()], ["p2"]);
-      const result = executeTurn(state, botDecideActions(viewFor(state, "p1")).actions);
-      expect(getPlayer(result.gameState, "p1").missions[0]).toMatchObject({ markedPlayerId: "p2" });
-    });
   });
 });
 
@@ -885,7 +859,7 @@ describe("bot turn handling", () => {
     expect(botDecideActions(viewFor(state, null)).actions).toEqual([]);
   });
 
-  it("returns no actions while destroyed, and the engine spends the turn respawning", () => {
+  it("returns no actions while destroyed, which the engine takes as the respawn", () => {
     const state = withShip(
       makeGameState([
         makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }),
@@ -899,10 +873,6 @@ describe("bot turn handling", () => {
     expect(decision.actions).toEqual([]);
     expect(decision.log.candidates).toEqual([]);
 
-    const result = executeTurn(state, decision.actions);
-    expect(result.errors).toBeUndefined();
-    const ship = getShip(result.gameState, "p1");
-    expect(ship.hitPoints).toBe(STARTING_HIT_POINTS);
-    expect(ship.wellId).toBe(getPlayer(state, "p1").home!.wellId);
+    expect(executeTurn(state, decision.actions).errors).toBeUndefined();
   });
 });

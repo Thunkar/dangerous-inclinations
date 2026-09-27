@@ -451,14 +451,6 @@ describe("denial valuation", () => {
     return withSub(state, "p1", "engines", { isBroken: true });
   }
 
-  it("prices the same volley higher against the player about to win", () => {
-    const bystander = planAgainst(duel(), "p2");
-    const leader = planAgainst(aboutToWin(duel(), "p2", [crate(BETA, GAMMA)]), "p2");
-
-    expect(bystander.expectedHullDamage).toBe(leader.expectedHullDamage);
-    expect(bystander.denialValue).toBeLessThan(leader.denialValue);
-  });
-
   it("prices a kill on a loaded leader above a kill on an empty one", () => {
     // A destroyed ship drops everything it carries and loses its next turn.
     const loaded = aboutToWin(withShip(duel(), "p2", { hitPoints: 2 }), "p2", [
@@ -483,6 +475,8 @@ describe("denial valuation", () => {
     // decides how urgent that is, not whether it is worth anything.
     const nobody = planAgainst(duel(), "p2");
     const leader = planAgainst(aboutToWin(duel(), "p2"), "p2");
+    // The same volley at the same ship: only the price differs.
+    expect(leader.expectedHullDamage).toBe(nobody.expectedHullDamage);
     expect(nobody.expectedHullDamage).toBeGreaterThan(0);
     expect(nobody.denialValue).toBeGreaterThan(0);
     expect(leader.denialValue).toBeGreaterThan(nobody.denialValue * 1.5);

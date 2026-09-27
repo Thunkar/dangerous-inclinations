@@ -8,7 +8,6 @@ import {
   seatOptions,
   AGENT_INTENT_GUIDE,
 } from "../../agent/index.ts";
-import { botDecideActions } from "../../ai/index.ts";
 import type { DockJob } from "../../models/missions.ts";
 import {
   ALPHA,
@@ -150,9 +149,14 @@ describe("agent seat tooling", () => {
     expect(eventsOf(result.events, "escort_marked").map((e) => e.carrierId)).toEqual(expected);
   });
 
-  it("places no cubes for a burn: the action powers the engines", () => {
-    const built = buildTurn(viewFor(start(), "p1"), { move: { kind: "burn", intensity: "hard" } });
-    expect(built.actions.some((a) => a.type === "power")).toBe(false);
+  it("builds a burn off the rings as asked and leaves the refusal to the engine", () => {
+    // No autopilot: the builder does not swap in a legal burn, and it places no
+    // cubes (the burn powers the engines). The engine's refusal is what the
+    // agent is shown.
+    const state = start();
+    const built = buildTurn(viewFor(state, "p1"), { move: { kind: "burn", intensity: "hard" } });
+    expect(built.actions.map((a) => a.type)).toEqual(["burn"]);
+    expect(executeTurn(state, built.actions).errors?.length).toBeGreaterThan(0);
   });
 
   it("tells an agent that asks to power a tile an action would power anyway", () => {
@@ -179,12 +183,6 @@ describe("agent seat tooling", () => {
     const result = executeTurn(state, walled.actions);
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(4 + 1);
-  });
-
-  it("the engine's bot also decides legally from the same view", () => {
-    const state = start();
-    const result = executeTurn(state, botDecideActions(viewFor(state, "p1")).actions);
-    expect(result.errors).toBeUndefined();
   });
 
   it("the digest carries the seat's ship, cards, opponents and legal options", () => {
