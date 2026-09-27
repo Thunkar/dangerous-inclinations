@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { OPENING_ROUNDS, FIRST_TURN } from "../../models/game.ts";
 import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game/missiles.ts";
 import { processActions } from "../../game/actionProcessors.ts";
 import {
@@ -177,7 +176,6 @@ describe("missiles: launch", () => {
       ownerId: "p1",
       targetId: "p2",
       criticalTarget: "side-1",
-      turnFired: FIRST_TURN + OPENING_ROUNDS,
       movesMade: 1,
     });
   });
@@ -422,10 +420,10 @@ describe("missiles: on the target's sector", () => {
   it("a rack that is up intercepts on 2+: used and revealed, and it adds no heat of its own", () => {
     const state = withPower(onTarget(RACK), "p2", "side-0", 2);
     const result = processOwnerMissiles(state, "p1");
-    // Heat 0: the rack's two cubes are already on its owner's bill for being
-    // up, so shooting a missile down costs nothing more.
+    // The rack's two cubes are already on its owner's bill for being up, so
+    // shooting a missile down costs nothing more.
     expect(eventsOf(result.events as never, "missile_intercepted")).toEqual([
-      expect.objectContaining({ missileId: "m-1", targetId: "p2", roll: 5, heat: 0 }),
+      expect.objectContaining({ missileId: "m-1", targetId: "p2", roll: 5 }),
     ]);
     expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
     expect(result.state.missiles).toEqual([]);
@@ -475,7 +473,6 @@ describe("missiles: on the target's sector", () => {
     expect(intercepts).toHaveLength(3);
     // Nothing is charged for any of them: the rack is up, so its cubes are
     // already on the bill and a turn of rolling adds nothing.
-    expect(intercepts.map((e) => e.heat)).toEqual([0, 0, 0]);
     expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
     expect(result.state.missiles).toEqual([]);
     expect(getShip(result.state, "p2")).toMatchObject({
@@ -715,6 +712,5 @@ describe("missiles: a salvo and a turn of interceptions are one use of a tile", 
     // The rack carries its cubes once however many it rolled at, and that is
     // what it costs at the check.
     expect(getSub(result.state, "p2", "side-0").allocatedEnergy).toBe(expected);
-    expect(intercepts.reduce((sum, e) => sum + e.heat, 0)).toBe(0);
   });
 });

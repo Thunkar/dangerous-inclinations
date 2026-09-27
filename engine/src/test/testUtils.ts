@@ -221,7 +221,6 @@ export function makeMissile(overrides: Partial<Missile> = {}): Missile {
     wellId: BH,
     ring: 3,
     sector: 0,
-    turnFired: 1,
     movesMade: 0,
     criticalTarget: "engines",
     ...overrides,

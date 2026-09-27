@@ -139,7 +139,6 @@ export type GameEvent =
       roll: number;
       /** 2+ destroys the missile; on a 1 the rack fired and missed. */
       destroyed: boolean;
-      heat: number;
     })
   | (Base & { type: "missile_expired"; missileId: string; ownerId: string; at: Position })
   | (Base & {

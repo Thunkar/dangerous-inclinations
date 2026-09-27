@@ -551,7 +551,6 @@ export function eventToBeat(
             wellId: event.at.wellId,
             ring: event.at.ring,
             sector: event.at.sector,
-            turnFired: event.turn,
             movesMade: 0,
             criticalTarget: event.criticalTarget,
           },

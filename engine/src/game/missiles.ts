@@ -49,7 +49,6 @@ export function createMissile(
     ownerId: owner.id,
     targetId,
     ...positionOf(owner.ship),
-    turnFired: state.turn,
     movesMade: 0,
     criticalTarget,
   };
@@ -202,11 +201,9 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
     if (rack) {
       // The first roll of a player-turn uses the rack and flips it face-up.
       // Its cubes are already on it, so no roll adds heat.
-      let heat = 0;
       if (!rack.usedThisTurn) {
         const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");
         targetShip = used.ship;
-        heat = used.heat;
         events.push(...used.events);
       }
       targetShip = updateSubsystem(targetShip, rack.id, (r) => ({
@@ -221,7 +218,6 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
         targetId: target.id,
         roll,
         destroyed,
-        heat,
       });
       if (destroyed) {
         players[targetIndex] = { ...target, ship: targetShip };

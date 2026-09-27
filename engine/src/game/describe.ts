@@ -102,8 +102,8 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.ownerId)}'s missile tracks to ${pos(e.to)} (${e.movesLeft} moves left)`;
     case "missile_intercepted":
       return e.destroyed
-        ? `${name(e.targetId)}'s point defence destroys ${name(e.ownerId)}'s missile (rolled ${e.roll})${heat(e.heat)}`
-        : `${name(e.targetId)}'s point defence misses the missile (rolled ${e.roll})${heat(e.heat)}`;
+        ? `${name(e.targetId)}'s point defence destroys ${name(e.ownerId)}'s missile (rolled ${e.roll})`
+        : `${name(e.targetId)}'s point defence misses the missile (rolled ${e.roll})`;
     case "missile_expired":
       return `${name(e.ownerId)}'s missile burns out at ${pos(e.at)}`;
     case "subsystem_broken":

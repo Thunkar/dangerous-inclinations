@@ -175,7 +175,6 @@ export interface Missile {
   wellId: GravityWellId;
   ring: number;
   sector: number;
-  turnFired: number;
   /** Times this missile has moved at the end of its owner's turn. Expires at maxMoves. */
   movesMade: number;
   /** Slot the warhead breaks on a critical hit. */
