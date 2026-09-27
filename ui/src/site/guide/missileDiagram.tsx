@@ -23,6 +23,7 @@ import {
   stepToward,
 } from '@dangerous-inclinations/engine'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
+import { Tag } from '../DiagramParts'
 import { Body } from '../poster'
 import { INTERCEPT_ON } from '../numbers'
 
@@ -83,33 +84,6 @@ const HEIGHT = TOP + RINGS.length * ROW + 14
 
 /** Turn one in red, turn two in black. */
 const TURN_COLOR = [PRESS.red, PRESS.ink]
-
-function Tag({
-  x: left,
-  y: base,
-  children,
-  color = PRESS.ink,
-}: {
-  x: number
-  y: number
-  children: string
-  color?: string
-}) {
-  return (
-    <text
-      x={left}
-      y={base}
-      textAnchor="middle"
-      fontFamily={FONT_DISPLAY}
-      fontWeight={600}
-      fontSize={13}
-      letterSpacing="0.08em"
-      fill={color}
-    >
-      {children.toUpperCase()}
-    </text>
-  )
-}
 
 /** One turn of a flight: its lines, or its numbered steps (drawn over every line). */
 function TurnPath({ turn, index, layer }: { turn: Turn; index: number; layer: 'lines' | 'steps' }) {
@@ -246,7 +220,11 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
             }z`}
             fill={PRESS.paper}
           />
-          <Tag x={(cx(TARGET_1.sector) + cx(TARGET_2.sector)) / 2} y={y(TARGET_1.ring) - 9}>
+          <Tag
+            anchor="middle"
+            x={(cx(TARGET_1.sector) + cx(TARGET_2.sector)) / 2}
+            y={y(TARGET_1.ring) - 9}
+          >
             target drifts
           </Tag>
 
@@ -260,7 +238,7 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
             fill="none"
           />
           <Ship at={shipTo} />
-          <Tag x={cx(shipTo.sector) + 18} y={y(shipTo.ring) + CELL + 13}>
+          <Tag anchor="middle" x={cx(shipTo.sector) + 18} y={y(shipTo.ring) + CELL + 13}>
             your move
           </Tag>
 
@@ -274,6 +252,7 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
           {/* Launched: the missile starts on its ship's sector. */}
           <circle cx={cx(launch.sector)} cy={cy(launch.ring)} r={8} fill={PRESS.red} />
           <Tag
+            anchor="middle"
             x={cx(launch.sector)}
             y={rowOf(launch.ring) === 0 ? y(launch.ring) - 9 : y(launch.ring) + CELL + 13}
             color={PRESS.redText}
@@ -281,7 +260,12 @@ function Flight({ launch, shipTo }: { launch: Position; shipTo: Position }) {
             launch
           </Tag>
           {hitTurn >= 0 && (
-            <Tag x={cx(TARGET_2.sector)} y={y(TARGET_2.ring) + CELL + 13} color={PRESS.redText}>
+            <Tag
+              anchor="middle"
+              x={cx(TARGET_2.sector)}
+              y={y(TARGET_2.ring) + CELL + 13}
+              color={PRESS.redText}
+            >
               {`hit, turn ${hitTurn + 1}`}
             </Tag>
           )}

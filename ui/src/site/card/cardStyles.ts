@@ -16,14 +16,12 @@
  * the printer. In print the scale goes back to 1 and two faces sit side by
  * side on one A4 sheet to cut along their edges.
  */
-import { PRESS } from '../../design/press'
+import { INK, RED } from '../diagram'
 
 /** Tarot / oversized: the smallest card the turn and the moves fit on. */
 export const CARD_WIDTH_MM = 70
 export const CARD_HEIGHT_MM = 120
 
-const INK = PRESS.ink
-const RED = PRESS.red
 
 export const CARD_CSS = `
 .di-cards {

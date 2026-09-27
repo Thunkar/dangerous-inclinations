@@ -33,7 +33,7 @@ import {
   interceptsPerRack,
 } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
-import { PRESS } from '../../design/press'
+import { INK, RED } from '../diagram'
 import {
   BASE_CRIT,
   D10,
@@ -50,8 +50,6 @@ import {
 import { TURN_STEPS } from '../turn'
 import { MovementDiagram } from './MovementDiagram'
 
-const INK = PRESS.ink
-const RED = PRESS.red
 
 const PRIMARY = MISSION_POINTS.destroy_ship
 const SECONDARY = MISSION_POINTS.survey

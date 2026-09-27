@@ -19,6 +19,8 @@ import {
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body } from '../poster'
+import { useArrowHeads, type ArrowHeadSet } from '../diagram'
+import { ArrowHeads } from '../DiagramParts'
 import type { Row } from './windows'
 import { STATION_DRIFT } from '../turn'
 import {
@@ -78,17 +80,23 @@ export function Figure({ caption, children }: { caption: ReactNode; children: Re
   )
 }
 
+/** The arrowheads every one of these diagrams draws with. */
+const HEADS = { red: 3.4, ink: 4 }
+
 function Svg({
   width,
   height,
   label,
   maxWidth,
+  heads,
   children,
 }: {
   width: number
   height: number
   label: string
   maxWidth?: number
+  /** The diagram's own arrowheads (`useArrowHeads`), if it draws any. */
+  heads?: ArrowHeadSet
   children: ReactNode
 }) {
   return (
@@ -98,30 +106,7 @@ function Svg({
       aria-label={label}
       style={{ width: '100%', maxWidth, height: 'auto', display: 'block' }}
     >
-      <defs>
-        <marker
-          id="win-head-red"
-          viewBox="0 0 10 10"
-          refX="6"
-          refY="5"
-          markerWidth="3.4"
-          markerHeight="3.4"
-          orient="auto"
-        >
-          <path d="M0 0L10 5L0 10z" fill={PRESS.red} />
-        </marker>
-        <marker
-          id="win-head-ink"
-          viewBox="0 0 10 10"
-          refX="6"
-          refY="5"
-          markerWidth="4"
-          markerHeight="4"
-          orient="auto"
-        >
-          <path d="M0 0L10 5L0 10z" fill={PRESS.ink} />
-        </marker>
-      </defs>
+      {heads && <ArrowHeads heads={heads} />}
       {children}
     </svg>
   )
@@ -191,6 +176,7 @@ const arcRange = (start: number, length: number) => span(start, start + length -
 
 /** Any planet: its rings, its two lane arcs, and the six places a station can be. */
 export function StationClockDiagram() {
+  const heads = useArrowHeads(HEADS)
   const W = 440
   const H = 340
   const cx = W / 2
@@ -218,6 +204,7 @@ export function StationClockDiagram() {
   const flowR = (stationR + radius(STATION_RING - 1)) / 2
   return (
     <Svg
+      heads={heads}
       width={W}
       height={H}
       maxWidth={480}
@@ -274,7 +261,7 @@ export function StationClockDiagram() {
         fill="none"
         stroke={PRESS.ink}
         strokeWidth={2.5}
-        markerEnd="url(#win-head-ink)"
+        markerEnd={heads.ink}
       />
       <text
         x={W - 8}
@@ -292,6 +279,7 @@ export function StationClockDiagram() {
 
 /** Black hole ring 5: six one-way lane arcs, and the short hops of the circuit. */
 export function LaneRingDiagram() {
+  const heads = useArrowHeads(HEADS)
   const W = 460
   const H = 340
   const cx = W / 2
@@ -314,6 +302,7 @@ export function LaneRingDiagram() {
   const circuit = [...CIRCUIT_ORDER, CIRCUIT_ORDER[0]].map(planetName)
   return (
     <Svg
+      heads={heads}
       width={W}
       height={H}
       maxWidth={500}
@@ -362,7 +351,7 @@ export function LaneRingDiagram() {
             fill="none"
             stroke={PRESS.red}
             strokeWidth={4}
-            markerEnd="url(#win-head-red)"
+            markerEnd={heads.red}
           />
         )
       })}
@@ -383,6 +372,7 @@ export function LaneRingDiagram() {
  * labelled with the turns it takes.
  */
 export function CircuitDiagram({ legTurns }: { legTurns: string }) {
+  const heads = useArrowHeads(HEADS)
   const W = 460
   const H = 290
   const cx = W / 2
@@ -397,6 +387,7 @@ export function CircuitDiagram({ legTurns }: { legTurns: string }) {
   const names = order.map(planetName)
   return (
     <Svg
+      heads={heads}
       width={W}
       height={H}
       maxWidth={460}
@@ -422,7 +413,7 @@ export function CircuitDiagram({ legTurns }: { legTurns: string }) {
               y2={f(y0 + dy * 0.78)}
               stroke={PRESS.red}
               strokeWidth={5}
-              markerEnd="url(#win-head-red)"
+              markerEnd={heads.red}
             />
             <Cap
               x={mx + (ox / len) * 22}
