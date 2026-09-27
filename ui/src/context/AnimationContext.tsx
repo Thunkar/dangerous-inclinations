@@ -955,7 +955,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             })
             mark(event.pirateId, '+LOOT', 'good', { at: event.at })
             return BEAT.resolve
-          case 'fuel_sold':
+          case 'fuel_pumped':
             mark(event.playerId, `SOLD ${event.amount} FUEL`, 'good')
             return BEAT.small
           case 'wreck_left':

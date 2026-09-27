@@ -271,7 +271,7 @@ export type GameEvent =
     })
   | (Base & {
       /** Tanker: fuel pumped into a station's drums on arrival. */
-      type: "fuel_sold";
+      type: "fuel_pumped";
       playerId: string;
       amount: number;
       planetId: string;

@@ -146,7 +146,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.escortId)} puts an escort marker on ${name(e.carrierId)}`;
     case "escort_released":
       return `${name(e.escortId)}'s escort marker comes back from ${name(e.carrierId)}`;
-    case "fuel_sold":
+    case "fuel_pumped":
       return `${name(e.playerId)} pumps ${e.amount} fuel into ${getWellName(e.planetId)}'s station`;
     case "cargo_dropped": {
       const parts: string[] = [];

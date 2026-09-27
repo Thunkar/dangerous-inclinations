@@ -211,7 +211,7 @@ export function processDocking(
   // Tanker: the card's fuel goes into the drums and the card is done.
   if (job === "fuel") {
     ship = { ...ship, reactionMass: ship.reactionMass - TANKER_FUEL };
-    events.push({ type: "fuel_sold", playerId: player.id, amount: TANKER_FUEL, planetId });
+    events.push({ type: "fuel_pumped", playerId: player.id, amount: TANKER_FUEL, planetId });
   }
 
   const players = [...state.players];

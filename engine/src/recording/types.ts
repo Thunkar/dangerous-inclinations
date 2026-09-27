@@ -8,8 +8,9 @@ import type { GameEvent } from "../models/events.ts";
  * v4: a visit does one job: the `dock_job` action, and `docked` carries the job done.
  * v5: a shuffled secondary pile with Escort and Salvage; the state carries `wrecks`,
  *     and an Escort marker is placed by choice with the `escort_mark` action.
+ * v6: `fuel_sold` is `fuel_pumped`; a destroyed ship's missiles are removed.
  */
-export const RECORDING_SCHEMA_VERSION = 5;
+export const RECORDING_SCHEMA_VERSION = 6;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

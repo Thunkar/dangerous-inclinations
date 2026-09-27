@@ -7,7 +7,7 @@
  * submitLoadout, deployShip), and bots decide from `viewFor`, so sim results
  * describe the same game humans play. The experiment-only override channels
  * (sim/ruleOverrides.ts, tileOverrides.ts, weaponOverrides.ts,
- * secondaryOverrides.ts, loadoutOverrides.ts, botOverrides.ts) let a change be measured before it is
+ * loadoutOverrides.ts, botOverrides.ts) let a change be measured before it is
  * adopted.
  */
 import type { GameState, PlayerAction } from "../models/game.ts";
@@ -18,8 +18,6 @@ import { cloneState } from "../recording/replay.ts";
 import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
 import type { RuleOverrides } from "./ruleOverrides.ts";
-import { applySecondaryOverrides } from "./secondaryOverrides.ts";
-import type { SecondaryKind } from "../models/missions.ts";
 import { applyBotOverrides, type BotOverrides } from "./botOverrides.ts";
 import {
   applyLoadoutOverrides,
@@ -54,8 +52,6 @@ export interface GameConfig {
   tiles?: TileOverrides;
   /** Experiment-only rule overrides: points to win (see sim/ruleOverrides.ts). */
   rules?: RuleOverrides;
-  /** Experiment-only: the kinds the secondary pile is printed with (see sim/secondaryOverrides.ts). */
-  secondaries?: SecondaryKind[];
   /** Experiment-only weapon stat overrides (see sim/weaponOverrides.ts). */
   weapons?: WeaponOverrides;
   /** Experiment-only bot parameter overrides (see sim/botOverrides.ts). */
@@ -223,7 +219,6 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
   applyTileOverrides(config.tiles);
-  applySecondaryOverrides(config.secondaries);
   applyWeaponOverrides(config.weapons);
   applyBotOverrides(config.bots);
   applyLoadoutOverrides(config.loadouts);

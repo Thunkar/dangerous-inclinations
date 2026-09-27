@@ -162,9 +162,9 @@ function salvageWreck(
 
 /**
  * Escort completion: every other player's undone Escort marking a ship that
- * delivered, sold or filed anything this turn is done. Deliveries happen on
- * the carrier's own turn, so this pays players who are not the active one.
- * `players` is written in place; the events come back.
+ * delivered, sold or filed anything, or pumped a Tanker's fuel, this turn is
+ * done. Those happen on the carrier's own turn, so this pays players who are
+ * not the active one. `players` is written in place; the events come back.
  */
 function payEscorts(players: Player[], deliveredBy: ReadonlySet<string>): EventDraft[] {
   const events: EventDraft[] = [];
@@ -219,7 +219,7 @@ export function processMissionEvents(
 
   const kills = new Set<string>();
   const deliveredCargoIds = new Set<string>();
-  /** Every ship that delivered, sold or filed anything this turn (Escort). */
+  /** Every ship that delivered, sold or filed anything, or pumped fuel, this turn (Escort). */
   const deliveredBy = new Set<string>();
   let pumpedFuel = false;
 
@@ -229,7 +229,10 @@ export function processMissionEvents(
       deliveredBy.add(e.playerId);
       if (e.playerId === playerId) deliveredCargoIds.add(e.cargoId);
     }
-    if (e.type === "fuel_sold" && e.playerId === playerId) pumpedFuel = true;
+    if (e.type === "fuel_pumped") {
+      deliveredBy.add(e.playerId);
+      if (e.playerId === playerId) pumpedFuel = true;
+    }
   }
 
   const players = [...state.players];
@@ -376,8 +379,8 @@ export function processMissionEvents(
     cargo !== player.cargo ||
     missions.some((m, i) => m !== player.missions[i]);
   if (changed) players[index] = { ...player, missions, cargo, completedMissionCount };
-  // Everyone else's Escorts on a ship that delivered this turn: the carrier is
-  // the active player, so this pays a card held at another seat.
+  // Everyone else's Escorts on a ship that delivered or pumped fuel this turn:
+  // the carrier is the active player, so this pays a card held at another seat.
   const escortEvents = payEscorts(players, deliveredBy);
   events.push(...escortEvents);
 

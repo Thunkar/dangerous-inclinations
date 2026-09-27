@@ -126,13 +126,8 @@ export type MissionType =
   | "escort"
   | "salvage";
 
-/**
- * The secondary kinds, in the order the printed pile lists them. Experiment
- * only: `--secondaries=` (sim) replaces the kinds the pile is printed with, so
- * the deal can be measured with and without the new cards. A table plays the
- * full list.
- */
-export const SECONDARY_KINDS_PRINTED: SecondaryKind[] = [
+/** The secondary kinds, in the order the printed pile lists them. */
+export const SECONDARY_KINDS_PRINTED: readonly SecondaryKind[] = [
   "survey",
   "piracy",
   "tanker",
@@ -316,8 +311,9 @@ export interface TankerMission extends BaseMission {
  * Escort: end a turn, not moored, in the same sector as an undocked rival
  * carrying cargo (a crate or data, loot included) with the marker in hand,
  * and you may put it on that ship, face-up for the table (the `escort_mark`
- * action). The next time that ship delivers, sells or files anything at
- * a station, the card is done. If the marked ship is destroyed first, the
+ * action). The next time that ship delivers, sells or files anything, or
+ * pumps a Tanker's fuel, at a station, the card is done. If the marked ship
+ * is destroyed first, the
  * marker comes back and the card is undone. A second Escort marks a
  * different ship.
  */

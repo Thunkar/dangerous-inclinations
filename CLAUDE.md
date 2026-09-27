@@ -208,11 +208,9 @@ any subsystem), `--weapons=laser.damage=3` (firing stats),
 passed to `createGame`; `yarn bench --rules=` takes it too and stamps it on
 the page), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'
 parameters), `--loadouts=` (the bots' hull templates), `--seats=` (a hull
-forced on one seat), `--hands=bot-1=destroy` (the primary a seat is dealt
+forced on one seat) and `--hands=bot-1=destroy` (the primary a seat is dealt
 and keeps: the bots price one road to the win and take it every time, so a
-plan they never choose is only measurable dealt) and
-`--secondaries=survey,piracy,tanker` (the kinds the secondary pile is
-printed with, stamped on the page). The summary prints turn
+plan they never choose is only measurable dealt). The summary prints turn
 behaviour (coast/burn/jump/firing shares, shield cubes, heat at check, damage
 soaked). A change that survives its experiment moves into the models, and a
 switch whose experiment is over is deleted, not kept: the measurement lives

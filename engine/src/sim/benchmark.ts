@@ -8,7 +8,6 @@
  *   yarn bench --minutes=1              # table time at this pace per turn
  *   yarn bench --output=docs/bench-2026-09-18.md
  *   yarn bench --rules=missionsToWin=4   # a page played under a proposed rule
- *   yarn bench --secondaries=survey,piracy,tanker  # a page dealt from a different secondary pile
  *   yarn bench --bot=aggressiveness=0.8,targetPreference=weakest  # a page played by bots told to think differently
  *
  * It exists to be diffed. Every run stamps the rules it was played under at
@@ -34,6 +33,7 @@ import {
   PRIMARY_OFFERS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   SECONDARY_OFFERS_PER_PLAYER,
+  SECONDARY_KINDS_PRINTED,
   MISSION_POINTS,
   CARGO_HOLD_CRATES,
   type MissionType,
@@ -52,12 +52,6 @@ import { SHIELD_ENERGY_PER_POINT, SUBSYSTEM_CONFIGS } from "../models/subsystems
 const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
 import { runBatch, type BatchResult } from "./batch.ts";
 import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
-import {
-  applySecondaryOverrides,
-  describeSecondaryKinds,
-  parseSecondaryOverrides,
-} from "./secondaryOverrides.ts";
-import type { SecondaryKind } from "../models/missions.ts";
 import {
   applyBotOverrides,
   describeBotOverrides,
@@ -107,8 +101,6 @@ interface Args {
   output?: string;
   /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
   rules?: RuleOverrides;
-  /** Experiment-only: the kinds the secondary pile is printed with (see sim/secondaryOverrides.ts). */
-  secondaries?: SecondaryKind[];
   /** Experiment-only bot parameter overrides, stamped on the page (see sim/botOverrides.ts). */
   bot?: BotOverrides;
 }
@@ -137,7 +129,6 @@ function parseArgs(argv: string[]): Args {
     else if (key === "minutes") args.minutesPerTurn = Number(value);
     else if (key === "output") args.output = value;
     else if (key === "rules") args.rules = parseRuleOverrides(value);
-    else if (key === "secondaries") args.secondaries = parseSecondaryOverrides(value);
     else if (key === "bot") args.bot = parseBotOverrides(value);
     else if (key === "players") {
       args.players = value
@@ -319,11 +310,10 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   );
   out.push(`| Hold | ${CARGO_HOLD_CRATES} crate (data rides free) |`);
   out.push("| Moored ships | can neither fire nor be fired at |");
-  // The pile this process dealt from: `--secondaries=` rewrites it here too.
   out.push(
     `| The deal | ${PRIMARY_OFFERS_PER_PLAYER} primaries keep ${PRIMARIES_PER_PLAYER}; ` +
       `${SECONDARY_OFFERS_PER_PLAYER} secondaries keep any ${SECONDARIES_PER_PLAYER} from a shuffled pile of ` +
-      `${describeSecondaryKinds()} |`
+      `${SECONDARY_KINDS_PRINTED.map((k) => k.charAt(0).toUpperCase() + k.slice(1)).join(", ")} |`
   );
   out.push(`| Seats allowed | ${MIN_PLAYERS}–${MAX_PLAYERS} |`);
   // The map is a rule: a page run under a different one is not comparable.
@@ -432,7 +422,6 @@ async function main() {
   // In this process for the stamp the page prints; the workers that play the
   // games get the same overrides with every job.
   applyBotOverrides(args.bot);
-  applySecondaryOverrides(args.secondaries);
   const rows: SeatRow[] = [];
   const batches: BatchResult[] = [];
 
@@ -445,7 +434,6 @@ async function main() {
       maxTurns: MAX_TURNS_PER_PLAYER * players,
       workers: args.workers,
       rules: args.rules,
-      secondaries: args.secondaries,
       bots: args.bot,
     });
     batches.push(batch);

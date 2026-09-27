@@ -570,7 +570,7 @@ describe("docking: one job a visit", () => {
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "docked")[0].job).toBe(job);
     expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual(handedIn);
-    expect(eventsOf(result.events, "fuel_sold")).toHaveLength(job === "fuel" ? 1 : 0);
+    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(job === "fuel" ? 1 : 0);
     expect(getShip(result.gameState, "p1").reactionMass).toBe(job === "fuel" ? 10 - TANKER_FUEL : 10);
     expect(aboard(result.gameState, deliverCrate.id)).toBe(crateAboard ? true : null);
     expect(aboard(result.gameState, surveyData.id)).toBe(dataAboard ? true : null);
@@ -621,7 +621,7 @@ describe("docking: one job a visit", () => {
     expect(eventsOf(result.events, "docked")[0].job).toBe("crates");
     expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual([inboundCrate.id]);
     expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.cargoId)).toEqual([onwardCrate.id]);
-    expect(eventsOf(result.events, "fuel_sold")).toEqual([]);
+    expect(eventsOf(result.events, "fuel_pumped")).toEqual([]);
     expect(aboard(result.gameState, onwardCrate.id)).toBe(true);
   });
 
