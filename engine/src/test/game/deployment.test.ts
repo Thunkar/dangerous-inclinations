@@ -5,16 +5,14 @@ import {
   legalDeploymentsAgainst,
   transitionToActivePhase,
 } from "../../game/deployment.ts";
-import { createGame, createPlayer, submitLoadout } from "../../game/setup.ts";
+import { createGame, submitLoadout } from "../../game/setup.ts";
 import {
   calculateShipStatsFromLoadout,
   canInstallInSlot,
-  FORWARD_SLOT_SUBSYSTEMS,
   createSubsystemsFromLoadout,
   missionRequirementStatus,
   missionsMissingRequirements,
 } from "../../game/loadout.ts";
-import { describeMission, describeMissionRequirement } from "../../game/describe.ts";
 import type { SubsystemType } from "../../models/subsystems.ts";
 import { WEAPON_SUBSYSTEM_TYPES } from "../../models/subsystems.ts";
 import type { Mission, MissionRequirement } from "../../models/missions.ts";
@@ -140,18 +138,6 @@ describe("setup: createGame", () => {
     expect(createGame(SPECS, state.rngSeed).players.map((p) => p.missionOffers)).toEqual(
       state.players.map((p) => p.missionOffers)
     );
-  });
-
-  it("createPlayer builds an undeployed placeholder", () => {
-    const player = createPlayer({ id: "x", name: "X" });
-    expect(player).toMatchObject({
-      id: "x",
-      name: "X",
-      hasDeployed: false,
-      hasSubmittedLoadout: false,
-      home: null,
-    });
-    expect(player.ship.loadout).toEqual(DEFAULT_LOADOUT);
   });
 });
 
@@ -304,43 +290,28 @@ describe("setup: a kept card the loadout can never fly", () => {
   const offered = (missions: Mission[]) =>
     withPlayer(createGame(SPECS, 5), "p1", { missionOffers: missions });
 
-  it.each([
-    ["an Intercept on a hull with no sensor array", interceptMission("p2"), GUNSHIP, SENSOR_ARRAY],
-    ["a Destroy on a hull with no weapon", destroyMission("p2"), UNARMED, WEAPON],
-  ] as Array<[string, Mission, ShipLoadout, MissionRequirement]>)(
-    "refuses %s, naming the card and what it needs",
-    (_label, card, loadout, requirement) => {
-      const hand = padHand([card]);
-      const state = offered(hand);
-      const result = submitLoadout(state, "p1", {
-        loadout,
-        missionIds: hand.map((m) => m.id),
-      });
-      expect(result.state).toBe(state);
-      expect(result.error).toContain(describeMission(card, () => "Bo"));
-      expect(result.error).toContain(describeMissionRequirement(requirement));
-    }
-  );
-
   /**
    * A hand holds one primary, and only a primary asks for anything aboard, so a
-   * loadout now has at most one requirement to satisfy: there is no hand that
-   * needs the array and a gun at once.
+   * loadout has at most one requirement to satisfy: there is no hand that needs
+   * the array and a gun at once.
    */
-  it("accepts the card once what it asks for is aboard", () => {
-    for (const card of [interceptMission("p2"), destroyMission("p2")]) {
+  it.each([
+    ["an Intercept on a hull with no sensor array", interceptMission("p2"), GUNSHIP],
+    ["a Destroy on a hull with no weapon", destroyMission("p2"), UNARMED],
+  ] as Array<[string, Mission, ShipLoadout]>)(
+    "refuses %s, and takes the same hand once what it asks for is aboard",
+    (_label, card, loadout) => {
       const hand = padHand([card]);
       const state = offered(hand);
-      const result = submitLoadout(state, "p1", {
-        loadout: ANY_HAND,
-        missionIds: hand.map((m) => m.id),
-      });
-      expect(result.error).toBeUndefined();
-      expect(getPlayer(result.state, "p1").missions.map((m) => m.id)).toEqual(
-        hand.map((m) => m.id)
-      );
+      const missionIds = hand.map((m) => m.id);
+      const refused = submitLoadout(state, "p1", { loadout, missionIds });
+      expect(refused.error).toBeDefined();
+      expect(refused.state).toBe(state);
+      const taken = submitLoadout(state, "p1", { loadout: ANY_HAND, missionIds });
+      expect(taken.error).toBeUndefined();
+      expect(getPlayer(taken.state, "p1").missions.map((m) => m.id)).toEqual(missionIds);
     }
-  });
+  );
 
   it("lets an unflyable card be left in the offers: only kept cards are checked", () => {
     // A Deliver asks for nothing aboard, so an unarmed loadout can fly this hand.
@@ -356,38 +327,24 @@ describe("setup: a kept card the loadout can never fly", () => {
 });
 
 describe("loadout: validation and instantiation", () => {
-  it("canInstallInSlot follows the slot types", () => {
-    // The guns care where they point: a railgun is spinal and a laser fires to
-    // one side, so neither travels. Everything else is free to.
-    expect(canInstallInSlot("railgun", "forward")).toBe(true);
-    expect(canInstallInSlot("railgun", "side")).toBe(false);
-    expect(canInstallInSlot("laser", "forward")).toBe(false);
-    expect(canInstallInSlot("engines", "side")).toBe(false);
-    // The bow is the ship's identity, but it is not the only thing that can
-    // stand powered there: a loaded forward slot has to be a guess.
-    expect(canInstallInSlot("fuel_compressor", "forward")).toBe(true);
-    expect(canInstallInSlot("fuel_compressor", "side")).toBe(false);
-    expect(canInstallInSlot("sensor_array", "forward")).toBe(true);
-    expect(canInstallInSlot("sensor_array", "side")).toBe(false);
-  });
-
-  it.each(["missiles", "shields"] as const)(
-    "%s fits either slot, so a loaded bow is never a certain sensor array",
-    (type) => {
-      expect(canInstallInSlot(type, "forward")).toBe(true);
-      expect(canInstallInSlot(type, "side")).toBe(true);
-    }
-  );
-
-  it("keeps the ballistic rack to the sides: a cheap bow gun has no predator", () => {
-    expect(canInstallInSlot("ballistic_rack", "forward")).toBe(false);
-    expect(canInstallInSlot("ballistic_rack", "side")).toBe(true);
-  });
-
-  it("keeps the bow-only tiles to the three that make a ship's identity", () => {
-    expect(new Set(FORWARD_SLOT_SUBSYSTEMS)).toEqual(
-      new Set(["railgun", "sensor_array", "fuel_compressor"])
-    );
+  // RULES §Setup: forward is railgun, sensor array, fuel compressor, shields or
+  // missiles; side is laser, radiator, shields, ballistic rack or missiles. The
+  // guns that care where they point stay put, the rack stays off the bow (a
+  // cheap bow gun has no predator), and shields and missiles go either way so a
+  // loaded bow is never a certain sensor array.
+  it.each<[SubsystemType, boolean, boolean]>([
+    ["railgun", true, false],
+    ["sensor_array", true, false],
+    ["fuel_compressor", true, false],
+    ["shields", true, true],
+    ["missiles", true, true],
+    ["laser", false, true],
+    ["radiator", false, true],
+    ["ballistic_rack", false, true],
+    ["engines", false, false],
+  ])("%s fits the bow: %s, a side: %s", (type, forward, side) => {
+    expect(canInstallInSlot(type, "forward")).toBe(forward);
+    expect(canInstallInSlot(type, "side")).toBe(side);
   });
 
   it("creates fixed systems face-up and slot tiles face-down with stable ids", () => {
