@@ -10,6 +10,7 @@ import type { Cargo, Mission, MissionFamily } from '@dangerous-inclinations/engi
 import {
   CARGO_HOLD_CRATES,
   MAX_REACTION_MASS,
+  MISSION_CARDS,
   MISSION_FAMILY,
   dataAboard,
   missionPoints as pointsForType,
@@ -75,20 +76,9 @@ export function missionPoints(mission: Mission): number {
   return pointsForType(mission.type)
 }
 
-/** The card's name, printed in its title strip. */
-const MISSION_NAME: Record<Mission['type'], string> = {
-  destroy_ship: 'Destroy',
-  deliver_cargo: 'Deliver',
-  intercept_transmission: 'Intercept',
-  survey: 'Survey',
-  piracy: 'Piracy',
-  tanker: 'Tanker',
-  escort: 'Escort',
-  salvage: 'Salvage',
-}
-
+/** The card's name, printed in its title strip (`text/missionCards.ts` in the engine). */
 export function missionName(mission: Mission): string {
-  return MISSION_NAME[mission.type]
+  return MISSION_CARDS[mission.type].name
 }
 
 /** Short label for the card's family band. */

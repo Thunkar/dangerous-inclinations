@@ -1,5 +1,6 @@
 /**
- * Human-readable text for events (turn log, replay, sim diagnostics).
+ * Human-readable text for events (turn log, replay, sim diagnostics), and the
+ * mission cards' title and rule, whose words live in `text/missionCards.ts`.
  */
 import type { GameEvent } from "../models/events.ts";
 import type { Mission, MissionRequirement } from "../models/missions.ts";
@@ -8,6 +9,7 @@ import type { Position } from "../models/game.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { getWellName } from "../models/gravityWells.ts";
 import { COMPRESSED_JUMP_MASS, WELL_TRANSFER_COSTS } from "../models/rings.ts";
+import { MISSION_CARDS } from "../text/missionCards.ts";
 
 type NameResolver = (playerId: string) => string;
 
@@ -22,48 +24,62 @@ function heat(h: number): string {
 export function describeMission(m: Mission, name: NameResolver): string {
   switch (m.type) {
     case "destroy_ship":
-      return `Destroy ${name(m.targetPlayerId)}`;
+      return MISSION_CARDS.destroy_ship.title(name(m.targetPlayerId));
     case "deliver_cargo":
-      return `Deliver ${getWellName(m.pickupPlanetId)} → ${getWellName(m.deliveryPlanetId)}`;
+      return MISSION_CARDS.deliver_cargo.title(
+        getWellName(m.pickupPlanetId),
+        getWellName(m.deliveryPlanetId)
+      );
     case "intercept_transmission":
-      return `Intercept ${name(m.targetPlayerId)} → file at ${getWellName(m.deliveryPlanetId)}`;
+      return MISSION_CARDS.intercept_transmission.title(
+        name(m.targetPlayerId),
+        getWellName(m.deliveryPlanetId)
+      );
     case "survey":
-      return "Survey the Event Horizon";
+      return MISSION_CARDS.survey.title;
     case "piracy":
-      return "Seize cargo and sell it";
+      return MISSION_CARDS.piracy.title;
     case "tanker":
-      return `Pump ${TANKER_FUEL} fuel into a station`;
+      return MISSION_CARDS.tanker.title(TANKER_FUEL);
     case "escort":
       return m.markedPlayerId
-        ? `Escort ${name(m.markedPlayerId)} until it delivers`
-        : "Escort a carrier until it delivers";
+        ? MISSION_CARDS.escort.title(name(m.markedPlayerId))
+        : MISSION_CARDS.escort.titleUnmarked;
     case "salvage":
-      return "Salvage a wreck's black box and file it";
+      return MISSION_CARDS.salvage.title;
   }
 }
 
 /**
  * The whole mission in a sentence or two, as the card prints it under its
- * title: what to do, where, and what completes it (RULES §Missions).
+ * title: what to do, where, and what completes it (RULES §Missions). The
+ * words are in `text/missionCards.ts`.
  */
 export function describeMissionRule(m: Mission, name: NameResolver): string {
   switch (m.type) {
     case "destroy_ship":
-      return `Bring the hull of ${name(m.targetPlayerId)} to 0 with a shot or a missile.`;
+      return MISSION_CARDS.destroy_ship.rule(name(m.targetPlayerId));
     case "deliver_cargo":
-      return `Load the crate at ${getWellName(m.pickupPlanetId)}, then dock at ${getWellName(m.deliveryPlanetId)} to deliver it.`;
+      return MISSION_CARDS.deliver_cargo.rule(
+        getWellName(m.pickupPlanetId),
+        getWellName(m.deliveryPlanetId)
+      );
     case "intercept_transmission":
-      return `Scan ${name(m.targetPlayerId)} (same ring, within ${SCAN_SECTOR_RANGE} sectors), then dock at ${getWellName(m.deliveryPlanetId)} to file it.`;
+      return MISSION_CARDS.intercept_transmission.rule(
+        name(m.targetPlayerId),
+        SCAN_SECTOR_RANGE,
+        getWellName(m.deliveryPlanetId)
+      );
     case "survey":
-      return `End a turn on Black Hole ring ${SURVEY_RING}, then file the data at any station.`;
+      return MISSION_CARDS.survey.rule(SURVEY_RING);
     case "piracy":
-      return "With your hold empty, end a turn on an undocked ship to take its crate or data. Sell it at any station.";
+      return MISSION_CARDS.piracy.rule;
     case "tanker":
-      return `Arrive at a station with ${TANKER_FUEL} or more fuel and pump ${TANKER_FUEL} in.`;
+      return MISSION_CARDS.tanker.rule(TANKER_FUEL);
     case "escort":
-      return "You may mark an undocked carrier in your sector that has no marker. Done at its next delivery or fuel pump.";
+      return MISSION_CARDS.escort.rule;
     case "salvage":
-      return "End a turn on a wreck to take its black box, one a turn. File it at any station.";
+      return MISSION_CARDS.salvage.rule;
   }
 }
 

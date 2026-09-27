@@ -10,6 +10,7 @@ import { Box } from '@mui/material'
 import type { Mission, MissionType } from '@dangerous-inclinations/engine'
 import {
   DEFAULT_POINTS_TO_WIN,
+  MISSION_CARDS,
   MISSION_POINTS,
   PRIMARIES_PER_PLAYER,
   PRIMARY_OFFERS_PER_PLAYER,
@@ -63,8 +64,8 @@ const SECONDARIES: Mission[] = [
 
 /** What the card does not print: the subsystem it needs aboard. */
 const NOTE: Partial<Record<MissionType, string>> = {
-  destroy_ship: 'Needs a weapon.',
-  intercept_transmission: 'Needs a sensor array.',
+  destroy_ship: MISSION_CARDS.destroy_ship.needs,
+  intercept_transmission: MISSION_CARDS.intercept_transmission.needs,
 }
 
 const primaryPoints = MISSION_POINTS.destroy_ship
