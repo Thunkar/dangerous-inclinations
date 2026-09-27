@@ -39,6 +39,7 @@ import type {
 import { useAnimation } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
+import { useRoutePlanOptional } from '../../context/RoutePlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { TABLE } from '../../theme'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
@@ -184,6 +185,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
   const { view, nameOf } = useGame()
   const { overlay, effects, pinged, shot } = useAnimation()
   const plan = usePlanOptional()
+  const routePlan = useRoutePlanOptional()
 
   const colorOf = useCallback(
     (playerId: string) => getPlayerColor(view.players.findIndex(p => p.id === playerId)),
@@ -419,11 +421,11 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
   // A destination is only picked on your own turn, and never over a turn that
   // is still playing out.
   const onPickDestination =
-    plan && plan.isMyTurn && plan.picking?.kind === 'destination' && !overlay
-      ? plan.setRouteDestination
+    plan && routePlan && plan.isMyTurn && plan.picking?.kind === 'destination' && !overlay
+      ? routePlan.setRouteDestination
       : null
   const onPickTarget = plan ? plan.pickTarget : null
-  const route = plan && !overlay ? plan.route : null
+  const route = routePlan && !overlay ? routePlan.route : null
 
   return useMemo(
     () => ({

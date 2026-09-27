@@ -40,8 +40,9 @@ import type {
   Station,
 } from '@dangerous-inclinations/engine'
 import { getWellName } from '@dangerous-inclinations/engine'
-import type { MoveChoice, RouteMode } from '../../context/PlanContext'
 import { usePlan } from '../../context/PlanContext'
+import { moveOfRouteStep, useRoutePlan, type RouteMode } from '../../context/RoutePlanContext'
+import type { MoveChoice } from '../../plan/preview'
 import { describeStep, facingFor, placeLabel, routeLegs, routeName } from '../../utils/route'
 import { SectionLabel } from '../common/Panel'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -56,18 +57,6 @@ const HOVER_TINT = TABLE.hover
 /** Turns of a route shown before the list folds into "+n more". */
 const ITINERARY_LIMIT = 6
 
-/** The move the planner would set from a route step: the same one `applyRouteStep` builds. */
-function moveForStep(step: MovementStep): MoveChoice {
-  if (step.actionType === 'coast') return { kind: 'coast', scoop: step.massCost < 0 }
-  if (step.actionType === 'well_transfer')
-    return { kind: 'jump', destinationWellId: step.to.wellId, adjustment: step.sectorAdjustment }
-  return {
-    kind: 'burn',
-    intensity: step.burnIntensity ?? 'soft',
-    adjustment: step.sectorAdjustment,
-  }
-}
-
 function sameMove(a: MoveChoice, b: MoveChoice): boolean {
   if (a.kind !== b.kind) return false
   if (a.kind === 'coast' && b.kind === 'coast') return a.scoop === b.scoop
@@ -80,10 +69,11 @@ function sameMove(a: MoveChoice, b: MoveChoice): boolean {
 
 export function RoutePlanner() {
   const plan = usePlan()
+  const routePlan = useRoutePlan()
   const disabled = plan.disabled
   const picking = plan.picking?.kind === 'destination'
-  const dest = plan.routeDestination
-  const route = plan.route
+  const dest = routePlan.routeDestination
+  const route = routePlan.route
   /**
    * Folded away until it is wanted. Asking for a destination (or already
    * having one) is asking for the planner, so the fold is derived from that
@@ -100,7 +90,7 @@ export function RoutePlanner() {
    */
   const taken = Boolean(
     first &&
-      sameMove(moveForStep(first), plan.moveStep.move) &&
+      sameMove(moveOfRouteStep(first), plan.moveStep.move) &&
       facingFor(first, plan.moveFrom.facing) === plan.moveFrom.facing
   )
 
@@ -127,7 +117,7 @@ export function RoutePlanner() {
         onToggle={() => setOverride(!open)}
         dest={dest}
         route={route}
-        hasRoutes={plan.routes.length > 0}
+        hasRoutes={routePlan.routes.length > 0}
         taken={taken}
       />
 
@@ -144,12 +134,12 @@ export function RoutePlanner() {
             borderTop: `1px solid ${TABLE.line}`,
           }}
         >
-          {plan.routeStation && (
+          {routePlan.routeStation && (
             <StationAim
-              station={plan.routeStation}
-              mode={plan.routeMode}
+              station={routePlan.routeStation}
+              mode={routePlan.routeMode}
               disabled={disabled}
-              onSet={plan.setRouteMode}
+              onSet={routePlan.setRouteMode}
             />
           )}
 
@@ -165,20 +155,20 @@ export function RoutePlanner() {
             }}
             onClear={() => {
               setOverride(true)
-              plan.setRouteDestination(null)
+              routePlan.setRouteDestination(null)
             }}
           />
 
           {dest && (
             <ReserveRow
-              reserve={Math.min(plan.routeReserve, plan.me.ship.reactionMass)}
+              reserve={Math.min(routePlan.routeReserve, plan.me.ship.reactionMass)}
               max={plan.me.ship.reactionMass}
               disabled={disabled}
-              onSet={plan.setRouteReserve}
+              onSet={routePlan.setRouteReserve}
             />
           )}
 
-          {dest && plan.routes.length === 0 && (
+          {dest && routePlan.routes.length === 0 && (
             <Typography
               sx={{
                 fontFamily: FONT_MONO,
@@ -187,8 +177,8 @@ export function RoutePlanner() {
                 lineHeight: 1.4,
               }}
             >
-              {plan.routeReserve > 0
-                ? `No route there within 20 turns that arrives with ${Math.min(plan.routeReserve, plan.me.ship.reactionMass)} fuel.`
+              {routePlan.routeReserve > 0
+                ? `No route there within 20 turns that arrives with ${Math.min(routePlan.routeReserve, plan.me.ship.reactionMass)} fuel.`
                 : 'No route there within 20 turns on the fuel aboard.'}
             </Typography>
           )}
@@ -196,9 +186,9 @@ export function RoutePlanner() {
           {route && (
             <>
               <RouteTable
-                routes={plan.routes}
-                selected={plan.routeIndex}
-                onSelect={plan.selectRoute}
+                routes={routePlan.routes}
+                selected={routePlan.routeIndex}
+                onSelect={routePlan.selectRoute}
               />
               <Itinerary route={route} facing={plan.me.ship.facing} taken={taken} />
               <FirstStep
@@ -206,7 +196,7 @@ export function RoutePlanner() {
                 facing={plan.me.ship.facing}
                 taken={taken}
                 disabled={disabled}
-                onTake={plan.applyRouteStep}
+                onTake={routePlan.applyRouteStep}
               />
             </>
           )}

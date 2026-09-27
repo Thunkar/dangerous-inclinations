@@ -434,6 +434,7 @@ __metadata:
     react-dom: "npm:^19.1.1"
     three: "npm:0.186.0"
     vite: "npm:^7.1.7"
+    vitest: "npm:^4.0.8"
     zod: "npm:^3.23.8"
   languageName: unknown
   linkType: soft

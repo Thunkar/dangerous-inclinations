@@ -1,21 +1,12 @@
 /**
  * PlanContext: the turn you are putting together.
  *
- * An ordered list of steps (rotate, one move, any number of weapons, a scan),
- * plus the tiles you power. Every number here is a preview computed with pure
- * engine functions: range, projected position, costs. The server is the
- * referee; nothing here advances state.
- *
- * **Energy is shown, not set.** Every action puts energy on the tile it uses,
- * to the one draw that action has, so the energy on the loadout is a readout
- * of the plan rather than a thing to arrange. Powering is an action too, for
- * the three tiles that work on other players' turns: shields (2 or 4), a
- * ballistic rack and a sensor array (`isPowerableType`). Those are the plan's
- * power choices, and they start empty every turn.
- *
- * **The plan starts from an empty loadout.** Your loadout is cleared when your
- * turn executes, so the energy the view still shows on your own tiles while
- * you plan is last turn's: none of it is carried into the preview.
+ * It holds what the player chose (the steps, the powers, a repair, the dock
+ * job, Escort markers, what a click is currently picking) and the verbs that
+ * edit them. Every number shown for the plan is `plan/preview.ts`, which reads
+ * the choices against the engine's pure functions; the server is the referee
+ * and nothing here advances state. The route planner keeps its own state in
+ * `RoutePlanContext`.
  */
 import {
   createContext,
@@ -34,99 +25,39 @@ import type {
   JumpOption,
   Player,
   PlayerAction,
-  Position,
   SlotView,
   Subsystem,
   SubsystemId,
-  MovementPlan,
-  MovementStep,
-  Station,
 } from '@dangerous-inclinations/engine'
 import {
-  isSafeAtBerth,
-  BURN_COSTS,
-  SCAN_SECTOR_RANGE,
-  WELL_TRANSFER_COSTS,
-  calculateBurnMassCost,
-  calculateJumpMassCost,
-  canSubsystemFunction,
   chosenDockJob,
-  dockJobsOnArrival,
-  escortCandidates,
-  unplacedEscorts,
-  drawFor,
+  energyStepOf,
   getAdjustmentRange,
   getJumpAdjustmentRange,
   getJumpOptions,
-  MAX_REACTION_MASS,
-  getMaxRing,
-  energyStepOf,
-  getEffectiveCriticalChance,
   getSubsystemConfig,
-  hasWorkingCompressor,
   heatFromCubes,
-  canEngage,
-  isInWeaponRange,
-  isDestroyed,
   isMooredAt,
-  isPowerableType,
-  isWeaponType,
-  opponentPositions,
-  phasedJumpDestination,
-  projectPosition,
   ringVelocity,
-  sectorDistance,
-  getStationAt,
-  planMovementAlternatives,
-  planMovementToTarget,
-  staticTarget,
-  stationTarget,
-  planStationMeetUp,
-  samePosition,
-  stationPosition,
 } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
-import { slotWithSubsystem } from '../utils/slots'
-import { ROUTE_SEARCH_TURNS } from '../utils/route'
-import { lowestCritical } from '../site/numbers'
-
-/**
- * What "go there" means when the destination is a station.
- *
- * A station is not a place, it is a thing on a circuit: it advances 4 sectors
- * at the end of every round. Planning to the sector it is on today lands the
- * ship where it used to be, which is never what anyone clicking a station
- * wanted, so a station destination means `meet` unless you say otherwise.
- */
-export type RouteMode = 'meet' | 'sector'
-
-export type MoveChoice =
-  | { kind: 'coast'; scoop: boolean }
-  | { kind: 'burn'; intensity: BurnIntensity; adjustment: number }
-  | { kind: 'jump'; destinationWellId: string; adjustment: number }
-
-export type PlanStep =
-  | { id: string; kind: 'rotate' }
-  | { id: string; kind: 'move'; move: MoveChoice }
-  | {
-      id: string
-      kind: 'fire'
-      subsystemId: SubsystemId
-      targetId: string | null
-      criticalTarget: SubsystemId
-      compensateRecoil: boolean
-      /**
-       * Missiles only: how many of the tile's remaining rounds this action puts
-       * in the air, at one ship and one named slot. Every other weapon fires
-       * once, so it stays at 1.
-       */
-      count: number
-    }
-  | { id: string; kind: 'scan'; targetId: string | null; peekSlot: SubsystemId | null }
-
-export type FireStep = Extract<PlanStep, { kind: 'fire' }>
-export type ScanStep = Extract<PlanStep, { kind: 'scan' }>
-export type MoveStep = Extract<PlanStep, { kind: 'move' }>
+import {
+  criticalFrom as criticalFromPlan,
+  moveReadiness,
+  planActions,
+  powerableTile,
+  previewPlan,
+  targetsInRange as targetsInRangeOf,
+  targetsOutOfReach as targetsOutOfReachOf,
+  type FireStep,
+  type MoveChoice,
+  type MoveReadiness,
+  type MoveStep,
+  type PlanStep,
+  type ScanStep,
+  type StepContext,
+  type Target,
+} from '../plan/preview'
 
 /** What a click on an opponent's loadout is currently for. */
 export type Picking =
@@ -135,16 +66,6 @@ export type Picking =
   /** Choosing a destination sector for the route planner. */
   | { kind: 'destination' }
   | null
-
-export interface StepContext {
-  position: Position
-  facing: Facing
-}
-
-export interface Target {
-  id: string
-  position: Position
-}
 
 interface PlanContextValue {
   me: Player
@@ -164,12 +85,7 @@ interface PlanContextValue {
   usedBy: (subsystemId: SubsystemId) => 'fire' | 'scan' | null
   /** My subsystems as the plan leaves them: an empty loadout plus the powers and the steps' draws. */
   pendingSubsystems: Subsystem[]
-  /**
-   * The lowest d10 face that is a critical for this fire step. A sensor with
-   * energy on it widens the range: a powered one for every shot (power runs
-   * first), a scan for the shots after it, and a missile rolls after all your
-   * actions, so it gets whatever the turn left on the sensor.
-   */
+  /** The lowest d10 face that is a critical for this fire step (`plan/preview.ts`). */
   criticalFrom: (step: PlanStep) => number
   /** Ship position and facing at the start of each step (index-aligned with `steps`). */
   stepStart: StepContext[]
@@ -182,10 +98,7 @@ interface PlanContextValue {
   jumpAdjustmentRange: { min: number; max: number }
   /** Docked at a station: a coast holds the berth, only a burn casts off. */
   moored: boolean
-  /**
-   * Whether each move can actually be taken from the loadout as it is planned.
-   * A control the engine would refuse is not offered (see {@link MoveReadiness}).
-   */
+  /** Whether each move can be taken from the loadout as planned (see {@link MoveReadiness}). */
   rotateReady: MoveReadiness
   burnReady: Record<BurnIntensity, MoveReadiness>
   jumpReady: MoveReadiness
@@ -215,6 +128,11 @@ interface PlanContextValue {
    */
   setEnergyTo: (subsystemId: SubsystemId, value: number) => void
   setMove: (move: MoveChoice) => void
+  /**
+   * Set the move and the facing it needs: a rotation goes in before the move
+   * when the ship points the wrong way, and comes out when it does not.
+   */
+  applyMove: (move: MoveChoice, facing: Facing | null) => void
   toggleRotate: () => void
   addFire: (subsystemId: SubsystemId) => void
   addScan: () => void
@@ -255,33 +173,6 @@ interface PlanContextValue {
   /** Carriers the player chose to mark: a "you may", so none until picked. */
   escortChoices: string[]
   toggleEscort: (carrierId: string) => void
-  /** Route planner: a destination sector, the routes the engine finds, and the one in view. */
-  routeDestination: Position | null
-  /**
-   * The station the destination was picked on, if any: held by id, because a
-   * station drifts 4 sectors every round and the sector you clicked stops
-   * being the one it is on.
-   */
-  routeStation: Station | null
-  /**
-   * `meet` aims at where the station will be when the ship gets there; `sector`
-   * aims at the fixed sector. Only a station destination can be `meet`.
-   */
-  routeMode: RouteMode
-  setRouteMode: (mode: RouteMode) => void
-  /**
-   * Fuel the route must still have aboard when it arrives: a Tanker's card,
-   * or a margin for the trip after. The route may not spend it.
-   */
-  routeReserve: number
-  setRouteReserve: (fuel: number) => void
-  routes: MovementPlan[]
-  route: MovementPlan | null
-  routeIndex: number
-  setRouteDestination: (position: Position | null) => void
-  selectRoute: (index: number) => void
-  /** Turn the route's first step into this turn's move (rotation and cubes included). */
-  applyRouteStep: () => void
 }
 
 const PlanContext = createContext<PlanContextValue | undefined>(undefined)
@@ -289,136 +180,26 @@ const PlanContext = createContext<PlanContextValue | undefined>(undefined)
 let stepCounter = 0
 const stepId = () => `step-${++stepCounter}`
 
-const flip = (facing: Facing): Facing => (facing === 'prograde' ? 'retrograde' : 'prograde')
-
-/**
- * Whether a move is available, and what is in the way if it is not.
- *
- * The engine refuses a burn whose engines are dark, a rotation with nothing on
- * the thrusters and a jump with no fuel, but the buttons offered all three and
- * only said so after the turn was submitted. Every check here is the one the
- * validator makes (`game/validators.ts`), read off the loadout as the player has
- * planned it. Cubes they are about to move count, because that is the loadout the
- * turn will be taken with.
- *
- * `reason` is a clause, so a tooltip can end a sentence with it.
- */
-export interface MoveReadiness {
-  ok: boolean
-  reason: string
-}
-
-const READY: MoveReadiness = { ok: true, reason: '' }
-const blocked = (reason: string): MoveReadiness => ({ ok: false, reason })
-
-const BURN_INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
-
-/**
- * A burn changes exactly its number of rings: there is no partial burn off
- * the edge of the well (RULES §Burn), and the engine rejects one that would
- * leave the rings. Prograde burns outward, retrograde inward.
- */
-function burnFitsInWell(position: Position, facing: Facing, intensity: BurnIntensity): boolean {
-  const ring = position.ring + (facing === 'prograde' ? 1 : -1) * BURN_COSTS[intensity].rings
-  return ring >= 1 && ring <= getMaxRing(position.wellId)
-}
-
 const bySlotOrder = (a: SlotView, b: SlotView) =>
   a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1
 
 /**
- * The tile each step uses. Each tile does one thing a turn, so a tile a step
- * fires or scans with is not powered as well: the action leaves its energy on
- * it, so a rack that fired is up and a sensor that scanned widens the range.
- */
-function tilesUsedBy(player: Player, steps: PlanStep[]): Record<SubsystemId, 'fire' | 'scan'> {
-  const used: Record<SubsystemId, 'fire' | 'scan'> = {}
-  for (const step of steps) {
-    if (step.kind === 'fire') used[step.subsystemId] = 'fire'
-    else if (step.kind === 'scan') {
-      const sensor = player.ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken)
-      if (sensor) used[sensor.id] = 'scan'
-    }
-  }
-  return used
-}
-
-/** The tile a power action may go on, or null: powerable, unbroken and not used by a step. */
-function powerableTile(
-  player: Player,
-  used: Record<SubsystemId, 'fire' | 'scan'>,
-  subsystemId: SubsystemId
-): Subsystem | null {
-  const sub = player.ship.subsystems.find(s => s.id === subsystemId)
-  if (!sub || sub.isBroken || !isPowerableType(sub.type) || used[subsystemId]) return null
-  return sub
-}
-
-/**
- * The loadout a plan leaves: every tile starts empty, because the loadout is
- * cleared when the turn executes, then takes the plan's power or its step's
- * draw.
- */
-function loadoutFor(
-  player: Player,
-  powers: Record<SubsystemId, number>,
-  draws: Record<SubsystemId, number>
-): Subsystem[] {
-  return player.ship.subsystems.map(s => {
-    const allocatedEnergy = s.isBroken ? 0 : (powers[s.id] ?? draws[s.id] ?? 0)
-    const next = { ...s, allocatedEnergy }
-    return { ...next, isPowered: canSubsystemFunction(next) }
-  })
-}
-
-/**
- * A turn opens on a plain coast. It used to open on a scoop when the scoop was
- * already holding its cubes, because leaving them on the tile was the
- * decision; nothing holds cubes between turns now, so the scoop is a chip you
- * tick on the turns you want it.
+ * A turn opens on a plain coast: nothing holds cubes between turns, so the
+ * scoop is a chip you tick on the turns you want it.
  */
 function defaultSteps(): PlanStep[] {
   return [{ id: stepId(), kind: 'move', move: { kind: 'coast', scoop: false } }]
 }
 
-/**
- * The cubes each step puts on the tile it uses. This is the whole of the old
- * energy step: there was never a choice in any of these numbers, only one
- * legal figure per tile and the chance of typing it wrong.
- */
-function drawsFor(player: Player, steps: PlanStep[]): Record<SubsystemId, number> {
-  const draws: Record<SubsystemId, number> = {}
-  const take = (id: SubsystemId, cubes: number) => {
-    const sub = player.ship.subsystems.find(s => s.id === id)
-    if (!sub || sub.isBroken) return
-    draws[id] = Math.max(draws[id] ?? 0, cubes)
-  }
-  for (const step of steps) {
-    switch (step.kind) {
-      case 'rotate':
-        take('rotation', drawFor('rotation'))
-        break
-      case 'move':
-        if (step.move.kind === 'burn')
-          take('engines', drawFor('engines', BURN_COSTS[step.move.intensity].energy))
-        else if (step.move.kind === 'jump')
-          take('engines', drawFor('engines', WELL_TRANSFER_COSTS.energy))
-        else if (step.move.scoop) take('scoop', drawFor('scoop'))
-        break
-      case 'fire': {
-        const weapon = player.ship.subsystems.find(s => s.id === step.subsystemId)
-        if (weapon) take(weapon.id, drawFor(weapon.type))
-        if (step.compensateRecoil) take('engines', drawFor('engines', BURN_COSTS.soft.energy))
-        break
-      }
-      case 'scan': {
-        const sensor = player.ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken)
-        if (sensor) take(sensor.id, drawFor('sensor_array'))
-        break
-      }
-    }
-  }
-  return draws
+/** The steps with the rotation (if one is needed) just before the move. */
+function withRotation(steps: PlanStep[], rotate: boolean): PlanStep[] {
+  const next: PlanStep[] = steps.filter(s => s.kind !== 'rotate')
+  const moveIndex = Math.max(
+    0,
+    next.findIndex(s => s.kind === 'move')
+  )
+  if (rotate) next.splice(moveIndex, 0, { id: stepId(), kind: 'rotate' })
+  return next
 }
 
 export function PlanProvider({ children }: { children: ReactNode }) {
@@ -439,11 +220,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [repairChoice, setRepairChoiceState] = useState<SubsystemId | null>(null)
   const [dockChoice, setDockChoice] = useState<DockJob | null>(null)
   const [escortChoices, setEscortChoices] = useState<string[]>([])
-  const [routeDestination, setRouteDestinationState] = useState<Position | null>(null)
-  const [routeStationId, setRouteStationId] = useState<string | null>(null)
-  const [routeMode, setRouteMode] = useState<RouteMode>('meet')
-  const [routeReserve, setRouteReserve] = useState(0)
-  const [routeIndex, setRouteIndex] = useState(0)
 
   const isMyTurn = !readOnly && view.activePlayerId === me.id && view.phase === 'active'
   const disabled = !isMyTurn || isAnimating
@@ -463,130 +239,39 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     // Keying on the turn and the active seat is what actually means "new turn".
   }, [view.turn, view.activePlayerId, readOnly, reset])
 
-  /** The tile each step uses, which is therefore not powerable this turn. */
-  const used = useMemo(() => tilesUsedBy(me, steps), [me, steps])
-  /**
-   * The powers that stand: a choice on a tile a step now uses (or that broke)
-   * is dropped rather than refused, since the step leaves its energy there.
-   */
-  const planPowers = useMemo(() => {
-    const out: Record<SubsystemId, number> = {}
-    for (const [id, amount] of Object.entries(powers) as Array<[SubsystemId, number]>) {
-      if (amount > 0 && powerableTile(me, used, id)) out[id] = amount
-    }
-    return out
-  }, [me, powers, used])
-
-  /**
-   * The loadout as the plan leaves it: empty, then the plan's powers and the
-   * energy each step's action puts on the tile it uses. Nothing shows energy
-   * it has no use for, and nothing of last turn's shows at all.
-   */
-  const draws = useMemo(() => drawsFor(me, steps), [me, steps])
-  const pendingSubsystems = useMemo<Subsystem[]>(
-    () => loadoutFor(me, planPowers, draws),
-    [me, planPowers, draws]
-  )
-
-  /** Energy the plan leaves on the loadout: the heat it will cost at the check. */
-  const cubesOnLoadout = useMemo(() => heatFromCubes(pendingSubsystems), [pendingSubsystems])
-  const projectedHeat = me.ship.heat.currentHeat + cubesOnLoadout
-
-  const criticalFrom = useCallback(
-    (step: PlanStep): number => {
-      if (step.kind !== 'fire') return lowestCritical(getEffectiveCriticalChance([]))
-      const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
-      // Power actions run before every step, so only the steps are cut at the
-      // shot. A missile rolls when it arrives, after the whole turn's actions.
-      const index = steps.findIndex(s => s.id === step.id)
-      const before = weapon?.type === 'missiles' || index < 0 ? steps : steps.slice(0, index)
-      const loadout = loadoutFor(me, planPowers, drawsFor(me, before))
-      return lowestCritical(getEffectiveCriticalChance(loadout))
-    },
-    [me, planPowers, steps]
-  )
-
-  const usedBy = useCallback((subsystemId: SubsystemId) => used[subsystemId] ?? null, [used])
-  const pendingShip = useMemo(
-    () => ({ ...me.ship, subsystems: pendingSubsystems }),
-    [me.ship, pendingSubsystems]
-  )
-  /**
-   * A ship just back from a respawn cannot be touched until the turn it plays
-   * next is over (RULES §Destruction and Respawn), so it is on no picker and
-   * in no range list: the engine would refuse the shot or the scan. Your own
-   * returning turn is quiet the same way, which the Systems step enforces by
-   * greying out every weapon and the scan.
-   */
-  const targets = useMemo<Target[]>(() => {
-    const untouchable = new Set(view.players.filter(p => p.recovering).map(p => p.id))
-    return opponentPositions(view).filter(t => !untouchable.has(t.id))
-  }, [view])
+  const preview = useMemo(() => previewPlan(view, me, steps, powers), [view, me, steps, powers])
+  const { used, loadout: pendingSubsystems, stepStart, finalPosition, moveFrom, targets } = preview
 
   const moveStep = useMemo(
     () => steps.find((s): s is MoveStep => s.kind === 'move') ?? (defaultSteps()[0] as MoveStep),
     [steps]
   )
 
-  // Walk the sequence: where is the ship at the start of each step?
-  const { stepStart, finalPosition } = useMemo(() => {
-    let position: Position = { wellId: me.ship.wellId, ring: me.ship.ring, sector: me.ship.sector }
-    let facing: Facing = me.ship.facing
-    const starts: StepContext[] = []
-    for (const step of steps) {
-      starts.push({ position, facing })
-      switch (step.kind) {
-        case 'rotate':
-          facing = flip(facing)
-          break
-        case 'move': {
-          const move = step.move
-          const shipHere = { ...me.ship, ...position, facing }
-          if (move.kind === 'jump') {
-            const jump = getJumpOptions(position).find(
-              o => o.destination.wellId === move.destinationWellId
-            )
-            const landing = jump && phasedJumpDestination(jump, move.adjustment)
-            if (landing) position = landing
-          } else {
-            const p =
-              move.kind === 'burn'
-                ? projectPosition(shipHere, facing, {
-                    kind: 'burn',
-                    burnIntensity: move.intensity,
-                    sectorAdjustment: move.adjustment,
-                  })
-                : projectPosition(shipHere, facing, {
-                    kind: 'coast',
-                    moored: isMooredAt(view.stations, position),
-                  })
-            position = { wellId: p.wellId, ring: p.ring, sector: p.sector }
-          }
-          break
-        }
-        case 'fire': {
-          const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
-          const recoils =
-            weapon &&
-            getSubsystemConfig(weapon.type).weaponStats?.hasRecoil &&
-            !step.compensateRecoil
-          if (recoils) {
-            const ring = position.ring + (facing === 'prograde' ? 1 : -1)
-            if (ring >= 1 && ring <= getMaxRing(position.wellId)) position = { ...position, ring }
-          }
-          break
-        }
-        case 'scan':
-          break
-      }
-    }
-    return { stepStart: starts, finalPosition: { position, facing } }
-  }, [steps, me.ship, pendingSubsystems, view.stations])
+  const projectedHeat = me.ship.heat.currentHeat + heatFromCubes(pendingSubsystems)
 
-  const moveFrom = useMemo(() => {
-    const index = steps.findIndex(s => s.kind === 'move')
-    return index >= 0 ? stepStart[index] : { position: me.ship, facing: me.ship.facing }
-  }, [steps, stepStart, me.ship])
+  const criticalFrom = useCallback(
+    (step: PlanStep) => criticalFromPlan(me, preview.powers, steps, step),
+    [me, preview.powers, steps]
+  )
+  const usedBy = useCallback((subsystemId: SubsystemId) => used[subsystemId] ?? null, [used])
+
+  /** Where a step starts: a step not in the plan is asked about from where the ship is now. */
+  const startOf = useCallback(
+    (step: PlanStep): StepContext => {
+      const index = steps.findIndex(s => s.id === step.id)
+      return index >= 0 ? stepStart[index] : { position: me.ship, facing: me.ship.facing }
+    },
+    [steps, stepStart, me.ship]
+  )
+  const targetsInRange = useCallback(
+    (step: PlanStep) => targetsInRangeOf(view, me, step, startOf(step), pendingSubsystems, targets),
+    [view, me, startOf, pendingSubsystems, targets]
+  )
+  const targetsOutOfReach = useCallback(
+    (step: PlanStep) =>
+      targetsOutOfReachOf(view, me, step, startOf(step), pendingSubsystems, targets),
+    [view, me, startOf, pendingSubsystems, targets]
+  )
 
   const jumpOptions = useMemo(() => getJumpOptions(moveFrom.position), [moveFrom])
   const moored = useMemo(
@@ -605,389 +290,31 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     () => getAdjustmentRange(ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)),
     [moveFrom]
   )
-  const rotateReady = useMemo<MoveReadiness>(() => {
-    const thrusters = pendingSubsystems.find(s => s.id === 'rotation')
-    if (!thrusters || thrusters.isBroken) return blocked('the thrusters are broken')
-    if (thrusters.usedThisTurn) return blocked('the thrusters have already turned the ship')
-    return READY
-  }, [pendingSubsystems])
-
-  const burnReady = useMemo<Record<BurnIntensity, MoveReadiness>>(() => {
-    const engines = pendingSubsystems.find(s => s.id === 'engines')
-    // Phasing is part of the fuel bill, so the burn already being planned is
-    // priced with the sectors it is shifting; the mode button asks about a
-    // plain burn.
-    const adjustment = moveStep.move.kind === 'burn' ? moveStep.move.adjustment : 0
-    const outward = moveFrom.facing === 'prograde' ? 'outward' : 'inward'
-    const entries = BURN_INTENSITIES.map(intensity => {
-      const cost = BURN_COSTS[intensity]
-      const rings = `${cost.rings} ring${cost.rings === 1 ? '' : 's'} ${outward}`
-      const mass = calculateBurnMassCost(cost.mass, adjustment)
-      const state =
-        !engines || engines.isBroken
-          ? blocked('the engines are broken')
-          : !burnFitsInWell(moveFrom.position, moveFrom.facing, intensity)
-            ? blocked(
-                `there are not ${rings} from ring ${moveFrom.position.ring}: rotate to burn the other way`
-              )
-            : engines.usedThisTurn
-              ? blocked('the engines have already burned this turn')
-              : me.ship.reactionMass < mass
-                ? blocked(`it costs ${mass} fuel and ${me.ship.reactionMass} is aboard`)
-                : READY
-      return [intensity, state]
-    })
-    return Object.fromEntries(entries) as Record<BurnIntensity, MoveReadiness>
-  }, [pendingSubsystems, moveFrom, moveStep, me.ship.reactionMass])
-
-  const jumpReady = useMemo<MoveReadiness>(() => {
-    if (jumpOptions.length === 0)
-      return blocked('jumps leave only from a lane end, and this sector is not one')
-    const engines = pendingSubsystems.find(s => s.id === 'engines')
-    if (!engines || engines.isBroken) return blocked('the engines are broken')
-    if (engines.usedThisTurn) return blocked('the engines have already burned this turn')
-    const adjustment = moveStep.move.kind === 'jump' ? moveStep.move.adjustment : 0
-    const compressor = hasWorkingCompressor({ ...me.ship, subsystems: pendingSubsystems })
-    const mass = calculateJumpMassCost(adjustment, compressor)
-    if (me.ship.reactionMass < mass)
-      return blocked(`it costs ${mass} fuel and ${me.ship.reactionMass} is aboard`)
-    return READY
-  }, [jumpOptions, pendingSubsystems, moveStep, me.ship])
-
+  const { rotateReady, burnReady, jumpReady } = useMemo(
+    () => moveReadiness(me, pendingSubsystems, moveFrom, moveStep.move),
+    [me, pendingSubsystems, moveFrom, moveStep]
+  )
   const scoopGain = useMemo(() => {
     const scoop = pendingSubsystems.find(s => s.id === 'scoop')
     if (!scoop || scoop.isBroken) return 0
     return ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
   }, [pendingSubsystems, moveFrom])
 
-  /** Where the shot is fired from. */
-  const firingFrom = useCallback(
-    (step: PlanStep) => {
-      const index = steps.findIndex(s => s.id === step.id)
-      const at = index >= 0 ? stepStart[index] : { position: me.ship, facing: me.ship.facing }
-      return { attacker: { ...at.position, facing: at.facing } }
-    },
-    [steps, stepStart, me.ship]
-  )
-
-  /**
-   * A moored ship neither fires nor is fired at, missiles included (RULES
-   * §Stations): the engine's own question, asked of where the shot would be
-   * fired from and of where the target sits. Scans still reach a berth.
-   */
-  const safeAtBerth = useCallback(
-    (position: Position) => isSafeAtBerth(view.stations, position),
-    [view.stations]
-  )
-
-  const targetsOutOfReach = useCallback(
-    (step: PlanStep): Target[] => {
-      if (step.kind !== 'fire') return []
-      const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
-      if (!weapon) return []
-      const { attacker } = firingFrom(step)
-      if (safeAtBerth(attacker)) return []
-      return targets.filter(
-        t =>
-          !safeAtBerth(t.position) &&
-          isInWeaponRange(weapon, attacker, t.position) &&
-          !canEngage(weapon, attacker, t.position)
-      )
-    },
-    [firingFrom, pendingSubsystems, targets, safeAtBerth]
-  )
-
-  const targetsInRange = useCallback(
-    (step: PlanStep): Target[] => {
-      const index = steps.findIndex(s => s.id === step.id)
-      const at = index >= 0 ? stepStart[index] : { position: me.ship, facing: me.ship.facing }
-      const attacker = { ...at.position, facing: at.facing }
-      if (step.kind === 'fire') {
-        const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
-        if (!weapon || safeAtBerth(attacker)) return []
-        return targets.filter(
-          t => !safeAtBerth(t.position) && isInWeaponRange(weapon, attacker, t.position)
-        )
-      }
-      if (step.kind === 'scan') {
-        return targets.filter(
-          t =>
-            t.position.wellId === attacker.wellId &&
-            t.position.ring === attacker.ring &&
-            sectorDistance(attacker.sector, t.position.sector) <= SCAN_SECTOR_RANGE
-        )
-      }
-      return []
-    },
-    [steps, stepStart, targets, pendingSubsystems, me.ship, safeAtBerth]
-  )
-
-  const engines = pendingSubsystems.find(s => s.id === 'engines')
-  const compressor = hasWorkingCompressor(pendingShip)
-
-  /** The station the destination was picked on, found again by id as it drifts. */
-  const routeStation = useMemo<Station | null>(
-    () => (routeStationId ? (view.stations.find(s => s.id === routeStationId) ?? null) : null),
-    [routeStationId, view.stations]
-  )
-
-  // Route planner: from where the ship is now (the first step is this turn's move).
-  const routes = useMemo<MovementPlan[]>(() => {
-    // Meeting a station is a forward search against a moving target, so it
-    // yields the one plan that arrives when the station does, not a set of
-    // alternatives to a fixed sector.
-    // Fuel to arrive with. The route may run lower on the way and scoop back
-    // up; only the forward search knows the fuel at every step, so a route
-    // that has to arrive with some is one plan from it.
-    const reserve = Math.min(routeReserve, me.ship.reactionMass)
-    const scoop = pendingSubsystems.find(s => s.id === 'scoop')
-    const origin = {
-      wellId: me.ship.wellId,
-      ring: me.ship.ring,
-      sector: me.ship.sector,
-      facing: me.ship.facing,
-    }
-    const options = {
-      availableMass: me.ship.reactionMass,
-      hasFuelScoop: Boolean(scoop && !scoop.isBroken),
-      maxFuelCapacity: view.myStats?.maxReactionMass ?? me.ship.reactionMass,
-      hasFuelCompressor: compressor,
-      allowWellTransfers: true,
-      maxTurns: ROUTE_SEARCH_TURNS,
-      arrivalMass: reserve,
-    }
-    if (routeStation && routeMode === 'meet') {
-      if (samePosition(me.ship, stationPosition(routeStation))) return []
-      if (reserve > 0) {
-        const plan = planMovementToTarget(origin, stationTarget(routeStation), options)
-        return plan ? [plan] : []
-      }
-      const meet = planStationMeetUp(me.ship, routeStation, ROUTE_SEARCH_TURNS)
-      return meet ? [meet.plan] : []
-    }
-    if (!routeDestination || samePosition(me.ship, routeDestination)) return []
-    if (reserve > 0) {
-      const plan = planMovementToTarget(origin, staticTarget(routeDestination), options)
-      return plan ? [plan] : []
-    }
-    return planMovementAlternatives(origin, routeDestination, options)?.alternatives ?? []
-  }, [
-    routeDestination,
-    routeStation,
-    routeMode,
-    routeReserve,
-    me.ship,
-    pendingSubsystems,
-    compressor,
-    view.myStats,
-  ])
-  const route = routes[Math.min(routeIndex, Math.max(0, routes.length - 1))] ?? null
-
-  // Arrived: the route has done its job. Meeting a station ends when the ship
-  // is on the station, wherever the two of them got to.
-  useEffect(() => {
-    const arrived =
-      routeStation && routeMode === 'meet'
-        ? samePosition(me.ship, stationPosition(routeStation))
-        : routeDestination !== null && samePosition(me.ship, routeDestination)
-    if (arrived) {
-      setRouteDestinationState(null)
-      setRouteStationId(null)
-    }
-  }, [routeDestination, routeStation, routeMode, me.ship])
-
-  /**
-   * Walk the sequence in order. Fuel is spent *and earned* as the turn plays
-   * out, so a scoop earlier in the sequence pays for a burn or a recoil
-   * compensation later in it, exactly as the engine sees it. Heat is not
-   * walked: it is every point of energy on the loadout, whatever order it
-   * went on in (`projectedHeat`).
-   */
-  const { projectedFuel, issues } = useMemo(() => {
-    let fuel = me.ship.reactionMass
-    const maxFuel = MAX_REACTION_MASS
-    const problems: string[] = []
-    let engineUses = 0
-    let reportedShortFuel = false
-    // A ship that just came back is off every target list until its own turn
-    // is over, so a step still aimed at one is named rather than reported as
-    // out of range.
-    const untouchable = (id: string) => view.players.some(p => p.id === id && p.recovering)
-    const nameOf = (id: string) => view.players.find(p => p.id === id)?.name ?? id
-    /** A target moored at a station: a ship off the board is at no berth. */
-    const targetAtBerth = (id: string): boolean => {
-      const ship = view.players.find(p => p.id === id)?.ship
-      return (
-        !!ship &&
-        !ship.isDestroyed &&
-        safeAtBerth({ wellId: ship.wellId, ring: ship.ring, sector: ship.sector })
-      )
-    }
-
-    const spend = (amount: number, what: string) => {
-      if (amount > fuel && !reportedShortFuel) {
-        reportedShortFuel = true
-        problems.push(`Not enough fuel for ${what}: ${amount} needed, ${fuel} in the tank by then`)
-      }
-      fuel = Math.max(0, fuel - amount)
-    }
-
-    steps.forEach((step, index) => {
-      const at = stepStart[index]
-      switch (step.kind) {
-        case 'rotate': {
-          const thrusters = pendingSubsystems.find(s => s.id === 'rotation')
-          if (!thrusters || thrusters.isBroken)
-            problems.push('Maneuvering thrusters are broken: no rotation')
-          break
-        }
-        case 'move': {
-          const move = step.move
-          if (move.kind === 'burn') {
-            const cost = BURN_COSTS[move.intensity]
-            const range = getAdjustmentRange(ringVelocity(at.position.wellId, at.position.ring))
-            engineUses++
-            if (!engines || engines.isBroken) problems.push('Engines are broken: no burn')
-            if (move.adjustment < range.min || move.adjustment > range.max)
-              problems.push(`Phasing must be between ${range.min} and +${range.max} from this ring`)
-            if (!burnFitsInWell(at.position, at.facing, move.intensity)) {
-              problems.push(
-                `A ${move.intensity} burn ${at.facing === 'prograde' ? 'outward' : 'inward'} from ring ${
-                  at.position.ring
-                } would leave the rings`
-              )
-            }
-            spend(calculateBurnMassCost(cost.mass, move.adjustment), `a ${move.intensity} burn`)
-          } else if (move.kind === 'jump') {
-            engineUses++
-            const option = getJumpOptions(at.position).find(
-              o => o.destination.wellId === move.destinationWellId
-            )
-            if (!option) problems.push('No transfer lane from here to that destination')
-            else {
-              const range = getJumpAdjustmentRange(option)
-              if (move.adjustment < range.min || move.adjustment > range.max)
-                problems.push(
-                  `Phasing a jump stays inside the arrival arc (${range.min} to +${range.max} from here)`
-                )
-            }
-            if (!engines || engines.isBroken) problems.push('Engines are broken: no jump')
-            spend(calculateJumpMassCost(move.adjustment, compressor), 'a jump')
-          } else if (move.scoop) {
-            const scoop = pendingSubsystems.find(s => s.id === 'scoop')
-            if (!scoop || scoop.isBroken) problems.push('Fuel scoop is broken')
-            // Recover fuel equal to this ring's velocity, up to the tank's capacity.
-            else fuel = Math.min(maxFuel, fuel + ringVelocity(at.position.wellId, at.position.ring))
-          }
-          break
-        }
-        case 'fire': {
-          const weapon = pendingSubsystems.find(s => s.id === step.subsystemId)
-          if (!weapon || !isWeaponType(weapon.type)) break
-          const config = getSubsystemConfig(weapon.type)
-          const name = slotWithSubsystem(weapon.id, weapon.type)
-          // A salvo is one use of the tile, its energy once however big the
-          // launch (RULES §Weapons → Missiles).
-          if (weapon.isBroken) problems.push(`${name} is broken`)
-          if (weapon.type === 'missiles') {
-            const ammo = weapon.ammo ?? 0
-            if (ammo <= 0) problems.push(`${name}: no missiles left aboard`)
-            else if (step.count > ammo)
-              problems.push(`${name}: ${step.count} missiles planned, ${ammo} aboard`)
-            if (step.count < 1)
-              problems.push(`${name}: a salvo launches at least one missile`)
-          }
-          if (safeAtBerth(at.position))
-            problems.push('A moored ship fires at nobody: burn off the berth first')
-          else if (!step.targetId) problems.push(`${name}: pick a target`)
-          else if (targetAtBerth(step.targetId))
-            problems.push(`${nameOf(step.targetId)} is moored: nobody fires at a ship at a berth`)
-          else if (untouchable(step.targetId))
-            problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
-          else if (!targetsInRange(step).some(t => t.id === step.targetId))
-            problems.push(`${name}: target out of range from where you fire`)
-          if (config.weaponStats?.hasRecoil) {
-            if (step.compensateRecoil) {
-              engineUses++
-              if (!engines || engines.isBroken)
-                problems.push('Engines are broken: nothing to cancel the recoil with')
-              spend(BURN_COSTS.soft.mass, 'recoil compensation')
-            } else {
-              const ring = at.position.ring + (at.facing === 'prograde' ? 1 : -1)
-              if (ring < 1 || ring > getMaxRing(at.position.wellId))
-                problems.push(
-                  'Railgun recoil would push you off the rings: compensate or rotate first'
-                )
-            }
-          }
-          break
-        }
-        case 'scan': {
-          const sensor = pendingSubsystems.find(s => s.type === 'sensor_array')
-          if (!sensor) problems.push('No sensor array aboard')
-          else if (sensor.isBroken) problems.push(`${slotWithSubsystem(sensor.id, sensor.type)} is broken`)
-          if (!step.targetId) problems.push('Scan: pick a target on your ring within 3 sectors')
-          else if (untouchable(step.targetId))
-            problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
-          else if (!targetsInRange(step).some(t => t.id === step.targetId))
-            problems.push('Scan: the target must be on your ring within 3 sectors')
-          if (!step.peekSlot) problems.push('Scan: choose which subsystem to look at')
-          break
-        }
-      }
-    })
-
-    if (engineUses > 1)
-      problems.push('Engines act once per turn: burn/jump or recoil compensation, not both')
-    // Energy refuses nothing: a turn that lights more than the ship can cool is
-    // legal and costs hull, which the heat readout already shows.
-    return { projectedFuel: fuel, issues: problems }
-  }, [
-    steps,
-    stepStart,
-    pendingSubsystems,
-    engines,
-    compressor,
-    me.ship,
-    targetsInRange,
-    view.players,
-    safeAtBerth,
-  ])
-
-  /**
-   * A visit does one job (RULES §Stations). Docking happens on arrival only,
-   * so a ship that began the turn moored is holding its berth, not visiting.
-   * Stations do not move during a turn, so where they are now is where the
-   * plan meets them. The engine says what the visit could do and what it
-   * does by default; the choice is only worth showing when there is one.
-   */
-  const dockOffer = useMemo<DockJobs | null>(() => {
-    if (isDestroyed(me.ship) || isMooredAt(view.stations, me.ship)) return null
-    const station = getStationAt(view.stations, finalPosition.position)
-    if (!station) return null
-    const offer = dockJobsOnArrival(
-      { cargo: me.cargo, missions: me.missions, reactionMass: projectedFuel },
-      station.planetId
-    )
-    return offer.jobs.length > 1 ? offer : null
-  }, [me, view.stations, finalPosition, projectedFuel])
+  const { dockOffer, escortOffer, repairable } = preview
   const dockJob = dockOffer ? chosenDockJob(dockOffer, dockChoice ?? undefined) : null
-  // A pick the plan no longer offers is dropped, as a repair is.
+  // A pick the plan no longer offers is dropped rather than refused, so editing
+  // the move never leaves an illegal action on the sheet.
   useEffect(() => {
     if (dockChoice !== null && !dockOffer?.jobs.some(o => o.job === dockChoice)) setDockChoice(null)
   }, [dockChoice, dockOffer])
+  useEffect(() => {
+    if (escortChoices.some(id => !escortOffer?.carriers.includes(id)))
+      setEscortChoices(chosen => chosen.filter(id => escortOffer?.carriers.includes(id)))
+  }, [escortChoices, escortOffer])
+  useEffect(() => {
+    if (repairChoice !== null && !repairable.includes(repairChoice)) setRepairChoiceState(null)
+  }, [repairChoice, repairable])
 
-  /**
-   * An Escort marker is a "you may" (RULES §Missions, Escort): offered when
-   * the turn as planned ends in the sector of a carrier the engine would let
-   * a marker go on, and placed only if picked. Stations and ships do not move
-   * during a turn, so where they are now is where the plan meets them.
-   */
-  const escortOffer = useMemo(() => {
-    if (isDestroyed(me.ship)) return null
-    const carriers = escortCandidates(view, me.id, finalPosition.position)
-    return carriers.length > 0 ? { carriers, markers: unplacedEscorts(me.missions).length } : null
-  }, [me, view, finalPosition])
   const toggleEscort = useCallback(
     (carrierId: string) =>
       setEscortChoices(chosen =>
@@ -996,140 +323,21 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
           : // One marker per ship and one ship per marker: at the cap, a new pick is refused.
             chosen.length < (escortOffer?.markers ?? 0)
             ? [...chosen, carrierId]
-            : chosen,
+            : chosen
       ),
-    [escortOffer],
+    [escortOffer]
   )
-  // Picks the plan no longer offers are dropped.
-  useEffect(() => {
-    if (escortChoices.some(id => !escortOffer?.carriers.includes(id)))
-      setEscortChoices(chosen => chosen.filter(id => escortOffer?.carriers.includes(id)))
-  }, [escortChoices, escortOffer])
-
-  const actions = useMemo<PlayerAction[]>(() => {
-    const list: PlayerAction[] = []
-    let sequence = 0
-    // Power comes first, in loadout order: a sensor powered now widens every
-    // shot the turn takes, and a wall or a rack is up whatever else happens.
-    // The rest of the loadout is powered by the steps below.
-    for (const sub of me.ship.subsystems) {
-      const amount = planPowers[sub.id]
-      if (!amount) continue
-      list.push({
-        playerId: me.id,
-        type: 'power',
-        sequence: ++sequence,
-        data: { subsystemId: sub.id, amount },
-      })
-    }
-    steps.forEach((step, index) => {
-      const at = stepStart[index]
-      switch (step.kind) {
-        case 'rotate':
-          list.push({
-            playerId: me.id,
-            type: 'rotate',
-            sequence: ++sequence,
-            data: { targetFacing: flip(at.facing) },
-          })
-          break
-        case 'move':
-          if (step.move.kind === 'coast') {
-            list.push({
-              playerId: me.id,
-              type: 'coast',
-              sequence: ++sequence,
-              data: { activateScoop: step.move.scoop },
-            })
-          } else if (step.move.kind === 'burn') {
-            list.push({
-              playerId: me.id,
-              type: 'burn',
-              sequence: ++sequence,
-              data: { burnIntensity: step.move.intensity, sectorAdjustment: step.move.adjustment },
-            })
-          } else {
-            list.push({
-              playerId: me.id,
-              type: 'well_transfer',
-              sequence: ++sequence,
-              data: {
-                destinationWellId: step.move.destinationWellId,
-                sectorAdjustment: step.move.adjustment,
-              },
-            })
-          }
-          break
-        case 'fire': {
-          if (!step.targetId) break
-          // Only a missiles tile takes a count: the engine refuses one on any
-          // other weapon, so it is sent for a launcher and nothing else.
-          const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
-          list.push({
-            playerId: me.id,
-            type: 'fire_weapon',
-            sequence: ++sequence,
-            data: {
-              subsystemId: step.subsystemId,
-              targetPlayerId: step.targetId,
-              criticalTarget: step.criticalTarget,
-              ...(step.compensateRecoil ? { compensateRecoil: true } : {}),
-              ...(weapon?.type === 'missiles' ? { count: step.count } : {}),
-            },
-          })
-          break
-        }
-        case 'scan':
-          if (!step.targetId || !step.peekSlot) break
-          list.push({
-            playerId: me.id,
-            type: 'scan',
-            sequence: ++sequence,
-            data: { targetPlayerId: step.targetId, peekSlot: step.peekSlot },
-          })
-          break
-      }
-    })
-    if (repairChoice !== null)
-      list.push({ playerId: me.id, type: 'repair', data: { subsystemId: repairChoice } })
-    // Only a pick the visit can make is sent; without one the engine does the
-    // default, which is what the control shows preselected.
-    if (dockChoice !== null && dockOffer?.jobs.some(o => o.job === dockChoice))
-      list.push({ playerId: me.id, type: 'dock_job', data: { job: dockChoice } })
-    // Only a marker the plan still offers is sent: no pick, no marker.
-    for (const carrierId of escortChoices)
-      if (escortOffer?.carriers.includes(carrierId))
-        list.push({ playerId: me.id, type: 'escort_mark', data: { carrierId } })
-    return list
-  }, [
-    me,
-    planPowers,
-    steps,
-    stepStart,
-    repairChoice,
-    dockChoice,
-    dockOffer,
-    escortChoices,
-    escortOffer,
-  ])
-
-  /**
-   * A repair needs the ship cold at its check: nothing carried in and no
-   * energy anywhere on the loadout, which is the same sentence as the heat rule.
-   * A choice the turn can no longer earn is dropped rather than refused, so
-   * editing the move never leaves an illegal action on the sheet.
-   */
-  const repairable = useMemo(
-    () =>
-      me.ship.heat.currentHeat === 0 && cubesOnLoadout === 0
-        ? me.ship.subsystems.filter(s => s.isBroken).map(s => s.id)
-        : [],
-    [cubesOnLoadout, me.ship.heat.currentHeat, me.ship.subsystems]
-  )
-  useEffect(() => {
-    if (repairChoice !== null && !repairable.includes(repairChoice)) setRepairChoiceState(null)
-  }, [repairChoice, repairable])
   const setRepairChoice = useCallback((id: SubsystemId | null) => setRepairChoiceState(id), [])
+
+  const actions = useMemo(
+    () =>
+      planActions(me, steps, preview, {
+        repair: repairChoice,
+        dockJob: dockChoice,
+        escorts: escortChoices,
+      }),
+    [me, steps, preview, repairChoice, dockChoice, escortChoices]
+  )
 
   // --- mutators ------------------------------------------------------------
 
@@ -1157,66 +365,22 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     })
   }, [])
 
-  const setRouteDestination = useCallback(
-    (position: Position | null) => {
-      setRouteDestinationState(position)
-      // Click a station and you meant the station, not the sector under it.
-      const station = position ? getStationAt(view.stations, position) : undefined
-      setRouteStationId(station?.id ?? null)
-      setRouteMode(station ? 'meet' : 'sector')
-      setRouteIndex(0)
-      setPicking(p => (p?.kind === 'destination' ? null : p))
-    },
-    [view.stations]
-  )
-
-  const selectRoute = useCallback((index: number) => setRouteIndex(index), [])
-
-  const applyRouteStep = useCallback(() => {
-    const step: MovementStep | undefined = route?.steps[0]
-    if (!step) return
-    const move: MoveChoice =
-      step.actionType === 'coast'
-        ? { kind: 'coast', scoop: step.massCost < 0 }
-        : step.actionType === 'well_transfer'
-          ? { kind: 'jump', destinationWellId: step.to.wellId, adjustment: step.sectorAdjustment }
-          : {
-              kind: 'burn',
-              intensity: step.burnIntensity ?? 'soft',
-              adjustment: step.sectorAdjustment,
-            }
-    // Prograde burns outward, retrograde inward: the step says which way, the ship says where it points.
-    const neededFacing: Facing | null =
-      step.actionType === 'burn_prograde'
-        ? 'prograde'
-        : step.actionType === 'burn_retrograde'
-          ? 'retrograde'
-          : null
-    const rotate = neededFacing !== null && neededFacing !== me.ship.facing
-    setSteps(prev => {
-      let next: PlanStep[] = prev.filter(s => s.kind !== 'rotate')
-      if (rotate) {
-        const moveIndex = next.findIndex(s => s.kind === 'move')
-        next = [...next]
-        next.splice(Math.max(0, moveIndex), 0, { id: stepId(), kind: 'rotate' })
-      }
-      return next.map(s => (s.kind === 'move' ? { ...s, move } : s))
-    })
-    // No cubes to raise: the steps carry their own draws.
-  }, [route, me.ship.facing])
-
   const setMove = useCallback((move: MoveChoice) => {
     setSteps(prev => prev.map(s => (s.kind === 'move' ? { ...s, move } : s)))
   }, [])
 
+  const applyMove = useCallback(
+    (move: MoveChoice, facing: Facing | null) => {
+      const rotate = facing !== null && facing !== me.ship.facing
+      setSteps(prev =>
+        withRotation(prev, rotate).map(s => (s.kind === 'move' ? { ...s, move } : s))
+      )
+    },
+    [me.ship.facing]
+  )
+
   const toggleRotate = useCallback(() => {
-    setSteps(prev => {
-      if (prev.some(s => s.kind === 'rotate')) return prev.filter(s => s.kind !== 'rotate')
-      const moveIndex = prev.findIndex(s => s.kind === 'move')
-      const next = [...prev]
-      next.splice(Math.max(0, moveIndex), 0, { id: stepId(), kind: 'rotate' })
-      return next
-    })
+    setSteps(prev => withRotation(prev, !prev.some(s => s.kind === 'rotate')))
   }, [])
 
   const addFire = useCallback(
@@ -1352,7 +516,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       disabled,
       steps,
       moveStep,
-      powers: planPowers,
+      powers: preview.powers,
       usedBy,
       pendingSubsystems,
       criticalFrom,
@@ -1368,8 +532,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       jumpReady,
       scoopGain,
       projectedHeat,
-      projectedFuel,
-      issues,
+      projectedFuel: preview.projectedFuel,
+      issues: preview.issues,
       actions,
       picking,
       focusWeaponId:
@@ -1381,6 +545,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targetsOutOfReach,
       setEnergyTo,
       setMove,
+      applyMove,
       toggleRotate,
       addFire,
       addScan,
@@ -1401,18 +566,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       escortOffer,
       escortChoices,
       toggleEscort,
-      routeDestination,
-      routeStation,
-      routeMode,
-      setRouteMode,
-      routeReserve,
-      setRouteReserve,
-      routes,
-      route,
-      routeIndex,
-      setRouteDestination,
-      selectRoute,
-      applyRouteStep,
     }),
     [
       me,
@@ -1420,7 +573,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       disabled,
       steps,
       moveStep,
-      planPowers,
+      preview,
       usedBy,
       pendingSubsystems,
       criticalFrom,
@@ -1436,8 +589,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       jumpReady,
       scoopGain,
       projectedHeat,
-      projectedFuel,
-      issues,
       actions,
       picking,
       focusWeaponId,
@@ -1446,12 +597,16 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targetsOutOfReach,
       setEnergyTo,
       setMove,
+      applyMove,
       toggleRotate,
       addFire,
       addScan,
       updateStep,
       removeStep,
       reorderStep,
+      pickSlot,
+      pickTarget,
+      reset,
       repairChoice,
       setRepairChoice,
       repairable,
@@ -1460,21 +615,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       escortOffer,
       escortChoices,
       toggleEscort,
-      routeDestination,
-      routeStation,
-      routeMode,
-      setRouteMode,
-      routeReserve,
-      setRouteReserve,
-      routes,
-      route,
-      routeIndex,
-      setRouteDestination,
-      selectRoute,
-      applyRouteStep,
-      pickSlot,
-      pickTarget,
-      reset,
     ]
   )
 
