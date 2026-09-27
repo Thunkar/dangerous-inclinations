@@ -9,6 +9,9 @@ import { STARTING_REACTION_MASS } from "../../models/game.ts";
 import {
   destroyMission,
   ALPHA,
+  BETA,
+  GAMMA,
+  crateCargo,
   BH,
   burn,
   mustExecute,
@@ -156,24 +159,7 @@ describe("view: what an opponent's loadout shows", () => {
 
   it("counts only cargo actually aboard and shows completed missions face-up", () => {
     const state = withPlayer(knownGame(), "p2", {
-      cargo: [
-        {
-          id: "a",
-          missionId: "m",
-          kind: "crate",
-          pickupPlanetId: ALPHA,
-          deliveryPlanetId: "planet-beta",
-          isPickedUp: true,
-        },
-        {
-          id: "b",
-          missionId: "n",
-          kind: "crate",
-          pickupPlanetId: ALPHA,
-          deliveryPlanetId: "planet-beta",
-          isPickedUp: false,
-        },
-      ],
+      cargo: [crateCargo(ALPHA, BETA), crateCargo(BETA, GAMMA, false)],
       missions: [{ ...destroyMission("p1", "t"), isCompleted: true }, surveyMission("s")],
       points: 1,
     });

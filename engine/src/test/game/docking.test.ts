@@ -329,13 +329,7 @@ describe("docking: moored ships ride their station", () => {
     const withData = withPlayer(state, "p1", {
       cargo: [
         ...state.players[0].cargo,
-        {
-          id: "data-1",
-          missionId: "survey-1",
-          kind: "data",
-          deliveryPlanetId: "any",
-          isPickedUp: true,
-        },
+        dataCargo("data-1", "survey-1"),
       ],
     });
     const result = executeTurnAs(withData, coast(1));

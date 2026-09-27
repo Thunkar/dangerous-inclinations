@@ -53,6 +53,7 @@ import {
   getPlayer,
   getShip,
   interceptMission,
+  lootCargo,
   makeGameState,
   makePlayer,
   makeTwoPlayerGame,
@@ -587,15 +588,7 @@ describe("missions: piracy", () => {
     let state = alongside([mine], []);
     state = withPlayer(state, "p2", {
       missions: [theirs],
-      cargo: [
-        {
-          id: theirs.cargoId,
-          missionId: theirs.id,
-          kind: "crate",
-          deliveryPlanetId: "any",
-          isPickedUp: true,
-        },
-      ],
+      cargo: [lootCargo(theirs.cargoId, theirs.id)],
     });
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "cargo_seized")[0]).toMatchObject({ cargoId: theirs.cargoId });
@@ -612,15 +605,7 @@ describe("missions: piracy", () => {
     let state = alongside([card], [CRATE]);
     // The loot from a previous seizure, dropped when the pirate was destroyed.
     state = withPlayer(state, "p1", {
-      cargo: [
-        {
-          id: card.cargoId,
-          missionId: card.id,
-          kind: "crate",
-          deliveryPlanetId: "any",
-          isPickedUp: false,
-        },
-      ],
+      cargo: [{ ...lootCargo(card.cargoId, card.id), isPickedUp: false }],
     });
     const result = executeTurnAs(state, coast(1));
     expect(getPlayer(result.gameState, "p1").cargo).toEqual([
@@ -723,15 +708,7 @@ describe("missions: piracy", () => {
     const card = piracyMission();
     const state = docking(ALPHA, [card], (s) =>
       withPlayer(s, "p1", {
-        cargo: [
-          {
-            id: card.cargoId,
-            missionId: card.id,
-            kind: "crate",
-            deliveryPlanetId: "any",
-            isPickedUp: true,
-          },
-        ],
+        cargo: [lootCargo(card.cargoId, card.id)],
       })
     );
     const result = executeTurnAs(state, coast(1));

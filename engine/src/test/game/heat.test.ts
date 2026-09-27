@@ -6,6 +6,9 @@ import { getDissipationCapacity } from "../../game/ship.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import {
+  ALPHA,
+  BETA,
+  crateCargo,
   burn,
   coast,
   eventsOf,
@@ -113,16 +116,7 @@ describe("heat: end-of-turn resolution", () => {
   it("heat death destroys the ship with cause heat and no killer, dropping cargo", () => {
     let state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: 12 }, hitPoints: 2 });
     state = withPlayer(state, "p1", {
-      cargo: [
-        {
-          id: "c",
-          missionId: "m",
-          kind: "crate",
-          pickupPlanetId: "planet-alpha",
-          deliveryPlanetId: "planet-beta",
-          isPickedUp: true,
-        },
-      ],
+      cargo: [crateCargo(ALPHA, BETA)],
     });
     const result = executeTurnAs(state, coast(1));
     expect(getShip(result.gameState, "p1").hitPoints).toBe(0);

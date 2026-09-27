@@ -14,6 +14,7 @@ import {
   BH,
   burn,
   coast,
+  dataCargo,
   eventsOf,
   eventTypes,
   executeTurnAs,
@@ -47,13 +48,7 @@ const crate: Cargo = {
   deliveryPlanetId: "planet-gamma",
   isPickedUp: true,
 };
-const data: Cargo = {
-  id: "data-intercept-p1",
-  missionId: "intercept-p1",
-  kind: "data",
-  deliveryPlanetId: "any",
-  isPickedUp: true,
-};
+const data = dataCargo("data-intercept-p1", "intercept-p1");
 
 /** p2 destroyed and next to act, carrying scars from its previous life. */
 function wreck(): GameState {

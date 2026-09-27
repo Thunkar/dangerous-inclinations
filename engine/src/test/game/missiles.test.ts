@@ -3,7 +3,7 @@ import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game
 import { processActions } from "../../game/actionProcessors.ts";
 import { getMissileStats, interceptsPerRack } from "../../models/subsystems.ts";
 import { resetSubsystemUsage } from "../../game/ship.ts";
-import type { GameState, Missile, PlayerAction, ShipLoadout } from "../../models/game.ts";
+import type { GameState, PlayerAction, ShipLoadout } from "../../models/game.ts";
 import {
   ALPHA,
   BH,
@@ -17,7 +17,7 @@ import {
   getSub,
   burn,
   makeGameState,
-  makeMissile,
+  withMissile,
   makePlayer,
   makeTwoPlayerGame,
   mustExecute,
@@ -44,15 +44,6 @@ const LASER_ONLY: ShipLoadout = {
 /** p1 at R3 S0 with a launcher aboard; p2 at the given spot. The launch powers it. */
 function launcher(target = { ring: 5, sector: 0 }, targetLoadout?: ShipLoadout) {
   return makeTwoPlayerGame({ ring: 3, sector: 0 }, { ...target, loadout: targetLoadout });
-}
-
-function missileAt(
-  state: GameState,
-  ring: number,
-  sector: number,
-  extra: Partial<Missile> = {}
-): GameState {
-  return { ...state, missiles: [...state.missiles, makeMissile({ ring, sector, ...extra })] };
 }
 
 describe("missiles: pathing", () => {
@@ -85,7 +76,10 @@ describe("missiles: pathing", () => {
     const from = { wellId: BH, ring: 3, sector: 0 };
     const target = { wellId: BH, ring: 3, sector: 10 };
     expect(projectMissilePath({ ...from, movesMade: 0 }, target)[0]).toEqual(from);
-    expect(projectMissilePath({ ...from, movesMade: 1 }, target)[0]).toEqual({ ...from, sector: 4 });
+    expect(projectMissilePath({ ...from, movesMade: 1 }, target)[0]).toEqual({
+      ...from,
+      sector: 4,
+    });
   });
 
   it("never plans more than the missile's fuel allowance", () => {
@@ -97,11 +91,7 @@ describe("missiles: pathing", () => {
   });
 
   const pathCases: Array<
-    [
-      string,
-      { ring: number; sector: number; movesMade: number },
-      { ring: number; sector: number },
-    ]
+    [string, { ring: number; sector: number; movesMade: number }, { ring: number; sector: number }]
   > = [
     ["a target it reaches", { ring: 5, sector: 0, movesMade: 1 }, { ring: 5, sector: 4 }],
     ["a target it falls short of", { ring: 1, sector: 0, movesMade: 1 }, { ring: 5, sector: 12 }],
@@ -111,12 +101,11 @@ describe("missiles: pathing", () => {
   it.each(pathCases)(
     "projectMissilePath agrees with processOwnerMissiles for %s",
     (_label, missile, target) => {
-      const state = missileAt(
-        withShip(makeTwoPlayerGame(), "p2", { wellId: BH, ...target }),
-        missile.ring,
-        missile.sector,
-        { movesMade: missile.movesMade }
-      );
+      const state = withMissile(withShip(makeTwoPlayerGame(), "p2", { wellId: BH, ...target }), {
+        ring: missile.ring,
+        sector: missile.sector,
+        movesMade: missile.movesMade,
+      });
       const path = projectMissilePath(state.missiles[0], { wellId: BH, ...target });
       const result = processOwnerMissiles(state, "p1");
       const landed = result.state.missiles[0]
@@ -256,11 +245,9 @@ describe("missiles: movement at the end of the owner's turn", () => {
     ["rides its orbit first on every turn after that", 1, 1],
   ])("a missile %s", (_label, movesMade, driftedSectors) => {
     // The target sits in another well, so the missile can only ride its orbit.
-    const state = missileAt(
+    const state = withMissile(
       withShip(makeTwoPlayerGame(), "p2", { wellId: ALPHA, ring: 3, sector: 0 }),
-      5,
-      0,
-      { movesMade }
+      { ring: 5, sector: 0, movesMade }
     );
     const result = processOwnerMissiles(state, "p1");
     expect(result.state.missiles[0]).toMatchObject({
@@ -303,7 +290,11 @@ describe("missiles: movement at the end of the owner's turn", () => {
   });
 
   it("expires after three moves without hitting", () => {
-    const far = missileAt(makeTwoPlayerGame({}, { ring: 5, sector: 12 }), 1, 0, { movesMade: 2 });
+    const far = withMissile(makeTwoPlayerGame({}, { ring: 5, sector: 12 }), {
+      ring: 1,
+      sector: 0,
+      movesMade: 2,
+    });
     const result = processOwnerMissiles(far, "p1");
     expect(result.state.missiles).toEqual([]);
     expect(result.events).toEqual([
@@ -312,7 +303,9 @@ describe("missiles: movement at the end of the owner's turn", () => {
   });
 
   it("only moves the active owner's missiles", () => {
-    const state = missileAt(makeTwoPlayerGame({}, { ring: 5, sector: 12 }), 1, 0, {
+    const state = withMissile(makeTwoPlayerGame({}, { ring: 5, sector: 12 }), {
+      ring: 1,
+      sector: 0,
       ownerId: "p2",
       targetId: "p1",
     });
@@ -325,7 +318,7 @@ describe("missiles: movement at the end of the owner's turn", () => {
     ["destroyed", (s: GameState) => withShip(s, "p2", { hitPoints: 0 })],
     ["not deployed", (s: GameState) => withPlayer(s, "p2", { hasDeployed: false })],
   ])("expires when its target is %s", (_label, setup) => {
-    const state = missileAt(setup(makeTwoPlayerGame()), 3, 12);
+    const state = withMissile(setup(makeTwoPlayerGame()), { ring: 3, sector: 12 });
     const result = processOwnerMissiles(state, "p1");
     expect(result.state.missiles).toEqual([]);
     expect(eventTypes(result.events as never)).toEqual(["missile_expired"]);
@@ -335,7 +328,10 @@ describe("missiles: movement at the end of the owner's turn", () => {
 describe("missiles: on the target's sector", () => {
   /** A missile already sitting where p2 will still be after its drift: p2 on R5 S12 (drift 1) -> S13; missile on R5 S12 drifts to S13. */
   const onTarget = (targetLoadout?: ShipLoadout) =>
-    missileAt(makeTwoPlayerGame({}, { ring: 5, sector: 13, loadout: targetLoadout }), 5, 12);
+    withMissile(makeTwoPlayerGame({}, { ring: 5, sector: 13, loadout: targetLoadout }), {
+      ring: 5,
+      sector: 12,
+    });
 
   it("attacks with the missile's own critical target", () => {
     const state = withPower({ ...onTarget(), forcedRollValue: 10 }, "p2", "side-1", 2);
@@ -504,7 +500,9 @@ describe("missiles: on the target's sector", () => {
 
   it("but the clock still runs: its last move over a recovering ship burns it out", () => {
     const state = withPlayer(
-      missileAt(makeTwoPlayerGame({}, { ring: 5, sector: 13 }), 5, 12, {
+      withMissile(makeTwoPlayerGame({}, { ring: 5, sector: 13 }), {
+        ring: 5,
+        sector: 12,
         movesMade: getMissileStats().maxMoves - 1,
       }),
       "p2",
@@ -535,8 +533,8 @@ describe("missiles: lost with their ship", () => {
       makePlayer("p2", { wellId: BH, ring: 5, sector: 13 }),
     ]);
     state = withShip(state, "p2", { hitPoints: 2 });
-    state = missileAt(state, 5, 12);
-    return missileAt(state, 1, 0, { id: "m-p2", ownerId: "p2", targetId: "p1" });
+    state = withMissile(state, { ring: 5, sector: 12 });
+    return withMissile(state, { ring: 1, sector: 0, id: "m-p2", ownerId: "p2", targetId: "p1" });
   }
 
   it("a destroyed ship's missiles in flight are removed", () => {
@@ -570,7 +568,7 @@ describe("missiles: lost with their ship", () => {
   it("a ship that dies at its own heat check loses the missiles that just moved", () => {
     let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 1, sector: 12 });
     state = withShip(state, "p1", { hitPoints: 1, heat: { currentHeat: 30 } });
-    state = missileAt(state, 3, 6, { targetId: "p2" });
+    state = withMissile(state, { ring: 3, sector: 6, targetId: "p2" });
     const result = executeTurnAs(state, coast(1));
     expect(eventTypes(result.events)).toEqual(
       expect.arrayContaining(["missile_moved", "ship_destroyed", "missile_expired"])
