@@ -315,6 +315,9 @@ function unfoldingTable(args: Args, batches: BatchResult[]): string[] {
   const cols = batches.map((b) => b.aggregate.unfolding);
   const row = (label: string, cell: (u: (typeof cols)[number]) => string) =>
     `| ${label} | ${cols.map(cell).join(" | ")} |`;
+  const turns = batches.map((b) => b.aggregate.behaviour);
+  const turnRow = (label: string, cell: (b: (typeof turns)[number]) => string) =>
+    `| ${label} | ${turns.map(cell).join(" | ")} |`;
   return [
     "## How games unfold",
     "",
@@ -338,6 +341,10 @@ function unfoldingTable(args: Args, batches: BatchResult[]): string[] {
     ),
     row("Dock visits that did a job, per game", (u) => `${u.dockVisitsWithJobPerGame}`),
     row("Of those, job named by the player", (u) => pct(u.dockJobsNamedShare)),
+    row("Fuel pumps per game", (u) => `${u.fuelPumpsPerGame}`),
+    turnRow("Turns ending in a planet well", (b) => pct(b.planetWellShare)),
+    turnRow("Turns ending in the black hole", (b) => pct(b.blackHoleShare)),
+    turnRow("Turns ending moored", (b) => pct(b.mooredShare)),
     "",
     "_The leader is the one seat with the most points; a tie leaves nobody leading, " +
       "and the first seat to lead is not a change. The comeback row counts games still " +

@@ -211,6 +211,9 @@ function printSummary(a: AggregateStats): void {
     `Turns: coast ${p(b.coastShare)} (idle ${p(b.idleShare)}), burn ${p(b.burnShare)}, jump ${p(b.jumpShare)}, scoop ${p(b.scoopShare)}, firing ${p(b.firingShare)}, lost ${p(b.lostTurnShare)}; cubes left up ${b.meanUpEnergy.toFixed(1)}`
   );
   console.log(
+    `Turns ending: in a planet well ${p(b.planetWellShare)}, in the black hole ${p(b.blackHoleShare)}, moored ${p(b.mooredShare)}; fuel pumps/game ${a.unfolding.fuelPumpsPerGame}`
+  );
+  console.log(
     `Shields: mean ${b.meanShieldCubes} cubes, full(${SUBSYSTEM_CONFIGS.shields.maxEnergy}) ${p(b.shieldsFullShare)} of turns, powered ${p(b.shieldsPoweredShare)}; damage soaked ${p(b.absorbedShare)}`
   );
   console.log(

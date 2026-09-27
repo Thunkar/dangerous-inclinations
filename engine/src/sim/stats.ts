@@ -61,6 +61,12 @@ export interface TurnBehaviour {
   absorbedShare: number;
   /** Share of all player-turns spent respawning: one per destruction. */
   lostTurnShare: number;
+  /** Share of acting turns ending in a planet's well. */
+  planetWellShare: number;
+  /** Share of acting turns ending in the black hole's well. */
+  blackHoleShare: number;
+  /** Share of acting turns ending moored at a station. */
+  mooredShare: number;
 }
 
 /** How one game unfolded, read off its events in order. */
@@ -86,6 +92,8 @@ export interface GameUnfolding {
   dockVisitsWithJob: number;
   /** Of those, the visits where the player named the job instead of leaving the default. */
   dockJobsNamed: number;
+  /** Tanker fuel pumped into a station. */
+  fuelPumps: number;
 }
 
 export interface PerGameStats {
@@ -227,6 +235,9 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
       run.turnStats.length === 0
         ? 0
         : run.turnStats.filter((t) => t.lost).length / run.turnStats.length,
+    planetWellShare: share((t) => t.endedAtPlanet),
+    blackHoleShare: share((t) => !t.endedAtPlanet),
+    mooredShare: share((t) => t.endedMoored),
   };
 
   return {
@@ -283,6 +294,7 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
   const seizuresByKind: Record<CargoKind, number> = { crate: 0, data: 0 };
   let dockVisitsWithJob = 0;
   let dockJobsNamed = 0;
+  let fuelPumps = 0;
 
   for (const turn of run.turns) {
     const named = turn.actions.some((a) => a.type === "dock_job" && a.playerId === turn.playerId);
@@ -318,6 +330,9 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
         case "cargo_seized":
           seizuresByKind[e.kind]++;
           break;
+        case "fuel_pumped":
+          fuelPumps++;
+          break;
         case "docked":
           if (e.job !== null) {
             dockVisitsWithJob++;
@@ -344,6 +359,7 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
     seizuresByKind,
     dockVisitsWithJob,
     dockJobsNamed,
+    fuelPumps,
   };
 }
 
@@ -433,6 +449,7 @@ export interface UnfoldingAggregate {
   dockVisitsWithJobPerGame: number;
   /** Visits that did a job where the player named it, over all visits that did one. */
   dockJobsNamedShare: number;
+  fuelPumpsPerGame: number;
 }
 
 export interface AggregateStats {
@@ -616,6 +633,7 @@ function aggregateUnfolding(games: PerGameStats[]): UnfoldingAggregate {
       sum((u) => u.dockJobsNamed),
       visits
     ),
+    fuelPumpsPerGame: perGame(sum((u) => u.fuelPumps)),
   };
 }
 

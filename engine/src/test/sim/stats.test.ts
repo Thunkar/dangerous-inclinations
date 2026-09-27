@@ -7,7 +7,7 @@ import { describe, it, expect } from "vitest";
 import type { GameEvent } from "../../models/events.ts";
 import type { Mission } from "../../models/missions.ts";
 import type { PlayerAction } from "../../models/game.ts";
-import type { GameRunResult } from "../../sim/runGame.ts";
+import type { GameRunResult, TurnStat } from "../../sim/runGame.ts";
 import { aggregateStats, computePerGameStats } from "../../sim/stats.ts";
 import {
   BH,
@@ -87,8 +87,38 @@ function cannedRun(): GameRunResult {
       ),
       turn(10, "p2", [docked(10, "p2", "data"), docked(10, "p2", null)]),
       turn(11, "p1", [completed(11, "p2", escort, 2)]),
+      turn(12, "p2", [
+        { type: "fuel_pumped", turn: 12, playerId: "p2", amount: 7, planetId: "planet-alpha" },
+      ]),
     ],
-    turnStats: [],
+    turnStats: [
+      // Where turns end: two in a planet's well (one of them moored), one in
+      // the black hole's, and a respawn turn, which is not an acting turn.
+      turnStat({ endedAtPlanet: true, endedMoored: true }),
+      turnStat({ endedAtPlanet: true }),
+      turnStat({}),
+      turnStat({ endedAtPlanet: true, endedMoored: true, lost: true }),
+    ],
+  };
+}
+
+function turnStat(over: Partial<TurnStat>): TurnStat {
+  return {
+    turn: 1,
+    playerId: "p1",
+    coasted: true,
+    burned: false,
+    jumped: false,
+    scooped: false,
+    shotsFired: 0,
+    shieldCubes: 0,
+    upEnergy: 0,
+    heatAtCheck: 0,
+    heatDamage: 0,
+    endedAtPlanet: false,
+    endedMoored: false,
+    lost: false,
+    ...over,
   };
 }
 
@@ -129,6 +159,15 @@ describe("stats from a game written by hand", () => {
       // Two visits did a job (a null job is no job), and one had it named.
       dockVisitsWithJob: 2,
       dockJobsNamed: 1,
+      fuelPumps: 1,
+    });
+  });
+
+  it("reads where the acting turns ended", () => {
+    expect(game.behaviour).toMatchObject({
+      planetWellShare: 2 / 3,
+      blackHoleShare: 1 / 3,
+      mooredShare: 1 / 3,
     });
   });
 
@@ -141,6 +180,7 @@ describe("stats from a game written by hand", () => {
       wonFromBehindShare: 1,
       salvagedShare: 0,
       dockJobsNamedShare: 0.5,
+      fuelPumpsPerGame: 1,
     });
   });
 });
