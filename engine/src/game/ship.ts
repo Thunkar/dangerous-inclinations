@@ -42,7 +42,7 @@ export function createInitialShipState(
   };
 }
 
-export function isDestroyed(ship: ShipState): boolean {
+export function isDestroyed(ship: Pick<ShipState, "hitPoints">): boolean {
   return ship.hitPoints <= 0;
 }
 

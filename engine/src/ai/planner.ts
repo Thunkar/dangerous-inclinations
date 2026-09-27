@@ -44,7 +44,7 @@ import { getStationAt } from "../game/stations.ts";
 import { ringVelocity, samePosition } from "../game/geometry.ts";
 import { dockJobsOnArrival } from "../game/docking.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
-import { canFireFrom, isInWeaponRange } from "../game/targeting.ts";
+import { canBeFiredAt, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
 import { heatAfterCheck } from "../game/heat.ts";
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
 import { INTERDICT_DANGER } from "./types.ts";
@@ -53,7 +53,6 @@ import {
   denialTokens,
   destroyTargetIds,
   firingOptions,
-  canShootAt,
   holdFireIds,
   isKillTarget,
   isWeaponReady,
@@ -150,7 +149,7 @@ function buildCandidate(
     !isQuietTurn(view.turn, me) &&
     canFireFrom(at, view.stations) &&
     o.sameWell &&
-    canShootAt(o) &&
+    canBeFiredAt(o.player, view.stations) &&
     !holdFire.has(o.player.id);
 
   // Facing: the burn direction, or whatever gives the railgun a shot the
@@ -690,7 +689,7 @@ export function generateCandidates(
           // Nothing can be done to a ship still recovering from a respawn,
           // or to one at a berth, so leaving the route to reach it buys
           // nothing.
-          canShootAt(o) &&
+          canBeFiredAt(o.player, situation.view.stations) &&
           o.ringDistance <= 3 &&
           (isKillTarget(situation.me, o) ||
             hullPotential(readyWeapons, o.shieldAbsorption) >= o.hull)

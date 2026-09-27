@@ -26,7 +26,6 @@ import type {
   GameView,
   Player,
   PlayerAction,
-  PlayerView,
   Position,
   ShipState,
   Station,
@@ -127,21 +126,6 @@ const blocked = (reason: string): MoveReadiness => ({ ok: false, reason })
 const BURN_INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
 
 export const flip = (facing: Facing): Facing => (facing === 'prograde' ? 'retrograde' : 'prograde')
-
-/**
- * The table's seat as the engine's targeting rules read it. The view carries
- * the public ship, and `canBeScanned`/`canBeFiredAt` only read its position
- * and its hull, which the public ship has; a ship that is not deployed is
- * never read at all (`isOnBoard` asks `hasDeployed` first).
- */
-type Seat = Parameters<typeof canBeFiredAt>[0]
-function seatOf(player: PlayerView): Seat {
-  return {
-    hasDeployed: player.hasDeployed,
-    recovering: player.recovering,
-    ship: player.ship as unknown as ShipState,
-  }
-}
 
 /** My ship standing where a step starts, for the questions asked of a whole ship. */
 function shipAt(me: Player, at: StepContext): ShipState {
@@ -316,7 +300,7 @@ export function walkSteps(
  */
 export function targetsFor(view: GameView): Target[] {
   return view.players
-    .filter(p => !p.isMe && canBeScanned(seatOf(p)))
+    .filter(p => !p.isMe && canBeScanned(p))
     .map(p => ({
       id: p.id,
       position: { wellId: p.ship!.wellId, ring: p.ship!.ring, sector: p.ship!.sector },
@@ -326,7 +310,7 @@ export function targetsFor(view: GameView): Target[] {
 /** Whether a rival may be fired at at all: the engine's `canBeFiredAt`, a berth included. */
 function firable(view: GameView, targetId: string): boolean {
   const player = view.players.find(p => p.id === targetId)
-  return !!player && canBeFiredAt(seatOf(player), view.stations)
+  return !!player && canBeFiredAt(player, view.stations)
 }
 
 /**
@@ -564,8 +548,8 @@ export function planIssues(
           problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
         else if (
           target &&
-          isOnBoard(seatOf(target)) &&
-          !canBeFiredAt(seatOf(target), view.stations)
+          isOnBoard(target) &&
+          !canBeFiredAt(target, view.stations)
         )
           problems.push(`${nameOf(step.targetId)} is moored: nobody fires at a ship at a berth`)
         else if (!inRange(step, at, step.targetId))

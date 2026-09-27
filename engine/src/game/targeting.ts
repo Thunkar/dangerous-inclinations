@@ -14,7 +14,7 @@
  *   actually catch up).
  * Nothing fires across gravity wells.
  */
-import type { Player, Position, ShipState, Station } from "../models/game.ts";
+import type { Position, ShipState, Station } from "../models/game.ts";
 import type { Subsystem, WeaponStats } from "../models/subsystems.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
 import { forwardDistance, positionOf, sectorDistance } from "./geometry.ts";
@@ -27,11 +27,20 @@ import {
 } from "./ship.ts";
 import { isMooredAt } from "./stations.ts";
 
-type Seat = Pick<Player, "hasDeployed" | "ship" | "recovering">;
+/**
+ * A seat as the targeting rules read it: a `Player`, or the `PlayerView` a
+ * bot, the seat CLI or the UI holds, whose public ship has the same position
+ * and hull. A seat with no ship (not deployed, in a view) is not on the board.
+ */
+export interface Seat {
+  hasDeployed: boolean;
+  recovering: boolean;
+  ship: Pick<ShipState, "wellId" | "ring" | "sector" | "hitPoints"> | null;
+}
 
 /** A deployed ship that is not destroyed. */
-export function isOnBoard(player: Pick<Player, "hasDeployed" | "ship">): boolean {
-  return player.hasDeployed && !isDestroyed(player.ship);
+export function isOnBoard(player: Pick<Seat, "hasDeployed" | "ship">): boolean {
+  return player.hasDeployed && player.ship !== null && !isDestroyed(player.ship);
 }
 
 /**
@@ -49,7 +58,7 @@ export function canBeScanned(target: Seat): boolean {
  * attacker.
  */
 export function canBeFiredAt(target: Seat, stations: Station[]): boolean {
-  return canBeScanned(target) && !isMooredAt(stations, positionOf(target.ship));
+  return canBeScanned(target) && !isMooredAt(stations, positionOf(target.ship!));
 }
 
 /** Whether a ship here may fire at all: a moored ship fires at nobody (RULES §Stations). */

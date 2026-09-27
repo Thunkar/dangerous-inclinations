@@ -20,7 +20,7 @@ import { getJumpAdjustmentRange, getJumpOptions } from "../models/gravityWells.t
 import type { GameView } from "../game/view.ts";
 import { positionOf, ringVelocity } from "../game/geometry.ts";
 import { inScanRange } from "../game/scan.ts";
-import { canFireFrom, isInWeaponRange } from "../game/targeting.ts";
+import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, ringAfter, type MovementPreview } from "../game/movement.ts";
 import { isMooredAt } from "../game/stations.ts";
 import { hasWorkingCompressor } from "../game/ship.ts";
@@ -169,9 +169,7 @@ export function seatOptions(view: GameView): SeatOptions {
   // A ship recovering from a respawn is untouchable until the turn it plays
   // next is over (RULES §Destruction and Respawn), so it is on nobody's
   // target list while the flag is up.
-  const opponents = view.players.filter(
-    (p) => !p.isMe && p.ship && !p.ship.isDestroyed && !p.recovering
-  );
+  const opponents = view.players.filter((p) => !p.isMe && canBeScanned(p));
   const afterCoast = projectPosition(ship, ship.facing, {
     kind: "coast",
     moored,
@@ -195,10 +193,10 @@ export function seatOptions(view: GameView): SeatOptions {
       const inRange = (from: Position & { facing: Facing }) => {
         if (!canFireFrom(from, view.stations)) return [];
         return opponents
-          .filter((o) => {
-            const at = positionOf(o.ship!);
-            return !isMooredAt(view.stations, at) && isInWeaponRange(weapon, from, at);
-          })
+          .filter(
+            (o) =>
+              canBeFiredAt(o, view.stations) && isInWeaponRange(weapon, from, positionOf(o.ship!))
+          )
           .map((o) => o.id);
       };
       return {

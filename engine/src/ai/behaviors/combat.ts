@@ -10,7 +10,7 @@ import type { Subsystem, SubsystemId, SubsystemType } from "../../models/subsyst
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { ringVelocity } from "../../game/geometry.ts";
-import { canEngage, canFireFrom } from "../../game/targeting.ts";
+import { canBeFiredAt, canEngage, canFireFrom } from "../../game/targeting.ts";
 import { markedBy } from "../../game/escort.ts";
 import { ringAfter } from "../../game/movement.ts";
 import type { BotParameters, Opponent, TacticalSituation } from "../types.ts";
@@ -63,16 +63,6 @@ export function holdFireIds(situation: TacticalSituation): Set<string> {
 export function denialTokens(opponent: Opponent, myId: string): number {
   const cargo = opponent.player.cargoAboard.crates + opponent.player.cargoAboard.data;
   return cargo + opponent.player.escortedBy.filter((id) => id !== myId).length;
-}
-
-/**
- * Whether anything may be aimed at this opponent: not back from Home this
- * round and not moored (RULES §Destruction and Respawn, §Stations). The
- * engine's `canBeFiredAt` asks the same of a `Player`; this asks it of what
- * the view shows.
- */
-export function canShootAt(opponent: Opponent): boolean {
-  return !opponent.recovering && !opponent.safeAtBerth;
 }
 
 interface FirePosition extends Position {
@@ -324,7 +314,7 @@ export function firingOptions(
   // its own (RULES §Destruction and Respawn).
   if (isQuietTurn(situation.view.turn, situation.me)) return intents;
   // Nor does anything reach a ship that just came back, or one at a berth.
-  if (!canShootAt(target)) return intents;
+  if (!canBeFiredAt(target.player, situation.view.stations)) return intents;
   // And a ship at a berth fires at nobody: a phase that finds the bot moored
   // (before the move while it still holds its berth, or after a move that
   // ends on a station) has no shots.
