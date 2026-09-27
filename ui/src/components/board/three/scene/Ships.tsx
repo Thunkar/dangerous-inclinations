@@ -25,7 +25,14 @@ import { boardConfig, type ShipVisual } from '../../../../ships/visual'
 import { MOUNTS } from '../../../../ships/config'
 import { TABLE } from '../../../../theme'
 import type { ShipToken } from '../../model'
-import { crowdOffset, headingAtPoint, positionPoint, radialPoint } from '../../geometry'
+import {
+  crowdOffset,
+  headingAtPoint,
+  positionPoint,
+  radialPoint,
+  slideProgress,
+} from '../../geometry'
+import { shipLabel } from '../../labels'
 import { sceneTime } from '../clock'
 import { FX_INK } from '../palette'
 import { DASHED_RING_FRAGMENT, DASHED_RING_VERTEX } from '../shaders/dashedRing'
@@ -443,7 +450,7 @@ function ShipMesh({
         streak = speed
       } else {
         // The same ease-in-out-quad the SVG board slides tokens with.
-        const t = raw < 0.5 ? 2 * raw * raw : 1 - (-2 * raw + 2) ** 2 / 2
+        const t = slideProgress(raw)
         interpolateWorld(motion.from, ship.position, t, LAYER.token, scratch)
         node.position.copy(scratch).addScaledVector(slot, t)
         heading.rotation.y = yawFromHeading(
@@ -583,11 +590,7 @@ function ShipMesh({
 
         {hovered && (
           <BoardTooltip position={[0, HOVER + HEIGHT + 26, 0]}>
-            {`${ship.name} · hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}${
-              ship.escorts.length > 0
-                ? ` · escorted by ${ship.escorts.map(e => e.name).join(', ')}`
-                : ''
-            }`}
+            {shipLabel(ship)}
           </BoardTooltip>
         )}
       </group>

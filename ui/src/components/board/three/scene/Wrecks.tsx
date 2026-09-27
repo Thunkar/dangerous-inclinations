@@ -28,11 +28,12 @@ import {
   type Group,
 } from 'three'
 import { useFrame } from '@react-three/fiber'
-import { getWellName } from '@dangerous-inclinations/engine'
 import { HULL_INK } from '../../../../ships/palette'
 import { TABLE } from '../../../../theme'
 import type { WreckToken } from '../../model'
-import { wreckHeading, wreckPoint, wreckRadius } from '../../geometry'
+import { slideProgress, wreckHeading, wreckPoint, wreckRadius } from '../../geometry'
+import { wreckLabel } from '../../labels'
+import { WRECK_BOW, WRECK_STERN, type Outline } from '../../shapes'
 import { LAYER, elevationAt, surfaceElevation, toWorld, yawFromHeading } from '../world'
 import { BoardTooltip } from './overlays/marks'
 import { NO_RAYCAST } from './effects/resources'
@@ -43,7 +44,7 @@ const THICKNESS = 2.6
 const FLAT: [number, number, number] = [-Math.PI / 2, 0, 0]
 
 /** Board-space outline to a shape: the flat board's y runs down, which becomes world z. */
-function plate(points: readonly [number, number][]): ExtrudeGeometry {
+function plate(points: Outline): ExtrudeGeometry {
   const shape = new Shape()
   points.forEach(([x, y], i) =>
     i === 0 ? shape.moveTo(x * SCALE, y * SCALE) : shape.lineTo(x * SCALE, y * SCALE)
@@ -56,22 +57,9 @@ function plate(points: readonly [number, number][]): ExtrudeGeometry {
   return geometry
 }
 
-/** The same bow and stern the flat board draws (`svg/layers/WrecksLayer.tsx`). */
-const BOW = plate([
-  [9, 0],
-  [1.5, 2.5],
-  [2.6, 0.8],
-  [0.9, -0.6],
-  [2, -2.33],
-])
-const STERN = plate([
-  [1.5, 2.5],
-  [-5.4, 4.8],
-  [-5.4, -4.8],
-  [2, -2.33],
-  [0.9, -0.6],
-  [2.6, 0.8],
-])
+/** The same bow and stern the flat board draws (`shapes.ts`). */
+const BOW = plate(WRECK_BOW)
+const STERN = plate(WRECK_STERN)
 
 const GEO = {
   bow: BOW,
@@ -105,13 +93,13 @@ const SHARDS: { at: [number, number, number]; turn: [number, number, number] }[]
 function drift(wreck: WreckToken, now: number): number {
   if (!wreck.motion) return 1
   const raw = Math.min(1, Math.max(0, (now - wreck.motion.start) / wreck.motion.duration))
-  return raw < 0.5 ? 2 * raw * raw : 1 - (-2 * raw + 2) ** 2 / 2
+  return slideProgress(raw)
 }
 
 function WreckMesh({ wreck }: { wreck: WreckToken }) {
   const group = useRef<Group>(null)
   const [hovered, setHovered] = useState(false)
-  const { wellId, ring, sector } = wreck.position
+  const { wellId } = wreck.position
 
   /** The surface under the band, or the ring's terrace, whichever stands higher. */
   const height = useMemo(
@@ -178,7 +166,7 @@ function WreckMesh({ wreck }: { wreck: WreckToken }) {
       ))}
       {hovered && (
         <BoardTooltip position={[0, 30, 0]}>
-          {`Wreck · ${getWellName(wellId)} R${ring} S${sector} · a Salvage holder can take its black box`}
+          {wreckLabel(wreck.position)}
         </BoardTooltip>
       )}
     </group>

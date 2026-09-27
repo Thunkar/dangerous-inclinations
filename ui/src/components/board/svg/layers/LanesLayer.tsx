@@ -7,26 +7,10 @@
  * jump from right now is lit: printed wider and at full strength, never glowing.
  */
 import { memo } from 'react'
-import type { TransferLane } from '@dangerous-inclinations/engine'
-import { TRANSFER_LANES, getWellName, laneDepartureArc } from '@dangerous-inclinations/engine'
+import { TRANSFER_LANES, laneDepartureArc } from '@dangerous-inclinations/engine'
 import { BOARD, FONT_DISPLAY } from '../palette'
 import { PRINT_SCALE, arcMidPoint, arcPathFor, wellLineColor } from '../../geometry'
-
-/** "beta-a" → "A". The two lanes to a planet are told apart by their letter. */
-function laneLetter(laneId: string): string {
-  return laneId.slice(-1).toUpperCase()
-}
-
-function laneTitle(lane: TransferLane): string {
-  const bh = lane.blackHoleArc
-  const pl = lane.planetArc
-  const span = (arc: typeof bh) =>
-    `R${arc.ring} S${arc.startSector}–${arc.startSector + arc.length - 1}`
-  const planet = getWellName(lane.planetId)
-  return lane.direction === 'outbound'
-    ? `${planet} lane ${laneLetter(lane.id)} · one way: jump from Black Hole ${span(bh)} to ${planet} ${span(pl)}`
-    : `${planet} lane ${laneLetter(lane.id)} · one way: jump from ${planet} ${span(pl)} to Black Hole ${span(bh)}`
-}
+import { laneLabel, laneLetter } from '../../labels'
 
 const LABEL_OFFSET = 15 * PRINT_SCALE
 
@@ -41,7 +25,7 @@ export const LanesLayer = memo(function LanesLayer({
         const color = wellLineColor(lane.planetId)
         const active = highlightIds.includes(lane.id)
         const letter = laneLetter(lane.id)
-        const title = laneTitle(lane)
+        const title = laneLabel(lane)
 
         return (
           <g key={lane.id}>

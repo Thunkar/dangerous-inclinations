@@ -479,6 +479,14 @@ export function ringsOf(wellId: GravityWellId) {
   return getGravityWell(wellId)?.rings ?? []
 }
 
+/**
+ * Ease-in-out quad over a slide's raw progress (0 to 1): the one easing both
+ * boards slide ships and wrecks with.
+ */
+export function slideProgress(raw: number): number {
+  return raw < 0.5 ? 2 * raw * raw : 1 - (-2 * raw + 2) ** 2 / 2
+}
+
 /** Interpolate along the ring arc between two positions in the same well. */
 export function interpolatePositions(from: Position, to: Position, t: number): Point {
   const a = positionPoint(from)

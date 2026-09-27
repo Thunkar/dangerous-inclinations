@@ -13,10 +13,11 @@ import { memo, useMemo } from 'react'
 import type { Vector3 } from 'three'
 import { Billboard, Text } from '@react-three/drei'
 import type { MovementPlan, Position } from '@dangerous-inclinations/engine'
-import { SECTORS_PER_RING, getWellName } from '@dangerous-inclinations/engine'
+import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../theme'
 import { allWells } from '../../geometry'
 import type { BoardModel } from '../../model'
+import { deployLabel, routeCellLabel } from '../../labels'
 import { BOARD_FONT } from '../fonts'
 import { EDGE_HUE } from '../palette'
 import { LAYER, positionWorld } from '../world'
@@ -206,7 +207,7 @@ const SectorPicker = memo(function SectorPicker({
       litColor={ROUTE}
       litFillOpacity={0.5}
       cursor="crosshair"
-      label={cell => `Route to ${getWellName(cell.wellId)} R${cell.ring} S${cell.sector}`}
+      label={routeCellLabel}
       onPick={onPick}
     />
   )
@@ -233,9 +234,7 @@ const DeploymentWedges = memo(function DeploymentWedges({
       breathe={BREATH}
       litColor={ACCENT}
       litFillOpacity={0.55}
-      label={cell =>
-        `Place your ship here · ${getWellName(cell.wellId)} R${cell.ring} S${cell.sector}. This sector becomes your Home.`
-      }
+      label={deployLabel}
       onPick={onPick}
     />
   )

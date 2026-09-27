@@ -27,8 +27,10 @@ import {
   interpolatePositions,
   positionPoint,
   radialPoint,
+  slideProgress,
   type Point,
 } from '../../geometry'
+import { shipLabel } from '../../labels'
 
 /** An Escort marker: a shield, 11 units tall, set above the hull. */
 const BADGE = 'M -4.5 -5.5 H 4.5 V 0.5 L 0 5.5 L -4.5 0.5 Z'
@@ -54,7 +56,7 @@ function slide(ship: ShipToken, now: number, rest: Point) {
   if (!ship.motion) return null
   const raw = Math.min(1, Math.max(0, (now - ship.motion.start) / ship.motion.duration))
   if (raw >= 1) return null
-  const t = raw < 0.5 ? 2 * raw * raw : 1 - (-2 * raw + 2) ** 2 / 2
+  const t = slideProgress(raw)
   const arc = interpolatePositions(ship.motion.from, ship.position, t)
   const centred = positionPoint(ship.position)
   const point = {
@@ -89,11 +91,7 @@ export const ShipsLayer = memo(function ShipsLayer({
             style={{ cursor: onSelect && selectable ? 'pointer' : 'default' }}
             onClick={onSelect && selectable ? () => onSelect(ship.playerId) : undefined}
           >
-            <title>{`${ship.name} · hull ${ship.hitPoints}/${ship.maxHitPoints}, heat ${ship.heat}, facing ${ship.facing}${
-              ship.escorts.length > 0
-                ? ` · escorted by ${ship.escorts.map(e => e.name).join(', ')}`
-                : ''
-            }`}</title>
+            <title>{shipLabel(ship)}</title>
             {selectable && (
               <circle
                 cx={p.x}

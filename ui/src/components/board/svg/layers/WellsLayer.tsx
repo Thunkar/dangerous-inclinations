@@ -21,6 +21,7 @@ import {
   wellCenter,
   wellVisual,
 } from '../../geometry'
+import { ringCaption } from '../../labels'
 
 /**
  * The ring line, and why it is drawn the way it is.
@@ -137,7 +138,7 @@ export const WellsLayer = memo(function WellsLayer() {
                     letterSpacing={1 * PRINT_SCALE}
                     fill={LABEL_FILL}
                   >
-                    R{ring.ring} · V{ring.velocity}
+                    {ringCaption(ring.ring, ring.velocity)}
                   </text>
                   {Array.from({ length: SECTORS_PER_RING }, (_, sector) => {
                     const edge = sectorEdgeAngle(well.id, sector)

@@ -15,11 +15,12 @@
  */
 import { memo, useState } from 'react'
 import type { MovementPlan, Position } from '@dangerous-inclinations/engine'
-import { SECTORS_PER_RING, getWellName } from '@dangerous-inclinations/engine'
+import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../../../theme'
 import { BOARD, cream } from '../palette'
 import { allWells, positionPoint, ringRadius, ringsOf, sectorWedgePath } from '../../geometry'
 import { trackAttr, trackPoints } from '../../trajectory'
+import { deployLabel, routeCellLabel } from '../../labels'
 
 /**
  * The table's red, which is what you can act on. Every deployment sector is
@@ -119,7 +120,7 @@ export const SectorPicker = memo(function SectorPicker({
                 onMouseEnter={() => setHovered(key)}
                 onMouseLeave={() => setHovered(h => (h === key ? null : h))}
               >
-                <title>{`Route to ${getWellName(well.id)} R${ring.ring} S${sector}`}</title>
+                <title>{routeCellLabel(position)}</title>
               </path>
             )
           })
@@ -300,7 +301,7 @@ export const DeploymentSectors = memo(function DeploymentSectors({
             onMouseEnter={() => onHover(position)}
             onMouseLeave={() => onHover(null)}
           >
-            <title>{`Place your ship here · ${getWellName(position.wellId)} R${position.ring} S${position.sector}. This sector becomes your Home.`}</title>
+            <title>{deployLabel(position)}</title>
             <path
               d={sectorWedgePath(position.wellId, position.sector, radius - 16, radius + 16)}
               fill={DEPLOY_ACCENT}

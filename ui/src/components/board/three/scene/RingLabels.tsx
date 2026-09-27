@@ -23,6 +23,7 @@ import { useFrame } from '@react-three/fiber'
 import type { GravityWell } from '@dangerous-inclinations/engine'
 import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
 import { polar, ringRadius, sectorAngle, wellCenter } from '../../geometry'
+import { ringCaption } from '../../labels'
 import { BOARD_INK } from '../palette'
 import { cachedSurface, sectorTicksGeometry } from '../surfaces'
 import {
@@ -155,7 +156,7 @@ function SectorNumbers({
         outlineOpacity={0.85}
         userData={{ baseOpacity: 0.9 }}
       >
-        {`R${ring} · v${velocity}`}
+        {ringCaption(ring, velocity)}
       </Text>
 
       {Array.from({ length: SECTORS_PER_RING }, (_, sector) => {

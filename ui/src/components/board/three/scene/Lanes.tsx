@@ -6,9 +6,10 @@
  * arrowhead: the departure arc is solid and its dashes run toward the arrival
  * arc, which is dashed and hollow-lettered. The arc you could jump from right
  * now is brighter and flows faster. No connector line crosses the map: the
- * letter is what tells you which arc comes out where.
+ * letter is what tells you which arc comes out where. Hovering a lane names
+ * it, with the words the flat board uses (`labels.ts`).
  */
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Color, DoubleSide } from 'three'
 import { Billboard, Text } from '@react-three/drei'
 import { BOARD_FONT } from '../fonts'
@@ -16,21 +17,18 @@ import type { TransferArc, TransferLane } from '@dangerous-inclinations/engine'
 import { TRANSFER_LANES, laneDepartureArc } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../theme'
 import { PRINT_SCALE, arcMidPoint, wellLineColor } from '../../geometry'
+import { laneLabel, laneLetter } from '../../labels'
 import { sceneTime } from '../clock'
 import { RIBBON_FRAGMENT, RIBBON_VERTEX } from '../shaders/ribbon'
 import { arcRibbonGeometry, cachedSurface } from '../surfaces'
 import { LAYER, ringElevation } from '../world'
+import { BoardTooltip } from './overlays/marks'
 
 /** Offset of the A/B badge from its arc, as on the SVG board. */
 const BADGE_OFFSET = 15 * PRINT_SCALE
 /** How far the badge floats above the surface so it clears the ribbon. */
 const BADGE_HEIGHT = 12 * PRINT_SCALE
 const BADGE_RADIUS = 8.5 * PRINT_SCALE
-
-/** "beta-a" → "A": the two lanes to a planet are told apart by their letter. */
-function laneLetter(laneId: string): string {
-  return laneId.slice(-1).toUpperCase()
-}
 
 function LaneArc({
   arc,
@@ -85,6 +83,12 @@ function LaneArc({
   )
 }
 
+/** Where a lane's badge floats over its arc. */
+function badgeAt(arc: TransferArc): [number, number, number] {
+  const mid = arcMidPoint(arc, BADGE_OFFSET)
+  return [mid.x, ringElevation(arc.wellId, arc.ring) + LAYER.label + BADGE_HEIGHT, mid.y]
+}
+
 function LaneBadge({
   arc,
   color,
@@ -98,10 +102,8 @@ function LaneBadge({
   departure: boolean
   active: boolean
 }) {
-  const mid = arcMidPoint(arc, BADGE_OFFSET)
-  const y = ringElevation(arc.wellId, arc.ring) + LAYER.label + BADGE_HEIGHT
   return (
-    <Billboard position={[mid.x, y, mid.y]}>
+    <Billboard position={badgeAt(arc)}>
       <mesh>
         <circleGeometry args={[BADGE_RADIUS, 24]} />
         <meshBasicMaterial
@@ -138,8 +140,18 @@ function Lane({ lane, active }: { lane: TransferLane; active: boolean }) {
   const color = wellLineColor(lane.planetId)
   const letter = laneLetter(lane.id)
   const departureArc = laneDepartureArc(lane)
+  const [hovered, setHovered] = useState(false)
+  const over = useCallback((event: { stopPropagation: () => void }) => {
+    event.stopPropagation()
+    setHovered(true)
+  }, [])
+  const out = useCallback(() => setHovered(false), [])
+  const tip = useMemo(() => {
+    const [x, y, z] = badgeAt(departureArc)
+    return [x, y + BADGE_RADIUS * 2, z] as [number, number, number]
+  }, [departureArc])
   return (
-    <group>
+    <group onPointerOver={over} onPointerOut={out}>
       {[lane.blackHoleArc, lane.planetArc].map(arc => {
         const departure = arc === departureArc
         return (
@@ -155,6 +167,7 @@ function Lane({ lane, active }: { lane: TransferLane; active: boolean }) {
           </group>
         )
       })}
+      {hovered && <BoardTooltip position={tip}>{laneLabel(lane)}</BoardTooltip>}
     </group>
   )
 }
