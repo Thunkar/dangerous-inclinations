@@ -2,10 +2,10 @@
  * Experiment-only subsystem overrides for the simulator:
  * `--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3,laser.sectorRange=2`
  *
- * Where `--weapons` reaches only a weapon's firing stats, this reaches any
- * field of any tile: which slot group it fits, what it costs, and what it
- * gives passively. Enough to move a tile from the side slots to the forward
- * one and to take half its job away, without touching `models/subsystems.ts`.
+ * It reaches any field of any tile: which slot group it fits, what it costs,
+ * what it gives passively and every one of a weapon's firing stats. Enough to
+ * move a tile from the side slots to the forward one and to take half its job
+ * away, without touching `models/subsystems.ts`.
  *
  * Like the other override channels it mutates the shared configuration of the
  * process (or worker thread) running the games, so every game of a batch plays
@@ -45,6 +45,7 @@ const CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof SubsystemConfig>([
   "name",
   "minEnergy",
   "maxEnergy",
+  "energyStep",
   "slotType",
   "isPassive",
 ]);
@@ -92,4 +93,13 @@ export function applyTileOverrides(overrides?: TileOverrides): void {
       }
     }
   }
+}
+
+/** The overrides in force, as the benchmark and the balance suite stamp them on their pages. */
+export function describeTileOverrides(overrides?: TileOverrides): string {
+  return Object.entries(overrides ?? {})
+    .flatMap(([tile, fields]) =>
+      Object.entries(fields ?? {}).map(([field, value]) => `${tile}.${field}=${value}`)
+    )
+    .join(", ");
 }

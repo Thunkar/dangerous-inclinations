@@ -6,15 +6,14 @@
  *
  * Flags:
  *   --games=N     games to run (default 50)
- *   --bots=N      bots per game (default 3)
- *   --maxTurns=N  cap on player-turns per game (default 240)
+ *   --bots=N      bots per game (default DEFAULT_BOT_COUNT, 3)
+ *   --maxTurns=N  cap on player-turns per game (default DEFAULT_MAX_TURNS, 240)
  *   --baseSeed=N  first seed; game i uses baseSeed+i (default: random)
  *   --workers=N   worker threads (default: CPU count - 1)
  *   --record      keep recordings and write them to --output/recordings/
- *   --output=DIR  write summary.json (+ recordings) here
+ *   --output=DIR  write summary.json (config, aggregate, per game; + recordings) here
  *   --label=STR   label stored in recordings
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
- *   --weapons=laser.damage=3,laser.sideRestricted=false  experiment-only weapon stat overrides
  *   --tiles=ballistic_rack.damage=3,fuel_compressor.slotType=side  experiment-only tile overrides (any field of any tile)
  *   --rules=missionsToWin=4  the table's points to win, dealt into every game of the batch
  *   --bot=aggressiveness=0.8,targetPreference=weakest  experiment-only bot parameter overrides
@@ -23,18 +22,28 @@
  *   --seats=bot-1=railgun/missiles,radiator,laser,shields  force a hull on a seat, whatever its hand asks for
  *   --hands=bot-1=destroy  the primary a seat is dealt and keeps (destroy|deliver|intercept)
  *   --quiet       no per-game progress
+ *
+ * An unknown flag stops the run: a typo is an experiment that never ran.
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { cpus } from "node:os";
 import { runBatch } from "./batch.ts";
-import { formatFailure } from "./runGame.ts";
+import { DEFAULT_BOT_COUNT, DEFAULT_MAX_TURNS, formatFailure } from "./runGame.ts";
 import type { AggregateStats } from "./stats.ts";
-import { parseWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
-import { parseTileOverrides, type TileOverrides } from "./tileOverrides.ts";
-import { parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
-import { parseBotOverrides, type BotOverrides } from "./botOverrides.ts";
+import { SUBSYSTEM_CONFIGS } from "../models/subsystems.ts";
 import {
+  applyTileOverrides,
+  describeTileOverrides,
+  parseTileOverrides,
+  type TileOverrides,
+} from "./tileOverrides.ts";
+import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
+import { describeBotOverrides, parseBotOverrides, type BotOverrides } from "./botOverrides.ts";
+import {
+  describeLoadoutOverrides,
+  describeSeatHands,
+  describeSeatLoadouts,
   parseLoadoutOverrides,
   parseSeatHands,
   parseSeatLoadouts,
@@ -56,7 +65,6 @@ interface Args {
   tiebreak: boolean;
   tiles?: TileOverrides;
   rules?: RuleOverrides;
-  weapons?: WeaponOverrides;
   /** `--bot=`: how the bots think. `bots` above is how many of them play. */
   bot?: BotOverrides;
   loadouts?: LoadoutOverrides;
@@ -67,15 +75,18 @@ interface Args {
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     games: 50,
-    bots: 3,
-    maxTurns: 240,
+    bots: DEFAULT_BOT_COUNT,
+    maxTurns: DEFAULT_MAX_TURNS,
     workers: Math.max(1, cpus().length - 1),
     record: false,
     quiet: false,
     tiebreak: false,
   };
   for (const raw of argv) {
-    if (!raw.startsWith("--")) continue;
+    if (!raw.startsWith("--")) {
+      console.error(`Unknown argument ${raw}`);
+      process.exit(2);
+    }
     const eq = raw.indexOf("=");
     const key = eq === -1 ? raw.slice(2) : raw.slice(2, eq);
     const value = eq === -1 ? "true" : raw.slice(eq + 1);
@@ -124,9 +135,6 @@ function parseArgs(argv: string[]): Args {
       case "rules":
         args.rules = parseRuleOverrides(value);
         break;
-      case "weapons":
-        args.weapons = parseWeaponOverrides(value);
-        break;
       case "bot":
         args.bot = parseBotOverrides(value);
         break;
@@ -140,10 +148,24 @@ function parseArgs(argv: string[]): Args {
         args.seatHands = parseSeatHands(value);
         break;
       default:
-        console.warn(`Unknown flag --${key}`);
+        console.error(`Unknown flag --${key}`);
+        process.exit(2);
     }
   }
   return args;
+}
+
+/** Every override in force, as `name value` pairs: echoed at the start and kept in summary.json. */
+function overrides(args: Args): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [
+    ["tiles", describeTileOverrides(args.tiles)],
+    ["rules", describeRuleOverrides(args.rules)],
+    ["bot", describeBotOverrides(args.bot)],
+    ["loadouts", describeLoadoutOverrides(args.loadouts)],
+    ["seats", describeSeatLoadouts(args.seatLoadouts)],
+    ["hands", describeSeatHands(args.seatHands)],
+  ];
+  return pairs.filter(([, text]) => text !== "");
 }
 
 function pct(n: number, total: number): string {
@@ -163,16 +185,15 @@ function printSummary(a: AggregateStats): void {
   );
   console.log(`Destructions/game: median ${a.destructions.median}, mean ${a.destructions.mean}`);
   console.log(`Hull damage/game: median ${a.totalDamage.median}, mean ${a.totalDamage.mean}`);
-  console.log(
-    `Mission completions/game: median ${a.missionCompletions.median}, mean ${a.missionCompletions.mean}`
-  );
+  console.log(`Cards completed/game: median ${a.cards.median}, mean ${a.cards.mean}`);
+  console.log(`Points scored/game: median ${a.points.median}, mean ${a.points.mean}`);
   console.log(`Completions by type: ${JSON.stringify(a.completionsByType)}`);
   console.log(`Winners' mission types: ${JSON.stringify(a.winnerMissionTypes)}`);
   console.log(
-    `First dock (turn): median ${a.firstDockRound.median} (${a.firstDockRound.count} players docked)`
+    `First dock (round): median ${a.firstDockRound.median} (${a.firstDockRound.count} players docked)`
   );
   console.log(
-    `First jump (turn): median ${a.firstJumpRound.median} (${a.firstJumpRound.count} players jumped)`
+    `First jump (round): median ${a.firstJumpRound.median} (${a.firstJumpRound.count} players jumped)`
   );
   console.log(
     `Scans/game: mean ${a.scansPerGame.mean}; hidden subsystems per player at end: mean ${a.hiddenTilesAtEnd.mean} of 5`
@@ -184,13 +205,18 @@ function printSummary(a: AggregateStats): void {
     `Turns: coast ${p(b.coastShare)} (idle ${p(b.idleShare)}), burn ${p(b.burnShare)}, jump ${p(b.jumpShare)}, scoop ${p(b.scoopShare)}, firing ${p(b.firingShare)}, lost ${p(b.lostTurnShare)}; cubes left up ${b.meanUpEnergy.toFixed(1)}`
   );
   console.log(
-    `Shields: mean ${b.meanShieldCubes} cubes, full(4) ${p(b.shieldsFullShare)} of turns (of which ${p(b.shieldsFullActingShare)} also moved/scooped/fired), powered ${p(b.shieldsPoweredShare)}; damage soaked ${p(b.absorbedShare)}`,
+    `Shields: mean ${b.meanShieldCubes} cubes, full(${SUBSYSTEM_CONFIGS.shields.maxEnergy}) ${p(b.shieldsFullShare)} of turns, powered ${p(b.shieldsPoweredShare)}; damage soaked ${p(b.absorbedShare)}`
+  );
+  console.log(
     `Weapons (seats carrying · shots/game · hits/game · hull dmg/game): ${Object.entries(a.weapons)
       .map(
         ([t, w]) =>
           `${t} ${p(w.seatShare)} · ${w.shotsPerGame} · ${w.hitsPerGame} · ${w.hullDamagePerGame}`
       )
       .join(" | ")}`
+  );
+  console.log(
+    `Missiles/game: launched mean ${a.missilesLaunchedPerGame.mean}, shot down by racks mean ${a.missilesInterceptedPerGame.mean}`
   );
   console.log(
     `Heat at check: mean ${b.meanHeatAtCheck}; turns taking heat damage ${p(b.heatDamageShare)}`
@@ -204,8 +230,14 @@ function printSummary(a: AggregateStats): void {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  // In this process too, so the summary reads the configs the workers play under.
+  applyTileOverrides(args.tiles);
   console.log(
-    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.tiebreak ? ", tiebreak" : ""}${args.weapons ? `, weapons ${JSON.stringify(args.weapons)}` : ""}${args.rules ? `, rules ${JSON.stringify(args.rules)}` : ""}${args.bot ? `, bot ${JSON.stringify(args.bot)}` : ""}...`
+    `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.tiebreak ? ", tiebreak" : ""}${overrides(
+      args
+    )
+      .map(([name, text]) => `, ${name} ${text}`)
+      .join("")}...`
   );
   const start = Date.now();
 
@@ -220,7 +252,6 @@ async function main(): Promise<void> {
     tiebreak: args.tiebreak,
     tiles: args.tiles,
     rules: args.rules,
-    weapons: args.weapons,
     bots: args.bot,
     loadouts: args.loadouts,
     seatLoadouts: args.seatLoadouts,
@@ -246,7 +277,23 @@ async function main(): Promise<void> {
     mkdirSync(args.output, { recursive: true });
     writeFileSync(
       join(args.output, "summary.json"),
-      JSON.stringify({ aggregate: batch.aggregate, perGame: batch.perGame }, null, 2)
+      JSON.stringify(
+        {
+          config: {
+            games: args.games,
+            bots: args.bots,
+            maxTurns: args.maxTurns,
+            tiebreak: args.tiebreak,
+            baseSeed: args.baseSeed ?? null,
+            seeds: batch.perGame.map((g) => g.seed),
+            overrides: Object.fromEntries(overrides(args)),
+          },
+          aggregate: batch.aggregate,
+          perGame: batch.perGame,
+        },
+        null,
+        2
+      )
     );
     if (args.record) {
       const dir = join(args.output, "recordings");

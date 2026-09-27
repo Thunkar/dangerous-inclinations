@@ -226,8 +226,8 @@ describe("damage: resolveAttack", () => {
     const outcome = resolveAttack(getShip(state, "p2"), "p2", 2, "side-2", 10, attacker);
     const shield = outcome.ship.subsystems.find((s) => s.id === "side-2")!;
     expect(shield.isBroken).toBe(true);
-    // All four cubes went on the two points it absorbed and returned to the
-    // reactor, so there is nothing left to dump as heat: the punishment for
+    // All four cubes went on the two points it absorbed and came off the
+    // tile, so there is nothing left to dump as heat: the punishment for
     // naming a wall that holds is the tile, not the heat.
     expect(outcome.events.find((e) => e.type === "subsystem_broken")).toMatchObject({
       subsystemId: "side-2",

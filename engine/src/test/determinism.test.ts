@@ -12,6 +12,8 @@ import {
   coast,
   eventsOf,
   executeTurnAs,
+  expectRefused,
+  expectRefusedUnless,
   fire,
   getShip,
   makeTwoPlayerGame,
@@ -124,8 +126,9 @@ describe("determinism: executeTurn is pure", () => {
       fire(1, "forward-0", "p2", "side-2", true),
       fire(2, "forward-0", "p2")
     );
-    expect(result.errors?.length).toBeGreaterThan(0);
-    expect(result.gameState).toBe(state);
+    expectRefused(result, state);
+    // The first shot on its own is taken: the second firing of the gun is the reason.
+    expectRefusedUnless(result, executeTurnAs(state, fire(1, "forward-0", "p2", "side-2", true)));
     expect(result.events).toEqual([]);
     // The first shot rolled a die before the second was rejected; the roll must not stick.
     expect(state.rngState).toBe(rngBefore);
@@ -135,8 +138,11 @@ describe("determinism: executeTurn is pure", () => {
   it("refuses to run outside the active phase", () => {
     const state: GameState = { ...makeTwoPlayerGame(), phase: "ended" };
     const result = executeTurn(state, [{ ...coast(1), playerId: "p1" }]);
-    expect(result.gameState).toBe(state);
-    expect(result.errors?.[0]).toMatch(/phase/i);
+    expectRefused(result, state);
+    expectRefusedUnless(
+      result,
+      executeTurn(makeTwoPlayerGame(), [{ ...coast(1), playerId: "p1" }])
+    );
   });
 });
 

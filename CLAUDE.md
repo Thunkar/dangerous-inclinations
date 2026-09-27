@@ -202,8 +202,8 @@ Rule experiments: the rules are constants in `engine/src/models/`, not knobs on
 the state. A game is played under RULES.md and nothing else. A proposed change
 is measured before it is adopted with the simulator's experiment-only override
 channels, which mutate the configuration of the process running the batch:
-`--tiles=fuel_compressor.slotType=side,ballistic_rack.damage=3` (any field of
-any subsystem), `--weapons=laser.damage=3` (firing stats),
+`--tiles=fuel_compressor.slotType=side,laser.damage=3` (any field of any
+subsystem, a weapon's firing stats included),
 `--rules=missionsToWin=4` (the table's points to win, a real game option,
 passed to `createGame`; `yarn bench --rules=` takes it too and stamps it on
 the page), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'

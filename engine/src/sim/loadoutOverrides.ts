@@ -105,3 +105,26 @@ export function applyLoadoutOverrides(overrides?: LoadoutOverrides): void {
     BOT_LOADOUT_TEMPLATES[archetype] = loadout;
   }
 }
+
+const describeHull = (hull: ShipLoadout) => `${hull.forwardSlots.join(",")}/${hull.sideSlots.join(",")}`;
+
+/** `--loadouts=` as the CLI echoes it: archetype=forward/sides, `;` between. */
+export function describeLoadoutOverrides(overrides?: LoadoutOverrides): string {
+  return Object.entries(overrides ?? {})
+    .map(([archetype, hull]) => `${archetype}=${describeHull(hull!)}`)
+    .join("; ");
+}
+
+/** `--seats=` as the CLI echoes it. */
+export function describeSeatLoadouts(seats?: SeatLoadouts): string {
+  return Object.entries(seats ?? {})
+    .map(([seat, hull]) => `${seat}=${describeHull(hull)}`)
+    .join("; ");
+}
+
+/** `--hands=` as the CLI echoes it. */
+export function describeSeatHands(hands?: SeatHands): string {
+  return Object.entries(hands ?? {})
+    .map(([seat, type]) => `${seat}=${type}`)
+    .join(", ");
+}

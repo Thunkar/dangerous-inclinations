@@ -3,34 +3,28 @@
  * a typed event or from the final state.
  */
 import type { GameEvent } from "../models/events.ts";
-import type { MissionType } from "../models/missions.ts";
+import type { CargoKind, MissionType } from "../models/missions.ts";
 import { MISSION_FAMILY } from "../models/missions.ts";
+import { SUBSYSTEM_CONFIGS, WEAPON_SUBSYSTEM_TYPES } from "../models/subsystems.ts";
 import type { GameRunResult } from "./runGame.ts";
 
 export interface PerPlayerStats {
   playerId: string;
-  completedMissions: number;
-  completedByType: Partial<Record<MissionType, number>>;
-  finalHull: number;
+  /** Points scored (a primary is worth 2, a secondary 1), not cards. */
+  points: number;
   damageDealt: number;
   damageTaken: number;
   kills: number;
   deaths: number;
-  heatDamageTaken: number;
   shotsFired: Record<string, number>;
   hitsByWeapon: Record<string, number>;
   hullDamageByWeapon: Record<string, number>;
-  hits: number;
-  misses: number;
-  criticals: number;
   missilesLaunched: number;
+  /** Missiles aimed at this ship that its racks shot down. */
   missilesIntercepted: number;
   scans: number;
-  docks: number;
-  jumps: number;
-  burns: number;
-  firstDockTurn: number | null;
-  firstJumpTurn: number | null;
+  firstDockRound: number | null;
+  firstJumpRound: number | null;
   /** Loadout tiles still face-down when the game ended. */
   hiddenTilesAtEnd: number;
   loadout: string;
@@ -55,10 +49,8 @@ export interface TurnBehaviour {
   /** Share of acting turns with at least one shot fired. */
   firingShare: number;
   meanShieldCubes: number;
-  /** Share of acting turns ending with 4 cubes on shields. */
+  /** Share of acting turns ending with a shield tile's maximum or more on shields. */
   shieldsFullShare: number;
-  /** Of the turns ending with 4 cubes on shields, the share that also burned, jumped, scooped or fired. */
-  shieldsFullActingShare: number;
   /** Mean cubes on shields, racks and sensors at the end of an acting turn: what stays up. */
   meanUpEnergy: number;
   shieldsPoweredShare: number;
@@ -71,9 +63,35 @@ export interface TurnBehaviour {
   lostTurnShare: number;
 }
 
+/** How one game unfolded, read off its events in order. */
+export interface GameUnfolding {
+  /**
+   * Times the sole leader changed. The leader is the one player with the most
+   * points; a tie leaves nobody leading, and the first player to lead is not a
+   * change.
+   */
+  leadChanges: number;
+  /** The sole leader at the end of round 10, or null (a tie, or nobody scored). */
+  leaderAtRound10: string | null;
+  /** The round of the first card completed in the game, or null. */
+  firstScoreRound: number | null;
+  escortMarks: number;
+  /** For every Escort paid: rounds from the marker going on to the card completing. */
+  markToCompletionRounds: number[];
+  wrecksLeft: number;
+  wrecksSalvaged: number;
+  /** Piracy seizures, by what was taken. */
+  seizuresByKind: Record<CargoKind, number>;
+  /** Dock visits that did a job. */
+  dockVisitsWithJob: number;
+  /** Of those, the visits where the player named the job instead of leaving the default. */
+  dockJobsNamed: number;
+}
+
 export interface PerGameStats {
   seed: number;
   behaviour: TurnBehaviour;
+  unfolding: GameUnfolding;
   playerCount: number;
   playerTurns: number;
   rounds: number;
@@ -82,7 +100,10 @@ export interface PerGameStats {
   winnerMissionTypes: MissionType[];
   totalDamage: number;
   destructions: number;
-  missionCompletions: number;
+  /** Cards completed at the table. */
+  cards: number;
+  /** Points scored at the table: a primary counts 2, a secondary 1. */
+  points: number;
   completionsByType: Partial<Record<MissionType, number>>;
   /** Cards dealt as offers, by type: the denominator of a pick rate. */
   offeredByType: Partial<Record<MissionType, number>>;
@@ -91,7 +112,8 @@ export interface PerGameStats {
   perPlayer: Record<string, PerPlayerStats>;
 }
 
-const CARD_LABEL: Record<MissionType, string> = {
+/** The printed name of every card, as every page of the simulator writes it. */
+export const CARD_LABEL: Record<MissionType, string> = {
   destroy_ship: "Destroy",
   deliver_cargo: "Deliver",
   intercept_transmission: "Intercept",
@@ -101,6 +123,9 @@ const CARD_LABEL: Record<MissionType, string> = {
   escort: "Escort",
   salvage: "Salvage",
 };
+
+/** The round the comeback question is asked at. */
+export const LEAD_CHECK_ROUND = 10;
 
 /** "Destroy + Piracy/Survey": the primary a seat took, and what it took beside it. */
 export function handShapeOf(missions: ReadonlyArray<{ type: MissionType }>): string {
@@ -116,38 +141,24 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
   for (const p of final.players) {
     perPlayer[p.id] = {
       playerId: p.id,
-      completedMissions: p.completedMissionCount,
-      completedByType: {},
-      finalHull: p.ship.hitPoints,
+      points: p.completedMissionCount,
       damageDealt: 0,
       damageTaken: 0,
       kills: 0,
       deaths: 0,
-      heatDamageTaken: 0,
       shotsFired: {},
       hitsByWeapon: {},
       hullDamageByWeapon: {},
-      hits: 0,
-      misses: 0,
-      criticals: 0,
       missilesLaunched: 0,
       missilesIntercepted: 0,
       scans: 0,
-      docks: 0,
-      jumps: 0,
-      burns: 0,
-      firstDockTurn: null,
-      firstJumpTurn: null,
+      firstDockRound: null,
+      firstJumpRound: null,
       hiddenTilesAtEnd: p.ship.subsystems.filter((s) => s.slotGroup !== undefined && !s.isRevealed)
         .length,
       loadout: [...p.ship.loadout.forwardSlots, ...p.ship.loadout.sideSlots].join(","),
       handShape: handShapeOf(p.missions),
     };
-    for (const m of p.missions) {
-      if (m.isCompleted)
-        perPlayer[p.id].completedByType[m.type] =
-          (perPlayer[p.id].completedByType[m.type] ?? 0) + 1;
-    }
   }
 
   // What the deal put in front of every seat, and what they kept of it. Both
@@ -188,6 +199,9 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
       }
     }
   }
+  // Read at call time: a `--tiles=shields.maxEnergy=` override applies in the
+  // worker that plays the game, which is where this runs.
+  const shieldMax = SUBSYSTEM_CONFIGS.shields.maxEnergy;
   const acting = run.turnStats.filter((t) => !t.lost);
   const share = (pred: (t: (typeof acting)[number]) => boolean) =>
     acting.length === 0 ? 0 : acting.filter(pred).length / acting.length;
@@ -203,14 +217,7 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
     scoopShare: share((t) => t.scooped),
     firingShare: share((t) => t.shotsFired > 0),
     meanShieldCubes: mean((t) => t.shieldCubes),
-    shieldsFullShare: share((t) => t.shieldCubes >= 4),
-    shieldsFullActingShare: (() => {
-      const full = acting.filter((t) => t.shieldCubes >= 4);
-      return full.length === 0
-        ? 0
-        : full.filter((t) => t.burned || t.jumped || t.scooped || t.shotsFired > 0).length /
-            full.length;
-    })(),
+    shieldsFullShare: share((t) => t.shieldCubes >= shieldMax),
     meanUpEnergy: mean((t) => t.upEnergy),
     shieldsPoweredShare: share((t) => t.shieldCubes > 0),
     meanHeatAtCheck: mean((t) => t.heatAtCheck),
@@ -225,6 +232,7 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
   return {
     seed: run.seed,
     behaviour,
+    unfolding: unfoldingOf(run),
     playerCount: final.players.length,
     playerTurns: run.turnsPlayed,
     rounds: Math.ceil(run.turnsPlayed / final.players.length),
@@ -235,11 +243,107 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
       : [],
     totalDamage,
     destructions,
-    missionCompletions: final.players.reduce((s, p) => s + p.completedMissionCount, 0),
+    cards: Object.values(completionsByType).reduce((s, n) => s + (n ?? 0), 0),
+    points: final.players.reduce((s, p) => s + p.completedMissionCount, 0),
     completionsByType,
     offeredByType,
     keptByType,
     perPlayer,
+  };
+}
+
+/** The one player with the most points, or null on a tie or before anyone scores. */
+function soleLeader(scores: Map<string, number>): string | null {
+  let leader: string | null = null;
+  let best = 0;
+  let tied = false;
+  for (const [id, points] of scores) {
+    if (points > best) {
+      best = points;
+      leader = id;
+      tied = false;
+    } else if (points === best && points > 0) {
+      tied = true;
+    }
+  }
+  return tied ? null : leader;
+}
+
+function unfoldingOf(run: GameRunResult): GameUnfolding {
+  const scores = new Map<string, number>();
+  let leader: string | null = null;
+  let leadChanges = 0;
+  let leaderAtRound10: string | null = null;
+  let firstScoreRound: number | null = null;
+  let escortMarks = 0;
+  const markedAt = new Map<string, number>();
+  const markToCompletionRounds: number[] = [];
+  let wrecksLeft = 0;
+  let wrecksSalvaged = 0;
+  const seizuresByKind: Record<CargoKind, number> = { crate: 0, data: 0 };
+  let dockVisitsWithJob = 0;
+  let dockJobsNamed = 0;
+
+  for (const turn of run.turns) {
+    const named = turn.actions.some((a) => a.type === "dock_job" && a.playerId === turn.playerId);
+    for (const e of turn.events) {
+      switch (e.type) {
+        case "mission_completed": {
+          firstScoreRound ??= e.turn;
+          // `completedCount` is the player's running points after the card.
+          scores.set(e.playerId, e.completedCount);
+          const now = soleLeader(scores);
+          if (now !== null && leader !== null && now !== leader) leadChanges++;
+          if (now !== null) leader = now;
+          const marked = markedAt.get(e.mission.id);
+          if (e.mission.type === "escort" && marked !== undefined) {
+            markToCompletionRounds.push(e.turn - marked);
+            markedAt.delete(e.mission.id);
+          }
+          break;
+        }
+        case "escort_marked":
+          escortMarks++;
+          markedAt.set(e.missionId, e.turn);
+          break;
+        case "escort_released":
+          markedAt.delete(e.missionId);
+          break;
+        case "wreck_left":
+          wrecksLeft++;
+          break;
+        case "wreck_salvaged":
+          wrecksSalvaged++;
+          break;
+        case "cargo_seized":
+          seizuresByKind[e.kind]++;
+          break;
+        case "docked":
+          if (e.job !== null) {
+            dockVisitsWithJob++;
+            if (named && e.playerId === turn.playerId) dockJobsNamed++;
+          }
+          break;
+        default:
+          break;
+      }
+      // The standings at the end of round 10 are the ones the last event of
+      // rounds up to 10 left behind.
+      if (e.turn <= LEAD_CHECK_ROUND) leaderAtRound10 = soleLeader(scores);
+    }
+  }
+
+  return {
+    leadChanges,
+    leaderAtRound10,
+    firstScoreRound,
+    escortMarks,
+    markToCompletionRounds,
+    wrecksLeft,
+    wrecksSalvaged,
+    seizuresByKind,
+    dockVisitsWithJob,
+    dockJobsNamed,
   };
 }
 
@@ -250,7 +354,8 @@ function creditEvent(
   addDestruction: () => void,
   completionsByType: Partial<Record<MissionType, number>>
 ): void {
-  const first = (s: PerPlayerStats, key: "firstDockTurn" | "firstJumpTurn") => {
+  const first = (s: PerPlayerStats, key: "firstDockRound" | "firstJumpRound") => {
+    // An event's `turn` is the round it happened in.
     if (s[key] === null) s[key] = e.turn;
   };
   switch (e.type) {
@@ -270,12 +375,8 @@ function creditEvent(
       const a = per[e.attackerId];
       const t = per[e.targetId];
       if (a) {
-        if (e.result === "miss") a.misses++;
-        else {
-          a.hits++;
+        if (e.result !== "miss")
           a.hitsByWeapon[e.weaponType] = (a.hitsByWeapon[e.weaponType] ?? 0) + 1;
-        }
-        if (e.result === "critical") a.criticals++;
         a.damageDealt += e.toHull;
         a.hullDamageByWeapon[e.weaponType] = (a.hullDamageByWeapon[e.weaponType] ?? 0) + e.toHull;
       }
@@ -288,26 +389,14 @@ function creditEvent(
       if (per[e.victimId]) per[e.victimId].deaths++;
       if (e.killerId && per[e.killerId]) per[e.killerId].kills++;
       break;
-    case "heat_damage":
-      if (per[e.playerId]) per[e.playerId].heatDamageTaken += e.damage;
-      break;
     case "scanned":
       if (per[e.scannerId]) per[e.scannerId].scans++;
       break;
     case "docked":
-      if (per[e.playerId]) {
-        per[e.playerId].docks++;
-        first(per[e.playerId], "firstDockTurn");
-      }
+      if (per[e.playerId]) first(per[e.playerId], "firstDockRound");
       break;
     case "jumped":
-      if (per[e.playerId]) {
-        per[e.playerId].jumps++;
-        first(per[e.playerId], "firstJumpTurn");
-      }
-      break;
-    case "burned":
-      if (per[e.playerId]) per[e.playerId].burns++;
+      if (per[e.playerId]) first(per[e.playerId], "firstJumpRound");
       break;
     case "mission_completed":
       completionsByType[e.mission.type] = (completionsByType[e.mission.type] ?? 0) + 1;
@@ -327,6 +416,25 @@ export interface Distribution {
   count: number;
 }
 
+/** {@link GameUnfolding} over a batch, per game unless the name says otherwise. */
+export interface UnfoldingAggregate {
+  leadChangesPerGame: number;
+  /** Games still being played after round 10 that someone won. */
+  gamesPastRound10: number;
+  /** Of those, the share won by a seat that was not the sole leader at round 10. */
+  wonFromBehindShare: number;
+  firstScoreRound: Distribution;
+  escortMarksPerGame: number;
+  markToCompletionRounds: Distribution;
+  wrecksPerGame: number;
+  /** Wrecks salvaged over wrecks left. */
+  salvagedShare: number;
+  seizuresPerGame: Record<CargoKind, number>;
+  dockVisitsWithJobPerGame: number;
+  /** Visits that did a job where the player named it, over all visits that did one. */
+  dockJobsNamedShare: number;
+}
+
 export interface AggregateStats {
   gameCount: number;
   endReasons: Record<string, number>;
@@ -334,7 +442,8 @@ export interface AggregateStats {
   playerTurns: Distribution;
   totalDamage: Distribution;
   destructions: Distribution;
-  missionCompletions: Distribution;
+  cards: Distribution;
+  points: Distribution;
   completionsByType: Partial<Record<MissionType, number>>;
   offeredByType: Partial<Record<MissionType, number>>;
   keptByType: Partial<Record<MissionType, number>>;
@@ -345,9 +454,12 @@ export interface AggregateStats {
   firstJumpRound: Distribution;
   hiddenTilesAtEnd: Distribution;
   scansPerGame: Distribution;
+  missilesLaunchedPerGame: Distribution;
+  missilesInterceptedPerGame: Distribution;
   loadoutWins: Record<string, { games: number; wins: number }>;
   /** Mean of each behaviour share over the games. */
   behaviour: TurnBehaviour;
+  unfolding: UnfoldingAggregate;
   /** Per weapon type: seats that carried it, and shots/hits/hull damage per game (all seats). */
   weapons: Record<string, WeaponAggregate>;
 }
@@ -371,6 +483,8 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
   const firstJump: number[] = [];
   const hidden: number[] = [];
   const scans: number[] = [];
+  const launched: number[] = [];
+  const intercepted: number[] = [];
   const weaponTotals: Record<string, { seats: number; shots: number; hits: number; hull: number }> =
     {};
   let seats = 0;
@@ -391,16 +505,20 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     for (const type of g.winnerMissionTypes)
       winnerMissionTypes[type] = (winnerMissionTypes[type] ?? 0) + 1;
     let gameScans = 0;
+    let gameLaunched = 0;
+    let gameIntercepted = 0;
     for (const p of Object.values(g.perPlayer)) {
-      if (p.firstDockTurn !== null) firstDock.push(p.firstDockTurn);
-      if (p.firstJumpTurn !== null) firstJump.push(p.firstJumpTurn);
+      if (p.firstDockRound !== null) firstDock.push(p.firstDockRound);
+      if (p.firstJumpRound !== null) firstJump.push(p.firstJumpRound);
       hidden.push(p.hiddenTilesAtEnd);
       gameScans += p.scans;
+      gameLaunched += p.missilesLaunched;
+      gameIntercepted += p.missilesIntercepted;
       const lw = (loadoutWins[p.loadout] ??= { games: 0, wins: 0 });
       lw.games++;
       if (g.winnerId === p.playerId) lw.wins++;
       seats++;
-      for (const type of ["railgun", "laser", "missiles", "ballistic_rack"]) {
+      for (const type of WEAPON_SUBSYSTEM_TYPES) {
         const w = (weaponTotals[type] ??= { seats: 0, shots: 0, hits: 0, hull: 0 });
         if (p.loadout.split(",").includes(type)) w.seats++;
         w.shots += p.shotsFired[type] ?? 0;
@@ -409,6 +527,8 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
       }
     }
     scans.push(gameScans);
+    launched.push(gameLaunched);
+    intercepted.push(gameIntercepted);
   }
 
   const meanOf = (key: keyof TurnBehaviour) =>
@@ -425,12 +545,14 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
   return {
     gameCount: games.length,
     behaviour,
+    unfolding: aggregateUnfolding(games),
     endReasons,
     rounds: distribution(games.map((g) => g.rounds)),
     playerTurns: distribution(games.map((g) => g.playerTurns)),
     totalDamage: distribution(games.map((g) => g.totalDamage)),
     destructions: distribution(games.map((g) => g.destructions)),
-    missionCompletions: distribution(games.map((g) => g.missionCompletions)),
+    cards: distribution(games.map((g) => g.cards)),
+    points: distribution(games.map((g) => g.points)),
     completionsByType,
     offeredByType,
     keptByType,
@@ -440,6 +562,8 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     firstJumpRound: distribution(firstJump),
     hiddenTilesAtEnd: distribution(hidden),
     scansPerGame: distribution(scans),
+    missilesLaunchedPerGame: distribution(launched),
+    missilesInterceptedPerGame: distribution(intercepted),
     loadoutWins,
     weapons: Object.fromEntries(
       Object.entries(weaponTotals).map(([type, w]) => [
@@ -452,6 +576,45 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
             games.length === 0 ? 0 : Math.round((100 * w.hull) / games.length) / 100,
         },
       ])
+    ),
+  };
+}
+
+function aggregateUnfolding(games: PerGameStats[]): UnfoldingAggregate {
+  const n = games.length;
+  const perGame = (sum: number) => (n === 0 ? 0 : Math.round((100 * sum) / n) / 100);
+  const ratio = (a: number, b: number) => (b === 0 ? 0 : Math.round((1000 * a) / b) / 1000);
+  const sum = (f: (u: GameUnfolding) => number) => games.reduce((s, g) => s + f(g.unfolding), 0);
+
+  const pastRound10 = games.filter((g) => g.winnerId !== undefined && g.rounds > LEAD_CHECK_ROUND);
+  const fromBehind = pastRound10.filter((g) => g.unfolding.leaderAtRound10 !== g.winnerId);
+  const wrecks = sum((u) => u.wrecksLeft);
+  const visits = sum((u) => u.dockVisitsWithJob);
+
+  return {
+    leadChangesPerGame: perGame(sum((u) => u.leadChanges)),
+    gamesPastRound10: pastRound10.length,
+    wonFromBehindShare: ratio(fromBehind.length, pastRound10.length),
+    firstScoreRound: distribution(
+      games.flatMap((g) =>
+        g.unfolding.firstScoreRound === null ? [] : [g.unfolding.firstScoreRound]
+      )
+    ),
+    escortMarksPerGame: perGame(sum((u) => u.escortMarks)),
+    markToCompletionRounds: distribution(games.flatMap((g) => g.unfolding.markToCompletionRounds)),
+    wrecksPerGame: perGame(wrecks),
+    salvagedShare: ratio(
+      sum((u) => u.wrecksSalvaged),
+      wrecks
+    ),
+    seizuresPerGame: {
+      crate: perGame(sum((u) => u.seizuresByKind.crate)),
+      data: perGame(sum((u) => u.seizuresByKind.data)),
+    },
+    dockVisitsWithJobPerGame: perGame(visits),
+    dockJobsNamedShare: ratio(
+      sum((u) => u.dockJobsNamed),
+      visits
     ),
   };
 }

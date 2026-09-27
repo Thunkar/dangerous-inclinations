@@ -23,7 +23,13 @@ import {
   dockJob,
   eventsOf,
   eventTypes,
+  crateCargo,
+  dataCargo,
+  dockingShip,
+  lootCargo,
   executeTurnAs,
+  expectRefused,
+  expectRefusedUnless,
   getPlayer,
   getShip,
   getSub,
@@ -58,15 +64,6 @@ function approaching(planet: string, loadout?: ShipLoadout): GameState {
     base.players[1],
   ]);
 }
-
-const crate = (pickup: string, delivery: string, isPickedUp: boolean): Cargo => ({
-  id: `crate-${pickup}-${delivery}`,
-  missionId: `deliver-${pickup}-${delivery}`,
-  kind: "crate",
-  pickupPlanetId: pickup,
-  deliveryPlanetId: delivery,
-  isPickedUp,
-});
 
 describe("docking: stations", () => {
   it("every planet has a station on the station ring at sector 0 to start", () => {
@@ -197,7 +194,7 @@ describe("docking: ending the turn on a station", () => {
 describe("docking: cargo", () => {
   it("picks up crates whose origin is this station", () => {
     const state = withPlayer(approaching(ALPHA), "p1", {
-      cargo: [crate(ALPHA, BETA, false), crate(GAMMA, BETA, false)],
+      cargo: [crateCargo(ALPHA, BETA, false), crateCargo(GAMMA, BETA, false)],
     });
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "cargo_picked_up")).toEqual([
@@ -212,7 +209,7 @@ describe("docking: cargo", () => {
 
   it("delivers picked-up crates whose destination is this station and keeps the rest", () => {
     const state = withPlayer(approaching(BETA), "p1", {
-      cargo: [crate(ALPHA, BETA, true), crate(ALPHA, GAMMA, true)],
+      cargo: [crateCargo(ALPHA, BETA, true), crateCargo(ALPHA, GAMMA, true)],
     });
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "cargo_delivered")).toEqual([
@@ -224,20 +221,14 @@ describe("docking: cargo", () => {
   });
 
   it("a crate that was never picked up is not delivered at its destination", () => {
-    const state = withPlayer(approaching(BETA), "p1", { cargo: [crate(ALPHA, BETA, false)] });
+    const state = withPlayer(approaching(BETA), "p1", { cargo: [crateCargo(ALPHA, BETA, false)] });
     const result = executeTurnAs(state, coast(1));
     expect(eventTypes(result.events)).not.toContain("cargo_delivered");
     expect(getPlayer(result.gameState, "p1").cargo[0].isPickedUp).toBe(false);
   });
 
   it("data is delivered at any station", () => {
-    const data: Cargo = {
-      id: "data-1",
-      missionId: "m",
-      kind: "data",
-      deliveryPlanetId: "any",
-      isPickedUp: true,
-    };
+    const data = dataCargo("data-1", "m");
     const result = executeTurnAs(withPlayer(approaching(GAMMA), "p1", { cargo: [data] }), coast(1));
     expect(eventsOf(result.events, "cargo_delivered")).toEqual([
       expect.objectContaining({ cargoId: "data-1", planetId: GAMMA }),
@@ -247,7 +238,7 @@ describe("docking: cargo", () => {
 
   it("nothing happens to cargo when the ship does not dock", () => {
     const state = withPlayer(makeGameState([makePlayer("p1"), makePlayer("p2")]), "p1", {
-      cargo: [crate(ALPHA, BETA, true)],
+      cargo: [crateCargo(ALPHA, BETA, true)],
     });
     const next = mustExecute(state, coast(1));
     expect(getPlayer(next, "p1").cargo).toEqual(state.players[0].cargo);
@@ -504,7 +495,7 @@ describe("docking: moored ships ride their station", () => {
 /** A Deliver card from `pickup` to `delivery`, its crate aboard or waiting. */
 function deliverCard(pickup: string, delivery: string, aboard: boolean): [Mission, Cargo] {
   const mission = deliverMission(pickup, delivery);
-  return [mission, { ...crate(pickup, delivery, aboard), id: mission.cargoId, missionId: mission.id }];
+  return [mission, { ...crateCargo(pickup, delivery, aboard), id: mission.cargoId, missionId: mission.id }];
 }
 
 /** A Survey dived, its data aboard for any station. */
@@ -512,7 +503,7 @@ function surveyCard(): [Mission, Cargo] {
   const mission = { ...surveyMission(), acquired: true };
   return [
     mission,
-    { id: mission.dataCargoId, missionId: mission.id, kind: "data", deliveryPlanetId: "any", isPickedUp: true },
+    dataCargo(mission.dataCargoId, mission.id),
   ];
 }
 
@@ -530,7 +521,7 @@ function piracyCard(): [Mission, Cargo] {
   const mission = piracyMission();
   return [
     mission,
-    { id: mission.cargoId, missionId: mission.id, kind: "crate", deliveryPlanetId: "any", isPickedUp: true },
+    lootCargo(mission.cargoId, mission.id),
   ];
 }
 
@@ -610,7 +601,7 @@ describe("docking: one job a visit", () => {
     const [inbound, inboundCrate] = deliverCard(ALPHA, BETA, true);
     const [onward, onwardCrate] = deliverCard(BETA, GAMMA, false);
     const state = visit(BETA, [[inbound, inboundCrate], [onward, onwardCrate], TANKER]);
-    expect(dockJobsOnArrival(getPlayerShip(state), BETA)).toEqual({
+    expect(dockJobsOnArrival(dockingShip(state, "p1"), BETA)).toEqual({
       jobs: [
         { job: "crates", points: MISSION_POINTS.deliver_cargo },
         { job: "fuel", points: MISSION_POINTS.tanker },
@@ -629,7 +620,7 @@ describe("docking: one job a visit", () => {
     const [survey, surveyItem] = surveyCard();
     const [intercept, interceptItem] = interceptCard(ALPHA);
     const state = visit(ALPHA, [[survey, surveyItem], [intercept, interceptItem]]);
-    expect(dockJobsOnArrival(getPlayerShip(state), ALPHA)).toEqual({
+    expect(dockJobsOnArrival(dockingShip(state, "p1"), ALPHA)).toEqual({
       jobs: [{ job: "data", points: MISSION_POINTS.survey + MISSION_POINTS.intercept_transmission }],
       default: "data",
     });
@@ -653,7 +644,7 @@ describe("docking: one job a visit", () => {
   it("a chosen job wins over the default", () => {
     // Default would be the crate (2 against the Tanker's 1).
     const state = visit(ALPHA, [[deliver, deliverCrate], TANKER]);
-    expect(dockJobsOnArrival(getPlayerShip(state), ALPHA).default).toBe("crates");
+    expect(dockJobsOnArrival(dockingShip(state, "p1"), ALPHA).default).toBe("crates");
     const result = arrive(state, "fuel");
     expect(eventsOf(result.events, "docked")[0].job).toBe("fuel");
     expect(eventsOf(result.events, "cargo_delivered")).toEqual([]);
@@ -693,15 +684,10 @@ describe("docking: one job a visit", () => {
   ])("refuses %s", (_label, named) => {
     const state = everything();
     const result = executeTurnAs(state, coast(1), ...named);
-    expect(result.errors?.length).toBeGreaterThan(0);
-    expect(result.gameState).toBe(state);
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(state, coast(1), dockJob("crates")));
   });
 });
-
-function getPlayerShip(state: GameState) {
-  const p = getPlayer(state, "p1");
-  return { cargo: p.cargo, missions: p.missions, reactionMass: p.ship.reactionMass };
-}
 
 describe("docking: the default job", () => {
   const [deliverIn, crateIn] = deliverCard(BETA, ALPHA, true);
@@ -723,7 +709,7 @@ describe("docking: the default job", () => {
     ["nothing to do is no job", [], 10, null, []],
   ])("%s", (_label, cards, fuel, expected, jobs) => {
     const state = visit(ALPHA, cards, fuel);
-    const offer = dockJobsOnArrival(getPlayerShip(state), ALPHA);
+    const offer = dockJobsOnArrival(dockingShip(state, "p1"), ALPHA);
     expect(offer.jobs).toEqual(jobs.map(([job, points]) => ({ job, points })));
     expect(offer.default).toBe(expected);
     // And the referee docks by the same answer.

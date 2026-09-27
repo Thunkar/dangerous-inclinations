@@ -2,7 +2,7 @@
  * Experiment-only bot parameter overrides for the simulator:
  * `--bot=aggressiveness=0.8,targetPreference=weakest`
  *
- * Where `--tiles`, `--weapons` and `--rules` change the game, this changes the
+ * Where `--tiles` and `--rules` change the game, this changes the
  * players: the knobs every bot decides with (`ai/types.BotParameters`). A way
  * of playing the bots do not use is not measurable, so a proposed one is given
  * to them here first (a batch played by bots that shoot the weakest ship in

@@ -15,6 +15,8 @@ import {
   eventsOf,
   eventTypes,
   executeTurnAs,
+  expectRefused,
+  expectRefusedUnless,
   fire,
   getShip,
   getSub,
@@ -112,7 +114,7 @@ describe("weapons: the opening round reaches nobody", () => {
     ["a scan", FIRST_TURN, "scanned", sensing, () => scan(1, "p2", "side-0")],
   ])("refuses %s in the first round", (_what, turn, event, build, action) => {
     const result = executeTurnAs(build(turn), action());
-    expect(result.errors?.length).toBeGreaterThan(0);
+    expectRefusedUnless(result, executeTurnAs(build(turn + 1), action()));
     expect(eventTypes(result.events)).not.toContain(event);
   });
 
@@ -276,16 +278,18 @@ describe("weapons: firing", () => {
 
   it("range is checked when the shot executes: fire-then-coast works, coast-then-fire does not", () => {
     const state = duel(1); // in range from S0, out of range from S4
-    expect(executeTurnAs(state, fire(1, "side-0", "p2"), coast(2)).errors).toBeUndefined();
-    expect(executeTurnAs(state, coast(1), fire(2, "side-0", "p2")).errors?.[0]).toMatch(
-      /out of range/i
+    expectRefusedUnless(
+      executeTurnAs(state, coast(1), fire(2, "side-0", "p2")),
+      executeTurnAs(state, fire(1, "side-0", "p2"), coast(2))
     );
   });
 
   it("a target that drifts into range can be shot after moving", () => {
     const state = duel(4); // out of range from S0, in range from S4
-    expect(executeTurnAs(state, fire(1, "side-0", "p2")).errors?.[0]).toMatch(/out of range/i);
-    expect(executeTurnAs(state, coast(1), fire(2, "side-0", "p2")).errors).toBeUndefined();
+    expectRefusedUnless(
+      executeTurnAs(state, fire(1, "side-0", "p2")),
+      executeTurnAs(state, coast(1), fire(2, "side-0", "p2"))
+    );
   });
 
   it("after a jump the shot is measured from the destination", () => {
@@ -295,50 +299,44 @@ describe("weapons: firing", () => {
       makePlayer("p2", { wellId: ALPHA, ring: 2, sector: 5 }),
     ]);
     state = withPower(state, "p1", "side-2", 2);
-    expect(executeTurnAs(state, fire(1, "side-2", "p2"), jump(2, ALPHA)).errors?.[0]).toMatch(
-      /out of range/i
-    );
     const result = executeTurnAs(state, jump(1, ALPHA), fire(2, "side-2", "p2"));
-    expect(result.errors).toBeUndefined();
+    expectRefusedUnless(executeTurnAs(state, fire(1, "side-2", "p2"), jump(2, ALPHA)), result);
     expect(getShip(result.gameState, "p2").hitPoints).toBe(8);
   });
 
   it("each weapon fires once per turn, but two lasers are two weapons", () => {
     const state = withPower(duel(), "p1", "side-1", 2);
-    expect(
-      executeTurnAs(state, fire(1, "side-0", "p2"), fire(2, "side-0", "p2")).errors?.[0]
-    ).toMatch(/already fired/i);
     const result = executeTurnAs(state, fire(1, "side-0", "p2"), fire(2, "side-1", "p2"));
-    expect(result.errors).toBeUndefined();
+    expectRefusedUnless(
+      executeTurnAs(state, fire(1, "side-0", "p2"), fire(2, "side-0", "p2")),
+      result
+    );
     expect(getShip(result.gameState, "p2").hitPoints).toBe(6);
   });
 
-  it.each([
-    [
-      "a target in another well",
-      (s: ReturnType<typeof duel>) => withShip(s, "p2", { wellId: ALPHA }),
-      "side-0",
-      "p2",
-      /out of range/i,
-    ],
-  ])("rejects firing %s", (_label, setup, weapon, target, message) => {
-    const state = setup(duel());
-    const result = executeTurnAs(state, fire(1, weapon, target));
-    expect(result.errors?.[0]).toMatch(message);
-    expect(result.gameState).toBe(state);
+  it("rejects firing at a target in another well", () => {
+    const state = withShip(duel(), "p2", { wellId: ALPHA });
+    const result = executeTurnAs(state, fire(1, "side-0", "p2"));
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(duel(), fire(1, "side-0", "p2")));
   });
 
   it("rejects a critical target that is not a slot on the target's ship", () => {
-    const result = executeTurnAs(duel(), fire(1, "side-0", "p2", "side-7"));
-    expect(result.errors?.[0]).toMatch(/critical target/i);
+    expectRefusedUnless(
+      executeTurnAs(duel(), fire(1, "side-0", "p2", "side-7")),
+      executeTurnAs(duel(), fire(1, "side-0", "p2", "side-3"))
+    );
   });
 
   it("a rejected shot aborts the turn: earlier valid actions do not apply", () => {
     const state = withPower(duel(), "p1", "side-1", 2);
     const result = executeTurnAs(state, fire(1, "side-0", "p2"), fire(2, "side-1", "p9"));
-    expect(result.errors?.length).toBeGreaterThan(0);
+    expectRefused(result, state);
     expect(getShip(result.gameState, "p2").hitPoints).toBe(10);
-    expect(result.gameState).toBe(state);
+    expectRefusedUnless(
+      result,
+      executeTurnAs(state, fire(1, "side-0", "p2"), fire(2, "side-1", "p2"))
+    );
   });
 });
 
@@ -370,9 +368,9 @@ describe("weapons: a recovering ship cannot be shot or scanned", () => {
   ])("refuses %s while the target is recovering", (_what, event, build, action) => {
     const state = withPlayer(build(), "p2", { recovering: true });
     const result = executeTurnAs(state, action());
-    expect(result.errors?.length).toBeGreaterThan(0);
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(build(), action()));
     expect(eventTypes(result.events)).not.toContain(event);
-    expect(result.gameState).toBe(state);
   });
 
   it.each([
@@ -417,9 +415,8 @@ describe("weapons: railgun recoil", () => {
     ]);
     state = withPower(state, "p1", "side-2", 2);
     // From R3 the starboard laser cannot hit p3 on R3; after the recoil to R4 it fires inward at R3.
-    expect(executeTurnAs(state, fire(1, "side-2", "p3")).errors?.[0]).toMatch(/out of range/i);
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"), fire(2, "side-2", "p3"));
-    expect(result.errors).toBeUndefined();
+    expectRefusedUnless(executeTurnAs(state, fire(1, "side-2", "p3")), result);
     expect(getShip(result.gameState, "p3").hitPoints).toBe(8);
   });
 
@@ -437,23 +434,25 @@ describe("weapons: railgun recoil", () => {
 
   it("compensation uses the engines for the turn: a burn afterwards is rejected, and vice versa", () => {
     const state = gunline();
-    expect(
-      executeTurnAs(state, fire(1, "forward-0", "p2", "engines", true), burn(2, "soft")).errors?.[0]
-    ).toMatch(/already used/i);
-    // Burning first also moves the ship off p2's ring, so the range error comes first; the engines error is still reported.
-    expect(
-      executeTurnAs(
-        state,
-        burn(1, "soft"),
-        fire(2, "forward-0", "p2", "engines", true)
-      ).errors?.join()
-    ).toMatch(/already used/i);
+    expectRefusedUnless(
+      executeTurnAs(state, fire(1, "forward-0", "p2", "engines", true), burn(2, "soft")),
+      executeTurnAs(state, fire(1, "forward-0", "p2", "engines", true))
+    );
+    // Burning first: p2 waits two sectors ahead of where the burn lands (R4
+    // S4), so the railgun reaches it and only the compensation is refused.
+    const afterBurn = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 6 });
+    expectRefusedUnless(
+      executeTurnAs(afterBurn, burn(1, "soft"), fire(2, "forward-0", "p2", "engines", true)),
+      executeTurnAs(afterBurn, burn(1, "soft"), fire(2, "forward-0", "p2"))
+    );
   });
 
   it("compensation needs a unit of mass, and nothing else", () => {
     const dry = withShip(gunline(), "p1", { reactionMass: 0 });
-    expect(executeTurnAs(dry, fire(1, "forward-0", "p2", "engines", true)).errors?.[0]).toMatch(
-      /reaction mass/i
+    const lastUnit = withShip(gunline(), "p1", { reactionMass: 1 });
+    expectRefusedUnless(
+      executeTurnAs(dry, fire(1, "forward-0", "p2", "engines", true)),
+      executeTurnAs(lastUnit, fire(1, "forward-0", "p2", "engines", true))
     );
     // Four cubes on the railgun and one on the engines is five heat, which is
     // a price and no longer a refusal: nothing caps what a ship may light.
@@ -463,16 +462,16 @@ describe("weapons: railgun recoil", () => {
   });
 
   it("an uncompensated shot that would push the ship off the rings is rejected", () => {
-    expect(executeTurnAs(gunline("prograde", 5), fire(1, "forward-0", "p2")).errors?.[0]).toMatch(
-      /off the rings/i
-    );
-    expect(executeTurnAs(gunline("retrograde", 1), fire(1, "forward-0", "p2")).errors?.[0]).toMatch(
-      /off the rings/i
-    );
-    const compensated = withPower(gunline("prograde", 5), "p1", "engines", 1);
-    expect(
-      executeTurnAs(compensated, fire(1, "forward-0", "p2", "engines", true)).errors
-    ).toBeUndefined();
+    // Compensated, the same shot stays put and is taken.
+    for (const [facing, ring] of [
+      ["prograde", 5],
+      ["retrograde", 1],
+    ] as const) {
+      expectRefusedUnless(
+        executeTurnAs(gunline(facing, ring), fire(1, "forward-0", "p2")),
+        executeTurnAs(gunline(facing, ring), fire(1, "forward-0", "p2", "engines", true))
+      );
+    }
   });
 
   it.each([
@@ -494,9 +493,7 @@ describe("weapons: railgun recoil", () => {
         4
       );
       const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
-      expect(result.errors?.join(" ") ?? "accepted").toMatch(
-        allowed ? /accepted/ : /off the rings/i
-      );
+      expect(result.errors === undefined).toBe(allowed);
       // The recoil pushes one ring in the facing direction, or nowhere.
       expect(getShip(result.gameState, "p1").ring).toBe(
         allowed ? ring + (facing === "prograde" ? 1 : -1) : ring
@@ -541,8 +538,10 @@ describe("weapons: shots at a ship destroyed earlier this turn are skipped", () 
   it("a shot at a ship that was already dead before the turn is still rejected", () => {
     let state = makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 });
     state = withPower(state, "p1", "side-0", 2);
+    const alive = state;
     state = withShip(state, "p2", { hitPoints: 0 });
     const result = executeTurnAs(state, fire(1, "side-0", "p2"), coast(2));
-    expect(result.errors?.[0]).toMatch(/not on the board/i);
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(alive, fire(1, "side-0", "p2"), coast(2)));
   });
 });

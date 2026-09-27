@@ -6,16 +6,14 @@
  * Setup uses exactly the engine functions the server uses (createGame,
  * submitLoadout, deployShip), and bots decide from `viewFor`, so sim results
  * describe the same game humans play. The experiment-only override channels
- * (sim/ruleOverrides.ts, tileOverrides.ts, weaponOverrides.ts,
- * loadoutOverrides.ts, botOverrides.ts) let a change be measured before it is
- * adopted.
+ * (sim/ruleOverrides.ts, tileOverrides.ts, loadoutOverrides.ts,
+ * botOverrides.ts) let a change be measured before it is adopted.
  */
 import type { GameState, PlayerAction } from "../models/game.ts";
 import type { GameEvent } from "../models/events.ts";
 import type { GameRecording, RecordedTurn, RecordingMetadata } from "../recording/types.ts";
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
-import { applyWeaponOverrides, type WeaponOverrides } from "./weaponOverrides.ts";
 import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
 import type { RuleOverrides } from "./ruleOverrides.ts";
 import { applyBotOverrides, type BotOverrides } from "./botOverrides.ts";
@@ -33,7 +31,6 @@ import { rankPlayers } from "../game/missions/missionChecks.ts";
 import { deployShip, transitionToActivePhase } from "../game/deployment.ts";
 import { executeTurn } from "../game/turns.ts";
 import { viewFor } from "../game/view.ts";
-import { getDissipationCapacity } from "../game/ship.ts";
 import { pickIndex, freshSeed } from "../utils/rng.ts";
 import { botChooseDeployment, botChooseLoadout, botDecideActions } from "../ai/index.ts";
 
@@ -52,8 +49,6 @@ export interface GameConfig {
   tiles?: TileOverrides;
   /** Experiment-only rule overrides: points to win (see sim/ruleOverrides.ts). */
   rules?: RuleOverrides;
-  /** Experiment-only weapon stat overrides (see sim/weaponOverrides.ts). */
-  weapons?: WeaponOverrides;
   /** Experiment-only bot parameter overrides (see sim/botOverrides.ts). */
   bots?: BotOverrides;
   /** Experiment-only bot hull overrides (see sim/loadoutOverrides.ts). */
@@ -87,7 +82,6 @@ export interface TurnStat {
    */
   upEnergy: number;
   heatAtCheck: number;
-  dissipation: number;
   heatDamage: number;
   /**
    * The turn was the respawn turn: the ship came back at Home and drifted, and
@@ -123,10 +117,12 @@ export interface GameRunResult {
   failure?: InvalidTurn;
 }
 
-const DEFAULT_BOT_COUNT = 2;
-const DEFAULT_MAX_TURNS = 200;
+/** Seats in a game when the caller names none: the batch runner and the CLI use these too. */
+export const DEFAULT_BOT_COUNT = 3;
+/** Player-turns before a game is called, when the caller names no cap. */
+export const DEFAULT_MAX_TURNS = 240;
 
-export function botIds(count: number): string[] {
+function botIds(count: number): string[] {
   return Array.from({ length: count }, (_, i) => `bot-${i + 1}`);
 }
 
@@ -219,7 +215,6 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
   applyTileOverrides(config.tiles);
-  applyWeaponOverrides(config.weapons);
   applyBotOverrides(config.bots);
   applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;
@@ -338,7 +333,6 @@ function turnStat(turn: number, playerId: string, events: GameEvent[], after: Ga
       .filter((s) => isPowerableType(s.type))
       .reduce((sum, s) => sum + s.allocatedEnergy, 0),
     heatAtCheck: heat ? heat.heat : 0,
-    dissipation: heat ? heat.dissipation : getDissipationCapacity(player.ship.subsystems),
     heatDamage: heat ? heat.damage : 0,
     lost: events.some((e) => e.type === "respawned" && e.playerId === playerId),
   };
