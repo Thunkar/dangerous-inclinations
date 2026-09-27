@@ -50,7 +50,7 @@ import type { GameView, PlayerView } from "../game/view.ts";
 import { describeEvent, describeMission } from "../game/describe.ts";
 import { lowestCriticalFace } from "../game/ship.ts";
 import { seatOptions } from "./options.ts";
-import { isSafeAtBerth } from "../game/stations.ts";
+import { isMooredAt } from "../game/stations.ts";
 
 const pos = (p: { wellId: string; ring: number; sector: number }) =>
   `${getWellName(p.wellId as never)} R${p.ring} S${p.sector}`;
@@ -217,7 +217,7 @@ export function describeViewForAgent(
     out.push(
       `  - ${p.name} (${p.id}): ${s.isDestroyed ? "DESTROYED (respawning)" : `${pos(s)} facing ${s.facing}`}, hull ${s.hitPoints}/${s.maxHitPoints}, heat ${s.heat}, ${p.points} pts, fuel ${s.fuel}, cargo ${p.cargoAboard.crates} crate(s) ${p.cargoAboard.data} data. Subsystems: ${subsystemLine(p)}. Completed: ${
         p.completedMissions.map((m) => describeMission(m, name)).join("; ") || "none"
-      }.${p.escortedBy.length ? ` Escort markers on them: ${p.escortedBy.map(name).join(", ")}.` : ""}${p.recovering ? " UNTOUCHABLE until their next turn is over: no shot, missile or scan reaches them, and they fire at nobody on it." : ""}${!s.isDestroyed && isSafeAtBerth(view.stations, s) ? " MOORED: no shot or missile reaches them, and they fire at nobody while they hold the berth." : ""}`
+      }.${p.escortedBy.length ? ` Escort markers on them: ${p.escortedBy.map(name).join(", ")}.` : ""}${p.recovering ? " UNTOUCHABLE until their next turn is over: no shot, missile or scan reaches them, and they fire at nobody on it." : ""}${!s.isDestroyed && isMooredAt(view.stations, s) ? " MOORED: no shot or missile reaches them, and they fire at nobody while they hold the berth." : ""}`
     );
   }
   out.push(

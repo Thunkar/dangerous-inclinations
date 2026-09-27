@@ -22,13 +22,13 @@ import type { Subsystem } from '@dangerous-inclinations/engine'
 import {
   SHIELD_ENERGY_PER_POINT,
   SLOT_IDS,
+  canFireFrom,
   energyStepOf,
   getSubsystemConfig,
   interceptsPerRack,
   isOpeningRound,
   isPowerableType,
   isQuietTurn,
-  isSafeAtBerth,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
@@ -59,7 +59,7 @@ export function SystemsControls() {
    * that only arrives at a berth can still fire before its move, so that one
    * is left to the plan's own problems to explain.
    */
-  const atBerth = plan.moored && isSafeAtBerth(view.stations, plan.finalPosition.position)
+  const atBerth = plan.moored && !canFireFrom(plan.finalPosition.position, view.stations)
 
   const fireBlock = (sub: Subsystem): string | null => {
     if (sub.isBroken) return 'Broken: it does nothing until repaired.'

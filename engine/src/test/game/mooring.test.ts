@@ -10,7 +10,6 @@ import {
   advanceStations,
   getStationForPlanet,
   isMooredAt,
-  isSafeAtBerth,
 } from "../../game/stations.ts";
 import { viewFor } from "../../game/view.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -72,8 +71,8 @@ describe("moored ships are safe", () => {
   it("the fixtures put the berth where the tests say", () => {
     const state = railgunLine(...CLEAR);
     expect(berthOf(state)).toEqual({ wellId: ALPHA, ring: 2, sector: 0 });
-    expect(isSafeAtBerth(state.stations, berthOf(state))).toBe(true);
-    expect(isSafeAtBerth(state.stations, { ...berthOf(state), sector: 6 })).toBe(false);
+    expect(isMooredAt(state.stations, berthOf(state))).toBe(true);
+    expect(isMooredAt(state.stations, { ...berthOf(state), sector: 6 })).toBe(false);
   });
 
   it.each<[string, (berth: Position) => Position, boolean]>([
@@ -87,7 +86,7 @@ describe("moored ships are safe", () => {
     const state = railgunLine(...CLEAR);
     const position = where(berthOf(state));
     expect(isMooredAt(state.stations, position)).toBe(moored);
-    expect(isSafeAtBerth(state.stations, position)).toBe(moored);
+    expect(isMooredAt(state.stations, position)).toBe(moored);
   });
 
   it("the berth moves with its station: the old square is open water once the round ends", () => {
@@ -96,8 +95,8 @@ describe("moored ships are safe", () => {
     const after = advanceStations(before).state;
     const newBerth = berthOf(after);
     expect(newBerth).not.toEqual(oldBerth);
-    expect(isSafeAtBerth(after.stations, newBerth)).toBe(true);
-    expect(isSafeAtBerth(after.stations, oldBerth)).toBe(false);
+    expect(isMooredAt(after.stations, newBerth)).toBe(true);
+    expect(isMooredAt(after.stations, oldBerth)).toBe(false);
     expect(isMooredAt(after.stations, oldBerth)).toBe(false);
   });
 
@@ -123,7 +122,7 @@ describe("moored ships are safe", () => {
     const state = railgunLine(...CLEAR);
     const position = where(berthOf(state));
     expect(isMooredAt(state.stations, position)).toBe(moored);
-    expect(isSafeAtBerth(state.stations, position)).toBe(moored);
+    expect(isMooredAt(state.stations, position)).toBe(moored);
   });
 
   it("the berth moves with its station: the old square is open water once the round ends", () => {
@@ -132,8 +131,8 @@ describe("moored ships are safe", () => {
     const after = advanceStations(before).state;
     const newBerth = berthOf(after);
     expect(newBerth).not.toEqual(oldBerth);
-    expect(isSafeAtBerth(after.stations, newBerth)).toBe(true);
-    expect(isSafeAtBerth(after.stations, oldBerth)).toBe(false);
+    expect(isMooredAt(after.stations, newBerth)).toBe(true);
+    expect(isMooredAt(after.stations, oldBerth)).toBe(false);
     expect(isMooredAt(after.stations, oldBerth)).toBe(false);
   });
 

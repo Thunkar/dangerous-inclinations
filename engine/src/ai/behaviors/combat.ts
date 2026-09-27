@@ -10,10 +10,9 @@ import type { Subsystem, SubsystemId, SubsystemType } from "../../models/subsyst
 import { getSubsystemConfig } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { ringVelocity } from "../../game/geometry.ts";
-import { canEngage } from "../../game/targeting.ts";
+import { canEngage, canFireFrom } from "../../game/targeting.ts";
 import { markedBy } from "../../game/escort.ts";
 import { ringAfter } from "../../game/movement.ts";
-import { isSafeAtBerth } from "../../game/stations.ts";
 import type { BotParameters, Opponent, TacticalSituation } from "../types.ts";
 import { suspectedShieldCubes } from "../analyzer.ts";
 import { INTERDICT_DANGER } from "../types.ts";
@@ -330,8 +329,8 @@ export function firingOptions(
   // (before the move while it still holds its berth, or after a move that
   // ends on a station) has no shots.
   const stations = situation.view.stations;
-  const firesPre = !isSafeAtBerth(stations, ctx.pre);
-  const firesPost = !isSafeAtBerth(stations, ctx.post);
+  const firesPre = canFireFrom(ctx.pre, stations);
+  const firesPost = canFireFrom(ctx.post, stations);
 
   for (const weapon of status.weapons) {
     if (!isWeaponReady(weapon)) continue;

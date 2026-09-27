@@ -19,7 +19,7 @@ import { positionOf, sectorDistance } from "../game/geometry.ts";
 import { getDissipationCapacity, hasWorkingCompressor } from "../game/ship.ts";
 import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import { canEngage } from "../game/targeting.ts";
-import { isMooredAt, isSafeAtBerth } from "../game/stations.ts";
+import { isMooredAt } from "../game/stations.ts";
 import type {
   BotParameters,
   BotStatus,
@@ -222,7 +222,7 @@ function analyzeOpponent(
     ringDistance,
     sectorDistance: sectorDist,
     recovering: player.recovering,
-    safeAtBerth: isSafeAtBerth(stations, position),
+    safeAtBerth: isMooredAt(stations, position),
     knownWeapons,
     unknownSlots,
     shieldAbsorption: shieldAbsorption(player.slots),

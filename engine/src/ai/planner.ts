@@ -40,11 +40,11 @@ import {
 } from "../models/subsystems.ts";
 import { BURN_COSTS } from "../models/rings.ts";
 import { projectPosition } from "../game/movement.ts";
-import { getStationAt, isSafeAtBerth } from "../game/stations.ts";
+import { getStationAt } from "../game/stations.ts";
 import { ringVelocity, samePosition } from "../game/geometry.ts";
 import { dockJobsOnArrival } from "../game/docking.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
-import { isInWeaponRange } from "../game/targeting.ts";
+import { canFireFrom, isInWeaponRange } from "../game/targeting.ts";
 import { heatAfterCheck } from "../game/heat.ts";
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
 import { INTERDICT_DANGER } from "./types.ts";
@@ -148,7 +148,7 @@ function buildCandidate(
   /** Whether this turn may fire at `o` from `at` at all, whatever the weapon. */
   const mayFireAt = (o: Opponent, at: Position) =>
     !isQuietTurn(view.turn, me) &&
-    !isSafeAtBerth(view.stations, at) &&
+    canFireFrom(at, view.stations) &&
     o.sameWell &&
     canShootAt(o) &&
     !holdFire.has(o.player.id);

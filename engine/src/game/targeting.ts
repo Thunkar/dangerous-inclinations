@@ -25,7 +25,7 @@ import {
   isDestroyed,
   isRingDirectionValid,
 } from "./ship.ts";
-import { isSafeAtBerth } from "./stations.ts";
+import { isMooredAt } from "./stations.ts";
 
 type Seat = Pick<Player, "hasDeployed" | "ship" | "recovering">;
 
@@ -42,14 +42,19 @@ export function canBeScanned(target: Seat): boolean {
   return isOnBoard(target) && !target.recovering;
 }
 
-/** Whether anyone may fire at this ship, missiles included: scannable, and not moored (RULES §Stations). */
+/**
+ * Whether anyone may fire at this ship, missiles included: scannable, and not
+ * moored. A berth is safe both ways (RULES §Stations): the referee, the bots
+ * and the previews ask this of the target and {@link canFireFrom} of the
+ * attacker.
+ */
 export function canBeFiredAt(target: Seat, stations: Station[]): boolean {
-  return canBeScanned(target) && !isSafeAtBerth(stations, positionOf(target.ship));
+  return canBeScanned(target) && !isMooredAt(stations, positionOf(target.ship));
 }
 
-/** Whether this ship may fire at all: a moored ship fires at nobody (RULES §Stations). */
-export function canFireFrom(ship: ShipState, stations: Station[]): boolean {
-  return !isSafeAtBerth(stations, positionOf(ship));
+/** Whether a ship here may fire at all: a moored ship fires at nobody (RULES §Stations). */
+export function canFireFrom(at: Position, stations: Station[]): boolean {
+  return !isMooredAt(stations, positionOf(at));
 }
 
 export function isInWeaponRange(

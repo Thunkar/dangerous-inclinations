@@ -20,9 +20,9 @@ import { getJumpAdjustmentRange, getJumpOptions } from "../models/gravityWells.t
 import type { GameView } from "../game/view.ts";
 import { positionOf, ringVelocity } from "../game/geometry.ts";
 import { inScanRange } from "../game/scan.ts";
-import { isInWeaponRange } from "../game/targeting.ts";
+import { canFireFrom, isInWeaponRange } from "../game/targeting.ts";
 import { projectPosition, ringAfter, type MovementPreview } from "../game/movement.ts";
-import { isMooredAt, isSafeAtBerth } from "../game/stations.ts";
+import { isMooredAt } from "../game/stations.ts";
 import { hasWorkingCompressor } from "../game/ship.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
 
@@ -193,11 +193,11 @@ export function seatOptions(view: GameView): SeatOptions {
       // A moored ship neither fires nor is fired at (RULES §Stations): nobody
       // is a target from a berth, and nobody at one is a target.
       const inRange = (from: Position & { facing: Facing }) => {
-        if (isSafeAtBerth(view.stations, from)) return [];
+        if (!canFireFrom(from, view.stations)) return [];
         return opponents
           .filter((o) => {
             const at = positionOf(o.ship!);
-            return !isSafeAtBerth(view.stations, at) && isInWeaponRange(weapon, from, at);
+            return !isMooredAt(view.stations, at) && isInWeaponRange(weapon, from, at);
           })
           .map((o) => o.id);
       };

@@ -54,15 +54,6 @@ export function isMooredAt(stations: Station[], position: Position): boolean {
 }
 
 /**
- * Safe at a berth: a moored ship can neither fire nor be fired at, missiles
- * included (RULES §Stations). The referee, the bots and the previews all ask
- * this one question, of the attacker's position and of the target's.
- */
-export function isSafeAtBerth(stations: Station[], position: Position): boolean {
-  return isMooredAt(stations, position);
-}
-
-/**
  * End of the round: every station advances, and the ships moored to them go
  * with it. A destroyed ship is off the board and rides nothing. Wrecks drift
  * in the same step, each by its own ring's speed (RULES §Missions, Salvage).
