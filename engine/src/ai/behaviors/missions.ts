@@ -409,6 +409,10 @@ function carrierChaseGoal(
  *
  * Conditions, all from public information:
  *
+ * - they carry an item: a crate, loot or data is a sale at a station
+ *   everyone can predict, and a kill drops it. A leader with nothing aboard
+ *   has no place it must be and loses nothing to a kill but a turn, so there
+ *   is nothing to interdict;
  * - they are close enough to the win to score {@link INTERDICT_DANGER};
  * - the bot is not itself winning the race: if its own turns-to-win is no
  *   worse than theirs, racing beats fighting;
@@ -435,6 +439,7 @@ function interdictionTarget(
     if (escorting.has(opponent.player.id)) continue;
     // At a berth with nowhere it has to go next: nothing to meet or shoot.
     if (opponent.safeAtBerth && opponent.danger.deliveryPosition === null) continue;
+    if (opponent.danger.crates + opponent.danger.data === 0) continue;
     if (opponent.danger.score < INTERDICT_DANGER) continue;
     if (myDanger.turnsToWin <= opponent.danger.turnsToWin) continue;
     const meet = opponent.danger.deliveryPosition ?? opponent.position;

@@ -298,6 +298,14 @@ describe("interdiction goals", () => {
     expect(situation.currentGoal?.plan).toBeDefined();
   });
 
+  it.each<[string, boolean]>([
+    ["carrying a crate", true],
+    ["with nothing aboard: nowhere it must be, nothing a kill takes", false],
+  ])("interdicts a rival about to win %s", (_label, carrying) => {
+    const state = aboutToWin(threeWay(), "p2", carrying ? [crate(BETA, ALPHA)] : []);
+    expect(situationOf(state, "p1").currentGoal?.type === "interdict").toBe(carrying);
+  });
+
   it("picks the more dangerous of two rivals", () => {
     let state = threeWay();
     // p3 is moved next door so distance cannot be what decides it.
