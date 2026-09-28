@@ -5,7 +5,13 @@ import { viewFor } from "../../game/view.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import type { Cargo, Mission } from "../../models/missions.ts";
 import { STATION_RING } from "../../models/gravityWells.ts";
-import { MISSION_POINTS, SELL_FUEL, SELL_NOTHING, TANKER_FUEL } from "../../models/missions.ts";
+import {
+  LOAD_CRATES,
+  MISSION_POINTS,
+  SELL_FUEL,
+  SELL_NOTHING,
+  TANKER_FUEL,
+} from "../../models/missions.ts";
 import {
   ALPHA,
   BETA,
@@ -519,10 +525,11 @@ describe("docking: one sale per station", () => {
 
   it.each<[string, string | undefined, string[], boolean]>([
     // named, sold, the next crate loaded
-    ["the crate bound here by default", undefined, ["inbound"], true],
-    ["the data, named", "survey", ["survey"], true],
-    ["nothing, named", SELL_NOTHING, [], true],
-  ])("a chain sells %s and loads the next crate anyway", (_label, named, sold, loadsNext) => {
+    ["sells the crate bound here by default and loads nothing", undefined, ["inbound"], false],
+    ["sells the data, named, and loads nothing", "survey", ["survey"], false],
+    ["loads the next crate, named, and sells nothing", LOAD_CRATES, [], true],
+    ["does nothing, named", SELL_NOTHING, [], false],
+  ])("a chain %s: a visit does one thing", (_label, named, sold, loadsNext) => {
     const [inbound, inboundCrate] = deliverCard(ALPHA, BETA, true);
     const [onward, onwardCrate] = deliverCard(BETA, GAMMA, false);
     const ids: Record<string, string> = { inbound: inboundCrate.id, survey: surveyItem.id };
@@ -530,7 +537,9 @@ describe("docking: one sale per station", () => {
     const result = arrive(state, named && named in ids ? ids[named] : named);
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "cargo_delivered").map((e) => e.cargoId)).toEqual(sold.map((k) => ids[k]));
-    expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.cargoId)).toEqual([onwardCrate.id]);
+    expect(eventsOf(result.events, "cargo_picked_up").map((e) => e.cargoId)).toEqual(
+      loadsNext ? [onwardCrate.id] : []
+    );
     expect(aboard(result.gameState, onwardCrate.id)).toBe(loadsNext);
     expect(getPlayer(result.gameState, "p1").soldAt).toEqual(sold.length > 0 ? [BETA] : []);
   });
@@ -543,7 +552,7 @@ describe("docking: one sale per station", () => {
     expect(getPlayer(result.gameState, "p1").soldAt).toEqual([]);
   });
 
-  it("a visit with nothing to sell marks nothing, and still loads", () => {
+  it("a visit with nothing to sell loads by default and marks nothing", () => {
     const [onward, onwardCrate] = deliverCard(ALPHA, GAMMA, false);
     const result = arrive(visit(ALPHA, [[onward, onwardCrate]]));
     expect(eventsOf(result.events, "docked")[0].sold).toBeNull();
@@ -595,7 +604,7 @@ describe("docking: the default sale", () => {
     ["a Deliver crate outranks the Tanker's fuel", [[deliverIn, crateIn], TANKER], 10, "crate", [[crateIn.id, 2], [SELL_FUEL, 1]]],
     ["Survey data ties the fuel and goes first", [[survey, surveyItem], TANKER], 10, "data", [[surveyItem.id, 1], [SELL_FUEL, 1]]],
     ["Piracy loot ties Survey data and goes first", [[piracy, loot], [survey, surveyItem]], 10, "loot", [[loot.id, 1], [surveyItem.id, 1]]],
-    ["a crate to load is no sale, so the fuel goes in", [[deliverOut, crateOut], TANKER], 10, "fuel", [[SELL_FUEL, 1]]],
+    ["the fuel outranks loading a crate, which scores nothing", [[deliverOut, crateOut], TANKER], 10, "fuel", [[LOAD_CRATES, 0], [SELL_FUEL, 1]]],
     ["Intercept data outranks Piracy loot", [[piracy, loot], [intercept, interceptItem]], 10, "data", [[loot.id, 1], [interceptItem.id, 2]]],
     ["a tank short of the load offers no fuel", [[survey, surveyItem], TANKER], TANKER_FUEL - 1, "data", [[surveyItem.id, 1]]],
     ["a done Tanker offers no fuel", [[survey, surveyItem], [{ ...tankerMission(), isCompleted: true }, null]], 10, "data", [[surveyItem.id, 1]]],
@@ -618,11 +627,10 @@ describe("docking: the default sale", () => {
     ]);
   });
 
-  it("counts the crates that load whatever is sold", () => {
+  it("still loads at a station sold at, which buys nothing more", () => {
     const state = visit(ALPHA, [[deliverOut, crateOut], [survey, surveyItem]]);
-    expect(salesOnArrival(dockingShip(state, "p1"), ALPHA).loads).toBe(1);
-    expect(
-      salesOnArrival({ ...dockingShip(state, "p1"), soldAt: [ALPHA] }, ALPHA).loads
-    ).toBe(1);
+    const offer = salesOnArrival({ ...dockingShip(state, "p1"), soldAt: [ALPHA] }, ALPHA);
+    expect(offer.options.map((o) => o.sale)).toEqual([LOAD_CRATES]);
+    expect(offer.default?.sale).toBe(LOAD_CRATES);
   });
 });

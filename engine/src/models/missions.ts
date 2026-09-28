@@ -105,6 +105,8 @@ export function missionPoints(type: MissionType): number {
  */
 export const SELL_FUEL = "fuel";
 export const SELL_NOTHING = "none";
+/** What a `dock_sale` action names to load the crates waiting at the station instead of selling. */
+export const LOAD_CRATES = "load";
 
 /** Scan range for the scan action (same ring, ±sectors). */
 export const SCAN_SECTOR_RANGE = 3;

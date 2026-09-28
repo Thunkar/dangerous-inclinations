@@ -348,6 +348,8 @@ function RepairControl() {
 function saleLabel(option: SaleOption, missions: readonly Mission[]): string {
   const mission = missions.find(m => m.id === option.missionId)
   switch (option.kind) {
+    case 'load':
+      return 'Load crates'
     case 'fuel':
       return 'Tanker fuel'
     case 'loot':

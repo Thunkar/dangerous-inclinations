@@ -12,7 +12,12 @@ import type {
   Mission,
   SurveyMission,
 } from "../../models/missions.ts";
-import { SELL_FUEL, SURVEY_RING, TANKER_FUEL, dataAboard } from "../../models/missions.ts";
+import {
+  LOAD_CRATES,
+  SURVEY_RING,
+  TANKER_FUEL,
+  dataAboard,
+} from "../../models/missions.ts";
 import {
   BLACK_HOLE_ID,
   BLACK_HOLE_OUTER_RING,
@@ -174,9 +179,9 @@ describe("bot missions", () => {
     expect(acquired(state)).toBe(true);
   });
 
-  it("at its pickup with a Tanker's fuel aboard, loads the crate and sells the fuel", () => {
-    // Loading is not a sale, so the pickup station buys the fuel on the same
-    // visit: the Deliver's own station is Beta, not this one.
+  it("at its pickup with a Tanker's fuel aboard, loads the crate and leaves the fuel", () => {
+    // A visit does one thing, and the pickup is the Deliver's: the fuel waits
+    // for another station.
     const deliver = deliverMission(ALPHA, BETA);
     const tanker = tankerMission();
     const start = withShip(
@@ -198,13 +203,13 @@ describe("bot missions", () => {
     expect(MAX_REACTION_MASS).toBeGreaterThanOrEqual(TANKER_FUEL);
 
     const actions = botDecideActions(viewFor(start, "p1")).actions;
-    expect(actions.find((a) => a.type === "dock_sale")?.data).toEqual({ sale: SELL_FUEL });
+    expect(actions.find((a) => a.type === "dock_sale")?.data).toEqual({ sale: LOAD_CRATES });
     const result = executeTurn(start, actions);
     expect(result.errors).toBeUndefined();
     const p1 = getPlayer(result.gameState, "p1");
     expect(p1.cargo.find((c) => c.missionId === deliver.id)?.isPickedUp).toBe(true);
-    expect(p1.missions.find((m) => m.id === tanker.id)?.isCompleted).toBe(true);
-    expect(p1.soldAt).toEqual([ALPHA]);
+    expect(p1.missions.find((m) => m.id === tanker.id)?.isCompleted).toBe(false);
+    expect(p1.soldAt).toEqual([]);
   });
 
   it("docks at the pickup for a Deliver card, then turns for the delivery planet", () => {
@@ -380,13 +385,12 @@ describe("bot goals: piracy and tanker", () => {
       expect(currentGoal(berth([fetch], true))).toMatchObject({ missionId: fetch.id, repairs: true });
     });
 
-    it("holds the fuel back on a pickup trip too: loading is no sale", () => {
+    it("takes the fast route to a pickup, whose visit loads and pumps nothing", () => {
       const tanking = currentGoal(berth([fetch, tankerMission()], false));
       const plain = currentGoal(berth([fetch], false));
-      expect(tanking?.missionId).toBe(fetch.id);
-      expect(tanking?.dockSale).toBeUndefined();
-      expect(MAX_REACTION_MASS - tanking!.plan!.totalMassCost).toBeGreaterThanOrEqual(TANKER_FUEL);
-      expect(MAX_REACTION_MASS - plain!.plan!.totalMassCost).toBeLessThan(TANKER_FUEL);
+      expect(tanking).toMatchObject({ missionId: fetch.id, dockSale: LOAD_CRATES });
+      expect(tanking!.plan!.totalTurns).toBe(plain!.plan!.totalTurns);
+      expect(tanking!.plan!.totalMassCost).toBe(plain!.plan!.totalMassCost);
     });
 
     it("takes the fast route to deliver, whose visit sells the crate", () => {

@@ -37,7 +37,8 @@ export function saleAllowedAt(me: Seller, planetId: string, missionId: string): 
 /** The sales on offer this seat may make here, in the offer's order. */
 export function allowedSales(me: Seller, planetId: string, offer: SaleOffer): SaleOption[] {
   return offer.options.filter(
-    (o) => o.missionId !== undefined && saleAllowedAt(me, planetId, o.missionId)
+    (o) =>
+      o.kind === "load" || (o.missionId !== undefined && saleAllowedAt(me, planetId, o.missionId))
   );
 }
 

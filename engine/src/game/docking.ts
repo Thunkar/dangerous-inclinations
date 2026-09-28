@@ -1,7 +1,7 @@
 /**
  * Docking. A ship that **arrives** on a station's sector is docked: broken
- * systems are repaired, the hull is restored and missiles are reloaded, every
- * crate waiting there for it loads, and the station buys one item (RULES
+ * systems are repaired, the hull is restored and missiles are reloaded, and
+ * the visit does one thing: load the crates waiting, or sell one item (RULES
  * §Stations).
  *
  * Each station buys one item from each player, once per game. A sale is one
@@ -12,8 +12,9 @@
  * cannot make) gets the one that scores most on the visit, ties to crates
  * (loot is a crate), then data, then fuel, each in the order carried.
  *
- * Loading a crate is not a sale and the hold has no limit, so every crate
- * waiting at the station loads on every visit, sold or not.
+ * A visit does one thing: it loads the crates waiting there for the player
+ * (not a sale, so it spends no station) or it sells one item. The hold has
+ * no limit.
  *
  * Arriving, not sitting. A docked ship stays moored until it burns away, and
  * for a while the whole dock re-resolved every turn it held the berth: a free
@@ -25,6 +26,7 @@ import type { GameState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo, Mission, SaleKind } from "../models/missions.ts";
 import {
+  LOAD_CRATES,
   SELL_FUEL,
   SELL_NOTHING,
   TANKER_FUEL,
@@ -45,11 +47,14 @@ export interface DockingShip {
   soldAt: readonly string[];
 }
 
-/** One sale a visit could make. */
+/** One thing a visit could do: a sale, or loading the crates waiting there. */
 export interface SaleOption {
-  /** What a `dock_sale` action names for it: the item's cargo id, or {@link SELL_FUEL}. */
+  /**
+   * What a `dock_sale` action names for it: the item's cargo id,
+   * {@link SELL_FUEL}, or {@link LOAD_CRATES}.
+   */
   sale: string;
-  kind: SaleKind;
+  kind: SaleKind | "load";
   /** The card it pays: the item's card, or the first undone Tanker for fuel. */
   missionId?: string;
   /** Mission points it completes on this visit. */
@@ -57,13 +62,13 @@ export interface SaleOption {
 }
 
 export interface SaleOffer {
-  /** The sales this visit can make, crates first, then data, then fuel. */
+  /** What this visit can do: load the crates waiting, then the sales, crates first, then data, then fuel. */
   options: SaleOption[];
-  /** The sale made when the player names none: the most points, the first of equals. */
+  /** What the visit does when the player names nothing: the most points, the first of equals. */
   default: SaleOption | null;
   /** This player has sold at this station, so it buys nothing more from them. */
   soldHere: boolean;
-  /** Crates that load on the visit whatever is sold. */
+  /** Crates waiting here for this ship, loaded if the visit loads. */
   loads: number;
 }
 
@@ -97,7 +102,9 @@ function waitingCrates(cargo: readonly Cargo[], planetId: string): Cargo[] {
 export function salesOnArrival(ship: DockingShip, planetId: string): SaleOffer {
   const loads = waitingCrates(ship.cargo, planetId).length;
   const soldHere = ship.soldAt.includes(planetId);
-  if (soldHere) return { options: [], default: null, soldHere, loads };
+  // A visit does one thing: load the crates waiting, or sell one item.
+  const load: SaleOption[] = loads > 0 ? [{ sale: LOAD_CRATES, kind: "load", points: 0 }] : [];
+  if (soldHere) return { options: load, default: load[0] ?? null, soldHere, loads };
   const held = aboard(ship.cargo).filter((c) => deliversHere(c, planetId));
   const item = (c: Cargo): SaleOption => ({
     sale: c.id,
@@ -107,6 +114,7 @@ export function salesOnArrival(ship: DockingShip, planetId: string): SaleOffer {
   });
   const tanker = ship.missions.find((m) => m.type === "tanker" && !m.isCompleted);
   const options: SaleOption[] = [
+    ...load,
     ...held.filter((c) => c.kind === "crate").map(item),
     ...held.filter((c) => c.kind === "data").map(item),
     ...(tanker && ship.reactionMass >= TANKER_FUEL
@@ -167,9 +175,11 @@ export function processDocking(
     },
     planetId
   );
-  const sale = chosenSale(offer, named);
+  const chosen = chosenSale(offer, named);
+  const loading = chosen?.kind === "load";
+  const sale = loading ? null : chosen;
   const sold = sale && sale.kind !== "fuel" ? player.cargo.find((c) => c.id === sale.sale)! : null;
-  const loaded = waitingCrates(player.cargo, planetId);
+  const loaded = loading ? waitingCrates(player.cargo, planetId) : [];
   const events: EventDraft[] = [];
 
   if (sold) {
@@ -210,7 +220,7 @@ export function processDocking(
     hullRestored,
     repaired: repaired.repaired,
     missilesReloaded: reloaded.reloaded,
-    sold: sale?.kind ?? null,
+    sold: sale && sale.kind !== "load" ? sale.kind : null,
   });
 
   // Tanker: the card's fuel goes into the drums and the card is done.

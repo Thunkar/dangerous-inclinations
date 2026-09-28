@@ -29,6 +29,7 @@ import type { Player, Position } from "../../models/game.ts";
 import type { Mission, SalvageMission } from "../../models/missions.ts";
 import {
   SCAN_SECTOR_RANGE,
+  LOAD_CRATES,
   SELL_FUEL,
   SURVEY_RING,
   TANKER_FUEL,
@@ -266,7 +267,9 @@ function worthVisiting(
   const { me, status } = seat;
   if (status.moored && planetId === status.position.wellId) return false;
   if (!sale) return true;
-  if (missionId !== undefined && !saleAllowedAt(me, planetId, missionId)) return false;
+  // Loading is no sale: a station sold at still loads.
+  if (sale !== LOAD_CRATES && missionId !== undefined && !saleAllowedAt(me, planetId, missionId))
+    return false;
   const offer = salesOnArrival(
     { cargo: me.cargo, missions: me.missions, reactionMass: status.reactionMass, soldAt: me.soldAt },
     planetId
@@ -543,8 +546,7 @@ export function computeGoals(
       case "deliver_cargo": {
         const crate = me.cargo.find((c) => c.missionId === mission.id);
         const inHand = crate?.isPickedUp ?? false;
-        // Loading is not a sale, so a pickup names none; the delivery sells
-        // the crate.
+        // A visit does one thing: the pickup loads, the delivery sells the crate.
         const planetId = inHand ? mission.deliveryPlanetId : mission.pickupPlanetId;
         const goal = dockGoal(
           view,
@@ -553,7 +555,7 @@ export function computeGoals(
           planetId,
           inHand ? `Deliver crate to ${planetId}` : `Pick up crate at ${planetId}`,
           inHand ? 2 : PRIMARY_START_URGENCY,
-          inHand ? mission.cargoId : undefined
+          inHand ? mission.cargoId : LOAD_CRATES
         );
         if (goal) goals.push(goal);
         break;
@@ -616,9 +618,9 @@ export function computeGoals(
       }
       case "tanker": {
         // No trip of its own while the primary is open. The fuel is a sale a
-        // visit may make when it has nothing else to sell (a repair stop, a
-        // pickup), so the reserve rides on those trips (`attachPlanToGoal`);
-        // a visit that sells an item sells that instead.
+        // visit may make when it has nothing else to do (a repair stop), so
+        // the reserve rides on those trips (`attachPlanToGoal`); a visit that
+        // loads or sells an item does that instead.
         if (primaryOutstanding(me)) break;
         // The fuel is pumped on arrival, so the tank has to still hold it
         // when the ship gets there: below that, the trip is to the fast rings
@@ -743,6 +745,7 @@ export function computeGoals(
     (g) =>
       g.type === "dock" &&
       g.dockSale !== undefined &&
+      g.dockSale !== LOAD_CRATES &&
       me.missions.some((m) => m.id === g.missionId && isPrimaryType(m.type))
   );
   const carryStation = carry?.planetId && stationPositionFor(view.stations, carry.planetId);
@@ -855,9 +858,9 @@ export function attachPlanToGoal(
       if (!station) return goal;
       // A seat holding a Tanker arrives with the fuel if there is any route
       // that does, on a trip whose visit may sell the fuel, to a station that
-      // would buy it: the Tanker's own trip, or a stop with no sale of its
-      // own. A trip to sell an item sells that instead, so a reserve there
-      // would never pump. The fastest route burns the tank down and pumps
+      // would buy it: the Tanker's own trip, or a stop with nothing else to
+      // do. A trip to load or sell an item does that instead, so a reserve
+      // there would never pump. The fastest route burns the tank down and pumps
       // nothing; the same search with the fuel held back coasts in instead.
       // Fastest when no such route exists.
       const fuelVisit = goal.dockSale === undefined || goal.dockSale === SELL_FUEL;
