@@ -32,9 +32,16 @@ import {
 import SendIcon from '@mui/icons-material/Send'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import type { ReactNode } from 'react'
-import type { BurnIntensity, SubsystemType } from '@dangerous-inclinations/engine'
+import type {
+  BurnIntensity,
+  Mission,
+  SaleOption,
+  SeizableItem,
+  SubsystemType,
+} from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
+  SELL_NOTHING,
   COMPRESSED_JUMP_MASS,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
@@ -45,6 +52,7 @@ import {
   phasedJumpDestination,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
+import { seizeKey } from '../../plan/preview'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { SubsystemIcon } from '../common/SubsystemIcon'
@@ -195,8 +203,9 @@ export function ActionPanel() {
         </Step>
 
         <RepairControl />
-        <DockJobControl />
+        <DockSaleControl />
         <EscortControl />
+        <SeizeControl />
 
         <Divider />
         <Step n={4} label="Sequence">
@@ -335,40 +344,81 @@ function RepairControl() {
   )
 }
 
+/** What a sale on offer is, in the words of the card it pays. */
+function saleLabel(option: SaleOption, missions: readonly Mission[]): string {
+  const mission = missions.find(m => m.id === option.missionId)
+  switch (option.kind) {
+    case 'fuel':
+      return 'Tanker fuel'
+    case 'loot':
+      return 'Piracy loot'
+    case 'crate':
+      return mission?.type === 'deliver_cargo'
+        ? `Deliver crate to ${getWellName(mission.deliveryPlanetId)}`
+        : 'Crate'
+    case 'data':
+      return mission?.type === 'intercept_transmission'
+        ? 'Intercept data'
+        : mission?.type === 'salvage'
+          ? 'Salvage black box'
+          : 'Survey data'
+  }
+}
+
 /**
- * The one job a visit does (RULES §Stations). It appears only when the turn as
- * built arrives at a station and the visit could do more than one job; the
- * jobs, their points and the default all come from the engine, and the
- * default is lit until another is picked.
+ * What the station buys (RULES §Stations): one item from you, once per game.
+ * It appears when the turn as built arrives at a station; the sales, their
+ * points and the default come from the engine, and the default is lit until
+ * another is picked. Selling nothing keeps the station for later. A station
+ * that has bought from you already says so.
  */
-function DockJobControl() {
+function DockSaleControl() {
   const plan = usePlan()
   const disabled = plan.disabled
   const offer = plan.dockOffer
   if (!offer) return null
+  const station = getWellName(offer.planetId)
+  const loads =
+    offer.loads > 0 ? `${offer.loads} crate${offer.loads === 1 ? '' : 's'} load here either way.` : ''
   return (
     <>
       <Divider />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>At the dock · one job a visit</SectionLabel>
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-          {offer.jobs.map(({ job, points }) => {
-            const on = plan.dockJob === job
-            return (
+        <SectionLabel>
+          {offer.soldHere
+            ? `At the dock · ${station} buys nothing more from you`
+            : `At the dock · ${station} buys one item, once`}
+        </SectionLabel>
+        {offer.options.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+            {offer.options.map(option => (
               <ChoiceChip
-                key={job}
-                title={`${points} point${points === 1 ? '' : 's'} this visit${
-                  job === offer.default ? ' · the default' : ''
+                key={option.sale}
+                title={`${option.points} point${option.points === 1 ? '' : 's'}${
+                  option.sale === offer.default?.sale ? ' · the default' : ''
                 }`}
-                selected={on}
+                selected={plan.dockSale === option.sale}
                 disabled={disabled}
-                onClick={() => plan.setDockJob(job)}
+                onClick={() => plan.setDockSale(option.sale)}
               >
-                {job} · {points}
+                {saleLabel(option, plan.me.missions)} · {option.points}
               </ChoiceChip>
-            )
-          })}
-        </Box>
+            ))}
+            <ChoiceChip
+              title={`Keep ${station} for a later sale`}
+              selected={plan.dockSale === SELL_NOTHING}
+              disabled={disabled}
+              onClick={() => plan.setDockSale(SELL_NOTHING)}
+            >
+              Sell nothing
+            </ChoiceChip>
+          </Box>
+        )}
+        {loads && (
+          <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
+            {loads}
+          </Typography>
+        )}
       </Box>
     </>
   )
@@ -418,9 +468,56 @@ function EscortControl() {
   )
 }
 
+const ITEM_WORD: Record<SeizableItem['kind'], string> = { crate: 'crate', loot: 'loot', data: 'data' }
+
 /**
- * One pick among a few (a subsystem to repair, a dock job, a carrier to
- * escort): a cream block when chosen, an outlined one when not.
+ * Piracy is a "you may" (RULES §Missions). The choice appears only when the
+ * turn as built ends, not moored, in the sector of an undocked ship carrying
+ * cargo and a Piracy card is free; nothing is lit until picked, and at one
+ * pick per free card the rest wait until one is taken back.
+ */
+function SeizeControl() {
+  const plan = usePlan()
+  const disabled = plan.disabled
+  const { view } = useGame()
+  const offer = plan.seizeOffer
+  if (!offer) return null
+  const full = plan.seizeChoices.length >= offer.cards
+  return (
+    <>
+      <Divider />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
+        <SectionLabel>
+          Piracy · you may take {offer.cards === 1 ? 'one item' : `${offer.cards} items`}
+        </SectionLabel>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+          {offer.items.map(item => {
+            const key = seizeKey(item)
+            const on = plan.seizeChoices.includes(key)
+            const name = view.players.find(p => p.id === item.victimId)?.name ?? item.victimId
+            const off = disabled || (!on && full)
+            return (
+              <ChoiceChip
+                key={key}
+                title={`Sell it at any station. ${name}'s card goes back to undone.`}
+                selected={on}
+                disabled={off}
+                opacity={!on && full ? 0.5 : 1}
+                onClick={() => plan.toggleSeize(item)}
+              >
+                Take {ITEM_WORD[item.kind]} from {name}
+              </ChoiceChip>
+            )
+          })}
+        </Box>
+      </Box>
+    </>
+  )
+}
+
+/**
+ * One pick among a few (a subsystem to repair, a sale, a carrier to escort,
+ * an item to take): a cream block when chosen, an outlined one when not.
  */
 function ChoiceChip({
   title,

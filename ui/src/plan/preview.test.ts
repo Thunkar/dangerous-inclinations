@@ -33,6 +33,7 @@ import {
   moveReadiness,
   planActions,
   previewPlan,
+  seizeKey,
   type MoveChoice,
   type PlanExtras,
   type PlanStep,
@@ -51,7 +52,7 @@ const id = () => `t-${++ids}`
 function planOf(player: Player, actions: PlayerAction[]): Plan {
   const steps: PlanStep[] = []
   const powers: Record<SubsystemId, number> = {}
-  const extras: PlanExtras = { repair: null, dockJob: null, escorts: [] }
+  const extras: PlanExtras = { repair: null, dockSale: null, escorts: [], seizes: [] }
   const ordered = [...actions].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
   for (const action of ordered) {
     switch (action.type) {
@@ -114,9 +115,11 @@ function planOf(player: Player, actions: PlayerAction[]): Plan {
       case 'repair':
         extras.repair = action.data.subsystemId
         break
-      case 'dock_job':
-        // "none" belongs to the one-sale experiment, which the table never plays.
-        if (action.data.job !== 'none') extras.dockJob = action.data.job
+      case 'dock_sale':
+        extras.dockSale = action.data.sale
+        break
+      case 'seize':
+        extras.seizes = [...extras.seizes, seizeKey(action.data)]
         break
       case 'escort_mark':
         extras.escorts = [...extras.escorts, action.data.carrierId]
@@ -521,7 +524,7 @@ describe('the plan preview against the engine', () => {
     // must be one the engine takes, and one it blocks one the engine refuses.
     let offered = 0
     let blocked = 0
-    const noExtras: PlanExtras = { repair: null, dockJob: null, escorts: [] }
+    const noExtras: PlanExtras = { repair: null, dockSale: null, escorts: [], seizes: [] }
     TURNS.forEach(({ state }) => {
       const view = viewFor(state, state.players[state.activePlayerIndex].id)
       const me = view.me!

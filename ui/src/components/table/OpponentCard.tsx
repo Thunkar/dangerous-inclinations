@@ -25,10 +25,7 @@ import { ShipMark } from '../../ships/ShipMark'
 import { Box, IconButton, Tooltip, Typography } from '@mui/material'
 import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
-import {
-  MAX_HEAT,
-  CARGO_HOLD_CRATES,
-} from '@dangerous-inclinations/engine'
+import { MAX_HEAT } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { FONT_DISPLAY } from '../../design/press'
 import { Panel } from '../common/Panel'
@@ -40,6 +37,7 @@ import { agentLabel } from '../../utils/agents'
 import { useGame } from '../../context/GameContext'
 import { useAnimationControls } from '../../context/AnimationContext'
 import { EscortedBy } from './EscortedBy'
+import { SoldAt } from './SoldAt'
 
 const SLOT_TILE = 36
 const FIXED_TILE = 22
@@ -261,7 +259,7 @@ export function OpponentCard({
             printing it on the card was a line that told nobody anything. */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
           <Tooltip
-            title={`Cargo aboard. The hold takes ${CARGO_HOLD_CRATES} crate; data rides free. Destinations are private.`}
+            title="Cargo aboard. The hold has no limit. Destinations are private."
           >
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <CargoTokens
@@ -272,6 +270,7 @@ export function OpponentCard({
             </Box>
           </Tooltip>
           <EscortedBy player={player} />
+          <SoldAt player={player} />
         </Box>
 
         {/* The five slots, on one row */}

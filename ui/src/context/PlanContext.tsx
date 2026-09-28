@@ -2,7 +2,7 @@
  * PlanContext: the turn you are putting together.
  *
  * It holds what the player chose (the steps, the powers, a repair, the dock
- * job, Escort markers, what a click is currently picking) and the verbs that
+ * sale, Escort markers, seizures, what a click is currently picking) and the verbs that
  * edit them. Every number shown for the plan is `plan/preview.ts`, which reads
  * the choices against the engine's pure functions; the server is the referee
  * and nothing here advances state. The route planner keeps its own state in
@@ -19,18 +19,19 @@ import {
 } from 'react'
 import type {
   BurnIntensity,
-  DockJob,
-  DockJobs,
   Facing,
   JumpOption,
   Player,
   PlayerAction,
+  SaleOffer,
+  SeizableItem,
   SlotView,
   Subsystem,
   SubsystemId,
 } from '@dangerous-inclinations/engine'
 import {
-  chosenDockJob,
+  SELL_NOTHING,
+  chosenSale,
   energyStepOf,
   getAdjustmentRange,
   getJumpAdjustmentRange,
@@ -47,6 +48,7 @@ import {
   planActions,
   powerableTile,
   previewPlan,
+  seizeKey,
   targetsInRange as targetsInRangeOf,
   targetsOutOfReach as targetsOutOfReachOf,
   type FireStep,
@@ -155,15 +157,18 @@ interface PlanContextValue {
   /** Tiles that could be named this turn: broken, and the ship can still end cold. */
   repairable: SubsystemId[]
   /**
-   * The jobs on offer when the planned turn arrives at a station (not a berth
-   * already held) with more than one job the visit could do, as the engine
-   * reads them with the fuel the plan leaves aboard; null otherwise, which is
-   * when there is nothing to choose.
+   * The sales on offer when the planned turn arrives at a station (not a berth
+   * already held), as the engine reads them with the fuel the plan leaves
+   * aboard; also offered, empty, at a station that has bought from this
+   * player already. Null when there is nothing to say.
    */
-  dockOffer: DockJobs | null
-  /** The job the visit will do: the one picked, if on offer, or the engine's default. */
-  dockJob: DockJob | null
-  setDockJob: (job: DockJob | null) => void
+  dockOffer: (SaleOffer & { planetId: string }) | null
+  /**
+   * The sale the visit will make: the option's `sale` picked, if on offer,
+   * `SELL_NOTHING`, or the engine's default; null when there is none.
+   */
+  dockSale: string | null
+  setDockSale: (sale: string | null) => void
   /**
    * The rivals an Escort marker could go on if the turn ends where the plan
    * ends it (the engine's `escortCandidates`), and how many markers are in
@@ -173,6 +178,15 @@ interface PlanContextValue {
   /** Carriers the player chose to mark: a "you may", so none until picked. */
   escortChoices: string[]
   toggleEscort: (carrierId: string) => void
+  /**
+   * The items a free Piracy card could take if the turn ends where the plan
+   * ends it (the engine's `seizableItems`), and how many cards are free; null
+   * when there is nothing to take.
+   */
+  seizeOffer: { items: SeizableItem[]; cards: number } | null
+  /** Items the player chose to take, by `seizeKey`: a "you may", so none until picked. */
+  seizeChoices: string[]
+  toggleSeize: (item: SeizableItem) => void
 }
 
 const PlanContext = createContext<PlanContextValue | undefined>(undefined)
@@ -218,8 +232,9 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [picking, setPicking] = useState<Picking>(null)
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
   const [repairChoice, setRepairChoiceState] = useState<SubsystemId | null>(null)
-  const [dockChoice, setDockChoice] = useState<DockJob | null>(null)
+  const [dockChoice, setDockChoice] = useState<string | null>(null)
   const [escortChoices, setEscortChoices] = useState<string[]>([])
+  const [seizeChoices, setSeizeChoices] = useState<string[]>([])
 
   const isMyTurn = !readOnly && view.activePlayerId === me.id && view.phase === 'active'
   const disabled = !isMyTurn || isAnimating
@@ -231,6 +246,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     setFocusWeaponId(null)
     setDockChoice(null)
     setEscortChoices([])
+    setSeizeChoices([])
   }, [])
 
   // A new turn (or a fresh state after our own turn) starts a fresh plan.
@@ -300,13 +316,28 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     return ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
   }, [pendingSubsystems, moveFrom])
 
-  const { dockOffer, escortOffer, repairable } = preview
-  const dockJob = dockOffer ? chosenDockJob(dockOffer, dockChoice ?? undefined) : null
+  const { dockOffer, escortOffer, seizeOffer, repairable } = preview
+  const dockSale = !dockOffer
+    ? null
+    : dockChoice === SELL_NOTHING && dockOffer.options.length > 0
+      ? SELL_NOTHING
+      : (chosenSale(dockOffer, dockChoice ?? undefined)?.sale ?? null)
   // A pick the plan no longer offers is dropped rather than refused, so editing
   // the move never leaves an illegal action on the sheet.
   useEffect(() => {
-    if (dockChoice !== null && !dockOffer?.jobs.some(o => o.job === dockChoice)) setDockChoice(null)
+    if (dockChoice === null) return
+    const offered =
+      dockChoice === SELL_NOTHING
+        ? (dockOffer?.options.length ?? 0) > 0
+        : dockOffer?.options.some(o => o.sale === dockChoice)
+    if (!offered) setDockChoice(null)
   }, [dockChoice, dockOffer])
+  // Seizures the plan still offers: a pick the move has walked away from is
+  // left out rather than sent.
+  const liveSeizes = useMemo(() => {
+    const offered = new Set(seizeOffer?.items.map(seizeKey) ?? [])
+    return seizeChoices.filter(key => offered.has(key))
+  }, [seizeChoices, seizeOffer])
   useEffect(() => {
     if (escortChoices.some(id => !escortOffer?.carriers.includes(id)))
       setEscortChoices(chosen => chosen.filter(id => escortOffer?.carriers.includes(id)))
@@ -327,16 +358,26 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       ),
     [escortOffer]
   )
+  const toggleSeize = useCallback(
+    (item: SeizableItem) => {
+      const key = seizeKey(item)
+      if (liveSeizes.includes(key)) setSeizeChoices(liveSeizes.filter(k => k !== key))
+      // One item per free Piracy card: at the cap, a new pick is refused.
+      else if (liveSeizes.length < (seizeOffer?.cards ?? 0)) setSeizeChoices([...liveSeizes, key])
+    },
+    [liveSeizes, seizeOffer]
+  )
   const setRepairChoice = useCallback((id: SubsystemId | null) => setRepairChoiceState(id), [])
 
   const actions = useMemo(
     () =>
       planActions(me, steps, preview, {
         repair: repairChoice,
-        dockJob: dockChoice,
+        dockSale: dockChoice,
         escorts: escortChoices,
+        seizes: liveSeizes,
       }),
-    [me, steps, preview, repairChoice, dockChoice, escortChoices]
+    [me, steps, preview, repairChoice, dockChoice, escortChoices, liveSeizes]
   )
 
   // --- mutators ------------------------------------------------------------
@@ -561,11 +602,14 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       setRepairChoice,
       repairable,
       dockOffer,
-      dockJob,
-      setDockJob: setDockChoice,
+      dockSale,
+      setDockSale: setDockChoice,
       escortOffer,
       escortChoices,
       toggleEscort,
+      seizeOffer,
+      seizeChoices: liveSeizes,
+      toggleSeize,
     }),
     [
       me,
@@ -611,10 +655,13 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       setRepairChoice,
       repairable,
       dockOffer,
-      dockJob,
+      dockSale,
       escortOffer,
       escortChoices,
       toggleEscort,
+      seizeOffer,
+      liveSeizes,
+      toggleSeize,
     ]
   )
 

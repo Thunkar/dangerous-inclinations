@@ -9,11 +9,7 @@
  */
 
 export const MISSION_PROGRESS = {
-  deliver_cargo: {
-    aboard: 'Crate aboard',
-    /** Another route's crate is aboard, so this one waits. */
-    holdFull: 'Hold full',
-  },
+  deliver_cargo: 'Crate aboard',
   intercept_transmission: 'Transmission aboard',
   survey: 'Data aboard',
   piracy: 'Loot aboard',

@@ -20,13 +20,13 @@
  */
 import type {
   BurnIntensity,
-  DockJob,
-  DockJobs,
   Facing,
   GameView,
   Player,
   PlayerAction,
   Position,
+  SaleOffer,
+  SeizableItem,
   ShipState,
   Station,
   Subsystem,
@@ -35,6 +35,7 @@ import type {
 import {
   BURN_COSTS,
   MAX_REACTION_MASS,
+  SELL_NOTHING,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
   calculateJumpMassCost,
@@ -43,8 +44,8 @@ import {
   canEngage,
   canFireFrom,
   drawFor,
-  dockJobsOnArrival,
   escortCandidates,
+  freePiracyCards,
   findJump,
   getAdjustmentRange,
   getJumpAdjustmentRange,
@@ -67,6 +68,8 @@ import {
   projectPosition,
   ringAfter,
   ringVelocity,
+  salesOnArrival,
+  seizableItems,
   unplacedEscorts,
 } from '@dangerous-inclinations/engine'
 import { slotWithSubsystem } from '../utils/slots'
@@ -613,26 +616,49 @@ export function criticalFrom(
 }
 
 /**
- * A visit does one job (RULES §Stations). Docking happens on arrival only, so
- * a ship that began the turn moored is holding its berth, not visiting.
- * Stations do not move during a turn, so where they are now is where the plan
- * meets them. The choice is only worth showing when there is one.
+ * A station buys one item from each player, once (RULES §Stations). Docking
+ * happens on arrival only, so a ship that began the turn moored is holding its
+ * berth, not visiting. Stations do not move during a turn, so where they are
+ * now is where the plan meets them. Offered when there is something to sell
+ * (even one item: selling nothing keeps the station for later) or when the
+ * station has bought from this player already, so the table can say so.
  */
 export function dockOfferFor(
   view: GameView,
   me: Player,
   finalPosition: Position,
   projectedFuel: number
-): DockJobs | null {
+): (SaleOffer & { planetId: string }) | null {
   if (isDestroyed(me.ship) || isMooredAt(view.stations, me.ship)) return null
   const station = getStationAt(view.stations, finalPosition)
   if (!station) return null
-  const offer = dockJobsOnArrival(
+  const offer = salesOnArrival(
     { cargo: me.cargo, missions: me.missions, reactionMass: projectedFuel, soldAt: me.soldAt },
     station.planetId
   )
-  return offer.jobs.length > 1 ? offer : null
+  return offer.options.length > 0 || offer.soldHere ? { ...offer, planetId: station.planetId } : null
 }
+
+/**
+ * Piracy is a "you may" (RULES §Missions): offered when the turn as planned
+ * ends, not moored, in the sector of an undocked ship carrying cargo and a
+ * Piracy card is free to take an item. The items and the count come from the
+ * engine (`seizableItems`, `freePiracyCards`). Ships do not move during a
+ * turn, so where they are now is where the plan meets them.
+ */
+export function seizeOfferFor(
+  view: GameView,
+  me: Player,
+  finalPosition: Position
+): { items: SeizableItem[]; cards: number } | null {
+  if (isDestroyed(me.ship)) return null
+  const items = seizableItems(view, me.id, finalPosition)
+  return items.length > 0 ? { items, cards: freePiracyCards(me.missions, me.cargo).length } : null
+}
+
+/** The key a seizure is picked by: the victim and the item. */
+export const seizeKey = (item: Pick<SeizableItem, 'victimId' | 'cargoId'>) =>
+  `${item.victimId}/${item.cargoId}`
 
 /**
  * An Escort marker is a "you may" (RULES §Missions, Escort): offered when the
@@ -674,8 +700,9 @@ export interface PlanPreview {
   targets: Target[]
   projectedFuel: number
   issues: string[]
-  dockOffer: DockJobs | null
+  dockOffer: (SaleOffer & { planetId: string }) | null
   escortOffer: { carriers: string[]; markers: number } | null
+  seizeOffer: { items: SeizableItem[]; cards: number } | null
   repairable: SubsystemId[]
 }
 
@@ -711,6 +738,7 @@ export function previewPlan(
     issues,
     dockOffer: dockOfferFor(view, me, finalPosition.position, projectedFuel),
     escortOffer: escortOfferFor(view, me, finalPosition.position),
+    seizeOffer: seizeOfferFor(view, me, finalPosition.position),
     repairable: repairableFor(me, loadout),
   }
 }
@@ -718,20 +746,27 @@ export function previewPlan(
 /** The choices made around the steps, each sent only while the preview still offers it. */
 export interface PlanExtras {
   repair: SubsystemId | null
-  dockJob: DockJob | null
+  /** The sale picked: an option's `sale`, or `SELL_NOTHING`; null for the default. */
+  dockSale: string | null
   escorts: readonly string[]
+  /** Seizures picked, by {@link seizeKey}. */
+  seizes: readonly string[]
 }
 
 /**
  * The actions the plan is sent as. Power comes first, in loadout order: a
  * sensor powered now widens every shot the turn takes, and a wall or a rack
  * is up whatever else happens. A step still missing its target is not sent,
- * and neither is a repair, a job or a marker the preview no longer offers.
+ * and neither is a repair, a sale, a marker or a seizure the preview no longer
+ * offers.
  */
 export function planActions(
   me: Player,
   steps: readonly PlanStep[],
-  preview: Pick<PlanPreview, 'powers' | 'stepStart' | 'repairable' | 'dockOffer' | 'escortOffer'>,
+  preview: Pick<
+    PlanPreview,
+    'powers' | 'stepStart' | 'repairable' | 'dockOffer' | 'escortOffer' | 'seizeOffer'
+  >,
   extras: PlanExtras
 ): PlayerAction[] {
   const list: PlayerAction[] = []
@@ -816,11 +851,23 @@ export function planActions(
   })
   if (extras.repair !== null && preview.repairable.includes(extras.repair))
     list.push({ playerId: me.id, type: 'repair', data: { subsystemId: extras.repair } })
-  // Without a pick the engine does the default, which is what the control shows preselected.
-  if (extras.dockJob !== null && preview.dockOffer?.jobs.some(o => o.job === extras.dockJob))
-    list.push({ playerId: me.id, type: 'dock_job', data: { job: extras.dockJob } })
+  // Without a pick the engine makes the default sale, which is what the control shows lit.
+  const sale = extras.dockSale
+  const offered =
+    sale === SELL_NOTHING
+      ? (preview.dockOffer?.options.length ?? 0) > 0
+      : preview.dockOffer?.options.some(o => o.sale === sale)
+  if (sale !== null && offered)
+    list.push({ playerId: me.id, type: 'dock_sale', data: { sale } })
   for (const carrierId of extras.escorts)
     if (preview.escortOffer?.carriers.includes(carrierId))
       list.push({ playerId: me.id, type: 'escort_mark', data: { carrierId } })
+  for (const item of preview.seizeOffer?.items ?? [])
+    if (extras.seizes.includes(seizeKey(item)))
+      list.push({
+        playerId: me.id,
+        type: 'seize',
+        data: { victimId: item.victimId, cargoId: item.cargoId },
+      })
   return list
 }

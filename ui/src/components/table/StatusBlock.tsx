@@ -26,6 +26,7 @@ import { CargoTokens, PipTrack } from '../common/Tokens'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { EscortedBy } from './EscortedBy'
+import { SoldAt } from './SoldAt'
 import { slotShortLabel, slotWithSubsystem } from '../../utils/slots'
 
 /**
@@ -217,6 +218,8 @@ export function StatusBlock({ accent }: { accent?: string }) {
 
       {/* Escort markers on your own ship: public, and worth knowing who is riding on you. */}
       <EscortedBy player={view.players.find(p => p.isMe)} />
+      {/* The stations that have bought from you: each buys one item, once. */}
+      <SoldAt player={view.players.find(p => p.isMe)} />
 
       {/* Hull and heat, each on its own row: the heat track grows with the plan and must never wrap. */}
       <Box

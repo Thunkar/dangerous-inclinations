@@ -9,7 +9,6 @@
  */
 import type { Cargo, Mission, MissionFamily } from '@dangerous-inclinations/engine'
 import {
-  CARGO_HOLD_CRATES,
   MAX_REACTION_MASS,
   MISSION_CARDS,
   MISSION_FAMILY,
@@ -47,20 +46,14 @@ export function missionProgress(
 ): string | null {
   const aboard = (id: string) => cargo.some(c => c.missionId === id && c.isPickedUp)
   switch (mission.type) {
-    case 'deliver_cargo': {
-      if (aboard(mission.id)) return P.deliver_cargo.aboard
-      // The hold takes one crate (RULES §Missions): another route's crate
-      // aboard means this one waits.
-      const holdFull =
-        cargo.filter(c => c.kind === 'crate' && c.isPickedUp).length >= CARGO_HOLD_CRATES
-      return holdFull ? P.deliver_cargo.holdFull : null
-    }
+    case 'deliver_cargo':
+      return aboard(mission.id) ? P.deliver_cargo : null
     case 'intercept_transmission':
       return dataAboard({ cargo }, mission) ? P.intercept_transmission : null
     case 'survey':
       return dataAboard({ cargo }, mission) ? P.survey : null
     case 'piracy':
-      // The loot rides as the card's own crate (engine `seizeLoot`).
+      // The loot rides as the card's own item (engine `takeItem`).
       return aboard(mission.id) ? P.piracy : null
     case 'tanker':
       return fuel === undefined ? null : fill(P.tanker, { fuel, max: MAX_REACTION_MASS })

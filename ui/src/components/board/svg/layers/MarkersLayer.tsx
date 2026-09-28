@@ -1,11 +1,17 @@
 /**
  * Loose tokens on the board: station discs and the players' Home markers.
+ * Under a station, a square in the colour of each player it has bought from:
+ * a station buys one item from each player, once.
  */
 import { memo } from 'react'
 import { getWellName } from '@dangerous-inclinations/engine'
 import type { HomeMarker, StationMarker } from '../../model'
 import { positionPoint, wellColor } from '../../geometry'
 import { BOARD } from '../palette'
+
+/** The sold-at squares under a station: their side and the step between them. */
+const SOLD_SIZE = 5
+const SOLD_PITCH = 7
 
 interface MarkersLayerProps {
   stations: ReadonlyArray<StationMarker>
@@ -46,11 +52,27 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
         const color = wellColor(station.planetId)
         return (
           <g key={station.id}>
-            <title>{`${getWellName(station.planetId)} Station · dock here to load, deliver, repair and reload`}</title>
+            <title>{`${getWellName(station.planetId)} Station · dock here to load, sell, repair and reload${
+              station.soldBy.length > 0
+                ? ` · has bought from ${station.soldBy.map((s) => s.name).join(", ")}`
+                : ""
+            }`}</title>
             <circle cx={p.x} cy={p.y} r={10} fill={BOARD.deep} stroke={color} strokeWidth={2.5} />
             <circle cx={p.x} cy={p.y} r={3.5} fill={color} />
             <line x1={p.x - 15} y1={p.y} x2={p.x + 15} y2={p.y} stroke={color} strokeWidth={1.6} />
             <line x1={p.x} y1={p.y - 15} x2={p.x} y2={p.y + 15} stroke={color} strokeWidth={1.6} />
+            {station.soldBy.map((seller, i) => (
+              <rect
+                key={seller.playerId}
+                x={p.x + (i - (station.soldBy.length - 1) / 2) * SOLD_PITCH - SOLD_SIZE / 2}
+                y={p.y + 18}
+                width={SOLD_SIZE}
+                height={SOLD_SIZE}
+                fill={seller.color}
+                stroke={BOARD.deep}
+                strokeWidth={1}
+              />
+            ))}
           </g>
         )
       })}

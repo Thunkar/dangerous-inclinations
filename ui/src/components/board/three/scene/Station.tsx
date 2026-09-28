@@ -58,6 +58,10 @@ const DECK = 12
  */
 const DECK_RADIUS = 17
 const DECK_THICKNESS = 2.4
+/** The sold-at tiles on the deck's rim: where, how far apart, and their size. */
+const SOLD_RADIUS = DECK_RADIUS - 2.6
+const SOLD_STEP = 0.3
+const SOLD_TILE: [number, number, number] = [2.4, 1.2, 2.4]
 /** Each level clears the one below it, so the silhouette reads as storeys. */
 const WING_HEIGHT = 18
 const RING_HEIGHT = 26
@@ -200,6 +204,32 @@ export function StationToken({ station }: { station: StationMarker }) {
               ]}
               rotation={[0, -angle, 0]}
             />
+          )
+        })}
+        {/* A tile in the colour of each player this station has bought from:
+            it buys one item from each, once. Round the deck's rim, outside
+            the habitat ring, where the table camera sees it. */}
+        {station.soldBy.map((seller, i) => {
+          const angle = Math.PI / 2 + (i - (station.soldBy.length - 1) / 2) * SOLD_STEP
+          return (
+            <mesh
+              key={seller.playerId}
+              name={`station_sold_${seller.playerId}`}
+              position={[
+                Math.cos(angle) * SOLD_RADIUS,
+                DECK_THICKNESS / 2 + SOLD_TILE[1] / 2,
+                Math.sin(angle) * SOLD_RADIUS,
+              ]}
+              rotation={[0, -angle, 0]}
+            >
+              <boxGeometry args={SOLD_TILE} />
+              <meshStandardMaterial
+                color={seller.color}
+                emissive={new Color(seller.color)}
+                emissiveIntensity={0.6}
+                roughness={0.6}
+              />
+            </mesh>
           )
         })}
         {/* Four berths, reaching down to where a moored hull floats. */}

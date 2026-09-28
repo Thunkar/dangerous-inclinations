@@ -105,18 +105,36 @@ export interface HomeMarker {
   position: Position
 }
 
+/** A player who has sold at a station: a marker in their colour on it (public). */
+export interface StationSeller {
+  playerId: string
+  name: string
+  color: string
+}
+
 /** A station, where both boards draw it: the engine's `stationPosition`. */
 export interface StationMarker {
   id: string
   planetId: string
   position: Position
+  /**
+   * The players this station has bought from, in seat order: each buys one
+   * item from a player, once per game (`PlayerView.soldAt`).
+   */
+  soldBy: StationSeller[]
 }
 
-export function stationMarkers(stations: readonly Station[]): StationMarker[] {
+export function stationMarkers(
+  stations: readonly Station[],
+  sellers: ReadonlyArray<StationSeller & { soldAt: readonly string[] }> = []
+): StationMarker[] {
   return stations.map(station => ({
     id: station.id,
     planetId: station.planetId,
     position: stationPosition(station),
+    soldBy: sellers
+      .filter(s => s.soldAt.includes(station.planetId))
+      .map(({ playerId, name, color }) => ({ playerId, name, color })),
   }))
 }
 
@@ -412,7 +430,19 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
   )
 
   const liveStations = overlay?.stations ?? view.stations
-  const stations = useMemo(() => stationMarkers(liveStations), [liveStations])
+  const stations = useMemo(
+    () =>
+      stationMarkers(
+        liveStations,
+        view.players.map((p, index) => ({
+          playerId: p.id,
+          name: p.name,
+          color: getPlayerColor(index),
+          soldAt: p.soldAt,
+        }))
+      ),
+    [liveStations, view.players]
+  )
   const liveMissiles = overlay?.missiles ?? view.missiles
   /**
    * A missile in flight rides its orbit and then flies at its target. The
