@@ -10,8 +10,8 @@ import { positionPoint, wellColor } from '../../geometry'
 import { BOARD } from '../palette'
 
 /** The sold-at squares under a station: their side and the step between them. */
-const SOLD_SIZE = 5
-const SOLD_PITCH = 7
+const SOLD_SIZE = 7
+const SOLD_PITCH = 9
 
 interface MarkersLayerProps {
   stations: ReadonlyArray<StationMarker>
