@@ -7,6 +7,7 @@ import type { CargoKind, MissionType } from "../models/missions.ts";
 import { MISSION_FAMILY } from "../models/missions.ts";
 import { SUBSYSTEM_CONFIGS, WEAPON_SUBSYSTEM_TYPES } from "../models/subsystems.ts";
 import type { GameRunResult } from "./runGame.ts";
+import { cardTracksOf, type CardTrack } from "./cardFunnel.ts";
 
 export interface PerPlayerStats {
   playerId: string;
@@ -118,6 +119,8 @@ export interface PerGameStats {
   /** Cards kept out of those offers, by type. */
   keptByType: Partial<Record<MissionType, number>>;
   perPlayer: Record<string, PerPlayerStats>;
+  /** Every kept card followed from its first step (sim/cardFunnel.ts). */
+  cardTracks: CardTrack[];
 }
 
 /** The printed name of every card, as every page of the simulator writes it. */
@@ -260,6 +263,7 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
     offeredByType,
     keptByType,
     perPlayer,
+    cardTracks: cardTracksOf(run),
   };
 }
 

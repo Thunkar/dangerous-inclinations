@@ -127,3 +127,18 @@ _A hull's win rate is against the field, so the fair share is 1/seats, about 25%
 
 _Pick rate is the read on a card: one nobody keeps does not exist, whatever it would score. Two piles serve the table and each is dealt against its own choice, so pick rates inside a pile compare and the two piles do not; setup takes out the rival cards a table this size cannot use, so the offered column is not flat across seat counts._
 
+## Where cards fail
+
+| card | first step | started | round started (median) | lost per 100 started: kill / Piracy / fuel | rounds from step to score (median) | scored | started, open at the end |
+|---|---|---|---|---|---|---|---|
+| Deliver | crate loaded | 85% | 3 | 8 / 16 / - | 8 | 56% | 17% |
+| Destroy | target hit | 95% | 3 | - | 4 | 58% | 36% |
+| Intercept | target scanned | 93% | 2 | 68 / 39 / - | 7 | 49% | 19% |
+| Survey | dive made | 84% | 2 | 72 / 54 / - | 11 | 29% | 30% |
+| Piracy | item taken | 73% | 6 | 82 / 27 / - | 8 | 25% | 20% |
+| Tanker | in a planet's well with 7 fuel | 58% | 13 | 1 / 0 / 181 | 2 | 14% | 6% |
+| Escort | marker placed | 59% | 8 | 55 / - / - | 7 | 30% | 14% |
+| Salvage | box taken | 50% | 14 | 62 / 29 / - | 8 | 16% | 18% |
+
+_Shares are of the cards kept. A loss is the item gone before it scored: the ship destroyed with it aboard (for Escort, the marked ship), a pirate taking it, or a Tanker leaving the planet's well or burning under the fuel it needs. The step to score is timed from the last time the step was done. A card still open at the end was started, holds its item, marker or fuel, and the game ended first._
+

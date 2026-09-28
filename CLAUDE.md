@@ -181,7 +181,11 @@ how the rules as they stand play at 3/4/5/6 seats: length in rounds and in table
 time, kills, how games unfold (lead changes, comebacks, the first card, Escort
 markers, wrecks, seizures, sales), the hulls bots chose and their win rates
 (natural bots take the hull from the primary, so this is the card table by
-another name), and every card's pick rate and payoff. It stamps the rules it ran under at the top, so two versions of the
+another name), every card's pick rate and payoff, and where each card fails
+(`sim/cardFunnel.ts`: how often and when its first step happens, how often the
+item is lost and to what, how long the second step takes, and how many games
+end with it started). The last is how a bot playing a card badly shows up as
+a number: both fixes of 28 Sept were found that way. It stamps the rules it ran under at the top, so two versions of the
 page can be diffed to see what a rule change actually did. Keep the games and
 seeds fixed between runs or the comparison is worthless. It is a description and
 never fails; the gate is below.

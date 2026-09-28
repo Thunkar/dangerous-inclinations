@@ -85,6 +85,8 @@ export interface TurnStat {
   upEnergy: number;
   heatAtCheck: number;
   heatDamage: number;
+  /** Fuel in the tank at the end of the turn. */
+  fuel: number;
   /** The ship ended the turn in a planet's well rather than the black hole's. */
   endedAtPlanet: boolean;
   /** The ship ended the turn moored at a station. */
@@ -345,6 +347,7 @@ function turnStat(turn: number, playerId: string, events: GameEvent[], after: Ga
       .reduce((sum, s) => sum + s.allocatedEnergy, 0),
     heatAtCheck: heat ? heat.heat : 0,
     heatDamage: heat ? heat.damage : 0,
+    fuel: player.ship.reactionMass,
     endedAtPlanet: isPlanet(player.ship.wellId),
     endedMoored: isMooredAt(after.stations, player.ship),
     lost: events.some((e) => e.type === "respawned" && e.playerId === playerId),

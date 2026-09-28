@@ -52,6 +52,7 @@ import {
 import { SHIELD_ENERGY_PER_POINT, SUBSYSTEM_CONFIGS } from "../models/subsystems.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
 import { CARD_LABEL, LEAD_CHECK_ROUND } from "./stats.ts";
+import { FIRST_STEP } from "./cardFunnel.ts";
 import {
   applyTileOverrides,
   describeTileOverrides,
@@ -272,6 +273,59 @@ function missionRows(batches: BatchResult[]) {
  * cards a seat came with. A hand every seat keeps is the table's one plan and
  * the rest are untested. That is what this is here to show.
  */
+const median = (values: number[]): number | null => {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+};
+
+/**
+ * Where each card fails, pooled over every seat count: how many kept cards
+ * got their first step done and when, how often the item was lost before it
+ * scored and to what, how long the second step took, and how many games ended
+ * with the card started and not scored (sim/cardFunnel.ts).
+ */
+function cardFailureTable(batches: BatchResult[]): string[] {
+  const lines = [
+    "## Where cards fail",
+    "",
+    "| card | first step | started | round started (median) | lost per 100 started: kill / Piracy / fuel | rounds from step to score (median) | scored | started, open at the end |",
+    "|---|---|---|---|---|---|---|---|",
+  ];
+  const tracks = batches.flatMap((b) => b.perGame.flatMap((g) => g.cardTracks));
+  for (const type of TYPES) {
+    const kept = tracks.filter((t) => t.type === type);
+    if (kept.length === 0) continue;
+    const started = kept.filter((t) => t.stepRound !== null);
+    const per100 = (n: number) => (started.length ? Math.round((100 * n) / started.length) : 0);
+    const sum = (f: (t: (typeof kept)[number]) => number) => started.reduce((n, t) => n + f(t), 0);
+    const carries = type !== "destroy_ship";
+    const losses = carries
+      ? [
+          per100(sum((t) => t.lostToKill)),
+          type === "escort" ? "-" : per100(sum((t) => t.lostToPiracy)),
+          type === "tanker" ? per100(sum((t) => t.lostToBurn)) : "-",
+        ].join(" / ")
+      : "-";
+    const share = (n: number) => pct(n / kept.length);
+    const round = median(started.map((t) => t.stepRound!));
+    const toScore = median(kept.flatMap((t) => (t.stepToDone === null ? [] : [t.stepToDone])));
+    lines.push(
+      `| ${CARD_LABEL[type]} | ${FIRST_STEP[type]} | ${share(started.length)} | ${round ?? "-"} | ${losses} | ${toScore ?? "-"} | ${share(kept.filter((t) => t.completedRound !== null).length)} | ${share(kept.filter((t) => t.openWithStep).length)} |`
+    );
+  }
+  lines.push(
+    "",
+    "_Shares are of the cards kept. A loss is the item gone before it scored: the ship destroyed " +
+      "with it aboard (for Escort, the marked ship), a pirate taking it, or a Tanker leaving the " +
+      "planet's well or burning under the fuel it needs. The step to score is timed from the last time the step was " +
+      "done. A card still open at the end was started, holds its item, marker or fuel, and the " +
+      "game ended first._",
+    ""
+  );
+  return lines;
+}
+
 function handShapeRows(batches: BatchResult[]) {
   const pooled: Record<string, { seats: number; wins: number; points: number }> = {};
   for (const b of batches) {
@@ -481,6 +535,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
       "cannot use, so the offered column is not flat across seat counts._"
   );
   out.push("");
+  out.push(...cardFailureTable(batches));
   return out.join("\n");
 }
 

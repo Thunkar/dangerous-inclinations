@@ -110,6 +110,7 @@ function turnStat(over: Partial<TurnStat>): TurnStat {
     burned: false,
     jumped: false,
     scooped: false,
+    fuel: 0,
     shotsFired: 0,
     shieldCubes: 0,
     upEnergy: 0,
