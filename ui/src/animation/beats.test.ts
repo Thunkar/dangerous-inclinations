@@ -52,7 +52,7 @@ const TURNS = [
   { seed: 11, botCount: 3 },
   { seed: 12, botCount: 5 },
   {
-    seed: 13,
+    seed: 14,
     botCount: 3,
     seatLoadouts: {
       'bot-2': {
