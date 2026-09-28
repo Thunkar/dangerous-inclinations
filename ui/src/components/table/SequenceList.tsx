@@ -210,6 +210,19 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
         </Tooltip>
       )}
 
+      {inRange.length === 0 && plan.reachesBeforeMove(step) && (
+        <Tooltip title="Nobody is in range after your move, but someone is from where it starts.">
+          <Chip
+            size="small"
+            label="Fire before the move"
+            color="primary"
+            variant="outlined"
+            onClick={() => plan.fireBeforeMove(step.id)}
+            sx={{ fontSize: '0.78rem', height: 22 }}
+          />
+        </Tooltip>
+      )}
+
       {wasted && (
         <Typography sx={{ fontSize: '0.74rem', color: TABLE.danger, lineHeight: 1.3 }}>
           This one runs out of fuel before it catches them: three moves of three steps, and they

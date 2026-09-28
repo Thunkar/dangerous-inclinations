@@ -342,6 +342,48 @@ export function targetsInRange(
 }
 
 /**
+ * Where a new shot goes in the sequence: after the move, unless only the
+ * start of the move reaches anyone (a coast on a fast ring can carry the ship
+ * out of every arc), and then right before it, after any rotation.
+ */
+export function shotIndex(
+  view: GameView,
+  me: Player,
+  steps: readonly PlanStep[],
+  shot: PlanStep,
+  loadout: readonly Subsystem[]
+): number {
+  const moveIndex = steps.findIndex(s => s.kind === 'move')
+  const { stepStart, finalPosition } = walkSteps(me, steps, loadout, view.stations)
+  const targets = targetsFor(view)
+  const reaches = (at: StepContext) =>
+    targetsInRange(view, me, shot, at, loadout, targets).length > 0
+  if (moveIndex < 0 || reaches(finalPosition) || !reaches(stepStart[moveIndex])) return steps.length
+  return moveIndex
+}
+
+/**
+ * A shot after the move that reaches nobody from there but would from where
+ * the move starts: the sequence offers to fire it before the move instead.
+ */
+export function reachesOnlyBeforeMove(
+  view: GameView,
+  me: Player,
+  steps: readonly PlanStep[],
+  step: PlanStep,
+  loadout: readonly Subsystem[]
+): boolean {
+  const moveIndex = steps.findIndex(s => s.kind === 'move')
+  const index = steps.findIndex(s => s.id === step.id)
+  if (step.kind !== 'fire' || moveIndex < 0 || index < moveIndex) return false
+  const { stepStart } = walkSteps(me, steps, loadout, view.stations)
+  const targets = targetsFor(view)
+  const reaches = (at: StepContext) =>
+    targetsInRange(view, me, step, at, loadout, targets).length > 0
+  return !reaches(stepStart[index]) && reaches(stepStart[moveIndex])
+}
+
+/**
  * Targets this step may legally fire at but would not connect with: a
  * missile is launched at anyone in the well and only its own flight decides
  * whether it catches them.

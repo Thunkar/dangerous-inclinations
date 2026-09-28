@@ -50,6 +50,8 @@ import {
   previewPlan,
   seizeKey,
   targetsInRange as targetsInRangeOf,
+  reachesOnlyBeforeMove,
+  shotIndex,
   targetsOutOfReach as targetsOutOfReachOf,
   type FireStep,
   type MoveChoice,
@@ -123,6 +125,13 @@ interface PlanContextValue {
    * legal way to throw one away.
    */
   targetsOutOfReach: (step: PlanStep) => Target[]
+  /**
+   * A shot after the move that reaches nobody from there but would from
+   * where the move starts (a coast on a fast ring carries the ship out of
+   * range): the sequence offers to fire it before the move instead.
+   */
+  reachesBeforeMove: (step: PlanStep) => boolean
+  fireBeforeMove: (id: string) => void
   /**
    * Power a shield, rack or sensor at a level (0 is off): the Systems step's
    * segments. A tile a step fires or scans with ignores it, because the step
@@ -288,6 +297,10 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targetsOutOfReachOf(view, me, step, startOf(step), pendingSubsystems, targets),
     [view, me, startOf, pendingSubsystems, targets]
   )
+  const reachesBeforeMove = useCallback(
+    (step: PlanStep) => reachesOnlyBeforeMove(view, me, steps, step, pendingSubsystems),
+    [view, me, steps, pendingSubsystems]
+  )
 
   const jumpOptions = useMemo(() => getJumpOptions(moveFrom.position), [moveFrom])
   const moored = useMemo(
@@ -428,25 +441,36 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     (subsystemId: SubsystemId) => {
       setSteps(prev => {
         if (prev.some(s => s.kind === 'fire' && s.subsystemId === subsystemId)) return prev
-        return [
-          ...prev,
-          {
-            id: stepId(),
-            kind: 'fire',
-            subsystemId,
-            targetId: targets.length === 1 ? targets[0].id : null,
-            criticalTarget: 'engines',
-            compensateRecoil: false,
-            count: 1,
-          },
-        ]
+        const shot: PlanStep = {
+          id: stepId(),
+          kind: 'fire',
+          subsystemId,
+          targetId: targets.length === 1 ? targets[0].id : null,
+          criticalTarget: 'engines',
+          compensateRecoil: false,
+          count: 1,
+        }
+        const next = [...prev]
+        next.splice(shotIndex(view, me, prev, shot, pendingSubsystems), 0, shot)
+        return next
       })
       setFocusWeaponId(subsystemId)
       // A rack that fires is up anyway: the shot is its one thing this turn.
       dropPower(subsystemId)
     },
-    [targets, dropPower]
+    [targets, dropPower, view, me, pendingSubsystems]
   )
+
+  const fireBeforeMove = useCallback((id: string) => {
+    setSteps(prev => {
+      const step = prev.find(s => s.id === id)
+      const rest = prev.filter(s => s.id !== id)
+      const moveIndex = rest.findIndex(s => s.kind === 'move')
+      if (!step || moveIndex < 0) return prev
+      rest.splice(moveIndex, 0, step)
+      return rest
+    })
+  }, [])
 
   const addScan = useCallback(() => {
     setSteps(prev =>
@@ -584,6 +608,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targets,
       targetsInRange,
       targetsOutOfReach,
+      reachesBeforeMove,
+      fireBeforeMove,
       setEnergyTo,
       setMove,
       applyMove,
@@ -639,6 +665,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       targets,
       targetsInRange,
       targetsOutOfReach,
+      reachesBeforeMove,
+      fireBeforeMove,
       setEnergyTo,
       setMove,
       applyMove,
