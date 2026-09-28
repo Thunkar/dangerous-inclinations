@@ -159,9 +159,8 @@ const SALVAGE_CHASE_TURNS = PIRACY_CHASE_TURNS;
 const REPAIR_DETOUR_TURNS = 3;
 
 /**
- * Turns a side goal may add to the delivery of a primary's item aboard (a
- * Deliver crate, an Intercept's data). Past it the item goes to its station
- * first.
+ * Turns a side goal may add to the primary's next step, whatever it is (a
+ * pickup, a scan, a hunt, a delivery). Past it the primary goes first.
  */
 const PRIMARY_DETOUR_TURNS = 1;
 
@@ -758,24 +757,23 @@ export function computeGoals(
     }
   }
 
-  // A primary's item aboard is two points on the way to its station, so a
-  // side goal is taken only when going there first costs the delivery at
-  // most PRIMARY_DETOUR_TURNS.
-  const carry = goals.find(
-    (g) =>
-      g.type === "dock" &&
-      g.dockSale !== undefined &&
-      g.dockSale !== LOAD_CRATES &&
-      me.missions.some((m) => m.id === g.missionId && isPrimaryType(m.type))
+  // The primary is two points and the game is not won without it, so a side
+  // goal is taken only when going there first delays the primary's next step
+  // (the pickup, the scan, the hunt, the delivery) by at most
+  // PRIMARY_DETOUR_TURNS. Before this held for the delivery only, a data
+  // carrier in reach made every Escort and Piracy chase outrank the start of
+  // the primary, and in the black hole there is always one.
+  const carry = goals.find((g) =>
+    me.missions.some((m) => m.id === g.missionId && isPrimaryType(m.type))
   );
-  const carryStation = carry?.planetId && stationPositionFor(view.stations, carry.planetId);
+  const destination = (g: BotGoal): Position | null => {
+    if (g.planetId) return stationPositionFor(view.stations, g.planetId) ?? null;
+    if (g.targetPlayerId) return opponent(g.targetPlayerId)?.position ?? null;
+    const wreck = g.wreckId && view.wrecks.find((w) => w.id === g.wreckId);
+    return wreck ? positionOf(wreck) : null;
+  };
+  const carryStation = carry && destination(carry);
   if (carry && carryStation) {
-    const destination = (g: BotGoal): Position | null => {
-      if (g.planetId) return stationPositionFor(view.stations, g.planetId) ?? null;
-      if (g.targetPlayerId) return opponent(g.targetPlayerId)?.position ?? null;
-      const wreck = g.wreckId && view.wrecks.find((w) => w.id === g.wreckId);
-      return wreck ? positionOf(wreck) : null;
-    };
     const kept = goals.filter((g) => {
       if (g === carry) return true;
       const to = destination(g);

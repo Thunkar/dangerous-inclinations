@@ -440,8 +440,9 @@ describe("bot goals: piracy and tanker", () => {
         urgency: 0,
       },
     ])("chases a carrier $where at urgency $urgency", ({ carrier, turns, urgency }) => {
+      // The primary is in, so no chase is a detour from it.
       const card = piracyMission();
-      const state = table([card, PRIMARY], carrier as Position);
+      const state = table([card, PRIMARY_DONE], carrier as Position);
       expect(goalFor(state, card.id)).toMatchObject({
         type: "pirate",
         targetPlayerId: "p2",
@@ -652,8 +653,8 @@ describe("bot goals: salvage and escort", () => {
       ({ carrier, urgency }) => {
         const escort = escortMission();
         const pirate = piracyMission();
-        const escortGoal = goalFor(table([escort, PRIMARY], carrier as Position), escort.id);
-        const pirateGoal = goalFor(table([pirate, PRIMARY], carrier as Position), pirate.id);
+        const escortGoal = goalFor(table([escort, PRIMARY_DONE], carrier as Position), escort.id);
+        const pirateGoal = goalFor(table([pirate, PRIMARY_DONE], carrier as Position), pirate.id);
         expect(escortGoal).toMatchObject({ type: "escort", targetPlayerId: "p2", urgency });
         expect(escortGoal?.estimatedTurns).toBe(pirateGoal?.estimatedTurns);
       }
@@ -1042,23 +1043,24 @@ describe("bot goals: patrol", () => {
   });
 });
 
-// With a primary's item aboard a side goal is taken only when it delays the
-// delivery by a turn at most: on the way is fine, across the well is not.
-describe("bot goals: a primary's item aboard", () => {
+// A side goal is taken only when it delays the primary's next step by a turn
+// at most: on the way is fine, across the well is not.
+describe("bot goals: the primary first", () => {
   const FILE = interceptMission("p3", "intercept-p1", ALPHA);
   const ESCORT = escortMission();
   // Four turns of drift short of Alpha's door on black hole ring 5.
   const lane = laneDepartureArc(planetLane(ALPHA, "outbound")!);
   const sector = (lane.startSector + 24 - 12) % 24;
 
-  const table = (carrier: Position): GameState => {
+  const table = (carrier: Position, scanned = true): GameState => {
     let state = makeGameState([
-      makePlayer("p1", { wellId: BH, ring: BLACK_HOLE_OUTER_RING, sector }),
+      // A sensor bow: the Intercept's scan is a step it can take.
+      makePlayer("p1", { wellId: BH, ring: BLACK_HOLE_OUTER_RING, sector }, SCOUT),
       makePlayer("p2", carrier),
       makePlayer("p3", { wellId: GAMMA, ring: 3, sector: 0 }),
     ]);
     state = withMissions(state, "p1", [FILE, ESCORT]);
-    state = withPlayer(state, "p1", { cargo: [takenData(FILE)] });
+    state = withPlayer(state, "p1", { cargo: scanned ? [takenData(FILE)] : [] });
     state = withMissions(state, "p2", [deliverMission(ALPHA, BETA)]);
     return withPlayer(state, "p2", {
       cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
@@ -1068,9 +1070,10 @@ describe("bot goals: a primary's item aboard", () => {
     analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).currentGoal;
 
   it.each([
-    ["files first past a carrier across the well", { wellId: BH, ring: 1, sector }, FILE.id],
-    ["marks a carrier in its own sector on the way", { wellId: BH, ring: 5, sector }, ESCORT.id],
-  ])("%s", (_label, carrier, missionId) => {
-    expect(currentGoal(table(carrier as Position))?.missionId).toBe(missionId);
+    ["files first past a carrier across the well", { wellId: BH, ring: 1, sector }, true, FILE.id],
+    ["marks a carrier in its own sector on the way", { wellId: BH, ring: 5, sector }, true, ESCORT.id],
+    ["goes for the scan first past a carrier across the well", { wellId: BH, ring: 1, sector }, false, FILE.id],
+  ])("%s", (_label, carrier, scanned, missionId) => {
+    expect(currentGoal(table(carrier as Position, scanned))?.missionId).toBe(missionId);
   });
 });

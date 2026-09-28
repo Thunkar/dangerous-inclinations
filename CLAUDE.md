@@ -742,9 +742,17 @@ not an argument:
 
 Known open problems:
 
-- **Destroy leads the dealt primaries.** After one action a visit and
-  Tanker at 5 (settled above), at 1000 games a row: dealt Destroy 42%,
-  Deliver 35%, Intercept 33% against a 33% share. No lever measured yet.
+- **Piracy and Salvage live off bots that wander.** Two bot fixes on 28 Sept
+  (interdict only a leader carrying an item; a side goal may delay the
+  primary's next step by a turn at most, not only its delivery) put the bots
+  on their primary first, as a player plays: the dealt primaries read
+  Destroy 37%, Deliver 38%, Intercept 37% at 300 games a row, the most even
+  yet (41 / 37 / 32 before). The secondaries paid for it, completed per 100
+  kept: Survey 28 → 23, Escort 30 → 24, Tanker 22 → 20, Piracy 21 → 14,
+  Salvage 15 → 9. Piracy wants carriers in reach and Salvage wants wrecks,
+  and both came from bots dithering in the black hole. In the recorded live
+  game that prompted the fixes the three bots made 5 jumps and 3 station
+  visits in 31 rounds between them.
 
 - **The primary you are dealt still moves a seat, by about six points.**
   After the 27 Sept cleanup, whose bot fixes (dock jobs named, criticals

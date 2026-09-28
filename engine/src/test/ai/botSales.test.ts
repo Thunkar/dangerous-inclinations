@@ -57,7 +57,8 @@ describe("bots and one sale per station", () => {
   it.each<[string, Mission, string[], string | null]>([
     // primary, sold at, where the Survey data goes (null: no trip)
     ["no reservation: the nearest station", destroyMission("p2"), [], ALPHA],
-    ["the nearest station sold at: another one", destroyMission("p2"), [ALPHA], "any-other"],
+    // The Destroy is in, so the trip to another station is no detour from it.
+    ["the nearest station sold at: another one", { ...destroyMission("p2"), isCompleted: true }, [ALPHA], "any-other"],
     ["the Intercept's station is kept for it", INTERCEPT, [], "any-other"],
     ["the only unsold station is the Intercept's: the card waits", INTERCEPT, [BETA, GAMMA], null],
   ])("Survey data aboard, %s", (_label, primary, soldAt, expected) => {
