@@ -715,7 +715,7 @@ not an argument:
 
 Known open problems:
 
-- **Deliver is now the strong dealt card.** Under one sale per station and no
+- **Deliver moved most under the simpler cargo rules; Destroy still leads.** Under one sale per station and no
   hold limit (settled above) dealt Deliver rose 29 → 37% and the card is kept
   by a third of seats, the biggest move of the package; dealt Destroy reads
   40% and Intercept 29% against a 33% share. No lever measured yet.

@@ -88,7 +88,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Tanker',
-      'arrive at a station with {tankerFuel} or more fuel and sell it the fuel: pump it in and the card is done',
+      'arrive at a station with {tankerFuel} or more fuel and pump {tankerFuel} in as your sale there: the card is done',
     ],
     [
       'Escort',
