@@ -106,13 +106,20 @@ turns is what its owner used or powered last turn. A `power` emits the public
 `subsystem_powered` event, which names the subsystem's type only if it is already
 face-up: powering reveals nothing. Beside them a turn may carry one `repair`
 (`{ subsystemId }`, no sequence): the subsystem a cold ship fixes if its heat is 0
-at the check, and one `dock_job` (`{ job: "crates" | "data" | "fuel" }`, no
-sequence): the one job the visit does if the turn arrives at a station. A job
-the visit cannot do is not refused; without a `dock_job`, or with one the
-visit cannot do, the visit does the job that completes the most mission
-points, ties going to crates, then data, then fuel. The engine's
-`dockJobsOnArrival` gives the jobs on offer and that default, and the public
-`docked` event carries the `job` done (null when there was none).
+at the check, and one `dock_sale` (`{ sale }`, no sequence): what the station
+buys if the turn arrives at one. `sale` is an item's cargo id, `"fuel"` for a
+Tanker's pump (`SELL_FUEL`) or `"none"` to sell nothing (`SELL_NOTHING`). A
+station buys one item from each player, once per game; loading a crate is not
+a sale and happens on every visit. A sale the visit cannot make is not
+refused; without a `dock_sale`, or with one the visit cannot make, the visit
+sells what completes the most mission points, ties going to crates (loot
+included), then data, then fuel. The engine's `salesOnArrival` gives the
+sales on offer (each with its `sale`, `kind`, `missionId` and `points`), the
+default, whether the station has bought from this player already
+(`soldHere`) and the crates that load (`loads`). The public `docked` event
+carries what was `sold` (`"crate" | "loot" | "data" | "fuel"`, null for
+nothing), and `PlayerView.soldAt` lists the planets whose station has bought
+from that player (public: a marker on the station).
 
 A turn may also carry `escort_mark` actions (`{ carrierId }`, no sequence),
 one per Escort card whose marker is in hand, each naming a different rival:
@@ -122,6 +129,19 @@ that does not qualify by then is passed over, not refused. Without one, no
 marker is placed. The engine's `escortCandidates(view, playerId, position)`
 lists who qualifies. A moored ship can neither fire nor be fired at, so a
 `fire_weapon` from a berth or at a moored target is refused.
+
+A turn may also carry `seize` actions (`{ victimId, cargoId }`, no
+sequence), one per Piracy card free to take an item (undone, with no loot of
+its own aboard), each naming a different item: the item comes off that ship
+at the end of the turn if the pirate then shares its sector, neither ship is
+moored and the item is still aboard; one that is not there by then is passed
+over, not refused. Without one, nothing is seized. The engine's
+`seizableItems(view, playerId, position)` lists what qualifies.
+`PlayerView.hold` is every item aboard a ship as `{ cargoId, kind }`, kind
+`"crate" | "loot" | "data"`. The `cargoId` is an opaque `item-<n>` token dealt
+with the card from a shuffled range: it names the item and says nothing about
+the card behind it, so a rival's two pieces of data do not show which is an
+Intercept's. The destination of a rival's crate stays private.
 
 The view carries the public board state these cards add: `GameView.wrecks`
 (`{ id, wellId, ring, sector }[]`, left where a ship is destroyed, drifting

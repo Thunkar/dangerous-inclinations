@@ -65,15 +65,20 @@ the table's points (3; the value rides on `GameState.pointsToWin` and the
 view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
 played out, then highest score wins (hull, then fuel, break ties). Eight card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy
-(seize an undocked rival's crate or data, loot that fills the hold and
-sells anywhere, their card back to undone), tanker (arrive at a station
+(end a turn on an undocked rival carrying cargo and take one item of your
+choice, named with a `seize`; loot that sells anywhere, their card back to
+undone), tanker (arrive at a station
 with seven fuel and pump it in), escort (you may put your marker, face-up, on
 an undocked rival carrying cargo in your sector; it pays when that ship next
 delivers or pumps fuel, and comes back if it dies) and salvage (a destroyed ship leaves a
 wreck that drifts with the stations; end a turn on it and take its black box,
-data filed anywhere)). A dock visit does one job, crates, data or
-fuel, the player's choice (`dock_job`; the default is the job that scores
-most; the bots name the job their goal needs). Deliver
+data filed anywhere)). Each station buys one item from each player, once
+per game: a Deliver crate, one piece of data, one loot item or a Tanker's
+fuel (`dock_sale` names it, or "none"; the default is the sale that scores
+most; the bots keep the primary's station for the primary). Loading a crate
+is free and the hold has no limit. Which stations a player has sold at is
+public (`PlayerView.soldAt`), and so is each item aboard by kind and an opaque
+`item-<n>` token (`PlayerView.hold`), never by the card behind it. Deliver
 routes run only round the circuit (Alpha → Gamma → Beta → Alpha, the short
 way through the black hole's lanes). Two physical decks for the table: rival cards count seats
 ("the 2nd to your left") so no card can name its own holder and none leaks who
@@ -110,7 +115,7 @@ engine/src/models/      game.ts (state, actions), subsystems.ts (tiles, ids), mi
 engine/src/game/        turns.ts (pipeline), actionProcessors.ts, validators.ts,
                         ship.ts (subsystem helpers, useSubsystem/reveal/break),
                         geometry.ts, movement.ts, targeting.ts, damage.ts, heat.ts,
-                        missiles.ts, scan.ts, docking.ts, stations.ts, respawn.ts,
+                        missiles.ts, scan.ts, docking.ts, piracy.ts, stations.ts, respawn.ts,
                         deployment.ts, setup.ts (createGame/submitLoadout),
                         missions/ (deck, checks), view.ts, describe.ts
 engine/src/ai/          botDecideActions(view), botChooseLoadout, botChooseDeployment
@@ -174,7 +179,7 @@ turn is legal.
 Benchmark: `yarn bench` (engine) writes `docs/benchmark.md`, one page describing
 how the rules as they stand play at 3/4/5/6 seats: length in rounds and in table
 time, kills, how games unfold (lead changes, comebacks, the first card, Escort
-markers, wrecks, seizures, dock jobs), the hulls bots chose and their win rates
+markers, wrecks, seizures, sales), the hulls bots chose and their win rates
 (natural bots take the hull from the primary, so this is the card table by
 another name), and every card's pick rate and payoff. It stamps the rules it ran under at the top, so two versions of the
 page can be diffed to see what a rule change actually did. Keep the games and
@@ -663,6 +668,24 @@ not an argument:
   (one seizure per turn end, or two pirates trade the loot for ever) and buys
   nothing; the designer kept the simpler rule.
 
+- **One sale per station, no hold limit.** Adopted 28 Sept 2026 as one
+  package: each station buys one item from each player, once per game (a
+  Deliver crate, one piece of data, one loot item or a Tanker's fuel), loading
+  a crate is free, the hold has no limit, and a pirate takes one item of its
+  choice. It replaces a visit doing one job, the one-crate hold, loot filling
+  the hold and the automatic crate-first seizure. Measured against the rules
+  it replaced on the same seeds (benchmark 240 games a seat count, balance
+  300 a row, 27 Sept, bots with the deployment and patrol fixes): dealt
+  Destroy / Deliver / Intercept 38 / 29 / 32 → 40 / 37 / 29; kills 2.7 / 5.1
+  / 7.5 / 10.7 → 2.1 / 4.1 / 6.8 / 9.3; rounds 28 / 28 / 28 / 30 → 29 / 29 /
+  29 / 31; turns ending in a planet well at three seats 39% → 43%; Deliver
+  kept by 23% → 33% of seats; no balance flag either way. **Adopted for
+  simplicity, not for balance.** The designer's original aim, ships going
+  back to the black hole once their stations are spent, is not met by the
+  bots: their planet time after the primary comes from the secondaries'
+  station trips and Tanker fills. `SALE_RULES`, `HOLD_RULES` and the two rule
+  switches are gone with every path that read them off.
+
 - **Secondaries dealt from a pile, with Escort and Salvage.** Adopted 27 Sept
   2026 as one package: the secondary pile is shuffled and dealt like the
   primaries (3, keep any 2, two of a kind allowed as two jobs), Escort and
@@ -691,6 +714,11 @@ not an argument:
   politics; the escorted ship may always turn on its escort.
 
 Known open problems:
+
+- **Deliver is now the strong dealt card.** Under one sale per station and no
+  hold limit (settled above) dealt Deliver rose 29 → 37% and the card is kept
+  by a third of seats, the biggest move of the package; dealt Destroy reads
+  40% and Intercept 29% against a 33% share. No lever measured yet.
 
 - **The primary you are dealt still moves a seat, by about six points.**
   After the 27 Sept cleanup, whose bot fixes (dock jobs named, criticals
@@ -821,7 +849,11 @@ Known open problems:
   is a different hunter.
 - **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
   rules for two may come later.
-- **Length**: after the 27 Sept cleanup (benchmark, 120 games a seat count)
+- **Length**: after one sale per station (28 Sept, benchmark, 120 games a
+  seat count) 32 / 27 / 31 / 30 rounds at 3 / 4 / 5 / 6 seats, 1h36 to 3h00,
+  kills 2.0 / 3.6 / 7.4 / 9.0; 68–76% of games won by a seat not leading at
+  round 10, 0.6–0.7 lead changes a game, the first card at round 7–9. Before
+  it, after the 27 Sept cleanup (benchmark, 120 games a seat count)
   31 / 33 / 29 / 27 rounds at 3 / 4 / 5 / 6 seats, 1h33 to 2h42, kills 2.0 /
   5.4 / 7.5 / 9.7. 71–82% of games are won by a seat that was not leading at
   round 10, with 0.5–0.8 lead changes a game and the first card at round 8–9
