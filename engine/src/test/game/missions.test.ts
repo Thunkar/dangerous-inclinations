@@ -699,18 +699,20 @@ describe("missions: piracy", () => {
 });
 
 describe("missions: tanker", () => {
-  // RULES §Missions: arrive with 7 or more fuel and hand in 7.
+  // RULES §Missions: arrive with the card's fuel or more and hand that much in.
   it.each([
-    ["the card's fuel exactly", 7, true],
-    ["one more", 8, true],
-    ["one short", 6, false],
+    ["the card's fuel exactly", TANKER_FUEL, true],
+    ["one more", TANKER_FUEL + 1, true],
+    ["one short", TANKER_FUEL - 1, false],
   ])("arriving with %s: pumped %s", (_label, fuel, pumped) => {
     const state = withShip(docking(ALPHA, [tankerMission()]), "p1", { reactionMass: fuel });
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "fuel_pumped")).toEqual(
-      pumped ? [expect.objectContaining({ playerId: "p1", amount: 7, planetId: ALPHA })] : []
+      pumped
+        ? [expect.objectContaining({ playerId: "p1", amount: TANKER_FUEL, planetId: ALPHA })]
+        : []
     );
-    expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? fuel - 7 : fuel);
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? fuel - TANKER_FUEL : fuel);
     expect(getPlayer(result.gameState, "p1").points).toBe(pumped ? MISSION_POINTS.tanker : 0);
   });
 });

@@ -71,7 +71,7 @@ export const SURVEY_RING = 1;
  * Deliver crate and the fuel could change hands on the same visit; with the
  * two on separate visits, 7 gives back about half the length that cost.
  */
-export const TANKER_FUEL = 7;
+export const TANKER_FUEL = 6;
 
 /**
  * What a completed card scores: two for a primary (Destroy for the hunter,

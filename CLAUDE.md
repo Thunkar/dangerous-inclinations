@@ -68,7 +68,7 @@ worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, pirac
 (end a turn on an undocked rival carrying cargo and take one item of your
 choice, named with a `seize`; loot that sells anywhere, their card back to
 undone), tanker (arrive at a station
-with seven fuel and pump it in), escort (you may put your marker, face-up, on
+with six fuel and pump it in), escort (you may put your marker, face-up, on
 an undocked rival carrying cargo in your sector; it pays when that ship next
 delivers or pumps fuel, and comes back if it dies) and salvage (a destroyed ship leaves a
 wreck that drifts with the stations; end a turn on it and take its black box,
