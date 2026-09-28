@@ -157,6 +157,13 @@ const SALVAGE_CHASE_TURNS = PIRACY_CHASE_TURNS;
  */
 const REPAIR_DETOUR_TURNS = 3;
 
+/**
+ * Turns a side goal may add to the delivery of a primary's item aboard (a
+ * Deliver crate, an Intercept's data). Past it the item goes to its station
+ * first.
+ */
+const PRIMARY_DETOUR_TURNS = 1;
+
 /** Standing goal: a station for repairs, hull and a reload. */
 export const REPAIR_GOAL_ID = "repair";
 /** Goal of last resort: go where the rivals are in the black hole. */
@@ -727,6 +734,33 @@ export function computeGoals(
         break;
       }
     }
+  }
+
+  // A primary's item aboard is two points on the way to its station, so a
+  // side goal is taken only when going there first costs the delivery at
+  // most PRIMARY_DETOUR_TURNS.
+  const carry = goals.find(
+    (g) =>
+      g.type === "dock" &&
+      g.dockSale !== undefined &&
+      me.missions.some((m) => m.id === g.missionId && isPrimaryType(m.type))
+  );
+  const carryStation = carry?.planetId && stationPositionFor(view.stations, carry.planetId);
+  if (carry && carryStation) {
+    const destination = (g: BotGoal): Position | null => {
+      if (g.planetId) return stationPositionFor(view.stations, g.planetId) ?? null;
+      if (g.targetPlayerId) return opponent(g.targetPlayerId)?.position ?? null;
+      const wreck = g.wreckId && view.wrecks.find((w) => w.id === g.wreckId);
+      return wreck ? positionOf(wreck) : null;
+    };
+    const kept = goals.filter((g) => {
+      if (g === carry) return true;
+      const to = destination(g);
+      if (!to) return true;
+      const detour = g.estimatedTurns + cheapTurnEstimate(to, carryStation) - carry.estimatedTurns;
+      return detour <= PRIMARY_DETOUR_TURNS;
+    });
+    goals.splice(0, goals.length, ...kept);
   }
 
   // Interdiction: no card names this, the scoreboard does. A player one

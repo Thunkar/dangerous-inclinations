@@ -729,6 +729,14 @@ Known open problems:
   bow with two lasers dealt Destroy reads 34% against the railgun's 39, with
   three launchers 39%, and both interceptor presets sit on the Intercept bar.
   Intercept completes 27 per 100 kept against Destroy's 62 and Deliver's 55.
+  Part of that was the bots, not the card (28 Sept, benchmark at 120 games a
+  seat count): a damaged bot repaired at the nearest station rather than the
+  one its job was at, and a bot with the primary's item aboard took side goals
+  across the well first. Repairing at the job's station when it is within
+  three turns of the nearest, and letting a side goal delay a primary's
+  delivery by a turn at most, took Intercept from 34 to 49 completed per 100
+  kept (Deliver 53 to 56, Destroy 61 to 58, Piracy 30 to 25, the sensor bow's
+  win rate 14% to 16%). A 0-turn limit read 52 and 3 turns 46.
   **The benchmark's hull table is the card table in disguise**: natural bots
   pick the hull from the primary one-for-one (1704 sensor bows, 1704
   Intercepts), so "the sensor bow wins 16%" means Intercept does.

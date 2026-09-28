@@ -13,13 +13,18 @@ import type {
   SurveyMission,
 } from "../../models/missions.ts";
 import { SELL_FUEL, SURVEY_RING, TANKER_FUEL, dataAboard } from "../../models/missions.ts";
-import { BLACK_HOLE_ID, BLACK_HOLE_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
+import {
+  BLACK_HOLE_ID,
+  BLACK_HOLE_OUTER_RING,
+  STATION_RING,
+  laneDepartureArc,
+} from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import { viewFor } from "../../game/view.ts";
 import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
-import { predictedDeliveryPlanets } from "../../ai/behaviors/danger.ts";
+import { planetLane, predictedDeliveryPlanets } from "../../ai/behaviors/danger.ts";
 import { orbitSectorAt } from "../../ai/movementPlanner/index.ts";
 import { PATROL_GOAL_ID, REPAIR_GOAL_ID as REPAIR_GOAL } from "../../ai/behaviors/missions.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
@@ -42,6 +47,7 @@ import {
   piracyMission,
   salvageMission,
   surveyMission,
+  takenData,
   tankerMission,
   withMissions,
   withPlayer,
@@ -1028,5 +1034,38 @@ describe("bot goals: patrol", () => {
       type: "patrol",
       missionId: PATROL_GOAL_ID,
     });
+  });
+});
+
+// With a primary's item aboard a side goal is taken only when it delays the
+// delivery by a turn at most: on the way is fine, across the well is not.
+describe("bot goals: a primary's item aboard", () => {
+  const FILE = interceptMission("p3", "intercept-p1", ALPHA);
+  const ESCORT = escortMission();
+  // Four turns of drift short of Alpha's door on black hole ring 5.
+  const lane = laneDepartureArc(planetLane(ALPHA, "outbound")!);
+  const sector = (lane.startSector + 24 - 12) % 24;
+
+  const table = (carrier: Position): GameState => {
+    let state = makeGameState([
+      makePlayer("p1", { wellId: BH, ring: BLACK_HOLE_OUTER_RING, sector }),
+      makePlayer("p2", carrier),
+      makePlayer("p3", { wellId: GAMMA, ring: 3, sector: 0 }),
+    ]);
+    state = withMissions(state, "p1", [FILE, ESCORT]);
+    state = withPlayer(state, "p1", { cargo: [takenData(FILE)] });
+    state = withMissions(state, "p2", [deliverMission(ALPHA, BETA)]);
+    return withPlayer(state, "p2", {
+      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+    });
+  };
+  const currentGoal = (state: GameState) =>
+    analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).currentGoal;
+
+  it.each([
+    ["files first past a carrier across the well", { wellId: BH, ring: 1, sector }, FILE.id],
+    ["marks a carrier in its own sector on the way", { wellId: BH, ring: 5, sector }, ESCORT.id],
+  ])("%s", (_label, carrier, missionId) => {
+    expect(currentGoal(table(carrier as Position))?.missionId).toBe(missionId);
   });
 });
