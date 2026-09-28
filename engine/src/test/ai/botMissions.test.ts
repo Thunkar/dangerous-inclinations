@@ -359,14 +359,19 @@ describe("bot goals: piracy and tanker", () => {
     const fetch = deliverMission(ALPHA, BETA, "fetch-p1");
 
     it("holds the fuel back on a repair trip, which sells the fuel", () => {
-      const tanking = currentGoal(berth([fetch, tankerMission()], true));
-      const plain = currentGoal(berth([fetch], true));
+      const hunt = destroyMission("p2");
+      const tanking = currentGoal(berth([hunt, tankerMission()], true));
+      const plain = currentGoal(berth([hunt], true));
       expect(tanking?.missionId).toBe(REPAIR_GOAL);
       expect(plain?.missionId).toBe(REPAIR_GOAL);
       // The fuel still aboard when it makes port, which is what pumps.
       expect(MAX_REACTION_MASS - tanking!.plan!.totalMassCost).toBeGreaterThanOrEqual(TANKER_FUEL);
       expect(MAX_REACTION_MASS - plain!.plan!.totalMassCost).toBeLessThan(TANKER_FUEL);
       expect(tanking!.plan!.totalTurns).toBeGreaterThan(plain!.plan!.totalTurns);
+    });
+
+    it("repairs on the pickup trip when the pickup's station is the nearest", () => {
+      expect(currentGoal(berth([fetch], true))).toMatchObject({ missionId: fetch.id, repairs: true });
     });
 
     it("holds the fuel back on a pickup trip too: loading is no sale", () => {

@@ -92,13 +92,18 @@ describe("bots and one sale per station", () => {
 
   it.each<[string, Mission, boolean]>([
     // primary, whether the Survey data is filed on the repair stop
-    ["files the Survey data on a repair stop with no reservation", destroyMission("p2"), true],
+    ["repairs where the Survey data is filed with no reservation", destroyMission("p2"), true],
     ["sells nothing on a repair stop at the Intercept's station", INTERCEPT, false],
   ])("%s", (_label, primary, files) => {
     let state = nearAlpha([primary, SURVEY], [SURVEY_DATA]);
     state = withShip(state, "p1", { hitPoints: 3 });
     state = withSub(state, "p1", "engines", { isBroken: true });
-    expect(goalOf(state)).toMatchObject({ missionId: REPAIR_GOAL_ID, planetId: ALPHA });
+    // Every dock repairs, so a job's station near enough is the repair stop.
+    expect(goalOf(state)).toMatchObject(
+      files
+        ? { missionId: SURVEY.id, repairs: true, planetId: ALPHA }
+        : { missionId: REPAIR_GOAL_ID, planetId: ALPHA }
+    );
 
     const actions = botDecideActions(viewFor(state, "p1")).actions;
     const named = actions.find((a) => a.type === "dock_sale")?.data;

@@ -150,6 +150,13 @@ const TANKER_DETOUR_TURNS = 3;
  */
 const SALVAGE_CHASE_TURNS = PIRACY_CHASE_TURNS;
 
+/**
+ * Turns a job's station may lie beyond the nearest station and still be the
+ * repair stop. Past it the ship repairs where it can and makes the job's trip
+ * after.
+ */
+const REPAIR_DETOUR_TURNS = 3;
+
 /** Standing goal: a station for repairs, hull and a reload. */
 export const REPAIR_GOAL_ID = "repair";
 /** Goal of last resort: go where the rivals are in the black hole. */
@@ -745,15 +752,26 @@ export function computeGoals(
   }
 
   // Repair: docking fixes every broken subsystem, restores hull and reloads.
+  // Every dock repairs, so a station the ship has a job at is the repair
+  // stop when it is not much further than the nearest one: the job's trip
+  // takes the repair's urgency instead of a second trip being made.
   if (status.brokenSubsystems.length > 0 || status.hull <= parameters.repairHullThreshold) {
+    const urgency =
+      status.brokenSubsystems.length > 0 && status.hull <= parameters.repairHullThreshold ? 4 : 3;
     const goal = dockAnywhereGoal(
       view,
       seat,
       REPAIR_GOAL_ID,
       (planetId) => `Repair at ${planetId}`,
-      status.brokenSubsystems.length > 0 && status.hull <= parameters.repairHullThreshold ? 4 : 3
+      urgency
     );
-    if (goal) goals.push(goal);
+    const job = goals
+      .filter((g) => g.type === "dock")
+      .reduce<BotGoal | null>((best, g) => (!best || g.estimatedTurns < best.estimatedTurns ? g : best), null);
+    if (goal && job && job.estimatedTurns <= goal.estimatedTurns + REPAIR_DETOUR_TURNS) {
+      job.urgency = Math.max(job.urgency, urgency);
+      job.repairs = true;
+    } else if (goal) goals.push(goal);
   }
 
   // Nothing else to do: go where the rivals are. A station visit would do

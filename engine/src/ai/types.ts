@@ -158,6 +158,8 @@ export interface BotGoal {
    * pickup or a repair, which sell whatever this seat may sell there.
    */
   dockSale?: string;
+  /** For dock goals: the visit is also the repair stop (every dock repairs). */
+  repairs?: boolean;
   /** For salvage goals: the wreck to end a turn on (looked up in `view.wrecks`). */
   wreckId?: string;
   /** Cheap estimate used for ranking; the chosen goal gets a real plan. */

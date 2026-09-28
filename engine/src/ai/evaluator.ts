@@ -71,7 +71,9 @@ function defense(plan: ActionPlan, situation: TacticalSituation): number {
   );
   if (threatened) score += shieldsPowered ? 15 : -15;
   // Heading for repairs when the hull is low is defence too.
-  if (situation.currentGoal?.missionId === REPAIR_GOAL_ID && plan.followsGoal) score += 20;
+  const repairing =
+    situation.currentGoal?.missionId === REPAIR_GOAL_ID || situation.currentGoal?.repairs;
+  if (repairing && plan.followsGoal) score += 20;
   return clamp(score);
 }
 
