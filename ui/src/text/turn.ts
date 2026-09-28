@@ -36,8 +36,8 @@ export const TURN = {
     docking: {
       title: 'Docking',
       blurb:
-        'Arrived on a station? Repair everything, full hull, reload, and one job: your crates, your data or your fuel.',
-      terse: 'Arrived? Repair, rearm, one job',
+        'Arrived on a station? Repair everything, full hull, reload, load your crates, and sell one item. Each station buys from you once.',
+      terse: 'Arrived? Repair, rearm, sell one',
     },
     heatCheck: {
       title: 'Heat check',
@@ -49,7 +49,7 @@ export const TURN = {
     missions: {
       title: 'Missions',
       blurb:
-        "Take a wreck's black box, seize loot, put down an Escort marker if you choose. Flip what you completed, then pass.",
+        "Take a wreck's black box. Seize an item or put down an Escort marker if you choose. Flip what you completed, then pass.",
       terse: 'Black box, loot, Escort marker; flip, pass',
     },
     /** Not part of anyone's turn: once a round, after the last seat has played. */

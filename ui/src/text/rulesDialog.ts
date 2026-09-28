@@ -71,7 +71,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Docking',
-      'on arrival only: full hull, repair all, reload missiles, and one job: your crates (deliver, then load), your data (file it all) or your fuel. You choose; by default the job worth the most points, ties to crates, then data. You stay moored until you burn away',
+      'on arrival only: full hull, repair all, reload missiles, load every crate waiting for you, and sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose; by default the sale worth the most points. You stay moored until you burn away',
     ],
     [
       'Berth',
@@ -84,11 +84,11 @@ export const RULES_DIALOG = {
     ['Survey', 'end a turn on Black Hole Ring 1 (take the data) then dock at any station'],
     [
       'Piracy',
-      'end a turn in the same sector as an undocked ship carrying a crate or data, with your hold empty: it is yours. The loot fills your hold and sells at any station, and their card goes back to undone',
+      'end a turn, not moored, in the same sector as an undocked ship carrying cargo and you may take one item of your choice. Sell it at any station; their card goes back to undone',
     ],
     [
       'Tanker',
-      "arrive at a station with {tankerFuel} or more fuel and make the fuel that visit's job: pump it in and the card is done",
+      'arrive at a station with {tankerFuel} or more fuel and sell it the fuel: pump it in and the card is done',
     ],
     [
       'Escort',

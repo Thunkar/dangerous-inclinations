@@ -36,7 +36,7 @@ export const MISSION_CARDS = {
   piracy: {
     name: "Piracy",
     title: "Seize cargo and sell it",
-    rule: "With your hold empty, end a turn on an undocked ship to take its crate or data. Sell it at any station.",
+    rule: "End a turn on an undocked ship carrying cargo and take one item of your choice. Sell it at any station.",
   },
   tanker: {
     name: "Tanker",
