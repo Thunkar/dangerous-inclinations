@@ -42,6 +42,7 @@ import {
   coast,
   deliverMission,
   piracyMission,
+  seize,
   tankerMission,
   escortMission,
   salvageMission,
@@ -560,7 +561,7 @@ describe("missions: how a card reads", () => {
 describe("missions: piracy", () => {
   it("takes the crate off a ship sharing the sector, and the victim's crate is no longer aboard", () => {
     const card = piracyMission();
-    const result = executeTurnAs(alongside([card], [CRATE]), coast(1));
+    const result = executeTurnAs(alongside([card], [CRATE]), coast(1), seize("p2", CRATE.cargoId));
 
     expect(eventsOf(result.events, "cargo_seized")).toEqual([
       expect.objectContaining({
@@ -590,7 +591,7 @@ describe("missions: piracy", () => {
       missions: [theirs],
       cargo: [lootCargo(theirs.cargoId, theirs.id)],
     });
-    const result = executeTurnAs(state, coast(1));
+    const result = executeTurnAs(state, coast(1), seize("p2", theirs.cargoId));
     expect(eventsOf(result.events, "cargo_seized")[0]).toMatchObject({ cargoId: theirs.cargoId });
     expect(getPlayer(result.gameState, "p1").cargo).toEqual([
       expect.objectContaining({ id: mine.cargoId, isPickedUp: true }),
@@ -607,23 +608,13 @@ describe("missions: piracy", () => {
     state = withPlayer(state, "p1", {
       cargo: [{ ...lootCargo(card.cargoId, card.id), isPickedUp: false }],
     });
-    const result = executeTurnAs(state, coast(1));
+    const result = executeTurnAs(state, coast(1), seize("p2", CRATE.cargoId));
     expect(getPlayer(result.gameState, "p1").cargo).toEqual([
       expect.objectContaining({ id: card.cargoId, isPickedUp: true }),
     ]);
   });
 
   it.each([
-    [
-      "the pirate already has a crate of its own",
-      () => {
-        const ours = deliverMission(BETA, GAMMA, "deliver-ours");
-        const state = alongside([piracyMission(), ours], [CRATE]);
-        return withPlayer(state, "p1", {
-          cargo: getPlayer(state, "p1").cargo.map((c) => ({ ...c, isPickedUp: true })),
-        });
-      },
-    ],
     ["the other ship's hold is empty", () => alongside([piracyMission()], [])],
     [
       "the other ship is a sector away",
@@ -634,7 +625,7 @@ describe("missions: piracy", () => {
       return withShip(state, "p2", { ring: 4 });
     }],
   ])("seizes nothing when %s", (_label, build) => {
-    const result = executeTurnAs(build(), coast(1));
+    const result = executeTurnAs(build(), coast(1), seize("p2", CRATE.cargoId));
     expect(eventTypes(result.events)).not.toContain("cargo_seized");
   });
 
@@ -650,7 +641,7 @@ describe("missions: piracy", () => {
       ring: STATION_RING,
       sector: wrapSector(station.sector + offset),
     });
-    const result = executeTurnAs(state, coast(1));
+    const result = executeTurnAs(state, coast(1), seize("p2", CRATE.cargoId));
     expect(eventTypes(result.events).includes("cargo_seized")).toBe(seized);
   });
 
@@ -663,7 +654,7 @@ describe("missions: piracy", () => {
       "an intercept's transmission, which has to be scanned again",
       () => interceptMission("p1", "intercept-p2", BETA),
     ],
-  ])("takes %s, and the loot is a crate aboard the pirate", (_label, build) => {
+  ])("takes %s, and the loot rides aboard the pirate", (_label, build) => {
     const loot = piracyMission();
     const card = build();
     const cargoId = card.dataCargoId;
@@ -671,10 +662,10 @@ describe("missions: piracy", () => {
       missions: [card],
       cargo: [takenData(card)],
     });
-    const result = executeTurnAs(state, coast(1));
+    const result = executeTurnAs(state, coast(1), seize("p2", cargoId));
 
     expect(eventsOf(result.events, "cargo_seized")[0]).toMatchObject({ kind: "data", cargoId });
-    // Loot is loot: it fills the hold and is public as a crate whatever it was.
+    // Loot is loot: it is public as loot whatever it was.
     expect(getPlayer(result.gameState, "p1").cargo).toEqual([
       expect.objectContaining({
         id: loot.cargoId,
@@ -687,21 +678,6 @@ describe("missions: piracy", () => {
       expect.objectContaining({ id: cargoId, isPickedUp: false }),
     ]);
     expect(dataAboard(getPlayer(result.gameState, "p2"), card)).toBe(false);
-  });
-
-  it("takes the crate first from a ship carrying both, and leaves the data", () => {
-    const data = surveyMission("survey-p2");
-    let state = alongside([piracyMission()], [CRATE]);
-    state = withPlayer(state, "p2", {
-      missions: [...getPlayer(state, "p2").missions, data],
-      cargo: [...getPlayer(state, "p2").cargo, takenData(data)],
-    });
-    const result = executeTurnAs(state, coast(1));
-
-    expect(eventsOf(result.events, "cargo_seized")).toEqual([
-      expect.objectContaining({ kind: "crate", cargoId: CRATE.cargoId }),
-    ]);
-    expect(dataAboard(getPlayer(result.gameState, "p2"), data)).toBe(true);
   });
 
   it("sells the loot at any station, which is the whole card", () => {

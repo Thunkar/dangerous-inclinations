@@ -3,7 +3,7 @@
  * mission cards' title and rule, whose words live in `text/missionCards.ts`.
  */
 import type { GameEvent } from "../models/events.ts";
-import type { Mission, MissionRequirement } from "../models/missions.ts";
+import type { Mission, MissionRequirement, SaleKind } from "../models/missions.ts";
 import { SCAN_SECTOR_RANGE, SURVEY_RING, TANKER_FUEL } from "../models/missions.ts";
 import type { Position } from "../models/game.ts";
 import { getSubsystemConfig } from "../models/subsystems.ts";
@@ -13,6 +13,9 @@ import { MISSION_CARDS } from "../text/missionCards.ts";
 import { fill } from "../utils/fill.ts";
 
 type NameResolver = (playerId: string) => string;
+
+/** What a station bought, as the log says it. */
+const SOLD: Record<SaleKind, string> = { crate: "a crate", loot: "loot", data: "data", fuel: "fuel" };
 
 function pos(p: Position): string {
   return `${getWellName(p.wellId)} R${p.ring} S${p.sector}`;
@@ -173,8 +176,8 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       if (e.hullRestored > 0) parts.push(`+${e.hullRestored} hull`);
       if (e.repaired.length > 0) parts.push(`repaired ${e.repaired.join(", ")}`);
       if (e.missilesReloaded) parts.push("missiles reloaded");
-      const job = e.job ? `, and does the ${e.job} job` : "";
-      return `${name(e.playerId)} docks at ${getWellName(e.planetId)}${parts.length ? ` (${parts.join(", ")})` : ""}${job}`;
+      const sold = e.sold ? `, and sells ${SOLD[e.sold]}` : "";
+      return `${name(e.playerId)} docks at ${getWellName(e.planetId)}${parts.length ? ` (${parts.join(", ")})` : ""}${sold}`;
     }
     case "cargo_picked_up":
       return `${name(e.playerId)} loads a crate at ${getWellName(e.planetId)}`;

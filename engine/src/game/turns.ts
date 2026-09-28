@@ -12,7 +12,7 @@
  *     scan. Every action puts energy on the tile it uses, and it stays there
  *     until this player's next turn.
  *  4. The player's missiles move and resolve.
- *  5. Docking (if the ship arrived on a station): repairs, and one job.
+ *  5. Docking (if the ship arrived on a station): repairs, crates loaded, and one sale.
  *  6. Heat check: every cube on the loadout is a point of heat, heat over the
  *     redline becomes hull damage, then the ship dissipates and carries what
  *     is left into its next turn.
@@ -93,9 +93,9 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   // Arriving at a station, or holding a berth held since last turn? Only an
   // arrival is a visit (RULES §Stations).
   const wasMoored = isMooredAt(gameState.stations, positionOf(active.ship));
-  // The job named for the visit, if any; without one the visit does the default.
-  const dockJob = actions.find((a) => a.type === "dock_job")?.data;
-  const docking = processDocking(state, activeIndex, !wasMoored, dockJob);
+  // The sale named for the visit, if any; without one the visit makes the default.
+  const dockSale = actions.find((a) => a.type === "dock_sale")?.data.sale;
+  const docking = processDocking(state, activeIndex, !wasMoored, dockSale);
   state = docking.state;
   events.push(...docking.events);
 
@@ -125,8 +125,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   // The carriers the player chose to put an Escort marker on, if any: each is
   // settled against where the turn ended (RULES §Missions, Escort).
   const escortMarks = actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []));
-  // The items the player chose to seize, under the unlimited-hold experiment
-  // (validation refuses a `seize` otherwise): settled the same way.
+  // The items the player chose to seize (Piracy, "you may"): settled the same way.
   const seizes = actions.flatMap((a) => (a.type === "seize" ? [a.data] : []));
   const missions = processMissionEvents(state, active.id, events, escortMarks, seizes);
   state = missions.state;

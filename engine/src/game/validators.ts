@@ -14,7 +14,7 @@ import type {
   BurnAction,
   FireWeaponAction,
   RepairAction,
-  DockJobAction,
+  DockSaleAction,
   EscortMarkAction,
   SeizeAction,
   ScanAction,
@@ -42,7 +42,7 @@ import {
   calculateJumpMassCost,
 } from "../models/rings.ts";
 import { findJump, getJumpAdjustmentRange } from "../models/gravityWells.ts";
-import { DOCK_JOBS, HOLD_RULES, SALE_RULES, SCAN_SECTOR_RANGE } from "../models/missions.ts";
+import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, requestedDraw } from "./ship.ts";
 import { ringAfter } from "./movement.ts";
@@ -320,18 +320,15 @@ export function validateRepairAction(state: GameState, action: RepairAction): st
 }
 
 /**
- * Naming the job a visit does. Only the name is checked: whether the turn
- * arrives anywhere, and what the visit could do there, is known when it docks,
- * and a job it cannot do falls back to the default (game/docking.ts).
+ * Naming what a visit sells. Only the name is checked: whether the turn
+ * arrives anywhere, and what the station would buy there, is known when it
+ * docks, and a sale it cannot make falls back to the default
+ * (game/docking.ts).
  */
-export function validateDockJobAction(_state: GameState, action: DockJobAction): string[] {
-  // "none" (sell nothing) exists only under the one-sale experiment.
-  const jobs: readonly string[] = SALE_RULES.oneSalePerStation ? [...DOCK_JOBS, "none"] : DOCK_JOBS;
-  if (!jobs.includes(action.data.job))
-    return [`A visit's job is one of ${jobs.join(", ")}, not ${String(action.data.job)}`];
-  const cargoId = action.data.cargoId;
-  if (cargoId !== undefined && typeof cargoId !== "string")
-    return [`The item a visit sells is named by its cargo id, not ${String(cargoId)}`];
+export function validateDockSaleAction(_state: GameState, action: DockSaleAction): string[] {
+  const sale = action.data?.sale;
+  if (typeof sale !== "string" || sale.length === 0)
+    return [`A sale names an item's cargo id, "fuel" or "none", not ${String(sale)}`];
   return [];
 }
 
@@ -350,14 +347,11 @@ export function validateEscortMarkAction(state: GameState, action: EscortMarkAct
 }
 
 /**
- * An item named for a seizure (the unlimited-hold experiment only): only
- * malformed input is refused. Where the ships are and what they carry are
+ * An item named for a seizure: only malformed input is refused. Where the ships are and what they carry are
  * read at the end of the turn, after the move; an item that is not there to
  * take then is passed over and the turn stands.
  */
 export function validateSeizeAction(state: GameState, action: SeizeAction): string[] {
-  if (!HOLD_RULES.unlimited)
-    return ["A seizure is named only under the unlimited-hold experiment; Piracy seizes by itself"];
   const { victimId, cargoId } = action.data;
   if (typeof victimId !== "string" || !findPlayer(state, victimId))
     return [`A seizure is made from a player at the table, not ${String(victimId)}`];

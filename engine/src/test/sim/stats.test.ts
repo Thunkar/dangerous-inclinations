@@ -82,8 +82,8 @@ function cannedRun(): GameRunResult {
       turn(
         9,
         "p1",
-        [docked(9, "p1", "crates")],
-        [{ type: "dock_job", playerId: "p1", data: { job: "crates" } }]
+        [docked(9, "p1", "crate")],
+        [{ type: "dock_sale", playerId: "p1", data: { sale: "item-1" } }]
       ),
       turn(10, "p2", [docked(10, "p2", "data"), docked(10, "p2", null)]),
       turn(11, "p1", [completed(11, "p2", escort, 2)]),
@@ -122,7 +122,7 @@ function turnStat(over: Partial<TurnStat>): TurnStat {
   };
 }
 
-function docked(turn: number, playerId: string, job: "crates" | "data" | null): GameEvent {
+function docked(turn: number, playerId: string, sold: "crate" | "data" | null): GameEvent {
   return {
     type: "docked",
     turn,
@@ -131,7 +131,7 @@ function docked(turn: number, playerId: string, job: "crates" | "data" | null): 
     hullRestored: 0,
     repaired: [],
     missilesReloaded: false,
-    job,
+    sold,
   };
 }
 
@@ -156,9 +156,9 @@ describe("stats from a game written by hand", () => {
       wrecksLeft: 1,
       wrecksSalvaged: 0,
       seizuresByKind: { crate: 0, data: 1 },
-      // Two visits did a job (a null job is no job), and one had it named.
-      dockVisitsWithJob: 2,
-      dockJobsNamed: 1,
+      // Two visits made a sale (null is none), and one had it named.
+      dockSales: 2,
+      dockSalesNamed: 1,
       fuelPumps: 1,
     });
   });
@@ -179,7 +179,7 @@ describe("stats from a game written by hand", () => {
       gamesPastRound10: 1,
       wonFromBehindShare: 1,
       salvagedShare: 0,
-      dockJobsNamedShare: 0.5,
+      dockSalesNamedShare: 0.5,
       fuelPumpsPerGame: 1,
     });
   });

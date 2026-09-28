@@ -1,15 +1,10 @@
 /**
  * The simulator's rule channel: `--rules=` carries the table's points to win
- * into every game the batch creates, and sets the experiments' switches.
+ * into every game the batch creates, and nothing else.
  */
-import { describe, it, expect, afterEach } from "vitest";
-import {
-  applyRuleOverrides,
-  describeRuleOverrides,
-  parseRuleOverrides,
-  type RuleOverrides,
-} from "../../sim/ruleOverrides.ts";
-import { DEFAULT_POINTS_TO_WIN, HOLD_RULES, SALE_RULES } from "../../models/missions.ts";
+import { describe, it, expect } from "vitest";
+import { parseRuleOverrides, type RuleOverrides } from "../../sim/ruleOverrides.ts";
+import { DEFAULT_POINTS_TO_WIN } from "../../models/missions.ts";
 import { checkForWinner } from "../../game/missions/missionChecks.ts";
 import { createGame } from "../../game/setup.ts";
 import { setupBotGame } from "../../sim/runGame.ts";
@@ -51,44 +46,5 @@ describe("missionsToWin", () => {
         { id: "b", name: "B" },
       ]).pointsToWin
     ).toBe(DEFAULT_POINTS_TO_WIN);
-  });
-});
-
-describe("oneSalePerStation", () => {
-  afterEach(() => {
-    SALE_RULES.oneSalePerStation = false;
-  });
-
-  it.each<[string, string, boolean]>([
-    ["1 switches it on", "oneSalePerStation=1", true],
-    ["0 leaves it off", "oneSalePerStation=0", false],
-    ["another key leaves it alone", "missionsToWin=4", false],
-  ])("%s", (_case, text, expected) => {
-    applyRuleOverrides(parseRuleOverrides(text));
-    expect(SALE_RULES.oneSalePerStation).toBe(expected);
-  });
-
-  it("is stamped on the pages", () => {
-    expect(describeRuleOverrides(parseRuleOverrides("oneSalePerStation=1"))).toBe(
-      "oneSalePerStation=1"
-    );
-  });
-});
-
-describe("unlimitedHold", () => {
-  afterEach(() => {
-    SALE_RULES.oneSalePerStation = false;
-    HOLD_RULES.unlimited = false;
-  });
-
-  it.each<[string, string, boolean, boolean]>([
-    ["1 switches it on", "unlimitedHold=1", true, false],
-    ["0 leaves it off", "unlimitedHold=0", false, false],
-    ["it combines with one sale", "oneSalePerStation=1,unlimitedHold=1", true, true],
-    ["one sale alone leaves it alone", "oneSalePerStation=1", false, true],
-  ])("%s", (_case, text, hold, sale) => {
-    applyRuleOverrides(parseRuleOverrides(text));
-    expect(HOLD_RULES.unlimited).toBe(hold);
-    expect(SALE_RULES.oneSalePerStation).toBe(sale);
   });
 });

@@ -20,7 +20,7 @@ import {
   approachSector,
   coast,
   deliverMission,
-  dockJob,
+  dockSale,
   escortMark,
   escortMission,
   eventsOf,
@@ -220,7 +220,7 @@ describe("salvage: wrecks", () => {
     expect(eventsOf(result.events, "cargo_delivered")).toEqual([
       expect.objectContaining({ cargoId: card.cargoId, kind: "data" }),
     ]);
-    expect(eventsOf(result.events, "docked")).toEqual([expect.objectContaining({ job: "data" })]);
+    expect(eventsOf(result.events, "docked")).toEqual([expect.objectContaining({ sold: "data" })]);
     expect(eventsOf(result.events, "mission_completed").map((e) => e.mission.id)).toEqual([
       card.id,
     ]);
@@ -228,11 +228,11 @@ describe("salvage: wrecks", () => {
   });
 
   it.each([
-    ["crates", false],
-    ["data", true],
+    ["the crate", false],
+    ["the black box", true],
   ] as const)(
-    "beside a crate bound for the same station, the %s job files the black box = %s",
-    (job, filed) => {
+    "beside a crate bound for the same station, selling %s files the black box = %s",
+    (_label, filed) => {
       const card = salvageMission();
       const deliver = deliverMission(GAMMA, ALPHA);
       // `arriving` puts the Deliver's crate aboard; the black box rides beside it.
@@ -240,7 +240,11 @@ describe("salvage: wrecks", () => {
       const state = withPlayer(base, "p1", {
         cargo: [...getPlayer(base, "p1").cargo, dataCargo(card.cargoId, card.id)],
       });
-      const result = executeTurnAs(state, coast(1), dockJob(job));
+      const result = executeTurnAs(
+        state,
+        coast(1),
+        dockSale(filed ? card.cargoId : deliver.cargoId)
+      );
       const completed = eventsOf(result.events, "mission_completed").map((e) => e.mission.id);
       expect(completed.includes(card.id)).toBe(filed);
       expect(completed.includes(deliver.id)).toBe(!filed);

@@ -133,21 +133,7 @@ describe("botChooseLoadout", () => {
     expect(seen.size).toBe(hands.length);
   });
 
-  it("never keeps Piracy beside a Deliver while any other hand is offered", () => {
-    // Both want the one crate the hold takes, so that pairing is two trips.
-    const offers: Mission[] = [
-      deliverMission(ALPHA, BETA),
-      piracyMission("clash"),
-      escortMission("escort-a"),
-      tankerMission("tanker-a"),
-    ];
-    for (let i = 0; i < 3; i++) {
-      const kept = botChooseLoadout(offers, { pick: (n) => i % n }).missionIds;
-      expect(kept).not.toContain("clash");
-    }
-  });
-
-  it("keeps Salvage beside a Deliver: the black box is data and rides free", () => {
+  it("keeps Salvage beside a Deliver: the hold has no limit", () => {
     const offers: Mission[] = [
       deliverMission(ALPHA, BETA),
       salvageMission("salvage-a"),

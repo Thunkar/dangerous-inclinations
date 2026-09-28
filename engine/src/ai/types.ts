@@ -7,7 +7,6 @@
  */
 import type { Facing, Player, PlayerAction, Position, ShipState } from "../models/game.ts";
 import type { Subsystem, SubsystemId, SubsystemType } from "../models/subsystems.ts";
-import type { DockJob } from "../models/missions.ts";
 import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import type { MovementPlan } from "./movementPlanner/index.ts";
 
@@ -154,16 +153,11 @@ export interface BotGoal {
   /** For dock goals: the planet whose station to reach. */
   planetId?: string;
   /**
-   * For dock goals: the one job the visit must do for the goal (a visit does
-   * one job). Absent for repairs, which take whatever job the visit offers
-   * by default.
+   * For dock goals: the sale the visit must make for the goal, as a
+   * `dock_sale` names it (an item's cargo id, or `SELL_FUEL`). Absent for a
+   * pickup or a repair, which sell whatever this seat may sell there.
    */
-  dockJob?: DockJob;
-  /**
-   * For dock goals under the one-sale experiment: the item the visit sells
-   * (a visit sells one). Absent for fuel and for a job with one item.
-   */
-  dockCargoId?: string;
+  dockSale?: string;
   /** For salvage goals: the wreck to end a turn on (looked up in `view.wrecks`). */
   wreckId?: string;
   /** Cheap estimate used for ranking; the chosen goal gets a real plan. */

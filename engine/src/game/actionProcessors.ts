@@ -17,7 +17,7 @@ import type {
   ScanAction,
   Player,
   RepairAction,
-  DockJobAction,
+  DockSaleAction,
   EscortMarkAction,
   SeizeAction,
   Missile,
@@ -35,6 +35,7 @@ import { createMissile } from "./missiles.ts";
 import { processScan } from "./scan.ts";
 import { isMooredAt } from "./stations.ts";
 import { unplacedEscorts } from "./escort.ts";
+import { freePiracyCards } from "./piracy.ts";
 import {
   findSubsystem,
   hasWorkingCompressor,
@@ -52,7 +53,7 @@ import {
   validateBurnAction,
   validateFireWeaponAction,
   validateRepairAction,
-  validateDockJobAction,
+  validateDockSaleAction,
   validateEscortMarkAction,
   validateSeizeAction,
   validateScanAction,
@@ -121,18 +122,18 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
     const errors = validateRepairAction(current, a);
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
-  // One visit, one job: the job is named once and read at docking (turns.ts).
-  const dockJobs = actions.filter((a): a is DockJobAction => a.type === "dock_job");
-  if (dockJobs.length > 1) {
+  // One visit, one sale: the sale is named once and read at docking (turns.ts).
+  const dockSales = actions.filter((a): a is DockSaleAction => a.type === "dock_sale");
+  if (dockSales.length > 1) {
     return {
       success: false,
       state,
       events: [],
-      errors: ["Only one job may be named for a visit"],
+      errors: ["Only one sale may be named for a visit"],
     };
   }
-  for (const a of dockJobs) {
-    const errors = validateDockJobAction(current, a);
+  for (const a of dockSales) {
+    const errors = validateDockSaleAction(current, a);
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
 
@@ -154,19 +155,20 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
 
-  // Unlimited-hold experiment: one seizure per undone Piracy card, each a
-  // different item, settled at the end of the turn (missions/missionChecks.ts).
+  // One seizure per Piracy card free to take one (undone, no loot of its own
+  // aboard), each a different item, settled at the end of the turn
+  // (missions/missionChecks.ts).
   const seizes = actions.filter((a): a is SeizeAction => a.type === "seize");
   if (seizes.length > 0) {
     const errors: string[] = [];
     for (const a of seizes) errors.push(...validateSeizeAction(current, a));
     if (errors.length === 0) {
       const actor = state.players.find((p) => p.id === seizes[0].playerId);
-      const cards = actor
-        ? actor.missions.filter((m) => m.type === "piracy" && !m.isCompleted).length
-        : 0;
+      const cards = actor ? freePiracyCards(actor.missions, actor.cargo).length : 0;
       if (seizes.length > cards)
-        errors.push(`${seizes.length} seizure(s) named, but only ${cards} undone Piracy card(s) in hand`);
+        errors.push(
+          `${seizes.length} seizure(s) named, but only ${cards} Piracy card(s) free to take one`
+        );
       const named = seizes.map((a) => `${a.data.victimId}/${a.data.cargoId}`);
       if (new Set(named).size !== named.length) errors.push("Each seizure names a different item");
     }

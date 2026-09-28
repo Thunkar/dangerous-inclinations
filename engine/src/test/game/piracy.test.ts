@@ -1,12 +1,12 @@
 /**
- * The unlimited-hold experiment (`HOLD_RULES.unlimited`): the hold has no
- * limit, and a pirate takes one item of its choice per undone Piracy card,
- * named with a `seize` action. Every test sets the switch and puts it back.
+ * Piracy and the hold (RULES §Missions): the hold has no limit, and a pirate
+ * takes one item of its choice per free Piracy card, named with a `seize`
+ * action. Nothing is taken unless named.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { GameState } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
-import { CARGO_HOLD_CRATES, HOLD_RULES, dataAboard } from "../../models/missions.ts";
+import { dataAboard } from "../../models/missions.ts";
 import { STATION_RING } from "../../models/gravityWells.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import { viewFor } from "../../game/view.ts";
@@ -65,90 +65,41 @@ const SURVEY = surveyMission("survey-p2");
 const INTERCEPT = interceptMission("p1", "intercept-p2", BETA);
 const PIRACY = piracyMission();
 
-function withSwitch(on: boolean, run: () => void) {
-  HOLD_RULES.unlimited = on;
-  try {
-    run();
-  } finally {
-    HOLD_RULES.unlimited = false;
-  }
-}
-
-describe("unlimited hold: off, the rules as they stand", () => {
-  it("a seize action is refused, and the same turn without it stands", () => {
-    const state = alongside([PIRACY], [CRATE]);
-    expectRefusedUnless(
-      executeTurnAs(state, coast(1), seize("p2", CRATE.cargoId)),
-      executeTurnAs(state, coast(1))
-    );
+describe("the hold has no limit", () => {
+  it("a crate loads with another crate aboard", () => {
+    const base = makeGameState([makePlayer("p1"), makePlayer("p2", { ...AT, ring: 5 })]);
+    let state = makeGameState([
+      makePlayer("p1", {
+        wellId: ALPHA,
+        ring: STATION_RING,
+        sector: approachSector(base, ALPHA),
+      }),
+      base.players[1],
+    ]);
+    const first = deliverMission(GAMMA, BETA, "deliver-first");
+    const second = deliverMission(ALPHA, GAMMA, "deliver-second");
+    state = withMissions(state, "p1", [first, second]);
+    state = withPlayer(state, "p1", {
+      cargo: getPlayer(state, "p1").cargo.map((c) =>
+        c.missionId === first.id ? { ...c, isPickedUp: true } : c
+      ),
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(getPlayer(result.gameState, "p1").cargo.filter((c) => c.isPickedUp)).toHaveLength(2);
   });
 
-  it("the seizure is automatic: the crate is taken with nothing named", () => {
-    const result = executeTurnAs(alongside([PIRACY], [CRATE, SURVEY]), coast(1));
-    expect(eventsOf(result.events, "cargo_seized").map((e) => e.cargoId)).toEqual([CRATE.cargoId]);
-  });
-
-  it("the view lists no items", () => {
-    const view = viewFor(alongside([PIRACY], [CRATE]), "p1");
-    expect(view.players.every((p) => p.hold.length === 0)).toBe(true);
+  it("a pirate with a crate of its own aboard seizes", () => {
+    const ours = deliverMission(BETA, GAMMA, "deliver-ours");
+    let state = alongside([PIRACY, ours], [CRATE]);
+    state = withPlayer(state, "p1", {
+      cargo: getPlayer(state, "p1").cargo.map((c) => ({ ...c, isPickedUp: true })),
+    });
+    const result = executeTurnAs(state, coast(1), seize("p2", CRATE.cargoId));
+    expect(eventsOf(result.events, "cargo_seized")).toHaveLength(1);
   });
 });
 
-describe("unlimited hold: on against off", () => {
-  it.each([
-    [true, 2],
-    [false, CARGO_HOLD_CRATES],
-  ])("switch %s: a crate loads with another crate aboard (%i aboard after)", (on, expected) => {
-    withSwitch(on, () => {
-      const base = makeGameState([makePlayer("p1"), makePlayer("p2", { ...AT, ring: 5 })]);
-      let state = makeGameState([
-        makePlayer("p1", {
-          wellId: ALPHA,
-          ring: STATION_RING,
-          sector: approachSector(base, ALPHA),
-        }),
-        base.players[1],
-      ]);
-      const first = deliverMission(GAMMA, BETA, "deliver-first");
-      const second = deliverMission(ALPHA, GAMMA, "deliver-second");
-      state = withMissions(state, "p1", [first, second]);
-      state = withPlayer(state, "p1", {
-        cargo: getPlayer(state, "p1").cargo.map((c) =>
-          c.missionId === first.id ? { ...c, isPickedUp: true } : c
-        ),
-      });
-      const result = executeTurnAs(state, coast(1));
-      expect(getPlayer(result.gameState, "p1").cargo.filter((c) => c.isPickedUp)).toHaveLength(
-        expected
-      );
-    });
-  });
-
-  it.each([
-    [true, 1],
-    [false, 0],
-  ])("switch %s: a pirate with a crate of its own aboard seizes (%i seized)", (on, expected) => {
-    withSwitch(on, () => {
-      const ours = deliverMission(BETA, GAMMA, "deliver-ours");
-      let state = alongside([PIRACY, ours], [CRATE]);
-      state = withPlayer(state, "p1", {
-        cargo: getPlayer(state, "p1").cargo.map((c) => ({ ...c, isPickedUp: true })),
-      });
-      const actions = on ? [coast(1), seize("p2", CRATE.cargoId)] : [coast(1)];
-      const result = executeTurnAs(state, ...actions);
-      expect(eventsOf(result.events, "cargo_seized")).toHaveLength(expected);
-    });
-  });
-});
-
-describe("unlimited hold: on", () => {
-  beforeEach(() => {
-    HOLD_RULES.unlimited = true;
-  });
-  afterEach(() => {
-    HOLD_RULES.unlimited = false;
-  });
-
+describe("piracy: the pirate names the item", () => {
   it.each([
     ["named", true],
     ["nothing named", false],

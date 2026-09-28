@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  DOCK_JOBS,
   HOME_RINGS,
   SECTORS_PER_RING,
   ShipAppearanceSchema,
@@ -160,18 +159,15 @@ const RepairActionSchema = z
   .strict();
 
 /**
- * Name the job a visit to a station does if the turn arrives at one (RULES
- * §Stations). No sequence either: it is read at docking, after every action.
+ * Name what a station buys if the turn arrives at one (RULES §Stations): an
+ * item's cargo id, "fuel" or "none". No sequence either: it is read at
+ * docking, after every action.
  */
-const DockJobActionSchema = z
+const DockSaleActionSchema = z
   .object({
     ...base,
-    type: z.literal("dock_job"),
-    // "none" and `cargoId` belong to the one-sale experiment; the engine
-    // refuses "none" while it is off.
-    data: z
-      .object({ job: z.enum([...DOCK_JOBS, "none"]), cargoId: z.string().optional() })
-      .strict(),
+    type: z.literal("dock_sale"),
+    data: z.object({ sale: id }).strict(),
   })
   .strict();
 
@@ -188,9 +184,8 @@ const EscortMarkActionSchema = z
   .strict();
 
 /**
- * Take this item off this ship if the turn ends in its sector (the
- * unlimited-hold experiment only; the engine refuses it otherwise). No
- * sequence: it is settled at the end of the turn.
+ * Take this item off this ship if the turn ends in its sector (RULES
+ * §Missions, Piracy). No sequence: it is settled at the end of the turn.
  */
 const SeizeActionSchema = z
   .object({
@@ -209,7 +204,7 @@ export const PlayerActionSchema = z.discriminatedUnion("type", [
   ScanActionSchema,
   WellTransferActionSchema,
   RepairActionSchema,
-  DockJobActionSchema,
+  DockSaleActionSchema,
   EscortMarkActionSchema,
   SeizeActionSchema,
 ]);

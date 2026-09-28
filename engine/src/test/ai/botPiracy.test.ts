@@ -1,12 +1,10 @@
 /**
- * The bots under the unlimited-hold experiment (`HOLD_RULES.unlimited`): a
- * pirate names the item that costs its victim most, and Deliver with Piracy
- * is a hand like any other.
+ * The bots and Piracy: a pirate names the item that costs its victim most,
+ * and Deliver with Piracy is a hand like any other (the hold has no limit).
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { GameState } from "../../models/game.ts";
 import type { Cargo, Mission } from "../../models/missions.ts";
-import { HOLD_RULES } from "../../models/missions.ts";
 import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import { viewFor } from "../../game/view.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -60,11 +58,7 @@ function table(pirate: Mission[], p2: Cargo[], p3: Cargo[]): GameState {
   return withPlayer(state, "p3", { missions: [SURVEY, piracyMission("piracy-p3")], cargo: p3 });
 }
 
-describe("bots and the unlimited-hold experiment", () => {
-  afterEach(() => {
-    HOLD_RULES.unlimited = false;
-  });
-
+describe("bots and Piracy", () => {
   it.each<[string, Mission[], Cargo[], Cargo[], string[]]>([
     [
       "a Deliver crate over loot and data",
@@ -90,40 +84,26 @@ describe("bots and the unlimited-hold experiment", () => {
       ["loot-p2"],
     ],
   ])("names %s", (_label, pirate, p2, p3, expected) => {
-    HOLD_RULES.unlimited = true;
     const state = table(pirate, p2, p3);
     const choices = seizeChoices(viewFor(state, "p1"), getPlayer(state, "p1"), AT);
     expect(choices.map((c) => c.cargoId)).toEqual(expected);
   });
 
-  it("names nothing with the experiment off", () => {
-    const state = table([PIRACY], [CRATE_ABOARD], [LOOT]);
-    expect(seizeChoices(viewFor(state, "p1"), getPlayer(state, "p1"), AT)).toEqual([]);
-  });
-
-  it.each([
-    [true, 1],
-    [false, 0],
-  ])("switch %s: a pirate bot coasting onto a carrier takes %i item", (on, expected) => {
-    HOLD_RULES.unlimited = on;
-    const state = table([PIRACY], [CRATE_ABOARD], [takenData(SURVEY)]);
+  it.each<[string, Mission[], number]>([
+    ["with a free Piracy card", [PIRACY], 1],
+    ["with no Piracy card", [], 0],
+  ])("a bot coasting onto a carrier %s takes %i item", (_label, pirate, expected) => {
+    const state = table(pirate, [CRATE_ABOARD], [takenData(SURVEY)]);
     const decision = botDecideActions(viewFor(state, "p1"));
-    const seizes = decision.actions.filter((a) => a.type === "seize");
-    expect(seizes).toHaveLength(expected);
+    expect(decision.actions.filter((a) => a.type === "seize")).toHaveLength(expected);
     const result = executeTurn(state, decision.actions);
     expect(result.errors).toBeUndefined();
-    if (on) {
-      expect(eventsOf(result.events, "cargo_seized").map((e) => e.cargoId)).toEqual([
-        CRATE.cargoId,
-      ]);
-    }
+    expect(eventsOf(result.events, "cargo_seized").map((e) => e.cargoId)).toEqual(
+      expected ? [CRATE.cargoId] : []
+    );
   });
 
-  it.each([
-    [true, true],
-    [false, false],
-  ])("switch %s: Deliver beside Piracy is kept (%s)", (on, kept) => {
-    HOLD_RULES.unlimited = on;
+  it("keeps Deliver beside Piracy like any other hand", () => {
     const offers: Mission[] = [
       deliverMission(ALPHA, BETA),
       piracyMission("clash"),
@@ -131,6 +111,6 @@ describe("bots and the unlimited-hold experiment", () => {
       tankerMission("tanker-a"),
     ];
     const hands = [0, 1, 2].map((i) => botChooseLoadout(offers, { pick: (n) => i % n }).missionIds);
-    expect(hands.some((ids) => ids.includes("clash"))).toBe(kept);
+    expect(hands.some((ids) => ids.includes("clash"))).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import type {
   SubsystemType,
   HeatState,
 } from "./subsystems.ts";
-import type { Mission, Cargo, DockChoice } from "./missions.ts";
+import type { Mission, Cargo } from "./missions.ts";
 
 /**
  * Ship loadout: one forward slot and four side slots.
@@ -280,23 +280,22 @@ export interface RepairAction extends BaseAction {
 }
 
 /**
- * A standing order for the turn, like a repair: the job the ship's visit does
- * if the turn ends by arriving at a station (RULES §Stations). No sequence,
- * because docking happens after every action. A job the visit cannot do is
- * not refused: the visit does the default instead (`dockJobsOnArrival`).
+ * A standing order for the turn, like a repair: what the station buys if the
+ * turn ends by arriving at one (RULES §Stations). No sequence, because
+ * docking happens after every action. A sale the visit cannot make is not
+ * refused: the visit makes the default instead (`salesOnArrival`).
  */
-export interface DockJobAction extends BaseAction {
-  type: "dock_job";
+export interface DockSaleAction extends BaseAction {
+  type: "dock_sale";
   /**
-   * `cargoId` names the item sold when the one-sale experiment is on
-   * (`SALE_RULES`) and the job could sell more than one; it is ignored
-   * otherwise. "none" is refused unless that experiment is on.
+   * The item sold, by its cargo id; `SELL_FUEL` for a Tanker's pump; or
+   * `SELL_NOTHING` to sell nothing and keep the station for later.
    */
-  data: { job: DockChoice; cargoId?: string };
+  data: { sale: string };
 }
 
 /**
- * A standing order for the turn, like a dock job: put an Escort marker on
+ * A standing order for the turn, like a dock sale: put an Escort marker on
  * this carrier if the turn ends in its sector (RULES §Missions, Escort: "you
  * may"). No sequence, because it is settled at the end of the turn, after the
  * move. A ship that does not qualify then is not refused: nothing is placed.
@@ -308,12 +307,12 @@ export interface EscortMarkAction extends BaseAction {
 }
 
 /**
- * A standing order for the turn, under the unlimited-hold experiment only
- * (`HOLD_RULES`): with an undone Piracy, take this item off this ship if the
- * turn ends, not moored, in its sector and it is still aboard. No sequence:
- * it is settled at the end of the turn, after the move. An item gone by then
- * is passed over, not refused. One per undone Piracy card, each a different
- * item; refused while the experiment is off.
+ * A standing order for the turn (RULES §Missions, Piracy: "you may"): with an
+ * undone Piracy, take this item off this ship if the turn ends, not moored,
+ * in its sector and it is still aboard. No sequence: it is settled at the end
+ * of the turn, after the move. An item gone by then is passed over, not
+ * refused. One per undone Piracy card, each a different item; nothing is
+ * seized without one.
  */
 export interface SeizeAction extends BaseAction {
   type: "seize";
@@ -332,7 +331,7 @@ export type TacticalAction =
 export type PlayerAction =
   | TacticalAction
   | RepairAction
-  | DockJobAction
+  | DockSaleAction
   | EscortMarkAction
   | SeizeAction;
 
@@ -356,7 +355,7 @@ export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
 /** Standing orders: named with the turn and settled at its end, so they carry no sequence. */
 export const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "repair",
-  "dock_job",
+  "dock_sale",
   "escort_mark",
   "seize",
 ]);
@@ -399,9 +398,8 @@ export interface Player {
    */
   recovering: boolean;
   /**
-   * Planets whose station this player has sold at. Only filled under the
-   * one-sale experiment (`SALE_RULES`), where such a station buys nothing more
-   * from them. Public: a marker on the station.
+   * Planets whose station this player has sold at: each buys one item from
+   * them, once, and nothing more after it. Public: a marker on the station.
    */
   soldAt: string[];
   /**

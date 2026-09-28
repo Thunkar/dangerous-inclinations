@@ -13,7 +13,7 @@
 
 import type { Position, Facing, BurnIntensity, Wreck } from "./game.ts";
 import type { SubsystemId, SubsystemType, WeaponType } from "./subsystems.ts";
-import type { CargoKind, DockJob, Mission } from "./missions.ts";
+import type { CargoKind, Mission, SaleKind } from "./missions.ts";
 import type { HitRollResult } from "./weapons.ts";
 
 interface Base {
@@ -206,8 +206,8 @@ export type GameEvent =
       hullRestored: number;
       repaired: SubsystemId[];
       missilesReloaded: boolean;
-      /** The one job the visit did, or null when there was none to do. */
-      job: DockJob | null;
+      /** What the station bought: the kind of item sold, the fuel, or null for nothing. */
+      sold: SaleKind | null;
     })
   | (Base & {
       type: "cargo_picked_up";
@@ -224,11 +224,11 @@ export type GameEvent =
       planetId: string;
     })
   | (Base & {
-      /** Piracy: a crate or data taken off a ship sharing the pirate's sector. */
+      /** Piracy: an item the pirate named, taken off a ship sharing its sector. */
       type: "cargo_seized";
       pirateId: string;
       victimId: string;
-      /** What was taken: a crate goes first when the mark carries both. */
+      /** What was taken. */
       kind: CargoKind;
       /** The victim's item, whose card goes back to undone. */
       cargoId: string;

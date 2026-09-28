@@ -9,7 +9,6 @@ import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission, MissionType } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
 import {
-  HOLD_RULES,
   MISSIONS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   isPrimaryType,
@@ -171,16 +170,10 @@ export function selectBotLoadout(missions: Mission[]): ShipLoadout {
  * primary is exactly the one a scorer would drop and the one the designer needs
  * numbers for. So the spread stays.
  *
- * **The secondaries are not chosen at random.** One pairing is refused by a
- * rule rather than by taste: a seized crate fills the hold and so does a
- * delivery crate ({@link CARGO_HOLD_CRATES} is 1), and a pirate with freight
- * of its own seizes nothing, so Deliver with Piracy is two trips where the
- * other pairings are one. That is the engine's own arithmetic, not an opinion
- * about balance, so the bot avoids it when the deal offers anything else. A
- * salvaged black box is data and rides free beside a crate, so Deliver with
- * Salvage shares nothing. Two Piracy cards share the hold too, but neither
- * has a crate waiting at a station: they take turns in it, which is what two
- * of a kind already means.
+ * The secondaries are chosen the same way, at random among the legal hands.
+ * Deliver with Piracy was refused while the hold took one crate (two trips
+ * where the other pairings were one); with no limit on the hold nothing is
+ * shared and nothing is refused.
  *
  * @param pick chooses among the hands on offer; wire it to the game's seeded
  *   RNG so a seed replays exactly. Without one the first hand is taken, which
@@ -207,21 +200,7 @@ export function selectBotMissions(
   if (hands.length === 0) hands = validHands(offers, undefined, primary);
   if (hands.length === 0) hands = validHands(offers);
   if (hands.length === 0) return offers.slice(0, MISSIONS_PER_PLAYER);
-  // A hold shared between a delivery crate and a seized one is two trips: skip
-  // those hands while any other hand is on the table.
-  const roomy = hands.filter((hand) => !holdIsContested(hand));
-  const choose = roomy.length > 0 ? roomy : hands;
-  return choose[pick ? pick(choose.length) : 0];
-}
-
-/**
- * Deliver and Piracy both want the one crate the hold takes. Under the
- * unlimited-hold experiment (`HOLD_RULES`) the hold takes both, so nothing is
- * contested.
- */
-function holdIsContested(hand: Mission[]): boolean {
-  if (HOLD_RULES.unlimited) return false;
-  return hand.some((m) => m.type === "deliver_cargo") && hand.some((m) => m.type === "piracy");
+  return hands[pick ? pick(hands.length) : 0];
 }
 
 /**

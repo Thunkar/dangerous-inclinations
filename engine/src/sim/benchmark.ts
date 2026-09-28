@@ -39,8 +39,6 @@ import {
   SECONDARY_OFFERS_PER_PLAYER,
   SECONDARY_KINDS_PRINTED,
   MISSION_POINTS,
-  CARGO_HOLD_CRATES,
-  HOLD_RULES,
   type MissionType,
 } from "../models/missions.ts";
 import {
@@ -60,12 +58,7 @@ import {
   parseTileOverrides,
   type TileOverrides,
 } from "./tileOverrides.ts";
-import {
-  applyRuleOverrides,
-  describeRuleOverrides,
-  parseRuleOverrides,
-  type RuleOverrides,
-} from "./ruleOverrides.ts";
+import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import {
   applyBotOverrides,
   describeBotOverrides,
@@ -340,8 +333,8 @@ function unfoldingTable(args: Args, batches: BatchResult[]): string[] {
       "Piracy seizures per game (crate / data)",
       (u) => `${u.seizuresPerGame.crate} / ${u.seizuresPerGame.data}`
     ),
-    row("Dock visits that did a job, per game", (u) => `${u.dockVisitsWithJobPerGame}`),
-    row("Of those, job named by the player", (u) => pct(u.dockJobsNamedShare)),
+    row("Sales at a station, per game", (u) => `${u.dockSalesPerGame}`),
+    row("Of those, sale named by the player", (u) => pct(u.dockSalesNamedShare)),
     row("Fuel pumps per game", (u) => `${u.fuelPumpsPerGame}`),
     turnRow("Turns ending in a planet well", (b) => pct(b.planetWellShare)),
     turnRow("Turns ending in the black hole", (b) => pct(b.blackHoleShare)),
@@ -351,7 +344,7 @@ function unfoldingTable(args: Args, batches: BatchResult[]): string[] {
       "and the first seat to lead is not a change. The comeback row counts games still " +
       `being played after round ${LEAD_CHECK_ROUND} that someone won, and a tie at round ` +
       `${LEAD_CHECK_ROUND} counts as not leading. A marker taken back when its ship dies is ` +
-      "not timed. A visit whose job nobody named does the default, the job that scores most._",
+      "not timed. A visit whose sale nobody named makes the default, the sale that scores most._",
     "",
   ];
 }
@@ -376,11 +369,8 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push(
     `| Card values | ${TYPES.map((t) => `${CARD_LABEL[t]} ${MISSION_POINTS[t]}`).join(", ")} |`
   );
-  out.push(
-    HOLD_RULES.unlimited
-      ? "| Hold | no limit; a pirate names the item it seizes (unlimitedHold) |"
-      : `| Hold | ${CARGO_HOLD_CRATES} crate (data rides free) |`
-  );
+  out.push("| Hold | no limit; a pirate names the item it seizes |");
+  out.push("| Stations | each buys one item from each player, once |");
   out.push(
     `| The deal | ${PRIMARY_OFFERS_PER_PLAYER} primaries keep ${PRIMARIES_PER_PLAYER}; ` +
       `${SECONDARY_OFFERS_PER_PLAYER} secondaries keep any ${SECONDARIES_PER_PLAYER} from a shuffled pile of ` +
@@ -500,7 +490,6 @@ async function main() {
   // games get the same overrides with every job.
   applyBotOverrides(args.bot);
   applyTileOverrides(args.tiles);
-  applyRuleOverrides(args.rules);
   const rows: SeatRow[] = [];
   const batches: BatchResult[] = [];
 

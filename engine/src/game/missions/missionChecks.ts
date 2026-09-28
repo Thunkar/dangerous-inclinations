@@ -14,67 +14,19 @@ import type {
   SalvageMission,
   Mission,
 } from "../../models/missions.ts";
-import {
-  HOLD_RULES,
-  SURVEY_RING,
-  aboard,
-  crateAboard,
-  dataAboard,
-  missionPoints,
-} from "../../models/missions.ts";
+import { SURVEY_RING, dataAboard, missionPoints } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
-import { isMooredAt } from "../stations.ts";
 import { escortCandidatesAtEndOfTurn, unplacedEscorts } from "../escort.ts";
 import { freePiracyCards, seizableItemsAtEndOfTurn } from "../piracy.ts";
 
 /**
- * Piracy: a pirate that ends its turn in a loaded ship's sector takes what it
- * carries: a crate or data (RULES §Missions). Under the unlimited-hold
- * experiment the pirate names the item instead ({@link seizeNamed}).
- *
- * The hold is the whole constraint ({@link CARGO_HOLD_CRATES} is one, so a
- * pirate with freight of its own takes nothing), and a moored ship is out of
- * it at both ends: a berth is not a place cargo changes hands. A crate first
- * when the mark carries both. What the victim loses goes back to undone: the
+ * The seizure itself: `taken` comes off the victim's hold and the pirate's
+ * card's loot goes aboard. What the victim loses goes back to undone: the
  * item is off the hold, a Deliver holder loads again at its pickup station, a
  * Survey dives again, an Intercept scans again, and a pirate who has been
- * pirated has to seize again.
- *
- * `players` is written in place (the victim's hold and cards); the pirate's
- * own hold comes back as `cargo` because the caller is already carrying it.
- */
-function seizeLoot(
-  players: Player[],
-  pirateIndex: number,
-  mission: PiracyMission,
-  cargo: Cargo[],
-  state: GameState
-): { cargo: Cargo[]; event: EventDraft } | null {
-  const pirate = players[pirateIndex];
-  const ship = pirate.ship;
-  if (isDestroyed(ship) || isMooredAt(state.stations, positionOf(ship))) return null;
-  if (crateAboard(cargo)) return null;
-  // Two loaded ships in the same sector are settled by the table, not by a
-  // die: the next seat in turn order after the pirate.
-  for (let step = 1; step < players.length; step++) {
-    const victimIndex = (pirateIndex + step) % players.length;
-    const victim = players[victimIndex];
-    if (!victim.hasDeployed || isDestroyed(victim.ship)) continue;
-    if (!samePosition(positionOf(victim.ship), positionOf(ship))) continue;
-    if (isMooredAt(state.stations, positionOf(victim.ship))) continue;
-    const held = aboard(victim.cargo);
-    const taken = held.find((c) => c.kind === "crate") ?? held.find((c) => c.kind === "data");
-    if (!taken) continue;
-    return takeItem(players, pirateIndex, victimIndex, taken, mission, cargo);
-  }
-  return null;
-}
-
-/**
- * The seizure itself: `taken` comes off the victim's hold and the pirate's
- * card's loot goes aboard. `players` is written in place (the victim); the
+ * pirated has to seize again. `players` is written in place (the victim); the
  * pirate's hold comes back as `cargo`.
  */
 function takeItem(
@@ -93,9 +45,9 @@ function takeItem(
     // reloads its crate, a Survey or an Intercept has no data aboard.
     cargo: victim.cargo.map((c) => (c.id === taken.id ? { ...c, isPickedUp: false } : c)),
   };
-  // The loot rides as the card's own crate whatever was taken: it fills the
-  // hold and everyone can see it. Seized before and lost since, it is the
-  // same crate coming back aboard.
+  // The loot rides as the card's own item whatever was taken, loot to
+  // everyone watching. Seized before and lost since, it is the same item
+  // coming back aboard.
   const loot: Cargo = {
     id: mission.cargoId,
     missionId: mission.id,
@@ -120,9 +72,9 @@ function takeItem(
 }
 
 /**
- * Unlimited-hold experiment (`HOLD_RULES.unlimited`): the items the pirate
- * named with its `seize` actions, in the order submitted, one per free Piracy
- * card in hand order. Each is checked against the table as it stands now,
+ * Piracy (RULES §Missions): the items the pirate named with its `seize`
+ * actions, in the order submitted, one per free Piracy card in hand order.
+ * No name is no seizure. Each is checked against the table as it stands now,
  * the seizures before it included; one that is not there to take (the ship
  * moved on, docked, died or no longer carries it) is passed over and the card
  * waits for the next name. `players` is written in place (the victims).
@@ -157,9 +109,8 @@ function seizeNamed(
 
 /**
  * Salvage: a ship that ends its turn on a wreck's sector takes its black box
- * (RULES §Missions). It is data: it rides free beside whatever is in the hold,
- * a pirate can seize it, and it is filed at any station by the data job. A
- * moored ship salvages like any other. A card whose black box is already
+ * (RULES §Missions). It is data: a pirate can seize it, and it is filed at
+ * any station. A moored ship salvages like any other. A card whose black box is already
  * aboard takes nothing; the caller stops at the first card that takes one
  * (one wreck a turn). The killer may take its own kill.
  */
@@ -251,7 +202,7 @@ interface MissionCheckResult {
  * @param escortMarks the carriers the player's `escort_mark` actions named,
  *   in the order submitted; one that does not qualify now is passed over
  * @param seizes the items the player's `seize` actions named, in the order
- *   submitted (the unlimited-hold experiment only; ignored otherwise)
+ *   submitted; one that is not there to take now is passed over
  */
 export function processMissionEvents(
   state: GameState,
@@ -288,29 +239,15 @@ export function processMissionEvents(
   let cargo = player.cargo;
   let completed = 0;
 
-  // Seizures first: loot taken this turn is aboard for the rest of it, so
-  // a second Piracy card in the same hand finds the hold full.
-  let seized = false;
-  if (HOLD_RULES.unlimited) {
-    // The pirate picks the item, and no name is no seizure.
-    const taken = seizeNamed(players, index, player.missions, cargo, state.stations, seizes);
-    cargo = taken.cargo;
-    events.push(...taken.events);
-    seized = taken.events.length > 0;
-  } else {
-    for (const mission of player.missions) {
-      if (mission.type !== "piracy" || mission.isCompleted) continue;
-      const taken = seizeLoot(players, index, mission, cargo, state);
-      if (!taken) continue;
-      cargo = taken.cargo;
-      events.push(taken.event);
-      seized = true;
-    }
-  }
+  // Seizures first: loot taken this turn is aboard for the rest of it. The
+  // pirate picks the item, and no name is no seizure.
+  const taken = seizeNamed(players, index, player.missions, cargo, state.stations, seizes);
+  cargo = taken.cargo;
+  events.push(...taken.events);
+  const seized = taken.events.length > 0;
 
-  // Salvage next. The black box is data and takes no room in the hold, so
-  // nothing a pirate just seized stands in its way. One wreck a turn: the
-  // first undone card in hand order without its black box aboard takes it.
+  // Salvage next. One wreck a turn: the first undone card in hand order
+  // without its black box aboard takes it.
   for (const mission of player.missions) {
     if (mission.type !== "salvage" || mission.isCompleted) continue;
     const salvaged = salvageWreck(player, mission, cargo, { ...state, wrecks });
@@ -339,7 +276,7 @@ export function processMissionEvents(
   }
 
   // Two of a kind are two jobs: one dive takes one Survey's data and one fuel
-  // visit pays one Tanker, the first undone card of the kind in hand order.
+  // sale pays one Tanker, the first undone card of the kind in hand order.
   let dived = false;
   let pumped = false;
   // The dive: the black hole's innermost ring, held to the end of a turn. A
@@ -365,16 +302,15 @@ export function processMissionEvents(
         if (deliveredCargoIds.has(mission.dataCargoId)) next = { ...mission, isCompleted: true };
         break;
       case "piracy":
-        // The loot is sold like any other freight: a crate bound for "any"
-        // station is delivered on arrival (game/docking.ts).
+        // The loot is sold like any other item, at any station (game/docking.ts).
         if (deliveredCargoIds.has(mission.cargoId)) next = { ...mission, isCompleted: true };
         break;
       case "salvage":
-        // The black box is data for "any" station, filed by the data job.
+        // The black box is data for "any" station.
         if (deliveredCargoIds.has(mission.cargoId)) next = { ...mission, isCompleted: true };
         break;
       case "tanker":
-        // Paid by a visit that does the fuel job: the pumping is the card.
+        // Paid by a visit that sells the fuel: the pumping is the card.
         if (pumpedFuel && !pumped) {
           pumped = true;
           next = { ...mission, isCompleted: true };

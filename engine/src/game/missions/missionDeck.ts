@@ -200,19 +200,24 @@ export function circuitRoutes(planetIds: readonly string[]): Array<[string, stri
   return routes;
 }
 
-/** Give a shuffled card its (opaque) id and derived token ids. */
-export function assignMissionId(card: MissionBlueprint, id: string): Mission {
+/**
+ * Give a shuffled card its id and the id of the item it carries, if it
+ * carries one. `itemId` is an opaque token (see {@link dealMissionOffers}):
+ * it rides in every rival's view of the hold, so nothing in it may say which
+ * card it belongs to.
+ */
+export function assignMissionId(card: MissionBlueprint, id: string, itemId: string): Mission {
   switch (card.type) {
     case "deliver_cargo":
-      return { ...card, id, cargoId: `crate-${id}` };
+      return { ...card, id, cargoId: itemId };
     case "intercept_transmission":
-      return { ...card, id, dataCargoId: `data-${id}` };
+      return { ...card, id, dataCargoId: itemId };
     case "survey":
-      return { ...card, id, dataCargoId: `data-${id}` };
+      return { ...card, id, dataCargoId: itemId };
     case "piracy":
-      return { ...card, id, cargoId: `loot-${id}` };
+      return { ...card, id, cargoId: itemId };
     case "salvage":
-      return { ...card, id, cargoId: `salvage-${id}` };
+      return { ...card, id, cargoId: itemId };
     case "tanker":
     case "escort":
     case "destroy_ship":
@@ -228,15 +233,22 @@ export function assignMissionId(card: MissionBlueprint, id: string): Mission {
  * only reach one hand, so a route somebody else is flying is a route you were
  * not offered. Primaries first, then secondaries, so a seat's offers arrive in
  * the order the loadout screen reads them. Ids are handed out as the cards
- * land, so an id says nothing about what the card is: crates and data are
- * named after their mission and sit on the table for everyone to see.
+ * land, so an id says nothing about what the card is.
+ *
+ * Every card dealt also gets an item token, `item-<n>`, from a shuffled
+ * range drawn after both piles are dealt. A card's item (a crate, data or
+ * loot) is named by it, and items sit on the table for everyone to see: with
+ * the numbers shuffled, a token says nothing about the card behind it, so a
+ * rival carrying two pieces of data does not show which is an Intercept's.
  */
 export function dealMissionOffers(
   players: ReadonlyArray<Pick<Player, "id">>,
   rng: Rng,
   planetIds: readonly string[] = PLANETS.map((p) => p.id)
 ): Map<string, Mission[]> {
-  const offers = new Map<string, Mission[]>(players.map((p) => [p.id, []]));
+  const dealt = new Map<string, Array<{ card: MissionBlueprint; id: string }>>(
+    players.map((p) => [p.id, []])
+  );
   let next = 0;
   const deal = (deck: DeckCard[], rounds: number) => {
     const hands: DeckCard[][] = players.map(() => []);
@@ -248,16 +260,21 @@ export function dealMissionOffers(
       });
     }
     players.forEach((player, seat) => {
-      for (const card of hands[seat]) {
-        offers
-          .get(player.id)!
-          .push(assignMissionId(cardForPlayer(card, seat, players), `m${next++}`));
-      }
+      for (const card of hands[seat])
+        dealt.get(player.id)!.push({ card: cardForPlayer(card, seat, players), id: `m${next++}` });
     });
   };
 
   deal(rng.shuffle(buildPrimaryDeck(players.length, planetIds)), PRIMARY_OFFERS_PER_PLAYER);
   deal(rng.shuffle(buildSecondaryDeck()), SECONDARY_OFFERS_PER_PLAYER);
+  const tokens = rng.shuffle(Array.from({ length: next }, (_, i) => i));
+  let token = 0;
+  const offers = new Map<string, Mission[]>();
+  for (const [playerId, cards] of dealt)
+    offers.set(
+      playerId,
+      cards.map(({ card, id }) => assignMissionId(card, id, `item-${tokens[token++]}`))
+    );
   return offers;
 }
 

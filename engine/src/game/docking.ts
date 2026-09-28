@@ -1,213 +1,135 @@
 /**
  * Docking. A ship that **arrives** on a station's sector is docked: broken
- * systems are repaired, the hull is restored and missiles are reloaded, and
- * the visit does one job (RULES §Stations).
+ * systems are repaired, the hull is restored and missiles are reloaded, every
+ * crate waiting there for it loads, and the station buys one item (RULES
+ * §Stations).
  *
- * One job a visit: your crates, your data or your fuel, and if more than one
- * is on offer you choose. Crates unload every crate bound here and then load
- * what waits here (a seized crate is a crate); data files everything that can
- * be filed here; fuel is a Tanker pumping its load. Whatever the job not done
- * would have moved stays where it was: crates aboard, crates on the dock, data
- * in the hold. A player who names no job (or one this visit cannot do) gets
- * the one that scores most on the visit, ties to crates, then data, then fuel.
+ * Each station buys one item from each player, once per game. A sale is one
+ * item handed in (a Deliver crate at its destination, a piece of data filed,
+ * loot sold) or a Tanker's fuel pumped, and after it that station buys
+ * nothing more from that player. If more than one sale is on offer the player
+ * chooses, or sells nothing. A player who names no sale (or one this visit
+ * cannot make) gets the one that scores most on the visit, ties to crates
+ * (loot is a crate), then data, then fuel, each in the order carried.
  *
- * The hold takes one crate (RULES §Missions), so a second route waits: a
- * crate whose station this is stays on the dock until the hold is free.
- * Under the unlimited-hold experiment (`HOLD_RULES.unlimited`) there is no
- * limit and every crate waiting here loads.
+ * Loading a crate is not a sale and the hold has no limit, so every crate
+ * waiting at the station loads on every visit, sold or not.
  *
  * Arriving, not sitting. A docked ship stays moored until it burns away, and
  * for a while the whole dock re-resolved every turn it held the berth: a free
  * repair shop for anyone content to park in one. A visit is an event now: the
  * berth afterwards is worth the ride the station gives you and the fuel your
  * scoop skims, and nothing else. Come back for more and it is a trip.
- *
- * Experiment only (`SALE_RULES.oneSalePerStation`, off at every table): a
- * station buys one item from each player, once. A visit to a station the
- * player has not sold at makes at most one sale, one crate delivered, one
- * piece of data filed or a Tanker's fuel pumped, and a station they have sold
- * at buys nothing more. Loading a crate is not a sale and happens on every
- * visit the hold has room for.
  */
 import type { GameState } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
-import type { Cargo, DockChoice, DockJob, Mission } from "../models/missions.ts";
+import type { Cargo, Mission, SaleKind } from "../models/missions.ts";
 import {
-  SALE_RULES,
+  SELL_FUEL,
+  SELL_NOTHING,
   TANKER_FUEL,
   aboard,
-  holdRoom,
+  holdItemKind,
   missionPoints,
 } from "../models/missions.ts";
 import { positionOf } from "./geometry.ts";
 import { getStationAt } from "./stations.ts";
 import { isDestroyed, reloadMissiles, repairAllSubsystems } from "./ship.ts";
 
-/** What a visit reads off the ship: the hold, the hand and the tank. */
-interface DockingShip {
+/** What a visit reads off the ship: the hold, the hand, the tank and where it has sold. */
+export interface DockingShip {
   cargo: readonly Cargo[];
   missions: readonly Mission[];
   reactionMass: number;
-  /** Planets whose station this player has sold at (the one-sale experiment). */
-  soldAt?: readonly string[];
+  /** Planets whose station this player has sold at. */
+  soldAt: readonly string[];
 }
 
-interface DockJobOption {
-  job: DockJob;
-  /** Mission points the job completes on this visit. Loading a crate scores nothing. */
+/** One sale a visit could make. */
+export interface SaleOption {
+  /** What a `dock_sale` action names for it: the item's cargo id, or {@link SELL_FUEL}. */
+  sale: string;
+  kind: SaleKind;
+  /** The card it pays: the item's card, or the first undone Tanker for fuel. */
+  missionId?: string;
+  /** Mission points it completes on this visit. */
   points: number;
-  /** Under the one-sale experiment: the one item this sale hands in (none for fuel). */
-  cargoId?: string;
 }
 
-/** What a `dock_job` action names. */
-export interface DockNaming {
-  job: DockChoice;
-  cargoId?: string;
-}
-
-export interface DockJobs {
-  /** The jobs this visit can do, in {@link DOCK_JOBS} order. */
-  jobs: DockJobOption[];
-  /** The job done when the player names none: the most points, ties in {@link DOCK_JOBS} order. */
-  default: DockJob | null;
-}
-
-/** Everything each job would move at this station. */
-interface VisitWork {
-  /** Crates aboard that are delivered here. */
-  unloaded: Cargo[];
-  /** Crates waiting here that the hold has room for once the unloading is done. */
-  loaded: Cargo[];
-  /** Data aboard that is filed here. */
-  filed: Cargo[];
-  /** A Tanker with its load in the tank. */
-  pumps: boolean;
+export interface SaleOffer {
+  /** The sales this visit can make, crates first, then data, then fuel. */
+  options: SaleOption[];
+  /** The sale made when the player names none: the most points, the first of equals. */
+  default: SaleOption | null;
+  /** This player has sold at this station, so it buys nothing more from them. */
+  soldHere: boolean;
+  /** Crates that load on the visit whatever is sold. */
+  loads: number;
 }
 
 const deliversHere = (item: Cargo, planetId: string) =>
   item.deliveryPlanetId === "any" || item.deliveryPlanetId === planetId;
 
-function visitWork(ship: DockingShip, planetId: string): VisitWork {
-  const held = aboard(ship.cargo);
-  const unloaded = held.filter((c) => c.kind === "crate" && deliversHere(c, planetId));
-  const filed = held.filter((c) => c.kind === "data" && deliversHere(c, planetId));
-
-  // Unload first, then load: a crate delivered here frees the hold for one
-  // waiting at the same station, which is what makes a chained route one trip
-  // instead of two. A seized crate has no dock of its own, so nothing
-  // reloads it.
-  let room = holdRoom(held.filter((c) => c.kind === "crate").length - unloaded.length);
-  const loaded: Cargo[] = [];
-  for (const item of ship.cargo) {
-    if (item.isPickedUp || item.kind !== "crate" || room <= 0) continue;
-    if (item.pickupPlanetId !== planetId) continue;
-    loaded.push(item);
-    room--;
-  }
-
-  const pumps =
-    ship.missions.some((m) => m.type === "tanker" && !m.isCompleted) &&
-    ship.reactionMass >= TANKER_FUEL;
-  return { unloaded, loaded, filed, pumps };
-}
-
-/** Points for handing items in: each scores its card, if the card is in hand and undone. */
-function pointsFor(items: readonly Cargo[], missions: readonly Mission[]): number {
-  let points = 0;
-  for (const item of items) {
-    const mission = missions.find((m) => m.id === item.missionId && !m.isCompleted);
-    if (mission) points += missionPoints(mission.type);
-  }
-  return points;
-}
-
-function jobsFor(work: VisitWork, missions: readonly Mission[]): DockJobs {
-  const jobs: DockJobOption[] = [];
-  if (work.unloaded.length > 0 || work.loaded.length > 0)
-    jobs.push({ job: "crates", points: pointsFor(work.unloaded, missions) });
-  if (work.filed.length > 0) jobs.push({ job: "data", points: pointsFor(work.filed, missions) });
-  if (work.pumps) jobs.push({ job: "fuel", points: missionPoints("tanker") });
-
-  let best: DockJobOption | null = null;
-  for (const option of jobs) if (!best || option.points > best.points) best = option;
-  return { jobs, default: best?.job ?? null };
-}
-
-/**
- * One-sale experiment: every item the visit could sell, one option each, in
- * {@link DOCK_JOBS} order and then the order carried. None at a station the
- * player has sold at.
- */
-function salesFor(work: VisitWork, missions: readonly Mission[], soldHere: boolean): DockJobs {
-  if (soldHere) return { jobs: [], default: null };
-  const jobs: DockJobOption[] = [
-    ...work.unloaded.map((c) => ({ job: "crates" as const, points: pointsFor([c], missions), cargoId: c.id })),
-    ...work.filed.map((c) => ({ job: "data" as const, points: pointsFor([c], missions), cargoId: c.id })),
-    ...(work.pumps ? [{ job: "fuel" as const, points: missionPoints("tanker") }] : []),
-  ];
-  return { jobs, default: bestOf(jobs)?.job ?? null };
+/** Points for handing an item in: its card's, if the card is in hand and undone. */
+function pointsFor(item: Cargo, missions: readonly Mission[]): number {
+  const mission = missions.find((m) => m.id === item.missionId && !m.isCompleted);
+  return mission ? missionPoints(mission.type) : 0;
 }
 
 /** The option scoring most, the first of equals. */
-function bestOf(options: readonly DockJobOption[]): DockJobOption | null {
-  let best: DockJobOption | null = null;
+export function bestSale(options: readonly SaleOption[]): SaleOption | null {
+  let best: SaleOption | null = null;
   for (const option of options) if (!best || option.points > best.points) best = option;
   return best;
 }
 
-/**
- * The jobs a visit to `planetId`'s station would offer a ship arriving with
- * this hold, hand and tank, with what each scores and the one done by default.
- * Under the one-sale experiment each option is one item and loading is not an
- * option (see {@link cratesLoadedOnArrival}). Pure: the referee docks by it
- * and the table previews the choice with it.
- */
-export function dockJobsOnArrival(ship: DockingShip, planetId: string): DockJobs {
-  const work = visitWork(ship, planetId);
-  if (SALE_RULES.oneSalePerStation)
-    return salesFor(work, ship.missions, (ship.soldAt ?? []).includes(planetId));
-  return jobsFor(work, ship.missions);
+/** Crates waiting at `planetId`'s station for this ship: all of them load. */
+function waitingCrates(cargo: readonly Cargo[], planetId: string): Cargo[] {
+  return cargo.filter((c) => !c.isPickedUp && c.kind === "crate" && c.pickupPlanetId === planetId);
 }
 
 /**
- * One-sale experiment: the crates a visit loads if it sells no crate. Loading
- * is not a sale, so this is the pickup a sold-at station still gives.
+ * The sales a visit to `planetId`'s station would offer a ship arriving with
+ * this hold, hand and tank, what each scores and the one made by default.
+ * None at a station the player has sold at. Pure: the referee docks by it,
+ * and the bots, the seat CLI and the table's plan preview the choice with it.
  */
-export function cratesLoadedOnArrival(ship: DockingShip, planetId: string): number {
-  return loadedAfterSale(ship.cargo, planetId, null).length;
-}
-
-/** The job the visit does: the one named, if the visit can do it, or the default. */
-export function chosenDockJob(offer: DockJobs, named?: DockJob): DockJob | null {
-  if (named && offer.jobs.some((o) => o.job === named)) return named;
-  return offer.default;
+export function salesOnArrival(ship: DockingShip, planetId: string): SaleOffer {
+  const loads = waitingCrates(ship.cargo, planetId).length;
+  const soldHere = ship.soldAt.includes(planetId);
+  if (soldHere) return { options: [], default: null, soldHere, loads };
+  const held = aboard(ship.cargo).filter((c) => deliversHere(c, planetId));
+  const item = (c: Cargo): SaleOption => ({
+    sale: c.id,
+    kind: holdItemKind(c),
+    missionId: c.missionId,
+    points: pointsFor(c, ship.missions),
+  });
+  const tanker = ship.missions.find((m) => m.type === "tanker" && !m.isCompleted);
+  const options: SaleOption[] = [
+    ...held.filter((c) => c.kind === "crate").map(item),
+    ...held.filter((c) => c.kind === "data").map(item),
+    ...(tanker && ship.reactionMass >= TANKER_FUEL
+      ? [
+          {
+            sale: SELL_FUEL,
+            kind: "fuel" as const,
+            missionId: tanker.id,
+            points: missionPoints("tanker"),
+          },
+        ]
+      : []),
+  ];
+  return { options, default: bestSale(options), soldHere, loads };
 }
 
 /**
- * One-sale experiment: the item the visit sells. "none" sells nothing; a
- * named job sells the named item if it is one of the job's, else the job's
- * best; a job the visit cannot do, or no name, gets the default.
+ * The sale the visit makes: none for {@link SELL_NOTHING}, the one named if
+ * it is on offer, or the default.
  */
-export function chosenSale(offer: DockJobs, named?: DockNaming): DockJobOption | null {
-  if (named?.job === "none") return null;
-  const ofJob = named ? offer.jobs.filter((o) => o.job === named.job) : [];
-  if (ofJob.length > 0) return ofJob.find((o) => o.cargoId === named?.cargoId) ?? bestOf(ofJob);
-  return bestOf(offer.jobs);
-}
-
-/** Crates waiting at `planetId` that the hold has room for once `sold` is off it. */
-function loadedAfterSale(cargo: readonly Cargo[], planetId: string, sold: Cargo | null): Cargo[] {
-  const crates = aboard(cargo).filter((c) => c.kind === "crate" && c !== sold).length;
-  let room = holdRoom(crates);
-  const loaded: Cargo[] = [];
-  for (const item of cargo) {
-    if (item.isPickedUp || item.kind !== "crate" || room <= 0) continue;
-    if (item.pickupPlanetId !== planetId) continue;
-    loaded.push(item);
-    room--;
-  }
-  return loaded;
+export function chosenSale(offer: SaleOffer, named?: string): SaleOption | null {
+  if (named === SELL_NOTHING) return null;
+  return offer.options.find((o) => o.sale === named) ?? offer.default;
 }
 
 interface DockingResult {
@@ -220,14 +142,14 @@ interface DockingResult {
 /**
  * @param arriving false when the ship was already moored when its turn began:
  *   it is holding a berth it already holds, which is not a visit.
- * @param named the job the player named for the visit, if any (a `dock_job`
- *   action).
+ * @param named the sale the player named for the visit, if any (a
+ *   `dock_sale` action).
  */
 export function processDocking(
   state: GameState,
   playerIndex: number,
   arriving = true,
-  named?: DockNaming
+  named?: string
 ): DockingResult {
   const player = state.players[playerIndex];
   if (isDestroyed(player.ship)) return { state, events: [] };
@@ -236,100 +158,18 @@ export function processDocking(
   if (!station) return { state, events: [] };
 
   const planetId = station.planetId;
-  const shipOnArrival: DockingShip = {
-    cargo: player.cargo,
-    missions: player.missions,
-    reactionMass: player.ship.reactionMass,
-  };
-  const work = visitWork(shipOnArrival, planetId);
-  if (SALE_RULES.oneSalePerStation) return dockForOneSale(state, playerIndex, planetId, work, named);
-  // Validation refuses "none" while the experiment is off.
-  const job = chosenDockJob(jobsFor(work, player.missions), named?.job as DockJob | undefined);
-  const events: EventDraft[] = [];
-
-  const cargo = cargoAfter(player.cargo, work, job);
-  const handedIn = job === "crates" ? work.unloaded : job === "data" ? work.filed : [];
-  for (const item of player.cargo) {
-    if (!handedIn.includes(item)) continue;
-    events.push({
-      type: "cargo_delivered",
-      playerId: player.id,
-      cargoId: item.id,
-      kind: item.kind,
-      planetId,
-    });
-  }
-  if (job === "crates") {
-    for (const item of work.loaded) {
-      events.push({
-        type: "cargo_picked_up",
-        playerId: player.id,
-        cargoId: item.id,
-        kind: item.kind,
-        planetId,
-      });
-    }
-  }
-
-  const ship = serviced(player, planetId, job, events);
-  const players = [...state.players];
-  players[playerIndex] = { ...player, ship, cargo };
-  return { state: { ...state, players }, events, planetId };
-}
-
-/**
- * What every visit does whatever it sells: repairs, a reload and full hull,
- * then the `docked` event, and the Tanker's fuel if that is the job.
- */
-function serviced(
-  player: GameState["players"][number],
-  planetId: string,
-  job: DockJob | null,
-  events: EventDraft[]
-): GameState["players"][number]["ship"] {
-  // Repairs, whatever the job.
-  const repaired = repairAllSubsystems(player.ship);
-  const reloaded = reloadMissiles(repaired.ship);
-  // A dock puts the ship back to full hull. Capping it at 2 was measured on
-  // 17 Sept 2026: a quarter more kills, but the no-weapon hull it was aimed at
-  // did not budge (+13 to +12), because that hull was never healing anyway.
-  const hullRestored = reloaded.ship.maxHitPoints - reloaded.ship.hitPoints;
-  let ship = { ...reloaded.ship, hitPoints: reloaded.ship.hitPoints + hullRestored };
-
-  events.push({
-    type: "docked",
-    playerId: player.id,
-    planetId,
-    hullRestored,
-    repaired: repaired.repaired,
-    missilesReloaded: reloaded.reloaded,
-    job,
-  });
-
-  // Tanker: the card's fuel goes into the drums and the card is done.
-  if (job === "fuel") {
-    ship = { ...ship, reactionMass: ship.reactionMass - TANKER_FUEL };
-    events.push({ type: "fuel_pumped", playerId: player.id, amount: TANKER_FUEL, planetId });
-  }
-  return ship;
-}
-
-/**
- * One-sale experiment: at most one item sold, and only at a station this
- * player has not sold at; the sale marks the station. Then whatever crate
- * waits here loads if the hold has room, sale or no sale.
- */
-function dockForOneSale(
-  state: GameState,
-  playerIndex: number,
-  planetId: string,
-  work: VisitWork,
-  named?: DockNaming
-): DockingResult {
-  const player = state.players[playerIndex];
-  const sale = chosenSale(salesFor(work, player.missions, player.soldAt.includes(planetId)), named);
-  const sold = sale?.cargoId ? (player.cargo.find((c) => c.id === sale.cargoId) ?? null) : null;
-  const loaded = loadedAfterSale(player.cargo, planetId, sold);
+  const offer = salesOnArrival(
+    {
+      cargo: player.cargo,
+      missions: player.missions,
+      reactionMass: player.ship.reactionMass,
+      soldAt: player.soldAt,
+    },
+    planetId
+  );
+  const sale = chosenSale(offer, named);
+  const sold = sale && sale.kind !== "fuel" ? player.cargo.find((c) => c.id === sale.sale)! : null;
+  const loaded = waitingCrates(player.cargo, planetId);
   const events: EventDraft[] = [];
 
   if (sold) {
@@ -354,30 +194,33 @@ function dockForOneSale(
     .filter((c) => c !== sold)
     .map((c) => (loaded.includes(c) ? { ...c, isPickedUp: true } : c));
 
-  const ship = serviced(player, planetId, sale?.job ?? null, events);
+  // Repairs, a reload and full hull, whatever is sold.
+  const repaired = repairAllSubsystems(player.ship);
+  const reloaded = reloadMissiles(repaired.ship);
+  // A dock puts the ship back to full hull. Capping it at 2 was measured on
+  // 17 Sept 2026: a quarter more kills, but the no-weapon hull it was aimed at
+  // did not budge (+13 to +12), because that hull was never healing anyway.
+  const hullRestored = reloaded.ship.maxHitPoints - reloaded.ship.hitPoints;
+  let ship = { ...reloaded.ship, hitPoints: reloaded.ship.hitPoints + hullRestored };
+
+  events.push({
+    type: "docked",
+    playerId: player.id,
+    planetId,
+    hullRestored,
+    repaired: repaired.repaired,
+    missilesReloaded: reloaded.reloaded,
+    sold: sale?.kind ?? null,
+  });
+
+  // Tanker: the card's fuel goes into the drums and the card is done.
+  if (sale?.kind === "fuel") {
+    ship = { ...ship, reactionMass: ship.reactionMass - TANKER_FUEL };
+    events.push({ type: "fuel_pumped", playerId: player.id, amount: TANKER_FUEL, planetId });
+  }
+
   const soldAt = sale ? [...player.soldAt, planetId] : player.soldAt;
   const players = [...state.players];
   players[playerIndex] = { ...player, ship, cargo, soldAt };
   return { state: { ...state, players }, events, planetId };
-}
-
-/**
- * The hold after the visit. What the job done hands in is gone and what it
- * loads is aboard. The rest is kept in a fixed order: the hold, then what
- * waits on a dock, then the items the visit could have worked and did not
- * (crates, then data), each group in the order it was carried.
- */
-function cargoAfter(cargo: readonly Cargo[], work: VisitWork, job: DockJob | null): Cargo[] {
-  const crateWork = new Set([...work.unloaded, ...work.loaded]);
-  const dataWork = new Set(work.filed);
-  const untouched = (c: Cargo) => !crateWork.has(c) && !dataWork.has(c);
-  const kept: Cargo[] = [
-    ...cargo.filter((c) => c.isPickedUp && untouched(c)),
-    ...cargo
-      .filter((c) => !c.isPickedUp && (untouched(c) || (job === "crates" && crateWork.has(c))))
-      .map((c) => (crateWork.has(c) ? { ...c, isPickedUp: true } : c)),
-  ];
-  if (job !== "crates") kept.push(...cargo.filter((c) => crateWork.has(c)));
-  if (job !== "data") kept.push(...cargo.filter((c) => dataWork.has(c)));
-  return kept;
 }

@@ -8,7 +8,7 @@
  */
 import type { BurnIntensity, Facing, GravityWellId, Player, PlayerAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { DOCK_JOBS, type DockJob } from "../models/missions.ts";
+import { SELL_FUEL, SELL_NOTHING } from "../models/missions.ts";
 import { getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
 import type { GameView } from "../game/view.ts";
 import { powerActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
@@ -65,12 +65,13 @@ export interface TurnIntent {
    */
   repair?: SubsystemId;
   /**
-   * The one job the visit does if this turn arrives at a station: crates,
-   * data or fuel. Left out, or one the visit cannot do, and the visit does
-   * the job that completes the most mission points (ties to crates, then
-   * data, then fuel).
+   * What the station buys if this turn arrives at one: an item aboard by its
+   * cargo id, "fuel" for a Tanker's pump, or "none" to sell nothing. A
+   * station buys one item from you, once per game. Left out, or one the
+   * visit cannot make, and the visit sells whatever completes the most
+   * mission points (ties to crates, then data, then fuel).
    */
-  dock?: DockJob;
+  sell?: string;
   /**
    * Rivals to put an Escort marker on, one per marker in hand, each a
    * different ship. A "you may": nothing is placed unless named here. Each is
@@ -80,9 +81,9 @@ export interface TurnIntent {
    */
   escort?: string[];
   /**
-   * Under the unlimited-hold experiment only: items to seize, one per free
-   * Piracy card, each a different item. Settled where the turn ends; an item
-   * not there then is passed over.
+   * Items to seize, one per free Piracy card, each a different item. A "you
+   * may": nothing is taken unless named here. Settled where the turn ends; an
+   * item not there then is passed over.
    */
   seize?: { victim: string; cargoId: string }[];
 }
@@ -270,10 +271,15 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
     else if (!sub.isBroken) notes.push(`${intent.repair} is not broken; repair dropped`);
     else actions.push({ type: "repair", playerId: me.id, data: { subsystemId: intent.repair } });
   }
-  if (intent.dock !== undefined) {
-    if (!(DOCK_JOBS as readonly string[]).includes(intent.dock))
-      notes.push(`${String(intent.dock)} is not a dock job (${DOCK_JOBS.join(", ")}); dropped`);
-    else actions.push({ type: "dock_job", playerId: me.id, data: { job: intent.dock } });
+  if (intent.sell !== undefined) {
+    const sale = intent.sell;
+    const known =
+      sale === SELL_FUEL || sale === SELL_NOTHING || me.cargo.some((c) => c.id === sale);
+    if (!known)
+      notes.push(
+        `${String(sale)} is not an item in your hold, "${SELL_FUEL}" or "${SELL_NOTHING}"; sale dropped`
+      );
+    else actions.push({ type: "dock_sale", playerId: me.id, data: { sale } });
   }
   if (intent.escort !== undefined) {
     const inHand = unplacedEscorts(me.missions).length;

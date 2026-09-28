@@ -8,7 +8,6 @@ import {
   seatOptions,
   AGENT_INTENT_GUIDE,
 } from "../../agent/index.ts";
-import type { DockJob } from "../../models/missions.ts";
 import {
   ALPHA,
   BETA,
@@ -101,11 +100,12 @@ describe("agent seat tooling", () => {
   });
 
   it.each([
-    ["a job", "fuel", [{ type: "dock_job", data: { job: "fuel" } }], 0],
-    ["something that is not a job", "repairs", [], 1],
-  ])("passes %s for the visit through as a dock_job action", (_label, dock, expected, notes) => {
-    const built = buildTurn(viewFor(start(), "p1"), { dock: dock as DockJob });
-    expect(built.actions.filter((a) => a.type === "dock_job")).toEqual(
+    ["the fuel", "fuel", [{ type: "dock_sale", data: { sale: "fuel" } }], 0],
+    ["nothing", "none", [{ type: "dock_sale", data: { sale: "none" } }], 0],
+    ["an item not in the hold", "item-99", [], 1],
+  ])("passes %s for the visit through as a dock_sale action", (_label, sell, expected, notes) => {
+    const built = buildTurn(viewFor(start(), "p1"), { sell });
+    expect(built.actions.filter((a) => a.type === "dock_sale")).toEqual(
       expected.map((e) => expect.objectContaining(e))
     );
     expect(built.notes).toHaveLength(notes);

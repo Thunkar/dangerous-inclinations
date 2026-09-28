@@ -1,17 +1,14 @@
 /**
- * Piracy under the unlimited-hold experiment (`HOLD_RULES.unlimited`): what a
- * pirate may take. "End a turn, not moored, on an undocked ship carrying
- * cargo, holding an undone Piracy: you may take one item of your choice from
- * it." The choice is declared with the turn as a `seize` action and settled
- * at the end of it; this is the one question the referee, the bots, the seat
- * CLI and the table's plan all ask, so the four agree.
- *
- * Off, the seizure is automatic and none of this is read
- * (missions/missionChecks.ts).
+ * Piracy (RULES §Missions): what a pirate may take. "End a turn, not moored,
+ * on an undocked ship carrying cargo: you may take one item of your choice
+ * from it." The choice is declared with the turn as a `seize` action and
+ * settled at the end of it (missions/missionChecks.ts); this is the one
+ * question the referee, the bots, the seat CLI and the table's plan all ask,
+ * so the four agree. Nothing is taken unless it is named.
  */
 import type { Player, Position, Station } from "../models/game.ts";
 import type { Cargo, HoldItemKind, Mission, PiracyMission } from "../models/missions.ts";
-import { HOLD_RULES, aboard, holdItemKind } from "../models/missions.ts";
+import { aboard, holdItemKind } from "../models/missions.ts";
 import type { GameView } from "./view.ts";
 import { positionOf, samePosition } from "./geometry.ts";
 import { isMooredAt } from "./stations.ts";
@@ -74,15 +71,14 @@ function candidates(
 
 /**
  * From a seat's own view: the items it could take if its turn ends at
- * `position`. Empty with the experiment off, with no free Piracy card, or for
- * any seat but the viewer (only the viewer knows its own hand).
+ * `position`. Empty with no free Piracy card, or for any seat but the viewer
+ * (only the viewer knows its own hand).
  */
 export function seizableItems(
   view: GameView,
   playerId: string,
   position: Position
 ): SeizableItem[] {
-  if (!HOLD_RULES.unlimited) return [];
   const me = view.me;
   if (!me || me.id !== playerId) return [];
   if (freePiracyCards(me.missions, me.cargo).length === 0) return [];

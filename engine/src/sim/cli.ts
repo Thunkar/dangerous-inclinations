@@ -16,8 +16,6 @@
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --tiles=ballistic_rack.damage=3,fuel_compressor.slotType=side  experiment-only tile overrides (any field of any tile)
  *   --rules=missionsToWin=4  the table's points to win, dealt into every game of the batch
- *   --rules=oneSalePerStation=1  experiment: a station buys one item from each player, once
- *   --rules=unlimitedHold=1  experiment: the hold has no limit, and the pirate names what it seizes
  *   --bot=aggressiveness=0.8,targetPreference=weakest  experiment-only bot parameter overrides
  *                 (note the singular: --bots=N is how many bots play, --bot= is how they think)
  *   --loadouts=hunter=railgun/missiles,radiator,laser,shields  experiment-only bot hull overrides (; between archetypes)
@@ -40,12 +38,7 @@ import {
   parseTileOverrides,
   type TileOverrides,
 } from "./tileOverrides.ts";
-import {
-  applyRuleOverrides,
-  describeRuleOverrides,
-  parseRuleOverrides,
-  type RuleOverrides,
-} from "./ruleOverrides.ts";
+import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import { describeBotOverrides, parseBotOverrides, type BotOverrides } from "./botOverrides.ts";
 import {
   describeLoadoutOverrides,
@@ -242,7 +235,6 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   // In this process too, so the summary reads the configs the workers play under.
   applyTileOverrides(args.tiles);
-  applyRuleOverrides(args.rules);
   console.log(
     `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.tiebreak ? ", tiebreak" : ""}${overrides(
       args

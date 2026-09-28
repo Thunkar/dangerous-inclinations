@@ -15,7 +15,7 @@ import type { GameRecording, RecordedTurn, RecordingMetadata } from "../recordin
 import { RECORDING_SCHEMA_VERSION } from "../recording/types.ts";
 import { cloneState } from "../recording/replay.ts";
 import { applyTileOverrides, type TileOverrides } from "./tileOverrides.ts";
-import { applyRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
+import type { RuleOverrides } from "./ruleOverrides.ts";
 import { applyBotOverrides, type BotOverrides } from "./botOverrides.ts";
 import {
   applyLoadoutOverrides,
@@ -160,7 +160,13 @@ function dealForcedPrimaries(state: GameState, botCount: number, seatHands: Seat
     const slot = offers.findIndex((m) => isPrimaryType(m.type));
     if (printed.length === 0 || slot === -1) continue;
     const card = printed[pickIndex(state, printed)];
-    offers[slot] = assignMissionId(cardForPlayer(card, seat, state.players), `m-forced-${seatId}`);
+    // An item token past the deal's range, so it is still one of a kind.
+    const dealt = state.players.reduce((n, p) => n + p.missionOffers.length, 0);
+    offers[slot] = assignMissionId(
+      cardForPlayer(card, seat, state.players),
+      `m-forced-${seatId}`,
+      `item-${dealt + seat}`
+    );
   }
   return state;
 }
@@ -220,7 +226,6 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT;
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
   applyTileOverrides(config.tiles);
-  applyRuleOverrides(config.rules);
   applyBotOverrides(config.bots);
   applyLoadoutOverrides(config.loadouts);
   const record = config.record ?? true;

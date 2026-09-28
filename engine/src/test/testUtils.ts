@@ -24,7 +24,7 @@ import type {
   ShipState,
   WellTransferAction,
   RepairAction,
-  DockJobAction,
+  DockSaleAction,
   EscortMarkAction,
   SeizeAction,
 } from "../models/game.ts";
@@ -43,7 +43,7 @@ import type {
   Mission,
   Cargo,
 } from "../models/missions.ts";
-import { DEFAULT_POINTS_TO_WIN, type DockChoice } from "../models/missions.ts";
+import { DEFAULT_POINTS_TO_WIN } from "../models/missions.ts";
 import { createInitialShipState, updateSubsystem } from "../game/ship.ts";
 import { createInitialStations, getStationForPlanet } from "../game/stations.ts";
 import { PLANET_OUTER_RING } from "../models/gravityWells.ts";
@@ -412,17 +412,17 @@ export const repair = (subsystemId: SubsystemId): Draft<RepairAction> => ({
   type: "repair",
   data: { subsystemId },
 });
-/** Name the job a visit does if the turn arrives at a station (no sequence either). */
-export const dockJob = (job: DockChoice, cargoId?: string): Draft<DockJobAction> => ({
-  type: "dock_job",
-  data: cargoId === undefined ? { job } : { job, cargoId },
+/** Name what a visit sells if the turn arrives at a station: a cargo id, "fuel" or "none" (no sequence either). */
+export const dockSale = (sale: string): Draft<DockSaleAction> => ({
+  type: "dock_sale",
+  data: { sale },
 });
 /** Put an Escort marker on a carrier if the turn ends in its sector (no sequence either). */
 export const escortMark = (carrierId: string): Draft<EscortMarkAction> => ({
   type: "escort_mark",
   data: { carrierId },
 });
-/** Name an item to seize if the turn ends beside it (the unlimited-hold experiment; no sequence). */
+/** Name an item to seize if the turn ends beside it (no sequence). */
 export const seize = (victimId: string, cargoId: string): Draft<SeizeAction> => ({
   type: "seize",
   data: { victimId, cargoId },

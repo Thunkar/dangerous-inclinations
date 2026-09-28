@@ -6,8 +6,13 @@ import { canSeeEvent, filterEventsFor } from "../../models/events.ts";
 import type { GameEvent } from "../../models/events.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import { STARTING_REACTION_MASS } from "../../models/game.ts";
+import { dealMissionOffers } from "../../game/missions/missionDeck.ts";
+import { Rng } from "../../utils/rng.ts";
+import { isPrimaryType, type Mission } from "../../models/missions.ts";
 import {
   destroyMission,
+  interceptMission,
+  takenData,
   ALPHA,
   BETA,
   GAMMA,
@@ -282,5 +287,64 @@ describe("view: event visibility", () => {
   it("filterEventsFor keeps order and drops what the viewer may not see", () => {
     expect(filterEventsFor([privateEvent, publicEvent], "p2")).toEqual([publicEvent]);
     expect(filterEventsFor([privateEvent, publicEvent], "p1")).toEqual([privateEvent, publicEvent]);
+  });
+});
+
+describe("view: a rival's hold", () => {
+  /** Every item token dealt to an Intercept or a Survey, over many deals. */
+  function dataTokens(seeds: number) {
+    const tokens: Array<{ type: string; missionId: string; token: string }> = [];
+    for (let seed = 1; seed <= seeds; seed++) {
+      for (const hand of dealMissionOffers(ids(3), new Rng(seed)).values())
+        for (const m of hand)
+          if (m.type === "intercept_transmission" || m.type === "survey")
+            tokens.push({ type: m.type, missionId: m.id, token: m.dataCargoId });
+    }
+    return tokens;
+  }
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}` }));
+  const number = (token: string) => Number(token.slice("item-".length));
+
+  it("item tokens are opaque: a number, never the card's id or kind", () => {
+    const tokens = dataTokens(20);
+    expect(tokens.length).toBeGreaterThan(0);
+    for (const { missionId, token } of tokens) {
+      expect(token).toMatch(/^item-\d+$/);
+      expect(token).not.toContain(missionId);
+    }
+  });
+
+  it("item tokens do not follow the deal: a primary does not always hold the lower number", () => {
+    // Each hand is dealt its primaries first, so tokens handed out in deal
+    // order would put every Intercept's below every Survey's in the same hand.
+    const token = (m: Mission) => ("dataCargoId" in m ? m.dataCargoId : "cargoId" in m ? m.cargoId : null);
+    let secondaryBelowPrimary = 0;
+    for (let seed = 1; seed <= 20; seed++)
+      for (const hand of dealMissionOffers(ids(3), new Rng(seed)).values())
+        for (const p of hand.filter((m) => isPrimaryType(m.type) && token(m)))
+          for (const s of hand.filter((m) => !isPrimaryType(m.type) && token(m)))
+            if (number(token(s)!) < number(token(p)!)) secondaryBelowPrimary++;
+    expect(secondaryBelowPrimary).toBeGreaterThan(0);
+  });
+
+  it("shows each item by kind and token, and never the card behind it", () => {
+    const survey = surveyMission("survey-secret");
+    const intercept = interceptMission("p1", "intercept-secret", BETA);
+    let state = makeTwoPlayerGame();
+    state = withPlayer(state, "p2", {
+      missions: [survey, intercept],
+      cargo: [
+        { ...takenData(survey), id: "item-7" },
+        { ...takenData(intercept), id: "item-3" },
+      ],
+    });
+    const rival = viewFor(state, "p1").players.find((p) => p.id === "p2")!;
+    expect(rival.hold).toEqual([
+      { cargoId: "item-7", kind: "data" },
+      { cargoId: "item-3", kind: "data" },
+    ]);
+    const text = JSON.stringify(rival);
+    expect(text).not.toContain("survey-secret");
+    expect(text).not.toContain("intercept-secret");
   });
 });

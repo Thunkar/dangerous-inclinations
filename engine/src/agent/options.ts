@@ -21,7 +21,6 @@ import {
 import { isMooredAt } from "../game/stations.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
 import { freePiracyCards, seizableItems, type SeizableItem } from "../game/piracy.ts";
-import { HOLD_RULES } from "../models/missions.ts";
 
 export type BurnOption = LegalBurn;
 
@@ -78,10 +77,9 @@ export interface SeatOptions {
    */
   escort: { markersInHand: number; carriersAfterCoast: string[] } | null;
   /**
-   * Under the unlimited-hold experiment only: Piracy cards free to seize
-   * (undone, no loot of their own aboard), and the items one could take if
-   * the turn ends after a plain coast. A seizure is named with the turn and
-   * settled where it ends; null with the experiment off or no card free.
+   * Piracy cards free to seize (undone, no loot of their own aboard), and the
+   * items one could take if the turn ends after a plain coast. A seizure is
+   * named with the turn and settled where it ends; null with no card free.
    */
   seize: { freeCards: number; itemsAfterCoast: SeizableItem[] } | null;
   /**
@@ -176,7 +174,7 @@ export function seatOptions(view: GameView): SeatOptions {
       ? { markersInHand, carriersAfterCoast: escortCandidates(view, me.id, afterCoast) }
       : null;
 
-  const freeCards = HOLD_RULES.unlimited ? freePiracyCards(me.missions, me.cargo).length : 0;
+  const freeCards = freePiracyCards(me.missions, me.cargo).length;
   const seize =
     freeCards > 0 ? { freeCards, itemsAfterCoast: seizableItems(view, me.id, afterCoast) } : null;
 

@@ -9,10 +9,11 @@ import { resolveShipAppearance, type ShipAppearance } from "../models/appearance
  * Public: positions, facing, hull, heat, energy on every slot (cubes sit on
  * the tiles in the open, even face-down ones), home markers, crates carried,
  * face-up tiles, broken fixed systems, completed missions, missiles, stations,
- * wrecks, the Escort markers sitting on a ship, and the fuel aboard.
+ * wrecks, the Escort markers sitting on a ship, the fuel aboard, each item in
+ * a hold by kind and opaque id, and the stations each player has sold at.
  * Private: face-down tile identities, the ammo in a face-down missiles tile,
- * missions in hand, cargo
- * destinations, mission offers, what a scan showed you.
+ * missions in hand, the card an item belongs to, cargo destinations, mission
+ * offers, what a scan showed you.
  */
 import type {
   GameState,
@@ -25,7 +26,7 @@ import type {
 } from "../models/game.ts";
 import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
 import type { HoldItemKind, Mission } from "../models/missions.ts";
-import { HOLD_RULES, aboard, holdItemKind } from "../models/missions.ts";
+import { aboard, holdItemKind } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import { getDissipationCapacity, isDestroyed, lowestCriticalFace } from "./ship.ts";
 import { completedMissions } from "./missions/missionChecks.ts";
@@ -107,17 +108,15 @@ export interface PlayerView {
    */
   escortedBy: string[];
   /**
-   * Planets whose station this player has sold at (the one-sale experiment,
-   * `SALE_RULES`). Public: a marker on the station.
+   * Planets whose station this player has sold at: each buys nothing more
+   * from them. Public: a marker on the station.
    */
   soldAt: string[];
   /**
-   * The items aboard, one token each, under the unlimited-hold experiment
-   * only (`HOLD_RULES`), so a pirate can name the one it takes; empty
-   * otherwise. The kind is public (a crate, loot or data on the ship). The id
-   * is the engine's cargo id, which for data still tells an Intercept's from
-   * a Survey's; nothing that decides from a view may read it for more than a
-   * name.
+   * The items aboard, one token each, so a pirate can name the one it takes.
+   * The kind is public (a crate, loot or data on the ship). The id is an
+   * opaque token dealt with the card (`dealMissionOffers`) and says nothing
+   * about which card the item belongs to; that stays in the owner's hand.
    */
   hold: { cargoId: string; kind: HoldItemKind }[];
 }
@@ -231,9 +230,7 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     points: player.points,
     completedMissions: completedMissions(player),
     soldAt: [...player.soldAt],
-    hold: HOLD_RULES.unlimited
-      ? aboard(player.cargo).map((c) => ({ cargoId: c.id, kind: holdItemKind(c) }))
-      : [],
+    hold: aboard(player.cargo).map((c) => ({ cargoId: c.id, kind: holdItemKind(c) })),
     escortedBy: state.players
       .filter((p) =>
         p.missions.some(

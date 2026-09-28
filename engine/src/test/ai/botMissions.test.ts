@@ -12,7 +12,7 @@ import type {
   Mission,
   SurveyMission,
 } from "../../models/missions.ts";
-import { SURVEY_RING, TANKER_FUEL, dataAboard } from "../../models/missions.ts";
+import { SELL_FUEL, SURVEY_RING, TANKER_FUEL, dataAboard } from "../../models/missions.ts";
 import { BLACK_HOLE_ID, BLACK_HOLE_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { ringVelocity } from "../../game/geometry.ts";
@@ -168,9 +168,9 @@ describe("bot missions", () => {
     expect(acquired(state)).toBe(true);
   });
 
-  it("names the crates job at its pickup when a Tanker's fuel is aboard too", () => {
-    // Left to the default the visit would pump the fuel (a point) and leave
-    // the crate (none yet) on the dock: a visit does one job.
+  it("at its pickup with a Tanker's fuel aboard, loads the crate and sells the fuel", () => {
+    // Loading is not a sale, so the pickup station buys the fuel on the same
+    // visit: the Deliver's own station is Beta, not this one.
     const deliver = deliverMission(ALPHA, BETA);
     const tanker = tankerMission();
     const start = withShip(
@@ -192,12 +192,13 @@ describe("bot missions", () => {
     expect(MAX_REACTION_MASS).toBeGreaterThanOrEqual(TANKER_FUEL);
 
     const actions = botDecideActions(viewFor(start, "p1")).actions;
-    expect(actions.find((a) => a.type === "dock_job")?.data).toEqual({ job: "crates" });
+    expect(actions.find((a) => a.type === "dock_sale")?.data).toEqual({ sale: SELL_FUEL });
     const result = executeTurn(start, actions);
     expect(result.errors).toBeUndefined();
     const p1 = getPlayer(result.gameState, "p1");
     expect(p1.cargo.find((c) => c.missionId === deliver.id)?.isPickedUp).toBe(true);
-    expect(p1.missions.find((m) => m.id === tanker.id)?.isCompleted).toBe(false);
+    expect(p1.missions.find((m) => m.id === tanker.id)?.isCompleted).toBe(true);
+    expect(p1.soldAt).toEqual([ALPHA]);
   });
 
   it("docks at the pickup for a Deliver card, then turns for the delivery planet", () => {
@@ -342,8 +343,9 @@ describe("bot goals: piracy and tanker", () => {
 
     // ALPHA ring 1 is a berth away from its station: the fastest route burns
     // the tank down to one and pumps nothing, and one turn longer arrives with
-    // seven. A visit does one job, so the reserve rides only on a trip whose
-    // visit may do the fuel job.
+    // seven. A station buys one item, so the reserve rides only on a trip whose
+    // visit may sell the fuel: a repair stop or a pickup, where loading is no
+    // sale.
     const berth = (missions: Mission[], broken: boolean): GameState => {
       const start = makeGameState([
         makePlayer("p1", { wellId: ALPHA, ring: 1, sector: 0 }),
@@ -356,7 +358,7 @@ describe("bot goals: piracy and tanker", () => {
     };
     const fetch = deliverMission(ALPHA, BETA, "fetch-p1");
 
-    it("holds the fuel back on a repair trip, which takes the fuel job", () => {
+    it("holds the fuel back on a repair trip, which sells the fuel", () => {
       const tanking = currentGoal(berth([fetch, tankerMission()], true));
       const plain = currentGoal(berth([fetch], true));
       expect(tanking?.missionId).toBe(REPAIR_GOAL);
@@ -367,10 +369,26 @@ describe("bot goals: piracy and tanker", () => {
       expect(tanking!.plan!.totalTurns).toBeGreaterThan(plain!.plan!.totalTurns);
     });
 
-    it("takes the fast route to a pickup, whose visit does the crates job", () => {
+    it("holds the fuel back on a pickup trip too: loading is no sale", () => {
       const tanking = currentGoal(berth([fetch, tankerMission()], false));
       const plain = currentGoal(berth([fetch], false));
-      expect(tanking).toMatchObject({ missionId: fetch.id, dockJob: "crates" });
+      expect(tanking?.missionId).toBe(fetch.id);
+      expect(tanking?.dockSale).toBeUndefined();
+      expect(MAX_REACTION_MASS - tanking!.plan!.totalMassCost).toBeGreaterThanOrEqual(TANKER_FUEL);
+      expect(MAX_REACTION_MASS - plain!.plan!.totalMassCost).toBeLessThan(TANKER_FUEL);
+    });
+
+    it("takes the fast route to deliver, whose visit sells the crate", () => {
+      const inHand = (missions: Mission[]) => {
+        const state = berth(missions, false);
+        return withPlayer(state, "p1", {
+          cargo: getPlayer(state, "p1").cargo.map((c) => ({ ...c, isPickedUp: true })),
+        });
+      };
+      const bound = deliverMission(BETA, ALPHA, "bound-p1");
+      const tanking = currentGoal(inHand([bound, tankerMission()]));
+      const plain = currentGoal(inHand([bound]));
+      expect(tanking).toMatchObject({ missionId: bound.id, dockSale: bound.cargoId });
       expect(tanking!.plan!.totalTurns).toBe(plain!.plan!.totalTurns);
       expect(tanking!.plan!.totalMassCost).toBe(plain!.plan!.totalMassCost);
     });

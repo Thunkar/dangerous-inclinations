@@ -1,7 +1,7 @@
 /**
  * End-to-end smoke test for the game service: one human and two bots through
  * loadout, deployment and ten turns, then a hand-built board where the human's
- * turns power, fire, scan, repair, name a dock job and mark an Escort, with no
+ * turns power, fire, scan, repair, name a dock sale and mark an Escort, with no
  * Redis and no sockets. Persistence is an in-memory Kv and the transport just
  * records what would have been sent, which is exactly what we want to inspect.
  *
@@ -154,6 +154,7 @@ const PUBLIC_EVENTS: ReadonlyArray<GameEvent["type"]> = [
 let hiddenOpponentSlots = 0;
 let wrecksSeen = 0;
 let escortMarkersSeen = 0;
+let holdItemsSeen = 0;
 let visibleOpponentSlots = 0;
 let ownSlotsSeen = 0;
 
@@ -202,6 +203,15 @@ function inspectHumanMessage(message: ServerGameMessage, index: number): void {
     const keys = Object.keys(player);
     for (const forbidden of ["missions", "missionOffers", "intel", "cargo", "loadout"]) {
       check(!keys.includes(forbidden), `${where}: opponent ${player.id} exposes "${forbidden}"`);
+    }
+    for (const item of player.hold) {
+      holdItemsSeen++;
+      const itemKeys = Object.keys(item).sort().join(",");
+      // An item is its kind and an opaque token: nothing says which card it is for.
+      check(
+        itemKeys === "cargoId,kind" && /^item-\d+$/.test(item.cargoId),
+        `${where}: opponent ${player.id}'s hold item is a kind and an opaque token (${JSON.stringify(item)})`,
+      );
     }
     for (const slot of player.slots) {
       if (slot.type === null) {
@@ -564,13 +574,13 @@ check(
 check(
   accepts([
     { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: false } },
-    { playerId: HUMAN, type: "dock_job", data: { job: "fuel" } },
+    { playerId: HUMAN, type: "dock_sale", data: { sale: "fuel" } },
   ]),
-  "a dock job is accepted beside the turn",
+  "a dock sale is accepted beside the turn",
 );
 check(
-  !accepts([{ playerId: HUMAN, type: "dock_job", data: { job: "repairs" } }]),
-  "a dock job that is not crates, data or fuel is rejected",
+  !accepts([{ playerId: HUMAN, type: "dock_sale", data: { job: "crates" } }]),
+  "a dock sale that names no sale is rejected",
 );
 check(
   accepts([
@@ -586,9 +596,9 @@ check(
 check(
   accepts([
     { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: false } },
-    { playerId: HUMAN, type: "seize", data: { victimId: "bot-1", cargoId: "crate-m0" } },
+    { playerId: HUMAN, type: "seize", data: { victimId: "bot-1", cargoId: "item-0" } },
   ]),
-  "a seizure has a wire shape (the engine refuses it outside the unlimited-hold experiment)",
+  "a seizure is accepted beside the turn",
 );
 check(
   !accepts([{ playerId: HUMAN, type: "seize", data: { victimId: "bot-1" } }]),
@@ -899,7 +909,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
 // Black hole ring 3 past the opening round: Bot Beta shares the human's sector
 // with one hull point left, Bot Alpha waits one coast ahead carrying data, and
 // a wreck already lies on the board. One human turn powers the shields, fires
-// at Bot Beta, coasts onto Bot Alpha, scans it, names a dock job and marks it
+// at Bot Beta, coasts onto Bot Alpha, scans it, names a dock sale and marks it
 // with an Escort; the next repairs a broken subsystem on a cold ship. Every turn goes in as a raw SUBMIT_TURN through
 // the socket's handler, and every message out passes the checks above. The
 // bots coast: the position is what is under test, not their play.
@@ -916,7 +926,8 @@ async function freshGame(archive: RecordingArchive | null = null) {
 
   const here = { wellId: BH, ring: 3, sector: 5 };
   const ahead = { ...here, sector: wrapSector(here.sector + ringVelocity(BH, here.ring)) };
-  const survey = surveyMission("smoke-survey");
+  // Item ids are opaque tokens on the wire, as the deal hands them out.
+  const survey = { ...surveyMission("smoke-survey"), dataCargoId: "item-0" };
   const data: Cargo = {
     id: survey.dataCargoId,
     kind: "data",
@@ -948,7 +959,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
     { type: "fire_weapon", sequence: 2, data: { subsystemId: "side-0", targetPlayerId: BOT_B, criticalTarget: "engines" } },
     { type: "coast", sequence: 3, data: { activateScoop: false } },
     { type: "scan", sequence: 4, data: { targetPlayerId: BOT_A, peekSlot: "forward-0" } },
-    { type: "dock_job", data: { job: "crates" } },
+    { type: "dock_sale", data: { sale: "none" } },
     { type: "escort_mark", data: { carrierId: BOT_A } },
   ] as Array<Omit<PlayerAction, "playerId">>);
 
@@ -957,7 +968,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
 
   const sentBefore = toHuman.length;
   const refused = await submitRaw(cannedGames, CANNED, submitTurnMessage(fullTurn, firstTurn));
-  check(refused === null, `power, fire, scan, dock job and Escort go through the socket (${JSON.stringify(refused)})`);
+  check(refused === null, `power, fire, scan, dock sale and Escort go through the socket (${JSON.stringify(refused)})`);
   const executed = toHuman
     .slice(sentBefore)
     .find((m) => m.type === "TURN_EXECUTED" && m.payload.playerId === HUMAN);
@@ -1014,6 +1025,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
   );
   check(wrecksSeen > 0, "wrecks were inspected on the wire");
   check(escortMarkersSeen > 0, "Escort markers were inspected on the wire");
+  check(holdItemsSeen > 0, "rivals' hold items were inspected on the wire");
 }
 
 // --- A live game saved under older rules is refused -----------------------------
@@ -1104,7 +1116,7 @@ console.log(`\nsmoke: ${toHuman.length} messages to the human`);
 for (const [type, count] of [...messageCounts].sort()) console.log(`  ${type.padEnd(14)} ${count}`);
 console.log(`  opponent slots: ${hiddenOpponentSlots} face-down, ${visibleOpponentSlots} face-up`);
 console.log(`  own slots seen in full: ${ownSlotsSeen}`);
-console.log(`  wrecks seen: ${wrecksSeen}, Escort markers seen: ${escortMarkersSeen}`);
+console.log(`  wrecks seen: ${wrecksSeen}, Escort markers seen: ${escortMarkersSeen}, rival hold items seen: ${holdItemsSeen}`);
 console.log(`  bot turns rejected by the engine: ${games.getBotInvalidTurnCount()}`);
 
 const unique = [...new Set(failures)];

@@ -1,13 +1,12 @@
 /**
- * The bots under the one-sale experiment (`SALE_RULES.oneSalePerStation`): the
- * primary's station is reserved for the primary's item, secondaries sell at
- * stations not sold at and not reserved, and a card with no station left is
- * dropped and logged.
+ * The bots and one sale per station: the primary's station is reserved for
+ * the primary's item, secondaries sell at stations not sold at and not
+ * reserved, and a card with no station left is dropped and logged.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { GameState } from "../../models/game.ts";
 import type { Cargo, Mission } from "../../models/missions.ts";
-import { SALE_RULES } from "../../models/missions.ts";
+import { SELL_NOTHING } from "../../models/missions.ts";
 import { STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { viewFor } from "../../game/view.ts";
@@ -54,14 +53,7 @@ function nearAlpha(missions: Mission[], cargo: Cargo[], soldAt: string[] = []): 
 const goalOf = (state: GameState) =>
   analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).currentGoal;
 
-describe("bots and the one-sale experiment", () => {
-  beforeEach(() => {
-    SALE_RULES.oneSalePerStation = true;
-  });
-  afterEach(() => {
-    SALE_RULES.oneSalePerStation = false;
-  });
-
+describe("bots and one sale per station", () => {
   it.each<[string, Mission, string[], string | null]>([
     // primary, sold at, where the Survey data goes (null: no trip)
     ["no reservation: the nearest station", destroyMission("p2"), [], ALPHA],
@@ -109,8 +101,8 @@ describe("bots and the one-sale experiment", () => {
     expect(goalOf(state)).toMatchObject({ missionId: REPAIR_GOAL_ID, planetId: ALPHA });
 
     const actions = botDecideActions(viewFor(state, "p1")).actions;
-    const named = actions.find((a) => a.type === "dock_job")?.data;
-    expect(named).toEqual(files ? { job: "data", cargoId: SURVEY_DATA.id } : { job: "none" });
+    const named = actions.find((a) => a.type === "dock_sale")?.data;
+    expect(named).toEqual({ sale: files ? SURVEY_DATA.id : SELL_NOTHING });
     const result = executeTurn(state, actions);
     expect(result.errors).toBeUndefined();
     const p1 = getPlayer(result.gameState, "p1");

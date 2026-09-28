@@ -79,12 +79,7 @@ import type { ShipLoadout } from "../models/game.ts";
 import { DEFAULT_POINTS_TO_WIN, type MissionType } from "../models/missions.ts";
 import { BOT_LOADOUT_TEMPLATES, type BotArchetype } from "../ai/behaviors/loadout.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
-import {
-  applyRuleOverrides,
-  describeRuleOverrides,
-  parseRuleOverrides,
-  type RuleOverrides,
-} from "./ruleOverrides.ts";
+import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import {
   applyTileOverrides,
   describeTileOverrides,
@@ -609,7 +604,6 @@ async function main() {
   // In this process too, for anything read off the configs here; the workers
   // that play the games get the same overrides with every job.
   applyTileOverrides(args.tiles);
-  applyRuleOverrides(args.rules);
   applyBotOverrides(args.bot);
   const want = (id: string) => {
     if (!args.only) return true;

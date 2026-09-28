@@ -88,10 +88,10 @@ export interface GameUnfolding {
   wrecksSalvaged: number;
   /** Piracy seizures, by what was taken. */
   seizuresByKind: Record<CargoKind, number>;
-  /** Dock visits that did a job. */
-  dockVisitsWithJob: number;
-  /** Of those, the visits where the player named the job instead of leaving the default. */
-  dockJobsNamed: number;
+  /** Dock visits that made a sale. */
+  dockSales: number;
+  /** Of those, the visits where the player named the sale instead of leaving the default. */
+  dockSalesNamed: number;
   /** Tanker fuel pumped into a station. */
   fuelPumps: number;
 }
@@ -292,12 +292,12 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
   let wrecksLeft = 0;
   let wrecksSalvaged = 0;
   const seizuresByKind: Record<CargoKind, number> = { crate: 0, data: 0 };
-  let dockVisitsWithJob = 0;
-  let dockJobsNamed = 0;
+  let dockSales = 0;
+  let dockSalesNamed = 0;
   let fuelPumps = 0;
 
   for (const turn of run.turns) {
-    const named = turn.actions.some((a) => a.type === "dock_job" && a.playerId === turn.playerId);
+    const named = turn.actions.some((a) => a.type === "dock_sale" && a.playerId === turn.playerId);
     for (const e of turn.events) {
       switch (e.type) {
         case "mission_completed": {
@@ -334,9 +334,9 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
           fuelPumps++;
           break;
         case "docked":
-          if (e.job !== null) {
-            dockVisitsWithJob++;
-            if (named && e.playerId === turn.playerId) dockJobsNamed++;
+          if (e.sold !== null) {
+            dockSales++;
+            if (named && e.playerId === turn.playerId) dockSalesNamed++;
           }
           break;
         default:
@@ -357,8 +357,8 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
     wrecksLeft,
     wrecksSalvaged,
     seizuresByKind,
-    dockVisitsWithJob,
-    dockJobsNamed,
+    dockSales,
+    dockSalesNamed,
     fuelPumps,
   };
 }
@@ -446,9 +446,9 @@ export interface UnfoldingAggregate {
   /** Wrecks salvaged over wrecks left. */
   salvagedShare: number;
   seizuresPerGame: Record<CargoKind, number>;
-  dockVisitsWithJobPerGame: number;
-  /** Visits that did a job where the player named it, over all visits that did one. */
-  dockJobsNamedShare: number;
+  dockSalesPerGame: number;
+  /** Sales the player named, over all sales. */
+  dockSalesNamedShare: number;
   fuelPumpsPerGame: number;
 }
 
@@ -606,7 +606,7 @@ function aggregateUnfolding(games: PerGameStats[]): UnfoldingAggregate {
   const pastRound10 = games.filter((g) => g.winnerId !== undefined && g.rounds > LEAD_CHECK_ROUND);
   const fromBehind = pastRound10.filter((g) => g.unfolding.leaderAtRound10 !== g.winnerId);
   const wrecks = sum((u) => u.wrecksLeft);
-  const visits = sum((u) => u.dockVisitsWithJob);
+  const sales = sum((u) => u.dockSales);
 
   return {
     leadChangesPerGame: perGame(sum((u) => u.leadChanges)),
@@ -628,10 +628,10 @@ function aggregateUnfolding(games: PerGameStats[]): UnfoldingAggregate {
       crate: perGame(sum((u) => u.seizuresByKind.crate)),
       data: perGame(sum((u) => u.seizuresByKind.data)),
     },
-    dockVisitsWithJobPerGame: perGame(visits),
-    dockJobsNamedShare: ratio(
-      sum((u) => u.dockJobsNamed),
-      visits
+    dockSalesPerGame: perGame(sales),
+    dockSalesNamedShare: ratio(
+      sum((u) => u.dockSalesNamed),
+      sales
     ),
     fuelPumpsPerGame: perGame(sum((u) => u.fuelPumps)),
   };

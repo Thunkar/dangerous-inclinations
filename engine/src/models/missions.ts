@@ -95,56 +95,16 @@ export function missionPoints(type: MissionType): number {
 }
 
 /**
- * Crates a hold takes. One: a crate is the size of the hold, so a second
- * route waits until the first is delivered, and two cards that load at the
- * same station are two trips rather than one.
+ * What a station buys (RULES §Stations): one item from each player, once per
+ * game. A sale is one item handed in (a Deliver crate at its destination, a
+ * piece of data filed, loot sold) or a Tanker's fuel pumped; after it, that
+ * station buys nothing more from that player. Loading a crate is not a sale.
  *
- * Data rides free (a scan's transmission and a survey's readings are
- * numbers, not freight), so an Intercept or a Survey can always be carried
- * alongside whatever is in the hold.
+ * A `dock_sale` action names the sale: the item's cargo id, {@link SELL_FUEL}
+ * for the Tanker's pump, or {@link SELL_NOTHING}.
  */
-export const CARGO_HOLD_CRATES = 1;
-/**
- * A visit to a station does one job (RULES §Stations): your crates (unload
- * what is bound here, then load what waits here), your data (file all of it)
- * or your fuel (a Tanker pumps its load). In this order, which is also the
- * order a tie goes to when the player names none.
- */
-export const DOCK_JOBS = ["crates", "data", "fuel"] as const;
-export type DockJob = (typeof DOCK_JOBS)[number];
-
-/**
- * Experiment only: "a station buys one item from you, once". Off, a visit does
- * one job as RULES.md says. On, each player makes one sale at each station per
- * game, a sale is one item (a crate delivered, one piece of data filed, loot
- * sold or a Tanker's fuel pumped), and loading a crate is not a sale. Set by
- * the simulator's `--rules=oneSalePerStation=1` (sim/ruleOverrides.ts); the
- * server and the UI never touch it.
- */
-export const SALE_RULES: { oneSalePerStation: boolean } = { oneSalePerStation: false };
-
-/**
- * Experiment only: "your hold has no limit, and the pirate picks the item".
- * Off, the hold takes {@link CARGO_HOLD_CRATES} crate, loot fills it and a
- * seizure is automatic (a crate first, the pirate's hold empty). On, crates,
- * loot and data all ride together, and a pirate takes one item of its choice
- * per undone Piracy card, named with the turn as a `seize` action. Set by the
- * simulator's `--rules=unlimitedHold=1` (sim/ruleOverrides.ts); the server and
- * the UI never touch it.
- */
-export const HOLD_RULES: { unlimited: boolean } = { unlimited: false };
-
-/** Crates the hold has room for beside `crates` already aboard. */
-export function holdRoom(crates: number): number {
-  return HOLD_RULES.unlimited ? Infinity : CARGO_HOLD_CRATES - crates;
-}
-
-/**
- * What a `dock_job` action may name: a job, or, under the one-sale experiment
- * only, "none" for a visit that sells nothing (the crate waiting there still
- * loads).
- */
-export type DockChoice = DockJob | "none";
+export const SELL_FUEL = "fuel";
+export const SELL_NOTHING = "none";
 
 /** Scan range for the scan action (same ring, ±sectors). */
 export const SCAN_SECTOR_RANGE = 3;
@@ -295,24 +255,23 @@ export interface SurveyMission extends BaseMission {
 }
 
 /**
- * Piracy: end a turn in the same sector as a ship carrying a crate or data
- * and the loot is yours; sell it at any station.
+ * Piracy: end a turn, not moored, on an undocked ship carrying cargo and you
+ * may take one item of your choice from it (a `seize` action); sell it at any
+ * station.
  *
- * The only secondary card that uses the hold, and the only one somebody else
- * pays for. A pirate needs room ({@link CARGO_HOLD_CRATES} is one, so a
- * pirate already carrying a crate takes nothing), and neither ship may be
- * moored: a berth is not a place cargo changes hands. A crate first when the
- * mark carries both, and what the victim loses goes back to undone: a Deliver
- * reloads at its station, a Survey dives again, an Intercept scans again.
+ * The only secondary card somebody else pays for. Neither ship may be moored:
+ * a berth is not a place cargo changes hands. What the victim loses goes back
+ * to undone: a Deliver reloads at its station, a Survey dives again, an
+ * Intercept scans again.
  *
- * The loot rides as {@link cargoId} whatever was taken (a crate to everyone
- * watching, delivered at *any* station), and the card is done when it is sold.
- * Destroyed with it aboard, the loot goes over the side, and a crate on a
- * pirate is a crate another pirate can take.
+ * The loot rides as {@link cargoId} whatever was taken (loot to everyone
+ * watching, sold at *any* station), and the card is done when it is sold.
+ * Destroyed with it aboard, the loot goes over the side, and loot on a pirate
+ * is loot another pirate can take.
  */
 export interface PiracyMission extends BaseMission {
   type: "piracy";
-  /** Id the seized crate takes aboard the pirate. */
+  /** Id the loot takes aboard the pirate. */
   cargoId: string;
 }
 
@@ -320,9 +279,9 @@ export interface PiracyMission extends BaseMission {
  * Tanker: arrive at a station with {@link TANKER_FUEL} or more in the tank and
  * pump it in; the card is done.
  *
- * Nothing is carried: a full tank is the whole cost, and the card is paid on
- * a visit whose one job is the fuel ({@link DockJob}). It competes with the
- * hold for the visit, not for space, and with every burn for everything.
+ * Nothing is carried: a full tank is the whole cost, and the pump is the
+ * station's one sale to this player ({@link SELL_FUEL}). It competes with the
+ * hold for the station, not for space, and with every burn for everything.
  */
 export interface TankerMission extends BaseMission {
   type: "tanker";
@@ -346,10 +305,9 @@ export interface EscortMission extends BaseMission {
 
 /**
  * Salvage: end a turn on a wreck's sector holding an undone Salvage: take its
- * black box. It is data: it rides free beside whatever is in the hold, and a
- * pirate can seize it. File it at any station (the data job) and the card is
- * done. One wreck a turn. Rides as {@link cargoId}, data filed at "any"
- * station.
+ * black box. It is data, and a pirate can seize it. File it at any station
+ * and the card is done. One wreck a turn. Rides as {@link cargoId}, data
+ * filed at "any" station.
  */
 export interface SalvageMission extends BaseMission {
   type: "salvage";
@@ -372,16 +330,21 @@ export type CargoKind = "crate" | "data";
 /**
  * Something a ship carries.
  * - crate: a Deliver mission's, picked up at its origin station; or Piracy's
- *   loot, which fills the hold and sells at any station.
+ *   loot, which sells at any station.
  * - data: an Intercept's scan (filed at the card's station), a Survey's
  *   readings or Salvage's black box (filed at any station).
  * Destroyed ships drop everything: a Deliver crate goes back to its origin,
- * everything else is lost.
+ * everything else is lost. The hold has no limit.
+ *
+ * The id is an opaque token dealt with the card (`dealMissionOffers`,
+ * game/missions/missionDeck.ts): the table sees an item's id and its kind,
+ * never the card behind it, so two pieces of data aboard a rival do not say
+ * which is an Intercept's.
  */
 export interface Cargo {
   id: string;
   kind: CargoKind;
-  /** Mission this item belongs to. */
+  /** Mission this item belongs to. Private: never in a rival's view. */
   missionId: string;
   /** Planet whose station it is collected at; absent for a seized crate. */
   pickupPlanetId?: string;
@@ -418,10 +381,8 @@ export function holdItemKind(item: Cargo): HoldItemKind {
   return item.pickupPlanetId === undefined ? "loot" : "crate";
 }
 
-/** Whether a crate is in the hold (the hold takes {@link CARGO_HOLD_CRATES}). */
-export function crateAboard(cargo: readonly Cargo[]): boolean {
-  return cargo.some((c) => c.kind === "crate" && c.isPickedUp);
-}
+/** What a sale hands in: an item from the hold, or a Tanker's fuel. */
+export type SaleKind = HoldItemKind | "fuel";
 
 export function missionTargetsPlayer(
   mission: Mission

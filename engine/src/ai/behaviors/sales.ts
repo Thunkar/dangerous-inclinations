@@ -1,7 +1,7 @@
 /**
- * The one-sale experiment as the bots play it (`SALE_RULES.oneSalePerStation`):
- * a station buys one item from each player, once, so which station takes
- * which card's item is a plan, not an accident.
+ * One sale per station as the bots play it (RULES §Stations): a station buys
+ * one item from each player, once, so which station takes which card's item
+ * is a plan, not an accident.
  *
  * A station is **reserved** while this seat's undone primary still needs a
  * sale there: a Deliver's delivery planet and an Intercept's filing planet.
@@ -9,13 +9,11 @@
  * (Survey data, a Salvage box, Piracy loot, a Tanker's fuel) sells only at a
  * station the seat has not sold at and has not reserved; with none, the card
  * waits, and with every station sold at, the card is dead.
- *
- * Nothing here is read while the experiment is off.
  */
 import type { Player } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
 import { PLANETS } from "../../models/gravityWells.ts";
-import type { DockJobs } from "../../game/docking.ts";
+import type { SaleOffer, SaleOption } from "../../game/docking.ts";
 
 type Seller = Pick<Player, "missions" | "cargo" | "soldAt">;
 
@@ -36,18 +34,11 @@ export function saleAllowedAt(me: Seller, planetId: string, missionId: string): 
   return !reserved || reserved.planetId !== planetId || reserved.missionId === missionId;
 }
 
-/** The card a sale on offer pays: its item's card, or the first undone Tanker for fuel. */
-export function saleMissionId(me: Seller, option: DockJobs["jobs"][number]): string | undefined {
-  if (option.cargoId) return me.cargo.find((c) => c.id === option.cargoId)?.missionId;
-  return me.missions.find((m) => m.type === "tanker" && !m.isCompleted)?.id;
-}
-
 /** The sales on offer this seat may make here, in the offer's order. */
-export function allowedSales(me: Seller, planetId: string, offer: DockJobs): DockJobs["jobs"] {
-  return offer.jobs.filter((o) => {
-    const missionId = saleMissionId(me, o);
-    return missionId !== undefined && saleAllowedAt(me, planetId, missionId);
-  });
+export function allowedSales(me: Seller, planetId: string, offer: SaleOffer): SaleOption[] {
+  return offer.options.filter(
+    (o) => o.missionId !== undefined && saleAllowedAt(me, planetId, o.missionId)
+  );
 }
 
 /**

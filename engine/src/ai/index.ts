@@ -13,7 +13,6 @@
 import type { PlayerAction, ShipLoadout } from "../models/game.ts";
 import { MAX_HEAT } from "../models/game.ts";
 import type { Mission, MissionType } from "../models/missions.ts";
-import { SALE_RULES } from "../models/missions.ts";
 import { saleBlocked } from "./behaviors/sales.ts";
 import type { GameView } from "../game/view.ts";
 import { missionsMissingRequirements } from "../game/loadout.ts";
@@ -143,8 +142,8 @@ function summarizeAction(action: PlayerAction): string {
     }
     case "repair":
       return `Repair ${action.data.subsystemId} if cold`;
-    case "dock_job":
-      return `At the dock: ${action.data.job}`;
+    case "dock_sale":
+      return `At the dock: sell ${action.data.sale}`;
     case "escort_mark":
       return `Escort marker on ${action.data.carrierId}`;
     case "seize":
@@ -186,14 +185,12 @@ function buildDecisionLog(
   if (best.denialValue > 0) reasoning.push(`Denial value ${best.denialValue.toFixed(1)}`);
   if (best.heatDamage > 0) reasoning.push(`Accepting ${best.heatDamage} heat damage`);
   if (status.hull <= 5) reasoning.push(`Hull low (${status.hull}/${status.maxHull})`);
-  // One-sale experiment: a card no station will buy for is dropped, and says so.
-  if (SALE_RULES.oneSalePerStation) {
-    for (const m of situation.me.missions) {
-      const blocked = saleBlocked(situation.me, m);
-      if (blocked === "dead") reasoning.push(`Card dead: ${m.type}, no station left to sell at`);
-      if (blocked === "waiting")
-        reasoning.push(`Card waiting: ${m.type}, the stations left are kept for the primary`);
-    }
+  // A card no station will buy for is dropped, and says so.
+  for (const m of situation.me.missions) {
+    const blocked = saleBlocked(situation.me, m);
+    if (blocked === "dead") reasoning.push(`Card dead: ${m.type}, no station left to sell at`);
+    if (blocked === "waiting")
+      reasoning.push(`Card waiting: ${m.type}, the stations left are kept for the primary`);
   }
 
   return {
