@@ -280,16 +280,17 @@ export interface RepairAction extends BaseAction {
 }
 
 /**
- * A standing order for the turn, like a repair: what the station buys if the
- * turn ends by arriving at one (RULES §Stations). No sequence, because
- * docking happens after every action. A sale the visit cannot make is not
+ * A standing order for the turn, like a repair: what the visit does if the
+ * turn ends by arriving at a station (RULES §Stations). No sequence, because
+ * docking happens after every action. A choice the visit cannot make is not
  * refused: the visit makes the default instead (`salesOnArrival`).
  */
 export interface DockSaleAction extends BaseAction {
   type: "dock_sale";
   /**
-   * The item sold, by its cargo id; `SELL_FUEL` for a Tanker's pump; or
-   * `SELL_NOTHING` to sell nothing and keep the station for later.
+   * The item sold, by its cargo id; `SELL_FUEL` for a Tanker's pump;
+   * `LOAD_CRATES` to load the crates waiting instead of selling; or
+   * `SELL_NOTHING` to do nothing and keep the station for later.
    */
   data: { sale: string };
 }

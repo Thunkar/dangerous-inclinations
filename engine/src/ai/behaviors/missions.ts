@@ -621,7 +621,22 @@ export function computeGoals(
         // visit may make when it has nothing else to do (a repair stop), so
         // the reserve rides on those trips (`attachPlanToGoal`); a visit that
         // loads or sells an item does that instead.
-        if (primaryOutstanding(me)) break;
+        if (primaryOutstanding(me)) {
+          // No trip of its own, but a station in the well the ship is
+          // already in, with the fuel aboard, is on the way.
+          if (!isPlanet(from.wellId) || status.reactionMass < TANKER_FUEL) break;
+          const goal = dockGoal(
+            view,
+            seat,
+            mission.id,
+            from.wellId,
+            `Pump the fuel in at ${from.wellId}`,
+            0,
+            SELL_FUEL
+          );
+          if (goal) goals.push(goal);
+          break;
+        }
         // The fuel is pumped on arrival, so the tank has to still hold it
         // when the ship gets there: below that, the trip is to the fast rings
         // and the scoop (the planner takes the fuel out of a coast).

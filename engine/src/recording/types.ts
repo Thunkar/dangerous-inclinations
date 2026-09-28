@@ -19,8 +19,10 @@ import type { GameEvent } from "../models/events.ts";
  *     became `dock_sale` naming the item sold, `docked.job` became
  *     `docked.sold`, the `seize` action, `PlayerView.hold`, and cargo ids are
  *     opaque `item-<n>` tokens.
+ * v9: a visit does one thing: `dock_sale` may name `"load"`, crates load only
+ *     on a visit that loads, and Tanker hands in 5 fuel.
  */
-export const RECORDING_SCHEMA_VERSION = 8;
+export const RECORDING_SCHEMA_VERSION = 9;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

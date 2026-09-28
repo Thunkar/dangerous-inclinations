@@ -106,14 +106,16 @@ turns is what its owner used or powered last turn. A `power` emits the public
 `subsystem_powered` event, which names the subsystem's type only if it is already
 face-up: powering reveals nothing. Beside them a turn may carry one `repair`
 (`{ subsystemId }`, no sequence): the subsystem a cold ship fixes if its heat is 0
-at the check, and one `dock_sale` (`{ sale }`, no sequence): what the station
-buys if the turn arrives at one. `sale` is an item's cargo id, `"fuel"` for a
-Tanker's pump (`SELL_FUEL`) or `"none"` to sell nothing (`SELL_NOTHING`). A
-station buys one item from each player, once per game; loading a crate is not
-a sale and happens on every visit. A sale the visit cannot make is not
-refused; without a `dock_sale`, or with one the visit cannot make, the visit
-sells what completes the most mission points, ties going to crates (loot
-included), then data, then fuel. The engine's `salesOnArrival` gives the
+at the check, and one `dock_sale` (`{ sale }`, no sequence): what the visit
+does if the turn arrives at a station. A visit does one thing: `sale` is an
+item's cargo id, `"fuel"` for a Tanker's pump (`SELL_FUEL`), `"load"` to load
+the crates waiting there (`LOAD_CRATES`) or `"none"` to do nothing
+(`SELL_NOTHING`). A station buys one item from each player, once per game;
+loading is not a sale, so a station sold at still loads. A choice the visit
+cannot make is not refused; without a `dock_sale`, or with one the visit
+cannot make, the visit sells what completes the most mission points, ties
+going to crates (loot included), then data, then fuel, and with nothing to
+sell it loads. The engine's `salesOnArrival` gives the
 sales on offer (each with its `sale`, `kind`, `missionId` and `points`), the
 default, whether the station has bought from this player already
 (`soldHere`) and the crates that load (`loads`). The public `docked` event

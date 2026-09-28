@@ -71,7 +71,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Docking',
-      'on arrival only: full hull, repair all, reload missiles, load every crate waiting for you, and sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose; by default the sale worth the most points. You stay moored until you burn away',
+      'on arrival only: full hull, repair all, reload missiles, and one thing: load the crates waiting for you, or sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose; by default the sale worth the most points, else the load. You stay moored until you burn away',
     ],
     [
       'Berth',

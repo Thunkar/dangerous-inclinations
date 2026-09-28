@@ -8,7 +8,7 @@
  */
 import type { BurnIntensity, Facing, GravityWellId, Player, PlayerAction } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { SELL_FUEL, SELL_NOTHING } from "../models/missions.ts";
+import { LOAD_CRATES, SELL_FUEL, SELL_NOTHING } from "../models/missions.ts";
 import { getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
 import type { GameView } from "../game/view.ts";
 import { powerActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
@@ -274,10 +274,13 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   if (intent.sell !== undefined) {
     const sale = intent.sell;
     const known =
-      sale === SELL_FUEL || sale === SELL_NOTHING || me.cargo.some((c) => c.id === sale);
+      sale === SELL_FUEL ||
+      sale === SELL_NOTHING ||
+      sale === LOAD_CRATES ||
+      me.cargo.some((c) => c.id === sale);
     if (!known)
       notes.push(
-        `${String(sale)} is not an item in your hold, "${SELL_FUEL}" or "${SELL_NOTHING}"; sale dropped`
+        `${String(sale)} is not an item in your hold, "${SELL_FUEL}", "${LOAD_CRATES}" or "${SELL_NOTHING}"; sale dropped`
       );
     else actions.push({ type: "dock_sale", playerId: me.id, data: { sale } });
   }

@@ -58,7 +58,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 **A dock is a visit, not a state.** Everything docking gives you (cargo, repairs, full hull, missiles) happens the turn you **arrive**. Holding the berth afterwards is worth the ride the station gives you and whatever your scoop skims, and nothing else. Come back for more and it is a trip.
 
-**Each station buys one item from you, once per game.** A sale is one item: a Deliver crate unloaded at its destination, one piece of data filed (Intercept, Survey or a Salvage black box), one loot item sold (Piracy), or a Tanker's fuel pumped in. When you sell, put one of your sale markers on the station: it buys nothing more from you for the rest of the game. If more than one sale is on offer you choose, and you may sell nothing to keep the station for later. Loading a crate is free, and so are the repairs, the hull and the reload: every visit gives you those, marker or not.
+**A visit does one thing: load your crates or sell one item. Each station buys from you once per game.** A sale is one item: a Deliver crate unloaded at its destination, one piece of data filed (Intercept, Survey or a Salvage black box), one loot item sold (Piracy), or a Tanker's fuel pumped in. When you sell, put one of your sale markers on the station: it buys nothing more from you for the rest of the game. Loading is not a sale, so a station you have sold at still loads your crates. You choose what the visit does, or do nothing and keep the station for later. The repairs, the hull and the reload come with every visit.
 
 ---
 
@@ -85,7 +85,7 @@ Otherwise:
    - **Fire.** Any number of weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan.** With a sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
-4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: broken subsystems are repaired, hull is restored to full and missiles reloaded, every crate waiting there for you loads, and the station buys **one item** from you if you have not sold there before (see Stations): a crate, a piece of data, loot or a Tanker's fuel. You choose, or sell nothing. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival.
+4. **Docking.** If you **arrived** on a station's sector this turn, you are docked: broken subsystems are repaired, hull is restored to full and missiles reloaded, and you do **one thing** (see Stations): load the crates waiting there for you, or sell one item (a crate, a piece of data, loot or a Tanker's fuel) if the station has not bought from you before. You choose, or do nothing. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival.
 5. **Heat check.** Every energy cube on your loadout is 1 heat. **If your heat is now 0**, repair one broken subsystem of your choice. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn.
 6. **Missions.** Check your cards: take a wreck's black box; seize an item or put down an Escort marker if you choose to; completed cards are turned face-up. Pass play.
 
@@ -242,7 +242,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 | **Intercept [Nth to your left] → file at [planet]** | 2      | you scan them (take their data), then dock at **that planet's** station                                                                                                                                           |
 | **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1, take the data, then dock at **any** station to file it                                                                                                                       |
 | **Piracy**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked ship carrying cargo: you may take **one item of your choice** from it, then dock at **any** station to sell it. Their card goes back to undone |
-| **Tanker**                                          | 1      | you **arrive** at **any** station with **6 or more fuel**: hand in 6, and the card is done. Pumping is that station's one sale to you (see Stations) |
+| **Tanker**                                          | 1      | you **arrive** at **any** station with **5 or more fuel**: hand in 5, and the card is done. Pumping is that station's one sale to you (see Stations) |
 | **Escort**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked rival carrying a crate or data, and **choose** to put your marker on that ship, face-up. A ship carries one Escort marker. The next time that ship delivers, sells or files anything, or pumps fuel, at a station, the card is done. If it is destroyed first, the marker comes back to you |
 | **Salvage**                                         | 1      | you end a turn on a **wreck** (moored or not) and take its black box, one wreck a turn: it is data, and a pirate can seize it. File it at **any** station |
 
@@ -303,7 +303,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | First round      | no weapon fires and nobody scans                                                                                                                                  |
 | Respawn          | your missiles in flight are removed. Next turn: back at Home, full hull and tank, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody |
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                             |
-| Docking          | on arrival only: full hull, repair all, reload missiles, load your crates, and sell one item; you stay moored until you burn away                                               |
+| Docking          | on arrival only: full hull, repair all, reload missiles, and one thing: load your crates or sell one item; you stay moored until you burn away                                  |
 | Sales            | each station buys one item from you (a crate, data, loot or Tanker fuel), once per game; a sale marker shows it                                                   |
 | Berth            | a moored ship neither fires nor is fired at, missiles included; scans still reach it                                                                              |
 | Wrecks           | left where a ship dies, drift with the stations; a Salvage takes the black box (data)                                                                             |
@@ -322,7 +322,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 2. Clear your loadout: every energy cube back to the supply.
 3. Actions in your order: power (shields, racks, sensors) · rotate · move (coast / burn / jump) · fire · scan. Each subsystem does one thing.
 4. Your missiles move.
-5. Just arrived at a station? Repair, full hull, reload, load your crates, and sell one item if it has not bought from you before. Moored until you burn away.
+5. Just arrived at a station? Repair, full hull, reload, and one thing: load your crates, or sell one item if it has not bought from you before. Moored until you burn away.
 6. Heat check: every energy cube on your loadout is 1 heat; at 0 heat repair one subsystem; over 10 is hull damage; dissipate and carry the rest.
 7. Missions: black box; an item seized or an Escort marker if you choose. Flip completed missions. Pass.
 8. Once a round, after the last player: every station moves 4 sectors, with whoever is moored; every wreck drifts with its ring.

@@ -616,12 +616,13 @@ export function criticalFrom(
 }
 
 /**
- * A station buys one item from each player, once (RULES §Stations). Docking
- * happens on arrival only, so a ship that began the turn moored is holding its
- * berth, not visiting. Stations do not move during a turn, so where they are
- * now is where the plan meets them. Offered when there is something to sell
- * (even one item: selling nothing keeps the station for later) or when the
- * station has bought from this player already, so the table can say so.
+ * A visit does one thing, load the crates waiting or sell one item, and a
+ * station buys from each player once (RULES §Stations). Docking happens on
+ * arrival only, so a ship that began the turn moored is holding its berth,
+ * not visiting. Stations do not move during a turn, so where they are now is
+ * where the plan meets them. Offered when there is something to do (doing
+ * nothing keeps the station for later) or when the station has bought from
+ * this player already, so the table can say so.
  */
 export function dockOfferFor(
   view: GameView,

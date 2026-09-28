@@ -14,6 +14,7 @@ import type {
 } from "../../models/missions.ts";
 import {
   LOAD_CRATES,
+  SELL_FUEL,
   SURVEY_RING,
   TANKER_FUEL,
   dataAboard,
@@ -337,10 +338,9 @@ describe("bot goals: piracy and tanker", () => {
     expect(goalFor(state, card.id)).toMatchObject({ type });
   });
 
-  // The pumping happens on any arrival with the fuel aboard, so while the
-  // two-point card somebody else set the seat is still open the Tanker is not a
-  // destination at all: it is the fuel held back on the trips the seat is
-  // already making.
+  // While the two-point card somebody else set the seat is still open the
+  // Tanker makes no trip of its own: it is the fuel held back on the trips the
+  // seat is already making, and a station in the well the ship is already in.
   describe("the tanker waits for the primary", () => {
     it.each([
       ["a tank that could not pump", 3],
@@ -369,11 +369,12 @@ describe("bot goals: piracy and tanker", () => {
     };
     const fetch = deliverMission(ALPHA, BETA, "fetch-p1");
 
-    it("holds the fuel back on a repair trip, which sells the fuel", () => {
+    it("pumps in the well it is in, with the primary open, and repairs on the same visit", () => {
       const hunt = destroyMission("p2");
-      const tanking = currentGoal(berth([hunt, tankerMission()], true));
+      const card = tankerMission();
+      const tanking = currentGoal(berth([hunt, card], true));
       const plain = currentGoal(berth([hunt], true));
-      expect(tanking?.missionId).toBe(REPAIR_GOAL);
+      expect(tanking).toMatchObject({ missionId: card.id, dockSale: SELL_FUEL, repairs: true });
       expect(plain?.missionId).toBe(REPAIR_GOAL);
       // The fuel still aboard when it makes port, which is what pumps.
       expect(MAX_REACTION_MASS - tanking!.plan!.totalMassCost).toBeGreaterThanOrEqual(TANKER_FUEL);

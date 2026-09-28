@@ -36,8 +36,8 @@ export const TURN = {
     docking: {
       title: 'Docking',
       blurb:
-        'Arrived on a station? Repair everything, full hull, reload, load your crates, and sell one item. Each station buys from you once.',
-      terse: 'Arrived? Repair, rearm, sell one',
+        'Arrived on a station? Repair everything, full hull, reload, and one thing: load your crates or sell one item. Each station buys from you once.',
+      terse: 'Arrived? Repair, rearm, load or sell',
     },
     heatCheck: {
       title: 'Heat check',

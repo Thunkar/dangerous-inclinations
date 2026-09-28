@@ -68,15 +68,16 @@ worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, pirac
 (end a turn on an undocked rival carrying cargo and take one item of your
 choice, named with a `seize`; loot that sells anywhere, their card back to
 undone), tanker (arrive at a station
-with six fuel and pump it in), escort (you may put your marker, face-up, on
+with five fuel and pump it in), escort (you may put your marker, face-up, on
 an undocked rival carrying cargo in your sector; it pays when that ship next
 delivers or pumps fuel, and comes back if it dies) and salvage (a destroyed ship leaves a
 wreck that drifts with the stations; end a turn on it and take its black box,
-data filed anywhere)). Each station buys one item from each player, once
-per game: a Deliver crate, one piece of data, one loot item or a Tanker's
-fuel (`dock_sale` names it, or "none"; the default is the sale that scores
-most; the bots keep the primary's station for the primary). Loading a crate
-is free and the hold has no limit. Which stations a player has sold at is
+data filed anywhere)). A visit does one thing: load the crates waiting
+there, or sell one item; and each station buys from each player once per
+game: a Deliver crate, one piece of data, one loot item or a Tanker's fuel
+(`dock_sale` names it, "load" or "none"; the default is the sale that scores
+most, else the load; the bots keep the primary's station for the primary).
+Loading is not a sale and the hold has no limit. Which stations a player has sold at is
 public (`PlayerView.soldAt`), and so is each item aboard by kind and an opaque
 `item-<n>` token (`PlayerView.hold`), never by the card behind it. Deliver
 routes run only round the circuit (Alpha → Gamma → Beta → Alpha, the short
@@ -672,10 +673,32 @@ not an argument:
   (one seizure per turn end, or two pirates trade the loot for ever) and buys
   nothing; the designer kept the simpler rule.
 
+- **One action a visit, Tanker at 5.** Adopted 28 Sept 2026 as one
+  package: a visit does one thing, load the crates waiting or sell one item
+  (loading spends no station); Tanker hands in 5 fuel, not 7; and a bot
+  holding a Tanker with its primary open pumps at the station of the well it
+  is already in. Tanker at 7 was the hardest card at the table and for the
+  bots (14 completed per 100 kept): a jump costs 3 fuel and the descent to
+  the station 2, so from a full tank nobody arrived with 7 and every Tanker
+  refilled inside the planet's well. Tanker at 6 on its own took the card to
+  23 but through a shortcut: loading was free, so the Deliver hauler pumped
+  at its crate pickup (67% of all pumps), Deliver + Tanker hands won 47%
+  and the dealt Deliver bar rose 37 → 43% at 1000 games. One action a visit
+  closes that (those hands 24%) and on its own takes Tanker back to 13.
+  Measured, one action a visit, benchmark 120 games a seat count and
+  balance 1000 a row: Tanker at 6 13, at 5 19, at 6 with the bot fix 17, at
+  5 with it 23 (Survey 27, Escort 29, Piracy 22, Salvage 14); dealt Destroy /
+  Deliver / Intercept 42 / 35 / 33% (against 37 / 37 / 31 at 7 before the
+  package); rounds 28 / 27 / 27 / 29. At 5 a hull that jumps with a full
+  tank arrives with 5 (a compressor with 7), so the card needs no refill in
+  the well. The cost: hands holding a Tanker win more than hands without one
+  whatever the primary (Deliver 33 / 22%, Destroy 31 / 25%, Intercept 17 /
+  14%), and Salvage is the weakest secondary.
+
 - **One sale per station, no hold limit.** Adopted 28 Sept 2026 as one
   package: each station buys one item from each player, once per game (a
   Deliver crate, one piece of data, one loot item or a Tanker's fuel), loading
-  a crate is free, the hold has no limit, and a pirate takes one item of its
+  a crate is free (until the next entry made loading the visit's one action), the hold has no limit, and a pirate takes one item of its
   choice. It replaces a visit doing one job, the one-crate hold, loot filling
   the hold and the automatic crate-first seizure. Measured against the rules
   it replaced on the same seeds (benchmark 240 games a seat count, balance
@@ -719,10 +742,9 @@ not an argument:
 
 Known open problems:
 
-- **Deliver moved most under the simpler cargo rules; Destroy still leads.** Under one sale per station and no
-  hold limit (settled above) dealt Deliver rose 29 → 37% and the card is kept
-  by a third of seats, the biggest move of the package; dealt Destroy reads
-  40% and Intercept 29% against a 33% share. No lever measured yet.
+- **Destroy leads the dealt primaries.** After one action a visit and
+  Tanker at 5 (settled above), at 1000 games a row: dealt Destroy 42%,
+  Deliver 35%, Intercept 33% against a 33% share. No lever measured yet.
 
 - **The primary you are dealt still moves a seat, by about six points.**
   After the 27 Sept cleanup, whose bot fixes (dock jobs named, criticals

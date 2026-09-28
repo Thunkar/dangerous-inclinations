@@ -344,12 +344,12 @@ function RepairControl() {
   )
 }
 
-/** What a sale on offer is, in the words of the card it pays. */
-function saleLabel(option: SaleOption, missions: readonly Mission[]): string {
+/** What an option on offer is: the load, or a sale in the words of the card it pays. */
+function saleLabel(option: SaleOption, missions: readonly Mission[], loads: number): string {
   const mission = missions.find(m => m.id === option.missionId)
   switch (option.kind) {
     case 'load':
-      return 'Load crates'
+      return `Load ${loads} crate${loads === 1 ? '' : 's'}`
     case 'fuel':
       return 'Tanker fuel'
     case 'loot':
@@ -368,11 +368,12 @@ function saleLabel(option: SaleOption, missions: readonly Mission[]): string {
 }
 
 /**
- * What the station buys (RULES §Stations): one item from you, once per game.
- * It appears when the turn as built arrives at a station; the sales, their
- * points and the default come from the engine, and the default is lit until
- * another is picked. Selling nothing keeps the station for later. A station
- * that has bought from you already says so.
+ * What the visit does (RULES §Stations): load your crates or sell one item,
+ * and each station buys from you once per game. It appears when the turn as
+ * built arrives at a station; the options, their points and the default come
+ * from the engine, and the default is lit until another is picked. Doing
+ * nothing keeps the station for later. A station that has bought from you
+ * already says so.
  */
 function DockSaleControl() {
   const plan = usePlan()
@@ -380,8 +381,6 @@ function DockSaleControl() {
   const offer = plan.dockOffer
   if (!offer) return null
   const station = getWellName(offer.planetId)
-  const loads =
-    offer.loads > 0 ? `${offer.loads} crate${offer.loads === 1 ? '' : 's'} load here either way.` : ''
   return (
     <>
       <Divider />
@@ -389,37 +388,33 @@ function DockSaleControl() {
         <SectionLabel>
           {offer.soldHere
             ? `At the dock · ${station} buys nothing more from you`
-            : `At the dock · ${station} buys one item, once`}
+            : `At the dock · load or sell one item`}
         </SectionLabel>
         {offer.options.length > 0 && (
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
             {offer.options.map(option => (
               <ChoiceChip
                 key={option.sale}
-                title={`${option.points} point${option.points === 1 ? '' : 's'}${
+                title={`${option.kind === 'load' ? 'Not a sale' : `${option.points} point${option.points === 1 ? '' : 's'}`}${
                   option.sale === offer.default?.sale ? ' · the default' : ''
                 }`}
                 selected={plan.dockSale === option.sale}
                 disabled={disabled}
                 onClick={() => plan.setDockSale(option.sale)}
               >
-                {saleLabel(option, plan.me.missions)} · {option.points}
+                {saleLabel(option, plan.me.missions, offer.loads)}
+                {option.kind === 'load' ? '' : ` · ${option.points}`}
               </ChoiceChip>
             ))}
             <ChoiceChip
-              title={`Keep ${station} for a later sale`}
+              title={`Keep ${station} for later`}
               selected={plan.dockSale === SELL_NOTHING}
               disabled={disabled}
               onClick={() => plan.setDockSale(SELL_NOTHING)}
             >
-              Sell nothing
+              Do nothing
             </ChoiceChip>
           </Box>
-        )}
-        {loads && (
-          <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
-            {loads}
-          </Typography>
         )}
       </Box>
     </>
