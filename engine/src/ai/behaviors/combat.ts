@@ -12,7 +12,7 @@ import { BURN_COSTS } from "../../models/rings.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import { canBeFiredAt, canEngage, canFireFrom } from "../../game/targeting.ts";
 import { markedBy } from "../../game/escort.ts";
-import { ringAfter } from "../../game/movement.ts";
+import { recoilRing } from "../../game/movement.ts";
 import type { BotParameters, Opponent, TacticalSituation } from "../types.ts";
 import { suspectedShieldCubes } from "../analyzer.ts";
 import { INTERDICT_DANGER } from "../types.ts";
@@ -334,7 +334,7 @@ export function firingOptions(
       // Recoil moves the ship a ring, which would derail a burn or jump
       // planned after the shot, so the railgun fires after moving.
       if (!inPost) continue;
-      const recoilValid = ringAfter(ctx.post, 1) !== null;
+      const recoilValid = recoilRing(ctx.post) !== null;
       const canCompensate =
         !ctx.enginesUsedByMovement &&
         !status.engines.isBroken &&

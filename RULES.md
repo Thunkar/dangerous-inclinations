@@ -148,7 +148,7 @@ Drift, then change ring. Prograde facing burns **outward**, retrograde burns **i
 
 ### Jump
 
-From a lane's departure arc (the black hole arc of an outbound lane, the planet arc of an inbound one), with engines at 3, pay 3 fuel (1 with a fuel compressor) and move to the matching sector of the arrival arc. Facing is kept. A jump is your whole move: no drift this turn.
+From a lane's departure arc (the black hole arc of an outbound lane, the planet arc of an inbound one), facing prograde, with engines at 3, pay 3 fuel (1 with a fuel compressor) and move to the matching sector of the arrival arc. A jump is a burn out of the well: facing retrograde, rotate first. A jump is your whole move: no drift this turn.
 
 **Phasing a jump.** As in a burn, you may shift where you arrive for 1 fuel per sector, never outside the arrival arc. So any departure sector can reach any of the arc's four sectors, the matching one for free. A compressor cheapens the jump, never the phasing.
 
@@ -178,7 +178,7 @@ A wall that holds is no protection against being named. **The energy on every sl
 
 **Point blank.** A ship in **your own sector** is in range of every weapon you carry, whatever its arc: there is no ahead, behind or side at zero range. Ending a turn on top of someone (a Piracy card does exactly that) puts you in reach of everything they have, and them in reach of everything of yours.
 
-- **Railgun.** Spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring in your facing direction unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
+- **Railgun.** Spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring against your facing (inward facing prograde, outward facing retrograde) unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
 - **Broadside laser.** Targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port subsystems (side 1–2) fire outward and starboard subsystems (side 3–4) fire inward; facing retrograde swaps them.
 - **Ballistic rack.** 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away (the only broadside that can join a railgun shot on your own ring). Firing it puts its energy on it, so a rack that fired is **up** until your next turn and shoots down missiles too; powering it without firing does the same.
 

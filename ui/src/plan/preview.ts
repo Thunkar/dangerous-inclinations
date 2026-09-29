@@ -66,6 +66,7 @@ import {
   lowestCriticalFace,
   phasedJumpDestination,
   projectPosition,
+  recoilRing,
   ringAfter,
   ringVelocity,
   salesOnArrival,
@@ -240,7 +241,8 @@ export function loadoutFor(
 /**
  * Where the ship is at the start of each step, and where the plan leaves it.
  * A rotation flips the facing, the move goes where the engine projects it,
- * and a railgun that is not compensated recoils one ring (`ringAfter`).
+ * and a railgun that is not compensated recoils one ring against its facing
+ * (`recoilRing`).
  */
 export function walkSteps(
   me: Player,
@@ -285,7 +287,7 @@ export function walkSteps(
         const recoils =
           weapon && getSubsystemConfig(weapon.type).weaponStats?.hasRecoil && !step.compensateRecoil
         if (recoils) {
-          const ring = ringAfter({ ...position, facing }, 1)
+          const ring = recoilRing({ ...position, facing })
           if (ring !== null) position = { ...position, ring }
         }
         break
@@ -461,6 +463,8 @@ export function moveReadiness(
   if (getJumpOptions(moveFrom.position).length === 0)
     jumpReady = blocked('jumps leave only from a lane end, and this sector is not one')
   else if (!engines || engines.isBroken) jumpReady = blocked('the engines are broken')
+  else if (moveFrom.facing !== 'prograde' && !rotateReady.ok)
+    jumpReady = blocked('a jump needs prograde facing and the ship cannot rotate')
   else if (engines.usedThisTurn) jumpReady = blocked('the engines have already burned this turn')
   else {
     const adjustment = move.kind === 'jump' ? move.adjustment : 0
@@ -551,6 +555,8 @@ export function planIssues(
               )
           }
           if (enginesBroken) problems.push('Engines are broken: no jump')
+          if (at.facing !== 'prograde')
+            problems.push('A jump is a burn out of the well: face prograde (rotate first)')
           spend(calculateJumpMassCost(move.adjustment, compressor), 'a jump')
         } else if (move.scoop) {
           const scoop = loadout.find(s => s.id === 'scoop')
@@ -605,7 +611,7 @@ export function planIssues(
             if (enginesBroken)
               problems.push('Engines are broken: nothing to cancel the recoil with')
             spend(BURN_COSTS.soft.mass, 'recoil compensation')
-          } else if (ringAfter(facingShip, 1) === null) {
+          } else if (recoilRing(facingShip) === null) {
             problems.push('Railgun recoil would push you off the rings: compensate or rotate first')
           }
         }

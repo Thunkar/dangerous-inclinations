@@ -29,6 +29,7 @@ import {
   jump,
   makeGameState,
   makePlayer,
+  rotate,
   withShip,
   withSub,
 } from "../testUtils.ts";
@@ -167,15 +168,25 @@ describe("jumps: executing a well transfer", () => {
     expect(eventsOf(result.events, "coasted")).toEqual([]);
   });
 
-  it("works from a planet back to the black hole, with any facing", () => {
-    const result = executeTurnAs(readyToJump(BETA, PLANET_OUTER_RING, 18, "retrograde"), jump(1, BH));
+  it("works from a planet back to the black hole, facing prograde", () => {
+    const result = executeTurnAs(readyToJump(BETA, PLANET_OUTER_RING, 18), jump(1, BH));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1")).toMatchObject({
       wellId: BH,
       ring: 5,
       sector: 14,
-      facing: "retrograde",
+      facing: "prograde",
     });
+  });
+
+  // A jump is a burn out of the well (RULES §Jump): retrograde, rotate first.
+  it.each([
+    ["from the black hole", readyToJump(BH, 5, 17, "retrograde"), ALPHA],
+    ["from a planet", readyToJump(BETA, PLANET_OUTER_RING, 18, "retrograde"), BH],
+  ])("refuses a jump facing retrograde %s, and takes it after a rotation", (_label, state, to) => {
+    const result = executeTurnAs(state, jump(1, to));
+    expectRefused(result, state);
+    expectRefusedUnless(result, executeTurnAs(state, rotate(1, "prograde"), jump(2, to)));
   });
 
   it("is the turn's one movement: a burn or a coast after it is refused", () => {

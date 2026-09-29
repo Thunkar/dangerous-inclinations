@@ -90,7 +90,7 @@ export const PRINTED_CARD = {
       aside: 'each fires once a turn',
       columns: { subsystem: 'subsystem', energy: 'energy', damage: 'dmg', reaches: 'reaches' },
       reach: {
-        railgun: 'same ring, 1–{sectors} ahead; recoils a ring',
+        railgun: 'same ring, 1–{sectors} ahead; recoils against facing',
         laser: '±{rings} rings ±{sectors}, one side; <red>ignores shields</red>',
         ballistic_rack: '±{rings} ring ±{sectors} either side, or 1 along your ring',
         missiles:

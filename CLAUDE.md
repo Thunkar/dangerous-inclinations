@@ -673,6 +673,19 @@ not an argument:
   (one seizure per turn end, or two pirates trade the loot for ever) and buys
   nothing; the designer kept the simpler rule.
 
+- **A jump faces prograde; recoil pushes against the facing.** Adopted 30
+  Sept 2026 from the designer's play: a jump is a burn out of the well, so it
+  needs prograde facing (rotate first), and a railgun's shot goes forward so
+  the ship goes back, one ring inward facing prograde and outward facing
+  retrograde. Both used to follow the facing like a burn. Measured against
+  the rules before on the same seeds (benchmark 120 games a seat count,
+  balance 300 a row): Destroy 58 -> 68 completed per 100 kept, the railgun
+  hull 24% -> 29% of its seats, kills 1.5 / 3.0 / 5.5 / 7.5 -> 1.7 / 3.7 /
+  6.5 / 9.1; dealt Destroy / Deliver / Intercept 39 / 34 / 33%; no failing
+  flag (`offbook:armed_legs` drops back under the line). A hunter firing
+  prograde now drops to the faster ring and keeps pace with the target
+  instead of falling behind on a slower one.
+
 - **One action a visit, Tanker at 5.** Adopted 28 Sept 2026 as one
   package: a visit does one thing, load the crates waiting or sell one item
   (loading spends no station); Tanker hands in 5 fuel, not 7; and a bot

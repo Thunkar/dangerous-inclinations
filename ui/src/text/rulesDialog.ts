@@ -58,7 +58,7 @@ export const RULES_DIALOG = {
     ['Phasing', '−(velocity−1) to +{mostPhase} sectors, 1 fuel each'],
     [
       'Jump',
-      'engines {jumpEnergy}, {jumpFuel} fuel ({compressedFuel} with a compressor), no drift',
+      'facing prograde, engines {jumpEnergy}, {jumpFuel} fuel ({compressedFuel} with a compressor), no drift',
     ],
     ['Hit roll', '{miss} miss, {hitFrom}–{hitTo} hit, {crit} crit ({sensorCrit}–10 with sensors)'],
     [

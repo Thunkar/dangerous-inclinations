@@ -120,8 +120,9 @@ export function getSuccessors(
         if (massCost > availableMass) continue;
         const destination = phasedJumpDestination(option, adj);
         if (!destination) continue;
+        // A jump is a burn out of the well, made facing prograde.
         results.push({
-          position: { ...destination, facing: position.facing },
+          position: { ...destination, facing: "prograde" },
           actionType: "well_transfer",
           sectorAdjustment: adj,
           massCost,

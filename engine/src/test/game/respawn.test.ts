@@ -282,8 +282,9 @@ describe("respawn: the turn back is a first round of its own", () => {
    */
   function underTheGun(): GameState {
     const state = makeTwoPlayerGame(
-      { wellId: BH, ring: 5, sector: 5, facing: "retrograde" },
-      { wellId: BH, ring: 5, sector: 2, loadout: ARMED }
+      // Ring 4, so the retrograde shot's recoil has a ring outward to go to.
+      { wellId: BH, ring: 4, sector: 5, facing: "retrograde" },
+      { wellId: BH, ring: 4, sector: 2, loadout: ARMED }
     );
     return withPlayer(
       withPower(state, "p1", "forward-0", getSubsystemConfig("railgun").minEnergy),

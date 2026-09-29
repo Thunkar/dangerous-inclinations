@@ -21,8 +21,10 @@ import type { GameEvent } from "../models/events.ts";
  *     opaque `item-<n>` tokens.
  * v9: a visit does one thing: `dock_sale` may name `"load"`, crates load only
  *     on a visit that loads, and Tanker hands in 5 fuel.
+ * v10: a jump needs prograde facing, and a railgun's recoil pushes the ship
+ *     against its facing.
  */
-export const RECORDING_SCHEMA_VERSION = 9;
+export const RECORDING_SCHEMA_VERSION = 10;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

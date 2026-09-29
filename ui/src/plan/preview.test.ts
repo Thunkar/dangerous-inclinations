@@ -538,7 +538,12 @@ describe('the plan preview against the engine', () => {
         ),
       ]
       for (const move of moves) {
-        const steps: PlanStep[] = [{ id: id(), kind: 'move', move }]
+        // A jump's button puts a rotation to prograde in first, as a click does.
+        const turn = move.kind === 'jump' && me.ship.facing !== 'prograde'
+        const steps: PlanStep[] = [
+          ...(turn ? [{ id: id(), kind: 'rotate' } as const] : []),
+          { id: id(), kind: 'move', move },
+        ]
         const preview = previewPlan(view, me, steps, {})
         const ready = moveReadiness(me, preview.loadout, preview.moveFrom, move)
         const button = move.kind === 'burn' ? ready.burnReady[move.intensity] : ready.jumpReady

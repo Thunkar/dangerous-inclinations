@@ -132,7 +132,8 @@ export function movementFromPlan(
   return {
     kind: "jump",
     preview: { kind: "jump", jumpDestination: phasedJumpDestination(jump, adjustment) },
-    requiredFacing: null,
+    // A jump is a burn out of the well.
+    requiredFacing: "prograde",
     engineEnergy: WELL_TRANSFER_COSTS.energy,
     massCost: calculateJumpMassCost(adjustment, status.hasCompressor),
     wantsScoop: false,

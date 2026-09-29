@@ -45,7 +45,7 @@ import { findJump, getJumpAdjustmentRange } from "../models/gravityWells.ts";
 import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, requestedDraw } from "./ship.ts";
-import { ringAfter } from "./movement.ts";
+import { recoilRing, ringAfter } from "./movement.ts";
 import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange, isOnBoard } from "./targeting.ts";
 import { findReadySensor, inScanRange } from "./scan.ts";
 
@@ -292,7 +292,7 @@ export function validateFireWeaponAction(state: GameState, action: FireWeaponAct
       if (player.ship.reactionMass < BURN_COSTS.soft.mass)
         errors.push("Not enough reaction mass to compensate recoil (need 1)");
     } else {
-      if (ringAfter(player.ship, 1) === null) {
+      if (recoilRing(player.ship) === null) {
         errors.push("Recoil would push the ship off the rings; compensate with engines or rotate");
       }
     }
@@ -398,6 +398,8 @@ export function validateWellTransferAction(state: GameState, action: WellTransfe
   if (!jump) return ["No transfer lane from this position to that destination"];
   const adjustment = action.data.sectorAdjustment;
   const errors = validateEnginesReady(player, "a jump");
+  if (player.ship.facing !== "prograde")
+    errors.push("A jump is a burn out of the well: face prograde (rotate first)");
 
   // Phasing a jump is bounded by the arrival arc, not by the ring's velocity:
   // a jump has no drift to brake against (RULES §Jump).

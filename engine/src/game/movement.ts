@@ -30,7 +30,7 @@ export function applyOrbitalMovement(ship: ShipState, moored = false): ShipState
 /**
  * The ring `rings` steps from the ship's own in its facing direction
  * (prograde = outward, retrograde = inward), or null when that would leave
- * the well's rings. A burn and a railgun's recoil move this way.
+ * the well's rings. A burn moves this way.
  */
 export function ringAfter(
   ship: Pick<ShipState, "wellId" | "ring" | "facing">,
@@ -38,6 +38,15 @@ export function ringAfter(
 ): number | null {
   const ring = ship.ring + (ship.facing === "prograde" ? 1 : -1) * rings;
   return ring >= 1 && ring <= getMaxRing(ship.wellId) ? ring : null;
+}
+
+/**
+ * The ring a railgun's recoil pushes the ship to, or null when that would
+ * leave the well's rings: one ring against its facing, since the shot goes
+ * forward (facing prograde, inward; retrograde, outward).
+ */
+export function recoilRing(ship: Pick<ShipState, "wellId" | "ring" | "facing">): number | null {
+  return ringAfter({ ...ship, facing: ship.facing === "prograde" ? "retrograde" : "prograde" }, 1);
 }
 
 /**
@@ -126,6 +135,8 @@ export interface LegalJump {
   phasingFuel: number;
   /** Sectors the landing may be shifted by, inside the arrival arc and what the tank can pay. */
   adjustment: { min: number; max: number };
+  /** Whether the ship must rotate to prograde first (one thruster cube, one heat). */
+  needsRotation: boolean;
 }
 
 /**
@@ -173,7 +184,10 @@ export function legalMoves(ship: ShipState): { burns: LegalBurn[]; jumps: LegalJ
 
   const jumps: LegalJump[] = [];
   const fuel = calculateJumpMassCost(0, hasWorkingCompressor(ship));
+  // A jump is a burn out of the well: it needs prograde facing.
+  const jumpNeedsRotation = ship.facing !== "prograde";
   for (const option of getJumpOptions(positionOf(ship))) {
+    if (jumpNeedsRotation && !ready("rotation")) continue;
     const adjustment = payable(getJumpAdjustmentRange(option), fuel);
     if (!adjustment) continue;
     jumps.push({
@@ -183,6 +197,7 @@ export function legalMoves(ship: ShipState): { burns: LegalBurn[]; jumps: LegalJ
       fuel,
       phasingFuel: SECTOR_ADJUSTMENT_COST_PER_SECTOR,
       adjustment,
+      needsRotation: jumpNeedsRotation,
     });
   }
   return { burns, jumps };

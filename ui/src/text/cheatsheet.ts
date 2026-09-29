@@ -129,7 +129,7 @@ export const CHEATSHEET = {
     },
     jump: {
       title: 'Jump',
-      text: 'From a lane’s departure arc to the same sector of its arrival arc, with no drift. Lanes run <b>one way</b>. {compressedFuel} fuel with a compressor.',
+      text: 'From a lane’s departure arc to the same sector of its arrival arc, facing prograde, with no drift. Lanes run <b>one way</b>. {compressedFuel} fuel with a compressor.',
       diagram: {
         label:
           "A jump: from a lane's departure arc on the black hole's outer ring to the matching sector of the planet's arrival arc, with no drift",
@@ -213,7 +213,7 @@ export const CHEATSHEET = {
     /** What each gun reaches, in the order the cards are laid out. */
     reach: {
       railgun:
-        'Same ring, 1–{sectors} sectors ahead. The recoil pushes you a ring, unless you spend 1 fuel to hold.',
+        'Same ring, 1–{sectors} sectors ahead. The recoil pushes you a ring against your facing, unless you spend 1 fuel to hold.',
       laser: '±{rings} rings, ±{sectors} sector, off one side. <b>Ignores shields.</b>',
       ballistic_rack:
         '±{rings} ring, ±{sectors} sector, either side. With energy on it, shoots down {intercepts} missiles a turn on {on}+.',

@@ -92,7 +92,8 @@ export function moveOfRouteStep(step: MovementStep): MoveChoice {
 
 /** Prograde burns outward, retrograde inward: the step says which way, so it says the facing. */
 function facingOfRouteStep(step: MovementStep): Facing | null {
-  return step.actionType === 'burn_prograde'
+  // A jump is a burn out of the well, so it needs prograde facing too.
+  return step.actionType === 'burn_prograde' || step.actionType === 'well_transfer'
     ? 'prograde'
     : step.actionType === 'burn_retrograde'
       ? 'retrograde'

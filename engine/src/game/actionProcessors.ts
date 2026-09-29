@@ -29,7 +29,7 @@ import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from "../model
 import { findJump, phasedJumpDestination } from "../models/gravityWells.ts";
 import { rollD10 } from "../utils/rng.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
-import { applyOrbitalMovement, applyBurn, applyRotation, ringAfter } from "./movement.ts";
+import { applyOrbitalMovement, applyBurn, applyRotation, recoilRing } from "./movement.ts";
 import { resolveAttack } from "./damage.ts";
 import { createMissile } from "./missiles.ts";
 import { processScan } from "./scan.ts";
@@ -539,7 +539,7 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
       });
     } else {
       // Validated: the push stays on the rings.
-      const ring = ringAfter(attacker.ship, 1) ?? attacker.ship.ring;
+      const ring = recoilRing(attacker.ship) ?? attacker.ship.ring;
       attacker = { ...attacker, ship: { ...attacker.ship, ring } };
       events.push({
         type: "recoil",

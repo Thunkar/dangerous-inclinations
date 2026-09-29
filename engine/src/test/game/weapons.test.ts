@@ -336,21 +336,22 @@ describe("weapons: railgun recoil", () => {
   const gunline = (facing: Facing = "prograde", ring = 3) =>
     makeTwoPlayerGame({ ring, sector: 0, facing }, { ring, sector: facing === "prograde" ? 2 : 22 });
 
-  it("an uncompensated shot pushes the ship one ring in its facing direction", () => {
+  it("an uncompensated shot pushes the ship one ring against its facing", () => {
+    // The shot goes forward, so the ship goes back: prograde, inward.
     const prograde = executeTurnAs(gunline("prograde"), fire(1, "forward-0", "p2"));
     expect(prograde.errors).toBeUndefined();
-    expect(getShip(prograde.gameState, "p1").ring).toBe(4);
+    expect(getShip(prograde.gameState, "p1").ring).toBe(2);
     expect(eventsOf(prograde.events, "recoil")[0]).toMatchObject({
       playerId: "p1",
       compensated: false,
-      to: { wellId: BH, ring: 4 },
+      to: { wellId: BH, ring: 2 },
       massSpent: 0,
       heat: 0,
     });
 
     const retrograde = executeTurnAs(gunline("retrograde"), fire(1, "forward-0", "p2"));
     expect(retrograde.errors).toBeUndefined();
-    expect(getShip(retrograde.gameState, "p1").ring).toBe(2);
+    expect(getShip(retrograde.gameState, "p1").ring).toBe(4);
   });
 
   it("recoil happens before later actions: a broadside can use the new ring", () => {
@@ -359,10 +360,10 @@ describe("weapons: railgun recoil", () => {
       makePlayer("p2", { wellId: BH, ring: 3, sector: 2 }),
       makePlayer("p3", { wellId: BH, ring: 3, sector: 1 }),
     ]);
-    state = withPower(state, "p1", "side-2", 2);
-    // From R3 the starboard laser cannot hit p3 on R3; after the recoil to R4 it fires inward at R3.
-    const result = executeTurnAs(state, fire(1, "forward-0", "p2"), fire(2, "side-2", "p3"));
-    expectRefusedUnless(executeTurnAs(state, fire(1, "side-2", "p3")), result);
+    state = withPower(state, "p1", "side-0", 2);
+    // From R3 the port laser cannot hit p3 on R3; after the recoil to R2 it fires outward at R3.
+    const result = executeTurnAs(state, fire(1, "forward-0", "p2"), fire(2, "side-0", "p3"));
+    expectRefusedUnless(executeTurnAs(state, fire(1, "side-0", "p3")), result);
     expect(getShip(result.gameState, "p3").hitPoints).toBe(8);
   });
 
@@ -410,8 +411,8 @@ describe("weapons: railgun recoil", () => {
   it("an uncompensated shot that would push the ship off the rings is rejected", () => {
     // Compensated, the same shot stays put and is taken.
     for (const [facing, ring] of [
-      ["prograde", 5],
-      ["retrograde", 1],
+      ["prograde", 1],
+      ["retrograde", 5],
     ] as const) {
       expectRefusedUnless(
         executeTurnAs(gunline(facing, ring), fire(1, "forward-0", "p2")),
@@ -421,10 +422,10 @@ describe("weapons: railgun recoil", () => {
   });
 
   it.each([
-    ["prograde on a planet's outer ring", "prograde", PLANET_OUTER_RING, false],
-    ["prograde one ring inside it", "prograde", PLANET_OUTER_RING - 1, true],
-    ["retrograde on a planet's innermost ring", "retrograde", 1, false],
-    ["retrograde one ring outside it", "retrograde", 2, true],
+    ["prograde on a planet's innermost ring", "prograde", 1, false],
+    ["prograde one ring outside it", "prograde", 2, true],
+    ["retrograde on a planet's outer ring", "retrograde", PLANET_OUTER_RING, false],
+    ["retrograde one ring inside it", "retrograde", PLANET_OUTER_RING - 1, true],
   ] as const)(
     "the well's own ring count decides: firing %s is allowed = %s",
     (_label, facing, ring, allowed) => {
@@ -440,9 +441,9 @@ describe("weapons: railgun recoil", () => {
       );
       const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
       expect(result.errors === undefined).toBe(allowed);
-      // The recoil pushes one ring in the facing direction, or nowhere.
+      // The recoil pushes one ring against the facing, or nowhere.
       expect(getShip(result.gameState, "p1").ring).toBe(
-        allowed ? ring + (facing === "prograde" ? 1 : -1) : ring
+        allowed ? ring + (facing === "prograde" ? -1 : 1) : ring
       );
     }
   );

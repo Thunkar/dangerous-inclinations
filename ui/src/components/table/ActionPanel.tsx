@@ -802,11 +802,15 @@ function MoveControls() {
           disabled={disabled || !plan.jumpReady.ok}
           onClick={() =>
             plan.jumpOptions[0] &&
-            plan.setMove({
-              kind: 'jump',
-              destinationWellId: plan.jumpOptions[0].destination.wellId,
-              adjustment: 0,
-            })
+            // A jump is a burn out of the well: a rotation to prograde goes in first.
+            plan.applyMove(
+              {
+                kind: 'jump',
+                destinationWellId: plan.jumpOptions[0].destination.wellId,
+                adjustment: 0,
+              },
+              'prograde'
+            )
           }
         />
       </SegmentedRow>
@@ -890,11 +894,14 @@ function MoveControls() {
                   color={selected ? 'primary' : 'default'}
                   variant={selected ? 'filled' : 'outlined'}
                   onClick={() =>
-                    plan.setMove({
-                      kind: 'jump',
-                      destinationWellId: option.destination.wellId,
-                      adjustment: 0,
-                    })
+                    plan.applyMove(
+                      {
+                        kind: 'jump',
+                        destinationWellId: option.destination.wellId,
+                        adjustment: 0,
+                      },
+                      'prograde'
+                    )
                   }
                   disabled={disabled}
                 />
