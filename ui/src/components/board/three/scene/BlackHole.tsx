@@ -67,7 +67,6 @@ import {
   LIGHT_POOL_FRAGMENT,
   LIGHT_POOL_VERTEX,
   PHOTON_RING_FRAGMENT,
-  PHOTON_RING_VERTEX,
 } from '../shaders/horizon'
 import { withOctaves } from '../shaders/noise'
 import { LAYER, surfaceElevation } from '../world'
@@ -166,8 +165,10 @@ export function BlackHole({
 }) {
   const quality = useSceneQuality()
   const body = useMemo(() => blackHoleBody(), [])
-  // The pool lies on the floor of the funnel, a hair above the plate.
-  const floorOffset = surfaceElevation('blackhole', 0) - body.centerY + LAYER.ring
+  // The pool lies on the floor of the funnel, a hair above the plate, and the
+  // light square to the camera is kept from going under it (`FACING_VERTEX`).
+  const floorY = surfaceElevation('blackhole', 0) + LAYER.ring
+  const floorOffset = floorY - body.centerY
   const facing = useRef<Group>(null)
   const root = useRef<Group>(null)
 
@@ -196,8 +197,10 @@ export function BlackHole({
       uHalo: { value: 0.11 * body.photon },
       uHaloRadius: { value: body.arcOuter },
       uHaloRadiusUp: { value: body.arcOuterUp },
+      uFloor: { value: floorY },
+      uHorizon: { value: body.radius },
     }),
-    [body.arcOuter, body.arcOuterUp, body.photon, body.radius]
+    [body.arcOuter, body.arcOuterUp, body.photon, body.radius, floorY]
   )
 
   // The rate of the gas at the disc's outer edge, which is the gas the pool on
@@ -230,8 +233,19 @@ export function BlackHole({
       uBeaming: { value: body.beaming },
       uLean: { value: 0 },
       uSpin: { value: rimSpin },
+      uFloor: { value: floorY },
+      uHorizon: { value: body.radius },
     }),
-    [body.arc, body.arcInner, body.arcOuter, body.arcOuterUp, body.beaming, rimSpin]
+    [
+      body.arc,
+      body.arcInner,
+      body.arcOuter,
+      body.arcOuterUp,
+      body.beaming,
+      body.radius,
+      floorY,
+      rimSpin,
+    ]
   )
 
   /**
@@ -365,7 +379,7 @@ export function BlackHole({
           <ringGeometry args={[body.radius * 0.9, body.arcOuter, 96, 1]} />
           <shaderMaterial
             uniforms={photonUniforms}
-            vertexShader={PHOTON_RING_VERTEX}
+            vertexShader={FACING_VERTEX}
             fragmentShader={PHOTON_RING_FRAGMENT}
             transparent
             blending={AdditiveBlending}

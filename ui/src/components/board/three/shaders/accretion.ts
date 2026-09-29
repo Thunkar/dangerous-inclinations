@@ -438,12 +438,57 @@ export function accretionFragment(octaves: number): string {
   return withOctaves(octaves, ACCRETION_FRAGMENT)
 }
 
-/** A flat annulus, kept square to the camera by its parent. */
+/**
+ * A flat annulus, kept square to the camera by its parent: the lensed arc and
+ * the photon ring.
+ *
+ * Square to the camera means a plane standing up through the hole's centre,
+ * and the centre rides only a little way above the floor of the pit. From
+ * anything lower than straight down, the lower half of that plane goes through
+ * the floor, and the floor is opaque: it used to cut the light round the hole
+ * off along a straight line, the plane of ring 1's terrace. The light has no
+ * place of its own to be hidden at, only a direction, so a vertex under the
+ * floor is slid along its own line of sight until it is on the floor. It lands
+ * on the same pixel and only its depth comes forward: the floor stops hiding
+ * it, and anything that really stands between the hole and the camera still
+ * does.
+ *
+ * The sphere used to be what kept both annuli outside the silhouette, and a
+ * slid vertex can come out in front of its lower rim, so the fragment shaders
+ * now ask `GLSL_PAST_HORIZON` themselves.
+ */
 export const FACING_VERTEX = /* glsl */ `
+  uniform float uFloor;
   varying vec2 vPlane;
+  varying vec3 vWorld;
+  varying vec3 vCenter;
   void main() {
     vPlane = position.xy;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vCenter = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    if (world.y < uFloor && cameraPosition.y > uFloor) {
+      float t = (uFloor - world.y) / (cameraPosition.y - world.y);
+      world.xyz += t * (cameraPosition - world.xyz);
+    }
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`
+
+/**
+ * 1 where the line of sight to a fragment of a facing annulus passes clear of
+ * the horizon, 0 where the sphere is in the way: what the sphere's depth did
+ * for the annuli before their vertices could be slid in front of it, stated as
+ * geometry so it holds wherever the hole is on screen.
+ */
+export const GLSL_PAST_HORIZON = /* glsl */ `
+  uniform float uHorizon;
+  varying vec3 vWorld;
+  varying vec3 vCenter;
+  float pastHorizon() {
+    vec3 ray = normalize(vWorld - cameraPosition);
+    vec3 toCenter = vCenter - cameraPosition;
+    return step(uHorizon, length(toCenter - dot(toCenter, ray) * ray));
   }
 `
 
@@ -475,6 +520,7 @@ export const FACING_VERTEX = /* glsl */ `
  */
 export const LENSED_ARC_FRAGMENT = /* glsl */ `
   ${GLSL_NOISE}
+  ${GLSL_PAST_HORIZON}
 
   uniform vec3 uHot;
   uniform vec3 uWarm;
@@ -521,6 +567,7 @@ export const LENSED_ARC_FRAGMENT = /* glsl */ `
     // bright thing the hole throws up the screen and bodies.ts has measured its
     // ceiling against ring 1's far numbers.
     float alpha = profile * poles * side * mix(0.4, 1.0, grain) * max(lean, 0.1) * uIntensity;
+    alpha *= pastHorizon();
     gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
   }
 `

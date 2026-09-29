@@ -22,6 +22,7 @@
  *    makes the widest, flattest, most face-on thing the black hole draws agree
  *    with the disc above it about which way round the light is going.
  */
+import { GLSL_PAST_HORIZON } from './accretion'
 import { GLSL_NOISE } from './noise'
 
 export const HORIZON_VERTEX = /* glsl */ `
@@ -50,16 +51,9 @@ export const HORIZON_FRAGMENT = /* glsl */ `
   }
 `
 
-/** A flat annulus or disc, kept square to the camera by its parent. */
-export const PHOTON_RING_VERTEX = /* glsl */ `
-  varying vec2 vPlane;
-  void main() {
-    vPlane = position.xy;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`
-
+/** Drawn on `FACING_VERTEX` from `accretion.ts`, which says why it is not a plain quad. */
 export const PHOTON_RING_FRAGMENT = /* glsl */ `
+  ${GLSL_PAST_HORIZON}
   uniform vec3 uColor;
   uniform float uRadius;
   uniform float uWidth;
@@ -86,11 +80,19 @@ export const PHOTON_RING_FRAGMENT = /* glsl */ `
     // A short shoulder of light under both, killed at the edge of the quad.
     float g = clamp((r - uRadius) / max(haloRadius - uRadius, 0.001), 0.0, 1.0);
     float halo = exp(-g * 3.4) * (1.0 - g) * (1.0 - g) * uHalo * step(uRadius, r);
-    gl_FragColor = vec4(uColor, clamp(ring * uIntensity + halo, 0.0, 1.0));
+    float alpha = (ring * uIntensity + halo) * pastHorizon();
+    gl_FragColor = vec4(uColor, clamp(alpha, 0.0, 1.0));
   }
 `
 
-export const LIGHT_POOL_VERTEX = PHOTON_RING_VERTEX
+/** A flat disc, laid in the board plane by its parent. */
+export const LIGHT_POOL_VERTEX = /* glsl */ `
+  varying vec2 vPlane;
+  void main() {
+    vPlane = position.xy;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
 
 export const LIGHT_POOL_FRAGMENT = /* glsl */ `
   ${GLSL_NOISE}
