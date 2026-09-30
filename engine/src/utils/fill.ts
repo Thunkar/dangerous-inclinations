@@ -22,3 +22,9 @@ const SLOT = /\{(\w+)\}/g;
 export function fill<S extends string>(template: S, values: SlotValues<S>): string {
   return template.replace(SLOT, (_, name: string) => String(values[name]));
 }
+
+/** "2, 3 or 4": a list of values as a sentence says it. */
+export function orList(values: readonly SlotValue[]): string {
+  const words = values.map(String);
+  return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} or ${words.at(-1)}`;
+}

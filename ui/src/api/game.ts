@@ -30,7 +30,7 @@ export async function getTurnFrames(gameId: string, index: number): Promise<Turn
   return api.get<TurnFramesResponse>(`/api/games/${gameId}/turns/${index}`)
 }
 
-/** Deployment: place your ship and Home marker on a Black Hole Ring 3 or Ring 4 sector. */
+/** Deployment: place your ship and Home marker on a sector of Black Hole Ring 2, 3 or 4. */
 export async function deployShip(
   gameId: string,
   sector: number,

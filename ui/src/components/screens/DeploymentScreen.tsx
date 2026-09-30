@@ -1,10 +1,10 @@
 /**
  * Deployment: in reverse turn order (last seat first), place your ship on Black
- * Hole Ring 3 or Ring 4, at least three sectors from every ship already
+ * Hole Ring 2, 3 or 4, at least three sectors from every ship already
  * placed. The position you pick becomes your Home (where you come back after
  * you are destroyed) so pick it with the cards you kept in mind: Ring 4
- * drifts 2 a turn and lines up with the lanes, Ring 3 drifts 4 and brings the
- * ring past you.
+ * drifts 2 a turn and lines up with the lanes, Rings 3 and 2 drift 4 and 6
+ * and bring the ring past you.
  *
  * The legal cells are the engine's own answer (`legalDeploymentsAgainst`), so
  * neither the board nor the sector strip can offer one the server would
@@ -18,6 +18,7 @@ import {
   DEPLOYMENT_GAP,
   HOME_RING,
   HOME_RINGS,
+  orList,
   BLACK_HOLE_ID,
   SECTORS_PER_RING,
   getWellName,
@@ -76,7 +77,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <Header
         title="Place your ship"
-        subtitle={`${deployed} of ${view.players.length} placed · Black Hole Ring ${HOME_RINGS.join(' or ')}, ${DEPLOYMENT_GAP}+ sectors from every ship already placed`}
+        subtitle={`${deployed} of ${view.players.length} placed · Black Hole Ring ${orList(HOME_RINGS)}, ${DEPLOYMENT_GAP}+ sectors from every ship already placed`}
         right={
           <>
             <BoardModeToggle />
@@ -101,7 +102,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
         >
           <Panel title="Ring and sector" dense sx={{ flexShrink: 0 }}>
             <Typography variant="body2" sx={{ color: TABLE.inkSoft, lineHeight: 1.4 }}>
-              Black Hole Ring {HOME_RINGS.join(' or ')}, at least {DEPLOYMENT_GAP} sectors from
+              Black Hole Ring {orList(HOME_RINGS)}, at least {DEPLOYMENT_GAP} sectors from
               every ship already placed. That position becomes your Home.
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.75, mt: 0.75 }}>
@@ -243,7 +244,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           )}
           {myTurn && (
             <Alert severity="success">
-              Place your ship on Black Hole Ring {HOME_RINGS.join(' or ')}, at least{' '}
+              Place your ship on Black Hole Ring {orList(HOME_RINGS)}, at least{' '}
               {DEPLOYMENT_GAP} sectors from every ship already placed. That position becomes your
               Home.
             </Alert>

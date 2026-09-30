@@ -1,11 +1,13 @@
 /**
  * Deployment. Everyone starts together: in reverse turn order (the last seat
  * first, the first seat last) each player places their ship, facing prograde,
- * on Black Hole Ring 3 or Ring 4, at least three sectors from every ship
+ * on Black Hole Ring 2, 3 or 4, at least three sectors from every ship
  * already placed, and if the ring is too crowded for that, on the clearest
  * sector left. That position becomes their Home marker (where a destroyed ship
- * returns). Ring 3 drifts four sectors a turn against ring 4's two, which is
- * the point of offering it. The seat that acts first every round picks last.
+ * returns). The inner rings drift faster (ring 2 six sectors a turn, ring 3
+ * four, ring 4 two), which is the point of offering them: nearer the others
+ * or further from them. Not ring 5, the lane ring: a ship there could jump out
+ * on its first turn. The seat that acts first every round picks last.
  */
 import type { GameState, Player, Position } from "../models/game.ts";
 import { FIRST_TURN } from "../models/game.ts";

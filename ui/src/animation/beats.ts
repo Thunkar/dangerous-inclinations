@@ -643,8 +643,9 @@ export function eventToBeat(
         return BEAT.resolve
       case 'ship_destroyed': {
         const where = at(event.victimId)
+        // Missiles aimed at it fly on; its own go out with their own
+        // `missile_expired` events.
         updateShip(event.victimId, { alive: false })
-        board.missiles = board.missiles.filter(m => m.targetId !== event.victimId)
         burst(event.victimId, TABLE.danger, 46, 900, where)
         float(event.victimId, 'DESTROYED', 'damage', FLOAT.long)
         return BEAT.destroy

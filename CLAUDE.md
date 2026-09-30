@@ -43,7 +43,7 @@ Data flow: `UI → WebSocket → server → engine → new state → viewFor →
 ## Game summary
 
 2–6 players. Ships orbit a black hole (5 rings) and three planets (4 rings
-each); every ring has 24 sectors. Everyone deploys on black hole ring 3 or 4, at least three
+each); every ring has 24 sectors. Everyone deploys on black hole ring 2, 3 or 4, at least three
 sectors from every placed ship; that position is their Home (destroyed ships respawn there, drift one turn, and
 their next turn is a first round of their own: untouchable until it is over, and
 firing at and scanning nobody on it). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
@@ -672,6 +672,18 @@ not an argument:
   `outlier` from a bar that moved rather than a hull. It needs a second clause
   (one seizure per turn end, or two pirates trade the loot for ever) and buys
   nothing; the designer kept the simpler rule.
+
+- **Deployment on black hole rings 2, 3 or 4.** Adopted 30 Sept 2026 so a
+  player can start nearer the others or further from them; never ring 5, the
+  lane ring, where a ship could jump out on its first turn. Measured against
+  rings 3 and 4 on the same seeds (benchmark 120 games a seat count, balance
+  300 a row), with the bots' hunters taking the fastest ring allowed: kills
+  1.7 / 3.7 / 6.5 / 9.1 -> 1.9 / 4.3 / 7.6 / 10.3, dealt Destroy / Deliver /
+  Intercept 39 / 34 / 33 -> 43 / 34 / 30%, every card within 3 per 100 kept,
+  length unchanged, no failing flag. Rings 1 to 4 read the same (kills 1.9 /
+  4.5 / 8.8 / 10.2, 42 / 36 / 30%) with a Survey holder deploying on the
+  dive ring: the dive moves to round one and the card barely moves (21 ->
+  24), because the data is then lost more often on the crowded fast rings.
 
 - **A jump faces prograde; recoil pushes against the facing.** Adopted 30
   Sept 2026 from the designer's play: a jump is a burn out of the well, so it

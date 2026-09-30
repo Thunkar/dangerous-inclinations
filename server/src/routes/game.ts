@@ -142,7 +142,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return reply.send({ view: result.view });
   });
 
-  // Deployment phase: place the ship (and Home) on Black Hole Ring 3 or Ring 4.
+  // Deployment phase: place the ship (and Home) on Black Hole Ring 2, 3 or 4.
   fastify.post<GameRequest>("/api/games/:gameId/deploy", async (request, reply) => {
     const member = await requireMember(request, reply);
     if (!member) return;

@@ -1,5 +1,5 @@
 /**
- * Deployment: everyone starts on Black Hole ring 3 or ring 4, three sectors
+ * Deployment: everyone starts on Black Hole ring 2, 3 or 4, three sectors
  * clear of every ship already placed. The legal set comes from the engine
  * (`legalDeploymentsAgainst`, read against the public positions on the view),
  * so the bot can never name a placement the rules would refuse. The chosen
@@ -22,8 +22,9 @@
  *        it, takes the Intercept sector instead;
  *      no legal sector on the target's ring falls through to 3;
  *   3. a card that has to reach somebody (Destroy, Intercept, Piracy, Escort)
- *      wants ring 3, which drifts 4 a turn and brings the whole ring past the
- *      ship, on the legal sector farthest from the ships already placed;
+ *      wants the fastest deployment ring, ring 2, which drifts 6 a turn and
+ *      brings the whole ring past the ship, on the legal sector farthest from
+ *      the ships already placed;
  *   4. anyone else takes ring 4, farthest from the ships already placed
  *      (spread out, don't start in someone's railgun arc).
  * Ties are broken by the game's seeded RNG through `pick`.
@@ -44,7 +45,7 @@ export interface DeploymentChoice {
   sector: number;
 }
 
-/** The inner deployment ring: four sectors a turn. */
+/** The inner deployment ring: the fastest a ship may start on. */
 const FAST_RING = HOME_RINGS[0];
 
 /** Cards whose holder has to come to somebody. */

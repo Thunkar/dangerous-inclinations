@@ -73,7 +73,7 @@ export const GRAVITY_WELLS: GravityWell[] = [BLACK_HOLE, PLANET_ALPHA, PLANET_BE
 export const PLANETS: GravityWell[] = GRAVITY_WELLS.filter((w) => w.type === "planet");
 
 /** Everyone deploys together on one of these rings of the black hole; that sector becomes Home. */
-export const HOME_RINGS = [3, 4] as const;
+export const HOME_RINGS = [2, 3, 4] as const;
 /** The outer deployment ring: where a ship whose placement names no ring goes. */
 export const HOME_RING = 4;
 /** Ring stations orbit on (planets only). Ring 1 is faster, and is the way in. */

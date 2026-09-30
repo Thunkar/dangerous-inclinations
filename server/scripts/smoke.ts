@@ -374,17 +374,19 @@ check(
 );
 check(afterLoadout.activePlayerId === HUMAN, `the human is next to deploy (got ${afterLoadout.activePlayerId})`);
 
-// Everyone deploys on Black Hole ring 3 or ring 4, three sectors clear of every
-// ship already placed. The legal set is the engine's, read from the view.
+// Everyone deploys on a Black Hole deployment ring, three sectors clear of every
+// ship already placed. The legal set is the engine's, read from the view. The
+// human takes the outer one, from which a hard burn leaves the rings.
 const placed = placedShipPositions(afterLoadout);
 const legalNow = legalDeploymentsAgainst(placed);
-const onRingThree = legalNow.find((p) => p.ring === HOME_RINGS[0]);
-if (!onRingThree) fail("no legal position on the inner deployment ring");
+const OUTER = HOME_RINGS[HOME_RINGS.length - 1];
+const onOuter = legalNow.find((p) => p.ring === OUTER);
+if (!onOuter) fail("no legal position on the outer deployment ring");
 
 // Two sectors from a ship already placed: inside the gap, so refused.
 const tooClose = {
-  wellId: onRingThree.wellId,
-  ring: HOME_RINGS[0],
+  wellId: onOuter.wellId,
+  ring: OUTER,
   sector: wrapSector(placed[0].sector + DEPLOYMENT_GAP - 1),
 };
 check(
@@ -397,7 +399,7 @@ check(
   "a deployment inside the three-sector gap is refused with the engine's reason",
 );
 
-const deployResult = await games.deploy(GAME_ID, HUMAN, onRingThree.sector, onRingThree.ring);
+const deployResult = await games.deploy(GAME_ID, HUMAN, onOuter.sector, onOuter.ring);
 if (!deployResult.ok) fail(`human deployment rejected: ${deployResult.error}`);
 
 const afterDeploy = await games.getView(GAME_ID, HUMAN);
@@ -405,8 +407,8 @@ if (!afterDeploy) fail("no view after deployment");
 check(afterDeploy.phase === "active", `the game is active once everyone deployed (phase ${afterDeploy.phase})`);
 check(afterDeploy.players.every((p) => p.hasDeployed), "every player deployed");
 check(
-  afterDeploy.me?.home?.ring === HOME_RINGS[0] && afterDeploy.me?.home?.sector === onRingThree.sector,
-  "a human deployment on the inner ring reaches the board",
+  afterDeploy.me?.home?.ring === OUTER && afterDeploy.me?.home?.sector === onOuter.sector,
+  "a human deployment on the outer ring reaches the board",
 );
 console.log(`smoke: deployment done, turn ${afterDeploy.turn}, ${afterDeploy.activePlayerId} to act`);
 
@@ -416,7 +418,7 @@ console.log(`smoke: deployment done, turn ${afterDeploy.turn}, ${afterDeploy.act
   check(dry.ok === true && Array.isArray(dry.events), "a preview of an empty (coast) turn is legal and returns the events it would produce");
   const before = await games.getView(GAME_ID, HUMAN);
   check(before!.turn === afterDeploy.turn, "a preview commits nothing");
-  // Positive control: a soft burn from the inner deployment ring stays on the board.
+  // Positive control: a soft burn from the outer deployment ring stays on the board.
   const soft = await games.previewTurn(GAME_ID, HUMAN, [
     { type: "burn", playerId: HUMAN, sequence: 1, data: { burnIntensity: "soft", sectorAdjustment: 0 } },
   ]);

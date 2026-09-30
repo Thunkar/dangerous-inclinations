@@ -401,26 +401,26 @@ describe("loadout: validation and instantiation", () => {
 });
 
 describe("deployment", () => {
-  it("offers every sector of Black Hole Rings 3 and 4", () => {
+  it("offers every sector of Black Hole Rings 2, 3 and 4", () => {
     const positions = legalDeploymentPositions(readyToDeploy());
-    expect(positions).toHaveLength(48);
+    expect(positions).toHaveLength(72);
     expect(positions.every((p) => p.wellId === BH)).toBe(true);
-    expect(new Set(positions.map((p) => p.ring))).toEqual(new Set([3, 4]));
-    expect(new Set(positions.filter((p) => p.ring === 3).map((p) => p.sector)).size).toBe(24);
+    expect(new Set(positions.map((p) => p.ring))).toEqual(new Set([2, 3, 4]));
+    expect(new Set(positions.filter((p) => p.ring === 2).map((p) => p.sector)).size).toBe(24);
   });
 
-  it("keeps a placement three sectors clear of every placed ship, on either ring", () => {
+  it("keeps a placement three sectors clear of every placed ship, on every ring", () => {
     const placed = [{ wellId: BH, ring: HOME_RING, sector: 0 }];
     const legal = legalDeploymentsAgainst(placed);
-    // Both rings stay open, but not near the ship: ring 3 sector 0 is its neighbour.
-    for (const ring of [3, 4]) {
+    // Every ring stays open, but not near the ship: ring 3 sector 0 is its neighbour.
+    for (const ring of [2, 3, 4]) {
       for (const sector of [0, 1, 2, 22, 23]) {
         expect(legal).not.toContainEqual({ wellId: BH, ring, sector });
       }
       expect(legal).toContainEqual({ wellId: BH, ring, sector: 3 });
       expect(legal).toContainEqual({ wellId: BH, ring, sector: 21 });
     }
-    expect(legal).toHaveLength(2 * (24 - 5));
+    expect(legal).toHaveLength(3 * (24 - 5));
   });
 
   it("falls back to the clearest sectors when six ships leave none three clear", () => {
@@ -433,13 +433,13 @@ describe("deployment", () => {
         ...placed.map((p) => Math.min((sector - p.sector + 24) % 24, (p.sector - sector + 24) % 24))
       );
     expect(legal.every((p) => clearance(p.sector) === 2)).toBe(true);
-    expect(legalDeploymentsAgainst([]).length).toBe(48);
+    expect(legalDeploymentsAgainst([]).length).toBe(72);
   });
 
   it("refuses a ring that is not a deployment ring, and a sector too close to a placed ship", () => {
     const state = deployShip(readyToDeploy(), "p2", 5, HOME_RING).state; // p1 places next
     expect(deployShip(state, "p1", 5, 5).success).toBe(false); // black hole ring 5
-    expect(deployShip(state, "p1", 5, 2).success).toBe(false);
+    expect(deployShip(state, "p1", 9, 1).success).toBe(false); // black hole ring 1
     expect(deployShip(state, "p1", 7, HOME_RING).success).toBe(false); // two sectors away
     expect(deployShip(state, "p1", 5, 3).success).toBe(false); // the other ring, same sector
     const ok = deployShip(state, "p1", 8, 3); // three away, on the inner ring

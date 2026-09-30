@@ -32,8 +32,8 @@ export const LoadoutSubmissionSchema = z
 
 export const DeploySchema = z
   .object({
-    /** Black Hole ring 3 or ring 4; the engine refuses anything else. */
-    ring: z.union([z.literal(HOME_RINGS[0]), z.literal(HOME_RINGS[1])]),
+    /** One of the Black Hole's deployment rings; the engine refuses anything else. */
+    ring: z.number().int().refine((r) => (HOME_RINGS as readonly number[]).includes(r)),
     sector: z
       .number()
       .int()
