@@ -765,7 +765,56 @@ not an argument:
   Escort when the bots ignore their markers). The designer wants that table
   politics; the escorted ship may always turn on its escort.
 
+- **Absorbing makes no heat.** Adopted 1 Oct 2026 for simplicity: a shield's
+  cost is its cubes at its owner's check like every other subsystem's, and the
+  cubes it spends absorbing simply come off. Before, the spent cubes went onto
+  the track a second time (2 heat a point), while a rack that intercepted made
+  none. Measured against it on the same seeds, 200 games a row: natural play
+  does not move (rounds 26 → 27, kills 2.1 / 4.0 / 6.3 / 8.5 → 2.0 / 4.1 / 5.8
+  / 8.5 at 3–6 seats, shields powered 55 → 56%), but the railgun hunter lost
+  its edge, because heat dumped through a wall was how a railgun hurt a walled
+  ship: dealt Destroy 42 → 30%, Deliver 29 → 34%, the hunter's natural seats
+  41 → 27%. That was the strong card coming back to the pack: at 1000 games a
+  row the dealt primaries read Destroy 35%, Deliver 34%, Intercept 33%, the
+  most even yet, with the aggressive hunter unchanged. The tanky hunter took a
+  laser for its rack (29 → 32% at 1000 games, 1.10 deaths a game either way).
+  Benchmark at 120 games a seat count: kills 1.9 / 4.3 / 7.6 / 10.3 → 2.0 /
+  3.2 / 6.5 / 9.8, rounds 26 / 27 / 27 / 30 → 27 / 26 / 27 / 30, Deliver 68 →
+  73 and Destroy 66 → 62 completed per 100 kept.
+- **The plasma cannon and the disruptor.** Adopted 1 Oct 2026 as the
+  designer's two weapons. Plasma (side, 3 energy): 4 damage, ±1 ring ±1 sector,
+  one side only; shields stop it a point per cube, so a full wall stops it
+  whole. Swept under heat-free absorption, 200 games a row: 3 damage for 1
+  energy read as a laser that walls stop; 2 damage was weaker than a laser at
+  1 or 2 energy (the disruptor + plasma×2 row fell to 13–20%); 4 for 2 put
+  railgun + plasma×2 nine points over its bar; 4 for 3 keeps every plasma row
+  within six (railgun + plasma×2 36% against 31 at 300 games). Firing only
+  abeam (±0 sectors) made every plasma row weak. In no hunter slot does it
+  beat the laser: a wall stops plasma and not a laser. The disruptor (bow, 3
+  energy): spinal, 1–8 ahead, no damage, a hit breaks the named subsystem and
+  dumps its cubes, any powered shield stops it whole and turns face-up; it
+  does not satisfy Destroy. Its energy (2/3/4) and range (5/8) read the same,
+  so neither prices it: the bow does, since it displaces the railgun (a
+  disruptor hunter in natural play halves the kills). Its one partner is
+  plasma, which strips a wall cheaply so the disruptor fired after it gets
+  through; lasers strip nothing (disruptor + lasers×2 lost its duel 130–233).
+  The bots play that combination within a turn but never position for a
+  disruptor shot, and no preset carries either weapon.
+
 Known open problems:
+
+- **The disruptor wants another shape.** Two cubes on any shield are immunity,
+  and bots hold a shield up 55–65% of turns, so a disruptor hits mostly ships
+  that walls have left. The designer's next idea is an "EMP": not spinal, with
+  a box like the ballistic rack's. Another measurable variant is a shield that
+  stops it by spending cubes rather than at any level. Both are untried.
+- **Compressor + plasma×2 + shields + radiator beats every hunter in a
+  duel.** Both hands dealt Destroy, 400 games each with seats swapped: 248–131
+  against the aggressive hunter, 251–128 against the tanky one, 212–167
+  against railgun + plasma×2, where the same hull with lasers splits 186–194.
+  One heat less a shot than a laser lets a walled ship keep its wall and fire.
+  At three seats it reads 35% against a 33% bar, so it is a duel shape, not a
+  table one; it joins the compressor-with-guns problem below.
 
 - **Piracy and Salvage live off bots that wander.** Two bot fixes on 28 Sept
   (interdict only a leader carrying an item; a side goal may delay the
@@ -780,6 +829,8 @@ Known open problems:
   visits in 31 rounds between them.
 
 - **The primary you are dealt still moves a seat, by about six points.**
+  Closed for now on 1 Oct 2026, when absorbing stopped making heat: 35 / 34 /
+  33 at 1000 games a row. The history below is how it got there.
   After the 27 Sept cleanup, whose bot fixes (dock jobs named, criticals
   through shields, overheat against the redline, danger priced in points)
   moved every row a little, 200 games a row: dealt Destroy 34%, Deliver 28%,
@@ -886,9 +937,10 @@ Known open problems:
   in place of a shield read 33% and 35% but died as often as the aggressive
   hunter or more, a second aggressive preset. The second wall was the problem
   (eight heat a turn stops a hunter firing): since 22 Sept it is railgun +
-  rack + shields + radiators×2, 28% at 600 games with the fewest deaths of any
-  hunter (1.09 a game against the aggressive preset's 1.32). Bots holding
-  Destroy still fly the aggressive preset, so natural play does not see it.
+  shields + radiators×2 and one gun, a rack until 1 Oct 2026 and a laser since
+  (32% at 1000 games, 1.10 deaths a game, the fewest of any hunter). Bots
+  holding Destroy still fly the aggressive preset, so natural play does not
+  see it, and the aggressive hunter's rack is the only one in natural play.
 - **The bots keep cards uniformly among the legal ones, which skews every
   forced-hull measurement involving a weapon.** A loadout that can hold a gun is a
   loadout that gets dealt into Destroy (44% of games) whether or not that gun can

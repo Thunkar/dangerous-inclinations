@@ -71,7 +71,7 @@ import {
   MIN_PLAYERS,
   MISSIONS_PER_PLAYER,
   SIDE_SLOT_SUBSYSTEMS,
-  WEAPON_SUBSYSTEM_TYPES,
+  DAMAGING_WEAPON_TYPES,
   buildTurn,
   describeEvent,
   describeMission,
@@ -361,7 +361,7 @@ Your offers:
 ${offers}
 Loadouts that are known to fly (you are not limited to these):
 ${presetLines()}
-Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${WEAPON_SUBSYSTEM_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO 1-point secondaries (Survey, Piracy, Tanker, Escort, Salvage; two of a kind is allowed, and they are two jobs), which is four points held: your primary and either secondary wins, and the other secondary is the spare.
+Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${DAMAGING_WEAPON_TYPES.join(", ")}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO 1-point secondaries (Survey, Piracy, Tanker, Escort, Salvage; two of a kind is allowed, and they are two jobs), which is four points held: your primary and either secondary wins, and the other secondary is the spare.
 Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "missionIds": [${Array.from({ length: MISSIONS_PER_PLAYER }, () => '"id"').join(",")}], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","radiator"]}}`;
 }
 

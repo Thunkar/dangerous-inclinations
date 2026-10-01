@@ -479,15 +479,20 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
     players[attackerIndex] = attacker;
     const target = players[targetIndex];
     const roll = rollD10(working);
+    const stats = config.weaponStats!;
     const outcome = resolveAttack(
       target.ship,
       target.id,
-      config.weaponStats!.damage,
+      stats.damage,
       action.data.criticalTarget,
       roll,
       attacker.ship,
       attacker.id,
-      config.weaponStats!.ignoresShields === true
+      {
+        ignoresShields: stats.ignoresShields === true,
+        shieldEnergyPerPoint: stats.shieldEnergyPerPoint,
+        disrupts: stats.disrupts === true,
+      }
     );
     players[targetIndex] = { ...target, ship: outcome.ship };
     events.push({
@@ -499,8 +504,9 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
       result: outcome.hitResult.result,
       damage: outcome.hitResult.damage,
       toHull: outcome.hitResult.damageToHull,
-      toHeat: outcome.hitResult.damageToHeat,
+      absorbed: outcome.hitResult.absorbed,
       targetHullAfter: outcome.ship.hitPoints,
+      ...(outcome.hitResult.blocked ? { blocked: true as const } : {}),
     });
     events.push(...outcome.events);
     if (isDestroyed(outcome.ship) && !isDestroyed(target.ship)) {

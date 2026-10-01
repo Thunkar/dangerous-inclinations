@@ -19,7 +19,7 @@ export const RULES_DIALOG = {
   /**
    * The quick reference, one row a line: the label, then the rule. The
    * slots every row may use: halfShield, fullShield, rackEnergy,
-   * sensorEnergy, maxHeat, dissipation, radiator, shieldEnergy, shieldHeat,
+   * sensorEnergy, maxHeat, dissipation, radiator, shieldEnergy, plasmaShield,
    * intercepts, hull, fuel, sectors, soft, medium, hard, mostPhase,
    * jumpEnergy, jumpFuel, compressedFuel, miss, hitFrom, hitTo, crit,
    * sensorCrit, salvoEnergy, scanRange, tankerFuel, homeRings, deploymentGap,
@@ -40,7 +40,7 @@ export const RULES_DIALOG = {
     ['Dissipation', 'dissipate {dissipation} (+{radiator} per radiator) at every check'],
     [
       'Shields',
-      'power at {halfShield} or {fullShield}; {shieldEnergy} energy a point absorbed, {shieldHeat} heat a point; power them every turn you want them up; lasers ignore them',
+      'power at {halfShield} or {fullShield}; {shieldEnergy} energy a point absorbed; the energy comes off and makes no heat; power them every turn you want them up; lasers ignore them; plasma takes {plasmaShield} energy a point; any powered shield stops a disruptor whole',
     ],
     [
       'Ballistic rack',
@@ -108,7 +108,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Keeping cards',
-      '{primaryOffers} primaries keep {primaries}, {secondaryOffers} secondaries keep any {secondaries}, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon',
+      '{primaryOffers} primaries keep {primaries}, {secondaryOffers} secondaries keep any {secondaries}, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon that deals damage (not a disruptor alone)',
     ],
     [
       'Hand',
@@ -146,6 +146,6 @@ export const RULES_DIALOG = {
 
   reveals: {
     title: 'Reveals',
-    text: 'A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack rolls at a missile), and a missiles subsystem then shows what is left; shields absorb damage; a sensor array scans; a radiator when your heat goes above {dissipation} at a heat check; a compressor when a jump costs {compressedFuel} fuel instead of {jumpFuel}; any subsystem when a critical breaks it. Powering a subsystem does not turn it over: a wall you never needed, a rack nothing came at and a sensor you never scanned with are still secrets at the end of the game.',
+    text: 'A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack rolls at a missile), and a missiles subsystem then shows what is left; shields absorb damage or stop a disruptor; a sensor array scans; a radiator when your heat goes above {dissipation} at a heat check; a compressor when a jump costs {compressedFuel} fuel instead of {jumpFuel}; any subsystem when a critical breaks it. Powering a subsystem does not turn it over: a wall you never needed, a rack nothing came at and a sensor you never scanned with are still secrets at the end of the game.',
   },
 } as const

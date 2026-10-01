@@ -51,9 +51,17 @@ export type SubsystemType =
   | "radiator"
   | "fuel_compressor"
   | "sensor_array"
-  | "ballistic_rack";
+  | "ballistic_rack"
+  | "plasma_cannon"
+  | "disruptor";
 
-export type WeaponType = "laser" | "railgun" | "missiles" | "ballistic_rack";
+export type WeaponType =
+  | "laser"
+  | "railgun"
+  | "missiles"
+  | "ballistic_rack"
+  | "plasma_cannon"
+  | "disruptor";
 
 /** Stable identifier: "engines" | "rotation" | "scoop" | "forward-0" | "side-0".."side-3". */
 export type SubsystemId = string;
@@ -106,8 +114,9 @@ export function isPowerableType(type: SubsystemType): boolean {
 }
 
 /**
- * Energy a shield spends per point of damage it absorbs: the same two as the
- * heat (SHIELD_HEAT_PER_POINT), so a point costs two cubes and two heat.
+ * Energy a shield spends per point of damage it absorbs, unless the weapon
+ * names its own rate (`shieldEnergyPerPoint`). The spent cubes come off the
+ * tile and make no heat: they were heat at their owner's check already.
  *
  * At one cube a point a shield tile soaked its cubes every round for free,
  * which made every 2-damage weapon (missiles, the rack, and the railgun
@@ -127,6 +136,16 @@ export interface WeaponStats {
   sideRestricted?: boolean; // Broadside weapons on a side only fire toward that side
   canTargetSameRing?: boolean; // Broadside weapons that also cover the same ring
   ignoresShields?: boolean; // Laser: shields are electromagnetic and deflect only physical projectiles
+  /**
+   * Cubes a shield spends per point of this weapon's damage it absorbs.
+   * Omitted means SHIELD_ENERGY_PER_POINT; plasma is soft to a screen at one.
+   */
+  shieldEnergyPerPoint?: number;
+  /**
+   * Disruptor: deals no damage and never criticals; a hit breaks the named
+   * slot unless any powered shield is up, which blocks the shot whole.
+   */
+  disrupts?: boolean;
   maxAmmo?: number; // Ammunition-based weapons
   stepsPerMove?: number; // Guided projectiles: steps (a ring or a sector) per move; missiles burn no fuel
   maxMoves?: number; // Guided projectiles: moves before expiry
@@ -321,6 +340,52 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       canTargetSameRing: true,
     },
   },
+
+  plasma_cannon: {
+    id: "plasma_cannon",
+    name: "Plasma Cannon",
+    /**
+     * Four damage for three energy, at a cube a point against shields: a full
+     * wall stops it whole and a half wall lets half through. Even damage so
+     * that a wall answers it exactly (measured 1 Oct 2026, three seats, 200
+     * games a row: 3 damage for 1 energy read as a laser that walls stop, 2
+     * damage was weaker than the laser at any cost, 4 for 2 put railgun +
+     * plasma×2 nine points over its bar, 4 for 3 keeps every plasma row
+     * within six of it).
+     */
+    minEnergy: 3,
+    maxEnergy: 3,
+    slotType: "side",
+    weaponStats: {
+      damage: 4,
+      // The laser's box pulled in to the neighbouring rings: hard-hitting and
+      // cheap, so it has to get close and cannot shoot along its own ring.
+      ringRange: 1,
+      sectorRange: 1,
+      arc: "broadside",
+      sideRestricted: true,
+      // A screen soaks plasma at a cube a point, so a wall stops it cheaply
+      // in heat but runs out of cubes fast.
+      shieldEnergyPerPoint: 1,
+    },
+  },
+
+  disruptor: {
+    id: "disruptor",
+    name: "Disruptor",
+    minEnergy: 3,
+    maxEnergy: 3,
+    slotType: "forward",
+    weaponStats: {
+      // No damage and no recoil: a hit breaks the slot the attacker names,
+      // and any powered shield stops it.
+      damage: 0,
+      ringRange: 0,
+      sectorRange: 8,
+      arc: "spinal",
+      disrupts: true,
+    },
+  },
 };
 
 /** Cubes a tile takes at a time: allocations must be a multiple of this. */
@@ -338,12 +403,26 @@ export function isWeaponType(type: SubsystemType): type is WeaponType {
 
 /**
  * Every tile that can shoot, derived from the configs so a new weapon joins
- * the list by existing. This is what "a weapon" means wherever the rules ask
- * for one (a kept Destroy card, `MISSION_REQUIREMENTS`).
+ * the list by existing. A Destroy card asks for more than this, a weapon that
+ * deals damage ({@link DAMAGING_WEAPON_TYPES}).
  */
 export const WEAPON_SUBSYSTEM_TYPES: readonly WeaponType[] = (
   Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]
 ).filter(isWeaponType);
+
+/**
+ * The weapons that take hull: every weapon but the disruptor. A Destroy card
+ * needs one (`MISSION_REQUIREMENTS`), since a weapon that only breaks slots
+ * can never finish a ship.
+ */
+export const DAMAGING_WEAPON_TYPES: readonly WeaponType[] = WEAPON_SUBSYSTEM_TYPES.filter(
+  (t) => SUBSYSTEM_CONFIGS[t].weaponStats!.damage > 0
+);
+
+/** Cubes a shield spends per point of this weapon's damage absorbed. */
+export function shieldEnergyPerPointOf(stats: WeaponStats | undefined): number {
+  return stats?.shieldEnergyPerPoint ?? SHIELD_ENERGY_PER_POINT;
+}
 
 /**
  * Whether a tile has energy on it: an action put it there this turn, or on its

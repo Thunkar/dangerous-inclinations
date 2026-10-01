@@ -6,5 +6,7 @@ export interface WeaponHitResult {
   result: HitRollResult;
   damage: number;
   damageToHull: number;
-  damageToHeat: number;
+  absorbed: number;
+  /** A disruptor hit stopped whole by a powered shield. */
+  blocked?: boolean;
 }

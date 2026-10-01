@@ -19,6 +19,8 @@ export interface PerPlayerStats {
   deaths: number;
   shotsFired: Record<string, number>;
   hitsByWeapon: Record<string, number>;
+  /** Hits that shields stopped whole (a disruptor against any powered wall). */
+  blockedByWeapon: Record<string, number>;
   hullDamageByWeapon: Record<string, number>;
   missilesLaunched: number;
   /** Missiles aimed at this ship that its racks shot down. */
@@ -58,7 +60,7 @@ export interface TurnBehaviour {
   meanHeatAtCheck: number;
   /** Share of acting turns whose heat check dealt damage. */
   heatDamageShare: number;
-  /** Share of weapon damage soaked by shields (toHeat / (toHeat + toHull)). */
+  /** Share of weapon damage soaked by shields (absorbed / (absorbed + toHull)). */
   absorbedShare: number;
   /** Share of all player-turns spent respawning: one per destruction. */
   lostTurnShare: number;
@@ -159,6 +161,7 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
       deaths: 0,
       shotsFired: {},
       hitsByWeapon: {},
+      blockedByWeapon: {},
       hullDamageByWeapon: {},
       missilesLaunched: 0,
       missilesIntercepted: 0,
@@ -205,7 +208,7 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
   for (const turn of run.turns) {
     for (const e of turn.events) {
       if (e.type === "attack_resolved") {
-        absorbed += e.toHeat;
+        absorbed += e.absorbed;
         hull += e.toHull;
       }
     }
@@ -397,6 +400,8 @@ function creditEvent(
       if (a) {
         if (e.result !== "miss")
           a.hitsByWeapon[e.weaponType] = (a.hitsByWeapon[e.weaponType] ?? 0) + 1;
+        if (e.blocked)
+          a.blockedByWeapon[e.weaponType] = (a.blockedByWeapon[e.weaponType] ?? 0) + 1;
         a.damageDealt += e.toHull;
         a.hullDamageByWeapon[e.weaponType] = (a.hullDamageByWeapon[e.weaponType] ?? 0) + e.toHull;
       }
@@ -489,6 +494,7 @@ export interface WeaponAggregate {
   seatShare: number;
   shotsPerGame: number;
   hitsPerGame: number;
+  blockedPerGame: number;
   hullDamagePerGame: number;
 }
 
@@ -506,7 +512,10 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
   const scans: number[] = [];
   const launched: number[] = [];
   const intercepted: number[] = [];
-  const weaponTotals: Record<string, { seats: number; shots: number; hits: number; hull: number }> =
+  const weaponTotals: Record<
+    string,
+    { seats: number; shots: number; hits: number; blocked: number; hull: number }
+  > =
     {};
   let seats = 0;
 
@@ -540,10 +549,11 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
       if (g.winnerId === p.playerId) lw.wins++;
       seats++;
       for (const type of WEAPON_SUBSYSTEM_TYPES) {
-        const w = (weaponTotals[type] ??= { seats: 0, shots: 0, hits: 0, hull: 0 });
+        const w = (weaponTotals[type] ??= { seats: 0, shots: 0, hits: 0, blocked: 0, hull: 0 });
         if (p.loadout.split(",").includes(type)) w.seats++;
         w.shots += p.shotsFired[type] ?? 0;
         w.hits += p.hitsByWeapon[type] ?? 0;
+        w.blocked += p.blockedByWeapon[type] ?? 0;
         w.hull += p.hullDamageByWeapon[type] ?? 0;
       }
     }
@@ -593,6 +603,8 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
           seatShare: seats === 0 ? 0 : Math.round((1000 * w.seats) / seats) / 1000,
           shotsPerGame: games.length === 0 ? 0 : Math.round((100 * w.shots) / games.length) / 100,
           hitsPerGame: games.length === 0 ? 0 : Math.round((100 * w.hits) / games.length) / 100,
+          blockedPerGame:
+            games.length === 0 ? 0 : Math.round((100 * w.blocked) / games.length) / 100,
           hullDamagePerGame:
             games.length === 0 ? 0 : Math.round((100 * w.hull) / games.length) / 100,
         },

@@ -251,7 +251,7 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
       result: outcome.hitResult.result,
       damage: outcome.hitResult.damage,
       toHull: outcome.hitResult.damageToHull,
-      toHeat: outcome.hitResult.damageToHeat,
+      absorbed: outcome.hitResult.absorbed,
       targetHullAfter: outcome.ship.hitPoints,
     });
     events.push(...outcome.events);

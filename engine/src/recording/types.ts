@@ -23,8 +23,9 @@ import type { GameEvent } from "../models/events.ts";
  *     on a visit that loads, and Tanker hands in 5 fuel.
  * v10: a jump needs prograde facing, and a railgun's recoil pushes the ship
  *     against its facing.
+ * v11: absorbing makes no heat; `attack_resolved.toHeat` is `absorbed`.
  */
-export const RECORDING_SCHEMA_VERSION = 10;
+export const RECORDING_SCHEMA_VERSION = 11;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

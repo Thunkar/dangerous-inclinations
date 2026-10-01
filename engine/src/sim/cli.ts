@@ -214,7 +214,7 @@ function printSummary(a: AggregateStats): void {
     `Weapons (seats carrying · shots/game · hits/game · hull dmg/game): ${Object.entries(a.weapons)
       .map(
         ([t, w]) =>
-          `${t} ${p(w.seatShare)} · ${w.shotsPerGame} · ${w.hitsPerGame} · ${w.hullDamagePerGame}`
+          `${t} ${p(w.seatShare)} · ${w.shotsPerGame} · ${w.hitsPerGame}${w.blockedPerGame > 0 ? ` (${w.blockedPerGame} blocked)` : ""} · ${w.hullDamagePerGame}`
       )
       .join(" | ")}`
   );

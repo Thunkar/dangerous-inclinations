@@ -5,16 +5,21 @@
  * rejects a bot's fire action for range.
  */
 import type { Facing, Player, Position } from "../../models/game.ts";
+import type { SlotView } from "../../game/view.ts";
 import { isQuietTurn } from "../../models/game.ts";
 import type { Subsystem, SubsystemId, SubsystemType } from "../../models/subsystems.ts";
-import { getSubsystemConfig } from "../../models/subsystems.ts";
+import {
+  SHIELD_ENERGY_PER_POINT,
+  getSubsystemConfig,
+  shieldEnergyPerPointOf,
+} from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import { canBeFiredAt, canEngage, canFireFrom } from "../../game/targeting.ts";
 import { markedBy } from "../../game/escort.ts";
 import { recoilRing } from "../../game/movement.ts";
-import type { BotParameters, Opponent, TacticalSituation } from "../types.ts";
-import { suspectedShieldCubes } from "../analyzer.ts";
+import type { BotParameters, KnownWeapon, Opponent, TacticalSituation } from "../types.ts";
+import { SUSPECTED_SHIELD_WEIGHT, suspectedShieldCubes } from "../analyzer.ts";
 import { INTERDICT_DANGER } from "../types.ts";
 import type { PlannerTarget } from "../movementPlanner/index.ts";
 import { driftPeriod, orbitSectorAt } from "../movementPlanner/index.ts";
@@ -73,8 +78,11 @@ interface FirePosition extends Position {
  * One feasible shot: which weapon, when in the turn, at whom.
  */
 export interface ShotOption {
-  /** False for lasers: shields do not absorb the damage. */
-  shielded: boolean;
+  /**
+   * Cubes a shield spends per point of this shot it absorbs (two, one against
+   * plasma), or null when shields do not stop it at all (lasers).
+   */
+  shieldRate: number | null;
   weapon: Subsystem;
   targetId: string;
   phase: FiringPhase;
@@ -89,6 +97,24 @@ export interface ShotOption {
   count: number;
   /** Railgun only. */
   compensateRecoil?: boolean;
+}
+
+/**
+ * What a known disruptor counts as among guns, in points of damage: it takes no
+ * hull, but every hit breaks a slot, which is what a critical does.
+ */
+export const DISRUPTOR_WORTH = 2;
+
+/** A gun's rank when choosing which to break: its damage, a disruptor {@link DISRUPTOR_WORTH}. */
+export function gunWorth(type: SubsystemType): number {
+  return getSubsystemConfig(type).weaponStats?.disrupts === true
+    ? DISRUPTOR_WORTH
+    : (getSubsystemConfig(type).weaponStats?.damage ?? 0);
+}
+
+/** A disruptor: no damage, a hit breaks the named slot unless a shield is up. */
+export function isDisruptor(weapon: Pick<Subsystem, "type">): boolean {
+  return getSubsystemConfig(weapon.type).weaponStats?.disrupts === true;
 }
 
 function weaponDamage(weapon: Subsystem): number {
@@ -127,34 +153,49 @@ export function volleyPotential(weapons: Subsystem[]): number {
   return weapons.reduce((sum, w) => sum + weaponPotential(w), 0);
 }
 
-/** Whether shields can soak this weapon's damage (lasers go straight through). */
-function shieldsStop(weapon: Subsystem): boolean {
-  return getSubsystemConfig(weapon.type).weaponStats?.ignoresShields !== true;
+/**
+ * Cubes a shield spends per point of this weapon's damage, or null when
+ * shields do not stop it (lasers go straight through).
+ */
+export function shieldRateOf(weapon: Pick<Subsystem, "type">): number | null {
+  const stats = getSubsystemConfig(weapon.type).weaponStats;
+  return stats?.ignoresShields === true ? null : shieldEnergyPerPointOf(stats);
 }
 
 /**
- * Hull damage a volley puts through `shieldAbsorption` visible cubes: laser
- * damage skips the shields, everything else has to beat them first. Damage
- * short of the cubes reaches no hull, but it is not wasted: the cubes it
- * strips are heat to their owner, and a critical breaks what it names anyway.
+ * Hull damage a volley puts through `shieldAbsorption` visible points of
+ * shield. The points are a pool of cubes ({@link SHIELD_ENERGY_PER_POINT} a
+ * point) that the shots spend in the order given: each absorbs as many points
+ * as its own rate leaves cubes for and spends that rate per point, so a cheap
+ * plasma bolt eats a wall a cube a point and whatever comes after finds less.
+ * Laser damage skips the shields. The pool is fractional (a slot that only
+ * might be a shield counts at a weight), so nothing is rounded: with every
+ * shot at the default rate this is `direct + max(0, shielded - absorption)`.
+ * Damage short of the cubes reaches no hull, but it is not wasted: the cubes
+ * it strips are heat to their owner, and a critical breaks what it names anyway.
  */
 export function hullThrough(
-  shots: Array<{ damage: number; shielded: boolean }>,
+  shots: ReadonlyArray<{ damage: number; shieldRate: number | null }>,
   shieldAbsorption: number
 ): number {
-  let shielded = 0;
-  let direct = 0;
+  let cubes = shieldAbsorption * SHIELD_ENERGY_PER_POINT;
+  let hull = 0;
   for (const s of shots) {
-    if (s.shielded) shielded += s.damage;
-    else direct += s.damage;
+    if (s.shieldRate === null) {
+      hull += s.damage;
+      continue;
+    }
+    const absorbed = Math.min(s.damage, cubes / s.shieldRate);
+    cubes -= absorbed * s.shieldRate;
+    hull += s.damage - absorbed;
   }
-  return direct + Math.max(0, shielded - shieldAbsorption);
+  return hull;
 }
 
 /** {@link hullThrough} for weapons the bot could fire this turn. */
 export function hullPotential(weapons: Subsystem[], shieldAbsorption: number): number {
   return hullThrough(
-    weapons.map((w) => ({ damage: weaponPotential(w), shielded: shieldsStop(w) })),
+    weapons.map((w) => ({ damage: weaponPotential(w), shieldRate: shieldRateOf(w) })),
     shieldAbsorption
   );
 }
@@ -256,11 +297,7 @@ export function chooseCriticalTarget(
 
   // The gun we have seen, biggest first: an unbroken one fires whenever its
   // owner likes, so being dark right now is no reason to leave it alone.
-  const biggest = [...working].sort(
-    (a, b) =>
-      (getSubsystemConfig(b.type).weaponStats?.damage ?? 0) -
-      (getSubsystemConfig(a.type).weaponStats?.damage ?? 0)
-  )[0];
+  const biggest = biggestGun(working);
   if (biggest) return biggest.slotId;
 
   const loaded = [...target.unknownSlots]
@@ -279,6 +316,106 @@ export function chooseCriticalTarget(
   if (powered) return powered.id;
 
   return fallbackCriticalTarget(target);
+}
+
+function biggestGun(working: KnownWeapon[]): KnownWeapon | undefined {
+  return [...working].sort((a, b) => gunWorth(b.type) - gunWorth(a.type))[0];
+}
+
+/**
+ * Chance that a disruptor fired at `target` finds a powered shield, after
+ * `before`: the direct-fire shots sequenced ahead of it at the same ship.
+ *
+ * Any working shield with a cube on it blocks the shot whole, so this is read
+ * slot by slot, never off the fractional {@link Opponent.shieldAbsorption}. A
+ * face-up shield holding cubes is certain. A face-down slot is a shield
+ * possibly: on a side slot one to four cubes (four is certain, the rack holds
+ * two), in the bow two or four (four is certain, the sensor holds two), and a
+ * guess counts at the analyzer's {@link SUSPECTED_SHIELD_WEIGHT}. The shots
+ * before strip cubes as the engine does, tile by tile in slot order, each
+ * taking whole points at its own rate, so a plasma bolt empties a two-cube
+ * wall and leaves one cube of a four-cube wall standing (and that one cube
+ * still blocks). A guessed slot is stripped as if it were a shield.
+ */
+export function disruptBlockChance(
+  target: Opponent,
+  before: ReadonlyArray<{ damage: number; shieldRate: number | null }> = []
+): number {
+  const rackMax = getSubsystemConfig("ballistic_rack").maxEnergy;
+  const sensorMax = getSubsystemConfig("sensor_array").maxEnergy;
+  const shields = getSubsystemConfig("shields");
+  const guesses: Array<{ cubes: number; certain: boolean }> = [];
+  for (const slot of target.player.slots) {
+    if (slot.type === "shields") {
+      if (slot.isBroken !== true && slot.allocatedEnergy > 0)
+        guesses.push({ cubes: slot.allocatedEnergy, certain: true });
+      continue;
+    }
+    if (slot.type !== null || slot.isBroken === true) continue;
+    if (slot.group === "side") {
+      const cubes = suspectedShieldCubes(slot);
+      if (cubes > 0) guesses.push({ cubes, certain: cubes > rackMax });
+      continue;
+    }
+    const cubes = slot.allocatedEnergy;
+    if (cubes >= shields.minEnergy && cubes <= shields.maxEnergy)
+      guesses.push({ cubes, certain: cubes > sensorMax });
+  }
+  for (const shot of before) {
+    if (shot.shieldRate === null) continue;
+    let left = shot.damage;
+    for (const g of guesses) {
+      if (left <= 0) break;
+      const take = Math.min(left, Math.floor(g.cubes / shot.shieldRate));
+      g.cubes -= take * shot.shieldRate;
+      left -= take;
+    }
+  }
+  let open = 1;
+  for (const g of guesses) if (g.cubes > 0) open *= g.certain ? 0 : 1 - SUSPECTED_SHIELD_WEIGHT;
+  return 1 - open;
+}
+
+/** The highest {@link disruptBlockChance} a bot fires its disruptor into. */
+export const MAX_DISRUPT_BLOCK = 0.5;
+
+/**
+ * Slot a disruptor hit breaks. It is only fired at a ship whose shields look
+ * down, and a hit always breaks what it names, so the choice is what costs
+ * them most, never a slot we know is broken:
+ *
+ * - **kill**: a face-up working shield. It is down if we are firing at all,
+ *   and broken it cannot be powered again until a station, so every later shot
+ *   lands in full;
+ * - a gun we know holding cubes, most cubes first: a gun that fired keeps its
+ *   cubes until its owner's next turn, and breaking it dumps them as heat;
+ * - the biggest gun we know, a disruptor counted at {@link DISRUPTOR_WORTH};
+ * - the engines of a ship carrying cargo or close to the win: it has
+ *   somewhere it must be, and broken engines leave it coasting;
+ * - otherwise whatever a critical would name ({@link chooseCriticalTarget}).
+ */
+export function chooseDisruptTarget(
+  target: Opponent,
+  intent: "suppress" | "kill" = "suppress"
+): SubsystemId {
+  const slots = target.player.slots;
+  if (intent === "kill") {
+    const shield = slots.find((s) => s.type === "shields" && s.isBroken !== true);
+    if (shield) return shield.id;
+  }
+  const working = target.knownWeapons.filter((w) => !w.isBroken);
+  const cubesOn = (id: SubsystemId) =>
+    slots.find((s: SlotView) => s.id === id)?.allocatedEnergy ?? 0;
+  const loaded = working
+    .filter((w) => cubesOn(w.slotId) > 0)
+    .sort((a, b) => cubesOn(b.slotId) - cubesOn(a.slotId))[0];
+  if (loaded) return loaded.slotId;
+  const biggest = biggestGun(working);
+  if (biggest) return biggest.slotId;
+  const engines = target.player.fixed.find((f) => f.type === "engines" && !f.isBroken);
+  const cargo = target.player.cargoAboard.crates + target.player.cargoAboard.data;
+  if (engines && (cargo > 0 || target.danger.score >= INTERDICT_DANGER)) return engines.id;
+  return chooseCriticalTarget(target, intent);
 }
 
 interface FiringContext {
@@ -326,7 +463,7 @@ export function firingOptions(
     if (!isWeaponReady(weapon)) continue;
     const damage = weaponDamage(weapon);
     const cubes = weaponEnergy(weapon);
-    const shielded = shieldsStop(weapon);
+    const shieldRate = shieldRateOf(weapon);
     const inPre = firesPre && canEngage(weapon, ctx.pre, targetPos);
     const inPost = firesPost && canEngage(weapon, ctx.post, targetPos);
 
@@ -348,7 +485,7 @@ export function firingOptions(
         targetId: target.player.id,
         phase: "post",
         damage,
-        shielded,
+        shieldRate,
         heat: cubes + (compensate ? BURN_COSTS.soft.energy : 0),
         count: 1,
         compensateRecoil: compensate,
@@ -368,15 +505,34 @@ export function firingOptions(
         targetId: target.player.id,
         phase,
         damage: damage * ammo,
-        shielded,
+        shieldRate,
         heat: cubes,
         count: ammo,
       });
       continue;
     }
 
-    // Lasers and racks: fire wherever the target is in range, before the
-    // move when possible (nothing later in the turn can invalidate it).
+    // A disruptor is offered in every phase it bears in: whether it is worth
+    // firing depends on the shield cubes the shots before it strip, so the
+    // planner decides it after the damage shots and picks the phase then.
+    if (isDisruptor(weapon)) {
+      for (const phase of ["pre", "post"] as const) {
+        if (!(phase === "pre" ? inPre : inPost)) continue;
+        intents.push({
+          weapon,
+          targetId: target.player.id,
+          phase,
+          damage,
+          shieldRate,
+          heat: cubes,
+          count: 1,
+        });
+      }
+      continue;
+    }
+
+    // Lasers, racks and plasma: fire wherever the target is in range, before
+    // the move when possible (nothing later in the turn can invalidate it).
     const phase: FiringPhase | null = inPre ? "pre" : inPost ? "post" : null;
     if (!phase) continue;
     intents.push({
@@ -384,7 +540,7 @@ export function firingOptions(
       targetId: target.player.id,
       phase,
       damage,
-      shielded,
+      shieldRate,
       heat: cubes,
       count: 1,
     });

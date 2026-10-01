@@ -7,8 +7,8 @@
  * still there when the check runs, so firing costs its four, a burn costs the
  * burn's and a wall costs the wall. The energy stays on until its owner's next
  * turn clears the loadout, so each turn's cubes are billed at one check.
- * Absorbed damage adds two per point on top (`damage.ts`), because that heat is
- * the shot, not the cubes.
+ * Absorbing makes no heat: the cubes a shield spends come off the tile
+ * (`damage.ts`), and they were billed at the check when they went on.
  *
  * There is no reactor cap any more: a ship may light everything it owns in one
  * turn, and what stops it is this check. At it the ship pays for anything above
@@ -16,8 +16,7 @@
  * turn**.
  *
  * Heat used to reset to zero here, which made dissipation a spend limit: under
- * it nothing cost anything, over it a point absorbed cost more hull than it
- * saved, and so no ship ever crossed the line (1.5% of turns, with a mean 3.67
+ * it nothing cost anything, over it every point cost hull, and so no ship ever crossed the line (1.5% of turns, with a mean 3.67
  * points of the track unused). Carrying it keeps the long-run price identical
  * (generate more than you dissipate and you pay the difference every turn once the
  * track saturates) while giving the ship ten points of buffer to spend first.
@@ -55,7 +54,7 @@ export function heatAfterCheck(heat: number, dissipation: number): number {
  * 4. The ship dissipates; what is left carries to the next turn.
  *
  * **Cold repair.** Heat 0 at the check means not a cube on the loadout and
- * nothing absorbed since the last check: nothing used or powered this turn and the crew outside. It is the only repair that does not need a station,
+ * nothing carried on the track: nothing used or powered this turn and the crew outside. It is the only repair that does not need a station,
  * and it is what stops a critical on the engines, the thrusters or the scoop
  * being a soft-lock: every station is in a planet well, reaching one needs a
  * jump, and a jump needs engines and fuel, so a ship without them, or dry with

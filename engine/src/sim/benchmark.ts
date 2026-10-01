@@ -46,7 +46,6 @@ import {
   MAX_HEAT,
   MAX_PLAYERS,
   MIN_PLAYERS,
-  SHIELD_HEAT_PER_POINT,
   STARTING_HIT_POINTS,
 } from "../models/game.ts";
 import { SHIELD_ENERGY_PER_POINT, SUBSYSTEM_CONFIGS } from "../models/subsystems.ts";
@@ -443,7 +442,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
     `| Heat track | ${MAX_HEAT}; above it is hull damage, then shed ${DEFAULT_DISSIPATION_CAPACITY} (+${radiator} per radiator) and carry the rest |`
   );
   out.push(
-    `| Shields | ${SHIELD_ENERGY_PER_POINT} cubes a point absorbed, ${SHIELD_HEAT_PER_POINT} heat a point, and its cubes as heat every turn it is powered |`
+    `| Shields | ${SHIELD_ENERGY_PER_POINT} energy a point absorbed, which comes off the subsystem; its energy is heat every turn it is powered, and absorbing makes none |`
   );
   out.push(`| Table time assumes | ${args.minutesPerTurn} min per player-turn |`);
   // A page run under `--rules=` is not the standing benchmark: say so where

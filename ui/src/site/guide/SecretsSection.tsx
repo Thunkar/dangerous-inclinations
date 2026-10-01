@@ -23,7 +23,10 @@ import { rich } from '../../utils/rich'
 const T = CHEATSHEET.secrets
 
 const REVEALS: Array<{ types: SubsystemType[]; when: ReactNode }> = [
-  { types: ['railgun', 'laser', 'missiles'], when: T.reveals.weapon },
+  {
+    types: ['railgun', 'laser', 'missiles', 'plasma_cannon', 'disruptor'],
+    when: T.reveals.weapon,
+  },
   { types: ['ballistic_rack'], when: T.reveals.rack },
   { types: ['shields'], when: T.reveals.shields },
   { types: ['sensor_array'], when: T.reveals.sensor },
@@ -63,7 +66,7 @@ function Reveals() {
             borderTop: index === 0 ? 'none' : `2px solid ${PRESS.inkFaint}`,
           }}
         >
-          <Box sx={{ display: 'flex', gap: 0.75 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
             {row.types.map(type => (
               <TileIcon key={type} type={type} size={24} />
             ))}

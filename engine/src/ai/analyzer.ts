@@ -31,14 +31,14 @@ import type {
 } from "./types.ts";
 import { assessDanger } from "./behaviors/danger.ts";
 import { computeGoals, selectCurrentGoal, attachPlanToGoal } from "./behaviors/missions.ts";
-import { potentialDamage } from "./behaviors/combat.ts";
+import { DISRUPTOR_WORTH, isDisruptor, potentialDamage } from "./behaviors/combat.ts";
 
 /** Known in-range damage that counts as a full (1.0) threat. */
 const FULL_THREAT_DAMAGE = 6;
 /** The cube count fits a weapon and a harmless subsystem equally well. */
 const POSSIBLE = 0.5;
 /** Weight of a face-down side slot that might be shields, when estimating absorption. */
-const SUSPECTED_SHIELD_WEIGHT = 0.5;
+export const SUSPECTED_SHIELD_WEIGHT = 0.5;
 
 /**
  * What a slot can be, read through the cubes sitting on it.
@@ -208,8 +208,12 @@ function analyzeOpponent(
     const inRange = !weapon.isBroken && sameWell && canEngage(weapon, attacker, myPosition);
     knownWeapons.push({ slotId: slot.id, type: slot.type, isBroken: weapon.isBroken, inRange });
     // A face-up launcher shows what is left, and the whole magazine can come
-    // at us in one launch, so the threat is the magazine.
-    if (inRange) threatInRange += potentialDamage(slot.type, slot.ammo);
+    // at us in one launch, so the threat is the magazine. A disruptor takes no
+    // hull but breaks a slot on every hit: it is priced as a small gun.
+    if (inRange)
+      threatInRange += isDisruptor(weapon)
+        ? DISRUPTOR_WORTH
+        : potentialDamage(slot.type, slot.ammo);
   }
 
   return {

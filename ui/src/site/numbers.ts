@@ -13,6 +13,7 @@ import {
   interceptsPerRack,
   lowestCriticalFace,
   rollToResult,
+  shieldEnergyPerPointOf,
 } from '@dangerous-inclinations/engine'
 
 export const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
@@ -53,6 +54,9 @@ export function poweredEffect(type: SubsystemType): string {
       return ''
   }
 }
+
+/** Shield energy a point of plasma takes, against SHIELD_ENERGY_PER_POINT for every other weapon. */
+export const PLASMA_SHIELD = shieldEnergyPerPointOf(SUBSYSTEM_CONFIGS.plasma_cannon.weaponStats)
 
 /** A ballistic rack with energy on it downs a missile on this roll or better. */
 export const INTERCEPT_ON = INTERCEPT_ROLL

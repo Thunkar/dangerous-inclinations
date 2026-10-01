@@ -219,6 +219,8 @@ const BEAM_COLORS: Record<WeaponType | 'pdc', string> = {
   laser: TABLE.accent,
   missiles: TABLE.heat,
   ballistic_rack: TABLE.teal,
+  plasma_cannon: TABLE.heat,
+  disruptor: TABLE.violet,
   pdc: TABLE.teal,
 }
 
@@ -539,8 +541,8 @@ export function eventToBeat(
         }
         if (event.toHull > 0)
           float(event.targetId, `-${event.toHull}`, 'damage', FLOAT.normal, { x: 0, y: 14 })
-        if (event.toHeat > 0)
-          float(event.targetId, `${event.toHeat} shielded`, 'shield', FLOAT.normal, { x: 26, y: 0 })
+        if (event.absorbed > 0)
+          float(event.targetId, `${event.absorbed} shielded`, 'shield', FLOAT.normal, { x: 26, y: 0 })
         return BEAT.resolve
       }
       case 'missile_launched':

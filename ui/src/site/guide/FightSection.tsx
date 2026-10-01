@@ -1,5 +1,5 @@
 /**
- * 06 · Fighting: one d10, four guns, and what a hit does.
+ * 06 · Fighting: one d10, six guns, and what a hit does.
  *
  * The roll strip asks `rollToResult` about every face (`faceResult`), bare and with a sensor
  * up, so the shading is the engine's and not a table typed out here.
@@ -20,6 +20,7 @@ import {
   D10,
   INTERCEPT_ON,
   MISS_TOP,
+  PLASMA_SHIELD,
   SENSOR_CRIT,
   energyLabel,
   faceResult,
@@ -132,6 +133,22 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
       turns: weaponStats('missiles').maxMoves!,
     }),
   },
+  {
+    type: 'plasma_cannon',
+    reach: rich(T.reach.plasma_cannon, {
+      rings: weaponStats('plasma_cannon').ringRange!,
+      sectors: weaponStats('plasma_cannon').sectorRange!,
+      shield: PLASMA_SHIELD,
+    }),
+  },
+  {
+    type: 'disruptor',
+    reach: rich(T.reach.disruptor, {
+      sectors: weaponStats('disruptor').sectorRange!,
+      from: MISS_TOP + 1,
+      to: D10[D10.length - 1],
+    }),
+  },
 ]
 
 function slotOf(type: SubsystemType): string {
@@ -206,7 +223,7 @@ export function FightSection() {
         sx={{
           display: 'grid',
           gap: 2.5,
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
           mb: 5,
         }}
       >
@@ -227,7 +244,7 @@ export function FightSection() {
           gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
         }}
       >
-        <Points items={T.hits.map(item => rich(item, { shieldEnergy: SHIELD_ENERGY_PER_POINT }))} />
+        <Points items={T.hits.map(item => rich(item, { shieldEnergy: SHIELD_ENERGY_PER_POINT, plasmaShield: PLASMA_SHIELD }))} />
         <Points items={T.rules.map(item => rich(item))} />
       </Box>
     </GuideSection>

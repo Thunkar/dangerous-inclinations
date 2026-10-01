@@ -12,7 +12,7 @@
  * bills the energy and leaves it where it is, because it stays on until your
  * next turn: a wall is still up while everyone else plays. What happens to it
  * then is the engine's too. A shield that absorbs spends two energy a point and
- * puts two heat on the track, and a break dumps the subsystem's energy onto the
+ * leaves the track alone, and a break dumps the subsystem's energy onto the
  * track on the spot. "Start my turn" clears the loadout, the rule's first step.
  *
  * Everything is kept in this browser, so a phone locking does not lose the
@@ -28,7 +28,6 @@ import {
   COMPRESSED_JUMP_MASS,
   MAX_HEAT,
   SHIELD_ENERGY_PER_POINT,
-  SHIELD_HEAT_PER_POINT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   energyStepOf,
@@ -647,7 +646,7 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: '
   )
 }
 
-/** A shield soaking a point on someone else's turn: two energy off it, two heat on the track. */
+/** A shield soaking a point on someone else's turn: two energy off it, nothing on the track. */
 function AbsorbButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
   return (
     <Box
@@ -688,7 +687,7 @@ function AbsorbButton({ disabled, onClick }: { disabled: boolean; onClick: () =>
           fontSize: '1.05rem',
         }}
       >
-        +{SHIELD_HEAT_PER_POINT}
+        −{SHIELD_ENERGY_PER_POINT}
       </Box>
     </Box>
   )

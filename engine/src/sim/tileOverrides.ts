@@ -36,6 +36,8 @@ const WEAPON_FIELDS: ReadonlySet<string> = new Set<keyof WeaponStats>([
   "sideRestricted",
   "canTargetSameRing",
   "ignoresShields",
+  "shieldEnergyPerPoint",
+  "disrupts",
   "maxAmmo",
   "stepsPerMove",
   "maxMoves",

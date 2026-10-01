@@ -85,8 +85,8 @@ export function getDissipationCapacity(
  * that is free.
  *
  * A shield that absorbs spends its cubes, so a wall hit on somebody else's turn
- * has less on it when a critical finds it, and the heat of what it absorbed
- * lands on the track directly (`damage.ts`).
+ * has less on it when a critical finds it; absorbing puts nothing on the track
+ * (`damage.ts`).
  */
 export function heatFromCubes(subsystems: ReadonlyArray<Subsystem>): number {
   // A tile is hot because it is carrying cubes, and a broken one dumped its

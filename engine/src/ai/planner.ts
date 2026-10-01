@@ -49,8 +49,12 @@ import { heatAfterCheck } from "../game/heat.ts";
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
 import { INTERDICT_DANGER } from "./types.ts";
 import {
+  MAX_DISRUPT_BLOCK,
   chooseCriticalTarget,
+  chooseDisruptTarget,
   denialTokens,
+  disruptBlockChance,
+  isDisruptor,
   destroyTargetIds,
   firingOptions,
   holdFireIds,
@@ -179,6 +183,21 @@ function buildCandidate(
       if (shotsWith(ship.facing) === 0 && shotsWith(flip(ship.facing)) > 0)
         facing = flip(ship.facing);
     }
+    // The disruptor is spinal too, and fires before the move or after it. It
+    // is worth turning for only at a ship whose shields already look down.
+    const disruptor = status.weapons.find((w) => isDisruptor(w) && isWeaponReady(w));
+    if (disruptor) {
+      const shotsWith = (f: Facing) =>
+        situation.opponents.filter(
+          (o) =>
+            disruptBlockChance(o) <= MAX_DISRUPT_BLOCK &&
+            [status.position, landing].some(
+              (at) => mayFireAt(o, at) && isInWeaponRange(disruptor, { ...at, facing: f }, o.position)
+            )
+        ).length;
+      if (shotsWith(ship.facing) === 0 && shotsWith(flip(ship.facing)) > 0)
+        facing = flip(ship.facing);
+    }
   }
   const rotate = facing !== ship.facing;
 
@@ -264,13 +283,17 @@ function buildCandidate(
   // their owner heat, and a critical breaks the slot it names whether or not
   // the shot reached the hull (RULES §Critical hits). So every ship with a
   // shot is a candidate; `selectTarget` ranks those it can hurt first.
-  const options = situation.opponents
+  // The disruptor takes no hull, so it is no part of choosing the target or
+  // queueing the volley: it is decided after both (below).
+  const firing = situation.opponents
     .filter((o) => o.sameWell && !holdFire.has(o.player.id))
-    .map((opponent) => ({
-      opponent,
-      intents: firingOptions(situation, opponent, ctx, parameters),
-    }))
+    .map((opponent) => ({ opponent, all: firingOptions(situation, opponent, ctx, parameters) }));
+  const options = firing
+    .map(({ opponent, all }) => ({ opponent, intents: all.filter((i) => !isDisruptor(i.weapon)) }))
     .filter((o) => o.intents.length > 0);
+  const disruptOptions = firing.flatMap(({ opponent, all }) =>
+    all.filter((i) => isDisruptor(i.weapon)).map((intent) => ({ opponent, intent }))
+  );
   const chosen = selectTarget(situation, options, parameters);
   const target: Opponent | null = chosen?.opponent ?? null;
 
@@ -279,8 +302,8 @@ function buildCandidate(
   // gained by firing past the hull, and the engine skips shots at a ship
   // that died earlier in the turn anyway, so the later weapons are offered
   // to the next target in range instead.
-  const queued = new Map<string, Array<{ damage: number; shielded: boolean }>>();
-  const hullOn = (o: Opponent, extra?: { damage: number; shielded: boolean }) =>
+  const queued = new Map<string, Array<{ damage: number; shieldRate: number | null }>>();
+  const hullOn = (o: Opponent, extra?: { damage: number; shieldRate: number | null }) =>
     hullThrough(
       [...(queued.get(o.player.id) ?? []), ...(extra ? [extra] : [])],
       o.shieldAbsorption
@@ -356,6 +379,43 @@ function buildCandidate(
     fired.add(intent.weapon.id);
     queued.set(opponent.player.id, [...(queued.get(opponent.player.id) ?? []), intent]);
     shots.push({ opponent, intent });
+  }
+
+  // The disruptor, once the damage shots are queued: a hit breaks the slot it
+  // names unless any powered shield is up, so it fires only at a ship whose
+  // shields look down by the time it shoots. It goes last in its phase, so
+  // the direct-fire shots at the same ship before it (the pre phase's, and
+  // the post phase's too when it fires after the move) have stripped what
+  // cubes they can; missiles resolve at the end of the turn and strip
+  // nothing in time. A disruptor is a bow weapon, so no railgun shares the
+  // hull and no recoil moves the ship under it.
+  const ahead = (o: Opponent, phase: "pre" | "post") =>
+    shots
+      .filter(
+        (s) =>
+          s.opponent === o &&
+          s.intent.weapon.type !== "missiles" &&
+          (s.intent.phase === "pre" || phase === "post")
+      )
+      .map((s) => s.intent);
+  const disruption = disruptOptions
+    .filter(({ opponent, intent }) => !fired.has(intent.weapon.id) && hullOn(opponent) < opponent.hull)
+    .map((d) => ({ ...d, block: disruptBlockChance(d.opponent, ahead(d.opponent, d.intent.phase)) }))
+    .filter((d) => d.block <= MAX_DISRUPT_BLOCK)
+    // The volley's own target first, then a ship worth killing, then the one
+    // nearest the win; the likelier hit, then the earlier phase, breaks ties.
+    .sort(
+      (a, b) =>
+        Number(b.opponent === target) - Number(a.opponent === target) ||
+        Number(isKillTarget(me, b.opponent)) - Number(isKillTarget(me, a.opponent)) ||
+        b.opponent.danger.score - a.opponent.danger.score ||
+        a.block - b.block
+    )[0];
+  if (disruption && fits(disruption.intent.heat)) {
+    targets.set(disruption.intent.weapon.id, weaponEnergy(disruption.intent.weapon));
+    heatUsed += disruption.intent.heat;
+    fired.add(disruption.intent.weapon.id);
+    shots.push({ opponent: disruption.opponent, intent: disruption.intent });
   }
 
   let expectedDamage = 0;
@@ -453,7 +513,7 @@ function buildCandidate(
     data: {
       subsystemId: shot.intent.weapon.id,
       targetPlayerId: shot.intent.targetId,
-      criticalTarget: chooseCriticalTarget(
+      criticalTarget: (isDisruptor(shot.intent.weapon) ? chooseDisruptTarget : chooseCriticalTarget)(
         shot.opponent,
         isKillTarget(me, shot.opponent) ? "kill" : "suppress"
       ),
@@ -472,14 +532,13 @@ function buildCandidate(
 
   // An uncompensated railgun recoil changes the ring, which would put any
   // later shot or scan out of the range it was checked against, so the
-  // railgun always goes last within its phase.
+  // railgun always goes last within its phase. The disruptor goes last too,
+  // after the shots that strip the shield cubes it was priced against (the
+  // two are both bow weapons, so they never share a hull).
+  const lastInPhase = (s: { intent: ShotOption }) =>
+    Number(s.intent.weapon.type === "railgun" || isDisruptor(s.intent.weapon));
   const inPhase = (phase: "pre" | "post") =>
-    shots
-      .filter((s) => s.intent.phase === phase)
-      .sort(
-        (a, b) =>
-          Number(a.intent.weapon.type === "railgun") - Number(b.intent.weapon.type === "railgun")
-      );
+    shots.filter((s) => s.intent.phase === phase).sort((a, b) => lastInPhase(a) - lastInPhase(b));
 
   if (rotate)
     tactical.push({

@@ -112,7 +112,7 @@ export function HeatSection() {
             <Box
               sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' },
+                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
                 gap: 1,
               }}
             >
@@ -122,6 +122,12 @@ export function HeatSection() {
               <EnergyCell type="scoop" label={T.energy.scoop} value={energy('scoop')} />
               <EnergyCell type="railgun" label={T.energy.railgun} value={energy('railgun')} />
               <EnergyCell type="laser" label={T.energy.laser} value={energy('laser')} />
+              <EnergyCell
+                type="plasma_cannon"
+                label={T.energy.plasma}
+                value={energy('plasma_cannon')}
+              />
+              <EnergyCell type="disruptor" label={T.energy.disruptor} value={energy('disruptor')} />
               <EnergyCell type="missiles" label={T.energy.salvo} value={energy('missiles')} />
               <EnergyCell
                 type="ballistic_rack"

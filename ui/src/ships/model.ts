@@ -780,6 +780,7 @@ export function createShip(
     plate(p, [1.68, 0.12, 1.14], [0, 0.16, 0], hull)
     switch (type) {
       case 'railgun':
+      case 'disruptor': // model pending: drawn as a railgun
         // The breech is supported by the collar. Ahead of it, keep the channel
         // between the two stout rails open: no enclosing barrel or muzzle box.
         plate(p, [1.12, 0.36, 0.72], [0, 0.36, 0], dark)
@@ -903,6 +904,7 @@ export function createShip(
         break
       }
       case 'laser':
+      case 'plasma_cannon': // model pending: drawn as a laser
         plate(p, [1.3, 0.26, 0.94], [0, 0.33, 0], pale)
         cylinder(p, 0.32, 0.43, 0.27, [0, 0.55, 0], steel)
         for (const y of [0.47, 0.59]) ring(p, 0.35, 0.06, [0, y, 0], dark)

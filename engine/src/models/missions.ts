@@ -10,7 +10,7 @@
  */
 
 import type { SubsystemType } from "./subsystems.ts";
-import { WEAPON_SUBSYSTEM_TYPES } from "./subsystems.ts";
+import { DAMAGING_WEAPON_TYPES } from "./subsystems.ts";
 
 /**
  * Three points win by default, and a hand is one primary and two secondaries:
@@ -170,7 +170,7 @@ export interface MissionRequirement {
 }
 
 const SENSOR_ARRAY: MissionRequirement = { label: "sensor array", anyOf: ["sensor_array"] };
-const WEAPON: MissionRequirement = { label: "weapon", anyOf: WEAPON_SUBSYSTEM_TYPES };
+const WEAPON: MissionRequirement = { label: "weapon", anyOf: DAMAGING_WEAPON_TYPES };
 
 /**
  * What each card needs aboard to be completable at all.
@@ -178,7 +178,7 @@ const WEAPON: MissionRequirement = { label: "weapon", anyOf: WEAPON_SUBSYSTEM_TY
  * An Intercept opens with a scan, so it is dead weight on a loadout with no
  * sensor array. A Destroy is completed by reducing a hull to 0 yourself, and
  * only a weapon or a missile credits a kill (heat kills nobody's target), so
- * it needs any one gun. A loadout is fixed for the game and a station repairs tiles, it never
+ * it needs any one gun that deals damage (a disruptor only breaks slots). A loadout is fixed for the game and a station repairs tiles, it never
  * fits one. This is the single table the rule lives in: the referee refuses
  * a submission that breaks it (`missionsMissingRequirements`, game/loadout.ts)
  * and the loadout screen reads the same list while you choose.

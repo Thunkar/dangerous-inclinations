@@ -241,6 +241,42 @@ const offbookRows: RowSpec[] = (
       hull("sensor_array", "shields,laser,laser,radiator"),
       "destroy",
     ],
+    [
+      "plasma_hunter",
+      "hunter, plasma for the laser",
+      hull("railgun", "plasma_cannon,ballistic_rack,shields,radiator"),
+      "destroy",
+    ],
+    [
+      "rail_plasma2",
+      "railgun + plasma×2 + shields + radiator",
+      hull("railgun", "plasma_cannon,plasma_cannon,shields,radiator"),
+      "destroy",
+    ],
+    [
+      "interceptor_plasma",
+      "interceptor, plasma for the laser",
+      hull("sensor_array", "shields,shields,radiator,plasma_cannon"),
+      "intercept",
+    ],
+    [
+      "disruptor_plasma2",
+      "disruptor + plasma×2 + shields + radiator",
+      hull("disruptor", "plasma_cannon,plasma_cannon,shields,radiator"),
+      "destroy",
+    ],
+    [
+      "disruptor_lasers2",
+      "disruptor + lasers×2 + shields + radiator",
+      hull("disruptor", "laser,laser,shields,radiator"),
+      "destroy",
+    ],
+    [
+      "hauler_plasma",
+      "hauler, plasma for the laser",
+      hull("fuel_compressor", "shields,shields,radiator,plasma_cannon"),
+      "deliver",
+    ],
   ] as Array<[string, string, ShipLoadout, Exclude<BarName, "any">]>
 ).map(([name, label, loadout, bar]) => ({
   id: `offbook:${name}`,
@@ -324,6 +360,36 @@ const extremeRows: RowSpec[] = (
       "rail_sh2_rad",
       "railgun + missiles + shields×2 + radiator",
       hull("railgun", "missiles,shields,shields,radiator"),
+    ],
+    [
+      "plasma4",
+      "railgun + plasma×4",
+      hull("railgun", "plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon"),
+    ],
+    [
+      "sensor_plasma4",
+      "sensor + plasma×4",
+      hull("sensor_array", "plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon"),
+    ],
+    [
+      "legs_plasma",
+      "compressor + plasma×2 + shields + radiator",
+      hull("fuel_compressor", "plasma_cannon,plasma_cannon,shields,radiator"),
+    ],
+    [
+      "disruptor_racks",
+      "disruptor + racks×2 + shields + radiator",
+      hull("disruptor", "ballistic_rack,ballistic_rack,shields,radiator"),
+    ],
+    [
+      "disruptor_turtle",
+      "disruptor + shields×2 + radiators×2",
+      hull("disruptor", "shields,shields,radiator,radiator"),
+    ],
+    [
+      "disruptor_plasma4",
+      "disruptor + plasma×4",
+      hull("disruptor", "plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon"),
     ],
   ] as Array<[string, string, ShipLoadout]>
 ).map(([name, label, loadout]) => ({

@@ -91,7 +91,7 @@ export function describeMissionRule(m: Mission, name: NameResolver): string {
 
 /**
  * A requirement in a player's words: "a sensor array", or "a weapon (railgun,
- * broadside laser, missiles or ballistic rack)" when several tiles count:
+ * broadside laser, missiles, ballistic rack or plasma cannon)" when several tiles count:
  * the label alone is what a player needs, the names say what satisfies it.
  */
 export function describeMissionRequirement(requirement: MissionRequirement): string {
@@ -135,8 +135,12 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "attack_resolved": {
       const who = `${name(e.attackerId)}'s ${sub(e.weaponType)}`;
       if (e.result === "miss") return `${who} misses ${name(e.targetId)} (rolled ${e.roll})`;
+      // A disruptor deals nothing: what it breaks is the subsystem_broken that follows.
+      if (e.blocked) return `${who} is blocked by ${name(e.targetId)}'s shields (rolled ${e.roll})`;
+      if (getSubsystemConfig(e.weaponType).weaponStats?.disrupts)
+        return `${who} hits ${name(e.targetId)} (rolled ${e.roll}): the slot it named is disrupted`;
       const crit = e.result === "critical" ? " CRITICAL" : "";
-      const shield = e.toHeat > 0 ? `, ${e.toHeat} absorbed by shields` : "";
+      const shield = e.absorbed > 0 ? `, ${e.absorbed} absorbed by shields` : "";
       return `${who} hits${crit} ${name(e.targetId)} for ${e.damage} (rolled ${e.roll}${shield}), hull ${e.targetHullAfter}`;
     }
     case "recoil":

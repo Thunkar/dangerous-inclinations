@@ -107,8 +107,10 @@ export type GameEvent =
       result: HitRollResult;
       damage: number;
       toHull: number;
-      toHeat: number;
+      absorbed: number;
       targetHullAfter: number;
+      /** A disruptor hit that a powered shield stopped: nothing broke. */
+      blocked?: true;
     })
   | (Base & {
       type: "recoil";

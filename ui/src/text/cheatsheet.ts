@@ -171,7 +171,7 @@ export const CHEATSHEET = {
       cold: 'If you have 0 heat at your check, repair one broken subsystem.',
     },
     energyTitle: 'Energy an action puts on its subsystem',
-    /** The ten cells, in order. */
+    /** The twelve cells, in order. */
     energy: {
       rotate: 'Rotate',
       burn: 'Burn',
@@ -179,6 +179,8 @@ export const CHEATSHEET = {
       scoop: 'Scoop',
       railgun: 'Railgun',
       laser: 'Laser',
+      plasma: 'Plasma',
+      disruptor: 'Disruptor',
       salvo: 'Salvo',
       rack: 'Rack',
       sensor: 'Sensor',
@@ -219,6 +221,10 @@ export const CHEATSHEET = {
         '±{rings} ring, ±{sectors} sector, either side. With energy on it, shoots down {intercepts} missiles a turn on {on}+.',
       missiles:
         'Any ship in your well. Launch any number at one ship: {aboard} aboard, {steps} steps a turn for {turns} turns.',
+      plasma_cannon:
+        '±{rings} ring, ±{sectors} sector, off one side, never along your own ring. <b>{shield} shield energy stops 1 damage</b>, so a full shield stops it whole.',
+      disruptor:
+        'Same ring, 1–{sectors} sectors ahead, no recoil. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless any shield has energy on it.',
     },
     /** A gun that fits either slot. */
     eitherSlot: 'forward or side',
@@ -246,7 +252,7 @@ export const CHEATSHEET = {
     },
     /** The two columns of points at the foot of the section. */
     hits: [
-      '<b>Shields absorb first</b>: {shieldEnergy} energy stop 1 damage. Lasers ignore them.',
+      '<b>Shields absorb first</b>: {shieldEnergy} energy stop 1 damage ({plasmaShield} against plasma). Lasers ignore them.',
       'The rest is hull. At 0 the ship is destroyed (see 08).',
     ],
     rules: [
@@ -268,7 +274,7 @@ export const CHEATSHEET = {
     reveals: {
       weapon: 'A weapon, when it fires.',
       rack: 'A rack, when it fires or rolls at a missile.',
-      shields: 'Shields, when they absorb damage.',
+      shields: 'Shields, when they absorb damage or stop a disruptor.',
       sensor: 'A sensor, when it scans.',
       radiator: 'A radiator, when your heat is over {heat} at a check.',
       compressor: 'A compressor, when a jump costs {fuel} fuel.',

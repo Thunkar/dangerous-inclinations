@@ -100,7 +100,7 @@ export const PRINTED_CARD = {
     powered: {
       title: 'Powered',
       aside: 'works until your next turn',
-      shields: '{energy} energy stop 1 damage, as {heat} heat; not lasers',
+      shields: '{energy} energy stop 1 damage and come off; not lasers',
       ballistic_rack: 'shoots down {missiles} missiles a turn, each on {on}+',
       sensor_array:
         'your shots after it crit on {crit}+; scan: your ring, within {sectors}, see a subsystem',

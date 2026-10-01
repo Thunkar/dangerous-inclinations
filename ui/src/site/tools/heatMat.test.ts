@@ -3,7 +3,7 @@
  * engine on a built ship: a shield soaking a point (`resolveAttack` with one
  * point of damage) and a critical breaking a slot (`breakSubsystem`) must
  * leave the same energy on every slot and the same heat on the track as the
- * mat does.
+ * mat does. Absorbing makes no heat, so a soak leaves the track where it was.
  */
 import { describe, expect, it } from 'vitest'
 import type { ShipLoadout, ShipState, SubsystemType } from '@dangerous-inclinations/engine'
@@ -104,6 +104,7 @@ describe('the heat mat against the engine', () => {
     const attacker = shipOf(matOf('railgun', ['laser', 'laser', 'radiator', 'radiator'], {}))
     const hit = resolveAttack(target, 'p1', 1, 'engines', HIT, attacker, 'p2')
     expect(matReading(absorbPoint(mat))).toEqual(reading(hit.ship))
+    expect(absorbPoint(mat).track).toBe(mat.track)
   })
 
   it.each(WALLS)('soaks a second point where the engine does: %s', (_name, mat) => {

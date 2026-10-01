@@ -22,4 +22,6 @@ export const SUBSYSTEM_ICON: Record<SubsystemType, IconName> = {
   fuel_compressor: 'fuel',
   missiles: 'missile_rack',
   ballistic_rack: 'ballistic_rack',
+  plasma_cannon: 'plasma_cannons',
+  disruptor: 'disruptor',
 }

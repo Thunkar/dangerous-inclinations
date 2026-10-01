@@ -27,7 +27,6 @@ import {
   MISSION_POINTS,
   SCAN_SECTOR_RANGE,
   SHIELD_ENERGY_PER_POINT,
-  SHIELD_HEAT_PER_POINT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   fill,
@@ -330,10 +329,7 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
 const POWERED: Array<{ type: SubsystemType; effect: ReactNode }> = [
   {
     type: 'shields',
-    effect: fill(B.powered.shields, {
-      energy: SHIELD_ENERGY_PER_POINT,
-      heat: SHIELD_HEAT_PER_POINT,
-    }),
+    effect: fill(B.powered.shields, { energy: SHIELD_ENERGY_PER_POINT }),
   },
   {
     type: 'ballistic_rack',

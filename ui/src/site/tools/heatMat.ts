@@ -2,12 +2,12 @@
  * The heat tracker's mat with no React in it: the loadout, the energy on it,
  * the broken slots and the heat track, and the two things that happen to it
  * on other players' turns. Both are the engine's rules played by hand: a
- * shield soaking a point spends its energy and heats the track, in the order
- * the engine walks the shields, and a break dumps a subsystem's energy onto
+ * shield soaking a point spends its energy, in the order the engine walks the
+ * shields, and leaves the track alone; a break dumps a subsystem's energy onto
  * the track. `heatMat.test.ts` holds them to the engine on a built ship.
  */
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { SHIELD_ENERGY_PER_POINT, SHIELD_HEAT_PER_POINT } from '@dangerous-inclinations/engine'
+import { SHIELD_ENERGY_PER_POINT } from '@dangerous-inclinations/engine'
 import { MOUNTS } from '../../ships/mounts'
 import type { MountId } from '../../ships/mounts'
 
@@ -18,7 +18,7 @@ export const FIXED: FixedId[] = ['engines', 'rotation', 'scoop']
 /** The loadout's slots in the engine's order, the forward slot first, then the fixed systems. */
 export const SLOTS: SlotId[] = [...MOUNTS.map(mount => mount.id), ...FIXED]
 
-/** Absorbed heat lands between checks, so the track can stand over the top until yours. */
+/** A break dumps its energy between checks, so the track can stand over the top until yours. */
 export const TRACK_CEILING = 30
 
 export interface Mat {
@@ -43,14 +43,13 @@ export function absorbingShield(mat: Mat): SlotId | undefined {
   )
 }
 
-/** A shield soaks one point: its energy comes off and the heat goes on the track. */
+/** A shield soaks one point: its energy comes off, and the track is untouched. */
 export function absorbPoint(mat: Mat): Mat {
   const shield = absorbingShield(mat)
   if (!shield) return mat
   return {
     ...mat,
     energy: { ...mat.energy, [shield]: (mat.energy[shield] ?? 0) - SHIELD_ENERGY_PER_POINT },
-    track: Math.min(TRACK_CEILING, mat.track + SHIELD_HEAT_PER_POINT),
   }
 }
 

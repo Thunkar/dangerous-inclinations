@@ -70,12 +70,6 @@ export const STARTING_HIT_POINTS = 10;
 export const MAX_HEAT = 10;
 
 /**
- * Heat the defender takes per point of damage a shield absorbs. Two since
- * 15 Sept 2026: soaking a volley is a decision about how much heat to eat.
- */
-export const SHIELD_HEAT_PER_POINT = 2;
-
-/**
  * Rounds at the start of the game in which nothing reaches another ship.
  *
  * Everyone deploys around the same hole, in a sector they picked while the

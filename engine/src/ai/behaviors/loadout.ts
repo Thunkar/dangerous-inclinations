@@ -71,6 +71,13 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * Two racks or two lasers read 33% and 35% but die as often as the aggressive
  * hunter or more, which makes them a second aggressive preset, not a tanky one.
  *
+ * **Why the tanky hunter's gun is a laser, not a rack.** Re-measured 1 Oct 2026
+ * once absorbing stopped making heat, 1000 games a row with Destroy dealt:
+ * with the rack it read 29% against a bar of 35, with a laser 32% for the
+ * same 1.10 deaths a game. A plasma cannon there reads 30%: a wall stops
+ * plasma a point a cube, and a laser goes through it. The aggressive hunter
+ * keeps its rack, so point defence still flies in natural play.
+ *
  * **Why the aggressive hunter's second gun is a rack and not a laser.** Every
  * bot holding a Destroy flies this loadout, and the interceptor and hauler presets
  * already carry lasers, so while this one carried two of them no ship in
@@ -99,7 +106,7 @@ export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   },
   "hunter-tanky": {
     forwardSlots: ["railgun"],
-    sideSlots: ["ballistic_rack", "shields", "radiator", "radiator"],
+    sideSlots: ["laser", "shields", "radiator", "radiator"],
   },
   "hunter-aggressive": {
     forwardSlots: ["railgun"],
