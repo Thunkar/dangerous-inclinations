@@ -808,13 +808,15 @@ Known open problems:
   that walls have left. The designer's next idea is an "EMP": not spinal, with
   a box like the ballistic rack's. Another measurable variant is a shield that
   stops it by spending cubes rather than at any level. Both are untried.
-- **Compressor + plasma×2 + shields + radiator beats every hunter in a
-  duel.** Both hands dealt Destroy, 400 games each with seats swapped: 248–131
-  against the aggressive hunter, 251–128 against the tanky one, 212–167
-  against railgun + plasma×2, where the same hull with lasers splits 186–194.
-  One heat less a shot than a laser lets a walled ship keep its wall and fire.
-  At three seats it reads 35% against a 33% bar, so it is a duel shape, not a
-  table one; it joins the compressor-with-guns problem below.
+- **The compressor with two guns and a wall beats the hunters in a duel.**
+  Both hands dealt Destroy, 400 games each with seats swapped, under the
+  rules of 1 Oct 2026 (heat-free absorption, plasma 4 for 3): compressor +
+  plasma×2 + shields + radiator 219–161 against the aggressive hunter,
+  238–144 against the tanky one, 226–156 against railgun + plasma×2; with
+  lasers instead of plasma 229–154 against the aggressive hunter (the mirror
+  is 186–186). So it is the hull, not the gun. At three seats the same hulls
+  read 35% (plasma) and 32% (lasers) against a 33% bar: a duel shape, not a
+  table one. It joins the compressor-with-guns problem below.
 
 - **Piracy and Salvage live off bots that wander.** Two bot fixes on 28 Sept
   (interdict only a leader carrying an item; a side goal may delay the
