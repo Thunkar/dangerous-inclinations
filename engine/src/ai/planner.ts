@@ -54,6 +54,7 @@ import {
   chooseDisruptTarget,
   denialTokens,
   disruptBlockChance,
+  escortsOnMe,
   isDisruptor,
   destroyTargetIds,
   firingOptions,
@@ -74,7 +75,7 @@ import type { EnergyTargets } from "./behaviors/survival.ts";
 import { castOffChoice, coastChoice, movementFromPlan } from "./behaviors/positioning.ts";
 import type { MovementChoice } from "./behaviors/positioning.ts";
 import { planShipToTarget } from "./movementPlanner/index.ts";
-import { blackBoxAboard, surveyToDive } from "./behaviors/missions.ts";
+import { blackBoxAboard, fragileCarrier, surveyToDive } from "./behaviors/missions.ts";
 import { seizeChoices } from "./behaviors/piracy.ts";
 import type { SeizableItem } from "../game/piracy.ts";
 
@@ -408,6 +409,7 @@ function buildCandidate(
   let expectedDamage = 0;
   let expectedHullDamage = 0;
   let denialValue = 0;
+  const onMe = escortsOnMe(situation);
   for (const option of options) {
     const raw = (queued.get(option.opponent.player.id) ?? []).reduce((s, q) => s + q.damage, 0);
     expectedDamage += raw;
@@ -417,11 +419,12 @@ function buildCandidate(
     // What the hit costs them (hull, and on a kill their hold and their next
     // turn) weighted by how close they are to winning, or by the fact that
     // they are carrying something, whichever says more.
-    // A rival's Escort marker on the ship counts as a token aboard: the kill
-    // sends it home and that rival's point with it.
+    // A rival's Escort marker on the ship counts as a token aboard (the kill
+    // spends that rival's card), and so does their own marker on us (the kill
+    // takes it off).
     const { danger } = option.opponent;
     const kills = hull >= option.opponent.hull;
-    const tokens = denialTokens(option.opponent, me.id);
+    const tokens = denialTokens(option.opponent, me.id, onMe);
     const loss = hull + (kills ? KILL_DENIAL + tokens * CARGO_DENIAL : 0);
     const loaded = tokens > 0;
     denialValue += loss * Math.max(danger.score, loaded ? LOADED_DENIAL : 0);
@@ -652,13 +655,16 @@ function arrivalVisit(
 /**
  * The carriers this seat puts an Escort marker on if its turn ends at `post`:
  * every one the engine would accept there, one per marker in hand, never its
- * own Destroy target.
+ * own Destroy target, sturdy carriers before fragile ones (a marked ship that
+ * dies spends the card).
  */
 function escortMarksAt(situation: TacticalSituation, post: Position): string[] {
   const { me, view } = situation;
   const prey = destroyTargetIds(me);
+  const fragile = new Set(situation.opponents.filter(fragileCarrier).map((o) => o.player.id));
   return escortCandidates(view, me.id, post)
     .filter((id) => !prey.has(id))
+    .sort((a, b) => Number(fragile.has(a)) - Number(fragile.has(b)))
     .slice(0, unplacedEscorts(me.missions).length);
 }
 

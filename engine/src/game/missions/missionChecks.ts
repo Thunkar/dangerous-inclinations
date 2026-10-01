@@ -18,7 +18,7 @@ import { SURVEY_RING, dataAboard, missionPoints } from "../../models/missions.ts
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
-import { escortCandidatesAtEndOfTurn, unplacedEscorts } from "../escort.ts";
+import { escortCandidatesAtEndOfTurn, escortPresent, unplacedEscorts } from "../escort.ts";
 import { freePiracyCards, seizableItemsAtEndOfTurn } from "../piracy.ts";
 
 /**
@@ -153,18 +153,21 @@ function salvageWreck(
 /**
  * Escort completion: every other player's undone Escort marking a ship that
  * delivered, sold or filed anything, or pumped a Tanker's fuel, this turn is
- * done. Those happen on the carrier's own turn, so this pays players who are
- * not the active one. `players` is written in place; the events come back.
+ * done, if the escort's ship is in the well of the planet it sold at
+ * (`escortPresent`). Those happen on the carrier's own turn, so this pays
+ * players who are not the active one. `players` is written in place; the
+ * events come back. `soldAt` maps each ship that sold to the planet it sold at.
  */
-function payEscorts(players: Player[], deliveredBy: ReadonlySet<string>): EventDraft[] {
+function payEscorts(players: Player[], soldAt: ReadonlyMap<string, string>): EventDraft[] {
   const events: EventDraft[] = [];
-  if (deliveredBy.size === 0) return events;
+  if (soldAt.size === 0) return events;
   players.forEach((player, index) => {
     let earned = 0;
     const done: Mission[] = [];
     const missions = player.missions.map((m) => {
-      if (m.type !== "escort" || m.isCompleted || m.markedPlayerId === null) return m;
-      if (!deliveredBy.has(m.markedPlayerId)) return m;
+      if (m.type !== "escort" || m.isCompleted || m.isSpent || m.markedPlayerId === null) return m;
+      const planetId = soldAt.get(m.markedPlayerId);
+      if (planetId === undefined || !escortPresent(player, planetId)) return m;
       const completed: EscortMission = { ...m, isCompleted: true };
       earned += missionPoints(completed.type);
       done.push(completed);
@@ -218,18 +221,18 @@ export function processMissionEvents(
 
   const kills = new Set<string>();
   const deliveredCargoIds = new Set<string>();
-  /** Every ship that delivered, sold or filed anything, or pumped fuel, this turn (Escort). */
-  const deliveredBy = new Set<string>();
+  /** Every ship that delivered, sold or filed anything, or pumped fuel, this turn, and where (Escort). */
+  const deliveredBy = new Map<string, string>();
   let pumpedFuel = false;
 
   for (const e of turnEvents) {
     if (e.type === "ship_destroyed" && e.killerId === playerId) kills.add(e.victimId);
     if (e.type === "cargo_delivered") {
-      deliveredBy.add(e.playerId);
+      deliveredBy.set(e.playerId, e.planetId);
       if (e.playerId === playerId) deliveredCargoIds.add(e.cargoId);
     }
     if (e.type === "fuel_pumped") {
-      deliveredBy.add(e.playerId);
+      deliveredBy.set(e.playerId, e.planetId);
       if (e.playerId === playerId) pumpedFuel = true;
     }
   }
@@ -375,8 +378,9 @@ export function processMissionEvents(
     cargo !== player.cargo ||
     missions.some((m, i) => m !== player.missions[i]);
   if (changed) players[index] = { ...player, missions, cargo, points };
-  // Everyone else's Escorts on a ship that delivered or pumped fuel this turn:
-  // the carrier is the active player, so this pays a card held at another seat.
+  // Everyone else's Escorts on a ship that delivered or pumped fuel this turn,
+  // with the escort in that well: the carrier is the active player, so this
+  // pays a card held at another seat.
   const escortEvents = payEscorts(players, deliveredBy);
   events.push(...escortEvents);
 
@@ -431,4 +435,9 @@ export function rankPlayers<T extends Player | PlayerView>(table: {
 /** Face-up cards: the missions a player has completed. Public information. */
 export function completedMissions(player: Player): Mission[] {
   return player.missions.filter((m) => m.isCompleted);
+}
+
+/** Face-up cards that score nothing: Escorts whose marked ship died first. Public information. */
+export function spentMissions(player: Player): Mission[] {
+  return player.missions.filter((m) => m.type === "escort" && m.isSpent);
 }

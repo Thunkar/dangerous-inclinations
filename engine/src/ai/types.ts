@@ -8,7 +8,16 @@
 import type { Facing, Player, PlayerAction, Position, ShipState } from "../models/game.ts";
 import type { Subsystem, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import type { GameView, PlayerView, SlotView } from "../game/view.ts";
+import type { Mission } from "../models/missions.ts";
 import type { MovementPlan } from "./movementPlanner/index.ts";
+
+/**
+ * A card still in play: not done, and not an Escort spent by its marked
+ * ship's death (face-up, scoring nothing for the rest of the game).
+ */
+export function isOpenMission(m: Mission): boolean {
+  return !m.isCompleted && !(m.type === "escort" && m.isSpent);
+}
 
 /**
  * A weapon slot on an opponent's ship as far as the bot knows it (face-up
@@ -136,7 +145,7 @@ export type BotGoalType =
   | "pirate" // piracy: end a turn in a loaded ship's exact sector
   | "tanker" // tanker, short of fuel: scoop it up on a fast black hole ring
   | "salvage" // salvage: end a turn on a wreck's sector (it drifts like a station)
-  | "escort" // escort: end a turn in an undocked carrier's exact sector
+  | "escort" // escort: end a turn in an undocked carrier's exact sector; marker out, be in its well
   | "patrol"; // nothing else to do: coast on the black hole ring the rivals are on
 
 /**
@@ -288,6 +297,13 @@ export interface BotParameters {
   conserveAmmo: boolean;
   /** Spend heat and energy on scanning unknown enemy subsystems when adjacent. */
   scanUnknowns: boolean;
+  /**
+   * Experiment only (`--bot=escortRideFirst=true`): with a marker on a carrier
+   * that has cargo aboard, the ride outranks every goal, the primary
+   * included, and in the black hole the escort sticks to the carrier's
+   * sector. An upper bound on what shadowing can buy, not a way to play.
+   */
+  escortRideFirst: boolean;
 }
 
 export const DEFAULT_BOT_PARAMETERS: BotParameters = {
@@ -297,6 +313,7 @@ export const DEFAULT_BOT_PARAMETERS: BotParameters = {
   lowFuelThreshold: 6,
   conserveAmmo: false,
   scanUnknowns: true,
+  escortRideFirst: false,
 };
 
 /**

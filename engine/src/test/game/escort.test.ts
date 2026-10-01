@@ -54,7 +54,8 @@ function randomTable(seed: number) {
       [escortMission(`escort-${id}-a`), escortMission(`escort-${id}-b`)],
       [escortMission(`escort-${id}-a`, rivals[pick(3)]), escortMission(`escort-${id}-b`)],
       [{ ...escortMission(`escort-${id}`), isCompleted: true }],
-    ][pick(5)];
+      [escortMission(`escort-${id}`, null, true)],
+    ][pick(6)];
     return makePlayer(id, SQUARES[pick(SQUARES.length)], undefined, {
       cargo,
       missions,

@@ -1,11 +1,12 @@
 /**
- * Escort: who a marker may go on (RULES §Missions). "End a turn, not moored,
- * in the same sector as an undocked rival carrying cargo while holding an
- * undone Escort whose marker is in hand, and you may put your marker on that
- * ship." A ship carries one Escort marker, so a ship already marked by anyone
- * takes no second one. The marker is a choice, declared with the turn as an `escort_mark`
- * action and settled at the end of it; this is the one question the referee,
- * the bots, the seat CLI and the table's plan all ask, so the four agree.
+ * Escort: who a marker may go on, and whether it rides along at a sale (RULES
+ * §Missions). "End a turn, not moored, in the same sector as an undocked
+ * rival carrying cargo while holding an undone Escort whose marker is in
+ * hand, and you may put your marker on that ship." A ship carries one Escort
+ * marker, so a ship already marked by anyone takes no second one. The marker
+ * is a choice, declared with the turn as an `escort_mark` action and settled
+ * at the end of it; this is the one question the referee, the bots, the seat
+ * CLI and the table's plan all ask, so the four agree.
  */
 import type { Player, Position, Station } from "../models/game.ts";
 import type { EscortMission, Mission } from "../models/missions.ts";
@@ -26,11 +27,22 @@ interface EscortSeat {
   escorted: boolean;
 }
 
-/** Undone Escorts whose marker is still in hand, in hand order. */
+/** Undone, unspent Escorts whose marker is still in hand, in hand order. */
 export function unplacedEscorts(missions: readonly Mission[]): EscortMission[] {
   return missions.filter(
-    (m): m is EscortMission => m.type === "escort" && !m.isCompleted && m.markedPlayerId === null
+    (m): m is EscortMission =>
+      m.type === "escort" && !m.isCompleted && !m.isSpent && m.markedPlayerId === null
   );
+}
+
+/**
+ * Whether an escort rides with its carrier at a sale at `planetId`'s station:
+ * its ship is on the board and in that planet's well, on any ring, moored or
+ * not. Asked at the moment of the sale, by the payment and by a carrier that
+ * dies later the same turn, so the two cannot disagree.
+ */
+export function escortPresent(escort: Pick<Player, "ship">, planetId: string): boolean {
+  return !isDestroyed(escort.ship) && escort.ship.wellId === planetId;
 }
 
 /** The ships this player's undone Escort markers sit on. */

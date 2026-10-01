@@ -555,6 +555,14 @@ describe("bot reads the Escort markers", () => {
     ).toBeUndefined();
   });
 
+  // A dead escort's marker comes off its carrier: the carrier sheds it by
+  // shooting the escort down.
+  it.each(["p2", "p3"])("a carrier picks the rival whose marker is on it, %s", (escort) => {
+    const state = withMissions(pair(), escort, [escortMission(`escort-${escort}`, "p1")]);
+    expect(chosenTargets(state)).toEqual(new Set([escort]));
+    expect(shotsOf(state, "p1")[0]?.data.targetPlayerId).toBe(escort);
+  });
+
   it("weighs a rival's marker as denial, like a token aboard", () => {
     // The same volley at the same ship, with and without the marker on it.
     const alone = (state: GameState) => ({

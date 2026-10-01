@@ -299,13 +299,21 @@ function cardFailureTable(batches: BatchResult[]): string[] {
     const per100 = (n: number) => (started.length ? Math.round((100 * n) / started.length) : 0);
     const sum = (f: (t: (typeof kept)[number]) => number) => started.reduce((n, t) => n + f(t), 0);
     const carries = type !== "destroy_ship";
-    const losses = carries
-      ? [
-          per100(sum((t) => t.lostToKill)),
-          type === "escort" ? "-" : per100(sum((t) => t.lostToPiracy)),
-          type === "tanker" ? per100(sum((t) => t.lostToBurn)) : "-",
-        ].join(" / ")
-      : "-";
+    // Escort carries no item: its three are the escort's death, the marked
+    // ship's death (spent) and the sales made with the escort out of the well.
+    const losses = !carries
+      ? "-"
+      : type === "escort"
+        ? [
+            per100(sum((t) => t.lostToKill)),
+            per100(sum((t) => (t.spent ? 1 : 0))),
+            per100(sum((t) => t.missedSales)),
+          ].join(" / ")
+        : [
+            per100(sum((t) => t.lostToKill)),
+            per100(sum((t) => t.lostToPiracy)),
+            type === "tanker" ? per100(sum((t) => t.lostToBurn)) : "-",
+          ].join(" / ");
     const share = (n: number) => pct(n / kept.length);
     const round = median(started.map((t) => t.stepRound!));
     const toScore = median(kept.flatMap((t) => (t.stepToDone === null ? [] : [t.stepToDone])));
@@ -316,8 +324,10 @@ function cardFailureTable(batches: BatchResult[]): string[] {
   lines.push(
     "",
     "_Shares are of the cards kept. A loss is the item gone before it scored: the ship destroyed " +
-      "with it aboard (for Escort, the marked ship), a pirate taking it, or a Tanker leaving the " +
-      "planet's well or burning under the fuel it needs. The step to score is timed from the last time the step was " +
+      "with it aboard, a pirate taking it, or a Tanker leaving the planet's well or burning under " +
+      "the fuel it needs. Escort's three are its own: the escort destroyed (the marker comes back), " +
+      "the marked ship destroyed (the card is spent) and the marked ship selling with the escort " +
+      "out of its well (the marker stays out). The step to score is timed from the last time the step was " +
       "done. A card still open at the end was started, holds its item, marker or fuel, and the " +
       "game ended first._",
     ""
@@ -376,7 +386,12 @@ function unfoldingTable(args: Args, batches: BatchResult[]): string[] {
       (u) => `${pct(u.wonFromBehindShare)} of ${u.gamesPastRound10}`
     ),
     row("First card completed (median round)", (u) => `${u.firstScoreRound.median}`),
-    row("Escort markers placed per game", (u) => `${u.escortMarksPerGame}`),
+    row(
+      "Escort markers per game: placed / paid / spent / released",
+      (u) =>
+        `${u.escortMarksPerGame} / ${u.escortsPaidPerGame} / ${u.escortsSpentPerGame} / ${u.escortsReleasedPerGame}`
+    ),
+    row("Marked sales with the escort out of the well, per game", (u) => `${u.escortMissedSalesPerGame}`),
     row("Rounds from marker to Escort paid (median)", (u) =>
       u.markToCompletionRounds.count === 0 ? "none paid" : `${u.markToCompletionRounds.median}`
     ),

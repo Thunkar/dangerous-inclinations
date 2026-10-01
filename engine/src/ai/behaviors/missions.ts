@@ -14,7 +14,9 @@
  *   salvage                    → end a turn on a wreck (planned where it will have
  *                                drifted to) for its black box, then dock anywhere to file it
  *   escort                     → match orbits with a carrier in this well, as the
- *                                pirate does, and let them deliver
+ *                                pirate does, and mark it; once marked, ride along:
+ *                                be in its well when it sells (in the black hole,
+ *                                close enough to follow it through a lane)
  *   an opponent about to win    → interdict: meet them where their cargo must go
  *   broken systems / low hull  → dock at the nearest station (repairs)
  *   nothing at all             → patrol the black hole ring where the rivals are
@@ -53,6 +55,7 @@ import { markedBy } from "../../game/escort.ts";
 import { salesOnArrival } from "../../game/docking.ts";
 import { saleAllowedAt, saleBlocked } from "./sales.ts";
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
+import { DEFAULT_BOT_PARAMETERS, isOpenMission } from "../types.ts";
 import {
   anySectorOnRing,
   nearDriftingShip,
@@ -163,6 +166,17 @@ const REPAIR_DETOUR_TURNS = 3;
  * pickup, a scan, a hunt, a delivery). Past it the primary goes first.
  */
 const PRIMARY_DETOUR_TURNS = 1;
+
+/**
+ * A carrier at or under this share of its hull is fragile: a marked ship that
+ * dies spends the Escort card, so the bot would rather mark a sturdy one.
+ */
+const FRAGILE_HULL_SHARE = 0.5;
+
+/** Whether a marked carrier looks likely to die before it sells (first pass: its hull alone). */
+export function fragileCarrier(o: Opponent): boolean {
+  return o.hull <= o.maxHull * FRAGILE_HULL_SHARE;
+}
 
 /** Standing goal: a station for repairs, hull and a reload. */
 export const REPAIR_GOAL_ID = "repair";
@@ -404,6 +418,41 @@ function carrierChaseGoal(
 }
 
 /**
+ * Escort, marker placed: ride along. The card pays only if this seat is in the
+ * carrier's well when it sells (RULES §Missions), so the goal is that well;
+ * in the black hole, where the carrier has not yet taken a lane, it is the
+ * carrier itself, close enough to follow through whichever lane it takes. Its
+ * destination is in its hand, so the bot follows rather than predicts.
+ *
+ * Ranked as the turns until the card can pay: the trip into the well, or the
+ * carrier's own run to a station if that is longer (`danger.turnsToDelivery`,
+ * read off the public board). A ride is a wait, not a trip: costed at the
+ * trip alone it would read as free once the bot is in the well and hold it
+ * there every turn, and the primary-detour rule in {@link computeGoals} would
+ * never see what the wait costs. A carrier with nothing aboard has no sale
+ * anyone can see coming and is no goal.
+ */
+function rideGoal(from: Position, mission: Mission, carrier: Opponent | undefined): BotGoal | null {
+  if (!carrier || carrier.player.cargoCount === 0) return null;
+  const well = carrier.position.wellId;
+  const reach =
+    isPlanet(well) && from.wellId === well ? 0 : cheapTurnEstimate(from, carrier.position);
+  const wait = Number.isFinite(carrier.danger.turnsToDelivery)
+    ? carrier.danger.turnsToDelivery
+    : reach;
+  const turns = Math.max(reach, wait);
+  return {
+    type: "escort",
+    missionId: mission.id,
+    description: `Ride with ${carrier.player.name}`,
+    targetPlayerId: carrier.player.id,
+    estimatedTurns: turns,
+    // The chase's window: a sale a few turns off is when the card pays.
+    urgency: turns <= PIRACY_CHASE_TURNS ? 2 : 0,
+  };
+}
+
+/**
  * The opponent worth diverting for, if any.
  *
  * Conditions, all from public information:
@@ -516,7 +565,7 @@ export function computeGoals(
   const opponent = (id: string) => opponents.find((o) => o.player.id === id);
 
   for (const mission of me.missions) {
-    if (mission.isCompleted) continue;
+    if (!isOpenMission(mission)) continue;
     // A card with no station left to sell at is dead, and a secondary whose
     // only stations left are the primary's waits (behaviors/sales.ts).
     if (saleBlocked(me, mission) !== null) continue;
@@ -727,9 +776,14 @@ export function computeGoals(
         break;
       }
       case "escort": {
-        // A marker on a ship stays until that ship delivers or dies: nothing
-        // to do while it is out.
-        if (mission.markedPlayerId !== null) break;
+        // A marker out pays only with this seat in the carrier's well at the
+        // sale: ride along. Read off `opponents`, not the undocked carriers:
+        // a carrier at a berth is where the sale happens.
+        if (mission.markedPlayerId !== null) {
+          const goal = rideGoal(from, mission, opponent(mission.markedPlayerId));
+          if (goal) goals.push(goal);
+          break;
+        }
         // Each Escort marks a different ship, and a ship this seat means to
         // destroy is no escort: the bot never shoots a ship it escorts.
         const escorting = markedBy(me);
@@ -737,6 +791,10 @@ export function computeGoals(
         const carriers = undockedCarriers(view, opponents).filter(
           (o) => !escorting.has(o.player.id) && !prey.has(o.player.id)
         );
+        // A marked ship that dies spends the card: with a sturdy carrier in
+        // this well, the fragile ones are left alone.
+        const sturdy = carriers.filter((o) => !fragileCarrier(o));
+        const pool = sturdy.some((o) => o.sameWell) ? sturdy : carriers;
         // Nearest first, as the pirate; between two as near, the one whose
         // cargo is closer to its station, since that is when the card pays.
         const goal = carrierChaseGoal(
@@ -745,7 +803,7 @@ export function computeGoals(
           me,
           mission,
           "escort",
-          carriers,
+          pool,
           (name) => `Escort ${name}`,
           (a, b) =>
             a.danger.turnsToDelivery - b.danger.turnsToDelivery ||
@@ -773,9 +831,11 @@ export function computeGoals(
     return wreck ? positionOf(wreck) : null;
   };
   const carryStation = carry && destination(carry);
+  // Experiment only: the ride goes first, with no detour cap.
+  const ride = parameters.escortRideFirst ? goals.find((g) => isRide(me, g)) : undefined;
   if (carry && carryStation) {
     const kept = goals.filter((g) => {
-      if (g === carry) return true;
+      if (g === carry || g === ride) return true;
       const to = destination(g);
       if (!to) return true;
       const detour = g.estimatedTurns + cheapTurnEstimate(to, carryStation) - carry.estimatedTurns;
@@ -842,7 +902,18 @@ export function computeGoals(
     });
   }
 
-  return goals.sort((a, b) => goalPriority(a) - goalPriority(b));
+  goals.sort((a, b) => goalPriority(a) - goalPriority(b));
+  if (ride) goals.splice(0, goals.length, ride, ...goals.filter((g) => g !== ride));
+  return goals;
+}
+
+/** An Escort goal aimed at a ship this seat's own marker is on: a ride (`rideGoal`). */
+function isRide(me: Player, goal: BotGoal): boolean {
+  return (
+    goal.type === "escort" &&
+    goal.targetPlayerId !== undefined &&
+    markedBy(me).has(goal.targetPlayerId)
+  );
 }
 
 /** Lower is pursued first. */
@@ -855,6 +926,28 @@ export function selectCurrentGoal(goals: BotGoal[]): BotGoal | null {
 }
 
 /**
+ * The route of a ride: into the carrier's planet well (a lane lands on its
+ * outer ring), and once in it, a coast on the ring the ship is on, since
+ * presence is the well and not the sector (a burn would spend fuel to stay
+ * where the card already counts it). In the black hole, near the carrier on
+ * its ring, so a jump it makes can be followed.
+ */
+function ridePlan(
+  ship: Player["ship"],
+  from: Position,
+  carrier: Position
+): ReturnType<typeof planFromShip> {
+  if (isPlanet(carrier.wellId)) {
+    const ring = from.wellId === carrier.wellId ? from.ring : PLANET_OUTER_RING;
+    return planShipToTarget(ship, anySectorOnRing(carrier.wellId, ring), PLAN_TURNS);
+  }
+  return (
+    planShipToTarget(ship, nearDriftingShip(carrier, SCAN_SECTOR_RANGE), HUNT_PLAN_TURNS) ??
+    planFromShip(ship, carrier, "fastest", PLAN_TURNS)
+  );
+}
+
+/**
  * Give the chosen goal a real movement plan. Falls back to coarser targets
  * when the precise one is out of reach within the planning horizon, so the
  * bot still moves in the right direction.
@@ -864,7 +957,8 @@ export function attachPlanToGoal(
   me: Player,
   view: GameView,
   opponents: Opponent[],
-  status: BotStatus
+  status: BotStatus,
+  parameters: BotParameters = DEFAULT_BOT_PARAMETERS
 ): BotGoal {
   const ship = me.ship;
   const planned = (plan: ReturnType<typeof planFromShip>): BotGoal =>
@@ -935,10 +1029,20 @@ export function attachPlanToGoal(
       if (!goal.targetPlayerId && goal.planetId) {
         return planned(planShipToTarget(ship, laneArrivalTarget(goal.planetId), PLAN_TURNS));
       }
-      // The same sector, not near it: a seizure is matched orbits. Their ship
-      // drifts while we close, so it is planned as a moving target.
       const prey = opponents.find((o) => o.player.id === goal.targetPlayerId);
       if (!prey) return goal;
+      // Our marker is on it: ride along (`rideGoal`). The experiment's ride
+      // sticks to the carrier's sector in the black hole, as a pirate does,
+      // so it takes the same lane.
+      if (isRide(me, goal)) {
+        const stick =
+          parameters.escortRideFirst && !isPlanet(prey.position.wellId)
+            ? planShipToTarget(ship, nearDriftingShip(prey.position, 0), PLAN_TURNS)
+            : null;
+        return planned(stick ?? ridePlan(ship, status.position, prey.position));
+      }
+      // The same sector, not near it: a seizure is matched orbits. Their ship
+      // drifts while we close, so it is planned as a moving target.
       return planned(planShipToTarget(ship, nearDriftingShip(prey.position, 0), PLAN_TURNS));
     }
     case "patrol": {

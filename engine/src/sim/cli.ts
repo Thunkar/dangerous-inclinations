@@ -199,6 +199,10 @@ function printSummary(a: AggregateStats): void {
     `Scans/game: mean ${a.scansPerGame.mean}; hidden subsystems per player at end: mean ${a.hiddenTilesAtEnd.mean} of 5`
   );
   console.log(`Wins by seat: ${JSON.stringify(a.winsByPlayer)}`);
+  const u = a.unfolding;
+  console.log(
+    `Escort markers/game: placed ${u.escortMarksPerGame}, paid ${u.escortsPaidPerGame}, spent ${u.escortsSpentPerGame}, released ${u.escortsReleasedPerGame}; marked sales out of the well ${u.escortMissedSalesPerGame}`
+  );
   const b = a.behaviour;
   const p = (x: number) => `${Math.round(x * 100)}%`;
   console.log(

@@ -10,6 +10,7 @@ import { cardTracksOf, type CardTrack } from "../../sim/cardFunnel.ts";
 import {
   ALPHA,
   deliverMission,
+  escortMission,
   interceptMission,
   makeGameState,
   makePlayer,
@@ -21,6 +22,22 @@ const INTERCEPT = interceptMission("p2", "intercept-p1", ALPHA);
 const DELIVER = deliverMission(ALPHA, "planet-gamma", "deliver-p1");
 const SURVEY = surveyMission("survey-p1");
 const TANKER = tankerMission("tanker-p1");
+const ESCORT = escortMission("escort-p1");
+
+/** p1's Escort marker goes on p2, comes back (p1 died) or is spent (p2 died). */
+const escortEvent = (
+  type: "escort_marked" | "escort_released" | "escort_spent",
+  turn: number
+): GameEvent => ({ type, turn, escortId: "p1", carrierId: "p2", missionId: ESCORT.id });
+/** p2, the marked ship, sells a crate. */
+const carrierSold = (turn: number): GameEvent => ({
+  type: "cargo_delivered",
+  turn,
+  playerId: "p2",
+  cargoId: "item-9",
+  kind: "crate",
+  planetId: ALPHA,
+});
 
 const scanned = (turn: number): GameEvent => ({
   type: "data_acquired",
@@ -144,6 +161,31 @@ describe("where cards fail", () => {
         { events: [], stat: { fuel: 8 } },
       ]),
       { stepRound: 2, lostToBurn: 1, completedRound: null, openWithStep: false },
+    ],
+    [
+      "an Escort released when the escort died, marked again and paid",
+      run(ESCORT, [
+        { events: [escortEvent("escort_marked", 1)] },
+        { events: [escortEvent("escort_released", 2)] },
+        { events: [escortEvent("escort_marked", 3)] },
+        { events: [carrierSold(4), scored(4, { ...ESCORT, isCompleted: true })] },
+      ]),
+      { stepRound: 1, lostToKill: 1, spent: false, missedSales: 0, completedRound: 4, stepToDone: 1 },
+    ],
+    [
+      "an Escort whose carrier sold out of its reach and then died: spent, and the track ends",
+      run(ESCORT, [
+        { events: [escortEvent("escort_marked", 1)] },
+        { events: [carrierSold(2)] },
+        { events: [escortEvent("escort_spent", 3)] },
+        { events: [] },
+      ]),
+      { stepRound: 1, lostToKill: 0, spent: true, missedSales: 1, completedRound: null, openWithStep: false },
+    ],
+    [
+      "an Escort still out when the game ends",
+      run(ESCORT, [{ events: [escortEvent("escort_marked", 1)] }, { events: [] }]),
+      { stepRound: 1, spent: false, completedRound: null, openWithStep: true },
     ],
     [
       "a card never started",

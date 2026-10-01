@@ -686,6 +686,135 @@ describe("bot goals: salvage and escort", () => {
       expect(goal?.targetPlayerId).toBeUndefined();
     });
 
+    it.each([
+      { spent: false, goal: true },
+      { spent: true, goal: false },
+    ])("a card spent: $spent has an escort goal: $goal", ({ spent, goal }) => {
+      const card = escortMission("escort-1", null, spent);
+      const found = goalFor(table([card, PRIMARY_DONE]), card.id);
+      if (goal) expect(found).toMatchObject({ type: "escort", targetPlayerId: "p2" });
+      else expect(found).toBeUndefined();
+    });
+
+    it.each(["p2", "p3"])(
+      "between two carriers as near, leaves the fragile %s alone",
+      (fragile) => {
+        const card = escortMission();
+        let state = makeGameState([
+          makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }),
+          makePlayer("p2", { wellId: BH, ring: 3, sector: 8 }),
+          makePlayer("p3", { wellId: BH, ring: 3, sector: 8 }),
+        ]);
+        state = withMissions(state, "p1", [card, PRIMARY_DONE]);
+        for (const id of ["p2", "p3"]) {
+          state = withMissions(state, id, [deliverMission(ALPHA, BETA, `deliver-${id}`)]);
+          state = withPlayer(state, id, {
+            cargo: getPlayer(state, id).cargo.map((c) => ({ ...c, isPickedUp: true })),
+          });
+        }
+        state = withShip(state, fragile, { hitPoints: 2 });
+        const sturdy = fragile === "p2" ? "p3" : "p2";
+        expect(goalFor(state, card.id)).toMatchObject({ type: "escort", targetPlayerId: sturdy });
+      }
+    );
+
+    describe("rides along once its marker is out", () => {
+      /** p1's marker on p2, who has a crate aboard; both where the row puts them. */
+      const riding = (me: Position, carrier: Position, primary: Mission = PRIMARY_DONE) => {
+        let state = makeGameState([makePlayer("p1", me), makePlayer("p2", carrier)]);
+        state = withMissions(state, "p1", [escortMission("escort-1", "p2"), primary]);
+        state = withMissions(state, "p2", [deliverMission(ALPHA, BETA)]);
+        state = withPlayer(state, "p2", {
+          cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+        });
+        return withShip(state, "p1", { reactionMass: MAX_REACTION_MASS });
+      };
+      const wellOf = (state: GameState) => getShip(state, "p1").wellId;
+
+      it("heads into the well of a carrier in a planet well", () => {
+        const start = riding(
+          { wellId: BH, ring: 3, sector: 0 },
+          { wellId: ALPHA, ring: 3, sector: 0 }
+        );
+        const goal = currentGoal(start);
+        expect(goal).toMatchObject({ type: "escort", missionId: "escort-1", targetPlayerId: "p2" });
+        expect(goal?.plan?.destination.wellId).toBe(ALPHA);
+        const arrived = playUntil(start, "p1", (s) => wellOf(s) === ALPHA, 30);
+        expect(wellOf(arrived)).toBe(ALPHA);
+      });
+
+      it("stays in the carrier's well once there, coasting", () => {
+        const start = riding(
+          { wellId: ALPHA, ring: 3, sector: 0 },
+          { wellId: ALPHA, ring: 4, sector: 12 }
+        );
+        const moves = botDecideActions(viewFor(start, "p1")).actions.filter(
+          (a) => a.type === "coast" || a.type === "burn" || a.type === "well_transfer"
+        );
+        expect(moves.map((a) => a.type)).toEqual(["coast"]);
+        const later = playUntil(start, "p1", (s) => wellOf(s) !== ALPHA, 12);
+        expect(wellOf(later)).toBe(ALPHA);
+      });
+
+      // A ride is a side goal: it may delay the primary's next step by a turn
+      // at most. A trip to Alpha delays a pickup at Gamma by more, and so does
+      // waiting in Alpha for a carrier whose crate is a long run from its
+      // station: a ride costs the wait, not just the trip.
+      it.each([
+        {
+          from: "the black hole",
+          me: { wellId: BH, ring: 3, sector: 0 },
+          primary: PRIMARY,
+          goal: false,
+        },
+        {
+          from: "the black hole",
+          me: { wellId: BH, ring: 3, sector: 0 },
+          primary: PRIMARY_DONE,
+          goal: true,
+        },
+        {
+          from: "its well",
+          me: { wellId: ALPHA, ring: 3, sector: 0 },
+          primary: PRIMARY,
+          goal: false,
+        },
+        {
+          from: "its well",
+          me: { wellId: ALPHA, ring: 3, sector: 0 },
+          primary: PRIMARY_DONE,
+          goal: true,
+        },
+      ])(
+        "from $from with the primary done: $primary.isCompleted, rides: $goal",
+        ({ me, primary, goal }) => {
+          const state = riding(me as Position, { wellId: ALPHA, ring: 3, sector: 12 }, primary);
+          const found = goalFor(state, "escort-1");
+          if (goal) expect(found).toMatchObject({ type: "escort", targetPlayerId: "p2" });
+          else expect(found).toBeUndefined();
+        }
+      );
+
+      // The experiment-only switch: the ride first, whatever the primary.
+      it.each([
+        { escortRideFirst: false, current: PRIMARY.id },
+        { escortRideFirst: true, current: "escort-1" },
+      ])(
+        "with escortRideFirst $escortRideFirst the current goal is $current",
+        ({ escortRideFirst, current }) => {
+          const state = riding(
+            { wellId: BH, ring: 3, sector: 0 },
+            { wellId: ALPHA, ring: 3, sector: 12 },
+            PRIMARY
+          );
+          const parameters = { ...DEFAULT_BOT_PARAMETERS, escortRideFirst };
+          const goal = analyzeSituation(viewFor(state, "p1"), parameters).currentGoal;
+          expect(goal?.missionId).toBe(current);
+          if (escortRideFirst) expect(goal?.plan?.destination.wellId).toBe(ALPHA);
+        }
+      );
+    });
+
     it("puts its marker on a carrier drifting in the same well", () => {
       const card = escortMission();
       const start = withShip(table([card]), "p1", { reactionMass: MAX_REACTION_MASS });

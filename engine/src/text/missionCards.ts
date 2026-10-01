@@ -46,10 +46,10 @@ export const MISSION_CARDS = {
   escort: {
     name: "Escort",
     /** Once the marker is down, the card names the ship it is on. */
-    title: "Escort {carrier} until it delivers",
+    title: "Escort {carrier} to a sale",
     /** Before the marker is down. */
-    titleUnmarked: "Escort a carrier until it delivers",
-    rule: "You may mark an undocked carrier in your sector that has no marker. Done at its next delivery or fuel pump.",
+    titleUnmarked: "Escort a carrier to a sale",
+    rule: "Mark an undocked carrier in your sector. Done at its next sale with you in its well. Spent if it dies; back if you die.",
   },
   salvage: {
     name: "Salvage",

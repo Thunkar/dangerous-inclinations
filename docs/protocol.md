@@ -147,11 +147,18 @@ Intercept's. The destination of a rival's crate stays private.
 
 The view carries the public board state these cards add: `GameView.wrecks`
 (`{ id, wellId, ring, sector }[]`, left where a ship is destroyed, drifting
-with the stations) and `PlayerView.escortedBy` (the ids of the players whose
-Escort markers are on that ship). The events `wreck_left`, `wreck_salvaged`,
-`escort_marked` and `escort_released` are public, `stations_moved` carries
-the drifted `wrecks`, and `mission_completed` can arrive for a player who is
-not the one taking the turn (an Escort pays on the carrier's delivery).
+with the stations), `PlayerView.escortedBy` (the ids of the players whose
+Escort markers are on that ship) and `PlayerView.spentMissions` (that
+player's spent cards, face-up and scoring nothing: an Escort whose marked
+ship was destroyed before it sold, `isSpent: true`; the owner sees the same
+flag on the card in `GameView.me.missions`). The events `wreck_left`,
+`wreck_salvaged`, `escort_marked`, `escort_released` (the escort was
+destroyed, and its marker came off the carrier and back to hand) and
+`escort_spent` (`{ escortId, carrierId, missionId }`: the marked ship was
+destroyed first) are public, `stations_moved` carries the drifted `wrecks`,
+and `mission_completed` can arrive for a player who is not the one taking
+the turn (an Escort pays on the carrier's sale, with the escort in that
+planet's well).
 
 Per-recipient sending: `broadcastViews(room, roomId, (playerId) => message)`
 builds every game message for its recipient; the single-string

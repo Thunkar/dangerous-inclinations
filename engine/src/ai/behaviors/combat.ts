@@ -46,10 +46,9 @@ export function isKillTarget(me: Player, opponent: Opponent): boolean {
 
 /**
  * Ships this seat does not shoot at: those its own Escort markers sit on (the
- * marker pays only when that ship delivers, and a kill sends it home with
- * nothing to show for it) and the carrier its Escort goal is on its way to
- * mark. The bot never marks its own Destroy target, so no marker ever shields
- * its prey.
+ * marker pays only when that ship sells, and a kill spends the card) and the
+ * carrier its Escort goal is on its way to mark. The bot never marks its own
+ * Destroy target, so no marker ever shields its prey.
  */
 export function holdFireIds(situation: TacticalSituation): Set<string> {
   const ids = markedBy(situation.me);
@@ -61,13 +60,22 @@ export function holdFireIds(situation: TacticalSituation): Set<string> {
 /**
  * What a kill on `opponent` takes off the table besides hull, counted in
  * tokens: every crate and every piece of data aboard (it goes over the side),
- * and every rival's Escort marker on the ship (public, `PlayerView.escortedBy`:
- * the marker goes home and that rival's point with it). The deciding seat's
- * own marker is not a rival's, and a ship carrying one is not fired on at all.
+ * every rival's Escort marker on the ship (public, `PlayerView.escortedBy`:
+ * that rival's card is spent and its point with it), and the opponent's own
+ * marker on the deciding seat's ship (`onMe`, this seat's `escortedBy`: a
+ * dead escort's marker comes off, so the kill sheds a point owed to them).
+ * The deciding seat's own marker is not a rival's, and a ship carrying one is
+ * not fired on at all.
  */
-export function denialTokens(opponent: Opponent, myId: string): number {
+export function denialTokens(opponent: Opponent, myId: string, onMe: readonly string[]): number {
   const cargo = opponent.player.cargoAboard.crates + opponent.player.cargoAboard.data;
-  return cargo + opponent.player.escortedBy.filter((id) => id !== myId).length;
+  const escorts = opponent.player.escortedBy.filter((id) => id !== myId).length;
+  return cargo + escorts + Number(onMe.includes(opponent.player.id));
+}
+
+/** The players whose Escort markers sit on this seat's ship, read off its public view. */
+export function escortsOnMe(situation: Pick<TacticalSituation, "view" | "me">): string[] {
+  return situation.view.players.find((p) => p.id === situation.me.id)?.escortedBy ?? [];
 }
 
 interface FirePosition extends Position {
@@ -577,8 +585,10 @@ export function selectTarget(
   // weaker one we cannot.
   const canHurt = (c: TargetOption) => hullThrough(c.intents, c.opponent.shieldAbsorption) > 0;
   // Between two ships we can hurt equally, the one with more to lose: cargo
-  // aboard and rival Escort markers are what a kill takes off the table.
-  const tokens = (c: TargetOption) => denialTokens(c.opponent, situation.me.id);
+  // aboard and rival Escort markers are what a kill takes off the table, and
+  // so is the target's own marker on us.
+  const onMe = escortsOnMe(situation);
+  const tokens = (c: TargetOption) => denialTokens(c.opponent, situation.me.id, onMe);
   const byWeakest = (a: TargetOption, b: TargetOption) =>
     Number(canHurt(b)) - Number(canHurt(a)) ||
     a.opponent.hull - b.opponent.hull ||

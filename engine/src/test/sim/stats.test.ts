@@ -60,8 +60,14 @@ function cannedRun(): GameRunResult {
     endReason: "victory",
     turns: [
       turn(3, "p2", [completed(3, "p2", survey, 1)]),
+      // p1 tries Escorts of its own that never score: one spent when p2 dies,
+      // one back in hand when the escort is destroyed.
+      turn(4, "p1", [
+        { type: "escort_marked", turn: 4, escortId: "p1", carrierId: "p2", missionId: "escort-2" },
+      ]),
       turn(5, "p1", [
         { type: "ship_destroyed", turn: 5, victimId: "p2", killerId: "p1", cause: "weapon" },
+        { type: "escort_spent", turn: 5, escortId: "p1", carrierId: "p2", missionId: "escort-2" },
         { type: "wreck_left", turn: 5, wreckId: "w1", victimId: "p2", at },
         completed(5, "p1", destroy, 2),
       ]),
@@ -76,17 +82,29 @@ function cannedRun(): GameRunResult {
           at,
         },
       ]),
+      turn(6, "p1", [
+        { type: "escort_marked", turn: 6, escortId: "p1", carrierId: "p2", missionId: "escort-3" },
+        {
+          type: "escort_released",
+          turn: 6,
+          escortId: "p1",
+          carrierId: "p2",
+          missionId: "escort-3",
+        },
+      ]),
       turn(8, "p2", [
         { type: "escort_marked", turn: 8, escortId: "p2", carrierId: "p1", missionId: "escort-1" },
       ]),
       turn(
         9,
         "p1",
-        [docked(9, "p1", "crate")],
+        // p1 sells with p2's marker on it and p2 out of the well: a missed sale.
+        [delivered(9, "p1"), docked(9, "p1", "crate")],
         [{ type: "dock_sale", playerId: "p1", data: { sale: "item-1" } }]
       ),
       turn(10, "p2", [docked(10, "p2", "data"), docked(10, "p2", null)]),
-      turn(11, "p1", [completed(11, "p2", escort, 2)]),
+      // This sale pays p2's Escort: not a missed one.
+      turn(11, "p1", [delivered(11, "p1"), completed(11, "p2", escort, 2)]),
       turn(12, "p2", [
         { type: "fuel_pumped", turn: 12, playerId: "p2", amount: 7, planetId: "planet-alpha" },
       ]),
@@ -123,6 +141,17 @@ function turnStat(over: Partial<TurnStat>): TurnStat {
   };
 }
 
+function delivered(turn: number, playerId: string): GameEvent {
+  return {
+    type: "cargo_delivered",
+    turn,
+    playerId,
+    cargoId: `item-${turn}`,
+    kind: "crate",
+    planetId: "planet-alpha",
+  };
+}
+
 function docked(turn: number, playerId: string, sold: "crate" | "data" | null): GameEvent {
   return {
     type: "docked",
@@ -152,7 +181,11 @@ describe("stats from a game written by hand", () => {
       leadChanges: 1,
       leaderAtRound10: "p1",
       firstScoreRound: 3,
-      escortMarks: 1,
+      escortMarks: 3,
+      escortsPaid: 1,
+      escortsSpent: 1,
+      escortsReleased: 1,
+      escortMissedSales: 1,
       markToCompletionRounds: [3],
       wrecksLeft: 1,
       wrecksSalvaged: 0,

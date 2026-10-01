@@ -59,7 +59,7 @@ const SECONDARIES: Mission[] = [
   },
   { id: 'g-piracy', type: 'piracy', isCompleted: false, cargoId: 'g-loot' },
   { id: 'g-tanker', type: 'tanker', isCompleted: false },
-  { id: 'g-escort', type: 'escort', isCompleted: false, markedPlayerId: null },
+  { id: 'g-escort', type: 'escort', isCompleted: false, markedPlayerId: null, isSpent: false },
   { id: 'g-salvage', type: 'salvage', isCompleted: false, cargoId: 'g-salvage-box' },
 ]
 

@@ -23,7 +23,7 @@ const MISSIONS: Mission[] = [
   { id: 'survey', type: 'survey', isCompleted: false, dataCargoId: 'data-survey' },
   { id: 'piracy', type: 'piracy', isCompleted: false, cargoId: 'loot-piracy' },
   { id: 'tanker', type: 'tanker', isCompleted: false },
-  { id: 'escort', type: 'escort', isCompleted: false, markedPlayerId: 'rival' },
+  { id: 'escort', type: 'escort', isCompleted: false, markedPlayerId: 'rival', isSpent: false },
   { id: 'salvage', type: 'salvage', isCompleted: false, cargoId: 'salvage-salvage' },
 ] as Mission[]
 

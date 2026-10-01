@@ -8,6 +8,7 @@
 import type { ShipLoadout } from "../../models/game.ts";
 import type { Mission, MissionType, SecondaryKind } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
+import { isOpenMission } from "../types.ts";
 import {
   MISSIONS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
@@ -171,7 +172,7 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
  * move the bow.
  */
 export function classifyRole(missions: Mission[]): BotRole {
-  const active = missions.filter((m) => !m.isCompleted);
+  const active = missions.filter(isOpenMission);
   if (count(active, "intercept_transmission") > 0) return "interceptor";
   if (count(active, "destroy_ship") > 0) return "hunter";
   return "hauler";

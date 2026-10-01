@@ -216,7 +216,7 @@ secrets at the end of the game. What gives a subsystem away is doing its job.
 
 Face-up subsystems stay face-up, even after respawn.
 
-**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and how much data you carry, face-up subsystems and **the missiles left in a face-up missiles subsystem**, broken fixed systems, completed missions, wrecks and Escort markers.
+**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and how much data you carry, face-up subsystems and **the missiles left in a face-up missiles subsystem**, broken fixed systems, completed and spent missions, wrecks and Escort markers.
 **Private:** what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo is going.
 
 Energy is the tell. Using a subsystem turns it face-up, so energy on a **face-down** slot between turns means it was powered, not used: two is a half shield, a ballistic rack or a sensor array, and four can only be a full shield. That is a deduction from the energy, not a reveal: the subsystem is still face-down and a scan still costs you a turn to be sure. Shields go in the bow or on a side precisely so that a loaded bow is a guess and not a certain sensor array.
@@ -235,7 +235,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 
 **Primaries score two.** Destroy, Deliver, Intercept: the kill, the cargo run, the stolen transmission, one for each way of playing. Each names what it wants: a victim, a route, a station to file at. Yours is two thirds of the win on its own.
 
-**Secondary cards score one.** Survey, Piracy, Tanker, Escort, Salvage. Each is a thing you do rather than a primary someone sets you: no subsystem aboard can do it for you. Survey pays in data: take it the moment you dive, then file it at **any** station. Piracy pays in loot: the item you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card. Escort pays when the ship you mark delivers or pumps fuel: you bet on their run, in the open. Salvage pays in data too: the black box of somebody's wreck.
+**Secondary cards score one.** Survey, Piracy, Tanker, Escort, Salvage. Each is a thing you do rather than a primary someone sets you: no subsystem aboard can do it for you. Survey pays in data: take it the moment you dive, then file it at **any** station. Piracy pays in loot: the item you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card. Escort pays when the ship you mark sells with you in its well: you ride along on their run, in the open, and you lose the bet if they die. Salvage pays in data too: the black box of somebody's wreck.
 
 **A hand is one primary and two secondaries**: two points and one and one, four held for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
 
@@ -247,7 +247,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 | **Survey the Event Horizon**                        | 1      | you end a turn on Black Hole Ring 1, take the data, then dock at **any** station to file it                                                                                                                       |
 | **Piracy**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked ship carrying cargo: you may take **one item of your choice** from it, then dock at **any** station to sell it. Their card goes back to undone |
 | **Tanker**                                          | 1      | you **arrive** at **any** station with **5 or more fuel**: hand in 5, and the card is done. Pumping is that station's one sale to you (see Stations) |
-| **Escort**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked rival carrying a crate or data, and **choose** to put your marker on that ship, face-up. A ship carries one Escort marker. The next time that ship delivers, sells or files anything, or pumps fuel, at a station, the card is done. If it is destroyed first, the marker comes back to you |
+| **Escort**                                          | 1      | you end a turn, not moored, in the **same sector** as an undocked rival carrying cargo, and **choose** to put your marker on that ship, face-up. A ship carries one Escort marker. The next time that ship delivers, sells or files anything, or pumps fuel, at a station **while your ship is in that planet's well**, the card is done. If that ship is destroyed first, the card is **spent**: turn it face-up, it scores nothing. If **your** ship is destroyed, your marker comes off and back to you |
 | **Salvage**                                         | 1      | you end a turn on a **wreck** (moored or not) and take its black box, one wreck a turn: it is data, and a pirate can seize it. File it at **any** station |
 
 **The decks.** Two piles for the table, dealt separately.
@@ -276,11 +276,11 @@ When you complete a mission, turn the card face-up for everyone to see.
 
 When your hull reaches 0:
 
-- remove your ship and put a **wreck** token on its sector (wrecks stay until a Salvage takes one, and drift with the stations once a round by their ring's speed); drop your cargo: Deliver crates go back to their pickup station (you must load them again), loot and data are lost; any Escort marker on your ship goes back to its owner;
+- remove your ship and put a **wreck** token on its sector (wrecks stay until a Salvage takes one, and drift with the stations once a round by their ring's speed); drop your cargo: Deliver crates go back to their pickup station (you must load them again), loot and data are lost; any Escort marker on your ship is spent (its owner's card scores nothing), and your own Escort markers come off the ships they are on and back to you;
 - your missiles in flight are removed;
 - on your next turn you respawn at Home and drift, and the turn after that is a first round of your own: untouchable until it is over, and on it no weapon of yours fires and you scan nobody (see A Turn). One turn gone.
 
-Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card. Nobody collects it twice over: a ship coming back cannot be shot at the sector everyone knows it returns to, and it does not get to fire first for the privilege.
+Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card. An Escort riding with you loses its card when you die, and one you shoot down loses its hold on you. Nobody collects it twice over: a ship coming back cannot be shot at the sector everyone knows it returns to, and it does not get to fire first for the privilege.
 
 ---
 

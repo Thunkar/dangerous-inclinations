@@ -14,13 +14,14 @@ import type { Player } from "../../models/game.ts";
 import type { Mission } from "../../models/missions.ts";
 import { PLANETS } from "../../models/gravityWells.ts";
 import type { SaleOffer, SaleOption } from "../../game/docking.ts";
+import { isOpenMission } from "../types.ts";
 
 type Seller = Pick<Player, "missions" | "cargo" | "soldAt">;
 
 /** The planet this seat's undone primary still has to sell at, and the card. */
 export function reservedStation(me: Seller): { planetId: string; missionId: string } | null {
   for (const m of me.missions) {
-    if (m.isCompleted) continue;
+    if (!isOpenMission(m)) continue;
     if (m.type === "deliver_cargo" || m.type === "intercept_transmission")
       return { planetId: m.deliveryPlanetId, missionId: m.id };
   }
@@ -48,7 +49,7 @@ export function allowedSales(me: Seller, planetId: string, offer: SaleOffer): Sa
  * reserved for the primary. Null when it can be played, or needs no sale.
  */
 export function saleBlocked(me: Seller, mission: Mission): "dead" | "waiting" | null {
-  if (mission.isCompleted) return null;
+  if (!isOpenMission(mission)) return null;
   switch (mission.type) {
     case "destroy_ship":
     case "escort":

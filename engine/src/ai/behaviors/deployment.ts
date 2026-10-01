@@ -38,6 +38,7 @@ import { forwardDistance, positionOf, sectorDistance, wrapSector } from "../../g
 import { planetLane } from "./danger.ts";
 import { DEPLOYMENT_GAP, legalDeploymentsAgainst } from "../../game/deployment.ts";
 import type { GameView } from "../../game/view.ts";
+import { isOpenMission } from "../types.ts";
 
 export interface DeploymentChoice {
   wellId: string;
@@ -85,7 +86,7 @@ export function chooseDeployment(view: GameView, pick: (n: number) => number): D
     return from.filter((p) => clearance(p) === best);
   };
 
-  const missions = (view.me?.missions ?? []).filter((m) => !m.isCompleted);
+  const missions = (view.me?.missions ?? []).filter(isOpenMission);
 
   // 1. Line up with the lane toward the first Deliver pickup.
   const pickup = missions.find((m) => m.type === "deliver_cargo");

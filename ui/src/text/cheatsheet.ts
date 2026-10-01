@@ -304,7 +304,7 @@ export const CHEATSHEET = {
       {
         when: 'At 0 hull',
         title: 'Off the board',
-        text: 'Leave a wreck. Crates go back to their station, data is lost, Escort markers on you go back to their owners and your missiles in flight are removed. Your Destroy holder scores {destroyPoints}.',
+        text: 'Leave a wreck. Crates go back to their station, data is lost, Escort markers on you are spent and yours come back to you, and your missiles in flight are removed. Your Destroy holder scores {destroyPoints}.',
       },
       {
         when: 'Your next turn',

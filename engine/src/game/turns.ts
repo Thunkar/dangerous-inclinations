@@ -35,6 +35,7 @@ import { advanceStations, isMooredAt } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
 import { positionOf } from "./geometry.ts";
 import { clearLoadout, isDestroyed, resetSubsystemUsage } from "./ship.ts";
+import { escortPresent } from "./escort.ts";
 import { nextEntityId } from "../utils/rng.ts";
 
 export interface TurnResult {
@@ -158,9 +159,9 @@ function clearRecovering(state: GameState, index: number): GameState {
  * The one place a destruction is settled, whatever did it (a weapon, a
  * missile, the heat check): for every ship destroyed in `source` events it
  * drops its cargo, removes its missiles in flight, leaves a wreck where it
- * died and hands back every Escort marker on it (RULES §Destruction and
- * Respawn). `sink` is the turn's events so far, which the new ones are
- * appended to.
+ * died, spends every Escort marking it and hands back its own Escort markers
+ * (RULES §Destruction and Respawn). `sink` is the turn's events so far, which
+ * the new ones are appended to.
  */
 function applyDestructions(state: GameState, source: EventDraft[], sink: EventDraft[]): GameState {
   let next = state;
@@ -200,34 +201,57 @@ function applyDestructions(state: GameState, source: EventDraft[], sink: EventDr
       at: positionOf(victim.ship),
     });
 
-    // Escort markers on the dead ship come back to their holders. A ship that
-    // delivered or pumped fuel earlier this same turn (and then died at its
-    // heat check) did so first: those markers stay put for the mission check
-    // to pay.
-    const deliveredFirst = sink.some(
-      (d) =>
+    // Escort, in the order the destructions happened. Every marker on the dead
+    // ship is spent, unless the ship sold earlier this same turn (and then died
+    // at its heat check) with that escort in the sale's well: the sale came
+    // first, and the mission check pays it. The dead ship's own markers come
+    // off whatever they sit on and back to hand.
+    const sale = sink.find(
+      (d): d is Extract<EventDraft, { type: "cargo_delivered" | "fuel_pumped" }> =>
         (d.type === "cargo_delivered" || d.type === "fuel_pumped") && d.playerId === victim.id
     );
-    if (!deliveredFirst) next = releaseEscorts(next, victim.id, sink);
+    next = settleEscorts(next, victim.id, sale?.planetId ?? null, sink);
   }
   return next;
 }
 
-/** Every undone Escort marking `carrierId` goes back to its holder's hand. */
-function releaseEscorts(state: GameState, carrierId: string, sink: EventDraft[]): GameState {
+/**
+ * The Escort side of a destruction (RULES §Destruction and Respawn): every
+ * undone Escort marking `victimId` is spent, except one whose escort was in
+ * the well of the sale `soldAt` the victim made first this turn; and every
+ * Escort `victimId` holds that has a marker out comes back to hand.
+ */
+function settleEscorts(
+  state: GameState,
+  victimId: string,
+  soldAt: string | null,
+  sink: EventDraft[]
+): GameState {
   let changed = false;
   const players = state.players.map((player) => {
     let touched = false;
     const missions = player.missions.map((m) => {
-      if (m.type !== "escort" || m.isCompleted || m.markedPlayerId !== carrierId) return m;
+      if (m.type !== "escort" || m.isCompleted || m.markedPlayerId === null) return m;
+      if (player.id === victimId) {
+        touched = true;
+        sink.push({
+          type: "escort_released",
+          escortId: player.id,
+          carrierId: m.markedPlayerId,
+          missionId: m.id,
+        });
+        return { ...m, markedPlayerId: null };
+      }
+      if (m.markedPlayerId !== victimId) return m;
+      if (soldAt !== null && escortPresent(player, soldAt)) return m;
       touched = true;
       sink.push({
-        type: "escort_released",
+        type: "escort_spent",
         escortId: player.id,
-        carrierId,
+        carrierId: victimId,
         missionId: m.id,
       });
-      return { ...m, markedPlayerId: null };
+      return { ...m, markedPlayerId: null, isSpent: true };
     });
     if (!touched) return player;
     changed = true;

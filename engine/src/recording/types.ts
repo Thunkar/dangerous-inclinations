@@ -24,8 +24,11 @@ import type { GameEvent } from "../models/events.ts";
  * v10: a jump needs prograde facing, and a railgun's recoil pushes the ship
  *     against its facing.
  * v11: absorbing makes no heat; `attack_resolved.toHeat` is `absorbed`.
+ * v12: Escort is spent (`isSpent`, `escort_spent`) on the carrier's death,
+ *     released (`escort_released`) on the escort's, and pays only with the
+ *     escort in the well; `PlayerView.spentMissions`.
  */
-export const RECORDING_SCHEMA_VERSION = 11;
+export const RECORDING_SCHEMA_VERSION = 12;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

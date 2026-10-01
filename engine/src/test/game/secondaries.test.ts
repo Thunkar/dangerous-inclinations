@@ -10,7 +10,7 @@ import { STATION_RING } from "../../models/gravityWells.ts";
 import { filterEventsFor } from "../../models/events.ts";
 import { getStationForPlanet } from "../../game/stations.ts";
 import { positionOf, ringVelocity, wrapSector } from "../../game/geometry.ts";
-import { escortCandidates } from "../../game/escort.ts";
+import { escortCandidates, unplacedEscorts } from "../../game/escort.ts";
 import { viewFor } from "../../game/view.ts";
 import {
   ALPHA,
@@ -560,6 +560,7 @@ describe("escort: markers", () => {
       ["p2"],
     ],
     ["a marker with the only Escort done", [{ ...escortMission(), isCompleted: true }], ["p2"]],
+    ["a marker with the only Escort spent", [escortMission("escort-1", null, true)], ["p2"]],
   ])("refuses a turn that names %s", (_label, escorts, named) => {
     const state = twoCarriers(escorts);
     const result = executeTurnAs(state, coast(1), ...named.map((id) => escortMark(id)));
@@ -572,38 +573,88 @@ describe("escort: markers", () => {
     );
   });
 
-  /** p2 (active) arrives at Beta carrying `cargo`; p1 holds an Escort marked on p2. */
-  function carrierArrives(p2Missions: Mission[], p1Points = 0): GameState {
+  /** Where p1, the escort, waits while p2 sells at Beta. */
+  type Where = (state: GameState) => { wellId: string; ring: number; sector: number };
+  const IN_BETA_WELL: Where = () => ({ wellId: BETA, ring: 4, sector: 0 });
+  const MOORED_AT_BETA: Where = (state) => {
+    const station = getStationForPlanet(state.stations, BETA)!;
+    return { wellId: BETA, ring: station.ring, sector: station.sector };
+  };
+  const IN_ALPHA_WELL: Where = () => ({ wellId: ALPHA, ring: 3, sector: 0 });
+  const IN_BLACK_HOLE: Where = () => ({ wellId: BH, ring: 3, sector: 0 });
+
+  /**
+   * p2 (active) arrives at Beta carrying what `p2Missions` imply; p1 holds an
+   * Escort marked on p2 and waits `escortAt`.
+   */
+  function carrierArrives(p2Missions: Mission[], p1Points = 0, escortAt = IN_BETA_WELL): GameState {
     let state = arriving(table(), "p2", BETA, p2Missions);
     state = withPlayer(state, "p1", {
       missions: [escortMission("escort-1", "p2")],
       points: p1Points,
     });
+    state = withShip(state, "p1", escortAt(state));
     return { ...state, activePlayerIndex: 1 };
   }
 
-  it.each<[string, Mission[]]>([
-    ["delivers a crate", [deliverMission(ALPHA, BETA)]],
-    ["files data", [surveyMission("survey-p2")]],
-    ["sells loot", [piracyMission("piracy-p2")]],
-  ])("completes on the carrier's own turn when it %s, and the points count", (_label, cards) => {
-    let state = carrierArrives(cards);
+  /** p2 arrives at Beta and sells what `card` asks for; the item rides as the card's own. */
+  function carrierSells(card: Mission, escortAt: Where): GameState {
+    let state = carrierArrives([card], 0, escortAt);
     // The loot rides as the Piracy card's crate, not a crate made at the deal.
-    if (cards[0].type === "piracy")
-      state = withPlayer(state, "p2", { cargo: [lootCargo(cards[0].cargoId, cards[0].id)] });
-    if (cards[0].type === "survey")
-      state = withPlayer(state, "p2", { cargo: [takenData(cards[0])] });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).toContain("cargo_delivered");
-    const escort = eventsOf(result.events, "mission_completed").filter((e) => e.playerId === "p1");
-    expect(escort).toEqual([expect.objectContaining({ points: MISSION_POINTS.escort })]);
-    expect(escort[0].mission.type).toBe("escort");
-    const p1 = getPlayer(result.gameState, "p1");
-    expect(p1.points).toBe(MISSION_POINTS.escort);
-    expect(p1.missions[0].isCompleted).toBe(true);
-    // A finished Escort's marker is off the ship.
-    expect(viewFor(result.gameState, null).players[1].escortedBy).toEqual([]);
-  });
+    if (card.type === "piracy")
+      state = withPlayer(state, "p2", { cargo: [lootCargo(card.cargoId, card.id)] });
+    if (card.type === "survey") state = withPlayer(state, "p2", { cargo: [takenData(card)] });
+    return state;
+  }
+
+  const p1Escort = (state: GameState) => getPlayer(state, "p1").missions[0];
+  const escortPaid = (events: { type: string }[]) =>
+    eventsOf(events as never, "mission_completed").filter((e) => e.playerId === "p1");
+
+  it.each<[string, Mission, string, Where]>([
+    ["delivers a crate", deliverMission(ALPHA, BETA), "cargo_delivered", IN_BETA_WELL],
+    ["files data", surveyMission("survey-p2"), "cargo_delivered", IN_BETA_WELL],
+    ["sells loot", piracyMission("piracy-p2"), "cargo_delivered", IN_BETA_WELL],
+    ["pumps a Tanker's fuel", tankerMission("tanker-p2"), "fuel_pumped", IN_BETA_WELL],
+    ["delivers a crate", deliverMission(ALPHA, BETA), "cargo_delivered", MOORED_AT_BETA],
+  ])(
+    "completes on the carrier's own turn when it %s with the escort in its well (%#)",
+    (_label, card, sale, escortAt) => {
+      const result = executeTurnAs(carrierSells(card, escortAt), coast(1));
+      expect(eventTypes(result.events)).toContain(sale);
+      const escort = escortPaid(result.events);
+      expect(escort).toEqual([expect.objectContaining({ points: MISSION_POINTS.escort })]);
+      expect(escort[0].mission.type).toBe("escort");
+      const p1 = getPlayer(result.gameState, "p1");
+      expect(p1.points).toBe(MISSION_POINTS.escort);
+      expect(p1.missions[0].isCompleted).toBe(true);
+      // A finished Escort's marker is off the ship.
+      expect(viewFor(result.gameState, null).players[1].escortedBy).toEqual([]);
+    }
+  );
+
+  it.each<[string, Mission, Where]>([
+    ["delivers in another planet's well", deliverMission(ALPHA, BETA), IN_ALPHA_WELL],
+    ["delivers in the black hole", deliverMission(ALPHA, BETA), IN_BLACK_HOLE],
+    ["pumps fuel in another planet's well", tankerMission("tanker-p2"), IN_ALPHA_WELL],
+  ])(
+    "pays nothing when the carrier sells with the escort out of its well: it %s",
+    (_label, card, escortAt) => {
+      const result = executeTurnAs(carrierSells(card, escortAt), coast(1));
+      expect(eventTypes(result.events)).toEqual(
+        expect.arrayContaining([card.type === "tanker" ? "fuel_pumped" : "cargo_delivered"])
+      );
+      expect(escortPaid(result.events)).toEqual([]);
+      expect(getPlayer(result.gameState, "p1").points).toBe(0);
+      // The marker stays on the carrier for its next sale.
+      expect(p1Escort(result.gameState)).toMatchObject({
+        markedPlayerId: "p2",
+        isCompleted: false,
+        isSpent: false,
+      });
+      expect(viewFor(result.gameState, null).players[1].escortedBy).toEqual(["p1"]);
+    }
+  );
 
   it("one sale pays the carrier's Piracy card and its escort's marker, and only those", () => {
     const sold = piracyMission("piracy-a");
@@ -614,6 +665,7 @@ describe("escort: markers", () => {
     ]);
     state = withPlayer(state, "p2", { cargo: [lootCargo(sold.cargoId, sold.id)] });
     state = withPlayer(state, "p1", { missions: [escortMission("escort-p1", "p2")] });
+    state = withShip(state, "p1", IN_BETA_WELL(state));
     const result = executeTurnAs({ ...state, activePlayerIndex: 1 }, coast(1));
     const paid = eventsOf(result.events, "mission_completed").map((e) => [
       e.playerId,
@@ -627,15 +679,6 @@ describe("escort: markers", () => {
     expect(getPlayer(result.gameState, "p3").points).toBe(0);
     const p2Cards = getPlayer(result.gameState, "p2").missions;
     expect(p2Cards.map((m) => m.isCompleted)).toEqual([true, false]);
-  });
-
-  it("completes when the carrier pumps a Tanker's fuel on its own turn", () => {
-    const result = executeTurnAs(carrierArrives([tankerMission("tanker-p2")]), coast(1));
-    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(1);
-    expect(eventTypes(result.events)).not.toContain("cargo_delivered");
-    const p1 = getPlayer(result.gameState, "p1");
-    expect(p1.points).toBe(MISSION_POINTS.escort);
-    expect(p1.missions[0].isCompleted).toBe(true);
   });
 
   it("an Escort that reaches the points on the carrier's turn starts the final round", () => {
@@ -653,64 +696,238 @@ describe("escort: markers", () => {
     expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(false);
   });
 
-  it.each([
-    [
-      "a weapon",
-      () => {
-        let state = withPower(
-          withShip(table({ wellId: BH, ring: 3, sector: 2 }), "p2", { hitPoints: 4 }),
-          "p1",
-          "forward-0",
-          4
-        );
-        state = withPlayer(state, "p1", { missions: [escortMission("escort-1", "p2")] });
-        return { state, actions: [fire(1, "forward-0", "p2")] };
-      },
-    ],
+  /**
+   * p1 holds an Escort on p2, which carries a crate at BH R3 S2 with 4 hull;
+   * p3 sits at BH R3 S0 with its railgun up. `shooter` fires, or nobody does.
+   */
+  function markedCarrier(shooter: "p1" | "p3" | null): {
+    state: GameState;
+    actions: ReturnType<typeof fire>[];
+  } {
+    let state = makeGameState([
+      makePlayer("p1", { wellId: BH, ring: 3, sector: shooter === "p1" ? 0 : 10 }),
+      makePlayer("p2", { wellId: BH, ring: 3, sector: 2 }),
+      makePlayer("p3", { wellId: BH, ring: 3, sector: shooter === "p1" ? 16 : 0 }),
+    ]);
+    state = withShip(state, "p2", { hitPoints: 4 });
+    state = withPlayer(state, "p1", { missions: [escortMission("escort-1", "p2")] });
+    if (shooter === null) return { state, actions: [] };
+    state = withPower(state, shooter, "forward-0", 4);
+    return {
+      state: { ...state, activePlayerIndex: shooter === "p1" ? 0 : 2 },
+      actions: [fire(1, "forward-0", "p2")],
+    };
+  }
+
+  it.each<[string, () => { state: GameState; actions: ReturnType<typeof fire>[] }]>([
+    ["the escort's own weapon", () => markedCarrier("p1")],
+    ["a third player's weapon", () => markedCarrier("p3")],
     [
       "its own heat check",
       () => {
-        let state = withShip({ ...table(), activePlayerIndex: 1 }, "p2", {
-          hitPoints: 1,
-          heat: { currentHeat: 30 },
-        });
-        state = withPlayer(state, "p1", { missions: [escortMission("escort-1", "p2")] });
-        return { state, actions: [coast(1)] };
+        const { state } = markedCarrier(null);
+        return {
+          state: withShip({ ...state, activePlayerIndex: 1 }, "p2", {
+            hitPoints: 1,
+            heat: { currentHeat: 30 },
+          }),
+          actions: [],
+        };
       },
     ],
-  ])("the marker comes back when the marked ship is destroyed by %s", (_label, build) => {
+  ])("the Escort is spent when the marked ship is destroyed by %s", (_label, build) => {
+    const { state, actions } = build();
+    const result = executeTurnAs(state, ...(actions.length ? actions : [coast(1)]));
+    expect(eventsOf(result.events, "ship_destroyed").map((e) => e.victimId)).toEqual(["p2"]);
+    expect(eventsOf(result.events, "escort_spent")).toEqual([
+      expect.objectContaining({ escortId: "p1", carrierId: "p2", missionId: "escort-1" }),
+    ]);
+    expect(eventTypes(result.events)).not.toContain("escort_released");
+    const card = p1Escort(result.gameState);
+    expect(card).toMatchObject({ markedPlayerId: null, isCompleted: false, isSpent: true });
+    expect(unplacedEscorts(getPlayer(result.gameState, "p1").missions)).toEqual([]);
+    for (const viewer of ["p1", "p2", "p3", null]) {
+      expect(eventTypes(filterEventsFor(result.events, viewer))).toContain("escort_spent");
+      expect(viewFor(result.gameState, viewer).players[1].escortedBy).toEqual([]);
+    }
+    expect(getPlayer(result.gameState, "p1").points).toBe(0);
+  });
+
+  it("a spent card is face-up for the table, and the rest of the hand stays hidden", () => {
+    const deliver = deliverMission(ALPHA, GAMMA, "deliver-p1");
+    let state = markedCarrier(null).state;
+    state = withPlayer(state, "p1", {
+      missions: [deliver, escortMission("escort-1", null, true)],
+    });
+    for (const viewer of ["p2", "p3", null]) {
+      const view = viewFor(state, viewer);
+      expect(view.players[0].spentMissions).toEqual([
+        expect.objectContaining({ id: "escort-1", isSpent: true }),
+      ]);
+      expect(view.players[0].completedMissions).toEqual([]);
+      expect(JSON.stringify(view)).not.toContain(deliver.id);
+    }
+    expect(viewFor(state, "p1").me!.missions).toEqual([
+      deliver,
+      expect.objectContaining({ id: "escort-1", isSpent: true }),
+    ]);
+    // The control: an unspent Escort in hand is not on the table.
+    const held = withPlayer(state, "p1", { missions: [deliver, escortMission("escort-1")] });
+    expect(viewFor(held, "p2").players[0].spentMissions).toEqual([]);
+  });
+
+  it.each<[string, Where, { isCompleted: boolean; isSpent: boolean }]>([
+    [
+      "with the escort in its well, the sale came first: done",
+      IN_BETA_WELL,
+      { isCompleted: true, isSpent: false },
+    ],
+    [
+      "with the escort elsewhere, nothing was paid: spent",
+      IN_ALPHA_WELL,
+      { isCompleted: false, isSpent: true },
+    ],
+  ])("a carrier that sells and then dies at its heat check, %s", (_label, escortAt, expected) => {
+    const state = withShip(carrierArrives([deliverMission(ALPHA, BETA)], 0, escortAt), "p2", {
+      heat: { currentHeat: 60 },
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventTypes(result.events)).toEqual(
+      expect.arrayContaining(["cargo_delivered", "ship_destroyed"])
+    );
+    expect(p1Escort(result.gameState)).toMatchObject({
+      ...expected,
+      markedPlayerId: expected.isSpent ? null : "p2",
+    });
+    expect(eventTypes(result.events).includes("escort_spent")).toBe(expected.isSpent);
+    expect(getPlayer(result.gameState, "p1").points).toBe(expected.isCompleted ? 1 : 0);
+  });
+
+  it("a carrier that pumps fuel and then dies at its heat check did it first: the Escort is done", () => {
+    const state = withShip(carrierArrives([tankerMission("tanker-p2")]), "p2", {
+      heat: { currentHeat: 60 },
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventTypes(result.events)).toEqual(
+      expect.arrayContaining(["fuel_pumped", "ship_destroyed"])
+    );
+    expect(eventTypes(result.events)).not.toContain("escort_spent");
+    expect(p1Escort(result.gameState).isCompleted).toBe(true);
+  });
+
+  /**
+   * p1, the escort, has 1 hull at BH R3 S2 with its marker on p2, which
+   * carries a crate at BH R3 S0 with its railgun up; p3 sits further round.
+   */
+  function markedEscort(): GameState {
+    let state = makeGameState([
+      makePlayer("p1", { wellId: BH, ring: 3, sector: 2 }),
+      makePlayer("p2", { wellId: BH, ring: 3, sector: 0 }),
+      makePlayer("p3", { wellId: BH, ring: 3, sector: 16 }),
+    ]);
+    state = withMissions(state, "p2", [deliverMission(ALPHA, GAMMA)]);
+    state = withPlayer(state, "p2", {
+      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+    });
+    state = withShip(state, "p1", { hitPoints: 1 });
+    state = withPower(state, "p2", "forward-0", 4);
+    return withPlayer(state, "p1", { missions: [escortMission("escort-1", "p2")] });
+  }
+
+  it.each<[string, () => { state: GameState; actions: ReturnType<typeof fire | typeof coast>[] }]>([
+    [
+      "the carrier's weapon",
+      () => ({
+        state: { ...markedEscort(), activePlayerIndex: 1 },
+        actions: [fire(1, "forward-0", "p1")],
+      }),
+    ],
+    [
+      "its own heat check",
+      () => ({
+        state: withShip(markedEscort(), "p1", { heat: { currentHeat: 30 } }),
+        actions: [coast(1)],
+      }),
+    ],
+    [
+      "the carrier's weapon, and the carrier then dies at its own heat check",
+      () => ({
+        state: withShip({ ...markedEscort(), activePlayerIndex: 1 }, "p2", {
+          heat: { currentHeat: 60 },
+        }),
+        actions: [fire(1, "forward-0", "p1")],
+      }),
+    ],
+  ])("the marker comes back when the escort is destroyed by %s", (_label, build) => {
     const { state, actions } = build();
     const result = executeTurnAs(state, ...actions);
+    expect(eventsOf(result.events, "ship_destroyed")[0]).toMatchObject({ victimId: "p1" });
     expect(eventsOf(result.events, "escort_released")).toEqual([
       expect.objectContaining({ escortId: "p1", carrierId: "p2", missionId: "escort-1" }),
     ]);
-    expect(getPlayer(result.gameState, "p1").missions[0]).toMatchObject({
-      markedPlayerId: null,
-      isCompleted: false,
-    });
-    expect(eventTypes(filterEventsFor(result.events, "p2"))).toContain("escort_released");
+    expect(eventTypes(result.events)).not.toContain("escort_spent");
+    const card = p1Escort(result.gameState);
+    expect(card).toMatchObject({ markedPlayerId: null, isCompleted: false, isSpent: false });
+    expect(viewFor(result.gameState, null).players[1].escortedBy).toEqual([]);
+    expect(eventTypes(filterEventsFor(result.events, "p3"))).toContain("escort_released");
+
+    // Back in hand, the marker can go on the same ship again.
+    const again = executeTurnAs(
+      meeting([card], [deliverMission(ALPHA, GAMMA)]),
+      coast(1),
+      escortMark("p2")
+    );
+    expect(p1Escort(again.gameState)).toMatchObject({ markedPlayerId: "p2" });
   });
 
-  it.each<[string, Mission, string]>([
-    ["delivers", deliverMission(ALPHA, BETA), "cargo_delivered"],
-    ["pumps fuel", tankerMission("tanker-p2"), "fuel_pumped"],
-  ])(
-    "a carrier that %s and then dies at its heat check did it first: the Escort is done",
-    (_label, card, done) => {
-      const state = withShip(carrierArrives([card]), "p2", { heat: { currentHeat: 60 } });
-      const result = executeTurnAs(state, coast(1));
-      expect(eventTypes(result.events)).toEqual(expect.arrayContaining([done, "ship_destroyed"]));
-      expect(eventTypes(result.events)).not.toContain("escort_released");
-      expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);
-    }
-  );
+  it("an escort destroyed with two markers out takes both back", () => {
+    let state = markedEscort();
+    state = withPlayer(state, "p1", {
+      missions: [escortMission("escort-a", "p2"), escortMission("escort-b", "p3")],
+    });
+    const result = executeTurnAs(withShip(state, "p1", { heat: { currentHeat: 30 } }), coast(1));
+    expect(eventsOf(result.events, "escort_released").map((e) => e.missionId)).toEqual([
+      "escort-a",
+      "escort-b",
+    ]);
+    expect(marksOf(result.gameState)).toEqual([null, null]);
+  });
 
-  it("an escort's own destruction leaves its marker where it is", () => {
-    let state = withShip(table(), "p1", { hitPoints: 1, heat: { currentHeat: 30 } });
-    state = withPlayer(state, "p1", { missions: [escortMission("escort-1", "p2")] });
+  it("a carrier that shoots its escort down and then sells pays it nothing", () => {
+    let state = carrierArrives([deliverMission(ALPHA, BETA)]);
+    const p2At = positionOf(getPlayer(state, "p2").ship);
+    state = withShip(state, "p1", { ...p2At, hitPoints: 1 });
+    state = withPower(state, "p2", "forward-0", 4);
+    const result = executeTurnAs(state, fire(1, "forward-0", "p1", "engines", true), coast(2));
+    expect(result.errors).toBeUndefined();
+    expect(eventTypes(result.events)).toEqual(
+      expect.arrayContaining(["ship_destroyed", "escort_released", "cargo_delivered"])
+    );
+    expect(escortPaid(result.events)).toEqual([]);
+    expect(p1Escort(result.gameState)).toMatchObject({ markedPlayerId: null, isCompleted: false });
+    // The control: the same sale with the escort alive pays.
+    const spared = executeTurnAs(withShip(state, "p1", { hitPoints: 10 }), coast(1));
+    expect(escortPaid(spared.events)).toHaveLength(1);
+  });
+
+  it("two Escorts on two ships: one carrier dies, the other marker stays placed", () => {
+    let state = markedCarrier(null).state;
+    state = withMissions(state, "p3", [deliverMission(ALPHA, GAMMA)]);
+    state = withPlayer(state, "p3", {
+      cargo: getPlayer(state, "p3").cargo.map((c) => ({ ...c, isPickedUp: true })),
+    });
+    state = withPlayer(state, "p1", {
+      missions: [escortMission("escort-a", "p2"), escortMission("escort-b", "p3")],
+    });
+    state = withShip({ ...state, activePlayerIndex: 1 }, "p2", {
+      hitPoints: 1,
+      heat: { currentHeat: 30 },
+    });
     const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).toContain("ship_destroyed");
-    expect(eventTypes(result.events)).not.toContain("escort_released");
-    expect(getPlayer(result.gameState, "p1").missions[0]).toMatchObject({ markedPlayerId: "p2" });
+    expect(eventsOf(result.events, "escort_spent").map((e) => e.missionId)).toEqual(["escort-a"]);
+    expect(getPlayer(result.gameState, "p1").missions).toEqual([
+      expect.objectContaining({ id: "escort-a", isSpent: true, markedPlayerId: null }),
+      expect.objectContaining({ id: "escort-b", isSpent: false, markedPlayerId: "p3" }),
+    ]);
   });
 });

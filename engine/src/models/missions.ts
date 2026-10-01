@@ -294,15 +294,17 @@ export interface TankerMission extends BaseMission {
  * carrying cargo (a crate or data, loot included) with the marker in hand,
  * and you may put it on that ship, face-up for the table (the `escort_mark`
  * action). The next time that ship delivers, sells or files anything, or
- * pumps a Tanker's fuel, at a station, the card is done. If the marked ship
- * is destroyed first, the
- * marker comes back and the card is undone. A second Escort marks a
- * different ship.
+ * pumps a Tanker's fuel, at a station while the escort's ship is in that
+ * planet's well, the card is done. If the marked ship is destroyed first, the
+ * card is spent: face-up, it scores nothing. If the escort is destroyed, its
+ * marker comes off and back to hand. A second Escort marks a different ship.
  */
 export interface EscortMission extends BaseMission {
   type: "escort";
-  /** The ship carrying this card's marker, or null while the marker is in hand. */
+  /** The ship carrying this card's marker, or null while the marker is in hand or the card is spent. */
   markedPlayerId: string | null;
+  /** The marked ship died before it sold: the card is face-up and scores nothing. Public. */
+  isSpent: boolean;
 }
 
 /**

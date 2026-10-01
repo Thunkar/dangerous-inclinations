@@ -259,8 +259,21 @@ export type GameEvent =
       missionId: string;
     })
   | (Base & {
-      /** Escort: the marked ship was destroyed and the marker came back. */
+      /**
+       * Escort: the escort was destroyed, and its marker came off the carrier
+       * and back to hand. Public.
+       */
       type: "escort_released";
+      escortId: string;
+      carrierId: string;
+      missionId: string;
+    })
+  | (Base & {
+      /**
+       * Escort: the marked ship was destroyed before it sold, and the card is
+       * spent: face-up, it scores nothing. Public.
+       */
+      type: "escort_spent";
       escortId: string;
       carrierId: string;
       missionId: string;

@@ -148,6 +148,7 @@ const PUBLIC_EVENTS: ReadonlyArray<GameEvent["type"]> = [
   "wreck_salvaged",
   "escort_marked",
   "escort_released",
+  "escort_spent",
   "stations_moved",
 ];
 
@@ -184,6 +185,11 @@ function inspectHumanMessage(message: ServerGameMessage, index: number): void {
     check(
       player.escortedBy.every((id) => view.players.some((p) => p.id === id)),
       `${where}: ${player.id}'s Escort markers name seats at the table`,
+    );
+    // Only a spent card joins the face-up ones: nothing else in the hand leaks with it.
+    check(
+      player.spentMissions.every((m) => m.type === "escort" && m.isSpent && !m.isCompleted),
+      `${where}: ${player.id}'s spent cards are spent Escorts and nothing else`,
     );
   }
 
@@ -712,7 +718,7 @@ if (recording) {
   // The same finished game written under older rules: refused, never migrated.
   const stale = { ...archived, recordingId: "smoke-stale", schemaVersion: 2 } as unknown as GameRecording;
   // The same game with the human's Escort marker on Bot Alpha.
-  const escort: EscortMission = { id: "smoke-escort", type: "escort", isCompleted: false, markedPlayerId: BOT_A };
+  const escort: EscortMission = { id: "smoke-escort", type: "escort", isCompleted: false, markedPlayerId: BOT_A, isSpent: false };
   const escorted: GameRecording = {
     ...archived,
     recordingId: "smoke-escorted",

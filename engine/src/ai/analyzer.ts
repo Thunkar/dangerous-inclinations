@@ -268,7 +268,9 @@ export function analyzeSituation(view: GameView, parameters: BotParameters): Tac
 
   const goals = computeGoals(view, me, status, opponents, myDanger, parameters);
   const chosen = selectCurrentGoal(goals);
-  const currentGoal = chosen ? attachPlanToGoal(chosen, me, view, opponents, status) : null;
+  const currentGoal = chosen
+    ? attachPlanToGoal(chosen, me, view, opponents, status, parameters)
+    : null;
 
   return {
     view,

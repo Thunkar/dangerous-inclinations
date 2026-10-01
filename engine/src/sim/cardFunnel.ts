@@ -18,8 +18,19 @@ export interface CardTrack {
   type: MissionType;
   /** Round of the first step, or null if it never happened. */
   stepRound: number | null;
-  /** Times the item was lost to the holder's death (or, for Escort, the marked ship's). */
+  /**
+   * Times the item was lost to the holder's death. For Escort, the marker
+   * coming back when the escort dies; the track restarts with the next mark.
+   */
   lostToKill: number;
+  /** Escort: the marked ship died before it sold, so the card is spent and the track ends. */
+  spent: boolean;
+  /**
+   * Escort: times the marked ship sold or pumped fuel with the escort out of
+   * its well, so the marker stayed out and paid nothing. What says whether
+   * the bots shadow their mark.
+   */
+  missedSales: number;
   /** Times it was taken by Piracy. */
   lostToPiracy: number;
   /** Tanker: times the ship left the planet's well, or burned under the fuel, without pumping. */
@@ -68,6 +79,8 @@ export function cardTracksOf(run: GameRunResult): CardTrack[] {
         type: m.type,
         stepRound: null,
         lostToKill: 0,
+        spent: false,
+        missedSales: 0,
         lostToPiracy: 0,
         lostToBurn: 0,
         completedRound: null,
@@ -83,7 +96,14 @@ export function cardTracksOf(run: GameRunResult): CardTrack[] {
         since ??= round;
       };
 
+      // Escort: the ship the marker is on while it is out.
+      let carrier: string | null = null;
+
       run.turns.forEach((turn, i) => {
+        // Escort: the card scored on this turn, so a sale on it was not missed.
+        const paidThisTurn = turn.events.some(
+          (e) => e.type === "mission_completed" && e.mission.id === m.id
+        );
         for (const e of turn.events) {
           if (e.type === "mission_completed" && e.mission.id === m.id) {
             track.completedRound = e.turn;
@@ -119,11 +139,29 @@ export function cardTracksOf(run: GameRunResult): CardTrack[] {
                 start(e.turn);
               break;
             case "escort":
-              if (e.type === "escort_marked" && e.missionId === m.id) start(e.turn);
+              if (e.type === "escort_marked" && e.missionId === m.id) {
+                start(e.turn);
+                carrier = e.carrierId;
+              }
+              // The escort died: the marker is back in hand and can go out again.
               if (e.type === "escort_released" && e.missionId === m.id && since !== null) {
                 track.lostToKill++;
                 since = null;
+                carrier = null;
               }
+              // The marked ship died first: spent, and nothing can start it again.
+              if (e.type === "escort_spent" && e.missionId === m.id) {
+                track.spent = true;
+                since = null;
+                carrier = null;
+              }
+              if (
+                (e.type === "cargo_delivered" || e.type === "fuel_pumped") &&
+                e.playerId === carrier &&
+                since !== null &&
+                !paidThisTurn
+              )
+                track.missedSales++;
               break;
             case "tanker":
               if (e.type === "fuel_pumped" && e.playerId === player.id) start(e.turn);

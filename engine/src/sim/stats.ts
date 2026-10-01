@@ -85,6 +85,14 @@ export interface GameUnfolding {
   /** The round of the first card completed in the game, or null. */
   firstScoreRound: number | null;
   escortMarks: number;
+  /** Escorts completed. */
+  escortsPaid: number;
+  /** Escorts spent: the marked ship died before it sold. */
+  escortsSpent: number;
+  /** Escort markers back in hand because the escort died. */
+  escortsReleased: number;
+  /** Sales or fuel pumps by a marked ship that paid its escort nothing: the escort was out of the well. */
+  escortMissedSales: number;
   /** For every Escort paid: rounds from the marker going on to the card completing. */
   markToCompletionRounds: number[];
   wrecksLeft: number;
@@ -294,7 +302,13 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
   let leaderAtRound10: string | null = null;
   let firstScoreRound: number | null = null;
   let escortMarks = 0;
+  let escortsPaid = 0;
+  let escortsSpent = 0;
+  let escortsReleased = 0;
+  let escortMissedSales = 0;
   const markedAt = new Map<string, number>();
+  /** Marker (mission id) to the ship it is on, while it is out. */
+  const markedOn = new Map<string, string>();
   const markToCompletionRounds: number[] = [];
   let wrecksLeft = 0;
   let wrecksSalvaged = 0;
@@ -305,7 +319,17 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
 
   for (const turn of run.turns) {
     const named = turn.actions.some((a) => a.type === "dock_sale" && a.playerId === turn.playerId);
+    // Escorts that score this turn: a sale on it by their carrier was not missed.
+    const paidNow = new Set(
+      turn.events.flatMap((e) =>
+        e.type === "mission_completed" && e.mission.type === "escort" ? [e.mission.id] : []
+      )
+    );
     for (const e of turn.events) {
+      if (e.type === "cargo_delivered" || e.type === "fuel_pumped") {
+        for (const [missionId, carrierId] of markedOn)
+          if (carrierId === e.playerId && !paidNow.has(missionId)) escortMissedSales++;
+      }
       switch (e.type) {
         case "mission_completed": {
           firstScoreRound ??= e.turn;
@@ -315,6 +339,10 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
           if (now !== null && leader !== null && now !== leader) leadChanges++;
           if (now !== null) leader = now;
           const marked = markedAt.get(e.mission.id);
+          if (e.mission.type === "escort") {
+            escortsPaid++;
+            markedOn.delete(e.mission.id);
+          }
           if (e.mission.type === "escort" && marked !== undefined) {
             markToCompletionRounds.push(e.turn - marked);
             markedAt.delete(e.mission.id);
@@ -324,9 +352,17 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
         case "escort_marked":
           escortMarks++;
           markedAt.set(e.missionId, e.turn);
+          markedOn.set(e.missionId, e.carrierId);
           break;
         case "escort_released":
+          escortsReleased++;
           markedAt.delete(e.missionId);
+          markedOn.delete(e.missionId);
+          break;
+        case "escort_spent":
+          escortsSpent++;
+          markedAt.delete(e.missionId);
+          markedOn.delete(e.missionId);
           break;
         case "wreck_left":
           wrecksLeft++;
@@ -360,6 +396,10 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
     leaderAtRound10,
     firstScoreRound,
     escortMarks,
+    escortsPaid,
+    escortsSpent,
+    escortsReleased,
+    escortMissedSales,
     markToCompletionRounds,
     wrecksLeft,
     wrecksSalvaged,
@@ -450,6 +490,10 @@ export interface UnfoldingAggregate {
   wonFromBehindShare: number;
   firstScoreRound: Distribution;
   escortMarksPerGame: number;
+  escortsPaidPerGame: number;
+  escortsSpentPerGame: number;
+  escortsReleasedPerGame: number;
+  escortMissedSalesPerGame: number;
   markToCompletionRounds: Distribution;
   wrecksPerGame: number;
   /** Wrecks salvaged over wrecks left. */
@@ -634,6 +678,10 @@ function aggregateUnfolding(games: PerGameStats[]): UnfoldingAggregate {
       )
     ),
     escortMarksPerGame: perGame(sum((u) => u.escortMarks)),
+    escortsPaidPerGame: perGame(sum((u) => u.escortsPaid)),
+    escortsSpentPerGame: perGame(sum((u) => u.escortsSpent)),
+    escortsReleasedPerGame: perGame(sum((u) => u.escortsReleased)),
+    escortMissedSalesPerGame: perGame(sum((u) => u.escortMissedSales)),
     markToCompletionRounds: distribution(games.flatMap((g) => g.unfolding.markToCompletionRounds)),
     wrecksPerGame: perGame(wrecks),
     salvagedShare: ratio(

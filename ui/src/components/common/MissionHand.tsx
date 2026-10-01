@@ -15,7 +15,8 @@
  *
  * They are yours alone: the table sees that you hold them, not what they say.
  * A completed card is the opposite (it is the scoreboard) so it leaves the
- * hand and sits face up in the row of tabs above it. Deployment has none, so
+ * hand and sits face up in the row of tabs above it, and so does a spent
+ * Escort, struck through because it scores nothing. Deployment has none, so
  * there the row simply is not there.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -26,6 +27,7 @@ import { FONT_MONO, TABLE } from '../../theme'
 import { PRESS } from '../../design/press'
 import { FAN_CARD_HEIGHT, FAN_CARD_WIDTH, MissionCard } from './MissionCard'
 import { missionFamilyColor, missionPoints } from '../../utils/missions'
+import { MISSION_PROGRESS as P } from '../../text/missionProgress'
 
 /**
  * The fan: the total spread in degrees, about a pivot well below the cards, so
@@ -69,9 +71,12 @@ interface MissionHandProps {
   nameOf: (playerId: string) => string
 }
 
+/** Face-up for the table: completed, or an Escort spent when its marked ship died. */
+const isFaceUp = (m: Mission) => m.isCompleted || (m.type === 'escort' && m.isSpent)
+
 export function MissionHand({ missions, cargo, fuel, nameOf }: MissionHandProps) {
-  const held = missions.filter(m => !m.isCompleted)
-  const faceUp = missions.filter(m => m.isCompleted)
+  const held = missions.filter(m => !isFaceUp(m))
+  const faceUp = missions.filter(isFaceUp)
 
   return (
     <>
@@ -91,27 +96,45 @@ function FaceUpRow({
 }) {
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.75 }}>
-      {missions.map(mission => (
-        <Tooltip key={mission.id} title={describeMission(mission, nameOf)}>
-          <Box
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 30,
-              height: 20,
-              px: 0.5,
-              bgcolor: missionFamilyColor(mission),
-              border: `1px solid ${PRESS.ink}`,
-              color: PRESS.ink,
-            }}
+      {missions.map(mission => {
+        // A spent card scores nothing: struck through, on no colour.
+        const spent = !mission.isCompleted
+        return (
+          <Tooltip
+            key={mission.id}
+            title={
+              spent
+                ? `${describeMission(mission, nameOf)} · ${P.escortSpent}`
+                : describeMission(mission, nameOf)
+            }
           >
-            <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 800, fontSize: '0.72rem' }}>
-              {missionPoints(mission)}
-            </Typography>
-          </Box>
-        </Tooltip>
-      ))}
+            <Box
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 30,
+                height: 20,
+                px: 0.5,
+                bgcolor: spent ? 'transparent' : missionFamilyColor(mission),
+                border: `1px solid ${spent ? TABLE.inkFaint : PRESS.ink}`,
+                color: spent ? TABLE.inkFaint : PRESS.ink,
+              }}
+            >
+              <Typography
+                sx={{
+                  fontFamily: FONT_MONO,
+                  fontWeight: 800,
+                  fontSize: '0.72rem',
+                  textDecoration: spent ? 'line-through' : 'none',
+                }}
+              >
+                {missionPoints(mission)}
+              </Typography>
+            </Box>
+          </Tooltip>
+        )
+      })}
     </Box>
   )
 }
