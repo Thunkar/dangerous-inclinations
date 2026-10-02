@@ -8,10 +8,9 @@ import { resolveShipAppearance, type ShipAppearance } from "../models/appearance
  *
  * Public: positions, facing, hull, heat, energy on every slot (cubes sit on
  * the tiles in the open, even face-down ones), home markers, crates carried,
- * face-up tiles, broken fixed systems, completed and spent missions,
- * missiles, stations, wrecks, the Escort markers sitting on a ship, the fuel
- * aboard, each item in a hold by kind and opaque id, and the stations each
- * player has sold at.
+ * face-up tiles, broken fixed systems, completed missions, missiles, stations,
+ * wrecks, the Escort markers sitting on a ship, the fuel aboard, each item in
+ * a hold by kind and opaque id, and the stations each player has sold at.
  * Private: face-down tile identities, the ammo in a face-down missiles tile,
  * missions in hand, the card an item belongs to, cargo destinations, mission
  * offers, what a scan showed you.
@@ -30,7 +29,7 @@ import type { HoldItemKind, Mission } from "../models/missions.ts";
 import { aboard, holdItemKind } from "../models/missions.ts";
 import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import { getDissipationCapacity, isDestroyed, lowestCriticalFace } from "./ship.ts";
-import { completedMissions, spentMissions } from "./missions/missionChecks.ts";
+import { completedMissions } from "./missions/missionChecks.ts";
 
 interface PublicShipView {
   wellId: string;
@@ -102,12 +101,6 @@ export interface PlayerView {
   cargoCount: number;
   points: number;
   completedMissions: Mission[];
-  /**
-   * Cards turned face-up that score nothing: an Escort whose marked ship was
-   * destroyed before it sold. Public, like a completed card; the rest of the
-   * hand stays hidden.
-   */
-  spentMissions: Mission[];
   /**
    * The players whose Escort markers sit on this ship. Public: the marker is
    * on the table face-up, though the card it came from stays in its holder's
@@ -236,14 +229,12 @@ export function playerViewFor(state: GameState, player: Player, viewer: Player |
     cargoCount: aboard(player.cargo).length,
     points: player.points,
     completedMissions: completedMissions(player),
-    spentMissions: spentMissions(player),
     soldAt: [...player.soldAt],
     hold: aboard(player.cargo).map((c) => ({ cargoId: c.id, kind: holdItemKind(c) })),
     escortedBy: state.players
       .filter((p) =>
         p.missions.some(
-          (m) =>
-            m.type === "escort" && !m.isCompleted && !m.isSpent && m.markedPlayerId === player.id
+          (m) => m.type === "escort" && !m.isCompleted && m.markedPlayerId === player.id
         )
       )
       .map((p) => p.id),

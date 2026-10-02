@@ -27,8 +27,11 @@ import type { GameEvent } from "../models/events.ts";
  * v12: Escort is spent (`isSpent`, `escort_spent`) on the carrier's death,
  *     released (`escort_released`) on the escort's, and pays only with the
  *     escort in the well; `PlayerView.spentMissions`.
+ * v13: Escort marks on the same ring, and is never spent: the marker comes
+ *     back if either ship is destroyed (`escort_released.cause`); no
+ *     `isSpent`, `escort_spent` or `PlayerView.spentMissions`.
  */
-export const RECORDING_SCHEMA_VERSION = 12;
+export const RECORDING_SCHEMA_VERSION = 13;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

@@ -686,38 +686,6 @@ describe("bot goals: salvage and escort", () => {
       expect(goal?.targetPlayerId).toBeUndefined();
     });
 
-    it.each([
-      { spent: false, goal: true },
-      { spent: true, goal: false },
-    ])("a card spent: $spent has an escort goal: $goal", ({ spent, goal }) => {
-      const card = escortMission("escort-1", null, spent);
-      const found = goalFor(table([card, PRIMARY_DONE]), card.id);
-      if (goal) expect(found).toMatchObject({ type: "escort", targetPlayerId: "p2" });
-      else expect(found).toBeUndefined();
-    });
-
-    it.each(["p2", "p3"])(
-      "between two carriers as near, leaves the fragile %s alone",
-      (fragile) => {
-        const card = escortMission();
-        let state = makeGameState([
-          makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }),
-          makePlayer("p2", { wellId: BH, ring: 3, sector: 8 }),
-          makePlayer("p3", { wellId: BH, ring: 3, sector: 8 }),
-        ]);
-        state = withMissions(state, "p1", [card, PRIMARY_DONE]);
-        for (const id of ["p2", "p3"]) {
-          state = withMissions(state, id, [deliverMission(ALPHA, BETA, `deliver-${id}`)]);
-          state = withPlayer(state, id, {
-            cargo: getPlayer(state, id).cargo.map((c) => ({ ...c, isPickedUp: true })),
-          });
-        }
-        state = withShip(state, fragile, { hitPoints: 2 });
-        const sturdy = fragile === "p2" ? "p3" : "p2";
-        expect(goalFor(state, card.id)).toMatchObject({ type: "escort", targetPlayerId: sturdy });
-      }
-    );
-
     describe("rides along once its marker is out", () => {
       /** p1's marker on p2, who has a crate aboard; both where the row puts them. */
       const riding = (me: Position, carrier: Position, primary: Mission = PRIMARY_DONE) => {

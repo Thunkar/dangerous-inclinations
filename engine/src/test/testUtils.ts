@@ -292,14 +292,12 @@ export const tankerMission = (id = "tanker-1"): TankerMission => ({
 
 export const escortMission = (
   id = "escort-1",
-  markedPlayerId: string | null = null,
-  isSpent = false
+  markedPlayerId: string | null = null
 ): EscortMission => ({
   id,
   type: "escort",
   isCompleted: false,
   markedPlayerId,
-  isSpent,
 });
 
 export const salvageMission = (id = "salvage-1"): SalvageMission => ({

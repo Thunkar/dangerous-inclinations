@@ -92,7 +92,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Escort',
-      'end a turn, not moored, in the same sector as an undocked rival carrying cargo, and you may put your marker on it (a ship carries one marker). Done the next time that ship delivers, sells or files anything, or pumps fuel, with you in its well; spent if it is destroyed first; your marker comes back if you are',
+      'end a turn, not moored, on the same ring as an undocked rival carrying cargo, and you may put your marker on it (a ship carries one marker). Done the next time that ship delivers, sells or files anything, or pumps fuel, with you in its well; your marker comes back if either ship is destroyed first',
     ],
     [
       'Salvage',
@@ -138,7 +138,7 @@ export const RULES_DIALOG = {
     title: 'Hidden information',
     /** Three paragraphs, one line apart. */
     public:
-      'Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed and spent missions, wrecks and Escort markers.',
+      'Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed missions, wrecks and Escort markers.',
     private:
       'Private: what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo is going.',
     tell: '<red>Energy is the tell.</red> Using a subsystem turns it face-up, so energy on a face-down slot between turns means it was powered, not used: {halfShield} is a half shield, a ballistic rack or a sensor array, and {fullShield} can only be a full shield. That is a deduction, not a reveal: the subsystem stays face-down and only a scan makes sure. A gun is dark until it fires, which is why a silent slot is the dangerous one.',

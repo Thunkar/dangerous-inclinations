@@ -69,9 +69,9 @@ worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, pirac
 choice, named with a `seize`; loot that sells anywhere, their card back to
 undone), tanker (arrive at a station
 with five fuel and pump it in), escort (you may put your marker, face-up, on
-an undocked rival carrying cargo in your sector; it pays when that ship next
-sells or pumps fuel with the escort in its well, is spent if that ship dies,
-and comes back if the escort does) and salvage (a destroyed ship leaves a
+an undocked rival carrying cargo on your ring; it pays when that ship next
+sells or pumps fuel with the escort in its well, and comes back if either
+ship dies) and salvage (a destroyed ship leaves a
 wreck that drifts with the stations; end a turn on it and take its black box,
 data filed anywhere)). A visit does one thing: load the crates waiting
 there, or sell one item; and each station buys from each player once per

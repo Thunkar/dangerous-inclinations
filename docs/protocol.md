@@ -125,8 +125,9 @@ from that player (public: a marker on the station).
 
 A turn may also carry `escort_mark` actions (`{ carrierId }`, no sequence),
 one per Escort card whose marker is in hand, each naming a different rival:
-the marker goes on that ship at the end of the turn if the player then shares
-its sector, neither ship is moored and it carries a crate or data; a name
+the marker goes on that ship at the end of the turn if the player is then on
+its ring (same well, any sector), neither ship is moored and it carries a
+crate or data; a name
 that does not qualify by then is passed over, not refused. Without one, no
 marker is placed. The engine's `escortCandidates(view, playerId, position)`
 lists who qualifies. A moored ship can neither fire nor be fired at, so a
@@ -148,17 +149,14 @@ Intercept's. The destination of a rival's crate stays private.
 The view carries the public board state these cards add: `GameView.wrecks`
 (`{ id, wellId, ring, sector }[]`, left where a ship is destroyed, drifting
 with the stations), `PlayerView.escortedBy` (the ids of the players whose
-Escort markers are on that ship) and `PlayerView.spentMissions` (that
-player's spent cards, face-up and scoring nothing: an Escort whose marked
-ship was destroyed before it sold, `isSpent: true`; the owner sees the same
-flag on the card in `GameView.me.missions`). The events `wreck_left`,
-`wreck_salvaged`, `escort_marked`, `escort_released` (the escort was
-destroyed, and its marker came off the carrier and back to hand) and
-`escort_spent` (`{ escortId, carrierId, missionId }`: the marked ship was
-destroyed first) are public, `stations_moved` carries the drifted `wrecks`,
-and `mission_completed` can arrive for a player who is not the one taking
-the turn (an Escort pays on the carrier's sale, with the escort in that
-planet's well).
+Escort markers are on that ship). The events `wreck_left`,
+`wreck_salvaged`, `escort_marked` and `escort_released` (`{ escortId,
+carrierId, missionId, cause }`: the marker came off the carrier and back to
+its owner, `cause` being `"carrier_destroyed"` or `"escort_destroyed"`) are
+public, `stations_moved` carries the drifted `wrecks`, and
+`mission_completed` can arrive for a player who is not the one taking the
+turn (an Escort pays on the carrier's sale, with the escort in that planet's
+well).
 
 Per-recipient sending: `broadcastViews(room, roomId, (playerId) => message)`
 builds every game message for its recipient; the single-string

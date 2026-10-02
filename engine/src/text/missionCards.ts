@@ -49,7 +49,7 @@ export const MISSION_CARDS = {
     title: "Escort {carrier} to a sale",
     /** Before the marker is down. */
     titleUnmarked: "Escort a carrier to a sale",
-    rule: "Mark an undocked carrier in your sector. Done at its next sale with you in its well. Spent if it dies; back if you die.",
+    rule: "Mark an undocked carrier on your ring. Done at its next sale with you in its well. Back to you if either ship dies.",
   },
   salvage: {
     name: "Salvage",

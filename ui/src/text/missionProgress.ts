@@ -16,7 +16,5 @@ export const MISSION_PROGRESS = {
   /** The holder's tank, next to the card at the table. */
   tanker: 'Tank {fuel}/{max}',
   escort: 'Marker placed',
-  /** An Escort whose marked ship was destroyed first: face-up, it scores nothing. */
-  escortSpent: 'Spent',
   salvage: 'Black box aboard',
 } as const

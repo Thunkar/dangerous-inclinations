@@ -11,12 +11,9 @@ import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import type { Mission } from "../models/missions.ts";
 import type { MovementPlan } from "./movementPlanner/index.ts";
 
-/**
- * A card still in play: not done, and not an Escort spent by its marked
- * ship's death (face-up, scoring nothing for the rest of the game).
- */
+/** A card still in play: not done. */
 export function isOpenMission(m: Mission): boolean {
-  return !m.isCompleted && !(m.type === "escort" && m.isSpent);
+  return !m.isCompleted;
 }
 
 /**
@@ -145,7 +142,7 @@ export type BotGoalType =
   | "pirate" // piracy: end a turn in a loaded ship's exact sector
   | "tanker" // tanker, short of fuel: scoop it up on a fast black hole ring
   | "salvage" // salvage: end a turn on a wreck's sector (it drifts like a station)
-  | "escort" // escort: end a turn in an undocked carrier's exact sector; marker out, be in its well
+  | "escort" // escort: reach an undocked carrier to mark it; marker out, be in its well
   | "patrol"; // nothing else to do: coast on the black hole ring the rivals are on
 
 /**

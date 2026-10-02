@@ -72,7 +72,7 @@ export interface SeatOptions {
    * Escort markers still in hand, and the carriers one could go on if the
    * turn ends after a plain coast. Placing one is a choice ("you may"),
    * declared with the turn and settled against where it ends, so after any
-   * other move the question is asked again of that sector; null when no
+   * other move the question is asked again of that ring; null when no
    * marker is in hand.
    */
   escort: { markersInHand: number; carriersAfterCoast: string[] } | null;

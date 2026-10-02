@@ -170,15 +170,13 @@ export function MissionCard({
   const band = FAMILY_INK[missionFamily(mission)]
   const points = missionPoints(mission)
   const done = mission.isCompleted || faceUpToTable
-  // A spent Escort: face-up too, but it scores nothing, so it reads greyed.
-  const spent = mission.type === 'escort' && mission.isSpent
   const progress = cargo ? missionProgress(mission, cargo, fuel) : null
   const unmet = requires?.some(r => !r.met) ?? false
   const outline = selected ? (unmet ? TABLE.heat : TABLE.accent) : null
   // Face up, behind the screen, or kept at the shipyard. This is not card
   // content (a printed card has no such line) so it rides over the corner as
   // a badge and moves nothing.
-  const state = spent ? 'spent' : done ? 'face up' : held ? 'in hand' : selected ? 'kept' : null
+  const state = done ? 'face up' : held ? 'in hand' : selected ? 'kept' : null
   const needs = requires !== undefined && requires.length > 0
 
   return (
@@ -213,7 +211,6 @@ export function MissionCard({
         outline: outline ? `2px solid ${outline}` : 'none',
         outlineOffset: 0,
         transition: 'outline-color 140ms ease',
-        opacity: spent ? 0.55 : 1,
         '&:hover': onClick ? { outline: `2px solid ${outline ?? TABLE.accent}` } : undefined,
       }}
     >
@@ -404,7 +401,7 @@ export function MissionCard({
               lineHeight: 1.4,
               whiteSpace: 'nowrap',
               fontSize: cut.stateSize,
-              color: spent ? TABLE.danger : done ? TABLE.success : selected ? TABLE.accent : PAPER,
+              color: done ? TABLE.success : selected ? TABLE.accent : PAPER,
             }}
           >
             {state}

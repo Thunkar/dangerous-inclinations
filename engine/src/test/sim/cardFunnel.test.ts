@@ -24,11 +24,26 @@ const SURVEY = surveyMission("survey-p1");
 const TANKER = tankerMission("tanker-p1");
 const ESCORT = escortMission("escort-p1");
 
-/** p1's Escort marker goes on p2, comes back (p1 died) or is spent (p2 died). */
-const escortEvent = (
-  type: "escort_marked" | "escort_released" | "escort_spent",
-  turn: number
-): GameEvent => ({ type, turn, escortId: "p1", carrierId: "p2", missionId: ESCORT.id });
+/** p1's Escort marker goes on p2. */
+const escortMarked = (turn: number): GameEvent => ({
+  type: "escort_marked",
+  turn,
+  escortId: "p1",
+  carrierId: "p2",
+  missionId: ESCORT.id,
+});
+/** p1's Escort marker comes back, because p1 or p2 died. */
+const escortReleased = (
+  turn: number,
+  cause: "carrier_destroyed" | "escort_destroyed"
+): GameEvent => ({
+  type: "escort_released",
+  turn,
+  escortId: "p1",
+  carrierId: "p2",
+  missionId: ESCORT.id,
+  cause,
+});
 /** p2, the marked ship, sells a crate. */
 const carrierSold = (turn: number): GameEvent => ({
   type: "cargo_delivered",
@@ -165,27 +180,37 @@ describe("where cards fail", () => {
     [
       "an Escort released when the escort died, marked again and paid",
       run(ESCORT, [
-        { events: [escortEvent("escort_marked", 1)] },
-        { events: [escortEvent("escort_released", 2)] },
-        { events: [escortEvent("escort_marked", 3)] },
+        { events: [escortMarked(1)] },
+        { events: [escortReleased(2, "escort_destroyed")] },
+        { events: [escortMarked(3)] },
         { events: [carrierSold(4), scored(4, { ...ESCORT, isCompleted: true })] },
       ]),
-      { stepRound: 1, lostToKill: 1, spent: false, missedSales: 0, completedRound: 4, stepToDone: 1 },
+      { stepRound: 1, lostToKill: 1, lostToCarrier: 0, missedSales: 0, completedRound: 4, stepToDone: 1 },
     ],
     [
-      "an Escort whose carrier sold out of its reach and then died: spent, and the track ends",
+      "an Escort whose carrier sold out of its reach and then died: released, and the track ends open",
       run(ESCORT, [
-        { events: [escortEvent("escort_marked", 1)] },
+        { events: [escortMarked(1)] },
         { events: [carrierSold(2)] },
-        { events: [escortEvent("escort_spent", 3)] },
+        { events: [escortReleased(3, "carrier_destroyed")] },
         { events: [] },
       ]),
-      { stepRound: 1, lostToKill: 0, spent: true, missedSales: 1, completedRound: null, openWithStep: false },
+      { stepRound: 1, lostToKill: 0, lostToCarrier: 1, missedSales: 1, completedRound: null, openWithStep: false },
+    ],
+    [
+      "an Escort released when the carrier died, marked again and paid",
+      run(ESCORT, [
+        { events: [escortMarked(1)] },
+        { events: [escortReleased(2, "carrier_destroyed")] },
+        { events: [escortMarked(4)] },
+        { events: [carrierSold(5), scored(5, { ...ESCORT, isCompleted: true })] },
+      ]),
+      { stepRound: 1, lostToKill: 0, lostToCarrier: 1, missedSales: 0, completedRound: 5, stepToDone: 1 },
     ],
     [
       "an Escort still out when the game ends",
-      run(ESCORT, [{ events: [escortEvent("escort_marked", 1)] }, { events: [] }]),
-      { stepRound: 1, spent: false, completedRound: null, openWithStep: true },
+      run(ESCORT, [{ events: [escortMarked(1)] }, { events: [] }]),
+      { stepRound: 1, lostToCarrier: 0, completedRound: null, openWithStep: true },
     ],
     [
       "a card never started",

@@ -76,7 +76,7 @@ export interface TurnIntent {
    * Rivals to put an Escort marker on, one per marker in hand, each a
    * different ship. A "you may": nothing is placed unless named here. Each is
    * settled against where the turn ends; a ship that does not qualify then
-   * (not in your sector, carrying nothing, either of you moored) takes no
+   * (not on your ring, carrying nothing, either of you moored) takes no
    * marker and costs nothing.
    */
   escort?: string[];

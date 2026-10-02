@@ -32,7 +32,6 @@ import { Panel } from '../common/Panel'
 import { SubsystemTile } from '../common/SubsystemTile'
 import { CargoTokens, PipTrack } from '../common/Tokens'
 import { missionFamilyColor, missionFamilyLabel } from '../../utils/missions'
-import { MISSION_PROGRESS as P } from '../../text/missionProgress'
 import { slotLabel } from '../../utils/slots'
 import { agentLabel } from '../../utils/agents'
 import { useGame } from '../../context/GameContext'
@@ -329,22 +328,11 @@ export function OpponentCard({
           ))}
         </Box>
 
-        {/* Completed and spent missions, face-up for everyone. A spent card
-            scores nothing, so it is struck through in grey. */}
-        {player.completedMissions.length + player.spentMissions.length > 0 && (
+        {/* Completed missions, face-up for everyone */}
+        {player.completedMissions.length > 0 && (
           <Box sx={{ display: 'flex', gap: '4px', flexWrap: 'wrap', minWidth: 0 }}>
-            {[
-              ...player.completedMissions.map(mission => ({ mission, spent: false })),
-              ...player.spentMissions.map(mission => ({ mission, spent: true })),
-            ].map(({ mission, spent }) => (
-              <Tooltip
-                key={mission.id}
-                title={
-                  spent
-                    ? `${missionFamilyLabel(mission)} · ${P.escortSpent}`
-                    : missionFamilyLabel(mission)
-                }
-              >
+            {player.completedMissions.map(mission => (
+              <Tooltip key={mission.id} title={missionFamilyLabel(mission)}>
                 <Typography
                   sx={{
                     fontFamily: FONT_DISPLAY,
@@ -354,9 +342,8 @@ export function OpponentCard({
                     letterSpacing: '0.08em',
                     lineHeight: 1.6,
                     px: 0.5,
-                    color: spent ? TABLE.inkFaint : missionFamilyColor(mission),
-                    border: `1px solid ${spent ? TABLE.inkFaint : missionFamilyColor(mission)}`,
-                    textDecoration: spent ? 'line-through' : 'none',
+                    color: missionFamilyColor(mission),
+                    border: `1px solid ${missionFamilyColor(mission)}`,
                   }}
                 >
                   {missionFamilyLabel(mission)}

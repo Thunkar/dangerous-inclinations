@@ -172,7 +172,7 @@ const DockSaleActionSchema = z
   .strict();
 
 /**
- * Put an Escort marker on this carrier if the turn ends in its sector (RULES
+ * Put an Escort marker on this carrier if the turn ends on its ring (RULES
  * §Missions, Escort). No sequence: it is settled at the end of the turn.
  */
 const EscortMarkActionSchema = z

@@ -260,23 +260,14 @@ export type GameEvent =
     })
   | (Base & {
       /**
-       * Escort: the escort was destroyed, and its marker came off the carrier
-       * and back to hand. Public.
+       * Escort: the marked ship or the escort was destroyed (`cause`), and the
+       * marker came off the carrier and back to its owner's hand. Public.
        */
       type: "escort_released";
       escortId: string;
       carrierId: string;
       missionId: string;
-    })
-  | (Base & {
-      /**
-       * Escort: the marked ship was destroyed before it sold, and the card is
-       * spent: face-up, it scores nothing. Public.
-       */
-      type: "escort_spent";
-      escortId: string;
-      carrierId: string;
-      missionId: string;
+      cause: "carrier_destroyed" | "escort_destroyed";
     })
   | (Base & {
       /** Tanker: fuel pumped into a station's drums on arrival. */

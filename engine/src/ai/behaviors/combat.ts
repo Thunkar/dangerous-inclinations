@@ -46,7 +46,7 @@ export function isKillTarget(me: Player, opponent: Opponent): boolean {
 
 /**
  * Ships this seat does not shoot at: those its own Escort markers sit on (the
- * marker pays only when that ship sells, and a kill spends the card) and the
+ * marker pays only when that ship sells, and a kill sends it home) and the
  * carrier its Escort goal is on its way to mark. The bot never marks its own
  * Destroy target, so no marker ever shields its prey.
  */
@@ -61,7 +61,7 @@ export function holdFireIds(situation: TacticalSituation): Set<string> {
  * What a kill on `opponent` takes off the table besides hull, counted in
  * tokens: every crate and every piece of data aboard (it goes over the side),
  * every rival's Escort marker on the ship (public, `PlayerView.escortedBy`:
- * that rival's card is spent and its point with it), and the opponent's own
+ * the marker goes home and that rival's point with it), and the opponent's own
  * marker on the deciding seat's ship (`onMe`, this seat's `escortedBy`: a
  * dead escort's marker comes off, so the kill sheds a point owed to them).
  * The deciding seat's own marker is not a rival's, and a ship carrying one is

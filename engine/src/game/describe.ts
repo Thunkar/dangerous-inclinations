@@ -196,9 +196,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "escort_marked":
       return `${name(e.escortId)} puts an escort marker on ${name(e.carrierId)}`;
     case "escort_released":
-      return `${name(e.escortId)}'s escort marker comes off ${name(e.carrierId)} and back to hand`;
-    case "escort_spent":
-      return `${name(e.carrierId)} is destroyed: ${name(e.escortId)}'s Escort is spent`;
+      return `${name(e.escortId)}'s escort marker comes back from ${name(e.carrierId)}`;
     case "fuel_pumped":
       return `${name(e.playerId)} pumps ${e.amount} fuel into ${getWellName(e.planetId)}'s station`;
     case "cargo_dropped": {

@@ -167,17 +167,6 @@ const REPAIR_DETOUR_TURNS = 3;
  */
 const PRIMARY_DETOUR_TURNS = 1;
 
-/**
- * A carrier at or under this share of its hull is fragile: a marked ship that
- * dies spends the Escort card, so the bot would rather mark a sturdy one.
- */
-const FRAGILE_HULL_SHARE = 0.5;
-
-/** Whether a marked carrier looks likely to die before it sells (first pass: its hull alone). */
-export function fragileCarrier(o: Opponent): boolean {
-  return o.hull <= o.maxHull * FRAGILE_HULL_SHARE;
-}
-
 /** Standing goal: a station for repairs, hull and a reload. */
 export const REPAIR_GOAL_ID = "repair";
 /** Goal of last resort: go where the rivals are in the black hole. */
@@ -791,10 +780,6 @@ export function computeGoals(
         const carriers = undockedCarriers(view, opponents).filter(
           (o) => !escorting.has(o.player.id) && !prey.has(o.player.id)
         );
-        // A marked ship that dies spends the card: with a sturdy carrier in
-        // this well, the fragile ones are left alone.
-        const sturdy = carriers.filter((o) => !fragileCarrier(o));
-        const pool = sturdy.some((o) => o.sameWell) ? sturdy : carriers;
         // Nearest first, as the pirate; between two as near, the one whose
         // cargo is closer to its station, since that is when the card pays.
         const goal = carrierChaseGoal(
@@ -803,7 +788,7 @@ export function computeGoals(
           me,
           mission,
           "escort",
-          pool,
+          carriers,
           (name) => `Escort ${name}`,
           (a, b) =>
             a.danger.turnsToDelivery - b.danger.turnsToDelivery ||

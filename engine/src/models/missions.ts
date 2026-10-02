@@ -290,21 +290,19 @@ export interface TankerMission extends BaseMission {
 }
 
 /**
- * Escort: end a turn, not moored, in the same sector as an undocked rival
- * carrying cargo (a crate or data, loot included) with the marker in hand,
+ * Escort: end a turn, not moored, on the same ring (any sector) as an
+ * undocked rival carrying cargo (a crate or data, loot included) with the marker in hand,
  * and you may put it on that ship, face-up for the table (the `escort_mark`
  * action). The next time that ship delivers, sells or files anything, or
  * pumps a Tanker's fuel, at a station while the escort's ship is in that
- * planet's well, the card is done. If the marked ship is destroyed first, the
- * card is spent: face-up, it scores nothing. If the escort is destroyed, its
- * marker comes off and back to hand. A second Escort marks a different ship.
+ * planet's well, the card is done. If either ship is destroyed first, the
+ * marker comes back to hand and may be placed again. A second Escort marks a
+ * different ship.
  */
 export interface EscortMission extends BaseMission {
   type: "escort";
-  /** The ship carrying this card's marker, or null while the marker is in hand or the card is spent. */
+  /** The ship carrying this card's marker, or null while the marker is in hand. */
   markedPlayerId: string | null;
-  /** The marked ship died before it sold: the card is face-up and scores nothing. Public. */
-  isSpent: boolean;
 }
 
 /**

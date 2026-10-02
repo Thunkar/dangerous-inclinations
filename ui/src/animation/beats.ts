@@ -684,14 +684,9 @@ export function eventToBeat(
         return BEAT.resolve
       }
       case 'escort_released':
-        // The escort was destroyed: its marker comes off the carrier.
+        // One of the two ships was destroyed: the marker comes off the carrier.
         setEscort(event.carrierId, event.escortId, false)
         mark(event.escortId, 'ESCORT MARKER BACK', 'miss')
-        return BEAT.small
-      case 'escort_spent':
-        // The marked ship was destroyed first: the card is spent.
-        setEscort(event.carrierId, event.escortId, false)
-        mark(event.escortId, 'ESCORT SPENT', 'miss')
         return BEAT.small
       case 'mission_completed':
         // Anybody's card can pay on anybody's turn: an Escort pays when the

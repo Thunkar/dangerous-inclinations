@@ -291,7 +291,7 @@ export interface DockSaleAction extends BaseAction {
 
 /**
  * A standing order for the turn, like a dock sale: put an Escort marker on
- * this carrier if the turn ends in its sector (RULES §Missions, Escort: "you
+ * this carrier if the turn ends on its ring (RULES §Missions, Escort: "you
  * may"). No sequence, because it is settled at the end of the turn, after the
  * move. A ship that does not qualify then is not refused: nothing is placed.
  * One per marker in hand, each naming a different ship.

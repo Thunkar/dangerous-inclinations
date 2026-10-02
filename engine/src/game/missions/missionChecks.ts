@@ -165,7 +165,7 @@ function payEscorts(players: Player[], soldAt: ReadonlyMap<string, string>): Eve
     let earned = 0;
     const done: Mission[] = [];
     const missions = player.missions.map((m) => {
-      if (m.type !== "escort" || m.isCompleted || m.isSpent || m.markedPlayerId === null) return m;
+      if (m.type !== "escort" || m.isCompleted || m.markedPlayerId === null) return m;
       const planetId = soldAt.get(m.markedPlayerId);
       if (planetId === undefined || !escortPresent(player, planetId)) return m;
       const completed: EscortMission = { ...m, isCompleted: true };
@@ -435,9 +435,4 @@ export function rankPlayers<T extends Player | PlayerView>(table: {
 /** Face-up cards: the missions a player has completed. Public information. */
 export function completedMissions(player: Player): Mission[] {
   return player.missions.filter((m) => m.isCompleted);
-}
-
-/** Face-up cards that score nothing: Escorts whose marked ship died first. Public information. */
-export function spentMissions(player: Player): Mission[] {
-  return player.missions.filter((m) => m.type === "escort" && m.isSpent);
 }

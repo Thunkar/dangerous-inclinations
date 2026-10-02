@@ -87,10 +87,10 @@ export interface GameUnfolding {
   escortMarks: number;
   /** Escorts completed. */
   escortsPaid: number;
-  /** Escorts spent: the marked ship died before it sold. */
-  escortsSpent: number;
+  /** Escort markers back in hand because the marked ship died before it paid. */
+  escortsCarrierDied: number;
   /** Escort markers back in hand because the escort died. */
-  escortsReleased: number;
+  escortsEscortDied: number;
   /** Sales or fuel pumps by a marked ship that paid its escort nothing: the escort was out of the well. */
   escortMissedSales: number;
   /** For every Escort paid: rounds from the marker going on to the card completing. */
@@ -303,8 +303,8 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
   let firstScoreRound: number | null = null;
   let escortMarks = 0;
   let escortsPaid = 0;
-  let escortsSpent = 0;
-  let escortsReleased = 0;
+  let escortsCarrierDied = 0;
+  let escortsEscortDied = 0;
   let escortMissedSales = 0;
   const markedAt = new Map<string, number>();
   /** Marker (mission id) to the ship it is on, while it is out. */
@@ -355,12 +355,8 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
           markedOn.set(e.missionId, e.carrierId);
           break;
         case "escort_released":
-          escortsReleased++;
-          markedAt.delete(e.missionId);
-          markedOn.delete(e.missionId);
-          break;
-        case "escort_spent":
-          escortsSpent++;
+          if (e.cause === "carrier_destroyed") escortsCarrierDied++;
+          else escortsEscortDied++;
           markedAt.delete(e.missionId);
           markedOn.delete(e.missionId);
           break;
@@ -397,8 +393,8 @@ function unfoldingOf(run: GameRunResult): GameUnfolding {
     firstScoreRound,
     escortMarks,
     escortsPaid,
-    escortsSpent,
-    escortsReleased,
+    escortsCarrierDied,
+    escortsEscortDied,
     escortMissedSales,
     markToCompletionRounds,
     wrecksLeft,
@@ -491,8 +487,10 @@ export interface UnfoldingAggregate {
   firstScoreRound: Distribution;
   escortMarksPerGame: number;
   escortsPaidPerGame: number;
-  escortsSpentPerGame: number;
+  /** Markers back in hand, for either ship's death. */
   escortsReleasedPerGame: number;
+  escortsCarrierDiedPerGame: number;
+  escortsEscortDiedPerGame: number;
   escortMissedSalesPerGame: number;
   markToCompletionRounds: Distribution;
   wrecksPerGame: number;
@@ -679,8 +677,9 @@ function aggregateUnfolding(games: PerGameStats[]): UnfoldingAggregate {
     ),
     escortMarksPerGame: perGame(sum((u) => u.escortMarks)),
     escortsPaidPerGame: perGame(sum((u) => u.escortsPaid)),
-    escortsSpentPerGame: perGame(sum((u) => u.escortsSpent)),
-    escortsReleasedPerGame: perGame(sum((u) => u.escortsReleased)),
+    escortsReleasedPerGame: perGame(sum((u) => u.escortsCarrierDied + u.escortsEscortDied)),
+    escortsCarrierDiedPerGame: perGame(sum((u) => u.escortsCarrierDied)),
+    escortsEscortDiedPerGame: perGame(sum((u) => u.escortsEscortDied)),
     escortMissedSalesPerGame: perGame(sum((u) => u.escortMissedSales)),
     markToCompletionRounds: distribution(games.flatMap((g) => g.unfolding.markToCompletionRounds)),
     wrecksPerGame: perGame(wrecks),

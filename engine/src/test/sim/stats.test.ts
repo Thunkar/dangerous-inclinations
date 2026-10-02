@@ -60,14 +60,21 @@ function cannedRun(): GameRunResult {
     endReason: "victory",
     turns: [
       turn(3, "p2", [completed(3, "p2", survey, 1)]),
-      // p1 tries Escorts of its own that never score: one spent when p2 dies,
-      // one back in hand when the escort is destroyed.
+      // p1 tries Escorts of its own that never score: one back in hand when p2
+      // dies, one when the escort is destroyed.
       turn(4, "p1", [
         { type: "escort_marked", turn: 4, escortId: "p1", carrierId: "p2", missionId: "escort-2" },
       ]),
       turn(5, "p1", [
         { type: "ship_destroyed", turn: 5, victimId: "p2", killerId: "p1", cause: "weapon" },
-        { type: "escort_spent", turn: 5, escortId: "p1", carrierId: "p2", missionId: "escort-2" },
+        {
+          type: "escort_released",
+          turn: 5,
+          escortId: "p1",
+          carrierId: "p2",
+          missionId: "escort-2",
+          cause: "carrier_destroyed",
+        },
         { type: "wreck_left", turn: 5, wreckId: "w1", victimId: "p2", at },
         completed(5, "p1", destroy, 2),
       ]),
@@ -90,6 +97,7 @@ function cannedRun(): GameRunResult {
           escortId: "p1",
           carrierId: "p2",
           missionId: "escort-3",
+          cause: "escort_destroyed",
         },
       ]),
       turn(8, "p2", [
@@ -183,8 +191,8 @@ describe("stats from a game written by hand", () => {
       firstScoreRound: 3,
       escortMarks: 3,
       escortsPaid: 1,
-      escortsSpent: 1,
-      escortsReleased: 1,
+      escortsCarrierDied: 1,
+      escortsEscortDied: 1,
       escortMissedSales: 1,
       markToCompletionRounds: [3],
       wrecksLeft: 1,

@@ -1,8 +1,8 @@
 /**
  * Escort: who a marker may go on, and whether it rides along at a sale (RULES
- * §Missions). "End a turn, not moored, in the same sector as an undocked
- * rival carrying cargo while holding an undone Escort whose marker is in
- * hand, and you may put your marker on that ship." A ship carries one Escort
+ * §Missions). "End a turn, not moored, on the same ring as an undocked rival
+ * carrying cargo while holding an undone Escort whose marker is in hand, and
+ * you may put your marker on that ship." A ship carries one Escort
  * marker, so a ship already marked by anyone takes no second one. The marker
  * is a choice, declared with the turn as an `escort_mark` action and settled
  * at the end of it; this is the one question the referee, the bots, the seat
@@ -12,7 +12,7 @@ import type { Player, Position, Station } from "../models/game.ts";
 import type { EscortMission, Mission } from "../models/missions.ts";
 import { aboard } from "../models/missions.ts";
 import type { GameView } from "./view.ts";
-import { positionOf, samePosition } from "./geometry.ts";
+import { positionOf } from "./geometry.ts";
 import { isMooredAt } from "./stations.ts";
 import { isDestroyed } from "./ship.ts";
 
@@ -27,11 +27,10 @@ interface EscortSeat {
   escorted: boolean;
 }
 
-/** Undone, unspent Escorts whose marker is still in hand, in hand order. */
+/** Undone Escorts whose marker is still in hand, in hand order. */
 export function unplacedEscorts(missions: readonly Mission[]): EscortMission[] {
   return missions.filter(
-    (m): m is EscortMission =>
-      m.type === "escort" && !m.isCompleted && !m.isSpent && m.markedPlayerId === null
+    (m): m is EscortMission => m.type === "escort" && !m.isCompleted && m.markedPlayerId === null
   );
 }
 
@@ -56,9 +55,10 @@ export function markedBy(player: { missions: readonly Mission[] }): Set<string> 
 
 /**
  * The carriers a marker could go on from `position`, in seat order from the
- * next seat after the escort: rivals on the board in that sector, with a
- * crate or data aboard, neither ship moored, and no ship that already carries
- * an Escort marker (anyone's: a ship takes one). Empty when the hand holds no marker to place.
+ * next seat after the escort: rivals on the board on that well's ring, in any
+ * sector, with a crate or data aboard, neither ship moored, and no ship that
+ * already carries an Escort marker (anyone's: a ship takes one). Empty when
+ * the hand holds no marker to place.
  */
 function candidates(
   seats: readonly EscortSeat[],
@@ -68,7 +68,7 @@ function candidates(
   position: Position
 ): string[] {
   if (unplacedEscorts(missions).length === 0) return [];
-  // Same sector means same berth: a carrier moored there is the escort moored there.
+  // A berth marks nobody.
   if (isMooredAt(stations, position)) return [];
   const taken = markedBy({ missions });
   const self = seats.findIndex((s) => s.id === escortId);
@@ -77,7 +77,8 @@ function candidates(
     const seat = seats[(Math.max(self, 0) + step) % seats.length];
     if (seat.id === escortId || taken.has(seat.id) || seat.escorted) continue;
     if (!seat.position || !seat.carrying) continue;
-    if (!samePosition(seat.position, position)) continue;
+    if (seat.position.wellId !== position.wellId || seat.position.ring !== position.ring) continue;
+    if (isMooredAt(stations, seat.position)) continue;
     out.push(seat.id);
   }
   return out;

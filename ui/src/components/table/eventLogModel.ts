@@ -18,7 +18,7 @@ export function actorOf(event: GameEvent): string | undefined {
   if ('attackerId' in event) return event.attackerId
   if ('ownerId' in event) return event.ownerId
   if ('scannerId' in event) return event.scannerId
-  // An Escort marker going on, coming back or spent is the escort's line.
+  // An Escort marker going on or coming back is the escort's line.
   if ('escortId' in event) return event.escortId
   // A seizure is the pirate's line, not the victim's.
   if ('pirateId' in event) return event.pirateId

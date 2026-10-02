@@ -159,7 +159,7 @@ function clearRecovering(state: GameState, index: number): GameState {
  * The one place a destruction is settled, whatever did it (a weapon, a
  * missile, the heat check): for every ship destroyed in `source` events it
  * drops its cargo, removes its missiles in flight, leaves a wreck where it
- * died, spends every Escort marking it and hands back its own Escort markers
+ * died, and hands back every Escort marker on it and every one of its own
  * (RULES §Destruction and Respawn). `sink` is the turn's events so far, which
  * the new ones are appended to.
  */
@@ -202,10 +202,10 @@ function applyDestructions(state: GameState, source: EventDraft[], sink: EventDr
     });
 
     // Escort, in the order the destructions happened. Every marker on the dead
-    // ship is spent, unless the ship sold earlier this same turn (and then died
-    // at its heat check) with that escort in the sale's well: the sale came
-    // first, and the mission check pays it. The dead ship's own markers come
-    // off whatever they sit on and back to hand.
+    // ship comes back to its owner, unless the ship sold earlier this same turn
+    // (and then died at its heat check) with that escort in the sale's well:
+    // the sale came first, and the mission check pays it. The dead ship's own
+    // markers come off whatever they sit on and back to hand.
     const sale = sink.find(
       (d): d is Extract<EventDraft, { type: "cargo_delivered" | "fuel_pumped" }> =>
         (d.type === "cargo_delivered" || d.type === "fuel_pumped") && d.playerId === victim.id
@@ -217,9 +217,10 @@ function applyDestructions(state: GameState, source: EventDraft[], sink: EventDr
 
 /**
  * The Escort side of a destruction (RULES §Destruction and Respawn): every
- * undone Escort marking `victimId` is spent, except one whose escort was in
- * the well of the sale `soldAt` the victim made first this turn; and every
- * Escort `victimId` holds that has a marker out comes back to hand.
+ * undone Escort marking `victimId` comes back to its owner's hand, except one
+ * whose escort was in the well of the sale `soldAt` the victim made first
+ * this turn; and every Escort `victimId` holds that has a marker out comes
+ * back too.
  */
 function settleEscorts(
   state: GameState,
@@ -239,6 +240,7 @@ function settleEscorts(
           escortId: player.id,
           carrierId: m.markedPlayerId,
           missionId: m.id,
+          cause: "escort_destroyed",
         });
         return { ...m, markedPlayerId: null };
       }
@@ -246,12 +248,13 @@ function settleEscorts(
       if (soldAt !== null && escortPresent(player, soldAt)) return m;
       touched = true;
       sink.push({
-        type: "escort_spent",
+        type: "escort_released",
         escortId: player.id,
         carrierId: victimId,
         missionId: m.id,
+        cause: "carrier_destroyed",
       });
-      return { ...m, markedPlayerId: null, isSpent: true };
+      return { ...m, markedPlayerId: null };
     });
     if (!touched) return player;
     changed = true;

@@ -201,7 +201,7 @@ function printSummary(a: AggregateStats): void {
   console.log(`Wins by seat: ${JSON.stringify(a.winsByPlayer)}`);
   const u = a.unfolding;
   console.log(
-    `Escort markers/game: placed ${u.escortMarksPerGame}, paid ${u.escortsPaidPerGame}, spent ${u.escortsSpentPerGame}, released ${u.escortsReleasedPerGame}; marked sales out of the well ${u.escortMissedSalesPerGame}`
+    `Escort markers/game: placed ${u.escortMarksPerGame}, paid ${u.escortsPaidPerGame}, released ${u.escortsReleasedPerGame} (carrier died ${u.escortsCarrierDiedPerGame}, escort died ${u.escortsEscortDiedPerGame}); marked sales out of the well ${u.escortMissedSalesPerGame}`
   );
   const b = a.behaviour;
   const p = (x: number) => `${Math.round(x * 100)}%`;

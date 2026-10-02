@@ -58,7 +58,6 @@ export function missionProgress(
     case 'tanker':
       return fuel === undefined ? null : fill(P.tanker, { fuel, max: MAX_REACTION_MASS })
     case 'escort':
-      if (mission.isSpent) return P.escortSpent
       return mission.markedPlayerId ? P.escort : null
     case 'salvage':
       return aboard(mission.id) ? P.salvage : null

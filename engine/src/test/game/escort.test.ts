@@ -20,11 +20,12 @@ import {
   makePlayer,
 } from "../testUtils.ts";
 
-/** A few squares, one of them Alpha's berth at the start, so ships share them often. */
+/** A few squares, one of them Alpha's berth at the start, so ships share rings often. */
 const SQUARES: Position[] = [
   { wellId: BH, ring: 3, sector: 4 },
   { wellId: BH, ring: 3, sector: 5 },
   { wellId: ALPHA, ring: 2, sector: 0 },
+  { wellId: ALPHA, ring: 2, sector: 6 },
   { wellId: ALPHA, ring: 1, sector: 0 },
 ];
 const IDS = ["p1", "p2", "p3", "p4"];
@@ -54,8 +55,7 @@ function randomTable(seed: number) {
       [escortMission(`escort-${id}-a`), escortMission(`escort-${id}-b`)],
       [escortMission(`escort-${id}-a`, rivals[pick(3)]), escortMission(`escort-${id}-b`)],
       [{ ...escortMission(`escort-${id}`), isCompleted: true }],
-      [escortMission(`escort-${id}`, null, true)],
-    ][pick(6)];
+    ][pick(5)];
     return makePlayer(id, SQUARES[pick(SQUARES.length)], undefined, {
       cargo,
       missions,

@@ -23,8 +23,11 @@ export interface CardTrack {
    * coming back when the escort dies; the track restarts with the next mark.
    */
   lostToKill: number;
-  /** Escort: the marked ship died before it sold, so the card is spent and the track ends. */
-  spent: boolean;
+  /**
+   * Escort: times the marker came back because the marked ship died before it
+   * paid; the track restarts with the next mark.
+   */
+  lostToCarrier: number;
   /**
    * Escort: times the marked ship sold or pumped fuel with the escort out of
    * its well, so the marker stayed out and paid nothing. What says whether
@@ -79,7 +82,7 @@ export function cardTracksOf(run: GameRunResult): CardTrack[] {
         type: m.type,
         stepRound: null,
         lostToKill: 0,
-        spent: false,
+        lostToCarrier: 0,
         missedSales: 0,
         lostToPiracy: 0,
         lostToBurn: 0,
@@ -143,15 +146,10 @@ export function cardTracksOf(run: GameRunResult): CardTrack[] {
                 start(e.turn);
                 carrier = e.carrierId;
               }
-              // The escort died: the marker is back in hand and can go out again.
+              // Either ship died: the marker is back in hand and can go out again.
               if (e.type === "escort_released" && e.missionId === m.id && since !== null) {
-                track.lostToKill++;
-                since = null;
-                carrier = null;
-              }
-              // The marked ship died first: spent, and nothing can start it again.
-              if (e.type === "escort_spent" && e.missionId === m.id) {
-                track.spent = true;
+                if (e.cause === "escort_destroyed") track.lostToKill++;
+                else track.lostToCarrier++;
                 since = null;
                 carrier = null;
               }

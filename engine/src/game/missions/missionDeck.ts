@@ -155,7 +155,7 @@ export function cardForPlayer(
     case "tanker":
       return { type: card.type, isCompleted: false };
     case "escort":
-      return { type: card.type, isCompleted: false, markedPlayerId: null, isSpent: false };
+      return { type: card.type, isCompleted: false, markedPlayerId: null };
     case "salvage":
       return { type: card.type, isCompleted: false, cargoId: "" };
     case "survey": {
