@@ -1,17 +1,17 @@
 /**
  * Experiment-only bot hull overrides for the simulator:
- * `--loadouts=hunter=railgun/missiles,radiator,laser,shields;scout=sensor_array/shields,radiator,laser,missiles`
- * (archetype = forward tile / four side tiles). They mutate the bot templates
+ * `--loadouts=gunship=railgun/laser,laser,shields,radiator;raider=sensor_array/shields,laser,radiator,plasma_cannon`
+ * (preset id = forward tile / four side tiles). They mutate the bot presets
  * of the process or worker that runs the games. Never used by the server.
  */
-import { BOT_LOADOUT_TEMPLATES } from "../ai/behaviors/loadout.ts";
-import type { BotArchetype } from "../ai/behaviors/loadout.ts";
+import { BOT_PRESET_LOADOUTS } from "../ai/behaviors/loadout.ts";
+import type { BotPresetId } from "../ai/behaviors/loadout.ts";
 import type { ShipLoadout } from "../models/game.ts";
 import type { SubsystemType } from "../models/subsystems.ts";
 import type { MissionType } from "../models/missions.ts";
 
-export type LoadoutOverrides = Partial<Record<BotArchetype, ShipLoadout>>;
-/** Hull forced on a given seat (`bot-1`…), whatever archetype its hand asks for. */
+export type LoadoutOverrides = Partial<Record<BotPresetId, ShipLoadout>>;
+/** Hull forced on a given seat (`bot-1`…), whatever preset its hand asks for. */
 export type SeatLoadouts = Record<string, ShipLoadout>;
 
 /**
@@ -86,32 +86,32 @@ export function parseLoadoutOverrides(text: string): LoadoutOverrides {
     if (!entry.trim()) continue;
     const eq = entry.indexOf("=");
     if (eq === -1)
-      throw new Error(`Loadout override "${entry}" needs archetype=forward/side,side,side,side`);
-    const archetype = entry.slice(0, eq).trim() as BotArchetype;
-    if (!(archetype in BOT_LOADOUT_TEMPLATES))
+      throw new Error(`Loadout override "${entry}" needs preset=forward/side,side,side,side`);
+    const preset = entry.slice(0, eq).trim() as BotPresetId;
+    if (!(preset in BOT_PRESET_LOADOUTS))
       throw new Error(
-        `Unknown archetype "${archetype}". Known: ${Object.keys(BOT_LOADOUT_TEMPLATES).join(", ")}`
+        `Unknown preset "${preset}". Known: ${Object.keys(BOT_PRESET_LOADOUTS).join(", ")}`
       );
-    out[archetype] = parseHull(entry, entry.slice(eq + 1));
+    out[preset] = parseHull(entry, entry.slice(eq + 1));
   }
   return out;
 }
 
 export function applyLoadoutOverrides(overrides?: LoadoutOverrides): void {
   if (!overrides) return;
-  for (const [archetype, loadout] of Object.entries(overrides) as Array<
-    [BotArchetype, ShipLoadout]
+  for (const [preset, loadout] of Object.entries(overrides) as Array<
+    [BotPresetId, ShipLoadout]
   >) {
-    BOT_LOADOUT_TEMPLATES[archetype] = loadout;
+    BOT_PRESET_LOADOUTS[preset] = loadout;
   }
 }
 
 const describeHull = (hull: ShipLoadout) => `${hull.forwardSlots.join(",")}/${hull.sideSlots.join(",")}`;
 
-/** `--loadouts=` as the CLI echoes it: archetype=forward/sides, `;` between. */
+/** `--loadouts=` as the CLI echoes it: preset=forward/sides, `;` between. */
 export function describeLoadoutOverrides(overrides?: LoadoutOverrides): string {
   return Object.entries(overrides ?? {})
-    .map(([archetype, hull]) => `${archetype}=${describeHull(hull!)}`)
+    .map(([preset, hull]) => `${preset}=${describeHull(hull!)}`)
     .join("; ");
 }
 

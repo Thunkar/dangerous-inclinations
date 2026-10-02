@@ -2,16 +2,17 @@ import type { ReactNode } from 'react'
 import { Box, Button, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 
 import {
-  BOT_LOADOUT_TEMPLATES,
+  BOT_PRESET_LOADOUTS,
   BOT_ROLES,
-  HULL_VARIANTS,
+  PRESETS_BY_ROLE,
+  PRESET_NAMES,
   DEFAULT_SHIP_APPEARANCE,
   INSTALLABLE_SUBSYSTEMS,
   LIVERIES,
   canInstallInSlot,
   getSubsystemConfig,
+  type BotPresetId,
   type BotRole,
-  type HullVariant,
   type Livery,
   type ShipAppearance,
   type ShipLoadout,
@@ -21,62 +22,57 @@ import { TABLE, FONT_MONO } from '../theme'
 import { MODULE_NOTES, MOUNTS, moduleAt, setModule, type MountId, type ShipConfig } from './config'
 
 const DEFAULT_ROLE: BotRole = 'hauler'
-const DEFAULT_VARIANT: HullVariant = 'tanky'
 
-/** What each choice buys, in the words the loadout itself would use. */
+/** What each bow buys. */
 const ROLE_NOTE: Record<BotRole, string> = {
-  interceptor: 'Sensor array: scans, and the Intercept and Survey cards that need one',
-  hunter: 'Railgun: the long shot down your own ring, for a Destroy card',
-  hauler: 'Fuel compressor: jumps cost 1 fuel, but you can never scan',
-}
-const VARIANT_NOTE: Record<HullVariant, string> = {
-  tanky: 'A second shield, and the one gun a Destroy card needs',
-  aggressive: 'A second gun, and the radiator that volley needs',
+  interceptor: 'Scans: the Intercept card needs one',
+  hunter: 'The long shot down your own ring, for a Destroy card',
+  hauler: 'Jumps cost 1 fuel, but you can never scan',
 }
 
-/**
- * The hunter is the one tanky hull that is not two walls: two powered shields
- * are eight heat a turn and a hunter that cooks cannot fire, so its fourth
- * subsystem is a second radiator (see `ai/behaviors/loadout.ts`).
- */
-const variantNote = (role: BotRole, variant: HullVariant): string =>
-  role === 'hunter' && variant === 'tanky'
-    ? 'A second radiator: one shield you can keep up beside the railgun'
-    : VARIANT_NOTE[variant]
-
-const templateFor = (role: BotRole, variant: HullVariant): ShipLoadout =>
-  structuredClone(BOT_LOADOUT_TEMPLATES[`${role}-${variant}`])
-
-/** Which profile this loadout is, or null once it has been edited into its own. */
-function archetypeOf(loadout: ShipLoadout): { role: BotRole; variant: HullVariant } | null {
-  const same = (a: ShipLoadout, b: ShipLoadout) => JSON.stringify(a) === JSON.stringify(b)
-  for (const role of BOT_ROLES) {
-    for (const variant of HULL_VARIANTS) {
-      if (same(loadout, BOT_LOADOUT_TEMPLATES[`${role}-${variant}`])) return { role, variant }
-    }
-  }
-  return null
+/** What each preset's side slots are for, and the card that asks for it. */
+const PRESET_NOTE: Record<BotPresetId, string> = {
+  gunship: 'Laser and rack: a shot through shields, and point defence',
+  brawler: 'Plasma and rack: 4 damage close in, for a Piracy',
+  'missile-hunter': 'Missiles and laser: finish cripples from range, for a Salvage',
+  raider: 'Plasma strips a wall, the disruptor breaks what is behind it',
+  watcher: 'Two shields and a laser: ride beside a carrier, for an Escort',
+  picket: 'Two launchers: reach from range, for a Salvage',
+  hauler: 'Two shields and a laser: the safe cargo run',
+  runner: "Disruptor and laser: break a pursuer's engines, for a Tanker or Salvage",
+  privateer: 'Two shields and plasma: take the fight to a carrier, for a Piracy',
 }
 
-function ArchetypeChoice<T extends string>({
-  label,
-  options,
+const bowOf = (role: BotRole) => BOT_PRESET_LOADOUTS[PRESETS_BY_ROLE[role][0]].forwardSlots[0]!
+
+const templateFor = (preset: BotPresetId): ShipLoadout => structuredClone(BOT_PRESET_LOADOUTS[preset])
+
+const same = (a: ShipLoadout, b: ShipLoadout) => JSON.stringify(a) === JSON.stringify(b)
+
+/** Which preset this loadout is, or null once it has been edited into its own. */
+function presetOf(loadout: ShipLoadout): BotPresetId | null {
+  const ids = Object.keys(BOT_PRESET_LOADOUTS) as BotPresetId[]
+  return ids.find(id => same(loadout, BOT_PRESET_LOADOUTS[id])) ?? null
+}
+
+/** The bow this loadout carries, if it is one of the three. */
+function roleOf(loadout: ShipLoadout): BotRole | null {
+  return BOT_ROLES.find(role => bowOf(role) === loadout.forwardSlots[0]) ?? null
+}
+
+function BowChoice({
   value,
-  describe,
   onChange,
   disabled,
 }: {
-  label: string
-  options: readonly T[]
-  value: T | null
-  describe: (option: T) => string
-  onChange: (option: T) => void
+  value: BotRole | null
+  onChange: (role: BotRole) => void
   disabled: boolean
 }) {
   return (
     <Box sx={{ mt: 1, mb: 1.5 }}>
       <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 0.5 }}>
-        {label}
+        Bow
       </Typography>
       <ToggleButtonGroup
         exclusive
@@ -84,16 +80,66 @@ function ArchetypeChoice<T extends string>({
         size="small"
         value={value}
         disabled={disabled}
-        onChange={(_e, next: T | null) => next && onChange(next)}
+        onChange={(_e, next: BotRole | null) => next && onChange(next)}
       >
-        {options.map(option => (
+        {BOT_ROLES.map(role => (
           <ToggleButton
-            key={option}
-            value={option}
-            title={describe(option)}
-            sx={{ textTransform: 'capitalize', fontFamily: FONT_MONO, fontSize: '0.78rem' }}
+            key={role}
+            value={role}
+            title={ROLE_NOTE[role]}
+            sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem' }}
           >
-            {option}
+            {getSubsystemConfig(bowOf(role)).name}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+    </Box>
+  )
+}
+
+function PresetChoice({
+  role,
+  value,
+  onChange,
+  disabled,
+}: {
+  role: BotRole
+  value: BotPresetId | null
+  onChange: (preset: BotPresetId) => void
+  disabled: boolean
+}) {
+  return (
+    <Box sx={{ mb: 1.5 }}>
+      <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 0.5 }}>
+        Preset
+      </Typography>
+      <ToggleButtonGroup
+        exclusive
+        fullWidth
+        orientation="vertical"
+        size="small"
+        value={value}
+        disabled={disabled}
+        onChange={(_e, next: BotPresetId | null) => next && onChange(next)}
+      >
+        {PRESETS_BY_ROLE[role].map(preset => (
+          <ToggleButton
+            key={preset}
+            value={preset}
+            sx={{
+              display: 'block',
+              textAlign: 'left',
+              textTransform: 'none',
+              px: 1.5,
+              py: 0.75,
+            }}
+          >
+            <Box component="span" sx={{ display: 'block', fontFamily: FONT_MONO, fontSize: '0.78rem' }}>
+              {PRESET_NAMES[preset]}
+            </Box>
+            <Box component="span" sx={{ display: 'block', fontSize: '0.72rem', opacity: 0.75 }}>
+              {PRESET_NOTE[preset]}
+            </Box>
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
@@ -115,7 +161,8 @@ export function SystemControls({
   disabled: boolean
 }) {
   const mount = MOUNTS.find(m => m.id === selected)!
-  const archetype = archetypeOf(config.loadout)
+  const preset = presetOf(config.loadout)
+  const bow = roleOf(config.loadout)
   const current = moduleAt(config, selected)
   const detail = current ? getSubsystemConfig(current) : null
   return (
@@ -124,31 +171,25 @@ export function SystemControls({
         01 / Mission profile (presets)
       </Typography>
       {/*
-        Two decisions, not six loadouts. What the forward slot is for is the plan
-        you came with (a gun, eyes or legs, one for each two-point card) and
-        how the four side slots are spent is taste. As a matrix the six cells
-        all read "tanky" or "aggressive" and said nothing; as two rows each
-        button names its own choice.
+        Two decisions. The bow is the plan you came with (a gun, eyes or legs,
+        one for each two-point card); the preset is how the four side slots
+        are spent, and each bow has three, named for the secondary that asks
+        for it.
       */}
-      <ArchetypeChoice
-        label="Primary role"
-        options={BOT_ROLES}
-        value={archetype?.role ?? null}
-        describe={role => ROLE_NOTE[role]}
-        onChange={role => onChange(templateFor(role, archetype?.variant ?? DEFAULT_VARIANT))}
+      <BowChoice
+        value={bow}
+        onChange={role => onChange(templateFor(PRESETS_BY_ROLE[role][0]))}
         disabled={disabled}
       />
-      <ArchetypeChoice
-        label="Secondary role"
-        options={HULL_VARIANTS}
-        value={archetype?.variant ?? null}
-        describe={variant => variantNote(archetype?.role ?? DEFAULT_ROLE, variant)}
-        onChange={variant => onChange(templateFor(archetype?.role ?? DEFAULT_ROLE, variant))}
+      <PresetChoice
+        role={bow ?? DEFAULT_ROLE}
+        value={preset}
+        onChange={next => onChange(templateFor(next))}
         disabled={disabled}
       />
-      {archetype === null && (
+      {preset === null && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 2.5 }}>
-          Loadout of your own: pick a profile to start from, or leave it.
+          Loadout of your own: pick a preset to start from, or leave it.
         </Typography>
       )}
 

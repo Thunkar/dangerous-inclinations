@@ -7,9 +7,9 @@
  *   2. Baselines:   what is a hand worth before a loadout is chosen for it? Seat 1
  *                   keeps Destroy / Deliver / Intercept with its own loadout, and
  *                   those three numbers are the bar for every row below.
- *   3. Logical:     are the six presets balanced flown with the card their
- *                   role implies (interceptor+Intercept, hunter+Destroy,
- *                   hauler+Deliver)?
+ *   3. Logical:     are the nine presets balanced flown with the card their
+ *                   bow implies (sensor+Intercept, railgun+Destroy,
+ *                   compressor+Deliver)?
  *   4. Illogical:   are loadouts that fight their card actually bad?
  *   5. Off-book:    can a build no preset offers compete?
  *   6. Extreme:     are the sharpest hulls unfairly competitive?
@@ -20,7 +20,7 @@
  *   yarn balance                        # 100 games per row
  *   yarn balance --quick                # 40 games per row
  *   yarn balance --only=natural,baselines,logical
- *   yarn balance --only=logical:hunter_aggressive,offbook:missile_boat
+ *   yarn balance --only=logical:gunship,offbook:missile_boat
  *   yarn balance --output=/tmp/balance  # writes balance.md and balance.json
  *   yarn balance --rules=missionsToWin=4  # the same matrix under a proposed rule
  *   yarn balance --tiles=laser.damage=3   # the same matrix with a tile changed
@@ -28,7 +28,7 @@
  *
  * An unknown flag stops the run: a typo is a matrix that never ran.
  * `--only=` takes section names (natural, baselines, logical, illogical,
- * offbook, extreme), full row ids (`illogical:hauler_tanky+destroy`) or a bare
+ * offbook, extreme), full row ids (`illogical:hauler+destroy`) or a bare
  * row name (`turtle`).
  *
  * `--rules=missionsToWin=4` plays the whole matrix at a points-to-win a table
@@ -77,7 +77,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ShipLoadout } from "../models/game.ts";
 import { DEFAULT_POINTS_TO_WIN, type MissionType } from "../models/missions.ts";
-import { BOT_LOADOUT_TEMPLATES, type BotArchetype } from "../ai/behaviors/loadout.ts";
+import {
+  BOT_PRESET_LOADOUTS,
+  BOT_ROLES,
+  PRESETS_BY_ROLE,
+  type BotPresetId,
+  type BotRole,
+} from "../ai/behaviors/loadout.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
 import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
 import {
@@ -106,7 +112,7 @@ const hull = (forward: string, sides: string): ShipLoadout => ({
   sideSlots: sides.split(",") as ShipLoadout["sideSlots"],
 });
 
-const preset = (archetype: BotArchetype): ShipLoadout => BOT_LOADOUT_TEMPLATES[archetype];
+const preset = (id: BotPresetId): ShipLoadout => BOT_PRESET_LOADOUTS[id];
 
 type Section = "baselines" | "logical" | "illogical" | "offbook" | "extreme";
 /** Which bar a row is read against: seat 1's own hand, or one primary's. */
@@ -139,44 +145,50 @@ const baselineRows: RowSpec[] = (["destroy", "deliver", "intercept"] as const).m
   bar: "any",
 }));
 
-/** Each preset flown with the card its role implies. */
-const logicalRows: RowSpec[] = (
-  [
-    ["interceptor-tanky", "intercept"],
-    ["interceptor-aggressive", "intercept"],
-    ["hunter-tanky", "destroy"],
-    ["hunter-aggressive", "destroy"],
-    ["hauler-tanky", "deliver"],
-    ["hauler-aggressive", "deliver"],
-  ] as Array<[BotArchetype, Exclude<BarName, "any">]>
-).map(([archetype, bar]) => ({
-  id: `logical:${archetype.replace("-", "_")}`,
-  section: "logical",
-  label: `${archetype} (preset)`,
-  loadout: preset(archetype),
-  primary: PRIMARY_OF[bar],
-  bar,
-}));
+/** The card each bow is built for. */
+const ROLE_CARD: Record<BotRole, Exclude<BarName, "any">> = {
+  interceptor: "intercept",
+  hunter: "destroy",
+  hauler: "deliver",
+};
+
+/** Each preset flown with the card its bow implies. */
+const logicalRows: RowSpec[] = BOT_ROLES.flatMap((role) =>
+  PRESETS_BY_ROLE[role].map(
+    (id): RowSpec => ({
+      id: `logical:${id}`,
+      section: "logical",
+      label: `${id} (preset)`,
+      loadout: preset(id),
+      primary: PRIMARY_OF[ROLE_CARD[role]],
+      bar: ROLE_CARD[role],
+    })
+  )
+);
 
 /**
  * Loadouts that fight their card. A compressor cannot scan, so a hauler with an
  * Intercept is not a row the engine would ever accept: the mismatches are the
- * ones a player could actually submit.
+ * ones a player could actually submit. Four rows fly a bow's default. The
+ * watcher with a crate is the walled hull with the wrong bow for cargo, the
+ * question the two-shield hunter asked before it was cut; the runner hunting
+ * is the old aggressive hauler (the same five subsystems), the compressor
+ * with a laser that has sat on its Destroy bar.
  */
 const illogicalRows: RowSpec[] = (
   [
-    ["interceptor-tanky", "deliver"],
-    ["interceptor-tanky", "destroy"],
-    ["hunter-aggressive", "deliver"],
-    ["hunter-tanky", "deliver"],
-    ["hauler-tanky", "destroy"],
-    ["hauler-aggressive", "destroy"],
-  ] as Array<[BotArchetype, Exclude<BarName, "any">]>
-).map(([archetype, bar]) => ({
-  id: `illogical:${archetype.replace("-", "_")}+${bar}`,
+    ["raider", "deliver"],
+    ["raider", "destroy"],
+    ["gunship", "deliver"],
+    ["watcher", "deliver"],
+    ["hauler", "destroy"],
+    ["runner", "destroy"],
+  ] as Array<[BotPresetId, Exclude<BarName, "any">]>
+).map(([id, bar]) => ({
+  id: `illogical:${id}+${bar}`,
   section: "illogical",
-  label: `${archetype} (preset)`,
-  loadout: preset(archetype),
+  label: `${id} (preset)`,
+  loadout: preset(id),
   primary: PRIMARY_OF[bar],
   bar,
 }));
@@ -184,12 +196,6 @@ const illogicalRows: RowSpec[] = (
 /** Builds no preset offers, each flown with the card it is built for. */
 const offbookRows: RowSpec[] = (
   [
-    [
-      "sensor_missiles2",
-      "sensor bow, missile hunter",
-      hull("sensor_array", "missiles,missiles,radiator,shields"),
-      "destroy",
-    ],
     [
       "sensor_missiles3",
       "sensor bow, missiles×3",
@@ -242,12 +248,6 @@ const offbookRows: RowSpec[] = (
       "destroy",
     ],
     [
-      "plasma_hunter",
-      "hunter, plasma for the laser",
-      hull("railgun", "plasma_cannon,ballistic_rack,shields,radiator"),
-      "destroy",
-    ],
-    [
       "rail_plasma2",
       "railgun + plasma×2 + shields + radiator",
       hull("railgun", "plasma_cannon,plasma_cannon,shields,radiator"),
@@ -255,7 +255,7 @@ const offbookRows: RowSpec[] = (
     ],
     [
       "interceptor_plasma",
-      "interceptor, plasma for the laser",
+      "watcher, plasma for the laser",
       hull("sensor_array", "shields,shields,radiator,plasma_cannon"),
       "intercept",
     ],
@@ -270,12 +270,6 @@ const offbookRows: RowSpec[] = (
       "disruptor + lasers×2 + shields + radiator",
       hull("disruptor", "laser,laser,shields,radiator"),
       "destroy",
-    ],
-    [
-      "hauler_plasma",
-      "hauler, plasma for the laser",
-      hull("fuel_compressor", "shields,shields,radiator,plasma_cannon"),
-      "deliver",
     ],
   ] as Array<[string, string, ShipLoadout, Exclude<BarName, "any">]>
 ).map(([name, label, loadout, bar]) => ({
@@ -410,7 +404,7 @@ const ROWS: RowSpec[] = [
 
 const SECTION_TITLE: Record<Section, string> = {
   baselines: "Baselines by primary (seat 1 keeps the card, picks its own loadout)",
-  logical: "Logical: each preset flown with the card its role implies",
+  logical: "Logical: each preset flown with the card its bow implies",
   illogical: "Illogical: loadouts that fight their card (a row at or above its bar is unpunished)",
   offbook: "Off-book: builds no preset offers, each with the card it is built for",
   extreme: "Extreme hulls, random legal hand",

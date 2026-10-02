@@ -1,5 +1,5 @@
 import {
-  BOT_LOADOUT_TEMPLATES,
+  BOT_PRESET_LOADOUTS,
   SUBSYSTEM_CONFIGS,
   canInstallInSlot,
   type ShipLoadout,
@@ -31,7 +31,7 @@ export interface ShipConfig {
 
 export const DEFAULT_CONFIG: ShipConfig = {
   version: 1,
-  loadout: structuredClone(BOT_LOADOUT_TEMPLATES['hunter-aggressive']),
+  loadout: structuredClone(BOT_PRESET_LOADOUTS.gunship),
   length: 1,
   beam: 1,
   armor: 1,

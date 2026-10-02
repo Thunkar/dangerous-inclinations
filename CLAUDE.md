@@ -181,8 +181,8 @@ Benchmark: `yarn bench` (engine) writes `docs/benchmark.md`, one page describing
 how the rules as they stand play at 3/4/5/6 seats: length in rounds and in table
 time, kills, how games unfold (lead changes, comebacks, the first card, Escort
 markers, wrecks, seizures, sales), the hulls bots chose and their win rates
-(natural bots take the hull from the primary, so this is the card table by
-another name), every card's pick rate and payoff, and where each card fails
+(natural bots take the bow from the primary and the side slots from the
+secondaries, so this is the hand table by another name), every card's pick rate and payoff, and where each card fails
 (`sim/cardFunnel.ts`: how often and when its first step happens, how often the
 item is lost and to what, how long the second step takes, and how many games
 end with it started). The last is how a bot playing a card badly shows up as
@@ -195,9 +195,9 @@ Balance regression: `yarn balance` (engine) answers the designer's four
 questions in six sections, every forced row at 3 players on seat 1: **natural**
 play at 3/2/4; **baselines** (seat 1 dealt Destroy, Deliver or Intercept with
 its own loadout: the bar every row with that card is read against); **logical**
-(the six presets with the card their role implies); **illogical** (a preset
+(the nine presets, three per bow, with the card their bow implies); **illogical** (a preset
 with a card that fights it: sensor bow hauling, compressor hunting); **off-book**
-(builds no preset has, with the card they are built for: sensor bow with two
+(builds no preset has, with the card they are built for: sensor bow with three
 launchers, a missile boat, a rack hunter, a hauler with point defence); and
 **extreme** (nineteen wild hulls with a random legal hand, against the own-hand
 bar). One table, one flag column. Failing flags: `outlier` (12+ points over its
@@ -219,7 +219,7 @@ subsystem, a weapon's firing stats included),
 `--rules=missionsToWin=4` (the table's points to win, a real game option,
 passed to `createGame`; `yarn bench --rules=` takes it too and stamps it on
 the page), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'
-parameters), `--loadouts=` (the bots' hull templates), `--seats=` (a hull
+parameters), `--loadouts=` (the bots' presets, by id), `--seats=` (a hull
 forced on one seat) and `--hands=bot-1=destroy` (the primary a seat is dealt
 and keeps: the bots price one road to the win and take it every time, so a
 plan they never choose is only measurable dealt). The summary prints turn
@@ -800,13 +800,30 @@ not an argument:
   against 31. As the EMP, 300 games a row, every build sits within six of its
   bar but one (sensor bow + shields×2 + radiator + disruptor, Intercept, +8);
   at 2 energy disruptor + plasma×2 reads +9. Its partner is plasma, which
-  strips a wall cheaply so the disruptor fired after it gets through. Two
-  presets carry the new systems since 2 Oct: the aggressive interceptor
-  (sensor + shields + disruptor + radiator + plasma, 29 → 32% against 32) and
-  the aggressive hauler (compressor + shields + disruptor + radiator + laser,
-  33 → 35% against 36). Natural bots never fly those two, so natural play is
-  unchanged; trading a shield on the tanky hauler for a disruptor, which they
-  do fly, read neutral (hauler 36 → 38% at three seats, 30 → 27% at four).
+  strips a wall cheaply so the disruptor fired after it gets through.
+- **Nine presets, three per bow, picked by the secondaries.** Adopted 2 Oct
+  2026 in place of the six role × variant presets, from the designer: the
+  primary chooses the bow, the secondaries the side slots, the way a player
+  would. Each bow has a default, and a card that wants a different kit asks
+  for it (Piracy > Salvage > Escort > Tanker > Survey when two ask): railgun
+  gunship (laser, rack), brawler for Piracy (plasma, rack), missile hunter for
+  Salvage (missiles, laser); sensor raider (disruptor, plasma), watcher for
+  Escort (shields×2, laser), missile picket for Salvage; compressor hauler
+  (shields×2, laser), runner for Tanker or Salvage (disruptor, laser),
+  privateer for Piracy (shields×2, plasma). Every system now flies in natural
+  play (missiles 19–22% of seats, plasma 37%, the disruptor 27–30%). The first
+  mapping sent Survey and Piracy hunters to the missiles: racks fell to 7% of
+  seats, missiles went unanswered and the dealt primaries moved to 39 / 30 /
+  31, which is why the gunship is the hunter's default and keeps racks on
+  21–25% of seats. Measured at 1000 games a row: dealt Destroy / Deliver /
+  Intercept 37 / 32 / 33 (35 / 34 / 33 with the six); at 300, 39 / 37 / 31
+  with no failing flag and every preset within six of its card's bar.
+  Benchmark at 120 games a seat count: kills 2.0 / 3.2 / 6.5 / 9.8 → 1.7 /
+  3.7 / 7.0 / 9.6, rounds 27 / 26 / 27 / 30 → 26 / 26 / 28 / 27, Escort 23 →
+  25, Salvage 9 → 12 and Piracy 14 → 12 completed per 100 kept. The hull table
+  is the hand table now: the brawler (17%), the privateer (15%) and the raider
+  (14%) are the Piracy and Intercept hands' hulls, and those hands are weak
+  with any hull (forced, every preset with its card reads 30–39%).
 
 Known open problems:
 
@@ -928,11 +945,12 @@ Known open problems:
   with Deliver's crate). Half of all Survey dives now complete in round one, because
   ring 3 is one turn from ring 1; the data is not the point, the filing is,
   and round-one data is round-one loot for a pirate from ring 3.
-- **Point defence lives on one preset, and now it costs more to keep.** Bots
-  holding Destroy always fly the aggressive hunter, so the aggressive hunter's
-  rack is the only rack in natural play, and no hull a bot can reach carries a
-  launcher (the aggressive hauler's missiles want a Destroy card a hauler never
-  holds), so no missile is fired in natural play at all. The salvo rule is
+- **Point defence lives on the hunters, and now it costs more to keep.**
+  Since 2 Oct 2026 the gunship and the brawler carry the only racks in natural
+  play (21–25% of seats) and the missile hunter and picket launch 8–13
+  missiles a game, of which racks shoot down about one in six. Before that the
+  aggressive hunter's rack was the only one, and no missile was fired in
+  natural play at all. The salvo rule is
   exercised only by forced hulls; when the hunter briefly carried two lasers
   instead, missiles went unanswered and the compressor with two launchers
   reached 52%. The rack moved onto standing heat on 21 Sept, so it is two heat

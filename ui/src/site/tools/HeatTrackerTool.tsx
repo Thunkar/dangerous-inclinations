@@ -23,7 +23,7 @@ import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
-  BOT_LOADOUT_TEMPLATES,
+  BOT_PRESET_LOADOUTS,
   BURN_COSTS,
   COMPRESSED_JUMP_MASS,
   MAX_HEAT,
@@ -65,7 +65,7 @@ const CAPS = {
   textTransform: 'uppercase',
 } as const
 
-const STARTING = BOT_LOADOUT_TEMPLATES['hunter-aggressive']
+const STARTING = BOT_PRESET_LOADOUTS.gunship
 
 function freshMat(): Mat {
   return {

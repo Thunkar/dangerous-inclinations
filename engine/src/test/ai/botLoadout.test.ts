@@ -10,10 +10,13 @@ import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
 import { missionsMissingRequirements, validateLoadout } from "../../game/loadout.ts";
 import { botChooseLoadout } from "../../ai/index.ts";
 import type { ShipLoadout } from "../../models/game.ts";
-import type { BotArchetype } from "../../ai/behaviors/loadout.ts";
+import type { BotPresetId } from "../../ai/behaviors/loadout.ts";
 import {
-  BOT_LOADOUT_TEMPLATES,
-  classifyArchetype,
+  BOT_PRESET_LOADOUTS,
+  BOT_ROLES,
+  PRESETS_BY_ROLE,
+  classifyPreset,
+  presetRole,
   validHands,
 } from "../../ai/behaviors/loadout.ts";
 import {
@@ -30,58 +33,78 @@ import {
   escortMission,
 } from "../testUtils.ts";
 
+const done = <M extends Mission>(m: M): M => ({ ...m, isCompleted: true });
+const DESTROY = destroyMission("p2");
+const INTERCEPT = interceptMission("p2");
+const DELIVER = deliverMission(ALPHA, GAMMA);
+
 /**
- * A hand that should produce each loadout a bot can reach. A hunter always holds a
- * Destroy and a hauler never does, so `hunter-tanky` and `hauler-aggressive`
- * are human-only: the balance suite forces those.
+ * A hand of one primary and two secondaries, and the preset it flies. The
+ * primary picks the bow; a secondary asks for a kit; between two that ask for
+ * different kits, Piracy > Salvage > Escort > Tanker > Survey.
  */
-const HANDS: Array<[string, BotArchetype, Mission[]]> = [
-  // Only an Intercept asks for the eyes: the scan is the card's first step.
-  [
-    "an Intercept with cargo",
-    "interceptor-tanky",
-    [interceptMission("p2"), deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA)],
-  ],
-  [
-    "an Intercept with Destroys",
-    "interceptor-aggressive",
-    [interceptMission("p2"), destroyMission("p3"), destroyMission("p4")],
-  ],
-  // A Destroy card has to get through shields, which is the railgun's job.
-  [
-    "Destroys with cargo",
-    "hunter-aggressive",
-    [destroyMission("p2"), destroyMission("p3"), deliverMission(ALPHA, BETA)],
-  ],
-  // Nothing to scan and nobody to kill: the forward slot goes to the legs.
-  [
-    "cargo alone",
-    "hauler-tanky",
-    [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), deliverMission(GAMMA, ALPHA)],
-  ],
-  // A Survey is a dive any loadout can make, so it asks for nothing forward.
-  [
-    "cargo and a Survey",
-    "hauler-tanky",
-    [deliverMission(ALPHA, BETA), deliverMission(BETA, GAMMA), surveyMission()],
-  ],
+const HANDS: Array<[string, BotPresetId, Mission[]]> = [
+  ["Destroy, Survey, Tanker", "gunship", [DESTROY, surveyMission("a"), tankerMission("b")]],
+  ["Destroy, Escort, Survey", "gunship", [DESTROY, escortMission("a"), surveyMission("b")]],
+  ["Destroy, Piracy, Survey", "brawler", [DESTROY, piracyMission("a"), surveyMission("b")]],
+  ["Destroy, Salvage, Tanker", "missile-hunter", [DESTROY, salvageMission("a"), tankerMission("b")]],
+  ["Destroy, Salvage, Salvage", "missile-hunter", [DESTROY, salvageMission("a"), salvageMission("b")]],
+  ["Intercept, Survey, Piracy", "raider", [INTERCEPT, surveyMission("a"), piracyMission("b")]],
+  ["Intercept, Escort, Tanker", "watcher", [INTERCEPT, escortMission("a"), tankerMission("b")]],
+  ["Intercept, Salvage, Survey", "picket", [INTERCEPT, salvageMission("a"), surveyMission("b")]],
+  ["Deliver, Survey, Escort", "hauler", [DELIVER, surveyMission("a"), escortMission("b")]],
+  ["Deliver, Piracy, Survey", "privateer", [DELIVER, piracyMission("a"), surveyMission("b")]],
+  ["Deliver, Tanker, Survey", "runner", [DELIVER, tankerMission("a"), surveyMission("b")]],
+  ["Deliver, Salvage, Escort", "runner", [DELIVER, salvageMission("a"), escortMission("b")]],
+  ["Deliver, Tanker, Salvage", "runner", [DELIVER, tankerMission("a"), salvageMission("b")]],
+  // Two secondaries asking for different kits: the higher card decides.
+  ["Destroy, Salvage, Piracy", "brawler", [DESTROY, salvageMission("a"), piracyMission("b")]],
+  ["Intercept, Escort, Salvage", "picket", [INTERCEPT, escortMission("a"), salvageMission("b")]],
+  ["Deliver, Tanker, Piracy", "privateer", [DELIVER, tankerMission("a"), piracyMission("b")]],
+  ["Deliver, Salvage, Piracy", "privateer", [DELIVER, salvageMission("a"), piracyMission("b")]],
+  // A completed card asks for nothing.
+  ["Destroy, a done Piracy, Survey", "gunship", [DESTROY, done(piracyMission("a")), surveyMission("b")]],
+  ["Deliver, a done Piracy, Tanker", "runner", [DELIVER, done(piracyMission("a")), tankerMission("b")]],
 ];
 
 describe("botChooseLoadout", () => {
-  it("every archetype template passes the engine's loadout validation", () => {
-    for (const [name, template] of Object.entries(BOT_LOADOUT_TEMPLATES)) {
-      const result = validateLoadout(template);
-      expect(result.errors, name).toEqual([]);
-      expect(template.forwardSlots).toHaveLength(1);
-      expect(template.sideSlots).toHaveLength(4);
+  it.each(Object.entries(BOT_PRESET_LOADOUTS))(
+    "the %s preset passes the engine's loadout validation",
+    (_id, loadout) => {
+      expect(validateLoadout(loadout).errors).toEqual([]);
+      expect(loadout.forwardSlots).toHaveLength(1);
+      expect(loadout.sideSlots).toHaveLength(4);
     }
+  );
+
+  it.each(Object.entries(BOT_PRESET_LOADOUTS))(
+    "the %s preset can fly a dealt Destroy",
+    (_id, loadout) => {
+      expect(missionsMissingRequirements([DESTROY], loadout)).toEqual([]);
+    }
+  );
+
+  it.each(BOT_ROLES.map((role) => [role]))(
+    "the %s's three presets share one bow",
+    (role) => {
+      const presets = PRESETS_BY_ROLE[role];
+      expect(presets).toHaveLength(3);
+      const bows = new Set(presets.map((id) => BOT_PRESET_LOADOUTS[id].forwardSlots[0]));
+      expect(bows.size).toBe(1);
+      for (const id of presets) expect(presetRole(id)).toBe(role);
+    }
+  );
+
+  it("every preset is flown by some hand", () => {
+    const flown = new Set(HANDS.map(([, preset]) => preset));
+    expect([...flown].sort()).toEqual(Object.keys(BOT_PRESET_LOADOUTS).sort());
   });
 
-  it.each(HANDS)("flies %s on the %s hull", (_label, archetype, missions) => {
-    expect(classifyArchetype(missions)).toBe(archetype);
+  it.each(HANDS)("flies %s on the %s", (_label, preset, missions) => {
+    expect(classifyPreset(missions)).toBe(preset);
     const choice = botChooseLoadout(missions);
     expect(choice.missionIds).toHaveLength(MISSIONS_PER_PLAYER);
-    expect(choice.loadout).toEqual(BOT_LOADOUT_TEMPLATES[archetype]);
+    expect(choice.loadout).toEqual(BOT_PRESET_LOADOUTS[preset]);
   });
 
   it("keeps any hand it can fly, and spreads across them", () => {

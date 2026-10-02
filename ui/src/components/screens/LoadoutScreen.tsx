@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Alert, Box, Button, Drawer, Tab, Tabs, Typography } from '@mui/material'
 import {
-  BOT_LOADOUT_TEMPLATES,
+  BOT_PRESET_LOADOUTS,
   MISSIONS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
@@ -38,7 +38,7 @@ interface Draft {
 const PREFERENCE_KEY = 'di.ship-appearance.v1'
 function readDraft(key: string, me: Player): Draft {
   const fallback = {
-    loadout: structuredClone(BOT_LOADOUT_TEMPLATES['hauler-tanky']),
+    loadout: structuredClone(BOT_PRESET_LOADOUTS.hauler),
     appearance: resolveShipAppearance(me.appearance),
     missionIds: [],
   }

@@ -235,12 +235,14 @@ export { DEFAULT_BOT_PARAMETERS, INTERDICT_DANGER } from "./types.ts";
 export type { BotParameters, ActionPlan, Opponent } from "./types.ts";
 export { assessDanger, cheapTurnEstimate, predictedDeliveryPlanets } from "./behaviors/danger.ts";
 export {
-  classifyArchetype,
-  BOT_LOADOUT_TEMPLATES,
+  classifyPreset,
+  BOT_PRESET_LOADOUTS,
   BOT_ROLES,
-  HULL_VARIANTS,
+  PRESETS_BY_ROLE,
+  PRESET_NAMES,
+  presetRole,
 } from "./behaviors/loadout.ts";
-export type { BotArchetype, BotRole, HullVariant } from "./behaviors/loadout.ts";
+export type { BotPresetId, BotRole } from "./behaviors/loadout.ts";
 export { analyzeSituation, shieldAbsorption, suspectedWeapon } from "./analyzer.ts";
 export { chooseDeployment, placedShipPositions } from "./behaviors/deployment.ts";
 export type { DeploymentChoice } from "./behaviors/deployment.ts";

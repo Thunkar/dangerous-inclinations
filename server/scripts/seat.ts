@@ -61,7 +61,8 @@ import type {
 import {
   AGENT_INTENT_GUIDE,
   agentRulesDigest,
-  BOT_LOADOUT_TEMPLATES,
+  BOT_PRESET_LOADOUTS,
+  PRESET_NAMES,
   DEPLOYMENT_GAP,
   EITHER_SLOT_SUBSYSTEMS,
   FORWARD_SLOT_SUBSYSTEMS,
@@ -336,8 +337,11 @@ function describeEvents(events: GameEvent[], view: GameView): string {
 const FORWARD_TILES = [...FORWARD_SLOT_SUBSYSTEMS, ...EITHER_SLOT_SUBSYSTEMS];
 const SIDE_TILES = [...SIDE_SLOT_SUBSYSTEMS, ...EITHER_SLOT_SUBSYSTEMS];
 const presetLines = (): string =>
-  Object.entries(BOT_LOADOUT_TEMPLATES)
-    .map(([name, l]) => `  ${name}: ${l.forwardSlots[0]} / ${l.sideSlots.join(",")}`)
+  (Object.keys(BOT_PRESET_LOADOUTS) as Array<keyof typeof BOT_PRESET_LOADOUTS>)
+    .map((id) => {
+      const l = BOT_PRESET_LOADOUTS[id];
+      return `  ${PRESET_NAMES[id]}: ${l.forwardSlots[0]} / ${l.sideSlots.join(",")}`;
+    })
     .join("\n");
 
 function loadoutPrompt(view: GameView): string {

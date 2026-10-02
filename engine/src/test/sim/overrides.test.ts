@@ -80,11 +80,11 @@ const HAULER_LOADOUT = {
 
 describe("parseLoadoutOverrides", () => {
   it.each([
-    ["one archetype", `hunter-aggressive=${HUNTER}`, { "hunter-aggressive": HUNTER_LOADOUT }],
+    ["one preset", `gunship=${HUNTER}`, { gunship: HUNTER_LOADOUT }],
     [
-      "two archetypes, ; between",
-      `hunter-aggressive=${HUNTER};hauler-tanky=${HAULER}`,
-      { "hunter-aggressive": HUNTER_LOADOUT, "hauler-tanky": HAULER_LOADOUT },
+      "two presets, ; between",
+      `gunship=${HUNTER};hauler=${HAULER}`,
+      { gunship: HUNTER_LOADOUT, hauler: HAULER_LOADOUT },
     ],
   ])("parses %s", (_label, text, expected) => {
     expect(parseLoadoutOverrides(text)).toEqual(expected);
@@ -94,10 +94,11 @@ describe("parseLoadoutOverrides", () => {
   });
 
   it.each([
-    ["an unknown archetype", `gunboat=${HUNTER}`],
-    ["no archetype", HUNTER],
-    ["three side tiles", "hunter-aggressive=railgun/laser,shields,radiator"],
-    ["no forward tile", "hunter-aggressive=/laser,ballistic_rack,shields,radiator"],
+    ["an unknown preset", `gunboat=${HUNTER}`],
+    ["a role for a preset", `hunter=${HUNTER}`],
+    ["no preset", HUNTER],
+    ["three side tiles", "gunship=railgun/laser,shields,radiator"],
+    ["no forward tile", "gunship=/laser,ballistic_rack,shields,radiator"],
   ])("refuses %s", (_label, text) => {
     expect(() => parseLoadoutOverrides(text)).toThrow();
   });

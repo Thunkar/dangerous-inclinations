@@ -16,7 +16,7 @@ import {
   getStationForPlanet,
   stationPosition,
   createSubsystemsFromLoadout,
-  BOT_LOADOUT_TEMPLATES,
+  BOT_PRESET_LOADOUTS,
   DEFAULT_SHIP_APPEARANCE,
   samePosition,
   viewFor,
@@ -103,11 +103,11 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     42
   )
   const templates = [
-    BOT_LOADOUT_TEMPLATES['hauler-tanky'],
-    BOT_LOADOUT_TEMPLATES['hunter-aggressive'],
-    BOT_LOADOUT_TEMPLATES['interceptor-aggressive'],
-    BOT_LOADOUT_TEMPLATES['hunter-tanky'],
-    BOT_LOADOUT_TEMPLATES['hauler-aggressive'],
+    BOT_PRESET_LOADOUTS.hauler,
+    BOT_PRESET_LOADOUTS.gunship,
+    BOT_PRESET_LOADOUTS.raider,
+    BOT_PRESET_LOADOUTS['missile-hunter'],
+    BOT_PRESET_LOADOUTS.runner,
   ]
   state.players.forEach((player, index) => {
     player.hasSubmittedLoadout = true

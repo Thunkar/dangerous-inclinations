@@ -2,11 +2,11 @@
  * Loadout phase: keep one primary and two secondaries of the cards dealt,
  * then a hull that fits them. Positions are unknown at this point (deployment
  * comes after loadout), so the choice is made from the cards alone: the hand
- * is picked by the game's seeded RNG among the flyable ones (a hold shared by
- * Deliver and Piracy is avoided), and the hull follows from the hand.
+ * is picked by the game's seeded RNG among the flyable ones, and the hull
+ * follows from the hand.
  */
 import type { ShipLoadout } from "../../models/game.ts";
-import type { Mission, MissionType } from "../../models/missions.ts";
+import type { Mission, MissionType, SecondaryKind } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
 import {
   MISSIONS_PER_PLAYER,
@@ -15,31 +15,58 @@ import {
 } from "../../models/missions.ts";
 
 /**
- * A hull is two decisions. **The role** is the forward subsystem, and the cards
- * choose it: a gun, eyes, or legs. **The variant** is how the four side slots
- * are spent, and that is taste: the same role played safe or played hard.
+ * A hull is two decisions, both read off the hand. **The role** is the
+ * forward subsystem, and the primary chooses it: a gun, eyes, or legs.
+ * **The preset** is how the four side slots are spent, and the secondaries
+ * choose it: each bow has three, one of them the default.
  *
  * | Role        | Forward    | Closes off                              |
  * |-------------|------------|-----------------------------------------|
  * | interceptor | sensor     | pays 3 fuel a jump                      |
  * | hunter      | railgun    | pays 3 fuel a jump                      |
  * | hauler      | compressor | cannot scan: no Intercept               |
- *
- * | Variant    | Spends its side slots on                                  |
- * |------------|-----------------------------------------------------------|
- * | tanky      | two shield subsystems, a radiator, and the one gun it needs for Destroy |
- * | aggressive | a second gun (not always another of the same) in place of one of those shield subsystems |
  */
 export type BotRole = "interceptor" | "hunter" | "hauler";
-export type HullVariant = "tanky" | "aggressive";
-export type BotArchetype = `${BotRole}-${HullVariant}`;
+export type BotPresetId =
+  | "gunship"
+  | "brawler"
+  | "missile-hunter"
+  | "raider"
+  | "watcher"
+  | "picket"
+  | "hauler"
+  | "runner"
+  | "privateer";
 
 export const BOT_ROLES: readonly BotRole[] = ["interceptor", "hunter", "hauler"];
-export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
+
+/** Each bow's three presets, the default first. */
+export const PRESETS_BY_ROLE: Record<BotRole, readonly BotPresetId[]> = {
+  hunter: ["gunship", "brawler", "missile-hunter"],
+  interceptor: ["raider", "watcher", "picket"],
+  hauler: ["hauler", "runner", "privateer"],
+};
+
+export const PRESET_NAMES: Record<BotPresetId, string> = {
+  gunship: "Gunship",
+  brawler: "Brawler",
+  "missile-hunter": "Missile hunter",
+  raider: "Raider",
+  watcher: "Watcher",
+  picket: "Missile picket",
+  hauler: "Hauler",
+  runner: "Runner",
+  privateer: "Privateer",
+};
+
+export function presetRole(id: BotPresetId): BotRole {
+  return BOT_ROLES.find((role) => PRESETS_BY_ROLE[role].includes(id))!;
+}
 
 /**
- * The six loadouts, which are also the presets offered to a human on the loadout
- * screen, so the table above, the subsystems below and the UI must agree.
+ * The nine loadouts, which are also the presets offered to a human on the
+ * loadout screen, so the tables above, the subsystems below and the UI must
+ * agree.
  *
  * **Every loadout carries a weapon that deals damage**, which is what a kept
  * Destroy card needs (RULES §Missions): the two roles that spend their forward
@@ -54,83 +81,80 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * damage on the railgun's own ring, which is where the spinal shot puts the
  * fight.
  *
- * **Why no preset carries missiles.** Measured in duels against the
+ * **Why the gunship carries a rack, and is the hunters' default.** Only the
+ * gunship and the brawler carry a ballistic rack, and only a Piracy sends a
+ * hunter to the brawler, so the gunship is where point defence lives in
+ * natural play. When the default hunter carried two lasers no ship in natural
+ * play carried a rack at all: missiles went unanswered, and the compressor
+ * hull with two launchers became a 52% outlier. The laser in side-0 keeps the
+ * shot that goes through shields and reaches a ring out; the rack in side-1
+ * keeps point defence in the field and is the one broadside that deals damage
+ * on the railgun's own ring. The brawler trades the laser for plasma. An earlier
+ * mapping that sent Survey and Piracy hunters to missiles left a rack on 7%
+ * of seats and moved dealt Destroy to 39% and Deliver to 30%, which is why
+ * the gunship is the default and missiles fly only for a Salvage.
+ *
+ * **Why missiles are never a default.** Measured in duels against the
  * strongest off-book hull (a compressor bow with two ballistic racks, a
- * shield subsystem and a radiator), the missile-carrying hunter completed its
+ * shield subsystem and a radiator), a missile-carrying hunter completed its
  * Destroy 34% of the time: a rack that is up rolls at the missiles that reach
  * it, so a salvo aimed at the one loadout built to answer it arrives as dice.
- * The aggressive hunter takes the rack instead, which also buys it the roll
- * against somebody else's missiles. The aggressive hauler carried a launcher
- * until 1 Oct 2026 (below), so no preset carries one now.
+ * The missile hunter and the picket are for a Salvage, where the work is
+ * finishing cripples at the wrecks from range.
  *
- * **Why the tanky hunter's fourth subsystem is a radiator, not a shield.** Measured
- * 22 Sept on the balance seeds, 600 games a row with Destroy dealt: with two
- * shields it won 23% against a Destroy bar of 32 and died 1.20 times a game,
- * because two walls are eight heat a turn and a hunter that cooks cannot fire.
- * With a second radiator it wins 28%, dies 1.09 times (the fewest of any
- * hunter) and takes the least damage, which is what tanky is meant to buy.
- * Two racks or two lasers read 33% and 35% but die as often as the aggressive
- * hunter or more, which makes them a second aggressive preset, not a tanky one.
- *
- * **Why the tanky hunter's gun is a laser, not a rack.** Re-measured 1 Oct 2026
- * once absorbing stopped making heat, 1000 games a row with Destroy dealt:
- * with the rack it read 29% against a bar of 35, with a laser 32% for the
- * same 1.10 deaths a game. A plasma cannon there reads 30%: a wall stops
- * plasma a point a cube, and a laser goes through it. The aggressive hunter
- * keeps its rack, so point defence still flies in natural play.
- *
- * **Why the aggressive hunter's second gun is a rack and not a laser.** Every
- * bot holding a Destroy flies this loadout, and the tanky interceptor and
- * hauler presets already carry lasers, so while this one carried two of them
- * no ship in natural play carried a ballistic rack at all: point defence had left the
- * table, missiles went unanswered, and the compressor hull with two launchers
- * became a 52% outlier. The laser in side-0 keeps the shot that goes through
- * shields and reaches a ring out; the rack in side-1 keeps point defence in
- * the field and is the one broadside that deals damage on the railgun's own
- * ring, which is where the spinal shot puts the fight.
- *
- * **Why the aggressive interceptor and hauler carry a disruptor.** Measured
- * 1 Oct 2026 with the disruptor in the rack's box, 300 games a row with the
- * role's card dealt: the interceptor with shields, a disruptor, a radiator
- * and a plasma cannon read 32% against an Intercept bar of 32 (two lasers in
- * place of the disruptor and the plasma, 29%); the hauler with shields, a
- * disruptor, a radiator and a laser 35% against a Deliver bar of 36 (with a
- * launcher in place of the disruptor, 33%). Natural bots never fly these
- * two presets (a hand holds one primary, so an interceptor or a hauler never
- * holds a Destroy), so natural play is unchanged; both still carry a gun that
- * deals damage, so a Destroy can be kept on them.
+ * **Why the raider and the runner carry a disruptor.** Measured 1 Oct 2026
+ * with the disruptor in the rack's box, 300 games a row with the role's card
+ * dealt: the raider read 32% against an Intercept bar of 32 (two lasers in
+ * place of the disruptor and the plasma, 29%); the runner 35% against a
+ * Deliver bar of 36 (with a launcher in place of the disruptor, 33%). A
+ * runner is carrying something worth chasing, and breaking the pursuer's
+ * engines is how it keeps it.
  *
  * **Why every loadout carries a radiator.** Using a subsystem costs its energy in heat,
  * and heat the ship cannot dissipate is carried, so a hull that makes more than
  * it sheds walks up to the redline and pays there. The railgun plus one
  * broadside is six against a dissipation of five; the radiator's +2 makes that
- * pair free. The aggressive hunter's full three-gun volley is eight, one over
- * even then: firing everything is a decision, not a default.
+ * pair free. The gunship's full three-gun volley is eight, one over even
+ * then: firing everything is a decision, not a default.
+ *
+ * Mutable on purpose: the simulator's `--loadouts=` writes into it.
  */
-export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
-  "interceptor-tanky": {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "shields", "radiator", "laser"],
-  },
-  "interceptor-aggressive": {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "disruptor", "radiator", "plasma_cannon"],
-  },
-  "hunter-tanky": {
-    forwardSlots: ["railgun"],
-    sideSlots: ["laser", "shields", "radiator", "radiator"],
-  },
-  "hunter-aggressive": {
+export const BOT_PRESET_LOADOUTS: Record<BotPresetId, ShipLoadout> = {
+  gunship: {
     forwardSlots: ["railgun"],
     sideSlots: ["laser", "ballistic_rack", "shields", "radiator"],
   },
-  "hauler-tanky": {
+  brawler: {
+    forwardSlots: ["railgun"],
+    sideSlots: ["plasma_cannon", "ballistic_rack", "shields", "radiator"],
+  },
+  "missile-hunter": {
+    forwardSlots: ["railgun"],
+    sideSlots: ["missiles", "laser", "shields", "radiator"],
+  },
+  raider: {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["shields", "disruptor", "radiator", "plasma_cannon"],
+  },
+  watcher: {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["shields", "shields", "radiator", "laser"],
+  },
+  picket: {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["missiles", "missiles", "radiator", "shields"],
+  },
+  hauler: {
     forwardSlots: ["fuel_compressor"],
     sideSlots: ["shields", "shields", "radiator", "laser"],
   },
-  "hauler-aggressive": {
+  runner: {
     forwardSlots: ["fuel_compressor"],
     sideSlots: ["shields", "disruptor", "radiator", "laser"],
+  },
+  privateer: {
+    forwardSlots: ["fuel_compressor"],
+    sideSlots: ["shields", "shields", "radiator", "plasma_cannon"],
   },
 };
 
@@ -139,43 +163,65 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
 }
 
 /**
- * The role is the forward subsystem, and the cards decide it. Intercept cannot
- * start without a scan, so that card takes the eyes and rules out the other
- * two. With nothing to scan the choice is the gun or the legs: a Destroy card
- * has to catch someone
- * and get through their shields, which is what the railgun's four damage is
- * for, while a hand of cargo runs would rather not pay three fuel a jump.
+ * The role is the forward subsystem, and the primary decides it. Intercept
+ * cannot start without a scan, so that card takes the eyes. A Destroy card has
+ * to catch someone and get through their shields, which is what the railgun's
+ * four damage is for, while a cargo run would rather not pay three fuel a
+ * jump. A Survey is a dive any loadout can make, so the secondaries never
+ * move the bow.
  */
-function classifyRole(missions: Mission[]): BotRole {
+export function classifyRole(missions: Mission[]): BotRole {
   const active = missions.filter((m) => !m.isCompleted);
-  // Only Intercept asks for the eyes now: a Survey is a dive any loadout can make,
-  // so holding one says nothing about which forward subsystem to bolt on.
   if (count(active, "intercept_transmission") > 0) return "interceptor";
   if (count(active, "destroy_ship") > 0) return "hunter";
   return "hauler";
 }
 
 /**
- * The variant is taste, and a bot has none, so it reads the hand instead: a
- * Destroy card is the one card that cannot be scored by flying carefully, and
- * a bot holding one takes the second gun over the second shield.
+ * What each secondary asks of the side slots, bow by bow, as a player would
+ * fit for it. A card not named here asks for the bow's default.
  *
- * A hand holds one primary, so a hunter always holds a Destroy and an
- * interceptor or a hauler never does: bots fly three of the six (the tanky
- * interceptor, the aggressive hunter, the tanky hauler). The other three are
- * measured by forcing them in the balance suite.
+ * - Hunter: a Piracy is a point-blank fight with a carrier, so plasma
+ *   (brawler); a Salvage is finishing cripples at the wrecks, from range, so
+ *   a launcher (missile hunter).
+ * - Interceptor: an Escort rides beside a carrier with its walls up
+ *   (watcher); a Salvage wants the reach of two launchers (picket).
+ * - Hauler: a Piracy takes a fight to a carrier (privateer); a Tanker or a
+ *   Salvage is carrying something worth chasing, and the disruptor breaks
+ *   the pursuer's engines (runner).
  */
-function classifyVariant(missions: Mission[]): HullVariant {
-  const active = missions.filter((m) => !m.isCompleted);
-  return count(active, "destroy_ship") > 0 ? "aggressive" : "tanky";
-}
+const KIT: Record<BotRole, Partial<Record<SecondaryKind, BotPresetId>>> = {
+  hunter: { piracy: "brawler", salvage: "missile-hunter" },
+  interceptor: { escort: "watcher", salvage: "picket" },
+  hauler: { piracy: "privateer", tanker: "runner", salvage: "runner" },
+};
 
-export function classifyArchetype(missions: Mission[]): BotArchetype {
-  return `${classifyRole(missions)}-${classifyVariant(missions)}`;
+/** When the two secondaries ask for different kits, the earlier card decides. */
+const KIT_PRIORITY: readonly SecondaryKind[] = ["piracy", "salvage", "escort", "tanker", "survey"];
+
+/**
+ * The preset a hand flies: the bow's default unless an open secondary asks
+ * for another, the higher card in {@link KIT_PRIORITY} deciding between two.
+ *
+ * Measured 1 Oct 2026, 1000 games a row: dealt Destroy / Deliver / Intercept
+ * 37 / 32 / 33% against 35 / 34 / 33 with the six presets this replaced.
+ * Natural play keeps a rack on 21–25% of seats, and racks shoot down 1.2 of
+ * 7.8 missiles a game at three seats. Forced, every preset flown with its
+ * bow's card reads 32–37%.
+ */
+export function classifyPreset(missions: Mission[]): BotPresetId {
+  const role = classifyRole(missions);
+  const fallback = PRESETS_BY_ROLE[role][0];
+  const open = missions.filter((m) => !m.isCompleted);
+  for (const kind of KIT_PRIORITY) {
+    const ask = KIT[role][kind];
+    if (ask && ask !== fallback && count(open, kind) > 0) return ask;
+  }
+  return fallback;
 }
 
 export function selectBotLoadout(missions: Mission[]): ShipLoadout {
-  return BOT_LOADOUT_TEMPLATES[classifyArchetype(missions)];
+  return BOT_PRESET_LOADOUTS[classifyPreset(missions)];
 }
 
 /**
