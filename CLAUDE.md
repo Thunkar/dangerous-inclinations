@@ -493,12 +493,12 @@ not an argument:
 - **An "efficiency" secondary: end a turn at 10 heat with an empty tank.**
   84% of seats do both in one turn incidentally by round 11 (24% of turns end
   at exactly 10 heat, 20% dry). A free point as stated; it needs a cost.
-- **A missile-carrying hunter preset.** In a duel against the compressor with
+- **A missile hunter as the default.** In a duel against the compressor with
   racks×2 the old preset (railgun, missiles, rack, shields, radiator) completed
   Destroy 34% of the time and the prey won 69%: a powered rack rolls at every
-  missile. The presets carry a laser and a rack (aggressive) or a rack, a
-  shield and two radiators (tanky) now; two lasers on the hunter left the
-  field with no rack at all and the compressor with two launchers at 52%.
+  missile. Since 2 Oct 2026 the missile hunter (railgun, missiles, laser) is
+  the preset a Salvage asks for, and the rack gunship stays the default,
+  because sending more hunters to missiles takes the racks off the table.
 - **Two lost turns on death.** A respawned ship sat at a known sector with no
   cubes allocated for two rounds: a free kill on repeat, with no counter-play.
   One lost turn now, and untouchable (no shot, missile or scan) until the ship
@@ -826,206 +826,82 @@ not an argument:
   (14%) are the Piracy and Intercept hands' hulls, and those hands are weak
   with any hull (forced, every preset with its card reads 30–39%).
 
+- **Escort on the ring, back on either death.** Adopted 2 Oct 2026 as the
+  designer's rule: mark an undocked rival carrying cargo on your ring; done
+  when it next sells with you in its well; your marker comes back if either
+  ship is destroyed. It replaced a rework (presence in the well, the card
+  spent if the carrier died) that read 5 per 100 kept. Measured 300 games at
+  three / four seats, Escort completions: the old same-sector rule 60 / 115,
+  the rework 21 / 32, this rule 58 / 73; in the benchmark 13 per 100 kept
+  against the old card's 25 (with the nine presets). Presence in the well is
+  the cost; the spent state cost almost nothing (21 / 32 either way).
+
 Known open problems:
 
+- **Escort is the weakest secondary, and the bots are not the lever.**
+  Measured 2 Oct 2026 under the designer's rule (settled above): 13
+  completed per 100 kept (Survey 26, Tanker 22, Salvage 15, Piracy 14), and
+  seats holding an Escort win about two points under the share (31 / 23% at
+  three / four seats against 33 / 25). Most marks are made on black hole
+  rings and the marked ship sells with the escort elsewhere (0.75 missed
+  sales a game against 0.19 paid at three seats). Every bot that rides along
+  more completes more Escorts and wins less (ride first: 19.5 / 12.9%), so the
+  card stays opportunistic. Markers churn at a big table: at six seats 5.6 are
+  placed a game and 4.3 come back on deaths. Marking in the same *planet*
+  well instead of on the same ring read 19 per 100 kept, and is the measured
+  alternative if the card needs lifting.
+- **Piracy and Salvage live off bots that wander.** Since 28 Sept the bots
+  put the primary's next step first (a side goal may delay it a turn at
+  most), which evened the primaries and cost the secondaries that need
+  carriers or wrecks in reach. Piracy hands are weak with any hull: forced,
+  every preset with a Piracy hand reads 24–37% against 26–49% with Survey.
 - **Two cubes on any shield are immunity to the disruptor**, and bots hold a
   shield up 55–65% of turns, so it hits mostly ships that walls have left. A
   shield that stops it by spending cubes, rather than at any level, is the
   untried variant.
 - **The compressor with two guns and a wall beats the hunters in a duel.**
-  Both hands dealt Destroy, 400 games each with seats swapped, under the
-  rules of 1 Oct 2026 (heat-free absorption, plasma 4 for 3): compressor +
-  plasma×2 + shields + radiator 219–161 against the aggressive hunter,
-  238–144 against the tanky one, 226–156 against railgun + plasma×2; with
-  lasers instead of plasma 229–154 against the aggressive hunter (the mirror
-  is 186–186). So it is the hull, not the gun. At three seats the same hulls
-  read 35% (plasma) and 32% (lasers) against a 33% bar: a duel shape, not a
-  table one. It joins the compressor-with-guns problem below.
-
-- **Piracy and Salvage live off bots that wander.** Two bot fixes on 28 Sept
-  (interdict only a leader carrying an item; a side goal may delay the
-  primary's next step by a turn at most, not only its delivery) put the bots
-  on their primary first, as a player plays: the dealt primaries read
-  Destroy 37%, Deliver 38%, Intercept 37% at 300 games a row, the most even
-  yet (41 / 37 / 32 before). The secondaries paid for it, completed per 100
-  kept: Survey 28 → 23, Escort 30 → 24, Tanker 22 → 20, Piracy 21 → 14,
-  Salvage 15 → 9. Piracy wants carriers in reach and Salvage wants wrecks,
-  and both came from bots dithering in the black hole. In the recorded live
-  game that prompted the fixes the three bots made 5 jumps and 3 station
-  visits in 31 rounds between them.
-
-- **The primary you are dealt still moves a seat, by about six points.**
-  Closed for now on 1 Oct 2026, when absorbing stopped making heat: 35 / 34 /
-  33 at 1000 games a row. The history below is how it got there.
-  After the 27 Sept cleanup, whose bot fixes (dock jobs named, criticals
-  through shields, overheat against the redline, danger priced in points)
-  moved every row a little, 200 games a row: dealt Destroy 34%, Deliver 28%,
-  Intercept 33%. Before those fixes, under the five secondaries at 300 games:
-  dealt Destroy 39%, Deliver 32%, Intercept 30%. It is the card, not the sensor: a sensor
-  bow with two lasers dealt Destroy reads 34% against the railgun's 39, with
-  three launchers 39%, and both interceptor presets sit on the Intercept bar.
-  Intercept completes 27 per 100 kept against Destroy's 62 and Deliver's 55.
-  Part of that was the bots, not the card (28 Sept, benchmark at 120 games a
-  seat count): a damaged bot repaired at the nearest station rather than the
-  one its job was at, and a bot with the primary's item aboard took side goals
-  across the well first. Repairing at the job's station when it is within
-  three turns of the nearest, and letting a side goal delay a primary's
-  delivery by a turn at most, took Intercept from 34 to 49 completed per 100
-  kept (Deliver 53 to 56, Destroy 61 to 58, Piracy 30 to 25, the sensor bow's
-  win rate 14% to 16%). A 0-turn limit read 52 and 3 turns 46.
-  **The benchmark's hull table is the card table in disguise**: natural bots
-  pick the hull from the primary one-for-one (1704 sensor bows, 1704
-  Intercepts), so "the sensor bow wins 16%" means Intercept does.
-  At 1000 games a row since the circuit routes (26 Sept): dealt Destroy 37.9%,
-  Deliver 32.9%, Intercept 31.4%, against a 33% share. Before, at 400 games,
-  32 / 42 / 32, and earlier readings swung with the bots (37 / 31 / 26 before
-  Piracy and Tanker, 32 / 36 / 23 with the jump free, 55 / 34 / 33 with bots
-  that scanned last), so the rules are sensitive to how well each card is
-  played. Destroy is the strong one now. Levers not yet measured: Intercept's
-  scan range or filing station, the primary's value.
-- **Data aboard makes every Intercept and Survey holder prey.** Deliver is no
-  longer the strong dealt card (settled above: 32.9% at 1000 games), though
-  the two hauler presets have drifted apart (tanky 32.9%, aggressive 28.4%).
-  Dealt Intercept 31.4%: the hunting hands
-  deploy on ring 3 with their targets and 40% of scans come on the first
-  legal turn: the interceptor moving into range, which the designer calls
-  play. In natural three-seat games the sensor bow wins 24% against the
-  railgun's 36 and the compressor's 36: a scan is data and data is loot,
-  three seizures in four are data, and the benchmark has Intercept at 21 and
-  Survey at 23 completed per 100 kept. The sensor's standing cost (21 Sept)
-  gave the bow something to do on a turn it does not scan, and the bots now
-  hold it up whenever they mean to shoot: the forced sensor-bow rows rose most
-  of any hull in the suite (missile hunter 31 → 38, missiles×3 34 → 39). It
-  cuts the other way for a hull that only scans, though: the interceptor
-  presets pay two a check for a sensor they used to hold for nothing and fell
-  2–3 points. Whether any of this reaches the *natural* sensor bow is
-  unmeasured, because the bots' hull templates still put the bow on a hauler.
-- **The compressor with guns is over its bar again.** The balance suite's
-  extreme rows `legs_lasers` (compressor + lasers×2 + shields + radiator) and
-  `legs_rack` (compressor + racks×2 + shields + radiator) fail as `outlier`:
-  43% and 45% against a 29% own-hand bar at 200 games after the 27 Sept
-  cleanup, and already 40% and 38% against 26% on main before it (the
-  five-secondary package; earlier runs that day skipped the extreme
-  section). Every other row is inside its bar. The compressor is the only bow
-  that helps every card; a price lever has been measured before (below), and
-  the bots' natural hull never takes a gun beside it, so this lives only in
-  forced rows.
-- **The compressor runner's shortcut is closed; watch whether it stays shut.**
-  Everything below is from before 26 Sept, when a crate visit could also pump
-  the Tanker's fuel. With the circuit routes, crates-only visits and Tanker at
-  7 (settled above), the hauler preset holding Deliver reads 32.9% at 1000
-  games, but the benchmark's compressor hull still wins most often: 29% of its
-  seats across 3–6 seats, against 24% for the railgun hull and 18% for the
-  sensor bow. It is flown by half as many seats as before, so read it as the
-  hull to watch rather than a settled question.
-  Under Piracy and Tanker, 400 games a row against 33%: compressor +
-  shields×2 + radiators×2 44% (one point under the `outlier` line; 46% and
-  flagged before the quiet returning turn), racks×2 38%, launchers×2 35%,
-  lasers×2 35%; the compressor-with-a-laser hull hunting 34% against 32
-  (`unpunished` by two, the matrix's one failing flag). Split by hand before
-  the quiet turn, 85% of the weaponless runner's wins were Deliver + Tanker: a compressor pays one fuel for a lane, so it is the
-  hull that arrives at a station holding eight, and the fuel card is its
-  free point. Under the old secondaries the same hull read 33%. Every
-  answer measured on the same seeds trades the runner's excess for
-  something worse: a 2-fuel jump takes the runner only to 42% and dealt
-  Deliver 41% → 32%; "a fuel compressor cannot be a Tanker" (the deal refuses
-  the card on that hull) takes it to 40% but dealt Deliver to 32%, the
-  railgun hull to 41% of natural games and games to 33–39 rounds; "a visit
-  is one deal, cargo or fuel" takes it to 32% with Deliver at 27% and Tanker
-  at 12 per 100; Tanker at 7 changes nothing for the runner and gives
-  20-round games. Left as it stands: missions are public, a runner with a
-  crate aboard is Piracy's prey, and the designer's line is that a hull may
-  dominate a game but not every game.
-- **The secondary offer was lopsided under the one-of-each deal** (now a
-  pile, settled above; bots keep uniformly among legal hands, so pick rates
-  from the pile say more about legality than value). Under one-of-each,
-  Piracy was the one left out (kept 57%
-  against 71–72% for Survey and Tanker). Completed per 100 kept in the
-  benchmark under one job per visit: Survey 26, Piracy 28, Tanker 18, and
-  each sits in 17–18% of winners' cards (Tanker was 27% while it shared a stop
-  with Deliver's crate). Half of all Survey dives now complete in round one, because
-  ring 3 is one turn from ring 1; the data is not the point, the filing is,
-  and round-one data is round-one loot for a pirate from ring 3.
-- **Point defence lives on the hunters, and now it costs more to keep.**
-  Since 2 Oct 2026 the gunship and the brawler carry the only racks in natural
-  play (21–25% of seats) and the missile hunter and picket launch 8–13
-  missiles a game, of which racks shoot down about one in six. Before that the
-  aggressive hunter's rack was the only one, and no missile was fired in
-  natural play at all. The salvo rule is
-  exercised only by forced hulls; when the hunter briefly carried two lasers
-  instead, missiles went unanswered and the compressor with two launchers
-  reached 52%. The rack moved onto standing heat on 21 Sept, so it is two heat
-  at every check whether anything comes or not; that did not sink the rack
-  hulls (railgun + racks×2 went 20 → 26 on the same seeds, because losing the
-  cap let them run the rack beside a gun and a wall), but it did not lift them
-  over their bar either: they read 26% and 25% against 34. The tanky hunter
-  was the poorest predator among the gun hulls with two shields (23% against
-  32 at 1000 games) and a second gun was not the answer: racks×2 or lasers×2
-  in place of a shield read 33% and 35% but died as often as the aggressive
-  hunter or more, a second aggressive preset. The second wall was the problem
-  (eight heat a turn stops a hunter firing): since 22 Sept it is railgun +
-  shields + radiators×2 and one gun, a rack until 1 Oct 2026 and a laser since
-  (32% at 1000 games, 1.10 deaths a game, the fewest of any hunter). Bots
-  holding Destroy still fly the aggressive preset, so natural play does not
-  see it, and the aggressive hunter's rack is the only one in natural play.
-- **The bots keep cards uniformly among the legal ones, which skews every
-  forced-hull measurement involving a weapon.** A loadout that can hold a gun is a
-  loadout that gets dealt into Destroy (44% of games) whether or not that gun can
-  finish one: Destroy completes 35% behind a railgun, 12% behind a laser, 5%
-  behind missiles. Splitting a hull's games by whether it kept a Destroy moves
-  the missiles hull between 5% and 32%. Read any weapon hull's balance number as
-  a band. Fixing this is a change to `ai/behaviors/loadout.ts`, not to a rule,
-  and it has to price cards by the loadout without going back to a hand-tuned
-  scorer (see the note on `selectBotMissions`).
-- **Carrying cargo does not draw fire**, though the table says it does. Over 200
-  games on each of four hulls, every one took *less* hull damage per turn while
-  holding a crate than while empty. Kills still fall on carriers (72% of
-  destroyed ships were carrying something, nearly all of it data), but
-  that is the hunt for the leader, not the crate.
-- **The bots never name the scoop, so the simulator cannot price the slot that
-  was just opened.** `chooseCriticalTarget` (`ai/behaviors/combat.ts`) ranks a
-  known gun, then a loaded unknown slot, then any powered slot, then the
-  engines, and only then anything else fixed: the scoop is reachable only once
-  the engines and thrusters are both already broken, which is why removing its
-  protection moved nothing across 300 games. The play the rule opens is a human
-  one, and a specific one: name the scoop of a ship that is low on fuel and far
-  from a station, and it spends its turns running cold instead of playing.
-  Teaching that is a change to the bot's preference order, not to a rule, and it
-  wants measuring before it is adopted, because a hunter that strands its prey
-  is a different hunter.
-- **Two players is thin**, and seat 1 wins 55% of them on the balance seeds. The designer wants no artificial limit; special
-  rules for two may come later.
-- **Length**: after one sale per station (28 Sept, benchmark, 120 games a
-  seat count) 32 / 27 / 31 / 30 rounds at 3 / 4 / 5 / 6 seats, 1h36 to 3h00,
-  kills 2.0 / 3.6 / 7.4 / 9.0; 68–76% of games won by a seat not leading at
-  round 10, 0.6–0.7 lead changes a game, the first card at round 7–9. Before
-  it, after the 27 Sept cleanup (benchmark, 120 games a seat count)
-  31 / 33 / 29 / 27 rounds at 3 / 4 / 5 / 6 seats, 1h33 to 2h42, kills 2.0 /
-  5.4 / 7.5 / 9.7. 71–82% of games are won by a seat that was not leading at
-  round 10, with 0.5–0.8 lead changes a game and the first card at round 8–9
-  (the benchmark's "How games unfold" table). Under the five secondaries
-  before the cleanup (240 games a seat count) 31 / 30 / 28 / 28 rounds,
-  1h33 to 2h48, kills 2.2 / 4.7 / 8.2 / 10.4 (Escort's truce, settled above). Before: 33 rounds at every seat count from 3 to 6 in the benchmark
-  under one job per visit (26 Sept), 1h39 to 3h18 at a minute a turn, 100% of
-  games decided; kills 4.0 / 7.5 / 12.8 / 14.9. Before the circuit routes it
-  was 27 / 21 / 25 / 27 and 1h21 to 2h42: the one-stop Deliver + Tanker had
-  been the game's clock, and Tanker at 7 gave back about half of what closing
-  it cost. The balance suite's natural rows at 1000 games read 30 / 32 / 33
-  rounds at 3 / 4 / 2 seats. Earlier history: 25 / 23 / 27 / 27 rounds at 3 / 4 / 5 / 6 seats, five
-  cards completed a game at three seats; kills 2.9 / 5.0 / 9.3 / 14.5, well
-  above the old cards' 1.9 / 3.9 / 7.7 / 11.0, because data aboard is a
-  reason to fight. The quiet returning turn (20 Sept) took kills down from
-  3.3 / 6.5 / 10.8 / 17.8 and the six-seat game from 33 rounds to 27: a ship
-  back from Home no longer opens with a revenge shot. The energy rewrite
-  (21 Sept) took another 0.1–1.1 off every seat count and a couple of rounds
-  off the short games, because a bot that respects every unbroken gun walks
-  into fewer of them; at three seats it is no longer a kill per seat per game.
-  The bots' fuel husbandry decides the length: with the
-  Tanker holder's reserve unlimited games ran 19 rounds, with none 39; the
-  standing bots keep a one-fuel margin and detour up to three turns. Four
-  points not re-measured since the secondaries changed. The benchmark's seat
-  spread is 37 / 33 / 31 at three seats, and the balance suite's natural row
-  reads 34 / 34 / 33 at 1000 games.
+  Both hands dealt Destroy, 400 games each with seats swapped (1 Oct 2026):
+  compressor + plasma×2 + shields + radiator 219–161 against the railgun +
+  laser + rack hunter, 238–144 against railgun + laser + shields +
+  radiators×2; with lasers instead of plasma 229–154 (the mirror is
+  186–186). At three seats the compressor-with-guns rows sit inside their
+  bar (2 Oct, 300 games: lasers×2 35%, racks×2 33%, plasma×2 35%,
+  missiles×2 42% against 40%), so it is a two-player shape. The older
+  weaponless-runner and compressor-outlier readings were before the circuit
+  routes, one action a visit and heat-free absorption.
+- **Data aboard makes every Intercept and Survey holder prey.** A scan is
+  data and data is loot: three seizures in four are data, and 40% of
+  Intercept scans come on the first legal turn as the interceptor moves into
+  range. Dealt Intercept now reads 33–35%, but the raider and the watcher
+  are the presets that sit lowest with their own card (30% against 35).
+- **Point defence lives on the hunters.** The gunship and the brawler carry
+  the only racks in natural play (21–25% of seats); the missile hunter and
+  the picket launch 8–13 missiles a game and racks shoot down about one in
+  six. A mapping that sent more hunters to missiles left racks on 7% of seats
+  and Destroy at 39%; watch the rack share whenever the presets move.
+- **The bots keep cards uniformly among the legal ones**, so a weapon hull is
+  dealt into Destroy whether or not its gun can finish one (measured before
+  the presets: Destroy completed 35% behind a railgun, 12% behind a laser, 5%
+  behind missiles). Read a forced weapon hull's number as a band. The fix is
+  in `ai/behaviors/loadout.ts`, pricing cards by the loadout without a
+  hand-tuned scorer (see `selectBotMissions`).
+- **Carrying cargo does not draw fire**, though the table says it does: every
+  hull took less hull damage per turn holding a crate than empty. Kills still
+  fall on carriers (72% of destroyed ships carried something, nearly all
+  data), but that is the hunt for the leader, not the crate.
+- **The bots never name the scoop**, so the simulator cannot price the
+  critical that strands a ship: `chooseCriticalTarget` reaches it only once
+  the engines and thrusters are broken. Teaching it is a bot change to
+  measure first, because a hunter that strands its prey is a different
+  hunter.
+- **Two players is thin**: seat 1 wins 55–59% on the balance seeds. The
+  designer wants no artificial limit; special rules for two may come later.
+- **Length** (2 Oct 2026, benchmark, 120 games a seat count): 27 / 26 / 29 /
+  27 rounds at 3 / 4 / 5 / 6 seats, 1h21 to 2h42 at a minute a turn, kills
+  1.9 / 3.5 / 8.0 / 9.1, 0.6–0.7 lead changes a game, the first card at
+  round 7–9. The bots' fuel husbandry decides it: with the Tanker holder's
+  reserve unlimited games ran 19 rounds, with none 39. The history is in the
+  commits that moved it.
 
 ## Adding a rule
 
