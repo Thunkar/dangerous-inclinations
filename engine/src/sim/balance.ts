@@ -237,7 +237,7 @@ const offbookRows: RowSpec[] = (
     ],
     [
       "interceptor_hunting",
-      "aggressive interceptor, hunting",
+      "sensor bow + lasers×2 + shields + radiator, hunting",
       hull("sensor_array", "shields,laser,laser,radiator"),
       "destroy",
     ],

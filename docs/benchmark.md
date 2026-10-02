@@ -1,4 +1,4 @@
-# Benchmark (2026-10-01)
+# Benchmark (2026-10-02)
 
 120 games per seat count, seeds 20000+, bots choosing their own hands and hulls.
 

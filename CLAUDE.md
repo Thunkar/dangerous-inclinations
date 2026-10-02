@@ -790,24 +790,30 @@ not an argument:
   railgun + plasma×2 nine points over its bar; 4 for 3 keeps every plasma row
   within six (railgun + plasma×2 36% against 31 at 300 games). Firing only
   abeam (±0 sectors) made every plasma row weak. In no hunter slot does it
-  beat the laser: a wall stops plasma and not a laser. The disruptor (bow, 3
-  energy): spinal, 1–8 ahead, no damage, a hit breaks the named subsystem and
-  dumps its cubes, any powered shield stops it whole and turns face-up; it
-  does not satisfy Destroy. Its energy (2/3/4) and range (5/8) read the same,
-  so neither prices it: the bow does, since it displaces the railgun (a
-  disruptor hunter in natural play halves the kills). Its one partner is
-  plasma, which strips a wall cheaply so the disruptor fired after it gets
-  through; lasers strip nothing (disruptor + lasers×2 lost its duel 130–233).
-  The bots play that combination within a turn but never position for a
-  disruptor shot, and no preset carries either weapon.
+  beat the laser: a wall stops plasma and not a laser. The disruptor (either
+  slot, 3 energy) is an EMP burst with the ballistic rack's box (±1 ring ±1
+  sector, its own ring too, either side): no damage, a hit breaks the named
+  subsystem and dumps its cubes, any powered shield stops it whole and turns
+  face-up; it does not satisfy Destroy. It was first spinal in the bow (1–8
+  ahead): there its energy (2/3/4) and range (5/8) read the same, because the
+  bow priced it by displacing the railgun, and with lasers×2 it read 29%
+  against 31. As the EMP, 300 games a row, every build sits within six of its
+  bar but one (sensor bow + shields×2 + radiator + disruptor, Intercept, +8);
+  at 2 energy disruptor + plasma×2 reads +9. Its partner is plasma, which
+  strips a wall cheaply so the disruptor fired after it gets through. Two
+  presets carry the new systems since 2 Oct: the aggressive interceptor
+  (sensor + shields + disruptor + radiator + plasma, 29 → 32% against 32) and
+  the aggressive hauler (compressor + shields + disruptor + radiator + laser,
+  33 → 35% against 36). Natural bots never fly those two, so natural play is
+  unchanged; trading a shield on the tanky hauler for a disruptor, which they
+  do fly, read neutral (hauler 36 → 38% at three seats, 30 → 27% at four).
 
 Known open problems:
 
-- **The disruptor wants another shape.** Two cubes on any shield are immunity,
-  and bots hold a shield up 55–65% of turns, so a disruptor hits mostly ships
-  that walls have left. The designer's next idea is an "EMP": not spinal, with
-  a box like the ballistic rack's. Another measurable variant is a shield that
-  stops it by spending cubes rather than at any level. Both are untried.
+- **Two cubes on any shield are immunity to the disruptor**, and bots hold a
+  shield up 55–65% of turns, so it hits mostly ships that walls have left. A
+  shield that stops it by spending cubes, rather than at any level, is the
+  untried variant.
 - **The compressor with two guns and a wall beats the hunters in a duel.**
   Both hands dealt Destroy, 400 games each with seats swapped, under the
   rules of 1 Oct 2026 (heat-free absorption, plasma 4 for 3): compressor +

@@ -41,26 +41,27 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * The six loadouts, which are also the presets offered to a human on the loadout
  * screen, so the table above, the subsystems below and the UI must agree.
  *
- * **Every loadout carries a weapon**, which is what a kept Destroy card needs
- * (RULES §Missions): the two roles that spend their forward slot on eyes or
- * legs buy theirs with a side slot.
+ * **Every loadout carries a weapon that deals damage**, which is what a kept
+ * Destroy card needs (RULES §Missions): the two roles that spend their forward
+ * slot on eyes or legs buy theirs with a side slot.
  *
  * **Why the guns are paired.** A full shield subsystem holds four energy and absorbs
  * two damage, and its owner powers it again every turn, so a lone 2-damage
  * shot never reaches a hull. The railgun's four is exactly two shield subsystems, so it
  * wants a partner, and which partner depends on where the fight is: a laser
  * ignores shields (they are electromagnetic) and reaches two rings out, one
- * further than a rack, while a ballistic rack is the only broadside that fires
- * on the railgun's own ring, which is where the spinal shot puts the fight.
+ * further than a rack, while a ballistic rack is the only broadside that deals
+ * damage on the railgun's own ring, which is where the spinal shot puts the
+ * fight.
  *
- * **Why neither hunter carries missiles.** Measured in duels against the
+ * **Why no preset carries missiles.** Measured in duels against the
  * strongest off-book hull (a compressor bow with two ballistic racks, a
  * shield subsystem and a radiator), the missile-carrying hunter completed its
  * Destroy 34% of the time: a rack that is up rolls at the missiles that reach
  * it, so a salvo aimed at the one loadout built to answer it arrives as dice.
- * Both hunters take the rack instead, which also buys them the roll against
- * somebody else's missiles; the aggressive one adds a laser, the tanky one a
- * second radiator.
+ * The aggressive hunter takes the rack instead, which also buys it the roll
+ * against somebody else's missiles. The aggressive hauler carried a launcher
+ * until 1 Oct 2026 (below), so no preset carries one now.
  *
  * **Why the tanky hunter's fourth subsystem is a radiator, not a shield.** Measured
  * 22 Sept on the balance seeds, 600 games a row with Destroy dealt: with two
@@ -79,14 +80,25 @@ export const HULL_VARIANTS: readonly HullVariant[] = ["tanky", "aggressive"];
  * keeps its rack, so point defence still flies in natural play.
  *
  * **Why the aggressive hunter's second gun is a rack and not a laser.** Every
- * bot holding a Destroy flies this loadout, and the interceptor and hauler presets
- * already carry lasers, so while this one carried two of them no ship in
- * natural play carried a ballistic rack at all: point defence had left the
+ * bot holding a Destroy flies this loadout, and the tanky interceptor and
+ * hauler presets already carry lasers, so while this one carried two of them
+ * no ship in natural play carried a ballistic rack at all: point defence had left the
  * table, missiles went unanswered, and the compressor hull with two launchers
  * became a 52% outlier. The laser in side-0 keeps the shot that goes through
  * shields and reaches a ring out; the rack in side-1 keeps point defence in
- * the field and is the one broadside that fires on the railgun's own ring,
- * which is where the spinal shot puts the fight.
+ * the field and is the one broadside that deals damage on the railgun's own
+ * ring, which is where the spinal shot puts the fight.
+ *
+ * **Why the aggressive interceptor and hauler carry a disruptor.** Measured
+ * 1 Oct 2026 with the disruptor in the rack's box, 300 games a row with the
+ * role's card dealt: the interceptor with shields, a disruptor, a radiator
+ * and a plasma cannon read 32% against an Intercept bar of 32 (two lasers in
+ * place of the disruptor and the plasma, 29%); the hauler with shields, a
+ * disruptor, a radiator and a laser 35% against a Deliver bar of 36 (with a
+ * launcher in place of the disruptor, 33%). Natural bots never fly these
+ * two presets (a hand holds one primary, so an interceptor or a hauler never
+ * holds a Destroy), so natural play is unchanged; both still carry a gun that
+ * deals damage, so a Destroy can be kept on them.
  *
  * **Why every loadout carries a radiator.** Using a subsystem costs its energy in heat,
  * and heat the ship cannot dissipate is carried, so a hull that makes more than
@@ -102,7 +114,7 @@ export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   },
   "interceptor-aggressive": {
     forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "laser", "laser", "radiator"],
+    sideSlots: ["shields", "disruptor", "radiator", "plasma_cannon"],
   },
   "hunter-tanky": {
     forwardSlots: ["railgun"],
@@ -118,7 +130,7 @@ export const BOT_LOADOUT_TEMPLATES: Record<BotArchetype, ShipLoadout> = {
   },
   "hauler-aggressive": {
     forwardSlots: ["fuel_compressor"],
-    sideSlots: ["missiles", "radiator", "shields", "laser"],
+    sideSlots: ["shields", "disruptor", "radiator", "laser"],
   },
 };
 
@@ -148,9 +160,10 @@ function classifyRole(missions: Mission[]): BotRole {
  * Destroy card is the one card that cannot be scored by flying carefully, and
  * a bot holding one takes the second gun over the second shield.
  *
- * This ties two of the six loadouts to the role that implies them (a hunter always
- * holds a Destroy, a hauler never does), so bots fly four of the six. The
- * other two are measured by forcing them in the balance suite.
+ * A hand holds one primary, so a hunter always holds a Destroy and an
+ * interceptor or a hauler never does: bots fly three of the six (the tanky
+ * interceptor, the aggressive hunter, the tanky hauler). The other three are
+ * measured by forcing them in the balance suite.
  */
 function classifyVariant(missions: Mission[]): HullVariant {
   const active = missions.filter((m) => !m.isCompleted);

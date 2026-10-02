@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { isInWeaponRange } from "../../game/targeting.ts";
 import { resolveAttack } from "../../game/damage.ts";
-import { missionsMissingRequirements } from "../../game/loadout.ts";
+import { missionsMissingRequirements, validateLoadout } from "../../game/loadout.ts";
 import { MISSION_REQUIREMENTS } from "../../models/missions.ts";
 import type { MissionRequirement } from "../../models/missions.ts";
 import type { Facing, ShipLoadout } from "../../models/game.ts";
@@ -122,29 +122,53 @@ describe("shields against an ordinary weapon are unchanged", () => {
 });
 
 describe("disruptor: range", () => {
-  const state = makeTwoPlayerGame({ loadout: DISRUPTOR });
-  it.each([
-    ["one sector ahead", "prograde", 3, 1, true],
-    ["eight sectors ahead", "prograde", 3, 8, true],
-    ["nine sectors ahead", "prograde", 3, 9, false],
-    ["one sector behind", "prograde", 3, 23, false],
-    ["one ring out, one ahead", "prograde", 4, 1, false],
-    ["one sector ahead facing retrograde", "retrograde", 3, 23, true],
-    ["behind facing retrograde", "retrograde", 3, 1, false],
-    ["point blank", "prograde", 3, 0, true],
-  ] as const)("%s (%s, R%i S%i) in range is %s", (_label, facing, ring, sector, expected) => {
+  /** A disruptor in the bow and one on a side slot: the box is the same from either. */
+  const state = makeTwoPlayerGame({
+    loadout: { forwardSlots: ["disruptor"], sideSlots: ["disruptor", "shields", "radiator", "radiator"] },
+  });
+  const cases = [
+    ["one ring out, same sector", 4, 0, true],
+    ["one ring out, one sector ahead", 4, 1, true],
+    ["one ring out, one sector behind", 4, 23, true],
+    ["one ring in, same sector", 2, 0, true],
+    ["one ring in, one sector ahead", 2, 1, true],
+    ["one ring in, one sector behind", 2, 23, true],
+    ["same ring, one sector ahead", 3, 1, true],
+    ["same ring, one sector behind", 3, 23, true],
+    ["point blank", 3, 0, true],
+    ["same ring, two sectors ahead", 3, 2, false],
+    ["one ring out, two sectors behind", 4, 22, false],
+    ["two rings out", 5, 0, false],
+    ["two rings in", 1, 0, false],
+  ] as const;
+  it.each(
+    (["forward-0", "side-0"] as const).flatMap((slot) =>
+      (["prograde", "retrograde"] as const).flatMap((facing) =>
+        cases.map(([label, ring, sector, expected]) => [label, slot, facing, ring, sector, expected] as const)
+      )
+    )
+  )("%s from %s facing %s (R%i S%i): in range is %s", (_label, slot, facing, ring, sector, expected) => {
     expect(
-      isInWeaponRange(getSub(state, "p1", "forward-0"), attackerAt(3, 0, facing), at(ring, sector))
+      isInWeaponRange(getSub(state, "p1", slot), attackerAt(3, 0, facing), at(ring, sector))
     ).toBe(expected);
+  });
+
+  it("fits either slot", () => {
+    expect(
+      validateLoadout({
+        forwardSlots: ["sensor_array"],
+        sideSlots: ["disruptor", "disruptor", "shields", "radiator"],
+      })
+    ).toEqual({ valid: true, errors: [] });
   });
 });
 
 describe("disruptor: a hit breaks the named slot", () => {
-  /** p1 three sectors behind p2 on ring 3; p2's railgun holds the four cubes it fired with. */
+  /** p1 a sector behind p2 on ring 3; p2's railgun holds the four cubes it fired with. */
   const duel = (roll: number) => {
     const state = makeTwoPlayerGame(
       { loadout: DISRUPTOR },
-      { ring: 3, sector: 3, loadout: TARGET },
+      { ring: 3, sector: 1, loadout: TARGET },
       { forcedRollValue: roll }
     );
     return withPower(state, "p2", "forward-0", 4);
@@ -215,7 +239,7 @@ describe("disruptor: a hit breaks the named slot", () => {
 
 describe("disruptor: any powered shield blocks it", () => {
   const duel = (shieldCubes: number, broken = false) => {
-    let state = makeTwoPlayerGame({ loadout: DISRUPTOR }, { ring: 3, sector: 3, loadout: TARGET });
+    let state = makeTwoPlayerGame({ loadout: DISRUPTOR }, { ring: 3, sector: 1, loadout: TARGET });
     state = withPower(state, "p2", "forward-0", 4);
     state = withPower(state, "p2", "side-2", shieldCubes);
     if (broken) state = withSub(state, "p2", "side-2", { isBroken: true });

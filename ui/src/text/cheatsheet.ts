@@ -224,7 +224,7 @@ export const CHEATSHEET = {
       plasma_cannon:
         '±{rings} ring, ±{sectors} sector, off one side, never along your own ring. <b>{shield} shield energy stops 1 damage</b>, so a full shield stops it whole.',
       disruptor:
-        'Same ring, 1–{sectors} sectors ahead, no recoil. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless any shield has energy on it.',
+        'An EMP burst: ±{rings} ring, ±{sectors} sector, either side, like the rack. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless any shield has energy on it.',
     },
     /** A gun that fits either slot. */
     eitherSlot: 'forward or side',

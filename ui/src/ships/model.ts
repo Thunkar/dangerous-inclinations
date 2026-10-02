@@ -780,7 +780,6 @@ export function createShip(
     plate(p, [1.68, 0.12, 1.14], [0, 0.16, 0], hull)
     switch (type) {
       case 'railgun':
-      case 'disruptor': // model pending: drawn as a railgun
         // The breech is supported by the collar. Ahead of it, keep the channel
         // between the two stout rails open: no enclosing barrel or muzzle box.
         plate(p, [1.12, 0.36, 0.72], [0, 0.36, 0], dark)
@@ -993,6 +992,7 @@ export function createShip(
         cylinder(p, 0.05, 0.05, 0.025, [0, 0.665, 0.33], cyan, [Math.PI / 2, 0, 0], 10)
         break
       }
+      case 'disruptor': // model pending: drawn as a rack, the box it fires in
       case 'ballistic_rack': {
         cylinder(p, 0.47, 0.57, 0.18, [0, 0.3, 0], dark, [0, 0, 0], 16)
         ring(p, 0.44, 0.06, [0, 0.4, 0], steel)

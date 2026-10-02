@@ -144,6 +144,7 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
   {
     type: 'disruptor',
     reach: rich(T.reach.disruptor, {
+      rings: weaponStats('disruptor').ringRange!,
       sectors: weaponStats('disruptor').sectorRange!,
       from: MISS_TOP + 1,
       to: D10[D10.length - 1],

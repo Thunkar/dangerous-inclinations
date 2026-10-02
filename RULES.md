@@ -65,7 +65,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 ## Setup
 
 1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then shuffle the secondary pile, deal **three** to each player, and each keeps **any two**. Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
-2. **Loadout.** Each player fills their loadout: 1 forward subsystem (railgun, disruptor, sensor array, fuel compressor, shields or missiles) and 4 side subsystems (laser, plasma cannon, radiator, shields, ballistic rack or missiles); repeats are allowed. All subsystems are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
+2. **Loadout.** Each player fills their loadout: 1 forward subsystem (railgun, disruptor, sensor array, fuel compressor, shields or missiles) and 4 side subsystems (laser, plasma cannon, disruptor, radiator, shields, ballistic rack or missiles); repeats are allowed. All subsystems are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 2, 3 or 4**, **at least three sectors from every ship already placed** (if no sector qualifies, the one farthest from them), and puts their Home marker there. Everyone starts around the hole and scatters from there; missions are secret, so pick your ring and sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring; Ring 3 drifts 4 and Ring 2 drifts 6, closer to the others and further from the lanes).
 4. Fill the hull track to 10, reaction mass to 10 and heat to 0. All three are tracks on your loadout, in the open. Energy cubes sit in the supply until something calls for them. Only your cards and the ammo in a face-down missiles subsystem sit behind the screen.
 
@@ -126,7 +126,7 @@ Once a round, after the last player's turn:
 | Radiator (side)               | none   | +2 dissipation                                                                          |
 | Ballistic rack (side)         | 2      | 2 damage, ±1 ring/same ring, ±1 sector; while it has energy: rolls at 4 missiles a turn |
 | Plasma cannon (side)          | 3      | 4 damage, ±1 ring, ±1 sector, one side only; 1 shield energy stops 1 damage            |
-| Disruptor (forward)           | 3      | No damage, spinal, same ring, 1–8 sectors ahead; a hit breaks the named subsystem       |
+| Disruptor (either)            | 3      | No damage, ±1 ring/same ring, ±1 sector; a hit breaks the named subsystem               |
 
 ---
 
@@ -182,7 +182,7 @@ A wall that holds is no protection against being named. **The energy on every sl
 
 - **Railgun.** Spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring against your facing (inward facing prograde, outward facing retrograde) unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
 - **Broadside laser.** Targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port subsystems (side 1–2) fire outward and starboard subsystems (side 3–4) fire inward; facing retrograde swaps them.
-- **Ballistic rack.** 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away (the only broadside that can join a railgun shot on your own ring). Firing it puts its energy on it, so a rack that fired is **up** until your next turn and shoots down missiles too; powering it without firing does the same.
+- **Ballistic rack.** 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away (the only damaging broadside that can join a railgun shot on your own ring). Firing it puts its energy on it, so a rack that fired is **up** until your next turn and shoots down missiles too; powering it without firing does the same.
 
   While it has energy it **rolls at up to 4 missiles a turn**: a d10 against each one, on 2+ that missile is destroyed, and **the rack is used once for the turn** however many it rolls at. Four is what its two energy could have thrown as a launcher, which is the whole of the symmetry: two energy put four missiles in the air, two shoot four down, and the fifth gets through. A ship expecting more than four at once carries a second rack and powers it every turn like the first.
 
@@ -190,7 +190,7 @@ A wall that holds is no protection against being named. **The energy on every sl
 
   _The launch turn:_ a new missile flies its 3 steps from the sector you dropped it on, whether you launched before your move or after it. From its second turn on it drifts with its ring like everything else, which is how it keeps up with a target on a fast ring. So a missile launched on its target's sector attacks that same turn (a rack with energy on it still rolls first).
 - **Plasma cannon.** 4 damage, targets within 1 ring and 1 sector, fires to one side only like the laser, never along its own ring. Shields stop it a point per energy instead of a point per two, so a full shield stops it whole and a half shield lets half through.
-- **Disruptor.** Spinal like the railgun: same ring, 1 to 8 sectors ahead, no recoil. It deals no damage: a hit (2–10, a 10 is no different) breaks the subsystem you name and dumps its energy as heat, but any shield with energy on it stops it whole and is turned face-up.
+- **Disruptor.** An EMP burst: within 1 ring and 1 sector, either side, or on your own ring 1 sector away, like the ballistic rack. It deals no damage: a hit (2–10, a 10 is no different) breaks the subsystem you name and dumps its energy as heat, but any shield with energy on it stops it whole and is turned face-up.
 
 Nothing fires across gravity wells.
 

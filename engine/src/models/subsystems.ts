@@ -373,16 +373,28 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   disruptor: {
     id: "disruptor",
     name: "Disruptor",
+    /**
+     * An EMP burst in the ballistic rack's box: within 1 ring and 1 sector,
+     * its own ring too, either side, facing irrelevant. Measured 1 Oct 2026,
+     * 300 games a row, the rack box at 3 energy: every disruptor build within
+     * 6 of its bar except sensor bow + shields×2 + radiator + disruptor
+     * (Intercept, +8). At 2 energy disruptor + plasma×2 read +9 and railgun +
+     * laser + rack + disruptor +8. The spinal disruptor (bow only, same ring,
+     * 1-8 sectors ahead) with lasers×2 read 29% against a bar of 31, with the
+     * box 33%.
+     */
     minEnergy: 3,
     maxEnergy: 3,
-    slotType: "forward",
+    slotType: "either",
     weaponStats: {
       // No damage and no recoil: a hit breaks the slot the attacker names,
       // and any powered shield stops it.
       damage: 0,
-      ringRange: 0,
-      sectorRange: 8,
-      arc: "spinal",
+      ringRange: 1,
+      sectorRange: 1,
+      arc: "broadside",
+      canTargetSameRing: true,
+      sideRestricted: false,
       disrupts: true,
     },
   },

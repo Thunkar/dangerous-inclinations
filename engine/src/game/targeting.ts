@@ -5,7 +5,7 @@
  * Point blank: a target in the attacker's own ring and sector is in range of
  *   every weapon, whatever its arc.
  * Spinal (railgun): same ring, 1..sectorRange sectors ahead in facing direction.
- * Broadside (laser, rack): within ±ringRange rings and ±sectorRange sectors.
+ * Broadside (laser, rack, plasma, disruptor): within ±ringRange rings and ±sectorRange sectors.
  *   Side-restricted broadsides only fire toward the ring direction their side
  *   faces; same-ring shots need `canTargetSameRing`.
  * Turret (missiles): any ship in the launcher's well, any facing, any

@@ -62,12 +62,12 @@ describe("hullThrough: each shot spends the shield pool at its own rate", () => 
   });
 });
 
-/** Disruptor bow, port plasma, a wall and radiators. */
+/** Disruptor forward, port plasma, a wall and radiators. */
 const DISRUPTOR_PLASMA: ShipLoadout = {
   forwardSlots: ["disruptor"],
   sideSlots: ["plasma_cannon", "shields", "radiator", "radiator"],
 };
-/** Disruptor bow and nothing else that shoots. */
+/** Disruptor forward and nothing else that shoots. */
 const DISRUPTOR_ONLY: ShipLoadout = {
   forwardSlots: ["disruptor"],
   sideSlots: ["shields", "shields", "radiator", "radiator"],
@@ -95,12 +95,12 @@ function shotsOf(state: GameState, botId: string): FireWeaponAction[] {
 }
 
 describe("the disruptor fires only at a ship whose shields look down", () => {
-  /** p1's disruptor three sectors behind p2 on the same ring. */
+  /** p1's disruptor a sector behind p2 on the same ring. */
   const duel = () =>
     grounded(
       makeTwoPlayerGame(
         { wellId: BH, ring: 3, sector: 0, loadout: DISRUPTOR_ONLY },
-        { wellId: BH, ring: 3, sector: 3, loadout: TARGET }
+        { wellId: BH, ring: 3, sector: 1, loadout: TARGET }
       ),
       "p1"
     );
@@ -125,16 +125,20 @@ describe("the disruptor fires only at a ship whose shields look down", () => {
     expect(shots.some((s) => s.data.subsystemId === "forward-0")).toBe(fires);
   });
 
-  it("turns to bring it to bear on a ship behind", () => {
+  it.each<[string, number, number]>([
+    ["a sector behind", 3, 23],
+    ["a ring in and a sector behind", 2, 23],
+    ["a ring out and a sector ahead", 4, 1],
+  ])("fires at a ship %s without turning", (_label, ring, sector) => {
     const state = grounded(
       makeTwoPlayerGame(
-        { wellId: BH, ring: 3, sector: 3, loadout: DISRUPTOR_ONLY },
-        { wellId: BH, ring: 3, sector: 0, loadout: TARGET }
+        { wellId: BH, ring: 3, sector: 0, loadout: DISRUPTOR_ONLY },
+        { wellId: BH, ring, sector, loadout: TARGET }
       ),
       "p1"
     );
     const actions = botDecideActions(viewFor(state, "p1")).actions;
-    expect(actions.some((a) => a.type === "rotate")).toBe(true);
+    expect(actions.some((a) => a.type === "rotate")).toBe(false);
     expect(
       actions.some((a) => a.type === "fire_weapon" && a.data.subsystemId === "forward-0")
     ).toBe(true);
@@ -223,7 +227,7 @@ describe("chooseDisruptTarget", () => {
 });
 
 describe("a known disruptor is a gun to the bots", () => {
-  /** A disruptor bow beside a laser, both face-up and dark. */
+  /** A disruptor forward beside a laser, both face-up and dark. */
   const RIVAL: ShipLoadout = {
     forwardSlots: ["disruptor"],
     sideSlots: ["laser", "shields", "radiator", "radiator"],
@@ -238,8 +242,8 @@ describe("a known disruptor is a gun to the bots", () => {
   });
 
   it("is a threat in range, and the bot puts a wall up against it", () => {
-    // p2's disruptor, the only gun aboard, three sectors behind p1 and facing
-    // prograde: it bears on p1. p1 has nothing to shoot with, so the wall is
+    // p2's disruptor, the only gun aboard, a sector behind p1: it bears on
+    // p1. p1 has nothing to shoot with, so the wall is
     // what its heat buys.
     const WALLS: ShipLoadout = {
       forwardSlots: ["sensor_array"],
@@ -247,7 +251,7 @@ describe("a known disruptor is a gun to the bots", () => {
     };
     const state = withSub(
       makeTwoPlayerGame(
-        { wellId: BH, ring: 3, sector: 3, loadout: WALLS },
+        { wellId: BH, ring: 3, sector: 1, loadout: WALLS },
         { wellId: BH, ring: 3, sector: 0, loadout: DISRUPTOR_ONLY }
       ),
       "p2",

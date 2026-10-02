@@ -55,6 +55,9 @@ export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
   fuel_compressor: 'Passive: a jump costs 1 fuel instead of 3. The cheapest way to go on vacation.',
   ballistic_rack:
     '2 damage close in; powered, it rolls at every incoming missile. Definitely passive-aggressive',
+  plasma_cannon: 'Side gun, 4 damage close in; shields stop it a point per cube. Hot stuff.',
+  disruptor:
+    'No damage: a hit close in breaks the subsystem you name, unless a shield is up. Have you tried turning it off and on again?',
 }
 
 export function moduleAt(config: ShipConfig, id: MountId): SubsystemType | null {

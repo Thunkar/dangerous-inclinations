@@ -183,21 +183,6 @@ function buildCandidate(
       if (shotsWith(ship.facing) === 0 && shotsWith(flip(ship.facing)) > 0)
         facing = flip(ship.facing);
     }
-    // The disruptor is spinal too, and fires before the move or after it. It
-    // is worth turning for only at a ship whose shields already look down.
-    const disruptor = status.weapons.find((w) => isDisruptor(w) && isWeaponReady(w));
-    if (disruptor) {
-      const shotsWith = (f: Facing) =>
-        situation.opponents.filter(
-          (o) =>
-            disruptBlockChance(o) <= MAX_DISRUPT_BLOCK &&
-            [status.position, landing].some(
-              (at) => mayFireAt(o, at) && isInWeaponRange(disruptor, { ...at, facing: f }, o.position)
-            )
-        ).length;
-      if (shotsWith(ship.facing) === 0 && shotsWith(flip(ship.facing)) > 0)
-        facing = flip(ship.facing);
-    }
   }
   const rotate = facing !== ship.facing;
 
@@ -387,14 +372,16 @@ function buildCandidate(
   // the direct-fire shots at the same ship before it (the pre phase's, and
   // the post phase's too when it fires after the move) have stripped what
   // cubes they can; missiles resolve at the end of the turn and strip
-  // nothing in time. A disruptor is a bow weapon, so no railgun shares the
-  // hull and no recoil moves the ship under it.
+  // nothing in time. A railgun goes after it (its recoil would move the
+  // ship out of the range the disruptor was checked from), so it strips
+  // nothing in time either.
   const ahead = (o: Opponent, phase: "pre" | "post") =>
     shots
       .filter(
         (s) =>
           s.opponent === o &&
           s.intent.weapon.type !== "missiles" &&
+          s.intent.weapon.type !== "railgun" &&
           (s.intent.phase === "pre" || phase === "post")
       )
       .map((s) => s.intent);
@@ -532,11 +519,11 @@ function buildCandidate(
 
   // An uncompensated railgun recoil changes the ring, which would put any
   // later shot or scan out of the range it was checked against, so the
-  // railgun always goes last within its phase. The disruptor goes last too,
-  // after the shots that strip the shield cubes it was priced against (the
-  // two are both bow weapons, so they never share a hull).
+  // railgun always goes last within its phase. The disruptor goes just
+  // before it, after the shots that strip the shield cubes it was priced
+  // against.
   const lastInPhase = (s: { intent: ShotOption }) =>
-    Number(s.intent.weapon.type === "railgun" || isDisruptor(s.intent.weapon));
+    s.intent.weapon.type === "railgun" ? 2 : isDisruptor(s.intent.weapon) ? 1 : 0;
   const inPhase = (phase: "pre" | "post") =>
     shots.filter((s) => s.intent.phase === phase).sort((a, b) => lastInPhase(a) - lastInPhase(b));
 
