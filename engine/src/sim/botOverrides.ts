@@ -25,7 +25,6 @@ const ENUM_VALUES: Partial<Record<keyof BotParameters, readonly string[]>> = {
 const BOOLEAN_KEYS: ReadonlySet<keyof BotParameters> = new Set<keyof BotParameters>([
   "conserveAmmo",
   "scanUnknowns",
-  "escortRideFirst",
 ]);
 const NUMBER_KEYS: ReadonlySet<keyof BotParameters> = new Set<keyof BotParameters>([
   "aggressiveness",

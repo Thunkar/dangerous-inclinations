@@ -55,7 +55,7 @@ import { markedBy } from "../../game/escort.ts";
 import { salesOnArrival } from "../../game/docking.ts";
 import { saleAllowedAt, saleBlocked } from "./sales.ts";
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
-import { DEFAULT_BOT_PARAMETERS, isOpenMission } from "../types.ts";
+import { isOpenMission } from "../types.ts";
 import {
   anySectorOnRing,
   nearDriftingShip,
@@ -816,11 +816,9 @@ export function computeGoals(
     return wreck ? positionOf(wreck) : null;
   };
   const carryStation = carry && destination(carry);
-  // Experiment only: the ride goes first, with no detour cap.
-  const ride = parameters.escortRideFirst ? goals.find((g) => isRide(me, g)) : undefined;
   if (carry && carryStation) {
     const kept = goals.filter((g) => {
-      if (g === carry || g === ride) return true;
+      if (g === carry) return true;
       const to = destination(g);
       if (!to) return true;
       const detour = g.estimatedTurns + cheapTurnEstimate(to, carryStation) - carry.estimatedTurns;
@@ -888,7 +886,6 @@ export function computeGoals(
   }
 
   goals.sort((a, b) => goalPriority(a) - goalPriority(b));
-  if (ride) goals.splice(0, goals.length, ride, ...goals.filter((g) => g !== ride));
   return goals;
 }
 
@@ -942,8 +939,7 @@ export function attachPlanToGoal(
   me: Player,
   view: GameView,
   opponents: Opponent[],
-  status: BotStatus,
-  parameters: BotParameters = DEFAULT_BOT_PARAMETERS
+  status: BotStatus
 ): BotGoal {
   const ship = me.ship;
   const planned = (plan: ReturnType<typeof planFromShip>): BotGoal =>
@@ -1016,16 +1012,8 @@ export function attachPlanToGoal(
       }
       const prey = opponents.find((o) => o.player.id === goal.targetPlayerId);
       if (!prey) return goal;
-      // Our marker is on it: ride along (`rideGoal`). The experiment's ride
-      // sticks to the carrier's sector in the black hole, as a pirate does,
-      // so it takes the same lane.
-      if (isRide(me, goal)) {
-        const stick =
-          parameters.escortRideFirst && !isPlanet(prey.position.wellId)
-            ? planShipToTarget(ship, nearDriftingShip(prey.position, 0), PLAN_TURNS)
-            : null;
-        return planned(stick ?? ridePlan(ship, status.position, prey.position));
-      }
+      // Our marker is on it: ride along (`rideGoal`).
+      if (isRide(me, goal)) return planned(ridePlan(ship, status.position, prey.position));
       // The same sector, not near it: a seizure is matched orbits. Their ship
       // drifts while we close, so it is planned as a moving target.
       return planned(planShipToTarget(ship, nearDriftingShip(prey.position, 0), PLAN_TURNS));

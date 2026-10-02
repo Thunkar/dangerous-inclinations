@@ -294,13 +294,6 @@ export interface BotParameters {
   conserveAmmo: boolean;
   /** Spend heat and energy on scanning unknown enemy subsystems when adjacent. */
   scanUnknowns: boolean;
-  /**
-   * Experiment only (`--bot=escortRideFirst=true`): with a marker on a carrier
-   * that has cargo aboard, the ride outranks every goal, the primary
-   * included, and in the black hole the escort sticks to the carrier's
-   * sector. An upper bound on what shadowing can buy, not a way to play.
-   */
-  escortRideFirst: boolean;
 }
 
 export const DEFAULT_BOT_PARAMETERS: BotParameters = {
@@ -310,7 +303,6 @@ export const DEFAULT_BOT_PARAMETERS: BotParameters = {
   lowFuelThreshold: 6,
   conserveAmmo: false,
   scanUnknowns: true,
-  escortRideFirst: false,
 };
 
 /**

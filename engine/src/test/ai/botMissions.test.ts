@@ -763,24 +763,15 @@ describe("bot goals: salvage and escort", () => {
         }
       );
 
-      // The experiment-only switch: the ride first, whatever the primary.
-      it.each([
-        { escortRideFirst: false, current: PRIMARY.id },
-        { escortRideFirst: true, current: "escort-1" },
-      ])(
-        "with escortRideFirst $escortRideFirst the current goal is $current",
-        ({ escortRideFirst, current }) => {
-          const state = riding(
-            { wellId: BH, ring: 3, sector: 0 },
-            { wellId: ALPHA, ring: 3, sector: 12 },
-            PRIMARY
-          );
-          const parameters = { ...DEFAULT_BOT_PARAMETERS, escortRideFirst };
-          const goal = analyzeSituation(viewFor(state, "p1"), parameters).currentGoal;
-          expect(goal?.missionId).toBe(current);
-          if (escortRideFirst) expect(goal?.plan?.destination.wellId).toBe(ALPHA);
-        }
-      );
+      it("keeps the primary ahead of a ride out of the black hole", () => {
+        const state = riding(
+          { wellId: BH, ring: 3, sector: 0 },
+          { wellId: ALPHA, ring: 3, sector: 12 },
+          PRIMARY
+        );
+        const goal = analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).currentGoal;
+        expect(goal?.missionId).toBe(PRIMARY.id);
+      });
     });
 
     it("puts its marker on a carrier drifting in the same well", () => {
