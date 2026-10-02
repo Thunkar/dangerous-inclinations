@@ -25,22 +25,22 @@ const DEFAULT_ROLE: BotRole = 'hauler'
 
 /** What each bow buys. */
 const ROLE_NOTE: Record<BotRole, string> = {
-  interceptor: 'Scans: the Intercept card needs one',
-  hunter: 'The long shot down your own ring, for a Destroy card',
-  hauler: 'Jumps cost 1 fuel, but you can never scan',
+  interceptor: 'Scans, which Intercept needs, and widens your critical range',
+  hunter: 'Four damage down your own ring, for Destroy',
+  hauler: 'Jumps cost 1 fuel, for Deliver; no sensor, so no Intercept',
 }
 
 /** What each preset's side slots are for, and the card that asks for it. */
 const PRESET_NOTE: Record<BotPresetId, string> = {
   gunship: 'Laser and rack: a shot through shields, and point defence',
-  brawler: 'Plasma and rack: 4 damage close in, for a Piracy',
-  'missile-hunter': 'Missiles and laser: finish cripples from range, for a Salvage',
-  raider: 'Plasma strips a wall, the disruptor breaks what is behind it',
-  watcher: 'Two shields and a laser: ride beside a carrier, for an Escort',
-  picket: 'Two launchers: reach from range, for a Salvage',
+  brawler: 'Plasma and rack: 4 damage close in, for Piracy',
+  'missile-hunter': 'Missiles and laser: hits from across the well, for Salvage',
+  raider: 'Plasma and disruptor: strip a wall, then break what is behind it',
+  watcher: 'Two shields and a laser: ride beside a carrier, for Escort',
+  picket: 'Two launchers: hits from across the well, for Salvage',
   hauler: 'Two shields and a laser: the safe cargo run',
-  runner: "Disruptor and laser: break a pursuer's engines, for a Tanker or Salvage",
-  privateer: 'Two shields and plasma: take the fight to a carrier, for a Piracy',
+  runner: "Disruptor and laser: break a pursuer's engines, for Tanker or Salvage",
+  privateer: 'Two shields and plasma: take the fight to a carrier, for Piracy',
 }
 
 const bowOf = (role: BotRole) => BOT_PRESET_LOADOUTS[PRESETS_BY_ROLE[role][0]].forwardSlots[0]!

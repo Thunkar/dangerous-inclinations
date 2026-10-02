@@ -902,8 +902,54 @@ export function createShip(
         for (const x of [-0.78, 0.78]) plate(p, [0.09, 0.33, 1.06], [x, 0.4, 0], dark)
         break
       }
+      case 'plasma_cannon': {
+        // A broadside projector, not a turret: a fat containment chamber
+        // lying along the hull in two saddles, banded by confinement coils,
+        // with one short, wide throat rising from its middle to fire outboard.
+        // The laser stands up as a stack; this lies down and bulges.
+        plate(p, [1.4, 0.14, 0.98], [0, 0.29, 0], dark)
+        for (const x of [-0.5, 0.5]) plate(p, [0.26, 0.26, 0.86], [x, 0.45, 0], pale)
+        const chamber = new Group()
+        chamber.name = 'plasma_containment_chamber'
+        p.add(chamber)
+        const along: Vec3 = [0, 0, Math.PI / 2]
+        cylinder(chamber, 0.3, 0.3, 1.24, [0, 0.62, 0], pale, along, 16)
+        for (const x of [-0.66, 0.66]) {
+          cylinder(chamber, 0.24, 0.3, 0.08, [x, 0.62, 0], steel, along, 16)
+          cylinder(chamber, 0.1, 0.1, 0.06, [x * 1.07, 0.62, 0], dark, along, 10)
+        }
+        for (const x of [-0.5, -0.3, 0.3, 0.5])
+          ring(chamber, 0.31, 0.05, [x, 0.62, 0], copper, [0, Math.PI / 2, 0])
+        // The throat flares to a dark, recessed mouth with the plasma's core
+        // deep inside it: a bore, where the laser shows a flat lens.
+        const throat = new Group()
+        throat.name = 'plasma_throat'
+        p.add(throat)
+        add(
+          throat,
+          new LatheGeometry(
+            [
+              new Vector2(0, 0),
+              new Vector2(0.23, 0),
+              new Vector2(0.24, 0.16),
+              new Vector2(0.31, 0.3),
+              new Vector2(0.35, 0.36),
+              new Vector2(0.27, 0.36),
+              new Vector2(0.19, 0.2),
+              new Vector2(0, 0.2),
+            ],
+            boardDetail ? 12 : 24
+          ),
+          dark,
+          [0, 0.78, 0]
+        )
+        for (const y of [0.86, 0.96]) ring(throat, 0.26, 0.05, [0, y, 0], cyan)
+        ring(throat, 0.33, 0.045, [0, 1.13, 0], steel)
+        ring(throat, 0.13, 0.04, [0, 1.0, 0], cyan)
+        cylinder(throat, 0.06, 0.06, 0.04, [0, 1.0, 0], cyan, [0, 0, 0], 10)
+        break
+      }
       case 'laser':
-      case 'plasma_cannon': // model pending: drawn as a laser
         plate(p, [1.3, 0.26, 0.94], [0, 0.33, 0], pale)
         cylinder(p, 0.32, 0.43, 0.27, [0, 0.55, 0], steel)
         for (const y of [0.47, 0.59]) ring(p, 0.35, 0.06, [0, y, 0], dark)
@@ -992,7 +1038,55 @@ export function createShip(
         cylinder(p, 0.05, 0.05, 0.025, [0, 0.665, 0.33], cyan, [Math.PI / 2, 0, 0], 10)
         break
       }
-      case 'disruptor': // model pending: drawn as a rack, the box it fires in
+      case 'disruptor': {
+        // An emitter, not a gun: nothing to aim, so no barrel and no cradle.
+        // A finned dome on the plate carries a short mast, and the mast a
+        // stack of ring antennae narrowing to a toroidal top load, the way a
+        // burst that goes out all round is radiated rather than fired.
+        plate(p, [1.2, 0.14, 1.0], [0, 0.29, 0], dark)
+        const emitter = new Group()
+        emitter.name = 'disruptor_emitter'
+        p.add(emitter)
+        add(
+          emitter,
+          new LatheGeometry(
+            [
+              new Vector2(0.5, 0),
+              new Vector2(0.48, 0.08),
+              new Vector2(0.4, 0.18),
+              new Vector2(0.26, 0.26),
+              new Vector2(0.1, 0.3),
+              new Vector2(0, 0.3),
+            ],
+            boardDetail ? 12 : 24
+          ),
+          pale,
+          [0, 0.36, 0]
+        )
+        ring(emitter, 0.49, 0.045, [0, 0.38, 0], steel)
+        for (let i = 0; i < 4; i++) {
+          const angle = Math.PI / 4 + (i * Math.PI) / 2
+          box(
+            emitter,
+            [0.36, 0.22, 0.06],
+            [Math.cos(angle) * 0.52, 0.45, Math.sin(angle) * 0.52],
+            hull,
+            [0, -angle, 0]
+          )
+        }
+        cylinder(emitter, 0.09, 0.11, 0.6, [0, 0.88, 0], steel, [0, 0, 0], 10)
+        for (const [y, r] of [
+          [0.76, 0.36],
+          [0.9, 0.29],
+          [1.03, 0.22],
+        ]) {
+          cylinder(emitter, r - 0.04, r - 0.04, 0.05, [0, y, 0], dark, [0, 0, 0], 16)
+          ring(emitter, r, 0.04, [0, y, 0], cyan)
+        }
+        ring(emitter, 0.13, 0.065, [0, 1.19, 0], steel)
+        cylinder(emitter, 0.07, 0.07, 0.04, [0, 1.21, 0], cyan, [0, 0, 0], 10)
+        break
+      }
       case 'ballistic_rack': {
         cylinder(p, 0.47, 0.57, 0.18, [0, 0.3, 0], dark, [0, 0, 0], 16)
         ring(p, 0.44, 0.06, [0, 0.4, 0], steel)

@@ -74,42 +74,32 @@ export const PRINTED_CARD = {
           'Roll a d10',
           '{miss} miss · {hitFrom}–{hitTo} hit · {crit} crit · <red>{sensorFrom}–{sensorTo} crit with a powered sensor</red>',
         ],
-        hit: ['hit', 'Shields absorb first, except lasers'],
-        critical: [
-          'critical',
-          'Breaks the named subsystem through the shields, face-up. Its energy goes onto its owner’s heat',
-        ],
-        moored: [
-          'moored',
-          'Neither fires nor is fired at, missiles included; scans still reach it',
-        ],
+        hit: ['hit', 'Shields absorb first, the rest is hull damage'],
+        critical: ['critical', 'Breaks the named slot face-up, through shields; its energy goes to heat'],
+        moored: ['moored', 'Neither fires nor is fired at, missiles too; scans reach it'],
       },
     },
     weapons: {
       title: 'Weapons',
       aside: 'each fires once a turn',
       columns: { subsystem: 'subsystem', energy: 'energy', damage: 'dmg', reaches: 'reaches' },
+      /** The damage cell of a weapon that deals none. */
+      noDamage: '–',
       reach: {
         railgun: 'same ring, 1–{sectors} ahead; recoils against facing',
         laser: '±{rings} rings ±{sectors}, one side; <red>ignores shields</red>',
+        plasma_cannon: '±{rings} ring ±{sectors}, one side; <red>{energy} shield energy stops 1</red>',
         ballistic_rack: '±{rings} ring ±{sectors} either side, or 1 along your ring',
-        missiles:
-          'anyone in your well; a salvo is one action. {aboard} aboard, fly {steps} a turn for {turns}',
+        disruptor: "rack's reach; breaks the named slot; <red>any powered shield stops it</red>",
+        missiles: 'anyone in your well, a salvo is one action; {aboard} aboard, fly {steps} a turn for {turns}',
       },
     },
     powered: {
       title: 'Powered',
       aside: 'works until your next turn',
-      shields: '{energy} energy stop 1 damage and come off; not lasers',
+      shields: '{energy} energy stop 1 damage and come off',
       ballistic_rack: 'shoots down {missiles} missiles a turn, each on {on}+',
-      sensor_array:
-        'your shots after it crit on {crit}+; scan: your ring, within {sectors}, see a subsystem',
-    },
-    passive: {
-      title: 'Passive',
-      aside: 'nothing to power',
-      radiator: '+{dissipation} dissipation; shows above {heat} heat',
-      fuel_compressor: 'a jump costs {compressed} fuel, not {fuel}',
+      sensor_array: 'your shots after it crit on {crit}+; scan: your ring, within {sectors}',
     },
     heat: {
       title: 'Heat check',
@@ -127,7 +117,7 @@ export const PRINTED_CARD = {
     faceDown: {
       title: 'Face-down',
       aside: 'energy is public',
-      text: 'Using a subsystem turns it face-up; powering it does not.',
+      text: 'Using a subsystem turns it face-up; powering it does not. A radiator shows above {heat} heat.',
     },
   },
 } as const

@@ -3,9 +3,11 @@
  *
  * Front: your turn. The goal, the seven steps in order, and the three moves
  * with what they cost, which is what a player looks down at while it is their
- * go. Back: the fight. The roll, the four guns, what a hit does, the tiles you
+ * go. Back: the fight. The roll, the six weapons, what a hit does, the tiles you
  * hold up, the heat check and what gives a tile away, which is what they look
- * at when somebody is shooting.
+ * at when somebody is shooting. The radiator and the compressor have no row of
+ * their own: the radiator is in the heat check and the compressor on the
+ * front's jump.
  *
  * What is **not** here is anything the board or the tiles already print: ring
  * speeds and lane sectors are on the board, mission text is on the missions.
@@ -39,6 +41,7 @@ import {
   D10,
   INTERCEPT_ON,
   MISS_TOP,
+  PLASMA_SHIELD,
   RADIATOR_DISSIPATION,
   SENSOR_CRIT,
   energyLabel,
@@ -310,11 +313,27 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
     ),
   },
   {
+    type: 'plasma_cannon',
+    reach: rich(
+      B.weapons.reach.plasma_cannon,
+      {
+        rings: weaponStats('plasma_cannon').ringRange!,
+        sectors: weaponStats('plasma_cannon').sectorRange!,
+        energy: PLASMA_SHIELD,
+      },
+      RED_WORDS
+    ),
+  },
+  {
     type: 'ballistic_rack',
     reach: rich(B.weapons.reach.ballistic_rack, {
       rings: weaponStats('ballistic_rack').ringRange!,
       sectors: weaponStats('ballistic_rack').sectorRange!,
     }),
+  },
+  {
+    type: 'disruptor',
+    reach: rich(B.weapons.reach.disruptor, {}, RED_WORDS),
   },
   {
     type: 'missiles',
@@ -338,23 +357,6 @@ const POWERED: Array<{ type: SubsystemType; effect: ReactNode }> = [
   {
     type: 'sensor_array',
     effect: fill(B.powered.sensor_array, { crit: SENSOR_CRIT, sectors: SCAN_SECTOR_RANGE }),
-  },
-]
-
-const PASSIVE: Array<{ type: SubsystemType; effect: ReactNode }> = [
-  {
-    type: 'radiator',
-    effect: fill(B.passive.radiator, {
-      dissipation: RADIATOR_DISSIPATION,
-      heat: DEFAULT_DISSIPATION_CAPACITY,
-    }),
-  },
-  {
-    type: 'fuel_compressor',
-    effect: fill(B.passive.fuel_compressor, {
-      compressed: COMPRESSED_JUMP_MASS,
-      fuel: WELL_TRANSFER_COSTS.mass,
-    }),
   },
 ]
 
@@ -431,7 +433,7 @@ export function CardBack() {
                 </td>
                 <td className="k">{tileName(type)}</td>
                 <td className="n">{energyLabel(type)}</td>
-                <td className="n r">{weaponStats(type).damage}</td>
+                <td className="n r">{weaponStats(type).damage || B.weapons.noDamage}</td>
                 <td className="di-w">{reach}</td>
               </tr>
             ))}
@@ -441,10 +443,6 @@ export function CardBack() {
 
       <Section title={B.powered.title} aside={B.powered.aside}>
         <TileRows rows={POWERED} />
-      </Section>
-
-      <Section title={B.passive.title} aside={B.passive.aside}>
-        <TileRows rows={PASSIVE} />
       </Section>
 
       <Section title={B.heat.title} aside={B.heat.aside}>
@@ -474,7 +472,7 @@ export function CardBack() {
 
       <Section title={B.faceDown.title} aside={B.faceDown.aside}>
         <div className="di-fine" style={{ marginTop: 0 }}>
-          {B.faceDown.text}
+          {fill(B.faceDown.text, { heat: DEFAULT_DISSIPATION_CAPACITY })}
         </div>
       </Section>
     </Card>
