@@ -304,6 +304,81 @@ export function createShip(
     )
     mesh.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), b.sub(a).normalize())
   }
+  // Faceted solids for machinery that must not read round. Both put a flat
+  // face toward +X (and toward every axis for 4 or 8 sides); `radius` is to
+  // the corners.
+  /** A regular polygon lofted along Y, with the plates' chamfered edges. */
+  const prism = (
+    p: Group,
+    sides: number,
+    radius: number,
+    h: number,
+    pos: Vec3,
+    mat = steel,
+    rot: Vec3 = [0, 0, 0]
+  ) => {
+    const bevel = Math.min(radius / 4, h / 4, 0.03)
+    const shape = new Shape()
+    for (let i = 0; i < sides; i++) {
+      const a = Math.PI / sides + (i * 2 * Math.PI) / sides
+      const r = radius - bevel
+      if (i === 0) shape.moveTo(Math.cos(a) * r, Math.sin(a) * r)
+      else shape.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+    }
+    shape.closePath()
+    const geo = new ExtrudeGeometry(shape, {
+      depth: h - 2 * bevel,
+      bevelEnabled: true,
+      bevelThickness: bevel,
+      bevelSize: bevel,
+      bevelSegments: 1,
+      steps: 1,
+    })
+    geo.rotateX(-Math.PI / 2)
+    geo.translate(0, -h / 2 + bevel, 0)
+    return add(p, geo, mat, pos, rot)
+  }
+  /** A flat-shaded tapered polygon along Y: a pyramid when the top radius is 0. */
+  const frustum = (
+    p: Group,
+    sides: number,
+    bottom: number,
+    top: number,
+    h: number,
+    pos: Vec3,
+    mat = steel,
+    rot: Vec3 = [0, 0, 0]
+  ) => {
+    const smooth = new CylinderGeometry(
+      top,
+      bottom,
+      h,
+      sides,
+      1,
+      false,
+      Math.PI / 2 + Math.PI / sides
+    )
+    const geo = smooth.toNonIndexed()
+    smooth.dispose()
+    geo.computeVertexNormals()
+    return add(p, geo, mat, pos, rot)
+  }
+  /** A flat plate cut to a profile in the XY plane, `thickness` deep across Z. */
+  const fin = (
+    p: Group,
+    points: [number, number][],
+    thickness: number,
+    mat: Material,
+    rot: Vec3 = [0, 0, 0]
+  ) => {
+    const shape = new Shape()
+    shape.moveTo(...points[0])
+    for (const point of points.slice(1)) shape.lineTo(...point)
+    shape.closePath()
+    const geo = new ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false })
+    geo.translate(0, 0, -thickness / 2)
+    return add(p, geo, mat, [0, 0, 0], rot)
+  }
 
   const body = new Group()
   body.name = 'hull_fixed_systems'
@@ -903,50 +978,45 @@ export function createShip(
         break
       }
       case 'plasma_cannon': {
-        // A broadside projector, not a turret: a fat containment chamber
-        // lying along the hull in two saddles, banded by confinement coils,
-        // with one short, wide throat rising from its middle to fire outboard.
-        // The laser stands up as a stack; this lies down and bulges.
+        // A broadside projector, not a turret: an octagonal containment
+        // chamber lying along the hull in two clamps, banded by flat armour
+        // collars, with one squared-off muzzle shroud rising from its middle
+        // to fire outboard. The laser stands up as a round stack; this lies
+        // down as a faceted drum and fires through a slotted vent.
         plate(p, [1.4, 0.14, 0.98], [0, 0.29, 0], dark)
-        for (const x of [-0.5, 0.5]) plate(p, [0.26, 0.26, 0.86], [x, 0.45, 0], pale)
         const chamber = new Group()
         chamber.name = 'plasma_containment_chamber'
         p.add(chamber)
         const along: Vec3 = [0, 0, Math.PI / 2]
-        cylinder(chamber, 0.3, 0.3, 1.24, [0, 0.62, 0], pale, along, 16)
-        for (const x of [-0.66, 0.66]) {
-          cylinder(chamber, 0.24, 0.3, 0.08, [x, 0.62, 0], steel, along, 16)
-          cylinder(chamber, 0.1, 0.1, 0.06, [x * 1.07, 0.62, 0], dark, along, 10)
+        prism(chamber, 8, 0.32, 1.2, [0, 0.62, 0], pale, along)
+        for (const x of [-0.5, -0.24, 0.24, 0.5])
+          prism(chamber, 8, 0.37, 0.09, [x, 0.62, 0], steel, along)
+        for (const x of [-1, 1]) {
+          prism(chamber, 8, 0.27, 0.08, [x * 0.63, 0.62, 0], dark, along)
+          prism(chamber, 6, 0.13, 0.06, [x * 0.69, 0.62, 0], steel, along)
+          // Clamps standing proud of the chamber's flanks between the collars,
+          // and copper bus plates laid flat on its two outboard bevels.
+          plate(chamber, [0.15, 0.3, 0.9], [x * 0.37, 0.5, 0], pale)
+          for (const bevel of [-Math.PI / 4, Math.PI / 4]) {
+            const face = new Group()
+            face.position.set(0, 0.62, 0)
+            face.rotation.x = bevel
+            chamber.add(face)
+            box(face, [0.15, 0.03, 0.16], [x * 0.37, 0.305, 0], copper)
+          }
         }
-        for (const x of [-0.5, -0.3, 0.3, 0.5])
-          ring(chamber, 0.31, 0.05, [x, 0.62, 0], copper, [0, Math.PI / 2, 0])
-        // The throat flares to a dark, recessed mouth with the plasma's core
-        // deep inside it: a bore, where the laser shows a flat lens.
-        const throat = new Group()
-        throat.name = 'plasma_throat'
-        p.add(throat)
-        add(
-          throat,
-          new LatheGeometry(
-            [
-              new Vector2(0, 0),
-              new Vector2(0.23, 0),
-              new Vector2(0.24, 0.16),
-              new Vector2(0.31, 0.3),
-              new Vector2(0.35, 0.36),
-              new Vector2(0.27, 0.36),
-              new Vector2(0.19, 0.2),
-              new Vector2(0, 0.2),
-            ],
-            boardDetail ? 12 : 24
-          ),
-          dark,
-          [0, 0.78, 0]
-        )
-        for (const y of [0.86, 0.96]) ring(throat, 0.26, 0.05, [0, y, 0], cyan)
-        ring(throat, 0.33, 0.045, [0, 1.13, 0], steel)
-        ring(throat, 0.13, 0.04, [0, 1.0, 0], cyan)
-        cylinder(throat, 0.06, 0.06, 0.04, [0, 1.0, 0], cyan, [0, 0, 0], 10)
+        // The muzzle: a square shroud flaring outboard, an armoured lip round
+        // it, and the vent set down inside the lip.
+        const muzzle = new Group()
+        muzzle.name = 'plasma_muzzle'
+        p.add(muzzle)
+        plate(muzzle, [0.62, 0.12, 0.5], [0, 0.94, 0], dark)
+        frustum(muzzle, 4, 0.38, 0.46, 0.16, [0, 1.06, 0], pale).scale.set(1.2, 1, 1)
+        for (const z of [-1, 1]) plate(muzzle, [0.86, 0.1, 0.1], [0, 1.17, z * 0.29], steel)
+        for (const x of [-1, 1]) plate(muzzle, [0.1, 0.1, 0.68], [x * 0.38, 1.17, 0], steel)
+        box(muzzle, [0.66, 0.04, 0.48], [0, 1.14, 0], dark)
+        for (const x of [-0.18, -0.06, 0.06, 0.18])
+          box(muzzle, [0.06, 0.03, 0.38], [x, 1.165, 0], cyan)
         break
       }
       case 'laser':
@@ -1040,51 +1110,45 @@ export function createShip(
       }
       case 'disruptor': {
         // An emitter, not a gun: nothing to aim, so no barrel and no cradle.
-        // A finned dome on the plate carries a short mast, and the mast a
-        // stack of ring antennae narrowing to a toroidal top load, the way a
-        // burst that goes out all round is radiated rather than fired.
+        // A hexagonal tower stands on a plinth, braced by six buttress fins,
+        // and steps in through three vanes with a cyan inlay round each edge
+        // to a faceted crystal: the same from every side, in the bow or abeam.
         plate(p, [1.2, 0.14, 1.0], [0, 0.29, 0], dark)
         const emitter = new Group()
         emitter.name = 'disruptor_emitter'
         p.add(emitter)
-        add(
-          emitter,
-          new LatheGeometry(
-            [
-              new Vector2(0.5, 0),
-              new Vector2(0.48, 0.08),
-              new Vector2(0.4, 0.18),
-              new Vector2(0.26, 0.26),
-              new Vector2(0.1, 0.3),
-              new Vector2(0, 0.3),
-            ],
-            boardDetail ? 12 : 24
-          ),
-          pale,
-          [0, 0.36, 0]
-        )
-        ring(emitter, 0.49, 0.045, [0, 0.38, 0], steel)
-        for (let i = 0; i < 4; i++) {
-          const angle = Math.PI / 4 + (i * Math.PI) / 2
-          box(
+        // Corners toward the plate's long sides, so the fins stay on it.
+        const corner: Vec3 = [0, Math.PI / 6, 0]
+        prism(emitter, 6, 0.48, 0.12, [0, 0.42, 0], pale, corner)
+        frustum(emitter, 6, 0.3, 0.2, 0.52, [0, 0.74, 0], hull, corner)
+        for (let i = 0; i < 6; i++)
+          fin(
             emitter,
-            [0.36, 0.22, 0.06],
-            [Math.cos(angle) * 0.52, 0.45, Math.sin(angle) * 0.52],
+            [
+              [0.2, 0.36],
+              [0.57, 0.36],
+              [0.57, 0.42],
+              [0.4, 0.62],
+              [0.2, 0.62],
+            ],
+            0.06,
             hull,
-            [0, -angle, 0]
+            [0, (i * Math.PI) / 3, 0]
           )
-        }
-        cylinder(emitter, 0.09, 0.11, 0.6, [0, 0.88, 0], steel, [0, 0, 0], 10)
+        // Each vane is chamfered underneath (printable without support), then
+        // the inlay, then a steel cap.
         for (const [y, r] of [
-          [0.76, 0.36],
-          [0.9, 0.29],
-          [1.03, 0.22],
+          [0.62, 0.42],
+          [0.74, 0.34],
+          [0.86, 0.26],
         ]) {
-          cylinder(emitter, r - 0.04, r - 0.04, 0.05, [0, y, 0], dark, [0, 0, 0], 16)
-          ring(emitter, r, 0.04, [0, y, 0], cyan)
+          frustum(emitter, 6, r - 0.05, r, 0.05, [0, y + 0.025, 0], dark, corner)
+          prism(emitter, 6, r, 0.04, [0, y + 0.07, 0], cyan, corner)
+          prism(emitter, 6, r, 0.03, [0, y + 0.105, 0], steel, corner)
         }
-        ring(emitter, 0.13, 0.065, [0, 1.19, 0], steel)
-        cylinder(emitter, 0.07, 0.07, 0.04, [0, 1.21, 0], cyan, [0, 0, 0], 10)
+        prism(emitter, 6, 0.17, 0.06, [0, 1.0, 0], steel, corner)
+        frustum(emitter, 6, 0.05, 0.15, 0.08, [0, 1.07, 0], cyan, corner)
+        frustum(emitter, 6, 0.15, 0, 0.22, [0, 1.22, 0], cyan, corner)
         break
       }
       case 'ballistic_rack': {
