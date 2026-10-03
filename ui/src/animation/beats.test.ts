@@ -9,9 +9,18 @@
  * that raise them.
  */
 import { describe, expect, it } from 'vitest'
-import type { GameConfig, GameEvent, GameView } from '@dangerous-inclinations/engine'
-import { filterEventsFor, runGame, viewFor } from '@dangerous-inclinations/engine'
+import type {
+  GameConfig,
+  GameEvent,
+  GameView,
+  Position,
+  WeaponType,
+} from '@dangerous-inclinations/engine'
+import { createGame, filterEventsFor, runGame, viewFor } from '@dangerous-inclinations/engine'
 import {
+  BEAT,
+  EFFECT_COLORS,
+  PLASMA_GREEN,
   beatStart,
   eventToBeat,
   floatStack,
@@ -19,6 +28,7 @@ import {
   snapshotOf,
   type Beat,
   type BoardOverlay,
+  type EffectDraft,
   type TableEffect,
 } from './beats'
 
@@ -154,7 +164,7 @@ describe('a turn beat by beat', () => {
         expect(beat.hold).toBeGreaterThanOrEqual(0)
         for (const effect of beat.effects) {
           expect(effect.duration).toBeGreaterThan(0)
-          if (effect.kind === 'float' || effect.kind === 'burst')
+          if (effect.kind === 'float' || effect.kind === 'burst' || effect.kind === 'flare')
             expect(seats.has(effect.playerId)).toBe(true)
         }
       }
@@ -194,5 +204,180 @@ describe('a turn beat by beat', () => {
     // The float under a climbing one has gone: its step is the one handed out.
     expect(floatStack([float('b', here, 1), float('c', here, 2)], here)).toBe(0)
     expect(floatStack([float('a', here, 0), float('b', here, 1)], here)).toBe(2)
+  })
+})
+
+describe('the guns with shapes of their own', () => {
+  /** Two ships a ring apart on the black hole: Warden fires, Aurora is fired at. */
+  const WARDEN: Position = { wellId: 'blackhole', ring: 3, sector: 6 }
+  const AURORA: Position = { wellId: 'blackhole', ring: 4, sector: 5 }
+
+  function table(): GameView {
+    const state = createGame(
+      [
+        { id: 'warden', name: 'Warden' },
+        { id: 'aurora', name: 'Aurora' },
+      ],
+      7
+    )
+    state.players.forEach((player, index) => {
+      const at = index === 0 ? WARDEN : AURORA
+      player.hasDeployed = true
+      player.ship = { ...player.ship, wellId: at.wellId, ring: at.ring, sector: at.sector }
+    })
+    return viewFor(state, 'warden')
+  }
+
+  const fired = (weaponType: WeaponType): GameEvent => ({
+    type: 'weapon_fired',
+    turn: 3,
+    attackerId: 'warden',
+    targetId: 'aurora',
+    subsystemId: 'side-0',
+    weaponType,
+    heat: 3,
+  })
+
+  const resolved = (
+    weaponType: WeaponType,
+    outcome: Partial<Extract<GameEvent, { type: 'attack_resolved' }>>
+  ): GameEvent => ({
+    type: 'attack_resolved',
+    turn: 3,
+    attackerId: 'warden',
+    targetId: 'aurora',
+    weaponType,
+    roll: 6,
+    result: 'hit',
+    damage: 0,
+    toHull: 0,
+    absorbed: 0,
+    targetHullAfter: 10,
+    ...outcome,
+  })
+
+  const play = (event: GameEvent) => {
+    const view = table()
+    return eventToBeat(beatStart(view), view, event, CLOCK)
+  }
+
+  it('floods the disruptor box the engine gives it, its own ring and sector included', () => {
+    const beat = play(fired('disruptor'))
+    expect(beat.hold).toBe(BEAT.ray)
+    const rays = beat.effects.filter(e => e.kind === 'ray')
+    expect(rays).toHaveLength(1)
+    const ray = rays[0] as Extract<EffectDraft, { kind: 'ray' }>
+    const box = [2, 3, 4].flatMap(ring =>
+      [5, 6, 7].map(sector => ({ wellId: 'blackhole', ring, sector }))
+    )
+    expect(ray.cells).toHaveLength(box.length)
+    expect(ray.cells).toEqual(expect.arrayContaining(box))
+    expect(ray.from).toEqual(WARDEN)
+    expect(ray.to).toEqual(AURORA)
+  })
+
+  it('throws plasma as bolts in its own green, not as a beam', () => {
+    const beat = play(fired('plasma_cannon'))
+    expect(beat.hold).toBe(BEAT.plasma)
+    expect(beat.effects.map(e => e.kind)).toEqual(['plasma'])
+    expect(beat.effects[0]).toMatchObject({ color: PLASMA_GREEN, from: WARDEN, to: AURORA })
+  })
+
+  it.each([
+    {
+      shot: 'a disruptor a shield stopped',
+      event: resolved('disruptor', { blocked: true }),
+      flares: ['shield'],
+      tones: ['shield'],
+    },
+    {
+      shot: 'a disruptor that got through',
+      event: resolved('disruptor', {}),
+      flares: ['emp'],
+      tones: [],
+    },
+    {
+      shot: 'a disruptor that missed',
+      event: resolved('disruptor', { result: 'miss', roll: 1 }),
+      flares: [],
+      tones: ['miss'],
+    },
+    {
+      shot: 'plasma partly through a shield',
+      event: resolved('plasma_cannon', { damage: 4, toHull: 2, absorbed: 2 }),
+      flares: ['shield', 'plasma'],
+      tones: ['damage', 'shield'],
+    },
+    {
+      shot: 'plasma a full wall stopped',
+      event: resolved('plasma_cannon', { damage: 4, toHull: 0, absorbed: 4 }),
+      flares: ['shield'],
+      tones: ['shield'],
+    },
+    {
+      shot: 'a laser on the hull',
+      event: resolved('laser', { damage: 2, toHull: 2 }),
+      flares: [],
+      tones: ['damage'],
+    },
+  ])('marks $shot', ({ event, flares, tones }) => {
+    const { effects } = play(event)
+    const marks = effects.filter(e => e.kind === 'flare')
+    expect(marks.map(f => f.flare)).toEqual(flares)
+    for (const f of marks) expect(f.playerId).toBe('aurora')
+    expect(effects.flatMap(e => (e.kind === 'float' ? [e.tone] : []))).toEqual(tones)
+    expect(effects.some(e => e.kind === 'burst')).toBe(false)
+  })
+
+  const SHIELDED: WeaponType[] = ['railgun', 'ballistic_rack', 'missiles', 'plasma_cannon']
+
+  it.each(
+    SHIELDED.flatMap(weapon => [
+      { weapon, toHull: 0, absorbed: 3, strength: 1 },
+      { weapon, toHull: 1, absorbed: 3, strength: 0.75 },
+      { weapon, toHull: 3, absorbed: 0, strength: null },
+    ])
+  )(
+    'flares the shield for a $weapon shot it soaked $absorbed of',
+    ({ weapon, toHull, absorbed, strength }) => {
+      const { effects } = play(resolved(weapon, { damage: toHull + absorbed, toHull, absorbed }))
+      const shields = effects.filter(e => e.kind === 'flare' && e.flare === 'shield')
+      if (strength === null) {
+        expect(shields).toEqual([])
+        return
+      }
+      expect(shields).toHaveLength(1)
+      // On the side the shot came from, in the shot's own colour, as hard as it was soaked.
+      expect(shields[0]).toMatchObject({
+        playerId: 'aurora',
+        fromId: 'warden',
+        accent: EFFECT_COLORS[weapon],
+        strength,
+      })
+    }
+  )
+
+  it('never flares a shield for a laser, which goes straight through it', () => {
+    const { effects } = play(resolved('laser', { damage: 2, toHull: 2, absorbed: 0 }))
+    expect(effects.some(e => e.kind === 'flare')).toBe(false)
+  })
+
+  it('flares the shield on the side a missile came in from', () => {
+    const view = table()
+    const state = beatStart(view)
+    const approach: Position = { wellId: 'blackhole', ring: 4, sector: 4 }
+    state.board.missiles = [
+      {
+        id: 'm1',
+        ownerId: 'warden',
+        targetId: 'aurora',
+        ...approach,
+        movesMade: 1,
+        criticalTarget: 'side-0',
+      },
+    ]
+    const event = resolved('missiles', { missileId: 'm1', damage: 2, toHull: 0, absorbed: 2 })
+    const { effects } = eventToBeat(state, view, event, CLOCK)
+    expect(effects.find(e => e.kind === 'flare')).toMatchObject({ from: approach })
   })
 })

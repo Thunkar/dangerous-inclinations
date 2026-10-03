@@ -14,7 +14,7 @@
  */
 import { FX_INK } from '../../palette'
 
-export type ImpactKind = 'damage' | 'crit' | 'heat' | 'shield' | 'good'
+export type ImpactKind = 'damage' | 'crit' | 'heat' | 'shield' | 'good' | 'plasma'
 
 /** A flinch, not a state: shorter than the float that caused it. */
 const IMPACT_MS = 440
@@ -27,6 +27,8 @@ const REACTION: Record<ImpactKind, { color: string; shake: number; flash: number
   heat: { color: FX_INK.heat, shake: 0, flash: 0.75 },
   shield: { color: FX_INK.shield, shake: 0.35, flash: 0.85 },
   good: { color: FX_INK.good, shake: 0, flash: 0.6 },
+  // Plasma bursting on the hull: a hit, lit green by the fire on it.
+  plasma: { color: FX_INK.plasma, shake: 1.15, flash: 1.3 },
 }
 
 interface Impact {

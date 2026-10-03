@@ -18,11 +18,13 @@ import type {
   Missile,
   Position,
   Station,
+  Subsystem,
   WeaponType,
 } from '@dangerous-inclinations/engine'
 import { BURN_COSTS, HOME_RING, samePosition } from '@dangerous-inclinations/engine'
 import { TABLE } from '../design/tokens'
 import { BASE_CRIT, SENSOR_CRIT } from '../site/numbers'
+import { weaponReach } from '../components/board/reach'
 
 // ---------------------------------------------------------------------------
 // What the board draws
@@ -30,12 +32,17 @@ import { BASE_CRIT, SENSOR_CRIT } from '../site/numbers'
 
 export type FloatTone = 'damage' | 'shield' | 'heat' | 'miss' | 'crit' | 'good'
 
+export type FlareKind = 'shield' | 'emp' | 'plasma'
+
+/** The guns drawn as a beam; plasma and the disruptor have shapes of their own. */
+export type BeamWeapon = Exclude<WeaponType, 'plasma_cannon' | 'disruptor'> | 'pdc' | 'scan'
+
 export type TableEffect =
   | {
       id: string
       kind: 'beam'
       /** `pdc` is a rack shooting at a missile; `scan` is a sensor sweep, not a shot. */
-      weapon: WeaponType | 'pdc' | 'scan'
+      weapon: BeamWeapon
       from: Position
       to: Position
       /**
@@ -87,6 +94,75 @@ export type TableEffect =
       /** Who the mark is about; see the float above. */
       playerId: string
       color: string
+      radius: number
+      start: number
+      duration: number
+    }
+  /**
+   * A plasma cannon's shot: a short burst of fat bolts thrown from one hull at
+   * another. The ends are found as a beam's are.
+   */
+  | {
+      id: string
+      kind: 'plasma'
+      from: Position
+      to: Position
+      fromId?: string
+      toId?: string
+      color: string
+      start: number
+      duration: number
+    }
+  /**
+   * A disruptor's pulse: it floods the weapon's whole firing box and its rays
+   * close on the target. `cells` is the box, asked of the engine when the shot
+   * went off ({@link weaponReach}), so neither board works out a range of its
+   * own; the rays stop `stopAt` board units short of the target's hull, where
+   * a shield would stand.
+   */
+  | {
+      id: string
+      kind: 'ray'
+      from: Position
+      to: Position
+      fromId?: string
+      toId?: string
+      cells: Position[]
+      stopAt: number
+      color: string
+      start: number
+      duration: number
+    }
+  /**
+   * Something flaring round a hull: a shield taking a shot (`shield`), the
+   * crackle of an EMP getting through it (`emp`), or plasma bursting on the
+   * hull it reached (`plasma`). `fromId` is who it came from, so a board can
+   * light the side of the shield the shot struck.
+   */
+  | {
+      id: string
+      kind: 'flare'
+      flare: FlareKind
+      at: Position
+      /** Who the mark is about; see the float above. */
+      playerId: string
+      fromId?: string
+      /**
+       * Where the shot came in from when that is a place and not a hull: a
+       * missile's last sector before it struck. Wins over `fromId`.
+       */
+      from?: Position
+      color: string
+      /**
+       * A shield only: the colour of what struck it, rippling out across the
+       * bubble from where it hit (the weapon's own ink).
+       */
+      accent?: string
+      /**
+       * A shield only: how much of the shot it took, 0 to 1. A wall that
+       * soaked everything flares in full; one that let damage through, less.
+       */
+      strength?: number
       radius: number
       start: number
       duration: number
@@ -196,6 +272,10 @@ export const BEAT = {
   move: 700,
   jump: 800,
   fire: 380,
+  /** Long enough for the last bolt of a plasma burst to land before the die is read. */
+  plasma: 560,
+  /** Long enough for a disruptor's rays to close on the target before the die is read. */
+  ray: 640,
   resolve: 1100,
   missile: 400,
   intercept: 850,
@@ -211,18 +291,38 @@ export const BEAT = {
 const FLOAT = { short: 2200, normal: 2800, long: 3600 } as const
 
 /**
- * The table's inks, not a second palette: a railgun slug is violet, a laser
- * the red, a missile the heat red, and point defence the teal.
+ * The one ink the table has only for an effect: plasma's green. It is not the
+ * table's `success` green, which means a good thing happened to you; this is
+ * hot gas, lit and loud, and nothing else on the board is drawn in it.
  */
-const BEAM_COLORS: Record<WeaponType | 'pdc', string> = {
+export const PLASMA_GREEN = '#8cf25e'
+/** The white-yellow at the heart of a plasma bolt, hotter than the green around it. */
+export const PLASMA_CORE = '#f6ffc6'
+
+/**
+ * The table's inks, not a second palette: a railgun slug is violet, a laser
+ * the red, a missile the heat red, and point defence the teal. Plasma is the
+ * one green, and the disruptor's EMP the violet, which is never a slug's
+ * shape.
+ */
+export const EFFECT_COLORS: Record<WeaponType | 'pdc', string> = {
   railgun: TABLE.violet,
   laser: TABLE.accent,
   missiles: TABLE.heat,
   ballistic_rack: TABLE.teal,
-  plasma_cannon: TABLE.heat,
+  plasma_cannon: PLASMA_GREEN,
   disruptor: TABLE.violet,
   pdc: TABLE.teal,
 }
+
+/**
+ * How far from a hull a shield stands, in board units: where a disruptor's
+ * rays stop and where a shield flares. Both boards draw a hull well inside it.
+ */
+export const SHIELD_RADIUS = 34
+
+/** How long the pulses live, at 1x. They outlive their beat, so the flare lands while they fade. */
+const PULSE = { plasma: 820, ray: 1150, flare: 900, fireball: 1300 } as const
 
 // ---------------------------------------------------------------------------
 // The board as a turn plays
@@ -325,6 +425,27 @@ function positionOf(board: BoardOverlay, next: GameView, playerId: string): Posi
   return player?.home ?? { wellId: 'blackhole', ring: HOME_RING, sector: 0 }
 }
 
+/**
+ * The weapon a shot was fired with, as the engine's range rule wants it: its
+ * type and the slot it sits in, read off the public slots (a slot's place on
+ * the hull is public even while the tile in it is face-down).
+ */
+function firedFrom(view: GameView, event: Extract<GameEvent, { type: 'weapon_fired' }>): Subsystem {
+  const slot = view.players
+    .find(p => p.id === event.attackerId)
+    ?.slots.find(s => s.id === event.subsystemId)
+  return {
+    id: event.subsystemId,
+    type: event.weaponType,
+    allocatedEnergy: 0,
+    usedThisTurn: true,
+    rollsThisTurn: 0,
+    isBroken: false,
+    isRevealed: true,
+    ...(slot ? { slotGroup: slot.group, slotIndex: slot.index } : {}),
+  }
+}
+
 /** The way a ship faces in a view, if it is on the board there. */
 function facingIn(view: GameView, playerId: string): Facing | undefined {
   return view.players.find(p => p.id === playerId)?.ship?.facing
@@ -396,6 +517,29 @@ export function eventToBeat(
     where?: Position
   ) => {
     effects.push({ kind: 'burst', at: where ?? at(playerId), playerId, color, radius, duration })
+  }
+
+  const flare = (
+    playerId: string,
+    fromId: string,
+    kind: FlareKind,
+    color: string,
+    radius: number,
+    extra: { accent?: string; strength?: number; from?: Position } = {}
+  ) => {
+    effects.push({
+      kind: 'flare',
+      flare: kind,
+      at: at(playerId),
+      playerId,
+      fromId,
+      ...(extra.from ? { from: extra.from } : {}),
+      color,
+      ...(extra.accent ? { accent: extra.accent } : {}),
+      ...(extra.strength !== undefined ? { strength: extra.strength } : {}),
+      radius,
+      duration: kind === 'plasma' ? PULSE.fireball : PULSE.flare,
+    })
   }
 
   /**
@@ -504,18 +648,33 @@ export function eventToBeat(
         }
         if (event.carried > 0) mark(event.playerId, `HEAT +${event.carried}`, 'heat')
         return event.carried > 0 ? BEAT.small : 0
-      case 'weapon_fired':
-        effects.push({
-          kind: 'beam',
-          weapon: event.weaponType,
+      case 'weapon_fired': {
+        const ends = {
           from: at(event.attackerId),
           to: at(event.targetId),
           fromId: event.attackerId,
           toId: event.targetId,
-          color: BEAM_COLORS[event.weaponType],
-          duration: 520,
-        })
+          color: EFFECT_COLORS[event.weaponType],
+        }
+        if (event.weaponType === 'plasma_cannon') {
+          effects.push({ kind: 'plasma', ...ends, duration: PULSE.plasma })
+          return BEAT.plasma
+        }
+        if (event.weaponType === 'disruptor') {
+          const facing =
+            board.ships[event.attackerId]?.facing ?? facingIn(next, event.attackerId) ?? 'prograde'
+          effects.push({
+            kind: 'ray',
+            ...ends,
+            cells: weaponReach(firedFrom(next, event), ends.from, facing),
+            stopAt: SHIELD_RADIUS,
+            duration: PULSE.ray,
+          })
+          return BEAT.ray
+        }
+        effects.push({ kind: 'beam', weapon: event.weaponType, ...ends, duration: 520 })
         return BEAT.fire
+      }
       case 'attack_resolved': {
         dice.push({
           roll: event.roll,
@@ -529,7 +688,16 @@ export function eventToBeat(
           targetId: event.targetId,
           label: event.weaponType,
         })
-        // A missile is spent by its attack, hit or miss.
+        // A missile is spent by its attack, hit or miss. Where it was is the
+        // side it came in from, unless it had already reached the target's sector.
+        const missile = event.missileId
+          ? board.missiles.find(m => m.id === event.missileId)
+          : undefined
+        const missileAt: Position | undefined = missile
+          ? { wellId: missile.wellId, ring: missile.ring, sector: missile.sector }
+          : undefined
+        const approach =
+          missileAt && !samePosition(missileAt, at(event.targetId)) ? missileAt : undefined
         if (event.missileId) board.missiles = board.missiles.filter(m => m.id !== event.missileId)
         if (event.result === 'miss') {
           float(event.targetId, 'MISS', 'miss', FLOAT.normal)
@@ -539,10 +707,39 @@ export function eventToBeat(
           float(event.targetId, 'CRIT!', 'crit', FLOAT.long)
           burst(event.targetId, TABLE.ink, 34, 700)
         }
+        // A disruptor does no damage: a powered shield stops it at the shield,
+        // and otherwise the EMP gets into the hull and the named slot breaks
+        // (its own `subsystem_broken` follows, and is marked as any break is).
+        if (event.weaponType === 'disruptor') {
+          if (event.blocked) {
+            flare(event.targetId, event.attackerId, 'shield', TABLE.teal, SHIELD_RADIUS, {
+              accent: EFFECT_COLORS.disruptor,
+            })
+            float(event.targetId, 'BLOCKED', 'shield', FLOAT.normal)
+          } else {
+            flare(event.targetId, event.attackerId, 'emp', EFFECT_COLORS.disruptor, 30)
+          }
+          return BEAT.resolve
+        }
+        // Whatever a shield soaks, it flares on the side the shot came from,
+        // with the shot's own colour splashing across it: in full when it took
+        // everything, weaker when some of it got through to the hull.
+        if (event.absorbed > 0)
+          flare(event.targetId, event.attackerId, 'shield', TABLE.teal, SHIELD_RADIUS, {
+            accent: EFFECT_COLORS[event.weaponType],
+            strength: event.absorbed / (event.absorbed + event.toHull),
+            from: approach,
+          })
+        // Plasma that reached the hull bursts on it.
+        if (event.weaponType === 'plasma_cannon' && event.toHull > 0)
+          flare(event.targetId, event.attackerId, 'plasma', PLASMA_GREEN, 40)
         if (event.toHull > 0)
           float(event.targetId, `-${event.toHull}`, 'damage', FLOAT.normal, { x: 0, y: 14 })
         if (event.absorbed > 0)
-          float(event.targetId, `${event.absorbed} shielded`, 'shield', FLOAT.normal, { x: 26, y: 0 })
+          float(event.targetId, `${event.absorbed} shielded`, 'shield', FLOAT.normal, {
+            x: 26,
+            y: 0,
+          })
         return BEAT.resolve
       }
       case 'missile_launched':
@@ -594,7 +791,7 @@ export function eventToBeat(
           to: missile
             ? { wellId: missile.wellId, ring: missile.ring, sector: missile.sector }
             : { wellId: 'blackhole', ring: 1, sector: 0 },
-          color: BEAM_COLORS.pdc,
+          color: EFFECT_COLORS.pdc,
           duration: 400,
         })
         if (hit) {

@@ -21,17 +21,14 @@
 import { useMemo, useRef } from 'react'
 import { Quaternion, Vector3, type Group, type Mesh } from 'three'
 import { useFrame } from '@react-three/fiber'
-import type { Position, WeaponType } from '@dangerous-inclinations/engine'
-import type { TableEffect } from '../../../../../animation/beats'
+import type { Position } from '@dangerous-inclinations/engine'
+import type { BeamWeapon, TableEffect } from '../../../../../animation/beats'
 import type { BoardModel } from '../../../model'
 import { positionPoint } from '../../../geometry'
-import { LAYER, elevationAt, toWorld } from '../../world'
-import { NO_RAYCAST, ballGeometry, boltGeometry, useEffectMaterial } from './resources'
+import { elevationAt, toWorld } from '../../world'
+import { MUZZLE, NO_RAYCAST, ballGeometry, boltGeometry, useEffectMaterial } from './resources'
 
 type BeamEffect = Extract<TableEffect, { kind: 'beam' }>
-
-/** Where a shot leaves a hull: the nozzle height of the ship model. */
-const MUZZLE = LAYER.token + 9
 
 /** Enough lift to clear the funnel, little enough that the shot reads straight. */
 const BOW = 0.05
@@ -63,7 +60,7 @@ interface BeamStyle {
   impact?: boolean
 }
 
-const STYLE: Record<WeaponType | 'pdc' | 'scan', BeamStyle> = {
+const STYLE: Record<BeamWeapon, BeamStyle> = {
   // A slug: thick, bright all the way, a hard head.
   // A slug: one heavy streak, fast and straight, flashing where it lands.
   railgun: {
@@ -102,30 +99,6 @@ const STYLE: Record<WeaponType | 'pdc' | 'scan', BeamStyle> = {
     tail: 0,
     bow: 0,
     rounds: 7,
-  },
-  // Stand-ins until they have their own: plasma draws as a laser, the disruptor as a slug.
-  plasma_cannon: {
-    core: 1.9,
-    glow: 5.5,
-    dashes: 0,
-    duty: 0.5,
-    base: 0.92,
-    tail: 0.18,
-    bow: 0,
-    overlay: true,
-  },
-  disruptor: {
-    core: 3.4,
-    glow: 0,
-    dashes: 0,
-    duty: 0,
-    base: 0,
-    tail: 0,
-    bow: 0,
-    rounds: 1,
-    roundLength: 34,
-    roundFlight: 0.2,
-    impact: true,
   },
   pdc: { core: 1.2, glow: 0, dashes: 0, duty: 0, base: 0, tail: 0, bow: 0, rounds: 6 },
   // A sensor sweep: fast, fine, teal.

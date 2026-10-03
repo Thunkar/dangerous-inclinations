@@ -1,5 +1,6 @@
 /**
- * The turn in motion: beams, bursts and the numbers that float off a hull.
+ * The turn in motion: beams, plasma bolts, disruptor pulses, flares, bursts
+ * and the numbers that float off a hull.
  *
  * Every effect is pushed by the animator from the turn's events and carries
  * the moment it started and how long it lives, so each one reads the frame
@@ -21,7 +22,11 @@ import type { BoardModel } from '../../model'
 import { BOARD_FONT } from '../fonts'
 import { Beam } from './effects/Beam'
 import { Burst } from './effects/Burst'
+import { Fireball } from './effects/Fireball'
+import { Flare } from './effects/Flare'
 import { Float } from './effects/Float'
+import { Plasma } from './effects/Plasma'
+import { Ray } from './effects/Ray'
 import { clearImpacts } from './effects/impacts'
 import { NO_RAYCAST, disposeEffectResources } from './effects/resources'
 import { countRender } from './effects/renders'
@@ -62,6 +67,15 @@ export const Effects = memo(function Effects({
       {effects.map(effect => {
         if (effect.kind === 'beam')
           return <Beam key={effect.id} effect={effect} pointOf={pointOf} />
+        if (effect.kind === 'plasma')
+          return <Plasma key={effect.id} effect={effect} pointOf={pointOf} />
+        if (effect.kind === 'ray') return <Ray key={effect.id} effect={effect} pointOf={pointOf} />
+        if (effect.kind === 'flare')
+          return effect.flare === 'plasma' ? (
+            <Fireball key={effect.id} effect={effect} pointOf={pointOf} />
+          ) : (
+            <Flare key={effect.id} effect={effect} pointOf={pointOf} />
+          )
         if (effect.kind === 'burst')
           return <Burst key={effect.id} effect={effect} pointOf={pointOf} />
         if (effect.kind === 'float')

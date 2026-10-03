@@ -18,6 +18,7 @@
  * is; the plate they fall on is warm ink, picked warm enough to stay ink.
  */
 import { Color, LinearSRGBColorSpace } from 'three'
+import { PLASMA_CORE, PLASMA_GREEN } from '../../../animation/beats'
 import { TABLE } from '../../../design/tokens'
 import { ACCRETION_ORANGE } from '../geometry'
 
@@ -175,4 +176,7 @@ export const FX_INK = {
   plume: TABLE.fuel,
   /** The core of a jump's flash: white-hot, like the inside of the disc. */
   core: DISC_INK.hot,
+  /** Plasma: the one green, and the white-yellow at the heart of a bolt. */
+  plasma: PLASMA_GREEN,
+  plasmaCore: PLASMA_CORE,
 } as const

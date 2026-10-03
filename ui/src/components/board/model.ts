@@ -20,11 +20,8 @@ import type {
   Subsystem,
 } from '@dangerous-inclinations/engine'
 import {
-  SECTORS_PER_RING,
   getJumpOptions,
-  canEngage,
   getMissileStats,
-  getSubsystemConfig,
   legalDeploymentsAgainst,
   placedShipPositions,
   projectMissilePath,
@@ -45,10 +42,10 @@ import {
   facingAngle,
   positionPoint,
   radialPoint,
-  ringsOf,
   type Point,
   type WreckCrowd,
 } from './geometry'
+import { weaponReach } from './reach'
 
 export interface ShipToken {
   visual?: ShipVisual
@@ -474,28 +471,14 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
   }, [plan, overlay])
 
   /**
-   * The range is the engine's answer, sector by sector: the UI never
-   * re-implements a rule, and both boards shade exactly the same wedges.
-   *
-   * `canEngage`, not the bare range rule: a missile may legally be launched at
-   * anyone in the well, so the rule alone would shade every sector of it and
-   * say nothing. What the player needs to see is where a missile would
-   * actually run a coasting ship down before it expires.
+   * The range is the engine's answer, sector by sector (`weaponReach`): the UI
+   * never re-implements a rule, and both boards shade exactly the same wedges.
    */
-  const rangeCells = useMemo<Position[]>(() => {
-    if (!focusWeapon) return []
-    const { weapon, from, facing } = focusWeapon
-    if (!getSubsystemConfig(weapon.type).weaponStats) return []
-    const attacker = { wellId: from.wellId, ring: from.ring, sector: from.sector, facing }
-    const cells: Position[] = []
-    for (const ring of ringsOf(from.wellId)) {
-      for (let sector = 0; sector < SECTORS_PER_RING; sector++) {
-        const cell: Position = { wellId: from.wellId, ring: ring.ring, sector }
-        if (canEngage(weapon, attacker, cell)) cells.push(cell)
-      }
-    }
-    return cells
-  }, [focusWeapon])
+  const rangeCells = useMemo<Position[]>(
+    () =>
+      focusWeapon ? weaponReach(focusWeapon.weapon, focusWeapon.from, focusWeapon.facing) : [],
+    [focusWeapon]
+  )
 
   const selectableIds = useMemo(() => {
     if (!plan || !plan.isMyTurn || overlay) return []
