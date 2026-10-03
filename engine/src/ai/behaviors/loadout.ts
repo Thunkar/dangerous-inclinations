@@ -20,40 +20,45 @@ import {
  * the primary asks for, and it is a list of presets. **The preset** is the
  * hull itself, and the secondaries choose it among the role's list, the first
  * being the default. A preset's role is the list it is in, never its bow: the
- * three presets of each role happen to share one today, and a role may later
- * hold presets with different bows.
+ * corsair flies a missile bow and the warden a disruptor bow, and both hunt.
  */
 export type BotRole = "interceptor" | "hunter" | "hauler";
 export type BotPresetId =
   | "gunship"
-  | "brawler"
+  | "corsair"
   | "striker"
+  | "warden"
   | "raider"
-  | "watcher"
+  | "jammer"
   | "picket"
+  | "sentry"
   | "freighter"
-  | "runner"
-  | "privateer";
+  | "privateer"
+  | "smuggler"
+  | "ghost";
 
 export const BOT_ROLES: readonly BotRole[] = ["interceptor", "hunter", "hauler"];
 
 /** Each role's presets, the default first. */
 export const PRESETS_BY_ROLE: Record<BotRole, readonly BotPresetId[]> = {
-  hunter: ["gunship", "brawler", "striker"],
-  interceptor: ["raider", "watcher", "picket"],
-  hauler: ["freighter", "runner", "privateer"],
+  hunter: ["gunship", "corsair", "striker", "warden"],
+  interceptor: ["raider", "jammer", "picket", "sentry"],
+  hauler: ["freighter", "privateer", "smuggler", "ghost"],
 };
 
 export const PRESET_NAMES: Record<BotPresetId, string> = {
   gunship: "Gunship",
-  brawler: "Brawler",
+  corsair: "Corsair",
   striker: "Striker",
+  warden: "Warden",
   raider: "Raider",
-  watcher: "Watcher",
-  picket: "Missile picket",
+  jammer: "Jammer",
+  picket: "Picket",
+  sentry: "Sentry",
   freighter: "Freighter",
-  runner: "Runner",
   privateer: "Privateer",
+  smuggler: "Smuggler",
+  ghost: "Ghost",
 };
 
 export function presetRole(id: BotPresetId): BotRole {
@@ -61,13 +66,14 @@ export function presetRole(id: BotPresetId): BotRole {
 }
 
 /**
- * The nine loadouts, which are also the presets offered to a human on the
+ * The twelve loadouts, which are also the presets offered to a human on the
  * loadout screen, so the tables above, the subsystems below and the UI must
  * agree.
  *
- * **Every loadout carries a weapon that deals damage**, which is what a kept
- * Destroy card needs (RULES §Missions): the two roles that spend their forward
- * slot on eyes or legs buy theirs with a side slot.
+ * **Every hunter carries a weapon that deals damage**, which is what a kept
+ * Destroy card needs (RULES §Missions), and a Destroy always makes the hand a
+ * hunter. The jammer and the ghost carry none: their disruptors break
+ * subsystems and never a hull.
  *
  * **Why the guns are paired.** A full shield subsystem holds four energy and absorbs
  * two damage, and its owner powers it again every turn, so a lone 2-damage
@@ -78,34 +84,23 @@ export function presetRole(id: BotPresetId): BotRole {
  * damage on the railgun's own ring, which is where the spinal shot puts the
  * fight.
  *
- * **Why the gunship carries a rack, and is the hunters' default.** Only the
- * gunship and the brawler carry a ballistic rack, and only a Piracy sends a
- * hunter to the brawler, so the gunship is where point defence lives in
- * natural play. When the default hunter carried two lasers no ship in natural
- * play carried a rack at all: missiles went unanswered, and the compressor
- * hull with two launchers became a 52% outlier. The laser in side-0 keeps the
- * shot that goes through shields and reaches a ring out; the rack in side-1
- * keeps point defence in the field and is the one broadside that deals damage
- * on the railgun's own ring. The brawler trades the laser for plasma. An earlier
- * mapping that sent Survey and Piracy hunters to missiles left a rack on 7%
- * of seats and moved dealt Destroy to 39% and Deliver to 30%, which is why
- * the gunship is the default and missiles fly only for a Salvage.
+ * **Why the gunship carries a rack, and is the hunters' default.** The
+ * gunship, the corsair and the sentry carry the only racks, so the default
+ * hunter is where point defence lives in natural play. When the default
+ * hunter carried two lasers no ship in natural play carried a rack at all:
+ * missiles went unanswered, and the compressor hull with two launchers became
+ * a 52% outlier. An earlier mapping that sent Survey and Piracy hunters to
+ * missiles left a rack on 7% of seats, which is why the gunship is the
+ * default and a Survey never asks for a launcher.
  *
  * **Why missiles are never a default.** Measured in duels against the
  * strongest off-book hull (a compressor bow with two ballistic racks, a
  * shield subsystem and a radiator), a missile-carrying hunter completed its
  * Destroy 34% of the time: a rack that is up rolls at the missiles that reach
  * it, so a salvo aimed at the one loadout built to answer it arrives as dice.
- * The striker and the picket are for a Salvage, where the work is
- * finishing cripples at the wrecks from range.
- *
- * **Why the raider and the runner carry a disruptor.** Measured 1 Oct 2026
- * with the disruptor in the rack's box, 300 games a row with the role's card
- * dealt: the raider read 32% against an Intercept bar of 32 (two lasers in
- * place of the disruptor and the plasma, 29%); the runner 35% against a
- * Deliver bar of 36 (with a launcher in place of the disruptor, 33%). A
- * runner is carrying something worth chasing, and breaking the pursuer's
- * engines is how it keeps it.
+ * The corsair runs carriers down for a Piracy; the striker, the picket and
+ * the smuggler are for a Salvage, where the work is finishing cripples at the
+ * wrecks from range.
  *
  * **Why every loadout carries a radiator.** Using a subsystem costs its energy in heat,
  * and heat the ship cannot dissipate is carried, so a hull that makes more than
@@ -114,6 +109,15 @@ export function presetRole(id: BotPresetId): BotRole {
  * pair free. The gunship's full three-gun volley is eight, one over even
  * then: firing everything is a decision, not a default.
  *
+ * **What was left out.** The variety probe (1000 games a hull at three seats,
+ * 600 at four) found hunters without walls and with missile or disruptor bows
+ * at or above the old gunship and brawler, which is where the corsair and the
+ * warden come from. The missile boat (missile bow, missiles×2, radiator,
+ * shields: 45 / 38% at three / four seats), the sensor bow with three
+ * launchers (46 / 37%) and the gunless turtles (interceptor 38 / 31%, hauler
+ * 42 / 41%) are strong in every kind of game, so they are not presets; the
+ * rack wall (20 / 17%) is weak.
+ *
  * Mutable on purpose: the simulator's `--loadouts=` writes into it.
  */
 export const BOT_PRESET_LOADOUTS: Record<BotPresetId, ShipLoadout> = {
@@ -121,37 +125,49 @@ export const BOT_PRESET_LOADOUTS: Record<BotPresetId, ShipLoadout> = {
     forwardSlots: ["railgun"],
     sideSlots: ["laser", "ballistic_rack", "shields", "radiator"],
   },
-  brawler: {
-    forwardSlots: ["railgun"],
-    sideSlots: ["plasma_cannon", "ballistic_rack", "shields", "radiator"],
+  corsair: {
+    forwardSlots: ["missiles"],
+    sideSlots: ["laser", "ballistic_rack", "shields", "radiator"],
   },
   striker: {
     forwardSlots: ["railgun"],
     sideSlots: ["missiles", "laser", "shields", "radiator"],
   },
+  warden: {
+    forwardSlots: ["disruptor"],
+    sideSlots: ["plasma_cannon", "plasma_cannon", "shields", "radiator"],
+  },
   raider: {
     forwardSlots: ["sensor_array"],
     sideSlots: ["shields", "disruptor", "radiator", "plasma_cannon"],
   },
-  watcher: {
+  jammer: {
     forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "shields", "radiator", "laser"],
+    sideSlots: ["disruptor", "disruptor", "shields", "radiator"],
   },
   picket: {
     forwardSlots: ["sensor_array"],
     sideSlots: ["missiles", "missiles", "radiator", "shields"],
   },
+  sentry: {
+    forwardSlots: ["sensor_array"],
+    sideSlots: ["laser", "ballistic_rack", "shields", "radiator"],
+  },
   freighter: {
     forwardSlots: ["fuel_compressor"],
     sideSlots: ["shields", "shields", "radiator", "laser"],
   },
-  runner: {
-    forwardSlots: ["fuel_compressor"],
-    sideSlots: ["shields", "disruptor", "radiator", "laser"],
-  },
   privateer: {
     forwardSlots: ["fuel_compressor"],
     sideSlots: ["shields", "shields", "radiator", "plasma_cannon"],
+  },
+  smuggler: {
+    forwardSlots: ["fuel_compressor"],
+    sideSlots: ["missiles", "missiles", "radiator", "shields"],
+  },
+  ghost: {
+    forwardSlots: ["fuel_compressor"],
+    sideSlots: ["disruptor", "disruptor", "radiator", "radiator"],
   },
 };
 
@@ -175,33 +191,38 @@ export function classifyRole(missions: Mission[]): BotRole {
  * What each secondary asks of the hull, role by role, as a player would
  * fit for it. A card not named here asks for the role's default.
  *
- * - Hunter: a Piracy is a point-blank fight with a carrier, so plasma
- *   (brawler); a Salvage is finishing cripples at the wrecks, from range, so
- *   a launcher (striker).
- * - Interceptor: an Escort rides beside a carrier with its walls up
- *   (watcher); a Salvage wants the reach of two launchers (picket).
- * - Hauler: a Piracy takes a fight to a carrier (privateer); a Tanker or a
- *   Salvage is carrying something worth chasing, and the disruptor breaks
- *   the pursuer's engines (runner).
+ * - Piracy runs a carrier down: the corsair, the jammer, the privateer.
+ * - Salvage finishes cripples at the wrecks from range, so launchers: the
+ *   striker, the picket, the smuggler.
+ * - Escort rides beside a carrier: the warden and the sentry. A hauler
+ *   escorts in its own freighter.
+ * - Tanker carries fuel worth chasing, and a hauler's two disruptors break
+ *   the pursuer (the ghost).
  */
 const KIT: Record<BotRole, Partial<Record<SecondaryKind, BotPresetId>>> = {
-  hunter: { piracy: "brawler", salvage: "striker" },
-  interceptor: { escort: "watcher", salvage: "picket" },
-  hauler: { piracy: "privateer", tanker: "runner", salvage: "runner" },
+  hunter: { piracy: "corsair", salvage: "striker", escort: "warden" },
+  interceptor: { piracy: "jammer", salvage: "picket", escort: "sentry" },
+  hauler: { piracy: "privateer", salvage: "smuggler", tanker: "ghost" },
 };
 
 /** When the two secondaries ask for different kits, the earlier card decides. */
-const KIT_PRIORITY: readonly SecondaryKind[] = ["piracy", "salvage", "escort", "tanker", "survey"];
+const KIT_PRIORITY: readonly SecondaryKind[] = ["piracy", "salvage", "escort", "survey", "tanker"];
 
 /**
  * The preset a hand flies: the role's default unless an open secondary asks
  * for another, the higher card in {@link KIT_PRIORITY} deciding between two.
  *
- * Measured 1 Oct 2026, 1000 games a row: dealt Destroy / Deliver / Intercept
- * 37 / 32 / 33% against 35 / 34 / 33 with the six presets this replaced.
- * Natural play keeps a rack on 21–25% of seats, and racks shoot down 1.2 of
- * 7.8 missiles a game at three seats. Forced, every preset flown with its
- * role's card reads 32–37%.
+ * Measured 2 Oct 2026 in place of the nine presets (three a role). Forced
+ * with each role's card, 1000 games a row, every preset sits within 4 points
+ * of its bar: gunship 33, corsair 32, striker 38, warden 34 against a Destroy
+ * bar of 35; raider 28, jammer 32, picket 31, sentry 29 against Intercept 32;
+ * freighter 33, privateer 34, smuggler 36, ghost 36 against Deliver 36. Dealt
+ * Destroy / Deliver / Intercept 35 / 36 / 32% (34 / 32 / 34 with the nine).
+ * Natural play: missiles on 38–40% of seats (19–22 before), racks 21–25%
+ * (unchanged), railguns 13–14% (29–34), kills 1.6 / 2.9 at three / four seats
+ * (1.8 / 4.1), rounds unchanged. A first draft that also sent Survey to the
+ * missile presets put missiles on 47% of seats, launched 21–28 a game, and
+ * racks shot down one in ten.
  */
 export function classifyPreset(missions: Mission[]): BotPresetId {
   const role = classifyRole(missions);

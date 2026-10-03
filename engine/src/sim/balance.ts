@@ -7,7 +7,7 @@
  *   2. Baselines:   what is a hand worth before a loadout is chosen for it? Seat 1
  *                   keeps Destroy / Deliver / Intercept with its own loadout, and
  *                   those three numbers are the bar for every row below.
- *   3. Logical:     are the nine presets balanced flown with the card their
+ *   3. Logical:     are the twelve presets balanced flown with the card their
  *                   role is for (interceptor+Intercept, hunter+Destroy,
  *                   hauler+Deliver)?
  *   4. Illogical:   are loadouts that fight their card actually bad?
@@ -168,21 +168,23 @@ const logicalRows: RowSpec[] = BOT_ROLES.flatMap((role) =>
 
 /**
  * Loadouts that fight their card. A compressor cannot scan, so a hauler with an
- * Intercept is not a row the engine would ever accept: the mismatches are the
- * ones a player could actually submit. Four rows fly a role's default. The
- * watcher with a crate is the walled hull with the wrong bow for cargo, the
- * question the two-shield hunter asked before it was cut; the runner hunting
- * is the old aggressive hauler (the same five subsystems), the compressor
- * with a laser that has sat on its Destroy bar.
+ * Intercept is not a row the engine would ever accept, and the jammer and the
+ * ghost carry no gun that deals damage, so neither can keep a Destroy: the
+ * mismatches are the ones a player could actually submit. Four rows fly a
+ * role's default. The sentry with a crate is the hunter's guns on the wrong
+ * bow for cargo; the privateer hunting is the compressor whose one gun a wall
+ * stops. The smuggler is left out: its two launchers are a hull built to hunt
+ * (it was the off-book armed legs, on its Destroy bar), not one that fights
+ * the card.
  */
 const illogicalRows: RowSpec[] = (
   [
     ["raider", "deliver"],
     ["raider", "destroy"],
     ["gunship", "deliver"],
-    ["watcher", "deliver"],
+    ["sentry", "deliver"],
     ["freighter", "destroy"],
-    ["runner", "destroy"],
+    ["privateer", "destroy"],
   ] as Array<[BotPresetId, Exclude<BarName, "any">]>
 ).map(([id, bar]) => ({
   id: `illogical:${id}+${bar}`,
@@ -221,12 +223,6 @@ const offbookRows: RowSpec[] = (
       "destroy",
     ],
     [
-      "armed_legs",
-      "armed legs",
-      hull("fuel_compressor", "missiles,missiles,radiator,shields"),
-      "destroy",
-    ],
-    [
       "hauler_pdc",
       "hauler with point defence",
       hull("fuel_compressor", "ballistic_rack,ballistic_rack,shields,radiator"),
@@ -255,15 +251,9 @@ const offbookRows: RowSpec[] = (
     ],
     [
       "interceptor_plasma",
-      "watcher, plasma for the laser",
+      "sensor bow + shields×2 + radiator + plasma",
       hull("sensor_array", "shields,shields,radiator,plasma_cannon"),
       "intercept",
-    ],
-    [
-      "disruptor_plasma2",
-      "disruptor + plasma×2 + shields + radiator",
-      hull("disruptor", "plasma_cannon,plasma_cannon,shields,radiator"),
-      "destroy",
     ],
     [
       "disruptor_lasers2",

@@ -41,27 +41,32 @@ const DELIVER = deliverMission(ALPHA, GAMMA);
 /**
  * A hand of one primary and two secondaries, and the preset it flies. The
  * primary picks the role; a secondary asks for a preset of the role's; between two that ask for
- * different kits, Piracy > Salvage > Escort > Tanker > Survey.
+ * different kits, Piracy > Salvage > Escort > Survey > Tanker.
  */
 const HANDS: Array<[string, BotPresetId, Mission[]]> = [
   ["Destroy, Survey, Tanker", "gunship", [DESTROY, surveyMission("a"), tankerMission("b")]],
-  ["Destroy, Escort, Survey", "gunship", [DESTROY, escortMission("a"), surveyMission("b")]],
-  ["Destroy, Piracy, Survey", "brawler", [DESTROY, piracyMission("a"), surveyMission("b")]],
+  ["Destroy, Piracy, Survey", "corsair", [DESTROY, piracyMission("a"), surveyMission("b")]],
   ["Destroy, Salvage, Tanker", "striker", [DESTROY, salvageMission("a"), tankerMission("b")]],
   ["Destroy, Salvage, Salvage", "striker", [DESTROY, salvageMission("a"), salvageMission("b")]],
-  ["Intercept, Survey, Piracy", "raider", [INTERCEPT, surveyMission("a"), piracyMission("b")]],
-  ["Intercept, Escort, Tanker", "watcher", [INTERCEPT, escortMission("a"), tankerMission("b")]],
+  ["Destroy, Escort, Survey", "warden", [DESTROY, escortMission("a"), surveyMission("b")]],
+  ["Intercept, Survey, Tanker", "raider", [INTERCEPT, surveyMission("a"), tankerMission("b")]],
+  ["Intercept, Piracy, Survey", "jammer", [INTERCEPT, piracyMission("a"), surveyMission("b")]],
   ["Intercept, Salvage, Survey", "picket", [INTERCEPT, salvageMission("a"), surveyMission("b")]],
+  ["Intercept, Escort, Tanker", "sentry", [INTERCEPT, escortMission("a"), tankerMission("b")]],
   ["Deliver, Survey, Escort", "freighter", [DELIVER, surveyMission("a"), escortMission("b")]],
   ["Deliver, Piracy, Survey", "privateer", [DELIVER, piracyMission("a"), surveyMission("b")]],
-  ["Deliver, Tanker, Survey", "runner", [DELIVER, tankerMission("a"), surveyMission("b")]],
-  ["Deliver, Salvage, Escort", "runner", [DELIVER, salvageMission("a"), escortMission("b")]],
-  ["Deliver, Tanker, Salvage", "runner", [DELIVER, tankerMission("a"), salvageMission("b")]],
+  ["Deliver, Salvage, Survey", "smuggler", [DELIVER, salvageMission("a"), surveyMission("b")]],
+  ["Deliver, Tanker, Survey", "ghost", [DELIVER, tankerMission("a"), surveyMission("b")]],
   // Two secondaries asking for different kits: the higher card decides.
-  ["Destroy, Salvage, Piracy", "brawler", [DESTROY, salvageMission("a"), piracyMission("b")]],
+  ["Destroy, Salvage, Piracy", "corsair", [DESTROY, salvageMission("a"), piracyMission("b")]],
+  ["Destroy, Escort, Piracy", "corsair", [DESTROY, escortMission("a"), piracyMission("b")]],
+  ["Destroy, Escort, Salvage", "striker", [DESTROY, escortMission("a"), salvageMission("b")]],
+  ["Intercept, Escort, Piracy", "jammer", [INTERCEPT, escortMission("a"), piracyMission("b")]],
   ["Intercept, Escort, Salvage", "picket", [INTERCEPT, escortMission("a"), salvageMission("b")]],
   ["Deliver, Tanker, Piracy", "privateer", [DELIVER, tankerMission("a"), piracyMission("b")]],
-  ["Deliver, Salvage, Piracy", "privateer", [DELIVER, salvageMission("a"), piracyMission("b")]],
+  ["Deliver, Tanker, Salvage", "smuggler", [DELIVER, tankerMission("a"), salvageMission("b")]],
+  // A card that asks for nothing in the role leaves the choice to the other.
+  ["Deliver, Escort, Tanker", "ghost", [DELIVER, escortMission("a"), tankerMission("b")]],
   // A completed card asks for nothing.
   [
     "Destroy, a done Piracy, Survey",
@@ -70,7 +75,7 @@ const HANDS: Array<[string, BotPresetId, Mission[]]> = [
   ],
   [
     "Deliver, a done Piracy, Tanker",
-    "runner",
+    "ghost",
     [DELIVER, done(piracyMission("a")), tankerMission("b")],
   ],
 ];
@@ -82,13 +87,6 @@ describe("botChooseLoadout", () => {
       expect(validateLoadout(loadout).errors).toEqual([]);
       expect(loadout.forwardSlots).toHaveLength(1);
       expect(loadout.sideSlots).toHaveLength(4);
-    }
-  );
-
-  it.each(Object.entries(BOT_PRESET_LOADOUTS))(
-    "the %s preset can fly a dealt Destroy",
-    (_id, loadout) => {
-      expect(missionsMissingRequirements([DESTROY], loadout)).toEqual([]);
     }
   );
 

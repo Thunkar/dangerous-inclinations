@@ -33,17 +33,20 @@ const ROLE_NAME: Record<BotRole, string> = {
   hauler: 'Hauler',
 }
 
-/** What each preset's side slots are for, and the card that asks for it. */
+/** What each preset carries, what it is for, and the card that asks for it. */
 const PRESET_NOTE: Record<BotPresetId, string> = {
-  gunship: 'Laser and rack: a shot through shields, and point defence',
-  brawler: 'Plasma and rack: 4 damage close in, for Piracy',
-  striker: 'Missiles and laser: hits from across the well, for Salvage',
+  gunship: 'Railgun, laser and rack: a shot through shields, and point defence',
+  corsair: 'Missile bow, laser and rack: run carriers down, for Piracy',
+  striker: 'Railgun, missiles and laser: hits from across the well, for Salvage',
+  warden: 'Disruptor bow and two plasma: strip a wall, break what is behind, for Escort',
   raider: 'Plasma and disruptor: strip a wall, then break what is behind it',
-  watcher: 'Two shields and a laser: ride beside a carrier, for Escort',
+  jammer: "Two disruptors: break a carrier's engines, for Piracy",
   picket: 'Two launchers: hits from across the well, for Salvage',
+  sentry: 'Laser and rack: ride beside a carrier with point defence, for Escort',
   freighter: 'Two shields and a laser: the safe cargo run',
-  runner: "Disruptor and laser: break a pursuer's engines, for Tanker or Salvage",
   privateer: 'Two shields and plasma: take the fight to a carrier, for Piracy',
+  smuggler: 'Two launchers: hits from across the well, for Salvage',
+  ghost: "Two disruptors and two radiators: break a pursuer's engines, for Tanker",
 }
 
 const templateFor = (preset: BotPresetId): ShipLoadout =>

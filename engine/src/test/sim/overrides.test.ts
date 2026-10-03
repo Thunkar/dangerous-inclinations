@@ -95,6 +95,7 @@ describe("parseLoadoutOverrides", () => {
 
   it.each([
     ["an unknown preset", `gunboat=${HUNTER}`],
+    ["a retired preset", `brawler=${HUNTER}`],
     ["a role for a preset", `hunter=${HUNTER}`],
     ["the hauler role for a preset", `hauler=${HAULER}`],
     ["no preset", HUNTER],
