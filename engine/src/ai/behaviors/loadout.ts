@@ -16,46 +16,42 @@ import {
 } from "../../models/missions.ts";
 
 /**
- * A hull is two decisions, both read off the hand. **The role** is the
- * forward subsystem, and the primary chooses it: a gun, eyes, or legs.
- * **The preset** is how the four side slots are spent, and the secondaries
- * choose it: each bow has three, one of them the default.
- *
- * | Role        | Forward    | Closes off                              |
- * |-------------|------------|-----------------------------------------|
- * | interceptor | sensor     | pays 3 fuel a jump                      |
- * | hunter      | railgun    | pays 3 fuel a jump                      |
- * | hauler      | compressor | cannot scan: no Intercept               |
+ * A hull is two decisions, both read off the hand. **The role** is the plan
+ * the primary asks for, and it is a list of presets. **The preset** is the
+ * hull itself, and the secondaries choose it among the role's list, the first
+ * being the default. A preset's role is the list it is in, never its bow: the
+ * three presets of each role happen to share one today, and a role may later
+ * hold presets with different bows.
  */
 export type BotRole = "interceptor" | "hunter" | "hauler";
 export type BotPresetId =
   | "gunship"
   | "brawler"
-  | "missile-hunter"
+  | "striker"
   | "raider"
   | "watcher"
   | "picket"
-  | "hauler"
+  | "freighter"
   | "runner"
   | "privateer";
 
 export const BOT_ROLES: readonly BotRole[] = ["interceptor", "hunter", "hauler"];
 
-/** Each bow's three presets, the default first. */
+/** Each role's presets, the default first. */
 export const PRESETS_BY_ROLE: Record<BotRole, readonly BotPresetId[]> = {
-  hunter: ["gunship", "brawler", "missile-hunter"],
+  hunter: ["gunship", "brawler", "striker"],
   interceptor: ["raider", "watcher", "picket"],
-  hauler: ["hauler", "runner", "privateer"],
+  hauler: ["freighter", "runner", "privateer"],
 };
 
 export const PRESET_NAMES: Record<BotPresetId, string> = {
   gunship: "Gunship",
   brawler: "Brawler",
-  "missile-hunter": "Missile hunter",
+  striker: "Striker",
   raider: "Raider",
   watcher: "Watcher",
   picket: "Missile picket",
-  hauler: "Hauler",
+  freighter: "Freighter",
   runner: "Runner",
   privateer: "Privateer",
 };
@@ -100,7 +96,7 @@ export function presetRole(id: BotPresetId): BotRole {
  * shield subsystem and a radiator), a missile-carrying hunter completed its
  * Destroy 34% of the time: a rack that is up rolls at the missiles that reach
  * it, so a salvo aimed at the one loadout built to answer it arrives as dice.
- * The missile hunter and the picket are for a Salvage, where the work is
+ * The striker and the picket are for a Salvage, where the work is
  * finishing cripples at the wrecks from range.
  *
  * **Why the raider and the runner carry a disruptor.** Measured 1 Oct 2026
@@ -129,7 +125,7 @@ export const BOT_PRESET_LOADOUTS: Record<BotPresetId, ShipLoadout> = {
     forwardSlots: ["railgun"],
     sideSlots: ["plasma_cannon", "ballistic_rack", "shields", "radiator"],
   },
-  "missile-hunter": {
+  striker: {
     forwardSlots: ["railgun"],
     sideSlots: ["missiles", "laser", "shields", "radiator"],
   },
@@ -145,7 +141,7 @@ export const BOT_PRESET_LOADOUTS: Record<BotPresetId, ShipLoadout> = {
     forwardSlots: ["sensor_array"],
     sideSlots: ["missiles", "missiles", "radiator", "shields"],
   },
-  hauler: {
+  freighter: {
     forwardSlots: ["fuel_compressor"],
     sideSlots: ["shields", "shields", "radiator", "laser"],
   },
@@ -164,12 +160,9 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
 }
 
 /**
- * The role is the forward subsystem, and the primary decides it. Intercept
- * cannot start without a scan, so that card takes the eyes. A Destroy card has
- * to catch someone and get through their shields, which is what the railgun's
- * four damage is for, while a cargo run would rather not pay three fuel a
- * jump. A Survey is a dive any loadout can make, so the secondaries never
- * move the bow.
+ * The role is the plan, and the primary decides it: Intercept hunts with
+ * scans, Destroy with guns, anything else hauls. A Survey is a dive any
+ * loadout can make, so the secondaries never move the role.
  */
 export function classifyRole(missions: Mission[]): BotRole {
   const active = missions.filter(isOpenMission);
@@ -179,12 +172,12 @@ export function classifyRole(missions: Mission[]): BotRole {
 }
 
 /**
- * What each secondary asks of the side slots, bow by bow, as a player would
- * fit for it. A card not named here asks for the bow's default.
+ * What each secondary asks of the hull, role by role, as a player would
+ * fit for it. A card not named here asks for the role's default.
  *
  * - Hunter: a Piracy is a point-blank fight with a carrier, so plasma
  *   (brawler); a Salvage is finishing cripples at the wrecks, from range, so
- *   a launcher (missile hunter).
+ *   a launcher (striker).
  * - Interceptor: an Escort rides beside a carrier with its walls up
  *   (watcher); a Salvage wants the reach of two launchers (picket).
  * - Hauler: a Piracy takes a fight to a carrier (privateer); a Tanker or a
@@ -192,7 +185,7 @@ export function classifyRole(missions: Mission[]): BotRole {
  *   the pursuer's engines (runner).
  */
 const KIT: Record<BotRole, Partial<Record<SecondaryKind, BotPresetId>>> = {
-  hunter: { piracy: "brawler", salvage: "missile-hunter" },
+  hunter: { piracy: "brawler", salvage: "striker" },
   interceptor: { escort: "watcher", salvage: "picket" },
   hauler: { piracy: "privateer", tanker: "runner", salvage: "runner" },
 };
@@ -201,14 +194,14 @@ const KIT: Record<BotRole, Partial<Record<SecondaryKind, BotPresetId>>> = {
 const KIT_PRIORITY: readonly SecondaryKind[] = ["piracy", "salvage", "escort", "tanker", "survey"];
 
 /**
- * The preset a hand flies: the bow's default unless an open secondary asks
+ * The preset a hand flies: the role's default unless an open secondary asks
  * for another, the higher card in {@link KIT_PRIORITY} deciding between two.
  *
  * Measured 1 Oct 2026, 1000 games a row: dealt Destroy / Deliver / Intercept
  * 37 / 32 / 33% against 35 / 34 / 33 with the six presets this replaced.
  * Natural play keeps a rack on 21–25% of seats, and racks shoot down 1.2 of
  * 7.8 missiles a game at three seats. Forced, every preset flown with its
- * bow's card reads 32–37%.
+ * role's card reads 32–37%.
  */
 export function classifyPreset(missions: Mission[]): BotPresetId {
   const role = classifyRole(missions);

@@ -1,9 +1,8 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Box, Button, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 
 import {
   BOT_PRESET_LOADOUTS,
-  BOT_ROLES,
   PRESETS_BY_ROLE,
   PRESET_NAMES,
   DEFAULT_SHIP_APPEARANCE,
@@ -11,6 +10,7 @@ import {
   LIVERIES,
   canInstallInSlot,
   getSubsystemConfig,
+  presetRole,
   type BotPresetId,
   type BotRole,
   type Livery,
@@ -23,29 +23,31 @@ import { MODULE_NOTES, MOUNTS, moduleAt, setModule, type MountId, type ShipConfi
 
 const DEFAULT_ROLE: BotRole = 'hauler'
 
-/** What each bow buys. */
-const ROLE_NOTE: Record<BotRole, string> = {
-  interceptor: 'Scans, which Intercept needs, and widens your critical range',
-  hunter: 'Four damage down your own ring, for Destroy',
-  hauler: 'Jumps cost 1 fuel, for Deliver; no sensor, so no Intercept',
+/** The order the roles are offered in, the way a table says them. */
+const ROLE_ORDER: readonly BotRole[] = ['hunter', 'interceptor', 'hauler']
+
+/** The role is the plan you came with: one for each two-point card. */
+const ROLE_NAME: Record<BotRole, string> = {
+  hunter: 'Hunter',
+  interceptor: 'Interceptor',
+  hauler: 'Hauler',
 }
 
 /** What each preset's side slots are for, and the card that asks for it. */
 const PRESET_NOTE: Record<BotPresetId, string> = {
   gunship: 'Laser and rack: a shot through shields, and point defence',
   brawler: 'Plasma and rack: 4 damage close in, for Piracy',
-  'missile-hunter': 'Missiles and laser: hits from across the well, for Salvage',
+  striker: 'Missiles and laser: hits from across the well, for Salvage',
   raider: 'Plasma and disruptor: strip a wall, then break what is behind it',
   watcher: 'Two shields and a laser: ride beside a carrier, for Escort',
   picket: 'Two launchers: hits from across the well, for Salvage',
-  hauler: 'Two shields and a laser: the safe cargo run',
+  freighter: 'Two shields and a laser: the safe cargo run',
   runner: "Disruptor and laser: break a pursuer's engines, for Tanker or Salvage",
   privateer: 'Two shields and plasma: take the fight to a carrier, for Piracy',
 }
 
-const bowOf = (role: BotRole) => BOT_PRESET_LOADOUTS[PRESETS_BY_ROLE[role][0]].forwardSlots[0]!
-
-const templateFor = (preset: BotPresetId): ShipLoadout => structuredClone(BOT_PRESET_LOADOUTS[preset])
+const templateFor = (preset: BotPresetId): ShipLoadout =>
+  structuredClone(BOT_PRESET_LOADOUTS[preset])
 
 const same = (a: ShipLoadout, b: ShipLoadout) => JSON.stringify(a) === JSON.stringify(b)
 
@@ -55,91 +57,79 @@ function presetOf(loadout: ShipLoadout): BotPresetId | null {
   return ids.find(id => same(loadout, BOT_PRESET_LOADOUTS[id])) ?? null
 }
 
-/** The bow this loadout carries, if it is one of the three. */
-function roleOf(loadout: ShipLoadout): BotRole | null {
-  return BOT_ROLES.find(role => bowOf(role) === loadout.forwardSlots[0]) ?? null
-}
-
-function BowChoice({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: BotRole | null
-  onChange: (role: BotRole) => void
-  disabled: boolean
-}) {
+/**
+ * The role a loadout starts under: its preset's, or for a loadout of its own
+ * the first role with a preset of the same bow. Only the starting value: from
+ * then on a loadout no preset matches keeps the role last chosen.
+ */
+function startingRole(loadout: ShipLoadout): BotRole {
+  const preset = presetOf(loadout)
+  if (preset) return presetRole(preset)
+  const bow = loadout.forwardSlots[0]
   return (
-    <Box sx={{ mt: 1, mb: 1.5 }}>
-      <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 0.5 }}>
-        Bow
-      </Typography>
-      <ToggleButtonGroup
-        exclusive
-        fullWidth
-        size="small"
-        value={value}
-        disabled={disabled}
-        onChange={(_e, next: BotRole | null) => next && onChange(next)}
-      >
-        {BOT_ROLES.map(role => (
-          <ToggleButton
-            key={role}
-            value={role}
-            title={ROLE_NOTE[role]}
-            sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem' }}
-          >
-            {getSubsystemConfig(bowOf(role)).name}
-          </ToggleButton>
-        ))}
-      </ToggleButtonGroup>
-    </Box>
+    ROLE_ORDER.find(role =>
+      PRESETS_BY_ROLE[role].some(id => BOT_PRESET_LOADOUTS[id].forwardSlots[0] === bow)
+    ) ?? DEFAULT_ROLE
   )
 }
 
-function PresetChoice({
-  role,
+/** A list of named options, each with an optional one-line note; a row when `horizontal`. */
+function NotedChoice<T extends string>({
+  label,
+  options,
+  name,
+  note,
   value,
   onChange,
   disabled,
+  horizontal = false,
 }: {
-  role: BotRole
-  value: BotPresetId | null
-  onChange: (preset: BotPresetId) => void
+  label: string
+  options: readonly T[]
+  name: (option: T) => string
+  note?: (option: T) => string
+  value: T | null
+  onChange: (option: T) => void
   disabled: boolean
+  horizontal?: boolean
 }) {
   return (
     <Box sx={{ mb: 1.5 }}>
       <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 0.5 }}>
-        Preset
+        {label}
       </Typography>
       <ToggleButtonGroup
         exclusive
         fullWidth
-        orientation="vertical"
+        orientation={horizontal ? 'horizontal' : 'vertical'}
         size="small"
         value={value}
         disabled={disabled}
-        onChange={(_e, next: BotPresetId | null) => next && onChange(next)}
+        onChange={(_e, next: T | null) => next && onChange(next)}
       >
-        {PRESETS_BY_ROLE[role].map(preset => (
+        {options.map(option => (
           <ToggleButton
-            key={preset}
-            value={preset}
+            key={option}
+            value={option}
             sx={{
               display: 'block',
-              textAlign: 'left',
+              textAlign: horizontal ? 'center' : 'left',
               textTransform: 'none',
               px: 1.5,
               py: 0.75,
             }}
           >
-            <Box component="span" sx={{ display: 'block', fontFamily: FONT_MONO, fontSize: '0.78rem' }}>
-              {PRESET_NAMES[preset]}
+            <Box
+              component="span"
+              sx={{ display: 'block', fontFamily: FONT_MONO, fontSize: '0.78rem' }}
+            >
+              {name(option)}
             </Box>
-            <Box component="span" sx={{ display: 'block', fontSize: '0.72rem', opacity: 0.75 }}>
-              {PRESET_NOTE[preset]}
-            </Box>
+            {note && (
+              <Box component="span" sx={{ display: 'block', fontSize: '0.72rem', opacity: 0.75 }}>
+                {note(option)}
+              </Box>
+            )}
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
@@ -162,7 +152,11 @@ export function SystemControls({
 }) {
   const mount = MOUNTS.find(m => m.id === selected)!
   const preset = presetOf(config.loadout)
-  const bow = roleOf(config.loadout)
+  // A role is a list of presets, not a bow: a preset's role is the list it
+  // is in, and a loadout of your own keeps the role of the last preset.
+  const [lastRole, setLastRole] = useState(() => startingRole(config.loadout))
+  const role = preset ? presetRole(preset) : lastRole
+  if (role !== lastRole) setLastRole(role)
   const current = moduleAt(config, selected)
   const detail = current ? getSubsystemConfig(current) : null
   return (
@@ -171,22 +165,30 @@ export function SystemControls({
         01 / Mission profile (presets)
       </Typography>
       {/*
-        Two decisions. The bow is the plan you came with (a gun, eyes or legs,
-        one for each two-point card); the preset is how the four side slots
-        are spent, and each bow has three, named for the secondary that asks
-        for it.
+        Two decisions. The role is the plan you came with, one for each
+        two-point card; the preset is the hull, and each role has three, named
+        for the secondary that asks for it.
       */}
-      <BowChoice
-        value={bow}
-        onChange={role => onChange(templateFor(PRESETS_BY_ROLE[role][0]))}
-        disabled={disabled}
-      />
-      <PresetChoice
-        role={bow ?? DEFAULT_ROLE}
-        value={preset}
-        onChange={next => onChange(templateFor(next))}
-        disabled={disabled}
-      />
+      <Box sx={{ mt: 1 }}>
+        <NotedChoice
+          label="Role"
+          options={ROLE_ORDER}
+          name={r => ROLE_NAME[r]}
+          horizontal
+          value={role}
+          onChange={r => onChange(templateFor(PRESETS_BY_ROLE[r][0]))}
+          disabled={disabled}
+        />
+        <NotedChoice
+          label="Preset"
+          options={PRESETS_BY_ROLE[role]}
+          name={p => PRESET_NAMES[p]}
+          note={p => PRESET_NOTE[p]}
+          value={preset}
+          onChange={next => onChange(templateFor(next))}
+          disabled={disabled}
+        />
+      </Box>
       {preset === null && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 2.5 }}>
           Loadout of your own: pick a preset to start from, or leave it.
@@ -334,7 +336,8 @@ function PaintRow({
   swatches?: string[]
 }) {
   const custom = !swatches.includes(value.toLowerCase())
-  const ring = (selected: boolean) => (selected ? `2px solid ${TABLE.ink}` : `1px solid ${TABLE.plateEdge}`)
+  const ring = (selected: boolean) =>
+    selected ? `2px solid ${TABLE.ink}` : `1px solid ${TABLE.plateEdge}`
   return (
     <Box sx={{ mt: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

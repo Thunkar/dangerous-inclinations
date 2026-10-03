@@ -38,7 +38,7 @@ interface Draft {
 const PREFERENCE_KEY = 'di.ship-appearance.v1'
 function readDraft(key: string, me: Player): Draft {
   const fallback = {
-    loadout: structuredClone(BOT_PRESET_LOADOUTS.hauler),
+    loadout: structuredClone(BOT_PRESET_LOADOUTS.freighter),
     appearance: resolveShipAppearance(me.appearance),
     missionIds: [],
   }

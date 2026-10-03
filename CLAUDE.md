@@ -496,7 +496,7 @@ not an argument:
 - **A missile hunter as the default.** In a duel against the compressor with
   racks×2 the old preset (railgun, missiles, rack, shields, radiator) completed
   Destroy 34% of the time and the prey won 69%: a powered rack rolls at every
-  missile. Since 2 Oct 2026 the missile hunter (railgun, missiles, laser) is
+  missile. Since 2 Oct 2026 the striker (railgun, missiles, laser) is
   the preset a Salvage asks for, and the rack gunship stays the default,
   because sending more hunters to missiles takes the racks off the table.
 - **Two lost turns on death.** A respawned ship sat at a known sector with no
@@ -807,9 +807,9 @@ not an argument:
   primary chooses the bow, the secondaries the side slots, the way a player
   would. Each bow has a default, and a card that wants a different kit asks
   for it (Piracy > Salvage > Escort > Tanker > Survey when two ask): railgun
-  gunship (laser, rack), brawler for Piracy (plasma, rack), missile hunter for
+  gunship (laser, rack), brawler for Piracy (plasma, rack), striker for
   Salvage (missiles, laser); sensor raider (disruptor, plasma), watcher for
-  Escort (shields×2, laser), missile picket for Salvage; compressor hauler
+  Escort (shields×2, laser), missile picket for Salvage; compressor freighter
   (shields×2, laser), runner for Tanker or Salvage (disruptor, laser),
   privateer for Piracy (shields×2, plasma). Every system now flies in natural
   play (missiles 19–22% of seats, plasma 37%, the disruptor 27–30%). The first
@@ -875,7 +875,7 @@ Known open problems:
   range. Dealt Intercept now reads 33–35%, but the raider and the watcher
   are the presets that sit lowest with their own card (30% against 35).
 - **Point defence lives on the hunters.** The gunship and the brawler carry
-  the only racks in natural play (21–25% of seats); the missile hunter and
+  the only racks in natural play (21–25% of seats); the striker and
   the picket launch 8–13 missiles a game and racks shoot down about one in
   six. A mapping that sent more hunters to missiles left racks on 7% of seats
   and Destroy at 39%; watch the rack share whenever the presets move.

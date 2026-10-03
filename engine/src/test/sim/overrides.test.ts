@@ -83,8 +83,8 @@ describe("parseLoadoutOverrides", () => {
     ["one preset", `gunship=${HUNTER}`, { gunship: HUNTER_LOADOUT }],
     [
       "two presets, ; between",
-      `gunship=${HUNTER};hauler=${HAULER}`,
-      { gunship: HUNTER_LOADOUT, hauler: HAULER_LOADOUT },
+      `gunship=${HUNTER};freighter=${HAULER}`,
+      { gunship: HUNTER_LOADOUT, freighter: HAULER_LOADOUT },
     ],
   ])("parses %s", (_label, text, expected) => {
     expect(parseLoadoutOverrides(text)).toEqual(expected);
@@ -96,6 +96,7 @@ describe("parseLoadoutOverrides", () => {
   it.each([
     ["an unknown preset", `gunboat=${HUNTER}`],
     ["a role for a preset", `hunter=${HUNTER}`],
+    ["the hauler role for a preset", `hauler=${HAULER}`],
     ["no preset", HUNTER],
     ["three side tiles", "gunship=railgun/laser,shields,radiator"],
     ["no forward tile", "gunship=/laser,ballistic_rack,shields,radiator"],

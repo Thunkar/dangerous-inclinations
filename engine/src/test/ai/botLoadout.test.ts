@@ -40,19 +40,19 @@ const DELIVER = deliverMission(ALPHA, GAMMA);
 
 /**
  * A hand of one primary and two secondaries, and the preset it flies. The
- * primary picks the bow; a secondary asks for a kit; between two that ask for
+ * primary picks the role; a secondary asks for a preset of the role's; between two that ask for
  * different kits, Piracy > Salvage > Escort > Tanker > Survey.
  */
 const HANDS: Array<[string, BotPresetId, Mission[]]> = [
   ["Destroy, Survey, Tanker", "gunship", [DESTROY, surveyMission("a"), tankerMission("b")]],
   ["Destroy, Escort, Survey", "gunship", [DESTROY, escortMission("a"), surveyMission("b")]],
   ["Destroy, Piracy, Survey", "brawler", [DESTROY, piracyMission("a"), surveyMission("b")]],
-  ["Destroy, Salvage, Tanker", "missile-hunter", [DESTROY, salvageMission("a"), tankerMission("b")]],
-  ["Destroy, Salvage, Salvage", "missile-hunter", [DESTROY, salvageMission("a"), salvageMission("b")]],
+  ["Destroy, Salvage, Tanker", "striker", [DESTROY, salvageMission("a"), tankerMission("b")]],
+  ["Destroy, Salvage, Salvage", "striker", [DESTROY, salvageMission("a"), salvageMission("b")]],
   ["Intercept, Survey, Piracy", "raider", [INTERCEPT, surveyMission("a"), piracyMission("b")]],
   ["Intercept, Escort, Tanker", "watcher", [INTERCEPT, escortMission("a"), tankerMission("b")]],
   ["Intercept, Salvage, Survey", "picket", [INTERCEPT, salvageMission("a"), surveyMission("b")]],
-  ["Deliver, Survey, Escort", "hauler", [DELIVER, surveyMission("a"), escortMission("b")]],
+  ["Deliver, Survey, Escort", "freighter", [DELIVER, surveyMission("a"), escortMission("b")]],
   ["Deliver, Piracy, Survey", "privateer", [DELIVER, piracyMission("a"), surveyMission("b")]],
   ["Deliver, Tanker, Survey", "runner", [DELIVER, tankerMission("a"), surveyMission("b")]],
   ["Deliver, Salvage, Escort", "runner", [DELIVER, salvageMission("a"), escortMission("b")]],
@@ -63,8 +63,16 @@ const HANDS: Array<[string, BotPresetId, Mission[]]> = [
   ["Deliver, Tanker, Piracy", "privateer", [DELIVER, tankerMission("a"), piracyMission("b")]],
   ["Deliver, Salvage, Piracy", "privateer", [DELIVER, salvageMission("a"), piracyMission("b")]],
   // A completed card asks for nothing.
-  ["Destroy, a done Piracy, Survey", "gunship", [DESTROY, done(piracyMission("a")), surveyMission("b")]],
-  ["Deliver, a done Piracy, Tanker", "runner", [DELIVER, done(piracyMission("a")), tankerMission("b")]],
+  [
+    "Destroy, a done Piracy, Survey",
+    "gunship",
+    [DESTROY, done(piracyMission("a")), surveyMission("b")],
+  ],
+  [
+    "Deliver, a done Piracy, Tanker",
+    "runner",
+    [DELIVER, done(piracyMission("a")), tankerMission("b")],
+  ],
 ];
 
 describe("botChooseLoadout", () => {
@@ -84,16 +92,20 @@ describe("botChooseLoadout", () => {
     }
   );
 
-  it.each(BOT_ROLES.map((role) => [role]))(
-    "the %s's three presets share one bow",
-    (role) => {
-      const presets = PRESETS_BY_ROLE[role];
-      expect(presets).toHaveLength(3);
-      const bows = new Set(presets.map((id) => BOT_PRESET_LOADOUTS[id].forwardSlots[0]));
-      expect(bows.size).toBe(1);
-      for (const id of presets) expect(presetRole(id)).toBe(role);
-    }
-  );
+  it("every preset is in exactly one role's list, and that list is its role", () => {
+    const listed = BOT_ROLES.flatMap((role) => PRESETS_BY_ROLE[role]);
+    expect([...listed].sort()).toEqual(Object.keys(BOT_PRESET_LOADOUTS).sort());
+    for (const role of BOT_ROLES)
+      for (const id of PRESETS_BY_ROLE[role]) expect(presetRole(id)).toBe(role);
+  });
+
+  it.each([
+    ["hunter", DESTROY],
+    ["interceptor", INTERCEPT],
+  ] as const)("every %s preset can fly the role's primary", (role, primary) => {
+    for (const id of PRESETS_BY_ROLE[role])
+      expect(missionsMissingRequirements([primary], BOT_PRESET_LOADOUTS[id])).toEqual([]);
+  });
 
   it("every preset is flown by some hand", () => {
     const flown = new Set(HANDS.map(([, preset]) => preset));
@@ -163,9 +175,7 @@ describe("botChooseLoadout", () => {
       escortMission("escort-a"),
       tankerMission("tanker-a"),
     ];
-    const kept = [0, 1, 2].map(
-      (i) => botChooseLoadout(offers, { pick: (n) => i % n }).missionIds
-    );
+    const kept = [0, 1, 2].map((i) => botChooseLoadout(offers, { pick: (n) => i % n }).missionIds);
     // Three hands on offer, none refused: two of the three carry the Salvage.
     expect(kept.filter((ids) => ids.includes("salvage-a"))).toHaveLength(2);
   });

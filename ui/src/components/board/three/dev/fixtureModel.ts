@@ -103,10 +103,10 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     42
   )
   const templates = [
-    BOT_PRESET_LOADOUTS.hauler,
+    BOT_PRESET_LOADOUTS.freighter,
     BOT_PRESET_LOADOUTS.gunship,
     BOT_PRESET_LOADOUTS.raider,
-    BOT_PRESET_LOADOUTS['missile-hunter'],
+    BOT_PRESET_LOADOUTS.striker,
     BOT_PRESET_LOADOUTS.runner,
   ]
   state.players.forEach((player, index) => {

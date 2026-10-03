@@ -8,8 +8,8 @@
  *                   keeps Destroy / Deliver / Intercept with its own loadout, and
  *                   those three numbers are the bar for every row below.
  *   3. Logical:     are the nine presets balanced flown with the card their
- *                   bow implies (sensor+Intercept, railgun+Destroy,
- *                   compressor+Deliver)?
+ *                   role is for (interceptor+Intercept, hunter+Destroy,
+ *                   hauler+Deliver)?
  *   4. Illogical:   are loadouts that fight their card actually bad?
  *   5. Off-book:    can a build no preset offers compete?
  *   6. Extreme:     are the sharpest hulls unfairly competitive?
@@ -28,7 +28,7 @@
  *
  * An unknown flag stops the run: a typo is a matrix that never ran.
  * `--only=` takes section names (natural, baselines, logical, illogical,
- * offbook, extreme), full row ids (`illogical:hauler+destroy`) or a bare
+ * offbook, extreme), full row ids (`illogical:freighter+destroy`) or a bare
  * row name (`turtle`).
  *
  * `--rules=missionsToWin=4` plays the whole matrix at a points-to-win a table
@@ -145,14 +145,14 @@ const baselineRows: RowSpec[] = (["destroy", "deliver", "intercept"] as const).m
   bar: "any",
 }));
 
-/** The card each bow is built for. */
+/** The card each role is for. */
 const ROLE_CARD: Record<BotRole, Exclude<BarName, "any">> = {
   interceptor: "intercept",
   hunter: "destroy",
   hauler: "deliver",
 };
 
-/** Each preset flown with the card its bow implies. */
+/** Each preset flown with the card its role is for. */
 const logicalRows: RowSpec[] = BOT_ROLES.flatMap((role) =>
   PRESETS_BY_ROLE[role].map(
     (id): RowSpec => ({
@@ -169,7 +169,7 @@ const logicalRows: RowSpec[] = BOT_ROLES.flatMap((role) =>
 /**
  * Loadouts that fight their card. A compressor cannot scan, so a hauler with an
  * Intercept is not a row the engine would ever accept: the mismatches are the
- * ones a player could actually submit. Four rows fly a bow's default. The
+ * ones a player could actually submit. Four rows fly a role's default. The
  * watcher with a crate is the walled hull with the wrong bow for cargo, the
  * question the two-shield hunter asked before it was cut; the runner hunting
  * is the old aggressive hauler (the same five subsystems), the compressor
@@ -181,7 +181,7 @@ const illogicalRows: RowSpec[] = (
     ["raider", "destroy"],
     ["gunship", "deliver"],
     ["watcher", "deliver"],
-    ["hauler", "destroy"],
+    ["freighter", "destroy"],
     ["runner", "destroy"],
   ] as Array<[BotPresetId, Exclude<BarName, "any">]>
 ).map(([id, bar]) => ({
@@ -404,7 +404,7 @@ const ROWS: RowSpec[] = [
 
 const SECTION_TITLE: Record<Section, string> = {
   baselines: "Baselines by primary (seat 1 keeps the card, picks its own loadout)",
-  logical: "Logical: each preset flown with the card its bow implies",
+  logical: "Logical: each preset flown with the card its role is for",
   illogical: "Illogical: loadouts that fight their card (a row at or above its bar is unpunished)",
   offbook: "Off-book: builds no preset offers, each with the card it is built for",
   extreme: "Extreme hulls, random legal hand",
