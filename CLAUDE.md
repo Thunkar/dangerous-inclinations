@@ -199,7 +199,7 @@ its own loadout: the bar every row with that card is read against); **logical**
 (the twelve presets, four per role, with the card their role is for); **illogical** (a preset
 with a card that fights it: sensor bow hauling, compressor hunting); **off-book**
 (builds no preset has, with the card they are built for: sensor bow with three
-launchers, a missile boat, a rack hunter, a hauler with point defence); and
+launchers, a missile boat, a rack hunter, a fifth wall in the bow); and
 **extreme** (nineteen wild hulls with a random legal hand, against the own-hand
 bar). One table, one flag column. Failing flags: `outlier` (12+ points over its
 bar), `stall` (20%+ of games at the cap), `slow` (a natural row), `unpunished`
@@ -498,8 +498,8 @@ not an argument:
 - **A missile hunter as the default.** In a duel against the compressor with
   racks×2 the old preset (railgun, missiles, rack, shields, radiator) completed
   Destroy 34% of the time and the prey won 69%: a powered rack rolls at every
-  missile. Since 2 Oct 2026 the striker (railgun, missiles, laser) is
-  the preset a Salvage asks for, and the rack gunship stays the default,
+  missile. Since 3 Oct 2026 the corsair (missile bow, lasers×3) is the
+  hunter a Salvage asks for, and the rack gunship stays the default,
   because sending more hunters to missiles takes the racks off the table.
 - **Two lost turns on death.** A respawned ship sat at a known sector with no
   cubes allocated for two rounds: a free kill on repeat, with no counter-play.
@@ -804,37 +804,42 @@ not an argument:
   bar but one (sensor bow + shields×2 + radiator + disruptor, Intercept, +8);
   at 2 energy disruptor + plasma×2 reads +9. Its partner is plasma, which
   strips a wall cheaply so the disruptor fired after it gets through.
-- **Four presets per role, picked by the secondaries.** Adopted 2 Oct 2026
-  in place of the nine presets (three a role, one bow a role). The primary
-  chooses the role, the secondaries the preset (Piracy > Salvage > Escort >
-  Survey > Tanker when two ask). Hunter: gunship (railgun; laser, rack), the
-  default; corsair for Piracy (missile bow; laser, rack); striker for Salvage
-  (railgun; missiles, laser); warden for Escort (disruptor bow; plasma×2).
-  Interceptor, all sensor bows: raider (disruptor, plasma), the default;
-  jammer for Piracy (disruptors×2); picket for Salvage (missiles×2); sentry
-  for Escort (laser, rack). Hauler, all compressors: freighter (shields×2,
-  laser), the default; privateer for Piracy (shields×2, plasma); smuggler for
-  Salvage (missiles×2); ghost for Tanker (disruptors×2, radiators×2). Forced
-  with each role's card, 1000 games a row, every preset sits within 4 points
-  of its bar: gunship 33, corsair 32, striker 38, warden 34 against Destroy
-  35; raider 28, jammer 32, picket 31, sentry 29 against Intercept 32;
-  freighter 33, privateer 34, smuggler 36, ghost 36 against Deliver 36. Dealt
-  Destroy / Deliver / Intercept 35 / 36 / 32 (34 / 32 / 34 with the nine).
-  Natural play: missiles on 38–40% of seats (19–22 before), racks 21–25%
-  (unchanged), railguns 13–14% (29–34), kills 1.6 / 2.9 at three / four
-  seats (1.8 / 4.1), rounds unchanged. Why these: the variety probe (1000
-  games a hull at three seats, 600 at four) found hunters without walls and
-  with missile or disruptor bows at or above the old gunship and brawler; the
-  missile boat (missile bow, missiles×2, radiator, shields: 45 / 38%), the
-  sensor bow with three launchers (46 / 37%) and the gunless turtles
-  (interceptor 38 / 31%, hauler 42 / 41%) are strong in every kind of game,
-  so they are not presets; the rack wall (20 / 17%) is weak. A first draft
-  that also sent Survey to the missile presets put missiles on 47% of seats,
-  launched 21–28 a game and racks shot down one in ten. The first nine-preset
-  mapping sent Survey and Piracy hunters to the missiles: racks fell to 7% of
-  seats, missiles went unanswered and the dealt primaries moved to 39 / 30 /
-  31, which is why the gunship is the hunter's default and keeps racks on
-  21–25% of seats.
+- **Four presets per role, one identity each.** Adopted 3 Oct 2026. The
+  primary chooses the role, the secondaries the preset (Piracy > Salvage >
+  Escort > Survey > Tanker when two ask). Hunter: gunship (railgun; laser,
+  rack, shields), the default; lancer for Piracy (railgun; plasma×2, laser);
+  corsair for Salvage (missile bow; lasers×3); warden for Escort (disruptor
+  bow; plasma×2, shields). Interceptor, all sensor bows: raider (shields,
+  disruptor, plasma), the default; watcher for Survey (shields×2, laser);
+  picket for Salvage (missiles×2, shields); sentry for Escort (laser, rack,
+  shields). Hauler, all compressors: freighter (shields×2, laser), the
+  default; convoy for Piracy and Escort (racks×2, shields); smuggler for
+  Salvage (missiles×2, shields); ghost for Tanker (disruptor, laser, plasma).
+  Every preset carries one radiator. The first four-preset set (2 Oct)
+  measured 1.6 / 2.9 kills at three / four seats against the nine presets'
+  1.8 / 4.1; the designer asked for distinct identities, no two presets in a
+  role sharing their kit, and no wasted radiators. Measured 1000 games a row
+  forced with the role's card: gunship 34, lancer 32, corsair 40, warden 36
+  against a Destroy bar of 35; raider 29, watcher 28, picket 32, sentry 30
+  against Intercept 31; freighter 35, convoy 35, smuggler 38, ghost 30
+  against Deliver 35. Dealt Destroy / Deliver / Intercept 35 / 35 / 31.
+  Natural play: kills 3.1 / 6.1 at three / four seats, the `bloody` flag at
+  both, rounds 27; racks on 33–37% of seats, missiles 30%, railguns 16–18%;
+  mean heat at the check 5.5–5.9, no turn taking heat damage. Why no second
+  radiator: a heat-use probe (400 games a hull) found hulls without shields
+  rarely pass the base dissipation (the corsair with two radiators: heat at
+  the check 3.0 of 9, the second radiator used in 1% of checks; the ghost
+  1%; the lancer 16%), and swapping it for a gun or a rack raised them
+  (corsair 33 → 39–40%, ghost 37 → 35–40%, lancer 38 → 37–39%). The
+  designer chose this bloodier table on purpose. Left out since the variety
+  probe (1000 games a hull at three seats, 600 at four): the missile boat
+  (missile bow, missiles×2, radiator, shields: 45 / 38%), the sensor bow with
+  three launchers (46 / 37%) and the gunless turtles (interceptor 38 / 31%,
+  hauler 42 / 41%) are strong in every kind of game; the rack wall (20 /
+  17%) is weak. The first nine-preset mapping sent Survey and Piracy hunters
+  to the missiles: racks fell to 7% of seats, missiles went unanswered and
+  the dealt primaries moved to 39 / 30 / 31, which is why the gunship is the
+  hunter's default.
 
 - **Escort on the ring, back on either death.** Adopted 2 Oct 2026 as the
   designer's rule: mark an undocked rival carrying cargo on your ring; done
@@ -882,17 +887,16 @@ Known open problems:
 - **Data aboard makes every Intercept and Survey holder prey.** A scan is
   data and data is loot: three seizures in four are data, and 40% of
   Intercept scans come on the first legal turn as the interceptor moves into
-  range. Dealt Intercept now reads 32–35%, but the raider and the sentry
-  are the presets that sit lowest with their own card (28 and 29% against
-  32).
-- **Point defence is thin against the launchers.** The gunship, the corsair
-  and the sentry carry the only racks in natural play (21–25% of seats),
-  while missiles fly on 38–40% (the corsair, the striker, the picket and the
-  smuggler). With the nine presets racks shot down about one in six; a draft
-  of the twelve that sent Survey to the launchers put missiles on 47% of
-  seats and racks shot down one in ten, and a mapping that left racks on 7%
-  moved Destroy to 39%. Watch the rack and missile shares whenever the
-  presets move.
+  range. Dealt Intercept now reads 31–35%, but the raider and the watcher
+  are the presets that sit lowest with their own card (29 and 28% against
+  31).
+- **Point defence against the launchers.** The gunship, the sentry and the
+  convoy carry the racks (33–37% of seats in natural play); the corsair,
+  the picket and the smuggler carry the launchers (30%). With the nine
+  presets racks shot down about one in six; a draft of the first twelve that
+  sent Survey to the launchers put missiles on 47% of seats and racks shot
+  down one in ten, and a mapping that left racks on 7% moved Destroy to 39%.
+  Watch the rack and missile shares whenever the presets move.
 - **The bots keep cards uniformly among the legal ones**, so a weapon hull is
   dealt into Destroy whether or not its gun can finish one (measured before
   the presets: Destroy completed 35% behind a railgun, 12% behind a laser, 5%

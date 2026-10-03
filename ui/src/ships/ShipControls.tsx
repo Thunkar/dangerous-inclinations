@@ -35,18 +35,18 @@ const ROLE_NAME: Record<BotRole, string> = {
 
 /** What each preset carries, what it is for, and the card that asks for it. */
 const PRESET_NOTE: Record<BotPresetId, string> = {
-  gunship: 'Railgun, laser and rack: a shot through shields, and point defence',
-  corsair: 'Missile bow, laser and rack: run carriers down, for Piracy',
-  striker: 'Railgun, missiles and laser: hits from across the well, for Salvage',
+  gunship: 'Railgun, laser and rack: shots through shields, and point defence',
+  lancer: 'Railgun, two plasma and a laser, no shields: run a carrier down, for Piracy',
+  corsair: 'Missile bow and three lasers, no shields: finish wrecks from range, for Salvage',
   warden: 'Disruptor bow and two plasma: strip a wall, break what is behind, for Escort',
-  raider: 'Plasma and disruptor: strip a wall, then break what is behind it',
-  jammer: "Two disruptors: break a carrier's engines, for Piracy",
-  picket: 'Two launchers: hits from across the well, for Salvage',
-  sentry: 'Laser and rack: ride beside a carrier with point defence, for Escort',
+  raider: 'Shields, disruptor and plasma: strip a wall, then break what is behind it',
+  watcher: 'Two shields and a laser: keep the data you scanned, for Survey',
+  picket: 'Two launchers and shields: hits from across the well, for Salvage',
+  sentry: 'Laser, rack and shields: ride beside a carrier, for Escort',
   freighter: 'Two shields and a laser: the safe cargo run',
-  privateer: 'Two shields and plasma: take the fight to a carrier, for Piracy',
-  smuggler: 'Two launchers: hits from across the well, for Salvage',
-  ghost: "Two disruptors and two radiators: break a pursuer's engines, for Tanker",
+  convoy: 'Two racks and shields: point defence, for Piracy or Escort',
+  smuggler: 'Two launchers and shields: hits from across the well, for Salvage',
+  ghost: 'Disruptor, laser and plasma, no shields: break a pursuer, for Tanker',
 }
 
 const templateFor = (preset: BotPresetId): ShipLoadout =>

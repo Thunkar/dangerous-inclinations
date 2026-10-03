@@ -168,14 +168,14 @@ const logicalRows: RowSpec[] = BOT_ROLES.flatMap((role) =>
 
 /**
  * Loadouts that fight their card. A compressor cannot scan, so a hauler with an
- * Intercept is not a row the engine would ever accept, and the jammer and the
- * ghost carry no gun that deals damage, so neither can keep a Destroy: the
- * mismatches are the ones a player could actually submit. Four rows fly a
- * role's default. The sentry with a crate is the hunter's guns on the wrong
- * bow for cargo; the privateer hunting is the compressor whose one gun a wall
- * stops. The smuggler is left out: its two launchers are a hull built to hunt
- * (it was the off-book armed legs, on its Destroy bar), not one that fights
- * the card.
+ * Intercept is not a row the engine would ever accept: the mismatches are the
+ * ones a player could actually submit. Four rows fly a role's default. The
+ * sentry with a crate is the hunter's guns on the wrong bow for cargo; the
+ * convoy hunting is a compressor whose only guns are its point defence, and a
+ * rack as a sole gun completes far less than a railgun (settled in CLAUDE.md).
+ * The ghost and the smuggler are left out: a compressor with two real guns
+ * beats a hunter in a duel, so they are hulls built to hunt, not ones that
+ * fight the card.
  */
 const illogicalRows: RowSpec[] = (
   [
@@ -184,7 +184,7 @@ const illogicalRows: RowSpec[] = (
     ["gunship", "deliver"],
     ["sentry", "deliver"],
     ["freighter", "destroy"],
-    ["privateer", "destroy"],
+    ["convoy", "destroy"],
   ] as Array<[BotPresetId, Exclude<BarName, "any">]>
 ).map(([id, bar]) => ({
   id: `illogical:${id}+${bar}`,
@@ -221,12 +221,6 @@ const offbookRows: RowSpec[] = (
       "railgun + lasers×2 + radiators×2",
       hull("railgun", "laser,laser,radiator,radiator"),
       "destroy",
-    ],
-    [
-      "hauler_pdc",
-      "hauler with point defence",
-      hull("fuel_compressor", "ballistic_rack,ballistic_rack,shields,radiator"),
-      "deliver",
     ],
     // Shields opened the bow on 22 Sept and no bot will ever choose it, so
     // without this row nothing in the suite flies a loaded forward slot that

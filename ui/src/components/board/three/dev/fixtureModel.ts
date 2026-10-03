@@ -124,7 +124,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     BOT_PRESET_LOADOUTS.raider,
     BOT_PRESET_LOADOUTS.warden,
     BOT_PRESET_LOADOUTS.corsair,
-    BOT_PRESET_LOADOUTS.striker,
+    BOT_PRESET_LOADOUTS.lancer,
   ]
   state.players.forEach((player, index) => {
     player.hasSubmittedLoadout = true

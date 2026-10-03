@@ -45,33 +45,45 @@ const DELIVER = deliverMission(ALPHA, GAMMA);
  */
 const HANDS: Array<[string, BotPresetId, Mission[]]> = [
   ["Destroy, Survey, Tanker", "gunship", [DESTROY, surveyMission("a"), tankerMission("b")]],
-  ["Destroy, Piracy, Survey", "corsair", [DESTROY, piracyMission("a"), surveyMission("b")]],
-  ["Destroy, Salvage, Tanker", "striker", [DESTROY, salvageMission("a"), tankerMission("b")]],
-  ["Destroy, Salvage, Salvage", "striker", [DESTROY, salvageMission("a"), salvageMission("b")]],
+  ["Destroy, Piracy, Survey", "lancer", [DESTROY, piracyMission("a"), surveyMission("b")]],
+  ["Destroy, Salvage, Tanker", "corsair", [DESTROY, salvageMission("a"), tankerMission("b")]],
+  ["Destroy, Salvage, Salvage", "corsair", [DESTROY, salvageMission("a"), salvageMission("b")]],
   ["Destroy, Escort, Survey", "warden", [DESTROY, escortMission("a"), surveyMission("b")]],
-  ["Intercept, Survey, Tanker", "raider", [INTERCEPT, surveyMission("a"), tankerMission("b")]],
-  ["Intercept, Piracy, Survey", "jammer", [INTERCEPT, piracyMission("a"), surveyMission("b")]],
-  ["Intercept, Salvage, Survey", "picket", [INTERCEPT, salvageMission("a"), surveyMission("b")]],
+  ["Intercept, Piracy, Tanker", "raider", [INTERCEPT, piracyMission("a"), tankerMission("b")]],
+  ["Intercept, Survey, Tanker", "watcher", [INTERCEPT, surveyMission("a"), tankerMission("b")]],
+  ["Intercept, Salvage, Tanker", "picket", [INTERCEPT, salvageMission("a"), tankerMission("b")]],
   ["Intercept, Escort, Tanker", "sentry", [INTERCEPT, escortMission("a"), tankerMission("b")]],
-  ["Deliver, Survey, Escort", "freighter", [DELIVER, surveyMission("a"), escortMission("b")]],
-  ["Deliver, Piracy, Survey", "privateer", [DELIVER, piracyMission("a"), surveyMission("b")]],
+  ["Deliver, Survey, Survey", "freighter", [DELIVER, surveyMission("a"), surveyMission("b")]],
+  ["Deliver, Piracy, Survey", "convoy", [DELIVER, piracyMission("a"), surveyMission("b")]],
+  ["Deliver, Escort, Survey", "convoy", [DELIVER, escortMission("a"), surveyMission("b")]],
   ["Deliver, Salvage, Survey", "smuggler", [DELIVER, salvageMission("a"), surveyMission("b")]],
   ["Deliver, Tanker, Survey", "ghost", [DELIVER, tankerMission("a"), surveyMission("b")]],
   // Two secondaries asking for different kits: the higher card decides.
-  ["Destroy, Salvage, Piracy", "corsair", [DESTROY, salvageMission("a"), piracyMission("b")]],
-  ["Destroy, Escort, Piracy", "corsair", [DESTROY, escortMission("a"), piracyMission("b")]],
-  ["Destroy, Escort, Salvage", "striker", [DESTROY, escortMission("a"), salvageMission("b")]],
-  ["Intercept, Escort, Piracy", "jammer", [INTERCEPT, escortMission("a"), piracyMission("b")]],
+  ["Destroy, Salvage, Piracy", "lancer", [DESTROY, salvageMission("a"), piracyMission("b")]],
+  ["Destroy, Escort, Piracy", "lancer", [DESTROY, escortMission("a"), piracyMission("b")]],
+  ["Destroy, Escort, Salvage", "corsair", [DESTROY, escortMission("a"), salvageMission("b")]],
   ["Intercept, Escort, Salvage", "picket", [INTERCEPT, escortMission("a"), salvageMission("b")]],
-  ["Deliver, Tanker, Piracy", "privateer", [DELIVER, tankerMission("a"), piracyMission("b")]],
+  ["Intercept, Survey, Salvage", "picket", [INTERCEPT, surveyMission("a"), salvageMission("b")]],
+  ["Intercept, Survey, Escort", "sentry", [INTERCEPT, surveyMission("a"), escortMission("b")]],
+  ["Deliver, Tanker, Piracy", "convoy", [DELIVER, tankerMission("a"), piracyMission("b")]],
+  ["Deliver, Tanker, Escort", "convoy", [DELIVER, tankerMission("a"), escortMission("b")]],
   ["Deliver, Tanker, Salvage", "smuggler", [DELIVER, tankerMission("a"), salvageMission("b")]],
+  ["Deliver, Escort, Salvage", "smuggler", [DELIVER, escortMission("a"), salvageMission("b")]],
+  // Piracy and Escort ask for the same hull.
+  ["Deliver, Piracy, Escort", "convoy", [DELIVER, piracyMission("a"), escortMission("b")]],
   // A card that asks for nothing in the role leaves the choice to the other.
-  ["Deliver, Escort, Tanker", "ghost", [DELIVER, escortMission("a"), tankerMission("b")]],
+  ["Intercept, Piracy, Survey", "watcher", [INTERCEPT, piracyMission("a"), surveyMission("b")]],
+  ["Deliver, Survey, Tanker", "ghost", [DELIVER, surveyMission("a"), tankerMission("b")]],
   // A completed card asks for nothing.
   [
     "Destroy, a done Piracy, Survey",
     "gunship",
     [DESTROY, done(piracyMission("a")), surveyMission("b")],
+  ],
+  [
+    "Intercept, a done Survey, Tanker",
+    "raider",
+    [INTERCEPT, done(surveyMission("a")), tankerMission("b")],
   ],
   [
     "Deliver, a done Piracy, Tanker",
@@ -104,6 +116,13 @@ describe("botChooseLoadout", () => {
     for (const id of PRESETS_BY_ROLE[role])
       expect(missionsMissingRequirements([primary], BOT_PRESET_LOADOUTS[id])).toEqual([]);
   });
+
+  it.each(Object.entries(BOT_PRESET_LOADOUTS))(
+    "the %s carries a gun that deals damage, so it can keep a Destroy",
+    (_id, loadout) => {
+      expect(missionsMissingRequirements([DESTROY], loadout)).toEqual([]);
+    }
+  );
 
   it("every preset is flown by some hand", () => {
     const flown = new Set(HANDS.map(([, preset]) => preset));
