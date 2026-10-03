@@ -87,9 +87,15 @@ export interface ShipModel {
   dispose: () => void
 }
 
-/** A cross section with clipped corners, lofted along the thrust axis. */
-function armoredSection(sections: [number, number, number][]): BufferGeometry {
-  const rings = sections.map(([x, h, w]) => {
+/**
+ * A cross section with clipped corners, lofted along the thrust axis. An
+ * optional fourth number lifts a station's centre, so a loft can taper on one
+ * side and keep the other flat.
+ */
+function armoredSection(
+  sections: ([number, number, number] | [number, number, number, number])[]
+): BufferGeometry {
+  const rings = sections.map(([x, h, w, lift = 0]) => {
     const c = Math.min(h, w) * 0.35
     return [
       [h, w - c],
@@ -100,7 +106,7 @@ function armoredSection(sections: [number, number, number][]): BufferGeometry {
       [-h + c, -w],
       [h - c, -w],
       [h, -w + c],
-    ].map(([y, z]) => [x, y, z])
+    ].map(([y, z]) => [x, y + lift, z])
   })
   const vertices: number[] = []
   const tri = (a: number[], b: number[], c: number[]) => vertices.push(...a, ...b, ...c)
@@ -113,8 +119,9 @@ function armoredSection(sections: [number, number, number][]): BufferGeometry {
   }
   for (let i = 0; i < 8; i++) {
     const j = (i + 1) % 8
-    tri([sections[0][0], 0, 0], rings[0][j], rings[0][i])
-    tri([sections.at(-1)![0], 0, 0], rings.at(-1)![i], rings.at(-1)![j])
+    const [first, last] = [sections[0], sections.at(-1)!]
+    tri([first[0], first[3] ?? 0, 0], rings[0][j], rings[0][i])
+    tri([last[0], last[3] ?? 0, 0], rings.at(-1)![i], rings.at(-1)![j])
   }
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3))
@@ -307,7 +314,10 @@ export function createShip(
   // Faceted solids for machinery that must not read round. Both put a flat
   // face toward +X (and toward every axis for 4 or 8 sides); `radius` is to
   // the corners.
-  /** A regular polygon lofted along Y, with the plates' chamfered edges. */
+  /**
+   * A regular polygon lofted along Y, with the plates' chamfered edges; a
+   * `hole` radius cuts the same polygon through it, making a collar.
+   */
   const prism = (
     p: Group,
     sides: number,
@@ -315,17 +325,25 @@ export function createShip(
     h: number,
     pos: Vec3,
     mat = steel,
-    rot: Vec3 = [0, 0, 0]
+    rot: Vec3 = [0, 0, 0],
+    hole = 0
   ) => {
-    const bevel = Math.min(radius / 4, h / 4, 0.03)
-    const shape = new Shape()
-    for (let i = 0; i < sides; i++) {
-      const a = Math.PI / sides + (i * 2 * Math.PI) / sides
-      const r = radius - bevel
-      if (i === 0) shape.moveTo(Math.cos(a) * r, Math.sin(a) * r)
-      else shape.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+    const bevel = Math.min(radius / 4, h / 4, hole ? (radius - hole) / 4 : 1, 0.03)
+    const polygon = (path: Shape | Path, r: number) => {
+      for (let i = 0; i < sides; i++) {
+        const a = Math.PI / sides + (i * 2 * Math.PI) / sides
+        if (i === 0) path.moveTo(Math.cos(a) * r, Math.sin(a) * r)
+        else path.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+      }
+      path.closePath()
     }
-    shape.closePath()
+    const shape = new Shape()
+    polygon(shape, radius - bevel)
+    if (hole) {
+      const cut = new Path()
+      polygon(cut, hole + bevel)
+      shape.holes.push(cut)
+    }
     const geo = new ExtrudeGeometry(shape, {
       depth: h - 2 * bevel,
       bevelEnabled: true,
@@ -979,44 +997,39 @@ export function createShip(
       }
       case 'plasma_cannon': {
         // A broadside projector, not a turret: an octagonal containment
-        // chamber lying along the hull in two clamps, banded by flat armour
-        // collars, with one squared-off muzzle shroud rising from its middle
-        // to fire outboard. The laser stands up as a round stack; this lies
-        // down as a faceted drum and fires through a slotted vent.
-        plate(p, [1.4, 0.14, 0.98], [0, 0.29, 0], dark)
+        // chamber laid along the hull and sunk to past its waist in a bed of
+        // armour, banded by flat collars, with one short hexagonal muzzle
+        // rising from its crown to fire outboard. The laser stands up as a
+        // round stack; this lies half buried and fires through a hex throat.
+        plate(p, [1.52, 0.06, 0.66], [0, 0.25, 0], dark)
+        for (const z of [-1, 1]) {
+          plate(p, [1.6, 0.28, 0.24], [0, 0.36, z * 0.44], hull)
+          box(p, [1.24, 0.03, 0.06], [0, 0.505, z * 0.44], copper)
+        }
+        for (const x of [-1, 1]) plate(p, [0.12, 0.22, 0.66], [x * 0.76, 0.33, 0], hull)
         const chamber = new Group()
         chamber.name = 'plasma_containment_chamber'
         p.add(chamber)
         const along: Vec3 = [0, 0, Math.PI / 2]
-        prism(chamber, 8, 0.32, 1.2, [0, 0.62, 0], pale, along)
-        for (const x of [-0.5, -0.24, 0.24, 0.5])
-          prism(chamber, 8, 0.37, 0.09, [x, 0.62, 0], steel, along)
+        const axis = 0.44
+        prism(chamber, 8, 0.3, 1.1, [0, axis, 0], steel, along)
+        for (const x of [-0.5, -0.3, 0.3, 0.5])
+          prism(chamber, 8, 0.36, 0.08, [x, axis, 0], dark, along)
         for (const x of [-1, 1]) {
-          prism(chamber, 8, 0.27, 0.08, [x * 0.63, 0.62, 0], dark, along)
-          prism(chamber, 6, 0.13, 0.06, [x * 0.69, 0.62, 0], steel, along)
-          // Clamps standing proud of the chamber's flanks between the collars,
-          // and copper bus plates laid flat on its two outboard bevels.
-          plate(chamber, [0.15, 0.3, 0.9], [x * 0.37, 0.5, 0], pale)
-          for (const bevel of [-Math.PI / 4, Math.PI / 4]) {
-            const face = new Group()
-            face.position.set(0, 0.62, 0)
-            face.rotation.x = bevel
-            chamber.add(face)
-            box(face, [0.15, 0.03, 0.16], [x * 0.37, 0.305, 0], copper)
-          }
+          prism(chamber, 8, 0.27, 0.08, [x * 0.58, axis, 0], dark, along)
+          prism(chamber, 6, 0.13, 0.06, [x * 0.635, axis, 0], steel, along)
         }
-        // The muzzle: a square shroud flaring outboard, an armoured lip round
-        // it, and the vent set down inside the lip.
+        // The muzzle: a hex neck out of the crown, a shroud flaring at its
+        // own chamfer, a steel hex collar, and inside it the emitter face.
         const muzzle = new Group()
         muzzle.name = 'plasma_muzzle'
         p.add(muzzle)
-        plate(muzzle, [0.62, 0.12, 0.5], [0, 0.94, 0], dark)
-        frustum(muzzle, 4, 0.38, 0.46, 0.16, [0, 1.06, 0], pale).scale.set(1.2, 1, 1)
-        for (const z of [-1, 1]) plate(muzzle, [0.86, 0.1, 0.1], [0, 1.17, z * 0.29], steel)
-        for (const x of [-1, 1]) plate(muzzle, [0.1, 0.1, 0.68], [x * 0.38, 1.17, 0], steel)
-        box(muzzle, [0.66, 0.04, 0.48], [0, 1.14, 0], dark)
-        for (const x of [-0.18, -0.06, 0.06, 0.18])
-          box(muzzle, [0.06, 0.03, 0.38], [x, 1.165, 0], cyan)
+        prism(muzzle, 6, 0.24, 0.18, [0, 0.67, 0], pale)
+        frustum(muzzle, 6, 0.24, 0.33, 0.12, [0, 0.82, 0], pale)
+        prism(muzzle, 6, 0.36, 0.08, [0, 0.92, 0], steel, [0, 0, 0], 0.25)
+        prism(muzzle, 6, 0.27, 0.04, [0, 0.89, 0], dark)
+        prism(muzzle, 6, 0.17, 0.03, [0, 0.925, 0], cyan)
+        prism(muzzle, 6, 0.08, 0.03, [0, 0.94, 0], dark)
         break
       }
       case 'laser':
@@ -1109,46 +1122,187 @@ export function createShip(
         break
       }
       case 'disruptor': {
-        // An emitter, not a gun: nothing to aim, so no barrel and no cradle.
-        // A hexagonal tower stands on a plinth, braced by six buttress fins,
-        // and steps in through three vanes with a cyan inlay round each edge
-        // to a faceted crystal: the same from every side, in the bow or abeam.
-        plate(p, [1.2, 0.14, 1.0], [0, 0.29, 0], dark)
+        // An emitter, not a gun, and the same module in every mount: a low
+        // faceted housing laid along the plate in a saddle that fills the
+        // bay, with a finned capacitor block at its after end, two clamped
+        // coils, armour panels and an aiming box, and at its fore end a squat
+        // hex emitter head facing outboard: a recessed array of cyan cells in
+        // a steel collar crowned with stubby electrode studs, braced by short
+        // radiator vanes. No barrel: the burst goes out all round.
         const emitter = new Group()
         emitter.name = 'disruptor_emitter'
         p.add(emitter)
-        // Corners toward the plate's long sides, so the fins stay on it.
-        const corner: Vec3 = [0, Math.PI / 6, 0]
-        prism(emitter, 6, 0.48, 0.12, [0, 0.42, 0], pale, corner)
-        frustum(emitter, 6, 0.3, 0.2, 0.52, [0, 0.74, 0], hull, corner)
-        for (let i = 0; i < 6; i++)
+        emitter.position.y = 0.28
+        // The saddle: a plinth across the bay and two chamfered cheeks the
+        // capacitor and the coils lie between, ramping away before the head.
+        plate(p, [1.64, 0.08, 1.06], [0, 0.26, 0], dark)
+        for (const side of [-1, 1]) {
+          add(
+            p,
+            armoredSection([
+              [-0.84, 0.12, 0.13, 0.34],
+              [0, 0.12, 0.13, 0.34],
+              [0.28, 0.03, 0.1, 0.25],
+            ]),
+            pale,
+            [0, 0, side * 0.42]
+          )
+          // Gussets from the cheeks up the housing's flanks.
+          for (const x of [-0.08, 0.06])
+            fin(
+              p,
+              [
+                [0.16, 0.44],
+                [0.36, 0.44],
+                [0.19, 0.61],
+              ],
+              0.06,
+              steel,
+              [0, (-side * Math.PI) / 2, 0]
+            ).position.x = x
+          // Feet tying each coil clamp down to the cheek, bolted through.
+          for (const x of [-0.36, -0.22]) {
+            box(p, [0.07, 0.1, 0.15], [x, 0.49, side * 0.315], steel)
+            prism(p, 6, 0.035, 0.03, [x, 0.555, side * 0.35], dark)
+          }
+          // The junction box on the cheek, its conduits into the capacitor.
+          plate(p, [0.28, 0.16, 0.2], [-0.66, 0.53, side * 0.43], dark)
+          box(p, [0.08, 0.03, 0.06], [-0.6, 0.62, side * 0.45], cyan)
+          for (const x of [-0.74, -0.6])
+            pipe(p, [x, 0.58, side * 0.34], [x, 0.58, side * 0.24], 0.028, copper)
+        }
+        // The housing's own frame: +X fore along the plate, +Y off its belly.
+        const housing: Vec3[] = [
+          [-0.48, 0.16, 0.2],
+          [0.36, 0.145, 0.18],
+        ]
+        const across = (x: number) => {
+          const [[x0, h0, w0], [x1, h1, w1]] = housing
+          const t = Math.min(1, Math.max(0, (x - x0) / (x1 - x0)))
+          return [h0 + (h1 - h0) * t, w0 + (w1 - w0) * t]
+        }
+        const top = (x: number) => 2 * across(x)[0]
+        const flat = (x: number, h: number, w: number): [number, number, number, number] => [
+          x,
+          h,
+          w,
+          h,
+        ]
+        add(emitter, armoredSection([flat(-0.84, 0.2, 0.25), flat(-0.44, 0.2, 0.25)]), dark)
+        add(emitter, armoredSection(housing.map(([x, h, w]) => flat(x, h, w))), hull)
+        // Two heavy clamp collars round the coils just ahead of the capacitor,
+        // each with a dark coil showing through a slot in its face.
+        for (const x of [-0.36, -0.22]) {
+          const [h, w] = across(x)
+          add(
+            emitter,
+            armoredSection([
+              flat(x - 0.12, h - 0.005, w - 0.005),
+              flat(x - 0.03, h + 0.045, w + 0.045),
+              flat(x + 0.03, h + 0.045, w + 0.045),
+            ]),
+            steel
+          )
+          box(emitter, [0.03, 0.03, 0.16], [x, 2 * h + 0.095, 0], dark)
+        }
+        // Two armour panels on the spine with a break between them.
+        for (const stations of [
+          [-0.12, -0.07, 0.11, 0.14],
+          [0.18, 0.23, 0.3, 0.34],
+        ]) {
+          const last = stations.length - 1
+          add(
+            emitter,
+            armoredSection(
+              stations.map((x, i): [number, number, number, number] =>
+                i === 0
+                  ? [x, 0.006, 0.1, top(x)]
+                  : i === last
+                    ? [x, 0.01, 0.1, top(x) + 0.005]
+                    : [x, 0.025, 0.14, top(x) + 0.02]
+              )
+            ),
+            pale
+          )
+        }
+        // The aiming box on the after panel.
+        fin(
+          emitter,
+          [
+            [-0.04, 0.33],
+            [0.12, 0.33],
+            [0.12, 0.42],
+            [0.05, 0.42],
+          ],
+          0.12,
+          steel
+        )
+        box(emitter, [0.03, 0.04, 0.07], [0.13, 0.385, 0], cyan)
+        // The capacitor: a row of cooling fins on top, slats down its flanks.
+        for (const z of [-0.165, -0.055, 0.055, 0.165])
           fin(
             emitter,
             [
-              [0.2, 0.36],
-              [0.57, 0.36],
-              [0.57, 0.42],
-              [0.4, 0.62],
-              [0.2, 0.62],
+              [-0.82, 0.37],
+              [-0.48, 0.37],
+              [-0.48, 0.46],
+              [-0.72, 0.46],
             ],
             0.06,
-            hull,
-            [0, (i * Math.PI) / 3, 0]
-          )
-        // Each vane is chamfered underneath (printable without support), then
-        // the inlay, then a steel cap.
-        for (const [y, r] of [
-          [0.62, 0.42],
-          [0.74, 0.34],
-          [0.86, 0.26],
-        ]) {
-          frustum(emitter, 6, r - 0.05, r, 0.05, [0, y + 0.025, 0], dark, corner)
-          prism(emitter, 6, r, 0.04, [0, y + 0.07, 0], cyan, corner)
-          prism(emitter, 6, r, 0.03, [0, y + 0.105, 0], steel, corner)
+            steel
+          ).position.z = z
+        const [, aft] = across(-0.4),
+          [, fore] = across(0.3)
+        for (const side of [-1, 1]) {
+          for (let i = 0; i < 5; i++)
+            box(emitter, [0.035, 0.13, 0.03], [-0.78 + i * 0.07, 0.2, side * 0.255], steel)
+          // A cyan conduit down each flank from the coils to the head.
+          box(emitter, [0.7, 0.035, 0.03], [-0.05, 0.22, side * ((aft + fore) / 2 + 0.008)], cyan, [
+            0,
+            side * Math.atan((aft - fore) / 0.7),
+            0,
+          ])
         }
-        prism(emitter, 6, 0.17, 0.06, [0, 1.0, 0], steel, corner)
-        frustum(emitter, 6, 0.05, 0.15, 0.08, [0, 1.07, 0], cyan, corner)
-        frustum(emitter, 6, 0.15, 0, 0.22, [0, 1.22, 0], cyan, corner)
+        // The head: a hex block, cyan slits in its forward faces, short
+        // radiator vanes at its corners, and on top a steel collar round a
+        // recessed array of cyan cells, crowned with electrode studs.
+        const head = new Group()
+        head.name = 'disruptor_head'
+        head.position.x = 0.54
+        emitter.add(head)
+        prism(head, 6, 0.25, 0.34, [0, 0.17, 0], dark)
+        for (const angle of [-Math.PI / 3, 0, Math.PI / 3]) {
+          const face = new Group()
+          face.rotation.y = angle
+          head.add(face)
+          box(face, [0.03, 0.18, 0.07], [0.222, 0.17, 0], cyan)
+        }
+        for (const angle of [-90, -30, 30, 90])
+          fin(
+            head,
+            [
+              [0.18, 0],
+              [0.32, 0],
+              [0.32, 0.1],
+              [0.18, 0.24],
+            ],
+            0.06,
+            steel,
+            [0, (angle * Math.PI) / 180, 0]
+          )
+        prism(head, 6, 0.27, 0.06, [0, 0.37, 0], steel, [0, 0, 0], 0.19)
+        prism(head, 6, 0.2, 0.04, [0, 0.35, 0], dark)
+        for (let i = -1; i < 6; i++) {
+          const a = (i * Math.PI) / 3
+          const r = i < 0 ? 0 : 0.11
+          prism(head, 6, 0.055, 0.03, [Math.cos(a) * r, 0.385, -Math.sin(a) * r], cyan)
+        }
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 6 + (i * Math.PI) / 3
+          const [x, z] = [Math.cos(a) * 0.23, -Math.sin(a) * 0.23]
+          prism(head, 6, 0.04, 0.09, [x, 0.445, z], steel)
+          prism(head, 6, 0.03, 0.03, [x, 0.505, z], cyan)
+        }
         break
       }
       case 'ballistic_rack': {
