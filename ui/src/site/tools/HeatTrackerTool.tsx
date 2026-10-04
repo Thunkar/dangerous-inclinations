@@ -3,7 +3,7 @@
  *
  * Set the five slots once and the mat is your ship for the rest of the game.
  * A click on a subsystem puts on the energy its next action takes (the engines
- * go 1, 2, 3 for the burns; shields 2, then 4), a right click takes a step
+ * go 1, 2, 3 for the burns; shields 1, then 2), a right click takes a step
  * off, and on a phone a tap past the top clears it. The check is the engine's
  * arithmetic (`heatAfterCheck`, `getDissipationCapacity`), so the radiators it
  * dissipates with are the working ones on the mat.
@@ -11,9 +11,10 @@
  * The mat follows the turn rather than a calculator's reset. The heat check
  * bills the energy and leaves it where it is, because it stays on until your
  * next turn: a wall is still up while everyone else plays. What happens to it
- * then is the engine's too. A shield that absorbs spends two energy a point and
- * leaves the track alone, and a break dumps the subsystem's energy onto the
- * track on the spot. "Start my turn" clears the loadout, the rule's first step.
+ * then is the engine's too. A shield that absorbs spends an energy a point (a
+ * point of anything, two of plasma) and puts every point it stopped on the
+ * track, and a break dumps the subsystem's energy onto the track on the spot.
+ * "Start my turn" clears the loadout, the rule's first step.
  *
  * Everything is kept in this browser, so a phone locking does not lose the
  * heat track, the one number a table cannot re-derive.
@@ -27,10 +28,9 @@ import {
   BURN_COSTS,
   COMPRESSED_JUMP_MASS,
   MAX_HEAT,
-  SHIELD_ENERGY_PER_POINT,
+  SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
-  energyStepOf,
   getDissipationCapacity,
   heatAfterCheck,
 } from '@dangerous-inclinations/engine'
@@ -40,7 +40,15 @@ import { BAND_ANGLE, FONT_DISPLAY, PRESS } from '../../design/press'
 import { MOUNTS } from '../../ships/mounts'
 import type { MountId } from '../../ships/mounts'
 import { Body, Numeral, Slab } from '../poster'
-import { FORWARD_TILES, RADIATOR_DISSIPATION, SENSOR_CRIT, SIDE_TILES, tileName } from '../numbers'
+import {
+  FORWARD_TILES,
+  PLASMA_SHIELD_POINTS,
+  RADIATOR_DISSIPATION,
+  SENSOR_CRIT,
+  SIDE_TILES,
+  tileName,
+  weaponStats,
+} from '../numbers'
 import { Ledger } from '../guide/parts'
 import type { LedgerRow } from '../guide/parts'
 import { Field, Label, Plate, Segments, Stepper } from './controls'
@@ -48,7 +56,7 @@ import {
   FIXED,
   SLOTS,
   TRACK_CEILING,
-  absorbPoint,
+  absorb,
   absorbingShield,
   breakSlot,
   typeAt,
@@ -83,12 +91,12 @@ function freshMat(): Mat {
   }
 }
 
-/** The settings a subsystem's energy can stand at: off, then each step to the top. */
+/** The settings a subsystem's energy can stand at: off, then each energy to the top. */
 function levelsOf(type: SubsystemType): number[] {
   const { minEnergy, maxEnergy } = SUBSYSTEM_CONFIGS[type]
   const levels = [0]
   if (maxEnergy === 0) return levels
-  for (let e = minEnergy; e <= maxEnergy; e += energyStepOf(type)) levels.push(e)
+  for (let e = minEnergy; e <= maxEnergy; e++) levels.push(e)
   return levels
 }
 
@@ -136,7 +144,7 @@ function purpose(type: SubsystemType, energy: number): string {
     case 'scoop':
       return 'scoop'
     case 'shields':
-      return `absorbs ${energy / SHIELD_ENERGY_PER_POINT}`
+      return `absorbs ${energy * SHIELD_POINTS_PER_ENERGY}`
     case 'missiles':
       return 'salvo'
     case 'sensor_array':
@@ -211,9 +219,13 @@ export function HeatTrackerTool() {
       broken: m.broken.filter(s => s !== mount),
     }))
 
-  // The shields absorb in slot order, as the engine walks them.
+  // The shields absorb in slot order, as the engine walks them: a point of
+  // anything, or a whole plasma bolt at its own rate.
   const canAbsorb = absorbingShield(mat) !== undefined
-  const absorb = () => setMat(absorbPoint)
+  const plasmaBolt = (m: Mat) =>
+    absorb(m, weaponStats('plasma_cannon').damage, PLASMA_SHIELD_POINTS)
+  const absorbPoint = () => setMat(m => absorb(m, 1))
+  const absorbPlasma = () => setMat(plasmaBolt)
 
   const onMat = SLOTS.reduce((sum, slot) => sum + energyOf(slot), 0)
   const hull = SLOTS.map(slot => ({ type: typeAt(mat, slot), isBroken: isBroken(slot) }))
@@ -365,8 +377,22 @@ export function HeatTrackerTool() {
               editable
             />
           </Field>
-          <AbsorbButton disabled={!canAbsorb} onClick={absorb} />
+          <AbsorbButton
+            label="Shields absorb 1"
+            badge={`+${absorb(mat, 1).track - mat.track}`}
+            disabled={!canAbsorb}
+            onClick={absorbPoint}
+          />
+          <AbsorbButton
+            label="Shields absorb plasma"
+            badge={`+${plasmaBolt(mat).track - mat.track}`}
+            disabled={!canAbsorb}
+            onClick={absorbPlasma}
+          />
         </Box>
+        <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1 }}>
+          {`A hit on your shields: each energy stops ${SHIELD_POINTS_PER_ENERGY} damage (${PLASMA_SHIELD_POINTS} of plasma) and comes off, and every point stopped goes on the track.`}
+        </Body>
 
         <Box sx={{ mt: 3 }}>
           <Label>The check</Label>
@@ -646,8 +672,18 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: '
   )
 }
 
-/** A shield soaking a point on someone else's turn: two energy off it, nothing on the track. */
-function AbsorbButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+/** A shield soaking a shot on someone else's turn: energy off it, the points it stopped on the track. */
+function AbsorbButton({
+  label,
+  badge,
+  disabled,
+  onClick,
+}: {
+  label: string
+  badge: string
+  disabled: boolean
+  onClick: () => void
+}) {
   return (
     <Box
       component="button"
@@ -671,7 +707,7 @@ function AbsorbButton({ disabled, onClick }: { disabled: boolean; onClick: () =>
     >
       <TileIcon type="shields" size={18} title={null} />
       <Box component="span" sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', fontWeight: 600 }}>
-        Shields absorb 1
+        {label}
       </Box>
       <Box
         component="span"
@@ -687,7 +723,7 @@ function AbsorbButton({ disabled, onClick }: { disabled: boolean; onClick: () =>
           fontSize: '1.05rem',
         }}
       >
-        −{SHIELD_ENERGY_PER_POINT}
+        {badge}
       </Box>
     </Box>
   )

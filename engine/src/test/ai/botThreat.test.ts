@@ -41,9 +41,10 @@ describe("suspectedWeapon: what the cubes on a face-down slot can mean", () => {
   it.each<[string, "forward" | "side", number, string | null]>([
     // The powerable bow subsystems are the sensor and shields: no weapon.
     ["a loaded bow as no weapon", "forward", 2, null],
-    // A half wall or a rack, and the rack is the one that shoots back.
+    // A full wall or a rack, and the rack is the one that shoots back.
     ["two cubes on a side slot as a possible rack", "side", 2, "ballistic_rack"],
-    ["four cubes on a side slot as a full wall", "side", 4, null],
+    // Only a shield holds one cube.
+    ["one cube on a side slot as a half wall", "side", 1, null],
     // Every gun is dark between shots, so silence is what a scan is for.
     ["a dark slot as saying nothing", "side", 0, null],
   ])("reads %s", (_label, group, allocatedEnergy, type) => {
@@ -76,7 +77,7 @@ describe("threat assessment", () => {
   });
 
   it("counts a face-down slot with two cubes as a possible rack, at less than full weight", () => {
-    // Two cubes on a face-down side slot one sector away: a half wall or a
+    // Two cubes on a face-down side slot one sector away: a full wall or a
     // rack, and a rack reaches exactly that far. Worth worrying about, not
     // worth treating as a fact.
     const known = withPower(
@@ -116,10 +117,11 @@ describe("threat assessment", () => {
 
 describe("shieldAbsorption", () => {
   it.each<[string, SubsystemId, number, boolean, number]>([
-    ["a shield it can see at one point per two cubes", "side-1", 2, true, 1],
-    ["a face-down side slot at two cubes as half a shield: it may be a rack", "side-1", 2, false, 0.5],
-    ["a face-down side slot at four cubes whole: nothing else holds four", "side-1", 4, false, 2],
-    ["nothing for a loaded bow", "forward-0", 4, false, 0],
+    ["a shield it can see at two cubes as two points", "side-1", 2, true, 2],
+    ["a shield it can see at one cube as one point", "side-1", 1, true, 1],
+    ["a face-down side slot at two cubes at half weight: it may be a rack", "side-1", 2, false, 1],
+    ["a face-down side slot at one cube whole: nothing else holds one", "side-1", 1, false, 1],
+    ["nothing for a loaded bow", "forward-0", 2, false, 0],
   ])("prices %s", (_label, slot, cubes, revealed, points) => {
     const state = withPower(
       revealed ? withSub(facingOff(), "p2", slot, { isRevealed: true }) : facingOff(),

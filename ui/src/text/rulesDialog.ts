@@ -19,7 +19,7 @@ export const RULES_DIALOG = {
   /**
    * The quick reference, one row a line: the label, then the rule. The
    * slots every row may use: halfShield, fullShield, rackEnergy,
-   * sensorEnergy, maxHeat, dissipation, radiator, shieldEnergy, plasmaShield,
+   * sensorEnergy, maxHeat, dissipation, radiator, shieldPoints, plasmaPoints,
    * intercepts, hull, fuel, sectors, soft, medium, hard, mostPhase,
    * jumpEnergy, jumpFuel, compressedFuel, miss, hitFrom, hitTo, crit,
    * sensorCrit, salvoEnergy, scanRange, tankerFuel, homeRings, deploymentGap,
@@ -40,7 +40,7 @@ export const RULES_DIALOG = {
     ['Dissipation', 'dissipate {dissipation} (+{radiator} per radiator) at every check'],
     [
       'Shields',
-      'power at {halfShield} or {fullShield}; {shieldEnergy} energy a point absorbed; the energy comes off and makes no heat; power them every turn you want them up; lasers ignore them; plasma takes {plasmaShield} energy a point; any powered shield stops a disruptor whole',
+      'power at {halfShield} or {fullShield}; each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and comes off; every point absorbed is heat on your track, paid at your next check; power them every turn you want them up; lasers ignore them; any powered shield stops a disruptor whole',
     ],
     [
       'Ballistic rack',
@@ -141,7 +141,7 @@ export const RULES_DIALOG = {
       'Public: positions, facing, hull, heat, fuel, the energy on every slot, Home markers, cargo counts, face-up subsystems and the missiles left in a face-up missiles subsystem, completed missions, wrecks and Escort markers.',
     private:
       'Private: what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo is going.',
-    tell: '<red>Energy is the tell.</red> Using a subsystem turns it face-up, so energy on a face-down slot between turns means it was powered, not used: {halfShield} is a half shield, a ballistic rack or a sensor array, and {fullShield} can only be a full shield. That is a deduction, not a reveal: the subsystem stays face-down and only a scan makes sure. A gun is dark until it fires, which is why a silent slot is the dangerous one.',
+    tell: '<red>Energy is the tell.</red> Using a subsystem turns it face-up, so energy on a face-down slot between turns means it was powered, not used: {halfShield} can only be a half shield, and {fullShield} is a full shield, a ballistic rack or a sensor array. That is a deduction, not a reveal: the subsystem stays face-down and only a scan makes sure. A gun is dark until it fires, which is why a silent slot is the dangerous one.',
   },
 
   reveals: {

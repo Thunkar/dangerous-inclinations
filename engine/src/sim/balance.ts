@@ -255,6 +255,30 @@ const offbookRows: RowSpec[] = (
       hull("disruptor", "laser,laser,shields,radiator"),
       "destroy",
     ],
+    [
+      "hauler_shields3",
+      "compressor + shields×3 + radiator",
+      hull("fuel_compressor", "shields,shields,shields,radiator"),
+      "deliver",
+    ],
+    [
+      "hauler_shields3_laser",
+      "compressor + shields×3 + laser",
+      hull("fuel_compressor", "shields,shields,shields,laser"),
+      "deliver",
+    ],
+    [
+      "rail_shields3",
+      "railgun + shields×3 + laser",
+      hull("railgun", "shields,shields,shields,laser"),
+      "destroy",
+    ],
+    [
+      "sensor_shields3",
+      "sensor bow + shields×3 + laser",
+      hull("sensor_array", "shields,shields,shields,laser"),
+      "intercept",
+    ],
   ] as Array<[string, string, ShipLoadout, Exclude<BarName, "any">]>
 ).map(([name, label, loadout, bar]) => ({
   id: `offbook:${name}`,
@@ -281,6 +305,9 @@ const extremeRows: RowSpec[] = (
       hull("sensor_array", "shields,shields,radiator,radiator"),
     ],
     ["bunker", "shields×4", hull("sensor_array", "shields,shields,shields,shields")],
+    ["fortress5", "shield bow + shields×4", hull("shields", "shields,shields,shields,shields")],
+    ["fortress4_laser", "shield bow + shields×3 + laser", hull("shields", "shields,shields,shields,laser")],
+    ["compressor_shields4", "compressor + shields×4", hull("fuel_compressor", "shields,shields,shields,shields")],
     ["laserboat", "railgun + lasers×4", hull("railgun", "laser,laser,laser,laser")],
     [
       "rail_la2_rad2",

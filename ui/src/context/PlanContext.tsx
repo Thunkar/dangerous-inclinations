@@ -32,7 +32,6 @@ import type {
 import {
   SELL_NOTHING,
   chosenSale,
-  energyStepOf,
   getAdjustmentRange,
   getJumpAdjustmentRange,
   getJumpOptions,
@@ -400,9 +399,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       const sub = powerableTile(me, used, subsystemId)
       if (!sub) return
       const config = getSubsystemConfig(sub.type)
-      const step = energyStepOf(sub.type)
-      const wanted =
-        value < config.minEnergy ? 0 : Math.min(config.maxEnergy, Math.floor(value / step) * step)
+      const wanted = value < config.minEnergy ? 0 : Math.min(config.maxEnergy, Math.floor(value))
       setPowers(prev => ({ ...prev, [subsystemId]: wanted }))
     },
     [me, used]

@@ -28,7 +28,7 @@ import {
   MAX_HEAT,
   MISSION_POINTS,
   SCAN_SECTOR_RANGE,
-  SHIELD_ENERGY_PER_POINT,
+  SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   fill,
@@ -41,7 +41,7 @@ import {
   D10,
   INTERCEPT_ON,
   MISS_TOP,
-  PLASMA_SHIELD,
+  PLASMA_SHIELD_POINTS,
   RADIATOR_DISSIPATION,
   SENSOR_CRIT,
   energyLabel,
@@ -319,7 +319,7 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
       {
         rings: weaponStats('plasma_cannon').ringRange!,
         sectors: weaponStats('plasma_cannon').sectorRange!,
-        energy: PLASMA_SHIELD,
+        points: PLASMA_SHIELD_POINTS,
       },
       RED_WORDS
     ),
@@ -348,7 +348,7 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
 const POWERED: Array<{ type: SubsystemType; effect: ReactNode }> = [
   {
     type: 'shields',
-    effect: fill(B.powered.shields, { energy: SHIELD_ENERGY_PER_POINT }),
+    effect: fill(B.powered.shields, { points: SHIELD_POINTS_PER_ENERGY }),
   },
   {
     type: 'ballistic_rack',

@@ -83,8 +83,8 @@ describe("energy: every cube is heat at the check", () => {
     ["a railgun shot", pointBlank, [fire(1, "forward-0", "p2")], 4],
     ["a salvo", pointBlank, [fire(1, "side-3", "p2", "engines", undefined, 2)], 2],
     ["a scan", rackAndTarget, [scan(1, "p2", "side-0"), coast(2)], 2],
-    ["a half wall", open, [power(1, "side-2", 2), coast(2)], 2],
-    ["a full wall", open, [power(1, "side-2", 4), coast(2)], 4],
+    ["a half wall", open, [power(1, "side-2", 1), coast(2)], 1],
+    ["a full wall", open, [power(1, "side-2", 2), coast(2)], 2],
   ])("charges %s exactly its cubes", (_label, build, actions, expected) => {
     const result = executeTurnAs(build(), ...actions);
     expect(result.errors ?? []).toEqual([]);
@@ -95,7 +95,7 @@ describe("energy: every cube is heat at the check", () => {
 
   it("clears last turn's cubes before the actions, so the check bills only this turn's", () => {
     // Cubes left on p1's loadout from its last turn: a wall and a railgun.
-    let state = withPower(makeTwoPlayerGame({ ring: 2 }), "p1", "side-2", 4);
+    let state = withPower(makeTwoPlayerGame({ ring: 2 }), "p1", "side-2", 2);
     state = withPower(state, "p1", "forward-0", 4);
     const result = executeTurnAs(state, burn(1, "soft"));
     expect(result.errors ?? []).toEqual([]);
@@ -135,7 +135,7 @@ describe("energy: it stays on the tile until its owner's next turn", () => {
     ],
     ["a laser that fired", "side-0", 2, { sector: 0 }, [fire(1, "side-0", "p2"), coast(2)]],
     ["a soft burn's engines", "engines", 1, { sector: 12 }, [burn(1, "soft")]],
-    ["a powered wall", "side-2", 4, { sector: 12 }, [power(1, "side-2", 4), coast(2)]],
+    ["a powered wall", "side-2", 2, { sector: 12 }, [power(1, "side-2", 2), coast(2)]],
   ] as const)(
     "keeps %s loaded through the next player's turn",
     (_label, id, cubes, p2, actions) => {
@@ -190,14 +190,14 @@ describe("energy: it stays on the tile until its owner's next turn", () => {
 });
 
 describe("energy: heat is the only limit", () => {
-  const fullWalls = [1, 2, 3, 4].map((seq, i) => power(seq, `side-${i}`, 4));
+  const fullWalls = [1, 2, 3, 4].map((seq, i) => power(seq, `side-${i}`, 2));
 
   it("lets a ship light more than it can cool, and charges it the hull", () => {
-    // Four walls at four cubes is sixteen, and a hard burn is three more:
+    // Four walls at two cubes is eight, and a hard burn is three more:
     // nothing refuses it, and the heat track simply bills for it.
     const result = executeTurnAs(fourShields({ ring: 2 }), ...fullWalls, burn(5, "hard"));
     expect(result.errors ?? []).toEqual([]);
-    const cubes = 16 + BURN_COSTS.hard.energy;
+    const cubes = 8 + BURN_COSTS.hard.energy;
     const [check] = eventsOf(result.events, "heat_check");
     expect(check.cubes).toBe(cubes);
     expect(check.damage).toBe(cubes - MAX_HEAT);
@@ -214,9 +214,9 @@ describe("energy: heat is the only limit", () => {
 
 describe("energy: power", () => {
   it.each([
+    ["shields at one", "side-2", 1, 1],
     ["shields at two", "side-2", 2, 2],
-    ["shields at four", "side-2", 4, 4],
-    ["shields at their minimum", "side-2", undefined, 2],
+    ["shields at their minimum", "side-2", undefined, 1],
     ["a rack", "side-0", undefined, 2],
     ["a sensor array", "forward-0", 2, 2],
   ] as const)("powers %s", (_label, id, amount, expected) => {
@@ -238,7 +238,7 @@ describe("energy: power", () => {
   it("names the tile's type once it is already face-up", () => {
     const state = withSub(rackAndTarget(), "p1", "side-2", { isRevealed: true });
     const [event] = eventsOf(
-      executeTurnAs(state, power(1, "side-2", 4)).events,
+      executeTurnAs(state, power(1, "side-2", 2)).events,
       "subsystem_powered"
     );
     expect(event).toMatchObject({ subsystemId: "side-2", subsystemType: "shields" });
@@ -246,7 +246,7 @@ describe("energy: power", () => {
 
   it("is allowed on a quiet turn: a wall reaches nobody", () => {
     const state = { ...rackAndTarget(), turn: FIRST_TURN };
-    expect(executeTurnAs(state, power(1, "side-2", 4), coast(2)).errors).toBeUndefined();
+    expect(executeTurnAs(state, power(1, "side-2", 2), coast(2)).errors).toBeUndefined();
   });
 
   it.each([
@@ -264,11 +264,11 @@ describe("energy: power", () => {
 
   // The last column is an amount the same tile takes.
   it.each([
-    ["one cube on a shield", "side-2", 1, 2],
-    ["three cubes on a shield", "side-2", 3, 4],
-    ["more than a shield holds", "side-2", 6, 4],
+    ["no cubes on a shield", "side-2", 0, 1],
+    ["three cubes on a shield", "side-2", 3, 2],
+    ["more than a shield holds", "side-2", 6, 2],
     ["a negative amount", "side-2", -2, 2],
-    ["a fractional amount", "side-2", 2.5, 2],
+    ["a fractional amount", "side-2", 1.5, 1],
     ["four on a rack", "side-0", 4, getSubsystemConfig("ballistic_rack").maxEnergy],
     ["four on a sensor", "forward-0", 4, getSubsystemConfig("sensor_array").maxEnergy],
   ])("rejects %s", (_label, id, amount, legal) => {
@@ -285,7 +285,7 @@ describe("energy: power", () => {
   });
 
   it.each([
-    ["powering a wall twice", [power(1, "side-2", 2), power(2, "side-2", 4)]],
+    ["powering a wall twice", [power(1, "side-2", 1), power(2, "side-2", 2)]],
     ["firing a rack powered this turn", [power(1, "side-0"), fire(2, "side-0", "p2")]],
     ["powering a rack that fired this turn", [fire(1, "side-0", "p2"), power(2, "side-0")]],
     ["scanning with a sensor powered this turn", [power(1, "forward-0"), scan(2, "p2", "side-0")]],

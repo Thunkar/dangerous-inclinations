@@ -19,6 +19,7 @@ import { Body, Display, Numeral } from '../poster'
 import { GuideSection, Points, SubHead } from './parts'
 import { CHEATSHEET } from '../../text/cheatsheet'
 import { rich } from '../../utils/rich'
+import { FULL_SHIELD, HALF_SHIELD } from '../numbers'
 
 const T = CHEATSHEET.secrets
 
@@ -98,7 +99,9 @@ export function SecretsSection() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <Box>
             <SubHead>{T.energyTitle}</SubHead>
-            <Points items={T.energy.map(item => rich(item))} />
+            <Points
+              items={T.energy.map(item => rich(item, { half: HALF_SHIELD, full: FULL_SHIELD }))}
+            />
           </Box>
           <Box>
             <SubHead>{T.scanTitle}</SubHead>

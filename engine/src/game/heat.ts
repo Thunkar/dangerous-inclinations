@@ -7,8 +7,9 @@
  * still there when the check runs, so firing costs its four, a burn costs the
  * burn's and a wall costs the wall. The energy stays on until its owner's next
  * turn clears the loadout, so each turn's cubes are billed at one check.
- * Absorbing makes no heat: the cubes a shield spends come off the tile
- * (`damage.ts`), and they were billed at the check when they went on.
+ * The track also takes what a ship's shields absorb, a point a point, on
+ * whoever's turn it happens (`damage.ts`), so a wall that is hit is paid for
+ * at the next check twice: its cubes and the shot it stopped.
  *
  * There is no reactor cap any more: a ship may light everything it owns in one
  * turn, and what stops it is this check. At it the ship pays for anything above
@@ -54,7 +55,8 @@ export function heatAfterCheck(heat: number, dissipation: number): number {
  * 4. The ship dissipates; what is left carries to the next turn.
  *
  * **Cold repair.** Heat 0 at the check means not a cube on the loadout and
- * nothing carried on the track: nothing used or powered this turn and the crew outside. It is the only repair that does not need a station,
+ * nothing carried on the track: nothing used or powered this turn, nothing
+ * absorbed since the last check, and the crew outside. It is the only repair that does not need a station,
  * and it is what stops a critical on the engines, the thrusters or the scoop
  * being a soft-lock: every station is in a planet well, reaching one needs a
  * jump, and a jump needs engines and fuel, so a ship without them, or dry with

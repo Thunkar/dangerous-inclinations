@@ -28,7 +28,6 @@ import {
   isTacticalAction,
 } from "../models/game.ts";
 import {
-  energyStepOf,
   getSubsystemConfig,
   isPowerableType,
   isWeaponType,
@@ -128,8 +127,6 @@ export function validatePowerAction(state: GameState, action: PowerAction): stri
     errors.push(`${config.name} needs at least ${config.minEnergy} cubes to work`);
   if (amount > config.maxEnergy)
     errors.push(`${config.name} holds at most ${config.maxEnergy} cubes`);
-  const step = energyStepOf(sub.type);
-  if (amount % step !== 0) errors.push(`${config.name} takes energy ${step} cubes at a time`);
   // Nothing else to check: nothing caps what a ship lights, and what the tile
   // costs is heat at the owner's check, which is their business.
   return errors;

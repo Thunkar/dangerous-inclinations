@@ -5,6 +5,7 @@ import { missionsMissingRequirements, validateLoadout } from "../../game/loadout
 import { MISSION_REQUIREMENTS } from "../../models/missions.ts";
 import type { MissionRequirement } from "../../models/missions.ts";
 import type { Facing, ShipLoadout } from "../../models/game.ts";
+import type { SubsystemId } from "../../models/subsystems.ts";
 import {
   DAMAGING_WEAPON_TYPES,
   SUBSYSTEM_CONFIGS,
@@ -32,6 +33,11 @@ const PLASMA: ShipLoadout = {
 const DISRUPTOR: ShipLoadout = {
   forwardSlots: ["disruptor"],
   sideSlots: ["shields", "shields", "radiator", "radiator"],
+};
+/** Two shields, at side-2 and side-3. */
+const TWO_WALLS: ShipLoadout = {
+  forwardSlots: ["railgun"],
+  sideSlots: ["laser", "laser", "shields", "shields"],
 };
 /** The default target: railgun forward, shields at side-2. */
 const TARGET: ShipLoadout = {
@@ -67,22 +73,21 @@ describe("plasma cannon: range", () => {
   });
 });
 
-describe("plasma cannon: shields absorb a point per cube", () => {
-  /** p1 at R3 S0 fires its port plasma at p2 one ring out; p2's shield is side-2. */
-  const duel = (shieldCubes: number) =>
-    withPower(
-      makeTwoPlayerGame({ loadout: PLASMA }, { ring: 4, sector: 0, loadout: TARGET }),
-      "p2",
-      "side-2",
-      shieldCubes
+describe("plasma cannon: a shield cube absorbs two points", () => {
+  /** p1 at R3 S0 fires its port plasma at p2 one ring out. */
+  const duel = (loadout: ShipLoadout, cubes: Array<[SubsystemId, number]>) =>
+    cubes.reduce(
+      (state, [slot, n]) => withPower(state, "p2", slot, n),
+      makeTwoPlayerGame({ loadout: PLASMA }, { ring: 4, sector: 0, loadout })
     );
 
-  it.each([
-    ["no shield: all four land", 0, 4, 0, 0],
-    ["two cubes buy two points", 2, 2, 2, 0],
-    ["four cubes stop it whole", 4, 0, 4, 0],
-  ])("%s", (_label, cubes, toHull, absorbed, shieldLeft) => {
-    const result = executeTurnAs(duel(cubes), fire(1, "side-0", "p2"));
+  it.each<[string, ShipLoadout, Array<[SubsystemId, number]>, number, number]>([
+    ["no shield: all four land", TARGET, [], 4, 0],
+    ["a half shield buys two points", TARGET, [["side-2", 1]], 2, 2],
+    ["a full shield stops it whole", TARGET, [["side-2", 2]], 0, 4],
+    ["two half shields stop it whole between them", TWO_WALLS, [["side-2", 1], ["side-3", 1]], 0, 4],
+  ])("%s", (_label, loadout, cubes, toHull, absorbed) => {
+    const result = executeTurnAs(duel(loadout, cubes), fire(1, "side-0", "p2"));
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
       weaponType: "plasma_cannon",
@@ -92,31 +97,39 @@ describe("plasma cannon: shields absorb a point per cube", () => {
     });
     const target = getShip(result.gameState, "p2");
     expect(target.hitPoints).toBe(10 - toHull);
-    // One cube a point; the spent cubes come off the tile and make no heat.
-    expect(target.heat.currentHeat).toBe(0);
-    expect(getSub(result.gameState, "p2", "side-2").allocatedEnergy).toBe(shieldLeft);
+    // The cubes come off the shields and every point absorbed is heat on the track.
+    expect(target.heat.currentHeat).toBe(absorbed);
+    expect(cubesOnLoadout(target)).toBe(0);
+    expect(
+      eventsOf(result.events, "subsystem_revealed")
+        .filter((e) => e.playerId === "p2")
+        .map((e) => e.subsystemId)
+    ).toEqual(cubes.map(([slot]) => slot));
   });
 });
 
-describe("shields against an ordinary weapon are unchanged", () => {
-  it("a railgun against four cubes: two absorbed, two to the hull, no heat", () => {
+describe("shields against an ordinary weapon: a point a cube", () => {
+  it.each([
+    ["a half shield: one absorbed, three to the hull", 1, 1, 3],
+    ["a full shield: two absorbed, two to the hull", 2, 2, 2],
+  ])("a railgun against %s, and the points on the track", (_label, cubes, absorbed, toHull) => {
     const state = withPower(
       makeTwoPlayerGame({}, { ring: 3, sector: 2, loadout: TARGET }),
       "p2",
       "side-2",
-      4
+      cubes
     );
     const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
       weaponType: "railgun",
       damage: 4,
-      toHull: 2,
-      absorbed: 2,
+      toHull,
+      absorbed,
     });
     const target = getShip(result.gameState, "p2");
-    expect(target.hitPoints).toBe(8);
-    expect(target.heat.currentHeat).toBe(0);
+    expect(target.hitPoints).toBe(10 - toHull);
+    expect(target.heat.currentHeat).toBe(absorbed);
     expect(getSub(result.gameState, "p2", "side-2").allocatedEnergy).toBe(0);
   });
 });
@@ -246,8 +259,11 @@ describe("disruptor: any powered shield blocks it", () => {
     return state;
   };
 
-  it("two cubes on a shield: nothing happens but the shield turns face-up", () => {
-    const before = duel(2);
+  it.each([
+    ["one cube", 1],
+    ["two cubes", 2],
+  ])("%s on a shield: nothing happens but the shield turns face-up", (_label, cubes) => {
+    const before = duel(cubes);
     const result = executeTurnAs(before, fire(1, "forward-0", "p2", "forward-0"));
     expect(result.errors).toBeUndefined();
     expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
@@ -265,7 +281,8 @@ describe("disruptor: any powered shield blocks it", () => {
     // No cubes spent, no heat, nothing broken: the target is as it was, its shield face-up.
     const expected = getShip(withSub(before, "p2", "side-2", { isRevealed: true }), "p2");
     expect(getShip(result.gameState, "p2")).toEqual(expected);
-    expect(cubesOnLoadout(getShip(result.gameState, "p2"))).toBe(6);
+    expect(getShip(result.gameState, "p2").heat.currentHeat).toBe(0);
+    expect(cubesOnLoadout(getShip(result.gameState, "p2"))).toBe(4 + cubes);
   });
 
   it.each([

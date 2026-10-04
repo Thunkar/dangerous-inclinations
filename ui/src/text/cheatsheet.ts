@@ -167,6 +167,8 @@ export const CHEATSHEET = {
     points: {
       stays:
         'Energy <b>stays on the subsystem until your next turn</b>, so shields, a rack or a sensor you power work through everyone else’s turn.',
+      absorbed:
+        'Damage your shields absorb is heat too: each point goes on your track at once and is paid at your next check.',
       over: 'Over {maxHeat} heat at your check is hull damage. Dissipate {dissipation} (+{radiator} a radiator) and carry the rest.',
       cold: 'If you have 0 heat at your check, repair one broken subsystem.',
     },
@@ -222,7 +224,7 @@ export const CHEATSHEET = {
       missiles:
         'Any ship in your well. Launch any number at one ship: {aboard} aboard, {steps} steps a turn for {turns} turns.',
       plasma_cannon:
-        '±{rings} ring, ±{sectors} sector, off one side, never along your own ring. <b>{shield} shield energy stops 1 damage</b>, so a full shield stops it whole.',
+        '±{rings} ring, ±{sectors} sector, off one side, never along your own ring. <b>Each shield energy stops {points} damage</b>, so a full shield stops it whole.',
       disruptor:
         'An EMP burst: ±{rings} ring, ±{sectors} sector, either side, like the rack. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless any shield has energy on it.',
     },
@@ -252,7 +254,7 @@ export const CHEATSHEET = {
     },
     /** The two columns of points at the foot of the section. */
     hits: [
-      '<b>Shields absorb first</b>: {shieldEnergy} energy stop 1 damage ({plasmaShield} against plasma). Lasers ignore them.',
+      '<b>Shields absorb first</b>: each energy stops {shieldPoints} damage ({plasmaPoints} of plasma) and comes off. <b>Every point absorbed is heat</b> on the target’s track. Lasers ignore them.',
       'The rest is hull. At 0 the ship is destroyed (see 08).',
     ],
     rules: [
@@ -284,6 +286,7 @@ export const CHEATSHEET = {
     energyTitle: 'Read the energy',
     energy: [
       'Energy on every subsystem is <b>public</b>. On a face-down subsystem it means powered, not used.',
+      '{half} can only be a half shield; {full} is a full shield, a rack or a sensor.',
       'A gun is dark until it fires.',
     ],
     scanTitle: 'Scan to be sure',

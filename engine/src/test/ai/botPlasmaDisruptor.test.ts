@@ -1,6 +1,6 @@
 /**
  * How the bots fly the plasma cannon and the disruptor: shields price each
- * shot at its own rate (plasma a cube a point), and the disruptor, which takes
+ * shot at its own rate (a shield cube stops two points of plasma), and the disruptor, which takes
  * no hull, fires only at a ship whose shields look down by the time it shoots.
  */
 import { describe, it, expect } from "vitest";
@@ -12,9 +12,11 @@ import { missionsMissingRequirements } from "../../game/loadout.ts";
 import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import type { Opponent } from "../../ai/types.ts";
+import { SUSPECTED_SHIELD_WEIGHT } from "../../ai/analyzer.ts";
 import {
   chooseCriticalTarget,
   chooseDisruptTarget,
+  disruptBlockChance,
   hullThrough,
 } from "../../ai/behaviors/combat.ts";
 import { selectBotMissions } from "../../ai/behaviors/loadout.ts";
@@ -38,25 +40,29 @@ import {
 } from "../testUtils.ts";
 
 describe("hullThrough: each shot spends the shield pool at its own rate", () => {
-  const rail = { damage: 4, shieldRate: 2 };
-  const rack = { damage: 2, shieldRate: 2 };
-  const laser = { damage: 2, shieldRate: null };
-  const plasma = { damage: 3, shieldRate: 1 };
+  const rail = { damage: 4, shieldPerCube: 1 };
+  const rack = { damage: 2, shieldPerCube: 1 };
+  const laser = { damage: 2, shieldPerCube: null };
+  const plasma = { damage: 4, shieldPerCube: 2 };
 
-  it.each<[string, Array<{ damage: number; shieldRate: number | null }>, number, number]>([
+  it.each<[string, Array<{ damage: number; shieldPerCube: number | null }>, number, number]>([
     // At the default rate only: direct + max(0, shielded - absorption).
     ["a railgun against a full wall", [rail], 2, 2],
+    ["a railgun against a half wall", [rail], 1, 3],
     ["a railgun and a rack against a full wall", [rail, rack], 2, 4],
     ["a laser past a full wall", [laser], 2, 2],
-    ["a rack and a laser against a half point", [rack, laser], 0.5, 3.5],
+    ["a rack and a laser against a half-weight guess", [rack, laser], 0.5, 3.5],
     ["a rack into more wall than it has damage", [rack], 3, 0],
-    // Plasma: a cube a point.
-    ["plasma against four cubes", [plasma], 2, 0],
-    ["plasma against two cubes", [plasma], 1, 1],
-    // The railgun spends the four cubes on two points; the plasma finds none.
-    ["a railgun then plasma against four cubes", [rail, plasma], 2, 5],
-    // Plasma first leaves one cube, half a point of railgun.
-    ["plasma then a railgun against four cubes", [plasma, rail], 2, 3.5],
+    // Plasma: two points a cube.
+    ["plasma against a full wall", [plasma], 2, 0],
+    ["plasma against a half wall", [plasma], 1, 2],
+    ["plasma against a half-weight guess", [plasma], 0.5, 3],
+    // The railgun spends both cubes on two points; the plasma finds none.
+    ["a railgun then plasma against a full wall", [rail, plasma], 2, 6],
+    // Plasma first spends both cubes on all four points; the railgun lands whole.
+    ["plasma then a railgun against a full wall", [plasma, rail], 2, 4],
+    // Plasma takes two of three cubes, and the third stops a point of railgun.
+    ["plasma then a railgun against three cubes", [plasma, rail], 3, 3],
   ])("%s", (_label, shots, absorption, hull) => {
     expect(hullThrough(shots, absorption)).toBe(hull);
   });
@@ -110,16 +116,17 @@ describe("the disruptor fires only at a ship whose shields look down", () => {
   it.each<[string, (s: GameState) => GameState, boolean]>([
     ["no cubes anywhere", (s) => s, true],
     ["a face-up shield holding two cubes", (s) => withPower(revealed(s, "side-2"), "p2", "side-2", 2), false],
+    ["a face-up shield holding one cube", (s) => withPower(revealed(s, "side-2"), "p2", "side-2", 1), false],
     ["a face-up shield with no cubes", (s) => revealed(s, "side-2"), true],
-    ["four cubes on a face-down side slot", (s) => withPower(s, "p2", "side-2", 4), false],
+    ["one cube on a face-down side slot (only a shield holds one)", (s) => withPower(s, "p2", "side-2", 1), false],
     ["two cubes on a face-down side slot (a wall or a rack)", (s) => withPower(s, "p2", "side-2", 2), true],
     [
       "two cubes on each of two face-down side slots",
       (s) => withPower(withPower(s, "p2", "side-2", 2), "p2", "side-3", 2),
       false,
     ],
-    ["four cubes on a face-down bow", (s) => withPower(s, "p2", "forward-0", 4), false],
-    ["two cubes on a face-down bow (a sensor or a half wall)", (s) => withPower(s, "p2", "forward-0", 2), true],
+    ["one cube on a face-down bow (only a shield holds one)", (s) => withPower(s, "p2", "forward-0", 1), false],
+    ["two cubes on a face-down bow (a sensor or a full wall)", (s) => withPower(s, "p2", "forward-0", 2), true],
   ])("with %s", (_label, setup, fires) => {
     const shots = shotsOf(setup(duel()), "p1");
     expect(shots.some((s) => s.data.subsystemId === "forward-0")).toBe(fires);
@@ -167,11 +174,11 @@ describe("plasma strips a wall and the disruptor follows it in", () => {
     );
 
   it.each([
-    ["a half wall: the plasma takes both cubes, then the disruptor fires", [["side-2", 2]], ["side-0", "forward-0"]],
-    ["a full wall: the plasma takes all four, then the disruptor fires", [["side-2", 4]], ["side-0", "forward-0"]],
+    ["a half wall: the plasma takes its cube, then the disruptor fires", [["side-2", 1]], ["side-0", "forward-0"]],
+    ["a full wall: the plasma takes both cubes, then the disruptor fires", [["side-2", 2]], ["side-0", "forward-0"]],
     [
       "a second wall still standing after the plasma: the disruptor holds",
-      [["side-2", 4], ["side-3", 2]],
+      [["side-2", 2], ["side-3", 1]],
       ["side-0"],
     ],
   ] as Array<[string, Array<[SubsystemId, number]>, SubsystemId[]]>)("%s", (_label, walls, fired) => {
@@ -192,6 +199,50 @@ function opponent(setup: (s: GameState) => GameState, loadout: ShipLoadout = TAR
   );
   return analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).opponents[0];
 }
+
+describe("disruptBlockChance: one cube is a certain shield, two a guess", () => {
+  const rail = { damage: 4, shieldPerCube: 1 };
+  const plasma = { damage: 4, shieldPerCube: 2 };
+  const laser = { damage: 2, shieldPerCube: null };
+  const faceUp = (slot: SubsystemId, cubes: number) => (s: GameState) =>
+    withPower(withSub(s, "p2", slot, { isRevealed: true }), "p2", slot, cubes);
+  const faceDown = (slot: SubsystemId, cubes: number) => (s: GameState) =>
+    withPower(s, "p2", slot, cubes);
+  const all =
+    (...steps: Array<(s: GameState) => GameState>) =>
+    (s: GameState) =>
+      steps.reduce((acc, step) => step(acc), s);
+
+  it.each<
+    [string, (s: GameState) => GameState, Array<{ damage: number; shieldPerCube: number | null }>, number]
+  >([
+    ["no cubes anywhere", (s) => s, [], 0],
+    ["a face-up shield at one cube", faceUp("side-2", 1), [], 1],
+    ["a face-up shield at two cubes", faceUp("side-2", 2), [], 1],
+    [
+      "a broken face-up shield",
+      all(faceUp("side-2", 2), (s) => withSub(s, "p2", "side-2", { isBroken: true })),
+      [],
+      0,
+    ],
+    ["one cube on a face-down side slot: no rack holds one", faceDown("side-2", 1), [], 1],
+    ["two cubes on a face-down side slot: a shield or a rack", faceDown("side-2", 2), [], SUSPECTED_SHIELD_WEIGHT],
+    ["one cube on a face-down bow: no sensor holds one", faceDown("forward-0", 1), [], 1],
+    ["two cubes on a face-down bow: a shield or a sensor", faceDown("forward-0", 2), [], SUSPECTED_SHIELD_WEIGHT],
+    ["a railgun first strips two face-down cubes", faceDown("side-2", 2), [rail], 0],
+    ["a railgun first strips a full face-up shield", faceUp("side-2", 2), [rail], 0],
+    ["plasma first strips a full face-up shield", faceUp("side-2", 2), [plasma], 0],
+    ["a laser first strips nothing", faceDown("side-2", 1), [laser], 1],
+    [
+      "plasma first leaves a second shield standing",
+      all(faceUp("side-2", 2), faceDown("side-3", 1)),
+      [plasma],
+      1,
+    ],
+  ])("%s", (_label, setup, before, chance) => {
+    expect(disruptBlockChance(opponent(setup), before)).toBe(chance);
+  });
+});
 
 describe("chooseDisruptTarget", () => {
   const up = (slot: SubsystemId, cubes = 0) => (s: GameState) =>

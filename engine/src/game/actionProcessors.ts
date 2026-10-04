@@ -490,7 +490,7 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
       attacker.id,
       {
         ignoresShields: stats.ignoresShields === true,
-        shieldEnergyPerPoint: stats.shieldEnergyPerPoint,
+        shieldPointsPerEnergy: stats.shieldPointsPerEnergy,
         disrupts: stats.disrupts === true,
       }
     );

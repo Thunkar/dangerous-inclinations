@@ -51,13 +51,13 @@ export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
   missiles: 'Salvo any number at one ship in the well; 4 aboard. 4 times the fun.',
   laser: 'Side gun, 2 damage, ignores shields. Warning: do not point at cats. Or people in ships.',
   shields:
-    "Absorbs 1 damage per 2 cubes, plasma 1 per cube, never lasers; powered at all, it stops a disruptor. For people who don't like to be touched.",
+    "Absorbs 1 damage a cube, 2 of plasma, never lasers, and every point absorbed is heat; powered at all, it stops a disruptor. For people who don't like to be touched.",
   radiator: 'Passive: +2 heat dissipation at every check. Keep away from direct sunlight.',
   fuel_compressor: 'Passive: a jump costs 1 fuel instead of 3. The cheapest way to go on vacation.',
   ballistic_rack:
     '2 damage close in; powered, it rolls at up to 4 incoming missiles a turn. Definitely passive-aggressive.',
   plasma_cannon:
-    'Side gun, 4 damage within 1 ring and 1 sector, one side; shields stop it a point per cube. Hot stuff.',
+    'Side gun, 4 damage within 1 ring and 1 sector, one side; shields stop it two points a cube. Hot stuff.',
   disruptor:
     "Either slot, 3 cubes, the rack's reach, no damage: a hit breaks the subsystem you name, unless any shield is powered. Have you tried turning it off and on again?",
 }

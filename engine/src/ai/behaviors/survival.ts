@@ -15,7 +15,7 @@
  */
 import type { Player, PowerAction } from "../../models/game.ts";
 import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
-import { energyStepOf, getSubsystemConfig, isPowerableType } from "../../models/subsystems.ts";
+import { getSubsystemConfig, isPowerableType } from "../../models/subsystems.ts";
 
 /** Cubes a plan wants on each subsystem id: the turn's draws, or what it powers. */
 export type EnergyTargets = Map<SubsystemId, number>;
@@ -63,7 +63,7 @@ export function assignDefensiveEnergy(targets: EnergyTargets, wants: DefensiveWa
   const take = (sub: Subsystem | undefined, amount: number) => {
     if (!sub || sub.isBroken || targets.has(sub.id)) return;
     // The subsystem holds its cubes once: a rack that is firing this turn is up for
-    // free, and a wall going from nothing to four costs all four.
+    // free, and a wall going from nothing to two costs both.
     const extra = Math.max(0, amount - (wants.derived.get(sub.id) ?? 0));
     if (room < extra) return;
     targets.set(sub.id, amount);
@@ -88,13 +88,10 @@ export function assignDefensiveEnergy(targets: EnergyTargets, wants: DefensiveWa
   if (wants.wantShields) {
     const config = getSubsystemConfig("shields");
     const shieldMax = config.maxEnergy;
-    // Shields buy absorption in whole points, so heat goes on in whole steps:
-    // an odd cube on a subsystem stops nothing and the engine refuses it.
-    const step = energyStepOf("shields");
     for (const shield of wants.shields) {
       if (shield.isBroken || targets.has(shield.id)) continue;
       const already = wants.derived.get(shield.id) ?? 0;
-      const amount = Math.floor(Math.min(shieldMax, room + already) / step) * step;
+      const amount = Math.floor(Math.min(shieldMax, room + already));
       if (amount < config.minEnergy) continue;
       targets.set(shield.id, amount);
       room -= Math.max(0, amount - already);
@@ -119,9 +116,7 @@ export function powerActions(me: Player, targets: EnergyTargets): PowerAction[] 
   for (const sub of me.ship.subsystems) {
     if (!isPowerableType(sub.type) || sub.isBroken) continue;
     const config = getSubsystemConfig(sub.type);
-    const step = energyStepOf(sub.type);
-    const wanted = Math.min(config.maxEnergy, targets.get(sub.id) ?? 0);
-    const amount = Math.floor(wanted / step) * step;
+    const amount = Math.floor(Math.min(config.maxEnergy, targets.get(sub.id) ?? 0));
     if (amount < config.minEnergy) continue;
     actions.push({
       type: "power",

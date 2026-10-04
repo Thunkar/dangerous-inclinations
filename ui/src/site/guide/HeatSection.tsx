@@ -99,6 +99,7 @@ export function HeatSection() {
           <Points
             items={[
               rich(T.points.stays),
+              T.points.absorbed,
               rich(T.points.over, {
                 maxHeat: MAX_HEAT,
                 dissipation: DEFAULT_DISSIPATION_CAPACITY,

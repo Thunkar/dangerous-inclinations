@@ -11,8 +11,8 @@
  * The slots are the interesting part. A face-down tile shows only which slot
  * it is, but the energy on it is public and stays until its owner's next turn.
  * Using a tile turns it face-up, so energy on a face-down slot was powered,
- * not used: two is a half shield, a ballistic rack or a sensor array, four is
- * a full shield, and a gun is dark until it fires. A face-up tile shows what
+ * not used: one can only be a half shield, two is a full shield, a ballistic
+ * rack or a sensor array, and a gun is dark until it fires. A face-up tile shows what
  * its last turn left on it (a railgun that fired still holds its four). A
  * tile you have seen through a scan carries an eye badge; it is face-up for
  * you alone.

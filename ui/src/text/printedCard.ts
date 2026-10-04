@@ -74,7 +74,7 @@ export const PRINTED_CARD = {
           'Roll a d10',
           '{miss} miss · {hitFrom}–{hitTo} hit · {crit} crit · <red>{sensorFrom}–{sensorTo} crit with a powered sensor</red>',
         ],
-        hit: ['hit', 'Shields absorb first, the rest is hull damage'],
+        hit: ['hit', 'Shields absorb first, into heat; the rest is hull damage'],
         critical: ['critical', 'Breaks the named slot face-up, through shields; its energy goes to heat'],
         moored: ['moored', 'Neither fires nor is fired at, missiles too; scans reach it'],
       },
@@ -88,7 +88,7 @@ export const PRINTED_CARD = {
       reach: {
         railgun: 'same ring, 1–{sectors} ahead; recoils against facing',
         laser: '±{rings} rings ±{sectors}, one side; <red>ignores shields</red>',
-        plasma_cannon: '±{rings} ring ±{sectors}, one side; <red>{energy} shield energy stops 1</red>',
+        plasma_cannon: '±{rings} ring ±{sectors}, one side; <red>a shield energy stops {points}</red>',
         ballistic_rack: '±{rings} ring ±{sectors} either side, or 1 along your ring',
         disruptor: "rack's reach; breaks the named slot; <red>any powered shield stops it</red>",
         missiles: 'anyone in your well, a salvo is one action; {aboard} aboard, fly {steps} a turn for {turns}',
@@ -97,7 +97,7 @@ export const PRINTED_CARD = {
     powered: {
       title: 'Powered',
       aside: 'works until your next turn',
-      shields: '{energy} energy stop 1 damage and come off',
+      shields: 'each energy stops {points} damage and comes off',
       ballistic_rack: 'shoots down {missiles} missiles a turn, each on {on}+',
       sensor_array: 'your shots after it crit on {crit}+; scan: your ring, within {sectors}',
     },

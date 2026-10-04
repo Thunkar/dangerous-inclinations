@@ -9,9 +9,9 @@ import type { SlotView } from "../../game/view.ts";
 import { isQuietTurn } from "../../models/game.ts";
 import type { Subsystem, SubsystemId, SubsystemType } from "../../models/subsystems.ts";
 import {
-  SHIELD_ENERGY_PER_POINT,
+  SHIELD_POINTS_PER_ENERGY,
   getSubsystemConfig,
-  shieldEnergyPerPointOf,
+  shieldPointsPerEnergyOf,
 } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { ringVelocity } from "../../game/geometry.ts";
@@ -87,10 +87,10 @@ interface FirePosition extends Position {
  */
 export interface ShotOption {
   /**
-   * Cubes a shield spends per point of this shot it absorbs (two, one against
-   * plasma), or null when shields do not stop it at all (lasers).
+   * Points of this shot a shield cube absorbs (one, two of plasma), or null
+   * when shields do not stop it at all (lasers).
    */
-  shieldRate: number | null;
+  shieldPerCube: number | null;
   weapon: Subsystem;
   targetId: string;
   phase: FiringPhase;
@@ -162,39 +162,40 @@ export function volleyPotential(weapons: Subsystem[]): number {
 }
 
 /**
- * Cubes a shield spends per point of this weapon's damage, or null when
- * shields do not stop it (lasers go straight through).
+ * Points of this weapon's damage a shield cube absorbs, or null when shields
+ * do not stop it (lasers go straight through).
  */
-export function shieldRateOf(weapon: Pick<Subsystem, "type">): number | null {
+export function shieldPerCubeOf(weapon: Pick<Subsystem, "type">): number | null {
   const stats = getSubsystemConfig(weapon.type).weaponStats;
-  return stats?.ignoresShields === true ? null : shieldEnergyPerPointOf(stats);
+  return stats?.ignoresShields === true ? null : shieldPointsPerEnergyOf(stats);
 }
 
 /**
  * Hull damage a volley puts through `shieldAbsorption` visible points of
- * shield. The points are a pool of cubes ({@link SHIELD_ENERGY_PER_POINT} a
- * point) that the shots spend in the order given: each absorbs as many points
- * as its own rate leaves cubes for and spends that rate per point, so a cheap
- * plasma bolt eats a wall a cube a point and whatever comes after finds less.
+ * shield. The points are a pool of cubes ({@link SHIELD_POINTS_PER_ENERGY}
+ * points a cube) that the shots spend in the order given: each absorbs as many
+ * points as the cubes left stop of it, so plasma takes two points a cube and a
+ * wall that stops a whole bolt has nothing left for what comes after.
  * Laser damage skips the shields. The pool is fractional (a slot that only
  * might be a shield counts at a weight), so nothing is rounded: with every
  * shot at the default rate this is `direct + max(0, shielded - absorption)`.
  * Damage short of the cubes reaches no hull, but it is not wasted: the cubes
- * it strips are heat to their owner, and a critical breaks what it names anyway.
+ * it strips are heat to their owner, so is every point absorbed, and a critical
+ * breaks what it names anyway.
  */
 export function hullThrough(
-  shots: ReadonlyArray<{ damage: number; shieldRate: number | null }>,
+  shots: ReadonlyArray<{ damage: number; shieldPerCube: number | null }>,
   shieldAbsorption: number
 ): number {
-  let cubes = shieldAbsorption * SHIELD_ENERGY_PER_POINT;
+  let cubes = shieldAbsorption / SHIELD_POINTS_PER_ENERGY;
   let hull = 0;
   for (const s of shots) {
-    if (s.shieldRate === null) {
+    if (s.shieldPerCube === null) {
       hull += s.damage;
       continue;
     }
-    const absorbed = Math.min(s.damage, cubes / s.shieldRate);
-    cubes -= absorbed * s.shieldRate;
+    const absorbed = Math.min(s.damage, cubes * s.shieldPerCube);
+    cubes -= absorbed / s.shieldPerCube;
     hull += s.damage - absorbed;
   }
   return hull;
@@ -203,7 +204,7 @@ export function hullThrough(
 /** {@link hullThrough} for weapons the bot could fire this turn. */
 export function hullPotential(weapons: Subsystem[], shieldAbsorption: number): number {
   return hullThrough(
-    weapons.map((w) => ({ damage: weaponPotential(w), shieldRate: shieldRateOf(w) })),
+    weapons.map((w) => ({ damage: weaponPotential(w), shieldPerCube: shieldPerCubeOf(w) })),
     shieldAbsorption
   );
 }
@@ -277,9 +278,9 @@ function fallbackCriticalTarget(target: Opponent): SubsystemId {
  *   actually seen, then a loaded face-down slot (a rack is a gun and a sensor
  *   is their critical range, and either way the cubes burn), then anything
  *   else of theirs we know, then the engines.
- * - **kill**: get through to the hull. A shield holds up to four cubes and
- *   absorbs a point per two of them, and its owner powers it again every turn
- *   (at a heat a check), so it is the single subsystem standing between us and
+ * - **kill**: get through to the hull. A shield holds up to two cubes and
+ *   absorbs a point a cube, and its owner powers it again every turn (at a
+ *   heat a cube a check), so it is the single subsystem standing between us and
  *   their hull. A critical breaks the slot it names whether or not the shot
  *   got through (RULES §Critical hits), so naming it costs nothing even when
  *   the shield holds: break it and every later shot lands in full until they
@@ -337,20 +338,22 @@ function biggestGun(working: KnownWeapon[]): KnownWeapon | undefined {
  * Any working shield with a cube on it blocks the shot whole, so this is read
  * slot by slot, never off the fractional {@link Opponent.shieldAbsorption}. A
  * face-up shield holding cubes is certain. A face-down slot is a shield
- * possibly: on a side slot one to four cubes (four is certain, the rack holds
- * two), in the bow two or four (four is certain, the sensor holds two), and a
- * guess counts at the analyzer's {@link SUSPECTED_SHIELD_WEIGHT}. The shots
- * before strip cubes as the engine does, tile by tile in slot order, each
- * taking whole points at its own rate, so a plasma bolt empties a two-cube
- * wall and leaves one cube of a four-cube wall standing (and that one cube
- * still blocks). A guessed slot is stripped as if it were a shield.
+ * possibly: one cube is certain (the rack and the sensor hold two), two may
+ * be the rack on a side slot or the sensor in the bow, and a guess counts at
+ * the analyzer's {@link SUSPECTED_SHIELD_WEIGHT}. The shots before strip
+ * cubes as the engine does, subsystem by subsystem in slot order, each taking
+ * whole points at its own rate, so a plasma bolt empties a two-cube wall and a
+ * railgun shot does too. A guessed slot is stripped as if it were a shield.
  */
 export function disruptBlockChance(
   target: Opponent,
-  before: ReadonlyArray<{ damage: number; shieldRate: number | null }> = []
+  before: ReadonlyArray<{ damage: number; shieldPerCube: number | null }> = []
 ): number {
-  const rackMax = getSubsystemConfig("ballistic_rack").maxEnergy;
-  const sensorMax = getSubsystemConfig("sensor_array").maxEnergy;
+  const rack = getSubsystemConfig("ballistic_rack");
+  const sensor = getSubsystemConfig("sensor_array");
+  // A count the other powerable subsystem of that slot cannot hold is a shield.
+  const outside = (cubes: number, c: { minEnergy: number; maxEnergy: number }) =>
+    cubes < c.minEnergy || cubes > c.maxEnergy;
   const shields = getSubsystemConfig("shields");
   const guesses: Array<{ cubes: number; certain: boolean }> = [];
   for (const slot of target.player.slots) {
@@ -362,20 +365,20 @@ export function disruptBlockChance(
     if (slot.type !== null || slot.isBroken === true) continue;
     if (slot.group === "side") {
       const cubes = suspectedShieldCubes(slot);
-      if (cubes > 0) guesses.push({ cubes, certain: cubes > rackMax });
+      if (cubes > 0) guesses.push({ cubes, certain: outside(cubes, rack) });
       continue;
     }
     const cubes = slot.allocatedEnergy;
     if (cubes >= shields.minEnergy && cubes <= shields.maxEnergy)
-      guesses.push({ cubes, certain: cubes > sensorMax });
+      guesses.push({ cubes, certain: outside(cubes, sensor) });
   }
   for (const shot of before) {
-    if (shot.shieldRate === null) continue;
+    if (shot.shieldPerCube === null) continue;
     let left = shot.damage;
     for (const g of guesses) {
       if (left <= 0) break;
-      const take = Math.min(left, Math.floor(g.cubes / shot.shieldRate));
-      g.cubes -= take * shot.shieldRate;
+      const take = Math.min(left, Math.floor(g.cubes * shot.shieldPerCube));
+      g.cubes -= take / shot.shieldPerCube;
       left -= take;
     }
   }
@@ -471,7 +474,7 @@ export function firingOptions(
     if (!isWeaponReady(weapon)) continue;
     const damage = weaponDamage(weapon);
     const cubes = weaponEnergy(weapon);
-    const shieldRate = shieldRateOf(weapon);
+    const shieldPerCube = shieldPerCubeOf(weapon);
     const inPre = firesPre && canEngage(weapon, ctx.pre, targetPos);
     const inPost = firesPost && canEngage(weapon, ctx.post, targetPos);
 
@@ -493,7 +496,7 @@ export function firingOptions(
         targetId: target.player.id,
         phase: "post",
         damage,
-        shieldRate,
+        shieldPerCube,
         heat: cubes + (compensate ? BURN_COSTS.soft.energy : 0),
         count: 1,
         compensateRecoil: compensate,
@@ -513,7 +516,7 @@ export function firingOptions(
         targetId: target.player.id,
         phase,
         damage: damage * ammo,
-        shieldRate,
+        shieldPerCube,
         heat: cubes,
         count: ammo,
       });
@@ -531,7 +534,7 @@ export function firingOptions(
           targetId: target.player.id,
           phase,
           damage,
-          shieldRate,
+          shieldPerCube,
           heat: cubes,
           count: 1,
         });
@@ -548,7 +551,7 @@ export function firingOptions(
       targetId: target.player.id,
       phase,
       damage,
-      shieldRate,
+      shieldPerCube,
       heat: cubes,
       count: 1,
     });

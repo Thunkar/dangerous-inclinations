@@ -25,7 +25,12 @@ describe("parseTileOverrides", () => {
     ["a weapon flag", "laser.ignoresShields=false", { laser: { ignoresShields: false } }],
     ["a slot group", "fuel_compressor.slotType=side", { fuel_compressor: { slotType: "side" } }],
     ["a passive effect", "radiator.dissipationBonus=3", { radiator: { dissipationBonus: 3 } }],
-    ["a tile's cubes", "shields.energyStep=1", { shields: { energyStep: 1 } }],
+    ["a tile's cubes", "shields.maxEnergy=3", { shields: { maxEnergy: 3 } }],
+    [
+      "what a shield cube stops of a weapon",
+      "plasma_cannon.shieldPointsPerEnergy=1",
+      { plasma_cannon: { shieldPointsPerEnergy: 1 } },
+    ],
     [
       "two tiles at once",
       "ballistic_rack.damage=3,shields.maxEnergy=6",
@@ -40,6 +45,7 @@ describe("parseTileOverrides", () => {
   it.each([
     ["an unknown tile", "phaser.damage=3"],
     ["an unknown field", "laser.colour=3"],
+    ["a field that is gone", "shields.energyStep=1"],
     ["no field", "laser=3"],
     ["no value", "laser.damage"],
   ])("refuses %s", (_label, text) => {

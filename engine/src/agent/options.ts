@@ -6,7 +6,7 @@
 import type { Facing, Position } from "../models/game.ts";
 import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, isOpeningRound, isQuietTurn } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { energyStepOf, getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
+import { getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
 import type { GameView } from "../game/view.ts";
 import { positionOf, ringVelocity } from "../game/geometry.ts";
 import { inScanRange } from "../game/scan.ts";
@@ -184,9 +184,8 @@ export function seatOptions(view: GameView): SeatOptions {
     .filter((s) => isPowerableType(s.type) && !s.isBroken)
     .map((s) => {
       const c = getSubsystemConfig(s.type);
-      const step = energyStepOf(s.type);
       const amounts: number[] = [];
-      for (let a = c.minEnergy; a <= c.maxEnergy; a += step) amounts.push(a);
+      for (let a = c.minEnergy; a <= c.maxEnergy; a += 1) amounts.push(a);
       return { id: s.id, type: s.type, amounts };
     });
   return {

@@ -514,17 +514,23 @@ describe("missiles: on the target's sector", () => {
     expect(getShip(result.state, "p2").hitPoints).toBe(10);
   });
 
-  it("shields absorb missile damage like any other: two cubes stop one point, and no heat", () => {
-    const state = withPower(onTarget(), "p2", "side-2", 2);
-    const result = processOwnerMissiles(state, "p1");
-    expect(getShip(result.state, "p2").hitPoints).toBe(9);
-    expect(eventsOf(result.events as never, "attack_resolved")[0]).toMatchObject({
-      toHull: 1,
-      absorbed: 1,
-    });
-    expect(getShip(result.state, "p2").heat.currentHeat).toBe(0);
-    expect(getSub(result.state, "p2", "side-2").allocatedEnergy).toBe(0);
-  });
+  it.each([
+    ["a half shield stops one of its two points", 1, 1, 1],
+    ["a full shield stops it whole", 2, 0, 2],
+  ])(
+    "shields absorb missile damage like any other: %s, and the points go on the track",
+    (_label, cubes, toHull, absorbed) => {
+      const state = withPower(onTarget(), "p2", "side-2", cubes);
+      const result = processOwnerMissiles(state, "p1");
+      expect(getShip(result.state, "p2").hitPoints).toBe(10 - toHull);
+      expect(eventsOf(result.events as never, "attack_resolved")[0]).toMatchObject({
+        toHull,
+        absorbed,
+      });
+      expect(getShip(result.state, "p2").heat.currentHeat).toBe(absorbed);
+      expect(getSub(result.state, "p2", "side-2").allocatedEnergy).toBe(0);
+    }
+  );
 });
 
 describe("missiles: lost with their ship", () => {

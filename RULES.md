@@ -79,7 +79,7 @@ Otherwise:
 
 1. **Clear your loadout.** Take every energy cube off your subsystems and put it back in the supply. Whatever you powered last turn has done its job.
 2. **Actions,** in any order you choose. Each subsystem does one thing a turn (a ballistic rack also intercepts during other players' turns):
-   - **Power.** Put energy on your shields (2 or 4), a ballistic rack (2) or a sensor array (2). They work until your next turn (see Energy and Heat).
+   - **Power.** Put energy on your shields (1 or 2), a ballistic rack (2) or a sensor array (2). They work until your next turn (see Energy and Heat).
    - **Rotate.** Flip facing (prograde ↔ retrograde). Thrusters take 1 energy.
    - **Move.** Exactly one of: _coast_, _burn_ or _jump_. If you take no move, you coast.
    - **Fire.** Any number of weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
@@ -102,14 +102,14 @@ Once a round, after the last player's turn:
 **Every action puts energy on the subsystem it uses, and every energy cube on your loadout is a point of heat at your heat check.** The energy stays on the subsystem until the start of your next turn, when you clear your loadout. That is the whole of energy.
 
 - **The action decides how much**: 4 on a railgun, 3 on a plasma cannon or a disruptor, 2 on a laser, a rack, the missiles or a sensor, 1 on the thrusters, the burn's own number on the engines, 3 for a jump or for the scoop.
-- **Powering is an action too**, for the three subsystems that work on other players' turns: **shields** (2 or 4), a **ballistic rack** (2) and a **sensor array** (2). A subsystem with energy on it works until your next turn: shields absorb, a rack shoots down missiles, a sensor widens your critical range. So a rack you fired is also up, and a sensor you scanned with widens the range of every shot you take after the scan. Keeping a wall up means powering it every turn, and paying for it at every check.
+- **Powering is an action too**, for the three subsystems that work on other players' turns: **shields** (1 or 2), a **ballistic rack** (2) and a **sensor array** (2). A subsystem with energy on it works until your next turn: shields absorb, a rack shoots down missiles, a sensor widens your critical range. So a rack you fired is also up, and a sensor you scanned with widens the range of every shot you take after the scan. Keeping a wall up means powering it every turn, and paying for it at every check.
 - **Each subsystem does one thing a turn**: you power it or you use it. A salvo is one use of the missiles subsystem and a turn of interceptions is one use of the ballistic rack, whatever the count.
-- **There is no reactor.** Nothing caps what you may power at once: a ship can power a full shield, make a hard burn and fire the railgun in the same turn, and the check will bill it eleven heat. Burn yourself to a crisp if the turn is worth it.
+- **There is no reactor.** Nothing caps what you may power at once: a ship can power two full shields, make a hard burn and fire the railgun in the same turn, and the check will bill it eleven heat. Burn yourself to a crisp if the turn is worth it.
 - **Heat is a track. It does not reset.** At your heat check, heat above **10** is hull damage and the track drops to 10. Then **dissipate** (5, plus 2 per working radiator) and carry the rest into your next turn.
 - So a hot turn is a debt, not a wound: take one, then cool off. Make more heat than you dissipate for long enough and you reach the **redline** at 10, where it costs hull every turn until you stop.
-- **A cold ship repairs itself.** If your heat is **0** at your heat check (you powered and used nothing since your last check), repair **one** broken subsystem of your choice. Everything is off and the crew is outside. It is the only repair away from a station, and it is slower: a station fixes everything at once, refills your hull and reloads your missiles, all on arrival.
-- **Shields absorb damage by spending their energy.** Two energy stop one point and simply come off the subsystem, so a subsystem takes 2 energy or 4 and never an odd one. Absorbing makes no heat: every cube was already heat at your check. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds and missiles, **not lasers**.
-- Two subsystems at four absorb 4 damage. They are also **8 heat every turn**, absorbing or not, against a dissipation of 5, so a full wall costs three hull a turn once the track saturates, before the ship does anything else. Nothing forbids it; the arithmetic does.
+- **A cold ship repairs itself.** If your heat is **0** at your heat check (you powered, used and absorbed nothing since your last check), repair **one** broken subsystem of your choice. Everything is off and the crew is outside. It is the only repair away from a station, and it is slower: a station fixes everything at once, refills your hull and reloads your missiles, all on arrival.
+- **Shields absorb damage by spending their energy.** Each energy stops one point (two of plasma) and comes off the subsystem. **Every point absorbed is a point of heat**: put it on your heat track at once, and it is paid at your next check with the rest. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds, missiles and plasma, **not lasers**.
+- Two full shields absorb 4 damage. They are **4 heat every turn**, absorbing or not, and up to 4 more when they are hit, against a dissipation of 5, so a wall under fire runs hot. Nothing forbids it; the arithmetic does.
 - No action is ever refused for energy. What a turn costs you is hull, and that is your decision to make.
 
 | Subsystem                          | Energy | Effect                                                                                  |
@@ -122,10 +122,10 @@ Once a round, after the last player's turn:
 | Fuel compressor (forward)     | none   | A jump costs 1 fuel instead of 3                                                        |
 | Missiles (forward or side)    | 2      | Launch any number of your guided missiles at one ship in your well (4 aboard)           |
 | Broadside laser (side)        | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only                  |
-| Shields (either)              | 2 or 4 | While they have energy: 2 energy absorb 1 damage and come off                           |
+| Shields (either)              | 1 or 2 | While they have energy: 1 energy absorbs 1 damage and comes off; absorbed damage is heat |
 | Radiator (side)               | none   | +2 dissipation                                                                          |
 | Ballistic rack (side)         | 2      | 2 damage, ±1 ring/same ring, ±1 sector; while it has energy: rolls at 4 missiles a turn |
-| Plasma cannon (side)          | 3      | 4 damage, ±1 ring, ±1 sector, one side only; 1 shield energy stops 1 damage            |
+| Plasma cannon (side)          | 3      | 4 damage, ±1 ring, ±1 sector, one side only; 1 shield energy stops 2 damage            |
 | Disruptor (either)            | 3      | No damage, ±1 ring/same ring, ±1 sector; a hit breaks the named subsystem               |
 
 ---
@@ -168,13 +168,13 @@ Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A 
 
 ### Damage
 
-Shields absorb first (every 2 energy absorb 1 damage and come off the subsystem, making no heat); the rest is hull damage. **Laser damage skips the shields** and goes straight to the hull; plasma is stopped a point per energy instead of a point per two. At 0 hull the ship is destroyed.
+Shields absorb first (every energy absorbs 1 damage and comes off the subsystem, and every point absorbed goes onto the target's heat track); the rest is hull damage. **Laser damage skips the shields** and goes straight to the hull; plasma is stopped two points per energy instead of one. At 0 hull the ship is destroyed.
 
 ### Critical hits
 
 When you fire, name one slot on the target: forward, side 1–4, engines, thrusters or the fuel scoop. **Any slot may be named**, including the three printed on every loadout. If the shot is a critical, that subsystem is **turned face-up and broken**, **whether or not the shot got through the shields**: its energy is dumped into its owner's heat on the spot, and it cannot be used until repaired.
 
-A wall that holds is no protection against being named. **The energy on every slot is public**, even face-down, and it stays there until its owner's next turn, so a loaded slot is a target you can see: a railgun that just fired still holds 4, and four on a side slot is four heat dumped onto its owner the moment a 10 comes up. A broken subsystem is repaired at a station, or one at a time by running cold (see Energy and Heat), which is how a ship whose engines or scoop were shot out still gets home: a ship that lights nothing reaches 0 heat and fixes one subsystem a turn, wherever it is and however empty its tank. Naming a face-down slot is a gamble; naming a face-up one is a plan. A shield that has just absorbed has already spent its energy, so breaking it dumps little or nothing, but it is gone until they dock.
+A wall that holds is no protection against being named. **The energy on every slot is public**, even face-down, and it stays there until its owner's next turn, so a loaded slot is a target you can see: a railgun that just fired still holds 4, and three on a side slot is three heat dumped onto its owner the moment a 10 comes up. A broken subsystem is repaired at a station, or one at a time by running cold (see Energy and Heat), which is how a ship whose engines or scoop were shot out still gets home: a ship that lights nothing reaches 0 heat and fixes one subsystem a turn, wherever it is and however empty its tank. Naming a face-down slot is a gamble; naming a face-up one is a plan. A shield that has just absorbed has already spent its energy, so breaking it dumps little or nothing, but it is gone until they dock.
 
 ### Weapons
 
@@ -189,7 +189,7 @@ A wall that holds is no protection against being named. **The energy on every sl
 - **Missiles.** Target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. One action launches **as many of your remaining missiles as you like at one ship**, all naming the same critical slot, for **one use of the subsystem**: the magazine is the limit, not the heat. Place a token on your sector for each. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first), **except on the turn you launch it, when it only flies**. If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
 
   _The launch turn:_ a new missile flies its 3 steps from the sector you dropped it on, whether you launched before your move or after it. From its second turn on it drifts with its ring like everything else, which is how it keeps up with a target on a fast ring. So a missile launched on its target's sector attacks that same turn (a rack with energy on it still rolls first).
-- **Plasma cannon.** 4 damage, targets within 1 ring and 1 sector, fires to one side only like the laser, never along its own ring. Shields stop it a point per energy instead of a point per two, so a full shield stops it whole and a half shield lets half through.
+- **Plasma cannon.** 4 damage, targets within 1 ring and 1 sector, fires to one side only like the laser, never along its own ring. Shields stop it two points per energy instead of one, so a full shield stops it whole (and its owner takes the 4 as heat) and a half shield lets half through.
 - **Disruptor.** An EMP burst: within 1 ring and 1 sector, either side, or on your own ring 1 sector away, like the ballistic rack. It deals no damage: a hit (2–10, a 10 is no different) breaks the subsystem you name and dumps its energy as heat, but any shield with energy on it stops it whole and is turned face-up.
 
 Nothing fires across gravity wells.
@@ -219,7 +219,7 @@ Face-up subsystems stay face-up, even after respawn.
 **Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and how much data you carry, face-up subsystems and **the missiles left in a face-up missiles subsystem**, broken fixed systems, completed missions, wrecks and Escort markers.
 **Private:** what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo is going.
 
-Energy is the tell. Using a subsystem turns it face-up, so energy on a **face-down** slot between turns means it was powered, not used: two is a half shield, a ballistic rack or a sensor array, and four can only be a full shield. That is a deduction from the energy, not a reveal: the subsystem is still face-down and a scan still costs you a turn to be sure. Shields go in the bow or on a side precisely so that a loaded bow is a guess and not a certain sensor array.
+Energy is the tell. Using a subsystem turns it face-up, so energy on a **face-down** slot between turns means it was powered, not used: one can only be a half shield, and two is a full shield, a ballistic rack or a sensor array. That is a deduction from the energy, not a reveal: the subsystem is still face-down and a scan still costs you a turn to be sure. Shields go in the bow or on a side precisely so that a loaded bow is a guess and not a certain sensor array.
 
 A gun is dark until it fires, which is why a silent slot is the dangerous one.
 
@@ -300,7 +300,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid                                                                  |
 | Jump             | engines 3, 3 fuel (1 with a compressor), no drift                                                                                                                 |
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                                                                                      |
-| Shields          | power at 2 or 4; 2 energy a point absorbed, spent with no heat; power them every turn you want them up; lasers ignore them; plasma at 1 energy a point; any powered shield stops a disruptor |
+| Shields          | power at 1 or 2; 1 energy a point absorbed (2 of plasma), spent, and every point absorbed is heat; power them every turn you want them up; lasers ignore them; any powered shield stops a disruptor |
 | Critical         | names any slot; breaks it through shields, and dumps its energy as heat (a subsystem holds its energy until its owner's next turn)                                     |
 | Repair           | a station, on arrival, fixes everything; or one subsystem a turn at 0 heat                                                                                             |
 | Scan             | same ring, within 3 sectors, sensor aboard and unbroken                                                                                                           |

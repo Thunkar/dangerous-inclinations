@@ -4,22 +4,24 @@
  * 1 = miss, 2-9 = hit, 10 = critical. A powered sensor array on the attacker
  * makes 8-10 critical (`lowestCriticalFace`).
  *
- * Shields absorb one point of damage per SHIELD_ENERGY_PER_POINT cubes on the
- * tile (or the weapon's own `shieldEnergyPerPoint`); the cubes that absorb are
- * spent, leaving the tile dark until it is re-powered. Absorbing makes no
- * heat: a shield's cost is its cubes at its owner's check, like every tile. A critical breaks the slot the attacker named
- * whether or not the shot reached the hull.
+ * Shields absorb SHIELD_POINTS_PER_ENERGY points of damage a cube (or the
+ * weapon's own `shieldPointsPerEnergy`); the cubes that absorb are spent,
+ * leaving the subsystem dark until it is re-powered, and every point absorbed
+ * is a point of heat on its owner's track, paid at their next check. A
+ * critical breaks the slot the attacker named whether or not the shot reached
+ * the hull.
  *
  * A disruptor deals no damage and never criticals: a hit breaks the named slot
  * unless the target has any powered shield, which blocks it whole.
  */
 import type { ShipState } from "../models/game.ts";
 import { BASE_CRITICAL_FACE } from "../models/game.ts";
-import { SHIELD_ENERGY_PER_POINT, isPowered } from "../models/subsystems.ts";
+import { SHIELD_POINTS_PER_ENERGY, isPowered } from "../models/subsystems.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
 import {
+  addHeat,
   breakSubsystem,
   lowestCriticalFace,
   revealSubsystem,
@@ -42,8 +44,8 @@ interface AttackOutcome {
 export interface AttackOptions {
   /** Laser fire: shields are electromagnetic and do not stop it. */
   ignoresShields?: boolean;
-  /** Cubes a shield spends per point absorbed; omitted is SHIELD_ENERGY_PER_POINT. */
-  shieldEnergyPerPoint?: number;
+  /** Points a shield cube absorbs; omitted is SHIELD_POINTS_PER_ENERGY. */
+  shieldPointsPerEnergy?: number;
   /** Disruptor: no damage, a hit breaks the named slot unless a shield is up. */
   disrupts?: boolean;
 }
@@ -64,7 +66,7 @@ export function resolveAttack(
   options: AttackOptions = {}
 ): AttackOutcome {
   const { ignoresShields = false, disrupts = false } = options;
-  const rate = options.shieldEnergyPerPoint ?? SHIELD_ENERGY_PER_POINT;
+  const perCube = options.shieldPointsPerEnergy ?? SHIELD_POINTS_PER_ENERGY;
   // A disruptor has no critical to widen: 2-10 is a hit whatever a sensor says.
   const rolled = rollToResult(roll, lowestCriticalFace(attacker.subsystems));
   const result = disrupts && rolled === "critical" ? "hit" : rolled;
@@ -97,17 +99,19 @@ export function resolveAttack(
     : ship.subsystems.filter((s) => s.type === "shields" && isPowered(s) && !s.isBroken);
   for (const shield of shields) {
     if (remainingDamage <= 0) break;
-    const take = Math.min(remainingDamage, Math.floor(shield.allocatedEnergy / rate));
+    const take = Math.min(remainingDamage, shield.allocatedEnergy * perCube);
     if (take <= 0) continue;
-    const spent = take * rate;
-    const left = shield.allocatedEnergy - spent;
-    // The cubes that absorbed are spent: the tile is down by as much as it
-    // soaked until its owner powers it again on their next turn, and a
-    // critical that finds it now dumps only what is left. Absorbing makes no
-    // heat: the cubes were billed at their owner's check when they went on.
+    // A cube absorbs whole: one that stops a single point of plasma is spent.
+    const spent = Math.ceil(take / perCube);
+    // The cubes that absorbed are spent: the subsystem is down by as much as
+    // it soaked until its owner powers it again on their next turn, and a
+    // critical that finds it now dumps only what is left. The shot's energy
+    // goes onto the owner's track, a point a point absorbed, and is paid at
+    // their next check like anything else carried there.
     ship = updateSubsystem(ship, shield.id, {
-      allocatedEnergy: left,
+      allocatedEnergy: shield.allocatedEnergy - spent,
     });
+    ship = addHeat(ship, take);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
     ship = r.ship;
     events.push(...r.events);

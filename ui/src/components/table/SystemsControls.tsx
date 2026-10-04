@@ -20,10 +20,9 @@ import CheckIcon from '@mui/icons-material/Check'
 import type { ReactNode } from 'react'
 import type { Subsystem } from '@dangerous-inclinations/engine'
 import {
-  SHIELD_ENERGY_PER_POINT,
+  SHIELD_POINTS_PER_ENERGY,
   SLOT_IDS,
   canFireFrom,
-  energyStepOf,
   getSubsystemConfig,
   interceptsPerRack,
   isOpeningRound,
@@ -36,7 +35,7 @@ import { SubsystemIcon } from '../common/SubsystemIcon'
 import { FONT_MONO, TABLE } from '../../theme'
 import { slotWithSubsystem } from '../../utils/slots'
 import { subsystemGroup } from '../../utils/subsystemGroups'
-import { SENSOR_CRIT, poweredEffect } from '../../site/numbers'
+import { PLASMA_SHIELD_POINTS, SENSOR_CRIT, poweredEffect } from '../../site/numbers'
 
 export function SystemsControls() {
   const plan = usePlan()
@@ -152,8 +151,8 @@ function defenceCaption(sub: Subsystem, level: number): string {
   if (sub.isBroken) return 'broken'
   if (sub.type === 'shields') {
     return level > 0
-      ? `absorbs ${level / SHIELD_ENERGY_PER_POINT} · ${level} energy`
-      : `absorbs 1 per ${SHIELD_ENERGY_PER_POINT} energy`
+      ? `absorbs ${level * SHIELD_POINTS_PER_ENERGY} · ${level} energy`
+      : `absorbs ${SHIELD_POINTS_PER_ENERGY} an energy (${PLASMA_SHIELD_POINTS} of plasma)`
   }
   return `rolls at ${interceptsPerRack()} missiles`
 }
@@ -353,9 +352,8 @@ function PowerControl({ sub, disabled }: { sub: Subsystem; disabled: boolean }) 
     )
   }
 
-  const step = energyStepOf(sub.type)
   const levels = [0]
-  for (let n = config.minEnergy; n <= config.maxEnergy; n += step) levels.push(n)
+  for (let n = config.minEnergy; n <= config.maxEnergy; n++) levels.push(n)
   const onOff = levels.length === 2
   const current = plan.powers[sub.id] ?? 0
   const label = (n: number) => (n === 0 ? 'Off' : onOff ? 'On' : `${n}`)

@@ -7,7 +7,7 @@
 import { Box } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
-  SHIELD_ENERGY_PER_POINT,
+  SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
   interceptsPerRack,
 } from '@dangerous-inclinations/engine'
@@ -20,7 +20,7 @@ import {
   D10,
   INTERCEPT_ON,
   MISS_TOP,
-  PLASMA_SHIELD,
+  PLASMA_SHIELD_POINTS,
   SENSOR_CRIT,
   energyLabel,
   faceResult,
@@ -138,7 +138,7 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
     reach: rich(T.reach.plasma_cannon, {
       rings: weaponStats('plasma_cannon').ringRange!,
       sectors: weaponStats('plasma_cannon').sectorRange!,
-      shield: PLASMA_SHIELD,
+      points: PLASMA_SHIELD_POINTS,
     }),
   },
   {
@@ -245,7 +245,14 @@ export function FightSection() {
           gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
         }}
       >
-        <Points items={T.hits.map(item => rich(item, { shieldEnergy: SHIELD_ENERGY_PER_POINT, plasmaShield: PLASMA_SHIELD }))} />
+        <Points
+          items={T.hits.map(item =>
+            rich(item, {
+              shieldPoints: SHIELD_POINTS_PER_ENERGY,
+              plasmaPoints: PLASMA_SHIELD_POINTS,
+            })
+          )}
+        />
         <Points items={T.rules.map(item => rich(item))} />
       </Box>
     </GuideSection>

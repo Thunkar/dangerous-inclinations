@@ -79,7 +79,7 @@ export function presetRole(id: BotPresetId): BotRole {
  * keep a Destroy (RULES §Missions), and a Destroy always makes the hand a
  * hunter.
  *
- * **Why the guns are paired.** A full shield subsystem holds four energy and absorbs
+ * **Why the guns are paired.** A full shield subsystem holds two energy and absorbs
  * two damage, and its owner powers it again every turn, so a lone 2-damage
  * shot never reaches a hull. The railgun's four is exactly two shield subsystems, so it
  * wants a partner, and which partner depends on where the fight is: a laser

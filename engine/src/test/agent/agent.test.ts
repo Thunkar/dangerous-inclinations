@@ -48,6 +48,13 @@ describe("agent seat tooling", () => {
     expect(laser?.ammo).toBeNull();
   });
 
+  it("offers each powerable subsystem every amount it takes: a shield one or two", () => {
+    const o = seatOptions(viewFor(start(), "p1"));
+    expect(o.power).toEqual([
+      { id: "side-2", type: "shields", amounts: [1, 2] },
+    ]);
+  });
+
   it("builds a salvo from a count and leaves the tile at its minimum cubes", () => {
     const state = start();
     const built = buildTurn(viewFor(state, "p1"), {
@@ -170,19 +177,19 @@ describe("agent seat tooling", () => {
     const coasting = buildTurn(viewFor(state, "p1"), { move: { kind: "coast" } });
     expect(coasting.actions.some((a) => a.type === "power")).toBe(false);
     const walled = buildTurn(viewFor(state, "p1"), {
-      power: { "side-2": 4 },
+      power: { "side-2": 2 },
       move: { kind: "burn", intensity: "soft" },
     });
     // Power runs first, then the move.
     expect(walled.actions[0]).toMatchObject({
       type: "power",
       sequence: 1,
-      data: { subsystemId: "side-2", amount: 4 },
+      data: { subsystemId: "side-2", amount: 2 },
     });
     expect(walled.actions.find((a) => a.type === "burn")?.sequence).toBe(2);
     const result = executeTurn(state, walled.actions);
     expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(4 + 1);
+    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(2 + 1);
   });
 
   it("the digest carries the seat's ship, cards, opponents and legal options", () => {

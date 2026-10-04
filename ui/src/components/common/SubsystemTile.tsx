@@ -9,14 +9,14 @@
  * Energy cells are drawn under every tile for every player, face-down or not:
  * at the table the cubes sit on top of the module in the open, and they stay
  * there until their owner's next turn. Using a tile turns it face-up, so
- * energy on a face-down slot means it was powered, not used: two is a half
- * shield, a ballistic rack or a sensor array, four is a full shield, and a gun
- * is dark until it fires. A tile that takes no energy at all prints no cells,
+ * energy on a face-down slot means it was powered, not used: one can only be a
+ * half shield, two is a full shield, a ballistic rack or a sensor array, and a
+ * gun is dark until it fires. A tile that takes no energy at all prints no cells,
  * and nothing else is ever written under a tile.
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import type { SlotKnowledge, SubsystemId, SubsystemType } from '@dangerous-inclinations/engine'
-import { getSubsystemConfig } from '@dangerous-inclinations/engine'
+import { POWERABLE_TYPES, getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { subsystemGroupColor } from '../../utils/subsystemGroups'
 import { SubsystemIcon } from './SubsystemIcon'
 import { slotLabel, slotShortLabel, slotWithSubsystem } from '../../utils/slots'
@@ -49,6 +49,9 @@ export interface SubsystemTileProps {
   cubeSize?: number
 }
 
+/** The most energy powering puts on a tile: all a face-down slot can hold between turns. */
+const FACE_DOWN_CELLS = Math.max(...POWERABLE_TYPES.map(type => getSubsystemConfig(type).maxEnergy))
+
 export function SubsystemTile({
   id,
   type,
@@ -69,8 +72,9 @@ export function SubsystemTile({
   const config = type ? getSubsystemConfig(type) : null
   const faceDown = type === null
   const cubeCapacity = capacity ?? (config ? config.maxEnergy : 0)
-  // A face-down tile still shows the cells that are lit on it.
-  const wells = faceDown ? Math.max(allocatedEnergy, 4) : cubeCapacity
+  // A face-down tile still shows the cells that are lit on it: as many as
+  // the most any tile can be powered at, so every face-down tile looks alike.
+  const wells = faceDown ? Math.max(allocatedEnergy, FACE_DOWN_CELLS) : cubeCapacity
   const live = allocatedEnergy > 0 && !isBroken
 
   const name = type ? slotWithSubsystem(id, type) : `${slotLabel(id)} · face down`

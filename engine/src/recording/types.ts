@@ -30,8 +30,10 @@ import type { GameEvent } from "../models/events.ts";
  * v13: Escort marks on the same ring, and is never spent: the marker comes
  *     back if either ship is destroyed (`escort_released.cause`); no
  *     `isSpent`, `escort_spent` or `PlayerView.spentMissions`.
+ * v14: shields take 1 or 2 cubes at a point a cube (plasma two), and every
+ *     point absorbed is heat on the owner's track.
  */
-export const RECORDING_SCHEMA_VERSION = 13;
+export const RECORDING_SCHEMA_VERSION = 14;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

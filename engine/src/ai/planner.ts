@@ -288,8 +288,8 @@ function buildCandidate(
   // gained by firing past the hull, and the engine skips shots at a ship
   // that died earlier in the turn anyway, so the later weapons are offered
   // to the next target in range instead.
-  const queued = new Map<string, Array<{ damage: number; shieldRate: number | null }>>();
-  const hullOn = (o: Opponent, extra?: { damage: number; shieldRate: number | null }) =>
+  const queued = new Map<string, Array<{ damage: number; shieldPerCube: number | null }>>();
+  const hullOn = (o: Opponent, extra?: { damage: number; shieldPerCube: number | null }) =>
     hullThrough(
       [...(queued.get(o.player.id) ?? []), ...(extra ? [extra] : [])],
       o.shieldAbsorption

@@ -2,12 +2,13 @@
  * The heat tracker's mat with no React in it: the loadout, the energy on it,
  * the broken slots and the heat track, and the two things that happen to it
  * on other players' turns. Both are the engine's rules played by hand: a
- * shield soaking a point spends its energy, in the order the engine walks the
- * shields, and leaves the track alone; a break dumps a subsystem's energy onto
- * the track. `heatMat.test.ts` holds them to the engine on a built ship.
+ * shield soaking a shot spends its energy, in the order the engine walks the
+ * shields, and puts every point it soaked on the track; a break dumps a
+ * subsystem's energy onto the track. `heatMat.test.ts` holds them to the
+ * engine on a built ship.
  */
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { SHIELD_ENERGY_PER_POINT } from '@dangerous-inclinations/engine'
+import { SHIELD_POINTS_PER_ENERGY } from '@dangerous-inclinations/engine'
 import { MOUNTS } from '../../ships/mounts'
 import type { MountId } from '../../ships/mounts'
 
@@ -33,24 +34,43 @@ export interface Mat {
 export const typeAt = (mat: Mat, slot: SlotId): SubsystemType =>
   slot in mat.loadout ? mat.loadout[slot as MountId] : (slot as FixedId)
 
-/** The shield that soaks the next point: the first, in slot order, with a point's energy on it. */
-export function absorbingShield(mat: Mat): SlotId | undefined {
-  return SLOTS.find(
+/** The working shields with energy on them, in the slot order the engine walks them. */
+function upShields(mat: Mat): SlotId[] {
+  return SLOTS.filter(
     slot =>
-      typeAt(mat, slot) === 'shields' &&
-      !mat.broken.includes(slot) &&
-      (mat.energy[slot] ?? 0) >= SHIELD_ENERGY_PER_POINT
+      typeAt(mat, slot) === 'shields' && !mat.broken.includes(slot) && (mat.energy[slot] ?? 0) > 0
   )
 }
 
-/** A shield soaks one point: its energy comes off, and the track is untouched. */
-export function absorbPoint(mat: Mat): Mat {
-  const shield = absorbingShield(mat)
-  if (!shield) return mat
-  return {
-    ...mat,
-    energy: { ...mat.energy, [shield]: (mat.energy[shield] ?? 0) - SHIELD_ENERGY_PER_POINT },
+/** The shield that soaks the next point: the first, in slot order, with energy on it. */
+export function absorbingShield(mat: Mat): SlotId | undefined {
+  return upShields(mat)[0]
+}
+
+/**
+ * A shot of `damage` meets the shields, as `resolveAttack` meets it: each
+ * shield in turn takes what its energy can (`pointsPerEnergy` a cube), the
+ * cubes that absorbed come off (a cube is spent whole), and every point
+ * absorbed goes onto the track. What the shields cannot take is hull, which
+ * the mat does not keep.
+ */
+export function absorb(
+  mat: Mat,
+  damage: number,
+  pointsPerEnergy: number = SHIELD_POINTS_PER_ENERGY
+): Mat {
+  let remaining = damage
+  let absorbed = 0
+  const energy = { ...mat.energy }
+  for (const shield of upShields(mat)) {
+    if (remaining <= 0) break
+    const take = Math.min(remaining, (energy[shield] ?? 0) * pointsPerEnergy)
+    energy[shield] = (energy[shield] ?? 0) - Math.ceil(take / pointsPerEnergy)
+    remaining -= take
+    absorbed += take
   }
+  if (absorbed === 0) return mat
+  return { ...mat, energy, track: Math.min(TRACK_CEILING, mat.track + absorbed) }
 }
 
 /** A break dumps the subsystem's energy onto the track; breaking a broken one does nothing. */

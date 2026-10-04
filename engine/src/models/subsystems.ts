@@ -114,18 +114,18 @@ export function isPowerableType(type: SubsystemType): boolean {
 }
 
 /**
- * Energy a shield spends per point of damage it absorbs, unless the weapon
- * names its own rate (`shieldEnergyPerPoint`). The spent cubes come off the
- * tile and make no heat: they were heat at their owner's check already.
+ * Damage a shield's energy absorbs, a point a cube, unless the weapon names its
+ * own rate (`shieldPointsPerEnergy`). The cubes that absorb come off the
+ * subsystem, and every point absorbed is a point of heat on its owner's track,
+ * paid at their next check: the shot's energy goes somewhere.
  *
- * At one cube a point a shield tile soaked its cubes every round for free,
- * which made every 2-damage weapon (missiles, the rack, and the railgun
- * against two tiles) permanently unable to reach a hull: 66% of the shots a
- * bot declined to take at a Destroy target were declined because they would
- * have been absorbed whole. The cubes that absorb are spent: the tile is down
- * by that much until its owner powers it again on their next turn.
+ * It was two cubes a point with the absorbing free (1 Oct 2026), and before
+ * that two cubes a point with the absorbing hot. A point a cube with nothing
+ * but the cubes to pay was the first shape, and it made every 2-damage weapon
+ * unable to reach a hull: 66% of the shots a bot declined at a Destroy target
+ * were declined as absorbed whole. The heat is what prices the wall now.
  */
-export const SHIELD_ENERGY_PER_POINT = 2;
+export const SHIELD_POINTS_PER_ENERGY = 1;
 
 export interface WeaponStats {
   damage: number;
@@ -137,10 +137,10 @@ export interface WeaponStats {
   canTargetSameRing?: boolean; // Broadside weapons that also cover the same ring
   ignoresShields?: boolean; // Laser: shields are electromagnetic and deflect only physical projectiles
   /**
-   * Cubes a shield spends per point of this weapon's damage it absorbs.
-   * Omitted means SHIELD_ENERGY_PER_POINT; plasma is soft to a screen at one.
+   * Points of this weapon's damage a shield cube absorbs. Omitted means
+   * SHIELD_POINTS_PER_ENERGY; a screen soaks plasma at two a cube.
    */
-  shieldEnergyPerPoint?: number;
+  shieldPointsPerEnergy?: number;
   /**
    * Disruptor: deals no damage and never criticals; a hit breaks the named
    * slot unless any powered shield is up, which blocks the shot whole.
@@ -163,12 +163,6 @@ export interface SubsystemConfig {
   name: string;
   minEnergy: number; // Minimum energy to function (0 for passive)
   maxEnergy: number;
-  /**
-   * Cubes this tile takes at a time; an allocation must be a multiple of it.
-   * Omitted means one, which is every tile but the shields. They buy
-   * absorption in whole points at SHIELD_ENERGY_PER_POINT cubes each.
-   */
-  energyStep?: number;
   slotType: SlotType;
   isPassive?: boolean;
   passiveEffect?: PassiveEffect;
@@ -265,16 +259,16 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     id: "shields",
     name: "Shields",
     /**
-     * Two cubes or four, never one or three: a tile buys absorption in whole
-     * points at SHIELD_ENERGY_PER_POINT cubes each, so an odd cube would sit
-     * on a promise the rules do not keep. Four cubes is four heat at every
-     * check the tile is up, and two tiles at a full wall is eight against a
-     * dissipation of five, which is what makes a wall a decision each turn
-     * rather than a setting.
+     * One cube or two, a point each. A cube is heat at every check the
+     * subsystem is up, and every point it absorbs is heat again, so a wall
+     * that is hit is paid for twice: once to hold it and once for the shot.
+     * Measured 4 Oct 2026 against two cubes a point with free absorbing:
+     * walls are held more (powered 39 -> 42% of turns) for less (1.46 -> 0.90
+     * cubes), soak more (21 -> 26% of damage), and heat at the check falls
+     * (5.4 -> 4.7), because the absorbed heat is small beside dissipation.
      */
-    minEnergy: SHIELD_ENERGY_PER_POINT,
-    maxEnergy: 2 * SHIELD_ENERGY_PER_POINT,
-    energyStep: SHIELD_ENERGY_PER_POINT,
+    minEnergy: 1,
+    maxEnergy: 2,
     /**
      * Forward or side. A screen does not care which way the ship points, and
      * the bow needs more than one tile that can be powered or a loaded
@@ -345,8 +339,9 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     id: "plasma_cannon",
     name: "Plasma Cannon",
     /**
-     * Four damage for three energy, at a cube a point against shields: a full
-     * wall stops it whole and a half wall lets half through. Even damage so
+     * Four damage for three energy, at two points a cube against shields: a
+     * full wall stops it whole (and takes four heat) and a half wall lets half
+     * through. Even damage so
      * that a wall answers it exactly (measured 1 Oct 2026, three seats, 200
      * games a row: 3 damage for 1 energy read as a laser that walls stop, 2
      * damage was weaker than the laser at any cost, 4 for 2 put railgun +
@@ -364,9 +359,9 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       sectorRange: 1,
       arc: "broadside",
       sideRestricted: true,
-      // A screen soaks plasma at a cube a point, so a wall stops it cheaply
-      // in heat but runs out of cubes fast.
-      shieldEnergyPerPoint: 1,
+      // A screen soaks plasma at two points a cube, so a wall stops it
+      // cheaply in cubes and pays for it in heat.
+      shieldPointsPerEnergy: 2,
     },
   },
 
@@ -400,10 +395,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   },
 };
 
-/** Cubes a tile takes at a time: allocations must be a multiple of this. */
-export function energyStepOf(type: SubsystemType): number {
-  return SUBSYSTEM_CONFIGS[type].energyStep ?? 1;
-}
 
 export function getSubsystemConfig(type: SubsystemType): SubsystemConfig {
   return SUBSYSTEM_CONFIGS[type];
@@ -431,9 +422,9 @@ export const DAMAGING_WEAPON_TYPES: readonly WeaponType[] = WEAPON_SUBSYSTEM_TYP
   (t) => SUBSYSTEM_CONFIGS[t].weaponStats!.damage > 0
 );
 
-/** Cubes a shield spends per point of this weapon's damage absorbed. */
-export function shieldEnergyPerPointOf(stats: WeaponStats | undefined): number {
-  return stats?.shieldEnergyPerPoint ?? SHIELD_ENERGY_PER_POINT;
+/** Points of this weapon's damage a shield cube absorbs. */
+export function shieldPointsPerEnergyOf(stats: WeaponStats | undefined): number {
+  return stats?.shieldPointsPerEnergy ?? SHIELD_POINTS_PER_ENERGY;
 }
 
 /**

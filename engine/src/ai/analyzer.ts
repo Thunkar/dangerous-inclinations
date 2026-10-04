@@ -13,7 +13,7 @@
  */
 import type { Player, Position, Station } from "../models/game.ts";
 import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
-import { getSubsystemConfig, isWeaponType, SHIELD_ENERGY_PER_POINT } from "../models/subsystems.ts";
+import { getSubsystemConfig, isWeaponType, SHIELD_POINTS_PER_ENERGY } from "../models/subsystems.ts";
 import type { GameView, PlayerView, SlotView } from "../game/view.ts";
 import { positionOf, sectorDistance } from "../game/geometry.ts";
 import { getDissipationCapacity, hasWorkingCompressor } from "../game/ship.ts";
@@ -51,10 +51,10 @@ export const SUSPECTED_SHIELD_WEIGHT = 0.5;
  *
  * | Slot    | Cubes | Could be                       | Read as                 |
  * |---------|-------|--------------------------------|-------------------------|
- * | forward | 2     | sensor array, half shield      | no weapon               |
- * | forward | 4     | shields                        | no weapon               |
- * | side    | 4     | shields                        | no weapon               |
- * | side    | 2     | shields, ballistic rack        | rack, maybe             |
+ * | forward | 1     | half shield                    | no weapon               |
+ * | forward | 2     | sensor array, full shield      | no weapon               |
+ * | side    | 1     | half shield                    | no weapon               |
+ * | side    | 2     | full shield, ballistic rack    | rack, maybe             |
  * | either  | 0     | anything not powered           | nothing                 |
  *
  * A dark slot is not a safe slot: it is where every gun on the board sits
@@ -77,18 +77,18 @@ export function suspectedWeapon(
   // and neither is a weapon. A sensor makes their criticals land on an 8,
   // which is danger of a different kind and priced by `assessDanger`, not here.
   if (slot.group === "forward") return null;
-  // Two cubes on a side slot is a half wall or a rack; four can only be a wall.
+  // Two cubes on a side slot is a full wall or a rack; one can only be a wall.
   return slot.allocatedEnergy === getSubsystemConfig("ballistic_rack").minEnergy
     ? weapon("ballistic_rack", POSSIBLE)
     : null;
 }
 
 /**
- * Damage the opponent's shields will soak out of one turn's volley. Every
- * {@link SHIELD_ENERGY_PER_POINT} cubes on a shield absorb one damage and are
- * then spent, so a full wall of four is worth two for the whole sequence.
+ * Damage the opponent's shields will soak out of one turn's volley. Every cube
+ * on a shield absorbs {@link SHIELD_POINTS_PER_ENERGY} damage and is then
+ * spent, so a full wall of two is worth two for the whole sequence.
  *
- * A face-down side slot at four cubes can only be a full wall, since the rack
+ * A face-down side slot at one cube can only be a half wall, since the rack
  * is the only other powerable side subsystem and it holds two: that one counts
  * whole. At two it is a wall or a rack and counts at
  * {@link SUSPECTED_SHIELD_WEIGHT}, so the bot neither ignores the guess nor
@@ -100,22 +100,24 @@ export function shieldAbsorption(slots: ReadonlyArray<SlotView>): number {
   for (const slot of slots) {
     if (slot.type === "shields") {
       if (slot.isBroken !== true)
-        absorbed += Math.floor(Math.min(slot.allocatedEnergy, maxCubes) / SHIELD_ENERGY_PER_POINT);
+        absorbed += Math.min(slot.allocatedEnergy, maxCubes) * SHIELD_POINTS_PER_ENERGY;
       continue;
     }
     if (slot.type !== null) continue;
     const cubes = suspectedShieldCubes(slot);
     if (cubes === 0) continue;
-    const certain = cubes > getSubsystemConfig("ballistic_rack").maxEnergy;
-    absorbed += (cubes / SHIELD_ENERGY_PER_POINT) * (certain ? 1 : SUSPECTED_SHIELD_WEIGHT);
+    // A count the rack cannot hold is a shield; one the rack can is a guess.
+    const rack = getSubsystemConfig("ballistic_rack");
+    const certain = cubes < rack.minEnergy || cubes > rack.maxEnergy;
+    absorbed += cubes * SHIELD_POINTS_PER_ENERGY * (certain ? 1 : SUSPECTED_SHIELD_WEIGHT);
   }
   return absorbed;
 }
 
 /**
  * What a face-down slot's cubes say about it being a shield: a side slot
- * holding one to four cubes. Bigger is better to break, since those are the
- * cubes soaking a volley. Four can only be a wall (the rack, the other
+ * holding one or two cubes. Bigger is better to break, since those are the
+ * cubes soaking a volley. One can only be a wall (the rack, the other
  * powerable side subsystem, holds two); two may be either, which
  * {@link suspectedWeapon} reads as a possible rack.
  */

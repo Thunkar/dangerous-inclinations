@@ -199,8 +199,9 @@ its own loadout: the bar every row with that card is read against); **logical**
 (the twelve presets, four per role, with the card their role is for); **illogical** (a preset
 with a card that fights it: sensor bow hauling, compressor hunting); **off-book**
 (builds no preset has, with the card they are built for: sensor bow with three
-launchers, a missile boat, a rack hunter, a fifth wall in the bow); and
-**extreme** (nineteen wild hulls with a random legal hand, against the own-hand
+launchers, a missile boat, a rack hunter, a fifth wall in the bow, three-shield
+walls); and **extreme** (twenty-eight wild hulls, five shields among them, with
+a random legal hand, against the own-hand
 bar). One table, one flag column. Failing flags: `outlier` (12+ points over its
 bar), `stall` (20%+ of games at the cap), `slow` (a natural row), `unpunished`
 (an illogical row not below its bar). Informational: `weak` (a preset 12+
@@ -383,8 +384,10 @@ not an argument:
 - **An expensive Survey** (a named planet, two turns held on ring 1 with sensors).
   It worked, and the bots stopped keeping the card: a card nobody keeps is a
   missing card, not a priced one.
-- **Shields absorbing a point per cube.** One powered subsystem was permanent immunity
+- **Shields absorbing a point per cube, for free.** One powered subsystem was permanent immunity
   to every 2-damage weapon; 66% of declined shots were declined as unabsorbable.
+  A point a cube came back on 4 Oct 2026 with every point absorbed as heat
+  (below), which is what prices it now.
 - **Radiator at +1 or +3.** Measured after heat became a track: +1 widens the
   hull spread and lengthens games, +3 pushes the wall back up. +2 stays.
 - **A bigger shield subsystem** (`shields.maxEnergy=6`). It makes the game quieter
@@ -768,7 +771,7 @@ not an argument:
   Escort when the bots ignore their markers). The designer wants that table
   politics; the escorted ship may always turn on its escort.
 
-- **Absorbing makes no heat.** Adopted 1 Oct 2026 for simplicity: a shield's
+- **Absorbing makes no heat.** Replaced 4 Oct 2026 by the next entry. Adopted 1 Oct 2026 for simplicity: a shield's
   cost is its cubes at its owner's check like every other subsystem's, and the
   cubes it spends absorbing simply come off. Before, the spent cubes went onto
   the track a second time (2 heat a point), while a rack that intercepted made
@@ -784,6 +787,36 @@ not an argument:
   Benchmark at 120 games a seat count: kills 1.9 / 4.3 / 7.6 / 10.3 → 2.0 /
   3.2 / 6.5 / 9.8, rounds 26 / 27 / 27 / 30 → 27 / 26 / 27 / 30, Deliver 68 →
   73 and Destroy 66 → 62 completed per 100 kept.
+- **Shields at a point a cube, and absorbed damage is heat.** Adopted 4 Oct
+  2026, the designer's rule: shields take 1 or 2 cubes, each cube absorbs a
+  point (two of plasma) and comes off, and every point absorbed goes onto the
+  owner's track, paid at their next check. It replaced two cubes a point with
+  free absorbing, whose cubes were both the heat and the absorption budget.
+  Measured against it on the same seeds, 1000 games a row over 62 rows (seven
+  of them new shield hulls): mean row −0.2pp, median −0.15, one row moved 5pp
+  (compressor + shields×3 + laser with Deliver, 35.5 → 29.8, down). Dealt
+  Destroy / Deliver / Intercept 34.9 / 35.2 / 30.6 → 32.9 / 35.2 / 30.0;
+  natural three-seat play 27 rounds either way, kills 3.1 → 2.9. The
+  mechanism, 300 games at three seats: walls are cheaper to hold (cubes on
+  shields 1.46 → 0.90, powered 39 → 42% of turns, full 32 → 39%) and soak
+  more (21 → 26% of damage), and heat at the check *falls* (5.4 → 4.7), since
+  about 15 points absorbed a game is 0.2 heat a ship-turn against a
+  dissipation of 5; no turn takes heat damage. **The shield extremes are not
+  strong**: shield bow + shields×4 24%, sensor bow + shields×4 24%, sensor bow
+  + shields×3 + laser with Intercept 22% against 30, railgun + shields×3 +
+  laser with Destroy 19% (`dead`); compressor + shields×4 reads 38% as it did
+  (the gunless turtles, settled). The one failing flag,
+  `illogical:convoy+destroy` unpunished, is the bar crossing the row: the row
+  33.9 → 33.6, its Destroy bar 34.9 → 32.9, within a point of each other under
+  both rules, the same coin flip as `hauler_aggressive+destroy` above.
+  Benchmark at 400 games a seat count: rounds 27 / 27 / 27 / 28 → 27 / 27 /
+  29 / 29 (five seats two rounds longer at 120 games too), kills 2.8 / 5.5 /
+  9.5 / 13 → 2.8 / 5.6 / 9.5 / 12.8; the page's three-seat seat spread (41 /
+  33 / 27) is its seeds, the 1000-game natural row reads 34 / 35 / 31. One
+  cube on a shield is now the disruptor's immunity (blocked hits 0.05 → 0.13 a
+  game at three seats). The bots do not price the heat of absorbing when they
+  decide to hold a wall, and `shieldAbsorption` ignores a bow shield (the bots
+  never fly one), so read the shield rows as a floor.
 - **The plasma cannon and the disruptor.** Adopted 1 Oct 2026 as the
   designer's two weapons. Plasma (side, 3 energy): 4 damage, ±1 ring ±1 sector,
   one side only; shields stop it a point per cube, so a full wall stops it
@@ -870,10 +903,12 @@ Known open problems:
   most), which evened the primaries and cost the secondaries that need
   carriers or wrecks in reach. Piracy hands are weak with any hull: forced,
   every preset with a Piracy hand reads 24–37% against 26–49% with Survey.
-- **Two cubes on any shield are immunity to the disruptor**, and bots hold a
-  shield up 55–65% of turns, so it hits mostly ships that walls have left. A
-  shield that stops it by spending cubes, rather than at any level, is the
-  untried variant.
+- **One cube on any shield is immunity to the disruptor**, and bots hold a
+  shield up 40–45% of turns, so it hits mostly ships that walls have left.
+  Since shields went to a point a cube (4 Oct 2026) the immunity costs one
+  heat a check instead of two: blocked disruptor hits rose from about one in
+  thirteen to one in five at three seats. A shield that stops it by spending
+  cubes, rather than at any level, is the untried variant.
 - **The compressor with two guns and a wall beats the hunters in a duel.**
   Both hands dealt Destroy, 400 games each with seats swapped (1 Oct 2026):
   compressor + plasma×2 + shields + radiator 219–161 against the railgun +

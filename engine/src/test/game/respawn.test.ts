@@ -58,7 +58,7 @@ function wreck(): GameState {
     { activePlayerIndex: 1 }
   );
   state = withShip(state, "p2", { hitPoints: 0, reactionMass: 2, heat: { currentHeat: 7 } });
-  state = withPower(state, "p2", "side-2", 3);
+  state = withPower(state, "p2", "side-2", 2);
   state = withSub(state, "p2", "side-0", { isRevealed: true });
   state = withSub(state, "p2", "engines", { isBroken: true });
   state = withPlayer(state, "p2", {

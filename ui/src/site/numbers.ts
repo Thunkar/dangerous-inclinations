@@ -7,17 +7,17 @@ import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
   FIXED_SUBSYSTEM_TYPES,
   INTERCEPT_ROLL,
-  SHIELD_ENERGY_PER_POINT,
+  SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
   getAdjustmentRange,
   interceptsPerRack,
   lowestCriticalFace,
   rollToResult,
-  shieldEnergyPerPointOf,
+  shieldPointsPerEnergyOf,
 } from '@dangerous-inclinations/engine'
 
 export const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
-/** The energy each powered subsystem takes: a half shield, a rack and a sensor alike; a full shield twice it. */
+/** The energy each powered subsystem takes: a full shield, a rack and a sensor alike; a half shield half it. */
 export const HALF_SHIELD = SUBSYSTEM_CONFIGS.shields.minEnergy
 export const FULL_SHIELD = SUBSYSTEM_CONFIGS.shields.maxEnergy
 export const RACK_ENERGY = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy
@@ -36,6 +36,11 @@ export const faceResult = (face: number, sensor = false) =>
 /** The highest face that misses. */
 export const MISS_TOP = D10.filter(face => rollToResult(face) === 'miss').pop() ?? 1
 
+/** Points of plasma a shield energy stops, against SHIELD_POINTS_PER_ENERGY of every other weapon. */
+export const PLASMA_SHIELD_POINTS = shieldPointsPerEnergyOf(
+  SUBSYSTEM_CONFIGS.plasma_cannon.weaponStats
+)
+
 /** Shields stop every weapon but a laser, unless the laser's config says otherwise. */
 const LASERS_PIERCE = SUBSYSTEM_CONFIGS.laser.weaponStats?.ignoresShields ?? false
 
@@ -43,9 +48,9 @@ const LASERS_PIERCE = SUBSYSTEM_CONFIGS.laser.weaponStats?.ignoresShields ?? fal
 export function poweredEffect(type: SubsystemType): string {
   switch (type) {
     case 'shields':
-      return `shields absorb 1 damage per ${SHIELD_ENERGY_PER_POINT} energy${
-        LASERS_PIERCE ? ' (not lasers)' : ''
-      }`
+      return `shields absorb ${SHIELD_POINTS_PER_ENERGY} damage an energy (${PLASMA_SHIELD_POINTS} of plasma${
+        LASERS_PIERCE ? ', not lasers' : ''
+      }), and every point absorbed is heat`
     case 'ballistic_rack':
       return `a rack rolls at ${interceptsPerRack()} missiles a turn`
     case 'sensor_array':
@@ -54,9 +59,6 @@ export function poweredEffect(type: SubsystemType): string {
       return ''
   }
 }
-
-/** Shield energy a point of plasma takes, against SHIELD_ENERGY_PER_POINT for every other weapon. */
-export const PLASMA_SHIELD = shieldEnergyPerPointOf(SUBSYSTEM_CONFIGS.plasma_cannon.weaponStats)
 
 /** A ballistic rack with energy on it downs a missile on this roll or better. */
 export const INTERCEPT_ON = INTERCEPT_ROLL

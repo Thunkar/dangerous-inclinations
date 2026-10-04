@@ -19,6 +19,7 @@ import {
   getSub,
   makeTwoPlayerGame,
   mustExecute,
+  power,
   repair,
   rotate,
   withPlayer,
@@ -93,31 +94,68 @@ describe("heat: end-of-turn resolution", () => {
   );
 
   it.each([
-    ["an empty track", 0],
-    ["a carried track", 3],
+    ["an empty track, a full shield", 0, 2, 2, 10, 0],
+    ["a carried track, a full shield", 3, 2, 2, 10, 0],
+    ["a carried track, a half shield", 5, 1, 1, 9, 1],
   ])(
-    "absorbing on another player's turn makes no heat, and only the active player's check runs (%s)",
-    (_label, carried) => {
+    "absorbing on another player's turn goes onto the track and waits for the owner's check (%s)",
+    (_label, carried, cubes, absorbed, hull, carriedAfter) => {
       let state = makeTwoPlayerGame(
         { ring: 3, sector: 0, loadout: RACK_SHIP },
         { ring: 4, sector: 0 }
       );
       state = withShip(state, "p2", { heat: { currentHeat: carried } });
       state = withPower(state, "p1", "side-0", 2);
-      state = withPower(state, "p2", "side-2", 2);
+      state = withPower(state, "p2", "side-2", cubes);
       const afterP1 = mustExecute(state, fire(1, "side-0", "p2"));
-      // Two cubes buy one point of the rack's two damage and come off the tile;
-      // nothing goes on p2's track, and p2's carried heat waits for its check.
-      expect(getShip(afterP1, "p2").heat.currentHeat).toBe(carried);
+      // The cubes that absorbed come off the shield and the points absorbed go
+      // onto p2's track at once; only the active player's check runs, so
+      // nothing of p2's is dissipated yet.
+      expect(getShip(afterP1, "p2").heat.currentHeat).toBe(carried + absorbed);
       expect(getSub(afterP1, "p2", "side-2").allocatedEnergy).toBe(0);
-      expect(getShip(afterP1, "p2").hitPoints).toBe(9);
-      const afterP2 = mustExecute(afterP1, coast(1));
-      // A coast with nothing powered: the carried heat dissipates and the hull
-      // keeps the one point the round put through the wall.
-      expect(getShip(afterP2, "p2").heat.currentHeat).toBe(
-        Math.max(0, carried - DEFAULT_DISSIPATION_CAPACITY)
+      expect(getShip(afterP1, "p2").hitPoints).toBe(hull);
+      const p2Turn = executeTurnAs(afterP1, coast(1));
+      expect(p2Turn.errors).toBeUndefined();
+      // A coast with nothing powered: p2's check sees the carried heat and the
+      // points absorbed, and dissipates them.
+      expect(eventsOf(p2Turn.events, "heat_check")[0]).toMatchObject({
+        playerId: "p2",
+        cubes: 0,
+        heat: carried + absorbed,
+        damage: 0,
+      });
+      expect(getShip(p2Turn.gameState, "p2").heat.currentHeat).toBe(carriedAfter);
+      expect(carriedAfter).toBe(Math.max(0, carried + absorbed - DEFAULT_DISSIPATION_CAPACITY));
+      expect(getShip(p2Turn.gameState, "p2").hitPoints).toBe(hull);
+    }
+  );
+
+  it.each([
+    // Five carried, two absorbed and five cubes of its own: twelve at the check.
+    ["after absorbing a rack round", true, 12, 2],
+    // The same turn without the shot is exactly at the top of the track.
+    ["with nothing absorbed", false, 10, 0],
+  ])(
+    "absorbed heat is paid at the owner's next check: a hot ship %s",
+    (_label, shoot, heat, damage) => {
+      let state = makeTwoPlayerGame(
+        { ring: 3, sector: 0, loadout: RACK_SHIP },
+        { ring: 4, sector: 0 }
       );
-      expect(getShip(afterP2, "p2").hitPoints).toBe(9);
+      state = withShip(state, "p2", { heat: { currentHeat: 5 } });
+      state = withPower(state, "p2", "side-2", 2);
+      const afterP1 = mustExecute(state, shoot ? fire(1, "side-0", "p2") : coast(1));
+      expect(getShip(afterP1, "p2").hitPoints).toBe(10);
+      // p2 puts its wall back up and scoops: five cubes of its own.
+      const p2Turn = executeTurnAs(afterP1, power(1, "side-2", 2), coast(2, true));
+      expect(p2Turn.errors).toBeUndefined();
+      expect(eventsOf(p2Turn.events, "heat_check")[0]).toMatchObject({
+        playerId: "p2",
+        cubes: 5,
+        heat,
+        damage,
+      });
+      expect(getShip(p2Turn.gameState, "p2").hitPoints).toBe(10 - damage);
     }
   );
 
@@ -171,6 +209,32 @@ describe("heat: a cold ship repairs one tile", () => {
     expectRefusedUnless(
       executeTurnAs(state, coast(1), repair("engines")),
       executeTurnAs(stranded(), coast(1), repair("engines"))
+    );
+  });
+
+  it("does nothing after the ship's shields absorbed on another player's turn", () => {
+    // p2 is cold with broken engines and a single cube on its shield. A rack
+    // round on p1's turn puts the absorbed point on p2's track, so p2 is not
+    // cold at its own check; the same turn with p1 coasting repairs.
+    const base = () => {
+      let state = makeTwoPlayerGame(
+        { ring: 3, sector: 0, loadout: RACK_SHIP },
+        { ring: 4, sector: 0 }
+      );
+      state = withSub(state, "p2", "engines", { isBroken: true });
+      return withPower(state, "p2", "side-2", 1);
+    };
+    const shot = mustExecute(base(), fire(1, "side-0", "p2"));
+    expect(getShip(shot, "p2").heat.currentHeat).toBe(1);
+    expect(getShip(shot, "p2").hitPoints).toBe(9);
+    const quiet = mustExecute(base(), coast(1));
+    expect(getShip(quiet, "p2").heat.currentHeat).toBe(0);
+    expectRefusedUnless(
+      executeTurnAs(shot, coast(1), repair("engines")),
+      executeTurnAs(quiet, coast(1), repair("engines"))
+    );
+    expect(getSub(mustExecute(quiet, coast(1), repair("engines")), "p2", "engines").isBroken).toBe(
+      false
     );
   });
 

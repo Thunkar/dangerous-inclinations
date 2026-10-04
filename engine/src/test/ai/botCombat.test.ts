@@ -181,7 +181,7 @@ describe("bot targeting", () => {
       "p1"
     );
     state = withSub(state, "p2", "side-2", { isRevealed: true });
-    state = withPower(state, "p2", "side-2", 4);
+    state = withPower(state, "p2", "side-2", 2);
 
     const shots = shotsOf(state, "p1");
     expect(shots.length).toBeGreaterThan(0);
@@ -300,8 +300,8 @@ describe("bot lethality estimates", () => {
   });
 
   it("subtracts the shield cubes it can see before calling anything a kill", () => {
-    // One rack round, two damage, against two hull: lethal in the open. Two
-    // face-up shield cubes buy one point of it, so one lands and p2 lives.
+    // One rack round, two damage, against two hull: lethal in the open. One
+    // face-up shield cube buys one point of it, so one lands and p2 lives.
     let state = withShip(
       grounded(
         makeTwoPlayerGame(
@@ -314,7 +314,7 @@ describe("bot lethality estimates", () => {
       { hitPoints: 2 }
     );
     state = withSub(state, "p2", "side-2", { isRevealed: true });
-    state = withPower(state, "p2", "side-2", 2);
+    state = withPower(state, "p2", "side-2", 1);
 
     const plan = planAgainst(state, "p1", "p2");
     expect(plan.expectedDamage).toBe(2);
@@ -323,7 +323,7 @@ describe("bot lethality estimates", () => {
   });
 
   it("counts laser damage against the hull whatever the shields hold", () => {
-    // Two port lasers, four damage, three hull, four face-up shield cubes:
+    // Two port lasers, four damage, three hull, a full face-up shield:
     // shields are electromagnetic and do not stop a laser, so this is a kill.
     let state = withShip(
       grounded(
@@ -337,17 +337,17 @@ describe("bot lethality estimates", () => {
       { hitPoints: 3 }
     );
     state = withSub(state, "p2", "side-2", { isRevealed: true });
-    state = withPower(state, "p2", "side-2", 4);
+    state = withPower(state, "p2", "side-2", 2);
 
     const plan = planAgainst(state, "p1", "p2");
     expect(plan.expectedHullDamage).toBeGreaterThanOrEqual(3);
     expect(plan.killsTarget).toBe(true);
   });
 
-  it("treats face-down side cubes as half a shield, not as nothing", () => {
+  it("treats two face-down side cubes as half a shield, not as nothing", () => {
     // Rack and missile (four shielded damage) against two face-down cubes.
-    // Two cubes stop one point, and a slot that only might be a shield is
-    // priced at half that: 3.5 of the four reach a hull of four, so no kill.
+    // Two cubes stop two points, and a slot that only might be a shield is
+    // priced at half that: 3 of the four reach a hull of four, so no kill.
     // Read as nothing it would be four and a kill.
     let state = withShip(
       grounded(
@@ -365,7 +365,7 @@ describe("bot lethality estimates", () => {
     state = withSub(state, "p1", "side-3", { ammo: 1 });
 
     const plan = planAgainst(state, "p1", "p2");
-    expect(plan.expectedHullDamage).toBe(3.5);
+    expect(plan.expectedHullDamage).toBe(3);
     expect(plan.killsTarget).toBe(false);
   });
 });

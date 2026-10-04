@@ -97,7 +97,7 @@ Client → server:
 ```
 
 A turn's `PlayerAction[]` is tactical actions numbered from 1 in the order
-they run: `power` (`{ subsystemId, amount? }`: shields 2 or 4, a ballistic
+they run: `power` (`{ subsystemId, amount? }`: shields 1 or 2, a ballistic
 rack 2, a sensor array 2; absent is the subsystem's minimum), `rotate`, one of
 `coast` / `burn` / `well_transfer`, `fire_weapon` and `scan`. Every action
 puts energy on the subsystem it uses and it stays there until its owner's next

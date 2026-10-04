@@ -351,7 +351,7 @@ describe("interdiction goals", () => {
   });
 
   it("diverts behind a gun the visible shields would soak, and not without a gun", () => {
-    // The wall below (two shields, four cubes) stops a two-damage rack whole,
+    // The wall below (two shields, a cube each) stops a two-damage rack whole,
     // but a soaked volley still strips the cubes and a critical breaks what it
     // names whether or not the shot got through, so the rack is worth the
     // trip. A hull with no gun at all has nothing to bring. Same board, same
@@ -366,7 +366,7 @@ describe("interdiction goals", () => {
         [crate(BETA, ALPHA)]
       );
       for (const id of ["side-2", "side-3"] as const) {
-        state = withPower(withSub(state, "p2", id, { isRevealed: true }), "p2", id, 2);
+        state = withPower(withSub(state, "p2", id, { isRevealed: true }), "p2", id, 1);
       }
       return state;
     };
