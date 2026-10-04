@@ -116,6 +116,7 @@ const NUMBER_HEIGHT_BOUNDS = { (millimeter) : [1, 5, 100] } as LengthBoundSpec;
 const ARM_WIDTH_BOUNDS = { (millimeter) : [1, 6, 50] } as LengthBoundSpec;
 const ARM_HEIGHT_BOUNDS = { (millimeter) : [0.4, 2, 20] } as LengthBoundSpec;
 const HUB_INSERT_BOUNDS = { (millimeter) : [1, 15, 200] } as LengthBoundSpec;
+const HUB_RADIUS_BOUNDS = { (millimeter) : [0, 0, 2000] } as LengthBoundSpec;
 const CLEARANCE_BOUNDS = { (millimeter) : [0, 0.2, 2] } as LengthBoundSpec;
 const BED_BOUNDS = { (millimeter) : [50, 256, 2000] } as LengthBoundSpec;
 const LANE_RAISE_BOUNDS = { (millimeter) : [0, 1.5, 20] } as LengthBoundSpec;
@@ -205,6 +206,9 @@ export const orbitRings = defineFeature(function(context is Context, id is Id, d
 
         annotation { "Name" : "Arm height" }
         isLength(definition.armHeight, ARM_HEIGHT_BOUNDS);
+
+        annotation { "Name" : "Hub radius (0 for as big as ring 1 allows)" }
+        isLength(definition.hubRadius, HUB_RADIUS_BOUNDS);
 
         annotation { "Name" : "Arm length under the hub" }
         isLength(definition.hubInsert, HUB_INSERT_BOUNDS);
@@ -320,12 +324,17 @@ export const orbitRings = defineFeature(function(context is Context, id is Id, d
         var edgeOf = outer;
         edgeOf[n - 1] = outer[n - 1] + band;
 
-        const hubRadius = inner[0] - gap;
+        // A smaller hub leaves ring 1 where it is; the arms' first tooth grows
+        // to fill the wider gap between them.
+        const largestHub = inner[0] - gap;
+        const hubRadius = definition.hubRadius > 0 * meter ? definition.hubRadius : largestHub;
         const armStart = hubRadius - definition.hubInsert;
         const armEnd = edgeOf[n - 1] + gap;
 
         if (walls && definition.wallTopWidth > definition.wallWidth)
             throw regenError("The wall top cannot be wider than its foot", ["wallTopWidth", "wallWidth"]);
+        if (hubRadius > largestHub)
+            throw regenError("The hub would reach ring 1: at most ring 1's inner edge less the gap", ["hubRadius"]);
         if (arms > 0 && definition.pegHeight > 0 * meter && definition.pegDiameter >= 2 * hubRadius)
             throw regenError("The centre peg is wider than the hub", ["pegDiameter"]);
         if (halfTrack <= definition.wallWidth)
@@ -341,8 +350,8 @@ export const orbitRings = defineFeature(function(context is Context, id is Id, d
         if (arms > 0 && definition.armHeight + c + 0.6 * millimeter > top)
             throw regenError("Rings need 0.6 mm over the arm notches: thicken the rings or lower the arms", ["thickness", "armHeight"]);
         if (arms > 0 && (hubRadius <= 0 * meter || armStart <= definition.armWidth))
-            throw regenError("The arms meet under the hub: shorten the arm length under the hub or move ring 1 out",
-                ["hubInsert", "firstRadius"]);
+            throw regenError("The arms meet under the hub: shorten the arm length under the hub, or make the hub bigger",
+                ["hubInsert", "hubRadius", "firstRadius"]);
         if (band > 0 * meter && grooveOuter - grooveInner <= 2 * c + 0.8 * millimeter)
             throw regenError("The lane band is too narrow for a groove and its two lips", ["laneBand"]);
         if (band > 0 * meter && definition.grooveDepth + 0.6 * millimeter > top)
