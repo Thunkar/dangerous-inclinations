@@ -55,7 +55,7 @@ export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
   radiator: 'Passive: +2 heat dissipation at every check. Keep away from direct sunlight.',
   fuel_compressor: 'Passive: a jump costs 1 fuel instead of 3. The cheapest way to go on vacation.',
   ballistic_rack:
-    '2 damage close in; powered, it rolls at up to 4 incoming missiles a turn. Definitely passive-aggressive.',
+    '2 damage close in; powered, it rolls at up to 4 incoming missiles a turn, for 2 heat. Definitely passive-aggressive.',
   plasma_cannon:
     'Side gun, 4 damage within 1 ring and 1 sector, one side; shields stop it two points a cube. Hot stuff.',
   disruptor:

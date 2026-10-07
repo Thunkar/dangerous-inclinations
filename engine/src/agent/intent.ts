@@ -41,7 +41,7 @@ export interface FireIntent {
 
 export interface TurnIntent {
   /**
-   * Subsystems to power this turn and the cubes to put on each: shields 2 or 4, a
+   * Subsystems to power this turn and the cubes to put on each: shields 1 or 2, a
    * ballistic rack 2, a sensor array 2. They work until your next turn, and
    * they run first, so a sensor widens every shot this turn. Ones not named
    * are off: the loadout is cleared at the start of the turn. Nothing else

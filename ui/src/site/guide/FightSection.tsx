@@ -7,6 +7,7 @@
 import { Box } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
+  INTERCEPT_HEAT,
   SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
   interceptsPerRack,
@@ -123,6 +124,7 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
       sectors: weaponStats('ballistic_rack').sectorRange!,
       intercepts: interceptsPerRack(),
       on: INTERCEPT_ON,
+      heat: INTERCEPT_HEAT,
     }),
   },
   {

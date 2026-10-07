@@ -168,7 +168,7 @@ export const CHEATSHEET = {
       stays:
         'Energy <b>stays on the subsystem until your next turn</b>, so shields, a rack or a sensor you power work through everyone else’s turn.',
       absorbed:
-        'Damage your shields absorb is heat too: each point goes on your track at once and is paid at your next check.',
+        'Damage your shields absorb is heat too, a point a point, and a rack that rolls at missiles is {interceptHeat}: it goes on your track at once and is paid at your next check.',
       over: 'Over {maxHeat} heat at your check is hull damage. Dissipate {dissipation} (+{radiator} a radiator) and carry the rest.',
       cold: 'If you have 0 heat at your check, repair one broken subsystem.',
     },
@@ -220,7 +220,7 @@ export const CHEATSHEET = {
         'Same ring, 1–{sectors} sectors ahead. The recoil pushes you a ring against your facing, unless you spend 1 fuel to hold.',
       laser: '±{rings} rings, ±{sectors} sector, off one side. <b>Ignores shields.</b>',
       ballistic_rack:
-        '±{rings} ring, ±{sectors} sector, either side. With energy on it, shoots down {intercepts} missiles a turn on {on}+.',
+        '±{rings} ring, ±{sectors} sector, either side. With energy on it, shoots down {intercepts} missiles a turn on {on}+, for {heat} heat however many.',
       missiles:
         'Any ship in your well. Launch any number at one ship: {aboard} aboard, {steps} steps a turn for {turns} turns.',
       plasma_cannon:

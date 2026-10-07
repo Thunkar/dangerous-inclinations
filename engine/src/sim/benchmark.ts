@@ -48,7 +48,8 @@ import {
   MIN_PLAYERS,
   STARTING_HIT_POINTS,
 } from "../models/game.ts";
-import { SHIELD_POINTS_PER_ENERGY, SUBSYSTEM_CONFIGS } from "../models/subsystems.ts";
+import { SHIELD_POINTS_PER_ENERGY, SUBSYSTEM_CONFIGS, interceptsPerRack } from "../models/subsystems.ts";
+import { INTERCEPT_HEAT } from "../game/missiles.ts";
 import { runBatch, type BatchResult } from "./batch.ts";
 import { CARD_LABEL, LEAD_CHECK_ROUND } from "./stats.ts";
 import { FIRST_STEP } from "./cardFunnel.ts";
@@ -458,6 +459,9 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   );
   out.push(
     `| Shields | ${SUBSYSTEM_CONFIGS.shields.minEnergy} or ${SUBSYSTEM_CONFIGS.shields.maxEnergy} energy, ${SHIELD_POINTS_PER_ENERGY} point absorbed a cube, which comes off the subsystem; its energy is heat every turn it is powered, and every point absorbed is heat too |`
+  );
+  out.push(
+    `| Ballistic rack | rolls at up to ${interceptsPerRack()} missiles a turn while powered; answering is ${INTERCEPT_HEAT} heat on the track, however many |`
   );
   out.push(`| Table time assumes | ${args.minutesPerTurn} min per player-turn |`);
   // A page run under `--rules=` is not the standing benchmark: say so where

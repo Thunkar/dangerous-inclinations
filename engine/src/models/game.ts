@@ -215,7 +215,7 @@ export interface RotateAction extends BaseAction {
   data: { targetFacing: Facing };
 }
 
-/** Power one of the tiles that work on other players' turns (POWERABLE_TYPES). `amount` is shields' 2 or 4; absent means the tile's minimum. */
+/** Power one of the tiles that work on other players' turns (POWERABLE_TYPES). `amount` is shields' 1 or 2; absent means the tile's minimum. */
 export interface PowerAction extends BaseAction {
   type: "power";
   data: { subsystemId: SubsystemId; amount?: number };

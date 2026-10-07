@@ -20,7 +20,7 @@ export const RULES_DIALOG = {
    * The quick reference, one row a line: the label, then the rule. The
    * slots every row may use: halfShield, fullShield, rackEnergy,
    * sensorEnergy, maxHeat, dissipation, radiator, shieldPoints, plasmaPoints,
-   * intercepts, hull, fuel, sectors, soft, medium, hard, mostPhase,
+   * intercepts, interceptHeat, hull, fuel, sectors, soft, medium, hard, mostPhase,
    * jumpEnergy, jumpFuel, compressedFuel, miss, hitFrom, hitTo, crit,
    * sensorCrit, salvoEnergy, scanRange, tankerFuel, homeRings, deploymentGap,
    * primaryOffers, primaries, secondaryOffers, secondaries, handPoints,
@@ -44,7 +44,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Ballistic rack',
-      'with energy on it (powered, or it fired) it rolls at {intercepts} missiles a turn, the same number its energy could have thrown',
+      'with energy on it (powered, or it fired) it rolls at {intercepts} missiles a turn, the same number its energy could have thrown; answering puts {interceptHeat} heat on your track, however many it rolls at',
     ],
     [
       'Critical',

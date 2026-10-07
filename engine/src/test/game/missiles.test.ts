@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { processOwnerMissiles, projectMissilePath, stepToward } from "../../game/missiles.ts";
+import {
+  INTERCEPT_HEAT,
+  processOwnerMissiles,
+  projectMissilePath,
+  stepToward,
+} from "../../game/missiles.ts";
 import { processActions } from "../../game/actionProcessors.ts";
 import { getMissileStats, interceptsPerRack } from "../../models/subsystems.ts";
 import { resetSubsystemUsage } from "../../game/ship.ts";
@@ -354,11 +359,9 @@ describe("missiles: on the target's sector", () => {
     ]);
   });
 
-  it("a rack that is up intercepts on 2+: used and revealed, and it adds no heat of its own", () => {
+  it("a rack that is up intercepts on 2+: used and revealed, and answering is heat on the track", () => {
     const state = withPower(onTarget(RACK), "p2", "side-0", 2);
     const result = processOwnerMissiles(state, "p1");
-    // The rack's two cubes are already on its owner's bill for being up, so
-    // shooting a missile down costs nothing more.
     expect(eventsOf(result.events as never, "missile_intercepted")).toEqual([
       expect.objectContaining({ missileId: "m-1", targetId: "p2", roll: 5 }),
     ]);
@@ -366,9 +369,12 @@ describe("missiles: on the target's sector", () => {
     expect(result.state.missiles).toEqual([]);
     const rack = getSub(result.state, "p2", "side-0");
     expect(rack).toMatchObject({ usedThisTurn: true, isRevealed: true, allocatedEnergy: 2 });
-    // Interception adds nothing to the track: the rack pays by being up, at
-    // its owner's own check, whether it rolls or not.
-    expect(getShip(result.state, "p2")).toMatchObject({ hitPoints: 10, heat: { currentHeat: 0 } });
+    // The rack's cubes stay on it, and answering puts INTERCEPT_HEAT on the
+    // track, paid at its owner's next check.
+    expect(getShip(result.state, "p2")).toMatchObject({
+      hitPoints: 10,
+      heat: { currentHeat: INTERCEPT_HEAT },
+    });
     expect(eventsOf(result.events as never, "subsystem_revealed")[0]).toMatchObject({
       subsystemId: "side-0",
       reason: "intercepted",
@@ -399,13 +405,12 @@ describe("missiles: on the target's sector", () => {
     const result = processOwnerMissiles({ ...state, forcedRollValue: 5 }, "p1");
     const intercepts = eventsOf(result.events as never, "missile_intercepted");
     expect(intercepts).toHaveLength(3);
-    // Nothing is charged for any of them: the rack is up, so its cubes are
-    // already on the bill and a turn of rolling adds nothing.
+    // One charge for the turn, however many it rolls at.
     expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
     expect(result.state.missiles).toEqual([]);
     expect(getShip(result.state, "p2")).toMatchObject({
       hitPoints: 10,
-      heat: { currentHeat: 0 },
+      heat: { currentHeat: INTERCEPT_HEAT },
     });
     expect(getSub(result.state, "p2", "side-0").allocatedEnergy).toBe(2);
   });
@@ -452,6 +457,33 @@ describe("missiles: on the target's sector", () => {
       rollsThisTurn: 1,
       isRevealed: true,
     });
+  });
+
+  it.each([
+    // [label, missiles, racks, roll, heat added]
+    ["one missile shot down", 1, 1, 5, INTERCEPT_HEAT],
+    ["a salvo of four shot down", 4, 1, 5, INTERCEPT_HEAT],
+    ["a salvo of four, every roll a miss", 4, 1, 1, INTERCEPT_HEAT],
+    ["five against two racks: both answer", 5, 2, 5, 2 * INTERCEPT_HEAT],
+    ["two against two racks: only the first answers", 2, 2, 5, INTERCEPT_HEAT],
+  ])(
+    "answering puts heat on the track once a rack a turn: %s",
+    (_label, count, racks, roll, heat) => {
+      const loadout = racks === 2 ? TWO_RACKS : RACK;
+      let state = withPower(salvoOf(onTarget(loadout), count), "p2", "side-0", 2);
+      if (racks === 2) state = withPower(state, "p2", "side-2", 2);
+      const result = processOwnerMissiles({ ...state, forcedRollValue: roll }, "p1");
+      expect(getShip(result.state, "p2").heat.currentHeat).toBe(heat);
+    }
+  );
+
+  it("a rack that is down adds no heat when missiles arrive", () => {
+    const result = processOwnerMissiles(
+      { ...salvoOf(onTarget(RACK), 2), forcedRollValue: 5 },
+      "p1"
+    );
+    expect(eventTypes(result.events as never)).not.toContain("missile_intercepted");
+    expect(getShip(result.state, "p2").heat.currentHeat).toBe(0);
   });
 
   it("one rack is enough for a salvo of two, and the second stays a secret", () => {

@@ -8,7 +8,7 @@
  * engine on a built ship.
  */
 import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { SHIELD_POINTS_PER_ENERGY } from '@dangerous-inclinations/engine'
+import { INTERCEPT_HEAT, SHIELD_POINTS_PER_ENERGY } from '@dangerous-inclinations/engine'
 import { MOUNTS } from '../../ships/mounts'
 import type { MountId } from '../../ships/mounts'
 
@@ -71,6 +71,25 @@ export function absorb(
   }
   if (absorbed === 0) return mat
   return { ...mat, energy, track: Math.min(TRACK_CEILING, mat.track + absorbed) }
+}
+
+/** A working ballistic rack with energy on it: one that answers missiles. */
+export function upRack(mat: Mat): SlotId | undefined {
+  return SLOTS.find(
+    slot =>
+      typeAt(mat, slot) === 'ballistic_rack' &&
+      !mat.broken.includes(slot) &&
+      (mat.energy[slot] ?? 0) > 0
+  )
+}
+
+/**
+ * A rack answers a turn's missiles: INTERCEPT_HEAT on the track, however many
+ * it rolls at, and its energy stays on. Nothing without a rack up.
+ */
+export function rackAnswers(mat: Mat): Mat {
+  if (!upRack(mat)) return mat
+  return { ...mat, track: Math.min(TRACK_CEILING, mat.track + INTERCEPT_HEAT) }
 }
 
 /** A break dumps the subsystem's energy onto the track; breaking a broken one does nothing. */

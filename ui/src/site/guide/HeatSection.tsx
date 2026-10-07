@@ -11,6 +11,7 @@ import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
   DEFAULT_DISSIPATION_CAPACITY,
+  INTERCEPT_HEAT,
   MAX_HEAT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
@@ -99,7 +100,7 @@ export function HeatSection() {
           <Points
             items={[
               rich(T.points.stays),
-              T.points.absorbed,
+              rich(T.points.absorbed, { interceptHeat: INTERCEPT_HEAT }),
               rich(T.points.over, {
                 maxHeat: MAX_HEAT,
                 dissipation: DEFAULT_DISSIPATION_CAPACITY,

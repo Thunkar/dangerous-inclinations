@@ -12,7 +12,7 @@
  * - Every action puts energy on the tile it uses, to exactly the draw that
  *   action needs. Nobody places cubes for an action.
  * - Powering is an action too, for the three tiles that work on other
- *   players' turns (`POWERABLE_TYPES`): shields (2 or 4), a ballistic rack (2)
+ *   players' turns (`POWERABLE_TYPES`): shields (1 or 2), a ballistic rack (2)
  *   and a sensor array (2). A tile with energy on it works until its owner's
  *   next turn: shields absorb, a rack shoots down missiles, a sensor widens the
  *   critical range. So a rack that fired is also up, and a sensor that scanned
@@ -36,8 +36,8 @@
  * - Fixed systems are always revealed.
  * - Energy on a tile is public even while the tile is face-down. Using a tile
  *   turns it face-up, so a face-down slot carrying cubes between turns was
- *   powered, and the cubes say which of three it can be: 2 is a half shield,
- *   a rack or a sensor, and 4 only a full shield.
+ *   powered, and the cubes say which of three it can be: 1 is only a half
+ *   shield, and 2 a full shield, a rack or a sensor.
  */
 
 export type SubsystemType =

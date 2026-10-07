@@ -98,7 +98,8 @@ at one ship, and that is **one use of the subsystem**: the 4-round magazine, ref
 at a station, is what limits missiles, not heat. A powered ballistic rack rolls
 at **every** missile that reaches it, also for one use of the rack, and the two
 halves stay together: a rack that answers a whole salvo is what keeps a salvo
-that costs one subsystem's heat honest.
+that costs one subsystem's heat honest. Answering is a flat 2 heat on the
+defender's track, however many missiles, as a shield's absorbed points are.
 
 Turn: (respawn turn if destroyed) → clear the loadout → actions in chosen order (power,
 rotate, one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
@@ -491,6 +492,9 @@ not an argument:
   rack moved onto standing heat (21 Sept, above): the launcher pays when it
   fires and the rack pays at every check it is up, which is that asymmetry
   taken on purpose. Watch the launcher hulls if point defence looks thin.
+  Since 7 Oct 2026 answering a turn's missiles is also a flat 2 heat on the
+  defender's track (below); per missile was measured again then and read as
+  a lever for the launchers, as it did here.
 - **Four points to win with three mandatory cards.** 41–49 rounds by seat
   count; three points with the same hand runs 27–31 and every game finishes.
   Keeping all three secondaries (any three points) let Deliver holders win 44%
@@ -817,6 +821,24 @@ not an argument:
   game at three seats). The bots do not price the heat of absorbing when they
   decide to hold a wall, and `shieldAbsorption` ignores a bow shield (the bots
   never fly one), so read the shield rows as a floor.
+- **A rack that answers missiles is 2 heat.** Adopted 7 Oct 2026 for
+  consistency with the shields: the first time a ballistic rack rolls at
+  missiles in a player-turn, its owner puts `INTERCEPT_HEAT` (2) on the
+  track, however many it rolls at and whether it hits or not; a second rack
+  that answers pays its own. Three shapes measured against free rolling, 200
+  games a row over 62 rows: 2 heat per missile shot down (mean row +0.1pp,
+  `offbook:sensor_missiles3` an `outlier` at 50% against 33), 1 per missile
+  (+0.2pp, the same outlier at 46.5%) and 2 flat per turn (+0.5pp, no failing
+  flag). Per missile taxes the defence by the size of the salvo, which is the
+  attacker's choice, so it hands the launchers what the salvo rule took from
+  them. The flat charge at 1000 games a row on the bars, every rack and
+  launcher row and natural play: mean row +0.05pp, nothing moved 3pp (sensor
+  bow with missiles×3 40.3 → 42.4, missile boat 42.4 → 43.1, gunship 36.2 →
+  34.8, rack hunter 36.0 → 34.0), natural play unchanged at 27 rounds and 2.9
+  / 5.9 kills at three / four seats, and `illogical:convoy+destroy` back
+  under its bar (33.6 → 32.4 against 33). It moves nothing because racks
+  shoot down 2–3 missiles a game: it is a rule for the table, not a lever.
+  The bots do not price it when they decide to power a rack.
 - **The plasma cannon and the disruptor.** Adopted 1 Oct 2026 as the
   designer's two weapons. Plasma (side, 3 energy): 4 damage, ±1 ring ±1 sector,
   one side only; shields stop it a point per cube, so a full wall stops it

@@ -23,6 +23,7 @@ import {
   BLACKHOLE_RINGS,
   BURN_COSTS,
   COMPRESSED_JUMP_MASS,
+  INTERCEPT_HEAT,
   DEFAULT_DISSIPATION_CAPACITY,
   DEFAULT_POINTS_TO_WIN,
   MAX_HEAT,
@@ -352,7 +353,11 @@ const POWERED: Array<{ type: SubsystemType; effect: ReactNode }> = [
   },
   {
     type: 'ballistic_rack',
-    effect: fill(B.powered.ballistic_rack, { missiles: interceptsPerRack(), on: INTERCEPT_ON }),
+    effect: fill(B.powered.ballistic_rack, {
+      missiles: interceptsPerRack(),
+      on: INTERCEPT_ON,
+      heat: INTERCEPT_HEAT,
+    }),
   },
   {
     type: 'sensor_array',

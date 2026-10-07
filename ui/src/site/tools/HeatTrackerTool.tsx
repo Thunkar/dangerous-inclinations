@@ -27,6 +27,7 @@ import {
   BOT_PRESET_LOADOUTS,
   BURN_COSTS,
   COMPRESSED_JUMP_MASS,
+  INTERCEPT_HEAT,
   MAX_HEAT,
   SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
@@ -59,6 +60,8 @@ import {
   absorb,
   absorbingShield,
   breakSlot,
+  rackAnswers,
+  upRack,
   typeAt,
   type Mat,
   type SlotId,
@@ -226,6 +229,7 @@ export function HeatTrackerTool() {
     absorb(m, weaponStats('plasma_cannon').damage, PLASMA_SHIELD_POINTS)
   const absorbPoint = () => setMat(m => absorb(m, 1))
   const absorbPlasma = () => setMat(plasmaBolt)
+  const answerMissiles = () => setMat(rackAnswers)
 
   const onMat = SLOTS.reduce((sum, slot) => sum + energyOf(slot), 0)
   const hull = SLOTS.map(slot => ({ type: typeAt(mat, slot), isBroken: isBroken(slot) }))
@@ -389,9 +393,16 @@ export function HeatTrackerTool() {
             disabled={!canAbsorb}
             onClick={absorbPlasma}
           />
+          <AbsorbButton
+            label="Rack answers missiles"
+            icon="ballistic_rack"
+            badge={`+${rackAnswers(mat).track - mat.track}`}
+            disabled={!upRack(mat)}
+            onClick={answerMissiles}
+          />
         </Box>
         <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1 }}>
-          {`A hit on your shields: each energy stops ${SHIELD_POINTS_PER_ENERGY} damage (${PLASMA_SHIELD_POINTS} of plasma) and comes off, and every point stopped goes on the track.`}
+          {`A hit on your shields: each energy stops ${SHIELD_POINTS_PER_ENERGY} damage (${PLASMA_SHIELD_POINTS} of plasma) and comes off, and every point stopped goes on the track. A rack that rolls at missiles puts ${INTERCEPT_HEAT} on the track, once a turn however many.`}
         </Body>
 
         <Box sx={{ mt: 3 }}>
@@ -675,11 +686,13 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: '
 /** A shield soaking a shot on someone else's turn: energy off it, the points it stopped on the track. */
 function AbsorbButton({
   label,
+  icon = 'shields',
   badge,
   disabled,
   onClick,
 }: {
   label: string
+  icon?: SubsystemType
   badge: string
   disabled: boolean
   onClick: () => void
@@ -705,7 +718,7 @@ function AbsorbButton({
         '&:hover': disabled ? undefined : { bgcolor: PRESS.ink, color: PRESS.paper },
       }}
     >
-      <TileIcon type="shields" size={18} title={null} />
+      <TileIcon type={icon} size={18} title={null} />
       <Box component="span" sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', fontWeight: 600 }}>
         {label}
       </Box>

@@ -32,8 +32,10 @@ import type { GameEvent } from "../models/events.ts";
  *     `isSpent`, `escort_spent` or `PlayerView.spentMissions`.
  * v14: shields take 1 or 2 cubes at a point a cube (plasma two), and every
  *     point absorbed is heat on the owner's track.
+ * v15: a ballistic rack that rolls at missiles puts INTERCEPT_HEAT on its
+ *     owner's track, once a player-turn.
  */
-export const RECORDING_SCHEMA_VERSION = 14;
+export const RECORDING_SCHEMA_VERSION = 15;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

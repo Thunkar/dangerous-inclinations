@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ShipLoadout, ShipState, SubsystemType } from '@dangerous-inclinations/engine'
 import {
+  INTERCEPT_HEAT,
   breakSubsystem,
   createInitialShipState,
   resolveAttack,
@@ -17,7 +18,7 @@ import {
 } from '@dangerous-inclinations/engine'
 import type { MountId } from '../../ships/mounts'
 import { PLASMA_SHIELD_POINTS, weaponStats } from '../numbers'
-import { SLOTS, absorb, breakSlot, type Mat, type SlotId } from './heatMat'
+import { SLOTS, absorb, breakSlot, rackAnswers, type Mat, type SlotId } from './heatMat'
 
 type Energy = Partial<Record<SlotId, number>>
 
@@ -159,5 +160,18 @@ describe('the heat mat against the engine', () => {
     const after = breakSlot(mat, slot)
     expect(matReading(after)).toEqual(reading(broken.ship))
     expect(after.broken).toContain(slot)
+  })
+})
+
+describe('a rack answering missiles', () => {
+  const RACKED = matOf('railgun', ['ballistic_rack', 'laser', 'shields', 'radiator'], {}, 3)
+  it.each<[string, Mat, number]>([
+    ['a rack up', { ...RACKED, energy: { 'side-0': 2 } }, INTERCEPT_HEAT],
+    ['a rack down', RACKED, 0],
+    ['a broken rack', { ...RACKED, energy: { 'side-0': 2 }, broken: ['side-0'] }, 0],
+  ])("puts the engine's heat on the track with %s", (_label, mat, added) => {
+    const after = rackAnswers(mat)
+    expect(after.track - mat.track).toBe(added)
+    expect(after.energy).toEqual(mat.energy)
   })
 })

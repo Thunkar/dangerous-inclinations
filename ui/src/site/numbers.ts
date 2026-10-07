@@ -6,6 +6,7 @@
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
   FIXED_SUBSYSTEM_TYPES,
+  INTERCEPT_HEAT,
   INTERCEPT_ROLL,
   SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
@@ -52,7 +53,7 @@ export function poweredEffect(type: SubsystemType): string {
         LASERS_PIERCE ? ', not lasers' : ''
       }), and every point absorbed is heat`
     case 'ballistic_rack':
-      return `a rack rolls at ${interceptsPerRack()} missiles a turn`
+      return `a rack rolls at ${interceptsPerRack()} missiles a turn, and answering is ${INTERCEPT_HEAT} heat`
     case 'sensor_array':
       return `a sensor makes your criticals ${SENSOR_CRIT}–10`
     default:

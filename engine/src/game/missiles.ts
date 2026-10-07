@@ -13,8 +13,10 @@
  * attacks: a powered ballistic rack rolls against it and destroys it on a 2+,
  * otherwise it rolls to hit like any weapon. A rack rolls at up to
  * `interceptsPerRack()` missiles a turn (one missiles subsystem's magazine),
- * so a ship expecting more carries a second rack. Rolling adds no heat: the
- * rack's cubes are already on it. A missile that has moved
+ * so a ship expecting more carries a second rack. Answering a turn's missiles
+ * is INTERCEPT_HEAT on the defender's track, however many the rack rolls at,
+ * as a shield's absorbed points are: the salvo's energy goes somewhere. A
+ * missile that has moved
  * `maxMoves` times without hitting is removed. A missile that catches a ship
  * still recovering from a respawn, or one moored at a station (RULES
  * §Stations), does neither: it slides past untouchable prey and stays in
@@ -33,13 +35,23 @@ import {
   wrapSector,
 } from "./geometry.ts";
 import { resolveAttack } from "./damage.ts";
-import { isDestroyed, updateSubsystem, useSubsystem } from "./ship.ts";
+import { addHeat, isDestroyed, updateSubsystem, useSubsystem } from "./ship.ts";
 import { canBeFiredAt, isOnBoard } from "./targeting.ts";
 
 const MISSILE = getMissileStats();
 
 /** A ballistic rack with energy on it destroys a missile on this d10 roll or better. */
 export const INTERCEPT_ROLL = 2;
+
+/**
+ * Heat on the defender's track for each rack that answers missiles in a
+ * player-turn, however many it rolls at. Measured 7 Oct 2026 against a
+ * rack that rolled for free and against heat per missile shot down (2 or 1
+ * a missile): per missile taxes the defence by the size of the salvo, which
+ * is the attacker's choice, and pushed the sensor bow with three launchers
+ * over its bar; a flat charge per turn moved the least.
+ */
+export const INTERCEPT_HEAT = 2;
 
 export function createMissile(
   state: GameState,
@@ -202,13 +214,15 @@ export function processOwnerMissiles(state: GameState, ownerId: string): Missile
         s.rollsThisTurn < interceptsPerRack()
     );
     if (rack) {
-      // The first roll of a player-turn uses the rack and flips it face-up.
-      // Its cubes are already on it, so no roll adds heat.
+      // The first roll of a player-turn uses the rack and flips it face-up,
+      // and is the turn's INTERCEPT_HEAT on its owner's track: one salvo or
+      // several, one missile or four, answering them costs the same.
       if (!rack.usedThisTurn) {
         const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");
         targetShip = used.ship;
         events.push(...used.events);
       }
+      if (rack.rollsThisTurn === 0) targetShip = addHeat(targetShip, INTERCEPT_HEAT);
       targetShip = updateSubsystem(targetShip, rack.id, (r) => ({
         rollsThisTurn: r.rollsThisTurn + 1,
       }));
