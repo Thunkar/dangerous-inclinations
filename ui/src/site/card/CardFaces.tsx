@@ -424,7 +424,7 @@ export function CardBack() {
         <table className="di-t">
           <thead>
             <tr>
-              <th colSpan={1.5}>{B.weapons.columns.subsystem}</th>
+              <th colSpan={2}>{B.weapons.columns.subsystem}</th>
               <th>{B.weapons.columns.energy}</th>
               <th>{B.weapons.columns.damage}</th>
               <th className="di-l">{B.weapons.columns.reaches}</th>

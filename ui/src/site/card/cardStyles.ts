@@ -124,10 +124,13 @@ export const CARD_CSS = `
 .di-t td { padding: 0.35mm 0 0.35mm 0.9mm; vertical-align: top; }
 .di-t td:first-child { padding-left: 0; }
 .di-t .n {
+  width: 1%;
   font-family: var(--di-display); font-weight: 700; font-size: 6pt; text-align: right; white-space: nowrap;
   line-height: 1.05;
 }
+/* Names and numbers take only their own width: the slack goes to the text column. */
 .di-t .k {
+  width: 1%;
   font-family: var(--di-display); font-weight: 600; font-size: 6pt; text-transform: uppercase;
   letter-spacing: 0.02em; white-space: nowrap; line-height: 1.05;
 }
