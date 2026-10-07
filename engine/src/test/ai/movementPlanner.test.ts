@@ -2,13 +2,14 @@
  * The bots' route planner, one question per block: where a move could have
  * started, the fastest route and its fuel, whether more fuel ever makes a
  * route slower, what the alternatives keep in the tank, where a moving
- * target will be, and how a jump is phased.
+ * target will be, the alternatives to one, and how a jump is phased.
  */
 import { describe, it, expect } from "vitest";
 import { PLANET_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import {
   planMovement,
   planMovementAlternatives,
+  planAlternativesToTarget,
   planMovementToTarget,
   planStationMeetUp,
   isReachable,
@@ -342,6 +343,149 @@ describe("planMovementToTarget: the forward search", () => {
     expect(meet?.totalTurns).toBe(2);
     expect(meet?.meetPosition).toEqual(at(STATION_RING, 20, ALPHA));
     expect(meet?.plan.steps.at(-1)?.to).toMatchObject(at(STATION_RING, 20, ALPHA));
+  });
+});
+
+describe("planAlternativesToTarget: fastest, balanced and economical to a moving target", () => {
+  // From black hole ring 3, sector 0, on a full tank of ten with a scoop.
+  const from = facing(at(3, 0));
+  const tank = {
+    availableMass: 10,
+    maxFuelCapacity: 10,
+    hasFuelScoop: true,
+    allowWellTransfers: true,
+    maxTurns: 20,
+  };
+  const stationOf = (wellId: string, sector: number) =>
+    orbitingTarget(at(STATION_RING, sector, wellId), 4);
+  /** [turns, fuel] of each alternative, in the order offered. */
+  const offered = (target: PlannerTarget, arrivalMass = 0) =>
+    planAlternativesToTarget(from, target, { ...tank, arrivalMass })?.alternatives.map((p) => [
+      p.totalTurns,
+      p.totalMassCost,
+    ]);
+
+  // The economical search runs every layer and keeps the cheapest arrival: it
+  // is never dearer than the fastest and never quicker.
+  it.each([
+    {
+      to: "Alpha's station on S0",
+      target: stationOf(ALPHA, 0),
+      keep: 0,
+      fastest: [7, 8],
+      economical: [9, 1],
+    },
+    {
+      to: "Beta's station on S16",
+      target: stationOf(BETA, 16),
+      keep: 0,
+      fastest: [5, 10],
+      economical: [9, 1],
+    },
+    {
+      to: "black hole R4 S10 with 3 aboard",
+      target: staticTarget(at(4, 10)),
+      keep: 3,
+      fastest: [2, 7],
+      economical: [3, 0],
+    },
+  ])("economical against fastest: $to", ({ target, keep, fastest, economical }) => {
+    const plan = (mode: "fastest" | "economical") =>
+      planMovementToTarget(from, target, { ...tank, arrivalMass: keep, mode });
+    const quick = plan("fastest")!;
+    const cheap = plan("economical")!;
+    expect([quick.totalTurns, quick.totalMassCost]).toEqual(fastest);
+    expect([cheap.totalTurns, cheap.totalMassCost]).toEqual(economical);
+    expect(cheap.totalMassCost).toBeLessThanOrEqual(quick.totalMassCost);
+    expect(cheap.totalTurns).toBeGreaterThanOrEqual(quick.totalTurns);
+  });
+
+  it.each([
+    // Burn in, coast and burn: the balanced route waits one turn more and
+    // spends a quarter of the fuel.
+    {
+      to: "Alpha's station on S0",
+      target: stationOf(ALPHA, 0),
+      routes: [
+        [7, 8],
+        [8, 2],
+        [9, 1],
+      ],
+    },
+    {
+      to: "Gamma's station on S0",
+      target: stationOf(GAMMA, 0),
+      routes: [
+        [6, 8],
+        [7, 1],
+      ],
+    },
+    {
+      to: "Beta's station on S0",
+      target: stationOf(BETA, 0),
+      routes: [
+        [3, 10],
+        [3, 8],
+        [8, 1],
+      ],
+    },
+  ])("the routes offered to $to", ({ target, routes }) => {
+    expect(offered(target)).toEqual(routes);
+  });
+
+  // Every alternative arrives with the fuel asked for, and the tank never
+  // runs dry or overflows on the way.
+  it.each([
+    {
+      to: "Alpha's station on S8",
+      target: stationOf(ALPHA, 8),
+      keep: 3,
+      routes: [
+        [7, 7],
+        [8, 4],
+        [10, 1],
+      ],
+    },
+    {
+      to: "Beta's station on S16",
+      target: stationOf(BETA, 16),
+      keep: 5,
+      routes: [
+        [6, 4],
+        [7, 2],
+        [9, 1],
+      ],
+    },
+    {
+      to: "Alpha's station on S0",
+      target: stationOf(ALPHA, 0),
+      keep: 5,
+      routes: [
+        [8, 4],
+        [9, 1],
+      ],
+    },
+  ])("arriving at $to with $keep aboard", ({ target, keep, routes }) => {
+    const result = planAlternativesToTarget(from, target, { ...tank, arrivalMass: keep })!;
+    expect(result.alternatives.map((p) => [p.totalTurns, p.totalMassCost])).toEqual(routes);
+    for (const plan of result.alternatives) {
+      let fuel = tank.availableMass;
+      for (const step of plan.steps) {
+        fuel -= step.massCost;
+        expect(fuel).toBeGreaterThanOrEqual(0);
+        expect(fuel).toBeLessThanOrEqual(tank.maxFuelCapacity);
+      }
+      expect(fuel).toBeGreaterThanOrEqual(keep);
+    }
+  });
+
+  it("offers one route when the fastest is also the cheapest", () => {
+    // No fuel and no scoop: one coast is all there is.
+    const result = planAlternativesToTarget(from, staticTarget(at(3, 4)), {
+      availableMass: 0,
+      hasFuelScoop: false,
+    });
+    expect(result?.alternatives.map((p) => [p.totalTurns, p.totalMassCost])).toEqual([[1, 0]]);
   });
 });
 

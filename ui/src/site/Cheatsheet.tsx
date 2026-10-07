@@ -2,22 +2,23 @@
  * The cheatsheet: how to play, in the order a first game meets it, and the
  * player card to print.
  *
- * Nine sections, each one thing a table has to know: what you are playing
- * for, how to set up, the turn, moving, heat, fighting, what is hidden, what
- * death costs, and when to travel. Every number in them is read from the engine that
+ * Eight sections, each one thing a table has to know: what you are playing
+ * for, how to set up, the turn, moving, heat, fighting, what is hidden and
+ * what death costs. Every number in them is read from the engine that
  * referees the video game; the wording compresses RULES.md, which wins
- * wherever the two seem to disagree.
+ * wherever the two seem to disagree. When to travel is in the route planner
+ * (`tools/OrbitalWindows.tsx`), linked from the foot of the last section.
  *
  * The card is drawn at its true size and previewed through a transform, so
  * what is on screen is the geometry that reaches the printer; printing lays
  * both faces on one A4 sheet to cut out, and nothing else on the page prints.
  */
-import { useEffect } from 'react'
 import { Box } from '@mui/material'
 import PrintIcon from '@mui/icons-material/Print'
 import { FONT_MONO, FONT_SANS } from '../theme'
 import { FONT_DISPLAY, PRESS } from '../design/press'
 import { SiteFooter, SiteHeader } from './SiteChrome'
+import { SiteLink } from './SiteLink'
 import { Body, Display, Kicker, Numeral, Slab } from './poster'
 import { COLUMN } from './guide/parts'
 import { GoalSection } from './guide/GoalSection'
@@ -27,7 +28,6 @@ import { MoveSection } from './guide/MoveSection'
 import { HeatSection } from './guide/HeatSection'
 import { FightSection } from './guide/FightSection'
 import { DeathSection, SecretsSection } from './guide/SecretsSection'
-import { WindowsSection } from './guide/WindowsSection'
 import { CardBack, CardFront } from './card/CardFaces'
 import { CARD_CSS, CARD_HEIGHT_MM, CARD_PAGE_CSS, CARD_WIDTH_MM } from './card/cardStyles'
 import { CHEATSHEET } from '../text/cheatsheet'
@@ -48,7 +48,7 @@ ${CARD_CSS}
 `
 
 const CONTENTS: Array<{ id: string; label: string }> = (
-  ['goal', 'setup', 'turn', 'move', 'heat', 'fight', 'secrets', 'death', 'windows'] as const
+  ['goal', 'setup', 'turn', 'move', 'heat', 'fight', 'secrets', 'death'] as const
 ).map(id => ({ id, label: T.contents[id] }))
 
 function Contents() {
@@ -58,7 +58,7 @@ function Contents() {
       aria-label={T.contents.label}
       sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)', lg: 'repeat(10, 1fr)' },
+        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', lg: 'repeat(9, 1fr)' },
         gap: '4px',
         mt: { xs: 4, sm: 5 },
       }}
@@ -102,6 +102,7 @@ function Contents() {
         component="a"
         href="#card"
         sx={{
+          gridColumn: { xs: 'span 2', sm: 'auto' },
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -172,14 +173,32 @@ function PrintCard() {
   )
 }
 
-export function Cheatsheet() {
-  // A link from elsewhere (the rules dialog's "/card#windows") arrives before
-  // the page has rendered, so the browser has nothing to scroll to yet.
-  useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1))
-    if (id) document.getElementById(id)?.scrollIntoView()
-  }, [])
+/** The line after the last section: the orbital windows are in the route planner. */
+function WindowsLink() {
+  return (
+    <Box sx={{ ...COLUMN, pb: { xs: 5, sm: 7 } }}>
+      <SiteLink
+        to={{ kind: 'tools', tool: 'route' }}
+        sx={{
+          display: 'inline-block',
+          borderTop: `4px solid ${PRESS.ink}`,
+          pt: 1,
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 600,
+          fontSize: { xs: '1.05rem', sm: '1.4rem' },
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+          color: PRESS.redText,
+          '&:hover': { color: PRESS.ink },
+        }}
+      >
+        {T.windowsLink}
+      </SiteLink>
+    </Box>
+  )
+}
 
+export function Cheatsheet() {
   return (
     <Box
       className="site-page"
@@ -204,9 +223,6 @@ export function Cheatsheet() {
               }
             )}
           </Display>
-          <Body size={{ xs: '1.05rem', sm: '1.15rem' }} sx={{ mt: 2.5 }}>
-            {T.page.lede}
-          </Body>
           <Contents />
         </Box>
 
@@ -218,7 +234,7 @@ export function Cheatsheet() {
         <FightSection />
         <SecretsSection />
         <DeathSection />
-        <WindowsSection />
+        <WindowsLink />
       </Box>
 
       <PrintCard />

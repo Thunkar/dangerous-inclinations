@@ -1,16 +1,15 @@
 /**
  * Every word on the cheatsheet (`/card`), top to bottom: the page head, the
- * contents, the nine sections in order, and the block above the printed
- * card. The turn's steps are in `turn.ts`, the mission cards' words in the
- * engine (`engine/src/text/missionCards.ts`) and the card's faces in
- * `printedCard.ts`.
+ * contents, the eight sections in order, the line to the orbital windows and
+ * the block above the printed card. The turn's steps are in `turn.ts`, the
+ * mission cards' words in the engine (`engine/src/text/missionCards.ts`), the
+ * card's faces in `printedCard.ts` and the orbital windows in `windows.ts`.
  *
  * Only strings live here. A `{name}` is a slot the caller fills with a
  * number or a name, so every number comes from the engine: the words around
  * a slot are free to change, and a slot may move or be dropped but keeps its
  * name. A word set differently inside a sentence is marked with a tag, `<b>`
- * for bold and the few others named where they are used (`<red>`, `<nb>` for
- * a range that must not break across lines).
+ * for bold and the others named where they are used (`<red>`).
  */
 
 export const CHEATSHEET = {
@@ -21,7 +20,6 @@ export const CHEATSHEET = {
     kicker: 'Cheatsheet',
     /** `<red>` is set in red. */
     title: 'How to <red>play</red>',
-    lede: 'A first game, in order. Read 01 to 03 before you start and the rest as it comes up. The rulebook has the details and wins any disagreement.',
   },
 
   /** The tiles under the head, one per section, and the last one for the card. */
@@ -36,7 +34,6 @@ export const CHEATSHEET = {
     fight: 'Fighting',
     secrets: 'Secrets',
     death: 'Destruction',
-    windows: 'Orbital windows',
     card: 'The card',
   },
 
@@ -58,7 +55,7 @@ export const CHEATSHEET = {
     },
     secondaries: {
       title: 'Secondaries · {points} point',
-      detail: 'Dealt {dealt} from a shuffled pile, keep any {kept}; two of a kind are two jobs.',
+      detail: 'Dealt {dealt} from a shuffled pile, keep any {kept}',
     },
   },
 
@@ -82,9 +79,9 @@ export const CHEATSHEET = {
   // 03 · The turn (the steps themselves are in turn.ts)
   // -------------------------------------------------------------------------
   turn: {
-    kicker: 'Your turn',
-    title: 'Seven steps, then the stations',
-    lede: 'You choose the order of your actions; the rest is fixed.',
+    kicker: 'In game',
+    title: 'Your turn',
+    lede: 'Freely choose the order of your actions, the rest is fixed.',
     /** Over the first step, the third, and the round's step. */
     respawnNote: 'If destroyed',
     actionsNote: 'Any order',
@@ -102,13 +99,13 @@ export const CHEATSHEET = {
   move: {
     kicker: 'Getting somewhere',
     title: 'Coast, burn or jump',
-    lede: 'Every turn your ring carries you forward. Your one move is what you do about it.',
+    lede: 'Your orbit dictates how fast you move',
     /** The two stamped figures under each move. */
     fuel: 'fuel',
     energy: 'energy',
     coast: {
       title: 'Coast',
-      text: 'Drift only. Run the <b>scoop</b> ({scoopEnergy} energy) to gain fuel equal to your ring’s speed.',
+      text: 'Drift only. Run the <b>scoop</b> to gain fuel equal to your ring’s speed.',
       diagram: {
         label: "A coast: the ship drifts forward along its ring by the ring's speed",
         ring: 'your ring',
@@ -168,7 +165,7 @@ export const CHEATSHEET = {
       stays:
         'Energy <b>stays on the subsystem until your next turn</b>, so shields, a rack or a sensor you power work through everyone else’s turn.',
       absorbed:
-        'Damage your shields absorb is heat too, a point a point, and a rack that rolls at missiles is {interceptHeat}: it goes on your track at once and is paid at your next check.',
+        'Damage your shields absorb is heat too at a 1:1 ratio, and a rack that rolls at missiles is {interceptHeat}: it goes on your track at once and is paid at your next check.',
       over: 'Over {maxHeat} heat at your check is hull damage. Dissipate {dissipation} (+{radiator} a radiator) and carry the rest.',
       cold: 'If you have 0 heat at your check, repair one broken subsystem.',
     },
@@ -194,7 +191,7 @@ export const CHEATSHEET = {
       spent: 'railgun {railgun} · hard burn {hardBurn} · shields {shields}',
       atCheck: 'at the check',
       hull: 'hull: over {maxHeat}',
-      stops: 'the track stops',
+      stops: 'redline',
       dissipate: 'dissipate',
       carries: 'into your next turn',
     },
@@ -218,13 +215,14 @@ export const CHEATSHEET = {
     reach: {
       railgun:
         'Same ring, 1–{sectors} sectors ahead. The recoil pushes you a ring against your facing, unless you spend 1 fuel to hold.',
-      laser: '±{rings} rings, ±{sectors} sector, off one side, never along your own ring. <b>Ignores shields.</b>',
+      laser:
+        '±{rings} rings, ±{sectors} sector, off one side, never along your own ring. <b>Ignores shields.</b>',
       ballistic_rack:
         '±{rings} ring, ±{sectors} sector, either side. With energy on it, shoots down {intercepts} missiles a turn on {on}+, for {heat} heat however many.',
       missiles:
         'Any ship in your well. Launch any number at one ship: {aboard} aboard, {steps} steps a turn for {turns} turns.',
       plasma_cannon:
-        '±{rings} ring, ±{sectors} sector, off one side, never along your own ring. <b>Each shield energy stops {points} damage</b>, so a full shield stops it whole.',
+        '±{rings} ring, ±{sectors} sector, off one side, never along your own ring. <b>Each shield energy stops {points} damage</b>',
       disruptor:
         'An EMP burst: ±{rings} ring, ±{sectors} sector, either side, like the rack. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless any shield has energy on it.',
     },
@@ -322,122 +320,8 @@ export const CHEATSHEET = {
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // 09 · Orbital windows
-  // -------------------------------------------------------------------------
-  windows: {
-    kicker: 'When to travel',
-    title: 'Orbital windows',
-    lede: 'The stations, the lanes and the rings all turn at fixed speeds, so some turns are simply better for a trip than others. All of it is read off one number: the station clock.',
-    /** Where a rule of thumb stands while the route planner is still working. */
-    working: 'Asking the route planner',
-    /** A delivery route, "Alpha → Gamma". */
-    route: '{from} → {to}',
-
-    clock: {
-      title: 'The station clock',
-      steps:
-        'Every station starts on sector {sector} of its planet’s ring {ring} and steps <b>{drift} sectors clockwise</b> at the end of every round. All three step together, so <b>every station is always on the same sector</b>.',
-      reads:
-        'That sector is the clock. It only ever reads <b>{readings}</b>, and it comes round every {rounds} rounds.',
-      /** `<nb>` keeps a range on one line. */
-      planets:
-        'Every planet is laid out the same: you arrive from the black hole on ring {arriveRing} at sectors <nb>{arriveSectors}</nb>, and leave for it from ring {leaveRing} at sectors <nb>{leaveSectors}</nb>. So the same windows hold for {planets}.',
-      caption:
-        'Any planet from above, sector 0 at the top and clockwise the way ships drift. The red squares are the only {places} places a station can be.',
-      diagram: {
-        label:
-          'A planet seen from above. The station rides ring {ring} and steps {drift} sectors clockwise every round, so it only ever sits on sector {readings}. Ships arrive from the black hole on ring {arriveRing} sectors {arriveSectors} and leave from ring {leaveRing} sectors {leaveSectors}.',
-        planet: 'PLANET',
-        arrive: 'arrive',
-        leave: 'leave',
-        foot: 'ring {stationRing}: stations · ring {laneRing}: lanes · +{drift} a round',
-      },
-    },
-
-    lanes: {
-      title: 'Black hole ring {ring}',
-      arcs: 'The black hole’s outer ring is all lanes, one way, {sectors} sectors each. Solid arcs are where you <b>jump out</b> to a planet; open arcs are where you <b>land</b> coming back.',
-      circuit:
-        'Every landing arc is followed clockwise by the next planet’s jump arc, so the short way round the map is <b>{circuit}</b> (the red hops). Going the other way means crossing most of the ring, and the Deliver deck prints only the {routes} routes that ride the circuit.',
-      table: {
-        planet: 'To reach',
-        arc: 'Jump from ring {ring}',
-        mouth: 'Lane mouth',
-      },
-      caption:
-        'Sector 0 at the top, clockwise. The lane mouth is the first sector of a jump arc: the timings below count from reaching it.',
-      diagram: {
-        label:
-          "Black hole ring {ring} is six lane arcs, clockwise: {arcs}. Every arrival arc is followed clockwise by the next planet's departure arc, so {circuit} is the short way round.",
-        out: 'out to',
-        in: 'in from',
-        hole: 'BLACK HOLE',
-        ring: 'RING {ring}',
-      },
-    },
-
-    approach: {
-      title: 'Hint 1 · Getting to a station',
-      rule: 'Reach the lane mouth when the clock shows {readings}',
-      reason: 'Docked {turns} turns later. {late}',
-      drift:
-        'You drift through a jump arc at {sectors} sector{plural} a turn, so you have a few turns on it to wait for a better clock before you jump.',
-      /** Added to "sector" when the drift is more than one. */
-      plural: 's',
-      strip: 'Clock when you reach the lane mouth → turns until docked',
-    },
-
-    /** A round late, from the best reading. */
-    late: 'A round late the clock reads {reading} and it takes {turns}{worst}.',
-    lateWorst: '; on {readings} it takes {turns}',
-
-    /** What a fuel compressor does to a table. */
-    compressor: {
-      nothing: 'A fuel compressor changes nothing here.',
-      saves: 'A fuel compressor {by} on {readings}.',
-      aTurn: 'saves a turn',
-      turns: 'saves turns',
-    },
-
-    tanker: {
-      title: 'Hint 2 · Tanker: arrive with {fuel}',
-      rule: 'Leave the black hole with a full tank, reach the mouth on {readings}',
-      reason: 'You dock with {fuel} aboard in {turns} turns.',
-      others: ' On the other clocks it takes {turns}.',
-      cost: 'Keeping {fuel} aboard costs turns: a full tank has only {spare} to spare, and a jump alone is {jump} fuel ({compressed} with a compressor), so the routes that spend freely are out. The route planner finds the rest: set <b>Arrive with {fuel}</b>.',
-      plain: 'Without a compressor',
-      compressed: 'With a compressor',
-    },
-
-    leg: {
-      title: 'Hint 3 · Delivery: the second leg',
-      rule: 'Ride the circuit, and leave the pickup station on {readings}',
-      reason: '{routes}: {turns} turns, station to station, whenever you leave.',
-      moored:
-        'Moored, you ride the station round, so waiting for the clock costs nothing but turns.',
-      compressed: ' With a compressor, leaving on {readings} cuts the leg to {turns} turns.',
-      caption: "The Deliver deck's {routes} routes: each one leg of the circuit.",
-      strip: 'Clock when you leave → turns to the next station',
-      stripCompressed: 'With a compressor',
-      diagram: {
-        label:
-          'The planets in a ring: {circuit}. Each delivery leg the deck prints takes {turns} turns, station to station.',
-        foot: 'turns, station to station',
-      },
-    },
-
-    /** The strip of turns under each hint, read aloud. */
-    strip: {
-      reading: 'on {reading}, {turns}',
-      noRoute: 'no route',
-      label: '{label}: {readings}. Quickest on {best}.',
-      working: '{label}: still being worked out.',
-      turns: 'TURNS',
-    },
-
-    foot: 'Worked out on this page by the game’s own route planner: the fewest turns from a full tank of {fullTank} with a working scoop, the stations stepping once a round. Hints 1 and 2 count from reaching a lane mouth on black hole ring {ring}; hint 3 from moored at the pickup station. Only turns are kept down, not fuel. Every planet is built the same and the three circuit legs are one leg turned round, so {planet} and {route} are worked out and hold for all of them.',
-  },
+  /** The line after the last section: the orbital windows are in the route planner. */
+  windowsLink: 'When to travel: orbital windows, in the route planner →',
 
   // -------------------------------------------------------------------------
   // Above the printed card

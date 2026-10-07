@@ -1,7 +1,6 @@
 /**
  * The orbital windows, drawn: a planet with the six places its station can
- * be, the black hole's ring of lanes, the circuit between the planets, and a
- * strip of turns for each reading of the station clock.
+ * be, and a strip of turns for each reading of the station clock.
  *
  * Seen from above with sector 0 at the top and clockwise the way ships drift,
  * as the board is. Every arc, station and arrow is read from the engine
@@ -9,14 +8,7 @@
  */
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
-import {
-  BLACK_HOLE_OUTER_RING,
-  PLANET_RINGS,
-  SECTORS_PER_RING,
-  STATION_RING,
-  fill,
-  wrapSector,
-} from '@dangerous-inclinations/engine'
+import { PLANET_RINGS, SECTORS_PER_RING, STATION_RING, fill } from '@dangerous-inclinations/engine'
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body } from '../poster'
@@ -24,20 +16,8 @@ import { useArrowHeads, type ArrowHeadSet } from '../diagram'
 import { ArrowHeads } from '../DiagramParts'
 import type { Row } from './windows'
 import { STATION_DRIFT } from '../turn'
-import {
-  CIRCUIT,
-  CIRCUIT_ORDER,
-  CLOCK,
-  PLANET_ARRIVE,
-  PLANET_LEAVE,
-  RING_LANES,
-  bestClocks,
-  planetName,
-  span,
-} from './windows'
-import { CHEATSHEET } from '../../text/cheatsheet'
-
-const T = CHEATSHEET.windows
+import { CLOCK, PLANET_ARRIVE, PLANET_LEAVE, bestClocks, span } from './windows'
+import { WINDOWS as T } from '../../text/windows'
 
 /** The angle of a sector's leading edge: 0 at the top, clockwise. */
 const angle = (sector: number) => (sector / SECTORS_PER_RING) * 2 * Math.PI - Math.PI / 2
@@ -70,16 +50,18 @@ function bandPath(cx: number, cy: number, r0: number, r1: number, s0: number, s1
   )
 }
 
-/** A figure: the drawing, and what to read off it. */
-export function Figure({ caption, children }: { caption: ReactNode; children: ReactNode }) {
+/** A figure: the drawing, and what to read off it when the text around it does not say. */
+export function Figure({ caption, children }: { caption?: ReactNode; children: ReactNode }) {
   return (
     <Box component="figure" sx={{ m: 0, minWidth: 0 }}>
       {children}
-      <Box component="figcaption" sx={{ mt: 1 }}>
-        <Body size="0.9rem" color={PRESS.inkSoft}>
-          {caption}
-        </Body>
-      </Box>
+      {caption && (
+        <Box component="figcaption" sx={{ mt: 1 }}>
+          <Body size="0.9rem" color={PRESS.inkSoft}>
+            {caption}
+          </Body>
+        </Box>
+      )}
     </Box>
   )
 }
@@ -293,214 +275,29 @@ export function StationClockDiagram() {
   )
 }
 
-/** Black hole ring 5: six one-way lane arcs, and the short hops of the circuit. */
-export function LaneRingDiagram() {
-  const heads = useArrowHeads(HEADS)
-  const W = 460
-  const H = 340
-  const cx = W / 2
-  const cy = H / 2
-  const r0 = 112
-  const r1 = 154
-  const words = (lane: (typeof RING_LANES)[number]): [string, string] => [
-    lane.direction === 'outbound' ? T.lanes.diagram.out : T.lanes.diagram.in,
-    planetName(lane.planetId),
-  ]
-  const describe = RING_LANES.map(
-    lane =>
-      `${words(lane).join(' ')} ${arcRange(lane.blackHoleArc.startSector, lane.blackHoleArc.length)}`
-  ).join(', ')
-  // A hop: off the end of an arrival arc and onto the departure arc after it.
-  const hops = RING_LANES.filter(lane => lane.direction === 'inbound').filter(lane => {
-    const end = wrapSector(lane.blackHoleArc.startSector + lane.blackHoleArc.length)
-    return RING_LANES.some(l => l.direction === 'outbound' && l.blackHoleArc.startSector === end)
-  })
-  const circuit = [...CIRCUIT_ORDER, CIRCUIT_ORDER[0]].map(planetName)
-  return (
-    <Svg
-      heads={heads}
-      width={W}
-      height={H}
-      maxWidth={500}
-      label={fill(T.lanes.diagram.label, {
-        ring: BLACK_HOLE_OUTER_RING,
-        arcs: describe,
-        circuit: circuit.join(' to '),
-      })}
-    >
-      {RING_LANES.map(lane => {
-        const { startSector: s, length } = lane.blackHoleArc
-        const out = lane.direction === 'outbound'
-        const [nx, ny] = point(cx, cy, (r0 + r1) / 2, s + length / 2)
-        return (
-          <g key={lane.id}>
-            <path
-              d={bandPath(cx, cy, r0, r1, s, s + length)}
-              fill={out ? PRESS.ink : PRESS.paperDeep}
-              stroke={PRESS.ink}
-              strokeWidth={2}
-            />
-            <Cap x={nx} y={ny} size={15} weight={700} color={out ? PRESS.paper : PRESS.ink}>
-              {arcRange(s, length)}
-            </Cap>
-            <OuterLabel cx={cx} cy={cy} r={r1 + 14} sector={s + length / 2} lines={words(lane)} />
-          </g>
-        )
-      })}
-      {RING_LANES.map(lane => {
-        const [x0, y0] = point(cx, cy, r0 - 5, lane.blackHoleArc.startSector)
-        const [x1, y1] = point(cx, cy, r1 + 5, lane.blackHoleArc.startSector)
-        return (
-          <line
-            key={`edge-${lane.id}`}
-            x1={f(x0)}
-            y1={f(y0)}
-            x2={f(x1)}
-            y2={f(y1)}
-            stroke={PRESS.paper}
-            strokeWidth={3}
-          />
-        )
-      })}
-      {hops.map(lane => {
-        const { startSector: s, length } = lane.blackHoleArc
-        return (
-          <path
-            key={`hop-${lane.id}`}
-            d={arcPath(cx, cy, r0 - 18, s + length / 2 + 0.2, s + length + 1.6)}
-            fill="none"
-            stroke={PRESS.red}
-            strokeWidth={4}
-            markerEnd={heads.red}
-          />
-        )
-      })}
-      <circle cx={cx} cy={cy} r={60} fill={PRESS.ink} />
-      <Cap x={cx} y={cy - 9} size={13} color={PRESS.paper}>
-        {T.lanes.diagram.hole}
-      </Cap>
-      <Cap x={cx} y={cy + 11} size={11} weight={500} color={PRESS.paperSoft}>
-        {fill(T.lanes.diagram.ring, { ring: BLACK_HOLE_OUTER_RING })}
-      </Cap>
-    </Svg>
-  )
-}
-
 /**
- * The circuit: the planets in the order the Deliver deck's routes join them,
- * placed clockwise so the arrows turn the way the black hole does, each leg
- * labelled with the turns it takes.
- */
-export function CircuitDiagram({ legTurns }: { legTurns: string }) {
-  const heads = useArrowHeads(HEADS)
-  const W = 460
-  const H = 290
-  const cx = W / 2
-  const cy = 160
-  const order = CIRCUIT_ORDER
-  const place = new Map(
-    order.map((id, i) => {
-      const a = -Math.PI / 2 + (i * 2 * Math.PI) / order.length
-      return [id, [cx + 165 * Math.cos(a), cy + 108 * Math.sin(a)] as [number, number]]
-    })
-  )
-  const names = order.map(planetName)
-  return (
-    <Svg
-      heads={heads}
-      width={W}
-      height={H}
-      maxWidth={460}
-      label={fill(T.leg.diagram.label, {
-        circuit: [...names, names[0]].join(' to '),
-        turns: legTurns,
-      })}
-    >
-      {CIRCUIT.map(([from, to]) => {
-        const [x0, y0] = place.get(from)!
-        const [x1, y1] = place.get(to)!
-        const dx = x1 - x0
-        const dy = y1 - y0
-        // Outward from the middle, so the label sits clear of the arrow.
-        const mx = (x0 + x1) / 2
-        const my = (y0 + y1) / 2
-        const ox = mx - cx
-        const oy = my - cy
-        const len = Math.hypot(ox, oy) || 1
-        return (
-          <g key={`${from}-${to}`}>
-            <line
-              x1={f(x0 + dx * 0.2)}
-              y1={f(y0 + dy * 0.2)}
-              x2={f(x0 + dx * 0.78)}
-              y2={f(y0 + dy * 0.78)}
-              stroke={PRESS.red}
-              strokeWidth={5}
-              markerEnd={heads.red}
-            />
-            <Cap
-              x={mx + (ox / len) * 22}
-              y={my + (oy / len) * 22}
-              size={17}
-              weight={700}
-              color={PRESS.redText}
-            >
-              {legTurns}
-            </Cap>
-          </g>
-        )
-      })}
-      {order.map(id => {
-        const [x, y] = place.get(id)!
-        return (
-          <g key={id}>
-            <circle
-              cx={f(x)}
-              cy={f(y)}
-              r={30}
-              fill={PRESS.paperDeep}
-              stroke={PRESS.ink}
-              strokeWidth={2}
-            />
-            <Cap x={x} y={y} size={12}>
-              {planetName(id).toUpperCase()}
-            </Cap>
-          </g>
-        )
-      })}
-      <text
-        x={W / 2}
-        y={H - 6}
-        textAnchor="middle"
-        fontFamily={FONT_SANS}
-        fontSize={11}
-        fill={PRESS.inkSoft}
-      >
-        {T.leg.diagram.foot}
-      </text>
-    </Svg>
-  )
-}
-
-/**
- * Turns for each reading of the station clock, the quickest in a solid block.
+ * Turns for each reading of the station clock, the quickest in a solid block,
+ * and the reading the route planner is set to (`now`) tabbed underneath.
  * `row` is null while the planner is still working, and the strip holds its
  * shape with nothing in it.
  */
 export function ClockStrip({
   row,
   label,
+  now,
   tone = 'red',
 }: {
   row: Row | null
   label: string
+  now: number
   tone?: 'red' | 'ink'
 }) {
   const w = 64
   const h = 58
   const gap = 6
+  const tab = 16
   const W = CLOCK.length * (w + gap) - gap
-  const H = h + 26
+  const H = h + 26 + tab
   const best = row ? bestClocks(row) : []
   const solid = tone === 'red' ? PRESS.red : PRESS.ink
   const aria = row
@@ -510,7 +307,9 @@ export function ClockStrip({
           fill(T.strip.reading, { reading: clock, turns: `${row[i] ?? T.strip.noRoute}` })
         ).join('; '),
         best: best.join(' or '),
-      })
+      }) +
+      ' ' +
+      fill(T.strip.now, { reading: now })
     : fill(T.strip.working, { label })
   return (
     <Box sx={{ maxWidth: 460 }}>
@@ -531,10 +330,17 @@ export function ClockStrip({
         {CLOCK.map((clock, i) => {
           const x = i * (w + gap)
           const top = best.includes(clock)
+          const here = clock === now
           const value = row ? (row[i] ?? '–') : ''
           return (
             <g key={clock}>
-              <Cap x={x + w / 2} y={9} size={13} color={PRESS.inkSoft}>
+              <Cap
+                x={x + w / 2}
+                y={9}
+                size={13}
+                weight={here ? 700 : 600}
+                color={here ? PRESS.redText : PRESS.inkSoft}
+              >
                 {clock}
               </Cap>
               <rect
@@ -567,6 +373,14 @@ export function ClockStrip({
                 >
                   {T.strip.turns}
                 </text>
+              )}
+              {here && (
+                <>
+                  <rect x={x + 1} y={20 + h + 2} width={w - 2} height={tab - 2} fill={PRESS.ink} />
+                  <Cap x={x + w / 2} y={20 + h + 1 + tab / 2} size={10} color={PRESS.paper}>
+                    {T.strip.nowTab}
+                  </Cap>
+                </>
               )}
             </g>
           )

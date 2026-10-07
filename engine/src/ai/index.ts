@@ -251,6 +251,7 @@ export type { DeploymentChoice } from "./behaviors/deployment.ts";
 export {
   planMovement,
   planMovementAlternatives,
+  planAlternativesToTarget,
   planMovementToTarget,
   isReachable,
   getReachablePositions,

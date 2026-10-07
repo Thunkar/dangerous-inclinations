@@ -55,7 +55,7 @@ import { TURN_STEPS } from '../turn'
 import { MovementDiagram } from './MovementDiagram'
 import { PRINTED_CARD } from '../../text/printedCard'
 import { rich, type RichTags } from '../../utils/rich'
-import { span } from '../guide/windows'
+import { span } from '../tools/windows'
 
 const F = PRINTED_CARD.front
 const B = PRINTED_CARD.back
@@ -424,7 +424,7 @@ export function CardBack() {
         <table className="di-t">
           <thead>
             <tr>
-              <th colSpan={2}>{B.weapons.columns.subsystem}</th>
+              <th colSpan={1.5}>{B.weapons.columns.subsystem}</th>
               <th>{B.weapons.columns.energy}</th>
               <th>{B.weapons.columns.damage}</th>
               <th className="di-l">{B.weapons.columns.reaches}</th>

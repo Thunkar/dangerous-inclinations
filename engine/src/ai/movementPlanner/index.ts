@@ -7,6 +7,8 @@
  *   ("fastest" or "economical").
  * - {@link planMovementToTarget}: forward turn-layered BFS for any
  *   {@link PlannerTarget}, including moving ones (stations, drifting ships).
+ * - {@link planMovementAlternatives} and {@link planAlternativesToTarget}:
+ *   fastest, balanced and economical routes, from either search.
  *
  * @example
  * ```typescript
@@ -21,6 +23,7 @@
 export {
   planMovement,
   planMovementAlternatives,
+  planAlternativesToTarget,
   isReachable,
   getReachablePositions,
 } from "./planner.ts";
@@ -85,11 +88,7 @@ function shipOrigin(ship: ShipState): OrientedPosition {
  * arrival, so its dock trips are planned with that reserved and the search
  * coasts in where it would otherwise burn.
  */
-function shipPlannerOptions(
-  ship: ShipState,
-  maxTurns: number,
-  reserveMass = 0
-): PlannerOptions {
+function shipPlannerOptions(ship: ShipState, maxTurns: number, reserveMass = 0): PlannerOptions {
   const scoop = ship.subsystems.find((s) => s.type === "scoop");
   return {
     mode: "fastest",

@@ -111,11 +111,28 @@ export function SitePage({ children, width = 1120 }: { children: ReactNode; widt
   return (
     // `site-page` is the hook the card's print stylesheet needs: a printed
     // page is plain white, whatever sheet it was previewed on.
-    <Box className="site-page" sx={{ minHeight: '100vh', bgcolor: PRESS.paper, color: PRESS.ink }}>
+    <Box
+      className="site-page"
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
+        bgcolor: PRESS.paper,
+        color: PRESS.ink,
+      }}
+    >
       <SiteHeader />
       <Box
         component="main"
-        sx={{ maxWidth: width, mx: 'auto', px: { xs: 2, sm: 4 }, pt: { xs: 4, sm: 6 }, pb: 8 }}
+        sx={{
+          flex: 1,
+          width: '100%',
+          maxWidth: width,
+          mx: 'auto',
+          px: { xs: 2, sm: 4 },
+          pt: { xs: 4, sm: 6 },
+          pb: 8,
+        }}
       >
         {children}
       </Box>

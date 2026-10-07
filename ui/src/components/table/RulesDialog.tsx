@@ -59,6 +59,8 @@ import {
 } from '../../site/numbers'
 import { RULES_DIALOG as T } from '../../text/rulesDialog'
 import { rich } from '../../utils/rich'
+import { routeHref } from '../../site/routes'
+import { WINDOWS_ANCHOR } from '../../site/tools/OrbitalWindows'
 
 /** What a kept hand is worth: the primary and both secondaries. */
 const HAND_POINTS =
@@ -211,7 +213,7 @@ function RulesCard({ open, onClose }: { open: boolean; onClose: () => void }) {
               link: text => (
                 <Box
                   component="a"
-                  href="/card#windows"
+                  href={`${routeHref({ kind: 'tools', tool: 'route' })}#${WINDOWS_ANCHOR}`}
                   target="_blank"
                   rel="noopener"
                   sx={{ color: TABLE.accent, '&:hover': { color: TABLE.ink } }}

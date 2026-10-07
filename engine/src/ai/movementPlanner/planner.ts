@@ -1,11 +1,14 @@
 /**
  * Reverse, turn-layered BFS for static destinations, plus route
- * alternatives and reachability helpers.
+ * alternatives (to a fixed sector, and through the forward search to any
+ * target) and reachability helpers.
  */
 import type { Facing } from "../../models/game.ts";
 import { ringVelocity, samePosition } from "../../game/geometry.ts";
 import { getPredecessors } from "./predecessors.ts";
 import { getSuccessors } from "./successors.ts";
+import { planMovementToTarget } from "./forward.ts";
+import type { PlannerTarget } from "./targets.ts";
 import type {
   OrbitalPosition,
   OrientedPosition,
@@ -318,4 +321,47 @@ export function planMovementAlternatives(
   }
 
   return alternatives.length === 0 ? null : { destination, alternatives };
+}
+
+/**
+ * The same three alternatives to any {@link PlannerTarget}, through the
+ * forward search: a moving target (a station) or a route that must arrive
+ * with fuel aboard (`arrivalMass`), which the reverse search cannot plan.
+ * Fastest; economical when it differs; and balanced, the cheapest route
+ * within one turn of the fastest, when it is cheaper than the fastest and
+ * differs from both.
+ */
+export function planAlternativesToTarget(
+  origin: OrientedPosition,
+  target: PlannerTarget,
+  options: Partial<Omit<PlannerOptions, "mode">> = {}
+): MovementAlternatives | null {
+  const baseOptions = { ...DEFAULT_PLANNER_OPTIONS, ...options };
+  const fastest = planMovementToTarget(origin, target, { ...baseOptions, mode: "fastest" });
+  if (!fastest) return null;
+  fastest.label = "⚡ Fastest";
+  const alternatives: MovementPlan[] = [fastest];
+
+  const economical = planMovementToTarget(origin, target, { ...baseOptions, mode: "economical" });
+  if (economical && !plansAreEquivalent(economical, fastest)) {
+    economical.label = "💰 Economical";
+    alternatives.push(economical);
+
+    const balanced = planMovementToTarget(origin, target, {
+      ...baseOptions,
+      mode: "economical",
+      maxTurns: Math.min(baseOptions.maxTurns, fastest.totalTurns + 1),
+    });
+    if (
+      balanced &&
+      !plansAreEquivalent(balanced, fastest) &&
+      !plansAreEquivalent(balanced, economical) &&
+      balanced.totalMassCost < fastest.totalMassCost
+    ) {
+      balanced.label = "⚖️ Balanced";
+      alternatives.splice(1, 0, balanced);
+    }
+  }
+
+  return { destination: fastest.destination, alternatives };
 }

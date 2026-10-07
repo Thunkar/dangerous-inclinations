@@ -1,13 +1,12 @@
 /**
  * Forward, time-layered BFS path planner.
  *
- * Given an oriented origin and a {@link PlannerTarget}, find the shortest
- * action sequence that lands the ship on the target, where "the target" may
- * move with time (stations, drifting enemies). The search expands the
- * ship's reachable states layer by layer, one movement action per layer; at
- * every newly reached state the target's `isMatch` is consulted with the
- * current layer index. The first match is the optimal plan (BFS layered by
- * turn = uniform cost in turns).
+ * Given an oriented origin and a {@link PlannerTarget}, find an action
+ * sequence that lands the ship on the target, where "the target" may move
+ * with time (stations, drifting enemies). The search expands the ship's
+ * reachable states layer by layer, one movement action per layer; at every
+ * newly reached state the target's `isMatch` is consulted with the current
+ * layer index.
  *
  *   Layer 0:    {origin, both facings}
  *      │  getSuccessors
@@ -15,6 +14,14 @@
  *      │  getSuccessors
  *   Layer 2:    {states after 2 actions}  ── isMatch(state, 2)? → plan
  *      │  ...
+ *
+ * Two modes, as the reverse search has:
+ *   - "fastest": the first match is the plan (BFS layered by turn = uniform
+ *     cost in turns).
+ *   - "economical": every layer up to `maxTurns` is expanded and the plan is
+ *     the match with the lowest fuel; ties go to fewer turns, then to the
+ *     first found. A state that has arrived (matched, with the fuel asked
+ *     for) is not expanded further: the ship is there.
  *
  * Why forward (not reverse, like {@link ./planner.ts:planMovement})? Reverse
  * BFS expands predecessors of a fixed destination. Dynamic targets make the
@@ -29,6 +36,24 @@
  * station is 4 sectors away is a different state from being at P when it is
  * there. Since target motion is periodic, (turn mod period) captures
  * everything that affects future matches, and the earlier visit dominates.
+ * The bucket is exact (mass runs from minus the tank to the fuel aboard,
+ * well inside its 64 values), so two states with one key have the same fuel
+ * and the same future, and dropping the later one is sound in both modes: a
+ * cheaper arrival at a state already visited has another bucket and is kept.
+ *
+ * Economical mode prunes one step further, by dominance: per (position,
+ * facing, phase) it keeps the lowest mass of a state it carried on from, and
+ * drops a state unless its mass is strictly lower. That is sound because
+ * more fuel never hurts: `getSuccessors` offers every move whose cost fits
+ * the fuel aboard (a superset with more), each step's cost does not depend
+ * on the fuel, the tank clamp `max(mass, minMassCost)` keeps the order of two fuel levels,
+ * and both the match (periodic in the turn) and the arrival-fuel check are
+ * at least as easy with more fuel aboard. The state seen first was reached
+ * no later, so it dominates in turns as well. An arrival is left out of it:
+ * it is not expanded, so a lighter state on the same place and phase (one
+ * that matched without the fuel asked for) must still carry on, where it may
+ * scoop up and come round cheaper. Fastest mode does not use the prune, so
+ * the plan it returns, which the bots fly, is the one it always was.
  */
 
 import type { BurnIntensity } from "../../models/game.ts";
@@ -62,11 +87,13 @@ interface ForwardNode {
 }
 
 /**
- * Plan a movement to any target, static or dynamic. Returns `null` if no
- * path is found within `options.maxTurns`.
+ * Plan a movement to any target, static or dynamic, the fastest or the
+ * cheapest in fuel (`options.mode`). Returns `null` if no path is found
+ * within `options.maxTurns`.
  *
  * For static targets, {@link ./planner.ts:planMovement} (reverse BFS) is
- * faster; use this whenever the target moves or matches fuzzily.
+ * faster; use this whenever the target moves or matches fuzzily, or the ship
+ * must arrive with fuel aboard.
  */
 export function planMovementToTarget(
   origin: OrientedPosition,
@@ -93,9 +120,19 @@ export function planMovementToTarget(
     frontier.set(frontierKeyInt(node.position, node.massCost, 0), node);
   }
 
+  const economical = opts.mode === "economical";
+  /** Economical mode: the lowest mass seen per (position, facing, phase). */
+  const cheapest = new Map<number, number>();
+  if (economical) {
+    for (const node of layerZero) cheapest.set(dominanceKeyInt(node.position, 0), node.massCost);
+  }
+  /** Economical mode: the cheapest arrival so far. */
+  let best: ForwardNode | null = null;
+
   let currentLayer: ForwardNode[] = layerZero;
   const availableMass = opts.availableMass;
-  const minMassCost = -(opts.maxFuelCapacity - availableMass);
+  // Written so a full tank gives 0, not -0.
+  const minMassCost = availableMass - opts.maxFuelCapacity;
   const successorOptions = {
     allowWellTransfers: opts.allowWellTransfers,
     hasFuelScoop: opts.hasFuelScoop,
@@ -123,6 +160,23 @@ export function planMovementToTarget(
         const existing = frontier.get(key);
         if (existing !== undefined && existing.turns <= nextTurn) continue;
 
+        const matched = target.isMatch
+          ? target.isMatch(succ.position, nextTurn)
+          : samePosition(succ.position, target.positionAt(nextTurn));
+        // Arriving light is not arriving: the search carries on for a path
+        // that gets there with the fuel asked for.
+        const enough = availableMass - newMassCost >= (opts.arrivalMass ?? 0);
+        const arrived = matched && enough;
+
+        // An arrival is not expanded, so it dominates nothing: only a state
+        // the search carries on from may prune another.
+        if (economical && !arrived) {
+          const state = dominanceKeyInt(succ.position, phase);
+          const seen = cheapest.get(state);
+          if (seen !== undefined && seen <= newMassCost) continue;
+          cheapest.set(state, newMassCost);
+        }
+
         const child: ForwardNode = {
           position: succ.position,
           turns: nextTurn,
@@ -133,23 +187,23 @@ export function planMovementToTarget(
           parent: node,
         };
         frontier.set(key, child);
-        nextLayer.push(child);
 
-        const matched = target.isMatch
-          ? target.isMatch(child.position, nextTurn)
-          : samePosition(child.position, target.positionAt(nextTurn));
-        // Arriving light is not arriving: the search carries on for a path
-        // that gets there with the fuel asked for.
-        const enough = availableMass - newMassCost >= (opts.arrivalMass ?? 0);
-        if (matched && enough) return reconstructForwardPlan(child, origin, target, opts);
+        if (arrived) {
+          if (!economical) return reconstructForwardPlan(child, origin, target, opts);
+          // Layers run in order of turns, so strictly cheaper is the whole
+          // tie-break: fewer turns, then the first found.
+          if (!best || newMassCost < best.massCost) best = child;
+          continue;
+        }
+        nextLayer.push(child);
       }
     }
 
-    if (nextLayer.length === 0) return null;
+    if (nextLayer.length === 0) break;
     currentLayer = nextLayer;
   }
 
-  return null;
+  return best ? reconstructForwardPlan(best, origin, target, opts) : null;
 }
 
 /**
@@ -159,6 +213,11 @@ export function planMovementToTarget(
 function frontierKeyInt(position: OrientedPosition, mass: number, phase: number): number {
   const massBucket = (Math.round(mass) + 32) & 0x3f;
   return (positionKeyInt(position) * 64 + massBucket) * 32 + (phase & 0x1f);
+}
+
+/** (position, facing, phase): the state the economical mode compares fuel on. */
+function dominanceKeyInt(position: OrientedPosition, phase: number): number {
+  return positionKeyInt(position) * 32 + (phase & 0x1f);
 }
 
 function reconstructForwardPlan(

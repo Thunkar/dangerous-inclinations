@@ -1,33 +1,27 @@
 /**
  * The orbital windows, worked out from the engine: where the stations can be,
- * which lanes ring the black hole, and how many turns a trip takes for every
- * reading of the station clock.
+ * and how many turns a trip takes for every reading of the station clock.
  *
  * The map is symmetric: every planet has the same rings and the same two lane
  * arcs, and the circuit's three legs are one leg turned round. So one planet
  * and one leg are planned, and what they say holds for all three. Planning is
  * the game's own route planner (`planMovementToTarget`), run after first paint
- * (see `useWindowTables`), because thirty searches are a noticeable pause.
+ * (see `useWindowTables`), because two dozen searches are a noticeable pause.
  */
 import { useEffect, useState } from 'react'
 import {
-  BLACK_HOLE_OUTER_RING,
   MAX_REACTION_MASS,
   PLANETS,
   SECTORS_PER_RING,
-  STATION_INITIAL_SECTOR,
   STATION_RING,
   TANKER_FUEL,
   TRANSFER_LANES,
   circuitRoutes,
   planMovementToTarget,
+  stationSectors,
   stationTarget,
-  wrapSector,
 } from '@dangerous-inclinations/engine'
 import type { OrbitalPosition } from '@dangerous-inclinations/engine'
-import { STATION_DRIFT } from '../turn'
-
-export type Lane = (typeof TRANSFER_LANES)[number]
 
 const PLANET_IDS = PLANETS.map(planet => planet.id)
 
@@ -38,36 +32,10 @@ export const planetName = (id: string) => PLANETS.find(planet => planet.id === i
  * reaches them. All three start together and step together, so one list is
  * every station.
  */
-export const CLOCK: number[] = (() => {
-  const seen: number[] = []
-  let sector = STATION_INITIAL_SECTOR
-  while (!seen.includes(sector)) {
-    seen.push(sector)
-    sector = wrapSector(sector + STATION_DRIFT)
-  }
-  return seen
-})()
-
-/** Black hole ring 5, all lanes, clockwise from sector 0. */
-export const RING_LANES: Lane[] = TRANSFER_LANES.filter(
-  lane => lane.blackHoleArc.ring === BLACK_HOLE_OUTER_RING
-).sort((a, b) => a.blackHoleArc.startSector - b.blackHoleArc.startSector)
-
-/** The lanes out to each planet: where you jump from, and the lane mouth. */
-export const OUTBOUND = RING_LANES.filter(lane => lane.direction === 'outbound')
+export const CLOCK: number[] = stationSectors()
 
 /** The Deliver routes, as the deck prints them. */
 export const CIRCUIT = circuitRoutes(PLANET_IDS)
-
-/** The planets in circuit order, each route's delivery the next one's pickup. */
-export const CIRCUIT_ORDER: string[] = (() => {
-  const order = [CIRCUIT[0][0]]
-  for (;;) {
-    const next = CIRCUIT.find(([from]) => from === order[order.length - 1])?.[1]
-    if (!next || order.includes(next)) return order
-    order.push(next)
-  }
-})()
 
 /** The planet every figure and table is worked on (the others are the same). */
 const SAMPLE = PLANET_IDS[0]
@@ -89,7 +57,6 @@ export interface WindowTables {
   tankerCompressed: Row
   /** From moored at the pickup station to docked at the next one round the circuit. */
   leg: Row
-  legCompressed: Row
 }
 
 type Job = { row: keyof WindowTables; index: number; run: () => number | null }
@@ -138,8 +105,7 @@ function jobs(): Job[] {
         index,
         run: () => turnsTo(mouth, SAMPLE, sector, true, TANKER_FUEL),
       },
-      { row: 'leg', index, run: () => turnsTo(moored, delivery, sector, false, 0) },
-      { row: 'legCompressed', index, run: () => turnsTo(moored, delivery, sector, true, 0) }
+      { row: 'leg', index, run: () => turnsTo(moored, delivery, sector, false, 0) }
     )
   })
   return out
@@ -162,7 +128,6 @@ export function useWindowTables(): WindowTables | null {
       tanker: blank(),
       tankerCompressed: blank(),
       leg: blank(),
-      legCompressed: blank(),
     }
     const queue = jobs()
     const idle = typeof window.requestIdleCallback === 'function'
@@ -198,9 +163,6 @@ export const highest = (row: Row) => Math.max(...row.filter((v): v is number => 
 
 /** The turns a row gives on one clock reading. */
 export const at = (row: Row, clock: number) => row[CLOCK.indexOf(clock)]
-
-/** The reading one round after `clock`. */
-export const nextClock = (clock: number) => CLOCK[(CLOCK.indexOf(clock) + 1) % CLOCK.length]
 
 /** "0", "0 or 4", "4, 8 or 20" (or "and"). */
 export function either(values: Array<number | string>, word = 'or'): string {

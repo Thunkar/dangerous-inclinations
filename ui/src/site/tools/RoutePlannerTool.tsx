@@ -6,8 +6,15 @@
  * (body, ring, sector, which is quicker on a phone) or clicked on the board.
  * A destination is a sector or a planet's station, and a station moves, so a
  * route to one is planned against where the station will be when the ship
- * gets there (`planMovementToTarget` with `orbitingTarget`, as the bots do),
- * not against the sector it is on now.
+ * gets there (the forward search with `orbitingTarget`, as the bots do), not
+ * against the sector it is on now. Every destination gets the same three
+ * alternatives, fastest, balanced and economical: from the reverse search to
+ * a fixed sector, from the forward search to a station or when the route
+ * must arrive with fuel aboard, since only that search knows the tank at
+ * every step.
+ *
+ * Under the planner sit the orbital windows (`OrbitalWindows.tsx`), read off
+ * the same station clock the "Stations now at" control sets.
  *
  * The board renders a `BoardModel` and only that (`components/board/model.ts`),
  * which is what lets it run with no game behind it: this builds one by hand,
@@ -33,8 +40,9 @@ import {
   isPlanet,
   orbitingTarget,
   staticTarget,
+  stationSectors,
+  planAlternativesToTarget,
   planMovementAlternatives,
-  planMovementToTarget,
   samePosition,
   wrapSector,
 } from '@dangerous-inclinations/engine'
@@ -46,8 +54,11 @@ import { FONT_SANS, TABLE } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { STATION_DRIFT } from '../turn'
 import { Field, Label, Plate, Segments, Stepper, Toggle } from './controls'
+import { OrbitalWindows } from './OrbitalWindows'
 
 const SHIP_ID = 'planner'
+/** The sectors a station can stand on: the station clock's readings. */
+const STATION_CLOCK = stationSectors()
 const SHIP_COLOR = getPlayerColor(0)
 
 /** What a click on the board sets. */
@@ -138,8 +149,9 @@ export function RoutePlannerTool() {
     ring: s.ring,
     sector: s.sector,
   })
-  const moveStation = (planetId: GravityWellId, sector: number) =>
-    setStations(all => all.map(s => (s.planetId === planetId ? { ...s, sector } : s)))
+  // The stations all step together, so one reading moves all three, and a
+  // station only ever stands on a sector of its clock.
+  const moveStations = (sector: number) => setStations(all => all.map(s => ({ ...s, sector })))
 
   const options = {
     availableMass: fuel,
@@ -155,19 +167,15 @@ export function RoutePlannerTool() {
     const origin = { ...from, facing }
     if (destination.kind === 'station') {
       if (!station) return []
-      const plan = planMovementToTarget(
-        origin,
-        orbitingTarget(stationAt(station), STATION_DRIFT),
-        options
-      )
-      return plan ? [{ ...plan, label: 'fastest' }] : []
+      const target = orbitingTarget(stationAt(station), STATION_DRIFT)
+      return planAlternativesToTarget(origin, target, options)?.alternatives ?? []
     }
     if (samePosition(from, destination.at)) return []
-    // Only the forward search knows the fuel at every step, so a route that has
-    // to arrive with some is one plan from it rather than a set of alternatives.
+    // Only the forward search knows the fuel at every step, so a route that
+    // has to arrive with some is planned by it.
     if (keep > 0) {
-      const plan = planMovementToTarget(origin, staticTarget(destination.at), options)
-      return plan ? [{ ...plan, label: 'fastest' }] : []
+      const target = staticTarget(destination.at)
+      return planAlternativesToTarget(origin, target, options)?.alternatives ?? []
     }
     return planMovementAlternatives(origin, destination.at, options)?.alternatives ?? []
     // `options` is rebuilt from these every render.
@@ -313,19 +321,19 @@ export function RoutePlannerTool() {
                     onChange={planetId => setDestination({ kind: 'station', planetId })}
                   />
                 </Field>
-                <Field label={`Station now at (ring ${STATION_RING})`}>
-                  <Stepper
-                    value={station.sector}
-                    min={0}
-                    max={SECTORS_PER_RING - 1}
-                    wrap
-                    editable
-                    onChange={sector => moveStation(station.planetId, sector)}
-                    label="station sector"
+                <Field label={`Stations now at (ring ${STATION_RING}, sector)`}>
+                  <Segments
+                    value={String(station.sector)}
+                    options={STATION_CLOCK.map(sector => ({
+                      value: String(sector),
+                      label: sector,
+                    }))}
+                    onChange={sector => moveStations(Number(sector))}
                   />
                 </Field>
                 <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
-                  It moves {STATION_DRIFT} sectors a round; the route meets it where it will be.
+                  Every station moves {STATION_DRIFT} sectors a round, together, so these are the
+                  only sectors one can be on; the route meets it where it will be.
                 </Box>
               </>
             ) : destination.kind === 'sector' ? (
@@ -492,6 +500,8 @@ export function RoutePlannerTool() {
           )}
         </Box>
       </Box>
+
+      <OrbitalWindows now={stations[0].sector} />
     </Box>
   )
 }

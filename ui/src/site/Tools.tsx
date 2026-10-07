@@ -28,7 +28,7 @@ const TOOLS: Record<ToolName, Tool> = {
     name: 'route',
     title: 'Route planner',
     blurb:
-      'The game’s own board: click where the ship is, click where it is going, and the engine lays out the turns, the burns, the phasing and the lane.',
+      'The game’s own board: click where the ship is, click where it is going, and the engine lays out the turns, the burns, the phasing and the lane; under it, the orbital windows say when to set off.',
   },
   heat: {
     name: 'heat',
@@ -93,7 +93,7 @@ function ToolsIndex() {
       <PageTitle
         kicker="Table tools"
         title="The sums, done for you"
-        blurb="For a game at a real table. Each tool does the arithmetic of a turn with the engine that runs the video game, so the two always agree."
+        blurb="For a game at a real table. Each tool does the arithmetic of a turn with the engine that runs the video game."
       />
       <Box
         sx={{

@@ -23,7 +23,7 @@ import { GuideSection, SubHead } from './parts'
 import { BurnDiagram, CoastDiagram, JumpDiagram } from './moveDiagrams'
 import { CHEATSHEET } from '../../text/cheatsheet'
 import { rich } from '../../utils/rich'
-import { span } from './windows'
+import { span } from '../tools/windows'
 
 const T = CHEATSHEET.move
 
